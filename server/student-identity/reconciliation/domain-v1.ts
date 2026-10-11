@@ -124,6 +124,12 @@ function continuationCompatibleV1(
   source: ReconciliationSourceV1,
 ): boolean {
   if (personalAgreementV1(row, source.current) < 2) return false;
+  // Equal name/birth can belong to homonyms. Two explicit conflicts cannot be explained by a hash.
+  if (
+    compareReconciliationFieldV1(row.inepKey, source.current.inepKey) === 'different' &&
+    compareReconciliationFieldV1(row.filiation1Key, source.current.filiation1Key) === 'different'
+  )
+    return false;
   if (row.birthDate === source.current.birthDate) {
     // Birth and filiation alone also match siblings; a reused hash cannot settle their identity.
     return row.nameKey === source.current.nameKey || equalV1(row.inepKey, source.current.inepKey);
@@ -136,10 +142,63 @@ function continuationCompatibleV1(
   );
 }
 
+function rejectedOriginConflictsV1(
+  sources: readonly ReconciliationSourceV1[],
+  rejectedPairs: readonly ReconciliationRejectedPairV1[],
+): ReadonlyMap<string, readonly ReconciliationSourceV1[]> {
+  const byId = new Map(sources.map((source) => [source.sourceId, source]));
+  const byUid = new Map<string, ReconciliationSourceV1[]>();
+  for (const source of sources) {
+    if (!source.studentUid) continue;
+    const linked = byUid.get(source.studentUid) ?? [];
+    linked.push(source);
+    byUid.set(source.studentUid, linked);
+  }
+  const conflicts = new Map<string, ReconciliationSourceV1[]>();
+  const add = (left: ReconciliationSourceV1, right: ReconciliationSourceV1) => {
+    const others = conflicts.get(left.sourceId) ?? [];
+    others.push(right);
+    conflicts.set(left.sourceId, others);
+  };
+  for (const pair of rejectedPairs) {
+    const rejected = byId.get(pair.sourceId);
+    if (!rejected) continue;
+    for (const linked of byUid.get(pair.studentUid) ?? []) {
+      if (linked.sourceId === rejected.sourceId) continue;
+      add(linked, rejected);
+      add(rejected, linked);
+    }
+  }
+  return conflicts;
+}
+
+function rejectionContestsOriginV1(
+  row: NormalizedReportRowV1,
+  origin: ReconciliationSourceV1,
+  conflicts: ReadonlyMap<string, readonly ReconciliationSourceV1[]>,
+): boolean {
+  const agreement = personalAgreementV1(row, origin.current);
+  // A rejection separates both origins. Do not consume either one's observation, even as pending,
+  // when the other person's current/history explains the row at least as well or owns its INEP.
+  // These exact-field comparisons only veto continuity; neither counts nor hashes prove identity.
+  return (conflicts.get(origin.sourceId) ?? []).some(
+    (source) =>
+      observationsV1(source).some(
+        (previous) =>
+          (equalV1(row.inepKey, previous.inepKey) &&
+            !equalV1(row.inepKey, origin.current.inepKey)) ||
+          ((row.nameKey === previous.nameKey || equalV1(row.inepKey, previous.inepKey)) &&
+            personalAgreementV1(row, previous) >= agreement),
+      ),
+  );
+}
+
 function recognizeOriginsV1(
   rows: readonly ReconciliationReportRowV1[],
   sources: readonly ReconciliationSourceV1[],
+  rejectedPairs: readonly ReconciliationRejectedPairV1[],
 ): ReadonlyMap<number, ReconciliationSourceV1> {
+  const rejectedOrigins = rejectedOriginConflictsV1(sources, rejectedPairs);
   const proposals = new Map<number, readonly ReconciliationSourceV1[]>();
   const hashes = new Set(rows.map((row) => row.enrollmentHash));
   for (const row of rows) {
@@ -147,7 +206,11 @@ function recognizeOriginsV1(
     if (byHash.length > 0) {
       proposals.set(
         row.sourceRow,
-        byHash.length === 1 && continuationCompatibleV1(row, byHash[0]!) ? byHash : [],
+        byHash.length === 1 &&
+          continuationCompatibleV1(row, byHash[0]!) &&
+          !rejectionContestsOriginV1(row, byHash[0]!, rejectedOrigins)
+          ? byHash
+          : [],
       );
     } else {
       proposals.set(
@@ -155,7 +218,8 @@ function recognizeOriginsV1(
         sources.filter(
           (source) =>
             !observationsV1(source).some((observation) => hashes.has(observation.enrollmentHash)) &&
-            samePersonalV1(row, source.current),
+            samePersonalV1(row, source.current) &&
+            !rejectionContestsOriginV1(row, source, rejectedOrigins),
         ),
       );
     }
@@ -191,6 +255,7 @@ function rejectionEvidenceV1(row: NormalizedReportRowV1, source: ReconciliationS
   return observationsV1(source).some(
     (previous) =>
       previous.enrollmentHash === row.enrollmentHash ||
+      equalV1(previous.inepKey, row.inepKey) ||
       personalAgreementV1(row, previous) >= 2 ||
       (previous.nameKey === row.nameKey && previous.classKey === row.classKey),
   );
@@ -359,7 +424,7 @@ export function planStudentReconciliationV1(input: {
   readonly sources: readonly ReconciliationSourceV1[];
   readonly rejectedPairs: readonly ReconciliationRejectedPairV1[];
 }): StudentReconciliationPlanV1 {
-  const origins = recognizeOriginsV1(input.rows, input.sources);
+  const origins = recognizeOriginsV1(input.rows, input.sources, input.rejectedPairs);
   const candidates = input.rows.map((row) =>
     candidatesForRowV1(
       row,
