@@ -8,6 +8,8 @@ import {
   GRADEBOOK_CURRENT_SCHEMA_PLAN_V1,
   GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1,
   GRADEBOOK_CURRENT_TABLES_V1,
+  GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1,
+  GRADEBOOK_RECONCILIATION_TABLES_V1,
 } from '../../../server/gradebook/recovery/current-gradebook-schema-v1';
 import { compareCanonicalStringsV1 } from '../../../shared/gradebook-contracts/string-order-v1';
 
@@ -37,15 +39,12 @@ describe('current Gradebook recovery catalog V1', () => {
     expect(GRADEBOOK_CURRENT_SCHEMA_PLAN_V1.at(-1)).toBe('current_cross_schema_indexes_v1.sql');
 
     for (const file of GRADEBOOK_CURRENT_SCHEMA_PLAN_V1) {
-      expect(
-        existsSync(join(root, 'migrations/gradebook-simplified', file)),
-        file,
-      ).toBe(true);
+      expect(existsSync(join(root, 'migrations/gradebook-simplified', file)), file).toBe(true);
     }
   });
 
   it('accounts for every migration file on disk, so the gate cannot silently skip one', () => {
-    // The gate replays GRADEBOOK_CURRENT_SCHEMA_PLAN_V1, not the directory. A new migration
+    // The gate replays the applied baseline and the complete dependent candidate package. A new migration
     // left out of the plan would never be applied in CI, and the table-set assertion would
     // still pass because it compares the declared catalog with what the plan created.
     const intentionallyNotReplayed = new Map([
@@ -53,7 +52,12 @@ describe('current Gradebook recovery catalog V1', () => {
       ['inspect_current_schema.sql', 'read-only catalog inspection, not a migration'],
     ]);
     const directory = join(root, 'migrations/gradebook-simplified');
-    const planned = new Set<string>(GRADEBOOK_CURRENT_SCHEMA_PLAN_V1);
+    const planned = new Set<string>([
+      ...GRADEBOOK_CURRENT_SCHEMA_PLAN_V1,
+      ...GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1.filter((file) =>
+        file.startsWith('gradebook-simplified/'),
+      ).map((file) => file.slice('gradebook-simplified/'.length)),
+    ]);
     const unaccounted = readdirSync(directory)
       .filter((file) => file.endsWith('.sql'))
       .filter((file) => !planned.has(file) && !intentionallyNotReplayed.has(file))
@@ -61,12 +65,28 @@ describe('current Gradebook recovery catalog V1', () => {
 
     expect(
       unaccounted,
-      'add each new migration to GRADEBOOK_CURRENT_SCHEMA_PLAN_V1, or justify leaving it out',
+      'add each new migration to the applied or dependent candidate schema plan',
     ).toEqual([]);
     for (const file of intentionallyNotReplayed.keys()) {
       expect(existsSync(join(directory, file)), `stale exclusion ${file}`).toBe(true);
       expect(planned.has(file), `${file} is excluded and planned at once`).toBe(false);
     }
+  });
+
+  it('proves the complete candidate package after the Portal baseline instead of omitting dependent migrations', () => {
+    expect(GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1).toEqual([
+      'gradebook-simplified/0015_student_reconciliation_v1.sql',
+      'student-portal/0025_reconciliation_credentials_v1.sql',
+      'gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
+    ]);
+    expect(GRADEBOOK_RECONCILIATION_TABLES_V1).toHaveLength(9);
+    expect(new Set(GRADEBOOK_RECONCILIATION_TABLES_V1).size).toBe(9);
+    for (const file of GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1) {
+      expect(existsSync(join(root, 'migrations', file)), file).toBe(true);
+    }
+    const gate = readFileSync(join(root, 'scripts/ci/gradebook-postgres-gate-v1.ts'), 'utf8');
+    expect(gate).toContain('await applyReconciliationCandidateSchemaV1(sql, process.cwd())');
+    expect(gate).toContain('await assertReconciliationCandidateSchemaV1(sql)');
   });
 
   it('replays numbered migrations in ascending order', () => {

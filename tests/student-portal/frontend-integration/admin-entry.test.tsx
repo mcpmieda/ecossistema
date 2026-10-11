@@ -21,6 +21,7 @@ import type { AdminReadQueryV2 } from '../../../shared/student-portal-contracts/
 import type { AdminQueryV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { operationsMockV1, opJsonV1 } from '../ui/overview/fixtures-v1';
 import { setupOperationsDomV1 } from '../ui/overview/dom-v1';
+import { emptyReconciliationReadV1 } from '../ui/accounts/fixtures-v1';
 
 const identity = (write = true, key = 'synthetic-757-session') => ({
   authenticated: true,
@@ -191,6 +192,8 @@ it('mounts actual operational modules, keeps 2026 independent of the BN hash and
     if (path === '/api/me') return opJsonV1(identity(false));
     if (denied) return opJsonV1({ contractVersion: 1, state: 'forbidden' }, 403);
     const input = JSON.parse(String(init.body));
+    if (path === '/api/student-reconciliation/v1')
+      return opJsonV1(emptyReconciliationReadV1(input.operation));
     return opJsonV1(
       input.contractVersion === 2
         ? await mock.reader.query(input as AdminReadQueryV2, init.signal ?? undefined)
@@ -206,6 +209,7 @@ it('mounts actual operational modules, keeps 2026 independent of the BN hash and
   expect(await screen.findByText('Somente leitura')).toBeTruthy();
   expect(await screen.findByText('Operando normalmente')).toBeTruthy();
   await userEvent.setup().click(screen.getByRole('tab', { name: 'Alunos' }));
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'Acessos e QR' }));
   expect(await screen.findByText('SYNTHETIC OP STUDENT 1')).toBeTruthy();
   expect(mock.queries.every((query) => query.scope.academicYear === 2026)).toBe(true);
   expect(mock.writes).toHaveLength(0);
@@ -215,7 +219,9 @@ it('mounts actual operational modules, keeps 2026 independent of the BN hash and
   expect(screen.queryByText('SYNTHETIC OP STUDENT 1')).toBeNull();
   expect(screen.queryByRole('navigation', { name: 'Áreas do Painel do Aluno' })).toBeNull();
   expect(
-    calls.every((path) => path === '/api/me' || path === '/api/student-portal/admin/query'),
+    calls.every((path) =>
+      ['/api/me', '/api/student-portal/admin/query', '/api/student-reconciliation/v1'].includes(path),
+    ),
   ).toBe(true);
 });
 it('registers one permission-filtered module and searches its sections without changing existing navigation', () => {
@@ -245,6 +251,8 @@ it('shares the last class tab across panel areas and resets it for another ident
   const fetcher: PortalFetchV1 = async (path, init) => {
     if (path === '/api/me') return opJsonV1(identity(false, key));
     const input = JSON.parse(String(init.body));
+    if (path === '/api/student-reconciliation/v1')
+      return opJsonV1(emptyReconciliationReadV1(input.operation));
     return opJsonV1(
       input.contractVersion === 2 ? await mock.reader.query(input) : await mock.client.query(input),
     );
@@ -270,6 +278,7 @@ it('shares the last class tab across panel areas and resets it for another ident
   window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts');
   render(<StudentPortalAdminPage fetcher={fetcher} />);
   const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
   await user.click(await screen.findByRole('tab', { name: 'SYNTHETIC OP CLASS' }));
   await screen.findByText('SYNTHETIC OP STUDENT 1');
   expect(

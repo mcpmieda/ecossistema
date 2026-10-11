@@ -9,6 +9,7 @@ import { SYNTHETIC_QR_V1 } from '../../../shared/student-portal-contracts/fixtur
 import { clientFixtureV1 } from '../ui/auth/fixtures-v1';
 import { setupOperationsDomV1 } from '../ui/overview/dom-v1';
 import { opJsonV1, operationsMockV1 } from '../ui/overview/fixtures-v1';
+import { emptyReconciliationReadV1 } from '../ui/accounts/fixtures-v1';
 
 beforeEach(setupOperationsDomV1);
 afterEach(() => {
@@ -34,12 +35,15 @@ it('keeps the actual admin account filter and detail for the same identity, but 
   const fetcher = vi.fn(async (path: string, init: RequestInit) => {
     if (path === '/api/me') return opJsonV1(identity(key));
     const input = JSON.parse(String(init.body));
+    if (path === '/api/student-reconciliation/v1')
+      return opJsonV1(emptyReconciliationReadV1(input.operation));
     return opJsonV1(
       input.contractVersion === 2 ? await mock.reader.query(input) : await mock.client.query(input),
     );
   });
   render(<StudentPortalAdminPage fetcher={fetcher} />);
   const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
   const filter = await screen.findByLabelText('Buscar aluno');
   await user.type(filter, 'SYNTHETIC');
   // The search narrows the list already read: it issues no request of its own.
@@ -62,6 +66,7 @@ it('keeps the actual admin account filter and detail for the same identity, but 
   key = 'synthetic-other-session';
   await act(async () => window.dispatchEvent(new Event('focus')));
   expect(screen.queryByRole('button', { name: 'Fechar ficha' })).toBeNull();
+  await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
   expect((screen.getByLabelText('Buscar aluno') as HTMLInputElement).value).toBe('');
 }, 15_000);
 

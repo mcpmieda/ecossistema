@@ -13,19 +13,34 @@ const consumers = [
   ['src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx', "domains: ['gradebook']"],
   ['src/features/gradebook/settings/assessment-names-v1.tsx', "domains: ['gradebook']"],
   ['src/features/student-portal-admin/accounts/accounts-read-v1.ts', "domains: ['portal', 'gradebook']"],
-  ['src/features/student-portal-admin/birth-year/student-birth-years-v1.tsx', "domains: ['portal', 'gradebook']"],
   ['src/features/student-portal-admin/settings/student-settings-v1.tsx', "domains: ['portal', 'gradebook']"],
   ['src/features/student-portal-admin/publication/student-publication-v1.tsx', "domains: ['portal', 'gradebook']"],
 ] as const;
 
 describe('BN-21 current live consumer inventory', () => {
-  it('keeps the ten remaining consumers wired to authorized re-read invalidation', () => {
-    expect(consumers).toHaveLength(10);
+  it('keeps the nine direct refresh owners wired to authorized re-read invalidation', () => {
+    expect(consumers).toHaveLength(9);
     for (const [path, domains] of consumers) {
       const value = source(path);
       expect(value, path).toContain('useLiveRefreshV1');
       expect(value, path).toContain(domains);
     }
+  });
+
+  it('keeps canonical birth and the QR account collection on the shared authorized refresh chain', () => {
+    const birth = source('src/features/student-portal-admin/birth-year/student-birth-years-v1.tsx');
+    const accounts = source('src/features/student-portal-admin/accounts/student-accounts-v1.tsx');
+    expect(birth).toContain('useContinuousReadV1(load,');
+    expect(accounts).toContain('useContinuousReadV1(');
+    expect(accounts).toContain('<QrBatchToolsV1');
+    expect(source('src/features/student-portal-admin/shared/continuous-read-v1.tsx')).toContain(
+      'useOperationalReadV1(load, onAuthorizationLost, active, eventDriven)',
+    );
+    expect(source('src/features/student-portal-admin/overview/operations-values-v1.ts')).toContain(
+      'useAccountsReadV1(guarded, active, eventDriven)',
+    );
+    expect(birth).not.toContain('LIVE_HEAVY_READ_INTERVAL_V1');
+    expect(accounts).not.toContain('LIVE_HEAVY_READ_INTERVAL_V1');
   });
 
   it('does not silently turn the heavy analytics cadence into a universal rule', () => {

@@ -11,11 +11,13 @@ import {
   encodePhotoAvatarBatchV1,
 } from '../../../../shared/student-photos/avatar-batch-v1';
 import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
+import type { ReconciliationClientV1 } from '../../../../src/features/student-portal-admin/shared/reconciliation-client-v1';
 import {
   accountsMockV1,
   accountFixtureV1,
   accountJsonV1,
   accountPageV1,
+  emptyReconciliationReadV1,
   ACCOUNT_META_V1,
   ACCOUNT_CLASS_V1,
 } from './fixtures-v1';
@@ -49,6 +51,39 @@ afterEach(() => {
 const ready = () => screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' });
 const detail = () => screen.findByRole('button', { name: 'Bloquear acesso' });
 describe('account list and detail', () => {
+  it('restores a valid account hash through the reconciliation wrapper and clears it when leaving the list', async () => {
+    const mock = accountsMockV1({ count: 1 });
+    const accountId = mock.accounts[0]!.accountId;
+    window.history.replaceState(null, '', `/#/painel-do-aluno?area=accounts&aluno=${accountId}`);
+    const request = vi.fn<ReconciliationClientV1['request']>(async (input) =>
+      emptyReconciliationReadV1(input.operation),
+    );
+    render(createElement(StudentAccountsV1, { ...mock.props, reconciliation: { request } }));
+    const user = userEvent.setup();
+    const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
+    expect(await within(drawer).findByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
+    expect(request).not.toHaveBeenCalled();
+    await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Ficha do aluno' })).toBeNull());
+    await user.click(screen.getByRole('button', { name: 'Alunos' }));
+    await waitFor(() => expect(request).toHaveBeenCalled());
+    expect(new URLSearchParams(window.location.hash.split('?')[1]).get('aluno')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Acessos e QR' }));
+    await ready();
+    expect(screen.queryByRole('dialog', { name: 'Ficha do aluno' })).toBeNull();
+    expect(mock.writes).toHaveLength(0);
+  });
+  it.each(['', '&aluno=invalid-account'])('starts reconciliation without a valid account hash: %s', async (suffix) => {
+    window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts' + suffix);
+    const mock = accountsMockV1({ count: 1 });
+    const request = vi.fn<ReconciliationClientV1['request']>(async (input) =>
+      emptyReconciliationReadV1(input.operation),
+    );
+    render(createElement(StudentAccountsV1, { ...mock.props, reconciliation: { request } }));
+    await waitFor(() => expect(request).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' })).toBeNull();
+    expect(mock.queries).toHaveLength(0);
+  });
   it('offers bulk operations only for a selected class and keeps the read-only preview inert', async () => {
     const mock = accountsMockV1();
     render(createElement(StudentAccountsV1, { ...mock.props, canWrite: false }));

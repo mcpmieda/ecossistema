@@ -83,7 +83,9 @@ const SCHOOL_V1: ScopeV1 = { kind: 'school', academicYear: 2026 };
 /** A class is a view of the school collection: changing class keeps what was already read. */
 const readScopeV1 = (scope: ScopeV1) => (scope.kind === 'account' ? scope : SCHOOL_V1);
 export function StudentAccountsV1(props: StudentAccountsPropsV1) {
-  const [showAccounts, setShowAccounts] = useState(props.showAccountsInitially ?? false);
+  const [showAccounts, setShowAccounts] = useState(
+    () => props.showAccountsInitially === true || panelHashAccountIdV1('aluno') !== null,
+  );
   if (props.reconciliation && props.scope.kind !== 'account') {
     return (
       <div className="space-y-4">

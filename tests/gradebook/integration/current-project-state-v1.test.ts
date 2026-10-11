@@ -38,16 +38,22 @@ async function readYamlDocument(path: string) {
   return document;
 }
 
-const latestMigration = (directory: string) =>
+const migrationFiles = (directory: string) =>
   readdirSync(join(root, directory))
     .filter((name) => /^\d{4}_.+\.sql$/u.test(name))
-    .sort((left, right) => left.localeCompare(right))
-    .at(-1);
+    .sort((left, right) => left.localeCompare(right));
+
+const reconciliationCandidates = {
+  gradebook: ['0015_student_reconciliation_v1.sql', '0016_reconciliation_year_reset_v1.sql'],
+  portal: ['0025_reconciliation_credentials_v1.sql'],
+} as const;
 
 describe('current canonical project state', () => {
-  it('tracks the latest Gradebook migration present in the current tree', () => {
+  it('preserves the latest applied Gradebook migration separately from draft candidates', () => {
     const state = source('docs/gradebook/PROJECT_STATE.yaml');
-    const latest = latestMigration('migrations/gradebook-simplified');
+    const latest = migrationFiles('migrations/gradebook-simplified')
+      .filter((file) => !new Set<string>(reconciliationCandidates.gradebook).has(file))
+      .at(-1);
     expect(latest).toBe('0014_function_execute_hardening_v1.sql');
     expect(state).toContain(`latest_gradebook_migration_file: ${latest}`);
     expect(state).toContain('latest_gradebook_migration_status: applied-and-postflight-verified');
@@ -71,7 +77,9 @@ describe('current canonical project state', () => {
     const portalState = await readYamlDocument(
       join(root, 'docs/student-portal/PROJECT_STATE.yaml'),
     );
-    const latest = latestMigration('migrations/student-portal');
+    const latest = migrationFiles('migrations/student-portal')
+      .filter((file) => !new Set<string>(reconciliationCandidates.portal).has(file))
+      .at(-1);
     expect(latest).toBe('0024_seal_count_cache_v1.sql');
     expect(gradebookState).toMatchObject({
       storage: { total_table_count: 31, student_identity_table_count: 1 },
@@ -138,6 +146,28 @@ describe('current canonical project state', () => {
       expect(projectionEvidence).toContain('54aef301d949cbe5da5de07977580722491563ad');
       expect(projectionEvidence).toContain(projection.validated_source_head);
     }
+  });
+
+  it('accounts for every unapplied reconciliation candidate and its documented dependency order', () => {
+    expect(
+      migrationFiles('migrations/gradebook-simplified').filter(
+        (file) => Number(file.slice(0, 4)) > 14,
+      ),
+    ).toEqual(reconciliationCandidates.gradebook);
+    expect(
+      migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) > 24),
+    ).toEqual(reconciliationCandidates.portal);
+    const contract = source('docs/student-identity/RECONCILIATION_V1.md');
+    const order = [
+      'gradebook-simplified/0015_student_reconciliation_v1.sql',
+      'student-portal/0025_reconciliation_credentials_v1.sql',
+      'gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
+    ];
+    const positions = order.map((file) => contract.indexOf(file));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((left, right) => left - right));
+    expect(contract).toContain('não altera a baseline de `PROJECT_STATE.yaml`');
+    expect(contract).toContain('A execução em produção depende de autorização posterior.');
   });
 
   it('rejects malformed YAML and an identity block nested under an unrelated key', async () => {

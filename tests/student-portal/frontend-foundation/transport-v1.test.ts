@@ -84,44 +84,36 @@ it('honors 401/403/429 and Retry-After without logging payloads or automatically
   } finally { clock.mockRestore(); }
 });
 
-it('preserves command bytes, CAS and idempotency when resuming partial batches', async () => {
+it('preserves command bytes, CAS and idempotency when resuming prepared QR batches', async () => {
   const input = {
     contractVersion: 1 as const,
-    operation: 'birth-batch' as const,
+    operation: 'qr-batch' as const,
     classId: 970744,
     expectedVersion: 3,
     idempotencyKey: id,
-    expectedCount: 1,
     confirmed: true as const,
-    items: [
-      {
-        action: 'set' as const,
-        accountId: id,
-        expectedVersion: 2,
-        year: '2001',
-        confirmation: 'confirmed' as const,
-      },
-    ],
+    accountIds: [id],
+    mode: 'qr-only' as const,
   };
   const fetch = vi.fn<PortalFetchV1>(async () =>
     json({
       contractVersion: 1,
       requestId: id,
-      state: 'batch',
-      operationId: id,
-      items: [{ accountId: id, state: 'unavailable', version: 2 }],
+      state: 'qr',
+      version: 3,
+      cards: [{ accountId: id, mode: 'qr-only', qr: SYNTHETIC_QR_V1 }],
     }),
   );
   const operation = createPortalAdminClientV1({ fetch }).prepareCommand(input);
   await operation.execute();
   input.expectedVersion = 100;
-  input.items[0]!.year = '2002';
+  input.accountIds[0] = '22222222-2222-4222-8222-222222222222';
   await operation.execute();
   expect(fetch.mock.calls[0]?.[1]?.body).toBe(fetch.mock.calls[1]?.[1]?.body);
   expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toMatchObject({
     expectedVersion: 3,
     idempotencyKey: id,
-    items: [{ year: '2001' }],
+    accountIds: [id],
   });
   fetch
     .mockResolvedValueOnce(
@@ -136,35 +128,27 @@ it('preserves command bytes, CAS and idempotency when resuming partial batches',
 it('confirms an ambiguous admin command once with the exact same bytes', async () => {
   const input = {
     contractVersion: 1 as const,
-    operation: 'birth-batch' as const,
+    operation: 'qr-batch' as const,
     classId: 970744,
     expectedVersion: 3,
     idempotencyKey: id,
-    expectedCount: 1,
     confirmed: true as const,
-    items: [
-      {
-        action: 'set' as const,
-        accountId: id,
-        expectedVersion: 2,
-        year: '2001',
-        confirmation: 'confirmed' as const,
-      },
-    ],
+    accountIds: [id],
+    mode: 'qr-only' as const,
   };
   const response = {
     contractVersion: 1,
     requestId: id,
-    state: 'batch',
-    operationId: id,
-    items: [{ accountId: id, state: 'committed', version: 3 }],
+    state: 'qr',
+    version: 3,
+    cards: [{ accountId: id, mode: 'qr-only', qr: SYNTHETIC_QR_V1 }],
   } as const;
   const fetch = vi
     .fn<PortalFetchV1>()
     .mockRejectedValueOnce(new Error('synthetic-lost-response'))
     .mockResolvedValueOnce(json(response));
   const operation = createPortalAdminClientV1({ fetch }).prepareCommand(input);
-  await expect(operation.execute()).resolves.toMatchObject({ state: 'batch' });
+  await expect(operation.execute()).resolves.toMatchObject({ state: 'qr' });
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(fetch.mock.calls[0]?.[1]?.body).toBe(fetch.mock.calls[1]?.[1]?.body);
 
@@ -176,7 +160,7 @@ it('confirms an ambiguous admin command once with the exact same bytes', async (
     .mockResolvedValueOnce(json(response));
   await expect(
     createPortalAdminClientV1({ fetch: invalid }).prepareCommand(input).execute(),
-  ).resolves.toMatchObject({ state: 'batch' });
+  ).resolves.toMatchObject({ state: 'qr' });
   expect(invalid).toHaveBeenCalledTimes(2);
 
   const unavailable = vi
@@ -185,20 +169,20 @@ it('confirms an ambiguous admin command once with the exact same bytes', async (
     .mockResolvedValueOnce(json(response));
   await expect(
     createPortalAdminClientV1({ fetch: unavailable }).prepareCommand(input).execute(),
-  ).resolves.toMatchObject({ state: 'batch' });
+  ).resolves.toMatchObject({ state: 'qr' });
   expect(unavailable).toHaveBeenCalledTimes(2);
 });
 
 it('does not automatically repeat reads, refusals, rate limits or more than one ambiguous command response', async () => {
   const input = {
     contractVersion: 1 as const,
-    operation: 'birth-batch' as const,
+    operation: 'qr-batch' as const,
     classId: 970744,
     expectedVersion: 3,
     idempotencyKey: id,
-    expectedCount: 1,
     confirmed: true as const,
-    items: [{ action: 'clear' as const, accountId: id, expectedVersion: 2 }],
+    accountIds: [id],
+    mode: 'qr-only' as const,
   };
   const lost = vi.fn<PortalFetchV1>(async () => {
     throw new Error('synthetic-offline');

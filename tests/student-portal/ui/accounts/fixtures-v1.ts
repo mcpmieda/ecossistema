@@ -3,6 +3,7 @@ import type {
   AdminReadQueryV2,
 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { AdminCommandV1 } from '../../../../shared/student-portal-contracts/admin-v1';
+import type { ReconciliationResponseV1 } from '../../../../shared/student-identity/reconciliation-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { createPortalAdminClientV1 } from '../../../../src/features/student-portal-admin/shared/admin-client-v1';
 import {
@@ -13,6 +14,22 @@ export const ACCOUNT_SCHOOL_V1 = { kind: 'school', academicYear: 2026 } as const
 export const ACCOUNT_CLASS_V1 = { kind: 'class', academicYear: 2026, classId: 753001 } as const;
 export const accountIdV1 = (n: number) => '75300000-0000-4000-8000-' + String(n).padStart(12, '0');
 export const ACCOUNT_META_V1 = { contractVersion: 1 as const, requestId: accountIdV1(9000) };
+export function emptyReconciliationReadV1(operation: unknown): ReconciliationResponseV1 {
+  const base = {
+    contractVersion: 1 as const,
+    state: 'ready' as const,
+    context: {
+      generation: accountIdV1(9001),
+      revision: 1,
+      nameSource: 'report' as const,
+      relationAvailable: true,
+    },
+  };
+  if (operation === 'catalog')
+    return { ...base, operation, classes: [], reportClasses: [] };
+  if (operation === 'list') return { ...base, operation, items: [], nextCursor: null };
+  throw new Error('Unexpected synthetic reconciliation operation');
+}
 export const accountJsonV1 = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(data), {
     status,
