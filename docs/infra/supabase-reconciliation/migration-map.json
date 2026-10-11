@@ -1,0 +1,488 @@
+[
+  {
+    "version": "20260907172144",
+    "name": "bn_benchmark_v1",
+    "path": "migrations/postgres/0001_bn_benchmark_v1.sql",
+    "git_blob_sha1": "05a23c049f68d518fda7b53d84d856b763f96c13",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260908103626",
+    "name": "gradebook_production_v1",
+    "path": "migrations/postgres/0002_gradebook_production_v1.sql",
+    "git_blob_sha1": "5281daff7abbd2594951b136c23527b39702a9f2",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260908153620",
+    "name": "rotate_gradebook_app_password_20260908_02",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "operação administrativa",
+    "note": "Somente version/name consultados; corpo e valores de rotação não lidos."
+  },
+  {
+    "version": "20260908153655",
+    "name": "rotate_gradebook_app_password_20260908_03",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "operação administrativa",
+    "note": "Somente version/name consultados; corpo e valores de rotação não lidos."
+  },
+  {
+    "version": "20260908160759",
+    "name": "rotate_gradebook_app_password_20260908_04",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "operação administrativa",
+    "note": "Somente version/name consultados; corpo e valores de rotação não lidos."
+  },
+  {
+    "version": "20260908160852",
+    "name": "rotate_gradebook_app_password_20260908_05",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "operação administrativa",
+    "note": "Somente version/name consultados; corpo e valores de rotação não lidos."
+  },
+  {
+    "version": "20260908162021",
+    "name": "rotate_gradebook_app_password_20260908_06",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "operação administrativa",
+    "note": "Somente version/name consultados; corpo e valores de rotação não lidos."
+  },
+  {
+    "version": "20260908213513",
+    "name": "reset_gradebook_for_simplified_rebuild",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "operação destrutiva histórica",
+    "note": "Reset destrutivo de reconstrução; baseline 0001 é fotografia posterior, não o SQL exato do reset."
+  },
+  {
+    "version": "20260908230146",
+    "name": "grant_gradebook_app_access",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "ACL/segurança",
+    "note": "application_role_grants.sql é candidato contextual; grants/defaults posteriores podem diferir. Sem equivalência exata."
+  },
+  {
+    "version": "20260909001115",
+    "name": "defer_import_year_fk_for_atomic_first_relation",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "schema histórico",
+    "note": "README da baseline confirma FK DEFERRABLE INITIALLY DEFERRED incorporada em 0001; SQL produtivo original não identificado."
+  },
+  {
+    "version": "20260909020108",
+    "name": "create_simplified_gradebook_phase2",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "schema histórico",
+    "note": "Reconstrução anterior à baseline 0001 de 10/09; relações posteriores 0003–0005 não devem ser atribuídas a este passo sem prova."
+  },
+  {
+    "version": "20260909160930",
+    "name": "add_simplified_import_diagnostics_audit",
+    "path": "migrations/gradebook-simplified/0002_import_diagnostics_audit_v1.sql",
+    "git_blob_sha1": "94be41daf0a6dd2ea19eb12007aca98a5dd71b08",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "0002 já incorporada em baseline 0001; não reaplicar."
+  },
+  {
+    "version": "20260911140219",
+    "name": "import_diagnostic_treatment_v1",
+    "path": "migrations/gradebook-simplified/0006_import_diagnostic_treatment_v1.sql",
+    "git_blob_sha1": "f8b246ae87b59038436a7f04e04a9af82388ed52",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260911201622",
+    "name": "multiyear_rr_v1",
+    "path": "migrations/gradebook-simplified/0007_multiyear_rr_v1.sql",
+    "git_blob_sha1": "70dadc0f314c8c6b089128fb5900a1398ac9461f",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260912004843",
+    "name": "year_reset_acl_v1",
+    "path": "migrations/gradebook-simplified/0008_year_reset_acl_v1.sql",
+    "git_blob_sha1": "0d78ff42b8721367aa516629cc9f276941e15365",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "ACL/segurança",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260912141718",
+    "name": "student_portal_0001_identity_credentials_acl_v1",
+    "path": "migrations/student-portal/0001_identity_credentials_acl_v1.sql",
+    "git_blob_sha1": "8054454ed34d2a29cf550708fecc79111cb96f19",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "ACL/segurança",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260912141723",
+    "name": "student_portal_0002_policy_publication_revision_v1",
+    "path": "migrations/student-portal/0002_policy_publication_revision_v1.sql",
+    "git_blob_sha1": "4cc32abd6146aed9956156ff050f596d40cbd447",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260912141729",
+    "name": "student_portal_0003_audit_receipts_closure_integration_v1",
+    "path": "migrations/student-portal/0003_audit_receipts_closure_integration_v1.sql",
+    "git_blob_sha1": "d838306e083cc209346bc233a7918d5c8bfed411",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260912141733",
+    "name": "student_portal_0004_gradebook_integration_usage_v1",
+    "path": "migrations/student-portal/0004_gradebook_integration_usage_v1.sql",
+    "git_blob_sha1": "0b896b35405fed24920c92cac8d108eec922c687",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260912150002",
+    "name": "student_portal_runtime_connection_budget_v1",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "operação administrativa",
+    "note": "Operação administrativa de orçamento/conexões; sem arquivo SQL canônico identificado. Não inferir ALTER ROLE nem valores."
+  },
+  {
+    "version": "20260912165146",
+    "name": "year_reset_protocol_v1",
+    "path": "migrations/student-portal/0005_year_reset_protocol_v1.sql",
+    "git_blob_sha1": "2925b38bf3d9ed8751fc8605b6cfde54ce7e7a46",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260912173924",
+    "name": "gradebook_revision_year_range_v1",
+    "path": "migrations/student-portal/0006_gradebook_revision_year_range_v1.sql",
+    "git_blob_sha1": "0da9602791b1f8d37d4ff360988158c0e6b8004f",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260912182516",
+    "name": "lifecycle_integration_v1",
+    "path": "migrations/student-portal/0007_lifecycle_integration_v1.sql",
+    "git_blob_sha1": "3cc62d0d5488721565afdbf47ed31841b7b8c9b6",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260914235006",
+    "name": "student_portal_atomic_publication_v2",
+    "path": "migrations/student-portal/0008_atomic_publication_v2.sql",
+    "git_blob_sha1": "70ad3b5c3d4d976db37570159e1ffc3cba4e28b0",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260914235035",
+    "name": "student_portal_publication_cutover_guard_v2",
+    "path": "migrations/student-portal/0009_publication_cutover_guard_v2.sql",
+    "git_blob_sha1": "bc8d965c94f7fdf82dc291d5a2eca8383fddfeee",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260915102433",
+    "name": "student_portal_incremental_publication_v3",
+    "path": "migrations/student-portal/0010_incremental_publication_v3.sql",
+    "git_blob_sha1": "aadd570a3738f6c860731fe33fd8a92b9acedc30",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260915164741",
+    "name": "student_portal_live_event_outbox_v1",
+    "path": "migrations/student-portal/0011_live_event_outbox_v1.sql",
+    "git_blob_sha1": "36a7b160213d6dd700199486a12be0b24c5b88a9",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260916090209",
+    "name": "granular_observations_names_v1",
+    "path": "migrations/gradebook-simplified/0009_granular_observations_names_v1.sql",
+    "git_blob_sha1": "854106bdb5ede9afd78825a0e18a787c978454ee",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260916090215",
+    "name": "student_portal_granular_observations_names_v1",
+    "path": "migrations/student-portal/0012_granular_observations_names_v1.sql",
+    "git_blob_sha1": "d007d476ef296d2cb995fda78b827e8632c2bfb7",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260916200845",
+    "name": "student_portal_publication_inheritance_v1",
+    "path": "migrations/student-portal/0013_publication_inheritance_v1.sql",
+    "git_blob_sha1": "67668d8cd567efad1f59983572e2e5a107b6aff0",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260918114401",
+    "name": "gradebook_rls_v1",
+    "path": "migrations/gradebook-simplified/0011_gradebook_rls_v1.sql",
+    "git_blob_sha1": "07fa2eb2999ee2c7e598bcafeb1fdfeb0ac3f35a",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260918115606",
+    "name": "qualitative_corrections_2026_v1",
+    "path": "migrations/gradebook-simplified/0010_qualitative_corrections_2026_v1.sql",
+    "git_blob_sha1": "538b6a3238c1b7cbf970c8dc37c5c8ab52698c55",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema/dados histórico com risco destrutivo",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260918163014",
+    "name": "current_state_cleanup_v1",
+    "path": "migrations/gradebook-simplified/0012_current_state_cleanup_v1.sql",
+    "git_blob_sha1": "ba9e461b0bfca5b53c4165c00b22ab0f0015a0e5",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema/dados histórico com risco destrutivo",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260918173558",
+    "name": "year_reset_full_cleanup_v1",
+    "path": "migrations/student-portal/0014_year_reset_full_cleanup_v1.sql",
+    "git_blob_sha1": "659a367ba905d240f70cab4d0398e33782f3e561",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema/dados histórico com risco destrutivo",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260920004859",
+    "name": "student_portal_rls_v1",
+    "path": "migrations/student-portal/0015_student_portal_rls_v1.sql",
+    "git_blob_sha1": "fba7a92a8bbb07b3dde9913938ce983130bad7b2",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260920162250",
+    "name": "default_privileges_hardening_v1",
+    "path": "migrations/gradebook-simplified/0013_default_privileges_hardening_v1.sql",
+    "git_blob_sha1": "50fe3151d4ef12e56cb5cc2f82db626fb986ebeb",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "ACL/segurança",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260921211119",
+    "name": "system_health_history_1091_v1",
+    "path": "migrations/observability/0001_portal_health_history_v1.sql",
+    "git_blob_sha1": "3ee4c63749dfe7c1c791a99749183d6ddba75519",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260921222305",
+    "name": "portal_signals_1093_v1",
+    "path": "migrations/observability/0002_portal_signals_v1.sql",
+    "git_blob_sha1": "12dd355bb2c6420671394daf5f47d958ba281b25",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260922074718",
+    "name": "prepare_sharepoint_profile_photo_storage",
+    "path": null,
+    "git_blob_sha1": null,
+    "certainty": "D SQL exato ausente; associação contextual apenas",
+    "category": "schema histórico",
+    "note": "Preparação histórica de fotos; não confundir com student-photos/0005 nem roteiro de adoção posterior. Sem SQL exato."
+  },
+  {
+    "version": "20260922150000",
+    "name": "student_portal_audit_entities_v1",
+    "path": "migrations/student-portal/0016_audit_entities_v1.sql",
+    "git_blob_sha1": "f1cc90d6a9f0da6aecb1a560afa8b946b594bc68",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260922150001",
+    "name": "student_portal_security_event_priority_v1",
+    "path": "migrations/student-portal/0017_security_event_priority_v1.sql",
+    "git_blob_sha1": "36153cb96ecb4cd74f38ca394c75cd6c4a16fbf4",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260922212633",
+    "name": "student_portal_shared_student_identity_v1",
+    "path": "migrations/student-portal/0018_shared_student_identity_v1.sql",
+    "git_blob_sha1": "0e4c1f1298c6f69e5acf12f4ebe0464ea0ea97ab",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260923164053",
+    "name": "student_portal_remove_legacy_projection_v1",
+    "path": "migrations/student-portal/0019_remove_legacy_projection_v1.sql",
+    "git_blob_sha1": "54aef301d949cbe5da5de07977580722491563ad",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema/dados histórico com risco destrutivo",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260923172851",
+    "name": "student_photos_private_delivery_v1",
+    "path": "migrations/student-photos/0001_private_delivery_v1.sql",
+    "git_blob_sha1": "aec58b9608883041c0cef52b4a02a589adb6c783",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260923172918",
+    "name": "student_photos_write_journal_v1",
+    "path": "migrations/student-photos/0002_write_journal_v1.sql",
+    "git_blob_sha1": "1facd11a96b81e33da679764f3ed979a20ec91df",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260923191611",
+    "name": "student_photos_runtime_catalog_v1",
+    "path": "migrations/student-photos/0003_runtime_catalog_v1.sql",
+    "git_blob_sha1": "6a3adcb1314f2b7f07465f06415110101ab8cddb",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260923191702",
+    "name": "student_photos_resumable_payload_v1",
+    "path": "migrations/student-photos/0004_resumable_payload_v1.sql",
+    "git_blob_sha1": "0ed11dad6248a9168c413adfee2f7c2e9b5fc12f",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260923193137",
+    "name": "student_portal_term_closing_policy_v1",
+    "path": "migrations/student-portal/0020_term_closing_policy_v1.sql",
+    "git_blob_sha1": "ce016f7ba3ca338848c6a41d50a8d69621e87d37",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260923224615",
+    "name": "student_photos_supabase_storage_v1",
+    "path": "migrations/student-photos/0005_supabase_storage_v1.sql",
+    "git_blob_sha1": "2d0077ed9d354d186b7f57a6fe551254200b53d5",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260927100854",
+    "name": "student_portal_access_schedule_v1",
+    "path": "migrations/student-portal/0021_access_schedule_v1.sql",
+    "git_blob_sha1": "54b17d6898052b43be7329df594525e592725ccb",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260928092734",
+    "name": "student_portal_shift_policy_v1",
+    "path": "migrations/student-portal/0022_shift_policy_v1.sql",
+    "git_blob_sha1": "4f380b4942c6b5f48f88fd80f70d8c6acf43779a",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20260929071319",
+    "name": "student_portal_audit_detail_v1",
+    "path": "migrations/student-portal/0023_audit_detail_v1.sql",
+    "git_blob_sha1": "b3ddacf8a38848968dd64d4a8349765dcd870178",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20261001201546",
+    "name": "student_portal_seal_count_cache_v1",
+    "path": "migrations/student-portal/0024_seal_count_cache_v1.sql",
+    "git_blob_sha1": "e03b1e0a0c209d66bae201c02ababa0f4a3163e0",
+    "certainty": "A version/name + postflight explícito; hash SHA256 documental, sem leitura do corpo remoto",
+    "category": "schema histórico",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  },
+  {
+    "version": "20261005151011",
+    "name": "function_execute_hardening_v1",
+    "path": "migrations/gradebook-simplified/0014_function_execute_hardening_v1.sql",
+    "git_blob_sha1": "77dcdba2cfbd2bd70b7a1007d3137ece7e2f59b9",
+    "certainty": "B associação nominal/documental; bytes remotos não comparados",
+    "category": "ACL/segurança",
+    "note": "Arquivo canônico identificado, não autoriza execução."
+  }
+]
