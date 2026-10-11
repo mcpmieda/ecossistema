@@ -195,6 +195,24 @@ it('validates every eligible birth before persisting any personal row or batch, 
   expect(await count('student_report_batch_v1')).toBe(0);
   expect(await count('student_report_pending_row_v1')).toBe(0);
 });
+it('rejects another academic year before discarding explicitly unlinked classes', async () => {
+  const input = await request([
+    row(),
+    row({ sourceRow: 3, classLabel: '7B 2025 - MATUTINO', birthDate: null }),
+  ]);
+  input.classLinks = [
+    ...mapping,
+    { ...mapping[0]!, classLabel: '7B 2025 - MATUTINO', gradebookClassId: null },
+  ];
+  const before = await context();
+  const batches = await count('student_report_batch_v1');
+  const pending = await count('student_report_pending_row_v1');
+  expect((await service.execute(input)).state).toBe('invalid-request');
+  expect(await count('student_report_batch_v1')).toBe(batches);
+  expect(await count('student_report_pending_row_v1')).toBe(pending);
+  expect(await context()).toEqual(before);
+});
+
 it('still requires explicit regular confirmation and valid birth for linked unknown classes', async () => {
   const input = await request([row({ classLabel: 'SYNTHETIC UNKNOWN LINKED', birthDate: null })]);
   const withoutMapping = await service.execute(input);
@@ -694,4 +712,86 @@ it('requires an explicit whole observation for conflicting N-to-one profiles and
     inep: '7000002',
     filiation1: null,
   });
+});
+
+it.each([
+  { studentId: 740001, number: 901, name: 'SYNTHETIC CLOSED CONFLICT', birthDate: '2013-02-03', linked: 0 },
+  { studentId: 740002, number: 902, name: 'SYNTHETIC CLOSED SAME YEAR', birthDate: '2012-02-03', linked: 1 },
+])('retains closed-account birth evidence for $birthDate without changing account or PIN', async (scenario) => {
+  const accountId = crypto.randomUUID();
+  const verifier = await cryptography.deriveVerifier('2012', 1);
+  await owner.unsafe('INSERT INTO gradebook.aluno(id,ano,nome) VALUES($1,2026,$2)', [
+    scenario.studentId,
+    scenario.name,
+  ]);
+  await owner.unsafe(
+    'INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero,situacao) VALUES(2026,710001,$1,$2,NULL)',
+    [scenario.studentId, scenario.number],
+  );
+  await owner.unsafe(
+    `INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility)
+    VALUES($1,2026,$2,'pending-activation','eligible')`,
+    [accountId, scenario.studentId],
+  );
+  await owner.unsafe(
+    `INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation)
+    VALUES($1,2012,'confirmed')`,
+    [accountId],
+  );
+  await owner.unsafe(
+    `INSERT INTO student_portal.password_credential(account_id,pin_verifier)
+    VALUES($1,$2::text::jsonb)`,
+    [accountId, JSON.stringify(verifier)],
+  );
+  await owner.unsafe(
+    `INSERT INTO student_portal.link_closure(account_id,academic_year,gradebook_student_id,closed_at,version)
+    VALUES($1,2026,$2,clock_timestamp(),1)`,
+    [accountId, scenario.studentId],
+  );
+  await owner.unsafe(
+    `UPDATE student_portal.account SET gradebook_student_id=NULL,eligibility='unlinked',
+    closed_at=clock_timestamp(),version=version+1,security_version=security_version+1 WHERE id=$1`,
+    [accountId],
+  );
+  const snapshot = () =>
+    owner.unsafe(
+      `SELECT a.id,a.student_uid,a.gradebook_student_id,a.eligibility,a.auth_state,a.closed_at::text,
+      a.version,a.pin_version,a.security_version,c.pin_verifier,c.password_verifier,
+      d.birth_year,d.confirmation,d.version AS birth_version
+      FROM student_portal.account a JOIN student_portal.password_credential c ON c.account_id=a.id
+      JOIN student_portal.account_access_data d ON d.account_id=a.id WHERE a.id=$1`,
+      [accountId],
+    );
+  const before = await snapshot();
+  const legacy = row({
+    name: scenario.name,
+    filiation1: `${scenario.name} GUARDIAN`,
+    enrollmentHash: `synthetic-closed-legacy-${scenario.studentId}`,
+    inep: String(scenario.studentId),
+    birthDate: scenario.birthDate,
+    classLabel: '7E 2026 - MATUTINO',
+  });
+  const input = await request([legacy]);
+  input.classLinks = [{ ...mapping[0]!, classLabel: '7E 2026 - MATUTINO' }];
+  const p = prepared(await service.execute(input));
+  expect(p.counts).toEqual({ rows: 1, linked: scenario.linked, pending: 1 - scenario.linked });
+  if (scenario.linked === 0) {
+    expect(
+      (
+        await owner.unsafe(
+          'SELECT pending_reason FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1',
+          [p.batchId],
+        )
+      )[0]!.pending_reason,
+    ).toBe('birth_conflict');
+  }
+  expect(await stage(p)).toMatchObject({ state: 'ready', remainingCount: 0 });
+  expect((await service.execute(applyRequest(p))).state).toBe('committed');
+  const profiles = await owner.unsafe(
+    'SELECT student_uid FROM gradebook.student_report_profile_v1 WHERE student_uid=$1',
+    [before[0]!.student_uid],
+  );
+  expect(profiles).toHaveLength(scenario.linked);
+  if (scenario.linked === 1) expect(profiles[0]!.student_uid).toBe(before[0]!.student_uid);
+  expect(await snapshot()).toEqual(before);
 });

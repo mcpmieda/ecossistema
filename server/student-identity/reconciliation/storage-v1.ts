@@ -141,7 +141,7 @@ export async function loadDomainV1(tx: TxV1, year: number) {
     FROM gradebook.aluno a LEFT JOIN gradebook.vinculo v ON v.aluno_id=a.id AND v.ano=a.ano AND v.situacao IS DISTINCT FROM 6
     LEFT JOIN gradebook.turma t ON t.id=v.turma_id
     LEFT JOIN student_portal.reconciliation_accounts_v1($1::smallint) account
-      ON account.student_uid=a.student_uid AND account.closed_at IS NULL
+      ON account.student_uid=a.student_uid
     WHERE a.ano=$1 ORDER BY a.id,v.turma_id`,
     [year],
   );

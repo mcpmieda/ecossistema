@@ -79,6 +79,8 @@ export async function prepareReportV1(
     const classification = classifyReportClassV1(row.classLabel, row.stageLabel, row.shift);
     const link = mapping.get(classReferenceV1(row.classLabel, row.shift, row.stageLabel));
     if (classification.kind === 'excluded') continue;
+    if (classification.kind === 'regular' && classification.academicYear !== request.academicYear)
+      throw new ReconciliationConflictV1('invalid-request');
     if (context.relationAvailable && link?.gradebookClassId === null) continue;
     if (classification.kind === 'unknown') {
       // Unknown modality has no inferred eligibility. Only an explicit operator classification can admit it.
@@ -87,8 +89,6 @@ export async function prepareReportV1(
         continue;
       }
     }
-    if (classification.kind === 'regular' && classification.academicYear !== request.academicYear)
-      throw new ReconciliationConflictV1('invalid-request');
     if (context.relationAvailable && !link?.gradebookClassId) continue;
     const error = (field: ReconciliationValidationErrorV1['field'], reason: string) =>
       errors.push({ ...errorIdentityV1(row), field, reason });
