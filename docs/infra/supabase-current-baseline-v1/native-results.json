@@ -1,0 +1,112 @@
+{
+  "head": "c5b5b0ffd76b6af7c5aa3f31dd9a7ffd1d54f48e",
+  "postgresVersion": "17.6",
+  "baselineHash": "2f9cf3c7f54f3f8f5905ad991d91e3d4f96909d57223ceeaf741274f3ccccc06",
+  "candidateHash": "b9140c338c4254f14009e68ce47927f52fb418a619ec0642458b45f4a2fedf23",
+  "opaqueFunctions": [
+    "student_portal.assert_year_reset_locks_v1",
+    "student_portal.ensure_year_coordination_v1",
+    "student_portal.inspect_year_reset_guard_v1",
+    "student_portal.publication_source_rows_v3",
+    "student_portal.synchronize_profiles_v1"
+  ],
+  "catalogComparisons": [
+    {
+      "key": "relations",
+      "count": 93,
+      "passed": true
+    },
+    {
+      "key": "columns",
+      "count": 598,
+      "passed": true
+    },
+    {
+      "key": "constraints",
+      "count": 454,
+      "passed": true
+    },
+    {
+      "key": "indexes",
+      "count": 145,
+      "passed": true
+    },
+    {
+      "key": "sequences",
+      "count": 16,
+      "passed": true
+    },
+    {
+      "key": "policies",
+      "count": 69,
+      "passed": true
+    },
+    {
+      "key": "triggers",
+      "count": 17,
+      "passed": true
+    },
+    {
+      "key": "views",
+      "count": 9,
+      "passed": true
+    },
+    {
+      "key": "types",
+      "count": 0,
+      "passed": true
+    },
+    {
+      "key": "default_acls",
+      "count": 1,
+      "passed": true
+    },
+    {
+      "key": "function_hashes",
+      "count": 33,
+      "passed": true
+    },
+    {
+      "key": "functions",
+      "count": 33,
+      "passed": true
+    },
+    {
+      "key": "function_extra",
+      "count": 33,
+      "passed": true
+    },
+    {
+      "key": "acls",
+      "count": 970,
+      "passed": true
+    },
+    {
+      "key": "column_acls",
+      "count": 21,
+      "passed": true
+    }
+  ],
+  "cases": [
+    "empty database structural subset reconstruction",
+    "altered candidate hash rejected",
+    "live ledger and RLS drift rejected inside transaction",
+    "real failure rolls back DDL and ledger",
+    "two actual concurrent sessions: one commit, one repeat refusal",
+    "54 original synthetic pairs plus exactly one delta",
+    "repeat application rejected",
+    "postflight complete catalog set, ACL and RLS unchanged except declared column",
+    "effective application role grants and cross-role denial on synthetic empty cache"
+  ],
+  "fullFunctionalEquivalence": false,
+  "supabaseExternalIntegration": false,
+  "passed": true,
+  "workflowRun": 38136661602,
+  "workflowJob": 114461815412,
+  "context": {
+    "timezone": "America/Sao_Paulo",
+    "dateStyle": "ISO, MDY",
+    "intervalStyle": "postgres"
+  },
+  "cleanupVerified": true
+}
