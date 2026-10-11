@@ -29,3 +29,13 @@ driver produtivo, escrita atrasada e permissões.
 Este documento registra a aplicação do schema antes do Worker compatível. A
 publicação e a verificação online subsequentes são registradas na #1221 com seus
 SHAs e execuções; a presença da migração não comprova deploy ou homologação de uso.
+
+## Retirada do espelho isolado
+
+O espelho CLI `supabase/migrations/20261001224416_student_portal_seal_cache_v1.sql`
+foi retirado do caminho automático da integração GitHub. O hash e a descrição
+acima registram a cópia histórica; o SQL canônico permanece em
+`migrations/student-portal/0024_seal_count_cache_v1.sql`, sem alteração.
+A versão produtiva continua sendo `20261001201546`; o timestamp da cópia não é
+uma migration pendente. A retirada não modifica o banco nem reconcilia o ledger
+remoto. Processo e limites: [migrations revisadas](../../migrations/README.md).
