@@ -126,6 +126,7 @@ CREATE INDEX reconciliation_class_academic_v1 ON gradebook.student_report_class_
 CREATE INDEX reconciliation_source_batch_v1 ON gradebook.student_source_record_v1(academic_year,last_batch_id);
 CREATE INDEX reconciliation_source_current_v1 ON gradebook.student_source_record_v1(academic_year,current_observation_id);
 CREATE INDEX reconciliation_observation_class_name_v1 ON gradebook.student_source_observation_v1(academic_year,report_class_id,name_key);
+CREATE INDEX reconciliation_observation_name_v1 ON gradebook.student_source_observation_v1(academic_year,name_key);
 CREATE INDEX reconciliation_observation_inep_birth_v1 ON gradebook.student_source_observation_v1(academic_year,inep_key,birth_date) WHERE inep_key IS NOT NULL;
 CREATE INDEX reconciliation_observation_person_v1 ON gradebook.student_source_observation_v1(academic_year,name_key,birth_date,filiation1_key) WHERE filiation1_key IS NOT NULL;
 CREATE INDEX reconciliation_observation_hash_v1 ON gradebook.student_source_observation_v1(academic_year,enrollment_hash);
