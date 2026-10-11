@@ -124,7 +124,10 @@ function continuationCompatibleV1(
   source: ReconciliationSourceV1,
 ): boolean {
   if (personalAgreementV1(row, source.current) < 2) return false;
-  if (row.birthDate === source.current.birthDate) return true;
+  if (row.birthDate === source.current.birthDate) {
+    // Birth and filiation alone also match siblings; a reused hash cannot settle their identity.
+    return row.nameKey === source.current.nameKey || equalV1(row.inepKey, source.current.inepKey);
+  }
   // The only automatic birth correction is within a uniquely retained origin.
   return (
     row.nameKey === source.current.nameKey &&

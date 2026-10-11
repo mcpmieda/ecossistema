@@ -319,7 +319,9 @@ export class ImportTimingReportV1 {
     run.recentEvents.push(event);
     if (event.stage === 'batch-complete') {
       run.final = event;
-      run.status = ['auth-required', 'confirmation-required'].includes(String(event.outcome))
+      run.status = ['auth-required', 'confirmation-required', 'review-required'].includes(
+        String(event.outcome),
+      )
         ? 'paused'
         : 'finished';
     }

@@ -1,4 +1,6 @@
-import type { GradebookRelationImportRequestV9, GradebookRelationWarningV9 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import type { GradebookRelationImportRequestV9, GradebookRelationWarningV9,
+  GradebookRelationMovementGroupV9, GradebookRelationMovementPairV9,
+} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import { normalizeStudentNameV1 } from '../../../../shared/student-identity/reconciliation-normalization-v1';
 
 export interface ResolvedRelationClassV9 {
@@ -46,6 +48,7 @@ export class RelationPlanErrorV9 extends Error {
   constructor(
     readonly state: 'blocked' | 'conflict' | 'review-required',
     readonly reason: string,
+    readonly movementGroups?: readonly GradebookRelationMovementGroupV9[],
   ) {
     super(reason);
   }
@@ -152,6 +155,7 @@ function linkMovementSourcesV9(
   source: readonly RelationSourceBindingV9[],
   sourceByNameClass: ReadonlyMap<string, readonly RelationSourceBindingV9[]>,
   existingByNameClass: ReadonlyMap<string, readonly ExistingRelationBindingV9[]>,
+  choices: readonly GradebookRelationMovementPairV9[] | undefined,
 ): {
   readonly union: UnionFindV9;
   readonly externalSeed: ReadonlyMap<number, number>;
@@ -161,6 +165,7 @@ function linkMovementSourcesV9(
   const externalSeed = new Map<number, number>();
   const unmatched: RelationSourceBindingV9[] = [];
   const warnings: RelationMovementWarningV9[] = [];
+  const reviewGroups = new Map<string, { origins: RelationSourceBindingV9[]; destinations: RelationSourceBindingV9[] }>();
 
   for (const item of source) {
     if (item.relatedTurmaId === null) continue;
@@ -187,8 +192,10 @@ function linkMovementSourcesV9(
       other.relatedTurmaId === item.relatedTurmaId && other.situacao === item.situacao);
     if (reciprocal.length > 0) {
       if (reciprocal.length !== 1 || sameDirection.length !== 1) {
-        throw new RelationPlanErrorV9('review-required',
-          `Confira os pares de movimentação entre ${item.turmaCode} e ${reciprocal[0]!.turmaCode}.`);
+        const origins = item.situacao === 6 ? sameDirection : reciprocal;
+        const destinations = item.situacao === 7 ? sameDirection : reciprocal;
+        reviewGroups.set(`${origins[0]!.turmaId}:${destinations[0]!.turmaId}`, { origins, destinations });
+        continue;
       }
       const other = reciprocal[0]!;
       union.union(item.index, other.index);
@@ -213,6 +220,35 @@ function linkMovementSourcesV9(
       );
     }
     externalSeed.set(item.index, ids[0]!);
+  }
+
+  const groups = [...reviewGroups.values()];
+  if (groups.length > 0 && choices === undefined) {
+    const endpoint = (item: RelationSourceBindingV9) => ({ classCode: item.turmaCode, number: item.numero, name: item.nome });
+    throw new RelationPlanErrorV9('review-required',
+      `Confira os pares de movimentação entre ${groups[0]!.origins[0]!.turmaCode} e ${groups[0]!.destinations[0]!.turmaCode}.`,
+      groups.map((group) => ({ origins: group.origins.map(endpoint), destinations: group.destinations.map(endpoint) })));
+  }
+  if (choices !== undefined) {
+    const key = (code: string, number: number) => JSON.stringify([classKeyV9(code), number]);
+    const origins = new Map(groups.flatMap((group) => group.origins.map((item) => [key(item.turmaCode, item.numero), item] as const)));
+    const destinations = new Map(groups.flatMap((group) => group.destinations.map((item) => [key(item.turmaCode, item.numero), item] as const)));
+    if (choices.length === 0 || choices.length !== origins.size || choices.length !== destinations.size)
+      throw new RelationPlanErrorV9('conflict', 'Confira todos os pares de movimentação novamente.');
+    for (const choice of choices) {
+      const originKey = key(choice.origin.classCode, choice.origin.number);
+      const destinationKey = key(choice.destination.classCode, choice.destination.number);
+      const origin = origins.get(originKey);
+      const destination = destinations.get(destinationKey);
+      if (!origin || !destination || origin.situacao !== 6 || destination.situacao !== 7 ||
+        origin.relatedTurmaId !== destination.turmaId || destination.relatedTurmaId !== origin.turmaId)
+        throw new RelationPlanErrorV9('conflict', 'Os pares escolhidos não correspondem às movimentações do arquivo.');
+      origins.delete(originKey);
+      destinations.delete(destinationKey);
+      union.union(origin.index, destination.index);
+      warnings.push({ code: 'movement-spelling', classCode: origin.turmaCode,
+        number: origin.numero, relatedClassCode: destination.turmaCode });
+    }
   }
 
   return { union, externalSeed, warnings };
@@ -266,7 +302,7 @@ export function buildRelationPlanV9(
   const indexes = indexExistingBindingsV9(existing);
   const source = materializeSourceBindingsV9(request, classes);
   const sourceByNameClass = indexSourceByNameClassV9(source);
-  const linked = linkMovementSourcesV9(source, sourceByNameClass, indexes.byNameClass);
+  const linked = linkMovementSourcesV9(source, sourceByNameClass, indexes.byNameClass, request.movementReview?.pairs);
   const components = [...groupComponentsV9(source, linked.union).values()].map((items) =>
     buildComponentV9(items, indexes.byBinding, linked.externalSeed),
   );

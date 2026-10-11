@@ -36,6 +36,36 @@ export interface GradebookRelationImportRequestV9 {
   readonly manifest: GradebookImportManifestV9;
   readonly ano: number;
   readonly turmas: readonly GradebookRelationClassV9[];
+  readonly movementReview?: GradebookRelationMovementConfirmationV9;
+}
+
+export interface GradebookRelationMovementPositionV9 {
+  readonly classCode: string;
+  readonly number: number;
+}
+
+export interface GradebookRelationMovementEndpointV9 extends GradebookRelationMovementPositionV9 {
+  readonly name: string;
+}
+
+export interface GradebookRelationMovementPairV9 {
+  readonly origin: GradebookRelationMovementPositionV9;
+  readonly destination: GradebookRelationMovementPositionV9;
+}
+
+export interface GradebookRelationMovementGroupV9 {
+  readonly origins: readonly GradebookRelationMovementEndpointV9[];
+  readonly destinations: readonly GradebookRelationMovementEndpointV9[];
+}
+
+export interface GradebookRelationMovementReviewV9 {
+  readonly digest: string;
+  readonly groups: readonly GradebookRelationMovementGroupV9[];
+}
+
+export interface GradebookRelationMovementConfirmationV9 {
+  readonly digest: string;
+  readonly pairs: readonly GradebookRelationMovementPairV9[];
 }
 
 export type GradebookImportInstrumentV9 = readonly [
@@ -115,6 +145,7 @@ export type GradebookImportPersistenceResponseV9 =
       readonly transportVersion: 9;
       readonly state: 'blocked' | 'conflict' | 'review-required';
       readonly reason: string;
+      readonly movementReview?: GradebookRelationMovementReviewV9;
     }
   | {
       readonly transportVersion: 9;
@@ -166,6 +197,8 @@ function validRecoveryCell(value: unknown): value is GradebookImportRecoveryCell
 }
 
 function validRelation(value: Record<string, unknown>): boolean {
+  if (value.movementReview !== undefined && !validMovementConfirmation(value.movementReview))
+    return false;
   if (!isGradebookAcademicYearV2(value.ano)) return false;
   if (!Array.isArray(value.turmas) || value.turmas.length === 0 || value.turmas.length > 64)
     return false;
@@ -208,6 +241,33 @@ function validRelation(value: Record<string, unknown>): boolean {
     }
   }
   return true;
+}
+
+function validMovementPosition(value: unknown, named = false): boolean {
+  return record(value) && Object.keys(value).length === (named ? 3 : 2) &&
+    nonEmptyText(value.classCode, 32) && Number.isSafeInteger(value.number) && Number(value.number) > 0 &&
+    (!named || nonEmptyText(value.name, 256));
+}
+
+function validMovementDigest(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
+}
+
+function validMovementConfirmation(value: unknown): boolean {
+  return record(value) && Object.keys(value).length === 2 && validMovementDigest(value.digest) &&
+    Array.isArray(value.pairs) && value.pairs.length > 0 && value.pairs.length <= 2048 &&
+    value.pairs.every((pair) => record(pair) && Object.keys(pair).length === 2 &&
+      validMovementPosition(pair.origin) && validMovementPosition(pair.destination));
+}
+
+function validMovementReview(value: unknown): boolean {
+  return record(value) && Object.keys(value).length === 2 && validMovementDigest(value.digest) &&
+    Array.isArray(value.groups) && value.groups.length > 0 && value.groups.length <= 2048 &&
+    value.groups.every((group) => record(group) && Object.keys(group).length === 2 &&
+      Array.isArray(group.origins) && group.origins.length > 0 && group.origins.length <= 64 &&
+      Array.isArray(group.destinations) && group.destinations.length > 0 && group.destinations.length <= 64 &&
+      group.origins.every((position) => validMovementPosition(position, true)) &&
+      group.destinations.every((position) => validMovementPosition(position, true)));
 }
 
 const SLOTS = new Set([1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
@@ -399,6 +459,7 @@ export function isGradebookImportPersistenceResponseV9(
     value.state === 'review-required' ||
     value.state === 'invalid-request'
   )
-    return nonEmptyText(value.reason, 512);
+    return nonEmptyText(value.reason, 512) && (value.movementReview === undefined ||
+      (value.state === 'review-required' && validMovementReview(value.movementReview)));
   return value.state === 'not-authorized' || value.state === 'unavailable';
 }

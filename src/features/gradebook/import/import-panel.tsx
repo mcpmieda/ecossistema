@@ -14,6 +14,7 @@ import { actionableGradebookImportDiagnosticsV1 } from './import-diagnostics-v1'
 import { WorkbookInspector } from './workbook-inspector';
 import type { ImportTimingSummaryV1 } from './import-timing-report-v1';
 import { StudentReportImportV1 } from './student-report-import-v1';
+import { RelationMovementReviewV9 } from './relation-movement-review-v9';
 
 function FileHash({ sha256 }: { sha256: string }) {
   return (
@@ -71,6 +72,8 @@ function persistenceLabel(state: ImportPersistenceStateV9 | undefined): string {
       return 'Sessão expirada';
     case 'confirmation-required':
       return 'Confirmação pendente';
+    case 'movement-review':
+      return state.cancelled ? 'Conferência cancelada' : 'Conferência de movimentações';
     case 'failed':
       return state.kind === 'validation'
         ? 'Bloqueado para correção'
@@ -174,7 +177,8 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV9 | undefi
           <ul className="mt-2 space-y-1 text-sm">
             {response.warnings.map((warning) => (
               <li key={`${warning.classCode}:${warning.number}:${warning.relatedClassCode}`}>
-                Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira a grafia.
+                Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira
+                a grafia.
               </li>
             ))}
           </ul>
@@ -323,6 +327,8 @@ export function NotesImportPanel() {
   const deferred = useRef(false);
   const {
     authorizationRequired,
+    cancelMovementReview,
+    confirmMovementReview,
     diagnosticAuditFailures,
     error,
     failures,
@@ -694,6 +700,35 @@ export function NotesImportPanel() {
                 auditFailure={diagnosticAuditFailures[selectedResult.id]}
               />
               <PersistenceResult state={selectedPersistence} />
+              {selectedPersistence?.state === 'movement-review' ? (
+                selectedPersistence.review ? (
+                  <RelationMovementReviewV9
+                    key={`${selectedResult.id}:${selectedPersistence.review.digest}`}
+                    review={selectedPersistence.review}
+                    busy={loading}
+                    onConfirm={(confirmation) =>
+                      void confirmMovementReview(selectedResult.id, confirmation)
+                    }
+                    onCancel={() => cancelMovementReview(selectedResult.id)}
+                  />
+                ) : (
+                  <Alert status="warning" className="mt-5">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Title>{persistenceLabel(selectedPersistence)}</Alert.Title>
+                      <Alert.Description>{selectedPersistence.message}</Alert.Description>
+                      <Button
+                        variant="secondary"
+                        className="mt-3"
+                        isDisabled={loading}
+                        onPress={() => void resumePendingPersistence()}
+                      >
+                        Conferir novamente
+                      </Button>
+                    </Alert.Content>
+                  </Alert>
+                )
+              ) : null}
             </>
           )}
         </div>

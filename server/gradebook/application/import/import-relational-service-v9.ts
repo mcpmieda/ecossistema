@@ -2,6 +2,8 @@ import {
   lockResetWriterV1,
   recordImportResetWriteV1,
 } from '../../../student-portal/integration/year-reset/writer-v1';
+import { lockYearResetV1 } from '../../../student-portal/integration/year-reset/proof-v1';
+import { relationMovementDigestV9 } from './relation-movement-review-v9';
 import type {
   GradebookImportCellV9,
   GradebookImportOfferV9,
@@ -10,6 +12,7 @@ import type {
   GradebookImportPersistenceResponseV9,
   GradebookNotesImportRequestV9,
   GradebookRelationImportRequestV9,
+  GradebookRelationMovementReviewV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import {
   resolveRelationalClosingUpdateV9,
@@ -62,6 +65,7 @@ class RelationalImportErrorV9 extends Error {
   constructor(
     readonly state: 'blocked' | 'conflict' | 'review-required',
     readonly reason: string,
+    readonly movementReview?: GradebookRelationMovementReviewV9,
   ) {
     super(reason);
   }
@@ -490,7 +494,43 @@ async function persistRelation(
   database: GradebookPostgresWritePortV1,
   request: GradebookRelationImportRequestV9,
   state: ImportStateV9,
+  actorId: string | undefined,
 ): Promise<void> {
+  // Read and validate before materializing years/classes: preview and cancellation perform no DML.
+  const classRows = await all<Row>(database,
+    'SELECT id, codigo, nome, etapa, turno FROM gradebook.turma WHERE ano=$1 ORDER BY id', [request.ano]);
+  const existingRows = await all<Row>(database,
+    `SELECT v.turma_id, v.numero, v.aluno_id, v.situacao, v.turma_relacionada_id, a.nome, a.student_uid::text
+     FROM gradebook.vinculo v JOIN gradebook.aluno a ON a.id=v.aluno_id
+     WHERE v.ano=$1 ORDER BY v.turma_id,v.numero`, [request.ano]);
+  const existing = parseExistingRelationBindingsV9(existingRows);
+  const previewClasses = new Map<string, ExistingClassV9>(classRows.map((row) => [classKey(String(row.codigo)), {
+    id: asNumber(row.id, 'turma-id'), codigo: String(row.codigo), nome: String(row.nome),
+    etapa: asNumber(row.etapa, 'etapa'), turno: String(row.turno),
+  }]));
+  // Temporary IDs are never sent to the browser. Choices use class code + number.
+  const sortedClasses = [...request.turmas].sort((a, b) => classKey(a.codigo).localeCompare(classKey(b.codigo)));
+  for (const [index, turma] of sortedClasses.entries()) {
+    if (!previewClasses.has(classKey(turma.codigo))) previewClasses.set(classKey(turma.codigo), {
+      id: -index - 1, codigo: classKey(turma.codigo), nome: turma.nome, etapa: turma.etapa, turno: turma.turno,
+    });
+  }
+  if (request.movementReview && (!actorId || request.movementReview.digest !==
+    await relationMovementDigestV9(database, request, actorId, classRows, existingRows)))
+    throw new RelationalImportErrorV9('conflict', 'A conferência mudou. Confira novamente as movimentações deste arquivo.');
+  let previewPlan: RelationPlanV9;
+  try {
+    previewPlan = buildRelationPlanV9(request, previewClasses, existing);
+  } catch (cause) {
+    if (!(cause instanceof RelationPlanErrorV9)) throw cause;
+    const movementReview = cause.movementGroups && actorId ? {
+      digest: await relationMovementDigestV9(database, request, actorId, classRows, existingRows),
+      groups: cause.movementGroups,
+    } : undefined;
+    throw new RelationalImportErrorV9(cause.state, cause.reason, movementReview);
+  }
+  await assertRelationIdentityEvidenceV9(database, request, previewPlan);
+  await lockAcademicYear(database, request.ano);
   const year = await first<Row>(database, 'SELECT ano FROM gradebook.ano_letivo WHERE ano = $1', [
     request.ano,
   ]);
@@ -506,20 +546,11 @@ async function persistRelation(
   }
 
   const classes = await resolveRelationClasses(database, state, request);
-  const existingRows = await all<Row>(
-    database,
-    `SELECT v.turma_id, v.numero, v.aluno_id, v.situacao, v.turma_relacionada_id, a.nome, a.student_uid::text
-     FROM gradebook.vinculo v
-     JOIN gradebook.aluno a ON a.id = v.aluno_id
-     WHERE v.ano = $1`,
-    [request.ano],
-  );
   const plan = relationPlanOrThrowV9(
     request,
     classes,
-    parseExistingRelationBindingsV9(existingRows),
+    existing,
   );
-  await assertRelationIdentityEvidenceV9(database, request, plan);
   state.warnings = plan.warnings;
 
   const alunoForSource = new Map<number, number>();
@@ -972,14 +1003,15 @@ function transactionDatabase(database: GradebookPostgresWritePortV1): Transactio
   return database as TransactionDatabaseV9;
 }
 
-export function createGradebookRelationalImportServiceV9(database: GradebookPostgresWritePortV1) {
+export function createGradebookRelationalImportServiceV9(database: GradebookPostgresWritePortV1, actorId?: string) {
   return {
     async execute(
       request: GradebookImportPersistenceRequestV9,
     ): Promise<GradebookImportPersistenceResponseV9> {
       try {
         const result = await transactionDatabase(database).transaction(async (transaction) => {
-          await lockAcademicYear(transaction, request.ano);
+          if (request.operation === 'persist-relacao') await lockYearResetV1(transaction, request.ano, 'preview');
+          else await lockAcademicYear(transaction, request.ano);
           const state: ImportStateV9 = {
             importId: null,
             writes: 0,
@@ -989,7 +1021,7 @@ export function createGradebookRelationalImportServiceV9(database: GradebookPost
             warnings: [],
           };
           if (request.operation === 'persist-relacao')
-            await persistRelation(transaction, request, state);
+            await persistRelation(transaction, request, state, actorId);
           else await persistNotes(transaction, request, state);
           if (state.writes > 0)
             await recordImportResetWriteV1(
@@ -1011,7 +1043,8 @@ export function createGradebookRelationalImportServiceV9(database: GradebookPost
         };
       } catch (cause) {
         if (cause instanceof RelationalImportErrorV9) {
-          return { transportVersion: 9, state: cause.state, reason: cause.reason };
+          return { transportVersion: 9, state: cause.state, reason: cause.reason,
+            ...(cause.movementReview ? { movementReview: cause.movementReview } : {}) };
         }
         const code =
           cause !== null && typeof cause === 'object' && 'code' in cause ? String(cause.code) : '';

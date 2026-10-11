@@ -331,6 +331,68 @@ describe('conciliação determinística por pessoa e origem', () => {
     });
     expect(plan([sibling], [source()]).rows[0]?.reason).toBe('sibling_candidate');
   });
+  it.each([
+    ['swapped', false],
+    ['swapped', true],
+    ['reused', false],
+    ['reused', true],
+    ['historical', false],
+    ['historical', true],
+  ] as const)(
+    'hash %s não contorna rejeição por nascimento/filiação iguais; ordem reversa %s',
+    (kind, reverse) => {
+      const other = row({
+        sourceRow: 3,
+        name: 'Pessoa Distinta',
+        nameKey: 'PESSOA DISTINTA',
+        inep: '999',
+        inepKey: '999',
+        enrollmentHash: 'synthetic-enrollment-b',
+      });
+      const linked = source({ history: [row({ enrollmentHash: 'synthetic-historical-a' })] });
+      const rejected = source({
+        sourceId: 'synthetic-origin-b',
+        studentUid: null,
+        current: other,
+      });
+      const changed = [
+        row({ enrollmentHash: kind === 'swapped' ? other.enrollmentHash : 'synthetic-new-a' }),
+        {
+          ...other,
+          enrollmentHash: kind === 'historical' ? 'synthetic-historical-a' : row().enrollmentHash,
+        },
+      ];
+      const result = plan(
+        reverse ? [...changed].reverse() : changed,
+        reverse ? [rejected, linked] : [linked, rejected],
+        [student],
+        [{ sourceId: rejected.sourceId, studentUid: student.studentUid }],
+      );
+      expect(result.rows.find((item) => item.sourceRow === other.sourceRow)).toMatchObject({
+        sourceId: null,
+        studentUid: null,
+        reason: 'rejected',
+        candidateUids: [student.studentUid],
+      });
+      expect(result.rows.find((item) => item.sourceRow === 2)?.sourceId).not.toBe(
+        rejected.sourceId,
+      );
+      expect(result.profiles).toEqual([]);
+    },
+  );
+  it('hash reutilizado não estabelece continuidade de parentes sem INEP', () => {
+    const other = row({
+      name: 'Pessoa Distinta',
+      nameKey: 'PESSOA DISTINTA',
+      inep: null,
+      inepKey: null,
+    });
+    expect(plan([other], [source()]).rows[0]).toMatchObject({
+      sourceId: null,
+      studentUid: null,
+      reason: 'source_conflict',
+    });
+  });
   describe('gêmeos já conciliados na reimportação', () => {
     const twinStudent: ReconciliationStudentV1 = {
       studentUid: 'synthetic-person-b',
@@ -375,6 +437,23 @@ describe('conciliação determinística por pessoa e origem', () => {
       );
       expect(result.rows).toMatchObject(settled);
     });
+    it.each([false, true])(
+      'conserva vínculos e rejeições com hashes novos; ordem reversa %s',
+      (reverse) => {
+        const changed = [row({ enrollmentHash: 'new-a' }), twinRow({ enrollmentHash: 'new-b' })];
+        const result = plan(
+          reverse ? [...changed].reverse() : changed,
+          reverse ? [twinSource(), source()] : [source(), twinSource()],
+          [student, twinStudent],
+          [
+            { sourceId: 'synthetic-origin-a', studentUid: twinStudent.studentUid },
+            { sourceId: 'synthetic-origin-b', studentUid: student.studentUid },
+          ],
+        );
+        expect(result.rows).toMatchObject(reverse ? [...settled].reverse() : settled);
+        expect(result.profiles).toHaveLength(2);
+      },
+    );
     it('vale também quando estão em turmas diferentes', () => {
       const other = {
         classId: 8,

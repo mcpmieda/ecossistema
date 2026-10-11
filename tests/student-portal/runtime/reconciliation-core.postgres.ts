@@ -795,3 +795,251 @@ it.each([
   if (scenario.linked === 1) expect(profiles[0]!.student_uid).toBe(before[0]!.student_uid);
   expect(await snapshot()).toEqual(before);
 });
+
+it.each([
+  { studentId: 760001, number: 951, kind: 'swapped', reverse: false },
+  { studentId: 760002, number: 952, kind: 'swapped', reverse: true },
+  { studentId: 760003, number: 953, kind: 'reused', reverse: false },
+  { studentId: 760004, number: 954, kind: 'reused', reverse: true },
+])(
+  'keeps a rejected person unlinked through prepare/apply with $kind hashes, reverse $reverse',
+  async (scenario) => {
+    const accountId = crypto.randomUUID();
+    const prefix = `SYNTHETIC HASH CASE ${scenario.studentId}`;
+    await owner.unsafe('INSERT INTO gradebook.aluno(id,ano,nome) VALUES($1,2026,$2)', [
+      scenario.studentId,
+      `${prefix} A`,
+    ]);
+    await owner.unsafe(
+      'INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero,situacao) VALUES(2026,710001,$1,$2,NULL)',
+      [scenario.studentId, scenario.number],
+    );
+    await owner.unsafe(
+      `INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility)
+    VALUES($1,2026,$2,'pending-activation','eligible')`,
+      [accountId, scenario.studentId],
+    );
+    await owner.unsafe(
+      `INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation)
+    VALUES($1,2011,'confirmed')`,
+      [accountId],
+    );
+    await owner.unsafe(
+      'INSERT INTO student_portal.password_credential(account_id,pin_verifier) VALUES($1,$2::text::jsonb)',
+      [accountId, JSON.stringify(await cryptography.deriveVerifier('2011', 1))],
+    );
+    const [account] = await owner.unsafe(
+      'SELECT student_uid FROM student_portal.account WHERE id=$1',
+      [accountId],
+    );
+    const uid = String(account!.student_uid);
+    const original = [
+      row({
+        name: `${prefix} A`,
+        birthDate: '2011-03-04',
+        filiation1: `${prefix} GUARDIAN`,
+        inep: `${scenario.studentId}1`,
+        enrollmentHash: `${prefix}-a`,
+        classLabel: '7F 2026 - MATUTINO',
+      }),
+      row({
+        sourceRow: 3,
+        name: `${prefix} B`,
+        birthDate: '2011-03-04',
+        filiation1: `${prefix} GUARDIAN`,
+        inep: `${scenario.studentId}2`,
+        enrollmentHash: `${prefix}-b`,
+        classLabel: '7F 2026 - MATUTINO',
+      }),
+    ];
+    const prepareRows = async (rows: ReportRowV1[]) => {
+      const input = await request(scenario.reverse ? [...rows].reverse() : rows);
+      input.classLinks = [{ ...mapping[0]!, classLabel: original[0]!.classLabel }];
+      return prepared(await service.execute(input));
+    };
+    const first = await prepareRows(original);
+    expect(first.counts).toEqual({ rows: 2, linked: 1, pending: 1 });
+    await stage(first);
+    expect((await service.execute(applyRequest(first))).state).toBe('committed');
+    const [rejected] = await owner.unsafe(
+      `SELECT r.id FROM gradebook.student_source_record_v1 r
+    JOIN gradebook.student_source_observation_v1 o ON o.id=r.current_observation_id WHERE o.name=$1`,
+      [`${prefix} B`],
+    );
+    expect(
+      (
+        await mutate({
+          operation: 'resolve',
+          action: 'reject',
+          sourceId: rejected!.id,
+          studentUid: uid,
+          expectedLinkVersion: 0,
+          revertsDecisionId: null,
+        })
+      ).state,
+    ).toBe('committed');
+    const snapshot = () =>
+      owner.unsafe(
+        `SELECT to_jsonb(p) AS profile,to_jsonb(a) AS account,to_jsonb(c) AS credential,
+    to_jsonb(l) AS link,to_jsonb(v) AS enrollment
+    FROM student_portal.account a JOIN student_portal.password_credential c ON c.account_id=a.id
+    JOIN gradebook.student_report_profile_v1 p ON p.student_uid=a.student_uid
+    JOIN gradebook.student_source_link_v1 l ON l.source_id=p.source_id
+    JOIN gradebook.vinculo v ON v.aluno_id=a.gradebook_student_id WHERE a.id=$1`,
+        [accountId],
+      );
+    const rejectionSnapshot = () =>
+      owner.unsafe(
+        "SELECT * FROM gradebook.student_reconciliation_decision_v1 WHERE source_id=$1 AND action='reject'",
+        [rejected!.id],
+      );
+    const before = await snapshot();
+    const rejectionBefore = await rejectionSnapshot();
+    expect(before).toHaveLength(1);
+    expect(rejectionBefore).toHaveLength(1);
+    const identities = await count('student_identity');
+    const changed = [
+      {
+        ...original[0]!,
+        enrollmentHash:
+          scenario.kind === 'swapped' ? original[1]!.enrollmentHash : `${prefix}-new-a`,
+      },
+      { ...original[1]!, enrollmentHash: original[0]!.enrollmentHash },
+    ];
+    // Repeating the accepted report must not erase the rejection or turn its pending origins into a link.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const p = await prepareRows(changed);
+      expect(p.counts).toEqual({ rows: 2, linked: 0, pending: 2 });
+      const [pending] = await owner.unsafe(
+        'SELECT target_uid,pending_reason FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1 AND name=$2',
+        [p.batchId, `${prefix} B`],
+      );
+      expect(pending).toMatchObject({ target_uid: null, pending_reason: 'rejected' });
+      expect(await stage(p)).toMatchObject({ state: 'ready', remainingCount: 0 });
+      expect((await service.execute(applyRequest(p))).state).toBe('committed');
+      expect(await snapshot()).toEqual(before);
+      expect(await rejectionSnapshot()).toEqual(rejectionBefore);
+      expect(await count('student_identity')).toBe(identities);
+      expect(
+        await owner.unsafe(
+          `SELECT l.student_uid FROM gradebook.student_source_link_v1 l
+      JOIN gradebook.student_source_record_v1 r ON r.id=l.source_id
+      JOIN gradebook.student_source_observation_v1 o ON o.id=r.current_observation_id WHERE o.name=$1`,
+          [`${prefix} B`],
+        ),
+      ).toHaveLength(0);
+    }
+    expect(
+      (
+        await mutate({
+          operation: 'resolve',
+          action: 'associate',
+          sourceId: rejected!.id,
+          studentUid: uid,
+          expectedLinkVersion: 0,
+          revertsDecisionId: null,
+        })
+      ).state,
+    ).toBe('conflict');
+  },
+);
+
+it.each([false, true])(
+  'retains both settled twins through prepare/apply and new hashes, reverse %s',
+  async (reverse) => {
+    const studentId = reverse ? 761003 : 761001;
+    const number = reverse ? 973 : 971;
+    const prefix = `SYNTHETIC SETTLED TWINS ${studentId}`;
+    await owner.unsafe('INSERT INTO gradebook.aluno(id,ano,nome) VALUES($1,2026,$2),($3,2026,$4)', [
+      studentId,
+      `${prefix} A`,
+      studentId + 1,
+      `${prefix} B`,
+    ]);
+    await owner.unsafe(
+      'INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero,situacao) VALUES(2026,710001,$1,$2,NULL),(2026,710001,$3,$4,NULL)',
+      [studentId, number, studentId + 1, number + 1],
+    );
+    const original = [
+      row({
+        name: `${prefix} A`,
+        birthDate: '2011-04-05',
+        filiation1: `${prefix} GUARDIAN`,
+        inep: `${studentId}1`,
+        enrollmentHash: `${prefix}-a`,
+        classLabel: '7G 2026 - MATUTINO',
+      }),
+      row({
+        sourceRow: 3,
+        name: `${prefix} B`,
+        birthDate: '2011-04-05',
+        filiation1: `${prefix} GUARDIAN`,
+        inep: `${studentId}2`,
+        enrollmentHash: `${prefix}-b`,
+        classLabel: '7G 2026 - MATUTINO',
+      }),
+    ];
+    const prepareRows = async (rows: ReportRowV1[]) => {
+      const input = await request(reverse ? [...rows].reverse() : rows);
+      input.classLinks = [{ ...mapping[0]!, classLabel: original[0]!.classLabel }];
+      return prepared(await service.execute(input));
+    };
+    const first = await prepareRows(original);
+    expect(first.counts).toEqual({ rows: 2, linked: 2, pending: 0 });
+    await stage(first);
+    expect((await service.execute(applyRequest(first))).state).toBe('committed');
+    const links = await owner.unsafe(
+      `SELECT l.source_id,l.student_uid,l.version FROM gradebook.student_source_link_v1 l
+    JOIN gradebook.aluno a ON a.student_uid=l.student_uid WHERE a.id IN($1,$2) ORDER BY a.id`,
+      [studentId, studentId + 1],
+    );
+    expect(links).toHaveLength(2);
+    for (const [index, link] of links.entries()) {
+      expect(
+        (
+          await mutate({
+            operation: 'resolve',
+            action: 'reject',
+            sourceId: link.source_id,
+            studentUid: links[1 - index]!.student_uid,
+            expectedLinkVersion: Number(link.version),
+            revertsDecisionId: null,
+          })
+        ).state,
+      ).toBe('committed');
+    }
+    for (const rows of [
+      original,
+      original.map((entry) => ({ ...entry, enrollmentHash: `${entry.enrollmentHash}-new` })),
+    ]) {
+      const p = await prepareRows(rows);
+      expect(p.counts).toEqual({ rows: 2, linked: 2, pending: 0 });
+      const pending = await owner.unsafe(
+        'SELECT target_source_id,target_uid,target_rule FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1 ORDER BY source_row',
+        [p.batchId],
+      );
+      expect(pending).toEqual(
+        links.map((link) => ({
+          target_source_id: link.source_id,
+          target_uid: link.student_uid,
+          target_rule: 'continuity',
+        })),
+      );
+      await stage(p);
+      expect((await service.execute(applyRequest(p))).state).toBe('committed');
+      expect(
+        await owner.unsafe(
+          `SELECT l.source_id,l.student_uid,l.version FROM gradebook.student_source_link_v1 l
+      JOIN gradebook.aluno a ON a.student_uid=l.student_uid WHERE a.id IN($1,$2) ORDER BY a.id`,
+          [studentId, studentId + 1],
+        ),
+      ).toEqual(links);
+    }
+    expect(
+      await owner.unsafe(
+        "SELECT id FROM gradebook.student_reconciliation_decision_v1 WHERE source_id IN($1,$2) AND action='reject'",
+        [links[0]!.source_id, links[1]!.source_id],
+      ),
+    ).toHaveLength(2);
+  },
+);
