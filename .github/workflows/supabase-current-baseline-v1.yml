@@ -1,0 +1,62 @@
+name: Current structural baseline isolated proof
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/supabase-current-baseline-v1.yml'
+      - 'scripts/ci/supabase-current-baseline-v1/**'
+      - 'docs/infra/supabase-current-baseline-v1/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reconciliation-trial-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  trial:
+    name: Current baseline PostgreSQL 17.6 reconstruction
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: current_baseline_synthetic
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55474:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d current_baseline_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+      - name: Check client availability
+        run: test -x /usr/bin/psql
+      - name: Run synthetic native trial
+        env:
+          TRIAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/ci/supabase-current-baseline-v1/run.mjs --native
+      - name: Upload synthetic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: current-baseline-isolated-proof
+          path: |
+            scripts/ci/supabase-current-baseline-v1/results.json
+            scripts/ci/supabase-current-baseline-v1/catalog-difference.json
+          if-no-files-found: ignore
+          retention-days: 14
+

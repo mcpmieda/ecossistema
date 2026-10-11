@@ -1,0 +1,393 @@
+{
+  "main": "9477e41042fa5f9bd9d3978732e3fa391f4f5236",
+  "capturedAt": "2026-10-11 10:55:13 UTC",
+  "baselineSha256": "2f9cf3c7f54f3f8f5905ad991d91e3d4f96909d57223ceeaf741274f3ccccc06",
+  "snapshotSha256": "5e917f5a59074bd531da0fbf4fd1b6933a29560a4a4e0910e64982cbdeda335d",
+  "reconstructionScope": "structural subset; five opaque functions omitted; no function stubs",
+  "counts": {
+    "tables": 68,
+    "views": 9,
+    "sequences": 16,
+    "functions": 33,
+    "opaqueFunctions": 5
+  },
+  "functions": [
+    {
+      "schema_name": "gradebook",
+      "proname": "aluno_possui_vinculo_na_oferta",
+      "identity_arguments": "p_aluno_id integer, p_oferta_id integer",
+      "body_sha256": "e192611e8a003c2d99e92ed9dce7dd3eca143b49bc641f0d139e1c855348ac88",
+      "source": {
+        "path": "migrations/gradebook-simplified/0001_current_schema.sql",
+        "blob": "abb7e9bcae2da77a88f82a65b969b20ec2791841"
+      }
+    },
+    {
+      "schema_name": "gradebook",
+      "proname": "assign_student_uid_v1",
+      "identity_arguments": "",
+      "body_sha256": "079c89fd15533f473acc58354442c328f23e9bc65c8816dca079feebd94d3c3f",
+      "source": {
+        "path": "migrations/student-portal/0018_shared_student_identity_v1.sql",
+        "blob": "0e4c1f1298c6f69e5acf12f4ebe0464ea0ea97ab"
+      }
+    },
+    {
+      "schema_name": "gradebook",
+      "proname": "guard_student_uid_input_v1",
+      "identity_arguments": "",
+      "body_sha256": "ea32521e5f0d1f4057d527fff9c2491b9b12a5d521ae41bd2ca81817bb801988",
+      "source": {
+        "path": "migrations/student-portal/0018_shared_student_identity_v1.sql",
+        "blob": "0e4c1f1298c6f69e5acf12f4ebe0464ea0ea97ab"
+      }
+    },
+    {
+      "schema_name": "gradebook",
+      "proname": "preparar_conselho_anterior",
+      "identity_arguments": "",
+      "body_sha256": "4d3288282d3451da1dc2f0095ad0bbe3150bf86ec39668a28156a6ca7e9ff6f0",
+      "source": {
+        "path": "migrations/gradebook-simplified/0001_current_schema.sql",
+        "blob": "abb7e9bcae2da77a88f82a65b969b20ec2791841"
+      }
+    },
+    {
+      "schema_name": "gradebook",
+      "proname": "validar_fechamento_vinculo",
+      "identity_arguments": "",
+      "body_sha256": "314d89eb04138d6e0ac2351d3a48ed7dd2c09006beab3ce8c762b48ebc3399e7",
+      "source": {
+        "path": "migrations/gradebook-simplified/0001_current_schema.sql",
+        "blob": "abb7e9bcae2da77a88f82a65b969b20ec2791841"
+      }
+    },
+    {
+      "schema_name": "gradebook",
+      "proname": "validar_nota_vinculo",
+      "identity_arguments": "",
+      "body_sha256": "1a2e2844370892b401d3dd22596f1df4d6683f7e3e8a2d1e5e0ab8ccce4f96ae",
+      "source": {
+        "path": "migrations/gradebook-simplified/0001_current_schema.sql",
+        "blob": "abb7e9bcae2da77a88f82a65b969b20ec2791841"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "adopt_storage_photo_v1",
+      "identity_arguments": "p_uid uuid, p_legacy jsonb, p_asset jsonb",
+      "body_sha256": "1b99a9a856e9c0e4f6f00c57371f2cfdeed6c7b39fc6bae277987b690ce98fd9",
+      "source": {
+        "path": "migrations/student-photos/0005_supabase_storage_v1.sql",
+        "blob": "2d0077ed9d354d186b7f57a6fe551254200b53d5"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "clear_completed_payload_v1",
+      "identity_arguments": "",
+      "body_sha256": "c1017ad7054c4a027f6775116eeb13ad02cadbf0d49d6b28539cdfcfee94ff1c",
+      "source": {
+        "path": "migrations/student-photos/0004_resumable_payload_v1.sql",
+        "blob": "0ed11dad6248a9168c413adfee2f7c2e9b5fc12f"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "initialize_family_v1",
+      "identity_arguments": "p_uid uuid, p_actor uuid, p_legacy jsonb, p_asset jsonb",
+      "body_sha256": "8cfc8715a3d8da4d4a023aa78ec14fdcf1989097e93f6ce2c5866e77af170462",
+      "source": {
+        "path": "migrations/student-photos/0005_supabase_storage_v1.sql",
+        "blob": "2d0077ed9d354d186b7f57a6fe551254200b53d5"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "invalidate_asset_delivery_v1",
+      "identity_arguments": "",
+      "body_sha256": "037208f06c27c2d0069e0693fd5803026cb2d6595c944598f8f83b71891ef4fa",
+      "source": {
+        "path": "migrations/student-photos/0003_runtime_catalog_v1.sql",
+        "blob": "6a3adcb1314f2b7f07465f06415110101ab8cddb"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "legacy_reference_v1",
+      "identity_arguments": "p_uid uuid",
+      "body_sha256": "7d5591030865e9dce79724ddaa5fe355ac6c5723fe8a6829bbe3f051a15ad0e5",
+      "source": {
+        "path": "migrations/student-photos/0003_runtime_catalog_v1.sql",
+        "blob": "6a3adcb1314f2b7f07465f06415110101ab8cddb"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "publish_storage_asset_v1",
+      "identity_arguments": "p_uid uuid, p_actor uuid, p_variant text, p_asset jsonb",
+      "body_sha256": "c7a8124ffbc711874ec492db51276eb0bbb57550d3cefbc4631851ac1860358a",
+      "source": {
+        "path": "migrations/student-photos/0005_supabase_storage_v1.sql",
+        "blob": "2d0077ed9d354d186b7f57a6fe551254200b53d5"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "resolve_student_v1",
+      "identity_arguments": "p_source text, p_year integer, p_reference text",
+      "body_sha256": "c46d1653b6eba122abba89ce8261af447b782554b9d77315649429be15107e0e",
+      "source": {
+        "path": "migrations/student-photos/0003_runtime_catalog_v1.sql",
+        "blob": "6a3adcb1314f2b7f07465f06415110101ab8cddb"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "revoke_changed_portrait_v1",
+      "identity_arguments": "",
+      "body_sha256": "2e5e9649f74f9243e2fa4f406c147993f1cc7cbabcb22c3ea3b803ad7abab385",
+      "source": {
+        "path": "migrations/student-photos/0005_supabase_storage_v1.sql",
+        "blob": "2d0077ed9d354d186b7f57a6fe551254200b53d5"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "stage_payload_v1",
+      "identity_arguments": "p_uid uuid, p_actor uuid, p_request uuid, p_portrait bytea, p_avatar bytea",
+      "body_sha256": "a1f10d270c811adf225c06cce81711deff306cf21d603e76e4ec122e72d88218",
+      "source": {
+        "path": "migrations/student-photos/0004_resumable_payload_v1.sql",
+        "blob": "0ed11dad6248a9168c413adfee2f7c2e9b5fc12f"
+      }
+    },
+    {
+      "schema_name": "student_photos",
+      "proname": "takeover_write_v1",
+      "identity_arguments": "p_uid uuid, p_actor uuid, p_request uuid, p_hash text",
+      "body_sha256": "f487be4ac6c33ba75c52d3b33408ec44a8882981a3e2a447f6f6d804d87912f9",
+      "source": {
+        "path": "migrations/student-photos/0004_resumable_payload_v1.sql",
+        "blob": "0ed11dad6248a9168c413adfee2f7c2e9b5fc12f"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "activate_scoped_publication_v2",
+      "identity_arguments": "",
+      "body_sha256": "441e0ed9d0777b37057ec6575c7d41c5b04e034e1383d35c2b425cc812f42625",
+      "source": {
+        "path": "migrations/student-portal/0008_atomic_publication_v2.sql",
+        "blob": "70ad3b5c3d4d976db37570159e1ffc3cba4e28b0"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "assert_year_reset_locks_v1",
+      "identity_arguments": "p_year smallint, p_reset boolean",
+      "body_sha256": "b9fb1e6909ece01b4532d81494833b1bc50f0c9916c26e750c752c90c04ce6d0",
+      "source": null
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "assign_student_uid_v1",
+      "identity_arguments": "",
+      "body_sha256": "950edbd7f1ec13aa2ace6caca3d5ad21d89238d78617d432035b8782e725d745",
+      "source": {
+        "path": "migrations/student-portal/0018_shared_student_identity_v1.sql",
+        "blob": "0e4c1f1298c6f69e5acf12f4ebe0464ea0ea97ab"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "capture_audit_entities_v1",
+      "identity_arguments": "",
+      "body_sha256": "d9d9dde8f892f5390074db9b32202448e8a0c6e2e6879bf114535b72bc4dc0fc",
+      "source": {
+        "path": "migrations/student-portal/0016_audit_entities_v1.sql",
+        "blob": "f1cc90d6a9f0da6aecb1a560afa8b946b594bc68"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "capture_publication_source_v2",
+      "identity_arguments": "",
+      "body_sha256": "a621e54cb62dae68edf3e43f494e1fd653e22821bfa2b62bce03a1be3ef2d67d",
+      "source": {
+        "path": "migrations/student-portal/0010_incremental_publication_v3.sql",
+        "blob": "aadd570a3738f6c860731fe33fd8a92b9acedc30"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "complete_year_reset_v1",
+      "identity_arguments": "p_year smallint, p_actor text, p_token text",
+      "body_sha256": "846d9f661de31c8dc94588451c78b99449cb203899252cebd3556400bce85fb2",
+      "source": {
+        "path": "migrations/student-portal/0014_year_reset_full_cleanup_v1.sql",
+        "blob": "659a367ba905d240f70cab4d0398e33782f3e561"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "consume_year_reset_v1",
+      "identity_arguments": "p_year smallint, p_actor text, p_token text",
+      "body_sha256": "c62aff49467c760ddfbceaa2bae58fbeec15dfb7697d3be0ac9f993d3d9d5380",
+      "source": {
+        "path": "migrations/student-portal/0014_year_reset_full_cleanup_v1.sql",
+        "blob": "659a367ba905d240f70cab4d0398e33782f3e561"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "enqueue_portal_live_event_v1",
+      "identity_arguments": "",
+      "body_sha256": "3d611cb80924bab45248116b494f08515fce2a7efbac318e925ab856b942f3b0",
+      "source": {
+        "path": "migrations/student-portal/0017_security_event_priority_v1.sql",
+        "blob": "36153cb96ecb4cd74f38ca394c75cd6c4a16fbf4"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "enqueue_revision_live_event_v1",
+      "identity_arguments": "",
+      "body_sha256": "c82b2ee014a85f6af92ad4d993d1f39937db11441e783873cc48e7a87e897259",
+      "source": {
+        "path": "migrations/student-portal/0017_security_event_priority_v1.sql",
+        "blob": "36153cb96ecb4cd74f38ca394c75cd6c4a16fbf4"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "ensure_year_coordination_v1",
+      "identity_arguments": "p_year smallint",
+      "body_sha256": "8b039f700b77f1b6d5a1616096235968f623ca3c03d231a428b3a70eaec06568",
+      "source": null
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "guard_legacy_publication_writer_v2",
+      "identity_arguments": "",
+      "body_sha256": "eb101c8456b520ba30a43fb3420d400c54d46b90a50a5dd58d9d7f61f78dc889",
+      "source": {
+        "path": "migrations/student-portal/0009_publication_cutover_guard_v2.sql",
+        "blob": "bc8d965c94f7fdf82dc291d5a2eca8383fddfeee"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "guard_student_uid_input_v1",
+      "identity_arguments": "",
+      "body_sha256": "598998dc1e9f74089f57235c88ca03ba76106302d0bc0c628202075474cead54",
+      "source": {
+        "path": "migrations/student-portal/0018_shared_student_identity_v1.sql",
+        "blob": "0e4c1f1298c6f69e5acf12f4ebe0464ea0ea97ab"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "inspect_year_reset_guard_v1",
+      "identity_arguments": "p_academic_year smallint",
+      "body_sha256": "def2c42a81d67d0fa343fc8a8944647f8ed29b796ed95ff61faa56ba1f7afaca",
+      "source": null
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "pin_publication_after_policy_v2",
+      "identity_arguments": "",
+      "body_sha256": "862b50c1f8df9200aca6cc5084d97429764e16e7674e73d52dae1e6ea125bdb9",
+      "source": {
+        "path": "migrations/student-portal/0008_atomic_publication_v2.sql",
+        "blob": "70ad3b5c3d4d976db37570159e1ffc3cba4e28b0"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "pin_publication_auto_approval_v2",
+      "identity_arguments": "",
+      "body_sha256": "82635cc2245d15ee8bbb5427b393f52d15166987cbffc079e9aabd9a466c9795",
+      "source": {
+        "path": "migrations/student-portal/0022_shift_policy_v1.sql",
+        "blob": "4f380b4942c6b5f48f88fd80f70d8c6acf43779a"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "prepare_publication_after_commit_v2",
+      "identity_arguments": "",
+      "body_sha256": "0b50479e904ba569cfe7f55809d460327f16405e03c6619ea3dc61fd7173ccf3",
+      "source": {
+        "path": "migrations/student-portal/0008_atomic_publication_v2.sql",
+        "blob": "70ad3b5c3d4d976db37570159e1ffc3cba4e28b0"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "prepare_year_reset_v1",
+      "identity_arguments": "p_year smallint, p_actor text, p_token text",
+      "body_sha256": "e33cb1cfcf27846c3d97e2087c0d03c0046dc326073405f66c41c90a366c8edb",
+      "source": {
+        "path": "migrations/student-portal/0014_year_reset_full_cleanup_v1.sql",
+        "blob": "659a367ba905d240f70cab4d0398e33782f3e561"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "publication_source_rows_v2",
+      "identity_arguments": "",
+      "body_sha256": "3effbb1a6d38dcec7a27f68caffebbb4c68c895415a0d20d85e9488c1d2f73a5",
+      "source": {
+        "path": "migrations/student-portal/0008_atomic_publication_v2.sql",
+        "blob": "70ad3b5c3d4d976db37570159e1ffc3cba4e28b0"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "publication_source_rows_v3",
+      "identity_arguments": "p_student_ids integer[]",
+      "body_sha256": "bcb87e598a045e541df6e137cb95f793076204ac39e417dabd7a25754b753078",
+      "source": null
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "record_gradebook_change_v1",
+      "identity_arguments": "p_event_id uuid, p_academic_year smallint, p_cause text, p_affects_academic boolean, p_student_ids integer[], p_occurred_at timestamp with time zone",
+      "body_sha256": "7e706ef7ea92c281f416c237887eade178533e669d0b2e98f637af8ed4aa17a3",
+      "source": {
+        "path": "migrations/student-portal/0006_gradebook_revision_year_range_v1.sql",
+        "blob": "0da9602791b1f8d37d4ff360988158c0e6b8004f"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "synchronize_gradebook_profiles_v1",
+      "identity_arguments": "",
+      "body_sha256": "93171483519535e218e4f191758d272fe72686fb8a86a3783fe5faa8349517c2",
+      "source": {
+        "path": "migrations/student-portal/0007_lifecycle_integration_v1.sql",
+        "blob": "3cc62d0d5488721565afdbf47ed31841b7b8c9b6"
+      }
+    },
+    {
+      "schema_name": "student_portal",
+      "proname": "synchronize_profiles_v1",
+      "identity_arguments": "p_create boolean",
+      "body_sha256": "a9d6af7ccb1e019da9bd4f7583ebe18c6cffc53dffc67952f03239e109ac2786",
+      "source": null
+    }
+  ],
+  "externalSchemas": [
+    "auth",
+    "storage",
+    "realtime",
+    "vault",
+    "graphql",
+    "graphql_public",
+    "extensions",
+    "supabase_migrations"
+  ],
+  "ledgerUnchanged": true,
+  "historicalGaps": 11
+}
