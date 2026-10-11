@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
 import { settingsOverrideV1 } from './policy-v1';
-import { accountStateV1, commandMetaV1, instantV1, opaqueV1, periodV1, policyScopeV1, portalIdV1, revisionV1, scopeV1, versionV1 } from './core-v1';
+import { accountStateV1, commandMetaV1, instantV1, pageCursorV1, periodV1, policyScopeV1, portalIdV1, revisionV1, scopeV1, versionV1 } from './core-v1';
 
 /** Current differences only. A publication decision is not a grant of student access. */
 export const publicationChoiceV1 = z.object({
@@ -41,7 +41,7 @@ export const customizationRowV1 = z.object({
 export const customizationsResponseV1 = z.object({
   contractVersion: z.literal(2), state: z.literal('customizations-read'), requestId: portalIdV1,
   observedAt: instantV1, scope: scopeV1, publicationVersion: versionV1,
-  items: z.array(customizationRowV1).max(100), nextCursor: opaqueV1.nullable(),
+  items: z.array(customizationRowV1).max(100), nextCursor: pageCursorV1.nullable(),
   context: z.object({
     scope: scopeV1.refine((scope) => scope.kind !== 'school'), resolved: z.boolean(),
     publications: z.array(publicationContextItemV1).max(6),

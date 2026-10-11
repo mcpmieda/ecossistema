@@ -168,6 +168,52 @@ async function seedRecovery(accountIds = accounts.map((account) => account.id)) 
 }
 
 describe('private administrative API with real persistence', () => {
+  it.each([200, 201, 300])('preserves %i-character accented names through QR batches and V1/V2 cursor pages', async (length) => {
+    const original = (await pg.query<{ id: number; nome: string }>(
+      'SELECT id,nome FROM gradebook.aluno WHERE id=ANY($1::bigint[])',
+      [accounts.map((account) => account.student)],
+    )).rows;
+    const names = ['A', 'B'].map((prefix) => prefix + 'ÁÉÕÇ'.repeat(75).slice(0, length - 1));
+    try {
+      for (const [index, account] of accounts.entries())
+        await pg.query('UPDATE gradebook.aluno SET nome=$2 WHERE id=$1', [account.student, names[index]]);
+      await seedRecovery();
+      for (const mode of ['qr-name', 'qr-name-class']) {
+        const snapshot = await query('accounts');
+        const input = command('qr-batch', snapshot.scopeVersion, {
+          classId: CLASS.classId, accountIds: accounts.map((account) => account.id), mode, confirmed: true,
+        });
+        const result = state(await api.command(context(), input), 'qr');
+        expect(result.cards.map((card) => 'name' in card ? card.name : null)).toEqual(names);
+        expect(state(await api.command(context(), input), 'qr').cards).toEqual(result.cards);
+      }
+      for (const contractVersion of [1, 2]) {
+        const operation = contractVersion === 1 ? 'accounts' : 'accounts-read';
+        const read = async (cursor?: string) => {
+          const result = await api.query(context(), {
+            contractVersion, operation, scope: CLASS, page: { limit: 1, ...(cursor ? { cursor } : {}) },
+          });
+          if (result.state !== 'accounts' && result.state !== 'accounts-read')
+            throw new Error(`synthetic-long-name-page-${result.state}`);
+          return result;
+        };
+        const first = await read();
+        expect(first.items).toHaveLength(1);
+        if (contractVersion === 2) expect(first.nextCursor!.length).toBeGreaterThan(512);
+        const second = await read(first.nextCursor!);
+        expect(second.items).toHaveLength(1);
+        const pageNames = [...first.items, ...second.items].map((item) => item.name);
+        expect([...pageNames].sort()).toEqual(names);
+        if (contractVersion === 2) expect(pageNames).toEqual(names);
+        expect(second.items[0]!.accountId).not.toBe(first.items[0]!.accountId);
+        expect(second.nextCursor).toBeNull();
+        expect((await read(first.nextCursor!)).items).toEqual(second.items);
+      }
+    } finally {
+      for (const row of original) await pg.query('UPDATE gradebook.aluno SET nome=$2 WHERE id=$1', [row.id, row.nome]);
+    }
+  });
+
   it('rejects absent, forged, stale, wrong-tenant or insufficient contexts before database access', async () => {
     const request = { contractVersion: 1, operation: 'accounts', scope: SCHOOL, page: {} };
     for (const invalid of [

@@ -1,7 +1,11 @@
-import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import {
+  installReconciliationSchemaFixtureV1,
+  installResetSchemaFixtureV1,
+} from '../../student-portal/year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { RelationalBulletinSnapshotV2 } from '../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import { SESSION_COOKIE } from '../../../server/auth/session';
 import { seal } from '../../../server/auth/sealed';
 import type { RuntimeEnv } from '../../../server/env';
@@ -66,6 +70,50 @@ beforeAll(async () => {
     return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
   };
   await installResetSchemaFixtureV1(pg);
+  await installReconciliationSchemaFixtureV1(pg);
+  await pg.exec(`DO $$
+    DECLARE
+      scope_generation uuid := gen_random_uuid();
+      batch_id uuid := gen_random_uuid();
+      class_id uuid := gen_random_uuid();
+      source_id uuid := gen_random_uuid();
+      observation_id uuid := gen_random_uuid();
+      decision_id uuid := gen_random_uuid();
+      actor_id uuid := '11111111-1111-4111-8111-111111111111';
+      student_uid uuid := (SELECT a.student_uid FROM gradebook.aluno a WHERE id=1);
+    BEGIN
+      INSERT INTO gradebook.student_reconciliation_scope_v1
+        (academic_year,generation,name_source) VALUES (2026,scope_generation,'relation');
+      INSERT INTO gradebook.student_report_batch_v1
+        (id,academic_year,generation,actor_id,source_evidence,normalization_version,
+         digest,request_digest,idempotency_key,base_revision,base_academic_revision,
+         state,expires_at,class_links)
+        VALUES (batch_id,2026,scope_generation,actor_id,'unknown',1,
+          repeat('a',64),repeat('b',64),gen_random_uuid(),0,'synthetic-revision',
+          'applied',statement_timestamp()+interval '1 day','[]');
+      INSERT INTO gradebook.student_report_class_v1
+        (id,academic_year,label,class_key,shift,shift_key,stage_label,stage,gradebook_class_id)
+        VALUES (class_id,2026,'6A 2026 - MATUTINO','6A 2026 - MATUTINO',
+          'MATUTINO','MATUTINO','6º Ano',6,10);
+      INSERT INTO gradebook.student_source_record_v1 (id,academic_year,last_batch_id)
+        VALUES (source_id,2026,batch_id);
+      INSERT INTO gradebook.student_source_observation_v1
+        (id,academic_year,source_id,version,batch_id,report_class_id,name,name_key,
+         birth_date,enrollment_hash,shift,shift_key,status,status_key)
+        VALUES (observation_id,2026,source_id,1,batch_id,class_id,
+          'ALUNO RELATÓRIO SINTÉTICO','ALUNO RELATORIO SINTETICO','2014-01-01',
+          'synthetic-enrollment','MATUTINO','MATUTINO','Ativo','ATIVO');
+      INSERT INTO gradebook.student_reconciliation_decision_v1
+        (id,academic_year,generation,sequence,actor_id,action,source_id,student_uid,reason)
+        VALUES (decision_id,2026,scope_generation,1,actor_id,'associate',source_id,
+          student_uid,'Associação sintética para testar apresentação');
+      INSERT INTO gradebook.student_source_link_v1
+        (academic_year,source_id,student_uid,version,decision_id)
+        VALUES (2026,source_id,student_uid,1,decision_id);
+      INSERT INTO gradebook.student_report_profile_v1
+        (academic_year,student_uid,source_id,observation_id,version)
+        VALUES (2026,student_uid,source_id,observation_id,1);
+    END $$;`);
   database = createGradebookPostgresDatabaseFromSqlV1({
     unsafe: execute,
     async begin(operation) {
@@ -106,6 +154,69 @@ const base = {
 };
 
 describe('relational bulletin V2', () => {
+  it('uses either configured name source for selection and new bulletins without rewriting snapshots or grades', async () => {
+    const snapshotId = '44444444-4444-4444-8444-444444444444';
+    const workspace = service(snapshotId);
+    const selection = {
+      ...base,
+      studentId: 1,
+      period: { kind: 'term' as const, term: 1 as const },
+    };
+    const initialGrades = await pg.query('SELECT * FROM gradebook.nota ORDER BY instrumento_id,aluno_id');
+    const initialClosing = await pg.query('SELECT * FROM gradebook.fechamento ORDER BY oferta_id,aluno_id');
+    let firstSnapshot: RelationalBulletinSnapshotV2 | undefined;
+    try {
+      for (const [source, expectedName] of [
+        ['relation', 'ALUNO REGULAR'],
+        ['report', 'ALUNO RELATÓRIO SINTÉTICO'],
+      ] as const) {
+        await pg.query('UPDATE gradebook.student_reconciliation_scope_v1 SET name_source=$1 WHERE academic_year=2026', [source]);
+        const students = await workspace.execute(
+          { contractVersion: 2, operation: 'students', year: 2026, classId: 10 },
+          { issuerOid: 'actor' },
+        );
+        expect(students).toMatchObject({
+          state: 'ready',
+          students: [
+            { id: 1, name: expectedName },
+            { id: 2, name: 'ALUNO ASSISTIDO' },
+          ],
+        });
+        const preview = await workspace.execute(
+          { contractVersion: 2, operation: 'preview', selection },
+          { issuerOid: 'actor' },
+        );
+        expect(preview).toMatchObject({ state: 'ready', model: { student: { id: 1, name: expectedName } } });
+        const emitted = await workspace.execute(
+          { contractVersion: 2, operation: 'emit', selection },
+          { issuerOid: 'actor' },
+        );
+        expect(emitted).toMatchObject({ state: 'ready', snapshot: { model: { student: { id: 1, name: expectedName } } } });
+        if (emitted.state !== 'ready' || emitted.operation !== 'emit') throw new Error('name-source-snapshot-missing');
+        if (firstSnapshot) {
+          expect(emitted.snapshot.snapshotVersion).toBe(firstSnapshot.snapshotVersion + 1);
+          expect(emitted.snapshot.model.subjects).toEqual(firstSnapshot.model.subjects);
+        } else {
+          firstSnapshot = emitted.snapshot;
+        }
+      }
+      if (!firstSnapshot) throw new Error('original-name-snapshot-missing');
+      const reprint = await workspace.execute(
+        { contractVersion: 2, operation: 'reprint', snapshotId, snapshotVersion: firstSnapshot.snapshotVersion },
+        { issuerOid: 'actor' },
+      );
+      expect(reprint).toMatchObject({
+        state: 'ready', source: 'historical-snapshot', snapshot: firstSnapshot,
+      });
+      expect((await pg.query('SELECT nome FROM gradebook.aluno WHERE id=1')).rows).toEqual([{ nome: 'ALUNO REGULAR' }]);
+      expect((await pg.query('SELECT * FROM gradebook.nota ORDER BY instrumento_id,aluno_id')).rows).toEqual(initialGrades.rows);
+      expect((await pg.query('SELECT * FROM gradebook.fechamento ORDER BY oferta_id,aluno_id')).rows).toEqual(initialClosing.rows);
+    } finally {
+      await pg.query('DELETE FROM gradebook.boletim_snapshot WHERE snapshot_id=$1', [snapshotId]);
+      await pg.exec("UPDATE gradebook.student_reconciliation_scope_v1 SET name_source='relation' WHERE academic_year=2026");
+    }
+  });
+
   it('loads the fixed catalog and presents subjects in the configured order', async () => {
     const workspace = service();
     expect(

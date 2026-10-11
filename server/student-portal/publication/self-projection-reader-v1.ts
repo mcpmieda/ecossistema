@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../../../shared/student-identity/student-identity-v1';
 import {
   assessmentLabelV1,
   assessmentNamesSchemaV1,
@@ -73,7 +74,7 @@ export async function publicationContextV1(
 }
 
 // Built once: a schema created for each student costs more than the validation it performs.
-const profileNameV1 = z.string().min(1).max(200);
+const profileNameV1 = z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1);
 const profileClassLabelV1 = z.string().min(1).max(80);
 const profileAssessmentsV1 = z
   .array(

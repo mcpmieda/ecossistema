@@ -285,9 +285,10 @@ async function readMaterializations(
   const studentParameters = createGradebookPostgresParametersV1();
   const studentRows = await rows(
     database,
-    `SELECT a.id, a.nome, v.numero, v.situacao, cd.decisao AS conselho_decisao
+    `SELECT a.id, sp.name AS nome, v.numero, v.situacao, cd.decisao AS conselho_decisao
        FROM gradebook.vinculo v
        JOIN gradebook.aluno a ON a.id = v.aluno_id AND a.ano = v.ano
+       JOIN gradebook.student_presentation_v1 sp ON sp.student_id = a.id AND sp.academic_year = a.ano
        LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id = a.id
       WHERE v.ano = ${studentParameters.param(first.year)} AND v.turma_id = ${studentParameters.param(first.classId)} AND v.situacao IS DISTINCT FROM 6
         AND a.id IN (${studentIds.map((id) => studentParameters.param(id)).join(', ')})
@@ -625,9 +626,10 @@ export function createRelationalBulletinServiceV2(
           if (classRows.length === 0) return failure(request.operation, 'not-found');
           const values = await rows(
             database,
-            `SELECT a.id, a.nome, v.numero, v.situacao
+            `SELECT a.id, sp.name AS nome, v.numero, v.situacao
                FROM gradebook.vinculo v
                JOIN gradebook.aluno a ON a.id = v.aluno_id AND a.ano = v.ano
+               JOIN gradebook.student_presentation_v1 sp ON sp.student_id = a.id AND sp.academic_year = a.ano
               WHERE v.ano = $1 AND v.turma_id = $2 AND v.situacao IS DISTINCT FROM 6
               ORDER BY v.numero
               LIMIT $3`,

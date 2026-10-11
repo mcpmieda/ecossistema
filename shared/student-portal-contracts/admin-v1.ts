@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
-import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1, policyScopeV1 } from './core-v1';
+import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageCursorV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1, policyScopeV1 } from './core-v1';
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, settingsOverrideV1 } from './policy-v1';
 import { publicationInheritCommandV1 } from './customizations-v1';
@@ -98,7 +98,7 @@ export const savedBirthV1 = z.object({
 }).strict();
 export type SavedBirthV1 = z.infer<typeof savedBirthV1>;
 const base = { contractVersion: z.literal(1), requestId: portalIdV1 };
-const paging = { nextCursor: opaqueV1.nullable() };
+const paging = { nextCursor: pageCursorV1.nullable() };
 export const adminResponseV1 = z.discriminatedUnion('state', [
   bulkPreviewResponseV1,
   z.object({ ...base, state: z.literal('accounts'), scopeVersion: versionV1, items: z.array(accountSummaryV1).max(100), ...paging }).strict(),

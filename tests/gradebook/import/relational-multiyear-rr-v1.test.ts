@@ -44,7 +44,6 @@ beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync(`${migrations}0001_current_schema.sql`, 'utf8'));
   await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
-  await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
   for (const migration of [
     '0003_council_session_v3.sql',
     '0004_council_v3_least_privilege.sql',

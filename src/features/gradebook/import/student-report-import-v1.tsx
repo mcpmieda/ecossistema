@@ -6,7 +6,10 @@ import type {
   ReconciliationValidationErrorV1,
   ReportClassLinkV1,
 } from '../../../../shared/student-identity/reconciliation-v1';
-import { normalizeStudentNameV1 } from '../../../../shared/student-identity/reconciliation-normalization-v1';
+import {
+  normalizeStudentNameV1,
+  reportClassReferenceV1,
+} from '../../../../shared/student-identity/reconciliation-normalization-v1';
 import {
   createReconciliationActivationV1,
   createReconciliationClientV1,
@@ -201,9 +204,7 @@ export function StudentReportImportV1({
           report.classes.map((entry) => {
             const known = catalog.reportClasses.find(
               (item) =>
-                item.label === entry.classLabel &&
-                item.shift === entry.shift &&
-                item.stageLabel === entry.stageLabel &&
+                reportClassReferenceV1(item.label, item.shift, item.stageLabel) === entry.key &&
                 !item.reviewRequired,
             );
             return {

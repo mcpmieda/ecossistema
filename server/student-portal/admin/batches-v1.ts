@@ -1,5 +1,6 @@
 import { AUDIT_IP_MASK_V1, AUDIT_IP_SOURCE_V1 } from '../observability/audit-context-v1';
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../../../shared/student-identity/student-identity-v1';
 import { ensureCanonicalPinV1 } from '../birth-year/canonical-pin-v1';
 import {
   auditEventV1,
@@ -92,7 +93,7 @@ export async function qrBatchV1(
         accountId: id,
         mode: command.mode,
         qr,
-        ...(command.mode !== 'qr-only' ? { name: z.string().min(1).max(200).parse(row.name) } : {}),
+        ...(command.mode !== 'qr-only' ? { name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1).parse(row.name) } : {}),
         ...(command.mode === 'qr-name-class'
           ? { classLabel: z.string().min(1).max(80).parse(row.class_name) }
           : {}),
