@@ -1,121 +1,167 @@
-# Reconciliação documental do histórico Supabase — 11/10/2026
+# Reconciliação documental do histórico Supabase
 
-Projeto: knzzyqgafdkwzjmdrfea. Repositório: mcpmieda/ecossistema-escola.
-Main consultada pelo conector GitHub: 17e82f62b35b3ed2cc998b694adfc6b7f3b249fb.
-Árvore consultada integralmente, truncated=false. AGENTS.md lido no SHA fixado (blob caad264b30f12a5ea16f705a2b626621d93312ad); nenhum SKILL.md adicional localizado nessa árvore. Skill Supabase lida.
-Escopo autorizado: publicar esta documentação em PR em rascunho para revisão. Mudanças no banco, ledger, configurações, permissões, migrations executáveis, deploy e merge não estão autorizadas.
+Revisão de 11/10/2026. Projeto `knzzyqgafdkwzjmdrfea`; repositório `mcpmieda/ecossistema-escola`.
+Base conferida: `17e82f62b35b3ed2cc998b694adfc6b7f3b249fb`. A revisão atualiza a PR #1273 somente com documentação. Não autoriza merge, alteração de banco/ledger, credenciais, segurança, integração ou deploy. Trabalhos #1268/#1269 preservados.
 
-## Resultado e limites
+## Resultado
 
-Revalidação para publicação: main permanece em `17e82f62b35b3ed2cc998b694adfc6b7f3b249fb`; os 54 pares version/name coincidem exatamente com o inventário inicial, após comparação ordenada por versão e nome.
+O inventário continua com **54 pares version/name**. Foram identificadas **43 fontes canônicas candidatas no Git** e **11 eventos sem arquivo exato**. A expressão “43 associações comprovadas” deve ser entendida como identificação das fontes documentais, nunca como 43 provas de SQL executado.
 
-54 versões remotas consultadas via list_migrations; 43 associações a arquivos canônicos identificados no Git, 11 sem SQL exato. As associações comprovam a identificação documental das fontes, com os limites de certeza abaixo.
-A associação por nome, caminho e documentação NÃO demonstra identidade dos bytes executados. Não foram consultados statements do ledger, SQLs de rotação, inventários de credenciais nem dados pessoais.
-Hashes Git blob SHA-1 identificam a revisão do arquivo na árvore fixada; não são SHA256 do SQL remoto.
-Histórico Git de migrations consultado em duas páginas (104 commits, metadados); não é uma busca exaustiva de todos os arquivos apagados, branches e discussões. Lacunas continuam abertas.
+A comparação dos digests refinou as 43 associações:
 
-A preparação utilizou o conector GitHub autorizado. O checkout físico não pôde ser lido por restrição de ACL; não houve contorno. Os trabalhos 1268/1269 permanecem preservados.
+| Nível | Quantidade | Evidência e limite |
+|---|---:|---|
+| H | 19 | SHA-256 bruto do arquivo Git coincide com o único statement registrado no ledger. Prova de igualdade do conteúdo registrado, sem atestado independente de execução/autenticidade histórica do ledger. |
+| T | 10 | SHA-256 coincide depois de remover apenas espaço, tab, CR e LF nas bordas. Bytes brutos diferentes; conteúdo interno igual sob esse critério. |
+| B | 12 | Fonte documental/nominal identificada, mas digests brutos e após trim diferem. Não declarar equivalência de SQL nem drift funcional apenas por isso. |
+| N | 2 | Fonte documental identificada; `statements IS NULL` no ledger. Não há conteúdo remoto para conferir. |
+| D | 11 | Sem arquivo original identificado. Classificação do evento refinada por indicadores/identificadores sanitizados, sem recuperação de corpos sensíveis. |
 
-Deploy to production OFF: confirmação histórica em comentário 6104768095 (salvo e persistido após reload em 11/10 às 02:45 UTC). Não foi alterado; valor atual não foi reconfirmado no Dashboard nesta tarefa. Não inferir estado atual de settings pelo ledger.
+Entre as 12 B, três diferenças de representação foram explicadas por transformações delimitadas:
+- `20260909160930`: remoção dos comentários de linha iniciais do arquivo 0002, seguida de trim.
+- `20260927100854` e `20260929071319`: remoção dos comentários de linha iniciais e do BEGIN/COMMIT externo, seguida de trim.
+Os digests transformados coincidem; as duas últimas diferenças não comprovam que o mecanismo remoto tenha preservado a mesma atomicidade. As três continuam B, para evitar tratar transformação como identidade bruta.
 
-## Cache 0024 e evidência
+As duas N são `20260922150000` (Portal 0016) e `20260922150001` (Portal 0017). O README registra explicitamente essas versões. Não inferir por que statements está ausente nem reparar o ledger para preenchê-lo.
 
-Versão 20261001201546 presente; espelho 20261001224416 ausente. Fonte canônica migrations/student-portal/0024_seal_count_cache_v1.sql, blob e03b1e0a0c209d66bae201c02ababa0f4a3163e0.
-Postflight documenta SHA256 B1C21836A95F9C721E39C663FAE37D71AA6469FC4579D8BEB05DFD1B237561A9 para canônica e espelho histórico.
-Consulta atual somente catálogo: student_portal.seal_count_cache_v1 existente, owner postgres, relrowsecurity=true, relforcerowsecurity=false; ACL direta {postgres=arwdDxtm/postgres,student_portal_app=arw/postgres}. Isso não verifica memberships ou privilégios herdados de todo o banco.
-Comentário pós-deploy registra comparação exata de 54 pares e ACL/RLS. A consulta atual confirma os pares e metadados diretos da tabela, sem alegar auditoria global.
+## Método verificável e sanitização
 
-## Classificação e baselines
+1. Leitura de version/name e metadados do ledger, sem SELECT de linhas acadêmicas, created_by, idempotency_key ou rollback.
+2. Para as 49 versões não relacionadas a rotação, cálculo de SHA-256 em PostgreSQL de `array_to_string(statements, E'\\n')`, bytes e cardinalidade. Todas com conteúdo têm cardinalidade 1; as duas N têm NULL. Corpos históricos não foram retornados.
+3. Nas cinco rotações, apenas version/name, cardinalidade, identificador da role e indicadores booleanos ALTER ROLE/PASSWORD. Nenhum corpo, valor, tamanho ou hash de credencial coletado.
+4. Leitura das 43 fontes públicas fixadas ao SHA da base, cálculo de SHA-256 UTF-8 e comparação bruta/trim. O Node crypto confirmou independentemente os 43 hashes locais.
+5. Histórico Git consultado para os 22 caminhos inicialmente divergentes com conteúdo: 19 têm uma revisão listada; três têm duas revisões. As seis revisões desses três caminhos foram comparadas; nenhuma trouxe igualdade bruta/trim. A consulta não é exaustiva de todos os caminhos apagados, forks ou branches.
+6. Pesquisas dos seis nomes não relacionados a rotação e de `gradebook_phase2_ddl_review.sql` não localizaram fonte exata no Git consultado. Uma busca vazia não prova inexistência absoluta.
+7. Evidências da issue #613 foram avaliadas como registros históricos, não como autorização operacional. Indicadores por expressão regular descrevem o texto registrado, não são um parser SQL nem prova independente de execução.
 
-- Cinco rotações: operações administrativas históricas, somente version/name. Nunca reconstruir senhas nem copiar SQL de rotação para replay.
-- Reset simplificado: destrutivo; baseline posterior não é seu SQL original nem recuperação de dados.
-- Grant: application_role_grants.sql é fonte contextual, não identidade comprovada do evento grant_gradebook_app_access.
-- FK diferida: README confirma incorporação na baseline 0001. Não inventar arquivo separado para o evento remoto.
-- Fase 2: sem arquivo exato; baseline de 10/09 é fotografia posterior do catálogo. Não atribuir extensões posteriores à fase 2.
-- Orçamento runtime: operação administrativa, sem SQL exato identificado.
-- Preparação SharePoint/fotos: operação histórica distinta de student-photos/0005 e da adoção posterior.
-- Gradebook-simplified/0001_current_schema.sql: baseline não reaplicável sobre schema existente. 0002 já incorporada; mantém memória do passo original.
-- Postgres/0001 e 0002: esquemas históricos anteriores; não restaurar streams/versions sobre modelo simplificado.
-- Gradebook 0003–0005 existem no Git e têm evidências produtivas nos READMEs, mas não há pares remotos separados com esses nomes nos 54. Não fabricar timestamps, nem declarar que estão ausentes do schema.
-- Supplement current_cross_schema_indexes_v1.sql e grants são reconstrução/ACL, sem associação automática a ledger.
-- Portal 0019 é destrutiva; rollback de código não restaura linhas removidas. Fotos 0001–0004 e identidade 0018 estão documentadas como já aplicadas: não repetir.
+[migration-map.json](migration-map.json) contém, por linha, SHA-1 do blob Git, SHA-256 bruto/trim, bytes, nível, evidência e o que falta.
+[review-evidence.json](review-evidence.json) preserva os resultados sanitizados e as comparações históricas, sem corpos SQL.
+Não foram lidos inventários de credenciais anteriormente negados nem SQLs históricos de rotação. Nenhum SQL histórico foi publicado nesta PR.
 
-## Níveis de certeza
+## Investigação das 11 lacunas
 
-A: versão vinculada explicitamente no postflight com evidência documental e hash. Não equivale a comparação do corpo SQL remoto.
-B: associação nominal/contextual consistente a fonte canônica identificada por blob Git; application bytes não demonstrados.
-D: arquivo exato ausente; hipótese contextual explicitamente separada.
-Os JSONs contêm a categoria, observação e nível por versão.
+A questão “qual era a operação?” ganhou evidência em todas as 11; a questão “qual arquivo imutável exato foi enviado?” permanece aberta.
+
+| Versão | Evento | Identificadores registrados sanitizados | Evidência ainda ausente |
+|---|---|---|---|
+| 20260908153620 | rotate_gradebook_app_password_20260908_02 | gradebook_app | Arquivo de proveniência administrativa sanitizado; não recuperar valores antigos de senha. É seguro encerrar como evento administrativo legado sem fonte reaplicável. |
+| 20260908153655 | rotate_gradebook_app_password_20260908_03 | gradebook_app | Arquivo de proveniência administrativa sanitizado; não recuperar valores antigos de senha. É seguro encerrar como evento administrativo legado sem fonte reaplicável. |
+| 20260908160759 | rotate_gradebook_app_password_20260908_04 | gradebook_app | Arquivo de proveniência administrativa sanitizado; não recuperar valores antigos de senha. É seguro encerrar como evento administrativo legado sem fonte reaplicável. |
+| 20260908160852 | rotate_gradebook_app_password_20260908_05 | gradebook_app | Arquivo de proveniência administrativa sanitizado; não recuperar valores antigos de senha. É seguro encerrar como evento administrativo legado sem fonte reaplicável. |
+| 20260908162021 | rotate_gradebook_app_password_20260908_06 | gradebook_app | Arquivo de proveniência administrativa sanitizado; não recuperar valores antigos de senha. É seguro encerrar como evento administrativo legado sem fonte reaplicável. |
+| 20260908213513 | reset_gradebook_for_simplified_rebuild | bn_benchmark, gradebook | Falta arquivo imutável/commit do SQL original de reset; baseline posterior não substitui sua origem. |
+| 20260908230146 | grant_gradebook_app_access | GRANT registrado | Falta versão exata de SQL de grants original vinculada ao digest do ledger. application_role_grants.sql atual tem digest e tamanho diferentes. |
+| 20260909001115 | defer_import_year_fk_for_atomic_first_relation | gradebook.importacao | Falta arquivo/commit exato do ALTER CONSTRAINT original vinculado ao digest do ledger; incorporação na baseline não prova igualdade de bytes. |
+| 20260909020108 | create_simplified_gradebook_phase2 | gradebook, gradebook.aluno, gradebook.ano_letivo, gradebook.ano_letivo_historico, gradebook.conselho_anterior_historico, gradebook.conselho_decisao, gradebook.conselho_decisao_historico, gradebook.disciplina, gradebook.fechamento, gradebook.fechamento_historico, gradebook.importacao, gradebook.instrumento, gradebook.instrumento_historico, gradebook.nota, gradebook.nota_historico, gradebook.oferta, gradebook.professor, gradebook.turma, gradebook.vinculo, gradebook.vinculo_historico | Falta gradebook_phase2_ddl_review.sql original, imutável e sanitizado, com hash correspondente; a issue cita o arquivo mas ele não foi encontrado na árvore/search Git consultados. |
+| 20260912150002 | student_portal_runtime_connection_budget_v1 | student_portal_app | Falta registro imutável do artefato administrativo original vinculado ao digest; configuração atual da role não comprova o evento histórico. |
+| 20260922074718 | prepare_sharepoint_profile_photo_storage | student_portal.profile_photo | Falta artefato original de preparação de profile_photo ligado ao digest; migrations de fotos posteriores não são substitutas. |
+
+Evidência complementar:
+- [Fase 2 concluída e grants](https://github.com/mcpmieda/ecossistema-escola/issues/613#issuecomment-5594704683): documenta 19 tabelas, aplicação dos dois nomes e ACL da role; não fornece bytes/hash do artefato original.
+- [FK diferida](https://github.com/mcpmieda/ecossistema-escola/issues/613#issuecomment-5595260550): documenta `importacao_ano_fk` como DEFERRABLE INITIALLY DEFERRED e a finalidade atômica; não fornece arquivo/hash do SQL enviado.
+- [Versão da fase 2 e arquivo de revisão citado](https://github.com/mcpmieda/ecossistema-escola/issues/613#issuecomment-5607003053): liga `20260909020108` à fase 2 e cita `gradebook_phase2_ddl_review.sql`. O reset de dados descrito nesse comentário é posterior e não deve ser confundido com a migration de reset inicial.
+- O ledger registra DROP SCHEMA/CASCADE e os identificadores `gradebook`/`bn_benchmark` no reset inicial; ALTER TABLE/DEFERRABLE na FK; CREATE TABLE/FUNCTION na fase 2; ALTER ROLE/CONNECTION LIMIT no orçamento; e CREATE/ALTER TABLE/GRANT com `student_portal.profile_photo` na preparação de fotos.
+- `0001_current_schema.sql` tem SHA-256 `8c7a1960112cffe7a9d41ca125af7a62b27247123b549e5e26f3b4420cf8fc95`, diferente do statement fase 2. `application_role_grants.sql` tem SHA-256 `05ce99ad6e2f8f2c152c20782d2a4b7477be6510f152f80beebd6f88932ffea6`, diferente do grant histórico. Essas fontes não são substitutas exatas.
+
+## Alternativa segura para encerrar sem fabricar histórico
+
+Encerrar esta etapa como **inventário e auditoria documental concluídos, com proveniência incompleta declarada**. Preservar os 54 registros; não criar migrations vazias, não atribuir timestamps fictícios, não reconstruir SQL de senhas, não trocar eventos por uma baseline e não chamar a reconciliação automática de concluída.
+
+- Rotações e orçamento: manter como operações administrativas legadas sem artefato reaplicável. Evidência futura deve ser sanitizada, sem recuperação dos valores antigos.
+- Reset inicial: registrar como destrutivo e não reaplicável; não existe rollback de dados por reverter código/ledger.
+- Fase 2 e FK: registrar a origem documental e os passos absorvidos pela baseline; validar somente precondições do catálogo atual para uma mudança nova.
+- Grant: preservar a história incompleta; avaliar ACL atual e qualquer delta novo em escopo próprio, sem replay do grant antigo.
+- Fotos: registrar a preparação histórica de profile_photo; não confundi-la com student-photos/0005, adoção administrativa ou a arquitetura atual de Storage.
+A aceitação dessas lacunas documentais não equivale a autorizar uma mutação operacional. [Plano futuro](APPROVAL_PLAN.md).
+
+## Baselines e passos que não podem virar replay
+
+O README do Banco simplificado define `0001_current_schema.sql` como fotografia posterior do catálogo: `0002_import_diagnostics_audit_v1.sql` e a FK diferida já estão incorporadas. Não executar 0002 depois de 0001 nem executar 0001 contra o schema existente.
+As fontes Postgres anteriores pertencem ao modelo legado; não restaurar streams/versions.
+Gradebook 0003–0005 possuem documentação produtiva, mas não há registros separados com esses nomes entre os 54. Isso não prova ausência dos objetos atuais nem permite atribuí-las a outra versão.
+Portal 0019 é destrutiva; rollback de código não restaura sua projeção apagada. Fotos 0001–0004 e identidade 0018 são documentadas como já aplicadas. Supplement de índices e application_role_grants são reconstrução/ACL, não entradas automaticamente associadas ao ledger.
+
+## Cache 0024 e integração
+
+A versão `20261001201546` permanece presente e o espelho `20261001224416` ausente. A fonte 0024 é nível T nesta comparação: digest bruto do arquivo `b1c21836a95f9c721e39c663fae37d71aa6469fc4579d8beb05dfd1b237561a9`; digest bruto registrado `b0b032a3904375777b34783e93920c6e7eb37b747309ead718cfb44f8e41f918`; coincidência depois de trim. Não confundir o hash documental do arquivo/espelho com o hash bruto do statement armazenado.
+
+A inspeção anterior desta tarefa confirmou seal_count_cache_v1 existente, owner postgres, RLS ligada, force RLS desligada e ACL direta postgres/student_portal_app. Não foi auditoria de memberships nem de todo o banco.
+[Postflight 0024](https://github.com/mcpmieda/ecossistema-escola/blob/17e82f62b35b3ed2cc998b694adfc6b7f3b249fb/docs/student-portal/POSTFLIGHT_0024.md) e [pós-deploy 1272](https://github.com/mcpmieda/ecossistema-escola/pull/1272#issuecomment-6104768095).
+
+Deploy to production OFF permanece sem alteração. A confirmação histórica foi salva após reload em 11/10 às 02:45 UTC; o Dashboard não foi reconfirmado nesta rodada. O ledger não revela esse setting. A integração permanece fora desta entrega.
+
+## Revisão e validação
+
+Comentários recentes consultados antes da atualização: CodeRabbit pulou revisão por ser draft; SonarCloud informou Quality Gate Passed. Nenhum deles autorizou operações nem comprovou a origem dos SQLs.
+[Validação isolada e limites](VALIDATION.md): metadados/digests e modelo de seleção futura passaram localmente. Ensaio PostgreSQL 18.6 iniciou em loopback, mas psql foi bloqueado por permissão 10013 antes de qualquer SQL; não houve contorno. Produção informa PostgreSQL 17.6. Não declarar validação de DDL, RLS/ACL, atomicidade do conector ou schema produtivo por esse ensaio.
+Os gates nativos existentes passaram no head documental anterior; sua cobertura de código/schema existente não valida uma migration futura ainda inexistente. Os resultados e SHAs estão no documento de validação.
+A leitura do checkout físico permanece bloqueada por ACL, sem escalada.
 
 ## Mapa completo
 
-| Versão | Nome remoto | SQL canônico / lacuna | Certeza | Git blob SHA-1 |
-|---|---|---|---|---|
-| 20260907172144 | bn_benchmark_v1 | migrations/postgres/0001_bn_benchmark_v1.sql | B | 05a23c049f68d518fda7b53d84d856b763f96c13 |
-| 20260908103626 | gradebook_production_v1 | migrations/postgres/0002_gradebook_production_v1.sql | B | 5281daff7abbd2594951b136c23527b39702a9f2 |
-| 20260908153620 | rotate_gradebook_app_password_20260908_02 | Somente version/name consultados; corpo e valores de rotação não lidos. | D | — |
-| 20260908153655 | rotate_gradebook_app_password_20260908_03 | Somente version/name consultados; corpo e valores de rotação não lidos. | D | — |
-| 20260908160759 | rotate_gradebook_app_password_20260908_04 | Somente version/name consultados; corpo e valores de rotação não lidos. | D | — |
-| 20260908160852 | rotate_gradebook_app_password_20260908_05 | Somente version/name consultados; corpo e valores de rotação não lidos. | D | — |
-| 20260908162021 | rotate_gradebook_app_password_20260908_06 | Somente version/name consultados; corpo e valores de rotação não lidos. | D | — |
-| 20260908213513 | reset_gradebook_for_simplified_rebuild | Reset destrutivo de reconstrução; baseline 0001 é fotografia posterior, não o SQL exato do reset. | D | — |
-| 20260908230146 | grant_gradebook_app_access | application_role_grants.sql é candidato contextual; grants/defaults posteriores podem diferir. Sem equivalência exata. | D | — |
-| 20260909001115 | defer_import_year_fk_for_atomic_first_relation | README da baseline confirma FK DEFERRABLE INITIALLY DEFERRED incorporada em 0001; SQL produtivo original não identificado. | D | — |
-| 20260909020108 | create_simplified_gradebook_phase2 | Reconstrução anterior à baseline 0001 de 10/09; relações posteriores 0003–0005 não devem ser atribuídas a este passo sem prova. | D | — |
-| 20260909160930 | add_simplified_import_diagnostics_audit | migrations/gradebook-simplified/0002_import_diagnostics_audit_v1.sql | B | 94be41daf0a6dd2ea19eb12007aca98a5dd71b08 |
-| 20260911140219 | import_diagnostic_treatment_v1 | migrations/gradebook-simplified/0006_import_diagnostic_treatment_v1.sql | B | f8b246ae87b59038436a7f04e04a9af82388ed52 |
-| 20260911201622 | multiyear_rr_v1 | migrations/gradebook-simplified/0007_multiyear_rr_v1.sql | B | 70dadc0f314c8c6b089128fb5900a1398ac9461f |
-| 20260912004843 | year_reset_acl_v1 | migrations/gradebook-simplified/0008_year_reset_acl_v1.sql | B | 0d78ff42b8721367aa516629cc9f276941e15365 |
-| 20260912141718 | student_portal_0001_identity_credentials_acl_v1 | migrations/student-portal/0001_identity_credentials_acl_v1.sql | B | 8054454ed34d2a29cf550708fecc79111cb96f19 |
-| 20260912141723 | student_portal_0002_policy_publication_revision_v1 | migrations/student-portal/0002_policy_publication_revision_v1.sql | B | 4cc32abd6146aed9956156ff050f596d40cbd447 |
-| 20260912141729 | student_portal_0003_audit_receipts_closure_integration_v1 | migrations/student-portal/0003_audit_receipts_closure_integration_v1.sql | B | d838306e083cc209346bc233a7918d5c8bfed411 |
-| 20260912141733 | student_portal_0004_gradebook_integration_usage_v1 | migrations/student-portal/0004_gradebook_integration_usage_v1.sql | B | 0b896b35405fed24920c92cac8d108eec922c687 |
-| 20260912150002 | student_portal_runtime_connection_budget_v1 | Operação administrativa de orçamento/conexões; sem arquivo SQL canônico identificado. Não inferir ALTER ROLE nem valores. | D | — |
-| 20260912165146 | year_reset_protocol_v1 | migrations/student-portal/0005_year_reset_protocol_v1.sql | B | 2925b38bf3d9ed8751fc8605b6cfde54ce7e7a46 |
-| 20260912173924 | gradebook_revision_year_range_v1 | migrations/student-portal/0006_gradebook_revision_year_range_v1.sql | B | 0da9602791b1f8d37d4ff360988158c0e6b8004f |
-| 20260912182516 | lifecycle_integration_v1 | migrations/student-portal/0007_lifecycle_integration_v1.sql | B | 3cc62d0d5488721565afdbf47ed31841b7b8c9b6 |
-| 20260914235006 | student_portal_atomic_publication_v2 | migrations/student-portal/0008_atomic_publication_v2.sql | B | 70ad3b5c3d4d976db37570159e1ffc3cba4e28b0 |
-| 20260914235035 | student_portal_publication_cutover_guard_v2 | migrations/student-portal/0009_publication_cutover_guard_v2.sql | B | bc8d965c94f7fdf82dc291d5a2eca8383fddfeee |
-| 20260915102433 | student_portal_incremental_publication_v3 | migrations/student-portal/0010_incremental_publication_v3.sql | B | aadd570a3738f6c860731fe33fd8a92b9acedc30 |
-| 20260915164741 | student_portal_live_event_outbox_v1 | migrations/student-portal/0011_live_event_outbox_v1.sql | B | 36a7b160213d6dd700199486a12be0b24c5b88a9 |
-| 20260916090209 | granular_observations_names_v1 | migrations/gradebook-simplified/0009_granular_observations_names_v1.sql | B | 854106bdb5ede9afd78825a0e18a787c978454ee |
-| 20260916090215 | student_portal_granular_observations_names_v1 | migrations/student-portal/0012_granular_observations_names_v1.sql | B | d007d476ef296d2cb995fda78b827e8632c2bfb7 |
-| 20260916200845 | student_portal_publication_inheritance_v1 | migrations/student-portal/0013_publication_inheritance_v1.sql | B | 67668d8cd567efad1f59983572e2e5a107b6aff0 |
-| 20260918114401 | gradebook_rls_v1 | migrations/gradebook-simplified/0011_gradebook_rls_v1.sql | B | 07fa2eb2999ee2c7e598bcafeb1fdfeb0ac3f35a |
-| 20260918115606 | qualitative_corrections_2026_v1 | migrations/gradebook-simplified/0010_qualitative_corrections_2026_v1.sql | B | 538b6a3238c1b7cbf970c8dc37c5c8ab52698c55 |
-| 20260918163014 | current_state_cleanup_v1 | migrations/gradebook-simplified/0012_current_state_cleanup_v1.sql | B | ba9e461b0bfca5b53c4165c00b22ab0f0015a0e5 |
-| 20260918173558 | year_reset_full_cleanup_v1 | migrations/student-portal/0014_year_reset_full_cleanup_v1.sql | B | 659a367ba905d240f70cab4d0398e33782f3e561 |
-| 20260920004859 | student_portal_rls_v1 | migrations/student-portal/0015_student_portal_rls_v1.sql | B | fba7a92a8bbb07b3dde9913938ce983130bad7b2 |
-| 20260920162250 | default_privileges_hardening_v1 | migrations/gradebook-simplified/0013_default_privileges_hardening_v1.sql | B | 50fe3151d4ef12e56cb5cc2f82db626fb986ebeb |
-| 20260921211119 | system_health_history_1091_v1 | migrations/observability/0001_portal_health_history_v1.sql | B | 3ee4c63749dfe7c1c791a99749183d6ddba75519 |
-| 20260921222305 | portal_signals_1093_v1 | migrations/observability/0002_portal_signals_v1.sql | B | 12dd355bb2c6420671394daf5f47d958ba281b25 |
-| 20260922074718 | prepare_sharepoint_profile_photo_storage | Preparação histórica de fotos; não confundir com student-photos/0005 nem roteiro de adoção posterior. Sem SQL exato. | D | — |
-| 20260922150000 | student_portal_audit_entities_v1 | migrations/student-portal/0016_audit_entities_v1.sql | B | f1cc90d6a9f0da6aecb1a560afa8b946b594bc68 |
-| 20260922150001 | student_portal_security_event_priority_v1 | migrations/student-portal/0017_security_event_priority_v1.sql | B | 36153cb96ecb4cd74f38ca394c75cd6c4a16fbf4 |
-| 20260922212633 | student_portal_shared_student_identity_v1 | migrations/student-portal/0018_shared_student_identity_v1.sql | B | 0e4c1f1298c6f69e5acf12f4ebe0464ea0ea97ab |
-| 20260923164053 | student_portal_remove_legacy_projection_v1 | migrations/student-portal/0019_remove_legacy_projection_v1.sql | B | 54aef301d949cbe5da5de07977580722491563ad |
-| 20260923172851 | student_photos_private_delivery_v1 | migrations/student-photos/0001_private_delivery_v1.sql | B | aec58b9608883041c0cef52b4a02a589adb6c783 |
-| 20260923172918 | student_photos_write_journal_v1 | migrations/student-photos/0002_write_journal_v1.sql | B | 1facd11a96b81e33da679764f3ed979a20ec91df |
-| 20260923191611 | student_photos_runtime_catalog_v1 | migrations/student-photos/0003_runtime_catalog_v1.sql | B | 6a3adcb1314f2b7f07465f06415110101ab8cddb |
-| 20260923191702 | student_photos_resumable_payload_v1 | migrations/student-photos/0004_resumable_payload_v1.sql | B | 0ed11dad6248a9168c413adfee2f7c2e9b5fc12f |
-| 20260923193137 | student_portal_term_closing_policy_v1 | migrations/student-portal/0020_term_closing_policy_v1.sql | B | ce016f7ba3ca338848c6a41d50a8d69621e87d37 |
-| 20260923224615 | student_photos_supabase_storage_v1 | migrations/student-photos/0005_supabase_storage_v1.sql | B | 2d0077ed9d354d186b7f57a6fe551254200b53d5 |
-| 20260927100854 | student_portal_access_schedule_v1 | migrations/student-portal/0021_access_schedule_v1.sql | B | 54b17d6898052b43be7329df594525e592725ccb |
-| 20260928092734 | student_portal_shift_policy_v1 | migrations/student-portal/0022_shift_policy_v1.sql | B | 4f380b4942c6b5f48f88fd80f70d8c6acf43779a |
-| 20260929071319 | student_portal_audit_detail_v1 | migrations/student-portal/0023_audit_detail_v1.sql | B | b3ddacf8a38848968dd64d4a8349765dcd870178 |
-| 20261001201546 | student_portal_seal_count_cache_v1 | migrations/student-portal/0024_seal_count_cache_v1.sql | A | e03b1e0a0c209d66bae201c02ababa0f4a3163e0 |
-| 20261005151011 | function_execute_hardening_v1 | migrations/gradebook-simplified/0014_function_execute_hardening_v1.sql | B | 77dcdba2cfbd2bd70b7a1007d3137ece7e2f59b9 |
+| Versão | Nome remoto | Fonte candidata / lacuna | Nível |
+|---|---|---|---|
+| 20260907172144 | bn_benchmark_v1 | migrations/postgres/0001_bn_benchmark_v1.sql | B |
+| 20260908103626 | gradebook_production_v1 | migrations/postgres/0002_gradebook_production_v1.sql | H |
+| 20260908153620 | rotate_gradebook_app_password_20260908_02 | sem arquivo exato | D |
+| 20260908153655 | rotate_gradebook_app_password_20260908_03 | sem arquivo exato | D |
+| 20260908160759 | rotate_gradebook_app_password_20260908_04 | sem arquivo exato | D |
+| 20260908160852 | rotate_gradebook_app_password_20260908_05 | sem arquivo exato | D |
+| 20260908162021 | rotate_gradebook_app_password_20260908_06 | sem arquivo exato | D |
+| 20260908213513 | reset_gradebook_for_simplified_rebuild | sem arquivo exato | D |
+| 20260908230146 | grant_gradebook_app_access | sem arquivo exato | D |
+| 20260909001115 | defer_import_year_fk_for_atomic_first_relation | sem arquivo exato | D |
+| 20260909020108 | create_simplified_gradebook_phase2 | sem arquivo exato | D |
+| 20260909160930 | add_simplified_import_diagnostics_audit | migrations/gradebook-simplified/0002_import_diagnostics_audit_v1.sql | B |
+| 20260911140219 | import_diagnostic_treatment_v1 | migrations/gradebook-simplified/0006_import_diagnostic_treatment_v1.sql | B |
+| 20260911201622 | multiyear_rr_v1 | migrations/gradebook-simplified/0007_multiyear_rr_v1.sql | T |
+| 20260912004843 | year_reset_acl_v1 | migrations/gradebook-simplified/0008_year_reset_acl_v1.sql | T |
+| 20260912141718 | student_portal_0001_identity_credentials_acl_v1 | migrations/student-portal/0001_identity_credentials_acl_v1.sql | H |
+| 20260912141723 | student_portal_0002_policy_publication_revision_v1 | migrations/student-portal/0002_policy_publication_revision_v1.sql | H |
+| 20260912141729 | student_portal_0003_audit_receipts_closure_integration_v1 | migrations/student-portal/0003_audit_receipts_closure_integration_v1.sql | H |
+| 20260912141733 | student_portal_0004_gradebook_integration_usage_v1 | migrations/student-portal/0004_gradebook_integration_usage_v1.sql | H |
+| 20260912150002 | student_portal_runtime_connection_budget_v1 | sem arquivo exato | D |
+| 20260912165146 | year_reset_protocol_v1 | migrations/student-portal/0005_year_reset_protocol_v1.sql | B |
+| 20260912173924 | gradebook_revision_year_range_v1 | migrations/student-portal/0006_gradebook_revision_year_range_v1.sql | T |
+| 20260912182516 | lifecycle_integration_v1 | migrations/student-portal/0007_lifecycle_integration_v1.sql | T |
+| 20260914235006 | student_portal_atomic_publication_v2 | migrations/student-portal/0008_atomic_publication_v2.sql | T |
+| 20260914235035 | student_portal_publication_cutover_guard_v2 | migrations/student-portal/0009_publication_cutover_guard_v2.sql | H |
+| 20260915102433 | student_portal_incremental_publication_v3 | migrations/student-portal/0010_incremental_publication_v3.sql | H |
+| 20260915164741 | student_portal_live_event_outbox_v1 | migrations/student-portal/0011_live_event_outbox_v1.sql | T |
+| 20260916090209 | granular_observations_names_v1 | migrations/gradebook-simplified/0009_granular_observations_names_v1.sql | B |
+| 20260916090215 | student_portal_granular_observations_names_v1 | migrations/student-portal/0012_granular_observations_names_v1.sql | B |
+| 20260916200845 | student_portal_publication_inheritance_v1 | migrations/student-portal/0013_publication_inheritance_v1.sql | T |
+| 20260918114401 | gradebook_rls_v1 | migrations/gradebook-simplified/0011_gradebook_rls_v1.sql | H |
+| 20260918115606 | qualitative_corrections_2026_v1 | migrations/gradebook-simplified/0010_qualitative_corrections_2026_v1.sql | H |
+| 20260918163014 | current_state_cleanup_v1 | migrations/gradebook-simplified/0012_current_state_cleanup_v1.sql | H |
+| 20260918173558 | year_reset_full_cleanup_v1 | migrations/student-portal/0014_year_reset_full_cleanup_v1.sql | H |
+| 20260920004859 | student_portal_rls_v1 | migrations/student-portal/0015_student_portal_rls_v1.sql | T |
+| 20260920162250 | default_privileges_hardening_v1 | migrations/gradebook-simplified/0013_default_privileges_hardening_v1.sql | B |
+| 20260921211119 | system_health_history_1091_v1 | migrations/observability/0001_portal_health_history_v1.sql | H |
+| 20260921222305 | portal_signals_1093_v1 | migrations/observability/0002_portal_signals_v1.sql | H |
+| 20260922074718 | prepare_sharepoint_profile_photo_storage | sem arquivo exato | D |
+| 20260922150000 | student_portal_audit_entities_v1 | migrations/student-portal/0016_audit_entities_v1.sql | N |
+| 20260922150001 | student_portal_security_event_priority_v1 | migrations/student-portal/0017_security_event_priority_v1.sql | N |
+| 20260922212633 | student_portal_shared_student_identity_v1 | migrations/student-portal/0018_shared_student_identity_v1.sql | H |
+| 20260923164053 | student_portal_remove_legacy_projection_v1 | migrations/student-portal/0019_remove_legacy_projection_v1.sql | B |
+| 20260923172851 | student_photos_private_delivery_v1 | migrations/student-photos/0001_private_delivery_v1.sql | H |
+| 20260923172918 | student_photos_write_journal_v1 | migrations/student-photos/0002_write_journal_v1.sql | H |
+| 20260923191611 | student_photos_runtime_catalog_v1 | migrations/student-photos/0003_runtime_catalog_v1.sql | H |
+| 20260923191702 | student_photos_resumable_payload_v1 | migrations/student-photos/0004_resumable_payload_v1.sql | H |
+| 20260923193137 | student_portal_term_closing_policy_v1 | migrations/student-portal/0020_term_closing_policy_v1.sql | B |
+| 20260923224615 | student_photos_supabase_storage_v1 | migrations/student-photos/0005_supabase_storage_v1.sql | T |
+| 20260927100854 | student_portal_access_schedule_v1 | migrations/student-portal/0021_access_schedule_v1.sql | B |
+| 20260928092734 | student_portal_shift_policy_v1 | migrations/student-portal/0022_shift_policy_v1.sql | B |
+| 20260929071319 | student_portal_audit_detail_v1 | migrations/student-portal/0023_audit_detail_v1.sql | B |
+| 20261001201546 | student_portal_seal_count_cache_v1 | migrations/student-portal/0024_seal_count_cache_v1.sql | T |
+| 20261005151011 | function_execute_hardening_v1 | migrations/gradebook-simplified/0014_function_execute_hardening_v1.sql | H |
 
-## Fontes
+## Fontes canônicas
 
-- [Main consultada](https://api.github.com/repos/mcpmieda/ecossistema-escola/branches/main).
-- [Árvore fixada](https://github.com/mcpmieda/ecossistema-escola/tree/17e82f62b35b3ed2cc998b694adfc6b7f3b249fb).
-- [Evidência pós-deploy 1272](https://github.com/mcpmieda/ecossistema-escola/pull/1272#issuecomment-6104768095).
+- [AGENTS.md](https://github.com/mcpmieda/ecossistema-escola/blob/17e82f62b35b3ed2cc998b694adfc6b7f3b249fb/AGENTS.md), blob caad264b30f12a5ea16f705a2b626621d93312ad.
 - [README migrations](https://github.com/mcpmieda/ecossistema-escola/blob/17e82f62b35b3ed2cc998b694adfc6b7f3b249fb/migrations/README.md).
 - [Baseline simplificada](https://github.com/mcpmieda/ecossistema-escola/blob/17e82f62b35b3ed2cc998b694adfc6b7f3b249fb/migrations/gradebook-simplified/README.md).
 - [Portal](https://github.com/mcpmieda/ecossistema-escola/blob/17e82f62b35b3ed2cc998b694adfc6b7f3b249fb/migrations/student-portal/README.md).
-- [Postflight 0024](https://github.com/mcpmieda/ecossistema-escola/blob/17e82f62b35b3ed2cc998b694adfc6b7f3b249fb/docs/student-portal/POSTFLIGHT_0024.md).
 - [Fotos](https://github.com/mcpmieda/ecossistema-escola/blob/17e82f62b35b3ed2cc998b694adfc6b7f3b249fb/migrations/student-photos/README.md).
 
-A publicação autorizada consiste somente nesta documentação em PR em rascunho. Nenhuma operação de banco, ledger, migrations executáveis, settings, permissões, deploy ou merge integra a entrega. Nenhuma pasta de migrations foi povoada. As 11 lacunas permanecem sem solução; a reconciliação executável depende de evidência e autorização específica.
-
+Nenhuma mutation de produção, repair, replay, credencial, permissão, configuração, deploy ou merge foi executada. A PR é somente documentação; a etapa documental pode ser revisada com as lacunas visíveis.
