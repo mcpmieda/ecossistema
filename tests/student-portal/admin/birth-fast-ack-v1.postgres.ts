@@ -42,9 +42,9 @@ async function command(index: number, year: string) {
     idempotencyKey: crypto.randomUUID(), includeSavedBirth: true,
     item: { action: 'set', accountId: id, expectedVersion: rows[0]!.birth_version, year, confirmation: 'unconfirmed-test' } };
 }
-it('returns the committed opt-in value through the admin contract and an independent connection sees it', async () => {
+it('preserves acknowledgement and notification coverage for historical birth fixtures', async () => {
   const input = await command(2, '2003');
-  const result = await readApiV2(sql).command({ ...readContextV2(), capability: 'platform.settings.write' }, input);
+  const result = await new BirthYearServiceV1(sql, cryptography, 1).write(READ_ACTOR_V2, input);
   expect(result).toMatchObject({ state: 'committed', version: 1, savedBirth: { accountId: readAccountIdV2(2), classId: 746001,
     accountVersion: 1, version: 1, year: '2003', confirmation: 'unconfirmed-test' } });
   const rows = await peer.unsafe('SELECT birth_year::text AS year_value,version::integer FROM student_portal.account_access_data WHERE account_id=$1::uuid', [readAccountIdV2(2)]);
@@ -56,6 +56,21 @@ it('returns the committed opt-in value through the admin contract and an indepen
     { audience: 'admin', domain: 'portal', account_id: readAccountIdV2(2) },
     { audience: 'student', domain: 'portal', account_id: readAccountIdV2(2) },
   ]);
+});
+it('rejects retired birth writers and retries through the admin API without changing existing access or notices', async () => {
+  const input = await command(2, '2013');
+  const snapshot = () => peer.unsafe(`SELECT a.version,a.pin_version,b.birth_year,b.version AS birth_version,
+    (SELECT count(*)::integer FROM student_portal.live_event_outbox_v1 WHERE account_id=a.id) AS notices
+    FROM student_portal.account a LEFT JOIN student_portal.account_access_data b ON b.account_id=a.id
+    WHERE a.id=$1::uuid`, [readAccountIdV2(2)]);
+  const before = await snapshot();
+  const batch = { contractVersion: 1, operation: 'birth-batch', expectedVersion: input.expectedVersion,
+    idempotencyKey: crypto.randomUUID(), classId: 746001, expectedCount: 1, items: [input.item], confirmed: true };
+  for (const retired of [input, input, batch, batch]) {
+    expect(await readApiV2(sql).command({ ...readContextV2(), capability: 'platform.settings.write' }, retired))
+      .toMatchObject({ state: 'invalid-request' });
+    expect(await snapshot()).toEqual(before);
+  }
 });
 it('replays a lost response idempotently without a second write or notification', async () => {
   const input = await command(4, '2007');
