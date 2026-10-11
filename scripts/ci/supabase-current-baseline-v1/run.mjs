@@ -51,7 +51,9 @@ assert.equal(manifest.functions.filter(x=>!x.source).length,5,'opaque exclusions
 if(!process.argv.includes('--native')) { console.log('Artifact hashes and declared subset contract passed; PostgreSQL not executed.'); process.exit(0); }
 assert.equal(process.env.GITHUB_ACTIONS,'true','Native execution restricted to disposable GitHub CI');
 assert.ok(!Object.keys(process.env).some(x=>x.startsWith('PG')),'Ambient PG configuration prohibited');
-const env={...process.env,PGPASSFILE:'/nonexistent-baseline-passfile',PGSERVICEFILE:'/nonexistent-baseline-servicefile'};
+// Read-only production settings: America/Sao_Paulo, ISO/MDY, postgres intervals.
+// Match deparser context in disposable sessions; no production setting is modified.
+const env={...process.env,PGPASSFILE:'/nonexistent-baseline-passfile',PGSERVICEFILE:'/nonexistent-baseline-servicefile',PGOPTIONS:'-c timezone=America/Sao_Paulo -c datestyle=ISO,MDY -c intervalstyle=postgres'};
 const args=['-X','--no-password','-h','127.0.0.1','-p','55474','-U','postgres','-d','current_baseline_synthetic','-v','ON_ERROR_STOP=1','-qAt'];
 function exec(sql, expectedError) {
  const result=spawnSync('/usr/bin/psql',args,{input:sql,encoding:'utf8',env,timeout:60000,maxBuffer:8*1024*1024});
