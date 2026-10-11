@@ -1,0 +1,1356 @@
+{
+  "collected_utc": "2026-10-11T03:28:02.583Z",
+  "base": "17e82f62b35b3ed2cc998b694adfc6b7f3b249fb",
+  "ledger": [
+    {
+      "version": "20260907172144",
+      "name": "bn_benchmark_v1",
+      "statement_count": 1,
+      "joined_bytes": 3877,
+      "joined_sha256": "6ee42fad44cd80fc5a24f0e551f4a7fc2c536fe0614bf9ecacb816877768d1cc",
+      "trimmed_sha256": "3a51e27e39eba8d2bc1b00c91c622b21cdc27a810a7e24de847e046b464ab347"
+    },
+    {
+      "version": "20260908103626",
+      "name": "gradebook_production_v1",
+      "statement_count": 1,
+      "joined_bytes": 40694,
+      "joined_sha256": "8e3b381a0d28a422a225c2199696666357c9b6b47831ffb86d0cc5c0b5d4348c",
+      "trimmed_sha256": "273e0260e8c39dbc06a9568402f8534ec0b8e95d4801b30becfa022de8db6f89"
+    },
+    {
+      "version": "20260908153620",
+      "name": "rotate_gradebook_app_password_20260908_02",
+      "statement_count": 1,
+      "joined_bytes": null,
+      "joined_sha256": null,
+      "trimmed_sha256": null
+    },
+    {
+      "version": "20260908153655",
+      "name": "rotate_gradebook_app_password_20260908_03",
+      "statement_count": 1,
+      "joined_bytes": null,
+      "joined_sha256": null,
+      "trimmed_sha256": null
+    },
+    {
+      "version": "20260908160759",
+      "name": "rotate_gradebook_app_password_20260908_04",
+      "statement_count": 1,
+      "joined_bytes": null,
+      "joined_sha256": null,
+      "trimmed_sha256": null
+    },
+    {
+      "version": "20260908160852",
+      "name": "rotate_gradebook_app_password_20260908_05",
+      "statement_count": 1,
+      "joined_bytes": null,
+      "joined_sha256": null,
+      "trimmed_sha256": null
+    },
+    {
+      "version": "20260908162021",
+      "name": "rotate_gradebook_app_password_20260908_06",
+      "statement_count": 1,
+      "joined_bytes": null,
+      "joined_sha256": null,
+      "trimmed_sha256": null
+    },
+    {
+      "version": "20260908213513",
+      "name": "reset_gradebook_for_simplified_rebuild",
+      "statement_count": 1,
+      "joined_bytes": 109,
+      "joined_sha256": "f9a18fb1abe2d5ad988917f655b5705dda7693f87df9a5ebe4b3481c2d4703a7",
+      "trimmed_sha256": "f9a18fb1abe2d5ad988917f655b5705dda7693f87df9a5ebe4b3481c2d4703a7"
+    },
+    {
+      "version": "20260908230146",
+      "name": "grant_gradebook_app_access",
+      "statement_count": 1,
+      "joined_bytes": 578,
+      "joined_sha256": "b791ad7fe6f21fd740f3cc9fdf209486afb32df18d4ba2015b4d0faeab57dab0",
+      "trimmed_sha256": "b791ad7fe6f21fd740f3cc9fdf209486afb32df18d4ba2015b4d0faeab57dab0"
+    },
+    {
+      "version": "20260909001115",
+      "name": "defer_import_year_fk_for_atomic_first_relation",
+      "statement_count": 1,
+      "joined_bytes": 100,
+      "joined_sha256": "36fa13b53c1045f4db10748b9bc3abf0f0ea6736856ce50688ecfc85a7c6684f",
+      "trimmed_sha256": "36fa13b53c1045f4db10748b9bc3abf0f0ea6736856ce50688ecfc85a7c6684f"
+    },
+    {
+      "version": "20260909020108",
+      "name": "create_simplified_gradebook_phase2",
+      "statement_count": 1,
+      "joined_bytes": 19301,
+      "joined_sha256": "c86c3d629795a1f045dc53526fe02158fabe69da28f730b9ccc0cd19ce261fa5",
+      "trimmed_sha256": "c86c3d629795a1f045dc53526fe02158fabe69da28f730b9ccc0cd19ce261fa5"
+    },
+    {
+      "version": "20260909160930",
+      "name": "add_simplified_import_diagnostics_audit",
+      "statement_count": 1,
+      "joined_bytes": 1733,
+      "joined_sha256": "b5190e5b4a61b0365d87e1a2642f3175459da35b3e843ec73c46d7a1844f4919",
+      "trimmed_sha256": "b5190e5b4a61b0365d87e1a2642f3175459da35b3e843ec73c46d7a1844f4919"
+    },
+    {
+      "version": "20260911140219",
+      "name": "import_diagnostic_treatment_v1",
+      "statement_count": 1,
+      "joined_bytes": 3673,
+      "joined_sha256": "28372530e35793b29d281dcde7b5d22a2ca96e50ea272c54038f9db944d20214",
+      "trimmed_sha256": "b43533b1542dc54aed7a8b059dbd0461b1e0f2571de6b67ee8b4b4b297a1e389"
+    },
+    {
+      "version": "20260911201622",
+      "name": "multiyear_rr_v1",
+      "statement_count": 1,
+      "joined_bytes": 2285,
+      "joined_sha256": "d08ccbf847cdec29a344029cabbec96e95efd1bea8dcf2eaa2f4296e93eb0afe",
+      "trimmed_sha256": "d08ccbf847cdec29a344029cabbec96e95efd1bea8dcf2eaa2f4296e93eb0afe"
+    },
+    {
+      "version": "20260912004843",
+      "name": "year_reset_acl_v1",
+      "statement_count": 1,
+      "joined_bytes": 976,
+      "joined_sha256": "f0dfd9837da045d797f98be6715483099689d90240e29a23f7621cc19d9b3587",
+      "trimmed_sha256": "f0dfd9837da045d797f98be6715483099689d90240e29a23f7621cc19d9b3587"
+    },
+    {
+      "version": "20260912141718",
+      "name": "student_portal_0001_identity_credentials_acl_v1",
+      "statement_count": 1,
+      "joined_bytes": 7838,
+      "joined_sha256": "6d117e3910aec9558b5b9f7f9847c7707158f92c8c5d9e5e1a3119638d88eaa4",
+      "trimmed_sha256": "163b516df731c1bb082c830a955903cd1617504afc8c48cc8d84088a593c3e5e"
+    },
+    {
+      "version": "20260912141723",
+      "name": "student_portal_0002_policy_publication_revision_v1",
+      "statement_count": 1,
+      "joined_bytes": 10992,
+      "joined_sha256": "ae4c9c25371242a035b3341d963f4101de9d855dbbb4bea44b9ab4239617d5ce",
+      "trimmed_sha256": "52019b83f6db1f8e974cd9f3ae0bd96a21ba3ae1842d7456e33bcf7b273b2ff8"
+    },
+    {
+      "version": "20260912141729",
+      "name": "student_portal_0003_audit_receipts_closure_integration_v1",
+      "statement_count": 1,
+      "joined_bytes": 7850,
+      "joined_sha256": "64bb235a6b6e9beee6716a455126b15d347c5c0a60456488828f85b867a2b33a",
+      "trimmed_sha256": "fa16b19f139e80e63e475c346595b019f62920a836165d027456e9c27e4a9eb8"
+    },
+    {
+      "version": "20260912141733",
+      "name": "student_portal_0004_gradebook_integration_usage_v1",
+      "statement_count": 1,
+      "joined_bytes": 1583,
+      "joined_sha256": "cc2b24fb33c6d66d372622fa586fe28531dfe58c425a712048043fb06748ddaf",
+      "trimmed_sha256": "28be7a42547ee73bbfe067b3723ab3d2f4ad3121392f0cb7b9af42a82153ff03"
+    },
+    {
+      "version": "20260912150002",
+      "name": "student_portal_runtime_connection_budget_v1",
+      "statement_count": 1,
+      "joined_bytes": 393,
+      "joined_sha256": "c035cfaaa01ee5c8c9f986cf39944934a0722d1f8cbd19881458ca26a3d00d96",
+      "trimmed_sha256": "c035cfaaa01ee5c8c9f986cf39944934a0722d1f8cbd19881458ca26a3d00d96"
+    },
+    {
+      "version": "20260912165146",
+      "name": "year_reset_protocol_v1",
+      "statement_count": 1,
+      "joined_bytes": 8900,
+      "joined_sha256": "aa13a24a6758d79db3e7d11f6ddc941a2299572e350a33e9e1cf921d86432be0",
+      "trimmed_sha256": "3930cfcd338486324d77b1959bc873425b765698d4c3a3f0fde4959ca97c263c"
+    },
+    {
+      "version": "20260912173924",
+      "name": "gradebook_revision_year_range_v1",
+      "statement_count": 1,
+      "joined_bytes": 2893,
+      "joined_sha256": "b5c6b2a8fed6cfbaf75e93f3e732e47e733cdc7a9b8618b443f43548beac4530",
+      "trimmed_sha256": "55974a47925884d8f4d70f6e1e15faba83ccb3f55b0b0f04b02b5edb44a9cd23"
+    },
+    {
+      "version": "20260912182516",
+      "name": "lifecycle_integration_v1",
+      "statement_count": 1,
+      "joined_bytes": 8067,
+      "joined_sha256": "d7f9094ca4b889fedf83460ff9f9a94ec5f90cb8542dddaf659663d82e88d400",
+      "trimmed_sha256": "d7f9094ca4b889fedf83460ff9f9a94ec5f90cb8542dddaf659663d82e88d400"
+    },
+    {
+      "version": "20260914235006",
+      "name": "student_portal_atomic_publication_v2",
+      "statement_count": 1,
+      "joined_bytes": 16239,
+      "joined_sha256": "f5002b023bf2090e277d9fb5c355aeedf3d0170739ea996ec79963ed69584529",
+      "trimmed_sha256": "f5002b023bf2090e277d9fb5c355aeedf3d0170739ea996ec79963ed69584529"
+    },
+    {
+      "version": "20260914235035",
+      "name": "student_portal_publication_cutover_guard_v2",
+      "statement_count": 1,
+      "joined_bytes": 1274,
+      "joined_sha256": "67a2696b50245bb1674f90d9542d2e17d140471b40d4c1bdb44e4d4b202edf49",
+      "trimmed_sha256": "9ca7dfeee3fb9d3a2daa4390a62d15590513e4db693e32e1053732d156280b1a"
+    },
+    {
+      "version": "20260915102433",
+      "name": "student_portal_incremental_publication_v3",
+      "statement_count": 1,
+      "joined_bytes": 9815,
+      "joined_sha256": "0ffae095726330c9579293c3e6ea5d1f28468a6105a58306a027744a51826500",
+      "trimmed_sha256": "185aaf61b7de1e94d91867204c285398e2b31861669a14d2b0acdb13c137e256"
+    },
+    {
+      "version": "20260915164741",
+      "name": "student_portal_live_event_outbox_v1",
+      "statement_count": 1,
+      "joined_bytes": 4897,
+      "joined_sha256": "a0723e22911da0eac970cf71ca228c702e7f6a3827e654c232f385d951872758",
+      "trimmed_sha256": "a0723e22911da0eac970cf71ca228c702e7f6a3827e654c232f385d951872758"
+    },
+    {
+      "version": "20260916090209",
+      "name": "granular_observations_names_v1",
+      "statement_count": 1,
+      "joined_bytes": 1339,
+      "joined_sha256": "30f983d593a23d40fb5f7943e814bf2a44dd745bd4a5d1d58a3a6398db4b03d6",
+      "trimmed_sha256": "e6ef4a0dbdc371c5c08a6909763436aea49fa04afc628f1bae1072f178559346"
+    },
+    {
+      "version": "20260916090215",
+      "name": "student_portal_granular_observations_names_v1",
+      "statement_count": 1,
+      "joined_bytes": 4897,
+      "joined_sha256": "b621d4e8053830e4a5c949b4378142a0bf080a5a39dc6007a299d4b85afebf7f",
+      "trimmed_sha256": "0818369f306c30e2791a649b62b08cd3da2c64a20f18010e6b09b0c689bd92c1"
+    },
+    {
+      "version": "20260916200845",
+      "name": "student_portal_publication_inheritance_v1",
+      "statement_count": 1,
+      "joined_bytes": 783,
+      "joined_sha256": "b127df90ed420be74aa3b4df2cb8dae769caccfe5f075cb7e2a871228eb33c13",
+      "trimmed_sha256": "b127df90ed420be74aa3b4df2cb8dae769caccfe5f075cb7e2a871228eb33c13"
+    },
+    {
+      "version": "20260918114401",
+      "name": "gradebook_rls_v1",
+      "statement_count": 1,
+      "joined_bytes": 3053,
+      "joined_sha256": "1e42a5a4bbed43fb2cd19306c992cb0026a30f7f354274f1ebba6ed72080dbaf",
+      "trimmed_sha256": "b904de2f47f6e43583c6991d6b8590a4b6b6f25f860cade76a6b8003569d56fb"
+    },
+    {
+      "version": "20260918115606",
+      "name": "qualitative_corrections_2026_v1",
+      "statement_count": 1,
+      "joined_bytes": 7574,
+      "joined_sha256": "47c52af2502a1bbb575992a42f8e3e6a75270d3b6a34f0718e7f7c662af26405",
+      "trimmed_sha256": "c849926b9219a627d79f2c184389aa121fa203e7066688dd422dbb399c26ce6c"
+    },
+    {
+      "version": "20260918163014",
+      "name": "current_state_cleanup_v1",
+      "statement_count": 1,
+      "joined_bytes": 5411,
+      "joined_sha256": "9035185a26aae7e44e6a0269ccd2978e39f2f7adbac49066ccc6c2c3a2a8f6f2",
+      "trimmed_sha256": "776a9a95eacf9b589729196f6d07ebc999fb5cedb78e5f69a1d4f205dfa8e01e"
+    },
+    {
+      "version": "20260918173558",
+      "name": "year_reset_full_cleanup_v1",
+      "statement_count": 1,
+      "joined_bytes": 5577,
+      "joined_sha256": "96e48d5c6c3227b85e917c603fc648d44080ebae8707abff400e421c1cc197b4",
+      "trimmed_sha256": "884b9b7eba65fec93cec2c58494daaaf6e213eb9799b1aea0301249457397396"
+    },
+    {
+      "version": "20260920004859",
+      "name": "student_portal_rls_v1",
+      "statement_count": 1,
+      "joined_bytes": 3459,
+      "joined_sha256": "1dd97ba8540e63ade33699c167cf22358551944d8cdc67ae8eb6e213b67cdb90",
+      "trimmed_sha256": "1dd97ba8540e63ade33699c167cf22358551944d8cdc67ae8eb6e213b67cdb90"
+    },
+    {
+      "version": "20260920162250",
+      "name": "default_privileges_hardening_v1",
+      "statement_count": 1,
+      "joined_bytes": 545,
+      "joined_sha256": "833df7f6f465b1cb24fe6adca8aaadf41cedbd18ed9578bb3fbe04d2c1835b14",
+      "trimmed_sha256": "833df7f6f465b1cb24fe6adca8aaadf41cedbd18ed9578bb3fbe04d2c1835b14"
+    },
+    {
+      "version": "20260921211119",
+      "name": "system_health_history_1091_v1",
+      "statement_count": 1,
+      "joined_bytes": 2468,
+      "joined_sha256": "339d8918b91cddf7c5379ff0aafcd1529507a13fa60c0429c01c99425cdf6a76",
+      "trimmed_sha256": "e5cae9e05e3ab8b6b8f9f582d1c3524e26a27d22efb60727e2b64042d91d4ac1"
+    },
+    {
+      "version": "20260921222305",
+      "name": "portal_signals_1093_v1",
+      "statement_count": 1,
+      "joined_bytes": 2115,
+      "joined_sha256": "7d015511675b96cb2d91fd0909d31be56e6574aff1e165aa92976b852cc98c0e",
+      "trimmed_sha256": "589c6357cad18f8ae17c478e83bc773232a028740879701226b52144bbbc0bd3"
+    },
+    {
+      "version": "20260922074718",
+      "name": "prepare_sharepoint_profile_photo_storage",
+      "statement_count": 1,
+      "joined_bytes": 1746,
+      "joined_sha256": "ee86c0bdf33aa9d9f4c14b265e9e30211987a4ae2ae7135efd55072b6e175e44",
+      "trimmed_sha256": "f92b81b172bacb0e32fb4689db0f9165b43983977afc642fd5ee0207e0247631"
+    },
+    {
+      "version": "20260922150000",
+      "name": "student_portal_audit_entities_v1",
+      "statement_count": null,
+      "joined_bytes": null,
+      "joined_sha256": null,
+      "trimmed_sha256": null
+    },
+    {
+      "version": "20260922150001",
+      "name": "student_portal_security_event_priority_v1",
+      "statement_count": null,
+      "joined_bytes": null,
+      "joined_sha256": null,
+      "trimmed_sha256": null
+    },
+    {
+      "version": "20260922212633",
+      "name": "student_portal_shared_student_identity_v1",
+      "statement_count": 1,
+      "joined_bytes": 9789,
+      "joined_sha256": "1fce71acf90254ee81d7cf31f3242b53bf68d12587203fd593f5937e68f02f58",
+      "trimmed_sha256": "0d5f9bf0159328794fa28b4a376b89bc654f717baea3380154931c46fba3bbe8"
+    },
+    {
+      "version": "20260923164053",
+      "name": "student_portal_remove_legacy_projection_v1",
+      "statement_count": 1,
+      "joined_bytes": 6774,
+      "joined_sha256": "f72077cecf432704b4a22831c0219f8e6828bca3501bc07f30240a07923887c4",
+      "trimmed_sha256": "ab7a29818cf5278ea32ffa1578db529740e3f15a943416698a505d65c6fe7ea6"
+    },
+    {
+      "version": "20260923172851",
+      "name": "student_photos_private_delivery_v1",
+      "statement_count": 1,
+      "joined_bytes": 3258,
+      "joined_sha256": "67e4477c06d2897315649888d89be6ad86301bf5b019cf092b598c0d048228ce",
+      "trimmed_sha256": "b7fad26fd9dfe303e984d8e3826f874d1f07a6faa9787e9782f841b24e7ff6f0"
+    },
+    {
+      "version": "20260923172918",
+      "name": "student_photos_write_journal_v1",
+      "statement_count": 1,
+      "joined_bytes": 5896,
+      "joined_sha256": "a83e7d74449bbd57f98ce05b790bf9efb4de6ae552de8dbb6f5d4a84166b1fa0",
+      "trimmed_sha256": "ccc5ac3869294303e6a41e571756126179feea40766e32208b54732d116591c7"
+    },
+    {
+      "version": "20260923191611",
+      "name": "student_photos_runtime_catalog_v1",
+      "statement_count": 1,
+      "joined_bytes": 12219,
+      "joined_sha256": "b8d7204ee4a15a2eb1a45b039f09a91580807ed1f610ddbfb880f411581e3a95",
+      "trimmed_sha256": "7e8a1a70d243223d6e7d609b019558236f04d0211e368f5794a13dfa4e1f0548"
+    },
+    {
+      "version": "20260923191702",
+      "name": "student_photos_resumable_payload_v1",
+      "statement_count": 1,
+      "joined_bytes": 6611,
+      "joined_sha256": "f50749c7d3cbe42256172724ac14b62704266099c50a0d01dda1551a524cf319",
+      "trimmed_sha256": "a5445cfa9ea0bac10179672ae3d4c721acf71d23bc1352ec0fab80c78a114ee4"
+    },
+    {
+      "version": "20260923193137",
+      "name": "student_portal_term_closing_policy_v1",
+      "statement_count": 1,
+      "joined_bytes": 1025,
+      "joined_sha256": "4baaa3faebaa7732e9afa5df4e6dc5032483c076c897d225c6142ef36c932fdf",
+      "trimmed_sha256": "4baaa3faebaa7732e9afa5df4e6dc5032483c076c897d225c6142ef36c932fdf"
+    },
+    {
+      "version": "20260923224615",
+      "name": "student_photos_supabase_storage_v1",
+      "statement_count": 1,
+      "joined_bytes": 9167,
+      "joined_sha256": "c58f6cba0ac44cf19bb79266a9845c4c2df1169d2204ee3481ba666c9d3fa7f7",
+      "trimmed_sha256": "736cce3fd23cc96f03a7b4e82c19a858b4d25c4bb1527b8713f6499a5c90b797"
+    },
+    {
+      "version": "20260927100854",
+      "name": "student_portal_access_schedule_v1",
+      "statement_count": 1,
+      "joined_bytes": 417,
+      "joined_sha256": "65a5b7f06e5ae68dd109445af3b23fcb70d0e477a61dd08d68da1ab7dc55f947",
+      "trimmed_sha256": "65a5b7f06e5ae68dd109445af3b23fcb70d0e477a61dd08d68da1ab7dc55f947"
+    },
+    {
+      "version": "20260928092734",
+      "name": "student_portal_shift_policy_v1",
+      "statement_count": 1,
+      "joined_bytes": 4191,
+      "joined_sha256": "778ee05454d2f3c59b795cf57b8315cdd7661c373f288d59cbfbf30ab4fa471e",
+      "trimmed_sha256": "778ee05454d2f3c59b795cf57b8315cdd7661c373f288d59cbfbf30ab4fa471e"
+    },
+    {
+      "version": "20260929071319",
+      "name": "student_portal_audit_detail_v1",
+      "statement_count": 1,
+      "joined_bytes": 309,
+      "joined_sha256": "4bfef262c5cd982b155f3f75c10c207132be8db385fe9689d750e1938c4d76f2",
+      "trimmed_sha256": "4bfef262c5cd982b155f3f75c10c207132be8db385fe9689d750e1938c4d76f2"
+    },
+    {
+      "version": "20261001201546",
+      "name": "student_portal_seal_count_cache_v1",
+      "statement_count": 1,
+      "joined_bytes": 1224,
+      "joined_sha256": "b0b032a3904375777b34783e93920c6e7eb37b747309ead718cfb44f8e41f918",
+      "trimmed_sha256": "b0b032a3904375777b34783e93920c6e7eb37b747309ead718cfb44f8e41f918"
+    },
+    {
+      "version": "20261005151011",
+      "name": "function_execute_hardening_v1",
+      "statement_count": 1,
+      "joined_bytes": 6095,
+      "joined_sha256": "28490011a920f36aad3543d928af6999733c99e2d65532b53b3f27283712d19d",
+      "trimmed_sha256": "499daf908493b38498365366ec3d52e5fba48f17539c3c80e14a656da490cc8f"
+    }
+  ],
+  "canonical": [
+    {
+      "version": "20260909160930",
+      "path": "migrations/gradebook-simplified/0002_import_diagnostics_audit_v1.sql",
+      "blob": "94be41daf0a6dd2ea19eb12007aca98a5dd71b08",
+      "sha256": "999275c630e0f145ab291c6d9982b1083c7e0d77b7a3f9a0f15b902d6dbb0229",
+      "bytes": 1912,
+      "sha256_trim": "74f9062da0a9a7d5c91617c75e49c44650d7d9fbffc2a223a9426d970af1c35e"
+    },
+    {
+      "version": "20260908103626",
+      "path": "migrations/postgres/0002_gradebook_production_v1.sql",
+      "blob": "5281daff7abbd2594951b136c23527b39702a9f2",
+      "sha256": "8e3b381a0d28a422a225c2199696666357c9b6b47831ffb86d0cc5c0b5d4348c",
+      "bytes": 40694,
+      "sha256_trim": "273e0260e8c39dbc06a9568402f8534ec0b8e95d4801b30becfa022de8db6f89"
+    },
+    {
+      "version": "20260911201622",
+      "path": "migrations/gradebook-simplified/0007_multiyear_rr_v1.sql",
+      "blob": "70dadc0f314c8c6b089128fb5900a1398ac9461f",
+      "sha256": "a94c596c0c430ed3a69658a676e8c3f9cacc7d4c60b3e79359b7d12e308e77db",
+      "bytes": 2286,
+      "sha256_trim": "d08ccbf847cdec29a344029cabbec96e95efd1bea8dcf2eaa2f4296e93eb0afe"
+    },
+    {
+      "version": "20260907172144",
+      "path": "migrations/postgres/0001_bn_benchmark_v1.sql",
+      "blob": "05a23c049f68d518fda7b53d84d856b763f96c13",
+      "sha256": "9e7f67f12d47ce605ee9f3ec48e9c56599941a6a84e280b25da8aac0a6804d5d",
+      "bytes": 3873,
+      "sha256_trim": "ee311ff12f50ace8b9b1e0f9a4375e058487fe1b80d84e6eb68472903bee24c7"
+    },
+    {
+      "version": "20260911140219",
+      "path": "migrations/gradebook-simplified/0006_import_diagnostic_treatment_v1.sql",
+      "blob": "f8b246ae87b59038436a7f04e04a9af82388ed52",
+      "sha256": "bc8af5be7211cf5147b6e9806b79928558ee92c0eb42874507c38c07833889a4",
+      "bytes": 3688,
+      "sha256_trim": "4fad2c7d369379e7a3287af3124a7f0b192060de9c984d766d3a6a97bdc3ffac"
+    },
+    {
+      "version": "20260912004843",
+      "path": "migrations/gradebook-simplified/0008_year_reset_acl_v1.sql",
+      "blob": "0d78ff42b8721367aa516629cc9f276941e15365",
+      "sha256": "469051c57a151d9efa5c99d5513696e18f913725d4eca49693c86537a0beca19",
+      "bytes": 977,
+      "sha256_trim": "f0dfd9837da045d797f98be6715483099689d90240e29a23f7621cc19d9b3587"
+    },
+    {
+      "version": "20260912165146",
+      "path": "migrations/student-portal/0005_year_reset_protocol_v1.sql",
+      "blob": "2925b38bf3d9ed8751fc8605b6cfde54ce7e7a46",
+      "sha256": "1319a65603ff966310421c8b77a6918190bc634d3b5b6d3d004915f832b7cdd7",
+      "bytes": 8736,
+      "sha256_trim": "ebaa48652a5d218886442e377f8dbb646ad4c99c76ec6a4b989023dae3192dba"
+    },
+    {
+      "version": "20260912141733",
+      "path": "migrations/student-portal/0004_gradebook_integration_usage_v1.sql",
+      "blob": "0b896b35405fed24920c92cac8d108eec922c687",
+      "sha256": "cc2b24fb33c6d66d372622fa586fe28531dfe58c425a712048043fb06748ddaf",
+      "bytes": 1583,
+      "sha256_trim": "28be7a42547ee73bbfe067b3723ab3d2f4ad3121392f0cb7b9af42a82153ff03"
+    },
+    {
+      "version": "20260912173924",
+      "path": "migrations/student-portal/0006_gradebook_revision_year_range_v1.sql",
+      "blob": "0da9602791b1f8d37d4ff360988158c0e6b8004f",
+      "sha256": "97f7776b4333b27d9916736c8455f8f68b504abd44d8827626381add21d4ef10",
+      "bytes": 2891,
+      "sha256_trim": "55974a47925884d8f4d70f6e1e15faba83ccb3f55b0b0f04b02b5edb44a9cd23"
+    },
+    {
+      "version": "20260912141729",
+      "path": "migrations/student-portal/0003_audit_receipts_closure_integration_v1.sql",
+      "blob": "d838306e083cc209346bc233a7918d5c8bfed411",
+      "sha256": "64bb235a6b6e9beee6716a455126b15d347c5c0a60456488828f85b867a2b33a",
+      "bytes": 7850,
+      "sha256_trim": "fa16b19f139e80e63e475c346595b019f62920a836165d027456e9c27e4a9eb8"
+    },
+    {
+      "version": "20260912141723",
+      "path": "migrations/student-portal/0002_policy_publication_revision_v1.sql",
+      "blob": "4cc32abd6146aed9956156ff050f596d40cbd447",
+      "sha256": "ae4c9c25371242a035b3341d963f4101de9d855dbbb4bea44b9ab4239617d5ce",
+      "bytes": 10992,
+      "sha256_trim": "52019b83f6db1f8e974cd9f3ae0bd96a21ba3ae1842d7456e33bcf7b273b2ff8"
+    },
+    {
+      "version": "20260912141718",
+      "path": "migrations/student-portal/0001_identity_credentials_acl_v1.sql",
+      "blob": "8054454ed34d2a29cf550708fecc79111cb96f19",
+      "sha256": "6d117e3910aec9558b5b9f7f9847c7707158f92c8c5d9e5e1a3119638d88eaa4",
+      "bytes": 7838,
+      "sha256_trim": "163b516df731c1bb082c830a955903cd1617504afc8c48cc8d84088a593c3e5e"
+    },
+    {
+      "version": "20260914235006",
+      "path": "migrations/student-portal/0008_atomic_publication_v2.sql",
+      "blob": "70ad3b5c3d4d976db37570159e1ffc3cba4e28b0",
+      "sha256": "748549adc436aa3e38f2af05a5887e672b0674fa1efd4380eb03ecd3660a1c19",
+      "bytes": 16240,
+      "sha256_trim": "f5002b023bf2090e277d9fb5c355aeedf3d0170739ea996ec79963ed69584529"
+    },
+    {
+      "version": "20260912182516",
+      "path": "migrations/student-portal/0007_lifecycle_integration_v1.sql",
+      "blob": "3cc62d0d5488721565afdbf47ed31841b7b8c9b6",
+      "sha256": "047cf3f58a8597a4a3c6f803689a6fd40ec48b7d1fe1dc16ba0e4a61c731783a",
+      "bytes": 8068,
+      "sha256_trim": "d7f9094ca4b889fedf83460ff9f9a94ec5f90cb8542dddaf659663d82e88d400"
+    },
+    {
+      "version": "20260914235035",
+      "path": "migrations/student-portal/0009_publication_cutover_guard_v2.sql",
+      "blob": "bc8d965c94f7fdf82dc291d5a2eca8383fddfeee",
+      "sha256": "67a2696b50245bb1674f90d9542d2e17d140471b40d4c1bdb44e4d4b202edf49",
+      "bytes": 1274,
+      "sha256_trim": "9ca7dfeee3fb9d3a2daa4390a62d15590513e4db693e32e1053732d156280b1a"
+    },
+    {
+      "version": "20260916090209",
+      "path": "migrations/gradebook-simplified/0009_granular_observations_names_v1.sql",
+      "blob": "854106bdb5ede9afd78825a0e18a787c978454ee",
+      "sha256": "d7c2b8e738609523b6ffa11026f2f0345d2f0159fc3972de4cd4559a25a872af",
+      "bytes": 1309,
+      "sha256_trim": "dae152a91d39c238220028f8a2d49e9537773b3f5b93425b436ff5bf6f306fce"
+    },
+    {
+      "version": "20260915164741",
+      "path": "migrations/student-portal/0011_live_event_outbox_v1.sql",
+      "blob": "36a7b160213d6dd700199486a12be0b24c5b88a9",
+      "sha256": "730bc90f2497319bcbab10401fe43bc5f8985204783c2d6609a4f31897c1f6dd",
+      "bytes": 4898,
+      "sha256_trim": "a0723e22911da0eac970cf71ca228c702e7f6a3827e654c232f385d951872758"
+    },
+    {
+      "version": "20260915102433",
+      "path": "migrations/student-portal/0010_incremental_publication_v3.sql",
+      "blob": "aadd570a3738f6c860731fe33fd8a92b9acedc30",
+      "sha256": "0ffae095726330c9579293c3e6ea5d1f28468a6105a58306a027744a51826500",
+      "bytes": 9815,
+      "sha256_trim": "185aaf61b7de1e94d91867204c285398e2b31861669a14d2b0acdb13c137e256"
+    },
+    {
+      "version": "20260918173558",
+      "path": "migrations/student-portal/0014_year_reset_full_cleanup_v1.sql",
+      "blob": "659a367ba905d240f70cab4d0398e33782f3e561",
+      "sha256": "96e48d5c6c3227b85e917c603fc648d44080ebae8707abff400e421c1cc197b4",
+      "bytes": 5577,
+      "sha256_trim": "884b9b7eba65fec93cec2c58494daaaf6e213eb9799b1aea0301249457397396"
+    },
+    {
+      "version": "20260918163014",
+      "path": "migrations/gradebook-simplified/0012_current_state_cleanup_v1.sql",
+      "blob": "ba9e461b0bfca5b53c4165c00b22ab0f0015a0e5",
+      "sha256": "9035185a26aae7e44e6a0269ccd2978e39f2f7adbac49066ccc6c2c3a2a8f6f2",
+      "bytes": 5411,
+      "sha256_trim": "776a9a95eacf9b589729196f6d07ebc999fb5cedb78e5f69a1d4f205dfa8e01e"
+    },
+    {
+      "version": "20260916090215",
+      "path": "migrations/student-portal/0012_granular_observations_names_v1.sql",
+      "blob": "d007d476ef296d2cb995fda78b827e8632c2bfb7",
+      "sha256": "b5d3436403ad4654cda3b19025fab4b08a40db5c522db612683e847d412893fc",
+      "bytes": 4826,
+      "sha256_trim": "def62241af3326e0d176e382156155b51be5e69867eda2577a4f0f941f861eaf"
+    },
+    {
+      "version": "20260918115606",
+      "path": "migrations/gradebook-simplified/0010_qualitative_corrections_2026_v1.sql",
+      "blob": "538b6a3238c1b7cbf970c8dc37c5c8ab52698c55",
+      "sha256": "47c52af2502a1bbb575992a42f8e3e6a75270d3b6a34f0718e7f7c662af26405",
+      "bytes": 7574,
+      "sha256_trim": "c849926b9219a627d79f2c184389aa121fa203e7066688dd422dbb399c26ce6c"
+    },
+    {
+      "version": "20260916200845",
+      "path": "migrations/student-portal/0013_publication_inheritance_v1.sql",
+      "blob": "67668d8cd567efad1f59983572e2e5a107b6aff0",
+      "sha256": "592738f18caed359309891f201c633f10f5040cc338754357373f65086c61c5e",
+      "bytes": 784,
+      "sha256_trim": "b127df90ed420be74aa3b4df2cb8dae769caccfe5f075cb7e2a871228eb33c13"
+    },
+    {
+      "version": "20260918114401",
+      "path": "migrations/gradebook-simplified/0011_gradebook_rls_v1.sql",
+      "blob": "07fa2eb2999ee2c7e598bcafeb1fdfeb0ac3f35a",
+      "sha256": "1e42a5a4bbed43fb2cd19306c992cb0026a30f7f354274f1ebba6ed72080dbaf",
+      "bytes": 3053,
+      "sha256_trim": "b904de2f47f6e43583c6991d6b8590a4b6b6f25f860cade76a6b8003569d56fb"
+    },
+    {
+      "version": "20260920162250",
+      "path": "migrations/gradebook-simplified/0013_default_privileges_hardening_v1.sql",
+      "blob": "50fe3151d4ef12e56cb5cc2f82db626fb986ebeb",
+      "sha256": "db198ca3f5753818b22e57a3ff71bbf1fe154b410d96a7560ea3c911e1abfeb8",
+      "bytes": 1449,
+      "sha256_trim": "560c99de9f4d63a5b11eca1969a3457d43f7a041eae2eabcffee971778d99612"
+    },
+    {
+      "version": "20260920004859",
+      "path": "migrations/student-portal/0015_student_portal_rls_v1.sql",
+      "blob": "fba7a92a8bbb07b3dde9913938ce983130bad7b2",
+      "sha256": "bdf32859c826784a82ad01fe8e12005d391989e4751879fa6d5085184d2723d0",
+      "bytes": 3460,
+      "sha256_trim": "1dd97ba8540e63ade33699c167cf22358551944d8cdc67ae8eb6e213b67cdb90"
+    },
+    {
+      "version": "20260921222305",
+      "path": "migrations/observability/0002_portal_signals_v1.sql",
+      "blob": "12dd355bb2c6420671394daf5f47d958ba281b25",
+      "sha256": "7d015511675b96cb2d91fd0909d31be56e6574aff1e165aa92976b852cc98c0e",
+      "bytes": 2115,
+      "sha256_trim": "589c6357cad18f8ae17c478e83bc773232a028740879701226b52144bbbc0bd3"
+    },
+    {
+      "version": "20260922150000",
+      "path": "migrations/student-portal/0016_audit_entities_v1.sql",
+      "blob": "f1cc90d6a9f0da6aecb1a560afa8b946b594bc68",
+      "sha256": "3c9b268b00ca3f0462459ad4261246b6294f0a160ccbceec6682e55aff6d2056",
+      "bytes": 2788,
+      "sha256_trim": "428946472fcff97879fdbd8909ffb0ea97ef6fc2dd39b8c495a0023a7ba56a3c"
+    },
+    {
+      "version": "20260921211119",
+      "path": "migrations/observability/0001_portal_health_history_v1.sql",
+      "blob": "3ee4c63749dfe7c1c791a99749183d6ddba75519",
+      "sha256": "339d8918b91cddf7c5379ff0aafcd1529507a13fa60c0429c01c99425cdf6a76",
+      "bytes": 2468,
+      "sha256_trim": "e5cae9e05e3ab8b6b8f9f582d1c3524e26a27d22efb60727e2b64042d91d4ac1"
+    },
+    {
+      "version": "20260922150001",
+      "path": "migrations/student-portal/0017_security_event_priority_v1.sql",
+      "blob": "36153cb96ecb4cd74f38ca394c75cd6c4a16fbf4",
+      "sha256": "76ec40933e3949a110ec198ba6d8c10b841df571d36701b1cfa69d2ddbfa061b",
+      "bytes": 3581,
+      "sha256_trim": "6a80728e637aa042e993b790a9bb65c47f9d6ce994be15e1f6f287852f686843"
+    },
+    {
+      "version": "20260923191702",
+      "path": "migrations/student-photos/0004_resumable_payload_v1.sql",
+      "blob": "0ed11dad6248a9168c413adfee2f7c2e9b5fc12f",
+      "sha256": "f50749c7d3cbe42256172724ac14b62704266099c50a0d01dda1551a524cf319",
+      "bytes": 6611,
+      "sha256_trim": "a5445cfa9ea0bac10179672ae3d4c721acf71d23bc1352ec0fab80c78a114ee4"
+    },
+    {
+      "version": "20260923191611",
+      "path": "migrations/student-photos/0003_runtime_catalog_v1.sql",
+      "blob": "6a3adcb1314f2b7f07465f06415110101ab8cddb",
+      "sha256": "b8d7204ee4a15a2eb1a45b039f09a91580807ed1f610ddbfb880f411581e3a95",
+      "bytes": 12219,
+      "sha256_trim": "7e8a1a70d243223d6e7d609b019558236f04d0211e368f5794a13dfa4e1f0548"
+    },
+    {
+      "version": "20260923172918",
+      "path": "migrations/student-photos/0002_write_journal_v1.sql",
+      "blob": "1facd11a96b81e33da679764f3ed979a20ec91df",
+      "sha256": "a83e7d74449bbd57f98ce05b790bf9efb4de6ae552de8dbb6f5d4a84166b1fa0",
+      "bytes": 5896,
+      "sha256_trim": "ccc5ac3869294303e6a41e571756126179feea40766e32208b54732d116591c7"
+    },
+    {
+      "version": "20260923172851",
+      "path": "migrations/student-photos/0001_private_delivery_v1.sql",
+      "blob": "aec58b9608883041c0cef52b4a02a589adb6c783",
+      "sha256": "67e4477c06d2897315649888d89be6ad86301bf5b019cf092b598c0d048228ce",
+      "bytes": 3258,
+      "sha256_trim": "b7fad26fd9dfe303e984d8e3826f874d1f07a6faa9787e9782f841b24e7ff6f0"
+    },
+    {
+      "version": "20260923164053",
+      "path": "migrations/student-portal/0019_remove_legacy_projection_v1.sql",
+      "blob": "54aef301d949cbe5da5de07977580722491563ad",
+      "sha256": "26b5c8456acadb90ab20946afbb0e2ea9b7e52e9752504a3b4628f4410087f96",
+      "bytes": 6650,
+      "sha256_trim": "1b8223dd8ca05d9f3e305c0b1cf7b52732e9705ec2af08437a735c787481ff5b"
+    },
+    {
+      "version": "20260922212633",
+      "path": "migrations/student-portal/0018_shared_student_identity_v1.sql",
+      "blob": "0e4c1f1298c6f69e5acf12f4ebe0464ea0ea97ab",
+      "sha256": "1fce71acf90254ee81d7cf31f3242b53bf68d12587203fd593f5937e68f02f58",
+      "bytes": 9789,
+      "sha256_trim": "0d5f9bf0159328794fa28b4a376b89bc654f717baea3380154931c46fba3bbe8"
+    },
+    {
+      "version": "20260927100854",
+      "path": "migrations/student-portal/0021_access_schedule_v1.sql",
+      "blob": "54b17d6898052b43be7329df594525e592725ccb",
+      "sha256": "fde7969cb056d924bfedfba65afbf35a6efb30f0dc0d3b8f269ee8db45666aa2",
+      "bytes": 787,
+      "sha256_trim": "bc82b339f9c90b5867f2a65df4ccd73fb68863ec0f12e5813f969d4bfc987cbe"
+    },
+    {
+      "version": "20260923224615",
+      "path": "migrations/student-photos/0005_supabase_storage_v1.sql",
+      "blob": "2d0077ed9d354d186b7f57a6fe551254200b53d5",
+      "sha256": "6b9d5f62b48d3556abae29a3e88929c639da208a20b6225f0718460b62a06238",
+      "bytes": 9165,
+      "sha256_trim": "736cce3fd23cc96f03a7b4e82c19a858b4d25c4bb1527b8713f6499a5c90b797"
+    },
+    {
+      "version": "20260923193137",
+      "path": "migrations/student-portal/0020_term_closing_policy_v1.sql",
+      "blob": "ce016f7ba3ca338848c6a41d50a8d69621e87d37",
+      "sha256": "56223cc03277d9a289519ab40b01e5993c2201651831054fbcc854232e88eeaf",
+      "bytes": 1440,
+      "sha256_trim": "d281afc026d594ada71f405e19e879c8a61b41a4e2573161111d0f1e0d544e96"
+    },
+    {
+      "version": "20261001201546",
+      "path": "migrations/student-portal/0024_seal_count_cache_v1.sql",
+      "blob": "e03b1e0a0c209d66bae201c02ababa0f4a3163e0",
+      "sha256": "b1c21836a95f9c721e39c663fae37d71aa6469fc4579d8beb05dfd1b237561a9",
+      "bytes": 1225,
+      "sha256_trim": "b0b032a3904375777b34783e93920c6e7eb37b747309ead718cfb44f8e41f918"
+    },
+    {
+      "version": "20260928092734",
+      "path": "migrations/student-portal/0022_shift_policy_v1.sql",
+      "blob": "4f380b4942c6b5f48f88fd80f70d8c6acf43779a",
+      "sha256": "532fb8dbfd373df9bece1e9dc766bc9914a069074c3aea910d9833cd0f56c963",
+      "bytes": 4207,
+      "sha256_trim": "d9c3ef0948f7e258d1b430f5b4b0974a0f52ab100f9079697079a32313c23bef"
+    },
+    {
+      "version": "20260929071319",
+      "path": "migrations/student-portal/0023_audit_detail_v1.sql",
+      "blob": "b3ddacf8a38848968dd64d4a8349765dcd870178",
+      "sha256": "cdc84bc5506f3e55b606b115cb9cd2ec61edc3f0d5feab6738c3954f9bb3a302",
+      "bytes": 783,
+      "sha256_trim": "e9048042dfa1b03133543e0fa05b21ea66065d9a4f266e1345851d8f9c53fbe1"
+    },
+    {
+      "version": "20261005151011",
+      "path": "migrations/gradebook-simplified/0014_function_execute_hardening_v1.sql",
+      "blob": "77dcdba2cfbd2bd70b7a1007d3137ece7e2f59b9",
+      "sha256": "28490011a920f36aad3543d928af6999733c99e2d65532b53b3f27283712d19d",
+      "bytes": 6095,
+      "sha256_trim": "499daf908493b38498365366ec3d52e5fba48f17539c3c80e14a656da490cc8f"
+    }
+  ],
+  "historical_comparisons": [
+    {
+      "version": "20260920162250",
+      "path": "migrations/gradebook-simplified/0013_default_privileges_hardening_v1.sql",
+      "commit": "95f1d21a9d1a8f4dc6e126506c3bec241fb99719",
+      "blob": "50fe3151d4ef12e56cb5cc2f82db626fb986ebeb",
+      "sha256": "db198ca3f5753818b22e57a3ff71bbf1fe154b410d96a7560ea3c911e1abfeb8",
+      "trimmed_sha256": "560c99de9f4d63a5b11eca1969a3457d43f7a041eae2eabcffee971778d99612",
+      "exact": false,
+      "trimmed_match": false
+    },
+    {
+      "version": "20260920162250",
+      "path": "migrations/gradebook-simplified/0013_default_privileges_hardening_v1.sql",
+      "commit": "113625937111de9f26eaabf2ec185ee303bef619",
+      "blob": "5a3e45dbddda87330ad669911262316bd744da08",
+      "sha256": "d4098a0c4631551d9a08ca00d7089d9796407560331589e783fef8906943475f",
+      "trimmed_sha256": "8cb8c893c28fb3fabd63ed3d217f702ff6896a7d915d2ac5f66db5a63d3576d2",
+      "exact": false,
+      "trimmed_match": false
+    },
+    {
+      "version": "20260923164053",
+      "path": "migrations/student-portal/0019_remove_legacy_projection_v1.sql",
+      "commit": "c1b9a2c0441da1374a685addb20ca466e095c4a7",
+      "blob": "54aef301d949cbe5da5de07977580722491563ad",
+      "sha256": "26b5c8456acadb90ab20946afbb0e2ea9b7e52e9752504a3b4628f4410087f96",
+      "trimmed_sha256": "1b8223dd8ca05d9f3e305c0b1cf7b52732e9705ec2af08437a735c787481ff5b",
+      "exact": false,
+      "trimmed_match": false
+    },
+    {
+      "version": "20260923164053",
+      "path": "migrations/student-portal/0019_remove_legacy_projection_v1.sql",
+      "commit": "cb29644018e759f5276ff63e2ac8880a5c12cefe",
+      "blob": "13287ed150848134b844c0846f5b7d60326ca03d",
+      "sha256": "c3054dfe383b3d225d7dad371ed0f4f0733ae584fbaa44d2abd4ac95d9eb8b34",
+      "trimmed_sha256": "9c2faa573135e848c0ee43484361e0cddeeaecfd3d691db31e35b61de193f356",
+      "exact": false,
+      "trimmed_match": false
+    },
+    {
+      "version": "20260923193137",
+      "path": "migrations/student-portal/0020_term_closing_policy_v1.sql",
+      "commit": "5f634eb36999219776242d3679dd512082884438",
+      "blob": "ce016f7ba3ca338848c6a41d50a8d69621e87d37",
+      "sha256": "56223cc03277d9a289519ab40b01e5993c2201651831054fbcc854232e88eeaf",
+      "trimmed_sha256": "d281afc026d594ada71f405e19e879c8a61b41a4e2573161111d0f1e0d544e96",
+      "exact": false,
+      "trimmed_match": false
+    },
+    {
+      "version": "20260923193137",
+      "path": "migrations/student-portal/0020_term_closing_policy_v1.sql",
+      "commit": "de995a478b500f73e75bc7dfbbe6ff26879f922e",
+      "blob": "03f36b6d42c6675d195e505ba4ebceaca4ad7fa3",
+      "sha256": "574d2f5dc0bb45b7896a0eabc1eed5cfc885994148cef9a3063427199c045e56",
+      "trimmed_sha256": "a39812ce475c686b7351c4f7b366030eb02e11bba4f1b04a6f4e0024162a40bf",
+      "exact": false,
+      "trimmed_match": false
+    }
+  ],
+  "gap_flags": [
+    {
+      "version": "20260908213513",
+      "name": "reset_gradebook_for_simplified_rebuild",
+      "drops_schema": true,
+      "has_cascade": true,
+      "has_grant": false,
+      "alters_role": false,
+      "connection_limit": false,
+      "deferrable": false,
+      "initially_deferred": false,
+      "creates_table": false,
+      "alters_table": false,
+      "creates_function": false
+    },
+    {
+      "version": "20260908230146",
+      "name": "grant_gradebook_app_access",
+      "drops_schema": false,
+      "has_cascade": false,
+      "has_grant": true,
+      "alters_role": false,
+      "connection_limit": false,
+      "deferrable": false,
+      "initially_deferred": false,
+      "creates_table": false,
+      "alters_table": false,
+      "creates_function": false
+    },
+    {
+      "version": "20260909001115",
+      "name": "defer_import_year_fk_for_atomic_first_relation",
+      "drops_schema": false,
+      "has_cascade": false,
+      "has_grant": false,
+      "alters_role": false,
+      "connection_limit": false,
+      "deferrable": true,
+      "initially_deferred": true,
+      "creates_table": false,
+      "alters_table": true,
+      "creates_function": false
+    },
+    {
+      "version": "20260909020108",
+      "name": "create_simplified_gradebook_phase2",
+      "drops_schema": false,
+      "has_cascade": false,
+      "has_grant": false,
+      "alters_role": false,
+      "connection_limit": false,
+      "deferrable": false,
+      "initially_deferred": false,
+      "creates_table": true,
+      "alters_table": false,
+      "creates_function": true
+    },
+    {
+      "version": "20260912150002",
+      "name": "student_portal_runtime_connection_budget_v1",
+      "drops_schema": false,
+      "has_cascade": false,
+      "has_grant": false,
+      "alters_role": true,
+      "connection_limit": true,
+      "deferrable": false,
+      "initially_deferred": false,
+      "creates_table": false,
+      "alters_table": false,
+      "creates_function": false
+    },
+    {
+      "version": "20260922074718",
+      "name": "prepare_sharepoint_profile_photo_storage",
+      "drops_schema": false,
+      "has_cascade": false,
+      "has_grant": true,
+      "alters_role": false,
+      "connection_limit": false,
+      "deferrable": false,
+      "initially_deferred": false,
+      "creates_table": true,
+      "alters_table": true,
+      "creates_function": false
+    }
+  ],
+  "gap_identifiers": [
+    {
+      "version": "20260908153620",
+      "name": "rotate_gradebook_app_password_20260908_02",
+      "ddl_identifiers": [
+        "gradebook_app"
+      ],
+      "rotation_alters_role": true,
+      "rotation_has_password": true
+    },
+    {
+      "version": "20260908153655",
+      "name": "rotate_gradebook_app_password_20260908_03",
+      "ddl_identifiers": [
+        "gradebook_app"
+      ],
+      "rotation_alters_role": true,
+      "rotation_has_password": true
+    },
+    {
+      "version": "20260908160759",
+      "name": "rotate_gradebook_app_password_20260908_04",
+      "ddl_identifiers": [
+        "gradebook_app"
+      ],
+      "rotation_alters_role": true,
+      "rotation_has_password": true
+    },
+    {
+      "version": "20260908160852",
+      "name": "rotate_gradebook_app_password_20260908_05",
+      "ddl_identifiers": [
+        "gradebook_app"
+      ],
+      "rotation_alters_role": true,
+      "rotation_has_password": true
+    },
+    {
+      "version": "20260908162021",
+      "name": "rotate_gradebook_app_password_20260908_06",
+      "ddl_identifiers": [
+        "gradebook_app"
+      ],
+      "rotation_alters_role": true,
+      "rotation_has_password": true
+    },
+    {
+      "version": "20260908213513",
+      "name": "reset_gradebook_for_simplified_rebuild",
+      "ddl_identifiers": [
+        "bn_benchmark",
+        "gradebook"
+      ],
+      "rotation_alters_role": null,
+      "rotation_has_password": null
+    },
+    {
+      "version": "20260908230146",
+      "name": "grant_gradebook_app_access",
+      "ddl_identifiers": [],
+      "rotation_alters_role": null,
+      "rotation_has_password": null
+    },
+    {
+      "version": "20260909001115",
+      "name": "defer_import_year_fk_for_atomic_first_relation",
+      "ddl_identifiers": [
+        "gradebook.importacao"
+      ],
+      "rotation_alters_role": null,
+      "rotation_has_password": null
+    },
+    {
+      "version": "20260909020108",
+      "name": "create_simplified_gradebook_phase2",
+      "ddl_identifiers": [
+        "gradebook",
+        "gradebook.aluno",
+        "gradebook.ano_letivo",
+        "gradebook.ano_letivo_historico",
+        "gradebook.conselho_anterior_historico",
+        "gradebook.conselho_decisao",
+        "gradebook.conselho_decisao_historico",
+        "gradebook.disciplina",
+        "gradebook.fechamento",
+        "gradebook.fechamento_historico",
+        "gradebook.importacao",
+        "gradebook.instrumento",
+        "gradebook.instrumento_historico",
+        "gradebook.nota",
+        "gradebook.nota_historico",
+        "gradebook.oferta",
+        "gradebook.professor",
+        "gradebook.turma",
+        "gradebook.vinculo",
+        "gradebook.vinculo_historico"
+      ],
+      "rotation_alters_role": null,
+      "rotation_has_password": null
+    },
+    {
+      "version": "20260912150002",
+      "name": "student_portal_runtime_connection_budget_v1",
+      "ddl_identifiers": [
+        "student_portal_app"
+      ],
+      "rotation_alters_role": null,
+      "rotation_has_password": null
+    },
+    {
+      "version": "20260922074718",
+      "name": "prepare_sharepoint_profile_photo_storage",
+      "ddl_identifiers": [
+        "student_portal.profile_photo"
+      ],
+      "rotation_alters_role": null,
+      "rotation_has_password": null
+    }
+  ],
+  "source_notes": {
+    "phase2": "https://github.com/mcpmieda/ecossistema-escola/issues/613#issuecomment-5594704683",
+    "fk": "https://github.com/mcpmieda/ecossistema-escola/issues/613#issuecomment-5595260550",
+    "phase2_version_and_missing_review_file": "https://github.com/mcpmieda/ecossistema-escola/issues/613#issuecomment-5607003053"
+  },
+  "representation_transforms": [
+    {
+      "version": "20260909160930",
+      "path": "migrations/gradebook-simplified/0002_import_diagnostics_audit_v1.sql",
+      "transformation": "remove_leading_line_comments",
+      "transformed_trimmed_sha256": "b5190e5b4a61b0365d87e1a2642f3175459da35b3e843ec73c46d7a1844f4919",
+      "note": "Representation match under a specified transform; outer transaction behavior is not validated."
+    },
+    {
+      "version": "20260909160930",
+      "path": "migrations/gradebook-simplified/0002_import_diagnostics_audit_v1.sql",
+      "transformation": "remove_leading_line_comments_and_outer_begin_commit",
+      "transformed_trimmed_sha256": "b5190e5b4a61b0365d87e1a2642f3175459da35b3e843ec73c46d7a1844f4919",
+      "note": "Representation match under a specified transform; outer transaction behavior is not validated."
+    },
+    {
+      "version": "20260927100854",
+      "path": "migrations/student-portal/0021_access_schedule_v1.sql",
+      "transformation": "remove_leading_line_comments_and_outer_begin_commit",
+      "transformed_trimmed_sha256": "65a5b7f06e5ae68dd109445af3b23fcb70d0e477a61dd08d68da1ab7dc55f947",
+      "note": "Representation match under a specified transform; outer transaction behavior is not validated."
+    },
+    {
+      "version": "20260929071319",
+      "path": "migrations/student-portal/0023_audit_detail_v1.sql",
+      "transformation": "remove_leading_line_comments_and_outer_begin_commit",
+      "transformed_trimmed_sha256": "4bfef262c5cd982b155f3f75c10c207132be8db385fe9689d750e1938c4d76f2",
+      "note": "Representation match under a specified transform; outer transaction behavior is not validated."
+    }
+  ],
+  "production_postgres_version": "17.6",
+  "file_history_queries": [
+    {
+      "version": "20260909160930",
+      "path": "migrations/gradebook-simplified/0002_import_diagnostics_audit_v1.sql",
+      "commits": [
+        {
+          "sha": "124ac1ad8fccb3b5008001efbe4a03071effdea6",
+          "date": "2026-09-09T20:23:42Z",
+          "message": "feat(gradebook): audit human import diagnostics (#626)"
+        }
+      ]
+    },
+    {
+      "version": "20260911201622",
+      "path": "migrations/gradebook-simplified/0007_multiyear_rr_v1.sql",
+      "commits": [
+        {
+          "sha": "8049aed35f8dbd4708e94c4a8f8e0f66f9719ddd",
+          "date": "2026-09-11T23:12:04Z",
+          "message": "feat(gradebook): materialize academic years and handle R/R"
+        }
+      ]
+    },
+    {
+      "version": "20260912004843",
+      "path": "migrations/gradebook-simplified/0008_year_reset_acl_v1.sql",
+      "commits": [
+        {
+          "sha": "af2ffc360848668b382b5bd4de23cdf6b32e279b",
+          "date": "2026-09-12T03:28:56Z",
+          "message": "feat(gradebook): add guarded annual reset contract"
+        }
+      ]
+    },
+    {
+      "version": "20260911140219",
+      "path": "migrations/gradebook-simplified/0006_import_diagnostic_treatment_v1.sql",
+      "commits": [
+        {
+          "sha": "c6471060061bb708fdbede51408b9ba22b62cb46",
+          "date": "2026-09-11T16:28:23Z",
+          "message": "feat(gradebook): prepare durable audit treatment trail (#674)"
+        }
+      ]
+    },
+    {
+      "version": "20260907172144",
+      "path": "migrations/postgres/0001_bn_benchmark_v1.sql",
+      "commits": [
+        {
+          "sha": "3960b7a05133a638692267ec28a08fd787211dcb",
+          "date": "2026-09-07T17:30:17Z",
+          "message": "chore(bn-565): version synthetic Postgres benchmark schema"
+        }
+      ]
+    },
+    {
+      "version": "20260914235006",
+      "path": "migrations/student-portal/0008_atomic_publication_v2.sql",
+      "commits": [
+        {
+          "sha": "ba4b2a46137a824bd15d55994c460e0e40bfe36e",
+          "date": "2026-09-15T02:51:38Z",
+          "message": "feat(portal): atomic scoped publication without per-student jobs (#804)"
+        }
+      ]
+    },
+    {
+      "version": "20260912182516",
+      "path": "migrations/student-portal/0007_lifecycle_integration_v1.sql",
+      "commits": [
+        {
+          "sha": "b151c08107c9b23765a3f2a77f3c1d5060ade8d0",
+          "date": "2026-09-12T21:25:05Z",
+          "message": "feat(portal): synchronize lifecycle and transactional revisions (#707) (#726)"
+        }
+      ]
+    },
+    {
+      "version": "20260912165146",
+      "path": "migrations/student-portal/0005_year_reset_protocol_v1.sql",
+      "commits": [
+        {
+          "sha": "42518686386c010ac6888cfd316c861df4abdf8a",
+          "date": "2026-09-12T19:38:52Z",
+          "message": "feat(portal): add private durable year reset proof protocol"
+        }
+      ]
+    },
+    {
+      "version": "20260916090209",
+      "path": "migrations/gradebook-simplified/0009_granular_observations_names_v1.sql",
+      "commits": [
+        {
+          "sha": "255cf2f75c504f464aa449618965f82f3a601ddb",
+          "date": "2026-09-16T12:03:21Z",
+          "message": "feat: notas granulares, avaliações e painel do aluno (#817) (#818)"
+        }
+      ]
+    },
+    {
+      "version": "20260912173924",
+      "path": "migrations/student-portal/0006_gradebook_revision_year_range_v1.sql",
+      "commits": [
+        {
+          "sha": "9b094468da576ea9c56ee282327cee212e070325",
+          "date": "2026-09-12T20:39:15Z",
+          "message": "feat(portal): guard annual reset with transactional proofs and writer revisions (#725)"
+        }
+      ]
+    },
+    {
+      "version": "20260920004859",
+      "path": "migrations/student-portal/0015_student_portal_rls_v1.sql",
+      "commits": [
+        {
+          "sha": "a3fec50ac0d47926a4a4047150a503119a55ac4c",
+          "date": "2026-09-20T03:31:20Z",
+          "message": "security(portal): add RLS defense in depth for #859"
+        }
+      ]
+    },
+    {
+      "version": "20260916090215",
+      "path": "migrations/student-portal/0012_granular_observations_names_v1.sql",
+      "commits": [
+        {
+          "sha": "255cf2f75c504f464aa449618965f82f3a601ddb",
+          "date": "2026-09-16T12:03:21Z",
+          "message": "feat: notas granulares, avaliações e painel do aluno (#817) (#818)"
+        }
+      ]
+    },
+    {
+      "version": "20260916200845",
+      "path": "migrations/student-portal/0013_publication_inheritance_v1.sql",
+      "commits": [
+        {
+          "sha": "188507dff686675abd3d68d5940c455d132dcf59",
+          "date": "2026-09-16T21:53:54Z",
+          "message": "feat: current customization differences and logical publication inheritance (#827)"
+        }
+      ]
+    },
+    {
+      "version": "20260920162250",
+      "path": "migrations/gradebook-simplified/0013_default_privileges_hardening_v1.sql",
+      "commits": [
+        {
+          "sha": "95f1d21a9d1a8f4dc6e126506c3bec241fb99719",
+          "date": "2026-09-20T19:13:31Z",
+          "message": "security(bn): revoke global PUBLIC execute default for future functions"
+        },
+        {
+          "sha": "113625937111de9f26eaabf2ec185ee303bef619",
+          "date": "2026-09-20T19:06:30Z",
+          "message": "security(bn): harden future Gradebook default privileges"
+        }
+      ]
+    },
+    {
+      "version": "20260915164741",
+      "path": "migrations/student-portal/0011_live_event_outbox_v1.sql",
+      "commits": [
+        {
+          "sha": "01a7431e6dd4cdf9d28552d2d0c2da65be364ab0",
+          "date": "2026-09-15T19:49:18Z",
+          "message": "feat(ecossistema): atualização silenciosa e sincronização de consultas (#808)"
+        }
+      ]
+    },
+    {
+      "version": "20260923164053",
+      "path": "migrations/student-portal/0019_remove_legacy_projection_v1.sql",
+      "commits": [
+        {
+          "sha": "c1b9a2c0441da1374a685addb20ca466e095c4a7",
+          "date": "2026-09-23T17:36:11Z",
+          "message": "fix(student-portal): complete legacy projection removal checks"
+        },
+        {
+          "sha": "cb29644018e759f5276ff63e2ac8880a5c12cefe",
+          "date": "2026-09-23T10:16:00Z",
+          "message": "refactor(student-portal): serve Self only from scoped V2 and remove the legacy stored projection"
+        }
+      ]
+    },
+    {
+      "version": "20260923224615",
+      "path": "migrations/student-photos/0005_supabase_storage_v1.sql",
+      "commits": [
+        {
+          "sha": "8bf6f391dccf7999fb5e2cc917257b3aae5f640f",
+          "date": "2026-09-24T01:13:32Z",
+          "message": "feat(photos): use private Supabase Storage for student photos"
+        }
+      ]
+    },
+    {
+      "version": "20261001201546",
+      "path": "migrations/student-portal/0024_seal_count_cache_v1.sql",
+      "commits": [
+        {
+          "sha": "a946b7e4165c9f0f58a0e510fc0871b012ca2758",
+          "date": "2026-10-01T22:59:24Z",
+          "message": "perf: reuse validated seal totals and gradebook analyses"
+        }
+      ]
+    },
+    {
+      "version": "20260927100854",
+      "path": "migrations/student-portal/0021_access_schedule_v1.sql",
+      "commits": [
+        {
+          "sha": "a440fdb984498c9c9437fae62c0235e2e6b668b5",
+          "date": "2026-09-27T12:37:19Z",
+          "message": "feat(student-portal): agendamentos de acesso (scheduled Abrir/Fechar per level)"
+        }
+      ]
+    },
+    {
+      "version": "20260923193137",
+      "path": "migrations/student-portal/0020_term_closing_policy_v1.sql",
+      "commits": [
+        {
+          "sha": "5f634eb36999219776242d3679dd512082884438",
+          "date": "2026-09-23T19:28:48Z",
+          "message": "feat(student-portal): closing or in-progress reading by policy; Boletim summary below the marks (#1132)"
+        },
+        {
+          "sha": "de995a478b500f73e75bc7dfbbe6ff26879f922e",
+          "date": "2026-09-23T18:25:35Z",
+          "message": "feat(student-portal): Fechamento do trimestre (#1132)"
+        }
+      ]
+    },
+    {
+      "version": "20260929071319",
+      "path": "migrations/student-portal/0023_audit_detail_v1.sql",
+      "commits": [
+        {
+          "sha": "6558bf16ee24342ec72ec04e7e031486d600d9f8",
+          "date": "2026-09-29T10:14:24Z",
+          "message": "feat(student-portal): refusal reasons in audit, ADM view kept on reload and responsive review"
+        }
+      ]
+    },
+    {
+      "version": "20260928092734",
+      "path": "migrations/student-portal/0022_shift_policy_v1.sql",
+      "commits": [
+        {
+          "sha": "303c14af4425c36c46c2a0d56493069bf3e28922",
+          "date": "2026-09-28T11:58:08Z",
+          "message": "feat(student-portal): complete shift policies and login review (#1201)"
+        }
+      ]
+    }
+  ],
+  "comments_reviewed": [
+    {
+      "url": "https://github.com/mcpmieda/ecossistema-escola/pull/1273#issuecomment-6104937257",
+      "observation": "CodeRabbit draft review skipped; not an effective review or authorization"
+    },
+    {
+      "url": "https://github.com/mcpmieda/ecossistema-escola/pull/1273#issuecomment-6104939657",
+      "observation": "SonarCloud Quality Gate Passed on prior head; not SQL provenance proof"
+    }
+  ]
+}
