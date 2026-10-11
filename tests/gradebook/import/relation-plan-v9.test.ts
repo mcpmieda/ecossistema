@@ -191,7 +191,7 @@ describe('relation movement planner V9', () => {
     ).toThrowError(
       expect.objectContaining<Partial<RelationPlanErrorV9>>({
         state: 'conflict',
-        reason: 'A movimentação envolve identidades distintas. Confira os vínculos existentes.',
+        reason: 'A movimentação entre 6A nº 1 e 6B nº 3 envolve identidades distintas. Confira os vínculos existentes.',
       }),
     );
   });
@@ -211,7 +211,10 @@ describe('relation movement planner V9', () => {
     expect(() => buildRelationPlanV9(request(
       [[1, 'SINTETICO UM', 6, '6B'], [2, 'SINTETICO DOIS', 6, '6B']],
       [[3, 'SINTETICO CORRIGIDO UM', 7, '6A'], [4, 'SINTETICO CORRIGIDO DOIS', 7, '6A']],
-    ), classes, [])).toThrowError(expect.objectContaining({ state: 'review-required' }));
+    ), classes, [])).toThrowError(expect.objectContaining({
+      state: 'review-required',
+      reason: 'Confira os pares de movimentação entre 6A e 6B.',
+    }));
   });
 
   it('never treats a nonreciprocal unmatched pair as evidence of movement', () => {

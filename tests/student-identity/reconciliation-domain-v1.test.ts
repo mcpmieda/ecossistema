@@ -331,6 +331,84 @@ describe('conciliação determinística por pessoa e origem', () => {
     });
     expect(plan([sibling], [source()]).rows[0]?.reason).toBe('sibling_candidate');
   });
+  describe('gêmeos já conciliados na reimportação', () => {
+    const twinStudent: ReconciliationStudentV1 = {
+      studentUid: 'synthetic-person-b',
+      nameKey: 'PESSOA DISTINTA',
+      classId: 7,
+    };
+    const twinRow = (overrides: Partial<ReconciliationReportRowV1> = {}) =>
+      row({
+        sourceRow: 3,
+        name: 'Pessoa Distinta',
+        nameKey: 'PESSOA DISTINTA',
+        inep: '999',
+        inepKey: '999',
+        enrollmentHash: 'synthetic-enrollment-b',
+        ...overrides,
+      });
+    const twinSource = (overrides: Partial<ReconciliationSourceV1> = {}) =>
+      source({
+        sourceId: 'synthetic-origin-b',
+        studentUid: twinStudent.studentUid,
+        current: twinRow(),
+        ...overrides,
+      });
+    const settled = [
+      { sourceRow: 2, studentUid: student.studentUid, rule: 'continuity', reason: null },
+      { sourceRow: 3, studentUid: twinStudent.studentUid, rule: 'continuity', reason: null },
+    ];
+
+    it('o mesmo relatório conserva os dois vínculos sem nova pendência', () => {
+      const result = plan([row(), twinRow()], [source(), twinSource()], [student, twinStudent]);
+      expect(result.rows).toMatchObject(settled);
+    });
+    it('a decisão de pessoas diferentes não torna pendente o vínculo de cada um', () => {
+      const result = plan(
+        [row(), twinRow()],
+        [source(), twinSource()],
+        [student, twinStudent],
+        [
+          { sourceId: 'synthetic-origin-a', studentUid: twinStudent.studentUid },
+          { sourceId: 'synthetic-origin-b', studentUid: student.studentUid },
+        ],
+      );
+      expect(result.rows).toMatchObject(settled);
+    });
+    it('vale também quando estão em turmas diferentes', () => {
+      const other = {
+        classId: 8,
+        classLabel: '7C 2026 - VESPERTINO',
+        classKey: '7C 2026 - VESPERTINO',
+      };
+      const result = plan(
+        [row(), twinRow(other)],
+        [source(), twinSource({ current: twinRow(other) })],
+        [student, { ...twinStudent, classId: 8 }],
+      );
+      expect(result.rows).toMatchObject(settled);
+    });
+    it('o primeiro encontro de um deles continua pedindo conferência', () => {
+      const result = plan([row(), twinRow()], [source()], [student, twinStudent]);
+      expect(result.rows[0]).toMatchObject({ studentUid: student.studentUid, rule: 'continuity' });
+      expect(result.rows[1]).toMatchObject({ studentUid: null, reason: 'identity_conflict' });
+    });
+    it('a rejeição do próprio vínculo e a origem em revisão continuam bloqueando', () => {
+      const rejected = plan(
+        [row()],
+        [source()],
+        [student],
+        [{ sourceId: 'synthetic-origin-a', studentUid: student.studentUid }],
+      );
+      expect(rejected.rows[0]).toMatchObject({ studentUid: null, reason: 'rejected' });
+      const reviewed = plan(
+        [row(), twinRow()],
+        [source({ reviewRequired: true }), twinSource()],
+        [student, twinStudent],
+      );
+      expect(reviewed.rows[0]).toMatchObject({ studentUid: null, reason: 'source_review' });
+    });
+  });
   it('Filiação 1 ou INEP vazio não vira concordância nem recupera dado antigo', () => {
     const cleared = row({ filiation1: null, filiation1Key: null, inep: null, inepKey: null });
     const result = plan([cleared], [source()]);

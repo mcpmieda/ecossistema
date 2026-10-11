@@ -542,6 +542,37 @@ async function completePortalBaseline(): Promise<void> {
   }
 }
 
+/** Production applies migrations with a CREATEROLE role that is not a superuser and owns both
+ * schemas. Ownership transfers and the grants around them only fail under that kind of role. */
+async function applyCandidatesAsProductionMigratorV1(): Promise<void> {
+  await sql.unsafe(`DO $$ DECLARE statement text; BEGIN
+    CREATE ROLE gradebook_ci_migrator_v1 NOLOGIN CREATEROLE NOSUPERUSER BYPASSRLS;
+    FOR statement IN
+      SELECT format('ALTER SCHEMA %I OWNER TO gradebook_ci_migrator_v1',nspname)
+        FROM pg_namespace WHERE nspname IN ('gradebook','student_portal')
+      UNION ALL SELECT format('ALTER %s %I.%I OWNER TO gradebook_ci_migrator_v1',
+          CASE c.relkind WHEN 'v' THEN 'VIEW' ELSE 'TABLE' END,n.nspname,c.relname)
+        FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname IN ('gradebook','student_portal') AND c.relkind IN ('r','p','v')
+      UNION ALL SELECT format('ALTER ROUTINE %s OWNER TO gradebook_ci_migrator_v1',p.oid::regprocedure)
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname IN ('gradebook','student_portal')
+    LOOP EXECUTE statement; END LOOP;
+  END $$`);
+  const migrator = await firstRow(`SELECT current_setting('createrole_self_grant') AS self_grant,
+    (SELECT rolsuper FROM pg_roles WHERE rolname='gradebook_ci_migrator_v1') AS superuser`);
+  if (migrator.self_grant !== '' || migrator.superuser !== false) {
+    throw new Error('gradebook-ci-migrator-not-production-like');
+  }
+  await sql.unsafe('SET SESSION AUTHORIZATION gradebook_ci_migrator_v1');
+  try {
+    await applyReconciliationCandidateSchemaV1(sql, process.cwd());
+  } finally {
+    await sql.unsafe('ROLLBACK').catch(() => undefined);
+    await sql.unsafe('RESET SESSION AUTHORIZATION');
+  }
+}
+
 async function assertReconciliationBridgeV1(): Promise<void> {
   const boundary = await firstRow(`SELECT
     (SELECT count(*)::integer FROM pg_roles WHERE rolname='student_reconciliation_bridge_v1'
@@ -559,12 +590,21 @@ async function assertReconciliationBridgeV1(): Promise<void> {
       WHERE n.nspname='student_portal' AND c.relname IN ('reconciliation_birth_v1','reconciliation_credential_stage_v1','reconciliation_credential_attempt_v1')
       AND c.relrowsecurity
       AND NOT has_table_privilege('student_portal_app',c.oid,'SELECT,INSERT,UPDATE,DELETE')
-      AND NOT has_table_privilege('gradebook_app',c.oid,'SELECT,INSERT,UPDATE,DELETE')) AS private_tables`);
+      AND NOT has_table_privilege('gradebook_app',c.oid,'SELECT,INSERT,UPDATE,DELETE')) AS private_tables,
+    (has_schema_privilege('student_reconciliation_bridge_v1','gradebook','CREATE')
+      OR has_schema_privilege('student_reconciliation_bridge_v1','student_portal','CREATE')
+      OR EXISTS(SELECT 1 FROM pg_auth_members m WHERE m.roleid='student_reconciliation_bridge_v1'::regrole
+        AND (m.set_option OR m.inherit_option))) AS transfer_aid_left,
+    (has_table_privilege('gradebook_ci_migrator_v1','student_portal.academic_student_v1','SELECT')
+      AND has_function_privilege('gradebook_ci_migrator_v1',
+        'student_portal.reset_reconciliation_state_v1(smallint)','EXECUTE')) AS former_owner_access`);
   if (
     Number(boundary.safe_owner) !== 1 ||
     Number(boundary.owned_tables) !== 0 ||
     Number(boundary.narrow_functions) !== 12 ||
-    Number(boundary.private_tables) !== 3
+    Number(boundary.private_tables) !== 3 ||
+    boundary.transfer_aid_left !== false ||
+    boundary.former_owner_access !== true
   ) {
     throw new Error('gradebook-ci-reconciliation-bridge-mismatch:' + JSON.stringify(boundary));
   }
@@ -629,7 +669,7 @@ async function run(): Promise<void> {
     const acl = await assertCurrentGradebookAclV1();
     await assertFutureGradebookObjectAclV1();
     await completePortalBaseline();
-    await applyReconciliationCandidateSchemaV1(sql, process.cwd());
+    await applyCandidatesAsProductionMigratorV1();
     await assertReconciliationCandidateSchemaV1(sql);
     const candidateAcl = await assertCurrentGradebookAclV1(true);
     await assertReconciliationBridgeV1();

@@ -139,25 +139,12 @@ LEFT JOIN gradebook.student_report_profile_v1 p ON p.academic_year=a.academic_ye
 LEFT JOIN gradebook.student_source_observation_v1 o ON o.id=p.observation_id
 LEFT JOIN gradebook.student_source_link_v1 l ON l.academic_year=p.academic_year AND l.source_id=p.source_id AND l.student_uid=p.student_uid
 LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id AND r.account_id IS NULL;
-ALTER VIEW student_portal.account_birth_v1 OWNER TO student_reconciliation_bridge_v1;
 -- The configured display name never participates in identity comparisons.
 GRANT SELECT ON gradebook.student_presentation_v1 TO student_reconciliation_bridge_v1;
-ALTER VIEW gradebook.student_presentation_v1 OWNER TO student_reconciliation_bridge_v1;
 CREATE OR REPLACE VIEW student_portal.academic_student_v1 WITH (security_barrier=true) AS
 SELECT student_id,academic_year,name FROM gradebook.student_presentation_v1 WHERE academic_year=2026;
--- Existing publication SECURITY DEFINER functions may be owned by the previous view owner.
--- Preserve that owner's implicit read capability explicitly after narrowing ownership.
-DO $$ DECLARE previous_owner name; function_owner name; BEGIN
-  SELECT r.rolname INTO previous_owner FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner
-    WHERE c.oid='student_portal.academic_student_v1'::regclass;
-  ALTER VIEW student_portal.academic_student_v1 OWNER TO student_reconciliation_bridge_v1;
-  EXECUTE format('GRANT SELECT ON student_portal.academic_student_v1 TO %I',previous_owner);
-  FOR function_owner IN SELECT DISTINCT r.rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner
-    WHERE p.pronamespace='student_portal'::regnamespace AND p.proname IN
-      ('synchronize_profiles_v1','capture_publication_source_v2','publication_source_rows_v2','publication_source_rows_v3') LOOP
-    EXECUTE format('GRANT SELECT ON student_portal.academic_student_v1 TO %I',function_owner);
-  END LOOP;
-END $$;
+-- The three views are handed to the bridge at the end of this migration, after every privilege
+-- on them has been issued by the role that still owns them.
 GRANT SELECT ON student_portal.account_birth_v1 TO student_portal_app;
 
 CREATE FUNCTION student_portal.assert_reconciliation_batch_v1(p_batch uuid,p_actor uuid,p_generation uuid,p_revision bigint)
@@ -482,7 +469,6 @@ BEGIN
     'clear_reconciliation_credentials_v1(smallint)','cleanup_reconciliation_credentials_v1(integer)',
     'reconciliation_credential_counts_v1(smallint)','reconciliation_accounts_v1(smallint)','reconciliation_revision_v1(smallint)',
     'cleanup_reconciliation_pending_v1(integer)'] LOOP
-    EXECUTE 'ALTER FUNCTION student_portal.'||f||' OWNER TO student_reconciliation_bridge_v1';
     EXECUTE 'REVOKE ALL ON FUNCTION student_portal.'||f||' FROM PUBLIC,gradebook_app,student_portal_app';
     FOREACH r IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
       IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname=r) THEN EXECUTE 'REVOKE ALL ON FUNCTION student_portal.'||f||' FROM '||quote_ident(r); END IF;
@@ -504,6 +490,40 @@ DO $$ DECLARE r text; BEGIN
     END IF;
   END LOOP;
 END $$;
+-- Ownership is narrowed last. The migration role is not a superuser in production: it may give an
+-- object away only to a role it can SET ROLE to, that role needs CREATE on the schema during the
+-- transfer, and afterwards only the new owner can grant on the object. Both aids are withdrawn.
+GRANT student_reconciliation_bridge_v1 TO CURRENT_USER WITH SET TRUE, INHERIT FALSE;
+GRANT CREATE ON SCHEMA gradebook,student_portal TO student_reconciliation_bridge_v1;
+DO $$ DECLARE f text; migrator name:=current_user; reader name; readers name[]; BEGIN
+  -- Existing publication SECURITY DEFINER functions may be owned by the previous view owner,
+  -- whose implicit read ends with the transfer.
+  SELECT array_agg(DISTINCT q.rolname) INTO readers FROM (
+    SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner
+      WHERE c.oid='student_portal.academic_student_v1'::regclass
+    UNION SELECT r.rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner
+      WHERE p.pronamespace='student_portal'::regnamespace AND p.proname IN
+        ('synchronize_profiles_v1','capture_publication_source_v2','publication_source_rows_v2','publication_source_rows_v3')) q;
+  ALTER VIEW student_portal.account_birth_v1 OWNER TO student_reconciliation_bridge_v1;
+  ALTER VIEW gradebook.student_presentation_v1 OWNER TO student_reconciliation_bridge_v1;
+  ALTER VIEW student_portal.academic_student_v1 OWNER TO student_reconciliation_bridge_v1;
+  FOREACH f IN ARRAY ARRAY['assert_reconciliation_batch_v1(uuid,uuid,uuid,bigint)',
+    'reconciliation_credential_targets_v1(uuid,uuid,uuid,bigint,integer)',
+    'prepare_reconciliation_separation_v1(uuid,uuid,uuid,bigint)',
+    'stage_reconciliation_credential_v1(uuid,uuid,uuid,jsonb)','apply_reconciliation_credentials_v1(uuid,uuid)',
+    'clear_reconciliation_credentials_v1(smallint)','cleanup_reconciliation_credentials_v1(integer)',
+    'reconciliation_credential_counts_v1(smallint)','reconciliation_accounts_v1(smallint)','reconciliation_revision_v1(smallint)',
+    'cleanup_reconciliation_pending_v1(integer)'] LOOP
+    EXECUTE 'ALTER FUNCTION student_portal.'||f||' OWNER TO student_reconciliation_bridge_v1';
+  END LOOP;
+  SET LOCAL ROLE student_reconciliation_bridge_v1;
+  FOREACH reader IN ARRAY readers LOOP
+    EXECUTE format('GRANT SELECT ON student_portal.academic_student_v1 TO %I',reader);
+  END LOOP;
+  EXECUTE format('SET LOCAL ROLE %I',migrator);
+END $$;
+REVOKE CREATE ON SCHEMA gradebook,student_portal FROM student_reconciliation_bridge_v1;
+REVOKE student_reconciliation_bridge_v1 FROM CURRENT_USER;
 -- Existing values stay readable through account_birth_v1 until that account is migrated.
 REVOKE INSERT,UPDATE,DELETE ON student_portal.account_access_data FROM student_portal_app;
 COMMIT;

@@ -25,19 +25,31 @@ LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS $$
    )::text,'UTF8')),'hex')
  FROM gradebook.student_reconciliation_scope_v1 s WHERE s.academic_year=p_year
 $$;
-ALTER FUNCTION student_portal.reset_reconciliation_state_v1(smallint) OWNER TO student_reconciliation_bridge_v1;
 REVOKE ALL ON FUNCTION student_portal.reset_reconciliation_state_v1(smallint) FROM PUBLIC,student_portal_app;
 GRANT EXECUTE ON FUNCTION student_portal.reset_reconciliation_state_v1(smallint) TO gradebook_app;
-DO $$ DECLARE owner_name text; runtime_role text; BEGIN
- FOR owner_name IN SELECT DISTINCT pg_get_userbyid(proowner) FROM pg_proc
-  WHERE oid IN ('student_portal.prepare_year_reset_v1(smallint,text,text)'::regprocedure,
-    'student_portal.consume_year_reset_v1(smallint,text,text)'::regprocedure) LOOP
-  EXECUTE format('GRANT EXECUTE ON FUNCTION student_portal.reset_reconciliation_state_v1(smallint) TO %I',owner_name);
- END LOOP;
+DO $$ DECLARE runtime_role text; BEGIN
  FOR runtime_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role') LOOP
   EXECUTE format('REVOKE ALL ON FUNCTION student_portal.reset_reconciliation_state_v1(smallint) FROM %I',runtime_role);
  END LOOP;
 END $$;
+-- Ownership is narrowed last, as in Portal 0025: the migration role is not a superuser in
+-- production. The reset functions keep their owner, which loses its implicit EXECUTE with the
+-- transfer; only the new owner can give it back.
+GRANT student_reconciliation_bridge_v1 TO CURRENT_USER WITH SET TRUE, INHERIT FALSE;
+GRANT CREATE ON SCHEMA student_portal TO student_reconciliation_bridge_v1;
+DO $$ DECLARE migrator name:=current_user; owner_name name; owners name[]; BEGIN
+ SELECT array_agg(DISTINCT pg_get_userbyid(proowner)::name) INTO owners FROM pg_proc
+  WHERE oid IN ('student_portal.prepare_year_reset_v1(smallint,text,text)'::regprocedure,
+    'student_portal.consume_year_reset_v1(smallint,text,text)'::regprocedure);
+ ALTER FUNCTION student_portal.reset_reconciliation_state_v1(smallint) OWNER TO student_reconciliation_bridge_v1;
+ SET LOCAL ROLE student_reconciliation_bridge_v1;
+ FOREACH owner_name IN ARRAY owners LOOP
+  EXECUTE format('GRANT EXECUTE ON FUNCTION student_portal.reset_reconciliation_state_v1(smallint) TO %I',owner_name);
+ END LOOP;
+ EXECUTE format('SET LOCAL ROLE %I',migrator);
+END $$;
+REVOKE CREATE ON SCHEMA student_portal FROM student_reconciliation_bridge_v1;
+REVOKE student_reconciliation_bridge_v1 FROM CURRENT_USER;
 
 CREATE OR REPLACE FUNCTION student_portal.prepare_year_reset_v1(p_year smallint,p_actor text,p_token text)
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,student_portal AS $$

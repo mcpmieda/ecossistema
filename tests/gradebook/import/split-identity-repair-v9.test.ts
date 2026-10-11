@@ -272,7 +272,7 @@ describe('reparo de identidade dividida por movimentacao explicita V9', () => {
 
     await expect(service.execute(relation('R1106', 'd', true))).resolves.toMatchObject({
       state: 'conflict',
-      reason: 'A movimentação envolve identidades distintas. Confira os vínculos existentes.',
+      reason: 'A movimentação entre R1106A nº 1 e R1106B nº 1 envolve identidades distintas. Confira os vínculos existentes.',
     });
 
     const after = await pair('R1106');

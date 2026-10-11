@@ -187,7 +187,8 @@ function linkMovementSourcesV9(
       other.relatedTurmaId === item.relatedTurmaId && other.situacao === item.situacao);
     if (reciprocal.length > 0) {
       if (reciprocal.length !== 1 || sameDirection.length !== 1) {
-        throw new RelationPlanErrorV9('review-required', 'Confira os pares de movimentação entre as turmas.');
+        throw new RelationPlanErrorV9('review-required',
+          `Confira os pares de movimentação entre ${item.turmaCode} e ${reciprocal[0]!.turmaCode}.`);
       }
       const other = reciprocal[0]!;
       union.union(item.index, other.index);
@@ -245,7 +246,10 @@ function buildComponentV9(
   }
   const preferred = items.find((item) => item.situacao !== 6) ?? items[0]!;
   if (seeds.size > 1) {
-    throw new RelationPlanErrorV9('conflict', 'A movimentação envolve identidades distintas. Confira os vínculos existentes.');
+    // The operator needs the positions to correct the Relação; names stay out of this refusal.
+    const positions = items.map((item) => `${item.turmaCode} nº ${item.numero}`).join(' e ');
+    throw new RelationPlanErrorV9('conflict',
+      `A movimentação entre ${positions} envolve identidades distintas. Confira os vínculos existentes.`);
   }
   return {
     items,

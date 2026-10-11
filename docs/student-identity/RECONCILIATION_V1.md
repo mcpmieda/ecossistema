@@ -15,7 +15,7 @@ A Relação conserva as posições e fatos acadêmicos. O nome original de cada 
 
 ## Operações e atomicidade
 
-`POST /api/student-reconciliation/v1` exige sessão ADM, origem oficial e capacidade de leitura/escrita das configurações conforme a operação. Corpos têm limite de 8 MiB/10.000 linhas, schema fechado, ano explícito 2026 e resposta privada `no-store`. Histórico/candidatos são retornados somente no detalhe solicitado. O cursor é selado e vinculado a ator, filtros, geração/revisão e expiração.
+`POST /api/student-reconciliation/v1` exige sessão ADM, origem oficial e capacidade de leitura/escrita das configurações conforme a operação. Corpos têm limite de 8 MiB/10.000 linhas, schema fechado, ano explícito 2026 e resposta privada `no-store`. Histórico/candidatos são retornados somente no detalhe solicitado. O cursor é selado e vinculado a ator, filtros, geração/revisão e expiração. A rota participa do limitador administrativo: `catalog`, `list` e `detail` contam como leitura e as demais operações como escrita; o corpo do relatório não é lido nem clonado para essa classificação.
 
 1. `prepare` valida todas as linhas elegíveis e gera plano consistente. Datas de nascimento ausentes/inválidas/futuras rejeitam o lote inteiro. Modalidades excluídas nunca são persistidas. Sem Relação, somente turmas reconhecidas como regulares ficam pendentes, sem UID/conta; com Relação, persistem apenas as turmas ligadas. Rótulos desconhecidos exigem confirmação de elegibilidade.
 2. `stage` chama a capacidade privada do Portal. A KDF existente é executada fora da transação final, no máximo quatro verificadores por chamada, com salt individual e pepper existente. O navegador recebe apenas progresso. Estágio/recibos não prorrogam a validade com retries.
@@ -27,11 +27,11 @@ Digests de conteúdo são calculados no servidor e preservam multiplicidade/valo
 
 ## Identidade e decisões
 
-Continuidade de uma origem é apurada separadamente da pessoa. Hash, posição e nome isolados não constituem identidade. As três regras aprovadas e todos os vetos vivem no domínio central: nome/turma única; INEP/nascimento completo; nome/nascimento/Filiação 1 para INEP alterado. N origens podem apontar ao mesmo UID; o perfil aponta para uma observação completa, sem misturar campos.
+Continuidade de uma origem é apurada separadamente da pessoa. Hash, posição e nome isolados não constituem identidade. As três regras aprovadas e todos os vetos vivem no domínio central: nome/turma única; INEP/nascimento completo; nome/nascimento/Filiação 1 para INEP alterado. N origens podem apontar ao mesmo UID; o perfil aponta para uma observação completa, sem misturar campos. Uma origem já ligada e sem revisão aberta identifica a própria linha: parente com mesmo nascimento e Filiação 1, ou rejeição registrada para outro par, não a devolve à pendência. O primeiro encontro continua pedindo conferência.
 
 Rejeição/separação/liberação são decisões duráveis por par interno. Corrigir ligação de turma marca os vínculos afetados para conferência e conserva o estado anterior. Confirmar/separar é explícito e usa CAS. Reversão acrescenta evento e não sobrescreve correções posteriores: dependência incompatível retorna conflito sem reversão parcial. A restauração do nascimento legado, quando aplicável, fica restrita à ponte privada e à decisão original ainda compatível.
 
-Na Relação, outro UID/evidência de pessoa ocupando a mesma posição bloqueia o reuso que herdaria notas. Correção de nome sem conflito verificável continua permitida. Par recíproco seguro de movimentação conserva uma identidade; duas identidades persistidas nunca são fundidas por essa entrega. Suspeitas sem evidência suficiente ficam para conferência, sem comparação difusa.
+Na Relação, outro UID/evidência de pessoa ocupando a mesma posição bloqueia o reuso que herdaria notas. Correção de nome sem conflito verificável continua permitida. Par recíproco seguro de movimentação conserva uma identidade; duas identidades persistidas nunca são fundidas por essa entrega. Suspeitas sem evidência suficiente ficam para conferência, sem comparação difusa. A recusa por identidades distintas ou por mais de um par de movimentação indica turma e posição, sem nomes, para a correção da planilha; a importação continua integral, sem gravação parcial.
 
 `resolve-source-v1.ts` oferece somente o contrato interno `resolved`/`ambiguous`/`not_found`, considerando nomes/turmas históricos e decisões centrais. UID só aparece quando a origem identifica unicamente a pessoa. Coleta, deduplicação e persistência de frequência pertencem à segunda entrega; a PR #1268 não foi integrada.
 
@@ -52,6 +52,8 @@ O limite de 300 caracteres descreve os DTOs e o nome corrente. Limites anteriore
 Ordem das candidatas, sobre a baseline histórica já aplicada: `gradebook-simplified/0015_student_reconciliation_v1.sql`, `student-portal/0025_reconciliation_credentials_v1.sql`, `gradebook-simplified/0016_reconciliation_year_reset_v1.sql`. Não reaplicar nem reescrever migrations históricas. A execução em produção depende de autorização posterior.
 
 Objetos anuais têm RLS/ACL explícitas, FKs compostas e exclusão controlada sem cascata. Observações/decisões publicadas são imutáveis. A ponte tem proprietário mínimo sem BYPASSRLS/propriedade de tabelas, `search_path=pg_catalog` e EXECUTE revogado de papéis públicos. A Data API não expõe essas tabelas.
+
+O papel que aplica migrations em produção não é superusuário. Por isso as views e funções só passam à ponte no fim de `0025` e `0016`, depois de emitidos todos os privilégios; a transferência usa associação com `SET` e `CREATE` no schema apenas dentro da migration, ambos retirados em seguida, e a leitura do dono anterior é devolvida pela própria ponte. O gate do Banco aplica as três candidatas com um papel `CREATEROLE` sem superusuário e dono dos dois schemas.
 
 Pendência anterior à Relação dura 30 dias, com aviso a partir do dia 27; preparação ordinária dura 24 horas; estágio de credenciais dura no máximo uma hora. A manutenção existente elimina expirados em lotes limitados, revalida sob lock e alerta sem conteúdo pessoal. Não há automação de ChatGPT nem consulta periódica da escola inteira.
 
@@ -78,3 +80,17 @@ Regressões: domínio/normalização; parser e UI sintéticos; testes de Relaç�
 A medição sintética de KDF/latência/consultas não comprova CPU ou pico de memória do isolate nos limites do runtime produtivo. O diagnóstico existente registra somente a memória disponível no host ao final. Essas medições de CPU/memória da seção 15.5 continuam obrigatórias antes da habilitação; não são inferidas do build ou do CI.
 
 Após a revisão da PR, a liberação produtiva exige planejamento das novas migrations e publicação oficial, ambos fora da autorização desta execução. O responsável conduz a conferência funcional com fontes reais no ambiente autorizado: importar Relatório, conferir ligações/turmas/pendências, verificar nome configurado e QR/PIN existentes, e avaliar avisos/reset sem ensaio destrutivo de dados reais. A #1269 permanece aberta para frequência e liberação posterior.
+
+## Liberação e reversão
+
+O código desta entrega lê os objetos novos em caminhos que já existem: entrada do aluno por PIN e QR (`account_birth_v1`), listagens da aba Alunos, Desempenho, Conselho e Boletins (`student_presentation_v1`), importação da Relação (evidências de identidade), reset e manutenção agendada. A integração em `main` publica o código; **as migrations precisam estar aplicadas antes**.
+
+1. CI e gates verdes no head final.
+2. Com autorização específica do responsável, aplicar em produção `gradebook-simplified/0015`, `student-portal/0025` e `gradebook-simplified/0016`, nesta ordem, cada uma em sua transação.
+3. Conferir no catálogo: tabelas novas presentes; ponte sem login, superusuário, `BYPASSRLS`, `CREATE` nos schemas ou associação com `SET`/`INHERIT`; `student_portal_app` lê `account_birth_v1` e `academic_student_v1`; `gradebook_app` lê `student_presentation_v1`; os donos das funções de publicação e de reset conservam leitura e execução.
+4. Integrar por merge commit e publicar pelo workflow oficial.
+5. Validar no ambiente real, nesta ordem: entrada por PIN de aluno existente; Desempenho, Conselho e Boletins; importação da Relação; por fim, o Relatório.
+
+Entre os passos 2 e 4 a versão publicada continua funcionando, pois lê o nascimento anterior diretamente; apenas o cadastro manual de nascimento deixa de gravar, porque `0025` retira essa escrita do runtime.
+
+Reversão: antes do primeiro relatório aplicado, voltar o código restaura o comportamento anterior; a escrita manual de nascimento só volta com a devolução explícita de `INSERT, UPDATE, DELETE` em `account_access_data`. Depois de um relatório aplicado, voltar o código **não** desfaz nascimento nem PIN já atualizados: a correção é para frente, pela separação da associação ou por novo relatório. O nome adotado volta à Relação pela própria configuração, sem reversão de código.

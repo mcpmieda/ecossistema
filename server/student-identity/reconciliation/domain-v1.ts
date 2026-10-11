@@ -220,6 +220,9 @@ function candidatesForRowV1(
       origin?.studentUid !== student.studentUid,
   );
   let sourceReview = origin?.reviewRequired === true;
+  // An origin already linked and not under review identifies the row by itself. A relative with
+  // the same birth and filiation, or a rejection recorded for another pairing, does not reopen it.
+  const settledUid = origin?.studentUid && !origin.reviewRequired ? origin.studentUid : null;
   let sibling = false;
   const selectedUids = new Set(
     sources.filter((source) => source.profileSelected).map((source) => source.studentUid),
@@ -240,7 +243,7 @@ function candidatesForRowV1(
     if (sameName && sameBirth && sameFiliation && differentInep) {
       rules.set(source.studentUid, 'name_birth_filiation');
     }
-    if (!sameName && sameBirth && sameFiliation && differentInep) {
+    if (!sameName && sameBirth && sameFiliation && differentInep && settledUid === null) {
       candidates.add(source.studentUid);
       sibling = true;
     }
@@ -255,6 +258,11 @@ function candidatesForRowV1(
   }
   let rejected = false;
   for (const pair of rejectedPairs) {
+    if (
+      settledUid !== null &&
+      !(pair.sourceId === origin?.sourceId && pair.studentUid === settledUid)
+    )
+      continue;
     const rejectedSource = sources.find((source) => source.sourceId === pair.sourceId);
     if (
       rejectedSource &&
