@@ -34,9 +34,6 @@ function normalize(key, rows) {
       row.logical_ordinal=next;
     }
   }
-  if (key==='functions') copy=copy.filter(x=>known.has(x.nspname+'.'+x.proname));
-  if (key==='function_extra'||key==='function_hashes') copy=copy.filter(x=>known.has(x.schema_name+'.'+x.proname));
-  if (key==='acls') copy=copy.filter(x=>x.kind!=='function'||known.has(x.schema_name+'.'+x.object_name));
   for(const row of copy) {
     // ACL arrays are checked semantically in aclexplode results; physical attnum holes are not reproduced.
     if(key==='relations'||key==='columns'||key==='functions') delete row.acl;
@@ -46,7 +43,15 @@ function normalize(key, rows) {
   }
   return copy.map(row=>Object.fromEntries(Object.entries(row).sort(([a],[b])=>a.localeCompare(b)))).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
 }
-const expected = Object.fromEntries(keys.map(key=>[key,normalize(key,key==='functions'?snapshot.inventory.functions:snapshot[key])]));
+function declaredRows(key) {
+  const rows=key==='functions'?snapshot.inventory.functions:snapshot[key];
+  if(key==='functions')return rows.filter(x=>known.has(x.nspname+'.'+x.proname));
+  if(key==='function_extra'||key==='function_hashes')return rows.filter(x=>known.has(x.schema_name+'.'+x.proname));
+  if(key==='acls')return rows.filter(x=>x.kind!=='function'||known.has(x.schema_name+'.'+x.object_name));
+  return rows;
+}
+// Filter only the declared production subset; observed sets remain complete so extras fail.
+const expected = Object.fromEntries(keys.map(key=>[key,normalize(key,declaredRows(key))]));
 assert.equal(manifest.functions.filter(x=>!x.source).length,5,'opaque exclusions changed');
 if(!process.argv.includes('--native')) { console.log('Artifact hashes and declared subset contract passed; PostgreSQL not executed.'); process.exit(0); }
 assert.equal(process.env.GITHUB_ACTIONS,'true','Native execution restricted to disposable GitHub CI');
