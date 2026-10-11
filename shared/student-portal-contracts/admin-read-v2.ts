@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
 import { termClosingSummaryV1, termClosingV1, TERM_CLOSING_MODES_V1, TERM_CLOSING_PERIODS_V1 } from './term-closing-v1';
 import { policyFieldV1, settingsOverrideV1 } from './policy-v1';
 import { accountSummaryV1, adminQueryV1 } from './admin-v1';
@@ -88,7 +89,7 @@ const count = z.number().int().nonnegative().safe();
 export const ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 = 5_000;
 export const customizedSettingsRowV1 = z.object({
   id: z.string().regex(/^(?:class:2026:[1-9]\d*|shift:2026:(?:MATUTINO|VESPERTINO|NOTURNO)|account:2026:[0-9a-f-]{36})$/u),
-  scope: policyScopeV1.refine((s) => s.kind !== 'school'), label: z.string().max(200), classLabel: z.string().max(80),
+  scope: policyScopeV1.refine((s) => s.kind !== 'school'), label: z.string().max(STUDENT_NAME_MAX_LENGTH_V1), classLabel: z.string().max(80),
   value: settingsOverrideV1, updatedAt: instantV1,
 }).strict();
 /**
@@ -124,7 +125,7 @@ export const adminReadResponseV2 = z.discriminatedUnion('state', [
   z.object({ ...base, state: z.literal('sessions-read'), sessionView: z.enum(['active', 'history']).optional(), scope: scopeV1,
     version: versionV1, revocableCount: count,
     items: z.array(z.object({
-      sessionId: portalIdV1, accountId: portalIdV1, name: z.string().max(200), classLabel: z.string().max(80),
+      sessionId: portalIdV1, accountId: portalIdV1, name: z.string().max(STUDENT_NAME_MAX_LENGTH_V1), classLabel: z.string().max(80),
       classId: z.number().int().positive().safe().nullable(), accountVersion: versionV1,
       createdAt: instantV1, expiresAt: instantV1, effectiveExpiresAt: instantV1.nullable(), revokedAt: instantV1.nullable(),
       persistent: z.boolean(), validity: z.enum(['valid', 'expired', 'revoked', 'unavailable']),

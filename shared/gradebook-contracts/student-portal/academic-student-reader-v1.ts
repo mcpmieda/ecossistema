@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../../student-identity/student-identity-v1';
 import { academicMeetsMinimumSchemaV1 } from './academic-presentation-v1';
 import {
   academicVersionSchemaV1,
@@ -107,7 +108,7 @@ export const academicStudentSchemaV1 = z
     dataVersion: academicVersionSchemaV1,
     profile: z
       .object({
-        name: z.string().min(1).max(200),
+        name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1),
         classId: id,
         classLabel: z.string().min(1).max(80),
         academicState: z.enum(['regular', 'special', 'assisted']),

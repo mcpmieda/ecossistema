@@ -357,79 +357,147 @@ it('denies public/direct runtime credential access and keeps only narrow metadat
   await expect(
     portal.unsafe(`UPDATE student_portal.account_access_data SET birth_year=2001`),
   ).rejects.toMatchObject({ code: '42501' });
+  await expect(portal.unsafe('SELECT nome FROM gradebook.aluno')).rejects.toMatchObject({
+    code: '42501',
+  });
   const functions =
     await owner.unsafe(`SELECT p.prosecdef,p.proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
     WHERE n.nspname='student_portal' AND p.proname='apply_reconciliation_credentials_v1'`);
   expect(functions[0]).toMatchObject({ prosecdef: true, proconfig: ['search_path=pg_catalog'] });
 });
 
-it('reverses the first association using the preserved legacy year with a new PIN verifier in the same transaction', async () => {
-  const people = await students(1),
-    first = await batch(people);
-  await prepare(first);
-  await apply(first);
-  const afterAssociation = await snapshot(people),
-    undo = await batch(people);
-  const [link] = await owner.unsafe(
-    `SELECT p.source_id,p.observation_id,l.decision_id FROM gradebook.student_report_profile_v1 p
+it.each([
+  { empty: 'none', lateWrite: false },
+  { empty: 'absent', lateWrite: false },
+  { empty: 'row', lateWrite: false },
+  { empty: 'absent', lateWrite: true },
+])(
+  'reverses the first association with preserved legacy state ($empty), blocking later writes ($lateWrite)',
+  async ({ empty, lateWrite }) => {
+    const people = await students(1),
+      first = await batch(people);
+    if (empty !== 'none') {
+      await owner.unsafe(
+        'UPDATE student_portal.password_credential SET pin_verifier=NULL WHERE account_id=$1',
+        [people[0]!.accountId],
+      );
+      if (empty === 'absent')
+        await owner.unsafe('DELETE FROM student_portal.account_access_data WHERE account_id=$1', [
+          people[0]!.accountId,
+        ]);
+      else
+        await owner.unsafe(
+          'UPDATE student_portal.account_access_data SET birth_year=NULL,confirmation=NULL WHERE account_id=$1',
+          [people[0]!.accountId],
+        );
+    }
+    const [before] = await snapshot(people);
+    await prepare(first);
+    await apply(first);
+    const afterAssociation = await snapshot(people),
+      undo = await batch(people);
+    const [link] = await owner.unsafe(
+      `SELECT p.source_id,p.observation_id,l.decision_id FROM gradebook.student_report_profile_v1 p
     JOIN gradebook.student_source_link_v1 l USING(academic_year,source_id,student_uid) WHERE p.student_uid=$1`,
-    [people[0]!.uid],
-  );
-  await owner.unsafe(
-    `UPDATE gradebook.student_report_batch_v1 SET purpose='decision',resolution=$2::text::jsonb WHERE id=$1`,
-    [
-      undo.id,
-      JSON.stringify({
-        action: 'separate',
-        sourceId: link!.source_id,
-        studentUid: people[0]!.uid,
-        observationId: link!.observation_id,
-        revertsDecisionId: link!.decision_id,
-      }),
-    ],
-  );
-  await owner.unsafe(
-    `UPDATE gradebook.student_report_pending_row_v1 SET selected_profile=false,target_source_id=$2,target_observation_id=$3 WHERE batch_id=$1`,
-    [undo.id, link!.source_id, link!.observation_id],
-  );
-  expect((await prepare(undo)).state).toBe('ready');
-  expect(await snapshot(people)).toEqual(afterAssociation);
-  await owner.begin(async (tx) => {
-    await tx.unsafe('SET LOCAL ROLE gradebook_app');
-    await tx.unsafe(
-      `INSERT INTO gradebook.student_reconciliation_decision_v1(id,academic_year,generation,sequence,actor_id,
-      action,source_id,student_uid,observation_id,reason,reverts_decision_id) VALUES($1,2026,$2,2,$3,'separate',$4,$5,$6,'synthetic',$7)`,
+      [people[0]!.uid],
+    );
+    await owner.unsafe(
+      `UPDATE gradebook.student_report_batch_v1 SET purpose='decision',resolution=$2::text::jsonb WHERE id=$1`,
       [
-        crypto.randomUUID(),
-        generation,
-        actor,
-        link!.source_id,
-        people[0]!.uid,
-        link!.observation_id,
-        link!.decision_id,
+        undo.id,
+        JSON.stringify({
+          action: 'separate',
+          sourceId: link!.source_id,
+          studentUid: people[0]!.uid,
+          observationId: link!.observation_id,
+          revertsDecisionId: link!.decision_id,
+        }),
       ],
     );
-    await tx.unsafe('DELETE FROM gradebook.student_report_profile_v1 WHERE student_uid=$1', [
-      people[0]!.uid,
-    ]);
-    await tx.unsafe('DELETE FROM gradebook.student_source_link_v1 WHERE source_id=$1', [
-      link!.source_id,
-    ]);
-    await tx.unsafe('SELECT student_portal.apply_reconciliation_credentials_v1($1,$2)', [
-      undo.id,
-      actor,
-    ]);
-  });
-  const [after] = await snapshot(people),
-    [previous] = afterAssociation;
-  expect(after!.birth).toBe(2012);
-  expect(await cryptography.verifySecret('2012', after!.pin_verifier as never)).toBe(true);
-  expect(after!.pin_verifier).not.toEqual(previous!.pin_verifier);
-  expect(after!.password_verifier).toEqual(previous!.password_verifier);
-  expect(after!.qr).toBe(previous!.qr);
-  expect(after!.security_version).toBe(previous!.security_version);
-  expect(after!.revoked).toBe(previous!.revoked);
-});
+    await owner.unsafe(
+      `UPDATE gradebook.student_report_pending_row_v1 SET selected_profile=false,target_source_id=$2,target_observation_id=$3 WHERE batch_id=$1`,
+      [undo.id, link!.source_id, link!.observation_id],
+    );
+    if (lateWrite) {
+      await owner.unsafe('UPDATE student_portal.account SET version=version+1 WHERE id=$1', [
+        people[0]!.accountId,
+      ]);
+      expect((await prepare(undo)).state).toBe('conflict');
+      expect((await snapshot(people))[0]!.birth).toBe(2013);
+      return;
+    }
+    expect((await prepare(undo)).state).toBe('ready');
+    expect(await snapshot(people)).toEqual(afterAssociation);
+    const applyUndo = () =>
+      owner.begin(async (tx) => {
+        await tx.unsafe('SET LOCAL ROLE gradebook_app');
+        await tx.unsafe(
+          `INSERT INTO gradebook.student_reconciliation_decision_v1(id,academic_year,generation,sequence,actor_id,
+      action,source_id,student_uid,observation_id,reason,reverts_decision_id) VALUES($1,2026,$2,2,$3,'separate',$4,$5,$6,'synthetic',$7)`,
+          [
+            crypto.randomUUID(),
+            generation,
+            actor,
+            link!.source_id,
+            people[0]!.uid,
+            link!.observation_id,
+            link!.decision_id,
+          ],
+        );
+        await tx.unsafe('DELETE FROM gradebook.student_report_profile_v1 WHERE student_uid=$1', [
+          people[0]!.uid,
+        ]);
+        await tx.unsafe('DELETE FROM gradebook.student_source_link_v1 WHERE source_id=$1', [
+          link!.source_id,
+        ]);
+        await tx.unsafe('SELECT student_portal.apply_reconciliation_credentials_v1($1,$2)', [
+          undo.id,
+          actor,
+        ]);
+      });
+    if (empty !== 'none') {
+      await exec(`CREATE FUNCTION public.synthetic_clear_pin_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF NEW.account_id='${people[0]!.accountId}'::uuid AND NEW.pin_verifier IS NULL THEN RAISE EXCEPTION 'synthetic-clear-pin-failure'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER synthetic_clear_pin_failure BEFORE INSERT OR UPDATE ON student_portal.password_credential FOR EACH ROW EXECUTE FUNCTION public.synthetic_clear_pin_failure();`);
+      try {
+        await expect(applyUndo()).rejects.toThrow('synthetic-clear-pin-failure');
+        expect(await snapshot(people)).toEqual(afterAssociation);
+        expect(
+          (
+            await owner.unsafe(
+              'SELECT 1 FROM gradebook.student_report_profile_v1 WHERE student_uid=$1',
+              [people[0]!.uid],
+            )
+          ).length,
+        ).toBe(1);
+        expect(
+          (
+            await owner.unsafe(
+              'SELECT 1 FROM gradebook.student_source_link_v1 WHERE student_uid=$1',
+              [people[0]!.uid],
+            )
+          ).length,
+        ).toBe(1);
+      } finally {
+        await exec(
+          'DROP TRIGGER synthetic_clear_pin_failure ON student_portal.password_credential; DROP FUNCTION public.synthetic_clear_pin_failure()',
+        );
+      }
+    }
+    await applyUndo();
+    const [after] = await snapshot(people),
+      [previous] = afterAssociation;
+    expect(after!.birth).toBe(before!.birth);
+    if (empty === 'none') {
+      expect(await cryptography.verifySecret('2012', after!.pin_verifier as never)).toBe(true);
+      expect(after!.pin_verifier).not.toEqual(previous!.pin_verifier);
+    } else expect(after!.pin_verifier).toBeNull();
+    expect(after!.password_verifier).toEqual(previous!.password_verifier);
+    expect(after!.qr).toBe(previous!.qr);
+    expect(after!.security_version).toBe(previous!.security_version);
+    expect(after!.revoked).toBe(previous!.revoked);
+  },
+);
 
 it('keeps confirmed credentials during link review and exposes canonical birth for accounts created after reconciliation', async () => {
   const people = await students(1),
@@ -448,10 +516,24 @@ it('keeps confirmed credentials during link review and exposes canonical birth f
       )
     )[0]!.name;
   expect(await currentName()).toBe('SYNTHETIC REPORT NAME');
+  const gradebookName = () =>
+    owner.begin(async (tx) => {
+      await tx.unsafe('SET LOCAL ROLE gradebook_app');
+      return (
+        await tx.unsafe('SELECT name FROM gradebook.student_presentation_v1 WHERE student_id=$1', [
+          people[0]!.id,
+        ])
+      )[0]!.name;
+    });
+  expect(await gradebookName()).toBe(await currentName());
   await owner.unsafe(
     "UPDATE gradebook.student_reconciliation_scope_v1 SET name_source='relation' WHERE academic_year=2026",
   );
   expect(await currentName()).toBe('SYNTHETIC PERSON ' + people[0]!.id);
+  expect(await gradebookName()).toBe(await currentName());
+  expect(
+    (await owner.unsafe('SELECT nome FROM gradebook.aluno WHERE id=$1', [people[0]!.id]))[0]!.nome,
+  ).toBe('SYNTHETIC PERSON ' + people[0]!.id);
   await owner.unsafe(
     "UPDATE gradebook.student_reconciliation_scope_v1 SET name_source='report' WHERE academic_year=2026",
   );

@@ -164,4 +164,14 @@ DO $$ DECLARE t text; BEGIN
 END $$;
 REVOKE UPDATE ON gradebook.student_source_observation_v1,gradebook.student_reconciliation_decision_v1 FROM gradebook_app;
 -- The control row has no personal content and survives annual reset with a fresh generation.
+CREATE VIEW gradebook.student_presentation_v1 WITH (security_barrier=true) AS
+SELECT a.id AS student_id,a.ano AS academic_year,
+  CASE WHEN s.name_source='report' THEN COALESCE(o.name,a.nome) ELSE a.nome END AS name
+FROM gradebook.aluno a
+LEFT JOIN gradebook.student_reconciliation_scope_v1 s ON s.academic_year=a.ano
+LEFT JOIN gradebook.student_report_profile_v1 p ON p.academic_year=a.ano AND p.student_uid=a.student_uid
+LEFT JOIN gradebook.student_source_observation_v1 o ON o.id=p.observation_id
+LEFT JOIN gradebook.student_source_link_v1 l ON l.academic_year=p.academic_year AND l.source_id=p.source_id AND l.student_uid=p.student_uid;
+REVOKE ALL ON gradebook.student_presentation_v1 FROM PUBLIC;
+GRANT SELECT ON gradebook.student_presentation_v1 TO gradebook_app;
 COMMIT;

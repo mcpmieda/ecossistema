@@ -4,7 +4,9 @@ import {
   isStudentReportWorkbookV1,
   readStudentReportWorkbookV1,
   STUDENT_REPORT_HEADERS_V1,
+  reportClassKeyV1,
 } from '../../src/features/gradebook/import/student-report-reader-v1';
+import { classReferenceV1 } from '../../server/student-identity/reconciliation/prepare-v1';
 import type {
   SheetJs,
   Workbook,
@@ -50,6 +52,27 @@ function workbook(overrides: Record<string, unknown> = {}, excluded = false): Wo
 }
 
 describe('leitor do Relatório Smecel V1', () => {
+  it('agrupa espaços equivalentes com a chave do servidor e preserva os rótulos da fonte', () => {
+    const source = workbook({ classLabel: '7A  2026 - MATUTINO' });
+    const sheet = source.Sheets.Relatório!;
+    sheet['!ref'] = 'A1:L3';
+    for (let index = 0; index < 11; index++) {
+      const column = String.fromCharCode(65 + index);
+      sheet[`${column}3`] = { ...(sheet[`${column}2`] as { v: unknown }) };
+    }
+    sheet.B3 = { v: '7A 2026 - MATUTINO' };
+    sheet.C3 = { v: ' matutino ' };
+    const parsed = readStudentReportWorkbookV1(source, reader);
+    expect(parsed.classes).toHaveLength(1);
+    expect(parsed.classes[0]?.classLabel).toBe('7A  2026 - MATUTINO');
+    expect(parsed.rows.map((row) => row.classLabel)).toEqual([
+      '7A  2026 - MATUTINO',
+      '7A 2026 - MATUTINO',
+    ]);
+    const item = parsed.classes[0]!;
+    expect(item.key).toBe(classReferenceV1(item.classLabel, item.shift, item.stageLabel));
+    expect(reportClassKeyV1('7A 2026 - MATUTINO', item.stageLabel, 'MATUTINO')).toBe(item.key);
+  });
   it('extrai somente a allowlist, mantém tipos brutos e não deduz data pelo arquivo', () => {
     const parsed = readStudentReportWorkbookV1(workbook(), reader);
     expect(parsed).toMatchObject({

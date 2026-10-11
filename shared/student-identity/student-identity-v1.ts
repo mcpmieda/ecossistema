@@ -37,3 +37,5 @@ export const studentIdentityResolutionV1 = z.discriminatedUnion('source', [
 
 export type StudentIdentityRequestV1 = z.infer<typeof studentIdentityRequestV1>;
 export type StudentIdentityResolutionV1 = z.infer<typeof studentIdentityResolutionV1>;
+/** Presentation names preserve the complete authorized report value. */
+export const STUDENT_NAME_MAX_LENGTH_V1 = 300;

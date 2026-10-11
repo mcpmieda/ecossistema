@@ -15,6 +15,7 @@ import type {
   ReconciliationContextV1,
   ReconciliationResponseV1,
   ReportRowV1,
+  ReportClassLinkV1,
 } from '../../../shared/student-identity/reconciliation-v1';
 
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
@@ -106,7 +107,7 @@ const row = (patch: Partial<ReportRowV1> = {}): ReportRowV1 => ({
   transferredAt: null,
   ...patch,
 });
-const mapping = [
+const mapping: ReportClassLinkV1[] = [
   {
     classLabel: '7A 2026 - MATUTINO',
     shift: 'MATUTINO',
@@ -177,11 +178,37 @@ it('validates every eligible birth before persisting any personal row or batch, 
     row({ birthDate: null }),
     row({ sourceRow: 3, name: 'SYNTHETIC PERSON BETA', birthDate: '2026-02-30' }),
     row({ sourceRow: 4, classLabel: 'MULTIFUNCIONAL MATUTINO', birthDate: null }),
+    row({ sourceRow: 5, classLabel: 'SYNTHETIC UNKNOWN EXCLUDED', birthDate: null }),
   ]);
+  input.classLinks = [
+    ...mapping,
+    {
+      ...mapping[0]!,
+      classLabel: 'SYNTHETIC UNKNOWN EXCLUDED',
+      gradebookClassId: null,
+    },
+  ];
   const result = await service.execute(input);
   expect(result.state).toBe('validation-failed');
   if (result.state === 'validation-failed')
     expect(result.errors.map((e) => e.sourceRow)).toEqual([2, 3]);
+  expect(await count('student_report_batch_v1')).toBe(0);
+  expect(await count('student_report_pending_row_v1')).toBe(0);
+});
+it('still requires explicit regular confirmation and valid birth for linked unknown classes', async () => {
+  const input = await request([row({ classLabel: 'SYNTHETIC UNKNOWN LINKED', birthDate: null })]);
+  const withoutMapping = await service.execute(input);
+  expect(withoutMapping).toMatchObject({
+    state: 'validation-failed',
+    errors: [{ field: 'class' }],
+  });
+  input.classLinks = [{ ...mapping[0]!, classLabel: 'SYNTHETIC UNKNOWN LINKED' }];
+  const unconfirmed = await service.execute(input);
+  expect(unconfirmed).toMatchObject({ state: 'validation-failed', errors: [{ field: 'class' }] });
+  input.classLinks[0]!.confirmRegular = true;
+  input.idempotencyKey = crypto.randomUUID();
+  const confirmed = await service.execute(input);
+  expect(confirmed).toMatchObject({ state: 'validation-failed', errors: [{ field: 'birthDate' }] });
   expect(await count('student_report_batch_v1')).toBe(0);
   expect(await count('student_report_pending_row_v1')).toBe(0);
 });
@@ -193,6 +220,7 @@ it('activates linked people and external pending without accounts in one commit 
       name: 'SYNTHETIC OUTSIDE PERSON',
       enrollmentHash: 'synthetic-outside',
       inep: '0000999',
+      classLabel: '7A  2026 - MATUTINO',
     }),
   ]);
   const p = prepared(await service.execute(input));
@@ -232,6 +260,7 @@ it('reordered identical content creates no extra observation or UID and accepts 
           name: 'SYNTHETIC OUTSIDE PERSON',
           enrollmentHash: 'synthetic-outside',
           inep: '0000999',
+          classLabel: '7A  2026 - MATUTINO',
         }),
       ]),
     ),
@@ -241,6 +270,50 @@ it('reordered identical content creates no extra observation or UID and accepts 
   expect((await service.execute(applyRequest(p))).state).toBe('committed');
   expect(await count('student_source_observation_v1')).toBe(before);
   expect(await count('aluno')).toBe(2);
+});
+it('loads confirmed legacy birth through the private reader and blocks only a conflicting first association', async () => {
+  const accountId = crypto.randomUUID();
+  await exec(`INSERT INTO gradebook.aluno(id,ano,nome) VALUES(740000,2026,'SYNTHETIC LEGACY PERSON');
+    INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero,situacao) VALUES(2026,710001,740000,3,NULL);`);
+  await owner.unsafe(
+    `INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility)
+    VALUES($1,2026,740000,'pending-activation','eligible')`,
+    [accountId],
+  );
+  await owner.unsafe(
+    `INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation)
+    VALUES($1,2012,'confirmed')`,
+    [accountId],
+  );
+  const legacy = row({
+    name: 'SYNTHETIC LEGACY PERSON',
+    filiation1: 'SYNTHETIC LEGACY GUARDIAN',
+    enrollmentHash: 'synthetic-legacy-first',
+    inep: '00005555',
+    birthDate: '2013-02-03',
+  });
+  const conflict = prepared(await service.execute(await request([legacy])));
+  expect(conflict.counts).toEqual({ rows: 1, linked: 0, pending: 1 });
+  expect(
+    (
+      await owner.unsafe(
+        'SELECT pending_reason FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1',
+        [conflict.batchId],
+      )
+    )[0]!.pending_reason,
+  ).toBe('birth_conflict');
+  expect(
+    (
+      await owner.unsafe(
+        'SELECT birth_year FROM student_portal.account_access_data WHERE account_id=$1',
+        [accountId],
+      )
+    )[0]!.birth_year,
+  ).toBe(2012);
+  const sameYear = prepared(
+    await service.execute(await request([{ ...legacy, birthDate: '2012-02-03' }])),
+  );
+  expect(sameYear.counts).toEqual({ rows: 1, linked: 1, pending: 0 });
 });
 it('rejects stale preparation and payload reuse of an idempotency key without partial activation', async () => {
   const input = await request([row()]);

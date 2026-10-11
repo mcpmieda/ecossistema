@@ -14,6 +14,7 @@ const request = { transportVersion: 6, operation: 'analytics', year: 2026, class
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
   // An isolated synthetic database, never production. Null represents an observed blank.
   await pg.exec(`
     ALTER TABLE gradebook.nota ALTER COLUMN valor DROP NOT NULL;

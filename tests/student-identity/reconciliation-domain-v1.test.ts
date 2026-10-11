@@ -163,6 +163,42 @@ describe('normalização do relatório V1', () => {
 });
 
 describe('conciliação determinística por pessoa e origem', () => {
+  it('veta primeira associação por nome/turma com ano legado confirmado divergente', () => {
+    expect(plan([row()], [], [{ ...student, legacyBirthYear: 2012 }]).rows[0]).toMatchObject({
+      studentUid: null,
+      reason: 'birth_conflict',
+      candidateUids: [student.studentUid],
+    });
+  });
+  it.each([2013, null, undefined])(
+    'permite ano legado igual ou ausente sem inventar data: %s',
+    (legacyBirthYear) => {
+      expect(plan([row()], [], [{ ...student, legacyBirthYear }]).rows[0]).toMatchObject({
+        studentUid: student.studentUid,
+        rule: 'name_class',
+        reason: null,
+      });
+    },
+  );
+  it('conserva correção de nascimento de origem já confirmada para o mesmo UID', () => {
+    const existing = source({ current: row({ birthDate: '2012-03-04' }) });
+    expect(
+      plan([row()], [existing], [{ ...student, legacyBirthYear: 2012 }]).rows[0],
+    ).toMatchObject({
+      studentUid: student.studentUid,
+      rule: 'continuity',
+      reason: null,
+    });
+  });
+  it('origem reconhecida ainda sem UID não libera divergência do ano legado', () => {
+    const existing = source({ studentUid: null });
+    expect(
+      plan([row()], [existing], [{ ...student, legacyBirthYear: 2012 }]).rows[0],
+    ).toMatchObject({
+      studentUid: null,
+      reason: 'birth_conflict',
+    });
+  });
   it('origem ausente antiga não desfaz a correção confirmada no perfil selecionado', () => {
     const historical = source({ profileSelected: false });
     const current = source({

@@ -10,6 +10,14 @@ export function normalizeStudentNameV1(value: string): string {
     .toUpperCase();
 }
 
+export function reportClassReferenceV1(label: string, shift: string, stage: string): string {
+  return JSON.stringify([
+    normalizeStudentNameV1(label),
+    normalizeStudentNameV1(shift),
+    normalizeStudentNameV1(stage),
+  ]);
+}
+
 export type CivilDateResultV1 =
   | { readonly ok: true; readonly value: string | null }
   | { readonly ok: false; readonly reason: 'missing' | 'invalid' | 'future' };

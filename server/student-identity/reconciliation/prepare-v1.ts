@@ -9,6 +9,7 @@ import {
   normalizeStudentNameV1,
   normalizeInepV1,
   parseCivilDateV1,
+  reportClassReferenceV1,
 } from '../../../shared/student-identity/reconciliation-normalization-v1';
 import { planStudentReconciliationV1, reportContentV1, reportRowContentV1 } from './domain-v1';
 import {
@@ -25,13 +26,7 @@ import {
   type TxV1,
 } from './storage-v1';
 
-export function classReferenceV1(label: string, shift: string, stage: string): string {
-  return JSON.stringify([
-    normalizeStudentNameV1(label),
-    normalizeStudentNameV1(shift),
-    normalizeStudentNameV1(stage),
-  ]);
-}
+export const classReferenceV1 = reportClassReferenceV1;
 export async function prepareReportV1(
   tx: TxV1,
   actorId: string,
@@ -84,6 +79,7 @@ export async function prepareReportV1(
     const classification = classifyReportClassV1(row.classLabel, row.stageLabel, row.shift);
     const link = mapping.get(classReferenceV1(row.classLabel, row.shift, row.stageLabel));
     if (classification.kind === 'excluded') continue;
+    if (context.relationAvailable && link?.gradebookClassId === null) continue;
     if (classification.kind === 'unknown') {
       // Unknown modality has no inferred eligibility. Only an explicit operator classification can admit it.
       if (!link?.confirmRegular || !link.gradebookClassId) {

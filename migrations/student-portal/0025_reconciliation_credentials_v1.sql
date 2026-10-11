@@ -31,6 +31,7 @@ CREATE TABLE student_portal.reconciliation_birth_v1 (
   legacy_year smallint,
   legacy_confirmation text,
   legacy_version bigint NOT NULL,
+  legacy_pin_missing boolean NOT NULL,
   applied_account_version bigint NOT NULL,
   applied_pin_version bigint NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT statement_timestamp()
@@ -57,7 +58,7 @@ CREATE TABLE student_portal.reconciliation_credential_stage_v1 (
   student_uid uuid NOT NULL,
   target_observation_id uuid NOT NULL,
   birth_date date NOT NULL,
-  credential_year smallint NOT NULL,
+  credential_year smallint,
   action text NOT NULL DEFAULT 'apply' CHECK(action IN ('apply','separate')),
   expected_account_version bigint NOT NULL,
   expected_pin_version bigint NOT NULL,
@@ -70,7 +71,8 @@ CREATE TABLE student_portal.reconciliation_credential_stage_v1 (
   expires_at timestamptz NOT NULL,
   PRIMARY KEY(batch_id,account_id),
   CHECK (expires_at>created_at AND expires_at<=created_at+interval '1 hour'),
-  CHECK (NOT prepared OR NOT requires_kdf OR verifier IS NOT NULL)
+  CHECK (NOT prepared OR NOT requires_kdf OR verifier IS NOT NULL),
+  CHECK (credential_year IS NOT NULL OR (action='separate' AND NOT requires_kdf))
 );
 CREATE INDEX reconciliation_credential_expiry_v1 ON student_portal.reconciliation_credential_stage_v1(expires_at);
 CREATE INDEX reconciliation_credential_year_v1 ON student_portal.reconciliation_credential_stage_v1(academic_year);
@@ -139,15 +141,10 @@ LEFT JOIN gradebook.student_source_link_v1 l ON l.academic_year=p.academic_year 
 LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id AND r.account_id IS NULL;
 ALTER VIEW student_portal.account_birth_v1 OWNER TO student_reconciliation_bridge_v1;
 -- The configured display name never participates in identity comparisons.
+GRANT SELECT ON gradebook.student_presentation_v1 TO student_reconciliation_bridge_v1;
+ALTER VIEW gradebook.student_presentation_v1 OWNER TO student_reconciliation_bridge_v1;
 CREATE OR REPLACE VIEW student_portal.academic_student_v1 WITH (security_barrier=true) AS
-SELECT a.id AS student_id,a.ano AS academic_year,
-  CASE WHEN s.name_source='report' THEN COALESCE(o.name,a.nome) ELSE a.nome END AS name
-FROM gradebook.aluno a
-LEFT JOIN gradebook.student_reconciliation_scope_v1 s ON s.academic_year=a.ano
-LEFT JOIN gradebook.student_report_profile_v1 p ON p.academic_year=a.ano AND p.student_uid=a.student_uid
-LEFT JOIN gradebook.student_source_observation_v1 o ON o.id=p.observation_id
-LEFT JOIN gradebook.student_source_link_v1 l ON l.academic_year=p.academic_year AND l.source_id=p.source_id AND l.student_uid=p.student_uid
-WHERE a.ano=2026;
+SELECT student_id,academic_year,name FROM gradebook.student_presentation_v1 WHERE academic_year=2026;
 -- Existing publication SECURITY DEFINER functions may be owned by the previous view owner.
 -- Preserve that owner's implicit read capability explicitly after narrowing ownership.
 DO $$ DECLARE previous_owner name; function_owner name; BEGIN
@@ -203,16 +200,19 @@ BEGIN
     SELECT * INTO m FROM student_portal.reconciliation_birth_v1 WHERE account_id=a.id;
     IF m.account_id IS NULL OR m.first_observation_id<>m.observation_id OR m.observation_id<>r.target_observation_id
       OR m.first_decision_id::text IS DISTINCT FROM b.resolution->>'revertsDecisionId'
-      OR m.legacy_year IS NULL OR m.legacy_confirmation IS DISTINCT FROM 'confirmed'
+      OR NOT ((m.legacy_year IS NOT NULL AND m.legacy_confirmation IS NOT DISTINCT FROM 'confirmed')
+        OR (m.legacy_year IS NULL AND m.legacy_confirmation IS NULL AND m.legacy_pin_missing))
       OR m.applied_account_version<>a.version OR m.applied_pin_version<>a.pin_version
-      OR NOT EXISTS(SELECT 1 FROM student_portal.account_access_data d WHERE d.account_id=a.id
-        AND d.birth_year=m.legacy_year AND d.confirmation=m.legacy_confirmation AND d.version=m.legacy_version)
+      OR NOT (EXISTS(SELECT 1 FROM student_portal.account_access_data d WHERE d.account_id=a.id
+        AND d.birth_year IS NOT DISTINCT FROM m.legacy_year AND d.confirmation IS NOT DISTINCT FROM m.legacy_confirmation AND d.version=m.legacy_version)
+        OR (m.legacy_version=0 AND m.legacy_year IS NULL AND m.legacy_confirmation IS NULL
+          AND NOT EXISTS(SELECT 1 FROM student_portal.account_access_data d WHERE d.account_id=a.id)))
       OR NOT EXISTS(SELECT 1 FROM gradebook.student_report_profile_v1 p JOIN gradebook.student_source_link_v1 l
         ON l.academic_year=p.academic_year AND l.source_id=p.source_id AND l.student_uid=p.student_uid
         WHERE p.academic_year=b.academic_year AND p.student_uid=r.target_uid AND p.source_id=r.target_source_id
           AND p.observation_id=r.target_observation_id AND p.version=1 AND l.version=1 AND l.decision_id=m.first_decision_id)
       THEN RAISE EXCEPTION 'student-reconciliation-credential-conflict-separation'; END IF;
-    SELECT (extract(year FROM m.birth_date)::smallint<>m.legacy_year OR c.pin_verifier IS NULL OR c.pin_version IS DISTINCT FROM a.pin_version)
+    SELECT (m.legacy_year IS NOT NULL AND (extract(year FROM m.birth_date)::smallint<>m.legacy_year OR c.pin_verifier IS NULL OR c.pin_version IS DISTINCT FROM a.pin_version))
       INTO v_required FROM student_portal.account x LEFT JOIN student_portal.password_credential c ON c.account_id=x.id WHERE x.id=a.id;
     INSERT INTO student_portal.reconciliation_credential_stage_v1(batch_id,account_id,academic_year,generation,actor_id,
       expected_scope_revision,student_uid,target_observation_id,birth_date,credential_year,action,expected_account_version,
@@ -335,8 +335,11 @@ BEGIN
         OR EXISTS(SELECT 1 FROM gradebook.student_source_link_v1 WHERE academic_year=s.academic_year AND source_id=(b.resolution->>'sourceId')::uuid)
         OR NOT EXISTS(SELECT 1 FROM gradebook.student_reconciliation_decision_v1 WHERE academic_year=s.academic_year
           AND action='separate' AND reverts_decision_id=m.first_decision_id AND student_uid=s.student_uid AND source_id=(b.resolution->>'sourceId')::uuid)
-        OR NOT EXISTS(SELECT 1 FROM student_portal.account_access_data d WHERE d.account_id=s.account_id AND d.birth_year=m.legacy_year
-          AND d.confirmation=m.legacy_confirmation AND d.version=m.legacy_version) THEN
+        OR (m.legacy_year IS NULL AND (NOT m.legacy_pin_missing OR m.legacy_confirmation IS NOT NULL))
+        OR NOT (EXISTS(SELECT 1 FROM student_portal.account_access_data d WHERE d.account_id=s.account_id AND d.birth_year IS NOT DISTINCT FROM m.legacy_year
+          AND d.confirmation IS NOT DISTINCT FROM m.legacy_confirmation AND d.version=m.legacy_version)
+          OR (m.legacy_version=0 AND m.legacy_year IS NULL AND m.legacy_confirmation IS NULL
+            AND NOT EXISTS(SELECT 1 FROM student_portal.account_access_data d WHERE d.account_id=s.account_id))) THEN
         RAISE EXCEPTION 'student-reconciliation-credential-conflict-separation';
       END IF;
     ELSIF NOT EXISTS(SELECT 1 FROM gradebook.student_report_profile_v1 p JOIN gradebook.student_source_observation_v1 o ON o.id=p.observation_id
@@ -361,19 +364,20 @@ BEGIN
       v_changed:=true;
     ELSE
     INSERT INTO student_portal.reconciliation_birth_v1(account_id,academic_year,student_uid,observation_id,birth_date,version,
-      first_observation_id,first_decision_id,legacy_year,legacy_confirmation,legacy_version,applied_account_version,applied_pin_version)
+      first_observation_id,first_decision_id,legacy_year,legacy_confirmation,legacy_version,legacy_pin_missing,applied_account_version,applied_pin_version)
       SELECT s.account_id,s.academic_year,s.student_uid,s.target_observation_id,s.birth_date,s.expected_birth_version+1,
-        s.target_observation_id,l.decision_id,d.birth_year,d.confirmation,COALESCE(d.version,0),
+        s.target_observation_id,l.decision_id,d.birth_year,d.confirmation,COALESCE(d.version,0),c.pin_verifier IS NULL,
         s.expected_account_version+CASE WHEN s.requires_kdf THEN 1 ELSE 0 END,s.expected_pin_version+CASE WHEN s.requires_kdf THEN 1 ELSE 0 END
       FROM gradebook.student_report_profile_v1 p JOIN gradebook.student_source_link_v1 l
         ON l.academic_year=p.academic_year AND l.source_id=p.source_id AND l.student_uid=p.student_uid
       LEFT JOIN student_portal.account_access_data d ON d.account_id=s.account_id
+      LEFT JOIN student_portal.password_credential c ON c.account_id=s.account_id
       WHERE p.academic_year=s.academic_year AND p.student_uid=s.student_uid
       ON CONFLICT(account_id) DO UPDATE SET observation_id=EXCLUDED.observation_id,birth_date=EXCLUDED.birth_date,
         version=CASE WHEN student_portal.reconciliation_birth_v1.observation_id=EXCLUDED.observation_id THEN student_portal.reconciliation_birth_v1.version ELSE EXCLUDED.version END,
         updated_at=statement_timestamp();
     END IF;
-    IF s.requires_kdf THEN
+    IF s.requires_kdf OR (s.action='separate' AND s.credential_year IS NULL) THEN
       INSERT INTO student_portal.password_credential(account_id,pin_verifier,pin_version)
         VALUES(s.account_id,s.verifier,s.expected_pin_version+1) ON CONFLICT(account_id) DO UPDATE
         SET pin_verifier=EXCLUDED.pin_verifier,pin_version=EXCLUDED.pin_version,updated_at=statement_timestamp();
@@ -418,9 +422,13 @@ RETURNS integer LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS $$
 $$;
 
 CREATE FUNCTION student_portal.reconciliation_accounts_v1(p_year smallint)
-RETURNS TABLE(student_uid uuid,account_id uuid,account_version bigint,closed_at timestamptz)
+RETURNS TABLE(student_uid uuid,account_id uuid,account_version bigint,closed_at timestamptz,legacy_birth_year smallint)
 LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS $$
-  SELECT a.student_uid,a.id,a.version,a.closed_at FROM student_portal.account a WHERE a.academic_year=p_year
+  SELECT a.student_uid,a.id,a.version,a.closed_at,
+    CASE WHEN d.confirmation='confirmed' AND d.source='legacy' THEN d.birth_year END
+  FROM student_portal.account a
+  LEFT JOIN student_portal.account_birth_v1 d ON d.account_id=a.id
+  WHERE a.academic_year=p_year
 $$;
 
 CREATE FUNCTION student_portal.reconciliation_revision_v1(p_year smallint)

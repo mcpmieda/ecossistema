@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { studentUidV1 } from './student-identity-v1';
+import { studentUidV1, STUDENT_NAME_MAX_LENGTH_V1 } from './student-identity-v1';
 
 export const RECONCILIATION_ROUTE_V1 = '/api/student-reconciliation/v1';
 export const REPORT_MAX_ROWS_V1 = 10000;
 export const REPORT_BODY_BYTES_V1 = 8 * 1024 * 1024;
-const text = z.string().max(300);
+const text = z.string().max(STUDENT_NAME_MAX_LENGTH_V1);
 const dateCell = z.union([z.string().max(40), z.number().finite(), z.null()]);
 const sourceCell = z.union([z.string().max(300), z.number().finite(), z.null()]);
 export const reportRowV1 = z

@@ -261,9 +261,10 @@ export async function readRelationalPerformanceV2(
   const studentsLimit = studentsQuery.param(PERFORMANCE_LIMITS_V2.students + 1);
   const students = await all(
     db,
-    `SELECT a.id,a.nome,v.numero,v.situacao,tr.codigo AS turma_relacionada_codigo,cd.decisao
+    `SELECT a.id,COALESCE(presentation.name,a.nome) AS nome,v.numero,v.situacao,tr.codigo AS turma_relacionada_codigo,cd.decisao
     FROM gradebook.vinculo v
     JOIN gradebook.aluno a ON a.id=v.aluno_id AND a.ano=v.ano
+    LEFT JOIN gradebook.student_presentation_v1 presentation ON presentation.student_id=a.id AND presentation.academic_year=a.ano
     LEFT JOIN gradebook.turma tr ON tr.id=v.turma_relacionada_id AND tr.ano=v.ano
     LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id=a.id
     WHERE v.ano=${studentsYear} AND v.turma_id=${studentsClass} AND v.situacao IS DISTINCT FROM 6 ${studentsFilter}

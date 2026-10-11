@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
 import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1, policyScopeV1 } from './core-v1';
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, settingsOverrideV1 } from './policy-v1';
@@ -57,12 +58,12 @@ export const adminQueryV1 = z.object({
     (v.operation === 'birth-years' && v.scope.kind === 'account'), 'Read context requires audit detail or account birth years')
   .refine((v) => !v.includeEntities || v.operation === 'audit' || v.operation === 'audit-detail', 'Entities require audit')
   .refine((v) => v.operation === 'bulk-preview' ? bulkPreviewQueryV1.safeParse(v).success : v.action === undefined && pageRequestV1.safeParse(v.page).success, 'Invalid bulk preview');
-export const accountSummaryV1 = z.object({ accountId: portalIdV1, link: academicLinkV1.nullable(), name: z.string().max(200), classLabel: z.string().max(80), state: accountStateV1, eligibility: eligibilityStateV1, blocked: z.boolean(), version: versionV1 }).strict();
+export const accountSummaryV1 = z.object({ accountId: portalIdV1, link: academicLinkV1.nullable(), name: z.string().max(STUDENT_NAME_MAX_LENGTH_V1), classLabel: z.string().max(80), state: accountStateV1, eligibility: eligibilityStateV1, blocked: z.boolean(), version: versionV1 }).strict();
 const card = { accountId: portalIdV1, qr: qrUrlV1 };
 export const printCardV1 = z.discriminatedUnion('mode', [
   z.object({ ...card, mode: z.literal('qr-only') }).strict(),
-  z.object({ ...card, mode: z.literal('qr-name'), name: z.string().min(1).max(200) }).strict(),
-  z.object({ ...card, mode: z.literal('qr-name-class'), name: z.string().min(1).max(200), classLabel: z.string().min(1).max(80) }).strict(),
+  z.object({ ...card, mode: z.literal('qr-name'), name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1) }).strict(),
+  z.object({ ...card, mode: z.literal('qr-name-class'), name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1), classLabel: z.string().min(1).max(80) }).strict(),
 ]);
 /**
  * Why a sign-in was refused and what helps support the family (owner request 29/09/2026). Only
@@ -86,7 +87,7 @@ export const auditDetailV1 = z.object({
   }).strict().optional(),
 }).strict();
 export type AuditDetailV1 = z.infer<typeof auditDetailV1>;
-export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: policyScopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable(), detail: auditDetailV1.optional(), entities: z.object({ actorName: z.string().max(200).nullable(), subjectName: z.string().max(200).nullable(), classId: z.number().int().positive().nullable(), classLabel: z.string().max(80).nullable() }).strict().optional() }).strict();
+export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: policyScopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable(), detail: auditDetailV1.optional(), entities: z.object({ actorName: z.string().max(200).nullable(), subjectName: z.string().max(STUDENT_NAME_MAX_LENGTH_V1).nullable(), classId: z.number().int().positive().nullable(), classLabel: z.string().max(80).nullable() }).strict().optional() }).strict();
 /** Opt-in acknowledgement read inside the write transaction; no credential material.
  * A replay after a later account change omits this snapshot and retains the original receipt.
  */

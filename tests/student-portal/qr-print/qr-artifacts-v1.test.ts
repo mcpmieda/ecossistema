@@ -18,6 +18,17 @@ import { validatePrintCardsV1 } from '../../../src/features/student-portal-admin
 import { qrPrintCardsV1, qrPrintUrlV1 } from './fixtures-v1';
 
 describe('private QR print artifacts', () => {
+  it.each([200, 201, 300])('renders a complete %i-character report name without truncation', async (length) => {
+    const name = 'W'.repeat(length);
+    const [original] = qrPrintCardsV1(1, 'qr-name-class');
+    const cards = validatePrintCardsV1([{ ...original, name }]);
+    const card = cards[0];
+    expect(card && card.mode !== 'qr-only' && card.name).toBe(name);
+    expect(wrapQrLabelV1(name, 160, (text) => text.length * 9).join('')).toBe(name);
+    const artifact = await renderQrPdfV1(cards, new AbortController().signal);
+    expect(artifact).toMatchObject({ count: 1, pages: 1, format: 'pdf' });
+    expect((await PDFDocument.load(await artifact.blob.arrayBuffer())).getPageCount()).toBe(1);
+  });
   it.each(['qr-only', 'qr-name', 'qr-name-class'] as const)(
     'renders a real bounded PDF with %s and complete long labels',
     async (mode) => {

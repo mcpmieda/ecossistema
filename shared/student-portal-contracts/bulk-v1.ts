@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
 import { instantV1, portalIdV1, versionV1 } from './core-v1';
 
 export const BULK_REQUEST_MAX_BYTES_V1 = 65_536;
@@ -37,7 +38,7 @@ export const bulkPreviewItemV1 = z
     accountId: portalIdV1,
     version: versionV1,
     classId: z.number().int().positive().safe(),
-    name: z.string().max(200),
+    name: z.string().max(STUDENT_NAME_MAX_LENGTH_V1),
     classLabel: z.string().max(80),
     ineligibility: z.enum(['recovery-unavailable', 'already-blocked']).nullable(),
   })

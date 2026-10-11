@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
 import { settingsOverrideV1 } from './policy-v1';
 import { accountStateV1, commandMetaV1, instantV1, opaqueV1, periodV1, policyScopeV1, portalIdV1, revisionV1, scopeV1, versionV1 } from './core-v1';
 
@@ -13,7 +14,7 @@ export const publicationContextItemV1 = z.object({
 export const customizationRowV1 = z.object({
   id: z.string().regex(/^(?:class:2026:[1-9]\d*|shift:2026:(?:MATUTINO|VESPERTINO|NOTURNO)|account:2026:[0-9a-f-]{36})$/u),
   scope: policyScopeV1.refine((scope) => scope.kind !== 'school'),
-  label: z.string().max(200), classLabel: z.string().max(80),
+  label: z.string().max(STUDENT_NAME_MAX_LENGTH_V1), classLabel: z.string().max(80),
   classId: z.number().int().positive().safe().nullable(),
   accountState: accountStateV1.nullable(), accountVersion: versionV1.nullable(),
   settingsVersion: versionV1, publicationVersion: versionV1,

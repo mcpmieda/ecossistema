@@ -5,6 +5,7 @@ import {
 import {
   classifyReportClassV1,
   normalizeStudentNameV1,
+  reportClassReferenceV1,
   type ReportClassClassificationV1,
 } from '../../../../shared/student-identity/reconciliation-normalization-v1';
 import type { SheetJs, Workbook, Worksheet } from './spreadsheet-recognizer';
@@ -38,7 +39,7 @@ export interface ReadStudentReportV1 {
 }
 
 export function reportClassKeyV1(classLabel: string, stageLabel: string, shift: string): string {
-  return JSON.stringify([classLabel, stageLabel, shift]);
+  return reportClassReferenceV1(classLabel, shift, stageLabel);
 }
 
 function columnV1(index: number): string {
@@ -141,7 +142,7 @@ export function readStudentReportWorkbookV1(
     if (!classLabel && !stageLabel && !shift && value('name') === null) continue;
     if (classification.kind === 'regular') years.add(classification.academicYear);
     const key = reportClassKeyV1(classLabel, stageLabel, shift);
-    classes.set(key, { key, classLabel, stageLabel, shift, classification });
+    if (!classes.has(key)) classes.set(key, { key, classLabel, stageLabel, shift, classification });
     rows.push({
       sourceRow: number,
       name: textV1(value('name')),

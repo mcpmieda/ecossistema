@@ -27,6 +27,7 @@ export interface ReconciliationStudentV1 {
   readonly studentUid: string;
   readonly classId: number;
   readonly nameKey: string;
+  readonly legacyBirthYear?: number | null;
 }
 
 export interface ReconciliationSourceV1 {
@@ -210,7 +211,14 @@ function candidatesForRowV1(
     rules.set(uid, 'name_class');
     candidates.add(uid);
   }
-  let priorBirthConflict = false;
+  let priorBirthConflict = students.some(
+    (student) =>
+      nameMatches.has(student.studentUid) &&
+      student.legacyBirthYear !== null &&
+      student.legacyBirthYear !== undefined &&
+      student.legacyBirthYear !== Number(row.birthDate.slice(0, 4)) &&
+      origin?.studentUid !== student.studentUid,
+  );
   let sourceReview = origin?.reviewRequired === true;
   let sibling = false;
   const selectedUids = new Set(
@@ -309,7 +317,8 @@ export function reportRowContentV1(row: NormalizedReportRowV1): string {
     row.inep,
     row.inepKey,
     row.enrollmentHash,
-    row.classLabel,
+    // A report class keeps its first original label; spacing variants share its canonical content.
+    row.classKey,
     row.classKey,
     row.shift,
     row.shiftKey,
@@ -322,7 +331,10 @@ export function reportRowContentV1(row: NormalizedReportRowV1): string {
 }
 
 export function reportContentV1(rows: readonly NormalizedReportRowV1[]): string {
-  return JSON.stringify({ normalizationVersion: 1, rows: rows.map(reportRowContentV1).sort(compareTextV1) });
+  return JSON.stringify({
+    normalizationVersion: 1,
+    rows: rows.map(reportRowContentV1).sort(compareTextV1),
+  });
 }
 
 // Canonical content must keep the same ordering regardless of the runtime locale.

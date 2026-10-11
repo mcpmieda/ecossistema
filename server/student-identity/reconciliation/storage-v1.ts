@@ -137,9 +137,12 @@ export function normalizedDbRowV1(r: DbRowV1): NormalizedReportRowV1 {
 }
 export async function loadDomainV1(tx: TxV1, year: number) {
   const academic = await tx.query(
-    `SELECT a.student_uid::text,a.id,a.nome,v.turma_id,t.codigo,t.etapa,v.situacao
+    `SELECT a.student_uid::text,a.id,a.nome,v.turma_id,t.codigo,t.etapa,v.situacao,account.legacy_birth_year
     FROM gradebook.aluno a LEFT JOIN gradebook.vinculo v ON v.aluno_id=a.id AND v.ano=a.ano AND v.situacao IS DISTINCT FROM 6
-    LEFT JOIN gradebook.turma t ON t.id=v.turma_id WHERE a.ano=$1 ORDER BY a.id,v.turma_id`,
+    LEFT JOIN gradebook.turma t ON t.id=v.turma_id
+    LEFT JOIN student_portal.reconciliation_accounts_v1($1::smallint) account
+      ON account.student_uid=a.student_uid AND account.closed_at IS NULL
+    WHERE a.ano=$1 ORDER BY a.id,v.turma_id`,
     [year],
   );
   const students: ReconciliationStudentV1[] = academic
@@ -148,6 +151,10 @@ export async function loadDomainV1(tx: TxV1, year: number) {
       studentUid: String(r.student_uid),
       classId: Number(r.turma_id),
       nameKey: normalizeStudentNameV1(String(r.nome)),
+      legacyBirthYear:
+        r.legacy_birth_year === null || r.legacy_birth_year === undefined
+          ? null
+          : Number(r.legacy_birth_year),
     }));
   const observations = await tx.query(
     `SELECT o.*,o.birth_date::text,o.enrolled_at::text,o.transferred_at::text,

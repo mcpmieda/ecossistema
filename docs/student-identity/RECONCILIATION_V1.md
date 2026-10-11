@@ -37,6 +37,14 @@ Na Relação, outro UID/evidência de pessoa ocupando a mesma posição bloqueia
 
 ## Migrations e retenção
 
+Na primeira associação automática por nome/turma, um ano legado confirmado divergente mantém a pessoa pendente por conflito de nascimento. A comparação usa somente o ano conhecido; não fabrica dia/mês. Continuidade já confirmada e decisões manuais deliberadas conservam os contratos de correção existentes.
+
+A reversão da primeira associação também restaura nascimento/PIN ausentes quando esse era o estado anterior, preservado por metadados privados. Exige a decisão original, perfil/vínculo ainda na primeira versão e CAS de conta/PIN; qualquer dependência posterior bloqueia a reversão. Limpar o PIN, remover a adoção e registrar a separação pertencem à mesma transação, sem restaurar verificadores antigos nem modificar senha/QR/sessão.
+
+`gradebook.student_presentation_v1` centraliza o nome configurado para Desempenho, Conselho e o wrapper acadêmico do Portal, mantendo a fonte importada original. A projeção expõe somente identificador, ano e nome; o wrapper Portal conserva seu recorte anual e owner interno. Contratos de nome de aluno, inclusive resumo da conta e cartões QR, aceitam até 300 caracteres sem truncamento.
+
+Leitor e servidor usam a mesma chave normalizada de turma/turno/etapa, conservando os rótulos originais da fonte. A representação canônica do conteúdo usa a chave da turma para que variações de espaços não criem observações repetidas. Com Relação presente, turmas explicitamente sem ligação são descartadas antes da validação; turmas elegíveis continuam exigindo confirmação de modalidade e nascimento válido.
+
 Ordem das candidatas, sobre a baseline histórica já aplicada: `gradebook-simplified/0015_student_reconciliation_v1.sql`, `student-portal/0025_reconciliation_credentials_v1.sql`, `gradebook-simplified/0016_reconciliation_year_reset_v1.sql`. Não reaplicar nem reescrever migrations históricas. A execução em produção depende de autorização posterior.
 
 Objetos anuais têm RLS/ACL explícitas, FKs compostas e exclusão controlada sem cascata. Observações/decisões publicadas são imutáveis. A ponte tem proprietário mínimo sem BYPASSRLS/propriedade de tabelas, `search_path=pg_catalog` e EXECUTE revogado de papéis públicos. A Data API não expõe essas tabelas.
@@ -47,15 +55,15 @@ O reset inclui prévia/contagens dos objetos novos e funciona também para pend�
 
 ## Limpeza e transição de consumidores
 
-| Item | Destino nesta entrega |
-| --- | --- |
-| Editor/autosave/batch de nascimento no navegador | Retirados; ficha de nascimento somente leitura. |
-| Serviço produtivo manual de nascimento e port de escrita | Retirados; operações antigas recebem rejeição autenticada mesmo com cliente antigo. |
-| `birth-write`/`birth-batch` nos DTOs antigos | Tombstone para rejeição/compatibilidade de clientes; não gravam. |
-| Emissão/reemissão de QR e download de cartões | Componente próprio, sem depender do editor de nascimento; autorização, seleção e idempotência preservadas. |
-| Leituras de nascimento do Portal | Leitor único `account_birth_v1`, consumindo observação canônica e legado preexistente somente na transição permitida. |
-| `account_access_data` e fixtures de nascimento antigas | Fonte produtiva sem novo writer; retenção transitória necessária à migração/reversão. Helpers antigos somente em testes isolados, nunca fallback produtivo. |
-| Reparo legado que movia notas entre duas identidades | Retirado; conflito de identidade permanece explícito. |
+| Item                                                     | Destino nesta entrega                                                                                                                                       |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor/autosave/batch de nascimento no navegador         | Retirados; ficha de nascimento somente leitura.                                                                                                             |
+| Serviço produtivo manual de nascimento e port de escrita | Retirados; operações antigas recebem rejeição autenticada mesmo com cliente antigo.                                                                         |
+| `birth-write`/`birth-batch` nos DTOs antigos             | Tombstone para rejeição/compatibilidade de clientes; não gravam.                                                                                            |
+| Emissão/reemissão de QR e download de cartões            | Componente próprio, sem depender do editor de nascimento; autorização, seleção e idempotência preservadas.                                                  |
+| Leituras de nascimento do Portal                         | Leitor único `account_birth_v1`, consumindo observação canônica e legado preexistente somente na transição permitida.                                       |
+| `account_access_data` e fixtures de nascimento antigas   | Fonte produtiva sem novo writer; retenção transitória necessária à migração/reversão. Helpers antigos somente em testes isolados, nunca fallback produtivo. |
+| Reparo legado que movia notas entre duas identidades     | Retirado; conflito de identidade permanece explícito.                                                                                                       |
 
 Não declarar retirada física do legado antes de terminar a transição de dados e dependências no ambiente autorizado. Não publicar dados pessoais ou snapshots reais para provar essa transição.
 

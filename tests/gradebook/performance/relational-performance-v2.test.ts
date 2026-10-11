@@ -47,6 +47,7 @@ const dashboardRequest = (extra: Record<string, unknown> = {}) => ({ transportVe
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
   await pg.exec('ALTER TABLE gradebook.fechamento ADD COLUMN rec_rr_mask SMALLINT NOT NULL DEFAULT 0;');
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2),(2025,65000,3);
@@ -109,6 +110,21 @@ async function http(body: unknown, role: 'ADMINISTRADOR' | 'PROFESSOR' | null = 
 }
 
 describe('relational performance V2 on the complete PostgreSQL baseline', () => {
+  it('reads the shared presentation name without changing the imported Relação name', async () => {
+    await pg.exec(`CREATE OR REPLACE VIEW gradebook.student_presentation_v1 AS
+      SELECT id AS student_id,ano AS academic_year,
+      CASE WHEN id=1 AND ano=2026 THEN 'NOME CONFIGURADO SINTETICO' ELSE nome END AS name
+      FROM gradebook.aluno`);
+    try {
+      const response = await matrix();
+      expect(response.rows.find((row) => row.student.id === 1)?.student.name).toBe('NOME CONFIGURADO SINTETICO');
+      expect((await pg.query('SELECT nome FROM gradebook.aluno WHERE id=1')).rows).toEqual([{ nome: 'ALUNO SINTETICO 1' }]);
+      expect(queries.filter((sql) => sql.includes('gradebook.student_presentation_v1'))).toHaveLength(1);
+    } finally {
+      await pg.exec(`CREATE OR REPLACE VIEW gradebook.student_presentation_v1 AS
+        SELECT id AS student_id,ano AS academic_year,nome AS name FROM gradebook.aluno`);
+    }
+  });
   it('reads one repeatable read snapshot without N+1, old relations or writes', async () => {
     const result = await matrix();
     expect(queries).toHaveLength(6);
