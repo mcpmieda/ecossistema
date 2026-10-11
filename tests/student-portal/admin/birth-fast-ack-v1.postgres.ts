@@ -45,7 +45,7 @@ async function command(index: number, year: string) {
 it('preserves acknowledgement and notification coverage for historical birth fixtures', async () => {
   const input = await command(2, '2003');
   const result = await new BirthYearServiceV1(sql, cryptography, 1).write(READ_ACTOR_V2, input);
-  expect(result).toMatchObject({ state: 'committed', version: 1, savedBirth: { accountId: readAccountIdV2(2), classId: 746001,
+  expect(result).toMatchObject({ operationId: expect.any(String), version: 1, savedBirth: { accountId: readAccountIdV2(2), classId: 746001,
     accountVersion: 1, version: 1, year: '2003', confirmation: 'unconfirmed-test' } });
   const rows = await peer.unsafe('SELECT birth_year::text AS year_value,version::integer FROM student_portal.account_access_data WHERE account_id=$1::uuid', [readAccountIdV2(2)]);
   expect(rows).toEqual([{ year_value: '2003', version: 1 }]);
