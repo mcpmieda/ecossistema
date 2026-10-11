@@ -1,5 +1,9 @@
 # Mapa canônico de versões de contratos — BN-03
 
+## Extensão candidata — #1269 / #1276
+
+`shared/student-identity/reconciliation-v1.ts` é contrato novo da entrega em branch, consumido por Relatório, Alunos e o orquestrador central. Normalização V1 é compartilhada com Relação V9. O transporte V9 ganha somente `warnings` aditivo para grafia em movimentação segura; reset V1 ganha contagem `reconciliation`. Os comandos antigos `birth-write`/`birth-batch` permanecem como tombstones autenticados, sem escritor produtivo. [Contrato e condição de retirada do legado](../student-identity/RECONCILIATION_V1.md). Essa extensão não declara publicação ou substituição da baseline produtiva.
+
 Data da varredura: 20/09/2026. Baseline: `main@6800d18ee3c7fdd6042076d7e4dc51962ba45a5a` (já inclui #964/#965).
 
 Este documento classifica **vigência de código**, não idade de arquivo. O maior sufixo `vN` não é, por si só, a fonte de verdade.

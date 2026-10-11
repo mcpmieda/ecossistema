@@ -19,6 +19,7 @@ import {
   type StudentPortalSection,
 } from '../../platform/student-portal-module';
 import { createPortalAdminClientV1 } from './shared/admin-client-v1';
+import { createReconciliationClientV1 } from './shared/reconciliation-client-v1';
 import {
   authorizationAwareFetchV1,
   usePortalAdminIdentityV1,
@@ -245,6 +246,7 @@ function PortalWorkspace({
     const catalog = createPortalClassCatalogV2();
     return {
       client: createPortalAdminClientV1({ fetch: send, respectRetryAfter: true }),
+      reconciliation: createReconciliationClientV1({ fetch: send, respectRetryAfter: true }),
       reader: createPortalAdminReadClientV2({ fetch: send, respectRetryAfter: true }),
       catalog: (async (...args: Parameters<typeof catalog>) => {
         try {
@@ -382,7 +384,14 @@ function PortalWorkspace({
       case 'accounts':
       case 'credentials':
         content = (
-          <StudentAccountsV1 {...common} slots={slots} onQr={qr.accept} onReprint={reprint} />
+          <StudentAccountsV1
+            key={section}
+            {...common}
+            showAccountsInitially={section === 'credentials'}
+            slots={slots}
+            onQr={qr.accept}
+            onReprint={reprint}
+          />
         );
         break;
       case 'birth':

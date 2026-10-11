@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { ensureCanonicalPinV1 } from '../birth-year/canonical-pin-v1';
 import {
   adminCommandV1,
   type AdminCommandV1,
@@ -273,6 +274,7 @@ export class QrServiceV1 {
     private readonly sql: StudentPortalPostgresSqlV1,
     private readonly cryptoPort: CryptoPortV1,
     private readonly keyVersion: number,
+    private readonly pepperVersion = 1,
   ) {
     z.number().int().positive().max(999999).parse(keyVersion);
   }
@@ -339,6 +341,8 @@ export class QrServiceV1 {
         throw new Error('student-portal-qr-version-conflict');
       const credential = await store.readCredentials(accountId);
       const active = activeCredentialV1(credential);
+      if (operation === 'qr-issue' && account.state !== 'active')
+        await ensureCanonicalPinV1(tx, this.cryptoPort, this.pepperVersion, account.id, account.pinVersion);
       await assertRecoveryReadyV1(tx, store, account, operation);
       assertCredentialOperationV1(operation, credential, active);
 

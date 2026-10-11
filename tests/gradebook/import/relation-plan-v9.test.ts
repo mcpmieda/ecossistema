@@ -131,7 +131,7 @@ describe('relation movement planner V9', () => {
     );
   });
 
-  it('repairs only a reciprocal movement when the two positions already have different ids', () => {
+  it('never merges the identities of two existing reciprocal positions', () => {
     const existing: ExistingRelationBindingV9[] = [
       {
         turmaId: 10,
@@ -150,21 +150,14 @@ describe('relation movement planner V9', () => {
         nome: 'ALUNO TÉSTE',
       },
     ];
-    const plan = buildRelationPlanV9(
+    expect(() => buildRelationPlanV9(
       request(
         [[1, 'ALUNO TESTE', 6, '6B']],
         [[3, 'ALUNO TESTE', 7, '6A']],
       ),
       classes,
       existing,
-    );
-
-    expect(plan.components).toHaveLength(1);
-    expect(plan.components[0]).toMatchObject({
-      seedAlunoId: 100,
-      preferred: { turmaId: 20, numero: 3, situacao: 7 },
-      identityRepair: { canonicalAlunoId: 100, duplicateAlunoId: 200 },
-    });
+    )).toThrowError(expect.objectContaining({ state: 'conflict' }));
   });
 
   it('reports conflict when one component is already linked to different students', () => {
@@ -198,8 +191,32 @@ describe('relation movement planner V9', () => {
     ).toThrowError(
       expect.objectContaining<Partial<RelationPlanErrorV9>>({
         state: 'conflict',
-        reason: 'Vínculos existentes apontam para alunos diferentes em ALUNO TESTE.',
+        reason: 'A movimentação envolve identidades distintas. Confira os vínculos existentes.',
       }),
     );
+  });
+
+  it('links a unique reciprocal pair with different spelling and returns a warning without personal names', () => {
+    const plan = buildRelationPlanV9(request(
+      [[1, 'ESTUDANTE SINTETICO ORIGEM', 6, '6B']],
+      [[3, 'ESTUDANTE SINTETICO CORRIGIDO', 7, '6A']],
+    ), classes, [{ turmaId: 10, numero: 1, alunoId: 100, situacao: null,
+      turmaRelacionadaId: null, nome: 'ESTUDANTE SINTETICO ORIGEM', studentUid: '11111111-1111-4111-8111-111111111111' }]);
+    expect(plan.components).toHaveLength(1);
+    expect(plan.components[0]).toMatchObject({ seedAlunoId: 100, preferred: { turmaId: 20, numero: 3 } });
+    expect(plan.warnings).toEqual([{ code: 'movement-spelling', classCode: '6A', number: 1, relatedClassCode: '6B' }]);
+  });
+
+  it('requests review rather than guessing when there are multiple unmatched reciprocal pairs', () => {
+    expect(() => buildRelationPlanV9(request(
+      [[1, 'SINTETICO UM', 6, '6B'], [2, 'SINTETICO DOIS', 6, '6B']],
+      [[3, 'SINTETICO CORRIGIDO UM', 7, '6A'], [4, 'SINTETICO CORRIGIDO DOIS', 7, '6A']],
+    ), classes, [])).toThrowError(expect.objectContaining({ state: 'review-required' }));
+  });
+
+  it('never treats a nonreciprocal unmatched pair as evidence of movement', () => {
+    expect(() => buildRelationPlanV9(request(
+      [[1, 'SINTETICO ORIGEM', 6, '6B']], [[3, 'SINTETICO OUTRO', 0]],
+    ), classes, [])).toThrowError(expect.objectContaining({ state: 'blocked' }));
   });
 });

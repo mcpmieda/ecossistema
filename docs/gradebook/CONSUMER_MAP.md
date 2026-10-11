@@ -1,5 +1,9 @@
 # Mapa dos consumidores — FINAL-1
 
+## Conciliação candidata — #1269 / #1276
+
+Importação do Relatório e aba Alunos consomem `shared/student-identity/reconciliation-v1.ts` e o núcleo `server/student-identity/reconciliation/`. Portal consome a projeção canônica e a ponte privada de credenciais; QR fica separado do editor retirado. Relação V9 conserva o normalizador compartilhado e veta fusão de UIDs. Reset inclui dados anuais novos. Frequência recebe somente um resolvedor interno nesta entrega. [Contrato, consumidores transitórios e validação](../student-identity/RECONCILIATION_V1.md). Estado candidato, sem merge/deploy autorizado.
+
 Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
 
 ## Delta 09/10/2026: retirada da interface Centrais

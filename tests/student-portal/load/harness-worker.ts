@@ -11,6 +11,7 @@ import { measurePortalSqlV1 } from '../../../server/student-portal/observability
 import { portalJsonV1 } from '../../../server/student-portal/runtime/http-v1';
 import { portalServingGateV1 } from '../../../server/student-portal/maintenance/serving-gate-v1';
 import { scopedPublicationEnabledV2 } from '../../../server/student-portal/publication/scoped-source-v2';
+import { prepareReconciliationCredentialsV1 } from '../../../server/student-portal/birth-year/reconciliation-credentials-v1';
 
 // Local-only synthetic harness. Never deploy; no production resource or secret is referenced.
 export default {
@@ -32,7 +33,10 @@ export default {
         const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(51)]]), new Map([[1, new Uint8Array(32).fill(52)]]));
         const path = new URL(request.url).pathname;
         let response: Response;
-        if (path === '/harness/admin/query' || path === '/harness/admin/command') {
+        if (path === '/harness/reconciliation/stage') {
+          response = portalJsonV1(await prepareReconciliationCredentialsV1(sql, cryptography, 1,
+            '11111111-1111-4111-8111-111111111111', await request.json()), 200);
+        } else if (path === '/harness/admin/query' || path === '/harness/admin/command') {
           const api = new PortalAdminApiV1(sql, { tenantId: '22222222-2222-4222-8222-222222222222',
             cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, cursorSecret: 'synthetic-local-harness-cursor-714-'.repeat(2),
             scopedPublication: await scopedPublicationEnabledV2(sql) });

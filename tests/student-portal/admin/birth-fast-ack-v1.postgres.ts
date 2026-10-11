@@ -1,7 +1,7 @@
 import postgres from 'postgres';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { BirthYearServiceV1 } from '../../../server/student-portal/birth-year/birth-year-service-v1';
+import { BirthYearServiceV1 } from '../birth-year/legacy-birth-fixture-v1';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { installAdminReadFixtureV2, readAccountIdV2, READ_ACTOR_V2, readApiV2, readContextV2 } from './read-fixture-v2';

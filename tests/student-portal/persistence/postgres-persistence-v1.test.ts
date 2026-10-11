@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { installLegacyBirthReadFixtureV1 } from '../year-reset/schema-fixture';
 import {
   StudentPortalPostgresPersistenceV1,
   type StudentPortalPostgresQueryV1,
@@ -30,6 +31,7 @@ async function applySchema() {
     '0001_identity_credentials_acl_v1.sql','0002_policy_publication_revision_v1.sql',
     '0003_audit_receipts_closure_integration_v1.sql','0004_gradebook_integration_usage_v1.sql',
   ]) await pg.exec(readFileSync(`migrations/student-portal/${file}`, 'utf8'));
+  await installLegacyBirthReadFixtureV1(pg);
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2026,60000,2);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES (1,2026,'S1','TURMA SINTETICA',6,'TESTE');
@@ -104,10 +106,10 @@ describe('StudentPortalPostgresPersistenceV1', () => {
     expect(after).toBe(before + 1);
   });
 
-  it('persists birth CAS, verifiers, challenge and opaque session hashes', async () => {
+  it('reads pre-transition birth, verifiers, challenge and opaque session hashes', async () => {
+    await pg.query(`INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation,version)
+      VALUES($1,2012,'unconfirmed-test',1)`,[ACCOUNT]);
     const birth = await persistence.transaction(async (tx) => {
-      expect(await tx.compareAndSetBirth({ accountId: ACCOUNT, year: '2012', confirmation: 'unconfirmed-test', version: 1 }, 0)).toBe(true);
-      expect(await tx.compareAndSetBirth({ accountId: ACCOUNT, year: '2011', confirmation: 'confirmed', version: 1 }, 0)).toBe(false);
       return tx.readBirth(ACCOUNT);
     });
     expect(birth).toEqual({ accountId: ACCOUNT, year: '2012', confirmation: 'unconfirmed-test', version: 1 });

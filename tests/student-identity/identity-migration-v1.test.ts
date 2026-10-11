@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { installResetSchemaFixtureV1 } from '../student-portal/year-reset/schema-fixture';
+import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../student-portal/year-reset/schema-fixture';
 import { resolveStudentIdentitiesV1 } from '../../server/student-identity/resolve-student-identity-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../server/gradebook/application/import/import-relational-service-v11';
 import {
@@ -73,6 +73,7 @@ beforeAll(async () => {
   `);
   before = await snapshot();
   await pg.exec(readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8'));
+  await installReconciliationSchemaFixtureV1(pg, true);
 }, 30_000);
 
 afterAll(async () => { await pg?.close(); });

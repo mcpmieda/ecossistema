@@ -1,10 +1,13 @@
 import { expect } from 'vitest';
 import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { failureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { challengeResponseV1, sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
 import { createLocalPortalHarnessV1 } from './local-harness-v1';
+import type { ReconciliationHarnessFixtureV1 } from './reconciliation-harness-fixture-v1';
 import { emitHarnessDiagnosticV1, HarnessDiagnosticsV1, type HarnessDiagnosticV1, type HarnessDiagnosticStateV1 } from './harness-diagnostics-v1';
 
-export async function runPortalHarnessScenariosV1(connectionString: string, emit: (diagnostic: HarnessDiagnosticV1) => void = emitHarnessDiagnosticV1) {
+export async function runPortalHarnessScenariosV1(connectionString: string, emit: (diagnostic: HarnessDiagnosticV1) => void = emitHarnessDiagnosticV1,
+  reconciliation?: ReconciliationHarnessFixtureV1) {
   let harness: Awaited<ReturnType<typeof createLocalPortalHarnessV1>> | undefined;
   const scope = { kind: 'class', academicYear: 2026, classId: 950001 };
   const samples: { kind: string; ms: number; queries: number; rows: number; bytes: number }[] = [];
@@ -51,11 +54,17 @@ export async function runPortalHarnessScenariosV1(connectionString: string, emit
     const batch = { operation: 'birth-batch', idempotencyKey: crypto.randomUUID(), expectedVersion: birth.scopeVersion,
       classId: 950001, expectedCount: 5, confirmed: true,
       items: birth.items.map((item) => ({ action: 'set', accountId: item.accountId, expectedVersion: item.version, year: '2001', confirmation: 'confirmed' })) };
-    for (const count of [1, 2, 3, 4, 5]) {
-      const result = await command(batch, 'birth-batch');
-      if (result.state !== 'batch') throw new Error('synthetic-harness-batch-state');
-      expect(result.items.filter((item) => item.state === 'committed')).toHaveLength(count);
+    if (!reconciliation) throw new Error('synthetic-reconciliation-fixture-required');
+    // Real bounded KDF runs inside workerd; accounts stay untouched until the application's final transaction.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const result = (await call('/harness/reconciliation/stage', reconciliation.request, undefined, 'reconciliation-stage')).body;
+      expect(result).toEqual(attempt === 0 ? { state: 'preparing', preparedCount: 4, remainingCount: 1 }
+        : { state: 'ready', preparedCount: 5, remainingCount: 0 });
+      await reconciliation.assertUnchanged();
     }
+    await reconciliation.activate();
+    for (let attempt = 0; attempt < 2; attempt++)
+      expect(failureV1.parse((await call('/harness/admin/command', { contractVersion: 1, ...batch }, undefined, 'manual-denied')).body).state).toBe('invalid-request');
     const settings = await query('settings');
     if (settings.state !== 'settings') throw new Error('synthetic-harness-settings-state');
     const clock = Math.floor(Date.now() / 1000) * 1000;
@@ -150,7 +159,7 @@ export async function runPortalHarnessScenariosV1(connectionString: string, emit
       const { kind } = result;
       if (kind.startsWith('self-')) { expect(result.p95).toBeLessThanOrEqual(750); expect(result.p99).toBeLessThanOrEqual(1500); expect(result.maxQueries).toBeLessThanOrEqual(40); }
       if (kind.startsWith('login-')) { expect(result.p95, `${kind} p95`).toBeLessThanOrEqual(1500); expect(result.p99, `${kind} p99`).toBeLessThanOrEqual(2500); expect(result.maxQueries).toBeLessThanOrEqual(40); }
-      if (kind === 'birth-batch') { expect(result.p95).toBeLessThanOrEqual(2000); expect(result.p99).toBeLessThanOrEqual(3000); expect(result.maxQueries).toBeLessThanOrEqual(65); }
+      if (kind === 'reconciliation-stage') { expect(result.p95).toBeLessThanOrEqual(2000); expect(result.p99).toBeLessThanOrEqual(3000); expect(result.maxQueries).toBeLessThanOrEqual(65); }
       expect(result.maxRows).toBeLessThanOrEqual(1500);
     }
     state.checks = 'passed';

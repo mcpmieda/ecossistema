@@ -28,8 +28,9 @@ export const ADMIN_ACCOUNT_FIELDS_V2 = `a.id,a.gradebook_student_id,a.auth_state
           WHERE c.academic_year=2026 AND c.class_id=b.class_id)
         OR p.scope_key='account:2026:'||a.id::text),'[]'::jsonb) AS settings_rows,
     (SELECT c.shift FROM student_portal.academic_class_v1 c WHERE c.academic_year=2026 AND c.class_id=b.class_id) AS shift,
-    (SELECT d.birth_year FROM student_portal.account_access_data d WHERE d.account_id=a.id) AS birth_year,
-    (SELECT d.confirmation FROM student_portal.account_access_data d WHERE d.account_id=a.id) AS birth_confirmation,
+    (SELECT d.birth_year FROM student_portal.account_birth_v1 d WHERE d.account_id=a.id) AS birth_year,
+    (SELECT d.confirmation FROM student_portal.account_birth_v1 d WHERE d.account_id=a.id) AS birth_confirmation,
+    (SELECT d.source FROM student_portal.account_birth_v1 d WHERE d.account_id=a.id) AS birth_source,
     EXISTS(SELECT 1 FROM student_portal.qr_credential q WHERE q.account_id=a.id AND q.state='active') AS qr_issued,
     EXISTS(SELECT 1 FROM student_portal.password_credential c WHERE c.account_id=a.id AND c.pin_verifier IS NOT NULL) AS pin_registered,
     EXISTS(SELECT 1 FROM student_portal.password_credential c WHERE c.account_id=a.id AND c.pin_verifier IS NOT NULL
@@ -54,6 +55,8 @@ function firstAccessV2(row: Record<string, unknown>) {
   if (row.birth_year === null) return { state: 'birth-missing' as const, qrIssued, recoveryReady };
   if (row.birth_confirmation !== 'confirmed')
     return { state: 'birth-unconfirmed' as const, qrIssued, recoveryReady };
+  if (row.pin_registered !== true && !qrIssued && ['report','profile'].includes(String(row.birth_source)))
+    return { state: 'qr-missing' as const, qrIssued, recoveryReady };
   if (row.pin_registered !== true)
     return { state: 'pin-missing' as const, qrIssued, recoveryReady };
   if (row.pin_current !== true) return { state: 'pin-outdated' as const, qrIssued, recoveryReady };

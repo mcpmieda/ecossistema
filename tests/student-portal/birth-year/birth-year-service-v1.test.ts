@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { BirthYearServiceV1 } from '../../../server/student-portal/birth-year/birth-year-service-v1';
+import { BirthYearServiceV1 } from '../birth-year/legacy-birth-fixture-v1';
 import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { installResetSchemaFixtureV1 } from '../year-reset/schema-fixture';

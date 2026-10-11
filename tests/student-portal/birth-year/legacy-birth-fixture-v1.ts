@@ -1,14 +1,24 @@
+// Synthetic historical fixture only. Production has no manual birth writer.
 import { z } from 'zod';
-import { ENROLLED_ACCOUNT_SQL_V1 } from '../admin/queries-v1';
+import { ENROLLED_ACCOUNT_SQL_V1 } from '../../../server/student-portal/admin/queries-v1';
 import { adminCommandV1, birthWriteV1, savedBirthV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { versionV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
-import { StudentPortalPostgresPersistenceV1, type StudentPortalPostgresQueryV1, type StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
+import { StudentPortalPostgresPersistenceV1, type StudentPortalPostgresQueryV1, type StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 
 type Item = z.infer<typeof birthWriteV1>;
 type ItemState = 'committed' | 'conflict' | 'forbidden' | 'unavailable';
 type ItemResult = { accountId: string; state: ItemState; version: number };
 type BatchReceipt = { operationId: string; expiresAt: string };
+
+async function legacyBirthCasV1(tx: StudentPortalPostgresQueryV1,
+  record: {accountId: string; year: string | null; confirmation: string | null; version: number}, expected: number) {
+  const rows = await tx.unsafe(`INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation,version)
+    VALUES($1::uuid,$2,$3,$4) ON CONFLICT(account_id) DO UPDATE SET birth_year=EXCLUDED.birth_year,
+    confirmation=EXCLUDED.confirmation,version=EXCLUDED.version WHERE student_portal.account_access_data.version=$5
+    RETURNING account_id`,[record.accountId,record.year===null?null:Number(record.year),record.confirmation,record.version,expected]);
+  return rows.length===1;
+}
 
 function canonical(input: unknown): string {
   if (Array.isArray(input)) return `[${input.map(canonical).join(',')}]`;
@@ -228,7 +238,7 @@ export class BirthYearServiceV1 {
     const verifier = year === null ? null : await this.cryptoPort.deriveVerifier(year, this.pepperVersion);
     const nextVersion = versionV1.parse(version + 1);
     const nextPinVersion = versionV1.parse(account.pinVersion + 1);
-    if (!await store.compareAndSetBirth({ accountId: item.accountId, year, confirmation, version: nextVersion }, version)) throw new Error('student-portal-birth-version-conflict');
+    if (!await legacyBirthCasV1(tx, { accountId: item.accountId, year, confirmation, version: nextVersion }, version)) throw new Error('student-portal-birth-version-conflict');
     await tx.unsafe(`INSERT INTO student_portal.password_credential(account_id,pin_verifier,pin_version)
       VALUES ($1::uuid,$2::text::jsonb,$3) ON CONFLICT (account_id) DO UPDATE
       SET pin_verifier=EXCLUDED.pin_verifier,pin_version=EXCLUDED.pin_version,updated_at=statement_timestamp()`,

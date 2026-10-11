@@ -97,11 +97,19 @@ export interface GradebookNotesImportRequestV9 {
 export type GradebookImportPersistenceRequestV9 =
   GradebookRelationImportRequestV9 | GradebookNotesImportRequestV9;
 
+export interface GradebookRelationWarningV9 {
+  readonly code: 'movement-spelling';
+  readonly classCode: string;
+  readonly number: number;
+  readonly relatedClassCode: string;
+}
+
 export type GradebookImportPersistenceResponseV9 =
   | {
       readonly transportVersion: 9;
       readonly state: 'applied' | 'no-changes';
       readonly summary: GradebookImportPersistenceSummaryV2;
+      readonly warnings?: readonly GradebookRelationWarningV9[];
     }
   | {
       readonly transportVersion: 9;
@@ -378,7 +386,13 @@ export function isGradebookImportPersistenceResponseV9(
 ): value is GradebookImportPersistenceResponseV9 {
   if (!record(value) || value.transportVersion !== 9 || typeof value.state !== 'string')
     return false;
-  if (value.state === 'applied' || value.state === 'no-changes') return record(value.summary);
+  if (value.state === 'applied' || value.state === 'no-changes') {
+    return record(value.summary) && (value.warnings === undefined ||
+      (Array.isArray(value.warnings) && value.warnings.length <= 4096 && value.warnings.every((warning) =>
+        record(warning) && Object.keys(warning).length === 4 && warning.code === 'movement-spelling' &&
+        nonEmptyText(warning.classCode, 32) && nonEmptyText(warning.relatedClassCode, 32) &&
+        Number.isSafeInteger(warning.number) && Number(warning.number) > 0)));
+  }
   if (
     value.state === 'blocked' ||
     value.state === 'conflict' ||

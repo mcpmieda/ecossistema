@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { availableParallelism, cpus, freemem, totalmem } from 'node:os';
 
 // Test-only, fixed technical vocabulary. Never retain requests, bodies or exception messages.
-const kinds = ['setup', 'birth-batch', 'self-1', 'login-1', 'self-2', 'login-2', 'self-5', 'login-5',
+const kinds = ['setup', 'reconciliation-stage', 'manual-denied', 'self-1', 'login-1', 'self-2', 'login-2', 'self-5', 'login-5',
   'denied', 'nat-unaffected', 'invalid-claim', 'logout', 'revoked'] as const;
 type Kind = typeof kinds[number] | 'unknown';
 export const HARNESS_DIAGNOSTIC_SAMPLE_LIMIT_V1 = 128;

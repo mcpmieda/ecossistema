@@ -4,7 +4,12 @@ import {
 } from '../../../../shared/student-portal-contracts/admin-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
-import { validatePrintCardsV1, type PrintCardV1, type QrArtifactV1 } from './qr-values-v1';
+import {
+  validatePrintCardsV1,
+  validatePrintCardCollectionV1,
+  type PrintCardV1,
+  type QrArtifactV1,
+} from './qr-values-v1';
 import { copyQrImageV1, createQrDownloadsV1, pngDataUrlV1 } from './qr-browser-v1';
 
 export type QrCommandV1 = Extract<
@@ -13,7 +18,7 @@ export type QrCommandV1 = Extract<
 >;
 export type QrOperationStateV1 =
   | { state: 'idle' | 'cancelled' | 'expired' }
-  | { state: 'requesting'; count: number }
+  | { state: 'requesting'; count: number; completed: number }
   | { state: 'rendering'; completed: number; total: number }
   | {
       state: 'ready';
@@ -92,6 +97,7 @@ export function createQrOperationV1({
   let active: AbortController | undefined;
   let prepared: ReturnType<PortalAdminClientV1['prepareCommand']> | undefined;
   let command: QrCommandV1 | undefined;
+  let queue: QrCommandV1[] = [];
   let format: 'pdf' | 'png' = 'pdf';
   let cards: PrintCardV1[] | undefined;
   let artifact: QrArtifactV1 | undefined;
@@ -113,28 +119,44 @@ export function createQrOperationV1({
     expires = undefined;
     previewUrl = undefined;
     prepared = command = cards = artifact = undefined;
+    queue = [];
     downloads.clear();
     emit({ state: next });
   }
 
   async function requestCards(current: number, controller: AbortController) {
-    const captured = command!;
-    emit({
-      state: 'requesting',
-      count: captured.operation === 'qr-batch' ? captured.accountIds.length : 1,
-    });
-    const response = await prepared!.execute(controller.signal);
-    if (current !== generation || controller.signal.aborted) return false;
-    if (response.state !== 'qr') throw new PortalClientErrorV1('invalid-response');
+    while (command && prepared) {
+      const captured = command!;
+      emit({
+        state: 'requesting',
+        count:
+          (cards?.length ?? 0) +
+          (captured.operation === 'qr-batch' ? captured.accountIds.length : 1) +
+          queue.reduce(
+            (total, next) => total + (next.operation === 'qr-batch' ? next.accountIds.length : 1),
+            0,
+          ),
+        completed: cards?.length ?? 0,
+      });
+      const response = await prepared!.execute(controller.signal);
+      if (current !== generation || controller.signal.aborted) return false;
+      if (response.state !== 'qr') throw new PortalClientErrorV1('invalid-response');
 
-    let received: PrintCardV1[];
-    try {
-      received = validatePrintCardsV1(response.cards);
-    } catch {
-      throw new PortalClientErrorV1('invalid-response');
+      let received: PrintCardV1[];
+      try {
+        received = validatePrintCardsV1(response.cards);
+      } catch {
+        throw new PortalClientErrorV1('invalid-response');
+      }
+      cards = [...(cards ?? []), ...orderedCardsV1(received, captured, response.version)];
+      prepared = command = undefined;
+      const next = queue.shift();
+      if (next) {
+        command = { ...next, expectedVersion: response.version };
+        prepared = client.prepareCommand(command);
+      }
     }
-    cards = orderedCardsV1(received, captured, response.version);
-    prepared = command = undefined;
+    cards = validatePrintCardCollectionV1(cards);
     return true;
   }
 
@@ -183,7 +205,10 @@ export function createQrOperationV1({
     const retryable =
       stage === 'render' ||
       ['network-error', 'invalid-response', 'unavailable', 'rate-limited'].includes(failure.state);
-    if (!retryable) prepared = command = undefined;
+    if (!retryable) {
+      prepared = command = cards = undefined;
+      queue = [];
+    }
     emit({
       state: 'error',
       stage,
@@ -204,9 +229,9 @@ export function createQrOperationV1({
     const current = ++generation;
     const controller = new AbortController();
     active = controller;
-    let stage: 'request' | 'render' = cards ? 'render' : 'request';
+    let stage: 'request' | 'render' = prepared ? 'request' : 'render';
     try {
-      if (!cards) {
+      if (prepared) {
         if (!(await requestCards(current, controller))) return;
         stage = 'render';
       }
@@ -221,15 +246,31 @@ export function createQrOperationV1({
   return {
     async submit(input: QrCommandV1, requestedFormat: 'pdf' | 'png') {
       if (!canWrite || active || prepared || cards || artifact) return;
-      const parsed = adminCommandV1.safeParse(input);
+      const chunks: QrCommandV1[] = [];
+      if (input.operation === 'qr-batch') {
+        if (
+          !input.accountIds.length ||
+          new Set(input.accountIds.map((id) => id.toLowerCase())).size !== input.accountIds.length
+        )
+          throw new PortalClientErrorV1('invalid-request');
+        for (let offset = 0; offset < input.accountIds.length; offset += 4)
+          chunks.push({
+            ...input,
+            accountIds: input.accountIds.slice(offset, offset + 4),
+            idempotencyKey: offset === 0 ? input.idempotencyKey : crypto.randomUUID(),
+          });
+      } else chunks.push(input);
+      const parsed = adminCommandV1.safeParse(chunks[0]);
       if (
         !parsed.success ||
+        chunks.some((chunk) => !adminCommandV1.safeParse(chunk).success) ||
         !['qr-issue', 'qr-reprint', 'qr-batch'].includes(parsed.data.operation) ||
         (requestedFormat === 'png' && input.operation === 'qr-batch') ||
         (requestedFormat === 'pdf' && input.operation !== 'qr-batch')
       )
         throw new PortalClientErrorV1('invalid-request');
       command = parsed.data as QrCommandV1;
+      queue = chunks.slice(1);
       format = requestedFormat;
       prepared = client.prepareCommand(command);
       startedAt = now();

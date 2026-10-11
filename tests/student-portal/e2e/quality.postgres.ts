@@ -1,3 +1,4 @@
+import { seedExistingBirthFixtureV1 } from '../smoke/legacy-seed-fixture-v1';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createIntegrationHarnessV1 } from '../frontend-integration/harness-v1';
@@ -68,19 +69,7 @@ async function activate(accountId: string, student: ReturnType<typeof studentCli
     page: {},
   });
   if (birth.state !== 'birth-years') throw new Error('Synthetic birth missing');
-  await admin.command({
-    contractVersion: 1,
-    operation: 'birth-write',
-    expectedVersion: birth.items[0]!.accountVersion,
-    idempotencyKey: crypto.randomUUID(),
-    item: {
-      action: 'set',
-      accountId,
-      expectedVersion: birth.items[0]!.version,
-      year: '2001',
-      confirmation: 'confirmed',
-    },
-  });
+  await seedExistingBirthFixtureV1(sql, accountId);
   const settings = await admin.query({
     contractVersion: 1,
     operation: 'settings',

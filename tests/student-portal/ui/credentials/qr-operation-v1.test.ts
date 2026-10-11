@@ -36,6 +36,44 @@ function setup(mock = qrMockV1(), render = syntheticQrRendererV1, now = Date.now
   return { mock, states, op };
 }
 describe('private credential operation lifecycle', () => {
+  it('chunks the entire class, advances CAS and retries only the exact unfinished chunk', async () => {
+    let attempt = 0;
+    let version = 755;
+    const all = qrPrintCardsV1(9);
+    const mock = qrMockV1({
+      count: 9,
+      write: (input) => {
+        if (input.operation !== 'qr-batch') throw new Error('synthetic-operation');
+        attempt++;
+        if (attempt === 2 || attempt === 3)
+          return Promise.reject(new Error('lost synthetic response'));
+        expect(input.expectedVersion).toBe(version);
+        version++;
+        return Promise.resolve(
+          qrJsonV1({
+            ...QR_META_V1,
+            state: 'qr',
+            version,
+            cards: all.filter((card) => input.accountIds.includes(card.accountId)),
+          }),
+        );
+      },
+    });
+    const render = vi.fn(syntheticQrRendererV1);
+    const { op, states } = setup(mock, render);
+    await op.submit(command({ accountIds: all.map((card) => card.accountId) }), 'pdf');
+    expect(states.at(-1)).toMatchObject({ state: 'error', stage: 'request' });
+    expect(render).not.toHaveBeenCalled();
+    await op.retry();
+    expect(
+      mock.writes.map((input) => (input.operation === 'qr-batch' ? input.accountIds.length : 0)),
+    ).toEqual([4, 4, 4, 4, 1]);
+    expect(mock.bodies[1]).toBe(mock.bodies[2]);
+    expect(mock.bodies[1]).toBe(mock.bodies[3]);
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(states.at(-1)).toMatchObject({ state: 'ready', count: 9 });
+    op.clear();
+  });
   it('retries the exact command after a lost response and validates fresh receipt cards', async () => {
     let count = 0;
     const mock = qrMockV1({

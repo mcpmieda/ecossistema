@@ -1,5 +1,6 @@
 import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../server/gradebook/http/live-after-commit-v1';
 import type { RuntimeEnv } from '../server/env';
+import { handleStudentReconciliationRequestV1 } from '../server/student-identity/reconciliation/http-v1';
 import { validateEnv } from '../server/env';
 import { handleSystemHealthRequestV1 } from '../server/platform/system-health-http-v1';
 import { handlePublicDemoRequestV1 } from '../server/platform/public-demo-http-v1';
@@ -427,6 +428,11 @@ async function route(context: Context, correlationId: string): Promise<Response>
 
   const retiredReportsResponse = await handleRetiredGradebookReportsRequest(request, env);
   if (retiredReportsResponse) return retiredReportsResponse;
+
+  if (url.pathname === '/api/student-reconciliation/v1') {
+    const response = await withOfficialGradebookDatabaseV1(env, (executionEnv) => handleStudentReconciliationRequestV1(request, executionEnv));
+    if (response) return response;
+  }
 
   if (url.pathname.startsWith('/api/gradebook/')) {
     const gradebookResponse = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>

@@ -6,6 +6,7 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import { portalFailureV1, portalJsonV1 } from '../../server/student-portal/runtime/http-v1';
 import { serveObservedPortalSelfV1 } from '../../server/student-portal/composition/observed-self-v1';
 import { portalAdminRpcV1 } from '../../server/student-portal/composition/admin-v1';
+import { portalReconciliationCredentialsRpcV1 } from '../../server/student-portal/composition/reconciliation-v1';
 import { portalMonitoringRpcV1 } from '../../server/student-portal/composition/monitoring-v1';
 import { portalHistoryRpcV1, portalHistoryScheduledV1 } from '../../server/student-portal/composition/health-history-v1';
 import { portalSignalsRpcV1, portalSignalsScheduledV1 } from '../../server/student-portal/composition/signals-v1';
@@ -71,6 +72,9 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
   async monitoringCapacity(context: unknown) { return portalCapacityRpcV1(this.env, context); }
   async monitoringReview(context: unknown) { return portalHealthReviewRpcV1(this.env, context); }
   async query(context: unknown, request: unknown) { return portalAdminRpcV1(this.env, 'query', context, request); }
+  async prepareReconciliationCredentials(context: unknown, request: unknown) {
+    return portalReconciliationCredentialsRpcV1(this.env, context, request);
+  }
   async command(context: unknown, request: unknown) {
     const result = await portalAdminRpcV1(this.env, 'command', context, request);
     if (['committed', 'batch', 'qr'].includes(result.state))

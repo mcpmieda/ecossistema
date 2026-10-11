@@ -1,4 +1,5 @@
-import type { GradebookRelationImportRequestV9 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import type { GradebookRelationImportRequestV9, GradebookRelationWarningV9 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import { normalizeStudentNameV1 } from '../../../../shared/student-identity/reconciliation-normalization-v1';
 
 export interface ResolvedRelationClassV9 {
   readonly id: number;
@@ -12,6 +13,7 @@ export interface ExistingRelationBindingV9 {
   readonly situacao: number | null;
   readonly turmaRelacionadaId: number | null;
   readonly nome: string;
+  readonly studentUid?: string;
 }
 
 export interface RelationSourceBindingV9 {
@@ -24,28 +26,25 @@ export interface RelationSourceBindingV9 {
   readonly relatedTurmaId: number | null;
 }
 
-export interface RelationIdentityRepairV9 {
-  readonly canonicalAlunoId: number;
-  readonly duplicateAlunoId: number;
-}
-
 export interface RelationComponentV9 {
   readonly items: readonly RelationSourceBindingV9[];
   readonly seedAlunoId: number | null;
   readonly preferred: RelationSourceBindingV9;
-  readonly identityRepair?: RelationIdentityRepairV9;
 }
+
+export type RelationMovementWarningV9 = GradebookRelationWarningV9;
 
 export interface RelationPlanV9 {
   readonly source: readonly RelationSourceBindingV9[];
   readonly orderedSource: readonly RelationSourceBindingV9[];
   readonly existingByBinding: ReadonlyMap<string, ExistingRelationBindingV9>;
   readonly components: readonly RelationComponentV9[];
+  readonly warnings: readonly RelationMovementWarningV9[];
 }
 
 export class RelationPlanErrorV9 extends Error {
   constructor(
-    readonly state: 'blocked' | 'conflict',
+    readonly state: 'blocked' | 'conflict' | 'review-required',
     readonly reason: string,
   ) {
     super(reason);
@@ -75,12 +74,7 @@ class UnionFindV9 {
 }
 
 export function normalizeRelationNameV9(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/gu, '')
-    .trim()
-    .replace(/\s+/gu, ' ')
-    .toUpperCase();
+  return normalizeStudentNameV1(value);
 }
 
 function classKeyV9(value: string): string {
@@ -158,9 +152,15 @@ function linkMovementSourcesV9(
   source: readonly RelationSourceBindingV9[],
   sourceByNameClass: ReadonlyMap<string, readonly RelationSourceBindingV9[]>,
   existingByNameClass: ReadonlyMap<string, readonly ExistingRelationBindingV9[]>,
-): { readonly union: UnionFindV9; readonly externalSeed: ReadonlyMap<number, number> } {
+): {
+  readonly union: UnionFindV9;
+  readonly externalSeed: ReadonlyMap<number, number>;
+  readonly warnings: readonly RelationMovementWarningV9[];
+} {
   const union = new UnionFindV9(source.length);
   const externalSeed = new Map<number, number>();
+  const unmatched: RelationSourceBindingV9[] = [];
+  const warnings: RelationMovementWarningV9[] = [];
 
   for (const item of source) {
     if (item.relatedTurmaId === null) continue;
@@ -173,7 +173,34 @@ function linkMovementSourcesV9(
       union.union(item.index, candidates[0]!.index);
       continue;
     }
+    unmatched.push(item);
+  }
 
+  const paired = new Set<number>();
+  for (const item of unmatched) {
+    if (paired.has(item.index)) continue;
+    const reciprocal = unmatched.filter((other) =>
+      other.turmaId === item.relatedTurmaId && other.relatedTurmaId === item.turmaId &&
+      ((item.situacao === 6 && other.situacao === 7) || (item.situacao === 7 && other.situacao === 6)),
+    );
+    const sameDirection = unmatched.filter((other) => other.turmaId === item.turmaId &&
+      other.relatedTurmaId === item.relatedTurmaId && other.situacao === item.situacao);
+    if (reciprocal.length > 0) {
+      if (reciprocal.length !== 1 || sameDirection.length !== 1) {
+        throw new RelationPlanErrorV9('review-required', 'Confira os pares de movimentação entre as turmas.');
+      }
+      const other = reciprocal[0]!;
+      union.union(item.index, other.index);
+      paired.add(item.index);
+      paired.add(other.index);
+      const origin = item.situacao === 6 ? item : other;
+      const destination = item.situacao === 7 ? item : other;
+      warnings.push({ code: 'movement-spelling', classCode: origin.turmaCode,
+        number: origin.numero, relatedClassCode: destination.turmaCode });
+      continue;
+    }
+
+    const key = nameClassKeyV9(item.relatedTurmaId!, item.nome);
     const existing = existingByNameClass.get(key) ?? [];
     const ids = [...new Set(existing.map((value) => value.alunoId))];
     if (ids.length !== 1) {
@@ -187,7 +214,7 @@ function linkMovementSourcesV9(
     externalSeed.set(item.index, ids[0]!);
   }
 
-  return { union, externalSeed };
+  return { union, externalSeed, warnings };
 }
 
 function groupComponentsV9(
@@ -204,43 +231,6 @@ function groupComponentsV9(
   return components;
 }
 
-function explicitReciprocalRepairV9(
-  items: readonly RelationSourceBindingV9[],
-  existingByBinding: ReadonlyMap<string, ExistingRelationBindingV9>,
-): RelationIdentityRepairV9 | null {
-  if (items.length !== 2) return null;
-  const origin = items.find((item) => item.situacao === 6);
-  const destination = items.find((item) => item.situacao === 7);
-  if (
-    !origin ||
-    !destination ||
-    origin.relatedTurmaId !== destination.turmaId ||
-    destination.relatedTurmaId !== origin.turmaId ||
-    normalizeRelationNameV9(origin.nome) !== normalizeRelationNameV9(destination.nome)
-  )
-    return null;
-
-  const originBinding = existingByBinding.get(
-    relationBindingKeyV9(origin.turmaId, origin.numero),
-  );
-  const destinationBinding = existingByBinding.get(
-    relationBindingKeyV9(destination.turmaId, destination.numero),
-  );
-  if (
-    !originBinding ||
-    !destinationBinding ||
-    originBinding.alunoId === destinationBinding.alunoId ||
-    normalizeRelationNameV9(originBinding.nome) !== normalizeRelationNameV9(origin.nome) ||
-    normalizeRelationNameV9(destinationBinding.nome) !== normalizeRelationNameV9(destination.nome)
-  )
-    return null;
-
-  return {
-    canonicalAlunoId: originBinding.alunoId,
-    duplicateAlunoId: destinationBinding.alunoId,
-  };
-}
-
 function buildComponentV9(
   items: readonly RelationSourceBindingV9[],
   existingByBinding: ReadonlyMap<string, ExistingRelationBindingV9>,
@@ -255,19 +245,7 @@ function buildComponentV9(
   }
   const preferred = items.find((item) => item.situacao !== 6) ?? items[0]!;
   if (seeds.size > 1) {
-    const identityRepair = explicitReciprocalRepairV9(items, existingByBinding);
-    if (!identityRepair) {
-      throw new RelationPlanErrorV9(
-        'conflict',
-        `Vínculos existentes apontam para alunos diferentes em ${items[0]!.nome}.`,
-      );
-    }
-    return {
-      items,
-      seedAlunoId: identityRepair.canonicalAlunoId,
-      preferred,
-      identityRepair,
-    };
+    throw new RelationPlanErrorV9('conflict', 'A movimentação envolve identidades distintas. Confira os vínculos existentes.');
   }
   return {
     items,
@@ -299,5 +277,6 @@ export function buildRelationPlanV9(
     orderedSource,
     existingByBinding: indexes.byBinding,
     components,
+    warnings: linked.warnings,
   };
 }

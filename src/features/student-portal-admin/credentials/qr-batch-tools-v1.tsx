@@ -164,8 +164,7 @@ export function QrBatchToolsV1({
   const readyForSelection =
     state.state === 'ready' && capture.current.selectionKey === selectionKey;
   function generate() {
-    if (!canWrite || working || unresolved || pendingBirth || !chosen.length || chosen.length > 100)
-      return;
+    if (!canWrite || working || unresolved || pendingBirth || !chosen.length) return;
     const idempotencyKey = crypto.randomUUID();
     capture.current = {
       instruction: layout === 'compact' && withInstruction ? instruction.trim().slice(0, 240) : '',
@@ -301,8 +300,7 @@ export function QrBatchToolsV1({
           size="sm"
           isDisabled={
             !canWrite ||
-            (!readyForSelection &&
-              (working || unresolved || pendingBirth || !chosen.length || chosen.length > 100))
+            (!readyForSelection && (working || unresolved || pendingBirth || !chosen.length))
           }
           onPress={
             readyForSelection ? () => operation.download(capture.current.filename) : generate
@@ -316,12 +314,11 @@ export function QrBatchToolsV1({
           </Button>
         ) : null}
       </div>
-      {chosen.length > 100 ? <p role="alert">Selecione até 100 alunos por PDF.</p> : null}
       {working ? (
         <p role="status">
           {state.state === 'rendering'
             ? `Gerando PDF: ${state.completed} de ${state.total}`
-            : 'Preparando QR…'}
+            : `Preparando QR: ${state.completed} de ${state.count}`}
         </p>
       ) : null}
       {state.state === 'ready' && state.downloadFailed ? (

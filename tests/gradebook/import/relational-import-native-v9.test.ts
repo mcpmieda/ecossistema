@@ -36,7 +36,7 @@ function fixture(options: { existing?: boolean; failure?: Error } = {}) {
             else if (text.includes('synchronize_gradebook_profiles_v1')) rows = [{ synchronized: 1 }];
             else if (options.existing && text.startsWith('SELECT ano FROM')) rows = [{ ano: 2026 }];
             else if (options.existing && text.startsWith('SELECT v.turma_id')) {
-              rows = [{ turma_id: 10, numero: 1, aluno_id: 20, situacao: null, turma_relacionada_id: null, nome: 'ALUNO SINTETICO' }];
+              rows = [{ turma_id: 10, numero: 1, aluno_id: 20, situacao: null, turma_relacionada_id: null, nome: 'ALUNO SINTETICO', student_uid: '11111111-1111-4111-8111-111111111111' }];
             } else if (options.existing && text.startsWith('SELECT nome FROM')) rows = [{ nome: 'ALUNO SINTETICO' }];
             return Object.assign(rows, { count: text.startsWith('INSERT') ? 1 : rows.length });
           },
@@ -88,7 +88,7 @@ describe('V9 native import port', () => {
   it('keeps an identical relation read-only with no revision or import ledger write', async () => {
     const { service, calls, events } = fixture({ existing: true });
     expect(await service.execute(relation)).toMatchObject({ state: 'no-changes', summary: { committedWrites: { total: 0 } } });
-    expect(calls).toHaveLength(7);
+    expect(calls).toHaveLength(9);
     expect(calls.every(({ text }) => text.startsWith('SELECT'))).toBe(true);
     expect(calls.at(-1)).toEqual({ text: 'SELECT nome FROM gradebook.aluno WHERE id = $1 AND ano = $2', values: [20, 2026] });
     expect(events).toEqual(['begin', 'commit']);

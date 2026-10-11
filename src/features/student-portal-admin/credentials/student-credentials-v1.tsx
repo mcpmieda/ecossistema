@@ -4,7 +4,7 @@ import type { PortalAdminReadClientV2, PortalClassCatalogV2 } from '../accounts/
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { QrRendererV1 } from './qr-operation-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
-import { StudentBirthYearsV1 } from '../birth-year/student-birth-years-v1';
+import { ClassQrV1 } from './class-qr-v1';
 import { IndividualQrV1 } from './individual-qr-v1';
 import './student-credentials-v1.css';
 export interface StudentCredentialsPropsV1 {
@@ -31,6 +31,6 @@ export function StudentCredentialsV1(props: StudentCredentialsPropsV1) {
   return props.scope.kind === 'account' ? (
     <IndividualQrV1 key={key} {...props} scope={props.scope} />
   ) : (
-    <StudentBirthYearsV1 key={key} {...props} qrMode />
+    <ClassQrV1 key={key} {...props} />
   );
 }

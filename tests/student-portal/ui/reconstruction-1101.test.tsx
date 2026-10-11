@@ -6,15 +6,12 @@ import {
   ACCOUNT_STATE_OPTIONS_V1,
   matchesAccountFiltersV1,
 } from '../../../src/features/student-portal-admin/accounts/account-filters-v1';
-import { birthVisualStateV1 } from '../../../src/features/student-portal-admin/birth-year/birth-input-v1';
-import { birthDraftRowV1 } from '../../../src/features/student-portal-admin/birth-year/birth-values-v1';
 import { qrFilenameV1 } from '../../../src/features/student-portal-admin/credentials/qr-filename-v1';
 import {
   portalSectionFromHash,
   studentPortalHref,
 } from '../../../src/platform/student-portal-module';
 import { qrMockV1 } from './credentials/fixtures-v1';
-import { birthMockV1 } from './birth-year/fixtures-v1';
 afterEach(cleanup);
 describe('reconstruction #1101 pure and accessibility contracts', () => {
   it('combines alternatives within a filter and intersects the two filter groups', () => {
@@ -57,19 +54,6 @@ describe('reconstruction #1101 pure and accessibility contracts', () => {
     fireEvent.click(active);
     expect(active.getAttribute('aria-selected')).toBe('false');
     expect(pending.getAttribute('aria-selected')).toBe('true');
-  });
-  it('only marks a valid confirmed persisted birth green, not a valid-looking draft', () => {
-    const mock = birthMockV1(),
-      account = mock.accounts[0]!,
-      birth = mock.births.get(account.accountId)!;
-    const row = birthDraftRowV1({ account, birth: { ...birth, confirmation: 'confirmed' } });
-    expect(birthVisualStateV1(row).saved).toBe(true);
-    for (const status of ['saving', 'error', 'conflict', 'refresh-error'] as const)
-      expect(birthVisualStateV1({ ...row, status }).saved).toBe(false);
-    expect(birthVisualStateV1({ ...row, year: '2001' }).saved).toBe(false);
-    expect(birthVisualStateV1({ ...row, year: '' }).saved).toBe(false);
-    expect(birthVisualStateV1({ ...row, year: '200' }).saved).toBe(false);
-    expect(birthVisualStateV1(birthDraftRowV1({ account, birth })).saved).toBe(false);
   });
   it('uses legible safe uppercase filenames without control characters or path separators', () => {
     expect(qrFilenameV1('6º ANO A', 'pdf')).toBe('QR DO 6º ANO A.pdf');

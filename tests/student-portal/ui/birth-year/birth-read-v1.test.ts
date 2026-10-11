@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { adminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import { readBirthPageV1 } from '../../../../src/features/student-portal-admin/birth-year/birth-read-v1';
-import {
-  birthDirtyV1,
-  birthDraftRowV1,
-  birthSetItemV1,
-  birthSingleCommandV1,
-  validBirthYearV1,
-} from '../../../../src/features/student-portal-admin/birth-year/birth-values-v1';
+import { birthYearV1 } from '../../../../shared/student-portal-contracts/admin-v1';
+const validBirthYearV1 = (value: string) => birthYearV1.safeParse(value).success;
 import { BIRTH_CLASS_V1, birthMockV1, birthJsonV1 } from './fixtures-v1';
 
 describe('birth values and bounded joined reads', () => {
@@ -54,8 +49,20 @@ describe('birth values and bounded joined reads', () => {
   it('fetches fresh academic metadata when the scope revision changes without an account CAS change', async () => {
     const mock = birthMockV1();
     const account = mock.accounts[0]!;
-    const scope = { kind: 'account' as const, academicYear: 2026 as const, accountId: account.accountId };
-    await readBirthPageV1(mock.client, mock.reader, scope, undefined, new AbortController().signal, undefined, { account, scopeVersion: 98 });
+    const scope = {
+      kind: 'account' as const,
+      academicYear: 2026 as const,
+      accountId: account.accountId,
+    };
+    await readBirthPageV1(
+      mock.client,
+      mock.reader,
+      scope,
+      undefined,
+      new AbortController().signal,
+      undefined,
+      { account, scopeVersion: 98 },
+    );
     expect(mock.queries.map((query) => query.operation)).toEqual(['birth-years', 'accounts-read']);
   });
   it('accepts only four ASCII digits in1900..2026, never trim/coerce incomplete input', () => {
@@ -98,13 +105,9 @@ describe('birth values and bounded joined reads', () => {
     );
     expect(second.rows).toHaveLength(5);
     expect(second.next).toBeNull();
-    const row = birthDraftRowV1(first.rows[0]!);
-    row.year = '2001';
-    const command = birthSingleCommandV1(row, birthSetItemV1(row));
-    expect(command.expectedVersion).toBe(19);
-    expect(command.item.expectedVersion).toBe(7);
-    expect(command.item).toMatchObject({ confirmation: 'unconfirmed-test' });
-    expect(birthDirtyV1(row)).toBe(true);
+    expect(first.rows[0]?.account.version).toBe(19);
+    expect(first.rows[0]?.birth.version).toBe(7);
+    expect(first.rows[0]?.birth.confirmation).toBe('unconfirmed-test');
     expect(mock.queries).toHaveLength(4);
   });
   it('joins by identity even when a birth page arrives in another order', async () => {

@@ -352,54 +352,25 @@ describe('private administrative API with real persistence', () => {
     expect((await api.command(context(), input)).state).toBe('conflict');
   });
 
-  it('exposes separate birth/account/scope versions and dispatches write, clear and resumable per-item batches', async () => {
+  it('rejects obsolete manual birth commands from an authorized current or old client without changing credentials', async () => {
     const initial = await query('birth-years');
-    expect(
-      initial.items.every(
-        (item) => item.year === null && item.accountVersion === 0 && item.version === 0,
-      ),
-    ).toBe(true);
-    const item = initial.items.find((item) => item.accountId === accounts[0]!.id)!;
-    state(
-      await api.command(
-        context(),
-        command('birth-write', item.accountVersion, {
-          item: {
-            action: 'set',
-            accountId: item.accountId,
-            expectedVersion: item.version,
-            year: '2001',
-            confirmation: 'unconfirmed-test',
-          },
-        }),
-      ),
-      'committed',
-    );
-    const updated = await query('birth-years');
-    expect(updated.items.find((item) => item.accountId === accounts[0]!.id)).toMatchObject({
-      year: '2001',
-      confirmation: 'unconfirmed-test',
-      accountVersion: 1,
-      version: 1,
+    const item = initial.items.find((entry) => entry.accountId === accounts[0]!.id)!;
+    const write = command('birth-write', item.accountVersion, {
+      item: { action: 'set', accountId: item.accountId, expectedVersion: item.version,
+        year: '2001', confirmation: 'confirmed' },
     });
-    const batch = command('birth-batch', updated.scopeVersion, {
-      classId: CLASS.classId,
-      expectedCount: updated.items.length,
-      items: updated.items.map((item) => ({
-        action: 'clear',
-        accountId: item.accountId,
-        expectedVersion: item.version,
-      })),
+    const batch = command('birth-batch', initial.scopeVersion, {
+      classId: CLASS.classId, expectedCount: initial.items.length,
+      items: initial.items.map((entry) => ({ action: 'clear', accountId: entry.accountId, expectedVersion: entry.version })),
       confirmed: true,
     });
-    const first = state(await api.command(context(), batch), 'batch');
-    const replay = state(await api.command(context(), batch), 'batch');
-    expect(first.items.every((item) => item.state === 'committed')).toBe(true);
-    expect(replay.items).toEqual(first.items);
-    expect((await query('birth-years')).items.every((item) => item.year === null)).toBe(true);
-    expect(JSON.stringify((await query('audit')).items)).not.toContain('2001');
+    for (const input of [write, write, batch, batch]) {
+      expect((await api.command(context(), input)).state).toBe('invalid-request');
+    }
+    expect(await query('birth-years')).toMatchObject({ ...initial, requestId: expect.any(String) });
+    expect((await pg.query('SELECT account_id FROM student_portal.password_credential')).rows).toEqual([]);
+    expect((await query('audit')).items).toEqual([]);
   });
-
   it('lists sessions without hashes and revokes only the selected account session', async () => {
     const ids = [crypto.randomUUID(), crypto.randomUUID()];
     for (let index = 0; index < 2; index++)

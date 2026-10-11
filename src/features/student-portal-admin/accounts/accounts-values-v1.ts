@@ -65,8 +65,8 @@ export function accountStateLabelV1(account: AdminAccountReadV2) {
 export function firstAccessLabelV1(account: AdminAccountReadV2) {
   return {
     ready: 'Pronto para o primeiro acesso',
-    'birth-missing': 'Cadastre o ano de nascimento',
-    'birth-unconfirmed': 'Confirme o ano de nascimento',
+    'birth-missing': 'Aguardando Relatório',
+    'birth-unconfirmed': 'Aguardando conciliação do Relatório',
     'qr-missing': 'Emita o QR de acesso',
     'pin-missing': 'PIN de primeiro acesso ausente',
     'pin-outdated': 'PIN de primeiro acesso desatualizado',

@@ -7,7 +7,7 @@ import {
   type GradebookPostgresQuerySqlV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import type { GradebookImportPersistenceRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 
 type Row = Record<string, unknown>;
 type Action = 'insert' | 'update' | 'delete';
@@ -56,6 +56,7 @@ export async function createRelationalImportIdempotencyFixtureV11() {
   ])
     await pg.exec(readFileSync(`migrations/gradebook-simplified/${migration}`, 'utf8'));
   await installResetSchemaFixtureV1(pg);
+  await installReconciliationSchemaFixtureV1(pg);
   await pg.exec('UPDATE student_portal.lifecycle_control SET population_enabled=true');
 
   let counts = emptyCounts();

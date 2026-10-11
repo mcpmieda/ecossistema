@@ -21,11 +21,7 @@ function responseFor(state: AdminResponseV1['state']) {
   return adminResponseV1.refine((value) => value.state === state, 'Unexpected operation response');
 }
 function commandState(command: AdminCommandV1): AdminResponseV1['state'] {
-  return command.operation.startsWith('qr-')
-    ? 'qr'
-    : command.operation === 'birth-batch'
-      ? 'batch'
-      : 'committed';
+  return command.operation.startsWith('qr-') ? 'qr' : 'committed';
 }
 export function createPortalAdminClientV1(options: PortalTransportOptionsV1 = {}) {
   const send = createPortalTransportV1(options);
