@@ -322,9 +322,10 @@ export function reportRowContentV1(row: NormalizedReportRowV1): string {
 }
 
 export function reportContentV1(rows: readonly NormalizedReportRowV1[]): string {
-  return JSON.stringify({ normalizationVersion: 1, rows: rows.map(reportRowContentV1).sort() });
+  return JSON.stringify({ normalizationVersion: 1, rows: rows.map(reportRowContentV1).sort(compareTextV1) });
 }
 
+// Canonical content must keep the same ordering regardless of the runtime locale.
 function compareTextV1(left: string, right: string): number {
   return left < right ? -1 : Number(left > right);
 }
@@ -354,7 +355,7 @@ export function planStudentReconciliationV1(input: {
       studentUid: uid,
       rule: uid ? entry.rules.get(uid)! : null,
       reason,
-      candidateUids: [...entry.candidates].sort(),
+      candidateUids: [...entry.candidates].sort(compareTextV1),
     };
   });
   const byUid = new Map<string, ReconciliationReportRowV1[]>();
