@@ -131,7 +131,7 @@ describe('ligações de turma ao importar Relatório', () => {
       );
       const select = await screen.findByRole('combobox');
       expect(screen.getAllByRole('combobox')).toHaveLength(1);
-      expect((select as HTMLSelectElement).value).toBe('7');
+      expect(select).toHaveProperty('value', '7');
       fireEvent.click(screen.getByRole('button', { name: 'Preparar relatório' }));
       await waitFor(() =>
         expect(client.request.mock.calls.some(([input]) => input.operation === 'prepare')).toBe(
@@ -160,8 +160,8 @@ describe('ligações de turma ao importar Relatório', () => {
     const client = clientFor(reportClasses);
     render(<StudentReportImportV1 file={loadReport(false)} client={client} onClose={vi.fn()} />);
     const select = await screen.findByRole('combobox');
-    expect((select as HTMLSelectElement).value).toBe('');
+    expect(select).toHaveProperty('value', '');
     fireEvent.click(screen.getByRole('button', { name: 'Ligar a 7A' }));
-    expect((select as HTMLSelectElement).value).toBe('7');
+    expect(select).toHaveProperty('value', '7');
   });
 });
