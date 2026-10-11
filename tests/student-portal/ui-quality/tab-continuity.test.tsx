@@ -21,54 +21,67 @@ function visibility(value: DocumentVisibilityState) {
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue(value);
   document.dispatchEvent(new Event('visibilitychange'));
 }
-const identity = (key = 'synthetic-tab-session') => ({
+const identity = (key = 'synthetic-tab-session', canWrite = false) => ({
   authenticated: true,
   identityKey: key,
   expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-  capabilities: ['platform.settings.read'],
+  capabilities: ['platform.settings.read', ...(canWrite ? ['platform.settings.write'] : [])],
 });
 
-it('keeps the actual admin account filter and detail for the same identity, but resets them for another', async () => {
-  window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts');
-  const mock = operationsMockV1();
-  let key = 'synthetic-tab-session';
-  const fetcher = vi.fn(async (path: string, init: RequestInit) => {
-    if (path === '/api/me') return opJsonV1(identity(key));
-    const input = JSON.parse(String(init.body));
-    if (path === '/api/student-reconciliation/v1')
-      return opJsonV1(emptyReconciliationReadV1(input.operation));
-    return opJsonV1(
-      input.contractVersion === 2 ? await mock.reader.query(input) : await mock.client.query(input),
+it.each(['identity', 'capability'] as const)(
+  'keeps the actual admin account filter and detail until %s changes',
+  async (changed) => {
+    window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts');
+    const mock = operationsMockV1();
+    let key = 'synthetic-tab-session';
+    let canWrite = true;
+    const fetcher = vi.fn(async (path: string, init: RequestInit) => {
+      if (path === '/api/me') return opJsonV1(identity(key, canWrite));
+      const input = JSON.parse(String(init.body));
+      if (path === '/api/student-reconciliation/v1')
+        return opJsonV1(emptyReconciliationReadV1(input.operation));
+      return opJsonV1(
+        input.contractVersion === 2
+          ? await mock.reader.query(input)
+          : await mock.client.query(input),
+      );
+    });
+    render(<StudentPortalAdminPage fetcher={fetcher} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
+    const filter = await screen.findByLabelText('Buscar aluno');
+    await user.type(filter, 'SYNTHETIC');
+    // The search narrows the list already read: it issues no request of its own.
+    await waitFor(() =>
+      expect(mock.queries).toContainEqual(
+        expect.objectContaining({
+          operation: 'accounts-read',
+        }),
+      ),
     );
-  });
-  render(<StudentPortalAdminPage fetcher={fetcher} />);
-  const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
-  const filter = await screen.findByLabelText('Buscar aluno');
-  await user.type(filter, 'SYNTHETIC');
-  // The search narrows the list already read: it issues no request of its own.
-  await waitFor(() => expect(mock.queries).toContainEqual(expect.objectContaining({
-    operation: 'accounts-read',
-  })));
-  expect(mock.queries.some((query) => 'nameSearch' in query)).toBe(false);
-  await user.click(
-    await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC OP STUDENT 1' }),
-  );
-  const close = await screen.findByRole('button', { name: 'Fechar ficha' });
-  await act(async () => {
-    visibility('hidden');
-    visibility('visible');
-    window.dispatchEvent(new Event('focus'));
-  });
-  expect(screen.getByRole('button', { name: 'Fechar ficha' })).toBe(close);
-  expect(screen.getByLabelText('Buscar aluno')).toBe(filter);
-  expect((filter as HTMLInputElement).value).toBe('SYNTHETIC');
-  key = 'synthetic-other-session';
-  await act(async () => window.dispatchEvent(new Event('focus')));
-  expect(screen.queryByRole('button', { name: 'Fechar ficha' })).toBeNull();
-  await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
-  expect((screen.getByLabelText('Buscar aluno') as HTMLInputElement).value).toBe('');
-}, 15_000);
+    expect(mock.queries.some((query) => 'nameSearch' in query)).toBe(false);
+    await user.click(
+      await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC OP STUDENT 1' }),
+    );
+    const close = await screen.findByRole('button', { name: 'Fechar ficha' });
+    await act(async () => {
+      visibility('hidden');
+      visibility('visible');
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(screen.getByRole('button', { name: 'Fechar ficha' })).toBe(close);
+    expect(screen.getByLabelText('Buscar aluno')).toBe(filter);
+    expect((filter as HTMLInputElement).value).toBe('SYNTHETIC');
+    if (changed === 'identity') key = 'synthetic-other-session';
+    else canWrite = false;
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(screen.queryByRole('button', { name: 'Fechar ficha' })).toBeNull();
+    expect(new URLSearchParams(window.location.hash.split('?')[1]).get('aluno')).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
+    expect((screen.getByLabelText('Buscar aluno') as HTMLInputElement).value).toBe('');
+  },
+  15_000,
+);
 
 it('expires admin access at its deadline even with a stalled background request', async () => {
   vi.useFakeTimers();

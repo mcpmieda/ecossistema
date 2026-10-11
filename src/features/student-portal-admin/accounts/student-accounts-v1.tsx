@@ -83,6 +83,12 @@ const SCHOOL_V1: ScopeV1 = { kind: 'school', academicYear: 2026 };
 /** A class is a view of the school collection: changing class keeps what was already read. */
 const readScopeV1 = (scope: ScopeV1) => (scope.kind === 'account' ? scope : SCHOOL_V1);
 export function StudentAccountsV1(props: StudentAccountsPropsV1) {
+  const authority = `${props.identityKey}:${props.canWrite}`;
+  const [restorationAuthority, setRestorationAuthority] = useState<string | null>(authority);
+  // Retire restoration before a new authority can mount a reader for the previous record.
+  if (restorationAuthority !== null && restorationAuthority !== authority)
+    setRestorationAuthority(null);
+  const restoreAccountFromHash = restorationAuthority === authority;
   const [showAccounts, setShowAccounts] = useState(
     () => props.showAccountsInitially === true || panelHashAccountIdV1('aluno') !== null,
   );
@@ -111,6 +117,7 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
           <AccountsBodyV1
             key={`${props.identityKey}:${settingsScopeKeyV1(readScopeV1(props.scope))}:${props.canWrite}`}
             {...props}
+            restoreAccountFromHash={restoreAccountFromHash}
           />
         ) : (
           <StudentReconciliationV1
@@ -133,6 +140,7 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
         props.canWrite
       }
       {...props}
+      restoreAccountFromHash={restoreAccountFromHash}
     />
   );
 }
@@ -143,7 +151,8 @@ const ACCOUNT_ORDERS_V1: readonly { id: AccountOrderV1; label: string; icon: Rea
   { id: 'seals', label: 'Selos brilhantes', icon: <Star size={13} aria-hidden /> },
   { id: 'last-access', label: 'Último acesso', icon: <Clock size={13} aria-hidden /> },
 ];
-function AccountsBodyV1(props: StudentAccountsPropsV1) {
+type AccountsBodyPropsV1 = StudentAccountsPropsV1 & { restoreAccountFromHash: boolean };
+function AccountsBodyV1(props: AccountsBodyPropsV1) {
   const sealCache = useSealCountsCacheV1(props.reader);
   const [name, setName] = useState('');
   const [order, setOrder] = useState<AccountOrderV1>('name');
@@ -354,7 +363,7 @@ const inClassV1 = <T extends AdminAccountReadV2>(items: readonly T[], classId: n
   classId === null ? [...items] : items.filter((item) => item.classId === classId);
 
 const AccountsResultsV1 = memo(function AccountsResultsV1(
-  props: StudentAccountsPropsV1 & {
+  props: AccountsBodyPropsV1 & {
     query: AdminReadQueryV2;
     sealCache: SealCountsCacheV1;
     order: AccountOrderV1;
@@ -387,7 +396,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   // Each request for more triples the rows, so the end of a long list is two scrolls away.
   const showMoreRows = () => setShown({ view, limit: visibleLimit * 3 });
   const stableRow = useStableRowsV1();
-  const [selectedId, setSelectedId] = useState<string | null>(() => panelHashAccountIdV1('aluno'));
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    props.restoreAccountFromHash ? panelHashAccountIdV1('aluno') : null,
+  );
   const rankingActive = useLiveRefreshScopeV1() && selectedId === null;
   useEffect(() => writePanelHashParamsV1({ aluno: selectedId }), [selectedId]);
   // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.

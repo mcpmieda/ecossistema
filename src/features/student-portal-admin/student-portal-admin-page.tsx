@@ -199,10 +199,11 @@ function PortalWorkspace({
     identityKey: identity.identityKey,
     onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),
   });
+  const panelAuthority = identity.identityKey + ':' + identity.capabilities.join(',');
   const initialPanel = useMemo(() => {
-    claimPanelHashV1(identity.identityKey);
+    claimPanelHashV1(panelAuthority);
     return panelStateFromHashV1();
-  }, [identity.identityKey]);
+  }, [panelAuthority]);
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(() =>
     initialPanel.classId === null ? null : { id: initialPanel.classId, label: '' },
   );

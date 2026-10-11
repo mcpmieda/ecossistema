@@ -352,26 +352,36 @@ describe('account list and detail', () => {
     );
     expect(mock.writes).toHaveLength(0);
   });
-  it('clears selected data and open confirmation when identity or capability changes', async () => {
-    const mock = accountsMockV1();
-    const view = render(createElement(StudentAccountsV1, mock.props));
-    const user = userEvent.setup();
-    await user.click(await ready());
-    await detail();
-    await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
-    view.rerender(
-      createElement(StudentAccountsV1, {
-        ...mock.props,
-        identityKey: 'another-synthetic-admin',
-        canWrite: false,
-      }),
-    );
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Bloquear acesso' })).toBeNull();
-    await user.click(await ready());
-    expect((await detail()).hasAttribute('disabled')).toBe(true);
-    expect(mock.writes).toHaveLength(0);
-  });
+  it.each(['identity', 'capability'] as const)(
+    'clears selected data and open confirmation when %s changes',
+    async (changed) => {
+      window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts');
+      const mock = accountsMockV1();
+      const view = render(createElement(StudentAccountsV1, mock.props));
+      const user = userEvent.setup();
+      await user.click(await ready());
+      await detail();
+      await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
+      const previousReads = mock.queries.length;
+      view.rerender(
+        createElement(StudentAccountsV1, {
+          ...mock.props,
+          identityKey: changed === 'identity' ? 'another-synthetic-admin' : mock.props.identityKey,
+          canWrite: changed === 'capability' ? false : mock.props.canWrite,
+        }),
+      );
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Bloquear acesso' })).toBeNull();
+      const open = await ready();
+      expect(
+        mock.queries.slice(previousReads).filter((query) => query.scope.kind === 'account'),
+      ).toHaveLength(0);
+      expect(new URLSearchParams(window.location.hash.split('?')[1]).get('aluno')).toBeNull();
+      await user.click(open);
+      expect((await detail()).hasAttribute('disabled')).toBe(changed === 'capability');
+      expect(mock.writes).toHaveLength(0);
+    },
+  );
   it('clears the list and the detail when a command loses administrative authorization', async () => {
     const mock = accountsMockV1({
       write: async () => accountJsonV1({ ...ACCOUNT_META_V1, state: 'unauthenticated' }, 401),
