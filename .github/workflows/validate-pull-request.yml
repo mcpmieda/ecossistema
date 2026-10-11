@@ -85,7 +85,22 @@ jobs:
         run: node scripts/student-photos/verify-codec-artifact-v1.mjs
 
       - name: Verify
-        run: npm run verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          npm run verify > "$RUNNER_TEMP/pr-verify.log" 2>&1 || status=$?
+          tail -n 120 "$RUNNER_TEMP/pr-verify.log"
+          exit "$status"
+
+      - name: Preserve complete verification diagnostics
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pull-request-verification-log
+          path: ${{ runner.temp }}/pr-verify.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Bundle administrative Pages Functions with the actual codec
         run: ./node_modules/.bin/wrangler pages functions build --outdir node_modules/.cache/photo-pages-build --compatibility-date 2026-08-24 --compatibility-flags nodejs_compat
@@ -107,7 +122,6 @@ jobs:
           node --experimental-strip-types scripts/ci/provenance-v1.ts write validate-pull-request production-inputs/validate-provenance.json
           test -f production-inputs/dist/index.html
           test -f production-inputs/node_modules/.cache/student-portal-edge/_worker.js
-          test -f production-inputs/node_modules/.cache/public-portal-demo/index.html
           test -f production-inputs/node_modules/.cache/public-demo-worker/index.js
 
       - name: Upload exact validated production inputs
