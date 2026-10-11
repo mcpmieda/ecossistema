@@ -33,7 +33,7 @@ assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Native execution restricted to
 assert.ok(!Object.keys(process.env).some(key => key.startsWith('PG')), 'Ambient PG settings prohibited');
 const env = { ...process.env, PGPASSFILE: '/nonexistent-synthetic-passfile', PGSERVICEFILE: '/nonexistent-synthetic-servicefile' };
 function execute(sql, failure = false) {
-  const result = spawnSync('psql', ['-X', '--no-password', '-h', '127.0.0.1', '-p', '55473', '-U', 'postgres', '-d', 'reconciliation_synthetic_trial', '-v', 'ON_ERROR_STOP=1', '-At'], { input: sql, encoding: 'utf8', env, timeout: 30000 });
+  const result = spawnSync('/usr/bin/psql', ['-X', '--no-password', '-h', '127.0.0.1', '-p', '55473', '-U', 'postgres', '-d', 'reconciliation_synthetic_trial', '-v', 'ON_ERROR_STOP=1', '-At'], { input: sql, encoding: 'utf8', env, timeout: 30000 });
   if (result.error) throw result.error;
   if (failure) {
     assert.notEqual(result.status, 0, 'Injected SQL failure must fail');
@@ -85,7 +85,7 @@ COMMIT;`, fail);
   assert.equal(execute("SELECT c.relrowsecurity AND NOT c.relforcerowsecurity AND pg_get_userbyid(c.relowner)='postgres' FROM pg_class c WHERE c.oid='trial_private.cache_probe'::regclass"), 't');
   assert.equal(execute("SELECT count(*) FROM pg_class c,LATERAL aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a WHERE c.oid='trial_private.cache_probe'::regclass AND a.grantee=0"), '0');
   execute('INSERT INTO trial_private.cache_probe VALUES (1,42)');
-  const denied = spawnSync('psql', ['-X','--no-password','-h','127.0.0.1','-p','55473','-U','postgres','-d','reconciliation_synthetic_trial','-v','ON_ERROR_STOP=1','-At'], { input: 'SET ROLE synthetic_trial_reader; SELECT * FROM trial_private.cache_probe;', encoding:'utf8',env,timeout:30000 });
+  const denied = spawnSync('/usr/bin/psql', ['-X','--no-password','-h','127.0.0.1','-p','55473','-U','postgres','-d','reconciliation_synthetic_trial','-v','ON_ERROR_STOP=1','-At'], { input: 'SET ROLE synthetic_trial_reader; SELECT * FROM trial_private.cache_probe;', encoding:'utf8',env,timeout:30000 });
   assert.notEqual(denied.status, 0);
   assert.match(denied.stderr, /permission denied/);
   // Temporary synthetic grant tests effective default-deny RLS, then is rolled back.
