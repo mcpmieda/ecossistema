@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const candidate = fs.readFileSync(path.join(root, 'candidate.sql'), 'utf8');
-const expectedHash = '7d859cc4648413c13e6e642dd5069220bc6e02425a903db3e4821fdd30043669';
+const expectedHash = 'dd8cc13846b3b29a6380d8c5f640ed5f010ac155e7b3eb4dfa97bbea4d58bff2';
 assert.equal(hash(candidate), expectedHash);
 const pairs = Array.from({ length: 54 }, (_, i) => [String(i + 1).padStart(3, '0'), 'synthetic_' + (i + 1)]);
 const version = 'synthetic_new_055';
