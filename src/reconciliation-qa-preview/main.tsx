@@ -103,7 +103,7 @@ function ensureSheetJsV1(rows: readonly ReportRowFixtureV1[]) {
   const sheet: Worksheet = { '!ref': `A1:K${rows.length + 1}` };
   rows.forEach((values, index) => {
     Object.entries(STUDENT_REPORT_HEADERS_V1).forEach(([field, header], columnIndex) => {
-      const column = String.fromCharCode(65 + columnIndex);
+      const column = String.fromCodePoint(65 + columnIndex);
       sheet[`${column}1`] = { v: header };
       sheet[`${column}${index + 2}`] = { v: values[field as keyof ReportRowFixtureV1] };
     });
@@ -120,7 +120,7 @@ function ensureSheetJsV1(rows: readonly ReportRowFixtureV1[]) {
 
 function syntheticFileV1(name: string) {
   const file = new File(['synthetic-browser-preview'], name);
-  Object.defineProperty(file, 'arrayBuffer', { value: async () => new ArrayBuffer(1) });
+  Object.defineProperty(file, 'arrayBuffer', { value: () => Promise.resolve(new ArrayBuffer(1)) });
   return file;
 }
 
