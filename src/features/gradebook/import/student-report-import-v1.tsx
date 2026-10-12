@@ -306,6 +306,10 @@ export function StudentReportImportV1({
       if (!controller.current?.signal.aborted) setBusy(false);
     }
   }
+  const updateLink = (index: number, change: Partial<ReportClassLinkV1>) =>
+    setLinks((previous) =>
+      previous.map((item, at) => (at === index ? { ...item, ...change } : item)),
+    );
   function classLinks(current: { report: ReadStudentReportV1; catalog: CatalogV1 }) {
     return (
       <>
@@ -325,19 +329,10 @@ export function StudentReportImportV1({
                     value={link.gradebookClassId ?? ''}
                     disabled={busy}
                     onChange={(event) =>
-                      setLinks((previous) =>
-                        previous.map((item, at) =>
-                          at === index
-                            ? {
-                                ...item,
-                                gradebookClassId: event.target.value
-                                  ? Number(event.target.value)
-                                  : null,
-                                confirmRegular: false,
-                              }
-                            : item,
-                        ),
-                      )
+                      updateLink(index, {
+                        gradebookClassId: event.target.value ? Number(event.target.value) : null,
+                        confirmRegular: false,
+                      })
                     }
                   >
                     <option value="">Sem ligação</option>
@@ -356,13 +351,7 @@ export function StudentReportImportV1({
                   size="sm"
                   variant="secondary"
                   isDisabled={busy}
-                  onPress={() =>
-                    setLinks((previous) =>
-                      previous.map((item, at) =>
-                        at === index ? { ...item, gradebookClassId: suggestions[index]!.id } : item,
-                      ),
-                    )
-                  }
+                  onPress={() => updateLink(index, { gradebookClassId: suggestions[index]!.id })}
                 >
                   Ligar a {suggestions[index]!.label}
                 </Button>
@@ -371,13 +360,7 @@ export function StudentReportImportV1({
                 <Checkbox
                   isSelected={link.confirmRegular}
                   isDisabled={busy || link.gradebookClassId === null}
-                  onChange={(value) =>
-                    setLinks((previous) =>
-                      previous.map((item, at) =>
-                        at === index ? { ...item, confirmRegular: value } : item,
-                      ),
-                    )
-                  }
+                  onChange={(value) => updateLink(index, { confirmRegular: value })}
                 >
                   <Checkbox.Content>
                     <Checkbox.Control>
