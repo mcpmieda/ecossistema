@@ -21,6 +21,7 @@ const databaseName =
 let owner: ReturnType<typeof postgres>;
 let portal: ReturnType<typeof postgres>;
 let peer: ReturnType<typeof postgres>;
+let portalUrl = '';
 const actor = '11111111-1111-4111-8111-111111111111';
 const generation = crypto.randomUUID();
 const cryptography = new PortalCryptoV1(
@@ -66,7 +67,8 @@ beforeAll(async () => {
     [generation],
   );
   url.username = 'student_portal_app';
-  portal = postgres(url.toString(), { max: 1, onnotice: () => undefined });
+    portalUrl = url.toString();
+    portal = postgres(portalUrl, { max: 1, onnotice: () => undefined });
 }, 60_000);
 afterAll(async () => {
   await portal?.end({ timeout: 2 });
@@ -162,6 +164,20 @@ function prepare(b: Batch) {
     expectedScopeRevision: 0,
   });
 }
+function prepareWith(sql: ReturnType<typeof postgres>, b: Batch) {
+  return prepareReconciliationCredentialsV1(
+    sql as unknown as StudentPortalPostgresSqlV1,
+    cryptography,
+    1,
+    actor,
+    {
+      contractVersion: 1,
+      batchId: b.id,
+      generation,
+      expectedScopeRevision: 0,
+    },
+  );
+}
 async function materialize(tx: postgres.TransactionSql, b: Batch) {
   const rows = await tx.unsafe(
     'SELECT *,birth_date::text AS birth_date FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1 ORDER BY source_row',
@@ -232,6 +248,15 @@ async function snapshot(people: Student[]) {
     [JSON.stringify(ids)],
   );
 }
+async function stagedSummary(batchId: string) {
+  const [row] = await owner.unsafe(
+    `SELECT count(*) FILTER(WHERE prepared)::integer AS prepared,
+      count(*) FILTER(WHERE NOT prepared)::integer AS remaining
+      FROM student_portal.reconciliation_credential_stage_v1 WHERE batch_id=$1`,
+    [batchId],
+  );
+  return { prepared: Number(row!.prepared), remaining: Number(row!.remaining) };
+}
 
 it('prepares at most four sequential KDFs without changing any account and resumes before one activation', async () => {
   const people = await students(5),
@@ -258,6 +283,51 @@ it('prepares at most four sequential KDFs without changing any account and resum
       [b.id],
     ),
   ).toHaveLength(0);
+}, 30_000);
+
+it('stages independent batches concurrently without crossing the four-KDF cap or mutating other accounts', async () => {
+  const firstPeople = await students(5),
+    secondPeople = await students(5),
+    firstBatch = await batch(firstPeople, '2014-02-03'),
+    secondBatch = await batch(secondPeople, '2015-02-03'),
+    beforeFirst = await snapshot(firstPeople),
+    beforeSecond = await snapshot(secondPeople);
+  const firstPortal = postgres(portalUrl, { max: 1, onnotice: () => undefined });
+  const secondPortal = postgres(portalUrl, { max: 1, onnotice: () => undefined });
+  try {
+    const [firstStage, secondStage] = await Promise.all([
+      prepareWith(firstPortal, firstBatch),
+      prepareWith(secondPortal, secondBatch),
+    ]);
+    expect(firstStage).toEqual({ state: 'preparing', preparedCount: 4, remainingCount: 1 });
+    expect(secondStage).toEqual({ state: 'preparing', preparedCount: 4, remainingCount: 1 });
+    expect(await snapshot(firstPeople)).toEqual(beforeFirst);
+    expect(await snapshot(secondPeople)).toEqual(beforeSecond);
+    expect(await stagedSummary(firstBatch.id)).toEqual({ prepared: 4, remaining: 1 });
+    expect(await stagedSummary(secondBatch.id)).toEqual({ prepared: 4, remaining: 1 });
+    const [firstReady, secondReady] = await Promise.all([
+      prepareWith(firstPortal, firstBatch),
+      prepareWith(secondPortal, secondBatch),
+    ]);
+    expect(firstReady).toEqual({ state: 'ready', preparedCount: 5, remainingCount: 0 });
+    expect(secondReady).toEqual({ state: 'ready', preparedCount: 5, remainingCount: 0 });
+    expect(await stagedSummary(firstBatch.id)).toEqual({ prepared: 5, remaining: 0 });
+    expect(await stagedSummary(secondBatch.id)).toEqual({ prepared: 5, remaining: 0 });
+    await apply(firstBatch);
+    const afterFirst = await snapshot(firstPeople);
+    const stillSecond = await snapshot(secondPeople);
+    for (const row of afterFirst) expect(row.birth).toBe(2014);
+    expect(stillSecond).toEqual(beforeSecond);
+    expect(await stagedSummary(firstBatch.id)).toEqual({ prepared: 0, remaining: 0 });
+    expect(await stagedSummary(secondBatch.id)).toEqual({ prepared: 5, remaining: 0 });
+    await apply(secondBatch);
+    const afterSecond = await snapshot(secondPeople);
+    for (const row of afterSecond) expect(row.birth).toBe(2015);
+    expect(await stagedSummary(secondBatch.id)).toEqual({ prepared: 0, remaining: 0 });
+  } finally {
+    await firstPortal.end({ timeout: 2 });
+    await secondPortal.end({ timeout: 2 });
+  }
 }, 30_000);
 
 it('rolls back every profile, birth and PIN when the last credential fails, then safely retries', async () => {

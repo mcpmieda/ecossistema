@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentReconciliationV1 } from '../../src/features/student-portal-admin/accounts/student-reconciliation-v1';
 import { ReportValidationErrorsV1 } from '../../src/features/gradebook/import/student-report-import-v1';
@@ -28,6 +28,15 @@ const context = {
 };
 const longName = 'S'.repeat(300);
 const longSourceName = 'R'.repeat(300);
+function deferredV1<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
+}
 const prepare: PreparedReconciliationV1 = {
   contractVersion: 1,
   state: 'ready',
@@ -274,7 +283,7 @@ describe('Relatório e aba Alunos', () => {
     },
   );
   it('descarta a resposta atrasada da lista anterior quando a busca muda', async () => {
-    let releaseFirst: (value: ReconciliationResponseV1) => void = () => undefined;
+    const firstList = deferredV1<ReconciliationResponseV1>();
     const request = vi.fn(
       async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
         if (input.operation === 'catalog')
@@ -287,9 +296,7 @@ describe('Relatório e aba Alunos', () => {
             reportClasses: [],
           };
         if (input.operation === 'list' && !input.search)
-          return new Promise<ReconciliationResponseV1>((resolve) => {
-            releaseFirst = resolve;
-          });
+          return firstList.promise;
         if (input.operation === 'list')
           return {
             contractVersion: 1,
@@ -343,29 +350,33 @@ describe('Relatório e aba Alunos', () => {
       ).toBe(true),
     );
     expect(await screen.findByText('Pessoa Atual')).toBeTruthy();
-    releaseFirst({
-      contractVersion: 1,
-      state: 'ready',
-      operation: 'list',
-      context,
-      nextCursor: null,
-      items: [
-        {
-          kind: 'person',
-          studentUid: uid,
-          academicStudentId: 1,
-          academicYear: 2026,
-          name: 'Pessoa Atrasada',
-          relationName: 'Relação Atrasada',
-          classId: 7,
-          classLabel: '7A',
-          version: 1,
-          reconciliation: 'pending',
-          portal: 'without-portal',
-          accountId: null,
-          possibleSamePerson: false,
-        },
-      ],
+    await act(async () => {
+      firstList.resolve({
+        contractVersion: 1,
+        state: 'ready',
+        operation: 'list',
+        context,
+        nextCursor: null,
+        items: [
+          {
+            kind: 'person',
+            studentUid: uid,
+            academicStudentId: 1,
+            academicYear: 2026,
+            name: 'Pessoa Atrasada',
+            relationName: 'Relação Atrasada',
+            classId: 7,
+            classLabel: '7A',
+            version: 1,
+            reconciliation: 'pending',
+            portal: 'without-portal',
+            accountId: null,
+            possibleSamePerson: false,
+          },
+        ],
+      });
+      await firstList.promise;
+      await Promise.resolve();
     });
     await waitFor(() => {
       expect(screen.getByText('Pessoa Atual')).toBeTruthy();
@@ -489,6 +500,7 @@ describe('Relatório e aba Alunos', () => {
     });
   });
   it('envia confirmação de vínculo e volta para a lista quando o CAS fica obsoleto', async () => {
+    const resolvePayloads: ReconciliationRequestV1[] = [];
     const request = vi.fn(
       async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
         if (input.operation === 'catalog')
@@ -550,7 +562,10 @@ describe('Relatório e aba Alunos', () => {
             candidates: [],
             history: [],
           };
-        if (input.operation === 'resolve') return { contractVersion: 1, state: 'conflict' };
+        if (input.operation === 'resolve') {
+          resolvePayloads.push(structuredClone(input));
+          return { contractVersion: 1, state: 'conflict' };
+        }
         return {
           contractVersion: 1,
           state: 'ready',
@@ -581,10 +596,21 @@ describe('Relatório e aba Alunos', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(
       'Dados alterados. Confira novamente.',
     );
+    expect(resolvePayloads).toEqual([
+      expect.objectContaining({
+        operation: 'resolve',
+        action: 'confirm',
+        sourceId,
+        studentUid: uid,
+        expectedLinkVersion: 7,
+        revertsDecisionId: null,
+      }),
+    ]);
     expect(screen.queryByRole('button', { name: 'Voltar aos alunos' })).toBeNull();
   });
   it('repete a mesma resolução depois de uma resposta perdida sem trocar o payload', async () => {
     let resolves = 0;
+    const resolvePayloads: ReconciliationRequestV1[] = [];
     const request = vi.fn(
       async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
         if (input.operation === 'catalog')
@@ -646,7 +672,10 @@ describe('Relatório e aba Alunos', () => {
             candidates: [{ studentUid: candidateUid, name: 'Aluno Retry', classLabel: '7A' }],
             history: [],
           };
-        if (input.operation === 'resolve' && ++resolves === 1) throw new Error('Resposta perdida');
+        if (input.operation === 'resolve') {
+          resolvePayloads.push(structuredClone(input));
+          if (++resolves === 1) throw new Error('Resposta perdida');
+        }
         if (input.operation === 'resolve')
           return {
             contractVersion: 1,
@@ -687,12 +716,18 @@ describe('Relatório e aba Alunos', () => {
         request.mock.calls.filter(([input]) => input.operation === 'resolve'),
       ).toHaveLength(2),
     );
-    const resolvesSent = request.mock.calls
-      .map(([input]) => input)
-      .filter((input) => input.operation === 'resolve');
-    expect(resolvesSent[0]).toEqual(resolvesSent[1]);
+    expect(resolvePayloads).toHaveLength(2);
+    expect(resolvePayloads[0]).toEqual(resolvePayloads[1]);
+    expect(resolvePayloads[0]).toMatchObject({
+      operation: 'resolve',
+      action: 'associate',
+      sourceId,
+      studentUid: candidateUid,
+      expectedLinkVersion: 3,
+      revertsDecisionId: null,
+    });
   });
-  it('mantém nomes longos e permite N→1 escolhendo outra observação inteira da mesma pessoa', async () => {
+  it('mantém nomes longos e permite escolher outra observação inteira já ligada da mesma pessoa', async () => {
     const request = vi.fn(
       async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
         if (input.operation === 'catalog')

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentReportImportV1 } from '../../src/features/gradebook/import/student-report-import-v1';
 import { loadSheetJs } from '../../src/features/gradebook/import/sheetjs-loader';
@@ -75,6 +75,16 @@ function syntheticFile(name = 'relatorio.xlsx') {
   const file = new File(['synthetic'], name);
   Object.defineProperty(file, 'arrayBuffer', { value: async () => new ArrayBuffer(1) });
   return file;
+}
+
+function deferredV1<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, resolve, reject };
 }
 
 function loadReport(reverse: boolean) {
@@ -213,9 +223,9 @@ describe('ligações de turma ao importar Relatório', () => {
   });
 
   it('ignora o retorno atrasado do arquivo anterior quando a Secretaria troca o relatório', async () => {
-    let releaseFirst: (reader: SheetJs) => void = () => undefined;
+    const firstReader = deferredV1<SheetJs>();
     vi.mocked(loadSheetJs)
-      .mockImplementationOnce(() => new Promise<SheetJs>((resolve) => { releaseFirst = resolve; }))
+      .mockImplementationOnce(() => firstReader.promise)
       .mockResolvedValueOnce(
         readerForRows([
           {
@@ -244,31 +254,36 @@ describe('ligações de turma ao importar Relatório', () => {
       <StudentReportImportV1 file={syntheticFile('segundo.xlsx')} client={client} onClose={vi.fn()} />,
     );
     await screen.findByText('8B 2026 - MATUTINO');
-    releaseFirst(
-      readerForRows([
-        {
-          name: 'Pessoa Sintética 7A',
-          classLabel: '7A 2026 - MATUTINO',
-          shift: 'MATUTINO',
-          stageLabel: 'Ensino Fundamental de 9 anos - 7º Ano',
-          status: 'Ativo',
-          enrolledAt: '2026-02-01',
-          transferredAt: null,
-          enrollmentHash: 'synthetic-enrollment-7a',
-          inep: null,
-          birthDate: '2013-03-22',
-          filiation1: null,
-        },
-      ]),
-    );
+    await act(async () => {
+      firstReader.resolve(
+        readerForRows([
+          {
+            name: 'Pessoa Sintética 7A',
+            classLabel: '7A 2026 - MATUTINO',
+            shift: 'MATUTINO',
+            stageLabel: 'Ensino Fundamental de 9 anos - 7º Ano',
+            status: 'Ativo',
+            enrolledAt: '2026-02-01',
+            transferredAt: null,
+            enrollmentHash: 'synthetic-enrollment-7a',
+            inep: null,
+            birthDate: '2013-03-22',
+            filiation1: null,
+          },
+        ]),
+      );
+      await firstReader.promise;
+      await Promise.resolve();
+    });
     await waitFor(() => {
       expect(screen.getByText('8B 2026 - MATUTINO')).toBeTruthy();
       expect(screen.queryByText('7A 2026 - MATUTINO')).toBeNull();
     });
   });
 
-  it('recarrega o catálogo e exige novo prepare quando a revisão muda antes da gravação', async () => {
+  it('recarrega o catálogo e o novo prepare usa o contexto atualizado quando a revisão muda antes da gravação', async () => {
     let catalogCalls = 0;
+    let prepareCalls = 0;
     const client = {
       request: vi.fn(async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
         if (input.operation === 'catalog') {
@@ -287,7 +302,26 @@ describe('ligações de turma ao importar Relatório', () => {
             reportClasses: [],
           };
         }
-        if (input.operation === 'prepare') return { contractVersion: 1, state: 'conflict' };
+        if (input.operation === 'prepare' && ++prepareCalls === 1)
+          return { contractVersion: 1, state: 'conflict' };
+        if (input.operation === 'prepare')
+          return {
+            contractVersion: 1,
+            state: 'ready',
+            operation: 'prepare',
+            context: {
+              generation: '12690000-0000-4000-8000-000000000002',
+              revision: 2,
+              nameSource: 'report',
+              relationAvailable: true,
+            },
+            batchId: preparedBatchId,
+            batchState: 'preparing',
+            expiresAt: '2099-01-01T00:00:00Z',
+            differences: [],
+            counts: { rows: 2, linked: 2, pending: 0 },
+            credentialsReady: true,
+          };
         return { contractVersion: 1, state: 'validation-failed', errors: [] };
       }),
     };
@@ -298,12 +332,30 @@ describe('ligações de turma ao importar Relatório', () => {
     expect(screen.getByRole('alert').textContent).toBe(
       'A lista mudou. Confira as turmas e prepare novamente.',
     );
-    expect(screen.getByRole('button', { name: 'Preparar relatório' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Preparar relatório' }));
+    await screen.findByLabelText('Conferência do relatório');
+    const prepareRequests = client.request.mock.calls
+      .map(([input]) => structuredClone(input))
+      .filter((input) => input.operation === 'prepare');
+    expect(prepareRequests).toHaveLength(2);
+    expect(prepareRequests[0]).toMatchObject({
+      generation: '12690000-0000-4000-8000-000000000001',
+      expectedRevision: 1,
+    });
+    expect(prepareRequests[1]).toMatchObject({
+      generation: '12690000-0000-4000-8000-000000000002',
+      expectedRevision: 2,
+    });
   });
 
   it('aborta o stage sem aplicar quando a janela do relatório é fechada durante a preparação', async () => {
     let stageCalls = 0;
     let applyCalls = 0;
+    const stageStarted = deferredV1<void>();
+    const stageAborted = deferredV1<void>();
+    const lateStageResponse = deferredV1<void>();
+    let releaseStage: (value: ReconciliationResponseV1) => void = () => undefined;
+    const abortStates: boolean[] = [];
     const client = {
       request: vi.fn(
         async (
@@ -340,22 +392,20 @@ describe('ligações de turma ao importar Relatório', () => {
             };
           if (input.operation === 'stage') {
             stageCalls++;
+            stageStarted.resolve();
             return new Promise<ReconciliationResponseV1>((resolve, reject) => {
+              releaseStage = (value) => {
+                lateStageResponse.resolve();
+                resolve(value);
+              };
               signal?.addEventListener(
                 'abort',
-                () => reject(new DOMException('Aborted', 'AbortError')),
+                () => {
+                  abortStates.push(signal.aborted);
+                  stageAborted.resolve();
+                  reject(new DOMException('Aborted', 'AbortError'));
+                },
                 { once: true },
-              );
-              setTimeout(
-                () =>
-                  resolve({
-                    contractVersion: 1,
-                    state: 'ready',
-                    operation: 'stage',
-                    ready: false,
-                    remaining: 1,
-                  }),
-                25,
               );
             });
           }
@@ -375,11 +425,16 @@ describe('ligações de turma ao importar Relatório', () => {
     function Host() {
       const [open, setOpen] = useState(true);
       return open ? (
-        <StudentReportImportV1
-          file={loadReport(false)}
-          client={client}
-          onClose={() => setOpen(false)}
-        />
+        <>
+          <button type="button" onClick={() => setOpen(false)}>
+            Fechar host
+          </button>
+          <StudentReportImportV1
+            file={loadReport(false)}
+            client={client}
+            onClose={() => setOpen(false)}
+          />
+        </>
       ) : (
         <p>Relatório fechado</p>
       );
@@ -387,9 +442,27 @@ describe('ligações de turma ao importar Relatório', () => {
     render(<Host />);
     fireEvent.click(await screen.findByRole('button', { name: 'Preparar relatório' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Aplicar relatório' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    await act(async () => {
+      await stageStarted.promise;
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar host' }));
     await screen.findByText('Relatório fechado');
-    await waitFor(() => expect(stageCalls).toBe(1));
+    await act(async () => {
+      await stageAborted.promise;
+    });
+    expect(abortStates).toEqual([true]);
+    await act(async () => {
+      releaseStage({
+        contractVersion: 1,
+        state: 'ready',
+        operation: 'stage',
+        ready: true,
+        remaining: 0,
+      });
+      await lateStageResponse.promise;
+      await Promise.resolve();
+    });
+    expect(stageCalls).toBe(1);
     expect(applyCalls).toBe(0);
   });
 });
