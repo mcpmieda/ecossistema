@@ -133,4 +133,32 @@ describe('interface de conferência explícita de movimentações V9', () => {
     expect(onConfirm).not.toHaveBeenCalled();
     expect(onCancel).not.toHaveBeenCalled();
   });
+
+  it('preserves long synthetic names in the transfer review without truncating the explicit choice', () => {
+    const longOrigin = 'O'.repeat(300);
+    const longDestination = 'D'.repeat(300);
+    render(
+      <RelationMovementReviewV9
+        review={{
+          digest: 'c'.repeat(64),
+          groups: [
+            {
+              origins: [{ classCode: '9A', number: 1, name: longOrigin }],
+              destinations: [{ classCode: '9B', number: 2, name: longDestination }],
+            },
+          ],
+        }}
+        busy={false}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(longOrigin)).toBeTruthy();
+    fireEvent.change(
+      screen.getByRole('combobox', { name: new RegExp(`Destino para ${longOrigin}`, 'u') }),
+      { target: { value: JSON.stringify(['9B', 2]) } },
+    );
+    expect(screen.getByRole('option', { name: `${longDestination} · 9B · nº 2` })).toBeTruthy();
+    expect(confirm()).toHaveProperty('disabled', false);
+  });
 });
