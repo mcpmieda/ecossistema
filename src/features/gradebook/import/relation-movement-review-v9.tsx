@@ -75,6 +75,9 @@ export function RelationMovementReviewV9({
           )}
           {group.origins.map((origin) => {
             const originKey = positionKey(origin);
+            const selectedDestination = group.destinations.find(
+              (destination) => positionKey(destination) === selected[originKey],
+            );
             const taken = new Set(
               group.origins
                 .filter((item) => positionKey(item) !== originKey)
@@ -112,6 +115,11 @@ export function RelationMovementReviewV9({
                       </option>
                     ))}
                   </select>
+                  <span aria-live="polite" className="break-words">
+                    {selectedDestination
+                      ? `${selectedDestination.name} · ${selectedDestination.classCode} · nº ${selectedDestination.number}`
+                      : null}
+                  </span>
                 </label>
               </div>
             );

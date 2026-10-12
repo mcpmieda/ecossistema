@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { Button, Card, SearchField, Table } from '@heroui/react';
 import type {
   ReconciliationContextV1,
@@ -62,6 +62,31 @@ const itemKeyV1 = (item: ReconciliationListItemV1) =>
 const itemStateV1 = (item: ReconciliationListItemV1) =>
   stateLabelV1(item.kind === 'person' ? item.reconciliation : item.reason);
 
+function focusVisibleV1(element: HTMLElement | null) {
+  element?.focus({ preventScroll: true });
+  element?.scrollIntoView?.({ block: 'nearest' });
+}
+
+function ReconciliationFeedbackV1({
+  message,
+  busy,
+  focus,
+}: Readonly<{ message: string; busy: boolean; focus: boolean }>) {
+  const target = useRef<HTMLParagraphElement>(null);
+  const focused = useRef(false);
+  useEffect(() => {
+    if (focus && !busy && !focused.current) {
+      focusVisibleV1(target.current);
+      focused.current = true;
+    }
+  }, [busy, focus]);
+  return (
+    <p ref={target} role="alert" tabIndex={-1}>
+      {message}
+    </p>
+  );
+}
+
 function PortalCellV1({ item }: Readonly<{ item: ReconciliationListItemV1 }>) {
   if (item.kind === 'person')
     return <>{item.portal === 'with-portal' ? 'Com Portal' : 'Sem Portal'}</>;
@@ -79,11 +104,21 @@ function ReconciliationListV1({
   items,
   busy,
   open,
+  returnFocus,
 }: Readonly<{
   items: readonly ReconciliationListItemV1[];
   busy: boolean;
   open: (item: ReconciliationListItemV1) => Promise<void>;
+  returnFocus: RefObject<string | null>;
 }>) {
+  const [focusTarget, setFocusTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (focusTarget?.isConnected && returnFocus.current) {
+      // Let the grid establish its focused cell before moving focus to its button.
+      focusVisibleV1(focusTarget);
+      returnFocus.current = null;
+    }
+  }, [focusTarget, returnFocus]);
   if (items.length === 0)
     return busy ? null : (
       <p className="text-sm text-muted">Nenhum aluno ou pendência encontrado.</p>
@@ -101,7 +136,14 @@ function ReconciliationListV1({
           <Table.Body>
             {items.map((item) => (
               <Table.Row key={itemKeyV1(item)} id={itemKeyV1(item)}>
-                <Table.Cell>
+                <Table.Cell
+                  focusMode="child"
+                  ref={(element) => {
+                    if (element && returnFocus.current === itemKeyV1(item)) {
+                      setFocusTarget(element);
+                    }
+                  }}
+                >
                   <Button
                     variant="ghost"
                     size="sm"
@@ -152,8 +194,10 @@ export function StudentReconciliationV1({
   const [error, setError] = useState('');
   const [mutationRetry, setMutationRetry] = useState<ReconciliationRequestV1 | null>(null);
   const [notice, setNotice] = useState('');
+  const [focusFeedback, setFocusFeedback] = useState(false);
   const active = useRef<AbortController | null>(null);
   const detailRead = useRef<AbortController | null>(null);
+  const returnFocus = useRef<string | null>(null);
   const classId = scope.kind === 'class' ? scope.classId : null;
   const locked = busy || Boolean(mutationRetry);
   useEffect(() => {
@@ -200,6 +244,7 @@ export function StudentReconciliationV1({
           setPrepared(null);
           setContext(null);
           setCatalog(null);
+          setFocusFeedback(false);
           setError(cause instanceof Error ? cause.message : 'Consulta indisponível.');
         }
       } finally {
@@ -270,6 +315,7 @@ export function StudentReconciliationV1({
     } catch (cause) {
       if (!controller.signal.aborted) {
         setSelected(null);
+        setFocusFeedback(true);
         setError(cause instanceof Error ? cause.message : 'Consulta indisponível.');
       }
     } finally {
@@ -288,11 +334,13 @@ export function StudentReconciliationV1({
       setPrepared(result);
       return;
     }
-    setError(reconciliationMessageV1(result));
+    setFocusFeedback(true);
     if (result.state === 'conflict' || result.state === 'expired') {
       setNotice(reconciliationMessageV1(result));
       reload();
+      return;
     }
+    setError(reconciliationMessageV1(result));
   }
   async function mutate(request: ReconciliationRequestV1) {
     if (busy || (mutationRetry && mutationRetry !== request)) return;
@@ -305,12 +353,16 @@ export function StudentReconciliationV1({
       setMutationRetry(null);
       settle(result);
     } catch {
-      if (!active.current?.signal.aborted) setError('Resposta não confirmada. Tente novamente.');
+      if (!active.current?.signal.aborted) {
+        setFocusFeedback(true);
+        setError('Resposta não confirmada. Tente novamente.');
+      }
     } finally {
       if (!active.current?.signal.aborted) setBusy(false);
     }
   }
   const back = () => {
+    returnFocus.current = selected ? itemKeyV1(selected) : null;
     detailRead.current?.abort();
     setSelected(null);
     setDetail(null);
@@ -361,7 +413,9 @@ export function StudentReconciliationV1({
           <Button size="sm" variant="secondary" isDisabled={locked} onPress={back}>
             Voltar aos alunos
           </Button>
-          <h3 className="break-words text-lg font-semibold">{current.name}</h3>
+          <h3 ref={focusVisibleV1} tabIndex={-1} className="break-words text-lg font-semibold">
+            {current.name}
+          </h3>
           {current.kind === 'person' && current.relationName !== current.name ? (
             <p className="break-words text-sm">Relação: {current.relationName}</p>
           ) : null}
@@ -378,7 +432,7 @@ export function StudentReconciliationV1({
   function listSection() {
     return (
       <>
-        <ReconciliationListV1 items={items} busy={busy} open={open} />
+        <ReconciliationListV1 items={items} busy={busy} open={open} returnFocus={returnFocus} />
         {cursor ? (
           <Button
             variant="secondary"
@@ -443,8 +497,14 @@ export function StudentReconciliationV1({
           ) : null}
         </Card.Content>
       </Card>
-      {error ? <p role="alert">{error}</p> : null}
-      {notice && notice !== error ? <p role="alert">{notice}</p> : null}
+      {error || notice ? (
+        <ReconciliationFeedbackV1
+          key={error || notice}
+          message={error || notice}
+          busy={busy}
+          focus={focusFeedback}
+        />
+      ) : null}
       {mutationRetry && !busy ? (
         <Button variant="secondary" onPress={() => void mutate(mutationRetry)}>
           Repetir mesma solicitação
@@ -478,16 +538,19 @@ function SourceActionsV1({
   busy: boolean;
   choice: string;
   onChoice: (studentUid: string) => void;
-  onConfirm: (confirmation: PendingConfirmationV1) => void;
+  onConfirm: (confirmation: PendingConfirmationV1, trigger: Element) => void;
   mutate: MutateV1;
 }>) {
   const linkedUid = source.studentUid;
+  const choiceDescriptionId = useId();
+  const candidate = detail.candidates.find((item) => item.studentUid === choice);
   if (!linkedUid)
     return (
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <select
           className="max-w-full rounded-lg border border-default bg-surface p-2"
           aria-label={`Aluno da Relação para ${source.name}`}
+          aria-describedby={candidate ? choiceDescriptionId : undefined}
           value={choice}
           disabled={busy}
           onChange={(event) => onChoice(event.target.value)}
@@ -499,13 +562,22 @@ function SourceActionsV1({
             </option>
           ))}
         </select>
+        {candidate ? (
+          <p
+            id={choiceDescriptionId}
+            className="w-full min-w-0 break-words text-sm"
+            aria-live="polite"
+          >
+            {candidate.name} - {candidate.classLabel}
+          </p>
+        ) : null}
         {(['associate', 'reject', 'release'] as const).map((action) => (
           <Button
             key={action}
             size="sm"
             variant="secondary"
             isDisabled={busy || !choice}
-            onPress={() => onConfirm({ source, uid: choice, action })}
+            onPress={(event) => onConfirm({ source, uid: choice, action }, event.target)}
           >
             {actionLabelV1[action]}
           </Button>
@@ -523,7 +595,7 @@ function SourceActionsV1({
         size="sm"
         variant="secondary"
         isDisabled={busy}
-        onPress={() => onConfirm({ source, uid: linkedUid, action: 'separate' })}
+        onPress={(event) => onConfirm({ source, uid: linkedUid, action: 'separate' }, event.target)}
       >
         Separar
       </Button>
@@ -532,7 +604,9 @@ function SourceActionsV1({
           size="sm"
           variant="secondary"
           isDisabled={busy}
-          onPress={() => onConfirm({ source, uid: linkedUid, action: 'confirm' })}
+          onPress={(event) =>
+            onConfirm({ source, uid: linkedUid, action: 'confirm' }, event.target)
+          }
         >
           Confirmar vínculo
         </Button>
@@ -573,6 +647,11 @@ function ReconciliationDetailV1({
 }>) {
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<PendingConfirmationV1 | null>(null);
+  const confirmationTrigger = useRef<HTMLElement | null>(null);
+  function cancelConfirmation() {
+    setConfirm(null);
+    focusVisibleV1(confirmationTrigger.current);
+  }
   return (
     <>
       {detail.sources.length === 0 ? <p>Sem registro Smecel.</p> : null}
@@ -603,7 +682,10 @@ function ReconciliationDetailV1({
               busy={busy}
               choice={chosen[source.id] ?? ''}
               onChoice={(uid) => setChosen((previous) => ({ ...previous, [source.id]: uid }))}
-              onConfirm={setConfirm}
+              onConfirm={(confirmation, trigger) => {
+                confirmationTrigger.current = trigger instanceof HTMLElement ? trigger : null;
+                setConfirm(confirmation);
+              }}
               mutate={mutate}
             />
           ) : null}
@@ -611,10 +693,19 @@ function ReconciliationDetailV1({
       ))}
       {confirm ? (
         <div
+          ref={focusVisibleV1}
+          tabIndex={-1}
           role="alertdialog"
           aria-modal="false"
           aria-labelledby="reconciliation-confirm-title"
           className="space-y-3 rounded-xl border border-default p-4"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && !busy) {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelConfirmation();
+            }
+          }}
         >
           <h4 id="reconciliation-confirm-title" className="font-semibold">
             Confirmar {confirmNounV1[confirm.action]}?
@@ -642,7 +733,7 @@ function ReconciliationDetailV1({
             >
               Confirmar
             </Button>
-            <Button variant="secondary" isDisabled={busy} onPress={() => setConfirm(null)}>
+            <Button variant="secondary" isDisabled={busy} onPress={cancelConfirmation}>
               Cancelar
             </Button>
           </div>

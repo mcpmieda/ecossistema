@@ -47,6 +47,10 @@ describe('interface de conferência explícita de movimentações V9', () => {
     fireEvent.change(destination('MAÍRA'), { target: { value: key(11) } });
     expect(confirm()).toHaveProperty('disabled', true);
     fireEvent.change(destination('MAÍRA'), { target: { value: key(12) } });
+    expect(screen.getAllByText('LÍVIA CORRIGIDA · 7B · nº 11', { selector: 'span' })).toHaveLength(
+      1,
+    );
+    expect(screen.getByText('MAÍRA CORRIGIDA · 7B · nº 12', { selector: 'span' })).toBeTruthy();
     expect(confirm()).toHaveProperty('disabled', false);
     fireEvent.click(confirm());
     expect(onConfirm).toHaveBeenCalledExactlyOnceWith({
@@ -137,6 +141,7 @@ describe('interface de conferência explícita de movimentações V9', () => {
   it('preserves long synthetic names in the transfer review without truncating the explicit choice', () => {
     const longOrigin = 'O'.repeat(300);
     const longDestination = 'D'.repeat(300);
+    const selectedDestinationLabel = `${longDestination} · 9B · nº 2`;
     render(
       <RelationMovementReviewV9
         review={{
@@ -154,11 +159,18 @@ describe('interface de conferência explícita de movimentações V9', () => {
       />,
     );
     expect(screen.getByText(longOrigin)).toBeTruthy();
-    fireEvent.change(
-      screen.getByRole('combobox', { name: new RegExp(`Destino para ${longOrigin}`, 'u') }),
-      { target: { value: JSON.stringify(['9B', 2]) } },
+    const destinationChoice = screen.getByRole('combobox', {
+      name: new RegExp(`Destino para ${longOrigin}`, 'u'),
+    });
+    expect(screen.queryByText(selectedDestinationLabel, { selector: 'span' })).toBeNull();
+    fireEvent.change(destinationChoice, { target: { value: JSON.stringify(['9B', 2]) } });
+    expect(screen.getByRole('option', { name: selectedDestinationLabel })).toBeTruthy();
+    expect(screen.getByText(selectedDestinationLabel, { selector: 'span' }).textContent).toBe(
+      selectedDestinationLabel,
     );
-    expect(screen.getByRole('option', { name: `${longDestination} · 9B · nº 2` })).toBeTruthy();
     expect(confirm()).toHaveProperty('disabled', false);
+    fireEvent.change(destinationChoice, { target: { value: '' } });
+    expect(screen.queryByText(selectedDestinationLabel, { selector: 'span' })).toBeNull();
+    expect(confirm()).toHaveProperty('disabled', true);
   });
 });

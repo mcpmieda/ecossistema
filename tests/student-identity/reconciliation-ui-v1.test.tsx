@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentReconciliationV1 } from '../../src/features/student-portal-admin/accounts/student-reconciliation-v1';
 import { ReportValidationErrorsV1 } from '../../src/features/gradebook/import/student-report-import-v1';
@@ -155,6 +156,43 @@ describe('Relatório e aba Alunos', () => {
     );
     expect(screen.queryByRole('button', { name: 'Acesso ao Portal' })).toBeNull();
   });
+  it('preserva o foco da busca quando a consulta automática falha', async () => {
+    const user = userEvent.setup();
+    const request = vi.fn(
+      async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
+        if (input.operation === 'catalog')
+          return {
+            contractVersion: 1,
+            state: 'ready',
+            operation: 'catalog',
+            context,
+            classes: [],
+            reportClasses: [],
+          };
+        if (input.operation === 'list' && input.search)
+          throw new Error('Busca sintética indisponível.');
+        return {
+          contractVersion: 1,
+          state: 'ready',
+          operation: 'list',
+          context,
+          nextCursor: null,
+          items: [],
+        };
+      },
+    );
+    render(
+      <StudentReconciliationV1
+        client={{ request }}
+        scope={{ kind: 'school', academicYear: 2026 }}
+        canWrite
+      />,
+    );
+    const search = await screen.findByRole('searchbox', { name: 'Buscar aluno ou pendência' });
+    await user.type(search, 'teste');
+    expect((await screen.findByRole('alert')).textContent).toBe('Busca sintética indisponível.');
+    expect(document.activeElement).toBe(search);
+  });
   it('lista todos os erros de nascimento como texto, com aluno e turma destacados', () => {
     render(
       <ReportValidationErrorsV1
@@ -295,8 +333,7 @@ describe('Relatório e aba Alunos', () => {
             classes: [],
             reportClasses: [],
           };
-        if (input.operation === 'list' && !input.search)
-          return firstList.promise;
+        if (input.operation === 'list' && !input.search) return firstList.promise;
         if (input.operation === 'list')
           return {
             contractVersion: 1,
@@ -445,7 +482,7 @@ describe('Relatório e aba Alunos', () => {
                 reviewRequired: false,
               },
             ],
-            candidates: [{ studentUid: candidateUid, name: 'Aluno da Relação', classLabel: '7A' }],
+            candidates: [{ studentUid: candidateUid, name: longName, classLabel: '7A' }],
             history: [],
           };
         if (input.operation === 'resolve')
@@ -477,6 +514,15 @@ describe('Relatório e aba Alunos', () => {
       await screen.findByRole('combobox', { name: 'Aluno da Relação para Registro Externo' }),
       { target: { value: candidateUid } },
     );
+    const candidateDescription = screen.getByText(`${longName} - 7A`, { selector: 'p' });
+    expect(candidateDescription.className).toContain('break-words');
+    const candidateSelect = screen.getByRole('combobox', {
+      name: 'Aluno da Relação para Registro Externo',
+    });
+    expect(candidateSelect.getAttribute('aria-describedby')).toBe(candidateDescription.id);
+    fireEvent.change(candidateSelect, { target: { value: '' } });
+    expect(screen.queryByText(`${longName} - 7A`, { selector: 'p' })).toBeNull();
+    fireEvent.change(candidateSelect, { target: { value: candidateUid } });
     fireEvent.click(screen.getByRole('button', { name: button }));
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
     await waitFor(() =>
@@ -489,9 +535,7 @@ describe('Relatório e aba Alunos', () => {
         ),
       ).toBe(true),
     );
-    expect(
-      request.mock.calls.find(([input]) => input.operation === 'resolve')?.[0],
-    ).toMatchObject({
+    expect(request.mock.calls.find(([input]) => input.operation === 'resolve')?.[0]).toMatchObject({
       sourceId,
       studentUid: candidateUid,
       action,
@@ -499,7 +543,10 @@ describe('Relatório e aba Alunos', () => {
       revertsDecisionId: null,
     });
   });
-  it('envia confirmação de vínculo e volta para a lista quando o CAS fica obsoleto', async () => {
+  it('mantém foco na entrada, no cancelamento e no alerta após recarregar um conflito de CAS', async () => {
+    const user = userEvent.setup();
+    const reloadList = deferredV1<void>();
+    let listReads = 0;
     const resolvePayloads: ReconciliationRequestV1[] = [];
     const request = vi.fn(
       async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
@@ -512,7 +559,8 @@ describe('Relatório e aba Alunos', () => {
             classes: [],
             reportClasses: [],
           };
-        if (input.operation === 'list')
+        if (input.operation === 'list') {
+          if (++listReads === 2) await reloadList.promise;
           return {
             contractVersion: 1,
             state: 'ready',
@@ -537,6 +585,7 @@ describe('Relatório e aba Alunos', () => {
               },
             ],
           };
+        }
         if (input.operation === 'detail')
           return {
             contractVersion: 1,
@@ -583,9 +632,33 @@ describe('Relatório e aba Alunos', () => {
         canWrite
       />,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Pessoa em Revisão' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar vínculo' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
+    await user.click(await screen.findByRole('button', { name: 'Pessoa em Revisão' }));
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Pessoa em Revisão' }));
+    await screen.findByRole('button', { name: 'Confirmar vínculo' });
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Voltar aos alunos' }));
+    await user.keyboard('{Enter}');
+    const student = await screen.findByRole('button', { name: 'Pessoa em Revisão' });
+    await waitFor(() => expect(document.activeElement).toBe(student));
+    await user.keyboard('{Enter}');
+    const trigger = await screen.findByRole('button', { name: 'Confirmar vínculo' });
+    await user.click(trigger);
+    expect(document.activeElement).toBe(screen.getByRole('alertdialog'));
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Confirmar' }));
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancelar' }));
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    await user.keyboard('{Enter}');
+    expect(document.activeElement).toBe(screen.getByRole('alertdialog'));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    await user.keyboard('{Enter}');
+    await user.tab();
+    await user.keyboard('{Enter}');
     await waitFor(() =>
       expect(
         request.mock.calls.some(
@@ -595,6 +668,16 @@ describe('Relatório e aba Alunos', () => {
     );
     expect((await screen.findByRole('alert')).textContent).toBe(
       'Dados alterados. Confira novamente.',
+    );
+    await act(async () => {
+      reloadList.resolve();
+      await reloadList.promise;
+    });
+    await screen.findByRole('button', { name: 'Pessoa em Revisão' });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('alert')));
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole('region', { name: 'Alunos e pendências' }),
     );
     expect(resolvePayloads).toEqual([
       expect.objectContaining({
@@ -712,9 +795,7 @@ describe('Relatório e aba Alunos', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Repetir mesma solicitação' }));
     await waitFor(() =>
-      expect(
-        request.mock.calls.filter(([input]) => input.operation === 'resolve'),
-      ).toHaveLength(2),
+      expect(request.mock.calls.filter(([input]) => input.operation === 'resolve')).toHaveLength(2),
     );
     expect(resolvePayloads).toHaveLength(2);
     expect(resolvePayloads[0]).toEqual(resolvePayloads[1]);
