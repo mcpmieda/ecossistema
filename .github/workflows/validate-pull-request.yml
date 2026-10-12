@@ -85,22 +85,7 @@ jobs:
         run: node scripts/student-photos/verify-codec-artifact-v1.mjs
 
       - name: Verify
-        shell: bash
-        run: |
-          set -euo pipefail
-          status=0
-          npm run verify > "$RUNNER_TEMP/pr-verify.log" 2>&1 || status=$?
-          tail -n 120 "$RUNNER_TEMP/pr-verify.log"
-          exit "$status"
-
-      - name: Preserve complete verification diagnostics
-        if: always() && !cancelled()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: pull-request-verification-log
-          path: ${{ runner.temp }}/pr-verify.log
-          if-no-files-found: ignore
-          retention-days: 7
+        run: npm run verify
 
       - name: Bundle administrative Pages Functions with the actual codec
         run: ./node_modules/.bin/wrangler pages functions build --outdir node_modules/.cache/photo-pages-build --compatibility-date 2026-08-24 --compatibility-flags nodejs_compat
