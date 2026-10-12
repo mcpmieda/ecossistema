@@ -58,6 +58,36 @@ describe('interface de conferência explícita de movimentações V9', () => {
     });
   });
 
+  it('says why a group with more exits than entries cannot be confirmed', () => {
+    const unbalanced: GradebookRelationMovementReviewV9 = {
+      digest: review.digest,
+      groups: [{ ...review.groups[0]!, destinations: [review.groups[0]!.destinations[0]!] }],
+    };
+    render(
+      <RelationMovementReviewV9
+        review={unbalanced}
+        busy={false}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Saídas e entradas em quantidade diferente. Corrija a Relação e reenvie.',
+    );
+    fireEvent.change(destination('LÍVIA'), { target: { value: key(11) } });
+    expect(confirm()).toHaveProperty('disabled', true);
+    cleanup();
+    render(
+      <RelationMovementReviewV9
+        review={review}
+        busy={false}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('cancels without confirming and a new preview starts with no retained choices', () => {
     const onConfirm = vi.fn();
     const onCancel = vi.fn();

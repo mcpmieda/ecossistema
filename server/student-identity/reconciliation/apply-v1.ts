@@ -15,6 +15,77 @@ import {
 } from './storage-v1';
 import { applyDecisionV1 } from './decisions-v1';
 
+/** Classes, origins, observations, associations and links of a prepared report, in dependency order. */
+async function activateReportRowsV1(
+  tx: TxV1,
+  actorId: string,
+  batchId: string,
+  context: ReconciliationContextV1,
+): Promise<void> {
+  // Mapping changes on existing classes must have gone through the explicit class-link command.
+  const conflicts = await tx.query(
+    `SELECT 1 FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_report_class_v1 c
+    ON c.academic_year=p.academic_year AND c.class_key=p.class_key AND c.shift_key=p.shift_key AND c.stage=p.stage
+    WHERE p.batch_id=$1::uuid AND c.gradebook_class_id IS NOT NULL AND c.gradebook_class_id IS DISTINCT FROM p.gradebook_class_id LIMIT 1`,
+    [batchId],
+  );
+  if (conflicts.length) throw new ReconciliationConflictV1();
+  await tx.executeNative(
+    `INSERT INTO gradebook.student_report_class_v1(id,academic_year,label,class_key,shift,shift_key,stage_label,stage,gradebook_class_id)
+    SELECT gen_random_uuid(),academic_year,min(class_label),class_key,min(shift),shift_key,min(stage_label),stage,min(gradebook_class_id)
+    FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1::uuid GROUP BY academic_year,class_key,shift_key,stage
+    ON CONFLICT(academic_year,class_key,shift_key,stage) DO UPDATE SET gradebook_class_id=EXCLUDED.gradebook_class_id`,
+    [batchId],
+  );
+  await tx.executeNative(
+    `INSERT INTO gradebook.student_source_record_v1(id,academic_year,last_batch_id,review_required,pending_reason)
+    SELECT target_source_id,academic_year,batch_id,target_uid IS NULL,pending_reason
+    FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1::uuid
+    ON CONFLICT(id) DO UPDATE SET last_batch_id=EXCLUDED.last_batch_id,review_required=EXCLUDED.review_required,
+      pending_reason=EXCLUDED.pending_reason,version=student_source_record_v1.version+1`,
+    [batchId],
+  );
+  await tx.executeNative(
+    `INSERT INTO gradebook.student_source_observation_v1
+    (id,academic_year,source_id,version,batch_id,report_class_id,name,name_key,birth_date,filiation1,filiation1_key,inep,inep_key,enrollment_hash,shift,shift_key,status,status_key,enrolled_at,transferred_at)
+    SELECT p.target_observation_id,p.academic_year,p.target_source_id,COALESCE((SELECT max(o.version) FROM gradebook.student_source_observation_v1 o WHERE o.source_id=p.target_source_id),0)+1,
+      p.batch_id,c.id,p.name,p.name_key,p.birth_date,p.filiation1,p.filiation1_key,p.inep,p.inep_key,p.enrollment_hash,p.shift,p.shift_key,p.status,p.status_key,p.enrolled_at,p.transferred_at
+    FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_report_class_v1 c
+      ON c.academic_year=p.academic_year AND c.class_key=p.class_key AND c.shift_key=p.shift_key AND c.stage=p.stage
+    WHERE p.batch_id=$1::uuid AND NOT EXISTS(SELECT 1 FROM gradebook.student_source_observation_v1 o WHERE o.id=p.target_observation_id)`,
+    [batchId],
+  );
+  await tx.executeNative(
+    `UPDATE gradebook.student_source_record_v1 r SET current_observation_id=p.target_observation_id
+    FROM gradebook.student_report_pending_row_v1 p WHERE p.batch_id=$1::uuid AND p.target_source_id=r.id`,
+    [batchId],
+  );
+  await tx.executeNative(
+    `INSERT INTO gradebook.student_reconciliation_decision_v1
+    (id,academic_year,generation,sequence,actor_id,action,source_id,student_uid,observation_id,reason,after_state)
+    SELECT gen_random_uuid(),p.academic_year,$2::uuid,$3,$4::uuid,'associate',p.target_source_id,p.target_uid,p.target_observation_id,p.target_rule,
+      jsonb_build_object('observationId',p.target_observation_id,'linkVersion',1)
+    FROM gradebook.student_report_pending_row_v1 p WHERE p.batch_id=$1::uuid AND p.target_uid IS NOT NULL
+      AND NOT EXISTS(SELECT 1 FROM gradebook.student_source_link_v1 l WHERE l.academic_year=p.academic_year AND l.source_id=p.target_source_id)`,
+    [batchId, context.generation, context.revision + 1, actorId],
+  );
+  await tx.executeNative(
+    `INSERT INTO gradebook.student_source_link_v1(academic_year,source_id,student_uid,version,decision_id)
+    SELECT p.academic_year,p.target_source_id,p.target_uid,1,d.id
+    FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_reconciliation_decision_v1 d
+    ON d.academic_year=p.academic_year AND d.source_id=p.target_source_id AND d.student_uid=p.target_uid AND d.sequence=$2 AND d.action='associate'
+    WHERE p.batch_id=$1::uuid AND p.target_uid IS NOT NULL ON CONFLICT(academic_year,source_id) DO NOTHING`,
+    [batchId, context.revision + 1],
+  );
+  const wrong = await tx.query(
+    `SELECT 1 FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_source_link_v1 l
+    ON l.academic_year=p.academic_year AND l.source_id=p.target_source_id WHERE p.batch_id=$1::uuid AND p.target_uid IS NOT NULL
+      AND (l.student_uid<>p.target_uid OR l.review_required) LIMIT 1`,
+    [batchId],
+  );
+  if (wrong.length) throw new ReconciliationConflictV1();
+}
+
 export async function applyReportV1(
   tx: TxV1,
   actorId: string,
@@ -47,72 +118,8 @@ export async function applyReportV1(
     `UPDATE gradebook.student_report_batch_v1 SET state='preparing' WHERE id=$1::uuid`,
     [request.batchId],
   );
-  if (batch.purpose === 'decision') {
-    await applyDecisionV1(tx, actorId, batch, context);
-  } else {
-    // Mapping changes on existing classes must have gone through the explicit class-link command.
-    const conflicts = await tx.query(
-      `SELECT 1 FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_report_class_v1 c
-    ON c.academic_year=p.academic_year AND c.class_key=p.class_key AND c.shift_key=p.shift_key AND c.stage=p.stage
-    WHERE p.batch_id=$1::uuid AND c.gradebook_class_id IS NOT NULL AND c.gradebook_class_id IS DISTINCT FROM p.gradebook_class_id LIMIT 1`,
-      [request.batchId],
-    );
-    if (conflicts.length) throw new ReconciliationConflictV1();
-    await tx.executeNative(
-      `INSERT INTO gradebook.student_report_class_v1(id,academic_year,label,class_key,shift,shift_key,stage_label,stage,gradebook_class_id)
-    SELECT gen_random_uuid(),academic_year,min(class_label),class_key,min(shift),shift_key,min(stage_label),stage,min(gradebook_class_id)
-    FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1::uuid GROUP BY academic_year,class_key,shift_key,stage
-    ON CONFLICT(academic_year,class_key,shift_key,stage) DO UPDATE SET gradebook_class_id=EXCLUDED.gradebook_class_id`,
-      [request.batchId],
-    );
-    await tx.executeNative(
-      `INSERT INTO gradebook.student_source_record_v1(id,academic_year,last_batch_id,review_required,pending_reason)
-    SELECT target_source_id,academic_year,batch_id,target_uid IS NULL,pending_reason
-    FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1::uuid
-    ON CONFLICT(id) DO UPDATE SET last_batch_id=EXCLUDED.last_batch_id,review_required=EXCLUDED.review_required,
-      pending_reason=EXCLUDED.pending_reason,version=student_source_record_v1.version+1`,
-      [request.batchId],
-    );
-    await tx.executeNative(
-      `INSERT INTO gradebook.student_source_observation_v1
-    (id,academic_year,source_id,version,batch_id,report_class_id,name,name_key,birth_date,filiation1,filiation1_key,inep,inep_key,enrollment_hash,shift,shift_key,status,status_key,enrolled_at,transferred_at)
-    SELECT p.target_observation_id,p.academic_year,p.target_source_id,COALESCE((SELECT max(o.version) FROM gradebook.student_source_observation_v1 o WHERE o.source_id=p.target_source_id),0)+1,
-      p.batch_id,c.id,p.name,p.name_key,p.birth_date,p.filiation1,p.filiation1_key,p.inep,p.inep_key,p.enrollment_hash,p.shift,p.shift_key,p.status,p.status_key,p.enrolled_at,p.transferred_at
-    FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_report_class_v1 c
-      ON c.academic_year=p.academic_year AND c.class_key=p.class_key AND c.shift_key=p.shift_key AND c.stage=p.stage
-    WHERE p.batch_id=$1::uuid AND NOT EXISTS(SELECT 1 FROM gradebook.student_source_observation_v1 o WHERE o.id=p.target_observation_id)`,
-      [request.batchId],
-    );
-    await tx.executeNative(
-      `UPDATE gradebook.student_source_record_v1 r SET current_observation_id=p.target_observation_id
-    FROM gradebook.student_report_pending_row_v1 p WHERE p.batch_id=$1::uuid AND p.target_source_id=r.id`,
-      [request.batchId],
-    );
-    await tx.executeNative(
-      `INSERT INTO gradebook.student_reconciliation_decision_v1
-    (id,academic_year,generation,sequence,actor_id,action,source_id,student_uid,observation_id,reason,after_state)
-    SELECT gen_random_uuid(),p.academic_year,$2::uuid,$3,$4::uuid,'associate',p.target_source_id,p.target_uid,p.target_observation_id,p.target_rule,
-      jsonb_build_object('observationId',p.target_observation_id,'linkVersion',1)
-    FROM gradebook.student_report_pending_row_v1 p WHERE p.batch_id=$1::uuid AND p.target_uid IS NOT NULL
-      AND NOT EXISTS(SELECT 1 FROM gradebook.student_source_link_v1 l WHERE l.academic_year=p.academic_year AND l.source_id=p.target_source_id)`,
-      [request.batchId, context.generation, context.revision + 1, actorId],
-    );
-    await tx.executeNative(
-      `INSERT INTO gradebook.student_source_link_v1(academic_year,source_id,student_uid,version,decision_id)
-    SELECT p.academic_year,p.target_source_id,p.target_uid,1,d.id
-    FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_reconciliation_decision_v1 d
-    ON d.academic_year=p.academic_year AND d.source_id=p.target_source_id AND d.student_uid=p.target_uid AND d.sequence=$2 AND d.action='associate'
-    WHERE p.batch_id=$1::uuid AND p.target_uid IS NOT NULL ON CONFLICT(academic_year,source_id) DO NOTHING`,
-      [request.batchId, context.revision + 1],
-    );
-    const wrong = await tx.query(
-      `SELECT 1 FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_source_link_v1 l
-    ON l.academic_year=p.academic_year AND l.source_id=p.target_source_id WHERE p.batch_id=$1::uuid AND p.target_uid IS NOT NULL
-      AND (l.student_uid<>p.target_uid OR l.review_required) LIMIT 1`,
-      [request.batchId],
-    );
-    if (wrong.length) throw new ReconciliationConflictV1();
-  }
+  if (batch.purpose === 'decision') await applyDecisionV1(tx, actorId, batch, context);
+  else await activateReportRowsV1(tx, actorId, request.batchId, context);
   await tx.executeNative(
     `UPDATE gradebook.student_report_profile_v1 p SET review_required=true,version=p.version+1
     WHERE p.academic_year=$2 AND EXISTS(SELECT 1 FROM gradebook.student_report_pending_row_v1 r

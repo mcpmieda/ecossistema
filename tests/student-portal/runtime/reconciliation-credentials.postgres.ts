@@ -253,13 +253,11 @@ it('prepares at most four sequential KDFs without changing any account and resum
     expect(row.birth).toBe(2013);
   }
   expect(
-    (
-      await owner.unsafe(
-        'SELECT 1 FROM student_portal.reconciliation_credential_stage_v1 WHERE batch_id=$1',
-        [b.id],
-      )
-    ).length,
-  ).toBe(0);
+    await owner.unsafe(
+      'SELECT 1 FROM student_portal.reconciliation_credential_stage_v1 WHERE batch_id=$1',
+      [b.id],
+    ),
+  ).toHaveLength(0);
 }, 30_000);
 
 it('rolls back every profile, birth and PIN when the last credential fails, then safely retries', async () => {
@@ -277,13 +275,10 @@ it('rolls back every profile, birth and PIN when the last credential fails, then
   await expect(apply(b)).rejects.toThrow('synthetic-final-pin-failure');
   expect(await snapshot(people)).toEqual(before);
   expect(
-    (
-      await owner.unsafe(
-        'SELECT 1 FROM gradebook.student_source_observation_v1 WHERE batch_id=$1',
-        [b.id],
-      )
-    ).length,
-  ).toBe(0);
+    await owner.unsafe('SELECT 1 FROM gradebook.student_source_observation_v1 WHERE batch_id=$1', [
+      b.id,
+    ]),
+  ).toHaveLength(0);
   await exec(
     'DROP TRIGGER synthetic_pin_failure ON student_portal.password_credential; DROP FUNCTION public.synthetic_pin_failure()',
   );
@@ -302,23 +297,19 @@ it('keeps the PIN verifier/version on same-year canonical adoption and day/month
   await apply(correction);
   expect(await snapshot(people)).toEqual(before);
   expect(
-    (
-      await owner.unsafe('SELECT 1 FROM student_portal.account_access_data WHERE account_id=$1', [
-        people[0]!.accountId,
-      ])
-    ).length,
-  ).toBe(1);
+    await owner.unsafe('SELECT 1 FROM student_portal.account_access_data WHERE account_id=$1', [
+      people[0]!.accountId,
+    ]),
+  ).toHaveLength(1);
   const absent = await students(1, false),
     withoutAccount = await batch(absent);
   await prepare(withoutAccount);
   await apply(withoutAccount);
   expect(
-    (
-      await owner.unsafe('SELECT 1 FROM student_portal.account WHERE student_uid=$1', [
-        absent[0]!.uid,
-      ])
-    ).length,
-  ).toBe(0);
+    await owner.unsafe('SELECT 1 FROM student_portal.account WHERE student_uid=$1', [
+      absent[0]!.uid,
+    ]),
+  ).toHaveLength(0);
 });
 
 it('rejects account CAS changes and expired staging without partial activation or lifetime renewal', async () => {
@@ -463,21 +454,17 @@ it.each([
         await expect(applyUndo()).rejects.toThrow('synthetic-clear-pin-failure');
         expect(await snapshot(people)).toEqual(afterAssociation);
         expect(
-          (
-            await owner.unsafe(
-              'SELECT 1 FROM gradebook.student_report_profile_v1 WHERE student_uid=$1',
-              [people[0]!.uid],
-            )
-          ).length,
-        ).toBe(1);
+          await owner.unsafe(
+            'SELECT 1 FROM gradebook.student_report_profile_v1 WHERE student_uid=$1',
+            [people[0]!.uid],
+          ),
+        ).toHaveLength(1);
         expect(
-          (
-            await owner.unsafe(
-              'SELECT 1 FROM gradebook.student_source_link_v1 WHERE student_uid=$1',
-              [people[0]!.uid],
-            )
-          ).length,
-        ).toBe(1);
+          await owner.unsafe(
+            'SELECT 1 FROM gradebook.student_source_link_v1 WHERE student_uid=$1',
+            [people[0]!.uid],
+          ),
+        ).toHaveLength(1);
       } finally {
         await exec(
           'DROP TRIGGER synthetic_clear_pin_failure ON student_portal.password_credential; DROP FUNCTION public.synthetic_clear_pin_failure()',
@@ -614,13 +601,10 @@ it('expires only pending data with bounded cleanup while preserving applied obse
     (await portal.unsafe('SELECT student_portal.cleanup_reconciliation_pending_v1(1) AS n'))[0]!.n,
   ).toBe(1);
   expect(
-    (
-      await owner.unsafe(
-        'SELECT 1 FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1',
-        [pending.id],
-      )
-    ).length,
-  ).toBe(0);
+    await owner.unsafe('SELECT 1 FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1', [
+      pending.id,
+    ]),
+  ).toHaveLength(0);
   expect(
     (
       await owner.unsafe('SELECT state FROM gradebook.student_report_batch_v1 WHERE id=$1', [
@@ -629,11 +613,8 @@ it('expires only pending data with bounded cleanup while preserving applied obse
     )[0]!.state,
   ).toBe('expired');
   expect(
-    (
-      await owner.unsafe(
-        'SELECT 1 FROM gradebook.student_source_observation_v1 WHERE batch_id=$1',
-        [applied.id],
-      )
-    ).length,
-  ).toBe(1);
+    await owner.unsafe('SELECT 1 FROM gradebook.student_source_observation_v1 WHERE batch_id=$1', [
+      applied.id,
+    ]),
+  ).toHaveLength(1);
 });

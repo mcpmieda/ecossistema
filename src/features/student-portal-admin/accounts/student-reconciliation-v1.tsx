@@ -43,15 +43,100 @@ const dateLabelV1 = (value: string) =>
     ? new Date(value).toLocaleString('pt-BR')
     : value.split('-').reverse().join('/');
 
+type MutateV1 = (input: ReconciliationRequestV1) => Promise<void>;
+type DecisionActionV1 = 'associate' | 'reject' | 'separate' | 'release' | 'confirm';
+const actionLabelV1 = {
+  associate: 'Vincular',
+  reject: 'Rejeitar',
+  release: 'Liberar rejeição',
+} as const;
+const confirmNounV1: Record<DecisionActionV1, string> = {
+  separate: 'separação',
+  reject: 'rejeição',
+  release: 'liberação da rejeição',
+  associate: 'vínculo',
+  confirm: 'vínculo',
+};
+const itemKeyV1 = (item: ReconciliationListItemV1) =>
+  item.kind === 'person' ? item.studentUid : item.id;
+const itemStateV1 = (item: ReconciliationListItemV1) =>
+  stateLabelV1(item.kind === 'person' ? item.reconciliation : item.reason);
+
+function PortalCellV1({ item }: Readonly<{ item: ReconciliationListItemV1 }>) {
+  if (item.kind === 'person')
+    return <>{item.portal === 'with-portal' ? 'Com Portal' : 'Sem Portal'}</>;
+  if (!item.expiresAt) return <>—</>;
+  return (
+    <span>
+      {item.warning ? 'Prazo próximo: ' : 'Até '}
+      {dateLabelV1(item.expiresAt)}
+      {item.warning ? '. Reenvie após a expiração.' : ''}
+    </span>
+  );
+}
+
+function ReconciliationListV1({
+  items,
+  busy,
+  open,
+}: Readonly<{
+  items: readonly ReconciliationListItemV1[];
+  busy: boolean;
+  open: (item: ReconciliationListItemV1) => Promise<void>;
+}>) {
+  if (items.length === 0)
+    return busy ? null : (
+      <p className="text-sm text-muted">Nenhum aluno ou pendência encontrado.</p>
+    );
+  return (
+    <Table variant="secondary">
+      <Table.ScrollContainer tabIndex={0} role="region" aria-label="Alunos e pendências">
+        <Table.Content aria-label="Alunos e pendências">
+          <Table.Header>
+            <Table.Column isRowHeader>Aluno</Table.Column>
+            <Table.Column>Turma</Table.Column>
+            <Table.Column>Conciliação</Table.Column>
+            <Table.Column>Portal / prazo</Table.Column>
+          </Table.Header>
+          <Table.Body>
+            {items.map((item) => (
+              <Table.Row key={itemKeyV1(item)} id={itemKeyV1(item)}>
+                <Table.Cell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto whitespace-normal text-left"
+                    onPress={() => void open(item)}
+                  >
+                    <strong className="break-words">{item.name}</strong>
+                  </Button>
+                  {item.kind === 'person' && item.possibleSamePerson ? (
+                    <p className="text-xs">Mesmo nome em outra turma</p>
+                  ) : null}
+                </Table.Cell>
+                <Table.Cell>{item.classLabel ?? '—'}</Table.Cell>
+                <Table.Cell>{itemStateV1(item)}</Table.Cell>
+                <Table.Cell>
+                  <PortalCellV1 item={item} />
+                </Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Content>
+      </Table.ScrollContainer>
+    </Table>
+  );
+}
+
 export function StudentReconciliationV1({
   client,
   scope,
   canWrite,
-}: {
+}: Readonly<{
   client: ReconciliationClientV1;
   scope: ScopeV1;
   canWrite: boolean;
-}) {
+}>) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [refresh, setRefresh] = useState(0);
@@ -70,6 +155,7 @@ export function StudentReconciliationV1({
   const active = useRef<AbortController | null>(null);
   const detailRead = useRef<AbortController | null>(null);
   const classId = scope.kind === 'class' ? scope.classId : null;
+  const locked = busy || Boolean(mutationRetry);
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 250);
     return () => clearTimeout(timer);
@@ -190,6 +276,24 @@ export function StudentReconciliationV1({
       if (!controller.signal.aborted) setBusy(false);
     }
   }
+  function settle(result: ReconciliationResponseV1) {
+    if (result.state === 'committed') {
+      reload();
+      return;
+    }
+    if (
+      result.state === 'ready' &&
+      (result.operation === 'prepare' || result.operation === 'activate-pending')
+    ) {
+      setPrepared(result);
+      return;
+    }
+    setError(reconciliationMessageV1(result));
+    if (result.state === 'conflict' || result.state === 'expired') {
+      setNotice(reconciliationMessageV1(result));
+      reload();
+    }
+  }
   async function mutate(request: ReconciliationRequestV1) {
     if (busy || (mutationRetry && mutationRetry !== request)) return;
     setBusy(true);
@@ -199,19 +303,7 @@ export function StudentReconciliationV1({
     try {
       const result = await client.request(request, active.current?.signal);
       setMutationRetry(null);
-      if (result.state === 'committed') reload();
-      else if (
-        result.state === 'ready' &&
-        (result.operation === 'prepare' || result.operation === 'activate-pending')
-      )
-        setPrepared(result);
-      else {
-        setError(reconciliationMessageV1(result));
-        if (result.state === 'conflict' || result.state === 'expired') {
-          setNotice(reconciliationMessageV1(result));
-          reload();
-        }
-      }
+      settle(result);
     } catch {
       if (!active.current?.signal.aborted) setError('Resposta não confirmada. Tente novamente.');
     } finally {
@@ -226,6 +318,89 @@ export function StudentReconciliationV1({
     setPendingBatch(null);
     setBusy(false);
   };
+  function selectedContent(current: ReconciliationListItemV1) {
+    if (prepared)
+      return (
+        <PreparedReportV1
+          key={prepared.batchId}
+          client={client}
+          prepared={prepared}
+          decision={!pendingBatch}
+          onCommitted={reload}
+          onStale={reload}
+        />
+      );
+    if (detail)
+      return (
+        <ReconciliationDetailV1
+          detail={detail}
+          selected={current}
+          canWrite={canWrite}
+          busy={locked}
+          mutate={mutate}
+        />
+      );
+    if (pendingBatch && catalog && context)
+      return (
+        <PendingBatchV1
+          key={pendingBatch}
+          batchId={pendingBatch}
+          catalog={catalog}
+          context={context}
+          canWrite={canWrite}
+          busy={locked}
+          mutate={mutate}
+        />
+      );
+    return null;
+  }
+  function selectedCard(current: ReconciliationListItemV1) {
+    return (
+      <Card>
+        <Card.Content className="space-y-4">
+          <Button size="sm" variant="secondary" isDisabled={locked} onPress={back}>
+            Voltar aos alunos
+          </Button>
+          <h3 className="break-words text-lg font-semibold">{current.name}</h3>
+          {current.kind === 'person' && current.relationName !== current.name ? (
+            <p className="break-words text-sm">Relação: {current.relationName}</p>
+          ) : null}
+          {current.kind === 'person' && current.accountId ? (
+            <StudentNameV1 accountId={current.accountId} name={current.name} parentScope={scope}>
+              Acesso ao Portal
+            </StudentNameV1>
+          ) : null}
+          {selectedContent(current)}
+        </Card.Content>
+      </Card>
+    );
+  }
+  function listSection() {
+    return (
+      <>
+        <ReconciliationListV1 items={items} busy={busy} open={open} />
+        {cursor ? (
+          <Button
+            variant="secondary"
+            isPending={busy}
+            onPress={() => {
+              if (active.current) void load(cursor, active.current.signal);
+            }}
+          >
+            Carregar mais
+          </Button>
+        ) : null}
+        {catalog && canWrite ? (
+          <ClassLinksV1
+            catalog={catalog}
+            context={context ?? catalog.context}
+            busy={locked}
+            mutate={mutate}
+          />
+        ) : null}
+      </>
+    );
+  }
   return (
     <section className="space-y-4" aria-label="Alunos e conciliação">
       <Card>
@@ -247,12 +422,12 @@ export function StudentReconciliationV1({
           </Button>
           {context ? (
             <label className="flex items-center gap-2 text-sm">
-              Nome exibido
+              <span>Nome exibido</span>
               <select
                 className="rounded-lg border border-default bg-surface p-2"
                 aria-label="Fonte do nome exibido"
                 value={context.nameSource}
-                disabled={busy || !canWrite || Boolean(mutationRetry)}
+                disabled={locked || !canWrite}
                 onChange={(event) =>
                   void mutate({
                     ...reconciliationMutationV1(context),
@@ -275,146 +450,111 @@ export function StudentReconciliationV1({
           Repetir mesma solicitação
         </Button>
       ) : null}
-      {busy ? <p role="status">Carregando…</p> : null}
-      {selected ? (
-        <Card>
-          <Card.Content className="space-y-4">
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={busy || Boolean(mutationRetry)}
-              onPress={back}
-            >
-              Voltar aos alunos
-            </Button>
-            <h3 className="break-words text-lg font-semibold">{selected.name}</h3>
-            {selected.kind === 'person' && selected.relationName !== selected.name ? (
-              <p className="break-words text-sm">Relação: {selected.relationName}</p>
-            ) : null}
-            {selected.kind === 'person' && selected.accountId ? (
-              <StudentNameV1
-                accountId={selected.accountId}
-                name={selected.name}
-                parentScope={scope}
-              >
-                Acesso ao Portal
-              </StudentNameV1>
-            ) : null}
-            {prepared ? (
-              <PreparedReportV1
-                key={prepared.batchId}
-                client={client}
-                prepared={prepared}
-                decision={!pendingBatch}
-                onCommitted={reload}
-                onStale={reload}
-              />
-            ) : detail ? (
-              <ReconciliationDetailV1
-                detail={detail}
-                selected={selected}
-                canWrite={canWrite}
-                busy={busy || Boolean(mutationRetry)}
-                mutate={mutate}
-              />
-            ) : pendingBatch && catalog && context ? (
-              <PendingBatchV1
-                key={pendingBatch}
-                batchId={pendingBatch}
-                catalog={catalog}
-                context={context}
-                canWrite={canWrite}
-                busy={busy || Boolean(mutationRetry)}
-                mutate={mutate}
-              />
-            ) : null}
-          </Card.Content>
-        </Card>
-      ) : (
-        <>
-          {items.length === 0 && !busy ? (
-            <p className="text-sm text-muted">Nenhum aluno ou pendência encontrado.</p>
-          ) : items.length ? (
-            <Table variant="secondary">
-              <Table.ScrollContainer tabIndex={0} role="region" aria-label="Alunos e pendências">
-                <Table.Content aria-label="Alunos e pendências">
-                  <Table.Header>
-                    <Table.Column isRowHeader>Aluno</Table.Column>
-                    <Table.Column>Turma</Table.Column>
-                    <Table.Column>Conciliação</Table.Column>
-                    <Table.Column>Portal / prazo</Table.Column>
-                  </Table.Header>
-                  <Table.Body>
-                    {items.map((item) => (
-                      <Table.Row
-                        key={item.kind === 'person' ? item.studentUid : item.id}
-                        id={item.kind === 'person' ? item.studentUid : item.id}
-                      >
-                        <Table.Cell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto whitespace-normal text-left"
-                            onPress={() => void open(item)}
-                          >
-                            <strong className="break-words">{item.name}</strong>
-                          </Button>
-                          {item.kind === 'person' && item.possibleSamePerson ? (
-                            <p className="text-xs">Mesmo nome em outra turma</p>
-                          ) : null}
-                        </Table.Cell>
-                        <Table.Cell>{item.classLabel ?? '—'}</Table.Cell>
-                        <Table.Cell>
-                          {item.kind === 'person'
-                            ? stateLabelV1(item.reconciliation)
-                            : stateLabelV1(item.reason)}
-                        </Table.Cell>
-                        <Table.Cell>
-                          {item.kind === 'person' ? (
-                            item.portal === 'with-portal' ? (
-                              'Com Portal'
-                            ) : (
-                              'Sem Portal'
-                            )
-                          ) : item.expiresAt ? (
-                            <span>
-                              {item.warning ? 'Prazo próximo: ' : 'Até '}
-                              {dateLabelV1(item.expiresAt)}
-                              {item.warning ? '. Reenvie após a expiração.' : ''}
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Content>
-              </Table.ScrollContainer>
-            </Table>
-          ) : null}
-          {cursor ? (
-            <Button
-              variant="secondary"
-              isPending={busy}
-              onPress={() => {
-                if (active.current) void load(cursor, active.current.signal);
-              }}
-            >
-              Carregar mais
-            </Button>
-          ) : null}
-          {catalog && canWrite ? (
-            <ClassLinksV1
-              catalog={catalog}
-              context={context ?? catalog.context}
-              busy={busy || Boolean(mutationRetry)}
-              mutate={mutate}
-            />
-          ) : null}
-        </>
-      )}
+      {busy ? <output className="block">Carregando…</output> : null}
+      {selected ? selectedCard(selected) : listSection()}
     </section>
+  );
+}
+
+interface PendingConfirmationV1 {
+  readonly source: DetailV1['sources'][number];
+  readonly uid: string;
+  readonly action: DecisionActionV1;
+}
+
+function SourceActionsV1({
+  detail,
+  selected,
+  source,
+  busy,
+  choice,
+  onChoice,
+  onConfirm,
+  mutate,
+}: Readonly<{
+  detail: DetailV1;
+  selected: ReconciliationListItemV1;
+  source: DetailV1['sources'][number];
+  busy: boolean;
+  choice: string;
+  onChoice: (studentUid: string) => void;
+  onConfirm: (confirmation: PendingConfirmationV1) => void;
+  mutate: MutateV1;
+}>) {
+  const linkedUid = source.studentUid;
+  if (!linkedUid)
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          className="max-w-full rounded-lg border border-default bg-surface p-2"
+          aria-label={`Aluno da Relação para ${source.name}`}
+          value={choice}
+          disabled={busy}
+          onChange={(event) => onChoice(event.target.value)}
+        >
+          <option value="">Escolha o aluno da Relação</option>
+          {detail.candidates.map((candidate) => (
+            <option key={candidate.studentUid} value={candidate.studentUid}>
+              {candidate.name} — {candidate.classLabel}
+            </option>
+          ))}
+        </select>
+        {(['associate', 'reject', 'release'] as const).map((action) => (
+          <Button
+            key={action}
+            size="sm"
+            variant="secondary"
+            isDisabled={busy || !choice}
+            onPress={() => onConfirm({ source, uid: choice, action })}
+          >
+            {actionLabelV1[action]}
+          </Button>
+        ))}
+      </div>
+    );
+  const canSelectData =
+    selected.kind === 'person' &&
+    (source.observationId !== detail.selectedObservationId ||
+      selected.reconciliation === 'pending' ||
+      selected.reconciliation === 'review-required');
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        size="sm"
+        variant="secondary"
+        isDisabled={busy}
+        onPress={() => onConfirm({ source, uid: linkedUid, action: 'separate' })}
+      >
+        Separar
+      </Button>
+      {source.reviewRequired ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          isDisabled={busy}
+          onPress={() => onConfirm({ source, uid: linkedUid, action: 'confirm' })}
+        >
+          Confirmar vínculo
+        </Button>
+      ) : null}
+      {canSelectData && selected.kind === 'person' ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          isDisabled={busy || source.reviewRequired}
+          onPress={() =>
+            void mutate({
+              ...reconciliationMutationV1(detail.context),
+              operation: 'select-observation',
+              studentUid: selected.studentUid,
+              observationId: source.observationId,
+            })
+          }
+        >
+          Usar estes dados
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -424,19 +564,15 @@ function ReconciliationDetailV1({
   canWrite,
   busy,
   mutate,
-}: {
+}: Readonly<{
   detail: DetailV1;
   selected: ReconciliationListItemV1;
   canWrite: boolean;
   busy: boolean;
-  mutate: (input: ReconciliationRequestV1) => Promise<void>;
-}) {
+  mutate: MutateV1;
+}>) {
   const [chosen, setChosen] = useState<Record<string, string>>({});
-  const [confirm, setConfirm] = useState<{
-    source: DetailV1['sources'][number];
-    uid: string;
-    action: 'associate' | 'reject' | 'separate' | 'release' | 'confirm';
-  } | null>(null);
+  const [confirm, setConfirm] = useState<PendingConfirmationV1 | null>(null);
   return (
     <>
       {detail.sources.length === 0 ? <p>Sem registro Smecel.</p> : null}
@@ -459,81 +595,17 @@ function ReconciliationDetailV1({
               <dd>{source.inep ?? '—'}</dd>
             </div>
           </dl>
-          {canWrite && !source.studentUid ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                className="max-w-full rounded-lg border border-default bg-surface p-2"
-                aria-label={`Aluno da Relação para ${source.name}`}
-                value={chosen[source.id] ?? ''}
-                disabled={busy}
-                onChange={(event) =>
-                  setChosen((previous) => ({ ...previous, [source.id]: event.target.value }))
-                }
-              >
-                <option value="">Escolha o aluno da Relação</option>
-                {detail.candidates.map((candidate) => (
-                  <option key={candidate.studentUid} value={candidate.studentUid}>
-                    {candidate.name} — {candidate.classLabel}
-                  </option>
-                ))}
-              </select>
-              {(['associate', 'reject', 'release'] as const).map((action) => (
-                <Button
-                  key={action}
-                  size="sm"
-                  variant="secondary"
-                  isDisabled={busy || !chosen[source.id]}
-                  onPress={() => setConfirm({ source, uid: chosen[source.id]!, action })}
-                >
-                  {action === 'associate'
-                    ? 'Vincular'
-                    : action === 'reject'
-                      ? 'Rejeitar'
-                      : 'Liberar rejeição'}
-                </Button>
-              ))}
-            </div>
-          ) : canWrite && source.studentUid ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                isDisabled={busy}
-                onPress={() => setConfirm({ source, uid: source.studentUid!, action: 'separate' })}
-              >
-                Separar
-              </Button>
-              {source.reviewRequired ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  isDisabled={busy}
-                  onPress={() => setConfirm({ source, uid: source.studentUid!, action: 'confirm' })}
-                >
-                  Confirmar vínculo
-                </Button>
-              ) : null}
-              {selected.kind === 'person' &&
-              (source.observationId !== detail.selectedObservationId ||
-                selected.reconciliation === 'pending' ||
-                selected.reconciliation === 'review-required') ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  isDisabled={busy || source.reviewRequired}
-                  onPress={() =>
-                    void mutate({
-                      ...reconciliationMutationV1(detail.context),
-                      operation: 'select-observation',
-                      studentUid: selected.studentUid,
-                      observationId: source.observationId,
-                    })
-                  }
-                >
-                  Usar estes dados
-                </Button>
-              ) : null}
-            </div>
+          {canWrite ? (
+            <SourceActionsV1
+              detail={detail}
+              selected={selected}
+              source={source}
+              busy={busy}
+              choice={chosen[source.id] ?? ''}
+              onChoice={(uid) => setChosen((previous) => ({ ...previous, [source.id]: uid }))}
+              onConfirm={setConfirm}
+              mutate={mutate}
+            />
           ) : null}
         </div>
       ))}
@@ -545,15 +617,7 @@ function ReconciliationDetailV1({
           className="space-y-3 rounded-xl border border-default p-4"
         >
           <h4 id="reconciliation-confirm-title" className="font-semibold">
-            Confirmar{' '}
-            {confirm.action === 'separate'
-              ? 'separação'
-              : confirm.action === 'reject'
-                ? 'rejeição'
-                : confirm.action === 'release'
-                  ? 'liberação da rejeição'
-                  : 'vínculo'}
-            ?
+            Confirmar {confirmNounV1[confirm.action]}?
           </h4>
           <p className="break-words">
             {confirm.source.name} — {confirm.source.classLabel}
@@ -607,14 +671,14 @@ function PendingBatchV1({
   canWrite,
   busy,
   mutate,
-}: {
+}: Readonly<{
   batchId: string;
   catalog: CatalogV1;
   context: ReconciliationContextV1;
   canWrite: boolean;
   busy: boolean;
-  mutate: (input: ReconciliationRequestV1) => Promise<void>;
-}) {
+  mutate: MutateV1;
+}>) {
   const [links, setLinks] = useState<ReportClassLinkV1[]>(() =>
     catalog.reportClasses
       .filter((item) => item.id.startsWith(`pending:${batchId}:`))
@@ -689,12 +753,12 @@ function ClassLinksV1({
   context,
   busy,
   mutate,
-}: {
+}: Readonly<{
   catalog: CatalogV1;
   context: ReconciliationContextV1;
   busy: boolean;
-  mutate: (input: ReconciliationRequestV1) => Promise<void>;
-}) {
+  mutate: MutateV1;
+}>) {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const activeClasses = catalog.reportClasses.filter((item) => !item.id.startsWith('pending:'));
   if (!activeClasses.length) return null;

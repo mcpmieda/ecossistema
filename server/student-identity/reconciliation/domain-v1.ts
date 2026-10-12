@@ -181,15 +181,13 @@ function rejectionContestsOriginV1(
   // A rejection separates both origins. Do not consume either one's observation, even as pending,
   // when the other person's current/history explains the row at least as well or owns its INEP.
   // These exact-field comparisons only veto continuity; neither counts nor hashes prove identity.
-  return (conflicts.get(origin.sourceId) ?? []).some(
-    (source) =>
-      observationsV1(source).some(
-        (previous) =>
-          (equalV1(row.inepKey, previous.inepKey) &&
-            !equalV1(row.inepKey, origin.current.inepKey)) ||
-          ((row.nameKey === previous.nameKey || equalV1(row.inepKey, previous.inepKey)) &&
-            personalAgreementV1(row, previous) >= agreement),
-      ),
+  return (conflicts.get(origin.sourceId) ?? []).some((source) =>
+    observationsV1(source).some(
+      (previous) =>
+        (equalV1(row.inepKey, previous.inepKey) && !equalV1(row.inepKey, origin.current.inepKey)) ||
+        ((row.nameKey === previous.nameKey || equalV1(row.inepKey, previous.inepKey)) &&
+          personalAgreementV1(row, previous) >= agreement),
+    ),
   );
 }
 
@@ -261,6 +259,112 @@ function rejectionEvidenceV1(row: NormalizedReportRowV1, source: ReconciliationS
   );
 }
 
+function legacyBirthConflictV1(
+  row: ReconciliationReportRowV1,
+  origin: ReconciliationSourceV1 | undefined,
+  students: readonly ReconciliationStudentV1[],
+  nameMatches: ReadonlySet<string>,
+): boolean {
+  const year = Number(row.birthDate.slice(0, 4));
+  return students.some(
+    (student) =>
+      nameMatches.has(student.studentUid) &&
+      student.legacyBirthYear !== null &&
+      student.legacyBirthYear !== undefined &&
+      student.legacyBirthYear !== year &&
+      origin?.studentUid !== student.studentUid,
+  );
+}
+
+interface SourceEvidenceV1 {
+  /** Same INEP, or same name, birth and Filiação 1. */
+  readonly personal: boolean;
+  readonly rule: ReconciliationRuleV1 | null;
+  readonly sibling: boolean;
+  readonly sameBirth: boolean;
+}
+
+function sourceEvidenceV1(
+  row: NormalizedReportRowV1,
+  previous: NormalizedReportRowV1,
+  settled: boolean,
+): SourceEvidenceV1 {
+  const sameInep = equalV1(row.inepKey, previous.inepKey);
+  const sameName = row.nameKey === previous.nameKey;
+  const sameBirth = row.birthDate === previous.birthDate;
+  const sameFiliation = equalV1(row.filiation1Key, previous.filiation1Key);
+  const differentInep = compareReconciliationFieldV1(row.inepKey, previous.inepKey) === 'different';
+  const samePerson = sameName && sameBirth && sameFiliation;
+  let rule: ReconciliationRuleV1 | null = null;
+  if (sameInep && sameBirth) rule = 'inep_birth';
+  if (samePerson && differentInep) rule = 'name_birth_filiation';
+  return {
+    personal: sameInep || samePerson,
+    rule,
+    sibling: !sameName && sameBirth && sameFiliation && differentInep && !settled,
+    sameBirth,
+  };
+}
+
+interface RowContextV1 {
+  readonly row: ReconciliationReportRowV1;
+  readonly origin: ReconciliationSourceV1 | undefined;
+  readonly sources: readonly ReconciliationSourceV1[];
+  readonly nameMatches: ReadonlySet<string>;
+  /** An origin already linked and not under review identifies the row by itself. A relative with
+   * the same birth and filiation, or a rejection recorded for another pairing, does not reopen it. */
+  readonly settledUid: string | null;
+}
+
+/** Evidence of the origins already linked to a person; fills the candidates and rules of the row. */
+function linkedEvidenceV1(
+  context: RowContextV1,
+  rules: Map<string, ReconciliationRuleV1>,
+  candidates: Set<string>,
+) {
+  const { row, origin, sources, nameMatches, settledUid } = context;
+  const selectedUids = new Set(
+    sources.filter((source) => source.profileSelected).map((source) => source.studentUid),
+  );
+  let sibling = false;
+  let sourceReview = false;
+  let birthConflict = false;
+  for (const source of sources) {
+    const uid = source.studentUid;
+    if (!uid || (selectedUids.has(uid) && !source.profileSelected)) continue;
+    const evidence = sourceEvidenceV1(row, source.current, settledUid !== null);
+    if (evidence.personal || evidence.sibling) candidates.add(uid);
+    if (evidence.rule) rules.set(uid, evidence.rule);
+    const relevant = evidence.personal || nameMatches.has(uid);
+    const approvedBirthCorrection = source.sourceId === origin?.sourceId;
+    sibling ||= evidence.sibling;
+    sourceReview ||= relevant && source.reviewRequired === true;
+    birthConflict ||= relevant && !evidence.sameBirth && !approvedBirthCorrection;
+  }
+  return { sibling, sourceReview, birthConflict };
+}
+
+function rejectedCandidatesV1(
+  context: RowContextV1,
+  rejectedPairs: readonly ReconciliationRejectedPairV1[],
+): readonly string[] {
+  const { row, origin, sources, settledUid } = context;
+  return rejectedPairs
+    .filter(
+      (pair) =>
+        settledUid === null ||
+        (pair.sourceId === origin?.sourceId && pair.studentUid === settledUid),
+    )
+    .filter((pair) => {
+      const rejectedSource = sources.find((source) => source.sourceId === pair.sourceId);
+      return (
+        rejectedSource !== undefined &&
+        (origin?.sourceId === pair.sourceId || rejectionEvidenceV1(row, rejectedSource))
+      );
+    })
+    .map((pair) => pair.studentUid);
+}
+
 function candidatesForRowV1(
   row: ReconciliationReportRowV1,
   origin: ReconciliationSourceV1 | undefined,
@@ -279,79 +383,28 @@ function candidatesForRowV1(
     rules.set(uid, 'name_class');
     candidates.add(uid);
   }
-  let priorBirthConflict = students.some(
-    (student) =>
-      nameMatches.has(student.studentUid) &&
-      student.legacyBirthYear !== null &&
-      student.legacyBirthYear !== undefined &&
-      student.legacyBirthYear !== Number(row.birthDate.slice(0, 4)) &&
-      origin?.studentUid !== student.studentUid,
-  );
-  let sourceReview = origin?.reviewRequired === true;
-  // An origin already linked and not under review identifies the row by itself. A relative with
-  // the same birth and filiation, or a rejection recorded for another pairing, does not reopen it.
   const settledUid = origin?.studentUid && !origin.reviewRequired ? origin.studentUid : null;
-  let sibling = false;
-  const selectedUids = new Set(
-    sources.filter((source) => source.profileSelected).map((source) => source.studentUid),
-  );
-  for (const source of sources) {
-    if (!source.studentUid) continue;
-    if (selectedUids.has(source.studentUid) && !source.profileSelected) continue;
-    const previous = source.current;
-    const sameInep = equalV1(row.inepKey, previous.inepKey);
-    const sameName = row.nameKey === previous.nameKey;
-    const sameBirth = row.birthDate === previous.birthDate;
-    const sameFiliation = equalV1(row.filiation1Key, previous.filiation1Key);
-    const differentInep =
-      compareReconciliationFieldV1(row.inepKey, previous.inepKey) === 'different';
-    const personalCandidate = sameInep || (sameName && sameBirth && sameFiliation);
-    if (personalCandidate) candidates.add(source.studentUid);
-    if (sameInep && sameBirth) rules.set(source.studentUid, 'inep_birth');
-    if (sameName && sameBirth && sameFiliation && differentInep) {
-      rules.set(source.studentUid, 'name_birth_filiation');
-    }
-    if (!sameName && sameBirth && sameFiliation && differentInep && settledUid === null) {
-      candidates.add(source.studentUid);
-      sibling = true;
-    }
-    const relevant = personalCandidate || nameMatches.has(source.studentUid);
-    if (relevant && source.reviewRequired) sourceReview = true;
-    const approvedBirthCorrection = source.sourceId === origin?.sourceId;
-    if (relevant && !sameBirth && !approvedBirthCorrection) priorBirthConflict = true;
-  }
+  const context: RowContextV1 = { row, origin, sources, nameMatches, settledUid };
+  const linked = linkedEvidenceV1(context, rules, candidates);
   if (origin?.studentUid) {
     candidates.add(origin.studentUid);
     rules.set(origin.studentUid, 'continuity');
   }
-  let rejected = false;
-  for (const pair of rejectedPairs) {
-    if (
-      settledUid !== null &&
-      !(pair.sourceId === origin?.sourceId && pair.studentUid === settledUid)
-    )
-      continue;
-    const rejectedSource = sources.find((source) => source.sourceId === pair.sourceId);
-    if (
-      rejectedSource &&
-      (origin?.sourceId === pair.sourceId || rejectionEvidenceV1(row, rejectedSource))
-    ) {
-      candidates.add(pair.studentUid);
-      rejected = true;
-    }
-  }
-  const hashSources = sources.filter((source) => hasHashV1(source, row.enrollmentHash));
+  const rejectedUids = rejectedCandidatesV1(context, rejectedPairs);
+  for (const uid of rejectedUids) candidates.add(uid);
+  const knownHash = sources.some((source) => hasHashV1(source, row.enrollmentHash));
   return {
     row,
     origin,
     rules,
     candidates,
-    priorBirthConflict,
+    priorBirthConflict:
+      legacyBirthConflictV1(row, origin, students, nameMatches) || linked.birthConflict,
     homonym: nameMatches.size > 1,
-    rejected,
-    sourceConflict: hashSources.length > 0 && origin === undefined,
-    sourceReview,
-    sibling,
+    rejected: rejectedUids.length > 0,
+    sourceConflict: knownHash && origin === undefined,
+    sourceReview: origin?.reviewRequired === true || linked.sourceReview,
+    sibling: linked.sibling,
   };
 }
 

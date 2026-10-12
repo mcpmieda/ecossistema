@@ -14,17 +14,14 @@ import { QrBatchToolsV1 } from './qr-batch-tools-v1';
 import type { StudentCredentialsPropsV1 } from './student-credentials-v1';
 
 /** QR selection consumes account eligibility, independently of birth editing or birth queries. */
-export function ClassQrV1(props: StudentCredentialsPropsV1) {
+export function ClassQrV1(props: Readonly<StudentCredentialsPropsV1>) {
   const [selected, setSelected] = useState<{ id: number; label: string } | null>(null);
-  const scope = useMemo(
-    () =>
-      props.scope.kind === 'class'
-        ? props.scope
-        : selected
-          ? { kind: 'class' as const, academicYear: 2026 as const, classId: selected.id }
-          : null,
-    [props.scope, selected],
-  );
+  const scope = useMemo(() => {
+    if (props.scope.kind === 'class') return props.scope;
+    return selected
+      ? { kind: 'class' as const, academicYear: 2026 as const, classId: selected.id }
+      : null;
+  }, [props.scope, selected]);
   return (
     <section className="space-y-4" aria-label="QR por turma">
       <h2>QR code</h2>
@@ -90,6 +87,8 @@ function ClassQrRowsV1(
     selection.revision === current?.scopeVersion
       ? new Set([...selection.ids].filter((id) => eligible.has(id)))
       : new Set<string>();
+  const loading =
+    read.state.state === 'error' ? null : <output className="block">Carregando alunos…</output>;
   return (
     <Card>
       <Card.Content className="space-y-4">
@@ -107,9 +106,7 @@ function ClassQrRowsV1(
           </div>
         ) : null}
         {!current ? (
-          read.state.state === 'error' ? null : (
-            <p role="status">Carregando alunos…</p>
-          )
+          loading
         ) : (
           <>
             <QrBatchToolsV1

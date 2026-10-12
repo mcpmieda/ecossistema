@@ -47,7 +47,7 @@ function columnV1(index: number): string {
   let result = '';
   while (current > 0) {
     current--;
-    result = String.fromCharCode(65 + (current % 26)) + result;
+    result = String.fromCodePoint(65 + (current % 26)) + result;
     current = Math.floor(current / 26);
   }
   return result;
@@ -105,19 +105,16 @@ export function isStudentReportWorkbookV1(workbook: Workbook, xlsx: SheetJs): bo
   return headers.has('enrollmentHash') && headers.has('birthDate') && headers.has('name');
 }
 
-/** Reads only the allowlist. Excluded classes are discarded before their personal cells are read. */
-export function readStudentReportWorkbookV1(
-  workbook: Workbook,
-  xlsx: SheetJs,
-): ReadStudentReportV1 {
+function reportSheetV1(workbook: Workbook): { sheet: Worksheet; reference: string } {
   if (workbook.SheetNames.length !== 1) throw new Error('O relatório deve conter uma única aba.');
   const sheet = workbook.Sheets[workbook.SheetNames[0]!];
-  if (!sheet?.['!ref']) throw new Error('Relatório vazio.');
-  const range = xlsx.utils.decode_range(sheet['!ref']);
-  if (range.s.r !== 0 || range.e.r > REPORT_MAX_ROWS_V1 || range.e.c > 300) {
-    throw new Error('Dimensões do relatório fora do limite permitido.');
-  }
-  const headers = headersV1(sheet, range.e.c + 1);
+  const reference = sheet?.['!ref'];
+  if (!sheet || !reference) throw new Error('Relatório vazio.');
+  return { sheet, reference };
+}
+
+function requiredHeadersV1(sheet: Worksheet, columns: number): Map<ReportFieldV1, number> {
+  const headers = headersV1(sheet, columns);
   const missing = (Object.keys(STUDENT_REPORT_HEADERS_V1) as ReportFieldV1[]).filter(
     (field) => !headers.has(field),
   );
@@ -125,25 +122,39 @@ export function readStudentReportWorkbookV1(
     throw new Error(
       `Colunas ausentes: ${missing.map((field) => STUDENT_REPORT_HEADERS_V1[field]).join(', ')}.`,
     );
+  return headers;
+}
+
+function date1904V1(workbook: Workbook): boolean {
   const metadata = (workbook as Workbook & { Workbook?: { WBProps?: { date1904?: boolean } } })
     .Workbook?.WBProps?.date1904;
   if (metadata !== undefined && typeof metadata !== 'boolean')
     throw new Error('Época de datas Excel inválida.');
-  const rows: ReportRowV1[] = [];
-  const classes = new Map<string, StudentReportClassV1>();
-  const years = new Set<number>();
-  for (let number = 2; number <= range.e.r + 1; number++) {
-    const value = (field: ReportFieldV1) => scalarV1(sheet, headers.get(field)!, number);
-    const classLabel = textV1(value('classLabel'));
-    const stageLabel = textV1(value('stageLabel'));
-    const shift = textV1(value('shift'));
-    const classification = classifyReportClassV1(classLabel, stageLabel, shift);
-    if (classification.kind === 'excluded') continue;
-    if (!classLabel && !stageLabel && !shift && value('name') === null) continue;
-    if (classification.kind === 'regular') years.add(classification.academicYear);
-    const key = reportClassKeyV1(classLabel, stageLabel, shift);
-    if (!classes.has(key)) classes.set(key, { key, classLabel, stageLabel, shift, classification });
-    rows.push({
+  return metadata === true;
+}
+
+/** One eligible line. Excluded classes are discarded before their personal cells are read. */
+function reportLineV1(
+  sheet: Worksheet,
+  headers: ReadonlyMap<ReportFieldV1, number>,
+  number: number,
+): { row: ReportRowV1; entry: StudentReportClassV1 } | null {
+  const value = (field: ReportFieldV1) => scalarV1(sheet, headers.get(field)!, number);
+  const classLabel = textV1(value('classLabel'));
+  const stageLabel = textV1(value('stageLabel'));
+  const shift = textV1(value('shift'));
+  const classification = classifyReportClassV1(classLabel, stageLabel, shift);
+  if (classification.kind === 'excluded') return null;
+  if (!classLabel && !stageLabel && !shift && value('name') === null) return null;
+  return {
+    entry: {
+      key: reportClassKeyV1(classLabel, stageLabel, shift),
+      classLabel,
+      stageLabel,
+      shift,
+      classification,
+    },
+    row: {
       sourceRow: number,
       name: textV1(value('name')),
       classLabel,
@@ -156,17 +167,41 @@ export function readStudentReportWorkbookV1(
       birthDate: value('birthDate'),
       enrolledAt: value('enrolledAt'),
       transferredAt: value('transferredAt'),
-    });
-  }
-  if (rows.length === 0) throw new Error('Nenhuma turma elegível no relatório.');
+    },
+  };
+}
+
+function sourceYearV1(years: ReadonlySet<number>): number | null {
   if (years.size > 1 || (years.size === 1 && !years.has(2026)))
     throw new Error('O relatório não corresponde ao ano de 2026.');
-  return {
-    rows,
-    classes: [...classes.values()],
-    date1904: metadata === true,
-    sourceYear: [...years][0] ?? null,
-  };
+  return [...years][0] ?? null;
+}
+
+/** Reads only the allowlist. */
+export function readStudentReportWorkbookV1(
+  workbook: Workbook,
+  xlsx: SheetJs,
+): ReadStudentReportV1 {
+  const { sheet, reference } = reportSheetV1(workbook);
+  const range = xlsx.utils.decode_range(reference);
+  if (range.s.r !== 0 || range.e.r > REPORT_MAX_ROWS_V1 || range.e.c > 300) {
+    throw new Error('Dimensões do relatório fora do limite permitido.');
+  }
+  const headers = requiredHeadersV1(sheet, range.e.c + 1);
+  const date1904 = date1904V1(workbook);
+  const rows: ReportRowV1[] = [];
+  const classes = new Map<string, StudentReportClassV1>();
+  const years = new Set<number>();
+  for (let number = 2; number <= range.e.r + 1; number++) {
+    const line = reportLineV1(sheet, headers, number);
+    if (!line) continue;
+    const { entry } = line;
+    if (entry.classification.kind === 'regular') years.add(entry.classification.academicYear);
+    if (!classes.has(entry.key)) classes.set(entry.key, entry);
+    rows.push(line.row);
+  }
+  if (rows.length === 0) throw new Error('Nenhuma turma elegível no relatório.');
+  return { rows, classes: [...classes.values()], date1904, sourceYear: sourceYearV1(years) };
 }
 
 export async function readStudentReportV1(file: File, xlsx: SheetJs): Promise<ReadStudentReportV1> {

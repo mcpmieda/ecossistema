@@ -26,9 +26,9 @@ const defaultClient = createReconciliationClientV1();
 
 export function ReportValidationErrorsV1({
   errors,
-}: {
+}: Readonly<{
   errors: readonly ReconciliationValidationErrorV1[];
-}) {
+}>) {
   return (
     <Alert status="danger">
       <Alert.Content>
@@ -50,19 +50,29 @@ export function ReportValidationErrorsV1({
   );
 }
 
+function preparedTitleV1(awaiting: boolean, decision: boolean): string {
+  if (awaiting) return 'Aguardando Relação';
+  return decision ? 'Decisão preparada' : 'Relatório preparado';
+}
+
+function applyLabelV1(busy: boolean, remaining: number | null, decision: boolean): string {
+  if (!busy) return decision ? 'Confirmar decisão' : 'Aplicar relatório';
+  return remaining === null ? 'Preparando…' : `Preparando atualização: ${remaining} restantes`;
+}
+
 export function PreparedReportV1({
   prepared,
   client,
   onCommitted,
   onStale,
   decision = false,
-}: {
+}: Readonly<{
   prepared: PreparedReconciliationV1;
   client: ReconciliationClientV1;
   onCommitted: () => void;
   onStale?: () => void;
   decision?: boolean;
-}) {
+}>) {
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -98,18 +108,17 @@ export function PreparedReportV1({
       className="mt-4 space-y-4 rounded-2xl p-4"
       aria-label={decision ? 'Conferência da decisão' : 'Conferência do relatório'}
     >
-      <p role="status">
-        {awaiting ? 'Aguardando Relação' : decision ? 'Decisão preparada' : 'Relatório preparado'} —{' '}
-        {prepared.counts.rows} registros.
-      </p>
+      <output className="block">
+        {preparedTitleV1(awaiting, decision)} — {prepared.counts.rows} registros.
+      </output>
       <p className="text-sm">
         {prepared.counts.linked} conciliados · {prepared.counts.pending} pendentes
       </p>
       <p className="text-sm">Prazo: {new Date(prepared.expiresAt).toLocaleString('pt-BR')}</p>
       {prepared.differences.length > 0 ? (
         <ul className="list-inside list-disc space-y-1 text-sm">
-          {prepared.differences.map((item, index) => (
-            <li key={index}>{item}</li>
+          {prepared.differences.map((item) => (
+            <li key={item}>{item}</li>
           ))}
         </ul>
       ) : null}
@@ -135,13 +144,7 @@ export function PreparedReportV1({
           isDisabled={expired || (!confirmed && prepared.differences.length > 0)}
           onPress={() => void apply()}
         >
-          {busy
-            ? remaining === null
-              ? 'Preparando…'
-              : `Preparando atualização: ${remaining} restantes`
-            : decision
-              ? 'Confirmar decisão'
-              : 'Aplicar relatório'}
+          {applyLabelV1(busy, remaining, decision)}
         </Button>
       ) : (
         <p className="text-sm">
@@ -156,11 +159,11 @@ export function StudentReportImportV1({
   file,
   onClose,
   client = defaultClient,
-}: {
+}: Readonly<{
   file: File;
   onClose: () => void;
   client?: ReconciliationClientV1;
-}) {
+}>) {
   const [data, setData] = useState<{ report: ReadStudentReportV1; catalog: CatalogV1 } | null>(
     null,
   );
@@ -303,6 +306,127 @@ export function StudentReportImportV1({
       if (!controller.current?.signal.aborted) setBusy(false);
     }
   }
+  function classLinks(current: { report: ReadStudentReportV1; catalog: CatalogV1 }) {
+    return (
+      <>
+        <fieldset className="min-w-0 space-y-3" aria-label="Ligação de turmas">
+          {links.map((link, index) => (
+            <div
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-default p-3"
+              key={current.report.classes[index]!.key}
+            >
+              <strong className="min-w-44 flex-1 break-words">{link.classLabel}</strong>
+              {current.catalog.context.relationAvailable ? (
+                <label className="flex flex-col gap-1 text-sm">
+                  <span>Turma da Relação</span>
+                  <select
+                    className="rounded-lg border border-default bg-surface p-2"
+                    aria-label={`Turma da Relação para ${link.classLabel}`}
+                    value={link.gradebookClassId ?? ''}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setLinks((previous) =>
+                        previous.map((item, at) =>
+                          at === index
+                            ? {
+                                ...item,
+                                gradebookClassId: event.target.value
+                                  ? Number(event.target.value)
+                                  : null,
+                                confirmRegular: false,
+                              }
+                            : item,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="">Sem ligação</option>
+                    {current.catalog.classes.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <span className="text-sm">Aguardando Relação</span>
+              )}
+              {suggestions[index] && link.gradebookClassId === null ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  isDisabled={busy}
+                  onPress={() =>
+                    setLinks((previous) =>
+                      previous.map((item, at) =>
+                        at === index ? { ...item, gradebookClassId: suggestions[index]!.id } : item,
+                      ),
+                    )
+                  }
+                >
+                  Ligar a {suggestions[index]!.label}
+                </Button>
+              ) : null}
+              {current.report.classes[index]!.classification.kind === 'unknown' ? (
+                <Checkbox
+                  isSelected={link.confirmRegular}
+                  isDisabled={busy || link.gradebookClassId === null}
+                  onChange={(value) =>
+                    setLinks((previous) =>
+                      previous.map((item, at) =>
+                        at === index ? { ...item, confirmRegular: value } : item,
+                      ),
+                    )
+                  }
+                >
+                  <Checkbox.Content>
+                    <Checkbox.Control>
+                      <Checkbox.Indicator />
+                    </Checkbox.Control>
+                    <span>Confirmo turma regular</span>
+                  </Checkbox.Content>
+                </Checkbox>
+              ) : null}
+            </div>
+          ))}
+        </fieldset>
+        {current.report.sourceYear === null ? (
+          <Checkbox isSelected={confirmYear} isDisabled={busy} onChange={setConfirmYear}>
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              <span>Confirmo o ano de 2026</span>
+            </Checkbox.Content>
+          </Checkbox>
+        ) : null}
+        <Button
+          isPending={busy}
+          isDisabled={current.report.sourceYear === null && !confirmYear}
+          onPress={() => void prepare()}
+        >
+          Preparar relatório
+        </Button>
+      </>
+    );
+  }
+  function content() {
+    if (done) return <output className="block">Relatório aplicado.</output>;
+    if (prepared)
+      return (
+        <PreparedReportV1
+          key={prepared.batchId}
+          prepared={prepared}
+          client={client}
+          onCommitted={() => {
+            setPrepared(null);
+            setDone(true);
+          }}
+          onStale={() => void refreshCatalog()}
+        />
+      );
+    return data ? classLinks(data) : null;
+  }
   return (
     <section
       className="mt-6 space-y-4 border-t border-default pt-5"
@@ -314,126 +438,10 @@ export function StudentReportImportV1({
           Fechar
         </Button>
       </div>
-      {busy ? <p role="status">Lendo e preparando relatório…</p> : null}
+      {busy ? <output className="block">Lendo e preparando relatório…</output> : null}
       {error ? <p role="alert">{error}</p> : null}
       {errors.length ? <ReportValidationErrorsV1 errors={errors} /> : null}
-      {done ? (
-        <p role="status">Relatório aplicado.</p>
-      ) : prepared ? (
-        <PreparedReportV1
-          key={prepared.batchId}
-          prepared={prepared}
-          client={client}
-          onCommitted={() => {
-            setPrepared(null);
-            setDone(true);
-          }}
-          onStale={() => void refreshCatalog()}
-        />
-      ) : data ? (
-        <>
-          <div className="space-y-3" role="group" aria-label="Ligação de turmas">
-            {links.map((link, index) => (
-              <div
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-default p-3"
-                key={data.report.classes[index]!.key}
-              >
-                <strong className="min-w-44 flex-1 break-words">{link.classLabel}</strong>
-                {data.catalog.context.relationAvailable ? (
-                  <label className="flex flex-col gap-1 text-sm">
-                    Turma da Relação
-                    <select
-                      className="rounded-lg border border-default bg-surface p-2"
-                      aria-label={`Turma da Relação para ${link.classLabel}`}
-                      value={link.gradebookClassId ?? ''}
-                      disabled={busy}
-                      onChange={(event) =>
-                        setLinks((previous) =>
-                          previous.map((item, at) =>
-                            at === index
-                              ? {
-                                  ...item,
-                                  gradebookClassId: event.target.value
-                                    ? Number(event.target.value)
-                                    : null,
-                                  confirmRegular: false,
-                                }
-                              : item,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="">Sem ligação</option>
-                      {data.catalog.classes.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <span className="text-sm">Aguardando Relação</span>
-                )}
-                {suggestions[index] && link.gradebookClassId === null ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    isDisabled={busy}
-                    onPress={() =>
-                      setLinks((previous) =>
-                        previous.map((item, at) =>
-                          at === index
-                            ? { ...item, gradebookClassId: suggestions[index]!.id }
-                            : item,
-                        ),
-                      )
-                    }
-                  >
-                    Ligar a {suggestions[index]!.label}
-                  </Button>
-                ) : null}
-                {data.report.classes[index]!.classification.kind === 'unknown' ? (
-                  <Checkbox
-                    isSelected={link.confirmRegular}
-                    isDisabled={busy || link.gradebookClassId === null}
-                    onChange={(value) =>
-                      setLinks((previous) =>
-                        previous.map((item, at) =>
-                          at === index ? { ...item, confirmRegular: value } : item,
-                        ),
-                      )
-                    }
-                  >
-                    <Checkbox.Content>
-                      <Checkbox.Control>
-                        <Checkbox.Indicator />
-                      </Checkbox.Control>
-                      <span>Confirmo turma regular</span>
-                    </Checkbox.Content>
-                  </Checkbox>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          {data.report.sourceYear === null ? (
-            <Checkbox isSelected={confirmYear} isDisabled={busy} onChange={setConfirmYear}>
-              <Checkbox.Content>
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                <span>Confirmo o ano de 2026</span>
-              </Checkbox.Content>
-            </Checkbox>
-          ) : null}
-          <Button
-            isPending={busy}
-            isDisabled={data.report.sourceYear === null && !confirmYear}
-            onPress={() => void prepare()}
-          >
-            Preparar relatório
-          </Button>
-        </>
-      ) : null}
+      {content()}
     </section>
   );
 }

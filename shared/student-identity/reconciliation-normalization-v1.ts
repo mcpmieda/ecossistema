@@ -30,7 +30,26 @@ function civilDateV1(year: number, month: number, day: number): string | null {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/** Dates are civil values: UTC is used only for Excel's integer day arithmetic. */
+/** Excel serial day. UTC is used only for the integer day arithmetic; 29/02/1900 never existed. */
+function excelSerialDateV1(value: number, date1904: boolean): string | null {
+  if (!Number.isSafeInteger(value) || value < (date1904 ? 0 : 1) || value > 2958465) return null;
+  if (!date1904 && value === 60) return null;
+  const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 31);
+  const days = !date1904 && value > 60 ? value - 1 : value;
+  const date = new Date(epoch + days * 86_400_000);
+  return civilDateV1(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+}
+
+/** Only the two explicit text formats of the contract; no regional guessing. */
+function textDateV1(value: string): string | null {
+  const text = value.trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(text);
+  if (iso) return civilDateV1(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  const local = /^(\d{2})\/(\d{2})\/(\d{4})$/u.exec(text);
+  return local ? civilDateV1(Number(local[3]), Number(local[2]), Number(local[1])) : null;
+}
+
+/** Dates are civil values, never an instant converted by a time zone. */
 export function parseCivilDateV1(
   value: string | number | null,
   date1904: boolean,
@@ -40,23 +59,7 @@ export function parseCivilDateV1(
   if (value === null || (typeof value === 'string' && value.trim() === '')) {
     return required ? { ok: false, reason: 'missing' } : { ok: true, value: null };
   }
-  let result: string | null = null;
-  if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value) || value < (date1904 ? 0 : 1) || value > 2958465) {
-      return { ok: false, reason: 'invalid' };
-    }
-    if (!date1904 && value === 60) return { ok: false, reason: 'invalid' };
-    const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 31);
-    const days = !date1904 && value > 60 ? value - 1 : value;
-    const date = new Date(epoch + days * 86_400_000);
-    result = civilDateV1(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
-  } else {
-    const text = value.trim();
-    const iso = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(text);
-    const local = /^(\d{2})\/(\d{2})\/(\d{4})$/u.exec(text);
-    if (iso) result = civilDateV1(Number(iso[1]), Number(iso[2]), Number(iso[3]));
-    else if (local) result = civilDateV1(Number(local[3]), Number(local[2]), Number(local[1]));
-  }
+  const result = typeof value === 'number' ? excelSerialDateV1(value, date1904) : textDateV1(value);
   if (!result) return { ok: false, reason: 'invalid' };
   if (result > today) return { ok: false, reason: 'future' };
   return { ok: true, value: result };

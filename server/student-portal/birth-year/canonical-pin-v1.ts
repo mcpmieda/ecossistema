@@ -17,13 +17,15 @@ export async function ensureCanonicalPinV1(
   );
   if (row?.pin_verifier != null) return Number(row.pin_version) === pinVersion;
   if (
-    !row ||
-    row.confirmation !== 'confirmed' ||
+    row?.confirmation !== 'confirmed' ||
     !['profile', 'report'].includes(String(row.source)) ||
     row.birth_year == null
   )
     return false;
-  const verifier = await cryptoPort.deriveVerifier(String(row.birth_year), pepperVersion);
+  // A PIN is derived from a year, never from the text of an unexpected driver value.
+  const year = Number(row.birth_year);
+  if (!Number.isInteger(year)) return false;
+  const verifier = await cryptoPort.deriveVerifier(String(year), pepperVersion);
   const written = await tx.unsafe(
     `INSERT INTO student_portal.password_credential(account_id,pin_verifier,pin_version)
     VALUES($1::uuid,$2::text::jsonb,$3) ON CONFLICT(account_id) DO UPDATE

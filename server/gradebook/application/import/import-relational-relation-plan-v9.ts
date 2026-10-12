@@ -151,22 +151,32 @@ function indexSourceByNameClassV9(
   return result;
 }
 
-function linkMovementSourcesV9(
+interface MovementReviewGroupV9 {
+  readonly origins: RelationSourceBindingV9[];
+  readonly destinations: RelationSourceBindingV9[];
+}
+
+interface MovementLinksV9 {
+  readonly union: UnionFindV9;
+  readonly externalSeed: Map<number, number>;
+  readonly warnings: RelationMovementWarningV9[];
+}
+
+function spellingWarningV9(
+  origin: RelationSourceBindingV9,
+  destination: RelationSourceBindingV9,
+): RelationMovementWarningV9 {
+  return { code: 'movement-spelling', classCode: origin.turmaCode,
+    number: origin.numero, relatedClassCode: destination.turmaCode };
+}
+
+/** Movements whose two ends carry the same name are linked directly; the others still need a pair. */
+function linkNamedMovementsV9(
   source: readonly RelationSourceBindingV9[],
   sourceByNameClass: ReadonlyMap<string, readonly RelationSourceBindingV9[]>,
-  existingByNameClass: ReadonlyMap<string, readonly ExistingRelationBindingV9[]>,
-  choices: readonly GradebookRelationMovementPairV9[] | undefined,
-): {
-  readonly union: UnionFindV9;
-  readonly externalSeed: ReadonlyMap<number, number>;
-  readonly warnings: readonly RelationMovementWarningV9[];
-} {
-  const union = new UnionFindV9(source.length);
-  const externalSeed = new Map<number, number>();
+  union: UnionFindV9,
+): RelationSourceBindingV9[] {
   const unmatched: RelationSourceBindingV9[] = [];
-  const warnings: RelationMovementWarningV9[] = [];
-  const reviewGroups = new Map<string, { origins: RelationSourceBindingV9[]; destinations: RelationSourceBindingV9[] }>();
-
   for (const item of source) {
     if (item.relatedTurmaId === null) continue;
     const key = nameClassKeyV9(item.relatedTurmaId, item.nome);
@@ -174,84 +184,144 @@ function linkMovementSourcesV9(
     if (candidates.length > 1) {
       throw new RelationPlanErrorV9('blocked', `Movimentação ambígua para ${item.nome}.`);
     }
-    if (candidates.length === 1) {
-      union.union(item.index, candidates[0]!.index);
-      continue;
-    }
-    unmatched.push(item);
+    if (candidates.length === 1) union.union(item.index, candidates[0]!.index);
+    else unmatched.push(item);
   }
+  return unmatched;
+}
 
+function isReciprocalMovementV9(item: RelationSourceBindingV9, other: RelationSourceBindingV9): boolean {
+  return other.turmaId === item.relatedTurmaId && other.relatedTurmaId === item.turmaId &&
+    ((item.situacao === 6 && other.situacao === 7) || (item.situacao === 7 && other.situacao === 6));
+}
+
+function isSameDirectionMovementV9(item: RelationSourceBindingV9, other: RelationSourceBindingV9): boolean {
+  return other.turmaId === item.turmaId &&
+    other.relatedTurmaId === item.relatedTurmaId && other.situacao === item.situacao;
+}
+
+/** An end without a counterpart in the file continues the single student already bound by name. */
+function externalMovementSeedV9(
+  item: RelationSourceBindingV9,
+  existingByNameClass: ReadonlyMap<string, readonly ExistingRelationBindingV9[]>,
+): number {
+  const key = nameClassKeyV9(item.relatedTurmaId!, item.nome);
+  const existing = existingByNameClass.get(key) ?? [];
+  const ids = [...new Set(existing.map((value) => value.alunoId))];
+  if (ids.length === 1) return ids[0]!;
+  throw new RelationPlanErrorV9(
+    'blocked',
+    ids.length === 0
+      ? `Movimentação sem vínculo de origem/destino para ${item.nome}.`
+      : `Movimentação ambígua para ${item.nome}.`,
+  );
+}
+
+/** The exits ("FOI PARA", 6) and the entries ("ESTAVA NO", 7) that the operator has to pair. */
+function movementReviewGroupV9(
+  item: RelationSourceBindingV9,
+  reciprocal: RelationSourceBindingV9[],
+  sameDirection: RelationSourceBindingV9[],
+): MovementReviewGroupV9 {
+  return {
+    origins: item.situacao === 6 ? sameDirection : reciprocal,
+    destinations: item.situacao === 7 ? sameDirection : reciprocal,
+  };
+}
+
+function pairedSpellingWarningV9(
+  item: RelationSourceBindingV9,
+  other: RelationSourceBindingV9,
+): RelationMovementWarningV9 {
+  const origin = item.situacao === 6 ? item : other;
+  const destination = item.situacao === 7 ? item : other;
+  return spellingWarningV9(origin, destination);
+}
+
+/** One exit and one entry between two classes are the same student even when spelled differently;
+ * more than one of either is left for the operator to pair. */
+function pairUnnamedMovementsV9(
+  unmatched: readonly RelationSourceBindingV9[],
+  existingByNameClass: ReadonlyMap<string, readonly ExistingRelationBindingV9[]>,
+  links: MovementLinksV9,
+): MovementReviewGroupV9[] {
+  const reviewGroups = new Map<string, MovementReviewGroupV9>();
   const paired = new Set<number>();
   for (const item of unmatched) {
     if (paired.has(item.index)) continue;
-    const reciprocal = unmatched.filter((other) =>
-      other.turmaId === item.relatedTurmaId && other.relatedTurmaId === item.turmaId &&
-      ((item.situacao === 6 && other.situacao === 7) || (item.situacao === 7 && other.situacao === 6)),
-    );
-    const sameDirection = unmatched.filter((other) => other.turmaId === item.turmaId &&
-      other.relatedTurmaId === item.relatedTurmaId && other.situacao === item.situacao);
-    if (reciprocal.length > 0) {
-      if (reciprocal.length !== 1 || sameDirection.length !== 1) {
-        const origins = item.situacao === 6 ? sameDirection : reciprocal;
-        const destinations = item.situacao === 7 ? sameDirection : reciprocal;
-        reviewGroups.set(`${origins[0]!.turmaId}:${destinations[0]!.turmaId}`, { origins, destinations });
-        continue;
-      }
-      const other = reciprocal[0]!;
-      union.union(item.index, other.index);
-      paired.add(item.index);
-      paired.add(other.index);
-      const origin = item.situacao === 6 ? item : other;
-      const destination = item.situacao === 7 ? item : other;
-      warnings.push({ code: 'movement-spelling', classCode: origin.turmaCode,
-        number: origin.numero, relatedClassCode: destination.turmaCode });
+    const reciprocal = unmatched.filter((other) => isReciprocalMovementV9(item, other));
+    if (reciprocal.length === 0) {
+      links.externalSeed.set(item.index, externalMovementSeedV9(item, existingByNameClass));
       continue;
     }
-
-    const key = nameClassKeyV9(item.relatedTurmaId!, item.nome);
-    const existing = existingByNameClass.get(key) ?? [];
-    const ids = [...new Set(existing.map((value) => value.alunoId))];
-    if (ids.length !== 1) {
-      throw new RelationPlanErrorV9(
-        'blocked',
-        ids.length === 0
-          ? `Movimentação sem vínculo de origem/destino para ${item.nome}.`
-          : `Movimentação ambígua para ${item.nome}.`,
-      );
+    const sameDirection = unmatched.filter((other) => isSameDirectionMovementV9(item, other));
+    if (reciprocal.length !== 1 || sameDirection.length !== 1) {
+      const group = movementReviewGroupV9(item, reciprocal, sameDirection);
+      reviewGroups.set(`${group.origins[0]!.turmaId}:${group.destinations[0]!.turmaId}`, group);
+      continue;
     }
-    externalSeed.set(item.index, ids[0]!);
+    const other = reciprocal[0]!;
+    links.union.union(item.index, other.index);
+    paired.add(item.index);
+    paired.add(other.index);
+    links.warnings.push(pairedSpellingWarningV9(item, other));
   }
+  return [...reviewGroups.values()];
+}
 
-  const groups = [...reviewGroups.values()];
-  if (groups.length > 0 && choices === undefined) {
-    const endpoint = (item: RelationSourceBindingV9) => ({ classCode: item.turmaCode, number: item.numero, name: item.nome });
-    throw new RelationPlanErrorV9('review-required',
-      `Confira os pares de movimentação entre ${groups[0]!.origins[0]!.turmaCode} e ${groups[0]!.destinations[0]!.turmaCode}.`,
-      groups.map((group) => ({ origins: group.origins.map(endpoint), destinations: group.destinations.map(endpoint) })));
-  }
-  if (choices !== undefined) {
-    const key = (code: string, number: number) => JSON.stringify([classKeyV9(code), number]);
-    const origins = new Map(groups.flatMap((group) => group.origins.map((item) => [key(item.turmaCode, item.numero), item] as const)));
-    const destinations = new Map(groups.flatMap((group) => group.destinations.map((item) => [key(item.turmaCode, item.numero), item] as const)));
-    if (choices.length === 0 || choices.length !== origins.size || choices.length !== destinations.size)
-      throw new RelationPlanErrorV9('conflict', 'Confira todos os pares de movimentação novamente.');
-    for (const choice of choices) {
-      const originKey = key(choice.origin.classCode, choice.origin.number);
-      const destinationKey = key(choice.destination.classCode, choice.destination.number);
-      const origin = origins.get(originKey);
-      const destination = destinations.get(destinationKey);
-      if (!origin || !destination || origin.situacao !== 6 || destination.situacao !== 7 ||
-        origin.relatedTurmaId !== destination.turmaId || destination.relatedTurmaId !== origin.turmaId)
-        throw new RelationPlanErrorV9('conflict', 'Os pares escolhidos não correspondem às movimentações do arquivo.');
-      origins.delete(originKey);
-      destinations.delete(destinationKey);
-      union.union(origin.index, destination.index);
-      warnings.push({ code: 'movement-spelling', classCode: origin.turmaCode,
-        number: origin.numero, relatedClassCode: destination.turmaCode });
-    }
-  }
+function movementReviewErrorV9(groups: readonly MovementReviewGroupV9[]): RelationPlanErrorV9 {
+  const endpoint = (item: RelationSourceBindingV9) => ({ classCode: item.turmaCode, number: item.numero, name: item.nome });
+  return new RelationPlanErrorV9('review-required',
+    `Confira os pares de movimentação entre ${groups[0]!.origins[0]!.turmaCode} e ${groups[0]!.destinations[0]!.turmaCode}.`,
+    groups.map((group) => ({ origins: group.origins.map(endpoint), destinations: group.destinations.map(endpoint) })));
+}
 
-  return { union, externalSeed, warnings };
+function isChosenMovementPairV9(origin: RelationSourceBindingV9, destination: RelationSourceBindingV9): boolean {
+  return origin.situacao === 6 && destination.situacao === 7 &&
+    origin.relatedTurmaId === destination.turmaId && destination.relatedTurmaId === origin.turmaId;
+}
+
+/** The operator's pairs must be exactly the open movements of the file, each end used once. */
+function applyMovementChoicesV9(
+  groups: readonly MovementReviewGroupV9[],
+  choices: readonly GradebookRelationMovementPairV9[],
+  links: MovementLinksV9,
+): void {
+  const key = (code: string, number: number) => JSON.stringify([classKeyV9(code), number]);
+  const origins = new Map(groups.flatMap((group) => group.origins.map((item) => [key(item.turmaCode, item.numero), item] as const)));
+  const destinations = new Map(groups.flatMap((group) => group.destinations.map((item) => [key(item.turmaCode, item.numero), item] as const)));
+  if (choices.length === 0 || choices.length !== origins.size || choices.length !== destinations.size)
+    throw new RelationPlanErrorV9('conflict', 'Confira todos os pares de movimentação novamente.');
+  for (const choice of choices) {
+    const originKey = key(choice.origin.classCode, choice.origin.number);
+    const destinationKey = key(choice.destination.classCode, choice.destination.number);
+    const origin = origins.get(originKey);
+    const destination = destinations.get(destinationKey);
+    if (!origin || !destination || !isChosenMovementPairV9(origin, destination))
+      throw new RelationPlanErrorV9('conflict', 'Os pares escolhidos não correspondem às movimentações do arquivo.');
+    origins.delete(originKey);
+    destinations.delete(destinationKey);
+    links.union.union(origin.index, destination.index);
+    links.warnings.push(spellingWarningV9(origin, destination));
+  }
+}
+
+function linkMovementSourcesV9(
+  source: readonly RelationSourceBindingV9[],
+  sourceByNameClass: ReadonlyMap<string, readonly RelationSourceBindingV9[]>,
+  existingByNameClass: ReadonlyMap<string, readonly ExistingRelationBindingV9[]>,
+  choices: readonly GradebookRelationMovementPairV9[] | undefined,
+): MovementLinksV9 {
+  const links: MovementLinksV9 = {
+    union: new UnionFindV9(source.length),
+    externalSeed: new Map<number, number>(),
+    warnings: [],
+  };
+  const unmatched = linkNamedMovementsV9(source, sourceByNameClass, links.union);
+  const groups = pairUnnamedMovementsV9(unmatched, existingByNameClass, links);
+  if (groups.length > 0 && choices === undefined) throw movementReviewErrorV9(groups);
+  if (choices !== undefined) applyMovementChoicesV9(groups, choices, links);
+  return links;
 }
 
 function groupComponentsV9(

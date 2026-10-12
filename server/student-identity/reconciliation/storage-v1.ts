@@ -34,8 +34,15 @@ export async function digestV1(input: unknown): Promise<string> {
   );
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+/** Text of a database scalar. A driver object never reaches a comparison as "[object Object]". */
+export function scalarTextV1(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === 'number' || typeof v === 'bigint' || typeof v === 'boolean') return `${v}`;
+  return JSON.stringify(v) ?? '';
+}
 export function nullableTextV1(v: unknown): string | null {
-  return v === null || v === undefined ? null : String(v);
+  return v === null || v === undefined ? null : scalarTextV1(v);
 }
 export function boolV1(v: unknown): boolean {
   return v === true || v === 1;

@@ -18,6 +18,7 @@ import type {
   GradebookPostgresScalarV1,
 } from '../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { inOrderV1 } from '../../../../shared/in-order-v1';
 
 type Row = Record<string, unknown>;
 type TransactionalDatabase = GradebookPostgresWritePortV1 & {
@@ -168,7 +169,7 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
   deleted += integer(portal.deleted);
   await database.executeNative('UPDATE gradebook.student_reconciliation_scope_v1 SET current_batch_id=NULL WHERE academic_year=$1', [year]);
   await database.executeNative('UPDATE gradebook.student_source_record_v1 SET current_observation_id=NULL WHERE academic_year=$1', [year]);
-  for (const table of RECONCILIATION_TABLES_V1) await run(`DELETE FROM gradebook.${table} WHERE academic_year=$1`);
+  await inOrderV1(RECONCILIATION_TABLES_V1, (table) => run(`DELETE FROM gradebook.${table} WHERE academic_year=$1`));
   await database.executeNative(`UPDATE gradebook.student_reconciliation_scope_v1
     SET generation=gen_random_uuid(),revision=0,academic_revision=NULL,name_source='report' WHERE academic_year=$1`, [year]);
 

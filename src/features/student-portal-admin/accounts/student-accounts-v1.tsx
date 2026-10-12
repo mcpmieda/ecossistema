@@ -95,7 +95,7 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
   if (props.reconciliation && props.scope.kind !== 'account') {
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Exibição de alunos">
+        <fieldset className="flex min-w-0 flex-wrap gap-2" aria-label="Exibição de alunos">
           <Button
             variant={showAccounts ? 'secondary' : 'primary'}
             onPress={() => {
@@ -112,7 +112,7 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
           >
             Acessos e QR
           </Button>
-        </div>
+        </fieldset>
         {showAccounts ? (
           <AccountsBodyV1
             key={`${props.identityKey}:${settingsScopeKeyV1(readScopeV1(props.scope))}:${props.canWrite}`}

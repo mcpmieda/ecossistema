@@ -1337,7 +1337,7 @@ export function useImportBatch() {
     confirmation: GradebookRelationMovementConfirmationV9,
   ): Promise<void> {
     const session = movementReviews.current.get(resultId);
-    if (!session?.review || session.review.digest !== confirmation.digest) return;
+    if (session?.review?.digest !== confirmation.digest) return;
     await resumePendingPersistence({ resultId, confirmation });
   }
 

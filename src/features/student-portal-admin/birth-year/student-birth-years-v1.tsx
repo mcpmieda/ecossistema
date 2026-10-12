@@ -11,6 +11,7 @@ import {
   readBirthPageV1,
   type BirthCursorsV1,
   type BirthScopeV1,
+  type BirthValueV1,
   type InitialBirthAccountV1,
 } from './birth-read-v1';
 import { StudentNameV1 } from '../shared/account-open-v1';
@@ -36,17 +37,23 @@ export function StudentBirthYearsV1(props: StudentBirthYearsPropsV1) {
     />
   );
 }
-function BirthReadScopeV1(props: StudentBirthYearsPropsV1) {
+function birthStateLabelV1(birth: BirthValueV1): string {
+  if (birth.confirmation === 'confirmed') return 'Confirmado';
+  return birth.year ? 'Legado não confirmado' : 'Aguardando Relatório';
+}
+
+function BirthNoticeV1({ failed, loading }: Readonly<{ failed: boolean; loading: boolean }>) {
+  if (failed) return <p role="alert">Consulta de nascimento indisponível.</p>;
+  if (loading) return <output className="block">Carregando nascimento…</output>;
+  return <p>Sem nascimento disponível.</p>;
+}
+
+function BirthReadScopeV1(props: Readonly<StudentBirthYearsPropsV1>) {
   const [selected, setSelected] = useState<{ id: number; label: string } | null>(null);
-  const scope = useMemo<BirthScopeV1 | null>(
-    () =>
-      props.scope.kind !== 'school'
-        ? props.scope
-        : selected
-          ? { kind: 'class', academicYear: 2026, classId: selected.id }
-          : null,
-    [props.scope, selected],
-  );
+  const scope = useMemo<BirthScopeV1 | null>(() => {
+    if (props.scope.kind !== 'school') return props.scope;
+    return selected ? { kind: 'class', academicYear: 2026, classId: selected.id } : null;
+  }, [props.scope, selected]);
   return (
     <section className="space-y-4" aria-label="Nascimento">
       {props.scope.kind === 'school' && props.catalog ? (
@@ -103,12 +110,8 @@ function BirthReadRowsV1(props: StudentBirthYearsPropsV1 & { scope: BirthScopeV1
         </Button>
       </Card.Header>
       <Card.Content>
-        {read.state.state === 'error' ? (
-          <p role="alert">Consulta de nascimento indisponível.</p>
-        ) : rows === null ? (
-          <p role="status">Carregando nascimento…</p>
-        ) : rows.length === 0 ? (
-          <p>Sem nascimento disponível.</p>
+        {read.state.state === 'error' || rows === null || rows.length === 0 ? (
+          <BirthNoticeV1 failed={read.state.state === 'error'} loading={rows === null} />
         ) : (
           <Table variant="secondary">
             <Table.ScrollContainer>
@@ -129,13 +132,7 @@ function BirthReadRowsV1(props: StudentBirthYearsPropsV1 & { scope: BirthScopeV1
                         />
                       </Table.Cell>
                       <Table.Cell>{birth.year ?? '—'}</Table.Cell>
-                      <Table.Cell>
-                        {birth.confirmation === 'confirmed'
-                          ? 'Confirmado'
-                          : birth.year
-                            ? 'Legado não confirmado'
-                            : 'Aguardando Relatório'}
-                      </Table.Cell>
+                      <Table.Cell>{birthStateLabelV1(birth)}</Table.Cell>
                     </Table.Row>
                   ))}
                 </Table.Body>

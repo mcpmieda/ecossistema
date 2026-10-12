@@ -252,7 +252,7 @@ it('activates linked people and external pending without accounts in one commit 
   expect((await service.execute(input)).state).toBe('committed');
   expect(await count('student_source_observation_v1')).toBe(2);
   expect(await count('student_report_profile_v1')).toBe(1);
-  expect((await owner.unsafe('SELECT 1 FROM student_portal.account')).length).toBe(0);
+  expect(await owner.unsafe('SELECT 1 FROM student_portal.account')).toHaveLength(0);
   const list = await service.execute({ ...base, operation: 'list' });
   expect(list.state).toBe('ready');
   if (list.state === 'ready' && list.operation === 'list') {
@@ -458,13 +458,9 @@ it('records manual separation durably, recognizes changed hashes, requires expli
   );
   await stage(changed);
   expect((await service.execute(applyRequest(changed))).state).toBe('committed');
-  expect(
-    (
-      await owner.unsafe('SELECT 1 FROM gradebook.student_source_link_v1 WHERE source_id=$1', [
+  expect(await owner.unsafe('SELECT 1 FROM gradebook.student_source_link_v1 WHERE source_id=$1', [
         external!.id,
-      ])
-    ).length,
-  ).toBe(0);
+      ])).toHaveLength(0);
   expect(
     (
       await mutate({
@@ -517,13 +513,9 @@ it('records manual separation durably, recognizes changed hashes, requires expli
       })
     ).state,
   ).toBe('conflict');
-  expect(
-    (
-      await owner.unsafe('SELECT 1 FROM gradebook.student_source_link_v1 WHERE student_uid=$1', [
+  expect(await owner.unsafe('SELECT 1 FROM gradebook.student_source_link_v1 WHERE student_uid=$1', [
         firstUid,
-      ])
-    ).length,
-  ).toBe(1);
+      ])).toHaveLength(1);
 });
 it('resolves historical source evidence only to one central UID and marks affected class links for explicit review', async () => {
   const db = createGradebookPostgresDatabaseFromSqlV1(app as unknown as GradebookPostgresSqlV1);

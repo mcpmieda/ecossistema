@@ -14,6 +14,7 @@ import {
   loadDomainV1,
   nullableTextV1,
   ReconciliationConflictV1,
+  scalarTextV1,
   type TxV1,
 } from './storage-v1';
 const cursorSchema = z
@@ -222,7 +223,7 @@ export async function detailV1(
       .map((r) => ({
         studentUid: String(r.student_uid),
         name: String(r.nome),
-        classLabel: String(r.codigo ?? ''),
+        classLabel: scalarTextV1(r.codigo ?? ''),
       })),
     history: history.map((r) => ({
       id: String(r.id),

@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import postgres from 'postgres';
 import { compareCanonicalStringsV1 } from '../../shared/gradebook-contracts/string-order-v1.ts';
+import { inOrderV1 } from '../../shared/in-order-v1.ts';
 
 import {
   applyCurrentGradebookSchemaV1,
@@ -533,13 +534,13 @@ async function completePortalBaseline(): Promise<void> {
     )
     .sort(compareCanonicalStringsV1);
   if (remaining.length !== 18) throw new Error('gradebook-ci-portal-lineage-incomplete');
-  for (const file of remaining) {
+  await inOrderV1(remaining, async (file) => {
     if (file.startsWith('0019_')) {
       // Synthetic isolated replay satisfies the historical, already-approved publication cutover.
       await sql.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=true');
     }
     await sql.unsafe(await readFile('migrations/student-portal/' + file, 'utf8'));
-  }
+  });
 }
 
 /** Production applies migrations with a CREATEROLE role that is not a superuser and owns both

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { inOrderV1 } from '../../../shared/in-order-v1';
 import { studentUidV1 } from '../../../shared/student-identity/student-identity-v1';
 import type {
   CryptoPortV1,
@@ -20,7 +21,7 @@ const progressV1 = z
     preparedCount: z.number().int().nonnegative().safe(),
     remainingCount: z.number().int().nonnegative().safe(),
     targets: z
-      .array(z.object({ accountId: studentUidV1, year: z.string().regex(/^[0-9]{4}$/u) }).strict())
+      .array(z.object({ accountId: studentUidV1, year: z.string().regex(/^\d{4}$/u) }).strict())
       .max(4),
   })
   .strict();
@@ -49,8 +50,8 @@ export async function prepareReconciliationCredentialsV1(
   };
   try {
     const pending = await progress(4);
-    for (const target of pending.targets) {
-      // Sequential, outside a database transaction. Keep the existing KDF, pepper and individual salt.
+    // Sequential, outside a database transaction. Keep the existing KDF, pepper and individual salt.
+    await inOrderV1(pending.targets, async (target) => {
       const verifier = await cryptoPort.deriveVerifier(target.year, pepperVersion);
       await sql.begin((tx) =>
         Promise.resolve(
@@ -60,7 +61,7 @@ export async function prepareReconciliationCredentialsV1(
           ),
         ),
       );
-    }
+    });
     const completed = pending.targets.length ? await progress(0) : pending;
     return {
       state: completed.state,

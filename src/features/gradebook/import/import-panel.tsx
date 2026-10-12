@@ -700,34 +700,33 @@ export function NotesImportPanel() {
                 auditFailure={diagnosticAuditFailures[selectedResult.id]}
               />
               <PersistenceResult state={selectedPersistence} />
-              {selectedPersistence?.state === 'movement-review' ? (
-                selectedPersistence.review ? (
-                  <RelationMovementReviewV9
-                    key={`${selectedResult.id}:${selectedPersistence.review.digest}`}
-                    review={selectedPersistence.review}
-                    busy={loading}
-                    onConfirm={(confirmation) =>
-                      void confirmMovementReview(selectedResult.id, confirmation)
-                    }
-                    onCancel={() => cancelMovementReview(selectedResult.id)}
-                  />
-                ) : (
-                  <Alert status="warning" className="mt-5">
-                    <Alert.Indicator />
-                    <Alert.Content>
-                      <Alert.Title>{persistenceLabel(selectedPersistence)}</Alert.Title>
-                      <Alert.Description>{selectedPersistence.message}</Alert.Description>
-                      <Button
-                        variant="secondary"
-                        className="mt-3"
-                        isDisabled={loading}
-                        onPress={() => void resumePendingPersistence()}
-                      >
-                        Conferir novamente
-                      </Button>
-                    </Alert.Content>
-                  </Alert>
-                )
+              {selectedPersistence?.state === 'movement-review' && selectedPersistence.review ? (
+                <RelationMovementReviewV9
+                  key={`${selectedResult.id}:${selectedPersistence.review.digest}`}
+                  review={selectedPersistence.review}
+                  busy={loading}
+                  onConfirm={(confirmation) =>
+                    void confirmMovementReview(selectedResult.id, confirmation)
+                  }
+                  onCancel={() => cancelMovementReview(selectedResult.id)}
+                />
+              ) : null}
+              {selectedPersistence?.state === 'movement-review' && !selectedPersistence.review ? (
+                <Alert status="warning" className="mt-5">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>{persistenceLabel(selectedPersistence)}</Alert.Title>
+                    <Alert.Description>{selectedPersistence.message}</Alert.Description>
+                    <Button
+                      variant="secondary"
+                      className="mt-3"
+                      isDisabled={loading}
+                      onPress={() => void resumePendingPersistence()}
+                    >
+                      Conferir novamente
+                    </Button>
+                  </Alert.Content>
+                </Alert>
               ) : null}
             </>
           )}

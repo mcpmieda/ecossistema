@@ -2,6 +2,7 @@ import { AUDIT_IP_MASK_V1, AUDIT_IP_SOURCE_V1 } from '../observability/audit-con
 import { z } from 'zod';
 import { STUDENT_NAME_MAX_LENGTH_V1 } from '../../../shared/student-identity/student-identity-v1';
 import { ensureCanonicalPinV1 } from '../birth-year/canonical-pin-v1';
+import { inOrderV1 } from '../../../shared/in-order-v1';
 import {
   auditEventV1,
   type AdminCommandV1,
@@ -63,8 +64,10 @@ export async function qrBatchV1(
       row.birth_year !== null && row.confirmation === 'confirmed' && ['profile','report'].includes(String(row.birth_source)));
     if (missingPins.length > 4) throw new Error('student-portal-batch-recovery-conflict');
     const preparedPins = new Set<string>();
-    for (const row of missingPins) if (await ensureCanonicalPinV1(tx, cryptoPort, pepperVersion, String(row.id), Number(row.pin_version)))
-      preparedPins.add(String(row.id));
+    await inOrderV1(missingPins, async (row) => {
+      if (await ensureCanonicalPinV1(tx, cryptoPort, pepperVersion, String(row.id), Number(row.pin_version)))
+        preparedPins.add(String(row.id));
+    });
     if (
       rows.some(
         (row) =>

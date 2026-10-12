@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { compareCanonicalStringsV1 } from '../../../shared/gradebook-contracts/string-order-v1.ts';
+import { inOrderV1 } from '../../../shared/in-order-v1.ts';
 
 export interface CurrentGradebookRecoveryQueryV1 {
   unsafe(
@@ -154,13 +155,13 @@ export async function applyCurrentGradebookSchemaV1(
   }
 
   await provisionCurrentGradebookRolesV1(sql);
-  for (const file of GRADEBOOK_CURRENT_SCHEMA_PLAN_V1) {
+  await inOrderV1(GRADEBOOK_CURRENT_SCHEMA_PLAN_V1, async (file) => {
     const source = await readFile(
       join(repositoryRoot, 'migrations/gradebook-simplified', file),
       'utf8',
     );
     await sql.unsafe(source);
-  }
+  });
 }
 
 /** Isolated recovery/CI only; production migration authorization is a separate operation. */
@@ -182,9 +183,9 @@ export async function applyReconciliationCandidateSchemaV1(
   ) {
     throw new Error('gradebook-reconciliation-candidate-prerequisites-invalid');
   }
-  for (const file of GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1) {
+  await inOrderV1(GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1, async (file) => {
     await sql.unsafe(await readFile(join(repositoryRoot, 'migrations', file), 'utf8'));
-  }
+  });
 }
 
 export async function readCurrentGradebookCatalogV1(

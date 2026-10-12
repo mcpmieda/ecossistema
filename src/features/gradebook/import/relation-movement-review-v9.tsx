@@ -59,15 +59,20 @@ export function RelationMovementReviewV9({
           </Alert.Description>
         </Alert.Content>
       </Alert>
-      {review.groups.map((group, groupIndex) => (
+      {review.groups.map((group) => (
         <fieldset
-          key={groupIndex}
+          key={group.origins.map(positionKey).join('|')}
           disabled={busy}
           className="space-y-3 rounded-xl border border-default p-3"
         >
           <legend className="px-1 text-sm font-semibold">
             {group.origins[0]?.classCode} → {group.destinations[0]?.classCode}
           </legend>
+          {group.origins.length === group.destinations.length ? null : (
+            <p role="alert" className="text-sm">
+              Saídas e entradas em quantidade diferente. Corrija a Relação e reenvie.
+            </p>
+          )}
           {group.origins.map((origin) => {
             const originKey = positionKey(origin);
             const taken = new Set(
@@ -84,7 +89,7 @@ export function RelationMovementReviewV9({
                   <strong className="break-words">{origin.name}</strong>
                 </div>
                 <label className="flex min-w-0 flex-col gap-1 text-sm">
-                  ESTAVA NO
+                  <span>ESTAVA NO</span>
                   <select
                     aria-label={`Destino para ${origin.name}, ${origin.classCode} nº ${origin.number}`}
                     className="w-full rounded-lg border border-default bg-surface p-2"

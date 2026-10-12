@@ -98,13 +98,11 @@ export async function prepareReconciliationHarnessFixtureV1(
       });
       expect(result.state).toBe('committed');
       expect(
-        (
-          await owner.unsafe(
-            'SELECT 1 FROM student_portal.reconciliation_credential_stage_v1 WHERE batch_id=$1::uuid',
-            [prepared.batchId],
-          )
-        ).length,
-      ).toBe(0);
+        await owner.unsafe(
+          'SELECT 1 FROM student_portal.reconciliation_credential_stage_v1 WHERE batch_id=$1::uuid',
+          [prepared.batchId],
+        ),
+      ).toHaveLength(0);
     },
   };
 }

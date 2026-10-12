@@ -30,20 +30,55 @@ const stageResultV1 = z
     remainingCount: z.number().int().nonnegative().optional(),
   })
   .passthrough();
+const STATUS_BY_STATE_V1: Readonly<Record<string, number>> = {
+  ready: 200,
+  committed: 200,
+  'validation-failed': 200,
+  'invalid-request': 400,
+  'not-authorized': 403,
+  unavailable: 503,
+};
 function responseV1(value: ReconciliationResponseV1, status?: number): Response {
   return Response.json(reconciliationResponseV1.parse(value), {
-    status:
-      status ??
-      (['ready', 'committed', 'validation-failed'].includes(value.state)
-        ? 200
-        : value.state === 'invalid-request'
-          ? 400
-          : value.state === 'not-authorized'
-            ? 403
-            : value.state === 'unavailable'
-              ? 503
-              : 409),
+    status: status ?? STATUS_BY_STATE_V1[value.state] ?? 409,
     headers: { 'Cache-Control': 'no-store, private', Pragma: 'no-cache', Expires: '0' },
+  });
+}
+function coreAvailableV1(env: RuntimeEnv): boolean {
+  const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
+  return (
+    env.GRADEBOOK_STORAGE_PROVIDER === 'postgres' &&
+    ['production', 'local', 'preview'].includes(environment) &&
+    (environment !== 'production' || env.GRADEBOOK_PRODUCTION_ENABLED === 'true') &&
+    Boolean(env.GRADEBOOK_DATABASE)
+  );
+}
+/** KDF work happens after the core transaction ends. Final apply revalidates every CAS in one transaction. */
+async function stageCredentialsV1(
+  env: RuntimeEnv,
+  context: TrustedAdminContextV1,
+  input: { batchId: string; generation: string; expectedRevision: number },
+): Promise<Response> {
+  const binding = env.PORTAL_SERVICE as CredentialBindingV1 | undefined;
+  if (typeof binding?.prepareReconciliationCredentials !== 'function')
+    return responseV1({ contractVersion: 1, state: 'unavailable' });
+  const staged = stageResultV1.safeParse(
+    await binding.prepareReconciliationCredentials(context, {
+      contractVersion: 1,
+      batchId: input.batchId,
+      generation: input.generation,
+      expectedScopeRevision: input.expectedRevision,
+    }),
+  );
+  if (!staged.success) return responseV1({ contractVersion: 1, state: 'unavailable' });
+  if (staged.data.state === 'expired' || staged.data.state === 'conflict')
+    return responseV1({ contractVersion: 1, state: staged.data.state });
+  return responseV1({
+    contractVersion: 1,
+    state: 'ready',
+    operation: 'stage',
+    ready: staged.data.state === 'ready',
+    remaining: staged.data.remainingCount ?? 0,
   });
 }
 /** The browser can submit allowlisted observations, never prepared verifiers or a trusted actor. */
@@ -75,42 +110,14 @@ export async function handleStudentReconciliationRequestV1(
       : readContext;
     if (typeof context === 'string')
       return responseV1({ contractVersion: 1, state: 'not-authorized' });
-    const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-    if (
-      env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
-      !['production', 'local', 'preview'].includes(environment) ||
-      (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-      !env.GRADEBOOK_DATABASE
-    )
-      return responseV1({ contractVersion: 1, state: 'unavailable' });
+    if (!coreAvailableV1(env)) return responseV1({ contractVersion: 1, state: 'unavailable' });
     const result = await new StudentReconciliationServiceV1(
       env.GRADEBOOK_DATABASE as GradebookPostgresDatabaseV1,
       context.actorId,
       env.SESSION_SECRET,
     ).execute(input);
     if (input.operation !== 'stage' || result.state !== 'ready') return responseV1(result);
-    // KDF work happens after the core transaction ends. Final apply revalidates every CAS in one transaction.
-    const binding = env.PORTAL_SERVICE as CredentialBindingV1 | undefined;
-    if (!binding || typeof binding.prepareReconciliationCredentials !== 'function')
-      return responseV1({ contractVersion: 1, state: 'unavailable' });
-    const staged = stageResultV1.safeParse(
-      await binding.prepareReconciliationCredentials(context, {
-        contractVersion: 1,
-        batchId: input.batchId,
-        generation: input.generation,
-        expectedScopeRevision: input.expectedRevision,
-      }),
-    );
-    if (!staged.success) return responseV1({ contractVersion: 1, state: 'unavailable' });
-    if (staged.data.state === 'expired' || staged.data.state === 'conflict')
-      return responseV1({ contractVersion: 1, state: staged.data.state });
-    return responseV1({
-      contractVersion: 1,
-      state: 'ready',
-      operation: 'stage',
-      ready: staged.data.state === 'ready',
-      remaining: staged.data.remainingCount ?? 0,
-    });
+    return await stageCredentialsV1(env, context, input);
   } catch (error) {
     // Database diagnostics can contain supplied cells. The transport never logs error messages/payloads.
     return responseV1(

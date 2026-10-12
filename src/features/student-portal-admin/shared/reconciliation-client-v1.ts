@@ -16,6 +16,58 @@ import {
   type PortalTransportOptionsV1,
 } from '../../student-portal/shared/transport-v1';
 
+/** Seconds the server asked to wait, bounded to one day. */
+function retryDelayV1(response: Response): number | undefined {
+  const retry = response.headers.get('Retry-After');
+  if (!retry) return undefined;
+  const seconds = /^\d+$/u.test(retry)
+    ? Number(retry)
+    : Math.ceil((Date.parse(retry) - Date.now()) / 1000);
+  return Math.max(1, Math.min(86400, seconds));
+}
+
+const STATUS_BY_STATE_V1: Readonly<Record<string, number>> = {
+  'invalid-request': 400,
+  unavailable: 503,
+  conflict: 409,
+  expired: 409,
+};
+
+function assertAuthorizedV1(status: number, onUnauthorized?: () => void): void {
+  if (status !== 401 && status !== 403) return;
+  if (status === 401) onUnauthorized?.();
+  throw new PortalClientErrorV1(status === 401 ? 'unauthenticated' : 'forbidden', status);
+}
+
+async function jsonBodyV1(response: Response): Promise<unknown> {
+  if (!response.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))
+    throw new Error('reconciliation-response-not-json');
+  return response.json();
+}
+
+/** Body, privacy headers and HTTP status must agree with the contract before the answer is used. */
+async function validatedResponseV1(
+  response: Response,
+  delay: number | undefined,
+  signal?: AbortSignal,
+): Promise<ReconciliationResponseV1> {
+  let raw: unknown;
+  try {
+    raw = await jsonBodyV1(response);
+  } catch {
+    throw new PortalClientErrorV1('invalid-response', response.status, delay);
+  }
+  signal?.throwIfAborted();
+  const parsed = reconciliationResponseV1.safeParse(raw);
+  if (
+    !parsed.success ||
+    !hasPortalNoStoreV1(response.headers) ||
+    response.status !== (STATUS_BY_STATE_V1[parsed.data.state] ?? 200)
+  )
+    throw new PortalClientErrorV1('invalid-response', response.status, delay);
+  return parsed.data;
+}
+
 export function createReconciliationClientV1(options: PortalTransportOptionsV1 = {}) {
   const fetcher = options.fetch ?? ((path: string, init: RequestInit) => fetch(path, init));
   let retryAt = 0;
@@ -41,53 +93,14 @@ export function createReconciliationClientV1(options: PortalTransportOptionsV1 =
       throw new PortalClientErrorV1('network-error');
     }
     signal?.throwIfAborted();
-    if (response.status === 401 || response.status === 403) {
-      if (response.status === 401) options.onUnauthorized?.();
-      throw new PortalClientErrorV1(
-        response.status === 401 ? 'unauthenticated' : 'forbidden',
-        response.status,
-      );
-    }
-    const retry = response.headers.get('Retry-After');
-    const delay = retry
-      ? Math.max(
-          1,
-          Math.min(
-            86400,
-            /^\d+$/u.test(retry)
-              ? Number(retry)
-              : Math.ceil((Date.parse(retry) - Date.now()) / 1000),
-          ),
-        )
-      : undefined;
+    assertAuthorizedV1(response.status, options.onUnauthorized);
+    const delay = retryDelayV1(response);
     if (response.status === 429) {
       const seconds = delay && Number.isFinite(delay) ? delay : 60;
       retryAt = Date.now() + seconds * 1000;
       throw new PortalClientErrorV1('rate-limited', 429, seconds);
     }
-    let raw: unknown;
-    try {
-      if (!response.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))
-        throw new Error();
-      raw = await response.json();
-    } catch {
-      throw new PortalClientErrorV1('invalid-response', response.status, delay);
-    }
-    signal?.throwIfAborted();
-    const parsed = reconciliationResponseV1.safeParse(raw);
-    if (!parsed.success || !hasPortalNoStoreV1(response.headers))
-      throw new PortalClientErrorV1('invalid-response', response.status, delay);
-    const expectedStatus =
-      parsed.data.state === 'invalid-request'
-        ? 400
-        : parsed.data.state === 'unavailable'
-          ? 503
-          : parsed.data.state === 'conflict' || parsed.data.state === 'expired'
-            ? 409
-            : 200;
-    if (response.status !== expectedStatus)
-      throw new PortalClientErrorV1('invalid-response', response.status, delay);
-    return parsed.data;
+    return validatedResponseV1(response, delay, signal);
   };
   return {
     async request(

@@ -316,23 +316,41 @@ function isDatabaseTrueV9(value: unknown): boolean {
   return value === true || value === 1;
 }
 
-/** Compares the complete previous state before any student name or binding is changed. */
-async function assertRelationIdentityEvidenceV9(
-  database: GradebookPostgresWritePortV1,
-  request: GradebookRelationImportRequestV9,
-  plan: RelationPlanV9,
-): Promise<void> {
-  const existing = [...plan.existingByBinding.values()];
+interface ReportIdentityEvidenceV9 {
+  readonly observationsByName: ReadonlyMap<string, readonly Row[]>;
+  readonly profilesByUid: ReadonlyMap<string, Row>;
+  readonly identitiesByInepBirth: ReadonlyMap<string, ReadonlySet<string>>;
+  /** "source:student" pairs whose latest decision is a rejection or a separation. */
+  readonly rejected: ReadonlySet<string>;
+}
+
+function addToSetMapV9<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
+  const values = map.get(key) ?? new Set<V>();
+  values.add(value);
+  map.set(key, values);
+}
+
+function inepBirthKeyV9(row: Row): string | null {
+  return typeof row.inep_key === 'string' && typeof row.birth_date === 'string'
+    ? `${row.inep_key}:${row.birth_date}`
+    : null;
+}
+
+function existingRelationIdentitiesV9(plan: RelationPlanV9) {
   const names = new Map<string, Set<number>>();
   const identities = new Map<number, string>();
-  for (const binding of existing) {
+  for (const binding of plan.existingByBinding.values()) {
     if (!binding.studentUid || binding.studentUid === 'undefined') throw new Error('relation-student-identity-missing');
     identities.set(binding.alunoId, binding.studentUid);
-    const key = normalizeRelationNameV9(binding.nome);
-    const values = names.get(key) ?? new Set<number>();
-    values.add(binding.alunoId);
-    names.set(key, values);
+    addToSetMapV9(names, normalizeRelationNameV9(binding.nome), binding.alunoId);
   }
+  return { names, identities };
+}
+
+async function loadReportIdentityEvidenceV9(
+  database: GradebookPostgresWritePortV1,
+  year: number,
+): Promise<ReportIdentityEvidenceV9> {
   const observations = await all<Row>(database, `SELECT o.source_id::text,o.name_key,o.birth_date::text,o.inep_key,
       l.student_uid::text,c.gradebook_class_id,(o.id=s.current_observation_id) AS current_observation,
       (p.observation_id=o.id AND NOT p.review_required AND NOT l.review_required) AS selected_profile
@@ -341,13 +359,13 @@ async function assertRelationIdentityEvidenceV9(
     JOIN gradebook.student_report_class_v1 c ON c.id=o.report_class_id AND c.academic_year=o.academic_year
     LEFT JOIN gradebook.student_source_link_v1 l ON l.source_id=o.source_id AND l.academic_year=o.academic_year
     LEFT JOIN gradebook.student_report_profile_v1 p ON p.student_uid=l.student_uid AND p.academic_year=l.academic_year
-    WHERE o.academic_year=$1`, [request.ano]);
+    WHERE o.academic_year=$1`, [year]);
   const decisions = await all<Row>(database, `SELECT DISTINCT ON(source_id,student_uid)
       source_id::text,student_uid::text,action
     FROM gradebook.student_reconciliation_decision_v1
     WHERE academic_year=$1 AND source_id IS NOT NULL AND student_uid IS NOT NULL
       AND action IN ('reject','separate','release','associate','confirm')
-    ORDER BY source_id,student_uid,sequence DESC,recorded_at DESC,id DESC`, [request.ano]);
+    ORDER BY source_id,student_uid,sequence DESC,recorded_at DESC,id DESC`, [year]);
   const rejected = new Set(decisions.filter((row) => row.action === 'reject' || row.action === 'separate')
     .map((row) => `${String(row.source_id)}:${String(row.student_uid)}`));
   const observationsByName = new Map<string, Row[]>();
@@ -358,38 +376,57 @@ async function assertRelationIdentityEvidenceV9(
     const matching = observationsByName.get(key) ?? [];
     matching.push(row);
     observationsByName.set(key, matching);
-    if (isDatabaseTrueV9(row.selected_profile) && typeof row.student_uid === 'string') profilesByUid.set(row.student_uid, row);
-    if (isDatabaseTrueV9(row.current_observation) && typeof row.inep_key === 'string' && typeof row.student_uid === 'string') {
-      const personalKey = `${row.inep_key}:${String(row.birth_date)}`;
-      const uids = identitiesByInepBirth.get(personalKey) ?? new Set<string>();
-      uids.add(row.student_uid);
-      identitiesByInepBirth.set(personalKey, uids);
-    }
+    if (typeof row.student_uid !== 'string') continue;
+    if (isDatabaseTrueV9(row.selected_profile)) profilesByUid.set(row.student_uid, row);
+    const personalKey = isDatabaseTrueV9(row.current_observation) ? inepBirthKeyV9(row) : null;
+    if (personalKey !== null) addToSetMapV9(identitiesByInepBirth, personalKey, row.student_uid);
   }
+  return { observationsByName, profilesByUid, identitiesByInepBirth, rejected };
+}
+
+/** Whether an observation of the report says that this name, in this position, is someone else. */
+function reportObservationConflictsV9(
+  row: Row,
+  uid: string,
+  turmaId: number,
+  profile: Row | undefined,
+  evidence: ReportIdentityEvidenceV9,
+): boolean {
+  if (row.student_uid !== null && row.student_uid !== uid) return true;
+  if (evidence.rejected.has(`${String(row.source_id)}:${uid}`)) return true;
+  if (!isDatabaseTrueV9(row.current_observation)) return false;
+  if (profile && row.gradebook_class_id === turmaId && row.birth_date !== profile.birth_date) return true;
+  const personalKey = inepBirthKeyV9(row);
+  return personalKey !== null &&
+    [...(evidence.identitiesByInepBirth.get(personalKey) ?? [])].some((otherUid) => otherUid !== uid);
+}
+
+/** Compares the complete previous state before any student name or binding is changed. */
+async function assertRelationIdentityEvidenceV9(
+  database: GradebookPostgresWritePortV1,
+  request: GradebookRelationImportRequestV9,
+  plan: RelationPlanV9,
+): Promise<void> {
+  const { names, identities } = existingRelationIdentitiesV9(plan);
+  const evidence = await loadReportIdentityEvidenceV9(database, request.ano);
   for (const component of plan.components) {
     const alunoId = component.seedAlunoId;
     if (alunoId === null) continue;
     const uid = identities.get(alunoId);
     if (!uid) throw new Error('relation-student-identity-missing');
-    const profile = profilesByUid.get(uid);
-    for (const item of component.items) {
+    const profile = evidence.profilesByUid.get(uid);
+    const conflicting = component.items.some((item) => {
       const key = normalizeRelationNameV9(item.nome);
       const current = plan.existingByBinding.get(relationBindingKeyV9(item.turmaId, item.numero));
       const nameChanged = current !== undefined && normalizeRelationNameV9(current.nome) !== key;
       const movement = component.items.length > 1 || item.relatedTurmaId !== null;
-      if (!nameChanged && !movement) continue;
+      if (!nameChanged && !movement) return false;
       const academicConflict = nameChanged && [...(names.get(key) ?? [])].some((id) => id !== alunoId);
-      const candidates = observationsByName.get(key) ?? [];
-      const reportConflict = candidates.some((row) =>
-        (row.student_uid !== null && row.student_uid !== uid) ||
-        rejected.has(`${String(row.source_id)}:${uid}`) ||
-        (isDatabaseTrueV9(row.current_observation) && profile && row.gradebook_class_id === item.turmaId && row.birth_date !== profile.birth_date) ||
-        (isDatabaseTrueV9(row.current_observation) && row.inep_key !== null && [...(identitiesByInepBirth.get(`${String(row.inep_key)}:${String(row.birth_date)}`) ?? [])]
-          .some((otherUid) => otherUid !== uid)),
-      );
-      if (academicConflict || reportConflict) {
-        throw new RelationalImportErrorV9('review-required', 'A posição ou movimentação tem evidências de outra identidade. Confira os alunos.');
-      }
+      return academicConflict || (evidence.observationsByName.get(key) ?? []).some((row) =>
+        reportObservationConflictsV9(row, uid, item.turmaId, profile, evidence));
+    });
+    if (conflicting) {
+      throw new RelationalImportErrorV9('review-required', 'A posição ou movimentação tem evidências de outra identidade. Confira os alunos.');
     }
   }
 }
@@ -490,13 +527,31 @@ async function persistRelationBindingV9(
   );
 }
 
-async function persistRelation(
+/** Classes already stored plus the new ones of the file, the latter under temporary negative ids.
+ * Temporary IDs are never sent to the browser. Choices use class code + number. */
+function previewRelationClassesV9(
+  request: GradebookRelationImportRequestV9,
+  classRows: readonly Row[],
+): Map<string, ExistingClassV9> {
+  const previewClasses = new Map<string, ExistingClassV9>(classRows.map((row) => [classKey(String(row.codigo)), {
+    id: asNumber(row.id, 'turma-id'), codigo: String(row.codigo), nome: String(row.nome),
+    etapa: asNumber(row.etapa, 'etapa'), turno: String(row.turno),
+  }]));
+  const sortedClasses = [...request.turmas].sort((a, b) => classKey(a.codigo).localeCompare(classKey(b.codigo)));
+  for (const [index, turma] of sortedClasses.entries()) {
+    if (!previewClasses.has(classKey(turma.codigo))) previewClasses.set(classKey(turma.codigo), {
+      id: -index - 1, codigo: classKey(turma.codigo), nome: turma.nome, etapa: turma.etapa, turno: turma.turno,
+    });
+  }
+  return previewClasses;
+}
+
+/** Read and validate before materializing years/classes: preview and cancellation perform no DML. */
+async function previewRelationV9(
   database: GradebookPostgresWritePortV1,
   request: GradebookRelationImportRequestV9,
-  state: ImportStateV9,
   actorId: string | undefined,
-): Promise<void> {
-  // Read and validate before materializing years/classes: preview and cancellation perform no DML.
+): Promise<ReturnType<typeof parseExistingRelationBindingsV9>> {
   const classRows = await all<Row>(database,
     'SELECT id, codigo, nome, etapa, turno FROM gradebook.turma WHERE ano=$1 ORDER BY id', [request.ano]);
   const existingRows = await all<Row>(database,
@@ -504,32 +559,31 @@ async function persistRelation(
      FROM gradebook.vinculo v JOIN gradebook.aluno a ON a.id=v.aluno_id
      WHERE v.ano=$1 ORDER BY v.turma_id,v.numero`, [request.ano]);
   const existing = parseExistingRelationBindingsV9(existingRows);
-  const previewClasses = new Map<string, ExistingClassV9>(classRows.map((row) => [classKey(String(row.codigo)), {
-    id: asNumber(row.id, 'turma-id'), codigo: String(row.codigo), nome: String(row.nome),
-    etapa: asNumber(row.etapa, 'etapa'), turno: String(row.turno),
-  }]));
-  // Temporary IDs are never sent to the browser. Choices use class code + number.
-  const sortedClasses = [...request.turmas].sort((a, b) => classKey(a.codigo).localeCompare(classKey(b.codigo)));
-  for (const [index, turma] of sortedClasses.entries()) {
-    if (!previewClasses.has(classKey(turma.codigo))) previewClasses.set(classKey(turma.codigo), {
-      id: -index - 1, codigo: classKey(turma.codigo), nome: turma.nome, etapa: turma.etapa, turno: turma.turno,
-    });
-  }
-  if (request.movementReview && (!actorId || request.movementReview.digest !==
-    await relationMovementDigestV9(database, request, actorId, classRows, existingRows)))
+  const previewClasses = previewRelationClassesV9(request, classRows);
+  const digest = () => relationMovementDigestV9(database, request, actorId!, classRows, existingRows);
+  if (request.movementReview && (!actorId || request.movementReview.digest !== await digest()))
     throw new RelationalImportErrorV9('conflict', 'A conferência mudou. Confira novamente as movimentações deste arquivo.');
   let previewPlan: RelationPlanV9;
   try {
     previewPlan = buildRelationPlanV9(request, previewClasses, existing);
   } catch (cause) {
     if (!(cause instanceof RelationPlanErrorV9)) throw cause;
-    const movementReview = cause.movementGroups && actorId ? {
-      digest: await relationMovementDigestV9(database, request, actorId, classRows, existingRows),
-      groups: cause.movementGroups,
-    } : undefined;
+    const movementReview = cause.movementGroups && actorId
+      ? { digest: await digest(), groups: cause.movementGroups }
+      : undefined;
     throw new RelationalImportErrorV9(cause.state, cause.reason, movementReview);
   }
   await assertRelationIdentityEvidenceV9(database, request, previewPlan);
+  return existing;
+}
+
+async function persistRelation(
+  database: GradebookPostgresWritePortV1,
+  request: GradebookRelationImportRequestV9,
+  state: ImportStateV9,
+  actorId: string | undefined,
+): Promise<void> {
+  const existing = await previewRelationV9(database, request, actorId);
   await lockAcademicYear(database, request.ano);
   const year = await first<Row>(database, 'SELECT ano FROM gradebook.ano_letivo WHERE ano = $1', [
     request.ano,
