@@ -56,7 +56,7 @@ it.each(['accounts', 'credentials', 'birth'])(
     expect(screen.queryByRole('group', { name: 'Exibição de alunos' })).toBeNull();
     await user.click(open);
     const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
-    const tabs = within(drawer).getByRole('tablist', { name: 'Dados do aluno' });
+    const tabs = await within(drawer).findByRole('tablist', { name: 'Dados do aluno' });
     await within(tabs).findByRole('tab', { name: 'Nascimento' });
     expect(
       within(tabs)
