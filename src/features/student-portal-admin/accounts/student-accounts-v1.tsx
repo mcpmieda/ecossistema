@@ -62,8 +62,6 @@ import {
 } from './account-filters-v1';
 import './student-accounts-v1.css';
 import '../credentials/student-credentials-v1.css';
-import { StudentReconciliationV1 } from './student-reconciliation-v1';
-import type { ReconciliationClientV1 } from '../shared/reconciliation-client-v1';
 
 export interface StudentAccountsPropsV1 extends Pick<
   AccountDetailPropsV1,
@@ -76,8 +74,6 @@ export interface StudentAccountsPropsV1 extends Pick<
   canWrite: boolean;
   identityKey: string;
   scopeLabel?: string;
-  reconciliation?: ReconciliationClientV1;
-  showAccountsInitially?: boolean;
 }
 const SCHOOL_V1: ScopeV1 = { kind: 'school', academicYear: 2026 };
 /** A class is a view of the school collection: changing class keeps what was already read. */
@@ -89,47 +85,6 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
   if (restorationAuthority !== null && restorationAuthority !== authority)
     setRestorationAuthority(null);
   const restoreAccountFromHash = restorationAuthority === authority;
-  const [showAccounts, setShowAccounts] = useState(
-    () => props.showAccountsInitially === true || panelHashAccountIdV1('aluno') !== null,
-  );
-  if (props.reconciliation && props.scope.kind !== 'account') {
-    return (
-      <div className="space-y-4">
-        <fieldset className="flex min-w-0 flex-wrap gap-2" aria-label="Exibição de alunos">
-          <Button
-            variant={showAccounts ? 'secondary' : 'primary'}
-            onPress={() => {
-              if (allowDraftNavigationV1()) setShowAccounts(false);
-            }}
-          >
-            Alunos
-          </Button>
-          <Button
-            variant={showAccounts ? 'primary' : 'secondary'}
-            onPress={() => {
-              if (allowDraftNavigationV1()) setShowAccounts(true);
-            }}
-          >
-            Acessos e QR
-          </Button>
-        </fieldset>
-        {showAccounts ? (
-          <AccountsBodyV1
-            key={`${props.identityKey}:${settingsScopeKeyV1(readScopeV1(props.scope))}:${props.canWrite}`}
-            {...props}
-            restoreAccountFromHash={restoreAccountFromHash}
-          />
-        ) : (
-          <StudentReconciliationV1
-            key={props.identityKey}
-            client={props.reconciliation}
-            scope={props.scope}
-            canWrite={props.canWrite}
-          />
-        )}
-      </div>
-    );
-  }
   return (
     <AccountsBodyV1
       key={

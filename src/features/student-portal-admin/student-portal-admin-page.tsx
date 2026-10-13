@@ -408,7 +408,6 @@ function PortalWorkspace({
           <StudentAccountsV1
             key={section}
             {...common}
-            showAccountsInitially={section === 'credentials'}
             slots={slots}
             onQr={qr.accept}
             onReprint={reprint}

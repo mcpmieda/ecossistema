@@ -11,13 +11,11 @@ import {
   encodePhotoAvatarBatchV1,
 } from '../../../../shared/student-photos/avatar-batch-v1';
 import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
-import type { ReconciliationClientV1 } from '../../../../src/features/student-portal-admin/shared/reconciliation-client-v1';
 import {
   accountsMockV1,
   accountFixtureV1,
   accountJsonV1,
   accountPageV1,
-  emptyReconciliationReadV1,
   ACCOUNT_META_V1,
   ACCOUNT_CLASS_V1,
 } from './fixtures-v1';
@@ -51,39 +49,37 @@ afterEach(() => {
 const ready = () => screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' });
 const detail = () => screen.findByRole('button', { name: 'Bloquear acesso' });
 describe('account list and detail', () => {
-  it('restores a valid account hash through the reconciliation wrapper and clears it when leaving the list', async () => {
+  it('restores a valid account hash directly and clears it when closing the original drawer', async () => {
     const mock = accountsMockV1({ count: 1 });
     const accountId = mock.accounts[0]!.accountId;
     window.history.replaceState(null, '', `/#/painel-do-aluno?area=accounts&aluno=${accountId}`);
-    const request = vi.fn<ReconciliationClientV1['request']>(async (input) =>
-      emptyReconciliationReadV1(input.operation),
-    );
-    render(createElement(StudentAccountsV1, { ...mock.props, reconciliation: { request } }));
+    render(createElement(StudentAccountsV1, mock.props));
     const user = userEvent.setup();
     const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
     expect(await within(drawer).findByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
-    expect(request).not.toHaveBeenCalled();
     await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Ficha do aluno' })).toBeNull());
-    await user.click(screen.getByRole('button', { name: 'Alunos' }));
-    await waitFor(() => expect(request).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Ficha do aluno' })).toBeNull(),
+    );
     expect(new URLSearchParams(window.location.hash.split('?')[1]).get('aluno')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Acessos e QR' }));
     await ready();
     expect(screen.queryByRole('dialog', { name: 'Ficha do aluno' })).toBeNull();
     expect(mock.writes).toHaveLength(0);
   });
-  it.each(['', '&aluno=invalid-account'])('starts reconciliation without a valid account hash: %s', async (suffix) => {
-    window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts' + suffix);
-    const mock = accountsMockV1({ count: 1 });
-    const request = vi.fn<ReconciliationClientV1['request']>(async (input) =>
-      emptyReconciliationReadV1(input.operation),
-    );
-    render(createElement(StudentAccountsV1, { ...mock.props, reconciliation: { request } }));
-    await waitFor(() => expect(request).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' })).toBeNull();
-    expect(mock.queries).toHaveLength(0);
-  });
+  it.each(['', '&aluno=invalid-account'])(
+    'opens the original account list directly without a valid account hash: %s',
+    async (suffix) => {
+      window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts' + suffix);
+      const mock = accountsMockV1({ count: 1 });
+      render(createElement(StudentAccountsV1, mock.props));
+      await ready();
+      expect(screen.getByRole('grid', { name: 'Contas do Portal' })).toBeTruthy();
+      expect(screen.getByLabelText('Buscar aluno')).toBeTruthy();
+      expect(screen.queryByRole('group', { name: 'Exibição de alunos' })).toBeNull();
+      expect(mock.queries.some((input) => input.operation === 'accounts-read')).toBe(true);
+      expect(mock.writes).toHaveLength(0);
+    },
+  );
   it('offers bulk operations only for a selected class and keeps the read-only preview inert', async () => {
     const mock = accountsMockV1();
     render(createElement(StudentAccountsV1, { ...mock.props, canWrite: false }));
@@ -119,9 +115,9 @@ describe('account list and detail', () => {
     await ready();
     expect(screen.getByText(/^Lista inteira · \d+$/)).toBeTruthy();
     expect(
-      screen.getAllByRole<HTMLInputElement>('checkbox', { name: /^Selecionar para QR/ }).every(
-        (checkbox) => !checkbox.checked,
-      ),
+      screen
+        .getAllByRole<HTMLInputElement>('checkbox', { name: /^Selecionar para QR/ })
+        .every((checkbox) => !checkbox.checked),
     ).toBe(true);
     expect(mock.writes).toHaveLength(0);
   });
@@ -234,7 +230,11 @@ describe('account list and detail', () => {
           ? new Promise<Response>((resolve) => {
               // Meanwhile the account was blocked in another session.
               answer = () =>
-                resolve(accountJsonV1(accountPageV1([{ ...accountFixtureV1(1), blocked: true, version: 12 }])));
+                resolve(
+                  accountJsonV1(
+                    accountPageV1([{ ...accountFixtureV1(1), blocked: true, version: 12 }]),
+                  ),
+                );
             })
           : undefined,
     });
@@ -261,7 +261,11 @@ describe('account list and detail', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Confirmar ação' }));
     await waitFor(() => expect(mock.writes).toHaveLength(1));
     // The decision carries the version the record read, not the one the list had (9).
-    expect(mock.writes[0]).toMatchObject({ operation: 'block', blocked: false, expectedVersion: 12 });
+    expect(mock.writes[0]).toMatchObject({
+      operation: 'block',
+      blocked: false,
+      expectedVersion: 12,
+    });
   });
   it('cancels a review and uses fresh detail CAS rather than the stale list row', async () => {
     const mock = accountsMockV1();
@@ -436,7 +440,9 @@ describe('account list and detail', () => {
         name: 'Bloqueadas',
       }),
     );
-    await waitFor(() => expect(screen.getByText('Nenhuma conta encontrada neste filtro.')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('Nenhuma conta encontrada neste filtro.')).toBeTruthy(),
+    );
     expect(mock.queries.filter((query) => query.operation === 'accounts-read')).toHaveLength(1);
   });
   it('keeps the collection read when the panel changes class and shows each class from it', async () => {
@@ -455,7 +461,9 @@ describe('account list and detail', () => {
     await waitFor(() =>
       expect(screen.getAllByRole('checkbox', { name: /^Selecionar para QR/ })).toHaveLength(2),
     );
-    await userEvent.setup().click(screen.getAllByRole('checkbox', { name: /^Selecionar para QR/ })[0]!);
+    await userEvent
+      .setup()
+      .click(screen.getAllByRole('checkbox', { name: /^Selecionar para QR/ })[0]!);
     expect(screen.getByText('1 selecionados')).toBeTruthy();
     view.rerender(createElement(StudentAccountsV1, classProps(753002, 'SYNTHETIC OTHER CLASS')));
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 003' });
@@ -468,9 +476,9 @@ describe('account list and detail', () => {
     await ready();
     expect(screen.getByText(/^Lista inteira · \d+$/)).toBeTruthy();
     expect(
-      screen.getAllByRole<HTMLInputElement>('checkbox', { name: /^Selecionar para QR/ }).every(
-        (checkbox) => !checkbox.checked,
-      ),
+      screen
+        .getAllByRole<HTMLInputElement>('checkbox', { name: /^Selecionar para QR/ })
+        .every((checkbox) => !checkbox.checked),
     ).toBe(true);
     expect(mock.queries.filter((query) => query.operation === 'accounts-read')).toEqual([
       expect.objectContaining({ scope: { kind: 'school', academicYear: 2026 } }),
@@ -514,7 +522,10 @@ describe('account list and detail', () => {
   it('asks for the photos of the rows left on screen together with the list after a reload', async () => {
     window.sessionStorage.clear();
     clearPhotoMemoryV1();
-    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: () => 'blob:synthetic' });
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: () => 'blob:synthetic',
+    });
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => undefined });
     const events: string[] = [];
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
@@ -527,7 +538,11 @@ describe('account list and detail', () => {
       });
     });
     const photos = () => document.querySelectorAll('img.avatar__image').length;
-    const settle = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    const settle = () =>
+      act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
     /** A list whose answer waits for `release`. */
     const pendingList = () => {
       let answer = () => {};
@@ -536,7 +551,8 @@ describe('account list and detail', () => {
           if (input.operation !== 'accounts-read') return undefined;
           events.push('list');
           return new Promise<Response>((resolve) => {
-            answer = () => resolve(accountJsonV1(accountPageV1([1, 2, 3].map((n) => accountFixtureV1(n)))));
+            answer = () =>
+              resolve(accountJsonV1(accountPageV1([1, 2, 3].map((n) => accountFixtureV1(n)))));
           });
         },
       });
@@ -555,7 +571,9 @@ describe('account list and detail', () => {
       expect(events).toEqual(['list', 'photos:3']);
       // The tab keeps account identifiers only.
       const kept = window.sessionStorage.getItem('pa-first-rows-v1')!;
-      expect(JSON.parse(kept).accountIds).toEqual([1, 2, 3].map((n) => accountFixtureV1(n).accountId));
+      expect(JSON.parse(kept).accountIds).toEqual(
+        [1, 2, 3].map((n) => accountFixtureV1(n).accountId),
+      );
       expect(kept).not.toContain('SYNTHETIC');
       // Reload: the page memory is gone, the tab still knows which rows were first.
       view.unmount();

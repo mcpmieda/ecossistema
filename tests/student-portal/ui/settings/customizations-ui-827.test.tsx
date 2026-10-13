@@ -67,7 +67,6 @@ it.each(['Abrir', 'Editar'])(
 );
 it('uses the same comparison and reset inside the normally opened student drawer', async () => {
   const { mock, user } = mount(undefined, 'accounts');
-  await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
   await user.click(await screen.findByRole('button', { name: `Abrir ficha de ${student}` }));
   const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
   await user.click(await within(drawer).findByRole('tab', { name: 'Políticas' }));
