@@ -10,6 +10,7 @@ import { clientFixtureV1 } from '../ui/auth/fixtures-v1';
 import { setupOperationsDomV1 } from '../ui/overview/dom-v1';
 import { opJsonV1, operationsMockV1 } from '../ui/overview/fixtures-v1';
 import { emptyReconciliationReadV1 } from '../ui/accounts/fixtures-v1';
+import { claimPanelHashV1 } from '../../../src/features/student-portal-admin/shared/panel-hash-v1';
 
 beforeEach(setupOperationsDomV1);
 afterEach(() => {
@@ -33,11 +34,55 @@ it.each([false, true])(
   async (canWrite) => {
     window.history.replaceState(null, '', '/#/painel-do-aluno?area=reconciliation');
     const mock = operationsMockV1();
+    const accountId = '11111111-1111-4111-8111-111111111111';
+    claimPanelHashV1(
+      'synthetic-students:' + identity('synthetic-students', canWrite).capabilities.join(','),
+    );
+    window.history.replaceState(
+      null,
+      '',
+      '/#/painel-do-aluno?area=reconciliation&ficha=' + accountId,
+    );
     const fetcher = vi.fn(async (path: string, init: RequestInit) => {
       if (path === '/api/me') return opJsonV1(identity('synthetic-students', canWrite));
       const input = JSON.parse(String(init.body));
-      if (path === '/api/student-reconciliation/v1')
-        return opJsonV1(emptyReconciliationReadV1(input.operation));
+      if (path === '/api/student-reconciliation/v1') {
+        if (input.operation === 'detail') {
+          const catalog = emptyReconciliationReadV1('catalog');
+          if (catalog.state !== 'ready' || catalog.operation !== 'catalog')
+            throw new Error('Synthetic catalog missing');
+          return opJsonV1({
+            contractVersion: 1,
+            state: 'ready',
+            operation: 'detail',
+            context: catalog.context,
+            selectedObservationId: null,
+            sources: [],
+            candidates: [],
+            history: [],
+          });
+        }
+        const response = emptyReconciliationReadV1(input.operation);
+        if (response.state === 'ready' && response.operation === 'list')
+          response.items = [
+            {
+              kind: 'person',
+              studentUid: accountId,
+              academicStudentId: 1,
+              academicYear: 2026,
+              name: 'SYNTHETIC RECONCILIATION ACCOUNT',
+              relationName: 'SYNTHETIC RECONCILIATION ACCOUNT',
+              classId: null,
+              classLabel: null,
+              version: 1,
+              reconciliation: 'pending',
+              portal: 'with-portal',
+              accountId,
+              possibleSamePerson: false,
+            },
+          ];
+        return opJsonV1(response);
+      }
       return opJsonV1(
         input.contractVersion === 2
           ? await mock.reader.query(input)
@@ -50,12 +95,19 @@ it.each([false, true])(
     expect(screen.getByRole('heading', { name: 'Alunos' })).toBeTruthy();
     expect(screen.queryByRole('tablist', { name: 'Áreas do Painel do Aluno' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Acessos e QR' })).toBeNull();
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'SYNTHETIC RECONCILIATION ACCOUNT' }));
+    await screen.findByRole('button', { name: 'Voltar aos alunos' });
+    expect(screen.queryByText('Acesso ao Portal')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Ficha do aluno' })).toBeNull();
     expect(fetcher.mock.calls.some(([path]) => path === '/api/student-portal/admin/command')).toBe(
       false,
     );
     const reads = fetcher.mock.calls.filter(([path]) => path === '/api/student-reconciliation/v1');
     expect(reads.map(([, init]) => JSON.parse(String(init.body)).operation).sort()).toEqual([
       'catalog',
+      'detail',
       'list',
     ]);
   },

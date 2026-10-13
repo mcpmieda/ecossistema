@@ -227,7 +227,7 @@ function PortalWorkspace({
   const qr = useAccountQrHandoffV1();
   const [openedAccount, setOpenedAccount] = useState<{ id: string; parentScope: ScopeV1 } | null>(
     () =>
-      initialPanel.accountId === null
+      section === 'reconciliation' || initialPanel.accountId === null
         ? null
         : {
             id: initialPanel.accountId,
@@ -397,6 +397,7 @@ function PortalWorkspace({
             client={common.reconciliation}
             scope={common.scope}
             canWrite={common.canWrite}
+            showPortalAccess={false}
           />
         );
         break;
@@ -547,10 +548,14 @@ function PortalWorkspace({
   );
   return (
     <AccountOpenContextV1.Provider
-      value={(id, parentScope = common.scope) => {
-        setCustomizationTarget(null);
-        setOpenedAccount({ id, parentScope });
-      }}
+      value={
+        section === 'reconciliation'
+          ? null
+          : (id, parentScope = common.scope) => {
+              setCustomizationTarget(null);
+              setOpenedAccount({ id, parentScope });
+            }
+      }
     >
       <PanelScopeContextV1.Provider value={panelScope}>
         <section className="pa-admin-page">
@@ -622,7 +627,7 @@ function PortalWorkspace({
               />
             </Suspense>
           ) : null}
-          {openedAccount && (
+          {section !== 'reconciliation' && openedAccount && (
             <AccountDetailV1
               accountId={openedAccount.id}
               parentScope={openedAccount.parentScope}

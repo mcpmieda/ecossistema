@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentReconciliationV1 } from '../../src/features/student-portal-admin/accounts/student-reconciliation-v1';
 import { ReportValidationErrorsV1 } from '../../src/features/gradebook/import/student-report-import-v1';
+import { AccountOpenContextV1 } from '../../src/features/student-portal-admin/shared/account-open-v1';
 import {
   createReconciliationActivationV1,
   createReconciliationClientV1,
@@ -74,6 +75,70 @@ afterEach(() => {
 });
 
 describe('Relatório e aba Alunos', () => {
+  it('preserva o atalho administrativo para a conta na composição legada', async () => {
+    const openAccount = vi.fn();
+    const scope = { kind: 'school' as const, academicYear: 2026 as const };
+    const request = vi.fn(
+      async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
+        const base = { contractVersion: 1 as const, state: 'ready' as const, context };
+        if (input.operation === 'catalog')
+          return { ...base, operation: 'catalog', classes: [], reportClasses: [] };
+        if (input.operation === 'detail')
+          return {
+            ...base,
+            operation: 'detail',
+            selectedObservationId: null,
+            sources: [],
+            candidates: [],
+            history: [],
+          };
+        if (input.operation !== 'list')
+          throw new Error('Synthetic navigation test allows reads only');
+        return {
+          ...base,
+          operation: 'list',
+          nextCursor: null,
+          items: [
+            {
+              kind: 'person',
+              studentUid: uid,
+              academicStudentId: 1,
+              academicYear: 2026,
+              name: 'SYNTHETIC PORTAL ACCOUNT',
+              relationName: 'SYNTHETIC PORTAL ACCOUNT',
+              classId: null,
+              classLabel: null,
+              version: 1,
+              reconciliation: 'pending',
+              portal: 'with-portal',
+              accountId: uid,
+              possibleSamePerson: false,
+            },
+          ],
+        };
+      },
+    );
+    render(
+      <AccountOpenContextV1.Provider value={openAccount}>
+        <StudentReconciliationV1 client={{ request }} scope={scope} canWrite={false} />
+      </AccountOpenContextV1.Provider>,
+    );
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'SYNTHETIC PORTAL ACCOUNT' }));
+    await userEvent
+      .setup()
+      .click(
+        await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC PORTAL ACCOUNT' }),
+      );
+    expect(openAccount).toHaveBeenCalledWith(uid, scope);
+    expect(screen.getByText('Acesso ao Portal')).toBeTruthy();
+    expect(
+      request.mock.calls.every(([input]) =>
+        ['catalog', 'list', 'detail'].includes(input.operation),
+      ),
+    ).toBe(true);
+  });
   it('mostra pessoa sem conta e pendência sem UID, carregando histórico somente ao abrir', async () => {
     const request = vi.fn(
       async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {

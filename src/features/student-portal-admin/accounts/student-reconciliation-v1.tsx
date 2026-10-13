@@ -174,10 +174,12 @@ export function StudentReconciliationV1({
   client,
   scope,
   canWrite,
+  showPortalAccess = true,
 }: Readonly<{
   client: ReconciliationClientV1;
   scope: ScopeV1;
   canWrite: boolean;
+  showPortalAccess?: boolean;
 }>) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -419,7 +421,7 @@ export function StudentReconciliationV1({
           {current.kind === 'person' && current.relationName !== current.name ? (
             <p className="break-words text-sm">Relação: {current.relationName}</p>
           ) : null}
-          {current.kind === 'person' && current.accountId ? (
+          {showPortalAccess && current.kind === 'person' && current.accountId ? (
             <StudentNameV1 accountId={current.accountId} name={current.name} parentScope={scope}>
               Acesso ao Portal
             </StudentNameV1>
