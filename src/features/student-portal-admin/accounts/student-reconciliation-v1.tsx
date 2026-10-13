@@ -107,14 +107,14 @@ function ReconciliationListV1({
   open,
   returnFocus,
   pendingOnly,
-  failed,
+  hideEmpty,
 }: Readonly<{
   items: readonly ReconciliationListItemV1[];
   busy: boolean;
   open: (item: ReconciliationListItemV1) => Promise<void>;
   returnFocus: RefObject<string | null>;
   pendingOnly: boolean;
-  failed: boolean;
+  hideEmpty: boolean;
 }>) {
   const [focusTarget, setFocusTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -125,7 +125,7 @@ function ReconciliationListV1({
     }
   }, [focusTarget, returnFocus]);
   if (items.length === 0)
-    return busy || (pendingOnly && failed) ? null : (
+    return busy || hideEmpty ? null : (
       <p className="text-sm text-muted">
         {pendingOnly ? 'Nenhuma pendência encontrada.' : 'Nenhum aluno ou pendência encontrado.'}
       </p>
@@ -466,7 +466,7 @@ export function StudentReconciliationV1({
           open={open}
           returnFocus={returnFocus}
           pendingOnly={pendingOnly}
-          failed={Boolean(error)}
+          hideEmpty={pendingOnly && (Boolean(error) || context === null)}
         />
         {cursor ? (
           <Button
