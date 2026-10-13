@@ -36,7 +36,9 @@ describe('Performance dashboard V5 HeroUI', () => {
   });
 
   it('removes the redundant workspace hero while preserving accessible stable navigation', () => {
-    expect(shell).toMatch(/className="sr-only">\s*Banco de notas\s*<\/h2>/u);
+    expect(shell).toMatch(
+      /className="sr-only">\s*\{activeSurface === 'importacao' \? 'Importação' : 'Banco de notas'\}\s*<\/h2>/u,
+    );
     expect(shell).not.toContain('Áreas do Banco de notas</h2>');
     expect(shell).toContain('gradebook-area-tabs max-w-full overflow-x-auto');
     expect(shell).toContain('role="tablist"');
