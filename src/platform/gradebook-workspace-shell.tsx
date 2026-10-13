@@ -53,6 +53,7 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
 ] as const;
 
 export type GradebookWorkspaceSurfaceId = (typeof GRADEBOOK_WORKSPACE_SURFACES)[number]['id'];
+const NOTES_TABS_V1 = GRADEBOOK_WORKSPACE_SURFACES.filter((surface) => surface.id !== 'importacao');
 
 const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao';
 
@@ -232,15 +233,14 @@ function nextSurfaceFromKey(
   current: GradebookWorkspaceSurfaceId,
   event: KeyboardEvent<HTMLButtonElement>,
 ): GradebookWorkspaceSurfaceId | null {
-  const index = GRADEBOOK_WORKSPACE_SURFACES.findIndex((surface) => surface.id === current);
+  const index = NOTES_TABS_V1.findIndex((surface) => surface.id === current);
   if (index < 0) return null;
-  if (event.key === 'Home') return GRADEBOOK_WORKSPACE_SURFACES[0].id;
-  if (event.key === 'End') return GRADEBOOK_WORKSPACE_SURFACES.at(-1)?.id ?? null;
+  if (event.key === 'Home') return NOTES_TABS_V1[0]?.id ?? null;
+  if (event.key === 'End') return NOTES_TABS_V1.at(-1)?.id ?? null;
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return null;
   const direction = event.key === 'ArrowRight' ? 1 : -1;
-  const nextIndex =
-    (index + direction + GRADEBOOK_WORKSPACE_SURFACES.length) % GRADEBOOK_WORKSPACE_SURFACES.length;
-  return GRADEBOOK_WORKSPACE_SURFACES[nextIndex]?.id ?? null;
+  const nextIndex = (index + direction + NOTES_TABS_V1.length) % NOTES_TABS_V1.length;
+  return NOTES_TABS_V1[nextIndex]?.id ?? null;
 }
 
 export function GradebookWorkspaceShell() {
@@ -320,38 +320,40 @@ function GradebookWorkspaceShellContent() {
       className="gradebook-workspace grid min-w-0 grid-cols-1 gap-4"
     >
       <h2 id="gradebook-workspace-heading" className="sr-only">
-        Banco de notas
+        {activeSurface === 'importacao' ? 'Importação' : 'Banco de notas'}
       </h2>
       <div className="gradebook-area-nav">
-        <div
-          role="tablist"
-          aria-label="Áreas do Banco de notas"
-          className="gradebook-area-tabs max-w-full overflow-x-auto"
-        >
-          {GRADEBOOK_WORKSPACE_SURFACES.map((surface) => {
-            const selected = surface.id === activeSurface;
-            return (
-              <button
-                key={surface.id}
-                ref={(element) => {
-                  if (element) tabRefs.current.set(surface.id, element);
-                  else tabRefs.current.delete(surface.id);
-                }}
-                id={`gradebook-tab-${surface.id}`}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                aria-controls={`gradebook-panel-${surface.id}`}
-                tabIndex={selected ? 0 : -1}
-                className={`gradebook-area-tab ${selected ? 'gradebook-area-tab--selected' : ''}`}
-                onClick={() => activateSurface(surface.id)}
-                onKeyDown={(event) => handleTabKeyDown(surface.id, event)}
-              >
-                {surface.label}
-              </button>
-            );
-          })}
-        </div>
+        {activeSurface !== 'importacao' && (
+          <div
+            role="tablist"
+            aria-label="Áreas do Banco de notas"
+            className="gradebook-area-tabs max-w-full overflow-x-auto"
+          >
+            {NOTES_TABS_V1.map((surface) => {
+              const selected = surface.id === activeSurface;
+              return (
+                <button
+                  key={surface.id}
+                  ref={(element) => {
+                    if (element) tabRefs.current.set(surface.id, element);
+                    else tabRefs.current.delete(surface.id);
+                  }}
+                  id={`gradebook-tab-${surface.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={`gradebook-panel-${surface.id}`}
+                  tabIndex={selected ? 0 : -1}
+                  className={`gradebook-area-tab ${selected ? 'gradebook-area-tab--selected' : ''}`}
+                  onClick={() => activateSurface(surface.id)}
+                  onKeyDown={(event) => handleTabKeyDown(surface.id, event)}
+                >
+                  {surface.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {/* Desempenho carries the year in its own header. */}
         {activeSurface === 'performance' ? null : <GradebookYearContextBanner />}
       </div>
@@ -367,8 +369,10 @@ function GradebookWorkspaceShellContent() {
           <div
             key={surface.id}
             id={`gradebook-panel-${surface.id}`}
-            role="tabpanel"
-            aria-labelledby={`gradebook-tab-${surface.id}`}
+            role={surface.id === 'importacao' ? undefined : 'tabpanel'}
+            aria-labelledby={
+              surface.id === 'importacao' ? undefined : `gradebook-tab-${surface.id}`
+            }
             hidden={!active}
             className="min-w-0"
           >

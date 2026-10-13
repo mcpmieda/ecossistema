@@ -1,7 +1,16 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { serviceSectionFromHashV2, serviceSectionsV2 } from '../src/platform/navigation';
+import {
+  mainNavigationAreasV1,
+  serviceSectionFromHashV2,
+  serviceSectionsV2,
+} from '../src/platform/navigation';
+import { STUDENT_PORTAL_MODULE } from '../shared/platform-contract';
+import {
+  portalSectionFromHash,
+  withStudentPortalModule,
+} from '../src/platform/student-portal-module';
 
 describe('shell navigation of 07/10/2026', () => {
   it('lists the sections of the open service in the side column and none for a plain area', () => {
@@ -14,11 +23,15 @@ describe('shell navigation of 07/10/2026', () => {
       'Configurações',
     ]);
     expect(serviceSectionsV2('banco-de-notas')[0]).toMatchObject({
-      id: 'importacao',
-      href: '#/banco-de-notas',
+      id: 'audit',
+      href: '#/banco-de-notas?area=audit',
     });
-    expect(serviceSectionsV2('banco-de-notas').some((section) => section.id === 'reports')).toBe(false);
-    expect(serviceSectionFromHashV2('banco-de-notas', '#/banco-de-notas?area=reports')).toBe('importacao');
+    expect(serviceSectionsV2('banco-de-notas').some((section) => section.id === 'reports')).toBe(
+      false,
+    );
+    expect(serviceSectionFromHashV2('banco-de-notas', '#/banco-de-notas?area=reports')).toBe(
+      'importacao',
+    );
     expect(serviceSectionsV2('configuracoes')).toEqual([]);
     // Auditoria lives inside Saúde do Sistema (owner request of 08/10/2026).
     expect(serviceSectionsV2('operacao').map((section) => [section.label, section.href])).toEqual([
@@ -33,7 +46,7 @@ describe('shell navigation of 07/10/2026', () => {
     expect(serviceSectionFromHashV2('painel-do-aluno', '#/painel-do-aluno?area=sessions')).toBe(
       'sessions',
     );
-    // The retired QR area opens inside Alunos.
+    // Existing QR addresses keep their Portal context.
     expect(serviceSectionFromHashV2('painel-do-aluno', '#/painel-do-aluno?area=credentials')).toBe(
       'accounts',
     );
@@ -43,6 +56,46 @@ describe('shell navigation of 07/10/2026', () => {
     );
     expect(serviceSectionFromHashV2('banco-de-notas', '#/banco-de-notas?area=unknown')).toBe(
       'importacao',
+    );
+  });
+});
+
+describe('independent main entries', () => {
+  it('preserves legacy Alunos addresses including account identifiers', () => {
+    expect(
+      portalSectionFromHash(
+        '#/painel-do-aluno?area=accounts&aluno=11111111-1111-4111-8111-111111111111',
+      ),
+    ).toBe('accounts');
+    expect(portalSectionFromHash('#/painel-do-aluno?area=accounts&aluno=invalid')).toBe('accounts');
+  });
+  it('selects only the independent area and keeps existing URLs', () => {
+    for (const [route, section, expected] of [
+      ['painel-do-aluno', 'reconciliation', 'Alunos'],
+      ['painel-do-aluno', 'accounts', 'Painel do Aluno'],
+      ['banco-de-notas', 'importacao', 'Importação'],
+      ['banco-de-notas', 'performance', 'Banco de notas'],
+    ] as const) {
+      const areas = mainNavigationAreasV1([STUDENT_PORTAL_MODULE], route, section);
+      expect(areas.filter((area) => area.open).map((area) => area.name)).toEqual([expected]);
+      expect(areas.find((area) => area.name === 'Alunos')?.href).toBe(
+        '#/painel-do-aluno?area=reconciliation',
+      );
+      expect(areas.find((area) => area.name === 'Importação')?.href).toBe(
+        '#/banco-de-notas?area=importacao',
+      );
+    }
+  });
+  it('inherits Portal visibility and does not add Alunos for a restricted profile', () => {
+    const modules = withStudentPortalModule([STUDENT_PORTAL_MODULE], ['platform.snapshot.read']);
+    expect(
+      mainNavigationAreasV1(modules, 'banco-de-notas', 'importacao').some(
+        (area) => area.name === 'Alunos',
+      ),
+    ).toBe(false);
+    expect(serviceSectionsV2('painel-do-aluno').some((item) => item.id === 'accounts')).toBe(true);
+    expect(serviceSectionsV2('banco-de-notas').some((item) => item.id === 'importacao')).toBe(
+      false,
     );
   });
 });

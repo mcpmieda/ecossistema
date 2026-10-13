@@ -54,6 +54,9 @@ import {
 const StudentAccountsV1 = preloadedSectionV1(() =>
   import('./accounts/student-accounts-v1').then((module) => module.StudentAccountsV1),
 );
+const StudentReconciliationV1 = preloadedSectionV1(() =>
+  import('./accounts/student-reconciliation-v1').then((module) => module.StudentReconciliationV1),
+);
 const StudentBirthYearsV1 = preloadedSectionV1(() =>
   import('./birth-year/student-birth-years-v1').then((module) => module.StudentBirthYearsV1),
 );
@@ -84,6 +87,7 @@ const AuditWorkspaceV1 = preloadedSectionV1(() =>
 const PANEL_SECTIONS_V1 = [
   StudentOverviewV1,
   StudentAccountsV1,
+  StudentReconciliationV1,
   StudentPoliciesV1,
   StudentSessionsV1,
   AuditWorkspaceV1,
@@ -97,7 +101,8 @@ const PANEL_SECTIONS_V1 = [
 // still being checked.
 if (typeof window !== 'undefined') {
   const opened = portalSectionFromHash(window.location.hash);
-  if (opened === 'accounts' || opened === 'credentials') StudentAccountsV1.preload();
+  if (opened === 'reconciliation') StudentReconciliationV1.preload();
+  else if (opened === 'accounts' || opened === 'credentials') StudentAccountsV1.preload();
   else if (opened === 'birth') StudentBirthYearsV1.preload();
   else if (opened === 'sessions') StudentSessionsV1.preload();
   else if (opened === 'audit') AuditWorkspaceV1.preload();
@@ -133,7 +138,11 @@ export function StudentPortalAdminPage({
   if (auth.state.state !== 'ready')
     return (
       <section className="pa-admin-page">
-        <h1>Painel do Aluno</h1>
+        <h1>
+          {portalSectionFromHash(window.location.hash) === 'reconciliation'
+            ? 'Alunos'
+            : 'Painel do Aluno'}
+        </h1>
         {auth.state.state === 'checking' ? (
           <p role="status">Verificando sessão administrativa…</p>
         ) : (
@@ -218,7 +227,7 @@ function PortalWorkspace({
   const qr = useAccountQrHandoffV1();
   const [openedAccount, setOpenedAccount] = useState<{ id: string; parentScope: ScopeV1 } | null>(
     () =>
-      initialPanel.accountId === null
+      section === 'reconciliation' || initialPanel.accountId === null
         ? null
         : {
             id: initialPanel.accountId,
@@ -382,6 +391,16 @@ function PortalWorkspace({
     );
   else
     switch (section) {
+      case 'reconciliation':
+        content = (
+          <StudentReconciliationV1
+            client={common.reconciliation}
+            scope={common.scope}
+            canWrite={common.canWrite}
+            showPortalAccess={false}
+          />
+        );
+        break;
       case 'accounts':
       case 'credentials':
         content = (
@@ -448,133 +467,148 @@ function PortalWorkspace({
           />
         );
     }
+  const scopedContent = (
+    <>
+      {section === 'sessions' || section === 'settings' ? (
+        <>
+          {!common.canWrite && (
+            <p role="status" className="text-xs text-muted">
+              Somente leitura
+            </p>
+          )}
+          <Suspense fallback={sectionFallback}>
+            <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
+              <div key={section}>{content}</div>
+            </LiveRefreshScopeV1>
+          </Suspense>
+        </>
+      ) : (
+        <PortalScopeTabsV1
+          policies={section === 'policies' || section === 'publication'}
+          reader={clients.reader}
+          selectedShift={selectedShift}
+          onShiftChange={(shift) => {
+            if (!allowDraftNavigationV1()) return;
+            writePanelHashParamsV1({ aluno: null });
+            setSelectedShift(shift);
+            setSelectedClass(null);
+            setSectionScope(null);
+            setTarget(null);
+            setCustomizationTarget(null);
+            setOpenedAccount(null);
+            qr.clear();
+          }}
+          items={classItems}
+          selectedId={selectedClass?.id ?? null}
+          allLabel="Todas as turmas"
+          onChange={(id) => {
+            if (!allowDraftNavigationV1()) return;
+            // A record open in the previous class must not reopen in the next list.
+            writePanelHashParamsV1({ aluno: null });
+            setSelectedShift(null);
+            setSelectedClass(classItems.find((item) => item.id === id) ?? null);
+            setSectionScope(null);
+            setTarget(null);
+            setCustomizationTarget(null);
+            setOpenedAccount(null);
+            qr.clear();
+          }}
+        >
+          {classRead.state.state === 'error' ? (
+            <AccountsErrorV1
+              error={classRead.state.error}
+              canReload={classRead.canReload}
+              onReload={classRead.reload}
+            />
+          ) : null}
+          {!common.canWrite && (
+            <p role="status" className="text-xs text-muted">
+              Somente leitura
+            </p>
+          )}
+          {sectionScope && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={() => {
+                if (allowDraftNavigationV1()) setSectionScope(null);
+              }}
+            >
+              {selectedClass ? `Voltar à turma ${selectedClass.label}` : 'Toda a escola'}
+            </Button>
+          )}
+          <Suspense fallback={sectionFallback}>
+            <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
+              <div key={section}>{content}</div>
+            </LiveRefreshScopeV1>
+          </Suspense>
+        </PortalScopeTabsV1>
+      )}
+    </>
+  );
   return (
     <AccountOpenContextV1.Provider
-      value={(id, parentScope = common.scope) => {
-        setCustomizationTarget(null);
-        setOpenedAccount({ id, parentScope });
-      }}
+      value={
+        section === 'reconciliation'
+          ? null
+          : (id, parentScope = common.scope) => {
+              setCustomizationTarget(null);
+              setOpenedAccount({ id, parentScope });
+            }
+      }
     >
       <PanelScopeContextV1.Provider value={panelScope}>
         <section className="pa-admin-page">
           <header className="pa-admin-header">
-            <h1>Painel do Aluno</h1>
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={() => window.open('/portal-demo.html', '_blank', 'noopener')}
-            >
-              Visão do aluno (demo)
-            </Button>
+            <h1>{section === 'reconciliation' ? 'Alunos' : 'Painel do Aluno'}</h1>
+            {section !== 'reconciliation' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => window.open('/portal-demo.html', '_blank', 'noopener')}
+              >
+                Visão do aluno (demo)
+              </Button>
+            )}
           </header>
-          <Tabs
-            selectedKey={section === 'credentials' ? 'accounts' : section}
-            onSelectionChange={(key) => {
-              const next = studentPortalSections.find((item) => item.id === key);
-              if (!next || !allowDraftNavigationV1()) return;
-              pendingScope.current = null;
-              setCustomizationTarget(null);
-              setOpenedAccount(null);
-              if (section === next.id) {
-                setTarget(null);
-                setSectionScope(null);
-                qr.clear();
-              } else window.location.hash = studentPortalHref(next.id);
-            }}
-          >
-            <Tabs.ListContainer className="pa-area-tabs max-w-full overflow-x-auto">
-              <Tabs.List aria-label="Áreas do Painel do Aluno">
-                {studentPortalSections
-                  .filter((item) => item.id !== 'credentials')
-                  .map((item) => (
-                    <Tabs.Tab key={item.id} id={item.id}>
-                      {item.label}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  ))}
-              </Tabs.List>
-            </Tabs.ListContainer>
-            <Tabs.Panel
-              id={section === 'credentials' ? 'accounts' : section}
-              className="pa-admin-content"
+          {section === 'reconciliation' ? (
+            <div className="pa-admin-content">{scopedContent}</div>
+          ) : (
+            <Tabs
+              selectedKey={section === 'credentials' ? 'accounts' : section}
+              onSelectionChange={(key) => {
+                const next = studentPortalSections.find((item) => item.id === key);
+                if (!next || !allowDraftNavigationV1()) return;
+                pendingScope.current = null;
+                setCustomizationTarget(null);
+                setOpenedAccount(null);
+                if (section === next.id) {
+                  setTarget(null);
+                  setSectionScope(null);
+                  qr.clear();
+                } else window.location.hash = studentPortalHref(next.id);
+              }}
             >
-              {section === 'sessions' || section === 'settings' ? (
-                <>
-                  {!common.canWrite && (
-                    <p role="status" className="text-xs text-muted">
-                      Somente leitura
-                    </p>
-                  )}
-                  <Suspense fallback={sectionFallback}>
-                    <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
-                      <div key={section}>{content}</div>
-                    </LiveRefreshScopeV1>
-                  </Suspense>
-                </>
-              ) : (
-                <PortalScopeTabsV1
-                  policies={section === 'policies' || section === 'publication'}
-                  reader={clients.reader}
-                  selectedShift={selectedShift}
-                  onShiftChange={(shift) => {
-                    if (!allowDraftNavigationV1()) return;
-                    writePanelHashParamsV1({ aluno: null });
-                    setSelectedShift(shift);
-                    setSelectedClass(null);
-                    setSectionScope(null);
-                    setTarget(null);
-                    setCustomizationTarget(null);
-                    setOpenedAccount(null);
-                    qr.clear();
-                  }}
-                  items={classItems}
-                  selectedId={selectedClass?.id ?? null}
-                  allLabel="Todas as turmas"
-                  onChange={(id) => {
-                    if (!allowDraftNavigationV1()) return;
-                    // A record open in the previous class must not reopen in the next list.
-                    writePanelHashParamsV1({ aluno: null });
-                    setSelectedShift(null);
-                    setSelectedClass(classItems.find((item) => item.id === id) ?? null);
-                    setSectionScope(null);
-                    setTarget(null);
-                    setCustomizationTarget(null);
-                    setOpenedAccount(null);
-                    qr.clear();
-                  }}
-                >
-                  {classRead.state.state === 'error' ? (
-                    <AccountsErrorV1
-                      error={classRead.state.error}
-                      canReload={classRead.canReload}
-                      onReload={classRead.reload}
-                    />
-                  ) : null}
-                  {!common.canWrite && (
-                    <p role="status" className="text-xs text-muted">
-                      Somente leitura
-                    </p>
-                  )}
-                  {sectionScope && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onPress={() => {
-                        if (allowDraftNavigationV1()) setSectionScope(null);
-                      }}
-                    >
-                      {selectedClass ? `Voltar à turma ${selectedClass.label}` : 'Toda a escola'}
-                    </Button>
-                  )}
-                  <Suspense fallback={sectionFallback}>
-                    <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
-                      <div key={section}>{content}</div>
-                    </LiveRefreshScopeV1>
-                  </Suspense>
-                </PortalScopeTabsV1>
-              )}
-            </Tabs.Panel>
-          </Tabs>
+              <Tabs.ListContainer className="pa-area-tabs max-w-full overflow-x-auto">
+                <Tabs.List aria-label="Áreas do Painel do Aluno">
+                  {studentPortalSections
+                    .filter((item) => item.id !== 'credentials')
+                    .map((item) => (
+                      <Tabs.Tab key={item.id} id={item.id}>
+                        {item.label}
+                        <Tabs.Indicator />
+                      </Tabs.Tab>
+                    ))}
+                </Tabs.List>
+              </Tabs.ListContainer>
+              <Tabs.Panel
+                id={section === 'credentials' ? 'accounts' : section}
+                className="pa-admin-content"
+              >
+                {scopedContent}
+              </Tabs.Panel>
+            </Tabs>
+          )}
           {customizationTarget ? (
             <Suspense fallback={sectionFallback}>
               <CustomizationTargetV1
@@ -593,7 +627,7 @@ function PortalWorkspace({
               />
             </Suspense>
           ) : null}
-          {openedAccount && (
+          {section !== 'reconciliation' && openedAccount && (
             <AccountDetailV1
               accountId={openedAccount.id}
               parentScope={openedAccount.parentScope}

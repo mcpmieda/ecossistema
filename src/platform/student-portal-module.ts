@@ -12,7 +12,11 @@ export const studentPortalSections = [
     label: 'Alunos',
     description: 'Pesquisar alunos, abrir fichas e gerenciar acesso.',
   },
-  { id: 'credentials', label: 'QR code', description: 'Nascimento, QR de acesso e PDF por turma.' },
+  {
+    id: 'credentials',
+    label: 'QR code',
+    description: 'Nascimento, QR de acesso e PDF por turma.',
+  },
   {
     id: 'policies',
     label: 'Políticas',
@@ -31,9 +35,11 @@ export const studentPortalSections = [
   },
 ] as const;
 export type StudentPortalSection =
-  (typeof studentPortalSections)[number]['id'] | 'birth' | 'publication';
+  (typeof studentPortalSections)[number]['id'] | 'birth' | 'publication' | 'reconciliation';
 export function portalSectionFromHash(hash: string): StudentPortalSection {
-  const selected = new URLSearchParams(hash.split('?')[1] ?? '').get('area');
+  const params = new URLSearchParams(hash.split('?')[1] ?? '');
+  const selected = params.get('area');
+  if (selected === 'reconciliation') return 'reconciliation';
   if (selected === 'birth') return 'credentials';
   if (selected === 'publication') return 'audit';
   return studentPortalSections.find((section) => section.id === selected)?.id ?? 'overview';

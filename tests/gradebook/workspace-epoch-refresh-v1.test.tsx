@@ -67,8 +67,16 @@ it('loads only the active academic area in a new year and preserves an already m
     'Importação sintética em andamento',
   ) as HTMLInputElement;
   fireEvent.change(importInput, { target: { value: 'lote parcialmente processado' } });
-  fireEvent.click(screen.getByRole('tab', { name: 'Auditoria' }));
+  expect(screen.getByRole('region', { name: 'Importação' })).toBeTruthy();
+  expect(screen.queryByRole('tablist', { name: 'Áreas do Banco de notas' })).toBeNull();
+  await act(async () => {
+    window.location.hash = '#/banco-de-notas?area=audit';
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
   await waitFor(() => expect(probe.reads).toEqual([{ area: 'audit', year: 2026 }]));
+  expect(screen.getByRole('tabpanel', { name: 'Auditoria' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Banco de notas' })).toBeTruthy();
+  expect(importInput.closest('[hidden]')).not.toBeNull();
   fireEvent.click(screen.getByRole('tab', { name: 'Desempenho' }));
   await waitFor(() => expect(probe.reads).toHaveLength(2));
 
@@ -95,4 +103,15 @@ it('loads only the active academic area in a new year and preserves an already m
   expect(probe.reads.at(-1)).toEqual({ area: 'audit', year: 2027 });
   expect(probe.importMounts).toBe(1);
   expect(importInput.value).toBe('lote parcialmente processado');
+  await act(async () => {
+    window.location.hash = '#/banco-de-notas?area=importacao';
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+  expect(screen.getByRole('region', { name: 'Importação' })).toBeTruthy();
+  expect(screen.queryByRole('tablist', { name: 'Áreas do Banco de notas' })).toBeNull();
+  expect(screen.getByLabelText('Importação sintética em andamento')).toBe(importInput);
+  expect(importInput.closest('[hidden]')).toBeNull();
+  expect(importInput.value).toBe('lote parcialmente processado');
+  expect(probe.importMounts).toBe(1);
+  expect(probe.reads).toHaveLength(4);
 });

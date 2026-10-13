@@ -71,7 +71,8 @@ describe('F9 — shell, isolamento e code splitting', () => {
     expect(shell).toContain('hidden={!active}');
     expect(shell).toContain('role="tablist"');
     expect(shell).toContain('role="tab"');
-    expect(shell).toContain('role="tabpanel"');
+    expect(shell).toContain("role={surface.id === 'importacao' ? undefined : 'tabpanel'}");
+    expect(shell).toContain("activeSurface !== 'importacao'");
     expect(shell).toContain('tabIndex={selected ? 0 : -1}');
     expect(shell).toContain("event.key !== 'ArrowLeft'");
     expect(shell).toContain("event.key === 'ArrowRight'");
