@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type {
   ReconciliationContextV1,
   ReconciliationPrepareV1,
@@ -51,6 +52,7 @@ interface RowInputV1 {
 }
 
 const DAY_MS_V1 = 86_400_000;
+const differencesV1 = z.array(z.string());
 const BIRTH_REASON_V1 = {
   missing: 'nascimento ausente.',
   future: 'nascimento no futuro.',
@@ -388,7 +390,8 @@ export async function preparedResponseV1(
   context: ReconciliationContextV1,
 ): Promise<ReconciliationResponseV1> {
   const [r] = await tx.query(
-    `SELECT b.*, (SELECT count(*)::integer FROM gradebook.student_report_pending_row_v1 WHERE batch_id=b.id) AS rows,
+    `SELECT b.*, to_jsonb(b.differences) AS differences_value,
+    (SELECT count(*)::integer FROM gradebook.student_report_pending_row_v1 WHERE batch_id=b.id) AS rows,
     (SELECT count(*)::integer FROM gradebook.student_report_pending_row_v1 WHERE batch_id=b.id AND target_uid IS NOT NULL) AS linked,
     expires_at>clock_timestamp() AS usable FROM gradebook.student_report_batch_v1 b WHERE id=$1::uuid`,
     [batchId],
@@ -410,7 +413,7 @@ export async function preparedResponseV1(
     batchId,
     batchState: r.state as 'preparing' | 'review_required' | 'awaiting_relation',
     expiresAt: new Date(String(r.expires_at)).toISOString(),
-    differences: r.differences as string[],
+    differences: differencesV1.parse(r.differences_value),
     counts: {
       rows: Number(r.rows),
       linked: Number(r.linked),
