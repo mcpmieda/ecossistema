@@ -117,12 +117,14 @@ async function readWorkspace(
           h.versao AS version,NULL::integer AS aluno_id,NULL::text AS aluno_nome,h.justificativa,h.alterado_em AS occurred_at
         FROM gradebook.conselho_sessao_historico h WHERE h.ano=$1 AND h.turma_id=$2
         UNION ALL
-        SELECT 'd:'||d.id,'decision-recorded',d.versao,d.aluno_id,a.nome,d.justificativa_nova,d.alterado_em
+        SELECT 'd:'||d.id,'decision-recorded',d.versao,d.aluno_id,COALESCE(presentation.name,a.nome),d.justificativa_nova,d.alterado_em
         FROM gradebook.conselho_decisao_comando d JOIN gradebook.aluno a ON a.id=d.aluno_id
+        LEFT JOIN gradebook.student_presentation_v1 presentation ON presentation.student_id=a.id AND presentation.academic_year=a.ano
         WHERE d.ano=$3 AND d.turma_id=$4
         UNION ALL
-        SELECT 'v:'||v.id,'vote-recorded',v.versao,v.aluno_id,a.nome,v.justificativa,v.alterado_em
+        SELECT 'v:'||v.id,'vote-recorded',v.versao,v.aluno_id,COALESCE(presentation.name,a.nome),v.justificativa,v.alterado_em
         FROM gradebook.conselho_votacao_historico v JOIN gradebook.aluno a ON a.id=v.aluno_id
+        LEFT JOIN gradebook.student_presentation_v1 presentation ON presentation.student_id=a.id AND presentation.academic_year=a.ano
         WHERE v.ano=$5 AND v.turma_id=$6
       ) x ORDER BY occurred_at DESC,version DESC LIMIT $7`, [year, classId, year, classId, year, classId, RELATIONAL_COUNCIL_LIMITS_V3.timeline]),
     all(db, `SELECT id::integer AS id,sequencia,versao AS version,fechado_em,

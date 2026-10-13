@@ -32,6 +32,7 @@ export const yearResetCountsSchemaV1 = z
     council: count,
     bulletins: count,
     histories: count,
+    reconciliation: count,
     totalRows: count,
   })
   .strict();

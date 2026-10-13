@@ -5,7 +5,7 @@ import { AuthServiceV1 } from '../../../server/student-portal/auth/auth-service-
 import { QrServiceV1 } from '../../../server/student-portal/auth/qr-service-v1';
 import { SessionServiceV1 } from '../../../server/student-portal/auth/session-service-v1';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
-import { BirthYearServiceV1 } from '../../../server/student-portal/birth-year/birth-year-service-v1';
+import { BirthYearServiceV1 } from '../birth-year/legacy-birth-fixture-v1';
 import { PolicyServiceV1 } from '../../../server/student-portal/policies/policy-service-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/ports-v1';

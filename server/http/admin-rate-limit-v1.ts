@@ -2,6 +2,7 @@ import type { RuntimeEnv } from '../env';
 import { readSession } from '../auth/session';
 import { capabilitiesForRoles } from '../auth/capabilities';
 import { failureV1 } from '../../shared/student-portal-contracts/core-v1';
+import { RECONCILIATION_ROUTE_V1 } from '../../shared/student-identity/reconciliation-v1';
 import type {
   AdminOperationV1,
   PortalAdminServiceBindingV1,
@@ -15,7 +16,13 @@ import {
 } from './security';
 
 type PayloadV1 = Record<string, unknown>;
-type RouteV1 = { methods: readonly string[]; operation: AdminOperationV1; bodyBytes?: number };
+type RouteV1 = {
+  methods: readonly string[];
+  operation: AdminOperationV1;
+  bodyBytes?: number;
+  /** The transport also carries an upload: a body above bodyBytes keeps the default family, unread. */
+  upload?: true;
+};
 const routes: Readonly<Record<string, RouteV1>> = {
   '/api/me': { methods: ['GET'], operation: 'read' },
   '/api/platform/bootstrap': { methods: ['GET'], operation: 'read' },
@@ -43,6 +50,7 @@ const routes: Readonly<Record<string, RouteV1>> = {
   '/api/gradebook/assessment-names': { methods: ['POST'], operation: 'write', bodyBytes: 8192 },
   '/api/gradebook/year-reset': { methods: ['POST'], operation: 'write', bodyBytes: 2048 },
   '/api/gradebook/audit-treatment': { methods: ['POST'], operation: 'write', bodyBytes: 96000 },
+  [RECONCILIATION_ROUTE_V1]: { methods: ['POST'], operation: 'write', bodyBytes: 65536, upload: true },
   '/api/student-photos/admin/state': { methods: ['POST'], operation: 'read' },
   '/api/student-photos/admin/avatars': { methods: ['POST'], operation: 'read' },
   '/api/student-photos/admin/image': { methods: ['GET'], operation: 'read' },
@@ -97,6 +105,13 @@ async function classificationPayload(request: Request, maximum: number): Promise
   }
 }
 
+function inspectsBodyV1(route: RouteV1, request: Request): boolean {
+  if (!route.bodyBytes) return false;
+  if (!route.upload) return true;
+  const length = request.headers.get('content-length');
+  return length !== null && /^\d+$/u.test(length) && Number(length) <= route.bodyBytes;
+}
+
 export function classifyAdminOperationV1(
   path: string,
   method: string,
@@ -108,6 +123,8 @@ export function classifyAdminOperationV1(
     path === '/api/gradebook/council-workspace' &&
     ['classes', 'workspace'].includes(String(operation))
   )
+    return 'read';
+  if (path === RECONCILIATION_ROUTE_V1 && ['catalog', 'list', 'detail'].includes(String(operation)))
     return 'read';
   if (path === '/api/gradebook/assessment-names' && operation === 'read') return 'read';
   if (path === '/api/gradebook/year-reset' && operation === 'preview') return 'read';
@@ -131,6 +148,7 @@ function failureBody(path: string, payload: PayloadV1, status: number) {
       : status === 429 || status >= 500
         ? 'unavailable'
         : 'invalid-request';
+  if (path === RECONCILIATION_ROUTE_V1) return { contractVersion: 1, state };
   if (path === '/api/gradebook/import-persistence') return { transportVersion: 9, state };
   if (path === '/api/gradebook/import-diagnostics') return { version: 1, state };
   if (path === '/api/gradebook/performance') {
@@ -204,7 +222,8 @@ export async function guardAdminOperationV1(
     if (request.method !== 'GET') enforceWriteOrigin(request, env);
     const session = await readSession(request, env);
     if (!session) return denied(path, payload, 401);
-    if (route.bodyBytes) payload = await classificationPayload(request, route.bodyBytes);
+    if (inspectsBodyV1(route, request))
+      payload = await classificationPayload(request, route.bodyBytes!);
     // Retired transports perform no business work and retain their existing 410/validation responses.
     if (
       (path === '/api/gradebook/performance' && payload.transportVersion === 1) ||

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
 import { academicLinkV1, instantV1, periodV1, portalIdV1, revisionsV1 } from './core-v1';
 import { termClosingSummaryV1, termClosingV1 } from './term-closing-v1';
 
@@ -86,7 +87,7 @@ export const selfResponseV1 = z
       .object({
         accountId: portalIdV1,
         link: academicLinkV1,
-        name: z.string().min(1).max(200),
+        name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1),
         classLabel: z.string().min(1).max(80),
         academicState: z.enum(['regular', 'special', 'assisted']),
         result: z.enum([

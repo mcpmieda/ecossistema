@@ -1,0 +1,106 @@
+# Conciliação de alunos V1 — entrega 1 da #1269
+
+Contrato candidato registrado na [#1276](https://github.com/mcpmieda/ecossistema-escola/issues/1276), subordinado ao corpo consolidado e aos complementos aprovados da [#1269](https://github.com/mcpmieda/ecossistema-escola/issues/1269). Base inicial: `main@7119308fbbd7d870d9d0957ea2e18fa93184e042`. Esta documentação descreve a branch; não altera a baseline de `PROJECT_STATE.yaml` nem comprova integração, aplicação de migrations ou validação produtiva.
+
+## Fronteiras e fontes
+
+- `shared/student-identity/reconciliation-normalization-v1.ts`: comparação única, compartilhada com a Relação; datas civis completas, Excel 1900/1904 e INEP sem conversão destrutiva.
+- `shared/student-identity/reconciliation-v1.ts`: requisições/retornos estritos da aba Alunos. Pessoa acadêmica tem UID e conta opcional; pendência externa tem origem/lote/linha, sem UID inventado.
+- `server/student-identity/reconciliation/`: plano, preparação, revisão, aplicação, decisões, paginação e resolvedor interno de origem. Sem React, arquivo bruto ou colunas cadastrais livres.
+- `src/features/gradebook/import/student-report-reader-v1.ts`: adaptador Smecel V1. Lê no navegador, seleciona a allowlist e envia células tipadas; servidor revalida integralmente o escopo e C3 antes de gravar lote ou dados pessoais.
+
+O adaptador reconhece os cabeçalhos `Nome do aluno`, `Turma`, `Turno`, `Etapa`, `Situação da matrícula`, `Data da matrícula`, `Data da transferência`, `Hash da matrícula`, `Código INEP`, `Nascimento` e `Filiação 1`. A estrutura foi conferida em arquivo local autorizado, sem copiar pessoas, dados cadastrais, contagens ou conteúdo para repositório/CI. Fixtures reproduzem somente formato e rótulos de turma/etapa/turno. Nome do arquivo não prova data nem ano da origem.
+
+A Relação conserva as posições e fatos acadêmicos. O nome original de cada fonte é preservado; Alunos e a projeção do Portal adotam a fonte configurada, com padrão Relatório e fallback quando a fonte não tem a pessoa. Trocar fonte não altera UID, notas, conta ou autorização. Leituras de nome bruto da Relação na importação continuam sendo evidência da fonte acadêmica, não prova derivada do nome adotado.
+
+## Operações e atomicidade
+
+`POST /api/student-reconciliation/v1` exige sessão ADM, origem oficial e capacidade de leitura/escrita das configurações conforme a operação. Corpos têm limite de 8 MiB/10.000 linhas, schema fechado, ano explícito 2026 e resposta privada `no-store`. Histórico/candidatos são retornados somente no detalhe solicitado. O cursor é selado e vinculado a ator, filtros, geração/revisão e expiração. A rota participa do limitador administrativo: `catalog`, `list` e `detail` contam como leitura e as demais operações como escrita; o corpo do relatório não é lido nem clonado para essa classificação.
+
+1. `prepare` valida todas as linhas elegíveis e gera plano consistente. Datas de nascimento ausentes/inválidas/futuras rejeitam o lote inteiro. Modalidades excluídas nunca são persistidas. Sem Relação, somente turmas reconhecidas como regulares ficam pendentes, sem UID/conta; com Relação, persistem apenas as turmas ligadas. Rótulos desconhecidos exigem confirmação de elegibilidade.
+2. `stage` chama a capacidade privada do Portal. A KDF existente é executada fora da transação final, no máximo quatro verificadores por chamada, com salt individual e pepper existente. O navegador recebe apenas progresso. Estágio/recibos não prorrogam a validade com retries.
+3. `apply` serializa o ano e o escopo, confere geração/revisões/CAS e ativa origens, observações, vínculos, perfil, decisões, nascimento e PIN numa única transação física. A função estreita do Portal executa na conexão acadêmica sem conceder leitura geral de credenciais ao runtime acadêmico. Falha em qualquer item desfaz toda a ativação.
+
+Datas são `DATE`/texto civil nos limites SQL; nunca um `Date` convertido pelo fuso do host. Horário operacional é do servidor. A alteração apenas de dia/mês não regenera o PIN. Nenhuma conciliação cria conta, muda elegibilidade, distribui acesso ou une contas/UIDs. QR, senha, sessão e foto têm seus próprios contratos preservados.
+
+Digests de conteúdo são calculados no servidor e preservam multiplicidade/valores de exibição, sem depender da ordem das linhas. Chaves idempotentes são distintas do digest e do hash de matrícula; repetição de uma operação concluída retorna recibo, enquanto reutilização com payload diferente conflita. Mesma planilha numa base alterada exige novo plano. Relatório antigo, com perda de origem/turma ou sem evidência temporal e conteúdo alterado exige conferência; confirmação obsoleta não vale sobre outra revisão.
+
+## Identidade e decisões
+
+Continuidade de uma origem é apurada separadamente da pessoa. Hash, posição e nome isolados não constituem identidade. As três regras aprovadas e todos os vetos vivem no domínio central: nome/turma única; INEP/nascimento completo; nome/nascimento/Filiação 1 para INEP alterado. N origens podem apontar ao mesmo UID; o perfil aponta para uma observação completa, sem misturar campos. Uma origem já ligada e sem revisão aberta identifica a própria linha: parente com mesmo nascimento e Filiação 1, ou rejeição registrada para outro par, não a devolve à pendência. O primeiro encontro continua pedindo conferência.
+
+Rejeição/separação/liberação são decisões duráveis por par interno. Corrigir ligação de turma marca os vínculos afetados para conferência e conserva o estado anterior. Confirmar/separar é explícito e usa CAS. Reversão acrescenta evento e não sobrescreve correções posteriores: dependência incompatível retorna conflito sem reversão parcial. A restauração do nascimento legado, quando aplicável, fica restrita à ponte privada e à decisão original ainda compatível.
+
+Um hash de matrícula trocado ou reutilizado não comprova continuidade só porque nascimento e Filiação 1 concordam. Quando o nascimento é igual, também deve concordar nome ou INEP para reconhecer a origem; a correção de nascimento conserva sua regra específica. Só depois de reconhecer a própria origem é possível preservar seu vínculo sem reabrir rejeições de outros pares. Hashes trocados/reutilizados não liberam a associação de outra pessoa rejeitada; regressões cobrem ambas as ordens, prepare/apply, repetição e gêmeos legitimamente ligados.
+
+Na Relação, outro UID/evidência de pessoa ocupando a mesma posição bloqueia o reuso que herdaria notas. Correção de nome sem conflito verificável continua permitida. Par recíproco seguro de movimentação conserva uma identidade; duas identidades persistidas nunca são fundidas por essa entrega. Suspeitas sem evidência suficiente ficam para conferência, sem comparação difusa. Vários pares recíprocos ainda sem correspondência retornam uma prévia autenticada com nome original, turma, número e direção. O operador escolhe os pares sem pré-seleção; a importação continua integral, incluindo as atualizações independentes, sem gravação parcial.
+
+### Conferência das movimentações no transporte V9
+
+Extensão aditiva de `POST /api/gradebook/import-persistence`, sob #1276: `review-required` pode trazer `movementReview: {digest, groups}`; cada grupo contém `origins` (`FOI PARA`) e `destinations` (`ESTAVA NO`) com `{classCode, number, name}`. A confirmação reenvia o mesmo request com `movementReview: {digest, pairs}`, cada par contendo apenas as posições `origin`/`destination` (`classCode`, `number`). O navegador nunca escolhe UID/alunoId, e IDs transitórios do banco não identificam uma ponta.
+
+O digest SHA-256 calculado no servidor é uma prova de comparação de estado, não uma autorização de associação. Inclui ator autenticado, ano, manifesto e todo o conteúdo canônico enviado, catálogo/vínculos anteriores, revisões acadêmica/Portal/reset e geração/revisão da conciliação. Troca de arquivo, conteúdo, ordem, ator ou base exige nova conferência. A leitura usa o lock anual existente sem criar coordenação, ano ou turma. Somente depois do CAS, da seleção completa/única/recíproca e dos vetos de identidade/rejeição passam a ocorrer escritas, na mesma transação física. O serviço usa a função privada de revisão já contratada em `0025`; não acrescenta migration.
+
+Cancelar descarta a escolha em memória e não envia gravação. Resposta atrasada não substitui a conferência corrente. Resposta perdida não dispara repetição automática: retomar pede nova prévia do arquivo original, sem reenviar escolhas antigas. Repetir uma confirmação já aplicada encontra revisão alterada e retorna conflito, sem duplicar cadastros; a nova prévia permite conferir o estado atual. Diagnósticos da Relação pronta são gravados pelo follow-up somente após aplicação confirmada. Clientes V9 antigos continuam recusando com segurança o caso ambíguo e precisam recarregar a interface para escolher os pares.
+
+`resolve-source-v1.ts` oferece somente o contrato interno `resolved`/`ambiguous`/`not_found`, considerando nomes/turmas históricos e decisões centrais. UID só aparece quando a origem identifica unicamente a pessoa. Coleta, deduplicação e persistência de frequência pertencem à segunda entrega; a PR #1268 não foi integrada.
+
+## Migrations e retenção
+
+Na primeira associação automática por nome/turma, um ano legado confirmado divergente mantém a pessoa pendente por conflito de nascimento, inclusive quando a conta está encerrada. Esse dado continua sendo evidência da identidade; a conta encerrada não é reaberta nem recebe preparação de credenciais. A comparação usa somente o ano conhecido; não fabrica dia/mês. Continuidade já confirmada e decisões manuais deliberadas conservam os contratos de correção existentes.
+
+A reversão da primeira associação também restaura nascimento/PIN ausentes quando esse era o estado anterior, preservado por metadados privados. Exige a decisão original, perfil/vínculo ainda na primeira versão e CAS de conta/PIN; qualquer dependência posterior bloqueia a reversão. Limpar o PIN, remover a adoção e registrar a separação pertencem à mesma transação, sem restaurar verificadores antigos nem modificar senha/QR/sessão.
+
+`gradebook.student_presentation_v1` centraliza o nome configurado para Desempenho, Conselho, novos Boletins e sua seleção, além do wrapper acadêmico do Portal, mantendo a fonte importada original. A projeção expõe somente identificador, ano e nome; o wrapper Portal conserva seu recorte anual e owner interno. Boletins históricos continuam lendo exclusivamente o snapshot emitido. Contratos e validadores internos de nome de aluno, inclusive resumo da conta, lote QR e perfil Self, aceitam até 300 caracteres sem truncamento.
+
+A paginação administrativa conserva o payload selado V1, chave, vínculo com ator/consulta e validade de cinco minutos. Seu envelope específico aceita até 4096 caracteres: acomoda o nome de 300 caracteres, expansão UTF-8/escapes JSON e as duas camadas base64url, com limite verificado também antes de decifrar. Requisições e respostas V1/V2 usam o mesmo limite; cursores antigos continuam válidos. Credenciais, challenges e outros tokens opacos conservam o limite anterior de 512. Clientes antigos com validação local de 512 precisam recarregar a versão atual para paginar nomes longos.
+
+Leitor e servidor usam a mesma chave normalizada de turma/turno/etapa, também na recuperação de ligações salvas, conservando os rótulos originais da fonte. A representação canônica do conteúdo usa a chave da turma para que variações de espaços não criem observações repetidas. Reordenação de linhas ou escolha de outro rótulo equivalente não perde a seleção já confirmada; a primeira ligação e ligações marcadas para revisão continuam exigindo decisão explícita. O servidor rejeita evidência de outro ano mesmo numa turma explicitamente sem ligação. Com Relação presente, as demais turmas explicitamente sem ligação são descartadas antes da validação dos dados pessoais; turmas elegíveis continuam exigindo confirmação de modalidade e nascimento válido.
+
+O limite de 300 caracteres descreve os DTOs e o nome corrente. Limites anteriores de apresentação permanecem: a arte do cartão QR pode abreviar nomes para caber no cartão, e o rótulo histórico do aluno em eventos de auditoria conserva o limite de 200 caracteres. Isso não trunca o cadastro ou reescreve eventos anteriores.
+
+Ordem das candidatas, sobre a baseline histórica já aplicada: `gradebook-simplified/0015_student_reconciliation_v1.sql`, `student-portal/0025_reconciliation_credentials_v1.sql`, `gradebook-simplified/0016_reconciliation_year_reset_v1.sql`. Não reaplicar nem reescrever migrations históricas. A execução em produção depende de autorização posterior.
+
+Objetos anuais têm RLS/ACL explícitas, FKs compostas e exclusão controlada sem cascata. Observações/decisões publicadas são imutáveis. A ponte tem proprietário mínimo sem BYPASSRLS/propriedade de tabelas, `search_path=pg_catalog` e EXECUTE revogado de papéis públicos. A Data API não expõe essas tabelas.
+
+O papel que aplica migrations em produção não é superusuário. Por isso as views e funções só passam à ponte no fim de `0025` e `0016`, depois de emitidos todos os privilégios; a transferência usa associação com `SET` e `CREATE` no schema apenas dentro da migration, ambos retirados em seguida, e a leitura do dono anterior é devolvida pela própria ponte. O gate do Banco aplica as três candidatas com um papel `CREATEROLE` sem superusuário e dono dos dois schemas.
+
+Pendência anterior à Relação dura 30 dias, com aviso a partir do dia 27; preparação ordinária dura 24 horas; estágio de credenciais dura no máximo uma hora. A manutenção existente elimina expirados em lotes limitados, revalida sob lock e alerta sem conteúdo pessoal. Não há automação de ChatGPT nem consulta periódica da escola inteira.
+
+O reset inclui prévia/contagens dos objetos novos e funciona também para pendências anteriores à Relação. Exclui dependentes explicitamente e troca a geração, impedindo replay de preparação antiga. Conserva a guarda de contas/vínculos e não apaga identidades globais ou fotos.
+
+## Limpeza e transição de consumidores
+
+| Item                                                     | Destino nesta entrega                                                                                                                                       |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor/autosave/batch de nascimento no navegador         | Retirados; ficha de nascimento somente leitura.                                                                                                             |
+| Serviço produtivo manual de nascimento e port de escrita | Retirados; operações antigas recebem rejeição autenticada mesmo com cliente antigo.                                                                         |
+| `birth-write`/`birth-batch` nos DTOs antigos             | Tombstone para rejeição/compatibilidade de clientes; não gravam.                                                                                            |
+| Emissão/reemissão de QR e download de cartões            | Componente próprio, sem depender do editor de nascimento; autorização, seleção e idempotência preservadas.                                                  |
+| Leituras de nascimento do Portal                         | Leitor único `account_birth_v1`, consumindo observação canônica e legado preexistente somente na transição permitida.                                       |
+| `account_access_data` e fixtures de nascimento antigas   | Fonte produtiva sem novo writer; retenção transitória necessária à migração/reversão. Helpers antigos somente em testes isolados, nunca fallback produtivo. |
+| Reparo legado que movia notas entre duas identidades     | Retirado; conflito de identidade permanece explícito.                                                                                                       |
+
+Não declarar retirada física do legado antes de terminar a transição de dados e dependências no ambiente autorizado. Não publicar dados pessoais ou snapshots reais para provar essa transição.
+
+## Verificação e uso posterior
+
+Regressões: domínio/normalização; parser e UI sintéticos; testes de Relação; `reconciliation-core.postgres.ts`, `reconciliation-pending.postgres.ts`, `reconciliation-credentials.postgres.ts` e reset nativo. Cobrem atomicidade, CAS, idempotência, C3, pessoas sem conta, pendências sem UID, reversão/rejeição, mudança de turma, leitores, ACL e preservação dos recursos. O fluxo anterior à Relação comprova aviso/expiração, ativação e equivalência da ordem inversa; perfis N→1 conflitantes exigem uma observação inteira, sem misturar campos. O lote sintético de 512 pessoas verifica consultas limitadas e uso de índice. O harness Workerd mede a preparação real da KDF, mantendo os limites de latência/consultas existentes; a rejeição das escritas manuais é uma regressão separada. Evidência do head final e gates fica na PR; teste isolado não equivale a validação em produção.
+
+A medição sintética de KDF/latência/consultas não comprova CPU ou pico de memória do isolate nos limites do runtime produtivo. O diagnóstico existente registra somente a memória disponível no host ao final. Essas medições de CPU/memória da seção 15.5 continuam obrigatórias antes da habilitação; não são inferidas do build ou do CI.
+
+Após a revisão da PR, a liberação produtiva exige planejamento das novas migrations e publicação oficial, ambos fora da autorização desta execução. O responsável conduz a conferência funcional com fontes reais no ambiente autorizado: importar Relatório, conferir ligações/turmas/pendências, verificar nome configurado e QR/PIN existentes, e avaliar avisos/reset sem ensaio destrutivo de dados reais. A #1269 permanece aberta para frequência e liberação posterior.
+
+## Liberação e reversão
+
+O código desta entrega lê os objetos novos em caminhos que já existem: entrada do aluno por PIN e QR (`account_birth_v1`), listagens da aba Alunos, Desempenho, Conselho e Boletins (`student_presentation_v1`), importação da Relação (evidências de identidade), reset e manutenção agendada. A integração em `main` publica o código; **as migrations precisam estar aplicadas antes**.
+
+1. CI e gates verdes no head final.
+2. Com autorização específica do responsável, aplicar em produção `gradebook-simplified/0015`, `student-portal/0025` e `gradebook-simplified/0016`, nesta ordem, cada uma em sua transação.
+3. Conferir no catálogo: tabelas novas presentes; ponte sem login, superusuário, `BYPASSRLS`, `CREATE` nos schemas ou associação com `SET`/`INHERIT`; `student_portal_app` lê `account_birth_v1` e `academic_student_v1`; `gradebook_app` lê `student_presentation_v1`; os donos das funções de publicação e de reset conservam leitura e execução.
+4. Integrar por merge commit e publicar pelo workflow oficial.
+5. Validar no ambiente real, nesta ordem: entrada por PIN de aluno existente; Desempenho, Conselho e Boletins; importação da Relação; por fim, o Relatório.
+
+Entre os passos 2 e 4 a versão publicada continua funcionando, pois lê o nascimento anterior diretamente; apenas o cadastro manual de nascimento deixa de gravar, porque `0025` retira essa escrita do runtime.
+
+Reversão: antes do primeiro relatório aplicado, voltar o código restaura o comportamento anterior; a escrita manual de nascimento só volta com a devolução explícita de `INSERT, UPDATE, DELETE` em `account_access_data`. Depois de um relatório aplicado, voltar o código **não** desfaz nascimento nem PIN já atualizados: a correção é para frente, pela separação da associação ou por novo relatório. O nome adotado volta à Relação pela própria configuração, sem reversão de código.

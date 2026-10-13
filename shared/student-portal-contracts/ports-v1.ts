@@ -60,7 +60,6 @@ export interface PortalTransactionV1 {
   readCredentials(accountId: string): Promise<CredentialRecordV1 | null>;
   saveCredentials(record: CredentialRecordV1): Promise<void>;
   readBirth(accountId: string): Promise<BirthRecordV1 | null>;
-  compareAndSetBirth(record: BirthRecordV1, expectedVersion: number): Promise<boolean>;
   readAttempts(accountId: string): Promise<AttemptRecordV1 | null>;
   saveAttempts(record: AttemptRecordV1): Promise<void>;
   readIdempotency(key: string, actorId: string): Promise<IdempotencyRecordV1 | null>;
@@ -97,7 +96,14 @@ export interface PortalAdminEntrypointV1 {
 }
 /** Internal service capability only; never accepted as identity from public HTTP. */
 export type AdminOperationV1 = 'read' | 'import' | 'write' | 'export' | 'live' | 'revoke';
+export interface ReconciliationCredentialRequestV1 {
+  contractVersion: 1; batchId: string; generation: string; expectedScopeRevision: number;
+}
+export interface ReconciliationCredentialResultV1 {
+  state: 'ready' | 'preparing' | 'conflict' | 'expired'; preparedCount: number; remainingCount: number;
+}
 export interface PortalAdminServiceBindingV1 extends PortalAdminEntrypointV1 {
+  prepareReconciliationCredentials?(context: TrustedAdminContextV1, request: ReconciliationCredentialRequestV1): Promise<ReconciliationCredentialResultV1 | FailureV1>;
   limitOperation?(context: TrustedAdminContextV1, operation: AdminOperationV1): Promise<FailureV1 | null>;
   drainLive?(context: LiveDrainContextV1): Promise<boolean>;
   fetch?(request: Request): Promise<Response>;

@@ -18,6 +18,7 @@ const forbiddenSnapshot = async () => { throw new Error('unexpected-snapshot-ope
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
   // Disposable roles and the canonical migration chain, never a production connection.
   await pg.exec('CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
   for (const file of [

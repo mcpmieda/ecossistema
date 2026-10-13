@@ -53,7 +53,7 @@ function accountListShape(query: AdminQueryV1) {
   };
   if (query.operation === 'birth-years') return {
     fields: "a.id,a.version::text AS account_version,d.birth_year,d.confirmation,COALESCE(d.version,0)::text AS birth_version,COALESCE(s.name,'') AS name",
-    join: 'LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id',
+    join: 'LEFT JOIN student_portal.account_birth_v1 d ON d.account_id=a.id',
   };
   return {
     fields: `a.id,a.gradebook_student_id,a.auth_state,a.eligibility,a.blocked,a.version::text,

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -62,6 +62,7 @@ beforeAll(async () => {
     end: () => pg.close(),
   };
   await installResetSchemaFixtureV1(pg);
+  await installReconciliationSchemaFixtureV1(pg);
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
 }, 30_000);
 

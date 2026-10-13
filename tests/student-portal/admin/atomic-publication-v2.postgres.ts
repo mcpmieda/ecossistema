@@ -173,6 +173,22 @@ it('publishes in one scoped row and serves individual grades immediately, withou
   expect(JSON.stringify(await self())).not.toContain('PRIVATE TEACHER');
   console.log('P803_SYNTHETIC_RELEASE', JSON.stringify({ students: 106, queries: calls, elapsedMs: elapsed, jobs: 0 }));
 });
+it.each([200, 201, 300])('serves the complete %i-character accented profile through the real Self reader and portal role', async (length) => {
+  await release();
+  const before = await self();
+  expect(before?.state).toBe('ready');
+  const name = 'ÁÉÕÇ'.repeat(75).slice(0, length);
+  try {
+    await owner.unsafe('UPDATE gradebook.aluno SET nome=$1 WHERE id=746001', [name]);
+    const current = await self();
+    expect(selfResponseV1.safeParse(current).success).toBe(true);
+    expect(current?.profile.name).toBe(name);
+    expect(current?.subjects).toEqual(before?.subjects);
+    expect((await self(readAccountIdV2(2)))?.profile.name).not.toBe(name);
+  } finally {
+    await owner.unsafe('UPDATE gradebook.aluno SET nome=$1 WHERE id=746001', [before!.profile.name]);
+  }
+});
 it('reads class seals with real prepared SQL and app ACLs in four queries, preserving private publication', async () => {
   await release();
   const second = readAccountIdV2(2);

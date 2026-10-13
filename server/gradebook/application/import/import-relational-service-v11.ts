@@ -20,9 +20,11 @@ import { createGradebookRelationalImportServiceV10 } from './import-relational-s
 export function createGradebookRelationalImportServiceV11(
   database: GradebookPostgresWritePortV1,
   observer?: ImportPerformanceObserverV1,
+  actorId?: string,
 ) {
   const service = createGradebookRelationalImportServiceV10(
     createBufferedRelationalImportDatabaseV11(database, observer),
+    actorId,
   );
   return {
     execute(

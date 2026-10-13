@@ -1,10 +1,12 @@
 import { openSyntheticSchoolV1 } from '../academic/open-school-fixture-v1';
+import { installReconciliationSchemaFixtureV1 } from '../year-reset/schema-fixture';
 import { proveWorkerLockTimeoutV1 } from '../load/lock-timeout-harness-v1';
 import { pausedPortalQueryV1 } from '../load/paused-query-v1';
 import { accountTransactionV1 } from '../../../server/student-portal/auth/transaction-v1';
 import { proveWorkerPublicationV1 } from '../load/publication-harness-v1';
 import { quarantineSyntheticRestoreV1 } from '../recovery/quarantine-synthetic-v1';
 import { runPortalHarnessScenariosV1 } from '../load/harness-scenarios-v1';
+import { prepareReconciliationHarnessFixtureV1 } from '../load/reconciliation-harness-fixture-v1';
 import { createLocalPortalHarnessV1 } from '../load/local-harness-v1';
 import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { withAuditSqlV1 } from '../../../server/student-portal/observability/audit-context-v1';
@@ -17,7 +19,7 @@ import { SessionServiceV1 } from '../../../server/student-portal/auth/session-se
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
 import { AcademicStudentReaderPostgresV1, ACADEMIC_STUDENT_QUERY_V1 } from '../../../server/student-portal/academic/academic-reader-v1';
 import { ACADEMIC_FIXTURE_SQL_V1 } from '../academic/academic-fixture-v1';
-import { BirthYearServiceV1 } from '../../../server/student-portal/birth-year/birth-year-service-v1';
+import { BirthYearServiceV1 } from '../birth-year/legacy-birth-fixture-v1';
 import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
@@ -132,6 +134,9 @@ beforeAll(async () => {
       CREATE ROLE portal_migration_admin LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS;
     END IF;
   END $$;`);
+  // Other isolated suites use SET ROLE and may have created these cluster roles as NOLOGIN.
+  // This loopback-only fixture exercises actual authentication under the restricted roles.
+  await admin.unsafe('ALTER ROLE gradebook_app LOGIN; ALTER ROLE anon LOGIN; ALTER ROLE authenticated LOGIN');
   for (const name of [
     'application_role_grants.sql', '0003_council_session_v3.sql',
     '0004_council_v3_least_privilege.sql', '0005_relational_bulletin_snapshot_v2.sql',
@@ -169,6 +174,9 @@ beforeAll(async () => {
   await admin.unsafe(readFileSync('migrations/student-portal/0022_shift_policy_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0023_audit_detail_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0024_seal_count_cache_v1.sql', 'utf8'));
+  await installReconciliationSchemaFixtureV1({exec:(sql)=>admin.unsafe(sql,[],{prepare:false})});
+  await admin.unsafe(readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'));
+  await admin.unsafe(readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'));
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
@@ -659,7 +667,7 @@ describe('native import reset revisions', () => {
 
 
 describe('native service contention with live Portal links', () => {
-  it('retries after link creation or closure commits during its wait, without deleting academic data', async () => {
+  it('retries after link restoration or closure commits during its wait, without deleting academic data', async () => {
     await portal`UPDATE student_portal.account SET gradebook_student_id=NULL,closed_at=clock_timestamp(),eligibility='unlinked' WHERE id=${ACCOUNT}`;
     const writer=asRole('student_portal_app');
     const contender=asRole('gradebook_app');
@@ -670,7 +678,7 @@ describe('native service contention with live Portal links', () => {
     const command={contractVersion:1,operation:'execute',year:2026,previewRevision:preview.previewRevision,
       confirmationPhrase:preview.confirmationPhrase,understandsIrreversible:true};
     const pid=(await contender`SELECT pg_backend_pid() AS pid`)[0]!.pid;
-    const linked='66666666-6666-4666-8666-666666666666';
+    const linked=ACCOUNT;
     for(const closing of [false,true]) {
       await writer.unsafe('BEGIN');
       let pending:ReturnType<typeof service.execute>|undefined;
@@ -680,8 +688,8 @@ describe('native service contention with live Portal links', () => {
         if(closing) {
           await writer`UPDATE student_portal.account SET gradebook_student_id=NULL,closed_at=clock_timestamp(),eligibility='unlinked' WHERE id=${linked}`;
         } else {
-          await writer`INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility,blocked)
-            VALUES (${linked},2026,1,'pending-activation','eligible',true)`;
+          await writer`UPDATE student_portal.account SET gradebook_student_id=1,closed_at=NULL,
+            auth_state='pending-activation',eligibility='eligible',blocked=true WHERE id=${linked}`;
         }
         await writer`UPDATE student_portal.academic_revision SET reset_counter=reset_counter+1,portal_link_counter=portal_link_counter+1 WHERE academic_year=2026`;
         pending=service.execute(command);
@@ -918,15 +926,15 @@ describe('native policy persistence and concurrency', () => {
   });
 });
 
-describe('native birth CAS and PIN invalidation', () => {
+describe('historical owner fixture birth CAS and PIN invalidation', () => {
   const actor='77777777-7777-4777-8777-777777777777';
   const unused=()=>{throw new Error('synthetic-unused');};
   const cryptoPort:CryptoPortV1={randomToken:unused,hashOpaqueToken:unused,verifySecret:unused,signQr:unused,verifyQr:unused,
     async deriveVerifier(_secret,pepperVersion){return {algorithm:'synthetic-only',parameters:{},salt:crypto.randomUUID(),digest:crypto.randomUUID(),pepperVersion};}};
-  const birth=new BirthYearServiceV1(portal as unknown as StudentPortalPostgresSqlV1,cryptoPort,1);
+  const birth=new BirthYearServiceV1(admin as unknown as StudentPortalPostgresSqlV1,cryptoPort,1);
   let id:string;
 
-  it('serializes competing account/field CAS on two real Portal connections', async()=>{
+  it('serializes competing account/field CAS on two synthetic owner fixture connections', async()=>{
     await admin`INSERT INTO gradebook.aluno(id,ano,nome) VALUES (900022,2026,'SYNTHETIC NATIVE BIRTH STUDENT')`;
     await admin`INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES (2026,900011,3,900022)`;
     await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`;
@@ -935,7 +943,7 @@ describe('native birth CAS and PIN invalidation', () => {
     const make=(year:string)=>({contractVersion:1,operation:'birth-write',expectedVersion:initial.accountVersion,idempotencyKey:crypto.randomUUID(),
       item:{action:'set',accountId:id,expectedVersion:0,year,confirmation:'unconfirmed-test'}});
     const inputs=[make('2001'),make('2002')];
-    const other=new BirthYearServiceV1(asRole('student_portal_app') as unknown as StudentPortalPostgresSqlV1,cryptoPort,1);
+    const other=new BirthYearServiceV1(asRole(target.username) as unknown as StudentPortalPostgresSqlV1,cryptoPort,1);
     const results=await Promise.allSettled([birth.write(actor,inputs[0]),other.write(actor,inputs[1])]);
     expect(results.filter((result)=>result.status==='fulfilled')).toHaveLength(1);
     const rejected=results.find((result)=>result.status==='rejected');
@@ -1003,7 +1011,8 @@ describe('native authentication locks with real scrypt and separate connections'
   const other = new AuthServiceV1(secondary, cryptography, 1, { verify: async () => true });
   const qrService = new QrServiceV1(secondary, cryptography, 1);
   const sessions = new SessionServiceV1(primary, cryptography);
-  const births = new BirthYearServiceV1(secondary, cryptography, 1);
+  // Existing credentials are seeded only by the synthetic owner, never a retired runtime writer.
+  const births = new BirthYearServiceV1(admin as unknown as StudentPortalPostgresSqlV1, cryptography, 1);
   let number = 0;
   async function fixture() {
     await openSyntheticSchoolV1(primary);
@@ -1153,7 +1162,7 @@ describe('native administrative facade and atomic batch receipts', () => {
     expect(accounts.items).toHaveLength(2);
     accountIds = accounts.items.map((item) => item.accountId);
     const pinVerifier = await cryptography.deriveVerifier('2001', 1);
-    await portal.unsafe(`INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation)
+    await admin.unsafe(`INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation)
       SELECT id,2001,'confirmed' FROM student_portal.account
       WHERE id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))
       ON CONFLICT (account_id) DO UPDATE SET birth_year=EXCLUDED.birth_year,confirmation=EXCLUDED.confirmation`,
@@ -1269,14 +1278,18 @@ describe('H actual workerd and PostgreSQL application harness', () => {
 
 
 it('runs synthetic account activation, sessions and bounded load through real workerd/PostgreSQL', async () => {
+  await openSyntheticSchoolV1(portal as unknown as StudentPortalPostgresSqlV1);
   await admin.unsafe(`INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES(950001,2026,'HLOAD','SYNTHETIC WORKER LOAD',6,'TESTE');
     INSERT INTO gradebook.aluno(id,ano,nome) SELECT 950000+i,2026,'SYNTHETIC WORKER '||i FROM generate_series(1,5) i;
     INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) SELECT 2026,950001,i,950000+i FROM generate_series(1,5) i;
     SELECT * FROM student_portal.synchronize_profiles_v1(true);`);
   const connection = new URL(target);
   connection.username = 'student_portal_app';
+  const reconciliation = await prepareReconciliationHarnessFixtureV1(
+    createGradebookPostgresDatabaseFromSqlV1(gradebook as unknown as GradebookPostgresSqlV1),
+    admin as unknown as StudentPortalPostgresSqlV1);
   // Export is owned by the harness finally, including partial runs and rejected performance gates.
-  await runPortalHarnessScenariosV1(connection.toString());
+  await runPortalHarnessScenariosV1(connection.toString(), undefined, reconciliation);
 }, 120_000);
 
 
@@ -1307,7 +1320,8 @@ it('quarantines an old synthetic security snapshot before reopening and preserve
       UPDATE student_portal.qr_credential q SET state=old.state,revoked_at=old.revoked_at FROM recovery_old_qr old WHERE old.credential_id=q.credential_id`);
     const response = await closed.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/session', { headers: { cookie: `__Host-student_portal_session=${token}` } });
     expect(response.status).toBe(503);
-    const sql = portal as unknown as StudentPortalPostgresSqlV1;
+    // Restoring/quarantining this synthetic backup is owner-only setup, never a Portal API operation.
+    const sql = admin as unknown as StudentPortalPostgresSqlV1;
     const failing: StudentPortalPostgresSqlV1 = { unsafe: (query, args) => sql.unsafe(query, args), begin: (op) => sql.begin((tx) => op({
       unsafe: (query, args) => { if (query.includes('UPDATE student_portal.password_credential')) throw new Error('synthetic-quarantine-crash'); return tx.unsafe(query, args); },
     })) };

@@ -2,9 +2,13 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { compareCanonicalStringsV1 } from '../../../shared/gradebook-contracts/string-order-v1.ts';
+import { inOrderV1 } from '../../../shared/in-order-v1.ts';
 
 export interface CurrentGradebookRecoveryQueryV1 {
-  unsafe(query: string, parameters?: readonly unknown[]): PromiseLike<readonly Record<string, unknown>[]>;
+  unsafe(
+    query: string,
+    parameters?: readonly unknown[],
+  ): PromiseLike<readonly Record<string, unknown>[]>;
 }
 
 export const GRADEBOOK_CURRENT_CATALOG_V1 = {
@@ -67,6 +71,7 @@ export const GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1 = [
   'turma_id_seq',
 ] as const;
 
+/** Applied academic baseline, also used by historical identity recovery fixtures. */
 export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
   '0001_current_schema.sql',
   'application_role_grants.sql',
@@ -83,6 +88,25 @@ export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
   '0013_default_privileges_hardening_v1.sql',
   '0014_function_execute_hardening_v1.sql',
   'current_cross_schema_indexes_v1.sql',
+] as const;
+
+/** Candidate package requires the full applied Portal lineage through 0024, including shared identity. */
+export const GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1 = [
+  'gradebook-simplified/0015_student_reconciliation_v1.sql',
+  'student-portal/0025_reconciliation_credentials_v1.sql',
+  'gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
+] as const;
+
+export const GRADEBOOK_RECONCILIATION_TABLES_V1 = [
+  'student_reconciliation_scope_v1',
+  'student_report_batch_v1',
+  'student_report_class_v1',
+  'student_report_pending_row_v1',
+  'student_report_profile_v1',
+  'student_reconciliation_decision_v1',
+  'student_source_record_v1',
+  'student_source_observation_v1',
+  'student_source_link_v1',
 ] as const;
 
 function integer(value: unknown, code: string): number {
@@ -131,10 +155,37 @@ export async function applyCurrentGradebookSchemaV1(
   }
 
   await provisionCurrentGradebookRolesV1(sql);
-  for (const file of GRADEBOOK_CURRENT_SCHEMA_PLAN_V1) {
-    const source = await readFile(join(repositoryRoot, 'migrations/gradebook-simplified', file), 'utf8');
+  await inOrderV1(GRADEBOOK_CURRENT_SCHEMA_PLAN_V1, async (file) => {
+    const source = await readFile(
+      join(repositoryRoot, 'migrations/gradebook-simplified', file),
+      'utf8',
+    );
     await sql.unsafe(source);
+  });
+}
+
+/** Isolated recovery/CI only; production migration authorization is a separate operation. */
+export async function applyReconciliationCandidateSchemaV1(
+  sql: CurrentGradebookRecoveryQueryV1,
+  repositoryRoot: string,
+): Promise<void> {
+  const prerequisites = await firstRow(
+    sql,
+    `SELECT
+    to_regclass('gradebook.student_identity') IS NOT NULL AS identity_ready,
+    to_regclass('student_portal.seal_count_cache_v1') IS NOT NULL AS portal_ready,
+    to_regclass('gradebook.student_reconciliation_scope_v1') IS NULL AS candidate_empty`,
+  );
+  if (
+    prerequisites.identity_ready !== true ||
+    prerequisites.portal_ready !== true ||
+    prerequisites.candidate_empty !== true
+  ) {
+    throw new Error('gradebook-reconciliation-candidate-prerequisites-invalid');
   }
+  await inOrderV1(GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1, async (file) => {
+    await sql.unsafe(await readFile(join(repositoryRoot, 'migrations', file), 'utf8'));
+  });
 }
 
 export async function readCurrentGradebookCatalogV1(
@@ -205,7 +256,10 @@ export async function assertCurrentGradebookSchemaV1(
     "SELECT tablename FROM pg_tables WHERE schemaname='gradebook'",
     'tablename',
   );
-  if (JSON.stringify(tables) !== JSON.stringify([...GRADEBOOK_CURRENT_TABLES_V1].sort(compareCanonicalStringsV1))) {
+  if (
+    JSON.stringify(tables) !==
+    JSON.stringify([...GRADEBOOK_CURRENT_TABLES_V1].sort(compareCanonicalStringsV1))
+  ) {
     throw new Error('gradebook-current-table-set-mismatch');
   }
 
@@ -261,5 +315,47 @@ export async function assertCurrentGradebookSchemaV1(
     integer(clientAcl.public_tables, 'gradebook-current-public-table-privileges-invalid') !== 0
   ) {
     throw new Error('gradebook-current-client-acl-mismatch');
+  }
+}
+
+export async function assertReconciliationCandidateSchemaV1(
+  sql: CurrentGradebookRecoveryQueryV1,
+): Promise<void> {
+  const expected = [
+    ...GRADEBOOK_CURRENT_TABLES_V1,
+    'student_identity',
+    ...GRADEBOOK_RECONCILIATION_TABLES_V1,
+  ].sort(compareCanonicalStringsV1);
+  const tables = await exactNames(
+    sql,
+    "SELECT tablename FROM pg_tables WHERE schemaname='gradebook'",
+    'tablename',
+  );
+  if (JSON.stringify(tables) !== JSON.stringify(expected))
+    throw new Error('gradebook-candidate-table-set-mismatch');
+  const counts = await firstRow(
+    sql,
+    `SELECT
+    (SELECT count(*)::integer FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='gradebook' AND c.relkind='r' AND c.relrowsecurity) AS rls,
+    (SELECT count(*)::integer FROM pg_policies WHERE schemaname='gradebook' AND policyname='reconciliation_backend_v1') AS policies,
+    (SELECT count(*)::integer FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid
+      JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='gradebook'
+      AND t.relname=ANY(ARRAY['student_reconciliation_scope_v1','student_report_batch_v1','student_report_class_v1',
+        'student_report_pending_row_v1','student_report_profile_v1','student_reconciliation_decision_v1',
+        'student_source_record_v1','student_source_observation_v1','student_source_link_v1'])
+      AND c.contype='f' AND c.convalidated AND c.confdeltype='a') AS foreign_keys,
+    (SELECT count(*)::integer FROM information_schema.columns WHERE table_schema='gradebook'
+      AND table_name IN ('student_report_pending_row_v1','student_source_observation_v1')
+      AND column_name='birth_date' AND data_type='date' AND is_nullable='NO') AS civil_births`,
+  );
+  if (
+    integer(counts.rls, 'candidate-rls-invalid') !== expected.length ||
+    integer(counts.policies, 'candidate-policy-count-invalid') !==
+      GRADEBOOK_RECONCILIATION_TABLES_V1.length ||
+    integer(counts.foreign_keys, 'candidate-fk-count-invalid') !== 24 ||
+    integer(counts.civil_births, 'candidate-civil-birth-count-invalid') !== 2
+  ) {
+    throw new Error('gradebook-candidate-catalog-mismatch:' + JSON.stringify(counts));
   }
 }

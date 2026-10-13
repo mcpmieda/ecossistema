@@ -1,5 +1,9 @@
 # Contratos — vigência, compatibilidade e lacunas
 
+## Conciliação anual candidata — #1269 / #1276
+
+[Conciliação V1](../student-identity/RECONCILIATION_V1.md) especifica o DTO discriminado, validação integral C3, continuidade de origem distinta de identidade, decisões duráveis, CAS/idempotência, ativação do lote e PIN numa transação, transição de nascimento/QR, retenção e reset. Contrato compartilhado registrado na #1276; implementação candidata sem merge, produção ou frequência desta fase. UIDs, notas, contas, fotos e autorização conservam seus contratos.
+
 Retirada solicitada em 10/10/2026, registrada na #1271 e BN-DEC-043: remove a aba Relatórios e seu módulo institucional V1/V2, substituindo somente sua preservação/compatibilidade na BN-DEC-041. O endpoint antigo responde 410 autenticado com `{ state: 'retired' }`; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Estado de integração/publicação e SHA efetivo são registrados na #1271/PR #1270; não inferir homologação real.
 
 A classificação canônica de versões `CURRENT / COMPATIBILITY / HISTORICAL` está em [CONTRACT_VERSION_MAP.md](CONTRACT_VERSION_MAP.md). **Não inferir vigência pelo maior sufixo `vN`.**

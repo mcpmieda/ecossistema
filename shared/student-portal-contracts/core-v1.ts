@@ -7,6 +7,9 @@ export const portalIdV1 = z.uuid();
 export const versionV1 = z.number().int().safe().nonnegative();
 export const instantV1 = z.iso.datetime({ offset: true });
 export const opaqueV1 = z.string().min(32).max(512).regex(/^[A-Za-z0-9_-]+$/u);
+// A sealed cursor includes a 300-character sort name, JSON escaping and two base64url layers.
+// Keep credentials/challenges on opaqueV1's smaller bound and preserve the V1 wire format.
+export const pageCursorV1 = z.string().min(32).max(4096).regex(/^[A-Za-z0-9_-]+$/u);
 export const periodV1 = z.enum(['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3']);
 export const academicLinkV1 = z.object({ academicYear: z.literal(PORTAL_YEAR_V1), studentId: z.number().int().positive().safe() }).strict();
 export const scopeV1 = z.discriminatedUnion('kind', [
@@ -28,7 +31,7 @@ export const policyScopeV1 = z.discriminatedUnion('kind', [...scopeV1.options, s
 export type PolicyScopeV1 = z.infer<typeof policyScopeV1>;
 export const SHIFT_LABELS_V1: Readonly<Record<ShiftV1, string>> = { MATUTINO: 'Matutino', VESPERTINO: 'Vespertino', NOTURNO: 'Noturno' };
 export const commandMetaV1 = { contractVersion: z.literal(1), expectedVersion: versionV1, idempotencyKey: portalIdV1 };
-export const pageRequestV1 = z.object({ cursor: opaqueV1.optional(), limit: z.number().int().min(1).max(100).default(50) }).strict();
+export const pageRequestV1 = z.object({ cursor: pageCursorV1.optional(), limit: z.number().int().min(1).max(100).default(50) }).strict();
 export const accountStateV1 = z.enum(['pending-activation', 'active', 'reset-required']);
 export const eligibilityStateV1 = z.enum(['eligible', 'exit', 'unresolved', 'unlinked']);
 export const publicationStateV1 = z.enum(['no-data', 'available', 'published', 'update-pending']);

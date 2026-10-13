@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
-import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -97,6 +97,7 @@ beforeAll(async () => {
   ])
     await pg.exec(file('gradebook-simplified/' + n));
   await installResetSchemaFixtureV1(pg);
+  await installReconciliationSchemaFixtureV1(pg);
   for (const n of [
     '0008_atomic_publication_v2.sql',
     '0009_publication_cutover_guard_v2.sql',

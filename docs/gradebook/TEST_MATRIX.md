@@ -1,5 +1,14 @@
 # Matriz de testes — Banco de Notas
 
+## Conciliação candidata — #1269 / #1276
+
+- Domínio/normalização: três regras, vetos, continuidade/hash alterado, N→1, perfis inteiros, homônimos, rejeição, normalização, datas civis/1900/1904/INEP; somente fixtures sintéticas.
+- Serviço PostgreSQL: validação C3 antes de persistência, lote atômico e rollback, receipts, CAS obsoleto, pendências sem UID, pessoas sem conta, separação/liberação, histórico de origem, cursor, allowlist e revisão de turma (`reconciliation-core.postgres.ts`).
+- Ponte PostgreSQL: KDF retomável de quatro, falha no último PIN sem publicação parcial, mesmo ano sem regeneração, CAS/expiração/ACL, transição e reversão do legado (`reconciliation-credentials.postgres.ts`).
+- Reset: prévia/contagens, pendência antes da Relação, geração/replay, invalidação por escrita/limpeza, guarda de contas e limpeza de staging. Relação testa explicitamente outra pessoa na mesma posição, correção de grafia e proibição de mover notas entre UIDs.
+- UI/parser: cabeçalhos e células sintéticos, modalidades, erros por linha, prepare→stage→apply, paginação, decisões, ficha somente leitura e emissão QR independente. APIs manuais permanecem rejeitadas.
+- Lint/tipos/build, suítes existentes, PostgreSQL nativo e gates do head final continuam obrigatórios. [Limites e validação real posterior](../student-identity/RECONCILIATION_V1.md).
+
 ## Retirada de Relatórios - #1271 / BN-DEC-043
 
 - Menu/busca/abas não anunciam Relatórios; URL antiga, hashchange, voltar/avançar e recarga normalizam para Importação, preservando lote em andamento.

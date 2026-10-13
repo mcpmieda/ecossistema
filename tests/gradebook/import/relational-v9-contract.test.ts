@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   inspectGradebookImportPersistenceRequestV9,
+  isGradebookImportPersistenceResponseV9,
   type GradebookNotesImportRequestV9,
   type GradebookRelationImportRequestV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
@@ -134,6 +135,15 @@ function teacherResultWithAboveMaximum(): BatchSuccess {
 }
 
 describe('gradebook relational import v9', () => {
+  it('accepts movement warnings without allowing personal fields in their payload', () => {
+    const response = { transportVersion: 9, state: 'applied', summary: {}, warnings: [
+      { code: 'movement-spelling', classCode: '7A', number: 2, relatedClassCode: '7B' },
+    ] };
+    expect(isGradebookImportPersistenceResponseV9(response)).toBe(true);
+    expect(isGradebookImportPersistenceResponseV9({ ...response, warnings: [
+      { ...response.warnings[0], studentName: 'SYNTHETIC NAME' },
+    ] })).toBe(false);
+  });
   it('normalizes relation statuses without persisting NOVATO', () => {
     expect(parseRelationStatusV9(' NOVATO ')).toEqual([0]);
     expect(parseRelationStatusV9('  ASSISTIDO  ')).toEqual([2]);

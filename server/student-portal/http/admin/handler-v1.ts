@@ -48,9 +48,9 @@ function allowed(request: Request, env: RuntimeEnv): boolean {
   return site === null || site === 'same-origin' || site === 'none';
 }
 
-function commandState(command: AdminCommandV1): 'qr' | 'batch' | 'committed' {
+function commandState(command: AdminCommandV1): 'qr' | 'committed' {
   if (command.operation.startsWith('qr-')) return 'qr';
-  return command.operation === 'birth-batch' ? 'batch' : 'committed';
+  return 'committed';
 }
 
 function failResponseV1(requestId: string, state: FailureV1['state']) {

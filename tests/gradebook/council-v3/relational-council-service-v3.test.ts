@@ -20,7 +20,9 @@ let database: GradebookPostgresDatabaseV1;
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
   await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
+  await pg.exec('GRANT SELECT ON gradebook.student_presentation_v1 TO gradebook_app;');
   await pg.exec(readFileSync('migrations/gradebook-simplified/0003_council_session_v3.sql', 'utf8'));
   await pg.exec(readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'));
   await pg.exec(`
@@ -65,6 +67,21 @@ function request(operation: string, extra: Record<string, unknown> = {}) {
 }
 
 describe('relational Council V3 lifecycle', () => {
+  it('presents the shared configured name while preserving the imported name', async () => {
+    await pg.exec(`CREATE OR REPLACE VIEW gradebook.student_presentation_v1 AS
+      SELECT id AS student_id,ano AS academic_year,
+      CASE WHEN id=1 THEN 'NOME CONSELHO SINTETICO' ELSE nome END AS name FROM gradebook.aluno`);
+    try {
+      const result = await createRelationalCouncilV3(database, ACTOR).execute(request('workspace'));
+      expect(result).toMatchObject({ state: 'ready', workspace: { students: expect.arrayContaining([
+        expect.objectContaining({ id: 1, name: 'NOME CONSELHO SINTETICO' }),
+      ]) } });
+      expect((await pg.query('SELECT nome FROM gradebook.aluno WHERE id=1')).rows).toEqual([{ nome: 'ALUNO ELEGIVEL' }]);
+    } finally {
+      await pg.exec(`CREATE OR REPLACE VIEW gradebook.student_presentation_v1 AS
+        SELECT id AS student_id,ano AS academic_year,nome AS name FROM gradebook.aluno`);
+    }
+  });
   it('retries one PostgreSQL serialization abort before returning the contracted response', async () => {
     let attempts = 0;
     const retryingDatabase = {
@@ -182,6 +199,23 @@ async function http(body: unknown, role: 'ADMINISTRADOR' | 'PROFESSOR' | null = 
   if (!response) throw new Error('route-not-found');
   return response;
 }
+
+it('uses the shared presentation for the current decision and vote timeline', async () => {
+  await pg.exec(`CREATE OR REPLACE VIEW gradebook.student_presentation_v1 AS
+    SELECT id AS student_id,ano AS academic_year,
+    CASE WHEN id=1 THEN 'NOME CONSELHO SINTETICO' ELSE nome END AS name FROM gradebook.aluno`);
+  try {
+    const result = await createRelationalCouncilV3(database, ACTOR).execute(request('workspace'));
+    expect(result).toMatchObject({ state: 'ready', workspace: { timeline: expect.arrayContaining([
+      expect.objectContaining({ action: 'decision-recorded', studentId: 1, studentLabel: 'NOME CONSELHO SINTETICO' }),
+      expect.objectContaining({ action: 'vote-recorded', studentId: 1, studentLabel: 'NOME CONSELHO SINTETICO' }),
+    ]) } });
+    expect((await pg.query('SELECT nome FROM gradebook.aluno WHERE id=1')).rows).toEqual([{ nome: 'ALUNO ELEGIVEL' }]);
+  } finally {
+    await pg.exec(`CREATE OR REPLACE VIEW gradebook.student_presentation_v1 AS
+      SELECT id AS student_id,ano AS academic_year,nome AS name FROM gradebook.aluno`);
+  }
+});
 
 describe('relational Council V3 HTTP boundary', () => {
   it('serves V3 only to the existing persistence administrator with no-store', async () => {

@@ -1,3 +1,4 @@
+import { seedExistingBirthFixtureV1 } from '../smoke/legacy-seed-fixture-v1';
 import postgres from 'postgres';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { createIntegrationHarnessV1, type IntegrationRequestV1 } from './harness-v1';
@@ -103,19 +104,7 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
     page: { limit: 100 },
   });
   if (birth.state !== 'birth-years') throw new Error('Synthetic birth read failed');
-  await client.command({
-    contractVersion: 1,
-    operation: 'birth-write',
-    expectedVersion: birth.items[0]!.accountVersion,
-    idempotencyKey: crypto.randomUUID(),
-    item: {
-      action: 'set',
-      accountId: account.accountId,
-      expectedVersion: birth.items[0]!.version,
-      year: '2001',
-      confirmation: 'confirmed',
-    },
-  });
+  await seedExistingBirthFixtureV1(sql, account.accountId);
   const settings = await client.query({
     contractVersion: 1,
     operation: 'settings',

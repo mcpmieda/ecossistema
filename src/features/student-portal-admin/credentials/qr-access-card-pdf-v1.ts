@@ -9,7 +9,11 @@ import {
 } from './qr-access-card-render-v1';
 import { QR_LAYOUT_V1, qrMatrixV1 } from './qr-artifacts-v1';
 import { qrLayerPathsV1 } from './qr-shapes-v1';
-import { QrArtifactErrorV1, validatePrintCardsV1, type QrArtifactV1 } from './qr-values-v1';
+import {
+  QrArtifactErrorV1,
+  validatePrintCardCollectionV1,
+  type QrArtifactV1,
+} from './qr-values-v1';
 
 const ptPerMm = 72 / 25.4;
 /** Cards keep the art's own proportion (93.5 × 59 mm, what fits the lamination pouch) and touch
@@ -237,7 +241,7 @@ export async function renderQrAccessCardsPdfV1(
   signal.throwIfAborted();
   if (!Number.isInteger(academicYear) || academicYear < 1900 || academicYear > 9999)
     throw new QrArtifactErrorV1('invalid-cards');
-  const cards = validatePrintCardsV1(input).map((card) => {
+  const cards = validatePrintCardCollectionV1(input).map((card) => {
     if (card.mode !== 'qr-name-class') throw new QrArtifactErrorV1('invalid-cards');
     return card;
   });

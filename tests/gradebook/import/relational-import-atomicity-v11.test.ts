@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
@@ -113,6 +113,7 @@ beforeEach(async () => {
     await pg.exec(readFileSync(`migrations/gradebook-simplified/${name}`, 'utf8'));
   }
   await installResetSchemaFixtureV1(pg);
+  await installReconciliationSchemaFixtureV1(pg);
   async function execute(
     client: Pick<PGlite, 'query'>,
     query: string,

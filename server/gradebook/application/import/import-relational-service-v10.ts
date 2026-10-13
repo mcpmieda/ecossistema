@@ -123,13 +123,13 @@ async function loadHistoricalBindingsV10(
   return result;
 }
 
-export function createGradebookRelationalImportServiceV10(database: GradebookPostgresWritePortV1) {
+export function createGradebookRelationalImportServiceV10(database: GradebookPostgresWritePortV1, actorId?: string) {
   return {
     async execute(
       request: GradebookImportPersistenceRequestV9,
     ): Promise<GradebookImportPersistenceResponseV9> {
       if (request.operation === 'persist-relacao') {
-        return createGradebookRelationalImportServiceV9(database).execute(request);
+        return createGradebookRelationalImportServiceV9(database, actorId).execute(request);
       }
 
       try {

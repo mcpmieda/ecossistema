@@ -5,7 +5,7 @@ import { paintQrShapeV1, qrLayerPathsV1, qrShapesV1 } from './qr-shapes-v1';
 import { qrUrlV1 } from '../../../../shared/student-portal-contracts/auth-v1';
 import {
   QrArtifactErrorV1,
-  validatePrintCardsV1,
+  validatePrintCardCollectionV1,
   type PrintCardV1,
   type QrArtifactV1,
 } from './qr-values-v1';
@@ -231,7 +231,7 @@ export async function renderQrPdfV1(
   instruction = '',
 ): Promise<QrArtifactV1> {
   signal.throwIfAborted();
-  const cards = validatePrintCardsV1(input),
+  const cards = validatePrintCardCollectionV1(input),
     layout = QR_LAYOUT_V1;
   const pdf = await PDFDocument.create(),
     font = await pdf.embedFont(StandardFonts.Helvetica);

@@ -13,6 +13,12 @@ export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<vo
       for (const cleanup of [cleanupPortalLiveEventsV1, cleanupPortalV1]) {
         try { await cleanup(sql); } catch { failed = true; }
       }
+      try {
+        await sql.begin((tx) => Promise.resolve(tx.unsafe('SELECT student_portal.cleanup_reconciliation_credentials_v1(100)')));
+      } catch { failed = true; }
+      try {
+        await sql.begin((tx) => Promise.resolve(tx.unsafe('SELECT student_portal.cleanup_reconciliation_pending_v1(100)')));
+      } catch { failed = true; }
       if (failed) throw new Error('student-portal-cleanup-unavailable');
     });
   } catch { /* The connection wrapper already emitted sanitized unavailable. */ }

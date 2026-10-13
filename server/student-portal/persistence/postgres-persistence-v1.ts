@@ -434,7 +434,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     const result = await rows(
       this.sql,
       `SELECT account_id,birth_year,confirmation,version
-         FROM student_portal.account_access_data WHERE account_id=$1::uuid`,
+         FROM student_portal.account_birth_v1 WHERE account_id=$1::uuid`,
       [accountId],
     );
     const row = result[0];
@@ -445,29 +445,6 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       confirmation: row.confirmation === null ? null : text(row.confirmation, 'birth-confirmation') as BirthRecordV1['confirmation'],
       version: integer(row.version, 'birth-version'),
     };
-  }
-
-  async compareAndSetBirth(record: BirthRecordV1, expectedVersion: number): Promise<boolean> {
-    if (record.version !== expectedVersion + 1) throw new Error('student-portal-birth-version-step');
-    const existing = await this.readBirth(record.accountId);
-    if (!existing) {
-      if (expectedVersion !== 0) return false;
-      const inserted = await rows(
-        this.sql,
-        `INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation,version)
-         VALUES ($1::uuid,$2,$3,$4) ON CONFLICT (account_id) DO NOTHING RETURNING account_id`,
-        [record.accountId, record.year === null ? null : Number(record.year), record.confirmation, record.version],
-      );
-      return Boolean(inserted[0]);
-    }
-    const updated = await rows(
-      this.sql,
-      `UPDATE student_portal.account_access_data
-          SET birth_year=$1,confirmation=$2,version=$3,updated_at=now()
-        WHERE account_id=$4::uuid AND version=$5 RETURNING account_id`,
-      [record.year === null ? null : Number(record.year), record.confirmation, record.version, record.accountId, expectedVersion],
-    );
-    return Boolean(updated[0]);
   }
 
   async readAttempts(accountId: string): Promise<AttemptRecordV1 | null> {

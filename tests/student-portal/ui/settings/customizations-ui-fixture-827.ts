@@ -4,7 +4,7 @@ import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v
 import { customizationsResponseV1, type PublicationContextItemV1 } from '../../../../shared/student-portal-contracts/customizations-v1';
 import { initialPolicyDefaultsV1 } from '../../../../server/student-portal/policies/defaults-v1';
 import type { PortalFetchV1 } from '../../../../src/features/student-portal/shared/transport-v1';
-import { accountFixtureV1, accountIdV1, accountJsonV1, accountPageV1, ACCOUNT_CLASS_V1, ACCOUNT_SCHOOL_V1 } from '../accounts/fixtures-v1';
+import { accountFixtureV1, accountIdV1, accountJsonV1, accountPageV1, emptyReconciliationReadV1, ACCOUNT_CLASS_V1, ACCOUNT_SCHOOL_V1 } from '../accounts/fixtures-v1';
 
 const periods = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const;
 const revision = 'a'.repeat(32) + ':1';
@@ -54,6 +54,8 @@ export function customizationsUiFixture827(count = 1) {
     });
     if (state.denied) return accountJsonV1({ contractVersion: 1, requestId: accountIdV1(9000), state: 'forbidden' }, 403);
     const input = JSON.parse(String(init.body)) as AdminQueryV1 | AdminReadQueryV2 | AdminCommandV1;
+    if (path === '/api/student-reconciliation/v1')
+      return accountJsonV1(emptyReconciliationReadV1(input.operation));
     const meta = { contractVersion: 1, requestId: accountIdV1(9000) };
     if ('expectedVersion' in input) {
       commands.push(input);

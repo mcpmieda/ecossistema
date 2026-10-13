@@ -2,6 +2,7 @@ import type { SourceFileManifestV1 } from '../../../../shared/gradebook-contract
 import { createSourceFileManifest } from './file-manifest';
 import { recognizeWorkbook, type SheetJs, type WorkbookSummary } from './spreadsheet-recognizer';
 import { recognizeMasterRelationV9, type MasterRelationRecognitionV9 } from './master-relation-v9';
+import { isStudentReportWorkbookV1 } from './student-report-reader-v1';
 
 export const WORKBOOK_READ_OPTIONS = {
   type: 'array',
@@ -103,6 +104,9 @@ export function readWorkbookData(
     }
     if (parsed.SheetNames.length === 0) {
       throw new Error('A planilha não contém abas reconhecíveis.');
+    }
+    if (isStudentReportWorkbookV1(parsed, xlsx)) {
+      throw new Error('Selecione este arquivo pelo botão Relatório.');
     }
 
     failureStage = 'relation-recognition';

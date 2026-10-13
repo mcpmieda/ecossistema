@@ -19,6 +19,7 @@ import {
   type StudentPortalSection,
 } from '../../platform/student-portal-module';
 import { createPortalAdminClientV1 } from './shared/admin-client-v1';
+import { createReconciliationClientV1 } from './shared/reconciliation-client-v1';
 import {
   authorizationAwareFetchV1,
   usePortalAdminIdentityV1,
@@ -198,10 +199,11 @@ function PortalWorkspace({
     identityKey: identity.identityKey,
     onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),
   });
+  const panelAuthority = identity.identityKey + ':' + identity.capabilities.join(',');
   const initialPanel = useMemo(() => {
-    claimPanelHashV1(identity.identityKey);
+    claimPanelHashV1(panelAuthority);
     return panelStateFromHashV1();
-  }, [identity.identityKey]);
+  }, [panelAuthority]);
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(() =>
     initialPanel.classId === null ? null : { id: initialPanel.classId, label: '' },
   );
@@ -245,6 +247,7 @@ function PortalWorkspace({
     const catalog = createPortalClassCatalogV2();
     return {
       client: createPortalAdminClientV1({ fetch: send, respectRetryAfter: true }),
+      reconciliation: createReconciliationClientV1({ fetch: send, respectRetryAfter: true }),
       reader: createPortalAdminReadClientV2({ fetch: send, respectRetryAfter: true }),
       catalog: (async (...args: Parameters<typeof catalog>) => {
         try {
@@ -382,7 +385,14 @@ function PortalWorkspace({
       case 'accounts':
       case 'credentials':
         content = (
-          <StudentAccountsV1 {...common} slots={slots} onQr={qr.accept} onReprint={reprint} />
+          <StudentAccountsV1
+            key={section}
+            {...common}
+            showAccountsInitially={section === 'credentials'}
+            slots={slots}
+            onQr={qr.accept}
+            onReprint={reprint}
+          />
         );
         break;
       case 'birth':

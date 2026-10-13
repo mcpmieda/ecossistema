@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
+  GradebookRelationMovementConfirmationV9,
+  GradebookRelationMovementReviewV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type { GradebookImportDiagnosticsAuditRequestV1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import { isGradebookAcademicYearV2 } from '../../../../shared/gradebook-contracts/academic-year-v2';
@@ -40,6 +42,12 @@ export type ImportPersistenceStateV9 =
   | { readonly state: 'recognized' | 'processing' | 'persisting' | 'auth-required' }
   | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV9 }
   | {
+      readonly state: 'movement-review';
+      readonly review: GradebookRelationMovementReviewV9 | null;
+      readonly message: string;
+      readonly cancelled: boolean;
+    }
+  | {
       readonly state: 'failed' | 'confirmation-required';
       readonly message: string;
       readonly kind?: 'validation' | 'runtime';
@@ -63,7 +71,7 @@ export interface ImportFlowProgressV9 {
 }
 
 type ImportPersistenceRunResultV1 =
-  'completed' | 'auth-required' | 'confirmation-required' | 'blocked';
+  'completed' | 'auth-required' | 'confirmation-required' | 'blocked' | 'review-required';
 type LocalPreparationBaseV9 = {
   readonly result: BatchSuccess;
   readonly diagnostics: readonly GradebookImportDiagnosticV1[] | null;
@@ -83,6 +91,14 @@ type LocalPreparationV9 = LocalPreparationBaseV9 &
     | { readonly kind: 'failed'; readonly message: string }
   );
 type AuditedPreparationV9 = { readonly local: LocalPreparationV9; readonly auditMs: number };
+type MovementReviewSessionV9 = {
+  readonly prepared: AuditedPreparationV9;
+  readonly review: GradebookRelationMovementReviewV9 | null;
+};
+type MovementReviewSubmissionV9 = {
+  readonly resultId: string;
+  readonly confirmation: GradebookRelationMovementConfirmationV9;
+};
 type RelationFollowUpV9 = {
   readonly result: BatchSuccess;
   readonly diagnostics: readonly GradebookImportDiagnosticV1[];
@@ -261,6 +277,7 @@ export function selectPendingGradebookImportResultsV1(
       state?.state === 'recognized' ||
       state?.state === 'processing' ||
       state?.state === 'auth-required' ||
+      state?.state === 'movement-review' ||
       state?.state === 'confirmation-required'
     );
   });
@@ -273,6 +290,7 @@ export function useImportBatch() {
   const batchTiming = useRef<BatchObservationV1 | null>(null);
   const runOrdinal = useRef(0);
   const sourcePositions = useRef(new Map<string, number>());
+  const movementReviews = useRef(new Map<string, MovementReviewSessionV9>());
   const timingReport = useRef(new ImportTimingReportV1());
   const collectorFailures = useRef(0);
   const summaryFailed = useRef(false);
@@ -311,6 +329,7 @@ export function useImportBatch() {
       batchTiming.current = null;
       timingReport.current.clear();
       sourcePositions.current.clear();
+      movementReviews.current.clear();
     };
   }, []);
 
@@ -399,7 +418,9 @@ export function useImportBatch() {
   }
 
   function finishBatchTiming(observation: BatchObservationV1): void {
-    timingStatus.current = ['auth-required', 'confirmation-required'].includes(observation.outcome)
+    timingStatus.current = ['auth-required', 'confirmation-required', 'review-required'].includes(
+      observation.outcome,
+    )
       ? 'paused'
       : 'finished';
     appendTiming(
@@ -695,7 +716,10 @@ export function useImportBatch() {
     observation: BatchObservationV1,
   ): Promise<AuditedPreparationV9> {
     let auditMs = 0;
-    if (local.auditRequest !== null && local.diagnostics !== null) {
+    // A prepared Relação has no remote side effects before the movement review.
+    // Its complete diagnostic observation is already sent by the committed follow-up.
+    const readyRelation = local.kind === 'ready' && local.request.operation === 'persist-relacao';
+    if (!readyRelation && local.auditRequest !== null && local.diagnostics !== null) {
       const audited = await auditDiagnostics(
         local.result,
         local.diagnostics,
@@ -836,6 +860,30 @@ export function useImportBatch() {
       stopDispatch(observation, 'confirmation-required');
       return 'confirmation-required';
     }
+    if (
+      request.operation === 'persist-relacao' &&
+      ((response.state === 'review-required' && response.movementReview) ||
+        (response.state === 'conflict' && request.movementReview))
+    ) {
+      const review = response.movementReview ?? null;
+      const original = movementReviews.current.get(result.id)?.prepared ?? prepared;
+      movementReviews.current.set(result.id, { prepared: original, review });
+      setSelectedId(result.id);
+      setPersistence((current) => ({
+        ...current,
+        [result.id]: {
+          state: 'movement-review',
+          review,
+          cancelled: false,
+          message: review
+            ? response.reason
+            : `${response.reason} Confira novamente antes de aplicar a Relação.`,
+        },
+      }));
+      setProgress(null);
+      return 'review-required';
+    }
+    movementReviews.current.delete(result.id);
     setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
     if (
       request.operation === 'persist-relacao' &&
@@ -858,6 +906,7 @@ export function useImportBatch() {
   async function persistRecognizedFiles(
     successes: readonly BatchSuccess[],
     observation: BatchObservationV1,
+    movementSubmission?: MovementReviewSubmissionV9,
   ): Promise<ImportPersistenceRunResultV1> {
     const relationResults = successes.filter(isMasterRelationResult);
     const teacherResults = successes.filter((result) => !isMasterRelationResult(result));
@@ -868,9 +917,22 @@ export function useImportBatch() {
       for (const result of relationResults) {
         if (!isCurrent(observation) || observation.stop !== null)
           return observation.stop ?? 'completed';
-        const local = prepareLocal(result, observation);
+        const savedReview = movementReviews.current.get(result.id);
+        let local = savedReview?.prepared.local ?? prepareLocal(result, observation);
+        if (
+          movementSubmission?.resultId === result.id &&
+          local.kind === 'ready' &&
+          local.request.operation === 'persist-relacao'
+        ) {
+          local = {
+            ...local,
+            request: { ...local.request, movementReview: movementSubmission.confirmation },
+          };
+        }
         retainPreparation(observation, true);
-        const audited = await auditLocal(local, observation);
+        const audited = savedReview
+          ? { local, auditMs: savedReview.prepared.auditMs }
+          : await auditLocal(local, observation);
         if (!isCurrent(observation) || observation.stop !== null) {
           releasePreparation(observation, true);
           return observation.stop ?? 'completed';
@@ -1053,6 +1115,7 @@ export function useImportBatch() {
     setDiagnosticAuditFailures({});
     setAuditAuthorizationRequired(false);
     setPendingRelationFollowUps({});
+    movementReviews.current.clear();
     const observation = batchObservation(++generation.current, ++runOrdinal.current, 'initial');
     batchTiming.current = observation;
     sourcePositions.current.clear();
@@ -1194,7 +1257,7 @@ export function useImportBatch() {
     }
   }
 
-  async function resumePendingPersistence() {
+  async function resumePendingPersistence(movementSubmission?: MovementReviewSubmissionV9) {
     if (inFlight.current) return;
     const pending = selectPendingGradebookImportResultsV1(results, persistence);
     const followUps = Object.values(pendingRelationFollowUps);
@@ -1218,7 +1281,9 @@ export function useImportBatch() {
         await completeRelationFollowUp(followUp, observation);
         if (!isCurrent(observation) || observation.stop !== null) break;
       }
-      const outcome = observation.stop ?? (await persistRecognizedFiles(pending, observation));
+      const outcome =
+        observation.stop ??
+        (await persistRecognizedFiles(pending, observation, movementSubmission));
       if (!isCurrent(observation)) return;
       observation.outcome = outcome;
       if (outcome === 'completed') {
@@ -1251,8 +1316,35 @@ export function useImportBatch() {
     }
   }
 
+  function cancelMovementReview(resultId: string): void {
+    if (inFlight.current) return;
+    const session = movementReviews.current.get(resultId);
+    if (!session) return;
+    movementReviews.current.set(resultId, { ...session, review: null });
+    setPersistence((current) => ({
+      ...current,
+      [resultId]: {
+        state: 'movement-review',
+        review: null,
+        cancelled: true,
+        message: 'Conferência cancelada.',
+      },
+    }));
+  }
+
+  async function confirmMovementReview(
+    resultId: string,
+    confirmation: GradebookRelationMovementConfirmationV9,
+  ): Promise<void> {
+    const session = movementReviews.current.get(resultId);
+    if (session?.review?.digest !== confirmation.digest) return;
+    await resumePendingPersistence({ resultId, confirmation });
+  }
+
   return {
     authorizationRequired,
+    cancelMovementReview,
+    confirmMovementReview,
     diagnosticAuditFailures,
     error,
     failures,

@@ -137,7 +137,7 @@ export class BulkAdminV1 {
           COALESCE(d.birth_year IS NOT NULL AND d.confirmation='confirmed'
             AND p.pin_verifier IS NOT NULL AND p.pin_version=a.pin_version,false) AS recovery_ready
         ${ACCOUNT_JOIN_V1}
-        LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id
+        LEFT JOIN student_portal.account_birth_v1 d ON d.account_id=a.id
         LEFT JOIN student_portal.password_credential p ON p.account_id=a.id
         WHERE ${filter} AND ($2::uuid IS NULL OR a.id>$2::uuid) ORDER BY a.id LIMIT $3`,
         [...parameters, last, query.page.limit + 1],

@@ -1,3 +1,4 @@
+import { seedExistingBirthFixtureV1 } from './legacy-seed-fixture-v1';
 import { openSyntheticSchoolV1 } from '../academic/open-school-fixture-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { execFile } from 'node:child_process';
@@ -87,8 +88,12 @@ it('uses real sealed ADM identity, named RPC and restricted Hyperdrive for the c
   const birth = await query('birth-years');
   if (birth.state !== 'birth-years' || birth.items.length !== 1) throw new Error('synthetic-birth-state');
   const accountId = birth.items[0]!.accountId;
-  expect((await command({ operation: 'birth-batch', classId: 970001, expectedVersion: birth.scopeVersion, expectedCount: 1, confirmed: true,
-    items: [{ action: 'set', accountId, expectedVersion: birth.items[0]!.version, year: '2001', confirmation: 'confirmed' }] })).state).toBe('batch');
+  const retired = await call('/api/student-portal/admin/command', { contractVersion: 1,
+    idempotencyKey: crypto.randomUUID(), operation: 'birth-batch', classId: 970001,
+    expectedVersion: birth.scopeVersion, expectedCount: 1, confirmed: true,
+    items: [{ action: 'set', accountId, expectedVersion: birth.items[0]!.version, year: '2001', confirmation: 'confirmed' }] });
+  expect(retired.status).toBe(400);
+  await seedExistingBirthFixtureV1(sql, accountId);
   const settings = await query('settings');
   if (settings.state !== 'settings') throw new Error('synthetic-settings-state');
   const now = Math.floor(Date.now() / 1000) * 1000;

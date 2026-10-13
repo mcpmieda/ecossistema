@@ -147,6 +147,7 @@ async function handle(
     const result = await createGradebookRelationalImportServiceV11(
       observer.wrap(database),
       observer,
+      session.oid,
     ).execute(canonical);
     observation.outcome = result.state;
     if (result.state === 'applied') afterCommit(session);

@@ -1,5 +1,7 @@
 # Identidade compartilhada do aluno — #1114
 
+A entrega candidata de conciliação anual, Relatório e aba Alunos (#1269/#1276) está em [RECONCILIATION_V1.md](RECONCILIATION_V1.md). É uma extensão na branch, sem aplicação produtiva das novas migrations ou alteração do UID homologado abaixo.
+
 ## Estado de produção
 
 A migration 0018 foi aplicada e verificada em produção, versão registrada

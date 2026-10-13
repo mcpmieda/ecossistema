@@ -1,5 +1,8 @@
 import { AUDIT_IP_MASK_V1, AUDIT_IP_SOURCE_V1 } from '../observability/audit-context-v1';
 import { z } from 'zod';
+import { STUDENT_NAME_MAX_LENGTH_V1 } from '../../../shared/student-identity/student-identity-v1';
+import { ensureCanonicalPinV1 } from '../birth-year/canonical-pin-v1';
+import { inOrderV1 } from '../../../shared/in-order-v1';
 import {
   auditEventV1,
   type AdminCommandV1,
@@ -20,6 +23,7 @@ export async function qrBatchV1(
   keyVersion: number,
   actor: string,
   input: QrBatch,
+  pepperVersion = 1,
 ) {
   const command = { ...input, accountIds: input.accountIds.map((id) => id.toLowerCase()) };
   if (new Set(command.accountIds).size !== command.accountIds.length)
@@ -42,10 +46,10 @@ export async function qrBatchV1(
     );
     const rows = await tx.unsafe(
       `SELECT a.id,a.closed_at,a.version::text,a.auth_state,a.pin_version,b.class_id,s.name,b.class_name,
-      q.credential_id,q.key_version,d.birth_year,d.confirmation,p.pin_verifier,p.pin_version AS credential_pin_version,
+      q.credential_id,q.key_version,d.birth_year,d.confirmation,d.source AS birth_source,p.pin_verifier,p.pin_version AS credential_pin_version,
       EXISTS(SELECT 1 FROM student_portal.qr_credential old WHERE old.account_id=a.id) AS had_credential
       ${ACCOUNT_JOIN_V1} LEFT JOIN student_portal.qr_credential q ON q.account_id=a.id AND q.state='active'
-      LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id
+      LEFT JOIN student_portal.account_birth_v1 d ON d.account_id=a.id
       LEFT JOIN student_portal.password_credential p ON p.account_id=a.id
       WHERE a.id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb)) AND a.academic_year=2026
         AND ${ENROLLED_ACCOUNT_SQL_V1}`,
@@ -56,14 +60,22 @@ export async function qrBatchV1(
       rows.some((row) => row.closed_at !== null || row.class_id !== command.classId)
     )
       throw new Error('student-portal-batch-forbidden');
+    const missingPins = rows.filter((row) => row.auth_state !== 'active' && row.pin_verifier === null &&
+      row.birth_year !== null && row.confirmation === 'confirmed' && ['profile','report'].includes(String(row.birth_source)));
+    if (missingPins.length > 4) throw new Error('student-portal-batch-recovery-conflict');
+    const preparedPins = new Set<string>();
+    await inOrderV1(missingPins, async (row) => {
+      if (await ensureCanonicalPinV1(tx, cryptoPort, pepperVersion, String(row.id), Number(row.pin_version)))
+        preparedPins.add(String(row.id));
+    });
     if (
       rows.some(
         (row) =>
           row.auth_state !== 'active' &&
           (row.birth_year === null ||
             row.confirmation !== 'confirmed' ||
-            row.pin_verifier === null ||
-            Number(row.credential_pin_version) !== Number(row.pin_version)),
+            (!preparedPins.has(String(row.id)) && (row.pin_verifier === null ||
+            Number(row.credential_pin_version) !== Number(row.pin_version)))),
       )
     )
       throw new Error('student-portal-batch-recovery-conflict');
@@ -84,7 +96,7 @@ export async function qrBatchV1(
         accountId: id,
         mode: command.mode,
         qr,
-        ...(command.mode !== 'qr-only' ? { name: z.string().min(1).max(200).parse(row.name) } : {}),
+        ...(command.mode !== 'qr-only' ? { name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1).parse(row.name) } : {}),
         ...(command.mode === 'qr-name-class'
           ? { classLabel: z.string().min(1).max(80).parse(row.class_name) }
           : {}),

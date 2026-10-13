@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { createYearResetServiceV1 } from '../../../server/gradebook/application/settings/year-reset-v1';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import {
@@ -155,6 +156,9 @@ beforeAll(async () => {
     '0014_year_reset_full_cleanup_v1.sql',
   ])
     await pg.exec(readFileSync(`migrations/student-portal/${file}`, 'utf8'));
+  await installReconciliationSchemaFixtureV1(pg);
+  await pg.exec(readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'));
+  await pg.exec(readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'));
   await pg.exec(`
     INSERT INTO student_portal.revision_event
       (event_id,academic_year,student_ids,cause,affects_academic,affects_reset,

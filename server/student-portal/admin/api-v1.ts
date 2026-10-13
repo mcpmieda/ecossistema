@@ -9,7 +9,6 @@ import type { CryptoPortV1, PortalAdminEntrypointV1 } from '../../../shared/stud
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { QrServiceV1 } from '../auth/qr-service-v1';
 import { SessionServiceV1 } from '../auth/session-service-v1';
-import { BirthYearServiceV1 } from '../birth-year/birth-year-service-v1';
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { PublicationServiceV1 } from '../publication/publication-service-v1';
 import { ScopedPublicationServiceV2 } from '../publication/scoped-publication-service-v2';
@@ -83,7 +82,7 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
       const base = { contractVersion: 1, requestId: context.requestId, state: query.operation };
       if (query.operation === 'bulk-preview')
         return await new BulkAdminV1(this.sql, this.options.cursorSecret,
-          new QrServiceV1(this.sql, this.options.cryptoPort, this.options.qrKeyVersion)).preview(context, query);
+          new QrServiceV1(this.sql, this.options.cryptoPort, this.options.qrKeyVersion, this.options.pepperVersion)).preview(context, query);
       if (this.options.scopedPublication && query.operation === 'publication')
         return adminResponseV1.parse({ ...base, items: (await new ScopedPublicationServiceV2(this.sql).read(plainScopeV1(query.scope))).items });
       if (this.options.scopedPublication && query.operation === 'settings')
@@ -138,20 +137,18 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
       switch (command.operation) {
         case 'bulk-execute':
           return await new BulkAdminV1(sql, this.options.cursorSecret,
-            new QrServiceV1(sql, this.options.cryptoPort, this.options.qrKeyVersion)).execute(context, command);
+            new QrServiceV1(sql, this.options.cryptoPort, this.options.qrKeyVersion, this.options.pepperVersion)).execute(context, command);
         case 'publication-inherit':
           if (!this.options.scopedPublication) throw new Error('student-portal-scoped-publication-unavailable');
           return committed(await inheritPublicationV1(sql, context.actorId, command));
         case 'qr-issue': case 'qr-reprint': case 'qr-regenerate': case 'password-reset': case 'account-reset': case 'block': {
-          const result = await new QrServiceV1(sql, this.options.cryptoPort, this.options.qrKeyVersion).command(context.actorId, command);
+          const result = await new QrServiceV1(sql, this.options.cryptoPort, this.options.qrKeyVersion, this.options.pepperVersion).command(context.actorId, command);
           return command.operation.startsWith('qr-') ? adminResponseV1.parse({ ...base, state: 'qr', version: result.version,
             cards: [{ accountId: command.accountId.toLowerCase(), mode: 'qr-only', qr: result.qr }] }) : committed(result);
         }
-        case 'qr-batch': return adminResponseV1.parse({ ...base, state: 'qr', ...await qrBatchV1(sql, this.options.cryptoPort, this.options.qrKeyVersion, context.actorId, command) });
+        case 'qr-batch': return adminResponseV1.parse({ ...base, state: 'qr', ...await qrBatchV1(sql, this.options.cryptoPort, this.options.qrKeyVersion, context.actorId, command, this.options.pepperVersion) });
         case 'sessions-revoke': return committed(await new SessionServiceV1(sql, this.options.cryptoPort).revoke(context.actorId, command));
-        case 'birth-write': return committed(await new BirthYearServiceV1(sql, this.options.cryptoPort, this.options.pepperVersion).write(context.actorId, command));
-        case 'birth-batch': return adminResponseV1.parse({ ...base, state: 'batch', ...await new BirthYearServiceV1(
-          sql, this.options.cryptoPort, this.options.pepperVersion, this.options.scopedPublication ? 4 : 1).batch(context.actorId, command) });
+        case 'birth-write': case 'birth-batch': return this.failure(context.requestId, 'invalid-request');
         case 'settings-set': case 'settings-inherit': return committed(await new PolicyServiceV1(sql).mutate(context.actorId, command));
         case 'publish': case 'publish-update': case 'unpublish':
           if (!this.options.scopedPublication) throw new Error('student-portal-scoped-publication-unavailable');

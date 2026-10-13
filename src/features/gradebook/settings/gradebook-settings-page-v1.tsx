@@ -34,11 +34,12 @@ const COUNT_ITEMS = [
   ['council', 'Registros de Conselho'],
   ['bulletins', 'Boletins emitidos'],
   ['histories', 'Demais históricos'],
+  ['reconciliation', 'Conciliação e relatórios cadastrais'],
 ] as const;
 
 function failureMessage(state: Exclude<YearResetResponseV1['state'], 'ready'>): string {
   if (state === 'not-authorized') return 'Sua sessão não possui autorização para esta operação.';
-  if (state === 'not-found') return 'O ano não está mais materializado. Atualize o contexto.';
+  if (state === 'not-found') return 'Não há dados desse ano para resetar.';
   if (state === 'portal-linked-accounts') {
     return 'Existem contas do Portal vinculadas a este ano. Encerre os vínculos nas Configurações do Portal e gere uma nova prévia antes de resetar.';
   }
@@ -51,7 +52,7 @@ function failureMessage(state: Exclude<YearResetResponseV1['state'], 'ready'>): 
 
 export function GradebookSettingsPageV1({ isActive = true }: { isActive?: boolean } = {}) {
   const scope = useGradebookYear();
-  const year = scope?.year ?? null;
+  const year = scope?.year ?? (scope && !scope.loading && !scope.failure ? 2026 : null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [confirmation, setConfirmation] = useState('');
   const [understood, setUnderstood] = useState(false);

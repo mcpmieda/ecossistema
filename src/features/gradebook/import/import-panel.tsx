@@ -13,6 +13,8 @@ import { ImportDiagnosticsPanelV1 } from './import-diagnostics-panel-v1';
 import { actionableGradebookImportDiagnosticsV1 } from './import-diagnostics-v1';
 import { WorkbookInspector } from './workbook-inspector';
 import type { ImportTimingSummaryV1 } from './import-timing-report-v1';
+import { StudentReportImportV1 } from './student-report-import-v1';
+import { RelationMovementReviewV9 } from './relation-movement-review-v9';
 
 function FileHash({ sha256 }: { sha256: string }) {
   return (
@@ -70,6 +72,8 @@ function persistenceLabel(state: ImportPersistenceStateV9 | undefined): string {
       return 'Sessão expirada';
     case 'confirmation-required':
       return 'Confirmação pendente';
+    case 'movement-review':
+      return state.cancelled ? 'Conferência cancelada' : 'Conferência de movimentações';
     case 'failed':
       return state.kind === 'validation'
         ? 'Bloqueado para correção'
@@ -169,6 +173,16 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV9 | undefi
       <Alert.Content>
         <Alert.Title>{persistenceLabel(state)}</Alert.Title>
         <Alert.Description>{persistenceDescription(state)}</Alert.Description>
+        {'warnings' in response && response.warnings?.length ? (
+          <ul className="mt-2 space-y-1 text-sm">
+            {response.warnings.map((warning) => (
+              <li key={`${warning.classCode}:${warning.number}:${warning.relatedClassCode}`}>
+                Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira
+                a grafia.
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </Alert.Content>
     </Alert>
   );
@@ -300,6 +314,8 @@ const STEP_CLASS_V1: Record<ImportStepToneV1, string> = {
 
 export function NotesImportPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const reportInputRef = useRef<HTMLInputElement>(null);
+  const [reportFile, setReportFile] = useState<File | null>(null);
   const [asked, setAsked] = useState<'relation' | 'marks'>('marks');
   // Sent in this tab. A batch decides only for the kind of file it carried.
   const [sent, setSent] = useState({ relation: false, marks: false });
@@ -311,6 +327,8 @@ export function NotesImportPanel() {
   const deferred = useRef(false);
   const {
     authorizationRequired,
+    cancelMovementReview,
+    confirmMovementReview,
     diagnosticAuditFailures,
     error,
     failures,
@@ -396,6 +414,18 @@ export function NotesImportPanel() {
   return (
     <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
       <input
+        ref={reportInputRef}
+        type="file"
+        className="hidden"
+        accept=".xlsx,.xls,.xlsb"
+        aria-label="Selecionar Relatório"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) setReportFile(file);
+          event.currentTarget.value = '';
+        }}
+      />
+      <input
         ref={inputRef}
         type="file"
         multiple
@@ -440,8 +470,24 @@ export function NotesImportPanel() {
             {marksTone === 'done' ? <Check className="size-4" /> : <Upload className="size-4" />}
             {marksTone === 'done' ? 'Planilhas enviadas' : 'Selecionar planilhas'}
           </Button>
+          <Button
+            variant="secondary"
+            isDisabled={loading}
+            onPress={() => reportInputRef.current?.click()}
+          >
+            <FileSpreadsheet className="size-4" />
+            Relatório
+          </Button>
         </div>
       </div>
+
+      {reportFile ? (
+        <StudentReportImportV1
+          key={`${reportFile.name}:${reportFile.lastModified}`}
+          file={reportFile}
+          onClose={() => setReportFile(null)}
+        />
+      ) : null}
 
       {waiting.length > 0 && !loading && (
         <Alert status="warning" className="mt-5">
@@ -654,6 +700,34 @@ export function NotesImportPanel() {
                 auditFailure={diagnosticAuditFailures[selectedResult.id]}
               />
               <PersistenceResult state={selectedPersistence} />
+              {selectedPersistence?.state === 'movement-review' && selectedPersistence.review ? (
+                <RelationMovementReviewV9
+                  key={`${selectedResult.id}:${selectedPersistence.review.digest}`}
+                  review={selectedPersistence.review}
+                  busy={loading}
+                  onConfirm={(confirmation) =>
+                    void confirmMovementReview(selectedResult.id, confirmation)
+                  }
+                  onCancel={() => cancelMovementReview(selectedResult.id)}
+                />
+              ) : null}
+              {selectedPersistence?.state === 'movement-review' && !selectedPersistence.review ? (
+                <Alert status="warning" className="mt-5">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>{persistenceLabel(selectedPersistence)}</Alert.Title>
+                    <Alert.Description>{selectedPersistence.message}</Alert.Description>
+                    <Button
+                      variant="secondary"
+                      className="mt-3"
+                      isDisabled={loading}
+                      onPress={() => void resumePendingPersistence()}
+                    >
+                      Conferir novamente
+                    </Button>
+                  </Alert.Content>
+                </Alert>
+              ) : null}
             </>
           )}
         </div>

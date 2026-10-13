@@ -162,6 +162,38 @@ describe('Pages ADM quota boundary', () => {
     expect(await guardAdminOperationV1(req, environment(limitOperation))).toBeNull();
     expect(limitOperation).not.toHaveBeenCalled();
   });
+  it('counts reconciliation reads apart from writes and leaves the uploaded report unread', async () => {
+    const route = '/api/student-reconciliation/v1';
+    // The runtime declares the length of a buffered body; a constructed Request cannot carry it.
+    const sized = async (body: unknown) => {
+      const req = await request(route, 'POST', body);
+      const length = String(new TextEncoder().encode(JSON.stringify(body)).length);
+      const get = req.headers.get.bind(req.headers);
+      vi.spyOn(req.headers, 'get').mockImplementation((name) =>
+        name.toLowerCase() === 'content-length' ? length : get(name),
+      );
+      return req;
+    };
+    const limitOperation = vi.fn(async () => null);
+    for (const operation of ['catalog', 'list', 'detail'])
+      await guardAdminOperationV1(await sized({ contractVersion: 1, operation }), environment(limitOperation));
+    await guardAdminOperationV1(await sized({ contractVersion: 1, operation: 'apply' }), environment(limitOperation));
+    expect(limitOperation.mock.calls.map((call) => (call as unknown[])[1])).toEqual([
+      'read', 'read', 'read', 'write',
+    ]);
+    const report = await sized({ contractVersion: 1, operation: 'prepare', rows: 'x'.repeat(100000) });
+    const clone = vi.spyOn(report, 'clone');
+    await guardAdminOperationV1(report, environment(limitOperation));
+    expect(limitOperation).toHaveBeenLastCalledWith(expect.anything(), 'write');
+    expect(clone).not.toHaveBeenCalled();
+    expect(report.bodyUsed).toBe(false);
+    const refused = await guardAdminOperationV1(
+      await sized({ contractVersion: 1, operation: 'list' }),
+      environment(vi.fn(async () => limited)),
+    );
+    expect(refused?.status).toBe(429);
+    expect(await refused?.json()).toEqual({ contractVersion: 1, state: 'unavailable' });
+  });
   it('separates operation families on mixed POST transports', () => {
     expect(
       classifyAdminOperationV1('/api/gradebook/council-workspace', 'POST', {

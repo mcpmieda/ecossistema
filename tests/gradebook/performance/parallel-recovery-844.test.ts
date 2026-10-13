@@ -22,6 +22,7 @@ const detail = { ...scope, transportVersion: 2, operation: 'cell-detail', studen
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
   // Local synthetic schema mirrors the nullable granular facts; no production SQL.
   await pg.exec(`
     ALTER TABLE gradebook.nota ALTER COLUMN valor DROP NOT NULL;

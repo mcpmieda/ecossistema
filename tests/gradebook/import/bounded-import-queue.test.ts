@@ -13,6 +13,8 @@ import { ImportTimingReportV1 } from '../../../src/features/gradebook/import/imp
 import type {
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
+  GradebookRelationImportRequestV9,
+  GradebookRelationMovementReviewV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 
 const mocks = vi.hoisted(() => ({
@@ -204,6 +206,71 @@ function relationRequest(value: BatchSuccess): GradebookImportPersistenceRequest
     turmas: [],
   };
 }
+const movementReview: GradebookRelationMovementReviewV9 = {
+  digest: 'a'.repeat(64),
+  groups: [
+    {
+      origins: [
+        { classCode: '6A', number: 1, name: 'ANA SINTETICA' },
+        { classCode: '6A', number: 2, name: 'BRUNA SINTETICA' },
+      ],
+      destinations: [
+        { classCode: '6B', number: 3, name: 'ANA CORRIGIDA' },
+        { classCode: '6B', number: 4, name: 'BRUNA CORRIGIDA' },
+      ],
+    },
+  ],
+};
+const movementConfirmation = {
+  digest: movementReview.digest,
+  pairs: [
+    { origin: { classCode: '6A', number: 1 }, destination: { classCode: '6B', number: 3 } },
+    { origin: { classCode: '6A', number: 2 }, destination: { classCode: '6B', number: 4 } },
+  ],
+};
+function reviewReply(review = movementReview) {
+  return {
+    response: {
+      transportVersion: 9,
+      state: 'review-required',
+      reason: 'Confira os pares de movimentação.',
+      movementReview: review,
+    },
+    serverMs: null,
+  } as const;
+}
+function prepareMovementBatch(): GradebookRelationImportRequestV9 {
+  const original: GradebookRelationImportRequestV9 = {
+    ...(relationRequest(relationResult(0)) as GradebookRelationImportRequestV9),
+    turmas: [
+      {
+        codigo: '6A',
+        nome: '6A',
+        etapa: 6,
+        turno: 'M',
+        alunos: [
+          [1, 'ANA SINTETICA', 6, '6B'],
+          [2, 'BRUNA SINTETICA', 6, '6B'],
+          [9, 'INDEPENDENTE CORRIGIDA', 0],
+        ],
+      },
+      {
+        codigo: '6B',
+        nome: '6B',
+        etapa: 6,
+        turno: 'M',
+        alunos: [
+          [3, 'ANA CORRIGIDA', 7, '6A'],
+          [4, 'BRUNA CORRIGIDA', 7, '6A'],
+        ],
+      },
+    ],
+  };
+  mocks.read.mockResolvedValue(recognized([relationResult(0), result(1)]));
+  mocks.compact.mockImplementation((value) => (value.id === 'file:0' ? original : request(value)));
+  mocks.persist.mockResolvedValueOnce(reviewReply());
+  return original;
+}
 function lastBatchTiming(): Record<string, unknown> {
   return vi
     .mocked(console.info)
@@ -279,6 +346,166 @@ afterEach(async () => {
 });
 
 describe('Bounded per-file canonical queue (V9)', () => {
+  it('holds the entire relation and teacher queue for explicit movement selection without auditing', async () => {
+    const original = prepareMovementBatch();
+    await act(async () => flow.handleFiles(files(2)));
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(mocks.persist.mock.calls[0]![0]).toEqual(original);
+    expect(flow.persistence['file:0']).toMatchObject({
+      state: 'movement-review',
+      review: movementReview,
+      cancelled: false,
+    });
+    expect(flow.persistence['file:1']).toEqual({ state: 'recognized' });
+    expect(flow.pendingPersistenceCount).toBe(2);
+    expect(report().runs[0]!.status).toBe('paused');
+    expect(mocks.audit).not.toHaveBeenCalled();
+    expect(mocks.refreshYears).not.toHaveBeenCalled();
+    expect(flow.getTimingReport()).not.toContain('ANA SINTETICA');
+  });
+
+  it('applies the exact original relation including independent updates, then follows up and releases teachers', async () => {
+    const original = prepareMovementBatch();
+    await act(async () => flow.handleFiles(files(2)));
+    await act(async () => flow.confirmMovementReview('file:0', movementConfirmation));
+    expect(mocks.persist.mock.calls.map(([value]) => value)).toEqual([
+      original,
+      { ...original, movementReview: movementConfirmation },
+      request(result(1)),
+    ]);
+    expect(original).not.toHaveProperty('movementReview');
+    expect(mocks.compact).toHaveBeenCalledTimes(2);
+    expect(mocks.audit.mock.calls.map(([value]) => value.fileName)).toEqual([
+      'sintetico-0.xlsb',
+      'sintetico-1.xlsb',
+    ]);
+    expect(mocks.refreshYears).toHaveBeenCalledExactlyOnceWith(2026);
+    expect(flow.pendingPersistenceCount).toBe(0);
+  });
+
+  it('cancels locally, rejects a retained confirmation, and reopens with a fresh preview and no choices', async () => {
+    const original = prepareMovementBatch();
+    await act(async () => flow.handleFiles(files(2)));
+    await act(async () => flow.cancelMovementReview('file:0'));
+    await act(async () => flow.confirmMovementReview('file:0', movementConfirmation));
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(mocks.audit).not.toHaveBeenCalled();
+    expect(flow.persistence['file:0']).toMatchObject({
+      state: 'movement-review',
+      review: null,
+      cancelled: true,
+    });
+    const fresh = { ...movementReview, digest: 'b'.repeat(64) };
+    mocks.persist.mockResolvedValueOnce(reviewReply(fresh));
+    await act(async () => flow.resumePendingPersistence());
+    expect(mocks.persist.mock.calls[1]![0]).toEqual(original);
+    expect(flow.persistence['file:0']).toMatchObject({
+      state: 'movement-review',
+      review: fresh,
+      cancelled: false,
+    });
+    expect(mocks.persist).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires another preview after a stale confirmation without automatically sending either request', async () => {
+    const original = prepareMovementBatch();
+    await act(async () => flow.handleFiles(files(2)));
+    mocks.persist.mockResolvedValueOnce({
+      response: {
+        transportVersion: 9,
+        state: 'conflict',
+        reason: 'Conferência obsoleta.',
+      },
+      serverMs: null,
+    });
+    await act(async () => flow.confirmMovementReview('file:0', movementConfirmation));
+    expect(mocks.persist).toHaveBeenCalledTimes(2);
+    expect(flow.persistence['file:0']).toMatchObject({
+      state: 'movement-review',
+      review: null,
+      cancelled: false,
+    });
+    expect(mocks.audit).not.toHaveBeenCalled();
+    await act(async () => flow.confirmMovementReview('file:0', movementConfirmation));
+    expect(mocks.persist).toHaveBeenCalledTimes(2);
+    const fresh = { ...movementReview, digest: 'c'.repeat(64) };
+    mocks.persist.mockResolvedValueOnce(reviewReply(fresh));
+    await act(async () => flow.resumePendingPersistence());
+    expect(mocks.persist.mock.calls[2]![0]).toEqual(original);
+    expect(flow.persistence['file:0']).toMatchObject({ review: fresh });
+    expect(flow.persistence['file:1']).toEqual({ state: 'recognized' });
+  });
+
+  it.each(['lost-response', 'not-authorized'] as const)(
+    'returns safely to review after %s without replaying choices',
+    async (failure) => {
+      const original = prepareMovementBatch();
+      await act(async () => flow.handleFiles(files(2)));
+      if (failure === 'lost-response')
+        mocks.persist.mockRejectedValueOnce(new TypeError('synthetic lost reply'));
+      else
+        mocks.persist.mockResolvedValueOnce({
+          response: { transportVersion: 9, state: 'not-authorized' },
+          serverMs: null,
+        });
+      await act(async () => flow.confirmMovementReview('file:0', movementConfirmation));
+      expect(mocks.persist).toHaveBeenCalledTimes(2);
+      expect(flow.persistence['file:0']?.state).toBe(
+        failure === 'lost-response' ? 'confirmation-required' : 'auth-required',
+      );
+      mocks.persist.mockResolvedValueOnce(reviewReply());
+      await act(async () => flow.resumePendingPersistence());
+      expect(mocks.persist.mock.calls[2]![0]).toEqual(original);
+      expect(flow.persistence['file:0']).toMatchObject({
+        state: 'movement-review',
+        review: movementReview,
+      });
+      expect(mocks.persist).toHaveBeenCalledTimes(3);
+      expect(mocks.audit).not.toHaveBeenCalled();
+    },
+  );
+
+  it('ignores an old digest and prevents duplicate confirmation dispatch while one is pending', async () => {
+    prepareMovementBatch();
+    await act(async () => flow.handleFiles(files(2)));
+    await act(async () =>
+      flow.confirmMovementReview('file:0', { ...movementConfirmation, digest: 'd'.repeat(64) }),
+    );
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    const reply = deferred<ReturnType<typeof confirmed>>();
+    mocks.persist.mockReturnValueOnce(reply.promise);
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = flow.confirmMovementReview('file:0', movementConfirmation);
+      await flow.confirmMovementReview('file:0', movementConfirmation);
+    });
+    expect(mocks.persist).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      reply.resolve(confirmed());
+      await pending;
+    });
+    expect(mocks.persist).toHaveBeenCalledTimes(3);
+  });
+
+  it('discards a late movement preview after unmount and a newly mounted batch', async () => {
+    prepareMovementBatch();
+    const reply = deferred<ReturnType<typeof reviewReply>>();
+    mocks.persist.mockReset().mockReturnValueOnce(reply.promise).mockResolvedValue(confirmed());
+    const { done } = await startBatch(2);
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await act(async () => root.render(createElement(Probe)));
+    mocks.read.mockResolvedValue(recognized([result(3)]));
+    await act(async () => flow.handleFiles(files(1)));
+    await act(async () => {
+      reply.resolve(reviewReply());
+      await done;
+    });
+    expect(flow.results.map((item) => item.id)).toEqual(['file:3']);
+    expect(flow.persistence['file:0']).toBeUndefined();
+    expect(flow.persistence['file:3']?.state).toBe('completed');
+  });
+
   it('preserves failure positions before the sole recognized file instead of indexing filtered successes', async () => {
     mocks.read.mockImplementation(async (_input, _xlsx, _progress, runtime) => {
       for (const index of [0, 1, 2])
@@ -725,8 +952,8 @@ describe('Bounded per-file canonical queue (V9)', () => {
     await act(async () => flow.handleFiles(files(4)));
     expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.compact.mock.calls.map(([value]) => value.id)).toEqual(['file:1', 'file:2']);
-    expect(mocks.audit).toHaveBeenCalledTimes(2);
-    expect(mocks.audit.mock.calls[1]![0].diagnostics).toEqual([]);
+    expect(mocks.audit).toHaveBeenCalledTimes(1);
+    expect(mocks.audit.mock.calls[0]![0].diagnostics).toEqual([]);
     expect(flow.persistence['file:0']?.state).toBe('failed');
     expect(flow.persistence['file:3']?.state).toBe('failed');
     expect(mocks.refreshYears).not.toHaveBeenCalled();
@@ -755,7 +982,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     },
   );
 
-  it('confirms all relations with re-audit and refresh before preparing or sending teachers', async () => {
+  it('confirms all relations before auditing, refreshing or sending teachers', async () => {
     const values = [result(0), relationResult(1), relationResult(2), result(3)];
     mocks.read.mockResolvedValue(recognized(values));
     mocks.compact.mockImplementation((value) =>
@@ -779,7 +1006,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(mocks.persist).toHaveBeenCalledTimes(2);
     expect(mocks.compact).toHaveBeenCalledTimes(2);
     expect(mocks.refreshYears).toHaveBeenCalledTimes(1);
-    expect(mocks.audit).toHaveBeenCalledTimes(3);
+    expect(mocks.audit).toHaveBeenCalledTimes(1);
     await act(async () => {
       writes[1]!.resolve(confirmed());
       await done;
@@ -791,7 +1018,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
       'persist-notas',
       'persist-notas',
     ]);
-    expect(mocks.audit).toHaveBeenCalledTimes(6);
+    expect(mocks.audit).toHaveBeenCalledTimes(4);
     expect(lastBatchTiming()).toMatchObject({
       maximumPreparedRelations: 2,
       maximumPreparedTeacherItems: 2,
@@ -807,7 +1034,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
       index: 0,
       operation: 'persist-relacao',
     });
-    expect(positions[1]!.auditInitial!.phase).toBe('initial-observation');
+    expect(positions[1]!.auditInitial).toBeNull();
     expect(positions[1]!.auditFollowUp!.phase).toBe('relation-follow-up');
   });
 
@@ -1079,7 +1306,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(flow.pendingPersistenceCount).toBe(0);
   });
 
-  it('re-audits a Relação only after its first materialization is confirmed', async () => {
+  it('audits a Relação only after its first materialization is confirmed', async () => {
     const base = result(0);
     const relation = {
       ...base,
@@ -1099,8 +1326,8 @@ describe('Bounded per-file canonical queue (V9)', () => {
     }));
     await act(async () => flow.handleFiles(files(1)));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
-    expect(mocks.audit).toHaveBeenCalledTimes(2);
-    expect(mocks.audit.mock.invocationCallOrder[1]!).toBeGreaterThan(
+    expect(mocks.audit).toHaveBeenCalledTimes(1);
+    expect(mocks.audit.mock.invocationCallOrder[0]!).toBeGreaterThan(
       mocks.persist.mock.invocationCallOrder[0]!,
     );
     expect(flow.persistence['file:0']?.state).toBe('completed');
@@ -1114,9 +1341,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
       mocks.compact.mockImplementation((value) =>
         value.id === 'file:0' ? relationRequest(value) : request(value),
       );
-      mocks.audit
-        .mockResolvedValueOnce({ version: 1, state: 'recorded', affected: 0 })
-        .mockResolvedValueOnce({ version: 1, state: 'not-authorized' });
+      mocks.audit.mockResolvedValueOnce({ version: 1, state: 'not-authorized' });
       const applied = {
         ...confirmed(),
         response: { ...confirmed().response, state: 'applied' as const },

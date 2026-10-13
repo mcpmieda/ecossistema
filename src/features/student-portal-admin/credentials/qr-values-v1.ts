@@ -15,6 +15,12 @@ export class QrArtifactErrorV1 extends Error {
 }
 export function validatePrintCardsV1(input: unknown): PrintCardV1[] {
   const parsed = z.array(printCardV1).min(1).max(100).safeParse(input);
+  if (!parsed.success) throw new QrArtifactErrorV1('invalid-cards');
+  return validatePrintCardCollectionV1(parsed.data);
+}
+/** A PDF can aggregate independently validated response chunks without limiting the class. */
+export function validatePrintCardCollectionV1(input: unknown): PrintCardV1[] {
+  const parsed = z.array(printCardV1).min(1).safeParse(input);
   if (
     !parsed.success ||
     new Set(parsed.data.map((c) => c.accountId.toLowerCase())).size !== parsed.data.length ||

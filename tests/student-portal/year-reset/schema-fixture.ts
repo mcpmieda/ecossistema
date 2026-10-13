@@ -26,6 +26,16 @@ export async function installResetSchemaFixtureV1(database: {
   ])
     await database.exec(readFileSync(`migrations/student-portal/${name}`, 'utf8'));
   await installShiftReadViewFixtureV1(database);
+  await installLegacyBirthReadFixtureV1(database);
+}
+
+/** Historical schemas have only the legacy source; current runtime still uses the single reader. */
+export async function installLegacyBirthReadFixtureV1(database: { exec(sql: string): Promise<unknown> }): Promise<void> {
+  await database.exec(`CREATE VIEW student_portal.account_birth_v1 AS
+    SELECT a.id AS account_id,d.birth_year,d.confirmation,COALESCE(d.version,0)::bigint AS version,
+      CASE WHEN d.birth_year IS NULL THEN 'missing' ELSE 'legacy' END AS source
+    FROM student_portal.account a LEFT JOIN student_portal.account_access_data d ON d.account_id=a.id;
+    GRANT SELECT ON student_portal.account_birth_v1 TO student_portal_app;`);
 }
 
 /** This historical fixture predates atomic publication (0008). Current policy reads need the
@@ -39,4 +49,19 @@ export async function installShiftReadViewFixtureV1(database: {
   const view = migration.match(/CREATE OR REPLACE VIEW student_portal\.academic_class_v1[\s\S]+?GRANT SELECT ON student_portal\.academic_class_v1 TO student_portal_app;/u)?.[0];
   if (!view) throw new Error('Missing shift-policy view migration');
   await database.exec(view);
+}
+
+/** Current Relação writers require the shared UID and reconciliation evidence tables. */
+export async function installReconciliationSchemaFixtureV1(
+  database: { exec(sql: string): Promise<unknown> },
+  sharedIdentityAlreadyInstalled = false,
+): Promise<void> {
+  await database.exec(`DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+  END $$;`);
+  if (!sharedIdentityAlreadyInstalled) {
+    await database.exec(readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8'));
+  }
+  await database.exec(readFileSync('migrations/gradebook-simplified/0015_student_reconciliation_v1.sql', 'utf8'));
 }

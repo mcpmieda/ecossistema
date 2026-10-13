@@ -38,26 +38,19 @@ afterEach(() => {
 const first = () => screen.findByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' });
 const pdf = () => screen.getByRole('button', { name: 'Baixar PDF' });
 
-describe('QR workspace #1101: explicit download, paired birth editor and current QR', () => {
-  it('places birth immediately after name without a saving column, with saved state accessible', async () => {
+describe('QR workspace #1101: explicit download, independent account selection and current QR', () => {
+  it('separates QR selection from birth editing and birth queries', async () => {
     const mock = qrMockV1();
     render(createElement(StudentCredentialsV1, mock.props));
-    const field = await screen.findByRole('textbox', {
-      name: 'Ano de nascimento de SYNTHETIC PRINT 001',
-    });
-    expect(field.classList.contains('pa-birth-input--saved')).toBe(true);
+    await first();
+    expect(screen.queryByRole('textbox', { name: /Ano de nascimento/ })).toBeNull();
     expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
       '',
       'Aluno',
-      'Ano de nascimento',
       'Turma',
       'Acesso',
     ]);
-    expect(screen.queryByRole('columnheader', { name: 'Salvamento' })).toBeNull();
-    expect(mock.writes).toHaveLength(0);
-    fireEvent.change(field, { target: { value: '20' } });
-    expect(field.classList.contains('pa-birth-input--pending')).toBe(true);
-    expect(field.getAttribute('aria-invalid')).toBe('true');
+    expect(mock.queries.some((query) => query.operation === 'birth-years')).toBe(false);
     expect(mock.writes).toHaveLength(0);
   });
   it('does not select a pending account whose birth was not confirmed by the backend', async () => {
@@ -90,7 +83,7 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
       mode: 'qr-name-class',
       confirmed: true,
     });
-    expect(mock.queries.some((q) => q.operation === 'birth-years')).toBe(true);
+    expect(mock.queries.some((q) => q.operation === 'birth-years')).toBe(false);
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Preparar PDF' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Gerar QR individual' })).toBeNull();
@@ -144,7 +137,7 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     expect(screen.getByText('Lista inteira · 3')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
   });
-  it('loads remaining paired pages and refuses a PDF with more than 100 students', async () => {
+  it('loads remaining pages and prepares every QR in chunks of at most four', async () => {
     const observer = controlledContinuousObserverV1(),
       mock = qrMockV1({ count: 105 });
     render(createElement(StudentCredentialsV1, mock.props));
@@ -155,8 +148,16 @@ describe('QR workspace #1101: explicit download, paired birth editor and current
     await act(async () => observer.intersect());
     await screen.findByText('SYNTHETIC PRINT 105');
     expect(await screen.findByText('Lista inteira · 105')).toBeTruthy();
-    expect(pdf().hasAttribute('disabled')).toBe(true);
-    expect(mock.writes).toHaveLength(0);
+    expect(pdf().hasAttribute('disabled')).toBe(false);
+    fireEvent.click(pdf());
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
+    expect(mock.writes).toHaveLength(27);
+    expect(
+      mock.writes.every((entry) => entry.operation === 'qr-batch' && entry.accountIds.length <= 4),
+    ).toBe(true);
+    expect(
+      mock.writes.flatMap((entry) => (entry.operation === 'qr-batch' ? entry.accountIds : [])),
+    ).toHaveLength(105);
   }, 30_000);
   it('retries rendering after a confirmed command without issuing another QR command', async () => {
     let calls = 0;
