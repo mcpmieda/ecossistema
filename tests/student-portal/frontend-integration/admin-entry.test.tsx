@@ -209,7 +209,6 @@ it('mounts actual operational modules, keeps 2026 independent of the BN hash and
   expect(await screen.findByText('Somente leitura')).toBeTruthy();
   expect(await screen.findByText('Operando normalmente')).toBeTruthy();
   await userEvent.setup().click(screen.getByRole('tab', { name: 'Alunos' }));
-  await userEvent.setup().click(await screen.findByRole('button', { name: 'Acessos e QR' }));
   expect(await screen.findByText('SYNTHETIC OP STUDENT 1')).toBeTruthy();
   expect(mock.queries.every((query) => query.scope.academicYear === 2026)).toBe(true);
   expect(mock.writes).toHaveLength(0);
@@ -220,7 +219,9 @@ it('mounts actual operational modules, keeps 2026 independent of the BN hash and
   expect(screen.queryByRole('navigation', { name: 'Áreas do Painel do Aluno' })).toBeNull();
   expect(
     calls.every((path) =>
-      ['/api/me', '/api/student-portal/admin/query', '/api/student-reconciliation/v1'].includes(path),
+      ['/api/me', '/api/student-portal/admin/query', '/api/student-reconciliation/v1'].includes(
+        path,
+      ),
     ),
   ).toBe(true);
 });
@@ -278,7 +279,6 @@ it('shares the last class tab across panel areas and resets it for another ident
   window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts');
   render(<StudentPortalAdminPage fetcher={fetcher} />);
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
   await user.click(await screen.findByRole('tab', { name: 'SYNTHETIC OP CLASS' }));
   await screen.findByText('SYNTHETIC OP STUDENT 1');
   expect(

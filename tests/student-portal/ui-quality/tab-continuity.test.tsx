@@ -1,4 +1,4 @@
-import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentPortalApp } from '../../../src/student-portal/app';
@@ -28,6 +28,54 @@ const identity = (key = 'synthetic-tab-session', canWrite = false) => ({
   expiresAt: new Date(Date.now() + 3600_000).toISOString(),
   capabilities: ['platform.settings.read', ...(canWrite ? ['platform.settings.write'] : [])],
 });
+
+it.each(['accounts', 'credentials', 'birth'])(
+  'opens the full original student experience directly through %s without reconciliation reads',
+  async (area) => {
+    window.history.replaceState(null, '', '/#/painel-do-aluno?area=' + area);
+    const mock = operationsMockV1();
+    const fetcher = vi.fn(async (path: string, init: RequestInit) => {
+      if (path === '/api/me') return opJsonV1(identity('synthetic-original-' + area, true));
+      if (path === '/api/student-reconciliation/v1')
+        throw new Error('Alunos must not read reconciliation');
+      const input = JSON.parse(String(init.body));
+      return opJsonV1(
+        input.contractVersion === 2
+          ? await mock.reader.query(input)
+          : await mock.client.query(input),
+      );
+    });
+    render(<StudentPortalAdminPage fetcher={fetcher} />);
+    const user = userEvent.setup();
+    const open = await screen.findByRole('button', {
+      name: 'Abrir ficha de SYNTHETIC OP STUDENT 1',
+    });
+    expect(screen.getByRole('grid', { name: 'Contas do Portal' })).toBeTruthy();
+    expect(screen.getByLabelText('Buscar aluno')).toBeTruthy();
+    expect(screen.getByText('Nome (A–Z)')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Exibição de alunos' })).toBeNull();
+    await user.click(open);
+    const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
+    const tabs = await within(drawer).findByRole('tablist', { name: 'Dados do aluno' });
+    await within(tabs).findByRole('tab', { name: 'Nascimento' });
+    expect(
+      within(tabs)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Nascimento', 'QR code', 'Sessões', 'Relatório de notas', 'Auditoria', 'Políticas']);
+    expect(await within(drawer).findByRole('button', { name: 'Bloquear acesso' })).toBeTruthy();
+    await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Ficha do aluno' })).toBeNull(),
+    );
+    expect(document.activeElement).toBe(open);
+    expect(mock.writes).toHaveLength(0);
+    expect(fetcher.mock.calls.some(([path]) => path === '/api/student-reconciliation/v1')).toBe(
+      false,
+    );
+  },
+  20_000,
+);
 
 it.each([false, true])(
   'opens Conciliação independently with existing write permission %s and pending records only',
@@ -150,7 +198,6 @@ it.each(['identity', 'capability'] as const)(
     });
     render(<StudentPortalAdminPage fetcher={fetcher} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
     const filter = await screen.findByLabelText('Buscar aluno');
     await user.type(filter, 'SYNTHETIC');
     // The search narrows the list already read: it issues no request of its own.
@@ -179,7 +226,6 @@ it.each(['identity', 'capability'] as const)(
     await act(async () => window.dispatchEvent(new Event('focus')));
     expect(screen.queryByRole('button', { name: 'Fechar ficha' })).toBeNull();
     expect(new URLSearchParams(window.location.hash.split('?')[1]).get('aluno')).toBeNull();
-    await user.click(await screen.findByRole('button', { name: 'Acessos e QR' }));
     expect((screen.getByLabelText('Buscar aluno') as HTMLInputElement).value).toBe('');
   },
   15_000,
