@@ -30,7 +30,7 @@ const identity = (key = 'synthetic-tab-session', canWrite = false) => ({
 });
 
 it.each([false, true])(
-  'opens Alunos independently with existing write permission %s',
+  'opens Conciliação independently with existing write permission %s and pending records only',
   async (canWrite) => {
     window.history.replaceState(null, '', '/#/painel-do-aluno?area=reconciliation');
     const mock = operationsMockV1();
@@ -80,6 +80,21 @@ it.each([false, true])(
               accountId,
               possibleSamePerson: false,
             },
+            {
+              kind: 'person',
+              studentUid: '44444444-4444-4444-8444-444444444444',
+              academicStudentId: 2,
+              academicYear: 2026,
+              name: 'SYNTHETIC RECONCILED ACCOUNT',
+              relationName: 'SYNTHETIC RECONCILED ACCOUNT',
+              classId: null,
+              classLabel: null,
+              version: 1,
+              reconciliation: 'reconciled',
+              portal: 'without-portal',
+              accountId: null,
+              possibleSamePerson: false,
+            },
           ];
         return opJsonV1(response);
       }
@@ -92,7 +107,9 @@ it.each([false, true])(
     render(<StudentPortalAdminPage fetcher={fetcher} />);
     const source = await screen.findByLabelText('Fonte do nome exibido');
     expect(source.hasAttribute('disabled')).toBe(!canWrite);
-    expect(screen.getByRole('heading', { name: 'Alunos' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Conciliação' })).toBeTruthy();
+    expect(screen.queryByText('SYNTHETIC RECONCILED ACCOUNT')).toBeNull();
+    expect(await screen.findByText('1 pendência carregada')).toBeTruthy();
     expect(screen.queryByRole('tablist', { name: 'Áreas do Painel do Aluno' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Acessos e QR' })).toBeNull();
     await userEvent
