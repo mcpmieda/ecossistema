@@ -69,9 +69,8 @@ describe('retirada da superfície Centrais', () => {
     window.history.replaceState(null, '', hash);
     const historyLength = window.history.length;
     render(<GradebookWorkspaceShell />);
-    expect(screen.getByRole('tab', { name: 'Importação' }).getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(screen.getByRole('region', { name: 'Importação' })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Importação' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Centrais' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Relatórios' })).toBeNull();
     expect(window.location.hash).toBe('#/banco-de-notas');
@@ -100,9 +99,7 @@ describe('retirada da superfície Centrais', () => {
           window.dispatchEvent(new HashChangeEvent('hashchange'));
         });
         expect(window.location.hash).toBe('#/banco-de-notas');
-        expect(screen.getByRole('tab', { name: 'Importação' }).getAttribute('aria-selected')).toBe(
-          'true',
-        );
+        expect(screen.getByRole('region', { name: 'Importação' })).toBeTruthy();
         expect(screen.getByLabelText('Importação sintética')).toBe(input);
         expect(input.value).toBe('lote parcialmente processado');
         expect(screen.queryByRole('tab', { name: 'Centrais' })).toBeNull();
@@ -125,11 +122,12 @@ describe('retirada da superfície Centrais', () => {
   );
 
   it('preserva o teclado entre as áreas restantes sem foco órfão', async () => {
+    window.history.replaceState(null, '', '#/banco-de-notas?area=audit');
     render(<GradebookWorkspaceShell />);
-    const first = screen.getByRole('tab', { name: 'Importação' });
+    const first = screen.getByRole('tab', { name: 'Auditoria' });
     first.focus();
     fireEvent.keyDown(first, { key: 'ArrowRight' });
-    const audit = screen.getByRole('tab', { name: 'Auditoria' });
+    const audit = screen.getByRole('tab', { name: 'Desempenho' });
     await waitFor(() => expect(document.activeElement).toBe(audit));
     expect(audit.getAttribute('aria-selected')).toBe('true');
     fireEvent.keyDown(audit, { key: 'End' });

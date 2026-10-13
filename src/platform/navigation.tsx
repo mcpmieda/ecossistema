@@ -57,12 +57,14 @@ export function serviceSectionsV2(route: PlatformRoute): ServiceSectionV2[] {
         icon: PORTAL_SECTION_ICONS_V2[section.id] ?? Circle,
       }));
   if (route === 'banco-de-notas')
-    return notesSections.map((section) => ({
-      id: section.id,
-      label: section.label,
-      href: section.href,
-      icon: NOTES_SECTION_ICONS_V2[section.id] ?? Circle,
-    }));
+    return notesSections
+      .filter((section) => section.id !== 'importacao')
+      .map((section) => ({
+        id: section.id,
+        label: section.label,
+        href: section.href,
+        icon: NOTES_SECTION_ICONS_V2[section.id] ?? Circle,
+      }));
   if (route === 'operacao')
     return [
       { id: 'health', label: 'Saúde do Sistema', href: '#/operacao', icon: HeartPulse },
@@ -73,7 +75,9 @@ export function serviceSectionsV2(route: PlatformRoute): ServiceSectionV2[] {
 /** The section in the address; each service falls back to its own first section. */
 export function serviceSectionFromHashV2(route: PlatformRoute, hash: string): string {
   if (route === 'operacao')
-    return new URLSearchParams(hash.split('?')[1] ?? '').get('area') === 'audit' ? 'audit' : 'health';
+    return new URLSearchParams(hash.split('?')[1] ?? '').get('area') === 'audit'
+      ? 'audit'
+      : 'health';
   if (route === 'painel-do-aluno') {
     const section = portalSectionFromHash(hash);
     return section === 'credentials' ? 'accounts' : section;
@@ -97,6 +101,67 @@ const topOrderV2 = (modules: CoreModuleContract[]) =>
 const guardDraft = (event: MouseEvent<HTMLAnchorElement>) => {
   if (!allowDraftNavigationV1()) event.preventDefault();
 };
+
+/** Navigation areas reuse the authorized services and their existing addresses. */
+export function mainNavigationAreasV1(
+  modules: CoreModuleContract[],
+  route: PlatformRoute,
+  section: string,
+) {
+  return topOrderV2(withNotesModule(modules)).flatMap((module) => {
+    const common = { route: module.route, icon: routeIcons[module.route] };
+    if (module.route === 'banco-de-notas')
+      return [
+        {
+          ...common,
+          id: module.id,
+          name: module.name,
+          href: '#/banco-de-notas?area=performance',
+          open: route === module.route && section !== 'importacao',
+          sections: serviceSectionsV2(module.route),
+        },
+        {
+          ...common,
+          id: 'navigation.import',
+          name: 'Importação',
+          icon: Upload,
+          href: '#/banco-de-notas?area=importacao',
+          open: route === module.route && section === 'importacao',
+          sections: [],
+        },
+      ];
+    if (module.route === 'painel-do-aluno')
+      return [
+        {
+          ...common,
+          id: 'navigation.students',
+          name: 'Alunos',
+          icon: Users,
+          href: studentPortalHref('reconciliation'),
+          open: route === module.route && section === 'reconciliation',
+          sections: [],
+        },
+        {
+          ...common,
+          id: module.id,
+          name: module.name,
+          href: platformHref(module.route),
+          open: route === module.route && section !== 'reconciliation',
+          sections: serviceSectionsV2(module.route),
+        },
+      ];
+    return [
+      {
+        ...common,
+        id: module.id,
+        name: module.name,
+        href: platformHref(module.route),
+        open: route === module.route,
+        sections: serviceSectionsV2(module.route),
+      },
+    ];
+  });
+}
 
 /*
  * Composition of 08/10/2026 (owner study): on a computer there is no menu on top. One side
@@ -128,14 +193,14 @@ export function ShellSidebarV3({
         <Skeleton className="h-40 w-full rounded-2xl" />
       ) : (
         <ul className="shell-side__areas">
-          {topOrderV2(withNotesModule(modules)).map((module) => {
-            const open = route === module.route;
-            const Icon = routeIcons[module.route];
-            const sections = open ? serviceSectionsV2(module.route) : [];
+          {mainNavigationAreasV1(modules, route, section).map((module) => {
+            const open = module.open;
+            const Icon = module.icon;
+            const sections = open ? module.sections : [];
             return (
               <li key={module.id}>
                 <a
-                  href={platformHref(module.route)}
+                  href={module.href}
                   aria-current={open && sections.length === 0 ? 'page' : undefined}
                   data-open={open ? 'true' : undefined}
                   className="shell-side__area no-underline"

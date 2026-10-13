@@ -938,14 +938,20 @@ describe('V6 HeroUI perspectives and shared live invalidation', () => {
     await loadedAnalytics();
     await click('Alunos');
     await select('Aluno', '2');
-    await click('Importação');
+    await act(async () => {
+      window.location.hash = '#/banco-de-notas?area=importacao';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
     const before = analyticsCalls();
     await act(async () => {
       notifyLiveChangeV1('gradebook');
       await new Promise((resolve) => setTimeout(resolve, 400));
     });
     expect(analyticsCalls()).toBe(before);
-    await click('Desempenho');
+    await act(async () => {
+      window.location.hash = '#/banco-de-notas?area=performance';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
     await waitFor(() => analyticsCalls() === before + 1);
     expect(selectedValue('Aluno')).toContain('Aluno exemplo 02');
   });

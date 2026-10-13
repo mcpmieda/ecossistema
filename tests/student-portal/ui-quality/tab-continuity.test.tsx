@@ -28,6 +28,39 @@ const identity = (key = 'synthetic-tab-session', canWrite = false) => ({
   capabilities: ['platform.settings.read', ...(canWrite ? ['platform.settings.write'] : [])],
 });
 
+it.each([false, true])(
+  'opens Alunos independently with existing write permission %s',
+  async (canWrite) => {
+    window.history.replaceState(null, '', '/#/painel-do-aluno?area=reconciliation');
+    const mock = operationsMockV1();
+    const fetcher = vi.fn(async (path: string, init: RequestInit) => {
+      if (path === '/api/me') return opJsonV1(identity('synthetic-students', canWrite));
+      const input = JSON.parse(String(init.body));
+      if (path === '/api/student-reconciliation/v1')
+        return opJsonV1(emptyReconciliationReadV1(input.operation));
+      return opJsonV1(
+        input.contractVersion === 2
+          ? await mock.reader.query(input)
+          : await mock.client.query(input),
+      );
+    });
+    render(<StudentPortalAdminPage fetcher={fetcher} />);
+    const source = await screen.findByLabelText('Fonte do nome exibido');
+    expect(source.hasAttribute('disabled')).toBe(!canWrite);
+    expect(screen.getByRole('heading', { name: 'Alunos' })).toBeTruthy();
+    expect(screen.queryByRole('tablist', { name: 'Áreas do Painel do Aluno' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Acessos e QR' })).toBeNull();
+    expect(fetcher.mock.calls.some(([path]) => path === '/api/student-portal/admin/command')).toBe(
+      false,
+    );
+    const reads = fetcher.mock.calls.filter(([path]) => path === '/api/student-reconciliation/v1');
+    expect(reads.map(([, init]) => JSON.parse(String(init.body)).operation).sort()).toEqual([
+      'catalog',
+      'list',
+    ]);
+  },
+);
+
 it.each(['identity', 'capability'] as const)(
   'keeps the actual admin account filter and detail until %s changes',
   async (changed) => {
