@@ -140,7 +140,7 @@ export function StudentPortalAdminPage({
       <section className="pa-admin-page">
         <h1>
           {portalSectionFromHash(window.location.hash) === 'reconciliation'
-            ? 'Alunos'
+            ? 'Conciliação'
             : 'Painel do Aluno'}
         </h1>
         {auth.state.state === 'checking' ? (
@@ -398,6 +398,7 @@ function PortalWorkspace({
             scope={common.scope}
             canWrite={common.canWrite}
             showPortalAccess={false}
+            pendingOnly
           />
         );
         break;
@@ -560,7 +561,7 @@ function PortalWorkspace({
       <PanelScopeContextV1.Provider value={panelScope}>
         <section className="pa-admin-page">
           <header className="pa-admin-header">
-            <h1>{section === 'reconciliation' ? 'Alunos' : 'Painel do Aluno'}</h1>
+            <h1>{section === 'reconciliation' ? 'Conciliação' : 'Painel do Aluno'}</h1>
             {section !== 'reconciliation' && (
               <Button
                 size="sm"

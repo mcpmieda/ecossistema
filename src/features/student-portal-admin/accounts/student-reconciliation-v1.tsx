@@ -15,6 +15,7 @@ import {
   type ReconciliationClientV1,
 } from '../shared/reconciliation-client-v1';
 import { StudentNameV1 } from '../shared/account-open-v1';
+import { readReconciliationListV1 } from './reconciliation-list-read-v1';
 import { PreparedReportV1 } from '../../gradebook/import/student-report-import-v1';
 
 type CatalogV1 = Extract<ReconciliationResponseV1, { operation: 'catalog' }>;
@@ -105,11 +106,15 @@ function ReconciliationListV1({
   busy,
   open,
   returnFocus,
+  pendingOnly,
+  failed,
 }: Readonly<{
   items: readonly ReconciliationListItemV1[];
   busy: boolean;
   open: (item: ReconciliationListItemV1) => Promise<void>;
   returnFocus: RefObject<string | null>;
+  pendingOnly: boolean;
+  failed: boolean;
 }>) {
   const [focusTarget, setFocusTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -120,13 +125,21 @@ function ReconciliationListV1({
     }
   }, [focusTarget, returnFocus]);
   if (items.length === 0)
-    return busy ? null : (
-      <p className="text-sm text-muted">Nenhum aluno ou pendência encontrado.</p>
+    return busy || (pendingOnly && failed) ? null : (
+      <p className="text-sm text-muted">
+        {pendingOnly ? 'Nenhuma pendência encontrada.' : 'Nenhum aluno ou pendência encontrado.'}
+      </p>
     );
   return (
     <Table variant="secondary">
-      <Table.ScrollContainer tabIndex={0} role="region" aria-label="Alunos e pendências">
-        <Table.Content aria-label="Alunos e pendências">
+      <Table.ScrollContainer
+        tabIndex={0}
+        role="region"
+        aria-label={pendingOnly ? 'Pendências de conciliação' : 'Alunos e pendências'}
+      >
+        <Table.Content
+          aria-label={pendingOnly ? 'Pendências de conciliação' : 'Alunos e pendências'}
+        >
           <Table.Header>
             <Table.Column isRowHeader>Aluno</Table.Column>
             <Table.Column>Turma</Table.Column>
@@ -175,11 +188,13 @@ export function StudentReconciliationV1({
   scope,
   canWrite,
   showPortalAccess = true,
+  pendingOnly = false,
 }: Readonly<{
   client: ReconciliationClientV1;
   scope: ScopeV1;
   canWrite: boolean;
   showPortalAccess?: boolean;
+  pendingOnly?: boolean;
 }>) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -218,7 +233,8 @@ export function StudentReconciliationV1({
       setBusy(true);
       setError('');
       try {
-        const result = await client.request(
+        const result = await readReconciliationListV1(
+          client,
           {
             contractVersion: 1,
             academicYear: 2026,
@@ -229,6 +245,7 @@ export function StudentReconciliationV1({
             limit: 50,
           },
           signal,
+          pendingOnly,
         );
         signal.throwIfAborted();
         if (result.state !== 'ready' || result.operation !== 'list')
@@ -253,12 +270,16 @@ export function StudentReconciliationV1({
         if (!signal.aborted) setBusy(false);
       }
     },
-    [client, classId, query],
+    [client, classId, query, pendingOnly],
   );
   useEffect(() => {
     const controller = new AbortController();
     active.current = controller;
     setItems([]);
+    if (pendingOnly) {
+      setCursor(null);
+      setContext(null);
+    }
     setDetail(null);
     setSelected(null);
     setPendingBatch(null);
@@ -281,7 +302,7 @@ export function StudentReconciliationV1({
       controller.abort();
       detailRead.current?.abort();
     };
-  }, [client, load, refresh]);
+  }, [client, load, refresh, pendingOnly]);
   async function open(item: ReconciliationListItemV1) {
     setNotice('');
     detailRead.current?.abort();
@@ -434,7 +455,19 @@ export function StudentReconciliationV1({
   function listSection() {
     return (
       <>
-        <ReconciliationListV1 items={items} busy={busy} open={open} returnFocus={returnFocus} />
+        {pendingOnly && context && !error ? (
+          <p role="status" className="text-sm text-muted">
+            {items.length} {items.length === 1 ? 'pendência carregada' : 'pendências carregadas'}
+          </p>
+        ) : null}
+        <ReconciliationListV1
+          items={items}
+          busy={busy}
+          open={open}
+          returnFocus={returnFocus}
+          pendingOnly={pendingOnly}
+          failed={Boolean(error)}
+        />
         {cursor ? (
           <Button
             variant="secondary"
@@ -458,7 +491,10 @@ export function StudentReconciliationV1({
     );
   }
   return (
-    <section className="space-y-4" aria-label="Alunos e conciliação">
+    <section
+      className="space-y-4"
+      aria-label={pendingOnly ? 'Conciliação' : 'Alunos e conciliação'}
+    >
       <Card>
         <Card.Content className="flex flex-wrap items-center gap-3">
           <SearchField

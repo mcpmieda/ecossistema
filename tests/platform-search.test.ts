@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlatformSnapshotContract } from '../shared/platform-contract';
+import { STUDENT_PORTAL_MODULE } from '../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, normalizeSearch } from '../src/platform/search-model';
 
 const snapshot = {
@@ -81,6 +82,25 @@ const snapshot = {
 } satisfies PlatformSnapshotContract;
 
 describe('platform search model', () => {
+  it('indexes the independent Conciliação area while preserving Alunos in the legacy Panel', () => {
+    const items = buildSearchItems({
+      ...snapshot,
+      coreModules: [...snapshot.coreModules, STUDENT_PORTAL_MODULE],
+    });
+    expect(items.find((item) => item.id === 'students:reconciliation')).toMatchObject({
+      label: 'Conciliação',
+      category: 'Área',
+      href: '#/painel-do-aluno?area=reconciliation',
+    });
+    expect(filterSearchItems(items, 'conciliação pendências')[0]?.id).toBe(
+      'students:reconciliation',
+    );
+    expect(items.find((item) => item.id === 'student-portal:accounts')).toMatchObject({
+      label: 'Alunos',
+      category: 'Seção',
+      href: '#/painel-do-aluno?area=accounts',
+    });
+  });
   it('normalizes accents and case for Portuguese search', () => {
     expect(normalizeSearch('Configurações')).toBe('configuracoes');
     expect(normalizeSearch('AUDITORIA')).toBe('auditoria');

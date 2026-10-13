@@ -127,14 +127,14 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     ? [
         {
           id: 'students:reconciliation',
-          label: 'Alunos',
+          label: 'Conciliação',
           description: 'Conferir pendências e conciliar alunos.',
           category: 'Área',
           href: studentPortalHref('reconciliation'),
           iconKind: 'route',
           route: studentPortalModule.route,
           searchText: normalizeSearch(
-            'Alunos cadastro reconciliação conciliação pendências Smecel relatório',
+            'Conciliação reconciliação pendências alunos Smecel relatório',
           ),
         },
       ]

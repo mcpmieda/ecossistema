@@ -71,14 +71,14 @@ describe('independent main entries', () => {
   });
   it('selects only the independent area and keeps existing URLs', () => {
     for (const [route, section, expected] of [
-      ['painel-do-aluno', 'reconciliation', 'Alunos'],
+      ['painel-do-aluno', 'reconciliation', 'Conciliação'],
       ['painel-do-aluno', 'accounts', 'Painel do Aluno'],
       ['banco-de-notas', 'importacao', 'Importação'],
       ['banco-de-notas', 'performance', 'Banco de notas'],
     ] as const) {
       const areas = mainNavigationAreasV1([STUDENT_PORTAL_MODULE], route, section);
       expect(areas.filter((area) => area.open).map((area) => area.name)).toEqual([expected]);
-      expect(areas.find((area) => area.name === 'Alunos')?.href).toBe(
+      expect(areas.find((area) => area.name === 'Conciliação')?.href).toBe(
         '#/painel-do-aluno?area=reconciliation',
       );
       expect(areas.find((area) => area.name === 'Importação')?.href).toBe(
@@ -86,11 +86,11 @@ describe('independent main entries', () => {
       );
     }
   });
-  it('inherits Portal visibility and does not add Alunos for a restricted profile', () => {
+  it('inherits Portal visibility and does not add Conciliação for a restricted profile', () => {
     const modules = withStudentPortalModule([STUDENT_PORTAL_MODULE], ['platform.snapshot.read']);
     expect(
       mainNavigationAreasV1(modules, 'banco-de-notas', 'importacao').some(
-        (area) => area.name === 'Alunos',
+        (area) => area.name === 'Conciliação',
       ),
     ).toBe(false);
     expect(serviceSectionsV2('painel-do-aluno').some((item) => item.id === 'accounts')).toBe(true);

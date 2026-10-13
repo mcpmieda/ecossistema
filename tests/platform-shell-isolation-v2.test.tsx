@@ -91,17 +91,20 @@ it('uses independent main links without remounting Importação and respects int
   const block = (event: Event) => event.preventDefault();
   window.addEventListener('ecossistema-before-navigation', block);
   try {
-    await user.click(screen.getByRole('link', { name: 'Alunos' }));
+    await user.click(screen.getByRole('link', { name: 'Conciliação' }));
     expect(window.location.hash).toBe('#/banco-de-notas?area=importacao');
   } finally {
     window.removeEventListener('ecossistema-before-navigation', block);
   }
-  await user.click(screen.getByRole('link', { name: 'Alunos' }));
+  await user.click(screen.getByRole('link', { name: 'Conciliação' }));
   await screen.findByRole('textbox', { name: 'workspace-painel-do-aluno' });
-  expect(screen.getByRole('link', { name: 'Alunos' }).getAttribute('aria-current')).toBe('page');
+  expect(screen.getByRole('link', { name: 'Conciliação' }).getAttribute('aria-current')).toBe(
+    'page',
+  );
   expect(screen.queryByRole('link', { name: 'Acessos e QR' })).toBeNull();
   await user.click(screen.getByRole('link', { name: 'Painel do Aluno' }));
-  expect(await screen.findAllByRole('link', { name: 'Alunos' })).toHaveLength(2);
+  expect(await screen.findAllByRole('link', { name: 'Alunos' })).toHaveLength(1);
+  expect(screen.getByRole('link', { name: 'Conciliação' })).toBeTruthy();
 });
 
 it.each([503, 401])(

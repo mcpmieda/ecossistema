@@ -135,7 +135,7 @@ export function mainNavigationAreasV1(
         {
           ...common,
           id: 'navigation.students',
-          name: 'Alunos',
+          name: 'Conciliação',
           icon: Users,
           href: studentPortalHref('reconciliation'),
           open: route === module.route && section === 'reconciliation',
