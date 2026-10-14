@@ -35,7 +35,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd 'pg_isready -U attendance_ephemeral -d attendance_ephemeral_00000000000000000000000000000000'
+          --health-cmd "pg_isready -U attendance_ephemeral -d attendance_ephemeral_00000000000000000000000000000000"
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       ATTENDANCE_TEST_POSTGRES_URL: postgresql://attendance_ephemeral@127.0.0.1:5432/attendance_ephemeral_00000000000000000000000000000000
