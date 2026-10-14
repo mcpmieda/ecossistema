@@ -28,7 +28,8 @@ import type { AdminCursorV1 } from './cursor-v1';
 const sessionAccountV2 = z.uuid();
 const sessionCountV2 = z.number().int().nonnegative().safe();
 
-/** Fixed query count: one bounded account/policy batch, one session aggregate.
+/** Fixed query count: one bounded account/policy batch, one session aggregate, sent together with
+ * the scope version and, for the overview, the health reads.
  * The caller owns a read-only repeatable-read transaction; no lock or per-account query.
  */
 export async function readAdminV2(
@@ -80,7 +81,10 @@ export async function readAdminV2(
   const clock = bind(now.toISOString());
   const limit = query.operation === 'overview' ? ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 : query.page.limit;
   const orderBy = alphabetical ? nameOrder + ',a.id' : 'a.id';
-  const rows = await tx.unsafe(
+  // Reads that do not depend on the account rows go out on the same connection without waiting
+  // for them: each one would otherwise cost its own round trips to the database.
+  const pending = Promise.all([
+    tx.unsafe(
     `SELECT ${ADMIN_ACCOUNT_FIELDS_V2},
     (SELECT max(e.occurred_at) FROM student_portal.audit_event e WHERE e.account_id=a.id
       AND e.kind IN ('login','activated') AND e.result='success'
@@ -88,7 +92,13 @@ export async function readAdminV2(
       AND e.occurred_at<=${clock}::timestamptz) AS last_authentication
     ${ACCOUNT_JOIN_V1} WHERE ${where.join(' AND ')} ORDER BY ${orderBy} LIMIT ${bind(limit + 1)}`,
     values,
-  );
+    ),
+    accountsScopeVersionV1(tx),
+    query.operation === 'overview'
+      ? readAdminHealthV1(tx, { ...query, contractVersion: 1, operation: 'health' })
+      : Promise.resolve(null),
+  ] as const);
+  const [rows, scopeVersion, health] = await pending;
   if (query.operation === 'overview' && rows.length > limit)
     throw new Error('student-portal-admin-scope-unavailable');
   const selected = rows.slice(0, limit);
@@ -136,7 +146,7 @@ export async function readAdminV2(
     contractVersion: 2,
     requestId,
     observedAt: now.toISOString(),
-    scopeVersion: await accountsScopeVersionV1(tx),
+    scopeVersion,
   };
   if (query.operation === 'accounts-read')
     return adminReadResponseV2.parse({
@@ -165,7 +175,6 @@ export async function readAdminV2(
       accessPermitted: count((item) => item.access.accessPermitted),
       validSessions: items.reduce((total, item) => total + item.validSessionCount, 0),
     },
-    health: (await readAdminHealthV1(tx, { ...query, contractVersion: 1, operation: 'health' }))
-      .status,
+    health: health!.status,
   });
 }
