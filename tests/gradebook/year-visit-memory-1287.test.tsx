@@ -118,3 +118,47 @@ it('does not let a delayed previous read overwrite state or visit memory', async
   mount();
   await expectYear(2026);
 });
+
+it.each(['ready', 'network-error'] as const)(
+  'keeps a consumer authorization loss authoritative over a delayed %s catalogue',
+  async (outcome) => {
+    const first = mount();
+    await expectYear(2026);
+    act(() => scope.selectYear(2025));
+    const staleSelection = scope.selectYear;
+    let resolve!: (response: Response) => void;
+    let reject!: (error: Error) => void;
+    fetcher.mockReturnValueOnce(new Promise<Response>((accept, fail) => {
+      resolve = accept;
+      reject = fail;
+    }));
+    let pending!: Promise<void>;
+    act(() => { pending = scope.refreshYears(2025); });
+    expect(scope.loading).toBe(true);
+    act(() => {
+      scope.clearAuthorization();
+      // An event already queued by the old selector must not restore its cached catalogue.
+      staleSelection(2025);
+    });
+    await expectYear('none');
+    expect(scope.years).toEqual([]);
+    expect(scope.loading).toBe(false);
+    expect(scope.failure).toContain('não possui autorização');
+    await act(async () => {
+      if (outcome === 'ready') resolve(Response.json(catalogue()));
+      else reject(new Error('synthetic-late-network-error'));
+      await pending;
+    });
+    await expectYear('none');
+    expect(scope.years).toEqual([]);
+    expect(scope.loading).toBe(false);
+    expect(scope.failure).toContain('não possui autorização');
+    // Only a fresh, successful request may restore the academic context.
+    await act(async () => { await scope.refreshYears(); });
+    await expectYear(2026);
+    expect(scope.failure).toBeNull();
+    first.unmount();
+    mount();
+    await expectYear(2026);
+  },
+);
