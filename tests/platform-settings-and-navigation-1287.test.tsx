@@ -34,13 +34,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
-function network(auxiliary: () => Promise<Response>) {
+function network(
+  auxiliary: () => Promise<Response>,
+  academic: () => Promise<Response> = async () => Response.json(years),
+) {
   const fetcher = vi.fn<typeof fetch>(async (path, init) => {
     if (path === '/api/me') return Response.json({ authenticated: true, capabilities: PLATFORM_CAPABILITIES });
     if (path === '/api/platform/bootstrap') return Response.json(snapshot());
     if (path === '/api/platform/snapshot-v2') return auxiliary();
     if (path === '/api/platform/settings/session') return Response.json(session);
-    if (path === '/api/gradebook/operational-workspace') return Response.json(years);
+    if (path === '/api/gradebook/operational-workspace') return academic();
     if (path === '/api/gradebook/performance') return Response.json({ transportVersion: 2, state: 'unavailable' }, { status: 503 });
     if (path === '/api/platform/live') return Response.json({ state: 'unavailable' }, { status: 503 });
     throw new Error(`Unexpected synthetic request: ${String(path)} ${String(init?.method ?? 'GET')}`);
@@ -49,46 +52,56 @@ function network(auxiliary: () => Promise<Response>) {
   return fetcher;
 }
 const bootstrapCalls = (fetcher: ReturnType<typeof network>) => fetcher.mock.calls.filter(([path]) => path === '/api/gradebook/operational-workspace').length;
-function settingsCard() {
-  const heading = screen.getByRole('heading', { name: 'Ano letivo' });
-  return heading.closest('[data-slot="card"]') ?? heading.closest('.card') ?? document.body;
+async function yearSelector(container: HTMLElement) {
+  // Query the actual year card, not unrelated controls or portals elsewhere in document.body.
+  // findByRole still enforces uniqueness: duplicate controls inside this card remain a failure.
+  const heading = await within(container).findByRole('heading', { name: 'Ano letivo', exact: true });
+  const card = heading.closest<HTMLElement>('[data-slot="card"], .card');
+  if (!card) throw new Error('The school-year heading must belong to its rendered settings card');
+  return within(card).findByRole('button', { name: 'Ano letivo global', exact: true });
 }
 
 it('keeps native settings mounted during a Microsoft failure and carries the selected year to the real Banco', async () => {
   const fetcher = network(async () => Response.json({}, { status: 503 }));
-  render(<App />);
-  await screen.findByRole('heading', { name: 'Ano letivo' });
-  await screen.findByRole('button', { name: 'Ano letivo global' });
-  const trigger = within(settingsCard()).getByRole('button', { name: 'Ano letivo global' });
+  const view = render(<App />);
+  const trigger = await yearSelector(view.container);
   await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(false));
   const user = userEvent.setup();
   await user.click(trigger);
   await user.click(await screen.findByRole('option', { name: '2025' }));
   expect(trigger.textContent).toContain('2025');
-  const main = screen.getByRole('navigation', { name: 'Navegação principal' });
+  const main = within(view.container).getByRole('navigation', { name: 'Navegação principal' });
   await user.click(within(main).getByRole('link', { name: 'Banco de notas', exact: true }));
   await waitFor(() => expect(fetcher.mock.calls.some(([path, init]) => path === '/api/gradebook/performance' && String(init?.body).includes('"year":2025'))).toBe(true));
   expect(bootstrapCalls(fetcher)).toBe(2);
   await user.click(within(main).getByRole('link', { name: 'Configurações', exact: true }));
-  const second = await screen.findByRole('button', { name: 'Ano letivo global' });
+  const second = await yearSelector(view.container);
   await waitFor(() => expect(second.textContent).toContain('2025'));
   expect(bootstrapCalls(fetcher)).toBe(3);
-  expect(screen.queryByText('Nenhuma configuração cadastrada')).toBeNull();
-  expect(screen.queryByText('Nenhuma migração registrada')).toBeNull();
-  expect(screen.queryByText('0 registro(s) encontrado(s).')).toBeNull();
+  expect(within(view.container).queryByText('Nenhuma configuração cadastrada')).toBeNull();
+  expect(within(view.container).queryByText('Nenhuma migração registrada')).toBeNull();
+  expect(within(view.container).queryByText('0 registro(s) encontrado(s).')).toBeNull();
 });
 
 it('keeps the selector usable while Microsoft is pending and does not remount it when Microsoft recovers', async () => {
   let release!: (response: Response) => void;
   const pending = new Promise<Response>((resolve) => { release = resolve; });
-  network(() => pending);
-  render(<App />);
-  const trigger = await screen.findByRole('button', { name: 'Ano letivo global' });
+  const fetcher = network(() => pending);
+  const view = render(<App />);
+  const trigger = await yearSelector(view.container);
   await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(false));
-  expect(screen.getAllByText('Consultando informações Microsoft…')).toHaveLength(2);
+  expect(within(view.container).getAllByText('Consultando informações Microsoft…')).toHaveLength(2);
+  expect(within(view.container).queryByText('Nenhuma configuração cadastrada')).toBeNull();
+  expect(within(view.container).queryByText('0 registro(s) encontrado(s).')).toBeNull();
+  const user = userEvent.setup();
+  await user.click(trigger);
+  await user.click(await screen.findByRole('option', { name: '2025' }));
+  expect(trigger.textContent).toContain('2025');
   await act(async () => { release(Response.json(snapshot())); });
-  await screen.findByText('Nenhuma configuração cadastrada');
-  expect(screen.getByRole('button', { name: 'Ano letivo global' })).toBe(trigger);
+  await within(view.container).findByText('Nenhuma configuração cadastrada');
+  expect(await yearSelector(view.container)).toBe(trigger);
+  expect(trigger.textContent).toContain('2025');
+  expect(bootstrapCalls(fetcher)).toBe(1);
 });
 
 it.each([
@@ -96,51 +109,66 @@ it.each([
   ['migrations', 'Nenhuma configuração cadastrada', 'Nenhuma migração registrada'],
 ])('isolates an unavailable %s card from the other Microsoft card and the year selector', async (section, present, absent) => {
   network(async () => Response.json({ ...snapshot(), unavailableSections: [section], retryAfterSeconds: 90 }));
-  render(<App />);
-  const trigger = await screen.findByRole('button', { name: 'Ano letivo global' });
+  const view = render(<App />);
+  const trigger = await yearSelector(view.container);
   await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(false));
-  expect(await screen.findByText(present)).toBeTruthy();
-  expect(screen.queryByText(absent)).toBeNull();
-  expect(screen.getAllByText('Informações Microsoft temporariamente indisponíveis')).toHaveLength(1);
+  expect(await within(view.container).findByText(present)).toBeTruthy();
+  expect(within(view.container).queryByText(absent)).toBeNull();
+  expect(within(view.container).getAllByText('Informações Microsoft temporariamente indisponíveis')).toHaveLength(1);
 });
 
 it('does not turn an unavailable list catalogue into empty external records', async () => {
   network(async () => Response.json({ ...snapshot(), unavailableSections: ['lists'], retryAfterSeconds: 90 }));
-  render(<App />);
-  await screen.findByRole('button', { name: 'Ano letivo global' });
-  expect(await screen.findAllByText('Informações Microsoft temporariamente indisponíveis')).toHaveLength(2);
-  expect(screen.queryByText('Nenhuma configuração cadastrada')).toBeNull();
-  expect(screen.queryByText('Nenhuma migração registrada')).toBeNull();
-  expect(screen.queryByText('0 registro(s) encontrado(s).')).toBeNull();
+  const view = render(<App />);
+  await yearSelector(view.container);
+  expect(await within(view.container).findAllByText('Informações Microsoft temporariamente indisponíveis')).toHaveLength(2);
+  expect(within(view.container).queryByText('Nenhuma configuração cadastrada')).toBeNull();
+  expect(within(view.container).queryByText('Nenhuma migração registrada')).toBeNull();
+  expect(within(view.container).queryByText('0 registro(s) encontrado(s).')).toBeNull();
 });
 
 it.each([401, 403])('preserves the authoritative authorization boundary (%i)', async (status) => {
   network(async () => Response.json({}, { status }));
-  render(<App />);
-  expect(await screen.findByText(/Sua autorização precisa ser verificada novamente/u)).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Ano letivo global' })).toBeNull();
+  const view = render(<App />);
+  expect(await within(view.container).findByText(/Sua autorização precisa ser verificada novamente/u)).toBeTruthy();
+  expect(within(view.container).queryByRole('button', { name: 'Ano letivo global' })).toBeNull();
+});
+
+it('does not manufacture academic years when the PostgreSQL catalogue is unavailable', async () => {
+  network(
+    async () => Response.json(snapshot()),
+    async () => Response.json({ contractVersion: 2, state: 'unavailable' }, { status: 503 }),
+  );
+  const view = render(<App />);
+  const trigger = await yearSelector(view.container);
+  await within(view.container).findByText('Não foi possível carregar os anos letivos disponíveis.');
+  expect(trigger.hasAttribute('disabled')).toBe(true);
+  expect(trigger.textContent).not.toContain('2025');
+  expect(trigger.textContent).not.toContain('2026');
+  expect(await within(view.container).findByText('Nenhuma configuração cadastrada')).toBeTruthy();
 });
 
 it('does not bootstrap an academic catalogue merely to open a nonacademic area', async () => {
   window.history.replaceState(null, '', '/#/operacao');
   const fetcher = network(async () => Response.json({}, { status: 503 }));
-  render(<App />);
-  await screen.findByRole('heading', { name: 'Saúde do Sistema', exact: true });
+  const view = render(<App />);
+  await within(view.container).findByRole('heading', { name: 'Saúde do Sistema', exact: true });
   expect(bootstrapCalls(fetcher)).toBe(0);
 });
 
 it('uses semantic section links with current-route state and no dangling tab controls', async () => {
   window.history.replaceState(null, '', '/#/banco-de-notas?area=performance');
   network(async () => Response.json(snapshot()));
-  render(<App />);
-  const nav = await screen.findByRole('navigation', { name: 'Seções de Banco de notas' });
+  const view = render(<App />);
+  const app = within(view.container);
+  const nav = await app.findByRole('navigation', { name: 'Seções de Banco de notas' });
   const links = within(nav).getAllByRole('link');
   expect(links).toHaveLength(4);
   expect(within(nav).getByRole('link', { name: 'Desempenho' }).getAttribute('aria-current')).toBe('page');
   expect(nav.querySelector('[role="tab"],[role="tablist"],[aria-controls]')).toBeNull();
   // The shell arrives before the real, lazy-loaded workspace. Wait for that workspace,
   // not only for its navigation, so a cold import cannot race this integration assertion.
-  const workspace = await screen.findByRole('region', { name: 'Banco de notas' });
+  const workspace = await app.findByRole('region', { name: 'Banco de notas' });
   const user = userEvent.setup();
   const configuration = within(nav).getByRole('link', { name: 'Configurações' });
   await user.click(configuration);
@@ -148,14 +176,14 @@ it('uses semantic section links with current-route state and no dangling tab con
     expect(window.location.hash).toBe('#/banco-de-notas?area=settings');
     expect(configuration.getAttribute('aria-current')).toBe('page');
   });
-  expect(screen.getByRole('region', { name: 'Banco de notas' })).toBe(workspace);
+  expect(app.getByRole('region', { name: 'Banco de notas' })).toBe(workspace);
 });
 
-it('supports focus-only arrow keys and guarded native Enter activation', async () => {
+it('supports focus-only arrow keys and guarded mouse and native Enter activation', async () => {
   window.history.replaceState(null, '', '/#/banco-de-notas?area=performance');
   network(async () => Response.json(snapshot()));
-  render(<App />);
-  const nav = await screen.findByRole('navigation', { name: 'Seções de Banco de notas' });
+  const view = render(<App />);
+  const nav = await within(view.container).findByRole('navigation', { name: 'Seções de Banco de notas' });
   const first = within(nav).getByRole('link', { name: 'Desempenho' });
   const last = within(nav).getByRole('link', { name: 'Configurações' });
   const user = userEvent.setup();
@@ -166,6 +194,9 @@ it('supports focus-only arrow keys and guarded native Enter activation', async (
   const block = (event: Event) => event.preventDefault();
   window.addEventListener('ecossistema-before-navigation', block);
   try {
+    await user.click(last);
+    expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
+    expect(first.getAttribute('aria-current')).toBe('page');
     await user.keyboard('{Enter}');
     expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
     expect(first.getAttribute('aria-current')).toBe('page');
