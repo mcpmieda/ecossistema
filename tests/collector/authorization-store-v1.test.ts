@@ -14,7 +14,7 @@ const ids = { grant: '11111111-1111-4111-8111-111111111111', device: '22222222-2
   tenant: '33333333-3333-4333-8333-333333333333', actor: '44444444-4444-4444-8444-444444444444',
   client: '55555555-5555-4555-8555-555555555555', owner: '66666666-6666-4666-8666-666666666666' };
 const proof: CollectorConsumptionV1 = { deviceId: ids.device, generation: 1, tenantId: ids.tenant,
-  actorId: ids.actor, clientId: ids.client, keyThumbprint: 'x'.repeat(43), nonceHash: 'a'.repeat(64) };
+  actorId: ids.actor, clientId: ids.client, keyThumbprint: 'x'.repeat(43), nonceHash: 'a'.repeat(64), maximumExpiry:Date.now()+300_000 };
 async function fixture(directoryAgeSeconds = 0) {
   const db = database;
   await db.exec('TRUNCATE collector_auth.challenges, collector_auth.devices, collector_auth.oauth_grants');
