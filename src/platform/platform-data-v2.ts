@@ -8,6 +8,23 @@ export type PlatformLoadStateV2 =
   | { status: 'ready'; snapshot: PlatformSnapshotV2; auxiliary: PlatformAuxiliaryStateV2; auxiliaryMessage?: string };
 export const PLATFORM_BOOTSTRAP_TIMEOUT_MS_V2 = 10_000;
 export const PLATFORM_AUXILIARY_TIMEOUT_MS_V2 = 40_000;
+const EARLY_READ_TTL_MS_V1 = 15_000;
+const earlyReads = new Map<string, { at: number; response: Promise<Response> }>();
+/** Starts both reads together with the identity check so the first open does not wait for it.
+ * Each early answer is used once, only while fresh and successful; anything else is read again. */
+export function prefetchPlatformDataV2(fetcher: typeof fetch = fetch, now = Date.now) {
+  for (const path of ['/api/platform/bootstrap', '/api/platform/snapshot-v2']) {
+    const response = fetcher(path, { credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+    response.catch(() => undefined);
+    earlyReads.set(path, { at: now(), response });
+  }
+}
+async function takeEarlyReadV1(path: string, now: () => number): Promise<Response | undefined> {
+  const early = earlyReads.get(path);
+  earlyReads.delete(path);
+  if (!early || now() - early.at > EARLY_READ_TTL_MS_V1) return undefined;
+  try { const response = await early.response; return response.ok ? response : undefined; } catch { return undefined; }
+}
 class ReadError extends Error {
   constructor(readonly status: number, readonly retryAt = 0) { super('Platform data unavailable'); }
 }
@@ -37,7 +54,8 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
       return await Promise.race([
         (async () => {
           signal.throwIfAborted();
-          const response = await fetcher(path, { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal });
+          const response = await takeEarlyReadV1(path, now)
+            ?? await fetcher(path, { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal });
           signal.throwIfAborted();
           if (!response.ok) {
             const header = response.headers.get('Retry-After');
