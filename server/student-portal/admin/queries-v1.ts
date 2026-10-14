@@ -159,12 +159,15 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
 export async function readAdminHealthV1(tx: StudentPortalPostgresQueryV1, query: AdminQueryV1) {
   const parameters: unknown[] = [];
   const filter = accountFilter(query, parameters);
-  const rows = await tx.unsafe(`SELECT
+  // Both reads are independent: they share the connection without waiting for each other.
+  const [rows, maintenance] = await Promise.all([
+    tx.unsafe(`SELECT
     COALESCE(bool_or(j.state='failed' AND j.attempts>=5),false) AS intervention,
     COALESCE(bool_or(j.state IN ('queued','running') AND j.next_attempt_at<statement_timestamp()-interval '5 minutes'
       AND (j.lease_until IS NULL OR j.lease_until<statement_timestamp())),false) AS attention
-    ${ACCOUNT_JOIN_V1} JOIN student_portal.publication_job j ON j.account_id=a.id WHERE ${filter}`, parameters);
-  const maintenance = await portalMaintenanceHealthV1(tx);
+    ${ACCOUNT_JOIN_V1} JOIN student_portal.publication_job j ON j.account_id=a.id WHERE ${filter}`, parameters),
+    portalMaintenanceHealthV1(tx),
+  ]);
   return { status: rows[0]?.intervention || maintenance.status === 'intervention' ? 'intervention' as const
     : rows[0]?.attention || maintenance.status === 'attention' ? 'attention' as const : 'normal' as const };
 }

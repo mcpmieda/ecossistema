@@ -94,6 +94,8 @@ async function release(scope: ScopeV1 = READ_SCHOOL_V2, operation: 'publish' | '
 }
 const self = (account = own) => new SelfProjectionReaderV1(portal).read(account, crypto.randomUUID());
 const score = async () => (await self())?.subjects[0]?.periods.find((item) => item.period === 'T1')?.final;
+const editions = async () => Number((await owner.unsafe('SELECT count(*) AS n FROM student_portal.publication_source_v2'))[0]!.n);
+const prune = async () => Number((await portal.unsafe('SELECT student_portal.prune_publication_source_v1() AS n'))[0]!.n);
 const count = async (table: string) => Number((await owner.unsafe('SELECT count(*) AS n FROM student_portal.' + table))[0]!.n);
 
 beforeAll(async () => {
@@ -113,7 +115,8 @@ beforeAll(async () => {
     INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte) SELECT 803001,746000+n,8000+n FROM generate_series(1,106) n;
     UPDATE student_portal.account SET auth_state='active' WHERE closed_at IS NULL;
     SELECT * FROM student_portal.synchronize_profiles_v1(false);`, [], { prepare: false });
-  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql', '0024_seal_count_cache_v1.sql'])
+  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql', '0024_seal_count_cache_v1.sql',
+    '0026_publication_source_retention_v1.sql'])
     await owner.unsafe(readFileSync('migrations/student-portal/' + migration, 'utf8'), [], { prepare: false });
   portal = measured(client('student_portal_app') as unknown as StudentPortalPostgresSqlV1);
   peer = client('student_portal_app') as unknown as StudentPortalPostgresSqlV1;
@@ -349,6 +352,39 @@ it('auto-updates only approved periods and freezes the last automatic edition wh
   await policy({ autoUpdate: false });
   await preparedChange(11000);
   expect(await score()).toMatchObject({ value: 10 });
+});
+// Owner request of 14/10/2026: editions no publication target can reach are removed.
+it('prunes unreachable editions and keeps the approved and the newest ones', async () => {
+  await preparedChange(8100);
+  await release();
+  await preparedChange(8200);
+  await preparedChange(8300);
+  const before = await editions();
+  expect(await prune()).toBeGreaterThan(0);
+  expect(await editions()).toBeLessThan(before);
+  expect(await score()).toMatchObject({ value: 8.1 });
+  expect(await prune()).toBe(0);
+  await release(READ_SCHOOL_V2, 'publish-update');
+  expect(await score()).toMatchObject({ value: 8.3 });
+});
+it('keeps the frozen automatic edition after auto-update is turned off when pruning', async () => {
+  await release();
+  await policy({ autoUpdate: true });
+  await preparedChange(10000);
+  await policy({ autoUpdate: false });
+  await preparedChange(11000);
+  await preparedChange(12000);
+  await prune();
+  expect(await score()).toMatchObject({ value: 10 });
+  await release(READ_SCHOOL_V2, 'publish-update');
+  expect(await score()).toMatchObject({ value: 12 });
+});
+it('lets only the Portal role run the pruning, never the Banco or client roles', async () => {
+  const rows = await owner.unsafe(`SELECT r.rolname, has_function_privilege(r.rolname, 'student_portal.prune_publication_source_v1()', 'EXECUTE') AS allowed
+    FROM pg_roles r WHERE r.rolname IN ('student_portal_app','gradebook_app','anon','authenticated') ORDER BY 1`);
+  const allowed = Object.fromEntries(rows.map((row) => [row.rolname, row.allowed]));
+  expect(allowed.student_portal_app).toBe(true);
+  for (const role of ['gradebook_app', 'anon', 'authenticated']) if (role in allowed) expect(allowed[role]).toBe(false);
 });
 it('withdraws a scope immediately and honors a later deliberate scoped release', async () => {
   await release();
