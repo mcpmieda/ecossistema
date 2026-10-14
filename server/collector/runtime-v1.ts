@@ -17,7 +17,7 @@ export type CollectorRuntimeDependenciesV1={database?:(connectionString:string)=
   fetch?:typeof fetch;now?:()=>number;assertion?:()=>Promise<string>;verify?:typeof verifyIdToken};
 async function database(connectionString:string):Promise<CollectorDatabaseV1>{
   const {default:postgres}=await import('postgres');
-  const sql=postgres(connectionString,{max:1,fetch_types:false,prepare:false,connect_timeout:8,idle_timeout:2,max_lifetime:30,
+  const sql=postgres(connectionString,{max:1,fetch_types:false,prepare:true,connect_timeout:8,idle_timeout:2,max_lifetime:30,
     connection:{application_name:'ecossistema-collector',statement_timeout:10_000,lock_timeout:3000,idle_in_transaction_session_timeout:10_000}});
   return {query:async<T extends Record<string,unknown>>(text:string,parameters:unknown[])=>
     Array.from(await sql.unsafe(text,parameters as never[])) as T[],close:async()=>{await sql.end({timeout:3});}};
