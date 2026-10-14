@@ -94,6 +94,7 @@ it('does not suppress privacy retention when the independent outbox cleanup fail
 });
 
 it('prunes unreachable publication editions even when an earlier cleanup fails', async () => {
+  vi.setSystemTime(new Date('2026-10-02T03:00:00Z'));
   const unsafe = vi.fn(async (query: string) => {
     if (query.includes('live_event_outbox_v1')) throw new Error('synthetic-missing-outbox');
     return [];
@@ -102,6 +103,21 @@ it('prunes unreachable publication editions even when an earlier cleanup fails',
   mocks.database.mockImplementation(async (_env, _operation, run) => run(sql));
   await portalScheduledV1(env).catch(() => undefined);
   expect(unsafe.mock.calls.some(([query]) => query === 'SELECT student_portal.prune_publication_source_v1()')).toBe(true);
+});
+
+it('prunes publication editions only at midnight in Brasília', async () => {
+  const unsafe = vi.fn(async (_query: string) => []);
+  const sql = { unsafe, begin: async (run: (tx: { unsafe: typeof unsafe }) => unknown) => run({ unsafe }) };
+  mocks.database.mockImplementation(async (_env, _operation, run) => run(sql));
+  const pruned = () => unsafe.mock.calls.filter(([query]) => query === 'SELECT student_portal.prune_publication_source_v1()').length;
+  for (const instant of ['2026-10-01T12:00:00Z', '2026-10-02T00:00:00Z', '2026-10-02T03:01:00Z']) {
+    vi.setSystemTime(new Date(instant));
+    await portalScheduledV1(env);
+  }
+  expect(pruned()).toBe(0);
+  vi.setSystemTime(new Date('2026-10-02T03:00:00Z'));
+  await portalScheduledV1(env);
+  expect(pruned()).toBe(1);
 });
 
 it('the private drain accepts only a fresh same-tenant BN capability in a serving production deployment', () => {
