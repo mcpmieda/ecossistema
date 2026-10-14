@@ -25,8 +25,16 @@ export function SectionLinksV1({
     else if (bounds.right > viewport.right) container.scrollLeft += bounds.right - viewport.right;
   }, [label, section]);
 
-  function moveFocus(event: KeyboardEvent<HTMLAnchorElement>, id: string) {
-    if (event.altKey || event.ctrlKey || event.metaKey) return;
+  function handleKeyDown(event: KeyboardEvent<HTMLAnchorElement>, id: string) {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
+    if (event.key === 'Enter') {
+      // Preserve browser shortcuts. Plain Enter uses exactly the same guarded click as a
+      // pointer, without depending on an implicit keypress activation or firing it twice.
+      if (event.shiftKey) return;
+      event.preventDefault();
+      if (!event.repeat) event.currentTarget.click();
+      return;
+    }
     const index = sections.findIndex((item) => item.id === id);
     let next: number;
     if (event.key === 'Home') next = 0;
@@ -64,7 +72,7 @@ export function SectionLinksV1({
                 onClick={(event) => {
                   if (!allowDraftNavigationV1()) event.preventDefault();
                 }}
-                onKeyDown={(event) => moveFocus(event, item.id)}
+                onKeyDown={(event) => handleKeyDown(event, item.id)}
               >
                 {item.label}
                 {selected && <span className="tabs__indicator" aria-hidden="true" />}
