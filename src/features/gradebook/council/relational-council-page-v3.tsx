@@ -190,7 +190,7 @@ export function RelationalCouncilPageV3() {
   }
 
   return <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-4">
-    <header className="flex min-h-12 flex-wrap items-center gap-3"><div><h2 className="text-xl font-semibold tracking-[-0.03em]">Conselho de Classe</h2><p className="text-xs text-muted">Deliberação humana auditável sobre a elegibilidade calculada do ano selecionado.</p></div>
+    <header className="flex min-h-12 flex-wrap items-center gap-3"><div><h2 className="sr-only">Conselho de Classe</h2><p className="text-xs text-muted">Deliberação humana auditável sobre a elegibilidade calculada do ano selecionado.</p></div>
       <Chip size="sm" variant="soft" color="accent" className="ml-auto"><Chip.Label>{state.year} · decisão explícita</Chip.Label></Chip></header>
     <Surface className="council-filterbar"><div className="min-w-0 flex-1"><CouncilClassSelect value={state.classId} disabled={state.busy.classes || state.busy.command} classes={state.classes} onChange={(value) => void state.selectClass(value)}/></div>
       {state.failure && state.classId !== null ? <Button variant="secondary" isDisabled={state.busy.workspace || state.busy.command || protectDrafts} onPress={() => void state.loadWorkspace(state.classId!)}><RefreshCw size={16}/>Tentar novamente</Button> : null}</Surface>

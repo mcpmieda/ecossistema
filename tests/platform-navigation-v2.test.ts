@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  importAreaSectionsV1,
   mainNavigationAreasV1,
   serviceSectionFromHashV2,
   serviceSectionsV2,
@@ -13,7 +14,7 @@ import {
 } from '../src/platform/student-portal-module';
 
 describe('shell navigation of 07/10/2026', () => {
-  it('lists the sections of the open service in the side column and none for a plain area', () => {
+  it('lists the sections of the open service and none for a plain area', () => {
     expect(serviceSectionsV2('painel-do-aluno').map((section) => section.label)).toEqual([
       'Visão geral',
       'Alunos',
@@ -22,10 +23,17 @@ describe('shell navigation of 07/10/2026', () => {
       'Auditoria',
       'Configurações',
     ]);
-    expect(serviceSectionsV2('banco-de-notas')[0]).toMatchObject({
-      id: 'audit',
-      href: '#/banco-de-notas?area=audit',
-    });
+    expect(serviceSectionsV2('banco-de-notas').map((section) => section.id)).toEqual([
+      'performance',
+      'bulletins',
+      'council',
+      'settings',
+    ]);
+    // Auditoria of the Banco de notas sits under Importação, at its unchanged address.
+    expect(importAreaSectionsV1().map((section) => [section.label, section.href])).toEqual([
+      ['Importação', '#/banco-de-notas?area=importacao'],
+      ['Auditoria', '#/banco-de-notas?area=audit'],
+    ]);
     expect(serviceSectionsV2('banco-de-notas').some((section) => section.id === 'reports')).toBe(
       false,
     );
@@ -74,6 +82,7 @@ describe('independent main entries', () => {
       ['painel-do-aluno', 'reconciliation', 'Conciliação'],
       ['painel-do-aluno', 'accounts', 'Painel do Aluno'],
       ['banco-de-notas', 'importacao', 'Importação'],
+      ['banco-de-notas', 'audit', 'Importação'],
       ['banco-de-notas', 'performance', 'Banco de notas'],
     ] as const) {
       const areas = mainNavigationAreasV1([STUDENT_PORTAL_MODULE], route, section);
@@ -100,7 +109,7 @@ describe('independent main entries', () => {
   });
 });
 
-describe('side-only shell of 08/10/2026', () => {
+describe('shell with a side column and a top bar', () => {
   const read = (path: string) => readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
   const app = read('src/App.tsx');
   const styles = read('src/styles.css');
@@ -114,11 +123,28 @@ describe('side-only shell of 08/10/2026', () => {
     expect(app).toContain("window.matchMedia('(min-width: 901px)')");
   });
 
-  it('lets the search results open over the page instead of being cut by the side column', () => {
-    const rule = styles.slice(styles.lastIndexOf('.shell-side__search .platform-search-popover {'));
-    expect(rule.slice(0, rule.indexOf('}'))).toContain('min-width: 0;');
-    expect(styles).toMatch(/\.platform-shell--v2 \.shell-aside \{\n\s+overflow: visible;/u);
-    expect(styles).toMatch(/\.platform-shell--v2 \.shell-aside \{\n\s+z-index: 20;/u);
+  // The owner-requested tab appearance is retained with route-link semantics after the audit.
+  it('lists only areas in the side column and section links with tab styling in the top bar', () => {
+    const navigation = read('src/platform/navigation.tsx');
+    const sectionLinks = read('src/platform/section-links-v1.tsx');
+    // The bar of the site holds the brand, the search and the profile; the bar of the open area
+    // holds its name and its sections.
+    expect(app).toMatch(
+      /<div className="shell-areabar">\s+<ShellSectionTabsV1 route=\{route\} section=\{section\} modules=\{modules\} \/>/u,
+    );
+    expect(navigation).toContain(
+      '<SectionLinksV1 label={`Seções de ${area.name}`} section={section} sections={sections} />',
+    );
+    expect(sectionLinks).toContain('className="tabs tabs--secondary shell-sections__tabs"');
+    expect(sectionLinks).toContain('href={item.href}');
+    expect(sectionLinks).toContain("aria-current={selected ? 'page' : undefined}");
+    expect(sectionLinks).not.toContain('aria-controls');
+    expect(navigation).not.toContain('shell-side__sections');
+    expect(styles).not.toContain('.shell-side__search');
+    // On a computer the bar of the site spans the window and the column sits under it.
+    expect(styles).toMatch(
+      /\.platform-shell--v2 \.shell-aside \{\n\s+position: relative;\n\s+top: auto;\n\s+grid-row: 1 \/ span 3;/u,
+    );
   });
 
   it('drops a matrix search when its field is hidden on phones', () => {

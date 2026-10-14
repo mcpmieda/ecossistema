@@ -115,6 +115,19 @@ async function createBackend(server: ViteDevServer) {
       skipped.push(`${file}: ${error instanceof Error ? error.message : 'erro'}`);
     }
   }
+  // Desempenho, Conselho and Boletins read the student's display name from the reconciliation
+  // view. Its migration needs the Portal lineage; without it the preview shows the Relação name.
+  try {
+    await pg.exec(
+      readFileSync(path.join(MIGRATIONS, '0015_student_reconciliation_v1.sql'), 'utf8'),
+    );
+  } catch (error) {
+    await pg.exec('ROLLBACK').catch(() => undefined);
+    skipped.push(`0015: ${error instanceof Error ? error.message : 'erro'}`);
+    await pg.exec(
+      'CREATE VIEW gradebook.student_presentation_v1 AS SELECT a.id AS student_id,a.ano AS academic_year,a.nome AS name FROM gradebook.aluno a',
+    );
+  }
   await pg.exec(SEED);
   const run = async (query: Query, text: string, values: readonly unknown[]) => {
     const result = await query(text, [...values]);

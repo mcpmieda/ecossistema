@@ -4,6 +4,6 @@
 .student-photo-panel__actions button { gap: .4rem; }
 .student-photo-panel__message { margin: 0; font-size: .875rem; line-height: 1.5; overflow-wrap: anywhere; }
 .student-photo-panel__preview { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1.5rem; padding-block: 1rem; }
-.student-photo-panel__portrait { width: min(12rem, 100%); aspect-ratio: 3 / 4; object-fit: cover; border-radius: .75rem; }
+.student-photo-panel__portrait { width: min(12rem, 100%); aspect-ratio: 3 / 4; object-fit: cover; border-radius: var(--radius-2xl); }
 .student-photo-panel__avatar { width: 6rem; aspect-ratio: 1; object-fit: cover; border-radius: 50%; }
 @media (max-width: 420px) { .student-photo-panel__identity { align-items: flex-start; } .student-photo-panel__actions { gap: .3rem; } }

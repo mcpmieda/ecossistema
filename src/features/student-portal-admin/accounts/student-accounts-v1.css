@@ -25,7 +25,7 @@
 .pa-account-qr-panel .radio {
   padding: 0.125rem 0.5rem;
   border: 0;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-2xl);
   background: var(--surface-tertiary);
   font-size: 0.75rem;
   line-height: 1rem;
@@ -182,7 +182,7 @@
 .pa-account-notice {
   padding: 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-2xl);
   display: grid;
   gap: 0.65rem;
 }
@@ -325,7 +325,7 @@
 }
 .pa-bulk-dialog__consequence {
   padding: 0.875rem 1rem;
-  border-radius: 0.875rem;
+  border-radius: var(--radius-2xl);
   background: var(--danger-soft, #fdecec);
   color: var(--danger-soft-foreground, #9f1d1d);
   font-weight: 500;
@@ -475,7 +475,7 @@
 }
 .pa-account-qr-mount:last-child,
 .pa-account-qr-mount:has(+ .pa-account-bulk-mount:empty) {
-  border-radius: 0.8rem;
+  border-radius: var(--radius-2xl);
 }
 .pa-account-qr-panel,
 .pa-account-bulk-section {

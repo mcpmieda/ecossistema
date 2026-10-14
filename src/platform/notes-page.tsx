@@ -68,7 +68,7 @@ export function NotesPage() {
         fallback={
           <Surface
             variant="secondary"
-            className="grid min-h-48 place-items-center rounded-[2rem] border border-border/60 p-6"
+            className="grid min-h-48 place-items-center rounded-3xl border border-border/60 p-6"
             role="status"
             aria-live="polite"
             aria-busy="true"
