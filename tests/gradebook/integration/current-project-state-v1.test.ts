@@ -47,6 +47,8 @@ const reconciliationCandidates = {
   gradebook: ['0015_student_reconciliation_v1.sql', '0016_reconciliation_year_reset_v1.sql'],
   portal: ['0025_reconciliation_credentials_v1.sql'],
 } as const;
+/** Retention of unreachable publication editions (owner request of 14/10/2026), not yet applied. */
+const retentionCandidate = '0026_publication_source_retention_v1.sql';
 
 describe('current canonical project state', () => {
   it('preserves the latest applied Gradebook migration separately from draft candidates', () => {
@@ -78,7 +80,10 @@ describe('current canonical project state', () => {
       join(root, 'docs/student-portal/PROJECT_STATE.yaml'),
     );
     const latest = migrationFiles('migrations/student-portal')
-      .filter((file) => !new Set<string>(reconciliationCandidates.portal).has(file))
+      .filter(
+        (file) =>
+          !new Set<string>([...reconciliationCandidates.portal, retentionCandidate]).has(file),
+      )
       .at(-1);
     expect(latest).toBe('0024_seal_count_cache_v1.sql');
     expect(gradebookState).toMatchObject({
@@ -155,8 +160,11 @@ describe('current canonical project state', () => {
       ),
     ).toEqual(reconciliationCandidates.gradebook);
     expect(
-      migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) > 24),
+      migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) === 25),
     ).toEqual(reconciliationCandidates.portal);
+    expect(
+      migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) > 25),
+    ).toEqual([retentionCandidate]);
     const contract = source('docs/student-identity/RECONCILIATION_V1.md');
     const order = [
       'gradebook-simplified/0015_student_reconciliation_v1.sql',

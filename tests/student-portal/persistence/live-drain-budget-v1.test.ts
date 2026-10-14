@@ -93,6 +93,17 @@ it('does not suppress privacy retention when the independent outbox cleanup fail
   expect(recordedFailure).toMatchObject({ message: 'student-portal-cleanup-unavailable' });
 });
 
+it('prunes unreachable publication editions even when an earlier cleanup fails', async () => {
+  const unsafe = vi.fn(async (query: string) => {
+    if (query.includes('live_event_outbox_v1')) throw new Error('synthetic-missing-outbox');
+    return [];
+  });
+  const sql = { unsafe, begin: async (run: (tx: { unsafe: typeof unsafe }) => unknown) => run({ unsafe }) };
+  mocks.database.mockImplementation(async (_env, _operation, run) => run(sql));
+  await portalScheduledV1(env).catch(() => undefined);
+  expect(unsafe.mock.calls.some(([query]) => query === 'SELECT student_portal.prune_publication_source_v1()')).toBe(true);
+});
+
 it('the private drain accepts only a fresh same-tenant BN capability in a serving production deployment', () => {
   expect(allowPortalLiveDrainV1(env, context())).toBe(true);
   for (const input of [{}, { ...context(), capability: 'platform.settings.write' },

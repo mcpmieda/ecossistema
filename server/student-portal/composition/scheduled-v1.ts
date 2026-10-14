@@ -3,7 +3,8 @@ import { cleanupPortalV1 } from '../maintenance/retention-v1';
 import type { PortalCompositionEnvV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 
-/** Privacy retention is the only scheduled work; scoped releases are read on demand. */
+/** Retention is the only scheduled work (privacy, reconciliation leftovers and publication editions
+ * no target can reach); scoped releases are read on demand. */
 export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<void> {
   if (env.PORTAL_ENVIRONMENT !== 'production' || env.PORTAL_SERVING_ENABLED !== 'true') return;
   try {
@@ -18,6 +19,10 @@ export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<vo
       } catch { failed = true; }
       try {
         await sql.begin((tx) => Promise.resolve(tx.unsafe('SELECT student_portal.cleanup_reconciliation_pending_v1(100)')));
+      } catch { failed = true; }
+      // Editions no publication target can reach any more (owner request of 14/10/2026).
+      try {
+        await sql.begin((tx) => Promise.resolve(tx.unsafe('SELECT student_portal.prune_publication_source_v1()')));
       } catch { failed = true; }
       if (failed) throw new Error('student-portal-cleanup-unavailable');
     });
