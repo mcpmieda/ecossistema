@@ -3,10 +3,10 @@ import {
   Alert, Avatar, Button, Chip, Description, Dropdown,
   Label, Separator, Spinner, Surface,
 } from '@heroui/react';
-import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
+import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, PanelLeft, ShieldCheck, X } from 'lucide-react';
 import { normalizePlatformRoute, type PlatformRoute } from '../shared/platform-contract';
 import { platformRouteNeedsMicrosoftV2, platformRouteUnavailableV2 } from '../shared/platform-snapshot-v2';
-import { ShellSidebarV3, serviceSectionFromHashV2 } from './platform/navigation';
+import { ShellAreaNameV1, ShellSectionTabsV1, ShellSidebarV3, serviceSectionFromHashV2 } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { SCHOOL_NAME_V1 } from './shared/brand/school-mark-v1';
@@ -47,6 +47,19 @@ function useLocationHash(): string {
   }, []);
   return hash;
 }
+/** The side column collapsed to its icons, remembered in this browser (owner request of 13/10/2026). */
+const SIDE_COLLAPSED_KEY_V1 = 'centro.side-collapsed.v1';
+function useSideCollapsedV1(): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return window.localStorage.getItem(SIDE_COLLAPSED_KEY_V1) === '1'; } catch { return false; }
+  });
+  const toggle = () => setCollapsed((current) => {
+    // Storage can be unavailable (private window, blocked data): the choice then lasts for the visit.
+    try { window.localStorage.setItem(SIDE_COLLAPSED_KEY_V1, current ? '0' : '1'); } catch { /* kept in memory */ }
+    return !current;
+  });
+  return [collapsed, toggle];
+}
 function MicrosoftMark() {
   return <span className="grid size-4 grid-cols-2 gap-px" aria-hidden="true">
     <span className="bg-current" /><span className="bg-current" /><span className="bg-current" /><span className="bg-current" />
@@ -60,7 +73,7 @@ function SessionCheckExperience() {
 function LoginExperience({ loading }: { loading: boolean }) {
   return (
     <main className="platform-shell grid min-h-svh place-items-center px-4 py-6 sm:px-6 lg:px-8">
-      <Surface className="login-stage grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-border/70 lg:grid-cols-[1.08fr_.92fr]">
+      <Surface className="login-stage grid w-full max-w-5xl overflow-hidden rounded-3xl border border-border/70 lg:grid-cols-[1.08fr_.92fr]">
         <Surface variant="secondary" className="login-intro hidden min-h-[600px] flex-col justify-between rounded-none border-0 p-10 shadow-none lg:flex">
           <div>
             <BrandMark />
@@ -106,7 +119,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
 }
 function AuthErrorExperience({ correlationId }: AuthFailure) {
   return <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
-    <Surface variant="default" className="platform-card-surface w-full max-w-xl rounded-[2rem] p-6 sm:p-8">
+    <Surface variant="default" className="platform-card-surface w-full max-w-xl rounded-3xl p-6 sm:p-8">
       <Chip color="danger" variant="soft" size="sm">Entrada não concluída</Chip>
       <Alert status="danger" className="mt-5"><Alert.Indicator /><Alert.Content>
         <Alert.Title>Não foi possível concluir sua entrada.</Alert.Title>
@@ -119,7 +132,7 @@ function AuthErrorExperience({ correlationId }: AuthFailure) {
 }
 function RestrictedExperience({ name }: { name?: string }) {
   return <main className="platform-shell grid min-h-svh place-items-center p-4">
-    <Surface variant="default" className="platform-card-surface w-full max-w-2xl rounded-[2rem] p-6 sm:p-8">
+    <Surface variant="default" className="platform-card-surface w-full max-w-2xl rounded-3xl p-6 sm:p-8">
       <Chip color="warning" variant="soft" size="sm">Acesso restrito</Chip>
       <Alert status="warning" className="mt-5"><Alert.Indicator /><Alert.Content>
         <Alert.Title>Você não tem acesso a esta área</Alert.Title>
@@ -142,6 +155,7 @@ function AdminShell({ identity }: { identity: Identity }) {
   // On phones the side column is a drawer; it closes when the address changes.
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { setMenuOpen(false); }, [hash]);
+  const [sideCollapsed, toggleSide] = useSideCollapsedV1();
   const drawerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -150,10 +164,12 @@ function AdminShell({ identity }: { identity: Identity }) {
     if (!menuOpen) return;
     const drawer = drawerRef.current;
     const main = mainRef.current;
-    // Everything but the drawer is inert while it is open: the page and the whole top bar.
+    // Everything but the drawer is inert while it is open: the page and the two bars above it.
     const bar = document.querySelector<HTMLElement>('.shell-topbar');
+    const areaBar = document.querySelector<HTMLElement>('.shell-areabar');
     main?.setAttribute('inert', '');
     bar?.setAttribute('inert', '');
+    areaBar?.setAttribute('inert', '');
     (drawer?.querySelector<HTMLElement>(".shell-side__area[data-open='true']") ??
       drawer?.querySelector<HTMLElement>('.shell-side__area'))?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
@@ -161,9 +177,9 @@ function AdminShell({ identity }: { identity: Identity }) {
       if (event.key !== 'Tab' || !drawer) return;
       // Tab and Shift+Tab stay inside the drawer.
       const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]
-        // Only what can really take focus: nothing hidden by the styles (the column's search and
-        // profile are not shown in the phone drawer) and nothing inside an inert branch.
-        .filter((item) => item.tabIndex >= 0 && !item.closest('.shell-side__search, .shell-side__profile, [inert]') &&
+        // Only what can really take focus: nothing hidden by the styles and nothing inside an
+        // inert branch.
+        .filter((item) => item.tabIndex >= 0 && !item.closest('[inert]') &&
           (typeof item.checkVisibility !== 'function' || item.checkVisibility()));
       const first = stops[0], last = stops.at(-1);
       if (!first || !last) return;
@@ -182,12 +198,16 @@ function AdminShell({ identity }: { identity: Identity }) {
       wide?.removeEventListener('change', onWide);
       main?.removeAttribute('inert');
       bar?.removeAttribute('inert');
+      areaBar?.removeAttribute('inert');
       menuButtonRef.current?.focus();
     };
   }, [menuOpen]);
   const section = serviceSectionFromHashV2(route, hash);
   const native = !platformRouteNeedsMicrosoftV2(route, section);
-  const showPage = loadState.status === 'ready' && (native || (
+  // Settings mixes a native PostgreSQL year selector/session controls and external cards.
+  // Keep the native controls mounted; each Microsoft card applies its own availability gate.
+  const mixedSettings = route === 'configuracoes';
+  const showPage = loadState.status === 'ready' && (native || mixedSettings || (
     (loadState.auxiliary === 'ready' || loadState.auxiliary === 'partial')
     && !platformRouteUnavailableV2(route, loadState.snapshot, section)
   ));
@@ -211,24 +231,33 @@ function AdminShell({ identity }: { identity: Identity }) {
             </Dropdown>
   );
   return (
-    <div className="platform-shell platform-shell--v2 min-h-svh">
+    <div className="platform-shell platform-shell--v2 min-h-svh" data-side={sideCollapsed ? 'collapsed' : undefined}>
       <Surface variant="default" className="platform-topbar shell-topbar sticky top-0 z-30 rounded-none">
         <Button ref={menuButtonRef} variant="ghost" size="md" isIconOnly className="shell-menu-button" aria-controls="shell-drawer" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} onPress={() => setMenuOpen((open) => !open)}>
           {menuOpen ? <X /> : <Menu />}
         </Button>
-        <a href="#/banco-de-notas" className="shell-brand text-foreground no-underline" aria-label="Ir para o início do Centro de Administração">
-          <BrandMark compact />
-          <span className="shell-brand__name">
-            <span>Centro de Administração</span>
-            <small>Escola Mun. Prof.ª Iêda Alves de Oliveira · MCPM</small>
-          </span>
-        </a>
+        <Button variant="ghost" size="md" isIconOnly className="shell-collapse-button" aria-controls="shell-drawer" aria-label={sideCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'} aria-pressed={sideCollapsed} onPress={toggleSide}>
+          <PanelLeft />
+        </Button>
+        <div className="shell-path">
+          <a href="#/banco-de-notas" className="shell-brand text-foreground no-underline" aria-label="Ir para o início do Centro de Administração">
+            <BrandMark compact />
+            <span className="shell-brand__name">
+              <span>Centro de Administração</span>
+              <small>Escola Mun. Prof.ª Iêda Alves de Oliveira · MCPM</small>
+            </span>
+          </a>
+          <ShellAreaNameV1 route={route} section={section} modules={modules} />
+        </div>
         <div className="shell-tools">
             <PlatformSearch snapshot={snapshot} />
             <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
             {profileMenu}
         </div>
       </Surface>
+      <div className="shell-areabar">
+        <ShellSectionTabsV1 route={route} section={section} modules={modules} />
+      </div>
       <div className="shell-body shell-body--service">
         {menuOpen && <button type="button" className="shell-drawer-backdrop" tabIndex={-1} aria-hidden="true" onClick={() => setMenuOpen(false)} />}
         <aside ref={drawerRef} id="shell-drawer" className="shell-aside" data-open={menuOpen ? 'true' : undefined} {...(menuOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menu do Centro' } : {})}>
@@ -241,30 +270,31 @@ function AdminShell({ identity }: { identity: Identity }) {
             brand={
               <a href="#/banco-de-notas" className="shell-side__brand-link text-foreground no-underline" aria-label="Ir para o início do Centro de Administração">
                 <BrandMark compact />
-                <span>Centro de Administração</span>
+                <span className="shell-side__brand-name">
+                  <span>Centro de Administração</span>
+                  <small>{SCHOOL_NAME_V1}</small>
+                </span>
               </a>
             }
-            search={<PlatformSearch snapshot={snapshot} />}
-            profile={profileMenu}
           />
         </aside>
         <main ref={mainRef} className="shell-main shell-main--service">
           <DraftUpdatesNoticeV1 />
           {loadState.status === 'loading' && <LoadingWorkspace />}
-          {loadState.status === 'error' && <Surface variant="default" className="platform-card-surface max-w-3xl rounded-[2rem] p-5 sm:p-7">
+          {loadState.status === 'error' && <Surface variant="default" className="platform-card-surface max-w-3xl rounded-3xl p-5 sm:p-7">
             <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Title>Não foi possível carregar o Centro</Alert.Title><Alert.Description>{loadState.message}</Alert.Description></Alert.Content></Alert>
             <div className="mt-5 flex flex-wrap items-center gap-3"><Button variant="outline" onPress={() => { void reload(); }}>Tentar novamente</Button>
               {loadState.correlationId && <Chip variant="soft" size="sm" className="font-mono">Correlação: {loadState.correlationId}</Chip>}
             </div>
           </Surface>}
-          {loadState.status === 'ready' && !native && loadState.auxiliary === 'loading' && <LoadingWorkspace />}
+          {loadState.status === 'ready' && !native && !mixedSettings && loadState.auxiliary === 'loading' && <LoadingWorkspace />}
           {loadState.status === 'ready' && !showPage && loadState.auxiliary !== 'loading' && <Alert status="warning">
             <Alert.Indicator /><Alert.Content><Alert.Title>Informações desta área temporariamente indisponíveis</Alert.Title>
               <Alert.Description>{loadState.auxiliaryMessage} A consulta será refeita automaticamente.</Alert.Description>
             </Alert.Content>
           </Alert>}
           {showPage && loadState.status === 'ready' && <div key={route} className="route-stage">
-            <PageContent route={route} section={section} snapshot={snapshot ?? loadState.snapshot} />
+            <PageContent route={route} section={section} snapshot={snapshot ?? loadState.snapshot} auxiliary={loadState.auxiliary} />
             <Separator className="mt-8" />
             <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center"><span>Centro de Administração · {SCHOOL_NAME_V1}</span><span className="sm:text-right">Atualizado em {formatDate(loadState.snapshot.generatedAt)}</span></footer>
           </div>}
@@ -278,7 +308,7 @@ export function App() {
   const { identity, accessError, retry, recheck } = usePlatformIdentityV1();
   const authFailure = authFailureFromUrl();
   if (accessError) return <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
-    <Surface className="platform-card-surface w-full max-w-xl rounded-[2rem] p-6 sm:p-8"><Alert status="warning"><Alert.Indicator /><Alert.Content>
+    <Surface className="platform-card-surface w-full max-w-xl rounded-3xl p-6 sm:p-8"><Alert status="warning"><Alert.Indicator /><Alert.Content>
       <Alert.Title>Não foi possível verificar seu acesso.</Alert.Title><Alert.Description>Confira sua conexão e tente novamente em instantes.</Alert.Description>
     </Alert.Content></Alert><Button variant="outline" className="mt-5" onPress={retry}>Tentar novamente</Button></Surface>
   </main>;

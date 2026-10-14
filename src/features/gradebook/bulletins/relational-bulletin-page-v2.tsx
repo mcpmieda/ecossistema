@@ -838,7 +838,7 @@ export function RelationalBulletinPageV2() {
     <section aria-label="Boletins relacionais" className="grid min-w-0 gap-4">
       <header className="flex min-h-12 flex-wrap items-center gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-[-0.03em]">Boletins</h2>
+          <h2 className="sr-only">Boletins</h2>
           <p className="text-xs text-muted">
             AM/U oficiais da fonte, cálculo comparativo e histórico imutável.
           </p>

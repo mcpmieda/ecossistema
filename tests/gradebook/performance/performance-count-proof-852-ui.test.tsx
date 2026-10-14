@@ -568,9 +568,12 @@ it('renders every Notas V5 component bar, class panorama and completeness KPI fr
   expect(kpis[2]?.textContent).toContain(
     number.format(completePercent) + '%completos',
   );
-  expect(kpis[3]?.textContent).toContain(
-    dashboard.overview.students.pending + 'com pendências',
-  );
+  // The fourth indicator only exists while some student waits for a classification.
+  if (dashboard.overview.students.pending > 0)
+    expect(kpis[3]?.textContent).toContain(
+      dashboard.overview.students.pending + 'com pendências',
+    );
+  else expect(kpis).toHaveLength(3);
 
   const offers = new Map(analysis.matrix.offers.map((offer) => [offer.id, offer]));
   for (const column of dashboard.overview.columns) {

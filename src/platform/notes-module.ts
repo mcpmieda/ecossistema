@@ -24,6 +24,7 @@ export const defaultNotesSectionId = 'importacao';
 const notesHref = platformHref('banco-de-notas');
 const notesAreaHref = (area: string): string => `${notesHref}?area=${encodeURIComponent(area)}`;
 
+/** In the order of the tabs: Desempenho first and Auditoria beside Configurações (owner request of 13/10/2026). */
 export const notesSections: NotesSection[] = [
   {
     id: defaultNotesSectionId,
@@ -31,13 +32,6 @@ export const notesSections: NotesSection[] = [
     description: 'Importar e reconhecer planilhas de notas XLSB, XLSX e XLS.',
     href: notesHref,
     searchTerms: 'importar importação planilha planilhas xlsb xlsx xls leitor reconhecimento',
-  },
-  {
-    id: 'audit',
-    label: 'Auditoria',
-    description: 'Revisar ocorrências, reconciliações, histórico e resoluções.',
-    href: notesAreaHref('audit'),
-    searchTerms: 'auditoria ocorrência reconciliação resolução divergência histórico',
   },
   {
     id: 'performance',
@@ -59,6 +53,13 @@ export const notesSections: NotesSection[] = [
     description: 'Abrir fila, decisões e fechamento institucional do Conselho de Classe.',
     href: notesAreaHref('council'),
     searchTerms: 'conselho classe fila elegibilidade decisão anual fechamento votação histórico',
+  },
+  {
+    id: 'audit',
+    label: 'Auditoria',
+    description: 'Revisar ocorrências, reconciliações, histórico e resoluções.',
+    href: notesAreaHref('audit'),
+    searchTerms: 'auditoria ocorrência reconciliação resolução divergência histórico',
   },
   {
     id: 'settings',

@@ -38,7 +38,13 @@ const snapshot = () =>
     },
     PLATFORM_CAPABILITIES,
   );
+// jsdom has no Web Animations, which HeroUI controls may request.
+const animations = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
 beforeEach(() => {
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  });
   mounts.mockClear();
   window.history.replaceState(null, '', '/#/banco-de-notas');
   vi.stubGlobal('matchMedia', () => ({
@@ -59,6 +65,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  if (animations) Object.defineProperty(Element.prototype, 'getAnimations', animations);
+  else Reflect.deleteProperty(Element.prototype, 'getAnimations');
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -77,13 +85,14 @@ it('uses independent main links without remounting Importação and respects int
   );
   render(<App />);
   const input = await screen.findByRole('textbox', { name: 'workspace-banco-de-notas' });
+  const main = within(screen.getByRole('navigation', { name: 'Navegação principal' }));
   const user = userEvent.setup();
   await user.type(input, 'interrupted synthetic import');
-  await user.click(screen.getByRole('link', { name: 'Banco de notas' }));
+  await user.click(main.getByRole('link', { name: 'Banco de notas' }));
   expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
-  await user.click(screen.getByRole('link', { name: 'Importação' }));
+  await user.click(main.getByRole('link', { name: 'Importação' }));
   expect(window.location.hash).toBe('#/banco-de-notas?area=importacao');
-  expect(screen.getByRole('link', { name: 'Importação' }).getAttribute('aria-current')).toBe(
+  expect(main.getByRole('link', { name: 'Importação' }).getAttribute('aria-current')).toBe(
     'page',
   );
   expect(screen.getByRole('textbox', { name: 'workspace-banco-de-notas' })).toBe(input);
@@ -91,20 +100,26 @@ it('uses independent main links without remounting Importação and respects int
   const block = (event: Event) => event.preventDefault();
   window.addEventListener('ecossistema-before-navigation', block);
   try {
-    await user.click(screen.getByRole('link', { name: 'Conciliação' }));
+    await user.click(main.getByRole('link', { name: 'Conciliação' }));
     expect(window.location.hash).toBe('#/banco-de-notas?area=importacao');
   } finally {
     window.removeEventListener('ecossistema-before-navigation', block);
   }
-  await user.click(screen.getByRole('link', { name: 'Conciliação' }));
+  await user.click(main.getByRole('link', { name: 'Conciliação' }));
   await screen.findByRole('textbox', { name: 'workspace-painel-do-aluno' });
-  expect(screen.getByRole('link', { name: 'Conciliação' }).getAttribute('aria-current')).toBe(
+  expect(main.getByRole('link', { name: 'Conciliação' }).getAttribute('aria-current')).toBe(
     'page',
   );
   expect(screen.queryByRole('link', { name: 'Acessos e QR' })).toBeNull();
-  await user.click(screen.getByRole('link', { name: 'Painel do Aluno' }));
-  expect(await screen.findAllByRole('link', { name: 'Alunos' })).toHaveLength(1);
-  expect(screen.getByRole('link', { name: 'Conciliação' })).toBeTruthy();
+  expect(screen.queryByRole('tab', { name: 'Acessos e QR' })).toBeNull();
+  await user.click(main.getByRole('link', { name: 'Painel do Aluno' }));
+  // The header links navigate by address; the side column still lists areas only.
+  const sections = within(await screen.findByRole('navigation', { name: 'Seções de Painel do Aluno' }));
+  expect(sections.getAllByRole('link', { name: 'Alunos' })).toHaveLength(1);
+  expect(main.queryByRole('link', { name: 'Alunos' })).toBeNull();
+  await user.click(sections.getByRole('link', { name: 'Sessões' }));
+  expect(window.location.hash).toBe('#/painel-do-aluno?area=sessions');
+  expect(main.getByRole('link', { name: 'Conciliação' })).toBeTruthy();
 });
 
 it.each([503, 401])(
@@ -204,12 +219,11 @@ it('keeps the keyboard inside the phone drawer, closes it on Escape and gives fo
   // The drawer holds one navigation only; no hidden copy of the old section row is a tab stop.
   expect(drawer.querySelector('.shell-sidenav')).toBeNull();
   expect(within(drawer).getAllByRole('navigation')).toHaveLength(1);
-  const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button')].filter(
-    (item) => !item.closest('.shell-side__search, .shell-side__profile'),
-  );
+  const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button')];
   const first = stops[0]!,
     last = stops.at(-1)!;
-  // The open area (Banco de notas) has sections, so the last stop is an area after them.
+  // The drawer lists areas only; section navigation remains in the top bar.
+  expect(drawer.querySelector('[role="tab"]')).toBeNull();
   expect(last.textContent).toBe('Configurações');
   // The two edges wrap inside the drawer.
   last.focus();

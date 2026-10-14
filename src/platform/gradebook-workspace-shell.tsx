@@ -23,12 +23,6 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
     description: 'Importe e reconheça planilhas sem persistir dados acadêmicos no navegador.',
   },
   {
-    id: 'audit',
-    label: 'Auditoria',
-    description:
-      'Entenda pendências atuais da fonte e as ações sugeridas, sem correção automática.',
-  },
-  {
     id: 'performance',
     label: 'Desempenho',
     description: 'Explore as lentes oficiais de desempenho sem recalcular resultados na interface.',
@@ -44,6 +38,12 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
     label: 'Conselho',
     description:
       'Abra a fila oficial, registre decisões humanas e feche a turma institucionalmente.',
+  },
+  {
+    id: 'audit',
+    label: 'Auditoria',
+    description:
+      'Entenda pendências atuais da fonte e as ações sugeridas, sem correção automática.',
   },
   {
     id: 'settings',
@@ -355,7 +355,7 @@ function GradebookWorkspaceShellContent() {
           </div>
         )}
         {/* Desempenho carries the year in its own header. */}
-        {activeSurface === 'performance' ? null : <GradebookYearContextBanner />}
+        {activeSurface === 'performance' ? null : <GradebookYearContextBanner failureOnly />}
       </div>
 
       <p className="sr-only" aria-live="polite">

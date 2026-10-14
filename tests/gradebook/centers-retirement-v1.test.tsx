@@ -122,15 +122,16 @@ describe('retirada da superfície Centrais', () => {
   );
 
   it('preserva o teclado entre as áreas restantes sem foco órfão', async () => {
-    window.history.replaceState(null, '', '#/banco-de-notas?area=audit');
+    // Order of 13/10/2026: Desempenho first, Auditoria beside Configurações.
+    window.history.replaceState(null, '', '#/banco-de-notas?area=performance');
     render(<GradebookWorkspaceShell />);
-    const first = screen.getByRole('tab', { name: 'Auditoria' });
+    const first = screen.getByRole('tab', { name: 'Desempenho' });
     first.focus();
     fireEvent.keyDown(first, { key: 'ArrowRight' });
-    const audit = screen.getByRole('tab', { name: 'Desempenho' });
-    await waitFor(() => expect(document.activeElement).toBe(audit));
-    expect(audit.getAttribute('aria-selected')).toBe('true');
-    fireEvent.keyDown(audit, { key: 'End' });
+    const next = screen.getByRole('tab', { name: 'Boletins' });
+    await waitFor(() => expect(document.activeElement).toBe(next));
+    expect(next.getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(next, { key: 'End' });
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Configurações' })),
     );
