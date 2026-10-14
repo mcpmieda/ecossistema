@@ -6,9 +6,11 @@ import {encodeBase64Url} from '../../server/auth/base64url';
 import type {RuntimeEnv} from '../../server/env';
 const tenant='11111111-1111-4111-8111-111111111111',client='22222222-2222-4222-8222-222222222222';
 const actor='33333333-3333-4333-8333-333333333333',group='44444444-4444-4444-8444-444444444444';
-const env:RuntimeEnv={TENANT_ID:tenant,WEB_CLIENT_ID:client,GRAPH_CLIENT_ID:client,GROUP_ADMIN_ID:group,
+// Wrangler's generated Env pins production UUID literals. This fixture deliberately
+// substitutes synthetic identities; it never reaches a real identity provider.
+const env={TENANT_ID:tenant,WEB_CLIENT_ID:client,GRAPH_CLIENT_ID:client,GROUP_ADMIN_ID:group,
   GROUP_PROFESSOR_ID:group,GROUP_ALUNO_ID:group,GROUP_APOIO_ID:group,GROUP_VISITANTE_ID:group,
-  SHAREPOINT_SITE_ID:'synthetic-site-not-contacted',SESSION_SECRET:'s'.repeat(43),OFFICIAL_ORIGIN:'https://admin.escolaieda.com'};
+  SHAREPOINT_SITE_ID:'synthetic-site-not-contacted',SESSION_SECRET:'s'.repeat(43),OFFICIAL_ORIGIN:'https://admin.escolaieda.com'} as unknown as RuntimeEnv;
 const json=(body:unknown,status=200)=>Response.json(body,{status});
 async function fixture(authTime:unknown='valid') {
   const now=Math.floor(Date.now()/1000)*1000;
