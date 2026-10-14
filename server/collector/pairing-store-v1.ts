@@ -1,0 +1,84 @@
+import {z} from 'zod';
+import type {CollectorSqlV1} from './authorization-store-v1';
+import type {CollectorOAuthTransactionV1,CollectorRegistrationV1} from './oauth-v1';
+import {collectorKeyThumbprintV1,collectorPublicKeyV1,type CollectorPublicKeyV1} from './device-proof-v1';
+
+export async function collectorOpaqueHashV1(value:string):Promise<string> {
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))))
+    .map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+const uuid=z.string().uuid(),hash=z.string().regex(/^[a-f0-9]{64}$/u);
+
+/** Owner-only SQL adapter. Browser and native metadata are separate from any
+ * Microsoft credential. Completion creates a new grant, never upserts an old
+ * authentication origin, and copies only the originally confirmed public key. */
+export class CollectorPairingStoreV1 {
+  constructor(private readonly sql:CollectorSqlV1){}
+
+  async create(input:{id:string;publicKey:CollectorPublicKeyV1;pollHash:string;displayCode:string;createdAt:number}):Promise<void>{
+    const publicKey=collectorPublicKeyV1.parse(input.publicKey),fingerprint=await collectorKeyThumbprintV1(publicKey);
+    await this.sql.query(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
+      VALUES($1,$2,$3,$4,$5,$6,$6::timestamptz+interval '10 minutes')`,[uuid.parse(input.id),JSON.stringify(publicKey),fingerprint,
+      hash.parse(input.pollHash),z.string().regex(/^[0-9]{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
+  }
+
+  async browserView(id:string):Promise<Record<string,unknown>|null>{
+    const rows=await this.sql.query(`SELECT id,key_thumbprint,display_code,state,expires_at
+      FROM collector_auth.pairings WHERE id=$1 AND expires_at>clock_timestamp() AND state='pending'`,[uuid.parse(id)]);
+    return rows.length===1?rows[0]!:null;
+  }
+
+  async confirm(transaction:CollectorOAuthTransactionV1):Promise<boolean>{
+    const rows=await this.sql.query(`UPDATE collector_auth.pairings SET state='confirmed',oauth_state_hash=$2,oauth_nonce_hash=$3
+      WHERE id=$1 AND state='pending' AND expires_at>clock_timestamp()
+        AND $4::timestamptz>clock_timestamp() AND $4::timestamptz<=expires_at RETURNING id`,
+      [uuid.parse(transaction.pairingId),await collectorOpaqueHashV1(transaction.state),await collectorOpaqueHashV1(transaction.nonce),
+        new Date(transaction.exp*1000).toISOString()]);
+    return rows.length===1;
+  }
+
+  async consumeConfirmedTransaction(transaction:CollectorOAuthTransactionV1):Promise<boolean>{
+    const rows=await this.sql.query(`UPDATE collector_auth.pairings SET state='exchanging',oauth_consumed_at=clock_timestamp()
+      WHERE id=$1 AND state='confirmed' AND oauth_state_hash=$2 AND oauth_nonce_hash=$3
+        AND oauth_consumed_at IS NULL AND expires_at>clock_timestamp() AND $4::timestamptz>clock_timestamp()
+      RETURNING id`,[uuid.parse(transaction.pairingId),await collectorOpaqueHashV1(transaction.state),
+      await collectorOpaqueHashV1(transaction.nonce),new Date(transaction.exp*1000).toISOString()]);
+    return rows.length===1;
+  }
+
+  async registerConfirmedPairing(input:CollectorRegistrationV1):Promise<boolean>{
+    const b=input.binding,d=input.directory;
+    if(d.tenantId!==b.tenantId || d.actorId!==b.actorId || d.grantId!==b.grantId || d.grantGeneration!==b.generation
+      || d.originAuthenticatedAt!==b.originAuthenticatedAt || d.directoryValidUntil-d.directoryCheckedAt!==300_000
+      || b.generation!==1 || b.version!==0) return false;
+    const deviceId=crypto.randomUUID();
+    const rows=await this.sql.query(`WITH pending AS MATERIALIZED (
+      SELECT id,public_key,key_thumbprint FROM collector_auth.pairings
+      WHERE id=$1 AND state='exchanging' AND oauth_consumed_at IS NOT NULL AND device_id IS NULL
+        AND expires_at>clock_timestamp() AND $8::timestamptz<=clock_timestamp()
+        AND $8::timestamptz+interval '5 minutes'>clock_timestamp() FOR UPDATE
+      ), granted AS (
+      INSERT INTO collector_auth.oauth_grants(id,tenant_id,actor_id,client_id,generation,credential_version,
+        origin_authenticated_at,encrypted_refresh,state,directory_authorized,directory_checked_at,directory_valid_until)
+      SELECT $2,$3,$4,$5,1,0,$6,$7,'active',true,$8,$8::timestamptz+interval '5 minutes' FROM pending RETURNING id
+      ), registered AS (
+      INSERT INTO collector_auth.devices(id,grant_id,tenant_id,actor_id,public_key,key_thumbprint,generation,created_at)
+      SELECT $9,g.id,$3,$4,p.public_key,p.key_thumbprint,1,clock_timestamp() FROM pending p CROSS JOIN granted g RETURNING id
+      ) UPDATE collector_auth.pairings p SET state='completed',device_id=r.id FROM registered r
+        WHERE p.id=$1 RETURNING p.id`,[uuid.parse(input.pairingId),uuid.parse(b.grantId),uuid.parse(b.tenantId),uuid.parse(b.actorId),
+      uuid.parse(b.clientId),new Date(b.originAuthenticatedAt).toISOString(),input.encryptedRefresh,
+      new Date(d.directoryCheckedAt).toISOString(),deviceId]);
+    return rows.length===1;
+  }
+
+  async poll(id:string,pollHash:string):Promise<{state:string;device_id:string|null}|null>{
+    const rows=await this.sql.query<{state:string;device_id:string|null}>(`SELECT state,device_id FROM collector_auth.pairings
+      WHERE id=$1 AND poll_hash=$2 AND expires_at>clock_timestamp()`,[uuid.parse(id),hash.parse(pollHash)]);
+    return rows.length===1?rows[0]!:null;
+  }
+
+  async cancel(id:string,pollHash:string):Promise<void>{
+    await this.sql.query(`UPDATE collector_auth.pairings SET state='cancelled',oauth_state_hash=NULL,oauth_nonce_hash=NULL
+      WHERE id=$1 AND poll_hash=$2 AND state IN ('pending','confirmed','exchanging')`,[uuid.parse(id),hash.parse(pollHash)]);
+  }
+}
