@@ -310,10 +310,10 @@ function SessionDurationSetting() {
   );
 }
 
-function SettingsPage({ snapshot, auxiliary }: {
+function SettingsPage({ snapshot, auxiliary }: Readonly<{
   snapshot: PlatformSnapshotV2;
   auxiliary: PlatformAuxiliaryStateV2;
-}) {
+}>) {
   return (
     <>
       <PageHeader

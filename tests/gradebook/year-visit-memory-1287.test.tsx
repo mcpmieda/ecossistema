@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { GradebookYearProvider } from '../../src/platform/gradebook-year-provider';
+import {
+  forgetGradebookYearV1,
+  GradebookYearProvider,
+} from '../../src/platform/gradebook-year-provider';
 import { useGradebookYear, type GradebookYearContextValue } from '../../src/platform/gradebook-year-context';
 
 const year = (value: number) => ({ year: value, minimumApprovalMilli: 60000, maxCouncilComponents: 2 });
@@ -25,8 +28,8 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetcher);
 });
 afterEach(() => {
-  act(() => scope?.clearAuthorization());
   cleanup();
+  forgetGradebookYearV1();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -120,7 +123,7 @@ it('does not let a delayed previous read overwrite state or visit memory', async
 });
 
 it.each(['ready', 'network-error'] as const)(
-  'keeps a consumer authorization loss authoritative over a delayed %s catalogue',
+  'keeps a consumer authorization loss over a delayed %s catalogue without dropping the year',
   async (outcome) => {
     const first = mount();
     await expectYear(2026);
@@ -140,8 +143,8 @@ it.each(['ready', 'network-error'] as const)(
       // An event already queued by the old selector must not restore its cached catalogue.
       staleSelection(2025);
     });
-    await expectYear('none');
-    expect(scope.years).toEqual([]);
+    // The year stays on screen (as before this PR); only the failure is new.
+    await expectYear(2025);
     expect(scope.loading).toBe(false);
     expect(scope.failure).toContain('não possui autorização');
     await act(async () => {
@@ -149,16 +152,15 @@ it.each(['ready', 'network-error'] as const)(
       else reject(new Error('synthetic-late-network-error'));
       await pending;
     });
-    await expectYear('none');
-    expect(scope.years).toEqual([]);
+    await expectYear(2025);
     expect(scope.loading).toBe(false);
     expect(scope.failure).toContain('não possui autorização');
-    // Only a fresh, successful request may restore the academic context.
+    // Only a fresh, successful request clears the failure; the chosen year is kept.
     await act(async () => { await scope.refreshYears(); });
-    await expectYear(2026);
+    await expectYear(2025);
     expect(scope.failure).toBeNull();
     first.unmount();
     mount();
-    await expectYear(2026);
+    await expectYear(2025);
   },
 );

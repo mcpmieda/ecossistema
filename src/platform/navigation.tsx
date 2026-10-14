@@ -245,11 +245,11 @@ export function ShellAreaNameV1({
   route,
   section,
   modules,
-}: {
+}: Readonly<{
   route: PlatformRoute;
   section: string;
   modules: CoreModuleContract[];
-}) {
+}>) {
   const area = mainNavigationAreasV1(modules, route, section).find((module) => module.open);
   return area ? <span className="shell-path__area">{area.name}</span> : null;
 }
@@ -259,11 +259,11 @@ export function ShellSectionTabsV1({
   route,
   section,
   modules,
-}: {
+}: Readonly<{
   route: PlatformRoute;
   section: string;
   modules: CoreModuleContract[];
-}) {
+}>) {
   const area = mainNavigationAreasV1(modules, route, section).find((module) => module.open);
   const sections = area?.sections ?? [];
   if (!area || sections.length === 0) return null;

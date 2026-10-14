@@ -29,10 +29,10 @@ export function MicrosoftSettingsSectionV1({
       </Card.Header>
       <Card.Content className="p-5 sm:p-6">
         {loading ? (
-          <p role="status" className="flex items-center gap-3 text-sm text-muted">
+          <output className="flex items-center gap-3 text-sm text-muted">
             <Spinner size="sm" />
             Consultando informações Microsoft…
-          </p>
+          </output>
         ) : (
           <Alert status="warning">
             <Alert.Indicator />

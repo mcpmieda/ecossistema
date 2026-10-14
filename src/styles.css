@@ -132,7 +132,8 @@ body {
 
 .login-stage,
 .platform-card-surface {
-  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
+  border: 1px solid rgb(255 255 255 / 0.9);
+  border-radius: var(--radius-3xl);
   background: var(--surface);
   box-shadow: var(--platform-shadow);
 }
@@ -1637,10 +1638,6 @@ button.performance-kpi__button:hover {
 
 /* Shell base. The services keep their own tab lists for standalone use; here they hide, because
    the top bar shows the sections of the open area (composition of 13/10/2026, further down). */
-.platform-shell--v2 {
-  --shell-top: 3.25rem;
-  --shell-aside: 13.5rem;
-}
 .shell-topbar {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -2088,6 +2085,7 @@ button.performance-kpi__button:hover {
 
 .performance-notes-bar__selects .select {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 0.4rem;
 }
@@ -2103,9 +2101,6 @@ button.performance-kpi__button:hover {
 .performance-workspace .tabs[data-orientation='horizontal'] > .performance-perspectives.tabs__list-container {
   width: 100%;
   align-self: stretch;
-}
-.performance-notes-bar__selects .select {
-  flex-direction: row;
 }
 .performance-workspace .performance-notes-bar > .tabs__list-container {
   flex: none;
@@ -2607,6 +2602,11 @@ button.performance-kpi__button:hover {
   border-radius: 0.85rem;
   background: var(--sheet-head);
   box-shadow: none;
+  /* The search stands out while it is in use (owner request of 13/10/2026). */
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
 }
 .platform-shell--v2 .shell-tools .profile-menu-trigger {
   min-height: 2.5rem;
@@ -2892,11 +2892,6 @@ button.performance-kpi__button:hover {
   }
 }
 
-.login-stage,
-.platform-card-surface {
-  border: 1px solid rgb(255 255 255 / 0.9);
-  border-radius: var(--radius-3xl);
-}
 /* The top bar names the open area, so the Painel do Aluno keeps its title for assistive
    technology only; a header left with nothing to show takes no room. */
 .platform-shell--v2 .pa-admin-header > h1,
@@ -3121,13 +3116,6 @@ button.performance-kpi__button:hover {
 /* The search shows no key hint; the shortcut itself keeps working (owner request of 13/10/2026). */
 .platform-shell--v2 .shell-tools .platform-search-desktop .platform-search-shortcut {
   display: none;
-}
-/* The search stands out while it is in use (owner request of 13/10/2026). */
-.platform-shell--v2 .shell-tools .search-field__group {
-  transition:
-    border-color 140ms ease,
-    box-shadow 140ms ease,
-    background-color 140ms ease;
 }
 .platform-shell--v2 .shell-tools .platform-search-desktop:focus-within .search-field__group {
   border-color: var(--accent);

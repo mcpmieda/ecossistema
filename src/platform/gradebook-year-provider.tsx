@@ -15,6 +15,11 @@ import {
  */
 let chosenYearV1: number | null = null;
 
+/** Forgets the year of this visit; tests use it to start each case from the catalogue. */
+export function forgetGradebookYearV1() {
+  chosenYearV1 = null;
+}
+
 export function GradebookYearProvider({ children }: { readonly children: ReactNode }) {
   const [year, setYear] = useState<number | null>(null);
   const [years, setYears] = useState<readonly WorkspaceYearV2[]>([]);
@@ -24,9 +29,14 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
   const requestSequence = useRef(0);
   const yearRef = useRef<number | null>(null);
   const clearAuthorization = useCallback(() => {
-    // A denial from an academic consumer also invalidates any older catalogue request.
-    // Otherwise its delayed success could restore the selection and dismiss this failure.
+    // A denial from an academic consumer keeps the year on screen, as before, but invalidates any
+    // older catalogue request: its delayed success must not dismiss this failure.
     requestSequence.current += 1;
+    setLoading(false);
+    setFailure('A sessão não possui autorização. Entre novamente com uma conta autorizada.');
+  }, []);
+  const forgetAuthorization = useCallback(() => {
+    // The catalogue itself denied access: nothing of the previous choice survives.
     chosenYearV1 = null;
     yearRef.current = null;
     setYears([]);
@@ -49,7 +59,7 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
   }, []);
   const selectYear = useCallback(
     (nextYear: number) => {
-      // Reject a stale selection callback immediately after access was cleared, before render.
+      // Reject a stale selection callback once access was withdrawn, before the next render.
       if (yearRef.current === null || !allowDraftNavigationV1()) return;
       if (!years.some((item) => item.year === nextYear)) return;
       if (yearRef.current === nextYear) return;
@@ -75,7 +85,7 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     }
     if (ticket !== requestSequence.current) return;
     if (response.state === 'not-authorized') {
-      clearAuthorization();
+      forgetAuthorization();
       return;
     }
     if (response.state !== 'ready' || response.operation !== 'bootstrap') {
@@ -94,7 +104,7 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
           : (response.years[0]?.year ?? null);
     applyYear(next);
     setLoading(false);
-  }, [applyYear, clearAuthorization]);
+  }, [applyYear, forgetAuthorization]);
   useEffect(() => {
     void refreshYears();
     return () => {
@@ -156,9 +166,9 @@ function YearFailureV1({ scope }: { readonly scope: GradebookYearContextValue })
  */
 export function GradebookYearContextBanner({
   failureOnly = false,
-}: {
+}: Readonly<{
   failureOnly?: boolean;
-}) {
+}>) {
   const scope = useGradebookYear();
   if (!scope || (failureOnly && !scope.failure)) return null;
   return (

@@ -58,7 +58,8 @@ async function yearSelector(container: HTMLElement) {
   const heading = await within(container).findByRole('heading', { name: 'Ano letivo' });
   const card = heading.closest<HTMLElement>('[data-slot="card"], .card');
   if (!card) throw new Error('The school-year heading must belong to its rendered settings card');
-  return within(card).findByRole('button', { name: 'Ano letivo global' });
+  // The trigger is named by its value and its label, e.g. "2026 Ano letivo global".
+  return within(card).findByRole('button', { name: /Ano letivo global$/u });
 }
 
 it('keeps native settings mounted during a Microsoft failure and carries the selected year to the real Banco', async () => {
@@ -131,7 +132,7 @@ it.each([401, 403])('preserves the authoritative authorization boundary (%i)', a
   network(async () => Response.json({}, { status }));
   const view = render(<App />);
   expect(await within(view.container).findByText(/Sua autorização precisa ser verificada novamente/u)).toBeTruthy();
-  expect(within(view.container).queryByRole('button', { name: 'Ano letivo global' })).toBeNull();
+  expect(within(view.container).queryByRole('button', { name: /Ano letivo global$/u })).toBeNull();
 });
 
 it('does not manufacture academic years when the PostgreSQL catalogue is unavailable', async () => {
