@@ -14,7 +14,7 @@ import {
 } from '../src/platform/student-portal-module';
 
 describe('shell navigation of 07/10/2026', () => {
-  it('lists the sections of the open service in the side column and none for a plain area', () => {
+  it('lists the sections of the open service and none for a plain area', () => {
     expect(serviceSectionsV2('painel-do-aluno').map((section) => section.label)).toEqual([
       'Visão geral',
       'Alunos',
@@ -123,18 +123,22 @@ describe('shell with a side column and a top bar', () => {
     expect(app).toContain("window.matchMedia('(min-width: 901px)')");
   });
 
-  // Owner request of 13/10/2026: the areas stay in the side column and the sections of the open
-  // one are HeroUI tabs in the top bar, with the search and the profile.
-  it('lists only the areas in the side column and the sections as tabs in the top bar', () => {
+  // The owner-requested tab appearance is retained with route-link semantics after the audit.
+  it('lists only areas in the side column and section links with tab styling in the top bar', () => {
     const navigation = read('src/platform/navigation.tsx');
+    const sectionLinks = read('src/platform/section-links-v1.tsx');
     // The bar of the site holds the brand, the search and the profile; the bar of the open area
     // holds its name and its sections.
     expect(app).toMatch(
       /<div className="shell-areabar">\s+<ShellSectionTabsV1 route=\{route\} section=\{section\} modules=\{modules\} \/>/u,
     );
     expect(navigation).toContain(
-      '<Tabs\n      variant="secondary"\n      className="shell-sections__tabs"',
+      '<SectionLinksV1 label={`Seções de ${area.name}`} section={section} sections={sections} />',
     );
+    expect(sectionLinks).toContain('className="tabs tabs--secondary shell-sections__tabs"');
+    expect(sectionLinks).toContain('href={item.href}');
+    expect(sectionLinks).toContain("aria-current={selected ? 'page' : undefined}");
+    expect(sectionLinks).not.toContain('aria-controls');
     expect(navigation).not.toContain('shell-side__sections');
     expect(styles).not.toContain('.shell-side__search');
     // On a computer the bar of the site spans the window and the column sits under it.
