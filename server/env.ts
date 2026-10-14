@@ -10,6 +10,7 @@ export type RuntimeSecrets = {
   GRAPH_CREDENTIAL_B?: string;
   PHOTO_STORAGE_SERVICE_KEY?: string;
   SESSION_SECRET: string;
+  COLLECTOR_REFRESH_KEY?: string;
 };
 
 export type RuntimeEnv = Omit<
@@ -33,6 +34,8 @@ export type RuntimeEnv = Omit<
     PROD_DB?: unknown;
     PORTAL_SERVICE?: unknown;
     PUBLIC_DEMO_CONTROL?: unknown;
+    COLLECTOR_ENABLED?: 'true'|'false';
+    COLLECTOR_DB?: unknown;
   };
 
 const PRODUCTION_ORIGIN = 'https://admin.escolaieda.com';
@@ -63,6 +66,9 @@ const envSchema = z
     PROD_DB: z.unknown().optional(),
     PORTAL_SERVICE: z.unknown().optional(),
     PUBLIC_DEMO_CONTROL: z.unknown().optional(),
+    COLLECTOR_ENABLED: z.enum(['true','false']).optional(),
+    COLLECTOR_DB: z.unknown().optional(),
+    COLLECTOR_REFRESH_KEY: z.string().optional(),
   })
   .superRefine((value, context) => {
     let origin: URL;

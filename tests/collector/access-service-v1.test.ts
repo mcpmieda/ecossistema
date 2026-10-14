@@ -10,14 +10,15 @@ import { collectorKeyThumbprintV1,collectorChallengeBytesV1,type CollectorPublic
 import { encodeBase64Url } from '../../server/auth/base64url';
 let db:PGlite;
 beforeAll(async()=>{vi.stubGlobal('crypto',webcrypto);db=new PGlite();
-  await db.exec(await readFile(new URL('../../migrations/collector/0001_device_authorization.sql',import.meta.url),'utf8'));},60_000);
+  await db.exec(await readFile(new URL('../../migrations/collector/0001_device_authorization.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../../migrations/collector/0002_pending_pairings.sql',import.meta.url),'utf8'));},60_000);
 afterAll(async()=>db.close());
 const ids={tenant:'11111111-1111-4111-8111-111111111111',client:'22222222-2222-4222-8222-222222222222',
   actor:'33333333-3333-4333-8333-333333333333',grant:'44444444-4444-4444-8444-444444444444',
   device:'55555555-5555-4555-8555-555555555555',group:'66666666-6666-4666-8666-666666666666'};
 const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json'}});
 async function fixture(age=0) {
-  await db.exec('TRUNCATE collector_auth.challenges,collector_auth.devices,collector_auth.oauth_grants');
+  await db.exec('TRUNCATE collector_auth.pairings,collector_auth.challenges,collector_auth.devices,collector_auth.oauth_grants');
   const key=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
   const exported=await crypto.subtle.exportKey('jwk',key.publicKey);
   const publicKey:CollectorPublicKeyV1={kty:'EC',crv:'P-256',x:exported.x!,y:exported.y!,ext:true};
@@ -33,6 +34,10 @@ async function fixture(age=0) {
     new Date(source.originAuthenticatedAt).toISOString(),encrypted,new Date(checked).toISOString(),new Date(checked+300_000).toISOString()]);
   await db.query(`INSERT INTO collector_auth.devices(id,grant_id,tenant_id,actor_id,public_key,key_thumbprint,generation,created_at)
     VALUES($1,$2,$3,$4,$5,$6,1,clock_timestamp())`,[ids.device,ids.grant,ids.tenant,ids.actor,JSON.stringify(publicKey),fingerprint]);
+  await db.query(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at,state,oauth_state_hash,device_id,claimed_at)
+    SELECT $1,d.public_key,d.key_thumbprint,$2,'123456',t,t+interval '10 minutes','completed',$3,d.id,t
+    FROM collector_auth.devices d CROSS JOIN (SELECT clock_timestamp() AS t) stamp WHERE d.id=$4`,
+    [crypto.randomUUID(),'a'.repeat(64),'b'.repeat(64),ids.device]);
   const sql:CollectorSqlV1={query:async<T extends Record<string,unknown>>(statement:string,parameters:unknown[])=>(await db.query<T>(statement,parameters)).rows};
   const store=new CollectorAuthorizationStoreV1(sql);
   const replies=[json({token_type:'Bearer',access_token:'synthetic-access-token',refresh_token:'synthetic-new-refresh-token',expires_in:3600,scope:'User.Read'}),

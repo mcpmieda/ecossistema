@@ -9,9 +9,9 @@ const challengeSchema = z.object({
   deviceId: z.string().uuid(), generation: z.number().int().positive(),
   accountKey: b64Coordinate, keyThumbprint: b64Coordinate, nonce: b64Coordinate,
   audience: z.literal('https://admin.escolaieda.com'), method: z.literal('POST'),
-  path: z.literal('/api/frequency-collector/access'), purpose: z.literal('collector-access'),
+  path: z.enum(['/api/frequency-collector/access','/api/frequency-collector/revoke']), purpose: z.enum(['collector-access','collector-revoke']),
   issuedAt: z.number().int().positive(), expiresAt: z.number().int().positive(),
-}).strict();
+}).strict().refine(value=>value.path==='/api/frequency-collector/'+(value.purpose==='collector-access'?'access':'revoke'));
 export type CollectorChallengeV1 = z.infer<typeof challengeSchema>;
 export type CollectorDeviceProofRecordV1 = Readonly<{
   deviceId: string; generation: number; tenantId: string; actorId: string;
@@ -42,7 +42,8 @@ export function collectorChallengeBytesV1(challenge: CollectorChallengeV1): Uint
     value.path, value.purpose, value.issuedAt, value.expiresAt]));
 }
 
-export async function issueCollectorChallengeV1(record: CollectorDeviceProofRecordV1, now: number): Promise<CollectorChallengeV1> {
+export async function issueCollectorChallengeV1(record: CollectorDeviceProofRecordV1, now: number,
+  purpose: 'collector-access'|'collector-revoke'='collector-access'): Promise<CollectorChallengeV1> {
   if (record.revokedAt !== null || !Number.isSafeInteger(now) || now <= 0)
     throw new CollectorDeviceProofErrorV1();
   const fingerprint = await collectorKeyThumbprintV1(record.publicKey);
@@ -50,8 +51,8 @@ export async function issueCollectorChallengeV1(record: CollectorDeviceProofReco
   return challengeSchema.parse({ deviceId: record.deviceId, generation: record.generation,
     accountKey: await collectorAccountKeyV1(record.tenantId, record.actorId), keyThumbprint: fingerprint,
     nonce: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
-    audience: 'https://admin.escolaieda.com', method: 'POST', path: '/api/frequency-collector/access',
-    purpose: 'collector-access', issuedAt: now, expiresAt: now + 60_000 });
+    audience: 'https://admin.escolaieda.com', method: 'POST', path: '/api/frequency-collector/'+(purpose==='collector-access'?'access':'revoke'),
+    purpose, issuedAt: now, expiresAt: now + 60_000 });
 }
 
 /** Signature verification is not nonce consumption. The caller must then call
@@ -59,10 +60,11 @@ export async function issueCollectorChallengeV1(record: CollectorDeviceProofReco
  * matching account/key/generation, unused nonce, nonce TTL and directory TTL. */
 export async function verifyCollectorDeviceProofV1(input: {
   record: CollectorDeviceProofRecordV1; challenge: CollectorChallengeV1; signature: string; now: number;
+  purpose?: 'collector-access'|'collector-revoke';
 }): Promise<void> {
   try {
     const { record, now } = input, challenge = challengeSchema.parse(input.challenge);
-    if (!Number.isSafeInteger(now) || now <= 0 || record.revokedAt !== null || challenge.deviceId !== record.deviceId
+    if (challenge.purpose !== (input.purpose ?? 'collector-access') || !Number.isSafeInteger(now) || now <= 0 || record.revokedAt !== null || challenge.deviceId !== record.deviceId
         || challenge.generation !== record.generation || challenge.keyThumbprint !== record.keyThumbprint
         || challenge.accountKey !== await collectorAccountKeyV1(record.tenantId, record.actorId)
         || challenge.issuedAt > now || challenge.expiresAt <= now

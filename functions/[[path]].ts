@@ -49,6 +49,7 @@ import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessm
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
+import { handleCollectorRequestV1 } from '../server/collector/routes-v1';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -201,6 +202,8 @@ async function route(context: Context, correlationId: string): Promise<Response>
   const request = context.request;
   const url = new URL(request.url);
   enforceOfficialOrigin(request, env);
+  const collectorResponse = await handleCollectorRequestV1(request, env);
+  if (collectorResponse) return collectorResponse;
 
   const healthResponse = await handleSystemHealthRequestV1(request, env);
   if (healthResponse) return healthResponse;
@@ -464,7 +467,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   const correlationId = crypto.randomUUID();
   try {
     const pathname = new URL(context.request.url).pathname;
-    const noStore = pathname.startsWith('/api/') || pathname.startsWith('/auth/');
+    const noStore = pathname.startsWith('/api/') || pathname.startsWith('/auth/') || pathname.startsWith('/frequency-collector/');
     return withSecurityHeaders(await route(context as Context, correlationId), noStore);
   } catch (error) {
     const status =

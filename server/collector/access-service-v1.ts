@@ -37,22 +37,37 @@ export class CollectorAccessServiceV1 {
     private readonly config:{tenantId:string;clientId:string;adminGroupId:string},
     private readonly dependencies:CollectorDirectoryDependenciesV1) {}
 
-  private async active(deviceId:string):Promise<Snapshot> {
-    const value=snapshotSchema.safeParse(await this.store.snapshot(z.string().uuid().parse(deviceId)));
+  private async active(deviceId:string,forRevoke=false):Promise<Snapshot> {
+    const value=snapshotSchema.safeParse(await this.store.snapshot(z.string().uuid().parse(deviceId),forRevoke));
     if (!value.success) throw new CollectorAccessErrorV1('denied');
     const row=value.data;
-    if (row.device_revoked_at !== null || row.grant_revoked_at !== null || row.state !== 'active'
+    if ((!forRevoke && (row.device_revoked_at !== null || row.grant_revoked_at !== null || row.state !== 'active'))
       || row.tenant_id !== this.config.tenantId || row.client_id !== this.config.clientId)
       throw new CollectorAccessErrorV1('denied');
     return row;
   }
 
-  async challenge(deviceId:string):Promise<CollectorChallengeV1> {
-    const row=await this.active(deviceId);
-    const challenge=await issueCollectorChallengeV1(record(row),this.dependencies.now());
-    await this.store.saveChallenge({nonceHash:await nonceHash(challenge.nonce),deviceId:row.device_id,
+  async challenge(deviceId:string,purpose:'collector-access'|'collector-revoke'='collector-access'):Promise<CollectorChallengeV1> {
+    const row=await this.active(deviceId,purpose==='collector-revoke');
+    const challenge=await issueCollectorChallengeV1({...record(row),revokedAt:purpose==='collector-revoke'?null:row.device_revoked_at},this.dependencies.now(),purpose);
+    await this.store.saveChallenge({nonceHash:await nonceHash((purpose==='collector-revoke'?'collector-revoke:':'')+challenge.nonce),deviceId:row.device_id,
       generation:challenge.generation,keyThumbprint:challenge.keyThumbprint,issuedAt:challenge.issuedAt,expiresAt:challenge.expiresAt});
     return challenge;
+  }
+
+  async revoke(input:{deviceId:string;nonce:string;signature:string}):Promise<{revoked:true}>{
+    const row=await this.active(input.deviceId,true),hash=await nonceHash('collector-revoke:'+z.string().regex(/^[A-Za-z0-9_-]{43}$/u).parse(input.nonce));
+    const saved=z.object({generation:z.number().int().positive(),key_thumbprint:z.string(),issued_at:date,expires_at:date})
+      .safeParse(await this.store.challenge(input.deviceId,hash));
+    if(!saved.success)throw new CollectorAccessErrorV1('denied');
+    const challenge:CollectorChallengeV1={deviceId:row.device_id,generation:saved.data.generation,accountKey:await collectorAccountKeyV1(row.tenant_id,row.actor_id),
+      keyThumbprint:saved.data.key_thumbprint,nonce:input.nonce,audience:'https://admin.escolaieda.com',method:'POST',path:'/api/frequency-collector/revoke',
+      purpose:'collector-revoke',issuedAt:saved.data.issued_at,expiresAt:saved.data.expires_at};
+    try{await verifyCollectorDeviceProofV1({record:{...record(row),revokedAt:null},challenge,signature:input.signature,now:this.dependencies.now(),purpose:'collector-revoke'});}
+    catch{throw new CollectorAccessErrorV1('denied');}
+    if(!await this.store.consumeAndRevoke({deviceId:row.device_id,generation:row.device_generation,tenantId:row.tenant_id,
+      actorId:row.actor_id,clientId:row.client_id,keyThumbprint:row.key_thumbprint,nonceHash:hash}))throw new CollectorAccessErrorV1('denied');
+    return {revoked:true};
   }
 
   private async fresh(row:Snapshot):Promise<Snapshot> {

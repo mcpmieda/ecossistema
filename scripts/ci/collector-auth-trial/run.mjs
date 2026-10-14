@@ -11,7 +11,7 @@ const sha256 = crypto.createHash('sha256').update(sql).digest('hex');
 assert.equal(sha256, 'db339aec4068487cbe8fafc84899fdd30d0918e7e631b93e5144855b042d3114');
 const pairingSql = fs.readFileSync(path.resolve(directory, '../../../migrations/collector/0002_pending_pairings.sql'), 'utf8');
 const pairingSha256 = crypto.createHash('sha256').update(pairingSql).digest('hex');
-assert.equal(pairingSha256, 'dea6d2d6f581ffa09b3e4ebf3576f705673e0f251aa906a16213c10f5a1f856d');
+assert.equal(pairingSha256, 'e6dd06affb78ae3f42d68995cea74aec9433b3cb86e73aa3afde34f7b3862db1');
 assert.equal(process.env.GITHUB_ACTIONS, 'true');
 assert.ok(!Object.keys(process.env).some(key => key.startsWith('PG')));
 const environment = { ...process.env, PGPASSFILE: '/nonexistent-collector-test-passfile', PGSERVICEFILE: '/nonexistent-collector-test-servicefile' };

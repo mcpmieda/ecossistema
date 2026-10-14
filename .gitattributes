@@ -1,0 +1,4 @@
+migrations/collector/*.sql text eol=lf
+server/collector/device-proof-v1.ts text eol=lf
+server/collector/pairing-proof-v1.ts text eol=lf
+scripts/ci/collector-auth-trial/peer-fixture-v1.ts text eol=lf

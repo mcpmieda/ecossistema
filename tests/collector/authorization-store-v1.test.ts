@@ -8,6 +8,7 @@ let database: PGlite;
 beforeAll(async () => {
   database = new PGlite();
   await database.exec(await readFile(new URL('../../migrations/collector/0001_device_authorization.sql', import.meta.url), 'utf8'));
+  await database.exec(await readFile(new URL('../../migrations/collector/0002_pending_pairings.sql', import.meta.url), 'utf8'));
 }, 60_000);
 afterAll(async () => { await database.close(); });
 const ids = { grant: '11111111-1111-4111-8111-111111111111', device: '22222222-2222-4222-8222-222222222222',
@@ -17,7 +18,7 @@ const proof: CollectorConsumptionV1 = { deviceId: ids.device, generation: 1, ten
   actorId: ids.actor, clientId: ids.client, keyThumbprint: 'x'.repeat(43), nonceHash: 'a'.repeat(64), maximumExpiry:Date.now()+300_000 };
 async function fixture(directoryAgeSeconds = 0) {
   const db = database;
-  await db.exec('TRUNCATE collector_auth.challenges, collector_auth.devices, collector_auth.oauth_grants');
+  await db.exec('TRUNCATE collector_auth.pairings,collector_auth.challenges, collector_auth.devices, collector_auth.oauth_grants');
   await db.query(`INSERT INTO collector_auth.oauth_grants(id,tenant_id,actor_id,client_id,generation,credential_version,
     origin_authenticated_at,encrypted_refresh,state,directory_authorized,directory_checked_at,directory_valid_until)
     SELECT $1,$2,$3,$4,1,0,t-interval '1 hour',$5,'active',true,
@@ -30,6 +31,10 @@ async function fixture(directoryAgeSeconds = 0) {
   await db.query(`INSERT INTO collector_auth.challenges(nonce_hash,device_id,generation,key_thumbprint,issued_at,expires_at)
     SELECT $1,$2,1,$3,t,t+interval '60 seconds' FROM (SELECT clock_timestamp() AS t) stamp`,
   [proof.nonceHash, ids.device, proof.keyThumbprint]);
+  await db.query(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at,state,oauth_state_hash,device_id,claimed_at)
+    SELECT $1,d.public_key,d.key_thumbprint,$2,'123456',t,t+interval '10 minutes','completed',$3,d.id,t
+    FROM collector_auth.devices d CROSS JOIN (SELECT clock_timestamp() AS t) stamp WHERE d.id=$4`,
+    [crypto.randomUUID(),'a'.repeat(64),'b'.repeat(64),ids.device]);
   const sql: CollectorSqlV1 = { query: async <T extends Record<string, unknown>>(statement: string, parameters: unknown[]) =>
     (await db.query<T>(statement, parameters)).rows };
   return { db, store: new CollectorAuthorizationStoreV1(sql) };

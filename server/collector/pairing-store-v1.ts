@@ -78,7 +78,43 @@ export class CollectorPairingStoreV1 {
   }
 
   async cancel(id:string,pollHash:string):Promise<void>{
-    await this.sql.query(`UPDATE collector_auth.pairings SET state='cancelled',oauth_state_hash=NULL,oauth_nonce_hash=NULL
-      WHERE id=$1 AND poll_hash=$2 AND state IN ('pending','confirmed','exchanging')`,[uuid.parse(id),hash.parse(pollHash)]);
+    await this.sql.query(`WITH owned AS MATERIALIZED (
+      SELECT id,device_id FROM collector_auth.pairings WHERE id=$1 AND poll_hash=$2 AND expires_at>clock_timestamp() FOR UPDATE
+      ), revoked AS (
+      UPDATE collector_auth.devices d SET revoked_at=clock_timestamp(),generation=generation+1 FROM owned p
+      WHERE d.id=p.device_id AND d.revoked_at IS NULL RETURNING d.id,d.grant_id
+      ), retired AS (
+      UPDATE collector_auth.oauth_grants g SET state='revoked',revoked_at=clock_timestamp(),generation=generation+1,
+        encrypted_refresh=NULL,directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,
+        refresh_owner=NULL,refresh_until=NULL FROM revoked r WHERE g.id=r.grant_id
+        AND NOT EXISTS(SELECT 1 FROM collector_auth.devices other WHERE other.grant_id=g.id AND other.id<>r.id AND other.revoked_at IS NULL)
+      RETURNING g.id
+      ) UPDATE collector_auth.pairings p SET state='cancelled',oauth_state_hash=NULL,oauth_nonce_hash=NULL,device_id=NULL,claimed_at=NULL
+      FROM owned o WHERE p.id=o.id`,[uuid.parse(id),hash.parse(pollHash)]);
+  }
+
+  async claim(id:string,pollHash:string):Promise<boolean>{
+    const rows=await this.sql.query(`UPDATE collector_auth.pairings p SET claimed_at=clock_timestamp()
+      WHERE p.id=$1 AND p.poll_hash=$2 AND p.state='completed' AND p.expires_at>clock_timestamp()
+        AND EXISTS(SELECT 1 FROM collector_auth.devices d WHERE d.id=p.device_id AND d.revoked_at IS NULL)
+      RETURNING p.id`,[uuid.parse(id),hash.parse(pollHash)]);
+    return rows.length===1;
+  }
+
+  async retireExpiredUnclaimed():Promise<void>{
+    await this.sql.query(`WITH expired AS MATERIALIZED (
+      SELECT id,device_id FROM collector_auth.pairings WHERE expires_at<=clock_timestamp()
+        AND claimed_at IS NULL AND state IN ('pending','confirmed','exchanging','completed') LIMIT 50 FOR UPDATE SKIP LOCKED
+      ), revoked AS (
+      UPDATE collector_auth.devices d SET revoked_at=clock_timestamp(),generation=generation+1 FROM expired p
+      WHERE d.id=p.device_id AND d.revoked_at IS NULL RETURNING d.id,d.grant_id
+      ), retired AS (
+      UPDATE collector_auth.oauth_grants g SET state='revoked',revoked_at=clock_timestamp(),generation=generation+1,
+        encrypted_refresh=NULL,directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,
+        refresh_owner=NULL,refresh_until=NULL FROM revoked r WHERE g.id=r.grant_id
+        AND NOT EXISTS(SELECT 1 FROM collector_auth.devices other WHERE other.grant_id=g.id AND other.id<>r.id AND other.revoked_at IS NULL)
+      RETURNING g.id
+      ) UPDATE collector_auth.pairings p SET state='cancelled',oauth_state_hash=NULL,oauth_nonce_hash=NULL,device_id=NULL,claimed_at=NULL
+        FROM expired e WHERE p.id=e.id`,[]);
   }
 }

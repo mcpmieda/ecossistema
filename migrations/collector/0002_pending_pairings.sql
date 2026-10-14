@@ -16,6 +16,7 @@ CREATE TABLE collector_auth.pairings (
   oauth_nonce_hash text CHECK (oauth_nonce_hash ~ '^[a-f0-9]{64}$'),
   oauth_consumed_at timestamptz,
   device_id uuid REFERENCES collector_auth.devices(id),
+  claimed_at timestamptz,
   CHECK (expires_at = created_at + interval '10 minutes'),
   CHECK ((state IN ('confirmed','exchanging','completed')) = (oauth_state_hash IS NOT NULL)),
   CHECK ((state = 'completed') = (device_id IS NOT NULL))
