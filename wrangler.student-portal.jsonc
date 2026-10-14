@@ -40,6 +40,8 @@
     },
     "production": {
       "name": "student-portal-production",
+      // Run next to the database (Supabase sa-east-1): every sequential query pays the distance (14/10/2026).
+      "placement": { "region": "aws:sa-east-1" },
       "vars": {
         "PORTAL_ENVIRONMENT": "production",
         "PORTAL_SERVING_ENABLED": "true",
