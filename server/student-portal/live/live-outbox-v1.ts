@@ -60,12 +60,12 @@ function eventFromRowV1(input: unknown): LivePublishEventV1 {
 
 /** Runs from scheduled maintenance even when there are no new notifications. */
 export async function cleanupPortalLiveEventsV1(sql: StudentPortalPostgresSqlV1): Promise<number> {
-  return sql.begin(async (tx) => (await tx.unsafe(`WITH expired AS (
+  return (await sql.unsafe(`WITH expired AS (
     SELECT id FROM student_portal.live_event_outbox_v1
     WHERE delivered_at<statement_timestamp()-interval '7 days'
     ORDER BY delivered_at,id LIMIT 100 FOR UPDATE SKIP LOCKED)
     DELETE FROM student_portal.live_event_outbox_v1 event USING expired
-    WHERE event.id=expired.id RETURNING event.id`)).length);
+    WHERE event.id=expired.id RETURNING event.id`)).length;
 }
 
 async function publishBeforeDeadlineV1(env: PortalCompositionEnvV1, input: unknown, deadline: number) {
