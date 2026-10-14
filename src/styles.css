@@ -56,7 +56,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-2xl);
   padding: 0.7rem 0.8rem;
   color: var(--muted);
   font-size: 0.875rem;
@@ -75,7 +75,7 @@ body {
   min-width: 0;
   max-width: 100%;
   border: 1px solid var(--border);
-  border-radius: 1.25rem;
+  border-radius: var(--radius-3xl);
   padding: 1.25rem;
 }
 .bn-form {
@@ -146,7 +146,7 @@ body {
   margin-bottom: 1.5rem;
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--border) 66%, transparent);
-  border-radius: 1.85rem;
+  border-radius: var(--radius-3xl);
   background: var(--surface);
   box-shadow: 0 18px 52px -48px color-mix(in oklab, var(--foreground) 20%, transparent);
 }
@@ -166,7 +166,7 @@ body {
   height: 3.25rem;
   place-items: center;
   border: 1px solid color-mix(in oklab, var(--border) 74%, transparent);
-  border-radius: 1.1rem;
+  border-radius: var(--radius-3xl);
   background: var(--surface-secondary);
 }
 
@@ -234,7 +234,7 @@ body {
 
 .platform-search-results__item {
   gap: 0.7rem;
-  border-radius: 1rem;
+  border-radius: var(--radius-3xl);
   padding: 0.65rem;
   transition: background-color 90ms ease;
 }
@@ -304,7 +304,7 @@ body {
   min-height: 2.65rem;
   flex: 0 0 auto;
   border: 0;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-2xl);
   background: transparent;
   padding: 0.6rem 0.8rem;
   color: var(--muted);
@@ -349,7 +349,7 @@ body {
   align-items: end;
   gap: 0.75rem;
   border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: 1rem;
+  border-radius: var(--radius-3xl);
   background: var(--surface);
   padding: 0.8rem;
   box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 24%, transparent);
@@ -362,7 +362,7 @@ body {
   align-items: end;
   gap: 0.75rem;
   border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: 1rem;
+  border-radius: var(--radius-3xl);
   background: color-mix(in oklab, var(--surface) 95%, var(--accent) 5%);
   padding: 0.8rem;
   box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 24%, transparent);
@@ -375,7 +375,7 @@ body {
   align-items: center;
   gap: 0.7rem;
   border: 1px solid var(--separator);
-  border-radius: 0.9rem;
+  border-radius: var(--radius-2xl);
   background: var(--surface);
   padding: 0.65rem;
   cursor: pointer;
@@ -420,7 +420,7 @@ body {
   align-items: center;
   gap: 0.75rem;
   border: 1px solid var(--separator);
-  border-radius: 1rem;
+  border-radius: var(--radius-3xl);
   background: var(--surface-secondary);
   padding: 0.8rem 0.9rem;
 }
@@ -431,7 +431,7 @@ body {
   aspect-ratio: 1;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-2xl);
   background: color-mix(in oklab, var(--accent) 12%, transparent);
   color: var(--accent);
 }
@@ -464,7 +464,7 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: 1.15rem;
+  border-radius: var(--radius-3xl);
   background: var(--surface);
   box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 24%, transparent);
 }
@@ -520,7 +520,7 @@ button.performance-kpi__button:hover {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 0.85rem;
+  border-radius: var(--radius-2xl);
 }
 
 .performance-kpi__icon {
@@ -560,7 +560,7 @@ button.performance-kpi__button:hover {
 .performance-widget {
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: 1.2rem;
+  border-radius: var(--radius-3xl);
   padding: 1rem;
   box-shadow: 0 24px 54px -48px color-mix(in oklab, var(--foreground) 26%, transparent);
 }
@@ -686,7 +686,7 @@ button.performance-kpi__button:hover {
   margin-top: 1rem;
   overflow: hidden;
   border: 1px solid var(--separator);
-  border-radius: 1rem;
+  border-radius: var(--radius-3xl);
   background: var(--surface-secondary);
 }
 
@@ -715,7 +715,7 @@ button.performance-kpi__button:hover {
   overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr);
   border: 1px solid var(--separator);
-  border-radius: 0.85rem;
+  border-radius: var(--radius-2xl);
   background: var(--surface);
 }
 
@@ -836,7 +836,7 @@ button.performance-kpi__button:hover {
   width: 100%;
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-2xl);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -912,7 +912,7 @@ button.performance-kpi__button:hover {
 .performance-ranking > ol {
   overflow: hidden;
   border: 1px solid var(--separator);
-  border-radius: 0.85rem;
+  border-radius: var(--radius-2xl);
 }
 
 .performance-ranking li + li {
@@ -979,7 +979,7 @@ button.performance-kpi__button:hover {
   overflow: hidden;
   border: 1px solid var(--separator);
   border-top: 0;
-  border-radius: 0 0 0.75rem 0.75rem;
+  border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
   background: color-mix(in oklab, var(--default) 88%, transparent);
   backdrop-filter: blur(10px);
   box-shadow: 0 10px 24px -18px rgb(0 0 0 / 0.55);
@@ -1095,7 +1095,7 @@ button.performance-kpi__button:hover {
   gap: 0.75rem;
   padding: 0.85rem;
   border: 1px solid color-mix(in oklab, var(--separator) 82%, transparent);
-  border-radius: 1rem;
+  border-radius: var(--radius-3xl);
   background:
     linear-gradient(135deg, color-mix(in oklab, var(--accent) 7%, transparent), transparent 44%),
     var(--surface);
@@ -1107,7 +1107,7 @@ button.performance-kpi__button:hover {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--separator);
-  border-radius: 1.15rem;
+  border-radius: var(--radius-3xl);
   background: var(--surface);
   box-shadow: 0 20px 55px -48px var(--foreground);
 }
@@ -1130,7 +1130,7 @@ button.performance-kpi__button:hover {
   aspect-ratio: 1;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-2xl);
   background: color-mix(in oklab, var(--accent) 11%, transparent);
   color: var(--accent);
 }
@@ -1183,7 +1183,7 @@ button.performance-kpi__button:hover {
   min-width: 0;
   padding: 0.65rem;
   border: 1px solid var(--separator);
-  border-radius: 1rem;
+  border-radius: var(--radius-3xl);
   background: color-mix(in oklab, var(--surface-secondary) 64%, transparent);
   scroll-snap-align: start;
 }
@@ -1226,7 +1226,7 @@ button.performance-kpi__button:hover {
   gap: 0.6rem;
   padding: 0.7rem;
   border: 1px solid transparent;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-2xl);
   background: var(--surface);
   color: inherit;
   box-shadow: 0 8px 22px -22px var(--foreground);
@@ -1256,7 +1256,7 @@ button.performance-kpi__button:hover {
   width: 1.9rem;
   aspect-ratio: 1;
   place-items: center;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-2xl);
   background: var(--surface-secondary);
   color: var(--muted);
   font-size: 0.72rem;
@@ -1267,7 +1267,7 @@ button.performance-kpi__button:hover {
 .council-number-input {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-2xl);
   background: var(--surface);
   color: var(--foreground);
   outline: none;
@@ -1635,8 +1635,8 @@ button.performance-kpi__button:hover {
   }
 }
 
-/* Shell of 07/10/2026: areas of the Centro in a subtle top row, sections of the open service in
-   the side column. The services keep their own tab lists for standalone use; here they hide. */
+/* Shell base. The services keep their own tab lists for standalone use; here they hide, because
+   the top bar shows the sections of the open area (composition of 13/10/2026, further down). */
 .platform-shell--v2 {
   --shell-top: 3.25rem;
   --shell-aside: 13.5rem;
@@ -1765,7 +1765,7 @@ button.performance-kpi__button:hover {
   margin-inline: 0;
   padding: 0.75rem 0.9rem 1rem 0.3rem;
 }
-/* The side menu replaces the area tabs; the year selector and its warning stay. */
+/* The tabs of the top bar replace the area tabs; the year selector and its warning stay. */
 .platform-shell--v2 .pa-area-tabs,
 .platform-shell--v2 .gradebook-area-tabs {
   display: none;
@@ -1774,6 +1774,10 @@ button.performance-kpi__button:hover {
   min-height: 0;
   justify-content: flex-end;
   border-bottom: 0;
+}
+/* The row only reports a school year that could not be read; otherwise it takes no room. */
+.platform-shell--v2 .gradebook-area-nav:not(:has(.gradebook-year-current)) {
+  display: none;
 }
 @media (max-width: 900px) {
   .shell-brand__name {
@@ -1963,7 +1967,7 @@ button.performance-kpi__button:hover {
   padding: 0.85rem 1.1rem 0.6rem;
   border: var(--performance-card-border);
   border-bottom: 0;
-  border-radius: 1rem 1rem 0 0;
+  border-radius: var(--radius-3xl) var(--radius-3xl) 0 0;
   background: var(--surface);
 }
 .performance-head__icon {
@@ -1972,7 +1976,7 @@ button.performance-kpi__button:hover {
   height: 2.1rem;
   flex: none;
   place-items: center;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-2xl);
   color: var(--accent);
   background: var(--accent-soft);
 }
@@ -1997,24 +2001,6 @@ button.performance-kpi__button:hover {
 .performance-period-tabs .tabs__tab {
   min-width: 3.4rem;
   font-size: 0.8rem;
-}
-/* The year, compact: label beside the value. */
-.performance-head > [aria-label='Contexto acadêmico atual'] .select {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.performance-head > [aria-label='Contexto acadêmico atual'] .label {
-  margin: 0;
-  font-size: 0;
-}
-.performance-head > [aria-label='Contexto acadêmico atual'] .label::after {
-  content: 'Ano';
-  font-size: 0.75rem;
-}
-.performance-head > [aria-label='Contexto acadêmico atual'] .select__trigger {
-  min-width: 5.5rem;
-  min-height: 2.1rem;
 }
 /* Classes: light chips with their label, joined to the header above. */
 .performance-workspace > .school-class-tabs {
@@ -2060,7 +2046,7 @@ button.performance-kpi__button:hover {
   width: 100%;
   padding: 0 1.1rem;
   border: var(--performance-card-border);
-  border-radius: 0 0 1rem 1rem;
+  border-radius: 0 0 var(--radius-3xl) var(--radius-3xl);
   background: var(--surface);
 }
 .performance-perspectives .tabs__list {
@@ -2087,19 +2073,19 @@ button.performance-kpi__button:hover {
   background: var(--accent);
   box-shadow: none;
 }
-/* Notas: lenses on the left, mode and comparison compact on the right. */
+/* Notas: the lenses, then mode and comparison right beside them (owner request of 13/10/2026). */
 .performance-notes-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.6rem 0.75rem;
+  gap: 0.6rem 1rem;
 }
 .performance-notes-bar__selects {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
-  margin-left: auto;
 }
+
 .performance-notes-bar__selects .select {
   display: flex;
   align-items: center;
@@ -2118,7 +2104,6 @@ button.performance-kpi__button:hover {
   width: 100%;
   align-self: stretch;
 }
-.performance-head > [aria-label='Contexto acadêmico atual'] .select,
 .performance-notes-bar__selects .select {
   flex-direction: row;
 }
@@ -2134,7 +2119,7 @@ button.performance-kpi__button:hover {
 .performance-kpi__icon {
   width: 2rem;
   height: 2rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-2xl);
 }
 .performance-kpi__icon svg {
   width: 1rem;
@@ -2199,7 +2184,7 @@ button.performance-kpi__button:hover {
   gap: 0.75rem;
 }
 .performance-widget {
-  border-radius: 1rem;
+  border-radius: var(--radius-3xl);
   padding: 0.75rem 0.9rem 0.85rem;
   box-shadow: none;
 }
@@ -2210,7 +2195,7 @@ button.performance-kpi__button:hover {
 .performance-widget__icon {
   width: 1.9rem;
   height: 1.9rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-2xl);
 }
 .performance-bars {
   justify-content: flex-start;
@@ -2421,7 +2406,7 @@ button.performance-kpi__button:hover {
   display: grid;
   gap: 0.15rem;
   padding: 0.5rem 0.6rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-2xl);
   background: color-mix(in oklab, var(--accent) 9%, transparent);
 }
 .analytics-hint__calc > span {
@@ -2547,133 +2532,269 @@ button.performance-kpi__button:hover {
   overflow-y: hidden;
 }
 
-/* Masthead (study of 08/10/2026, after the IBM Carbon UI shell): a dark, full-width band in the
-   school's navy that names the product, with plain links and an accent line on the open area. */
-.platform-shell--v2 .shell-topbar {
-  --masthead-ink: #f3f6fc;
-  --masthead-muted: rgb(226 233 247 / 0.68);
-  --masthead-line: rgb(255 255 255 / 0.1);
-  --masthead-accent: #6ea8ff;
-  min-height: 3.5rem;
-  gap: 0 1.5rem;
-  padding: 0 1.25rem;
-  border: 0;
-  border-bottom: 1px solid #060f24;
-  background: linear-gradient(180deg, #11295c 0%, #0b1d45 100%);
-  box-shadow: 0 10px 28px -22px rgb(6 15 36 / 0.9);
-  color: var(--masthead-ink);
+/* Composition of 13/10/2026 (owner request and reference): the side column sits straight on a
+   soft page, with no frame of its own, and everything else is one sheet. The head of the sheet
+   is the top of the site (where one is, and the search) and, under it, the top of the open area
+   (its sections as tabs); the page scrolls inside the sheet. */
+.platform-shell--v2 {
+  --sheet: #f6f7f9;
+  --sheet-head: #fff;
+  --sheet-radius: 1.5rem;
+  --shell-top: 3.25rem;
+  --shell-aside: 15rem;
+  --shell-gap: 0.75rem;
+  background: linear-gradient(170deg, #f7f8f8 0%, #e8efed 48%, #dde5e8 100%);
+  background-attachment: fixed;
 }
-.platform-shell--v2 .shell-topbar::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, #c8102e 0 34%, #f3f6fc 34% 38%, #2f6fe4 38% 100%);
-  content: '';
+
+/* The top of the site. */
+.platform-shell--v2 .shell-topbar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'menu path tools';
+  gap: 0 0.75rem;
+  min-height: 0;
+  padding: 0.9rem 1.25rem 0.5rem;
+  border: 0;
+  border-radius: var(--sheet-radius) 0 0;
+  background: var(--sheet-head);
+  box-shadow: none;
+}
+.shell-path {
+  display: flex;
+  grid-area: path;
+  min-width: 0;
+  height: 2.5rem;
+  align-items: center;
+  justify-self: start;
+  gap: 0.55rem;
+  max-width: 100%;
+  padding: 0 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  font-size: 0.875rem;
 }
 .platform-shell--v2 .shell-brand {
-  gap: 0.75rem;
-  padding-right: 1.5rem;
-  border-right: 1px solid var(--masthead-line);
-  color: var(--masthead-ink);
+  min-width: 0;
+  gap: 0.5rem;
 }
 .platform-shell--v2 .shell-brand__name {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: inherit;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.platform-shell--v2 .shell-brand__name > small {
+  display: none;
+}
+.shell-path__area {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.shell-path__area::before {
+  color: var(--muted);
+  font-weight: 400;
+  content: '›';
+}
+.platform-shell--v2 .shell-tools .search-field__group {
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--sheet-head);
+  box-shadow: none;
+}
+.platform-shell--v2 .shell-tools .profile-menu-trigger {
+  min-height: 2.5rem;
+}
+
+/* The top of the open area: its sections as HeroUI secondary tabs, on a line that crosses the
+   sheet. */
+.shell-areabar {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid var(--separator);
+  background: var(--sheet-head);
+}
+.shell-areabar:empty {
+  min-height: 0.4rem;
+}
+.shell-sections__tabs {
+  min-width: 0;
+  max-width: 100%;
+  gap: 0;
+}
+.shell-sections__tabs > .tabs__list-container {
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: -1px;
+  border-bottom: 0;
+}
+.shell-sections__tabs .tabs__tab {
+  width: auto;
+  height: 2.75rem;
+  flex: none;
+  padding-inline: 0.9rem;
+  white-space: nowrap;
+}
+.shell-sections__tabs .tabs__tab[data-selected='true'] {
+  font-weight: 650;
+}
+
+/* The side column: no frame, straight on the page; the open area is a white pill. */
+.platform-shell--v2 .shell-aside {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.shell-side {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.1rem 0.85rem 0.85rem;
+}
+.shell-side__brand-link {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0 0.35rem;
+}
+.shell-side__brand-name {
   display: grid;
-  font-size: 0.95rem;
+  min-width: 0;
+  gap: 0.15rem;
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.15;
 }
-.platform-shell--v2 .shell-brand__name > small {
-  color: var(--masthead-muted);
+.shell-side__brand-name > small {
+  color: var(--muted);
   font-size: 0.66rem;
   font-weight: 500;
-  letter-spacing: 0.02em;
+  line-height: 1.3;
 }
-.platform-shell--v2 .shell-tools .search-field__group {
-  border: 1px solid var(--masthead-line);
-  background: rgb(255 255 255 / 0.08);
-  box-shadow: none;
-  color: var(--masthead-ink);
+.shell-side__groups {
+  display: grid;
+  gap: 1.25rem;
+  overflow-y: auto;
 }
-.platform-shell--v2 .shell-tools .search-field__input {
-  color: var(--masthead-ink);
+.shell-side__group-label {
+  margin: 0 0 0.35rem 0.8rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
 }
-.platform-shell--v2 .shell-tools .search-field__input::placeholder {
-  color: var(--masthead-muted);
+.shell-side__areas {
+  display: grid;
+  gap: 0.15rem;
 }
-.platform-shell--v2 .shell-tools .search-field__group svg,
-.platform-shell--v2 .shell-tools .platform-search-shortcut {
-  color: var(--masthead-muted);
+.shell-side__area {
+  display: flex;
+  min-height: 2.6rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 0.85rem;
+  color: color-mix(in oklab, var(--foreground) 80%, transparent);
+  font-size: 0.9rem;
+  font-weight: 550;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
 }
-.platform-shell--v2 .shell-tools .platform-search-shortcut {
-  border-color: var(--masthead-line);
-  background: rgb(255 255 255 / 0.06);
-}
-.platform-shell--v2 .shell-tools > .contents > .button--outline {
-  border-color: var(--masthead-line);
-  background: rgb(255 255 255 / 0.06);
-  color: var(--masthead-ink);
-}
-.platform-shell--v2 .shell-tools .profile-menu-trigger {
-  min-height: 2.5rem;
-  color: var(--masthead-ink);
-}
-.platform-shell--v2 .shell-tools .profile-menu-trigger:hover {
-  background: rgb(255 255 255 / 0.08);
-}
-.platform-shell--v2 .shell-tools .profile-menu-trigger .text-muted,
-.platform-shell--v2 .shell-tools .profile-menu-trigger svg {
-  color: var(--masthead-muted);
-}
-/* Panels that open from the masthead stay on the light surface. */
-.platform-shell--v2 .shell-topbar .platform-search-mobile-panel,
-.platform-shell--v2 .shell-topbar .platform-search-popover {
+.shell-side__area:hover {
   color: var(--foreground);
+  background: rgb(255 255 255 / 0.5);
 }
-.platform-shell--v2 .shell-topbar .platform-search-mobile-panel .search-field__group {
-  border-color: var(--border);
-  background: var(--surface);
+.shell-side__area[data-open='true'] {
   color: var(--foreground);
+  background: #fff;
+  font-weight: 650;
 }
-.platform-shell--v2 .shell-topbar .platform-search-mobile-panel .search-field__input {
-  color: var(--foreground);
+.shell-side__area:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
+  outline-offset: 1px;
 }
-@media (min-width: 1100px) {
-  .platform-shell--v2 .shell-brand__name {
+
+.shell-menu-button,
+.shell-drawer-backdrop,
+.shell-drawer-close {
+  display: none;
+}
+/* Computer: the window does not scroll. The column is on the left; the sheet takes the rest, and
+   only the page inside it scrolls, so its head never moves. */
+@media (min-width: 901px) {
+  .platform-shell--v2 {
     display: grid;
+    height: 100svh;
+    min-height: 0;
+    grid-template-columns: var(--shell-aside) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    /* The sheet runs to the right and bottom edges of the window. */
+    padding: var(--shell-gap) 0 0;
+    overflow: hidden;
   }
-  .platform-shell--v2 .shell-tools .profile-menu-trigger > span:not(.avatar) {
-    display: block;
+  /* The sheet itself, behind its three parts. */
+  .platform-shell--v2::before {
+    grid-row: 1 / span 3;
+    grid-column: 2;
+    border-radius: var(--sheet-radius) 0 0;
+    background: var(--sheet);
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.7),
+      0 24px 48px -32px rgb(30 41 59 / 0.35);
+    content: '';
   }
-}
-@media (max-width: 1099px) {
-  .platform-shell--v2 .shell-brand {
-    padding-right: 0;
-    border-right: 0;
+  .platform-shell--v2 > .shell-topbar {
+    position: relative;
+    top: auto;
+    grid-row: 1;
+    grid-column: 2;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'path tools';
   }
-  .platform-shell--v2 .shell-brand__name {
+  .platform-shell--v2 .shell-brand > .school-mark,
+  .platform-shell--v2 .shell-tools .profile-menu-trigger {
     display: none;
   }
-}
-@media (max-width: 900px) {
-  .platform-shell--v2 .shell-topbar {
-    gap: 0 0.6rem;
-    padding-inline: 0.75rem;
+  .platform-shell--v2 > .shell-areabar {
+    position: relative;
+    grid-row: 2;
+    grid-column: 2;
   }
-}
-.platform-shell--v2 .shell-tools .profile-menu-trigger .avatar,
-.platform-shell--v2 .shell-tools .profile-menu-trigger .avatar__fallback {
-  background: rgb(255 255 255 / 0.16);
-  color: #fff;
-}
-/* Masthead search: a real field when there is room, and a solid one whenever it opens over the menu. */
-.platform-shell--v2 .shell-tools .platform-search-desktop:focus-within .search-field__group {
-  border-color: var(--masthead-accent);
-  background: #17336f;
-}
-@media (min-width: 1360px) {
+  .platform-shell--v2 > .shell-body {
+    display: contents;
+  }
+  .platform-shell--v2 .shell-aside {
+    position: relative;
+    top: auto;
+    grid-row: 1 / span 3;
+    grid-column: 1;
+    height: auto;
+    overflow: visible;
+  }
+  .platform-shell--v2 .shell-main--service {
+    position: relative;
+    grid-row: 3;
+    grid-column: 2;
+    padding: 1.1rem 1.25rem 1.25rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
   .platform-shell--v2 .shell-tools .platform-search-desktop {
-    width: 15rem;
+    width: 17rem;
     height: auto;
   }
   .platform-shell--v2 .shell-tools .platform-search-desktop > .search-field {
@@ -2688,206 +2809,53 @@ button.performance-kpi__button:hover {
     opacity: 1;
     cursor: text;
   }
-}
-@media (min-width: 1360px) and (max-width: 1599px) {
-  .platform-shell--v2 .shell-tools .platform-search-desktop {
-    width: 11.5rem;
-  }
-  .platform-shell--v2 .shell-topbar {
-    gap: 0 1rem;
+  .platform-shell--v2 .shell-tools .platform-search-shortcut {
+    display: inline-flex;
   }
 }
 
-/* Side-only composition (study of 08/10/2026): on a computer the top menu is gone and one
-   rounded HeroUI-style column carries brand, search, areas with their sections, and profile. */
-.shell-side {
-  display: none;
-}
-@media (min-width: 901px) {
-  .platform-shell--v2 .shell-topbar {
-    display: none;
-  }
-  .platform-shell--v2 {
-    --shell-top: 0rem;
-  }
-  .platform-shell--v2 .shell-aside {
-    top: 0.75rem;
-    height: calc(100svh - 1.5rem);
-    margin: 0.75rem 0 0.75rem 0.75rem;
-    padding: 0.85rem 0.6rem 0.6rem;
-    border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
-    border-radius: 1.25rem;
-    background: var(--surface);
-    box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 30%, transparent);
-  }
-  .platform-shell--v2 .shell-main--service {
-    padding: 0.75rem 1rem 1rem 0.9rem;
-  }
-  .shell-side {
-    display: flex;
-    height: 100%;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  .shell-side__brand-link {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0 0.35rem;
-    font-size: 0.86rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-  }
-  .shell-side__search .platform-search-desktop {
-    display: block;
-    width: 100%;
-    max-width: none;
-  }
-  .shell-side__search .platform-search-shortcut {
-    display: none;
-  }
-  .shell-side__search .platform-search-popover {
-    width: 22rem;
-    max-width: calc(100vw - 2rem);
-  }
-  .shell-side__areas {
-    display: grid;
-    gap: 0.15rem;
-    overflow-y: auto;
-  }
-  .shell-side__area {
-    display: flex;
-    min-height: 2.35rem;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.4rem 0.6rem;
-    border-radius: 0.75rem;
-    color: var(--muted);
-    font-size: 0.86rem;
-    font-weight: 600;
-    transition:
-      color 120ms ease,
-      background-color 120ms ease;
-  }
-  .shell-side__area:hover {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--foreground) 5%, transparent);
-  }
-  .shell-side__area[data-open='true'] {
-    color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .shell-side__area:focus-visible,
-  .shell-side__section:focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
-    outline-offset: 1px;
-  }
-  .shell-side__sections {
-    display: grid;
-    gap: 1px;
-    margin: 0.3rem 0 0.5rem 1.1rem;
-    padding-left: 0.55rem;
-    border-left: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
-  }
-  .shell-side__section {
-    display: flex;
-    min-height: 1.95rem;
-    align-items: center;
-    padding: 0.25rem 0.55rem;
-    border-radius: 0.6rem;
-    color: var(--muted);
-    font-size: 0.82rem;
-    font-weight: 500;
-  }
-  .shell-side__section:hover {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--foreground) 5%, transparent);
-  }
-  .shell-side__section[data-selected='true'] {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--foreground) 8%, transparent);
-    font-weight: 650;
-  }
-  .shell-side__profile {
-    margin-top: auto;
-    padding-top: 0.5rem;
-    border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  }
-  .shell-side__profile .profile-menu-trigger {
-    width: 100%;
-    min-height: 2.75rem;
-    justify-content: flex-start;
-  }
-  .shell-side__profile .profile-menu-trigger > span:not(.avatar) {
-    display: block;
-  }
-  .shell-side__profile .profile-menu-trigger > svg {
-    display: block;
-    margin-left: auto;
-  }
-}
-
-/* Phones, same study: a slim light bar with a menu button; the side column opens as a drawer. */
-.shell-menu-button,
-.shell-drawer-backdrop {
-  display: none;
-}
+/* Phones: the window scrolls as usual. The top of the site keeps the menu button, the brand and
+   the tools; the tabs of the area slide sideways under it; the column opens as a drawer. */
 @media (max-width: 900px) {
   .platform-shell--v2 .shell-topbar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: 'menu brand tools';
-    min-height: 3.25rem;
-    gap: 0 0.5rem;
+    min-height: var(--shell-top);
     padding: 0 0.6rem;
-    border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-    background: var(--surface);
-    box-shadow: none;
-    color: var(--foreground);
+    border-bottom: 1px solid var(--separator);
+    border-radius: 0;
   }
-  .platform-shell--v2 .shell-topbar::before {
-    content: none;
+  .shell-path {
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+  .platform-shell--v2 .shell-brand__name {
+    color: var(--foreground);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .shell-path__area {
+    display: none;
   }
   .shell-menu-button {
     display: inline-flex;
     grid-area: menu;
+    align-self: center;
   }
-  .platform-shell--v2 .shell-brand {
-    color: var(--foreground);
+  .shell-areabar {
+    padding: 0 0.6rem;
   }
-  .platform-shell--v2 .shell-brand__name {
-    display: grid;
-    font-size: 0.9rem;
-  }
-  .platform-shell--v2 .shell-brand__name > small {
+  .shell-areabar:empty {
     display: none;
   }
-  .platform-shell--v2 .shell-tools > .contents > .button--outline {
-    border-color: var(--border);
-    background: transparent;
-    color: var(--foreground);
-  }
-  .platform-shell--v2 .shell-tools .profile-menu-trigger,
-  .platform-shell--v2 .shell-tools .profile-menu-trigger svg {
-    color: var(--foreground);
-  }
-  .platform-shell--v2 .shell-tools .profile-menu-trigger .avatar,
-  .platform-shell--v2 .shell-tools .profile-menu-trigger .avatar__fallback {
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  /* The drawer. */
   .platform-shell--v2 .shell-aside {
     position: fixed;
     inset: 0 auto 0 0;
     z-index: 45;
     width: min(18rem, 86vw);
     height: 100svh;
-    padding: 1rem 0.75rem;
     overflow-y: auto;
-    border-right: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
-    background: var(--surface);
-    box-shadow: 0 0 60px -20px color-mix(in oklab, var(--foreground) 55%, transparent);
+    background: linear-gradient(170deg, #f9fafa 0%, #e8efed 100%);
+    box-shadow: 0 0 60px -20px rgb(15 23 42 / 0.55);
     transform: translateX(-105%);
     transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
     visibility: hidden;
@@ -2902,64 +2870,20 @@ button.performance-kpi__button:hover {
     z-index: 44;
     display: block;
     border: 0;
-    background: color-mix(in oklab, var(--foreground) 38%, transparent);
+    background: rgb(15 23 42 / 0.32);
   }
-  .shell-side {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  .shell-side__search,
-  .shell-side__profile {
-    display: none;
+  .shell-drawer-close {
+    position: absolute;
+    top: 0.9rem;
+    right: 0.6rem;
+    display: inline-flex;
   }
   .shell-side__brand-link {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0 0.35rem 0.5rem;
-    font-size: 0.95rem;
-    font-weight: 700;
-  }
-  .shell-side__areas {
-    display: grid;
-    gap: 0.2rem;
+    padding-right: 2.6rem;
   }
   .shell-side__area {
-    display: flex;
     min-height: 2.75rem;
-    align-items: center;
-    gap: 0.7rem;
-    padding: 0.5rem 0.7rem;
-    border-radius: 0.8rem;
-    color: var(--muted);
     font-size: 0.95rem;
-    font-weight: 600;
-  }
-  .shell-side__area[data-open='true'] {
-    color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .shell-side__sections {
-    display: grid;
-    gap: 2px;
-    margin: 0.3rem 0 0.5rem 1.2rem;
-    padding-left: 0.6rem;
-    border-left: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
-  }
-  .shell-side__section {
-    display: flex;
-    min-height: 2.5rem;
-    align-items: center;
-    padding: 0.35rem 0.6rem;
-    border-radius: 0.65rem;
-    color: var(--muted);
-    font-size: 0.9rem;
-  }
-  .shell-side__section[data-selected='true'] {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--foreground) 8%, transparent);
-    font-weight: 650;
   }
   @media (prefers-reduced-motion: reduce) {
     .platform-shell--v2 .shell-aside {
@@ -2968,44 +2892,305 @@ button.performance-kpi__button:hover {
   }
 }
 
-/* 1. Search inside the side column: the results open to the right of the field's start and are
-   not cut by the column, whose own list is what scrolls. */
+.login-stage,
+.platform-card-surface {
+  border: 1px solid rgb(255 255 255 / 0.9);
+  border-radius: var(--radius-3xl);
+}
+/* The top bar names the open area, so the Painel do Aluno keeps its title for assistive
+   technology only; a header left with nothing to show takes no room. */
+.platform-shell--v2 .pa-admin-header > h1,
+.platform-shell--v2 .pa-admin-header:not(:has(> button)) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.platform-shell--v2 .pa-admin-header {
+  justify-content: flex-end;
+}
+/* Notas on a computer: lenses, mode and comparison share one row. On a narrower window the
+   side column gives up some width first; below that the selectors take a second row. */
+@media (min-width: 901px) and (max-width: 1279px) {
+  .platform-shell--v2 {
+    --shell-aside: 13rem;
+  }
+}
+@media (min-width: 1000px) {
+  .performance-workspace .performance-notes-bar,
+  .performance-workspace .performance-notes-bar__selects {
+    flex-wrap: nowrap;
+  }
+  .performance-workspace .performance-notes-bar {
+    gap: 0.6rem;
+  }
+  .performance-workspace .performance-notes-bar > .tabs__list-container .tabs__tab {
+    padding-inline: 0.5rem;
+  }
+  .performance-workspace .performance-notes-bar__selects {
+    flex: none;
+    gap: 0.4rem;
+  }
+  .performance-workspace .performance-notes-bar__selects .label,
+  .performance-workspace .performance-notes-bar__selects .select__value {
+    white-space: nowrap;
+  }
+  .performance-workspace .performance-notes-bar__selects .select__trigger {
+    min-width: 5.5rem;
+  }
+}
+/* Three indicators while no student waits for a classification (owner request of 13/10/2026). */
+.performance-kpi-group[data-cards='3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (min-width: 641px) and (max-width: 760px) {
+  .performance-kpi-group[data-cards='3'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .performance-kpi-group[data-cards='3'] > .performance-kpi:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 640px) {
+  .performance-kpi-group[data-cards='3'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Computer (owner request of 13/10/2026): the top of the site is not part of the sheet. It sits
+   on the page, above it: where one is on the left, the search on the right. The sheet starts
+   with the top of the open area. */
 @media (min-width: 901px) {
-  .platform-shell--v2 .shell-aside {
-    overflow: visible;
+  .platform-shell--v2 {
+    padding-top: 0;
   }
-  .shell-side__areas {
-    min-height: 0;
+  .platform-shell--v2::before {
+    grid-row: 2 / span 2;
   }
-  .shell-side__search .platform-search-popover {
-    right: auto;
-    left: 0;
-    width: 22rem;
+  .platform-shell--v2 > .shell-topbar {
+    min-height: 4rem;
+    align-items: center;
+    padding: 0 1.25rem 0 0.5rem;
+    border-radius: 0;
+    background: transparent;
+  }
+  .platform-shell--v2 .shell-path {
+    height: auto;
+    gap: 0.6rem;
+    padding: 0;
+    border: 0;
+    font-size: 0.95rem;
+  }
+  .platform-shell--v2 .shell-path__area {
+    gap: 0.6rem;
+    color: var(--foreground);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  .platform-shell--v2 > .shell-areabar {
+    border-radius: var(--sheet-radius) 0 0;
+  }
+  .platform-shell--v2 > .shell-areabar:empty {
+    min-height: 0.9rem;
+    border-bottom: 0;
+    background: transparent;
+  }
+  .platform-shell--v2 .shell-tools .platform-search-desktop {
+    width: 20rem;
+  }
+  .platform-shell--v2 .shell-tools .search-field__group {
+    height: 2.6rem;
+    padding-inline: 0.9rem 0.6rem;
+    border-color: rgb(255 255 255 / 0.9);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.85);
+  }
+  .platform-shell--v2 .shell-tools .search-field__input {
     min-width: 0;
-    max-width: calc(100vw - 2.5rem);
+    flex: 1 1 0;
+  }
+  .platform-shell--v2 .shell-tools .platform-search-shortcut {
+    flex: none;
+    white-space: nowrap;
   }
 }
-@media (min-width: 901px) {
-  /* The column is its own layer, above the page, so what opens from it is not painted over. */
-  .platform-shell--v2 .shell-aside {
-    z-index: 20;
-  }
-}
-/* The drawer's own close button, on phones only. */
-.shell-drawer-close {
+/* The side column collapsed to its icons (owner request of 13/10/2026). Names stay for assistive
+   technology and as the native hint of each link. */
+.shell-collapse-button {
   display: none;
 }
-@media (max-width: 900px) {
-  .shell-drawer-close {
-    position: absolute;
-    top: 0.75rem;
-    right: 0.6rem;
+@media (min-width: 901px) {
+  .shell-collapse-button {
     display: inline-flex;
+    grid-area: collapse;
+    color: var(--muted);
+  }
+  .platform-shell--v2 > .shell-topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'collapse path tools';
+    gap: 0 0.5rem;
+    padding-left: 0.25rem;
+  }
+  .platform-shell--v2 {
+    transition: grid-template-columns 160ms ease;
+  }
+  .platform-shell--v2[data-side='collapsed'] {
+    --shell-aside: 3.5rem;
+  }
+  .platform-shell--v2[data-side='collapsed'] .shell-side {
+    padding-inline: 0.35rem;
+  }
+  .platform-shell--v2[data-side='collapsed'] .shell-side__brand-link {
+    justify-content: center;
+    padding: 0;
+  }
+  .platform-shell--v2[data-side='collapsed'] .shell-side__brand-name,
+  .platform-shell--v2[data-side='collapsed'] .shell-side__area > span,
+  .platform-shell--v2[data-side='collapsed'] .shell-side__group-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .platform-shell--v2[data-side='collapsed'] .shell-side__groups {
+    gap: 0.6rem;
+  }
+  .platform-shell--v2[data-side='collapsed'] .shell-side__groups > div + div {
+    padding-top: 0.6rem;
+    border-top: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+  }
+  .platform-shell--v2[data-side='collapsed'] .shell-side__area {
+    position: relative;
+    justify-content: center;
+    padding-inline: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .platform-shell--v2 {
+      transition: none;
+    }
   }
 }
-@media (max-width: 900px) {
-  /* Room for the drawer's close button beside the brand. */
-  .shell-side__brand-link {
-    padding-right: 2.6rem;
+/* The crest of the school without its shadow, in the whole Centro (owner request of 13/10/2026). */
+.platform-shell .school-mark {
+  box-shadow: none;
+}
+/* Less room between the edges of the sheet and what is on the page (owner request of 13/10/2026). */
+@media (min-width: 901px) {
+  .platform-shell--v2 .shell-main--service {
+    padding: 0.75rem 0.4rem 0.75rem 0.6rem;
+  }
+  .platform-shell--v2 > .shell-areabar {
+    padding-inline: 0.6rem;
+  }
+  .platform-shell--v2 > .shell-topbar {
+    padding-right: 0.6rem;
+  }
+}
+/* The account is the round picture at the top right of the page (owner request of 13/10/2026). */
+@media (min-width: 901px) {
+  .platform-shell--v2 .shell-tools {
+    gap: 0.6rem;
+  }
+  .platform-shell--v2 .shell-tools .profile-menu-trigger {
+    display: inline-flex;
+    width: 2.6rem;
+    min-width: 0;
+    height: 2.6rem;
+    min-height: 0;
+    padding: 0;
+    border-radius: 999px;
+  }
+  .platform-shell--v2 .shell-tools .profile-menu-trigger > span:not(.avatar),
+  .platform-shell--v2 .shell-tools .profile-menu-trigger > svg {
+    display: none;
+  }
+  .platform-shell--v2 .shell-tools .profile-menu-trigger .avatar {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+}
+/* The search shows no key hint; the shortcut itself keeps working (owner request of 13/10/2026). */
+.platform-shell--v2 .shell-tools .platform-search-desktop .platform-search-shortcut {
+  display: none;
+}
+/* The search stands out while it is in use (owner request of 13/10/2026). */
+.platform-shell--v2 .shell-tools .search-field__group {
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+.platform-shell--v2 .shell-tools .platform-search-desktop:focus-within .search-field__group {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+.platform-shell--v2 .shell-tools .platform-search-desktop:focus-within .search-field__group svg {
+  color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .platform-shell--v2 .shell-tools .search-field__group {
+    transition: none;
+  }
+}
+/* The top of the site is as tall as the collapsed side column is wide, with small type (owner
+   request of 13/10/2026). */
+@media (min-width: 901px) {
+  .platform-shell--v2 > .shell-topbar {
+    min-height: 3.5rem;
+  }
+  .platform-shell--v2 .shell-path {
+    gap: 0.45rem;
+    font-size: 0.8rem;
+  }
+  .platform-shell--v2 .shell-path__area {
+    gap: 0.45rem;
+    font-size: 0.8rem;
+    font-weight: 650;
+    letter-spacing: 0;
+  }
+  .platform-shell--v2 .shell-collapse-button {
+    width: 2rem;
+    min-width: 0;
+    height: 2rem;
+  }
+  .platform-shell--v2 .shell-collapse-button svg {
+    width: 1rem;
+    height: 1rem;
+  }
+  .platform-shell--v2 .shell-tools .platform-search-desktop {
+    width: 17rem;
+  }
+  .platform-shell--v2 .shell-tools .search-field__group {
+    height: 2.1rem;
+    min-height: 0;
+  }
+  .platform-shell--v2 .shell-tools .search-field__input {
+    font-size: 0.8rem;
+  }
+  .platform-shell--v2 .shell-tools .search-field__group svg {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+  .platform-shell--v2 .shell-tools .profile-menu-trigger {
+    width: 2.1rem;
+    height: 2.1rem;
+  }
+  .platform-shell--v2 .shell-tools .profile-menu-trigger .avatar {
+    width: 2rem;
+    height: 2rem;
+  }
+  /* The crest sits in the same band as the top of the site. */
+  .platform-shell--v2 .shell-side {
+    padding-top: 0.625rem;
   }
 }

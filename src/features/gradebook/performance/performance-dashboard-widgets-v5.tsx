@@ -53,7 +53,10 @@ function PerformanceKpisV5({ value, selection, onSelectionChange }: {
     analysis.matrix.statistics.completeCells / analysis.matrix.statistics.consideredCells * 100;
   const selected = (group: 'withBelow' | 'pending') =>
     selection?.kind === 'group' && selection.group === group;
-  return <div className="performance-kpi-group" aria-label="Resumo da turma">
+  // Shown only when some student is still waiting for a classification (owner request of
+  // 13/10/2026); since BN-DEC-042 a missing mark no longer leaves anyone there.
+  const pending = value.overview.students.pending;
+  return <div className="performance-kpi-group" data-cards={pending > 0 ? 4 : 3} aria-label="Resumo da turma">
     <KpiCard icon={<UsersRound size={20}/>} value={analysis.matrix.statistics.visibleRows} label="estudantes"
       detail={analysis.matrix.classGroup.name ?? analysis.matrix.classGroup.label} tone="accent"/>
     <KpiCard icon={<CircleAlert size={20}/>} value={value.overview.students.withBelow} label="abaixo do mínimo"
@@ -61,9 +64,9 @@ function PerformanceKpisV5({ value, selection, onSelectionChange }: {
       onPress={() => onSelectionChange(selected('withBelow') ? null : { kind: 'group', group: 'withBelow' })}/>
     <KpiCard icon={<CheckCircle2 size={20}/>} value={`${number.format(completePercent)}%`} label="completos"
       detail={`${analysis.matrix.statistics.completeCells} de ${analysis.matrix.statistics.consideredCells} leituras`} tone="success"/>
-    <KpiCard icon={<Clock3 size={20}/>} value={value.overview.students.pending} label="com pendências"
+    {pending > 0 ? <KpiCard icon={<Clock3 size={20}/>} value={pending} label="com pendências"
       detail="Ainda sem classificação integral" tone="warning" pressed={selected('pending')}
-      onPress={() => onSelectionChange(selected('pending') ? null : { kind: 'group', group: 'pending' })}/>
+      onPress={() => onSelectionChange(selected('pending') ? null : { kind: 'group', group: 'pending' })}/> : null}
   </div>;
 }
 

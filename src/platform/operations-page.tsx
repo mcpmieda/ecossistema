@@ -131,7 +131,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
         description="Acompanhe a disponibilidade do núcleo, pontos de atenção e informações de recuperação."
       />
 
-      <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
+      <Surface variant="default" className="platform-card-surface rounded-3xl p-6 sm:p-7">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>

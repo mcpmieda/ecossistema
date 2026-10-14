@@ -412,7 +412,7 @@ export function NotesImportPanel() {
     : [];
 
   return (
-    <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
+    <Surface variant="default" className="platform-card-surface rounded-3xl p-6 sm:p-7">
       <input
         ref={reportInputRef}
         type="file"

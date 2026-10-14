@@ -38,7 +38,13 @@ const snapshot = () =>
     },
     PLATFORM_CAPABILITIES,
   );
+// jsdom has no Web Animations; the tabs of the top bar ask for them when the open one changes.
+const animations = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
 beforeEach(() => {
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  });
   mounts.mockClear();
   window.history.replaceState(null, '', '/#/banco-de-notas');
   vi.stubGlobal('matchMedia', () => ({
@@ -59,6 +65,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  if (animations) Object.defineProperty(Element.prototype, 'getAnimations', animations);
+  else Reflect.deleteProperty(Element.prototype, 'getAnimations');
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -102,8 +110,13 @@ it('uses independent main links without remounting Importação and respects int
     'page',
   );
   expect(screen.queryByRole('link', { name: 'Acessos e QR' })).toBeNull();
+  expect(screen.queryByRole('tab', { name: 'Acessos e QR' })).toBeNull();
   await user.click(screen.getByRole('link', { name: 'Painel do Aluno' }));
-  expect(await screen.findAllByRole('link', { name: 'Alunos' })).toHaveLength(1);
+  // The sections of the open area are tabs in the top bar; the side column lists areas only.
+  expect(await screen.findAllByRole('tab', { name: 'Alunos' })).toHaveLength(1);
+  expect(screen.queryByRole('link', { name: 'Alunos' })).toBeNull();
+  await user.click(screen.getByRole('tab', { name: 'Sessões' }));
+  expect(window.location.hash).toBe('#/painel-do-aluno?area=sessions');
   expect(screen.getByRole('link', { name: 'Conciliação' })).toBeTruthy();
 });
 
@@ -204,12 +217,11 @@ it('keeps the keyboard inside the phone drawer, closes it on Escape and gives fo
   // The drawer holds one navigation only; no hidden copy of the old section row is a tab stop.
   expect(drawer.querySelector('.shell-sidenav')).toBeNull();
   expect(within(drawer).getAllByRole('navigation')).toHaveLength(1);
-  const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button')].filter(
-    (item) => !item.closest('.shell-side__search, .shell-side__profile'),
-  );
+  const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button')];
   const first = stops[0]!,
     last = stops.at(-1)!;
-  // The open area (Banco de notas) has sections, so the last stop is an area after them.
+  // The drawer lists the areas only; the sections of the open one are tabs in the top bar.
+  expect(drawer.querySelector('[role="tab"]')).toBeNull();
   expect(last.textContent).toBe('Configurações');
   // The two edges wrap inside the drawer.
   last.focus();

@@ -3,7 +3,17 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Alert, Button, Label, ListBox, Select, Spinner } from '@heroui/react';
 import type { WorkspaceYearV2 } from '../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { requestOperationalWorkspaceV2 } from '../features/gradebook/operational-workspace/operational-workspace-client-v2';
-import { GradebookYearContext, useGradebookYear } from './gradebook-year-context';
+import {
+  GradebookYearContext,
+  useGradebookYear,
+  type GradebookYearContextValue,
+} from './gradebook-year-context';
+
+/**
+ * The year chosen in the settings of the Centro, kept for this visit only (no browser storage), so
+ * the Banco de notas opens in it. Each screen still reads the catalogue of years by itself.
+ */
+let chosenYearV1: number | null = null;
 
 export function GradebookYearProvider({ children }: { readonly children: ReactNode }) {
   const [year, setYear] = useState<number | null>(null);
@@ -26,6 +36,7 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
       if (!years.some((item) => item.year === nextYear)) return;
       if (yearRef.current === nextYear) return;
       yearRef.current = nextYear;
+      chosenYearV1 = nextYear;
       setYear(nextYear);
       setEpoch((value) => value + 1);
     },
@@ -63,7 +74,8 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     }
     setFailure(null);
     setYears(response.years);
-    const current = yearRef.current;
+    const previous = yearRef.current;
+    const current = previous ?? chosenYearV1;
     const next =
       preferredYear !== undefined && response.years.some((item) => item.year === preferredYear)
         ? preferredYear
@@ -72,7 +84,7 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
           : (response.years[0]?.year ?? null);
     yearRef.current = next;
     setYear(next);
-    if (next !== current) {
+    if (next !== previous) {
       setEpoch((value) => value + 1);
     }
     setLoading(false);
@@ -110,23 +122,75 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
   return <GradebookYearContext.Provider value={value}>{children}</GradebookYearContext.Provider>;
 }
 
-export function GradebookYearContextBanner() {
+function YearFailureV1({ scope }: { readonly scope: GradebookYearContextValue }) {
+  if (!scope.failure) return null;
+  return (
+    <Alert status="warning" className="basis-full">
+      <Alert.Content>
+        <Alert.Title>Contexto indisponível</Alert.Title>
+        <Alert.Description>{scope.failure}</Alert.Description>
+      </Alert.Content>
+      <Button
+        size="sm"
+        variant="secondary"
+        onPress={() => {
+          scope.retryAuthorization();
+          void scope.refreshYears();
+        }}
+      >
+        Tentar novamente
+      </Button>
+    </Alert>
+  );
+}
+
+/**
+ * The school year in use, read-only: it is chosen in the settings of the Centro (owner request of
+ * 13/10/2026). With `failureOnly` nothing shows unless the year could not be read.
+ */
+export function GradebookYearContextBanner({
+  failureOnly = false,
+}: {
+  readonly failureOnly?: boolean;
+}) {
   const scope = useGradebookYear();
-  if (!scope) return null;
+  if (!scope || (failureOnly && !scope.failure)) return null;
   return (
     <div
       aria-label="Contexto acadêmico atual"
-      className="flex min-w-0 flex-wrap items-end justify-end gap-2"
+      className="gradebook-year-current flex min-w-0 flex-wrap items-center justify-end gap-2"
     >
+      {failureOnly ? null : (
+        <p className="flex items-center gap-1.5 text-xs text-muted">
+          Ano letivo
+          {scope.loading ? (
+            <Spinner size="sm" />
+          ) : (
+            <strong className="text-sm font-semibold text-foreground">{scope.year ?? '—'}</strong>
+          )}
+        </p>
+      )}
+      <YearFailureV1 scope={scope} />
+    </div>
+  );
+}
+
+/** The selector of the global school year, in the settings of the Centro. */
+export function GradebookYearSelectV1() {
+  const scope = useGradebookYear();
+  if (!scope) return null;
+  return (
+    <div className="grid min-w-0 gap-3">
       <Select
+        className="max-w-xs"
         selectedKey={scope.year === null ? null : String(scope.year)}
         isDisabled={scope.loading || scope.years.length === 0}
         onSelectionChange={(key) => {
           if (key !== null) scope.selectYear(Number(key));
         }}
       >
-        <Label className="mb-1 block text-xs font-medium text-muted">Ano letivo global</Label>
-        <Select.Trigger className="min-h-10 min-w-36">
+        <Label>Ano letivo global</Label>
+        <Select.Trigger className="min-h-11 w-full">
           <Select.Value />
           {scope.loading ? <Spinner size="sm" /> : <Select.Indicator />}
         </Select.Trigger>
@@ -141,24 +205,7 @@ export function GradebookYearContextBanner() {
           </ListBox>
         </Select.Popover>
       </Select>
-      {scope.failure ? (
-        <Alert status="warning" className="basis-full">
-          <Alert.Content>
-            <Alert.Title>Contexto indisponível</Alert.Title>
-            <Alert.Description>{scope.failure}</Alert.Description>
-          </Alert.Content>
-          <Button
-            size="sm"
-            variant="secondary"
-            onPress={() => {
-              scope.retryAuthorization();
-              void scope.refreshYears();
-            }}
-          >
-            Tentar novamente
-          </Button>
-        </Alert>
-      ) : null}
+      <YearFailureV1 scope={scope} />
     </div>
   );
 }

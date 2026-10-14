@@ -33,10 +33,13 @@ export function PageHeader({
   eyebrow,
   title,
   description,
+  titleInBar = false,
 }: {
   eyebrow: string;
   title: string;
   description: string;
+  /** The top bar already shows this title: it stays for assistive technology only. */
+  titleInBar?: boolean;
 }) {
   return (
     <Surface variant="default" className="platform-page-header">
@@ -44,7 +47,13 @@ export function PageHeader({
         <Chip color="accent" variant="soft" size="sm">
           {eyebrow}
         </Chip>
-        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.045em] sm:text-3xl">{title}</h2>
+        <h2
+          className={
+            titleInBar ? 'sr-only' : 'mt-4 text-2xl font-semibold tracking-[-0.045em] sm:text-3xl'
+          }
+        >
+          {title}
+        </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{description}</p>
       </div>
     </Surface>

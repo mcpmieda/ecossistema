@@ -25,6 +25,7 @@ import {
 } from '../../shared/platform-contract';
 import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
 import { NotesPage } from './notes-page';
+import { GradebookYearProvider, GradebookYearSelectV1 } from './gradebook-year-provider';
 const SystemHealthPage = preloadedSectionV1(() =>
   import('./system-health-page-v1').then((module) => module.SystemHealthPageV1),
 );
@@ -49,6 +50,7 @@ function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <PageHeader
         eyebrow="Rastreabilidade"
         title="Auditoria"
+        titleInBar
         description="Eventos administrativos disponíveis para consulta, sem expor detalhes sensíveis no navegador."
       />
       <Card variant="default" className="overflow-hidden">
@@ -311,8 +313,20 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <PageHeader
         eyebrow="Governança"
         title="Configurações"
+        titleInBar
         description="Consulte as configurações administrativas e seu estado de vigência."
       />
+
+      <Card variant="default" className="mb-5 overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Ano letivo</Card.Title>
+        </Card.Header>
+        <Card.Content className="p-5 sm:p-6">
+          <GradebookYearProvider>
+            <GradebookYearSelectV1 />
+          </GradebookYearProvider>
+        </Card.Content>
+      </Card>
 
       <SessionDurationSetting />
 
@@ -443,7 +457,7 @@ export function LoadingWorkspace() {
   return (
     <Surface
       variant="default"
-      className="platform-card-surface platform-loading-panel rounded-[2rem] p-5 sm:p-7"
+      className="platform-card-surface platform-loading-panel rounded-3xl p-5 sm:p-7"
       role="status"
       aria-label="Carregando dados institucionais"
     >

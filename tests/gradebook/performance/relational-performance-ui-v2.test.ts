@@ -428,9 +428,9 @@ describe('real shell, shared year and rendered performance journey', () => {
         ['classes', 'matrix', 'analysis', 'dashboard'].includes(String(value.operation)),
       ),
     ).toHaveLength(0);
-    expect(host.querySelector('[aria-label="Contexto acadêmico atual"]')?.textContent).toContain(
-      '2026',
-    );
+    // The year is chosen in the settings of the Centro; Importation does not depend on it and
+    // shows nothing about it unless it could not be read.
+    expect(host.querySelector('[aria-label="Contexto acadêmico atual"]')).toBeNull();
   });
   it('loads the global catalogue and uses its selected year without browser persistence', async () => {
     await mount();
