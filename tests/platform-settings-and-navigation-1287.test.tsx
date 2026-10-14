@@ -183,31 +183,54 @@ it('supports focus-only arrow keys and guarded mouse and native Enter activation
   window.history.replaceState(null, '', '/#/banco-de-notas?area=performance');
   network(async () => Response.json(snapshot()));
   const view = render(<App />);
-  const nav = await within(view.container).findByRole('navigation', { name: 'Seções de Banco de notas' });
+  const app = within(view.container);
+  // Let the real lazy screen and its focus-related effects mount before sending keys.
+  await app.findByRole('region', { name: 'Desempenho relacional' });
+  const nav = app.getByRole('navigation', { name: 'Seções de Banco de notas' });
   const first = within(nav).getByRole('link', { name: 'Desempenho' });
   const last = within(nav).getByRole('link', { name: 'Configurações' });
   const user = userEvent.setup();
-  first.focus();
-  await user.keyboard('{End}');
-  expect(document.activeElement).toBe(last);
-  expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
-  const block = (event: Event) => event.preventDefault();
+  const clicks: Event[] = [];
+  const observeClick = (event: Event) => { clicks.push(event); };
+  const block = vi.fn((event: Event) => event.preventDefault());
+  last.addEventListener('click', observeClick);
   window.addEventListener('ecossistema-before-navigation', block);
   try {
+    first.focus();
+    await user.keyboard('{End}');
+    expect(document.activeElement).toBe(last);
+    expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
     await user.click(last);
+    expect(block).toHaveBeenCalledTimes(1);
+    expect(clicks).toHaveLength(1);
+    expect(clicks[0]?.defaultPrevented).toBe(true);
     expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
     expect(first.getAttribute('aria-current')).toBe('page');
+    expect(document.activeElement).toBe(last);
     await user.keyboard('{Enter}');
+    expect(block).toHaveBeenCalledTimes(2);
+    expect(clicks).toHaveLength(2);
+    expect(clicks[1]?.defaultPrevented).toBe(true);
     expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
     expect(first.getAttribute('aria-current')).toBe('page');
+    window.removeEventListener('ecossistema-before-navigation', block);
+    await user.keyboard('{Home}');
+    expect(document.activeElement).toBe(first);
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(within(nav).getByRole('link', { name: 'Boletins' }));
+    await user.keyboard('{End}');
+    expect(document.activeElement).toBe(last);
+    expect(last.getAttribute('href')).toBe('#/banco-de-notas?area=settings');
+    await user.keyboard('{Enter}');
+    expect(clicks).toHaveLength(3);
+    expect(clicks[2]?.defaultPrevented).toBe(false);
+    expect(block).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/banco-de-notas?area=settings');
+      expect(last.getAttribute('aria-current')).toBe('page');
+    });
   } finally {
     window.removeEventListener('ecossistema-before-navigation', block);
+    last.removeEventListener('click', observeClick);
   }
-  await user.keyboard('{Home}{ArrowRight}');
-  expect(document.activeElement).toBe(within(nav).getByRole('link', { name: 'Boletins' }));
-  await user.keyboard('{End}{Enter}');
-  await waitFor(() => {
-    expect(window.location.hash).toBe('#/banco-de-notas?area=settings');
-    expect(last.getAttribute('aria-current')).toBe('page');
-  });
 });
