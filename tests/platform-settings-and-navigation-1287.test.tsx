@@ -55,10 +55,10 @@ const bootstrapCalls = (fetcher: ReturnType<typeof network>) => fetcher.mock.cal
 async function yearSelector(container: HTMLElement) {
   // Query the actual year card, not unrelated controls or portals elsewhere in document.body.
   // findByRole still enforces uniqueness: duplicate controls inside this card remain a failure.
-  const heading = await within(container).findByRole('heading', { name: 'Ano letivo', exact: true });
+  const heading = await within(container).findByRole('heading', { name: 'Ano letivo' });
   const card = heading.closest<HTMLElement>('[data-slot="card"], .card');
   if (!card) throw new Error('The school-year heading must belong to its rendered settings card');
-  return within(card).findByRole('button', { name: 'Ano letivo global', exact: true });
+  return within(card).findByRole('button', { name: 'Ano letivo global' });
 }
 
 it('keeps native settings mounted during a Microsoft failure and carries the selected year to the real Banco', async () => {
@@ -71,10 +71,10 @@ it('keeps native settings mounted during a Microsoft failure and carries the sel
   await user.click(await screen.findByRole('option', { name: '2025' }));
   expect(trigger.textContent).toContain('2025');
   const main = within(view.container).getByRole('navigation', { name: 'Navegação principal' });
-  await user.click(within(main).getByRole('link', { name: 'Banco de notas', exact: true }));
+  await user.click(within(main).getByRole('link', { name: 'Banco de notas' }));
   await waitFor(() => expect(fetcher.mock.calls.some(([path, init]) => path === '/api/gradebook/performance' && String(init?.body).includes('"year":2025'))).toBe(true));
   expect(bootstrapCalls(fetcher)).toBe(2);
-  await user.click(within(main).getByRole('link', { name: 'Configurações', exact: true }));
+  await user.click(within(main).getByRole('link', { name: 'Configurações' }));
   const second = await yearSelector(view.container);
   await waitFor(() => expect(second.textContent).toContain('2025'));
   expect(bootstrapCalls(fetcher)).toBe(3);
@@ -152,7 +152,7 @@ it('does not bootstrap an academic catalogue merely to open a nonacademic area',
   window.history.replaceState(null, '', '/#/operacao');
   const fetcher = network(async () => Response.json({}, { status: 503 }));
   const view = render(<App />);
-  await within(view.container).findByRole('heading', { name: 'Saúde do Sistema', exact: true });
+  await within(view.container).findByRole('heading', { name: 'Saúde do Sistema' });
   expect(bootstrapCalls(fetcher)).toBe(0);
 });
 
