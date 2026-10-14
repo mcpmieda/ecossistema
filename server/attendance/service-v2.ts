@@ -1,0 +1,1027 @@
+import {
+  frequencyRequestV2,
+  frequencyPayloadHashV2,
+  type FrequencyRequestV2,
+  type FrequencyActorV2,
+  type FrequencyCollectionV2,
+  type FrequencyStatusV2,
+  type FrequencySummaryV2,
+  type FrequencyScheduleV2,
+} from '../../shared/attendance-contracts/frequency-v2';
+import { canonicalFrequencyJsonV2 } from '../../shared/attendance-contracts/frequency-v2';
+import { studentUidV1 } from '../../shared/student-identity/student-identity-v1';
+import { normalizeStudentNameV1 } from '../../shared/student-identity/reconciliation-normalization-v1';
+import { resolveReconciledSourcesV2 } from '../student-identity/reconciliation/resolve-source-batch-v2';
+import { lockResetWriterV1 } from '../student-portal/integration/year-reset/writer-v1';
+import { recordFrequencyResetWriteV2 } from '../student-portal/integration/year-reset/frequency-writer-v2';
+import type {
+  GradebookPostgresDatabaseV1,
+  GradebookPostgresTransactionV1,
+} from '../gradebook/persistence/postgres/postgres-database-v1';
+
+type Tx = GradebookPostgresTransactionV1;
+type Row = Record<string, unknown>;
+type Mark = 'X' | 'J' | null;
+type Source = { recordKey: string; originalName: string; originalClass: string };
+type Eligibility = {
+  sourceId: string;
+  observationId: string;
+  startsOn: string | null;
+  endsOn: string | null;
+};
+const truth = (v: unknown) => v === true || v === 1;
+const str = (v: unknown) => String(v);
+const json = <T>(v: unknown): T => (typeof v === 'string' ? JSON.parse(v) : v) as T;
+const iso = (v: unknown) => new Date(str(v)).toISOString();
+export class FrequencyErrorV2 extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly status = 409,
+  ) {
+    super(code);
+  }
+}
+function fail(code: string, status = 409): never {
+  throw new FrequencyErrorV2(code, status);
+}
+function admin(actor: FrequencyActorV2) {
+  if (actor.mode !== 'admin') fail('not-authorized', 403);
+}
+function device(actor: FrequencyActorV2): string {
+  if (actor.mode !== 'device' || !actor.deviceId || !actor.deviceGeneration || !actor.keyThumbprint)
+    fail('not-authorized', 403);
+  return studentUidV1.parse(actor.deviceId);
+}
+async function lockDevice(tx: Tx, actor: FrequencyActorV2) {
+  if (actor.mode !== 'device') return;
+  const id = device(actor);
+  const [row] = await tx.query<Row>(
+    `SELECT collector_auth.lock_active_device_v2($1::uuid,$2::uuid,$3::uuid,$4::bigint,$5::text) AS allowed`,
+    [id, actor.tenantId, actor.actorId, actor.deviceGeneration!, actor.keyThumbprint!],
+  );
+  if (!truth(row?.allowed)) fail('not-authorized', 403);
+}
+async function school(tx: Tx, year: number, tenant: string): Promise<Row> {
+  await tx.executeNative(
+    `INSERT INTO attendance.school_state_v2(academic_year,tenant_id) VALUES($1,$2::uuid) ON CONFLICT DO NOTHING`,
+    [year, tenant],
+  );
+  const [row] = await tx.query<Row>(
+    'SELECT *,clock_timestamp()::text AS server_time FROM attendance.school_state_v2 WHERE academic_year=$1 FOR UPDATE',
+    [year],
+  );
+  if (!row || row.tenant_id !== tenant) fail('not-authorized', 403);
+  return row;
+}
+async function liveLease(
+  tx: Tx,
+  input: { academicYear: number; fencingToken: number },
+  actor: FrequencyActorV2,
+  allowPaused = false,
+) {
+  const [row] = await tx.query<Row>(
+    `SELECT lease_device::text,lease_actor::text,fencing_token,lease_until::text,paused,lease_until>clock_timestamp() AS live FROM attendance.school_state_v2 WHERE academic_year=$1`,
+    [input.academicYear],
+  );
+  if (
+    !row ||
+    !truth(row.live) ||
+    row.lease_device !== device(actor) ||
+    row.lease_actor !== actor.actorId ||
+    Number(row.fencing_token) !== input.fencingToken
+  )
+    fail('lease-fenced');
+  if (!allowPaused && truth(row.paused)) fail('paused');
+  return row;
+}
+async function centralMany(
+  tx: Tx,
+  year: number,
+  sources: Source[],
+  batchRefs: string[],
+  classIds: number[],
+) {
+  if (year !== 2026) fail('source-invalid', 400);
+  const results = await resolveReconciledSourcesV2(
+    tx,
+    sources.map((source, index) => ({
+      academicYear: year,
+      name: source.originalName,
+      classLabel: source.originalClass,
+      sourceSnapshotRef: batchRefs[index]!,
+      sourceRecordRef: source.recordKey,
+    })),
+  );
+  const observationIds = [
+    ...new Set(
+      results.flatMap((result) => (result.state === 'resolved' ? result.observationIds : [])),
+    ),
+  ];
+  const rows = await tx.query<Row>(
+    `SELECT o.source_id::text,o.id::text,o.enrolled_at::text,o.transferred_at::text,c.gradebook_class_id,c.review_required
+    FROM gradebook.student_source_observation_v1 o JOIN gradebook.student_report_class_v1 c ON c.id=o.report_class_id AND c.academic_year=o.academic_year
+    WHERE o.academic_year=$1 AND o.id IN(SELECT value::uuid FROM jsonb_array_elements_text($2::text::jsonb))`,
+    [year, JSON.stringify(observationIds)],
+  );
+  const byId = new Map(rows.map((r) => [str(r.id), r]));
+  return results.map((result, index) => {
+    if (result.state !== 'resolved') return { ...result, eligibility: [] as Eligibility[] };
+    const rows = result.observationIds
+      .map((id) => byId.get(id))
+      .filter((r): r is Row => r !== undefined);
+    if (
+      rows.length !== result.observationIds.length ||
+      !rows.length ||
+      rows.some((r) => Number(r.gradebook_class_id) !== classIds[index] || truth(r.review_required))
+    )
+      return {
+        state: 'ambiguous' as const,
+        decisionVersion: result.decisionVersion,
+        eligibility: [] as Eligibility[],
+      };
+    return {
+      ...result,
+      eligibility: rows.map((r) => ({
+        sourceId: str(r.source_id),
+        observationId: str(r.id),
+        startsOn: r.enrolled_at === null ? null : str(r.enrolled_at),
+        endsOn: r.transferred_at === null ? null : str(r.transferred_at),
+      })),
+    };
+  });
+}
+async function sourcesValid(tx: Tx, rows: readonly Row[]) {
+  if (!rows.length) return [];
+  const evidence = rows.map((r, index) => ({
+    ordinal: index,
+    year: Number(r.academic_year),
+    uid: str(r.student_uid),
+    class_id: Number(r.class_id),
+    source_ids: json<string[]>(r.source_ids_json),
+    observation_ids: json<string[]>(r.observation_ids_json),
+  }));
+  const results = await tx.query<Row>(
+    `SELECT x.ordinal,
+    gradebook.reconciliation_evidence_valid_v2(x.year::smallint,x.uid,x.class_id,x.source_ids,x.observation_ids) AS valid
+    FROM jsonb_to_recordset($1::text::jsonb) AS x(ordinal integer,year smallint,uid uuid,class_id integer,source_ids jsonb,observation_ids jsonb) ORDER BY ordinal`,
+    [JSON.stringify(evidence)],
+  );
+  return results.map((r) => truth(r.valid));
+}
+async function summaryInTx(
+  tx: Tx,
+  year: number,
+  uid: string,
+  month: string,
+): Promise<FrequencySummaryV2> {
+  const origins = await tx.query<Row>(
+    `SELECT o.id::text AS occurrence_id,o.date::text,o.slot,o.shift,o.mark,c.id::text AS conflict_id,
+    b.academic_year,b.class_id,b.id::text AS batch_id,b.source_class_label,
+    (CASE WHEN cs.last_batch_id=b.id THEN cs.last_observed_at ELSE b.observed_at END)::text AS observed_at,
+    (CASE WHEN cs.last_batch_id=b.id THEN cs.last_received_at ELSE b.received_at END)::text AS received_at,
+    s.record_key,s.original_name,s.original_class,s.student_uid::text,s.source_ids_json,s.observation_ids_json
+    FROM attendance.occurrence_v2 o JOIN attendance.origin_v2 p ON p.occurrence_id=o.id
+    JOIN attendance.source_row_v2 s ON s.batch_id=p.batch_id AND s.record_key=p.record_key
+    JOIN attendance.batch_v2 b ON b.id=p.batch_id
+    LEFT JOIN attendance.class_state_v2 cs ON cs.academic_year=b.academic_year AND cs.class_id=b.class_id
+    LEFT JOIN attendance.conflict_v2 c ON c.occurrence_id=o.id AND c.state='open'
+    WHERE o.academic_year=$1 AND o.student_uid=$2::uuid AND o.date>=$3::date AND o.date<($3::date+interval '1 month')
+    ORDER BY o.date,o.shift,o.slot,b.received_at`,
+    [year, uid, `${month}-01`],
+  );
+  return summarizeFrequencyOriginsV2(tx, origins, month);
+}
+export async function summarizeFrequencyOriginsV2(
+  tx: Tx,
+  origins: readonly Row[],
+  month: string,
+): Promise<FrequencySummaryV2> {
+  const unique = [
+    ...new Map(origins.map((r) => [`${str(r.batch_id)}:${str(r.record_key)}`, r])).values(),
+  ];
+  const valid = await sourcesValid(tx, unique);
+  const validity = new Map(
+    unique.map((r, i) => [`${str(r.batch_id)}:${str(r.record_key)}`, valid[i]!]),
+  );
+  return summarizeFrequencyPublicOriginsV2(
+    origins.map((r) => ({
+      ...r,
+      mapping_valid: validity.get(`${str(r.batch_id)}:${str(r.record_key)}`)!,
+    })),
+    month,
+  );
+}
+/** The private reader supplies mapping_valid after checking its central evidence. */
+export function summarizeFrequencyPublicOriginsV2(
+  origins: readonly Row[],
+  month: string,
+): FrequencySummaryV2 {
+  const events = new Map<string, { row: Row; labels: Set<string>; valid: boolean }>();
+  let observedAt: string | null = null;
+  let receivedAt: string | null = null;
+  const conflicts = new Set<string>();
+  for (const origin of origins) {
+    const id = str(origin.occurrence_id);
+    const current = events.get(id) ?? { row: origin, labels: new Set<string>(), valid: true };
+    current.valid &&= truth(origin.mapping_valid);
+    current.labels.add(str(origin.source_class_label));
+    events.set(id, current);
+    if (origin.conflict_id) conflicts.add(str(origin.conflict_id));
+    const observed = iso(origin.observed_at),
+      received = iso(origin.received_at);
+    if (observedAt === null || observed > observedAt) observedAt = observed;
+    if (receivedAt === null || received > receivedAt) receivedAt = received;
+  }
+  const marks = [...events.values()]
+    .filter((v) => v.valid && !v.row.conflict_id && v.row.mark !== null)
+    .map((v) => ({
+      date: str(v.row.date),
+      slot: Number(v.row.slot),
+      shift: str(v.row.shift),
+      mark: str(v.row.mark) as 'X' | 'J',
+      classLabels: [...v.labels].sort(),
+    }));
+  // Calendar/slot counts are not approved productive sources. Known sparse marks never imply attendance.
+  return {
+    contractVersion: 2,
+    state: 'ready',
+    month,
+    absences: null,
+    justified: null,
+    denominator: null,
+    percentage: null,
+    coverage: origins.length ? 'incomplete' : 'unavailable',
+    observedAt,
+    receivedAt,
+    marks,
+    conflicts: conflicts.size,
+  };
+}
+async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<FrequencyStatusV2> {
+  const year = Number(row.academic_year);
+  const classes = await tx.query<Row>(
+    `SELECT DISTINCT t.id AS class_id,c.label AS source_class_label,t.turno,COALESCE(s.revision,0) AS revision
+    FROM gradebook.student_report_class_v1 c JOIN gradebook.turma t ON t.id=c.gradebook_class_id AND t.ano=c.academic_year
+    LEFT JOIN attendance.class_state_v2 s ON s.academic_year=t.ano AND s.class_id=t.id WHERE c.academic_year=$1 AND NOT c.review_required ORDER BY t.id,c.label`,
+    [year],
+  );
+  const devices = await tx.query<Row>(
+    `SELECT p.device_id::text,p.revoked_at::text,p.grant_state,d.label,d.state,d.last_seen_at::text,d.class_id,d.code,d.last_collection_at::text,
+    d.last_seen_at>clock_timestamp()-interval '2 minutes' AS online
+    FROM collector_auth.device_public_v2 p LEFT JOIN attendance.device_status_v2 d ON d.device_id=p.device_id AND d.academic_year=$1
+    WHERE p.tenant_id=$2::uuid ORDER BY d.label,p.device_id`,
+    [year, actor.tenantId],
+  );
+  const collected = await tx.query<Row>(
+    `SELECT DISTINCT ON(b.class_id) b.class_id,COALESCE(s.last_observed_at,b.observed_at)::text AS observed_at,COALESCE(s.last_received_at,b.received_at)::text AS received_at,b.resolved_records,b.unresolved_records,b.conflicts
+    FROM attendance.batch_v2 b LEFT JOIN attendance.class_state_v2 s ON s.academic_year=b.academic_year AND s.class_id=b.class_id WHERE b.academic_year=$1 ORDER BY b.class_id,b.received_at DESC,b.id`,
+    [year],
+  );
+  const conflicts = await tx.query<Row>(
+    `SELECT c.id::text,c.revision,c.marks_json,o.student_uid::text,COALESCE(sp.name,a.nome,'Aluno') AS student_name,
+    o.date::text,o.slot,o.shift,MIN(b.source_class_label) AS class_label
+    FROM attendance.conflict_v2 c JOIN attendance.occurrence_v2 o ON o.id=c.occurrence_id
+    JOIN attendance.origin_v2 p ON p.occurrence_id=o.id JOIN attendance.batch_v2 b ON b.id=p.batch_id
+    LEFT JOIN gradebook.aluno a ON a.student_uid=o.student_uid AND a.ano=o.academic_year
+    LEFT JOIN gradebook.student_presentation_v1 sp ON sp.student_id=a.id AND sp.academic_year=a.ano
+    WHERE o.academic_year=$1 AND c.state='open' GROUP BY c.id,o.id,a.nome,sp.name ORDER BY o.date,o.slot,c.id`,
+    [year],
+  );
+  const [clock] = await tx.query<Row>(
+    `SELECT clock_timestamp()::text AS now,lease_until>clock_timestamp() AS live FROM attendance.school_state_v2 WHERE academic_year=$1`,
+    [year],
+  );
+  return {
+    contractVersion: 2,
+    state: 'ready',
+    academicYear: 2026,
+    serverTime: iso(clock!.now),
+    settings: {
+      revision: Number(row.revision),
+      paused: truth(row.paused),
+      schedule: row.schedule_json === null ? null : json<FrequencyScheduleV2>(row.schedule_json),
+    },
+    lease: truth(clock!.live)
+      ? {
+          deviceId: str(row.lease_device),
+          expiresAt: iso(row.lease_until),
+          fencingToken: Number(row.fencing_token),
+        }
+      : null,
+    classes: classes.map((c) => ({
+      classId: Number(c.class_id),
+      sourceClassLabel: str(c.source_class_label),
+      shift: ['M', 'MATUTINO'].includes(str(c.turno))
+        ? 'matutino'
+        : ['V', 'VESPERTINO'].includes(str(c.turno))
+          ? 'vespertino'
+          : 'unknown',
+      revision: Number(c.revision),
+    })),
+    devices: devices.map((d) => ({
+      deviceId: str(d.device_id),
+      label: d.label ? str(d.label) : 'Computador',
+      state:
+        d.revoked_at !== null
+          ? 'revoked'
+          : d.grant_state !== 'active'
+            ? 'login-required'
+            : !truth(d.online)
+              ? 'offline'
+              : truth(row.paused)
+                ? 'paused'
+                : d.state === 'login-required' || d.state === 'error'
+                  ? d.state
+                  : row.lease_device === d.device_id && truth(clock!.live)
+                    ? (str(d.state) as 'ready' | 'collecting')
+                    : 'reserve',
+      lastSeenAt: d.last_seen_at === null ? null : iso(d.last_seen_at),
+      classId: d.class_id === null ? null : Number(d.class_id),
+      code: d.code === null ? null : str(d.code),
+      lastCollectionAt: d.last_collection_at === null ? null : iso(d.last_collection_at),
+    })),
+    collections: collected.map((c) => ({
+      classId: Number(c.class_id),
+      observedAt: iso(c.observed_at),
+      receivedAt: iso(c.received_at),
+      resolvedRecords: Number(c.resolved_records),
+      unresolvedRecords: Number(c.unresolved_records),
+      conflicts: Number(c.conflicts),
+    })),
+    conflicts: conflicts.map((c) => ({
+      id: str(c.id),
+      revision: Number(c.revision),
+      studentUid: str(c.student_uid),
+      studentName: str(c.student_name),
+      classLabel: str(c.class_label),
+      date: str(c.date),
+      slot: Number(c.slot),
+      shift: str(c.shift),
+      marks: json<Mark[]>(c.marks_json),
+    })),
+  };
+}
+function validateCollection(input: FrequencyCollectionV2, today: string) {
+  const keys = new Set(input.records.map((r) => r.recordKey));
+  const coverage = new Map<string, (typeof input.coverage)[number]>();
+  if (keys.size !== input.records.length) fail('source-invalid', 400);
+  for (const c of input.coverage) {
+    const key = `${c.recordKey}:${c.date}`;
+    if (
+      !keys.has(c.recordKey) ||
+      c.date.slice(0, 4) !== '2026' ||
+      c.date > today ||
+      coverage.has(key)
+    )
+      fail('source-invalid', 400);
+    coverage.set(key, c);
+  }
+  const marks = new Set<string>();
+  for (const m of input.marks) {
+    const key = `${m.recordKey}:${m.date}:${m.slot}`;
+    const c = coverage.get(`${m.recordKey}:${m.date}`);
+    if (
+      !keys.has(m.recordKey) ||
+      marks.has(key) ||
+      !c?.slots.includes(m.slot) ||
+      m.date.slice(0, 4) !== '2026' ||
+      m.date > today
+    )
+      fail('source-invalid', 400);
+    marks.add(key);
+  }
+}
+type IncomingOccurrence = {
+  uid: string;
+  date: string;
+  slot: number;
+  mark: Mark;
+  recordKey: string;
+  changed: boolean;
+};
+async function addOccurrences(
+  tx: Tx,
+  year: number,
+  shift: string,
+  batch: string,
+  events: IncomingOccurrence[],
+) {
+  if (!events.length) return;
+  const data = JSON.stringify(events);
+  const incoming = `jsonb_to_recordset(CASE WHEN $3::uuid IS NOT NULL THEN $4::text::jsonb ELSE '[]'::jsonb END) AS x(uid uuid,date date,slot smallint,mark text,"recordKey" text,changed boolean)`;
+  await tx.executeNative(
+    `INSERT INTO attendance.occurrence_v2(id,academic_year,student_uid,date,shift,slot,mark)
+    SELECT gen_random_uuid(),$1,x.uid,x.date,$2,x.slot,x.mark FROM
+    (SELECT DISTINCT ON(uid,date,slot) * FROM ${incoming} ORDER BY uid,date,slot,"recordKey") x
+    ON CONFLICT(academic_year,student_uid,date,shift,slot) DO NOTHING`,
+    [year, shift, batch, data],
+  );
+  await tx.executeNative(
+    `INSERT INTO attendance.origin_v2(occurrence_id,batch_id,record_key,mark)
+    SELECT o.id,$3::uuid,x."recordKey",x.mark FROM ${incoming}
+    JOIN attendance.occurrence_v2 o ON o.academic_year=$1 AND o.student_uid=x.uid AND o.date=x.date AND o.shift=$2 AND o.slot=x.slot
+    ON CONFLICT DO NOTHING`,
+    [year, shift, batch, data],
+  );
+  await tx.executeNative(
+    `WITH alternatives AS (
+    SELECT o.id,o.mark FROM ${incoming} JOIN attendance.occurrence_v2 o
+    ON o.academic_year=$1 AND o.student_uid=x.uid AND o.date=x.date AND o.shift=$2 AND o.slot=x.slot WHERE x.changed
+    UNION SELECT o.id,x.mark FROM ${incoming} JOIN attendance.occurrence_v2 o
+    ON o.academic_year=$1 AND o.student_uid=x.uid AND o.date=x.date AND o.shift=$2 AND o.slot=x.slot WHERE x.changed
+    UNION SELECT c.occurrence_id,e.value#>>'{}' FROM attendance.conflict_v2 c
+    JOIN attendance.occurrence_v2 o ON o.id=c.occurrence_id CROSS JOIN LATERAL jsonb_array_elements(c.marks_json) e
+    WHERE c.state='open' AND o.academic_year=$1 AND EXISTS(SELECT 1 FROM ${incoming} WHERE x.uid=o.student_uid AND x.date=o.date AND x.slot=o.slot AND x.changed)
+    ), proposals AS(SELECT id,jsonb_agg(mark ORDER BY mark NULLS LAST) AS marks FROM alternatives GROUP BY id HAVING count(*)>1)
+    INSERT INTO attendance.conflict_v2(id,occurrence_id,marks_json) SELECT gen_random_uuid(),id,marks FROM proposals
+    ON CONFLICT(occurrence_id) WHERE state='open' DO UPDATE SET marks_json=EXCLUDED.marks_json,revision=attendance.conflict_v2.revision+1
+    WHERE attendance.conflict_v2.marks_json IS DISTINCT FROM EXCLUDED.marks_json`,
+    [year, shift, batch, data],
+  );
+}
+async function collect(
+  tx: Tx,
+  input: FrequencyCollectionV2,
+  actor: FrequencyActorV2,
+): Promise<Row> {
+  await liveLease(tx, input, actor);
+  const [clock] = await tx.query<Row>(
+    `SELECT clock_timestamp()::text AS now,(clock_timestamp() AT TIME ZONE 'America/Sao_Paulo')::date::text AS today`,
+    [],
+  );
+  validateCollection(input, str(clock!.today));
+  if (new Date(input.observedAt) > new Date(str(clock!.now))) fail('source-invalid', 400);
+  const linked = await tx.query<Row>(
+    `SELECT c.label,c.shift_key,c.version FROM gradebook.student_report_class_v1 c JOIN gradebook.turma t ON t.id=c.gradebook_class_id AND t.ano=c.academic_year WHERE c.academic_year=$1 AND c.gradebook_class_id=$2 AND c.class_key=$3 AND NOT c.review_required`,
+    [input.academicYear, input.classId, normalizeStudentNameV1(input.sourceClassLabel)],
+  );
+  if (linked.length !== 1) fail('identity-review');
+  const shift = str(linked[0]!.shift_key);
+  await tx.executeNative(
+    `INSERT INTO attendance.class_state_v2(academic_year,class_id) VALUES($1,$2) ON CONFLICT DO NOTHING`,
+    [input.academicYear, input.classId],
+  );
+  const [classState] = await tx.query<Row>(
+    `SELECT * FROM attendance.class_state_v2 WHERE academic_year=$1 AND class_id=$2 FOR UPDATE`,
+    [input.academicYear, input.classId],
+  );
+  if (Number(classState!.revision) !== input.expectedRevision) fail('revision-conflict');
+  if (
+    classState!.last_observed_at &&
+    new Date(str(classState!.last_observed_at)) > new Date(input.observedAt)
+  )
+    fail('source-invalid');
+  const contentHash = await frequencyPayloadHashV2({
+    classId: input.classId,
+    sourceClassId: input.sourceClassId,
+    sourceClassLabel: input.sourceClassLabel,
+    rosterComplete: input.rosterComplete,
+    records: input.records,
+    coverage: input.coverage,
+    marks: input.marks,
+  });
+  const resolutions = await centralMany(
+    tx,
+    input.academicYear,
+    input.records,
+    input.records.map(() => input.sourceVersion),
+    input.records.map(() => input.classId),
+  );
+  const evidenceHash = await frequencyPayloadHashV2({ contentHash, resolutions });
+  const existingRows = await tx.query<Row>(
+    `SELECT * FROM attendance.batch_v2 WHERE academic_year=$1 AND class_id=$2 AND source_version=$3`,
+    [input.academicYear, input.classId, input.sourceVersion],
+  );
+  if (existingRows.some((existing) => existing.content_hash !== contentHash))
+    fail('source-invalid');
+  if (classState!.last_payload_hash === evidenceHash) {
+    const [existing] = await tx.query<Row>(
+      `SELECT * FROM attendance.batch_v2 WHERE academic_year=$1 AND class_id=$2 AND evidence_hash=$3 ORDER BY received_at DESC LIMIT 1`,
+      [input.academicYear, input.classId, evidenceHash],
+    );
+    if (!existing) fail('unavailable', 503);
+    const newer = new Date(input.observedAt) > new Date(str(classState!.last_observed_at));
+    const [fresh] = (
+      await tx.executeNative<Row>(
+        `UPDATE attendance.class_state_v2 SET revision=revision+$4,last_observed_at=$3::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1 AND class_id=$2 RETURNING last_received_at::text`,
+        [input.academicYear, input.classId, input.observedAt, newer ? 1 : 0],
+      )
+    ).rows;
+    await tx.executeNative(
+      `UPDATE attendance.device_status_v2 SET last_collection_at=clock_timestamp(),last_seen_at=clock_timestamp(),class_id=$3,state='ready',code=NULL WHERE academic_year=$1 AND device_id=$2::uuid`,
+      [input.academicYear, device(actor), input.classId],
+    );
+    await liveLease(tx, input, actor);
+    return {
+      classId: input.classId,
+      revision: Number(classState!.revision) + (newer ? 1 : 0),
+      receivedAt: iso(fresh!.last_received_at),
+      resolvedRecords: Number(existing.resolved_records),
+      unresolvedRecords: Number(existing.unresolved_records),
+      conflicts: Number(existing.conflicts),
+    };
+  }
+  const [schoolRow] = await tx.query<Row>(
+    `SELECT generation::text FROM attendance.school_state_v2 WHERE academic_year=$1`,
+    [input.academicYear],
+  );
+  const [batch] = (
+    await tx.executeNative<Row>(
+      `INSERT INTO attendance.batch_v2(id,academic_year,generation,class_id,source_class_id,source_class_label,shift,source_version,content_hash,observed_at,roster_complete,actor_id,device_id,evidence_hash)
+    VALUES($1::uuid,$2,$3::uuid,$4,$5,$6,$7,$8,$9,$10::timestamptz,$11::integer::boolean,$12::uuid,$13::uuid,$14) RETURNING received_at::text`,
+      [
+        input.requestId,
+        input.academicYear,
+        str(schoolRow!.generation),
+        input.classId,
+        input.sourceClassId,
+        input.sourceClassLabel,
+        shift,
+        input.sourceVersion,
+        contentHash,
+        input.observedAt,
+        input.rosterComplete ? 1 : 0,
+        actor.actorId,
+        device(actor),
+        evidenceHash,
+      ],
+    )
+  ).rows;
+  let resolvedRecords = 0,
+    unresolvedRecords = 0;
+  const storedSources = input.records.map((source, index) => {
+    const resolved = resolutions[index]!;
+    const ok = resolved.state === 'resolved';
+    if (ok) resolvedRecords++;
+    else unresolvedRecords++;
+    return {
+      record_key: source.recordKey,
+      original_name: source.originalName,
+      original_class: source.originalClass,
+      resolution: resolved.state,
+      student_uid: ok ? resolved.studentUid : null,
+      decision_version: resolved.decisionVersion,
+      source_ids_json: ok ? resolved.sourceIds : [],
+      observation_ids_json: ok ? resolved.observationIds : [],
+      eligibility_json: resolved.eligibility,
+    };
+  });
+  const priorSources = await tx.query<Row>(
+    `SELECT DISTINCT ON(s.record_key) s.* FROM attendance.source_row_v2 s JOIN attendance.batch_v2 b ON b.id=s.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY s.record_key,b.received_at DESC,b.id`,
+    [input.academicYear, input.classId],
+  );
+  const previousSources = new Map(priorSources.map((s) => [str(s.record_key), s]));
+  const sourceShape = (s: Row) => ({
+    record_key: s.record_key,
+    original_name: s.original_name,
+    original_class: s.original_class,
+    resolution: s.resolution,
+    student_uid: s.student_uid,
+    source_ids: json<string[]>(s.source_ids_json),
+    observation_ids: json<string[]>(s.observation_ids_json),
+    eligibility: json<Eligibility[]>(s.eligibility_json),
+  });
+  const changedSources = new Set(
+    storedSources
+      .filter(
+        (s) =>
+          !previousSources.has(s.record_key) ||
+          canonicalFrequencyJsonV2(sourceShape(s)) !==
+            canonicalFrequencyJsonV2(sourceShape(previousSources.get(s.record_key)!)),
+      )
+      .map((s) => s.record_key),
+  );
+  const priorCoverage = await tx.query<Row>(
+    `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id`,
+    [input.academicYear, input.classId],
+  );
+  const previousCoverage = new Map(
+    priorCoverage.map((c) => [`${str(c.record_key)}:${str(c.date)}`, c]),
+  );
+  const deltaCoverage = input.coverage.filter((c) => {
+    const p = previousCoverage.get(`${c.recordKey}:${c.date}`);
+    return (
+      changedSources.has(c.recordKey) ||
+      !p ||
+      truth(p.complete) !== c.complete ||
+      canonicalFrequencyJsonV2(json<number[]>(p.slots_json)) !== canonicalFrequencyJsonV2(c.slots)
+    );
+  });
+  const sources = storedSources.filter((s) => s.resolution === 'resolved');
+  const allPrior = await tx.query<Row>(
+    `SELECT DISTINCT ON(o.student_uid,o.date,o.slot) o.student_uid::text,o.date::text,o.slot,p.mark FROM attendance.origin_v2 p JOIN attendance.occurrence_v2 o ON o.id=p.occurrence_id JOIN attendance.source_row_v2 s ON s.batch_id=p.batch_id AND s.record_key=p.record_key JOIN attendance.batch_v2 b ON b.id=p.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 AND b.id<>$3::uuid ORDER BY o.student_uid,o.date,o.slot,b.received_at DESC,b.id`,
+    [input.academicYear, input.classId, input.requestId],
+  );
+  const events: IncomingOccurrence[] = [];
+  for (const source of sources) {
+    const uid = str(source.student_uid),
+      recordKey = str(source.record_key),
+      eligibility = json<Eligibility[]>(source.eligibility_json);
+    const prior = allPrior.filter((p) => p.student_uid === uid);
+    const previous = new Map(
+      prior.map((p) => [
+        `${str(p.date)}:${Number(p.slot)}`,
+        p.mark === null ? null : (str(p.mark) as Mark),
+      ]),
+    );
+    const current = input.marks.filter((m) => m.recordKey === recordKey);
+    for (const mark of current) {
+      if (
+        eligibility.length &&
+        eligibility.every(
+          (e) =>
+            (e.startsOn !== null && mark.date < e.startsOn) ||
+            (e.endsOn !== null && mark.date > e.endsOn),
+        )
+      )
+        fail('source-invalid', 400);
+      events.push({
+        uid,
+        date: mark.date,
+        slot: mark.slot,
+        mark: mark.mark,
+        recordKey,
+        changed:
+          !previous.has(`${mark.date}:${mark.slot}`) ||
+          previous.get(`${mark.date}:${mark.slot}`) !== mark.mark,
+      });
+    }
+    // Only explicit complete slot evidence can propose removal, and removal is always reviewed.
+    for (const coverage of input.coverage.filter((c) => c.recordKey === recordKey && c.complete))
+      for (const slot of coverage.slots) {
+        const key = `${coverage.date}:${slot}`;
+        if (
+          previous.has(key) &&
+          previous.get(key) !== null &&
+          !current.some((m) => m.date === coverage.date && m.slot === slot)
+        )
+          events.push({ uid, date: coverage.date, slot, mark: null, recordKey, changed: true });
+      }
+  }
+  const deltaEvents = events.filter((e) => e.changed || changedSources.has(e.recordKey));
+  const changedMarks = new Set(
+    deltaEvents.filter((e) => e.mark !== null).map((e) => `${e.recordKey}:${e.date}:${e.slot}`),
+  );
+  const deltaMarks = input.marks.filter(
+    (m) =>
+      changedSources.has(m.recordKey) || changedMarks.has(`${m.recordKey}:${m.date}:${m.slot}`),
+  );
+  const touched = new Set([
+    ...changedSources,
+    ...deltaCoverage.map((c) => c.recordKey),
+    ...deltaMarks.map((m) => m.recordKey),
+    ...deltaEvents.map((e) => e.recordKey),
+  ]);
+  await tx.executeNative(
+    `INSERT INTO attendance.source_row_v2 SELECT $1::uuid,x.* FROM jsonb_to_recordset($2::text::jsonb) AS x(record_key text,original_name text,original_class text,resolution text,student_uid uuid,decision_version bigint,source_ids_json jsonb,observation_ids_json jsonb,eligibility_json jsonb)`,
+    [input.requestId, JSON.stringify(storedSources.filter((s) => touched.has(s.record_key)))],
+  );
+  await tx.executeNative(
+    `INSERT INTO attendance.coverage_v2 SELECT $1::uuid,x."recordKey",x.date,to_jsonb(x.slots),x.complete FROM jsonb_to_recordset($2::text::jsonb) AS x("recordKey" text,date date,slots smallint[],complete boolean)`,
+    [input.requestId, JSON.stringify(deltaCoverage)],
+  );
+  await tx.executeNative(
+    `INSERT INTO attendance.source_mark_v2 SELECT $1::uuid,x."recordKey",x.date,x.slot,x.mark FROM jsonb_to_recordset($2::text::jsonb) AS x("recordKey" text,date date,slot smallint,mark text)`,
+    [input.requestId, JSON.stringify(deltaMarks)],
+  );
+  await addOccurrences(tx, input.academicYear, shift, input.requestId, deltaEvents);
+  const [count] = await tx.query<Row>(
+    `SELECT count(DISTINCT c.id)::integer AS count FROM attendance.conflict_v2 c JOIN attendance.origin_v2 p ON p.occurrence_id=c.occurrence_id WHERE p.batch_id=$1::uuid AND c.state='open'`,
+    [input.requestId],
+  );
+  const conflicts = Number(count!.count);
+  await tx.executeNative(
+    `UPDATE attendance.batch_v2 SET resolved_records=$2,unresolved_records=$3,conflicts=$4 WHERE id=$1::uuid`,
+    [input.requestId, resolvedRecords, unresolvedRecords, conflicts],
+  );
+  await tx.executeNative(
+    `UPDATE attendance.class_state_v2 SET revision=revision+1,last_observed_at=$3::timestamptz,last_received_at=clock_timestamp(),last_payload_hash=$4,last_batch_id=$5::uuid WHERE academic_year=$1 AND class_id=$2`,
+    [input.academicYear, input.classId, input.observedAt, evidenceHash, input.requestId],
+  );
+  await tx.executeNative(
+    `UPDATE attendance.device_status_v2 SET last_collection_at=clock_timestamp(),last_seen_at=clock_timestamp(),class_id=$3,state='ready',code=NULL WHERE academic_year=$1 AND device_id=$2::uuid`,
+    [input.academicYear, device(actor), input.classId],
+  );
+  await liveLease(tx, input, actor); // Recheck after every database wait, before committing the batch.
+  return {
+    classId: input.classId,
+    revision: Number(classState!.revision) + 1,
+    receivedAt: iso(batch!.received_at),
+    resolvedRecords,
+    unresolvedRecords,
+    conflicts,
+  };
+}
+export function createFrequencyServiceV2(database: GradebookPostgresDatabaseV1) {
+  return {
+    async execute(
+      payload: unknown,
+      actor: FrequencyActorV2,
+    ): Promise<Row | FrequencyStatusV2 | FrequencySummaryV2> {
+      const parsed = frequencyRequestV2.safeParse(payload);
+      if (!parsed.success) fail('invalid-request', 400);
+      const input = parsed.data;
+      if (
+        !studentUidV1.safeParse(actor.actorId).success ||
+        !studentUidV1.safeParse(actor.tenantId).success
+      )
+        fail('not-authorized', 403);
+      const deviceOnly = ['lease', 'collect', 'heartbeat', 'release'];
+      const adminOnly = ['revoke-device', 'resolve-conflict', 'monthly-summary'];
+      if (deviceOnly.includes(input.operation)) device(actor);
+      if (adminOnly.includes(input.operation)) admin(actor);
+      if (
+        input.operation === 'rename-device' &&
+        actor.mode === 'device' &&
+        input.deviceId !== device(actor)
+      )
+        fail('not-authorized', 403);
+      return database.transaction(async (tx) => {
+        await lockResetWriterV1(tx, input.academicYear);
+        await lockDevice(tx, actor);
+        const row = await school(tx, input.academicYear, actor.tenantId);
+        if (input.operation === 'status') {
+          if (actor.mode === 'device') {
+            const [operational] = (
+              await tx.executeNative<Row>(
+                `INSERT INTO attendance.device_status_v2(academic_year,device_id,last_seen_at) VALUES($1,$2::uuid,clock_timestamp()) ON CONFLICT(academic_year,device_id) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at RETURNING (xmax=0) AS inserted`,
+                [input.academicYear, device(actor)],
+              )
+            ).rows;
+            if (truth(operational?.inserted))
+              await recordFrequencyResetWriteV2(tx, input.academicYear);
+          }
+          const result = await status(tx, row, actor);
+          await lockDevice(tx, actor);
+          return result;
+        }
+        if (input.operation === 'monthly-summary')
+          return summaryInTx(tx, input.academicYear, input.studentUid, input.month);
+        const [retired] = await tx.query<Row>(
+          `SELECT request_id FROM attendance.retired_request_v2 WHERE academic_year=$1 AND request_id=$2::uuid`,
+          [input.academicYear, input.requestId],
+        );
+        if (retired) fail('revision-conflict');
+        const [receipt] = await tx.query<Row>(
+          `SELECT * FROM attendance.receipt_v2 WHERE academic_year=$1 AND request_id=$2::uuid`,
+          [input.academicYear, input.requestId],
+        );
+        if (
+          receipt &&
+          (receipt.actor_id !== actor.actorId || receipt.device_id !== (actor.deviceId ?? null))
+        )
+          fail('not-authorized', 403);
+        if (input.operation === 'receipt')
+          return {
+            contractVersion: 2,
+            state: 'ready',
+            operation: 'receipt',
+            requestId: input.requestId,
+            result: receipt ? json<Row>(receipt.result_json) : null,
+          };
+        const hash = await frequencyPayloadHashV2(input);
+        if (receipt) {
+          if (receipt.payload_hash !== hash) fail('revision-conflict');
+          return json<Row>(receipt.result_json);
+        }
+        let fields: Row;
+        if (input.operation === 'save-settings' || input.operation === 'set-paused') {
+          if (Number(row.revision) !== input.expectedRevision) fail('revision-conflict');
+          if (input.operation === 'save-settings')
+            await tx.executeNative(
+              `UPDATE attendance.school_state_v2 SET schedule_json=$2::text::jsonb,revision=revision+1 WHERE academic_year=$1`,
+              [input.academicYear, JSON.stringify(input.schedule)],
+            );
+          else
+            await tx.executeNative(
+              `UPDATE attendance.school_state_v2 SET paused=$2::integer::boolean,revision=revision+1 WHERE academic_year=$1`,
+              [input.academicYear, input.paused ? 1 : 0],
+            );
+          fields = { settingsRevision: Number(row.revision) + 1 };
+        } else if (input.operation === 'rename-device' || input.operation === 'revoke-device') {
+          const [target] = await tx.query<Row>(
+            `SELECT device_id FROM collector_auth.device_public_v2 WHERE device_id=$1::uuid AND tenant_id=$2::uuid`,
+            [input.deviceId, actor.tenantId],
+          );
+          if (!target) fail('not-authorized', 403);
+          if (input.operation === 'rename-device')
+            await tx.executeNative(
+              `INSERT INTO attendance.device_status_v2(academic_year,device_id,label) VALUES($1,$2::uuid,$3) ON CONFLICT(academic_year,device_id) DO UPDATE SET label=EXCLUDED.label`,
+              [input.academicYear, input.deviceId, input.label],
+            );
+          else {
+            const [revoked] = await tx.query<Row>(
+              `SELECT collector_auth.revoke_device_admin_v2($1::uuid,$2::uuid,$3::uuid) AS revoked`,
+              [input.deviceId, actor.tenantId, actor.actorId],
+            );
+            if (!truth(revoked?.revoked)) fail('not-authorized', 403);
+            await tx.executeNative(
+              `UPDATE attendance.school_state_v2 SET lease_device=NULL,lease_actor=NULL,lease_until=NULL,fencing_token=fencing_token+1 WHERE academic_year=$1 AND lease_device=$2::uuid`,
+              [input.academicYear, input.deviceId],
+            );
+          }
+          fields = { deviceId: input.deviceId };
+        } else if (input.operation === 'lease') {
+          if (truth(row.paused)) fail('paused');
+          const [clock] = await tx.query<Row>(
+            `SELECT lease_until>clock_timestamp() AS live FROM attendance.school_state_v2 WHERE academic_year=$1`,
+            [input.academicYear],
+          );
+          if (
+            truth(clock!.live) &&
+            (row.lease_device !== actor.deviceId || row.lease_actor !== actor.actorId)
+          )
+            fail('lease-busy');
+          const [lease] = (
+            await tx.executeNative<Row>(
+              `UPDATE attendance.school_state_v2 SET lease_device=$2::uuid,lease_actor=$3::uuid,lease_until=clock_timestamp()+$4::integer*interval '1 second',fencing_token=fencing_token+1 WHERE academic_year=$1 RETURNING fencing_token,lease_until::text`,
+              [input.academicYear, device(actor), actor.actorId, input.durationSeconds],
+            )
+          ).rows;
+          await tx.executeNative(
+            `INSERT INTO attendance.device_status_v2(academic_year,device_id,last_seen_at) VALUES($1,$2::uuid,clock_timestamp()) ON CONFLICT(academic_year,device_id) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at`,
+            [input.academicYear, device(actor)],
+          );
+          fields = {
+            fencingToken: Number(lease!.fencing_token),
+            expiresAt: iso(lease!.lease_until),
+            settingsRevision: Number(row.revision),
+          };
+        } else if (input.operation === 'heartbeat' || input.operation === 'release') {
+          const lease = await liveLease(tx, input, actor, true);
+          if (input.operation === 'heartbeat') {
+            if (input.classId !== null) {
+              const exists = await tx.query(
+                `SELECT id FROM gradebook.turma WHERE id=$1 AND ano=$2`,
+                [input.classId, input.academicYear],
+              );
+              if (!exists.length) fail('source-invalid', 400);
+            }
+            await tx.executeNative(
+              `UPDATE attendance.device_status_v2 SET last_seen_at=clock_timestamp(),state=$3,class_id=$4,code=$5 WHERE academic_year=$1 AND device_id=$2::uuid`,
+              [input.academicYear, device(actor), input.status, input.classId, input.code],
+            );
+          } else {
+            await tx.executeNative(
+              `UPDATE attendance.school_state_v2 SET lease_device=NULL,lease_actor=NULL,lease_until=NULL WHERE academic_year=$1`,
+              [input.academicYear],
+            );
+            await tx.executeNative(
+              `UPDATE attendance.device_status_v2 SET last_seen_at=clock_timestamp(),state='ready',class_id=NULL,code=$3 WHERE academic_year=$1 AND device_id=$2::uuid`,
+              [input.academicYear, device(actor), input.code],
+            );
+          }
+          fields = {
+            fencingToken: input.fencingToken,
+            expiresAt: input.operation === 'release' ? null : iso(lease.lease_until),
+          };
+        } else if (input.operation === 'collect') fields = await collect(tx, input, actor);
+        else if (input.operation === 'resolve-conflict') {
+          const [conflict] = await tx.query<Row>(
+            `SELECT c.*,o.mark,o.academic_year FROM attendance.conflict_v2 c JOIN attendance.occurrence_v2 o ON o.id=c.occurrence_id WHERE c.id=$1::uuid FOR UPDATE OF c,o`,
+            [input.conflictId],
+          );
+          if (
+            !conflict ||
+            Number(conflict.academic_year) !== input.academicYear ||
+            conflict.state !== 'open' ||
+            Number(conflict.revision) !== input.expectedRevision
+          )
+            fail('revision-conflict');
+          if (!json<Mark[]>(conflict.marks_json).includes(input.mark)) fail('source-invalid', 400);
+          const evidence = await tx.query<Row>(
+            `SELECT b.academic_year,b.class_id,b.id::text AS batch_id,s.* FROM attendance.origin_v2 p JOIN attendance.batch_v2 b ON b.id=p.batch_id JOIN attendance.source_row_v2 s ON s.batch_id=p.batch_id AND s.record_key=p.record_key WHERE p.occurrence_id=$1::uuid`,
+            [str(conflict.occurrence_id)],
+          );
+          if ((await sourcesValid(tx, evidence)).some((v) => !v)) fail('identity-review');
+          await tx.executeNative(
+            `INSERT INTO attendance.correction_v2(id,conflict_id,actor_id,before_mark,after_mark,reason) VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6)`,
+            [
+              input.requestId,
+              input.conflictId,
+              actor.actorId,
+              conflict.mark === null ? null : str(conflict.mark),
+              input.mark,
+              input.reason,
+            ],
+          );
+          await tx.executeNative(
+            `UPDATE attendance.occurrence_v2 SET mark=$2,revision=revision+1 WHERE id=$1::uuid`,
+            [str(conflict.occurrence_id), input.mark],
+          );
+          await tx.executeNative(
+            `UPDATE attendance.conflict_v2 SET state='resolved',resolved_at=clock_timestamp(),revision=revision+1 WHERE id=$1::uuid`,
+            [input.conflictId],
+          );
+          fields = { conflictId: input.conflictId, revision: Number(conflict.revision) + 1 };
+        } else fail('invalid-request', 400);
+        const result = {
+          contractVersion: 2,
+          state: 'committed',
+          operation: input.operation,
+          requestId: input.requestId,
+          ...fields,
+        };
+        await tx.executeNative(
+          `INSERT INTO attendance.receipt_v2(academic_year,generation,request_id,actor_id,device_id,payload_hash,result_json) VALUES($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7::text::jsonb)`,
+          [
+            input.academicYear,
+            str(row.generation),
+            input.requestId,
+            actor.actorId,
+            actor.deviceId ?? null,
+            hash,
+            JSON.stringify(result),
+          ],
+        );
+        if (
+          input.operation !== 'heartbeat' &&
+          input.operation !== 'lease' &&
+          input.operation !== 'release'
+        )
+          await recordFrequencyResetWriteV2(tx, input.academicYear);
+        await lockDevice(tx, actor);
+        if (input.operation === 'collect' || input.operation === 'heartbeat')
+          await liveLease(tx, input, actor, input.operation === 'heartbeat');
+        if (input.operation === 'lease')
+          await liveLease(
+            tx,
+            { academicYear: input.academicYear, fencingToken: Number(fields.fencingToken) },
+            actor,
+          );
+        return result;
+      });
+    },
+    async summary(
+      year: number,
+      studentUid: string,
+      month: string,
+      authorize: () => Promise<boolean>,
+    ): Promise<FrequencySummaryV2> {
+      if (!(await authorize())) fail('not-authorized', 403);
+      const parsed = frequencyRequestV2.safeParse({
+        operation: 'monthly-summary',
+        academicYear: year,
+        studentUid,
+        month,
+      });
+      if (!parsed.success) fail('invalid-request', 400);
+      return database.transaction(async (tx) => {
+        await lockResetWriterV1(tx, year);
+        const value = await summaryInTx(tx, year, studentUid, month);
+        if (!(await authorize())) fail('not-authorized', 403);
+        return value;
+      });
+    },
+  };
+}
+export type FrequencyServiceV2 = ReturnType<typeof createFrequencyServiceV2>;
+export type { FrequencyRequestV2 };
+const yearlyTables = [
+  'correction_v2',
+  'conflict_v2',
+  'origin_v2',
+  'source_mark_v2',
+  'coverage_v2',
+  'source_row_v2',
+  'batch_v2',
+  'occurrence_v2',
+  'class_state_v2',
+  'device_status_v2',
+  'receipt_v2',
+] as const;
+function yearPredicate(table: (typeof yearlyTables)[number]): string {
+  if (table === 'correction_v2')
+    return `conflict_id IN(SELECT c.id FROM attendance.conflict_v2 c JOIN attendance.occurrence_v2 o ON o.id=c.occurrence_id WHERE o.academic_year=$1)`;
+  if (table === 'conflict_v2' || table === 'origin_v2')
+    return `occurrence_id IN(SELECT id FROM attendance.occurrence_v2 WHERE academic_year=$1)`;
+  if (table === 'source_mark_v2' || table === 'coverage_v2' || table === 'source_row_v2')
+    return `batch_id IN(SELECT id FROM attendance.batch_v2 WHERE academic_year=$1)`;
+  return 'academic_year=$1';
+}
+export async function frequencyYearCountsV2(tx: Tx, year: number): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const table of yearlyTables) {
+    const [row] = await tx.query<Row>(
+      `SELECT count(*)::integer AS count FROM attendance.${table} WHERE ${yearPredicate(table)}`,
+      [year],
+    );
+    counts[table] = Number(row!.count);
+  }
+  return counts;
+}
+/** Caller already owns the exclusive canonical annual reset lock. */
+export async function resetFrequencyYearV2(tx: Tx, year: number): Promise<Record<string, number>> {
+  const counts = await frequencyYearCountsV2(tx, year);
+  await tx.executeNative(
+    `INSERT INTO attendance.retired_request_v2(academic_year,request_id) SELECT academic_year,request_id FROM attendance.receipt_v2 WHERE academic_year=$1 ON CONFLICT DO NOTHING`,
+    [year],
+  );
+  for (const table of yearlyTables)
+    await tx.executeNative(`DELETE FROM attendance.${table} WHERE ${yearPredicate(table)}`, [year]);
+  await tx.executeNative(
+    `UPDATE attendance.school_state_v2 SET generation=gen_random_uuid(),revision=revision+1,paused=true,lease_device=NULL,lease_actor=NULL,lease_until=NULL,fencing_token=fencing_token+1 WHERE academic_year=$1`,
+    [year],
+  );
+  return counts;
+}

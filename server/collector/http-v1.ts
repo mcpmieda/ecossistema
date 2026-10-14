@@ -1,13 +1,11 @@
 import { z } from 'zod';
 import { CollectorAccessErrorV1, type CollectorAccessServiceV1 } from './access-service-v1';
+import { collectorChallengeSchemaV1 } from './device-proof-v1';
 
 export type CollectorAccessPortV1 = Pick<CollectorAccessServiceV1, 'challenge' | 'authorize'> & Partial<Pick<CollectorAccessServiceV1,'revoke'>>;
 const uuid = z.string().uuid();
 const opaque = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
-const challenge = z.object({ deviceId:uuid,generation:z.number().int().positive(),accountKey:opaque,
-  keyThumbprint:opaque,nonce:opaque,audience:z.literal('https://admin.escolaieda.com'),method:z.literal('POST'),
-  path:z.enum(['/api/frequency-collector/access','/api/frequency-collector/revoke']),purpose:z.enum(['collector-access','collector-revoke']),
-  issuedAt:z.number().int().positive(),expiresAt:z.number().int().positive() }).strict();
+const challenge = collectorChallengeSchemaV1;
 const receipt = z.object({ contractVersion:z.literal(2),authenticated:z.literal(true),authorized:z.literal(true),
   capability:z.literal('frequency.collector.use'),identityKey:z.string().regex(/^[\x21-\x7e]{1,160}$/u),
   expiresAt:z.string().datetime({offset:true}),checkedAt:z.string().datetime({offset:true}),revocationChecked:z.literal(true),
@@ -41,10 +39,13 @@ export async function handleCollectorAccessRequestV1(request:Request,service:Col
   try {
     const input=await body(request);
     if(path.endsWith('/challenge')) {
-      const parsed=z.object({deviceId:uuid,purpose:z.enum(['collector-access','collector-revoke']).default('collector-access')}).strict().parse(input);
-      const reply=challenge.parse(await service.challenge(parsed.deviceId,parsed.purpose));
+      const parsed=z.object({deviceId:uuid,purpose:z.enum(['collector-access','collector-revoke','collector-frequency']).default('collector-access'),requestHash:opaque.optional()}).strict()
+        .refine(v=>v.purpose==='collector-frequency'?v.requestHash!==undefined:v.requestHash===undefined).parse(input);
+      const reply=challenge.parse(await (parsed.purpose==='collector-frequency'
+        ?service.challenge(parsed.deviceId,parsed.purpose,parsed.requestHash):service.challenge(parsed.deviceId,parsed.purpose)));
       if(reply.deviceId!==parsed.deviceId || reply.purpose!==parsed.purpose
-        || reply.path!=='/api/frequency-collector/'+(parsed.purpose==='collector-access'?'access':'revoke')
+        || reply.requestHash!==parsed.requestHash
+        || reply.path!=='/api/frequency-collector/'+(parsed.purpose==='collector-access'?'access':parsed.purpose==='collector-revoke'?'revoke':'frequency')
         || reply.expiresAt-reply.issuedAt!==60_000) throw new Error('invalid-result');
       return json(reply);
     }

@@ -1,4 +1,5 @@
 # Uses installed PostgreSQL binaries only; never installs a Windows service.
+param([string]$PostgresBin='', [string]$TestFile='tests/attendance/postgres-v2.test.ts')
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
@@ -10,9 +11,11 @@ if (-not $clusterRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCas
 $dataPath = Join-Path $clusterRoot 'data'
 $databaseName = "attendance_ephemeral_$runId"
 $marker = [Guid]::NewGuid().ToString()
-$initdbBin = (Get-Command initdb -ErrorAction Stop).Source
-$pgCtlBin = (Get-Command pg_ctl -ErrorAction Stop).Source
-$psqlBin = (Get-Command psql -ErrorAction Stop).Source
+$initdbBin = if($PostgresBin){Join-Path $PostgresBin 'initdb.exe'}else{(Get-Command initdb -ErrorAction Stop).Source}
+$pgCtlBin = if($PostgresBin){Join-Path $PostgresBin 'pg_ctl.exe'}else{(Get-Command pg_ctl -ErrorAction Stop).Source}
+$psqlBin = if($PostgresBin){Join-Path $PostgresBin 'psql.exe'}else{(Get-Command psql -ErrorAction Stop).Source}
+if($TestFile -notin @('tests/attendance/postgres-v2.test.ts','tests/attendance/native-stack-v2.integration.test.ts')){throw 'Frequency runner refuses unlisted test target.'}
+$nativeVersion = (& $psqlBin --version).Trim()
 $testExit = 1
 $started = $false
 $cleanupAllowed = $true
@@ -61,7 +64,7 @@ try {
   $env:ATTENDANCE_TEST_POSTGRES_DATA_DIRECTORY = $dataPath
   Push-Location $repoRoot
   try {
-    & npx vitest run tests/attendance/native-contention-v1.integration.test.ts
+    & npx vitest run $TestFile
     $testExit = $LASTEXITCODE
   } finally { Pop-Location }
 } finally {
@@ -84,6 +87,7 @@ try {
     }
     Remove-Item -LiteralPath $resolvedCluster -Recurse -Force
     Write-Output "Disposable PostgreSQL stopped and removed. TestExit=$testExit"
+    Write-Output (ConvertTo-Json -Compress @{contractVersion=2;state='completed';nativeVersion=$nativeVersion;testExit=$testExit;suite=$TestFile;disposableVerified=$true;stoppedAndRemoved=$true})
   }
 }
 exit $testExit

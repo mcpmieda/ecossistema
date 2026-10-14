@@ -9,6 +9,7 @@ import {createCollectorRuntimeV1,type CollectorRuntimeDependenciesV1} from './ru
 import {createCollectorWithdrawalStoreV1} from './runtime-v1';
 import {requireAuth} from '../auth/session';
 import {handleCollectorAccessRequestV1} from './http-v1';
+import {handleCollectorFrequencyRequestV2} from './frequency-http-v2';
 import {collectorAuthorizationUrlV1,completeCollectorOAuthV1,type CollectorOAuthTransactionV1} from './oauth-v1';
 import {verifyCollectorPairingV1} from './pairing-proof-v1';
 import {collectorOpaqueHashV1} from './pairing-store-v1';
@@ -111,6 +112,7 @@ export async function handleCollectorRequestV1(request:Request,env:RuntimeEnv,de
       return new Response(null,{status:303,headers});
     }
     if(url.pathname==='/api/frequency-collector/config')return request.method==='GET'?json({contractVersion:1,ready:true,serverTime:runtime.oauth.now()}):json({error:'Method not allowed'},405);
+    if(url.pathname==='/api/frequency-collector/frequency')return handleCollectorFrequencyRequestV2(request,env,runtime.access);
     const access=await handleCollectorAccessRequestV1(request,runtime.access);if(access)return access;
     if(request.method!=='POST')return json({error:'Method not allowed'},405);
     if(request.headers.has('Origin') && request.headers.get('Origin')!==env.OFFICIAL_ORIGIN)return json({error:'Collector access denied'},403);

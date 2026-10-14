@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { frequencyPayloadHashV2, type FrequencyActorV2 } from '../../shared/attendance-contracts/frequency-v2';
 import { CollectorAuthorizationStoreV1 } from './authorization-store-v1';
 import { CollectorRefreshCipherV1, type CollectorGrantBindingV1 } from './refresh-cipher-v1';
 import { collectorLeaseExpiryV1, CollectorDirectoryErrorV1, readCollectorOwnDirectoryV1,
@@ -47,10 +48,11 @@ export class CollectorAccessServiceV1 {
     return row;
   }
 
-  async challenge(deviceId:string,purpose:'collector-access'|'collector-revoke'='collector-access'):Promise<CollectorChallengeV1> {
+  async challenge(deviceId:string,purpose:'collector-access'|'collector-revoke'|'collector-frequency'='collector-access',requestHash?:string):Promise<CollectorChallengeV1> {
     const row=await this.active(deviceId,purpose==='collector-revoke');
-    const challenge=await issueCollectorChallengeV1({...record(row),revokedAt:purpose==='collector-revoke'?null:row.device_revoked_at},this.dependencies.now(),purpose);
-    await this.store.saveChallenge({nonceHash:await nonceHash((purpose==='collector-revoke'?'collector-revoke:':'')+challenge.nonce),deviceId:row.device_id,
+    const challenge=await issueCollectorChallengeV1({...record(row),revokedAt:purpose==='collector-revoke'?null:row.device_revoked_at},this.dependencies.now(),purpose,requestHash);
+    const prefix=purpose==='collector-revoke'?'collector-revoke:':purpose==='collector-frequency'?'collector-frequency:'+challenge.requestHash+':':'';
+    await this.store.saveChallenge({nonceHash:await nonceHash(prefix+challenge.nonce),deviceId:row.device_id,
       generation:challenge.generation,keyThumbprint:challenge.keyThumbprint,issuedAt:challenge.issuedAt,expiresAt:challenge.expiresAt});
     return challenge;
   }
@@ -121,5 +123,30 @@ export class CollectorAccessServiceV1 {
       expiresAt:new Date(expires).toISOString(),checkedAt:new Date(this.dependencies.now()).toISOString(),
       directoryCheckedAt:new Date(currentEvidence.directoryCheckedAt).toISOString(),
       directoryValidUntil:new Date(currentEvidence.directoryValidUntil).toISOString(),revocationChecked:true};
+  }
+
+  /** Internal authorization for this exact payload; never a reusable bearer or caller-supplied identity. */
+  async authorizeFrequency(input:{deviceId:string;nonce:string;signature:string},payload:unknown):Promise<FrequencyActorV2> {
+    const row=await this.active(input.deviceId),requestHash=await frequencyPayloadHashV2(payload);
+    const nonce=z.string().regex(/^[A-Za-z0-9_-]{43}$/u).parse(input.nonce);
+    const hash=await nonceHash('collector-frequency:'+requestHash+':'+nonce);
+    const saved=z.object({generation:z.number().int().positive(),key_thumbprint:z.string(),issued_at:date,expires_at:date})
+      .safeParse(await this.store.challenge(input.deviceId,hash));
+    if(!saved.success)throw new CollectorAccessErrorV1('denied');
+    const challenge:CollectorChallengeV1={deviceId:row.device_id,generation:saved.data.generation,
+      accountKey:await collectorAccountKeyV1(row.tenant_id,row.actor_id),keyThumbprint:saved.data.key_thumbprint,
+      nonce,audience:'https://admin.escolaieda.com',method:'POST',path:'/api/frequency-collector/frequency',
+      purpose:'collector-frequency',requestHash,issuedAt:saved.data.issued_at,expiresAt:saved.data.expires_at};
+    try{await verifyCollectorDeviceProofV1({record:record(row),challenge,signature:input.signature,now:this.dependencies.now(),purpose:'collector-frequency'});}
+    catch{throw new CollectorAccessErrorV1('denied');}
+    const current=await this.fresh(row),checked=evidence(current);
+    if(!checked || current.device_generation!==row.device_generation || current.grant_id!==row.grant_id)
+      throw new CollectorAccessErrorV1('denied');
+    collectorLeaseExpiryV1(binding(current),checked,this.dependencies.now());
+    if(await this.store.consumeAndAuthorize({deviceId:current.device_id,generation:current.device_generation,
+      tenantId:current.tenant_id,actorId:current.actor_id,clientId:current.client_id,keyThumbprint:current.key_thumbprint,
+      nonceHash:hash,maximumExpiry:checked.directoryValidUntil})===null)throw new CollectorAccessErrorV1('denied');
+    return {mode:'device',actorId:current.actor_id,tenantId:current.tenant_id,deviceId:current.device_id,
+      deviceGeneration:current.device_generation,keyThumbprint:current.key_thumbprint};
   }
 }

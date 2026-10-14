@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, ProgressBar, Surface } from '@heroui/react';
+import { Alert, Button, ProgressBar, Surface, Tabs } from '@heroui/react';
 import { Check, FileSpreadsheet, Upload, Users } from 'lucide-react';
 import { abbreviateSha256 } from './file-manifest';
 import { MAX_NOTES_IMPORT_FILES } from './import-batch';
@@ -15,6 +15,8 @@ import { WorkbookInspector } from './workbook-inspector';
 import type { ImportTimingSummaryV1 } from './import-timing-report-v1';
 import { StudentReportImportV1 } from './student-report-import-v1';
 import { RelationMovementReviewV9 } from './relation-movement-review-v9';
+import { FrequencyPanelV2 } from './frequency-panel-v2';
+import type { FrequencyAdminClientV2 } from './frequency-client-v2';
 
 function FileHash({ sha256 }: { sha256: string }) {
   return (
@@ -312,7 +314,41 @@ const STEP_CLASS_V1: Record<ImportStepToneV1, string> = {
   call: 'import-step--call',
 };
 
-export function NotesImportPanel() {
+export function NotesImportPanel({
+  frequencyClient,
+}: { frequencyClient?: FrequencyAdminClientV2 } = {}) {
+  const [area, setArea] = useState('workbooks');
+  return (
+    <div>
+      <Tabs selectedKey={area} onSelectionChange={(key) => setArea(String(key))}>
+        <Tabs.ListContainer>
+          <Tabs.List aria-label="Áreas da importação">
+            <Tabs.Tab id="workbooks">
+              Planilhas e Relatório
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="frequency">
+              Frequência
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs.ListContainer>
+        <Tabs.Panel id="workbooks" shouldForceMount>
+          <div hidden={area !== 'workbooks'}>
+            <NotesWorkbookImportPanelV2 />
+          </div>
+        </Tabs.Panel>
+        <Tabs.Panel id="frequency" shouldForceMount>
+          <div hidden={area !== 'frequency'}>
+            <FrequencyPanelV2 active={area === 'frequency'} client={frequencyClient} />
+          </div>
+        </Tabs.Panel>
+      </Tabs>
+    </div>
+  );
+}
+
+function NotesWorkbookImportPanelV2() {
   const inputRef = useRef<HTMLInputElement>(null);
   const reportInputRef = useRef<HTMLInputElement>(null);
   const [reportFile, setReportFile] = useState<File | null>(null);

@@ -9,7 +9,7 @@ async function main(){
   if(value.operation==='pairing'){
     await verifyCollectorPairingV1(value.body,value.now);return {valid:true};
   }
-  if(value.operation==='challenge')return await issueCollectorChallengeV1(value.record,value.now,value.purpose);
+  if(value.operation==='challenge')return await issueCollectorChallengeV1(value.record,value.now,value.purpose,value.requestHash);
   if(value.operation==='verify'){
     await verifyCollectorDeviceProofV1({record:value.record,challenge:value.challenge,signature:value.signature,now:value.now,purpose:value.purpose});
     return {valid:true};

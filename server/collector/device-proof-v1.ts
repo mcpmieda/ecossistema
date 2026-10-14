@@ -5,13 +5,16 @@ const b64Coordinate = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
 export const collectorPublicKeyV1 = z.object({ kty: z.literal('EC'), crv: z.literal('P-256'),
   x: b64Coordinate, y: b64Coordinate, ext: z.literal(true) }).strict();
 export type CollectorPublicKeyV1 = z.infer<typeof collectorPublicKeyV1>;
-const challengeSchema = z.object({
+export const collectorChallengeSchemaV1 = z.object({
   deviceId: z.string().uuid(), generation: z.number().int().positive(),
   accountKey: b64Coordinate, keyThumbprint: b64Coordinate, nonce: b64Coordinate,
   audience: z.literal('https://admin.escolaieda.com'), method: z.literal('POST'),
-  path: z.enum(['/api/frequency-collector/access','/api/frequency-collector/revoke']), purpose: z.enum(['collector-access','collector-revoke']),
+  path: z.enum(['/api/frequency-collector/access','/api/frequency-collector/revoke','/api/frequency-collector/frequency']), purpose: z.enum(['collector-access','collector-revoke','collector-frequency']),
+  requestHash: b64Coordinate.optional(),
   issuedAt: z.number().int().positive(), expiresAt: z.number().int().positive(),
-}).strict().refine(value=>value.path==='/api/frequency-collector/'+(value.purpose==='collector-access'?'access':'revoke'));
+}).strict().refine(value=>value.path==='/api/frequency-collector/'+(value.purpose==='collector-access'?'access':value.purpose==='collector-revoke'?'revoke':'frequency')
+  && (value.purpose==='collector-frequency' ? value.requestHash!==undefined : value.requestHash===undefined));
+const challengeSchema = collectorChallengeSchemaV1;
 export type CollectorChallengeV1 = z.infer<typeof challengeSchema>;
 export type CollectorDeviceProofRecordV1 = Readonly<{
   deviceId: string; generation: number; tenantId: string; actorId: string;
@@ -37,13 +40,15 @@ export function collectorAccountKeyV1(tenantId: string, actorId: string): Promis
 }
 export function collectorChallengeBytesV1(challenge: CollectorChallengeV1): Uint8Array {
   const value = challengeSchema.parse(challenge);
-  return new TextEncoder().encode(JSON.stringify([value.deviceId, value.generation,
+  const fields: (string|number)[] = [value.deviceId, value.generation,
     value.accountKey, value.keyThumbprint, value.nonce, value.audience, value.method,
-    value.path, value.purpose, value.issuedAt, value.expiresAt]));
+    value.path, value.purpose, value.issuedAt, value.expiresAt];
+  if(value.purpose==='collector-frequency') fields.push(value.requestHash!);
+  return new TextEncoder().encode(JSON.stringify(fields));
 }
 
 export async function issueCollectorChallengeV1(record: CollectorDeviceProofRecordV1, now: number,
-  purpose: 'collector-access'|'collector-revoke'='collector-access'): Promise<CollectorChallengeV1> {
+  purpose: 'collector-access'|'collector-revoke'|'collector-frequency'='collector-access', requestHash?: string): Promise<CollectorChallengeV1> {
   if (record.revokedAt !== null || !Number.isSafeInteger(now) || now <= 0)
     throw new CollectorDeviceProofErrorV1();
   const fingerprint = await collectorKeyThumbprintV1(record.publicKey);
@@ -51,7 +56,8 @@ export async function issueCollectorChallengeV1(record: CollectorDeviceProofReco
   return challengeSchema.parse({ deviceId: record.deviceId, generation: record.generation,
     accountKey: await collectorAccountKeyV1(record.tenantId, record.actorId), keyThumbprint: fingerprint,
     nonce: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
-    audience: 'https://admin.escolaieda.com', method: 'POST', path: '/api/frequency-collector/'+(purpose==='collector-access'?'access':'revoke'),
+    audience: 'https://admin.escolaieda.com', method: 'POST', path: '/api/frequency-collector/'+(purpose==='collector-access'?'access':purpose==='collector-revoke'?'revoke':'frequency'),
+    ...(purpose==='collector-frequency'?{requestHash}:{}),
     purpose, issuedAt: now, expiresAt: now + 60_000 });
 }
 
@@ -60,7 +66,7 @@ export async function issueCollectorChallengeV1(record: CollectorDeviceProofReco
  * matching account/key/generation, unused nonce, nonce TTL and directory TTL. */
 export async function verifyCollectorDeviceProofV1(input: {
   record: CollectorDeviceProofRecordV1; challenge: CollectorChallengeV1; signature: string; now: number;
-  purpose?: 'collector-access'|'collector-revoke';
+  purpose?: 'collector-access'|'collector-revoke'|'collector-frequency';
 }): Promise<void> {
   try {
     const { record, now } = input, challenge = challengeSchema.parse(input.challenge);

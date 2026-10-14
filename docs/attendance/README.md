@@ -1,210 +1,62 @@
-# Frequência e conciliação — contrato candidato V1 (#1267)
+# Frequência V2 — entrega candidata #1289
 
-Entrega preparada para revisão em PR rascunho. Nenhum endpoint foi montado no
-roteador, nenhuma migração produtiva foi registrada ou executada, nenhum deploy,
-merge, credencial ou mecanismo global de atualização automática foi criado.
-`schema-v1.sql` é SQL candidato, separado das migrations executáveis existentes.
+A frequência de 2026 atende todas as turmas regulares ligadas no núcleo de conciliação da #1269. O cadastro acadêmico, o `studentUid` e as decisões de identidade continuam sendo do núcleo central. Frequência não decide associações, não utiliza a posição da linha como identidade e não permite ao computador escolher um UID.
 
-## Arquitetura e limites
+O código desta entrega é candidato. Merge, migrations produtivas e publicação aguardam a validação do responsável. Nenhum SQL destas verificações foi executado no Supabase produtivo. `schema-v1.sql` é somente memória da candidata #1268, não deve ser aplicado; o serviço e os testes V1 com conciliação independente foram retirados.
 
-- `shared/attendance-contracts/attendance-v1.ts`: payloads estritos Zod, limites,
-  contratos de revisão e resumo mensal, sem dependência de frontend.
-- `server/attendance/domain-v1.ts`: comparação, fingerprints, conciliação e resumo.
-- `server/attendance/service-v1.ts`: transações no adaptador PostgreSQL existente;
-  API intermediária, sem conexão PostgreSQL no PC coletor.
-- `server/attendance/http-v1.ts`: factory de handler **não registrada**,
-  `/api/attendance/v1`, POST com JSON limitado a 1 MiB, origem oficial e no-store
-  em respostas de sucesso e erro. Admin/coletor reutilizam a sessão Entra e
-  `gradebook.persistence.admin`. Não foi criada autorização técnica nova.
-- `docs/attendance/schema-v1.sql`: schema privado, RLS, somente a role existente
-  `gradebook_app`; histórico sem UPDATE/DELETE nessa role. PUBLIC, anon,
-  authenticated e student_portal_app não recebem acesso.
+## Arquivos e integração
 
-O cadastro mestre é `gradebook.aluno` + `gradebook.turma` + `gradebook.vinculo`
-da Relação anual atual. A pessoa é o `studentUid` canônico já persistido em
-`gradebook.student_identity`. Vínculos históricos de origem de transferência
-(`situacao=6`) são excluídos da referência corrente, conforme o predicado vigente
-do Banco; os snapshots de frequência anteriores continuam preservados.
-O módulo não cria pessoas, não mescla identidades
-acadêmicas e não usa número da chamada como identidade. Nomes e turmas originais
-da fonte são preservados; normalização remove acentos, agrupa espaços e compara
-em maiúsculas apenas para a correspondência.
+- `shared/attendance-contracts/frequency-v2.ts`: payloads estritos, limites e DTOs V2.
+- `server/attendance/service-v2.ts`: serviço transacional PostgreSQL no adaptador oficial do Banco.
+- `server/student-identity/reconciliation/resolve-source-batch-v2.ts`: resolução central em lote; o ponto de entrada V1 delega ao mesmo núcleo e conserva a rejeição de entrada inválida.
+- `migrations/attendance/0001_frequency_v2.sql`: persistência privada, RLS, ACL, FKs sem cascade e índices.
+- `migrations/collector/0004_frequency_bridge_v2.sql`: view pública somente para o backend e funções mínimas de lock/revogação do dispositivo.
+- `migrations/attendance/0002_runtime_bridges_v2.sql`: revalidação central da evidência histórica e invalidação do preview do reset anual.
+- `migrations/attendance/0003_portal_frequency_read_v2.sql`: leitura privada vinculada ao aluno, à conta e à sessão do Portal.
+- `server/student-portal/integration/year-reset/frequency-writer-v2.ts`: registra uma alteração de frequência no protocolo de reset existente, sem alterar a revisão acadêmica.
+- A composição HTTP administrativa e do dispositivo fica em `server/collector/frequency-http-v2.ts`, com `/api/gradebook/frequency/v2` para o Banco e `/api/frequency-collector/frequency` para o PC; a nova aba **Frequência** pertence à guia **Importação** do Banco. O Portal usa a composição autorizada existente.
 
-O escopo é `(academicYear,classId)` de uma turma efetivamente presente na Relação.
-O repositório atualmente atende uma escola; não foi inventado um campo de tenant
-ou uma política de responsáveis inexistente. Não reutilizar este escopo para uma
-implantação com múltiplas escolas sem contrato e isolamento próprios.
+O PC recebe as operações V2 por backend HTTP. Nunca recebe conexão PostgreSQL, senha de banco, refresh token Graph nem privilégio direto sobre tabelas. O transporte exige prova do dispositivo vinculada ao hash canônico de todo o pedido e nonce de uso único. O backend fornece o ator confiável somente após validar essa prova.
 
-## Operações da API preparada
+## Operações
 
-| Operação          | Dados e resultado                                                                                                                                                                                                     |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `review`          | Escopo; revisão corrente, alunos da Relação, candidatos e histórico auditado, somente admin.                                                                                                                          |
-| `configure`       | `requestId`, `expectedRevision`, calendário diário elegível e intervalos inclusivos de matrícula. Grava uma configuração imutável nova, ligada ao fingerprint da Relação.                                             |
-| `lease`           | `requestId`, `collectorId`, duração entre 15 e 300 s; devolve revisão, prazo e fencing token monotônico. Renovação usa novo requestId e invalida token anterior.                                                      |
-| `collect`         | Revisão esperada, lease/fencing, versão da fonte, identidade do relatório, observação, rosterComplete, registros, cobertura diária por registro e marcas X/J. Somente Diário Anual Detalhado coletivo neste contrato. |
-| `decide`          | Revisão esperada, registro, studentUid, fingerprint exibido, motivo; `same-student` (É o mesmo aluno) ou `different-students` (São alunos diferentes).                                                                |
-| `monthly-summary` | Escopo, studentUid e mês; exige adaptador de autorização do responsável, independente da conciliação e revalidado a cada leitura e antes da resposta. Sem adaptador, 403.                                             |
+`createFrequencyServiceV2(database).execute(payload, actor)` admite `status`, `receipt`, `save-settings`, `set-paused`, `rename-device`, `revoke-device`, `lease`, `heartbeat`, `release`, `collect`, `resolve-conflict` e `monthly-summary`.
 
-As versões de entrada são números inteiros seguros. Toda mutação possui receipt
-transacional por escopo/requestId, vinculado ao ator da sessão e fingerprint do
-payload. Repetição idêntica devolve apenas o recibo da mutação; payload diferente
-ou outro ator no mesmo requestId resulta em conflito. Recibos nunca armazenam
-respostas acadêmicas destinadas aos responsáveis.
+Operações administrativas exigem o ator administrativo autorizado pela composição. Coleta, liderança, heartbeat e release exigem dispositivo. O tenant provém da identidade validada pelo servidor; não existe tenant, UID de destino nem configuração de calendário no payload da coleta.
 
-`collect` usa sourceVersion como versão da **evidência coletada**, inclusive
-observedAt: retry desse snapshot deve manter o mesmo conteúdo. Uma coleta nova
-com observação/conteúdo diferentes precisa de versão nova; não reutilizar o hash
-do arquivo como única versão se metadados/observações do snapshot mudaram.
-Uma fonte inalterada pode ser revalidada sob outro fingerprint da Relação sem
-alterar sua versão original. Nunca mudar a fonte para contornar um conflito.
+Todas as mutations retornam `{contractVersion:2,state:'committed',operation,requestId,...}`. Recibo consulta o resultado original, nunca executa novamente uma mutation. O mesmo ID com outro payload/ator/dispositivo é recusado; repetição válida não regrava. Recibos de mutations não carregam nomes ou dados acadêmicos. Após reset, uma guarda opaca dos IDs antigos impede replay.
 
-## Conciliação e auditoria
+A agenda é compartilhada pela escola/ano, com timezone e as 14 regras semanais de turno. `save-settings` e `set-paused` usam CAS da revisão escolar. A agenda define quando coletar; não prova dias letivos, quantidade de aulas ou elegibilidade acadêmica.
 
-Uma correspondência normalizada, única dos dois lados, com turma coincidente e
-roster completo pode ser `identified`. Homônimos, duplicidades ou colisões da
-normalização permanecem `needs-review`; divergência de turma/nome exige decisão
-humana. A configuração de matrícula é separada: reconhecer uma pessoa não
-determina a data de transferência nem cria vigência.
+## Identidade, histórico e conflitos
 
-Cada decisão guarda ator, motivo, momento do servidor, revisão, fonte, registro,
-studentUid e fingerprint. A revisão global do escopo rejeita o segundo revisor
-com versão antiga. Reversão é outra decisão auditada; nada sobrescreve a decisão
-anterior. Uma troca de aluno já vinculado exige rejeitar explicitamente o vínculo
-anterior primeiro. Todos os vínculos devem continuar um-para-um.
+A captura resolve nome e turma de origem pelo núcleo central, em lote. Registros ambíguos ou não encontrados são persistidos sem atribuição. Várias origens podem identificar o mesmo UID. Ocorrências são únicas por ano/UID/data/turno/slot 1–6; turma, nomes originais, fontes e observações de conciliação ficam nas evidências privadas de origem.
 
-`recordKey` identifica um registro reconhecível **na origem**, nunca a pessoa:
-`reportIdentity` delimita o relatório e `identityBasis` declara `durable` ou
-`report-local`. Só declarar durable quando a origem comprovar chave estável de
-registro; posição/linha/chamada/nome não a comprovam. Quando só existe localização
-no relatório, usar report-local. Nesse caso, decisões não são reaplicadas entre
-versões da fonte. Esta limitação é explícita porque o contrato do Smecel ainda não
-comprova chave durável disponível.
+A revalidação histórica usa uma única função central, `gradebook.reconciliation_evidence_valid_v2`: todas as origens guardadas precisam continuar ligadas ao mesmo UID, sem revisão pendente, com as observações e ligações de turma válidas. Nova matrícula do mesmo UID não invalida a matrícula antiga; correção para outra pessoa ou ligação de turma em revisão não reinterpreta a frequência anterior. O histórico acompanha o UID em turmas anteriores.
 
-Rejeições retiram o aluno da lista sugerida para a mesma evidência reconhecível.
-Em chaves duráveis, mudar apenas a versão global da coleta não reabre a sugestão;
-alteração pertinente do registro ou de seus candidatos muda o fingerprint. A
-Relação completa permanece disponível somente ao administrador para uma reversão
-explícita. Confirmações humanas exigem o snapshot corrente; mudança de fonte ou
-contexto da Relação exige revalidação, sem reaplicar silenciosamente uma decisão.
+X e J equivalentes não duplicam a ocorrência. X/J divergentes e desaparecimento comprovado de marca abrem conflito. Snapshot parcial, ausência de aluno ou falha de coleta não apagam lançamentos anteriores. Apenas cobertura explicitamente completa daquele slot pode propor uma remoção, que continua exigindo escolha administrativa auditada. Correção guarda ator, motivo, valor anterior e posterior; CAS protege decisões concorrentes. Uma escolha não transforma registros vazios em presença.
 
-## Dados esparsos e resumo mensal
+Datas de matrícula e transferência são usadas apenas quando existem nas observações centrais. Datas futuras, de outro ano, slots fora do contrato ou marcas fora de vigência comprovada são rejeitados. Nunca é inventado calendário ou início de matrícula.
 
-Somente X (falta) e J (justificativa) são armazenados como marcas; não há uma linha
-de presença por aula. Calendário, intervalos de matrícula, cobertura por aluno/dia
-e versão da fonte fornecem o denominador e a evidência de completude. Dias não
-letivos, futuros e fora do vínculo são excluídos. Cobertura posterior ao dia da
-observação é rejeitada; a passagem do tempo não transforma coleta antiga em
-presença. Datas são dias civis no fuso escolar America/Sao_Paulo.
+**Não há calendário de frequência produtivo nem quantidade de aulas aprovada nesta entrega.** Portanto, resumo mensal mantém `absences`, `justified`, `denominator` e `percentage` nulos; `coverage` é `incomplete` quando há evidência parcial e `unavailable` quando não há. Marcas X/J conhecidas aparecem como evidência parcial. Zero não significa ausência de evidência e não é retornado como total consolidado. Uma futura fonte acadêmica aprovada exige contrato e validação próprios antes de habilitar totais/percentual.
 
-As seis posições Smecel são preservadas. O calendário deve representar posições
-validadas para a fonte; não derivar cinco posições automaticamente do horário
-físico. Se a cobertura tem seis posições e o calendário cinco, o resumo mantém
-as marcas da sexta e bloqueia o percentual até alinhar a interpretação. O
-denominador só é confiável quando as posições de calendário e cobertura coincidem
-exatamente e todos os dias elegíveis possuem cobertura completa do aluno.
+## Coordenação, armazenamento e reset
 
-O resumo devolve mês, X e J separados, datas/aulas marcadas, denominador,
-percentual descritivo `100 * (denominador - X - J) / denominador`, cobertura e última
-observação. J não prova presença. Este percentual não substitui regra acadêmica
-oficial ou percentual produzido pelo Smecel. Sem denominador positivo/cobertura
-confiável, contagens totais, denominador e percentual ficam **null**, nunca zero;
-marcas conhecidas do snapshot continuam disponíveis. Um zero só existe quando a
-fonte comprova cobertura completa e ausência de X/J.
+Existe uma lease por escola/ano, prazo de 15–300 segundos pelo relógio do banco, vinculada ao ator/dispositivo e com fencing monotônico. Nova concessão/renovação incrementa o fencing token. Heartbeat atualiza estado e última comunicação, mas não prolonga a lease. Outro computador assume somente depois da expiração ou release. Pausa bloqueia nova liderança e coleta.
 
-## Concorrência, preservação e leitura obsoleta
+Cada transação de dispositivo valida e bloqueia o grant/dispositivo com `collector_auth.lock_active_device_v2`, antes das gravações e antes do commit. Expiração é revalidada depois de qualquer espera; a coleta revalida também o prazo de liderança antes do commit. Revogação administrativa passa pela função privada do broker na mesma transação. Lote, marcas, origem, correções, CAS e recibo são atômicos; falha posterior desfaz as gravações fisicamente.
 
-Cada transação trava a linha do escopo. A lease é vinculada ao coletor e ao ator,
-com expiração pelo relógio PostgreSQL; toda ingestão valida token/ator/prazo dentro
-da mesma transação da escrita. Renovação/takeover incrementa o token; gravações
-antigas são recusadas. Observação anterior à fonte corrente também é recusada.
-Lotes vazios são inválidos; parciais são acrescentados sem excluir evidência.
+Captura idêntica ao último conteúdo e mapeamento atualiza somente frescor, metadados operacionais e recibo. Não copia novamente nomes, diário e marcas anuais. Em captura alterada, evidências de fonte, cobertura, marcas e proveniência são gravadas como diferenças; ocorrências equivalentes permanecem únicas. SQL de resolução, elegibilidade, fontes, marcação e conflitos trabalha em lote, sem uma consulta por aluno ou por marca.
 
-Configurações, matrículas, lotes, registros, coberturas, marcas e decisões são
-append-only. O ponteiro corrente pode mudar; os snapshots anteriores permanecem.
-Locks SHARE curtos sobre as tabelas da Relação impedem mudança entre a conferência
-do cadastro e a escrita/leitura. São usadas as permissões da role gradebook_app
-existente, sem ampliação ou role nova em produção.
+Frescor novo somente alcança as evidências do batch correspondente; aluno omitido de um snapshot parcial mantém o horário da evidência anterior. A retenção mantém a proveniência mínima e a auditoria das alterações; não guarda PDF/arquivo bruto.
 
-Na leitura, o backend calcula novamente o fingerprint da Relação, incluindo
-situação do vínculo e turma relacionada, sem inventar interpretação desses códigos.
-Se aluno, turma, ano ou vínculo mudaram, a conciliação antiga não é visível, mesmo que ainda
-exista no banco. A configuração de matrícula também deve ser revalidada. A API
-não consulta cache de resumos, não usa ETag/304 e sempre revalida autorização e
-elegibilidade. Uma interface futura deve descartar seus dados anteriores ao
-receber erro/revisão nova; cabeçalhos HTTP não conseguem revogar informação já
-mostrada ou copiada em um cliente.
+`frequencyYearCountsV2(tx,year)` retorna contagens das 11 tabelas anuais dependentes. `resetFrequencyYearV2(tx,year)` exclui dependentes explicitamente, conserva UIDs globais, muda geração, incrementa fencing, libera a liderança e mantém a escola pausada. O chamador usa o lock anual exclusivo do reset canônico. Alterações de coleta, configuração, nome/revogação e correção invalidam o preview existente sem fingir alteração de notas. FKs não usam cascade para contornar o reset. Contagens operacionais de recibos e comunicação podem variar depois da prévia; a execução recompõe as contagens reais sob o lock e exige que todas as exclusões correspondam a elas.
 
-## Lacunas reais antes de ativar
+## Verificação
 
-1. Escolher onde ficará a aba **Alunos**, no coletor ou no Ecossistema. Nenhuma
-   tela definitiva ou navegação foi presumida.
-2. Integrar o coletor com a autenticação intermediária já aprovada; ainda não há
-   endpoint montado nem contrato confirmado de chave durável do Smecel. Sem
-   credencial PostgreSQL no PC e sem criar novas credenciais nesta entrega.
-3. Integrar a autorização real de responsáveis; a role ALUNO ou uma conciliação
-   não concede acesso. O adaptador atual falha fechado quando ausente.
-4. Definir/aprovar calendário e vigências reais. A importação atual da Relação não
-   fornece datas de transferência confiáveis; não inferi-las pela decisão humana
-   de identidade. Validar interpretação das seis posições e do percentual.
-5. Integrar migração/ACL e roteiro de reset anual: as referências RESTRICT
-   preservam a evidência e bloqueariam a exclusão de uma turma referenciada. O
-   reset atual ainda não conhece attendance. Não aplicar o SQL em produção antes
-   de resolver esse contrato; não acrescentar cascade para fazer o reset passar.
-6. O resumo mensal lê o snapshot corrente, sem mesclar automaticamente fonte
-   parcial com marcações antigas. O histórico é preservado, mas a consulta
-   histórica dos snapshots e de turmas anteriores à transferência ainda não é
-   uma API de responsáveis. Quando o snapshot novo é parcial, não publicar totais.
-7. A contenção do serviço foi exercitada em PostgreSQL nativo descartável com
-   conexões físicas independentes, além de SQL/constraints/ACL em PGlite. Essa
-   evidência não substitui teste de Hyperdrive, carga ou homologação com fontes
-   reais. Nenhum banco existente, ambiente privado ou produtivo foi acessado.
+- `npx vitest run tests/attendance/postgres-v2.test.ts`: regressões sintéticas com PGlite e, com as variáveis do runner, PostgreSQL nativo. Cobrem operações, N→1, homônimos, transferência, matrícula adicional, conflitos/removação, idempotência, CAS, equivalência/diferenças, frescor parcial, autorização, rollback, expiração após trabalho no banco, ACL e reset.
+- `tests/attendance/native-stack-v2.integration.test.ts`: aplica os bytes exatos da linhagem acadêmica/Portal, conciliação, Coletor e frequência, incluindo as três bridges; confere grants, isolamento do Portal, grant expirado/revogação e reset canônico com frequência.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/attendance/run-local-postgres-v2.ps1 -PostgresBin <bin> -TestFile <suite>`: cluster exclusivo em diretório temporário marcado, loopback, sem serviço Windows, com prova do destino antes de SQL e remoção somente após encerramento confirmado.
+- `.github/workflows/frequency-postgres-v2.yml`: dois jobs independentes com PostgreSQL **17.6**, fixtures sintéticas, migrations exatas e resultado JSON. Nenhum job usa Supabase produtivo.
 
-## Verificação reproduzível
-
-`npx vitest run tests/attendance` exercita regras e SQL candidato em PGlite
-descartável. Toda fixture é explicitamente sintética. `npm run lint`,
-`npm run typecheck` e `npm run build` usam o projeto existente. O workflow oficial
-da PR executa `npm run verify` com o codec de fotos compilado por sua cadeia de
-proveniência; não alterar gates para adaptar o ambiente local Windows.
-
-Leituras de referência: AGENTS.md, docs/gradebook/README.md, PROJECT_STATE.yaml,
-DECISIONS.md, CONSUMER_MAP.md, CONTRACTS.md, SOURCE_CONTRACT.md, TEST_MATRIX.md,
-adaptador PostgreSQL, autorização e migration da identidade compartilhada.
-`.agents/skills` não estava presente no clone. A memória local consultada só
-continha preferências do usuário, não evidência acadêmica.
-
-### Ensaio nativo descartável e não ativação
-
-Em Windows com `initdb`, `pg_ctl` e `psql` já instalados no PATH:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/attendance/run-local-postgres-v1.ps1
-```
-
-O launcher não instala serviço ou ferramenta. Cria um cluster exclusivo no
-diretório temporário, porta livre, somente `127.0.0.1`, sem senha ou credencial
-persistente. Antes de qualquer DDL de fixture, os testes conferem nome exclusivo
-do banco, marcador aleatório e `data_directory` do cluster criado. A role e os
-dados sintéticos existem somente nesse cluster. No fluxo normal, os clientes são
-fechados, PostgreSQL é parado e a pasta é removida após conferir caminho, marcador,
-ausência de `postmaster.pid` e que a raiz não é um reparse point. Falha/timeout de
-helper preserva a pasta e reporta o caminho/PID; não disputa a limpeza com um
-processo possivelmente ativo. Não aponte esses testes para bancos existentes.
-
-Os sete testes nativos verificam PIDs distintos e `pg_blocking_pids` para provar
-espera física: decisão simultânea com uma única revisão aceita; idempotência
-simultânea; takeover após expiração; expiração enquanto escritor aguarda; expiração
-**depois de o próprio escritor amostrar lease_live=true**; rollback de todas as
-gravações e recibos após erro SQL real no meio de lote parcial, com retry do mesmo
-requestId; e transferência canônica bloqueada durante leitura, seguida de recusa
-do vínculo obsoleto. A lista não comprova capacidade de carga ou transporte real.
-
-A suíte nativa fica **pulada** sem o ambiente exclusivo fornecido pelo launcher;
-um CI verde com essa suíte pulada não constitui prova nativa. `npx vitest run
-tests/attendance` cobre adicionalmente as entradas reais ADM/Portal e o handler
-candidato com cabeçalhos condicionais: sem 304/resumo antigo para aluno não
-conciliado, turma ausente, rejeição ou transferência. `npm run build:public-demo`
-usa o dry-run existente, e `npm run test:public-demo-runtime` testa em Workerd
-local que a demo habilitada também recusa a rota candidata. Nenhum desses comandos
-ativa a API ou publica a aba Alunos.
+Verificação local em 14/10/2026: PostgreSQL 17.6 confirmou a suíte de serviço e a aplicação dos bytes reais de todas as migrations, incluindo Portal 0026, com papel de migration sem superusuário e sem BYPASSRLS. As bridges conservaram somente a associação administrativa do criador sem SET/INHERIT; nenhum runtime recebeu associação, CREATE ou acesso às tabelas de autorização. O cluster descartável foi encerrado e removido ao final. As provas técnicas do head final ficam na PR. CI, migrations sintéticas e catálogo não comprovam login Microsoft/TPM/Smecel real, capacidade de carga produtiva ou homologação funcional. A validação real posterior pertence ao responsável; não substitui lint, tipos, build, gates e revisão do head final.

@@ -31,14 +31,14 @@ afterAll(async()=>{await db.close();});
 async function fixture(){
   const key=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']),exported=await crypto.subtle.exportKey('jwk',key.publicKey);
   const publicKey:CollectorPublicKeyV1={kty:'EC',crv:'P-256',x:exported.x!,y:exported.y!,ext:true};
-  let expectedNonce='',providerUnavailable=false;
+  let expectedNonce='',authenticatedAt=0,providerUnavailable=false;
   const fetcher=vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
     if(providerUnavailable)throw new Error('PRIVATE_PROVIDER_ERROR');
     const uri=String(url);
     if(uri.endsWith('/token')){
       const params=new URLSearchParams(String(init?.body));
       if(params.get('grant_type')==='authorization_code'){
-        const token='header.'+encodeBase64Url(new TextEncoder().encode(JSON.stringify({auth_time:Math.floor(Date.now()/1000)})))+'.synthetic-signature';
+        const token='header.'+encodeBase64Url(new TextEncoder().encode(JSON.stringify({auth_time:authenticatedAt})))+'.synthetic-signature';
         return Response.json({id_token:token,token_type:'Bearer',refresh_token:'PRIVATE_ORIGINAL_REFRESH'});
       }
       expect(params.get('scope')).toBe('https://graph.microsoft.com/User.Read');
@@ -83,6 +83,7 @@ async function fixture(){
     const authCookie=reply!.headers.get('Set-Cookie')!.match(/__Host-collector_auth=([^;]+)/)![1]!;
     const transaction=await unseal<{state:string;nonce:string}>(authCookie,env.SESSION_SECRET);
     expectedNonce=transaction!.nonce;
+    authenticatedAt=Math.floor(Date.now()/1000);
     return {state:transaction!.state,cookie:'__Host-collector_auth='+authCookie};
   }
   async function complete(pair:Awaited<ReturnType<typeof begin>>){

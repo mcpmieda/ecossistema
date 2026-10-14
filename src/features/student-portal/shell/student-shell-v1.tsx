@@ -11,6 +11,8 @@ import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
 import { brilliantSealCountV1 } from '../grades/brilliant-seal-v1';
 import { SCHOOL_NAME_V1 } from '../../../shared/brand/school-mark-v1';
 import './student-shell-v1.css';
+import { StudentFrequencyV2 } from '../frequency/student-frequency-v2';
+import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
 
 export const STUDENT_SCHOOL_NAME_V1 = SCHOOL_NAME_V1;
 const outcome = {
@@ -336,6 +338,7 @@ export interface StudentPagePropsV1
   onRetry?: () => void;
   onLogin?: () => void;
   portraitSrc?: string;
+  frequencyClient?: StudentFrequencyClientV2;
 }
 
 function errorMessageKindV1(state: string): StudentMessageKindV1 {
@@ -352,6 +355,7 @@ export function StudentPortalPageV1({
   onRetry,
   onLogin,
   portraitSrc,
+  frequencyClient,
   ...shell
 }: StudentPagePropsV1) {
   const gradesHeading = useId();
@@ -382,6 +386,7 @@ export function StudentPortalPageV1({
             profile={null}
           />
         )}
+        <StudentFrequencyV2 key={load.data.profile.accountId} client={frequencyClient} onLogin={onLogin} />
       </>
     );
   const hero =

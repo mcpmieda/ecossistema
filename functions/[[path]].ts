@@ -50,6 +50,7 @@ import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-ro
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
 import { handleCollectorRequestV1 } from '../server/collector/routes-v1';
+import { handleFrequencyAdminRequestV2 } from '../server/collector/frequency-http-v2';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -204,6 +205,8 @@ async function route(context: Context, correlationId: string): Promise<Response>
   enforceOfficialOrigin(request, env);
   const collectorResponse = await handleCollectorRequestV1(request, env);
   if (collectorResponse) return collectorResponse;
+  const frequencyResponse = await handleFrequencyAdminRequestV2(request, env);
+  if (frequencyResponse) return frequencyResponse;
 
   const healthResponse = await handleSystemHealthRequestV1(request, env);
   if (healthResponse) return healthResponse;

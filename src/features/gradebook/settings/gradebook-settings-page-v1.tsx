@@ -35,6 +35,7 @@ const COUNT_ITEMS = [
   ['bulletins', 'Boletins emitidos'],
   ['histories', 'Demais históricos'],
   ['reconciliation', 'Conciliação e relatórios cadastrais'],
+  ['attendance', 'Frequência'],
 ] as const;
 
 function failureMessage(state: Exclude<YearResetResponseV1['state'], 'ready'>): string {

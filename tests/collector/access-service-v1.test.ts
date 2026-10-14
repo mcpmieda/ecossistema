@@ -8,6 +8,7 @@ import { CollectorAuthorizationStoreV1,type CollectorSqlV1 } from '../../server/
 import { CollectorRefreshCipherV1,type CollectorGrantBindingV1 } from '../../server/collector/refresh-cipher-v1';
 import { collectorKeyThumbprintV1,collectorChallengeBytesV1,type CollectorPublicKeyV1,type CollectorChallengeV1 } from '../../server/collector/device-proof-v1';
 import { encodeBase64Url } from '../../server/auth/base64url';
+import { frequencyPayloadHashV2 } from '../../shared/attendance-contracts/frequency-v2';
 let db:PGlite;
 beforeAll(async()=>{vi.stubGlobal('crypto',webcrypto);db=new PGlite();
   await db.exec(await readFile(new URL('../../migrations/collector/0001_device_authorization.sql',import.meta.url),'utf8'));
@@ -78,6 +79,26 @@ describe('collector broker composition without Microsoft token exposure',()=>{
     const f=await fixture(),challenge=await f.service.challenge(ids.device),signature=await f.sign(challenge);
     await f.store.revokeDevice(ids.device,ids.tenant,ids.actor);
     await expect(f.service.authorize({deviceId:ids.device,nonce:challenge.nonce,signature})).rejects.toThrow('denied');
+    expect(f.fetcher).not.toHaveBeenCalled();
+  });
+  it('binds real signatures and one-use nonce to the frequency payload and purpose',async()=>{
+    const f=await fixture();
+    const payload={operation:'lease',academicYear:2026,requestId:crypto.randomUUID(),durationSeconds:60};
+    const challenge=await f.service.challenge(ids.device,'collector-frequency',await frequencyPayloadHashV2(payload));
+    const proof={deviceId:ids.device,nonce:challenge.nonce,signature:await f.sign(challenge)};
+    await expect(f.service.authorizeFrequency(proof,{...payload,durationSeconds:61})).rejects.toThrow('denied');
+    await expect(f.service.authorize(proof)).rejects.toThrow('denied');
+    const actor=await f.service.authorizeFrequency(proof,payload);
+    expect(actor).toEqual({mode:'device',actorId:ids.actor,tenantId:ids.tenant,deviceId:ids.device,deviceGeneration:1,keyThumbprint:challenge.keyThumbprint});
+    expect(f.fetcher).not.toHaveBeenCalled();
+    await expect(f.service.authorizeFrequency(proof,payload)).rejects.toThrow('denied');
+  });
+  it('rejects frequency authorization after local revocation with still-current directory evidence',async()=>{
+    const f=await fixture(),payload={operation:'status',academicYear:2026};
+    const challenge=await f.service.challenge(ids.device,'collector-frequency',await frequencyPayloadHashV2(payload));
+    const proof={deviceId:ids.device,nonce:challenge.nonce,signature:await f.sign(challenge)};
+    await f.store.revokeDevice(ids.device,ids.tenant,ids.actor);
+    await expect(f.service.authorizeFrequency(proof,payload)).rejects.toThrow('denied');
     expect(f.fetcher).not.toHaveBeenCalled();
   });
 });
