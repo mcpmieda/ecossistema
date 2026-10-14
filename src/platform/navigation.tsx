@@ -1,4 +1,4 @@
-import { Skeleton, Tabs } from '@heroui/react';
+import { Skeleton } from '@heroui/react';
 import type { MouseEvent, ReactNode } from 'react';
 import {
   ChartColumn,
@@ -24,6 +24,7 @@ import {
   studentPortalSections,
 } from './student-portal-module';
 import { platformHref, routeIcons } from './routes';
+import { SectionLinksV1 } from './section-links-v1';
 
 /*
  * The sections of each service. Since 13/10/2026 (owner request) the side column lists the areas
@@ -253,7 +254,7 @@ export function ShellAreaNameV1({
   return area ? <span className="shell-path__area">{area.name}</span> : null;
 }
 
-/** The open area's name and, when it has them, its sections as a row of tabs. */
+/** Route navigation retains the tab appearance without dangling tab-panel relationships. */
 export function ShellSectionTabsV1({
   route,
   section,
@@ -266,28 +267,5 @@ export function ShellSectionTabsV1({
   const area = mainNavigationAreasV1(modules, route, section).find((module) => module.open);
   const sections = area?.sections ?? [];
   if (!area || sections.length === 0) return null;
-  return (
-    <Tabs
-      variant="secondary"
-      className="shell-sections__tabs"
-      selectedKey={section}
-      onSelectionChange={(key) => {
-        const next = sections.find((item) => item.id === key);
-        // The address is the state: the tab only moves once the address has changed.
-        if (next && next.id !== section && allowDraftNavigationV1())
-          window.location.hash = next.href;
-      }}
-    >
-      <Tabs.ListContainer>
-        <Tabs.List aria-label={`Seções de ${area.name}`}>
-          {sections.map((item) => (
-            <Tabs.Tab key={item.id} id={item.id}>
-              {item.label}
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs.ListContainer>
-    </Tabs>
-  );
+  return <SectionLinksV1 label={`Seções de ${area.name}`} section={section} sections={sections} />;
 }

@@ -23,6 +23,9 @@ import {
   type PlatformRoute,
   type PlatformSnapshotContract,
 } from '../../shared/platform-contract';
+import type { PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
+import type { PlatformAuxiliaryStateV2 } from './platform-data-v2';
+import { MicrosoftSettingsSectionV1 } from './microsoft-settings-section-v1';
 import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
 import { NotesPage } from './notes-page';
 import { GradebookYearProvider, GradebookYearSelectV1 } from './gradebook-year-provider';
@@ -307,7 +310,10 @@ function SessionDurationSetting() {
   );
 }
 
-function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
+function SettingsPage({ snapshot, auxiliary }: {
+  snapshot: PlatformSnapshotV2;
+  auxiliary: PlatformAuxiliaryStateV2;
+}) {
   return (
     <>
       <PageHeader
@@ -330,6 +336,12 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
 
       <SessionDurationSetting />
 
+      <MicrosoftSettingsSectionV1
+        title="Registro de configurações"
+        section="configurations"
+        snapshot={snapshot}
+        auxiliary={auxiliary}
+      >
       <Card variant="default" className="mt-5 overflow-hidden">
         <Card.Header className="border-b border-border/60">
           <Card.Title>Registro de configurações</Card.Title>
@@ -376,7 +388,14 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           )}
         </Card.Content>
       </Card>
+      </MicrosoftSettingsSectionV1>
 
+      <MicrosoftSettingsSectionV1
+        title="Migrações registradas"
+        section="migrations"
+        snapshot={snapshot}
+        auxiliary={auxiliary}
+      >
       <Card variant="default" className="mt-5 overflow-hidden">
         <Card.Header className="border-b border-border/60">
           <Card.Title>Migrações registradas</Card.Title>
@@ -425,6 +444,7 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           )}
         </Card.Content>
       </Card>
+      </MicrosoftSettingsSectionV1>
     </>
   );
 }
@@ -433,11 +453,13 @@ export function PageContent({
   route,
   section,
   snapshot,
+  auxiliary = 'ready',
 }: {
   route: PlatformRoute;
   /** The section of the open service; Auditoria is a section of Saúde do Sistema. */
   section?: string;
-  snapshot: PlatformSnapshotContract;
+  snapshot: PlatformSnapshotV2;
+  auxiliary?: PlatformAuxiliaryStateV2;
 }) {
   usePreloadedSectionsV1(ROUTE_PAGES_V1);
   switch (route) {
@@ -447,7 +469,7 @@ export function PageContent({
       if (section === 'audit') return <AuditPage snapshot={snapshot} />;
       return <Suspense fallback={<output className="block">Carregando Saúde do Sistema…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
     case 'configuracoes':
-      return <SettingsPage snapshot={snapshot} />;
+      return <SettingsPage snapshot={snapshot} auxiliary={auxiliary} />;
     default:
       return <NotesPage />;
   }

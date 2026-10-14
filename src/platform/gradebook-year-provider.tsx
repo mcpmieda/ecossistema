@@ -10,8 +10,8 @@ import {
 } from './gradebook-year-context';
 
 /**
- * The year chosen in the settings of the Centro, kept for this visit only (no browser storage), so
- * the Banco de notas opens in it. Each screen still reads the catalogue of years by itself.
+ * The effective year, kept for this visit only (no browser storage), so the settings and the
+ * Banco de notas reopen in the same year. Each screen still reads the catalogue by itself.
  */
 let chosenYearV1: number | null = null;
 
@@ -24,23 +24,30 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
   const requestSequence = useRef(0);
   const yearRef = useRef<number | null>(null);
   const clearAuthorization = useCallback(() => {
+    chosenYearV1 = null;
     setFailure('A sessão não possui autorização. Entre novamente com uma conta autorizada.');
   }, []);
   const retryAuthorization = useCallback(() => {
     setFailure(null);
     setEpoch((current) => current + 1);
   }, []);
+  const applyYear = useCallback((nextYear: number | null) => {
+    const previous = yearRef.current;
+    // Every accepted transition, including import follow-up and catalogue fallback, must
+    // update the visit memory before another page can mount its provider.
+    chosenYearV1 = nextYear;
+    yearRef.current = nextYear;
+    setYear(nextYear);
+    if (nextYear !== previous) setEpoch((value) => value + 1);
+  }, []);
   const selectYear = useCallback(
     (nextYear: number) => {
       if (!allowDraftNavigationV1()) return;
       if (!years.some((item) => item.year === nextYear)) return;
       if (yearRef.current === nextYear) return;
-      yearRef.current = nextYear;
-      chosenYearV1 = nextYear;
-      setYear(nextYear);
-      setEpoch((value) => value + 1);
+      applyYear(nextYear);
     },
-    [years],
+    [years, applyYear],
   );
   const refreshYears = useCallback(async (preferredYear?: number) => {
     const ticket = ++requestSequence.current;
@@ -61,6 +68,7 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     if (ticket !== requestSequence.current) return;
     if (response.state === 'not-authorized') {
       setFailure('A sessão não possui autorização. Entre novamente com uma conta autorizada.');
+      chosenYearV1 = null;
       yearRef.current = null;
       setYears([]);
       setYear(null);
@@ -74,21 +82,16 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     }
     setFailure(null);
     setYears(response.years);
-    const previous = yearRef.current;
-    const current = previous ?? chosenYearV1;
+    const current = yearRef.current ?? chosenYearV1;
     const next =
       preferredYear !== undefined && response.years.some((item) => item.year === preferredYear)
         ? preferredYear
         : current !== null && response.years.some((item) => item.year === current)
           ? current
           : (response.years[0]?.year ?? null);
-    yearRef.current = next;
-    setYear(next);
-    if (next !== previous) {
-      setEpoch((value) => value + 1);
-    }
+    applyYear(next);
     setLoading(false);
-  }, []);
+  }, [applyYear]);
   useEffect(() => {
     void refreshYears();
     return () => {
