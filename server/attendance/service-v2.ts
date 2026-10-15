@@ -277,7 +277,7 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
     FROM attendance.batch_v2 b LEFT JOIN attendance.class_state_v2 s ON s.academic_year=b.academic_year AND s.class_id=b.class_id WHERE b.academic_year=$1 ORDER BY b.class_id,b.received_at DESC,b.id`,
     [year],
   );
-  const conflicts = await tx.query<Row>(
+  const conflicts = actor.mode === 'admin' ? await tx.query<Row>(
     `SELECT c.id::text,c.revision,c.marks_json,o.student_uid::text,COALESCE(sp.name,a.nome,'Aluno') AS student_name,
     o.date::text,o.slot,o.shift,MIN(b.source_class_label) AS class_label
     FROM attendance.conflict_v2 c JOIN attendance.occurrence_v2 o ON o.id=c.occurrence_id
@@ -286,7 +286,7 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
     LEFT JOIN gradebook.student_presentation_v1 sp ON sp.student_id=a.id AND sp.academic_year=a.ano
     WHERE o.academic_year=$1 AND c.state='open' GROUP BY c.id,o.id,a.nome,sp.name ORDER BY o.date,o.slot,c.id`,
     [year],
-  );
+  ) : [];
   const [clock] = await tx.query<Row>(
     `SELECT clock_timestamp()::text AS now,lease_until>clock_timestamp() AS live FROM attendance.school_state_v2 WHERE academic_year=$1`,
     [year],
