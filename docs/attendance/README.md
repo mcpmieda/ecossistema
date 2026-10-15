@@ -2,7 +2,23 @@
 
 A frequência de 2026 atende todas as turmas regulares ligadas no núcleo de conciliação da #1269. O cadastro acadêmico, o `studentUid` e as decisões de identidade continuam sendo do núcleo central. Frequência não decide associações, não utiliza a posição da linha como identidade e não permite ao computador escolher um UID.
 
-O código desta entrega é candidato. Merge, migrations produtivas e publicação aguardam a validação do responsável. Nenhum SQL destas verificações foi executado no Supabase produtivo. `schema-v1.sql` é somente memória da candidata #1268, não deve ser aplicado; o serviço e os testes V1 com conciliação independente foram retirados.
+O código desta entrega é candidato; merge e publicação aguardam a validação do responsável. A preparação privada do Supabase foi concluída em 15/10/2026, conforme o pedido de deixar a base pronta para receber frequência. `schema-v1.sql` é somente memória da candidata #1268, não deve ser aplicado; o serviço e os testes V1 com conciliação independente foram retirados.
+
+## Preparação do Supabase
+
+As migrations abaixo foram aplicadas uma vez, após ensaio PostgreSQL 17.6 com executor sem superuser. MD5 e SHA256 dos bytes dos arquivos foram comparados ao SQL registrado no ledger; todos coincidiram.
+
+| Arquivo | Versão no ledger | MD5 do SQL |
+| --- | --- | --- |
+| collector/0004_frequency_bridge_v2.sql | 20261015121114 | 64c3765925310357f75f5cf683d79c7c |
+| attendance/0001_frequency_v2.sql | 20261015121124 | bab3f48241d12bbff59d06c5fe3a5512 |
+| attendance/0002_runtime_bridges_v2.sql | 20261015121131 | 3b87390f4fa6babda25df09eb829d376 |
+| attendance/0003_portal_frequency_read_v2.sql | 20261015121140 | 3baf0806793e56aaba2106abb988fd7d |
+| attendance/0004_foreign_key_indexes_v2.sql | 20261015121602 | ebc36dfe66ae1834480f17dd60559b01 |
+
+As 61 entradas anteriores do ledger permaneceram idênticas: fingerprint `cc76d2577bd5ccbeae648aca38f24bb6`, pela fórmula de `COLLECTOR_AUTH_PREPARATION.md`, excluindo somente as novas entradas. O postflight confirmou 13 tabelas com RLS forçada, constraints validadas, nenhuma leitura direta do Portal sobre ocorrências, nenhuma leitura do refresh cifrado por `gradebook_app`, nenhuma função pública de frequência e nenhuma membership SET/INHERIT nas bridges. As bridges não têm LOGIN, SUPERUSER, BYPASSRLS, INHERIT nem CREATE no schema.
+
+A auditoria de segurança retornou zero avisos. O índice da FK de pareamentos e o search_path do trigger de autenticação foram corrigidos pela migration aditiva, preservando as três migrations antigas. Os quatro índices de apoio às novas FKs foram criados e conferidos como válidos/prontos. A contagem agregada de alunos permaneceu 384; todas as 15 turmas de 2026 já estavam mapeadas no núcleo. Lotes e ocorrências de frequência continuam vazios: nenhum dado real foi coletado ou transmitido para esta preparação. Essas verificações não equivalem a ensaio de carga ou ativação real do computador.
 
 ## Arquivos e integração
 
@@ -13,6 +29,7 @@ O código desta entrega é candidato. Merge, migrations produtivas e publicaçã
 - `migrations/collector/0004_frequency_bridge_v2.sql`: view pública somente para o backend e funções mínimas de lock/revogação do dispositivo.
 - `migrations/attendance/0002_runtime_bridges_v2.sql`: revalidação central da evidência histórica e invalidação do preview do reset anual.
 - `migrations/attendance/0003_portal_frequency_read_v2.sql`: leitura privada vinculada ao aluno, à conta e à sessão do Portal.
+- `migrations/attendance/0004_foreign_key_indexes_v2.sql`: índices de apoio às FKs, às verificações de pai e à limpeza anual.
 - `server/student-portal/integration/year-reset/frequency-writer-v2.ts`: registra uma alteração de frequência no protocolo de reset existente, sem alterar a revisão acadêmica.
 - A composição HTTP administrativa e do dispositivo fica em `server/collector/frequency-http-v2.ts`, com `/api/gradebook/frequency/v2` para o Banco e `/api/frequency-collector/frequency` para o PC; a nova aba **Frequência** pertence à guia **Importação** do Banco. O Portal usa a composição autorizada existente.
 
