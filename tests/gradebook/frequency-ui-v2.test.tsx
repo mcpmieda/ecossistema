@@ -52,7 +52,7 @@ function fixture(): FrequencyStatusV2 {
         classLabel: 'TURMA INVENTADA',
         date: '2026-10-01',
         slot: 2,
-        shift: 'matutino',
+        shift: 'MATUTINO',
         marks: ['X', 'J', null],
       },
     ],
@@ -144,6 +144,7 @@ it.each([
   };
   render(<FrequencyPanelV2 client={client} />);
   await screen.findByText('ALUNO INVENTADO');
+  expect(screen.getByText(/Posição 2 · Matutino/)).toBeTruthy();
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'Conferir conflito' }));
   const select = screen.getByLabelText('Decisão');
@@ -260,4 +261,29 @@ it('renders every operational device state without simulating a connected comput
     'Sessão da fonte expirada',
   ])
     expect(within(computers).getByText(label)).toBeTruthy();
+});
+
+it('refuses timezone offsets and other spellings the database and Windows collector read differently', async () => {
+  const value = fixture();
+  const client = {
+    status: vi.fn(async () => structuredClone(value)),
+    mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
+  };
+  render(<FrequencyPanelV2 client={client} />);
+  const user = userEvent.setup();
+  const timezone = await screen.findByLabelText('Fuso horário');
+  await waitFor(() =>
+    expect((timezone.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(false),
+  );
+  for (const zone of ['-03:00', 'america/bahia']) {
+    await user.clear(timezone);
+    await user.type(timezone, zone);
+    await user.click(screen.getByRole('button', { name: 'Salvar agenda' }));
+    expect(await screen.findByText('Confira o fuso e os horários da agenda.')).toBeTruthy();
+  }
+  expect(client.mutate).not.toHaveBeenCalled();
+  await user.clear(timezone);
+  await user.type(timezone, 'America/Bahia');
+  await user.click(screen.getByRole('button', { name: 'Salvar agenda' }));
+  await waitFor(() => expect(client.mutate).toHaveBeenCalledTimes(1));
 });
