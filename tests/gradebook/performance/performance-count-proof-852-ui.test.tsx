@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { learningFixtureV1 } from './learning-fixture-v1';
 import { setupOperationsDomV1 } from '../../student-portal/ui/overview/dom-v1';
@@ -609,7 +609,9 @@ it('renders every Notas V5 component bar, class panorama and completeness KPI fr
         ' sem leitura classificada',
     }),
   ).toBeTruthy();
-  expect(container.querySelectorAll('.performance-ranking li')).toHaveLength(
+  // The ranking opens inside the panorama card (owner request of 15/10/2026).
+  fireEvent.click(screen.getByRole('button', { name: 'Classificação da turma: 10 maiores somatórios' }));
+  expect(container.querySelectorAll('.performance-bars__student-group--ranking li')).toHaveLength(
     dashboard.overview.ranking.length,
   );
 });

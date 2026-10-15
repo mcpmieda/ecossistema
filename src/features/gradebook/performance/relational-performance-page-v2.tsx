@@ -432,6 +432,7 @@ export function RelationalPerformancePageV2({
                               key={scopeKey}
                               value={state.analysis}
                               dashboard={state.dashboard}
+                              previous={state.previousDashboard}
                               open={open}
                               statuses={state.filters.statuses}
                               focusOffer={(offerId) =>

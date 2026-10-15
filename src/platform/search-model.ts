@@ -67,7 +67,7 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
         {
           id: 'health:audit',
           label: 'Auditoria',
-          description: 'Saúde do Sistema · Trilha administrativa',
+          description: 'Saúde · Trilha administrativa',
           category: 'Seção' as const,
           href: '#/operacao?area=audit',
           searchText: normalizeSearch(

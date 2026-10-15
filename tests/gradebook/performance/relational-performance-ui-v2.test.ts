@@ -562,21 +562,28 @@ describe('real shell, shared year and rendered performance journey', () => {
   it('drops a late old-period response rather than replacing the current trimester', async () => {
     await loaded();
     let resolve!: (response: Response) => void;
+    let pendingSignal: AbortSignal | null | undefined;
     mock.mockImplementationOnce(
-      () =>
+      (_input, init) =>
         new Promise((accept) => {
+          pendingSignal = init?.signal;
           resolve = accept;
         }),
     );
     await select('Período', '2');
-    const pendingSignal = mock.mock.calls.at(-1)?.[1]?.signal;
     await select('Período', '3');
     expect(pendingSignal?.aborted).toBe(true);
     await act(async () => {
       resolve(reply(dashboardFixture({ period: 2, referencePeriod: null })));
     });
     expect(selectedValue('Período')).toBe('3º trimestre');
-    expect(requests.filter((value) => value.operation === 'dashboard').at(-1)?.period).toBe(3);
+    // The current trimester, then the one before for the arrows of the chart.
+    expect(
+      requests
+        .filter((value) => value.operation === 'dashboard')
+        .slice(-2)
+        .map((value) => value.period),
+    ).toEqual([3, 2]);
   });
   it('clears loaded student data after an authorization loss while keeping 2026 fixed', async () => {
     await loaded();
@@ -766,13 +773,25 @@ describe('four lenses and analytical investigation V3', () => {
     expect(requests.filter((r) => r.operation === 'dashboard')).toHaveLength(5);
     expect(selectRoot('Componente das avaliações')).toBeNull();
   });
-  it('shows only below-minimum students inside the chart without filtering the matrix', async () => {
+  it('lists the students of the chosen bar inside the chart without filtering the matrix', async () => {
     await loaded();
     expect(host.textContent).not.toContain('Quantidade de estudantes por faixa oficial');
     expect(host.textContent).not.toContain('Todos os componentes do recorte atual');
     expect(host.textContent).not.toContain('Todos no mínimo ou acima');
-    expect(host.textContent).toContain('Classificação da turma');
-    expect(host.textContent).toContain('12*');
+    // The ranking opens inside the panorama card, and its button goes back (15/10/2026).
+    const ranking = host.querySelector(
+      'button[aria-label="Classificação da turma: 10 maiores somatórios"]',
+    ) as HTMLButtonElement;
+    expect(ranking).not.toBeNull();
+    expect(host.querySelector('.performance-bars__student-group--ranking')).toBeNull();
+    await act(async () => {
+      ranking.click();
+    });
+    await settle();
+    expect(host.querySelector('.performance-bars__student-group--ranking')?.textContent).toContain(
+      '12*',
+    );
+    await click('Voltar ao gráfico');
     expect(
       host.querySelector('.performance-status-chip--regular')?.getAttribute('aria-label'),
     ).toBe('Em curso');
@@ -782,7 +801,6 @@ describe('four lenses and analytical investigation V3', () => {
     expect(host.querySelector('.performance-status-chip--origin')?.textContent).toBe(
       'ESTAVA NO 6A',
     );
-    expect(host.querySelector('details.performance-ranking')?.hasAttribute('open')).toBe(false);
     const bar = host.querySelector(
       'button[aria-label="MATEMATICA SINTETICA: 1 estudante(s) no mínimo ou acima"]',
     ) as HTMLButtonElement;
@@ -792,10 +810,10 @@ describe('four lenses and analytical investigation V3', () => {
     });
     await settle();
     expect(host.querySelector('[aria-label="Barras por componente curricular"]')).toBeNull();
-    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
     expect(
-      host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent,
-    ).toContain(belowStudent.name);
+      host.querySelector('[aria-label="1 estudante(s) no mínimo ou acima"]')?.textContent,
+    ).toContain(student.name);
+    expect(host.querySelector('[aria-label="1 estudante(s) abaixo do mínimo"]')).toBeNull();
     expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(
       student.name,
     );
@@ -811,13 +829,13 @@ describe('four lenses and analytical investigation V3', () => {
       redBar.click();
     });
     await settle();
-    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
+    expect(host.querySelector('[aria-label="1 estudante(s) no mínimo ou acima"]')).toBeNull();
     expect(
-      host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent,
+      host.querySelector('[aria-label="1 estudante(s) abaixo do mínimo"]')?.textContent,
     ).toContain(belowStudent.name);
     expect(host.textContent).not.toContain('Ver estatísticas');
     await click('Voltar ao gráfico');
-    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
+    expect(host.querySelector('[aria-label="1 estudante(s) abaixo do mínimo"]')).toBeNull();
     expect(requests.filter((r) => r.operation === 'dashboard')).toHaveLength(1);
   });
   it('discards a late quantitative response after the user selects qualitative', async () => {

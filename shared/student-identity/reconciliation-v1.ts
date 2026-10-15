@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { studentUidV1, STUDENT_NAME_MAX_LENGTH_V1 } from './student-identity-v1';
 
 export const RECONCILIATION_ROUTE_V1 = '/api/student-reconciliation/v1';
+/** The pending count stops one past this; the Centro shows it as "50+". */
+export const RECONCILIATION_PENDING_CAP_V1 = 50;
 export const REPORT_MAX_ROWS_V1 = 10000;
 export const REPORT_BODY_BYTES_V1 = 8 * 1024 * 1024;
 const text = z.string().max(STUDENT_NAME_MAX_LENGTH_V1);
@@ -54,6 +56,7 @@ export const reconciliationRequestV1 = z.discriminatedUnion('operation', [
     })
     .strict(),
   z.object({ ...base, operation: z.literal('catalog') }).strict(),
+  z.object({ ...base, operation: z.literal('pending-count') }).strict(),
   z
     .object({
       ...mutation,
@@ -209,6 +212,13 @@ export type ReconciliationResponseV1 =
   | {
       contractVersion: 1;
       state: 'ready';
+      operation: 'pending-count';
+      /** Rows of the pending view (an external row, or a student not reconciled), capped at 51. */
+      pending: number;
+    }
+  | {
+      contractVersion: 1;
+      state: 'ready';
       operation: 'list';
       context: ReconciliationContextV1;
       items: ReconciliationListItemV1[];
@@ -298,6 +308,14 @@ export const reconciliationResponseV1: z.ZodType<ReconciliationResponseV1> = z.u
             .strict(),
         )
         .max(200),
+    })
+    .strict(),
+  z
+    .object({
+      contractVersion: z.literal(1),
+      state: z.literal('ready'),
+      operation: z.literal('pending-count'),
+      pending: z.number().int().min(0).max(RECONCILIATION_PENDING_CAP_V1 + 1),
     })
     .strict(),
   z

@@ -37,7 +37,7 @@ const snapshot = {
     },
     {
       id: 'platform.operations',
-      name: 'Saúde do Sistema',
+      name: 'Saúde',
       description: 'Disponibilidade e trilha de auditoria.',
       route: 'operacao',
       state: 'ready',

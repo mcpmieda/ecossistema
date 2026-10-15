@@ -47,7 +47,7 @@ class GradebookRouteBoundary extends Component<{ readonly children: ReactNode },
             <Button size="sm" variant="outline" onPress={() => {
               if (allowDraftNavigationV1()) window.location.assign('#/operacao');
             }}>
-              Ir para Saúde do Sistema
+              Ir para Saúde
             </Button>
             <Button size="sm" variant="secondary" onPress={() => {
               if (allowDraftNavigationV1()) window.location.reload();

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { normalizeStudentNameV1 } from '../../../shared/student-identity/reconciliation-normalization-v1';
 import { seal, unseal } from '../../auth/sealed';
 import {
+  RECONCILIATION_PENDING_CAP_V1,
   reconciliationListItemV1,
   type ReconciliationContextV1,
   type ReconciliationRequestV1,
@@ -63,32 +64,8 @@ export async function catalogV1(
     })),
   };
 }
-export async function listV1(
-  tx: TxV1,
-  actor: string,
-  request: Extract<ReconciliationRequestV1, { operation: 'list' }>,
-  context: ReconciliationContextV1,
-  secret: string,
-): Promise<ReconciliationResponseV1> {
-  const clock = await clockV1(tx),
-    query = await digestV1({ ...request, cursor: null });
-  const keySecret = `student-reconciliation-cursor-v1:${secret}`;
-  let after = '';
-  if (request.cursor) {
-    const c = cursorSchema.safeParse(await unseal(request.cursor, keySecret));
-    if (
-      !c.success ||
-      c.data.actor !== actor ||
-      c.data.query !== query ||
-      c.data.generation !== context.generation ||
-      c.data.revision !== context.revision ||
-      c.data.expires <= clock.now.getTime()
-    )
-      throw new ReconciliationConflictV1();
-    after = c.data.key;
-  }
-  const rows = await tx.query(
-    `WITH people AS (
+/** Every row of the Conciliação: the students of the year and the report rows not linked yet. */
+const RECONCILIATION_ROWS_SQL_V1 = `WITH people AS (
     SELECT 'p:'||a.student_uid::text AS key,jsonb_build_object('kind','person','studentUid',a.student_uid,'academicStudentId',a.id,'academicYear',a.ano,
       'name',CASE WHEN s.name_source='report' THEN COALESCE(o.name,a.nome) ELSE a.nome END,'relationName',a.nome,
       'classId',v.turma_id,'classLabel',t.codigo,'version',COALESCE(p.version,0),
@@ -116,7 +93,44 @@ export async function listV1(
       'warning',clock_timestamp()>=b.received_at+interval '27 days','sourceRow',p.source_row),NULL,p.name
     FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_report_batch_v1 b ON b.id=p.batch_id
       WHERE b.academic_year=$1 AND b.state='awaiting_relation' AND b.expires_at>clock_timestamp()
-  ) SELECT key,item FROM (SELECT * FROM people UNION ALL SELECT * FROM external) all_rows
+  ) `;
+
+/** How many rows the pending view lists (the rule of the screen), counted up to one past the cap. */
+export async function pendingCountV1(tx: TxV1, academicYear: number): Promise<ReconciliationResponseV1> {
+  const [row] = await tx.query(
+    `${RECONCILIATION_ROWS_SQL_V1} SELECT count(*)::integer AS pending FROM (SELECT 1 FROM (SELECT item FROM people UNION ALL SELECT item FROM external) all_rows
+    WHERE all_rows.item->>'kind'='external' OR all_rows.item->>'reconciliation'<>'reconciled' LIMIT $2) counted`,
+    [academicYear, RECONCILIATION_PENDING_CAP_V1 + 1],
+  );
+  return { contractVersion: 1, state: 'ready', operation: 'pending-count', pending: Number(row?.pending ?? 0) };
+}
+
+export async function listV1(
+  tx: TxV1,
+  actor: string,
+  request: Extract<ReconciliationRequestV1, { operation: 'list' }>,
+  context: ReconciliationContextV1,
+  secret: string,
+): Promise<ReconciliationResponseV1> {
+  const clock = await clockV1(tx),
+    query = await digestV1({ ...request, cursor: null });
+  const keySecret = `student-reconciliation-cursor-v1:${secret}`;
+  let after = '';
+  if (request.cursor) {
+    const c = cursorSchema.safeParse(await unseal(request.cursor, keySecret));
+    if (
+      !c.success ||
+      c.data.actor !== actor ||
+      c.data.query !== query ||
+      c.data.generation !== context.generation ||
+      c.data.revision !== context.revision ||
+      c.data.expires <= clock.now.getTime()
+    )
+      throw new ReconciliationConflictV1();
+    after = c.data.key;
+  }
+  const rows = await tx.query(
+    `${RECONCILIATION_ROWS_SQL_V1} SELECT key,item FROM (SELECT * FROM people UNION ALL SELECT * FROM external) all_rows
     WHERE key>$2 AND ($3::integer IS NULL OR class_id=$3) AND name ILIKE $4 ORDER BY key LIMIT $5`,
     [request.academicYear, after, request.classId, `%${request.search}%`, request.limit + 1],
   );

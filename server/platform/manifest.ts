@@ -24,7 +24,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
   STUDENT_PORTAL_MODULE,
   {
     id: 'platform.operations',
-    name: 'Saúde do Sistema',
+    name: 'Saúde',
     description: 'Disponibilidade, sinais operacionais do Portal do Aluno e trilha de auditoria.',
     route: 'operacao',
     state: 'ready',

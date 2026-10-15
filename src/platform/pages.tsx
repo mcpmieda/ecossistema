@@ -467,7 +467,7 @@ export function PageContent({
       return <Suspense fallback={<p role="status">Carregando Painel do Aluno…</p>}><StudentPortalAdminPage /></Suspense>;
     case 'operacao':
       if (section === 'audit') return <AuditPage snapshot={snapshot} />;
-      return <Suspense fallback={<output className="block">Carregando Saúde do Sistema…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
+      return <Suspense fallback={<output className="block">Carregando Saúde…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
     case 'configuracoes':
       return <SettingsPage snapshot={snapshot} auxiliary={auxiliary} />;
     default:

@@ -153,7 +153,7 @@ it('does not bootstrap an academic catalogue merely to open a nonacademic area',
   window.history.replaceState(null, '', '/#/operacao');
   const fetcher = network(async () => Response.json({}, { status: 503 }));
   const view = render(<App />);
-  await within(view.container).findByRole('heading', { name: 'Saúde do Sistema' });
+  await within(view.container).findByRole('heading', { name: 'Saúde' });
   expect(bootstrapCalls(fetcher)).toBe(0);
 });
 

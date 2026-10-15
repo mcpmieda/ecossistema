@@ -43,7 +43,7 @@ describe('shell navigation of 07/10/2026', () => {
     expect(serviceSectionsV2('configuracoes')).toEqual([]);
     // Auditoria lives inside Saúde do Sistema (owner request of 08/10/2026).
     expect(serviceSectionsV2('operacao').map((section) => [section.label, section.href])).toEqual([
-      ['Saúde do Sistema', '#/operacao'],
+      ['Saúde', '#/operacao'],
       ['Auditoria', '#/operacao?area=audit'],
     ]);
     expect(serviceSectionFromHashV2('operacao', '#/operacao')).toBe('health');
