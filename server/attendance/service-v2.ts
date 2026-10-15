@@ -727,7 +727,7 @@ export function createFrequencyServiceV2(database: GradebookPostgresDatabaseV1) 
       )
         fail('not-authorized', 403);
       const deviceOnly = ['lease', 'collect', 'heartbeat', 'release'];
-      const adminOnly = ['save-settings', 'set-paused', 'revoke-device', 'resolve-conflict', 'monthly-summary'];
+      const adminOnly = ['revoke-device', 'resolve-conflict', 'monthly-summary'];
       if (deviceOnly.includes(input.operation)) device(actor);
       if (adminOnly.includes(input.operation)) admin(actor);
       if (
