@@ -173,6 +173,26 @@ afterAll(async () => {
   await pg?.close();
 });
 describe('frequency V2 private PostgreSQL service', () => {
+  it('blocks device proof from changing school schedule or pause, while allowing administrators', async () => {
+    const schedule = {
+      timezone: 'America/Sao_Paulo',
+      rules: Array.from({ length: 7 }, (_, weekday) =>
+        (['matutino', 'vespertino'] as const).map((shift) => ({
+          weekday, shift, enabled: false, times: [], recheck: null,
+        })),
+      ).flat(),
+    };
+    await expect(execute('set-paused', { expectedRevision: 0, paused: true }, actor))
+      .rejects.toMatchObject({ code: 'not-authorized', status: 403 });
+    await expect(execute('save-settings', { expectedRevision: 0, schedule }, actor))
+      .rejects.toMatchObject({ code: 'not-authorized', status: 403 });
+    expect((await status()).settings).toMatchObject({ revision: 0, paused: false, schedule: null });
+    await expect(execute('set-paused', { expectedRevision: 0, paused: true }, admin))
+      .resolves.toMatchObject({ state: 'committed', settingsRevision: 1 });
+    await expect(execute('save-settings', { expectedRevision: 1, schedule }, admin))
+      .resolves.toMatchObject({ state: 'committed', settingsRevision: 2 });
+    expect((await status()).settings).toMatchObject({ revision: 2, paused: true, schedule });
+  });
   it('physical rollback removes batches, class state, evidence and receipt after a late SQL failure', async () => {
     failMarks = true;
     const input = collection();
