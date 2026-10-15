@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 
-/** Independent, bounded transactions; repeat until drained. No account, revocation or revision-ledger deletion. */
+/** Independent, bounded single-statement transactions sent together; repeat until drained.
+ * No account, revocation or revision-ledger deletion. */
 export async function cleanupPortalV1(sql: StudentPortalPostgresSqlV1, limit = 100) {
   z.number().int().min(1).max(100).parse(limit);
   const statements = {
@@ -29,9 +30,10 @@ export async function cleanupPortalV1(sql: StudentPortalPostgresSqlV1, limit = 1
       ORDER BY updated_at,id LIMIT $1 FOR UPDATE SKIP LOCKED)
       DELETE FROM student_portal.publication_job a USING expired e WHERE a.id=e.id RETURNING 1`,
   } as const;
-  const counts = {} as Record<keyof typeof statements, number>;
-  for (const [family, statement] of Object.entries(statements)) {
-    counts[family as keyof typeof statements] = await sql.begin(async (tx) => (await tx.unsafe(statement, [limit])).length);
-  }
-  return counts;
+  const families = Object.keys(statements) as (keyof typeof statements)[];
+  const results = await Promise.allSettled(families.map(async (family) => sql.unsafe(statements[family], [limit])));
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure) throw failure.reason;
+  return Object.fromEntries(families.map((family, index) =>
+    [family, (results[index] as PromiseFulfilledResult<unknown[]>).value.length])) as Record<keyof typeof statements, number>;
 }

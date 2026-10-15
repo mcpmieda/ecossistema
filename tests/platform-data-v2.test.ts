@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createPlatformDataV2, type PlatformLoadStateV2 } from '../src/platform/platform-data-v2';
+import { createPlatformDataV2, prefetchPlatformDataV2, type PlatformLoadStateV2 } from '../src/platform/platform-data-v2';
 import { buildPlatformSnapshot } from '../server/platform/snapshot';
 
 const template = () => buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [],
@@ -10,6 +10,23 @@ const flush = async () => { for (let index = 0; index < 20; index++) await Promi
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((done) => { resolve = done; }); return { promise, resolve }; }
 
 describe('native Center bootstrap #806', () => {
+  it('uses the reads started with the identity check once, and reads again when they failed', async () => {
+    const early = vi.fn<typeof fetch>(async (path) => String(path).endsWith('/bootstrap')
+      ? json({ ...template(), correlationId: 'early' }) : json({}, 503));
+    prefetchPlatformDataV2(early);
+    expect(early).toHaveBeenCalledTimes(2);
+    const states: PlatformLoadStateV2[] = [];
+    const fetcher = vi.fn<typeof fetch>(async () => json({ ...template(), correlationId: 'late' }));
+    const controller = createPlatformDataV2((state) => states.push(state), fetcher);
+    try {
+      await controller.start();
+      await vi.waitFor(() => expect(states.at(-1)).toMatchObject({ status: 'ready', auxiliary: 'ready' }));
+      expect(fetcher.mock.calls.map(([path]) => String(path))).toEqual(['/api/platform/snapshot-v2']);
+      expect(states.find((state) => state.status === 'ready')).toMatchObject({ snapshot: { correlationId: 'early' } });
+      await controller.start();
+      expect(fetcher.mock.calls.map(([path]) => String(path)).filter((path) => path.endsWith('/bootstrap'))).toHaveLength(1);
+    } finally { controller.dispose(); }
+  });
   it('opens native modules before the independent Microsoft request completes', async () => {
     const auxiliary = deferred<Response>();
     const states: PlatformLoadStateV2[] = [];

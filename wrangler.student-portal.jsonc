@@ -40,6 +40,7 @@
     },
     "production": {
       "name": "student-portal-production",
+      "placement": { "region": "aws:sa-east-1" },
       "vars": {
         "PORTAL_ENVIRONMENT": "production",
         "PORTAL_SERVING_ENABLED": "true",
