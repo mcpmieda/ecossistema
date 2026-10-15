@@ -205,6 +205,14 @@ describe('frequency V2 private PostgreSQL service', () => {
     else
       await expect(service.execute(input, actor)).rejects.toMatchObject({ code: 'source-invalid' });
   });
+  it('rejects marks from a civil day after the snapshot capture, even if already past today', async () => {
+    await expect(service.execute(collection({
+      observedAt: '2026-01-05T12:00:00Z',
+      coverage: [{ recordKey: 'r1', date: '2026-01-06', slots: [1], complete: false }],
+      marks: [{ recordKey: 'r1', date: '2026-01-06', slot: 1, mark: 'X' }],
+    }), actor)).rejects.toMatchObject({ code: 'source-invalid' });
+    expect((await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).batch_v2).toBe(0);
+  });
   it('physical rollback removes batches, class state, evidence and receipt after a late SQL failure', async () => {
     failMarks = true;
     const input = collection();
