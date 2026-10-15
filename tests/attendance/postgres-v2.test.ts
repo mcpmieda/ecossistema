@@ -173,6 +173,38 @@ afterAll(async () => {
   await pg?.close();
 });
 describe('frequency V2 private PostgreSQL service', () => {
+  it('uses the configured school timezone to reject or admit a civil collection date', async () => {
+    const [clock] = (await pg.query<{ base: string; ahead: string; behind: string }>(
+      `SELECT (clock_timestamp() AT TIME ZONE 'America/Sao_Paulo')::date::text AS base,
+        (clock_timestamp() AT TIME ZONE 'Pacific/Kiritimati')::date::text AS ahead,
+        (clock_timestamp() AT TIME ZONE 'Pacific/Pago_Pago')::date::text AS behind`,
+    )).rows;
+    const ahead = clock!.ahead > clock!.base;
+    const zone = ahead ? 'Pacific/Kiritimati' : 'Pacific/Pago_Pago';
+    expect(ahead || clock!.behind < clock!.base).toBe(true);
+    await execute('save-settings', {
+      expectedRevision: 0,
+      schedule: {
+        timezone: zone,
+        rules: Array.from({ length: 14 }, (_, i) => ({
+          weekday: Math.floor(i / 2),
+          shift: i % 2 === 0 ? 'matutino' : 'vespertino',
+          enabled: false, times: [], recheck: null,
+        })),
+      },
+    }, actor);
+    const testDate = ahead ? clock!.ahead : clock!.base;
+    const input = collection({
+      observedAt: new Date(Date.now() - 5000).toISOString(),
+      rosterComplete: false,
+      coverage: [{ recordKey: 'r1', date: testDate, slots: [1], complete: false }],
+      marks: [],
+    });
+    if (ahead)
+      await expect(service.execute(input, actor)).resolves.toMatchObject({ state: 'committed' });
+    else
+      await expect(service.execute(input, actor)).rejects.toMatchObject({ code: 'source-invalid' });
+  });
   it('physical rollback removes batches, class state, evidence and receipt after a late SQL failure', async () => {
     failMarks = true;
     const input = collection();
