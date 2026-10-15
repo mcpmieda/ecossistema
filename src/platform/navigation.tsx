@@ -18,6 +18,8 @@ import {
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
 import { defaultNotesSectionId, notesSections, withNotesModule } from './notes-module';
+import { useSidebarHealthV1 } from './sidebar-health-v1';
+import { useSidebarPendingV1 } from './sidebar-reconciliation-v1';
 import {
   portalSectionFromHash,
   studentPortalHref,
@@ -82,7 +84,7 @@ export function serviceSectionsV2(route: PlatformRoute): ServiceSectionV2[] {
       }));
   if (route === 'operacao')
     return [
-      { id: 'health', label: 'Saúde do Sistema', href: '#/operacao', icon: HeartPulse },
+      { id: 'health', label: 'Saúde', href: '#/operacao', icon: HeartPulse },
       { id: 'audit', label: 'Auditoria', href: '#/operacao?area=audit', icon: ShieldCheck },
     ];
   return [];
@@ -184,6 +186,8 @@ export function mainNavigationAreasV1(
  * Composition of 13/10/2026 (owner request): the side column lists only the areas of the Centro,
  * and the sections of the open area are tabs in the top bar.
  */
+const HEALTH_LABELS_V1 = { normal: 'Normal', attention: 'Atenção', critical: 'Crítico' } as const;
+
 export function ShellSidebarV3({
   route,
   section,
@@ -202,6 +206,8 @@ export function ShellSidebarV3({
     { label: 'Menu principal', areas: areas.filter((area) => !SYSTEM_ROUTES_V1.has(area.route)) },
     { label: 'Sistema', areas: areas.filter((area) => SYSTEM_ROUTES_V1.has(area.route)) },
   ].filter((group) => group.areas.length > 0);
+  const health = useSidebarHealthV1(!loading && areas.some((area) => area.route === 'operacao'));
+  const pending = useSidebarPendingV1(!loading && areas.some((area) => area.id === 'navigation.students'), `${route}:${section}`);
   return (
     <nav aria-label="Navegação principal" className="shell-side">
       <div className="shell-side__brand">{brand}</div>
@@ -227,6 +233,17 @@ export function ShellSidebarV3({
                       >
                         <Icon className="size-4 shrink-0" aria-hidden />
                         <span className="truncate">{module.name}</span>
+                        {module.id === 'navigation.students' && pending && (
+                          <span className="shell-side__count">
+                            {pending}
+                            <span className="sr-only"> pendências</span>
+                          </span>
+                        )}
+                        {module.route === 'operacao' && health && health !== 'unknown' && (
+                          <span className="shell-side__status" data-state={health}>
+                            <span className="sr-only">{HEALTH_LABELS_V1[health]}</span>
+                          </span>
+                        )}
                       </a>
                     </li>
                   );

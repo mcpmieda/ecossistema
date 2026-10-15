@@ -12,7 +12,8 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const MIGRATIONS = path.join(ROOT, 'migrations/gradebook-simplified');
 const ACTOR = '11111111-1111-4111-8111-111111111111';
 
-// Deterministic 0..999 per (instrument, student), so reloads show the same marks.
+// Deterministic 0..999 per (instrument, student), so reloads show the same marks. Two of every
+// three students do well in everything, so the charts also show students at or above the minimum.
 const SPREAD = "(abs(hashtext(i.id::text || ':' || v.aluno_id::text)) % 1000)";
 const SEED = `
   INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
@@ -24,9 +25,10 @@ const SEED = `
     (4,2026,'RAFAEL PIMENTEL'),(5,2026,'CECÍLIA BARROS'),(6,2026,'OTÁVIO LACERDA');
   INSERT INTO gradebook.disciplina (id,ano,nome) VALUES
     (1,2026,'PORTUGUÊS'),(2,2026,'MATEMÁTICA'),(3,2026,'HISTÓRIA'),(4,2026,'GEOGRAFIA'),
-    (5,2026,'CIÊNCIAS'),(6,2026,'INGLÊS'),(7,2026,'ARTE'),(8,2026,'EDUCAÇÃO FÍSICA');
+    (5,2026,'CIÊNCIAS'),(6,2026,'ARTE'),(7,2026,'RELIGIÃO'),(8,2026,'REDAÇÃO'),
+    (9,2026,'ED. FÍSICA'),(10,2026,'ÉTICA'),(11,2026,'INGLÊS'),(12,2026,'COMPUTAÇÃO');
   INSERT INTO gradebook.oferta (id,ano,turma_id,professor_id,disciplina_id)
-    SELECT t.id*10+d.id,2026,t.id,((t.id+d.id) % 6)+1,d.id
+    SELECT t.id*100+d.id,2026,t.id,((t.id+d.id) % 6)+1,d.id
     FROM gradebook.turma t CROSS JOIN gradebook.disciplina d;
   INSERT INTO gradebook.aluno (id,ano,nome)
     SELECT t*100+n,2026,
@@ -46,7 +48,8 @@ const SEED = `
       CASE WHEN s=1 THEN 'TRABALHO' WHEN s=2 THEN 'ATIVIDADE' ELSE 'PROVA' END
     FROM gradebook.oferta o CROSS JOIN generate_series(1,3) tri CROSS JOIN (VALUES (1),(2),(11)) slots(s);
   INSERT INTO gradebook.nota (instrumento_id,aluno_id,valor)
-    SELECT i.id,v.aluno_id,(i.maximo * (350 + ${SPREAD} * 65 / 100) / 1000 / 250) * 250
+    SELECT i.id,v.aluno_id,(i.maximo * (CASE WHEN v.aluno_id % 3 <> 1 THEN 680 + ${SPREAD} * 32 / 100
+      ELSE 350 + ${SPREAD} * 65 / 100 END) / 1000 / 250) * 250
     FROM gradebook.instrumento i
     JOIN gradebook.oferta o ON o.id=i.oferta_id
     JOIN gradebook.vinculo v ON v.turma_id=o.turma_id AND v.situacao IS NULL

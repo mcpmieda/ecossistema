@@ -160,7 +160,7 @@ function Workspace({ snapshot: platform, onDenied }: Readonly<{ snapshot: Platfo
   const current = usable(monitor.snapshot, monitor.now) && !monitor.error && !monitor.paused ? monitor.snapshot : null;
   const portal = current?.portal ?? null, maintenance = portal?.maintenance ?? null;
   return <section className="min-w-0" aria-label="Monitoramento do Portal do Aluno">
-    <PageHeader eyebrow="Operação" title="Saúde do Sistema" description="Portal do Aluno" titleInBar /><HealthSummary monitor={monitor} current={current} />
+    <PageHeader eyebrow="Operação" title="Saúde" description="Portal do Aluno" titleInBar /><HealthSummary monitor={monitor} current={current} />
     <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3"><PublicEntryMetric entry={current?.publicEntry ?? null} />
       <PortalAccessMetric portal={portal} /><DatabaseMetric portal={portal} /><PublicationMetric maintenance={maintenance} />
       <LiveMetric maintenance={maintenance} /><LockMetric maintenance={maintenance} /></div>
@@ -176,7 +176,7 @@ export function SystemHealthPageV1({ snapshot }: Readonly<{ snapshot: PlatformSn
   const { identity, accessError, retry, recheck } = usePlatformIdentityV1();
   if (!identity?.authenticated || !identity.identityKey || !identity.capabilities?.includes('platform.health.read')
     || !identity.capabilities.includes('platform.settings.read')) return <section>
-    <PageHeader eyebrow="Operação" title="Saúde do Sistema" description="Portal do Aluno" titleInBar /><Card><Card.Content>
+    <PageHeader eyebrow="Operação" title="Saúde" description="Portal do Aluno" titleInBar /><Card><Card.Content>
       <output className="block">{accessError || identity ? 'Acesso ao monitoramento não autorizado.' : 'Verificando acesso…'}</output>
       {accessError ? <Button className="mt-3" variant="secondary" onPress={retry}>Verificar acesso</Button> : null}</Card.Content></Card></section>;
   return <Workspace key={identity.identityKey} snapshot={snapshot} onDenied={recheck} />;

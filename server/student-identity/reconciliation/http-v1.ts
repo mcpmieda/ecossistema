@@ -104,7 +104,7 @@ export async function handleStudentReconciliationRequestV1(
     );
     if (!parsed.success) return responseV1({ contractVersion: 1, state: 'invalid-request' });
     const input = parsed.data;
-    const write = !['catalog', 'list', 'detail'].includes(input.operation);
+    const write = !['catalog', 'pending-count', 'list', 'detail'].includes(input.operation);
     const context = write
       ? await verifiedPagesContextV1(request, env, true, readContext.requestId)
       : readContext;

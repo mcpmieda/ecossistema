@@ -63,13 +63,12 @@ describe('Performance dashboard V5 HeroUI', () => {
     expect(service).toContain("buckets.every((bucket) => bucket === 'above')");
   });
 
-  it('keeps color-independent labels and shows only below-minimum names without filtering the matrix', () => {
+  it('keeps color-independent labels and lists the students of the chosen bar without filtering the matrix', () => {
     expect(widgets).toContain('aria-label={`${title}: ${count} estudante(s)');
     expect(widgets).toContain('aria-pressed={active}');
-    expect(widgets).toContain('selectedColumn?.summary.groups.below');
-    expect(widgets).not.toContain('Notas azuis');
-    expect(widgets).toContain('Notas vermelhas');
-    expect(widgets).toContain('<details className="performance-ranking"');
+    // Either bar lists its own students inside the card (owner request of 15/10/2026).
+    expect(widgets).toContain('selectedColumn?.summary.groups[selectedBucket]');
+    expect(widgets).toContain('className="performance-ranking__open"');
     expect(analysis).not.toContain('Selecione uma barra para ver');
     expect(analysis).not.toContain('dois grupos');
     expect(analysis).toContain("const ids = selection?.kind === 'group'");

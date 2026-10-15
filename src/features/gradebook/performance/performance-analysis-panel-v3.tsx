@@ -30,6 +30,7 @@ const STATE: Record<AnalysisReadingV3['state'], string> = {
 export function PerformanceAnalysisPanelV3({
   value,
   dashboard,
+  previous,
   open,
   renderResult,
   focusOffer,
@@ -37,6 +38,8 @@ export function PerformanceAnalysisPanelV3({
 }: {
   readonly value: PerformanceAnalysisV3;
   readonly dashboard: PerformanceDashboardV5;
+  /** The same reading of the trimester before, when there is one. */
+  readonly previous?: PerformanceDashboardV5 | null;
   readonly open: (studentId: number, offerId?: number) => void;
   readonly renderResult: (ids: ReadonlySet<number> | null) => ReactNode;
   readonly focusOffer: (offerId: number) => void;
@@ -67,6 +70,7 @@ export function PerformanceAnalysisPanelV3({
     <>
       <PerformanceDashboardWidgetsV5
         value={dashboard}
+        previous={previous ?? null}
         selection={selection}
         onSelectionChange={setSelection}
         open={open}
@@ -77,7 +81,14 @@ export function PerformanceAnalysisPanelV3({
         </p>
       ) : null}
       {selection?.kind === 'column' || selectionLabel ? (
-        <div className="flex min-h-9 flex-wrap items-center gap-2 text-sm" role="status">
+        <div
+          className={
+            selection?.kind === 'column'
+              ? 'sr-only'
+              : 'flex min-h-9 flex-wrap items-center gap-2 text-sm'
+          }
+          role="status"
+        >
           {selection?.kind === 'column' ? (
             <>
               Detalhe de <strong>{column?.label ?? 'componente'}</strong> aberto no card; a matriz
