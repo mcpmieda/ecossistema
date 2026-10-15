@@ -132,6 +132,33 @@ it('saves multiple typed schedule times with CAS and pauses only after an explic
   });
 });
 
+it.each([
+  { marks: ['X', 'J'] as ('X' | 'J' | null)[], choices: ['', 'X', 'J'], decision: 'J', expected: 'J' },
+  { marks: ['X', null] as ('X' | 'J' | null)[], choices: ['', 'X', 'remove'], decision: 'remove', expected: null },
+])('offers only conflict decisions found in the recorded evidence: $choices', async ({ marks, choices, decision, expected }) => {
+  const value = fixture();
+  value.conflicts[0]!.marks = marks;
+  const client = {
+    status: vi.fn(async () => structuredClone(value)),
+    mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
+  };
+  render(<FrequencyPanelV2 client={client} />);
+  await screen.findByText('ALUNO INVENTADO');
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Conferir conflito' }));
+  const select = screen.getByLabelText('Decisão') as HTMLSelectElement;
+  expect(Array.from(select.options, (option) => option.value)).toEqual(choices);
+  await user.selectOptions(select, decision);
+  await user.type(screen.getByLabelText('Motivo da decisão'), 'Conferência sintética');
+  await user.click(screen.getByRole('button', { name: 'Confirmar decisão' }));
+  await waitFor(() => expect(client.mutate).toHaveBeenCalledOnce());
+  expect(client.mutate.mock.calls[0]?.[0]).toMatchObject({
+    operation: 'resolve-conflict',
+    conflictId,
+    mark: expected,
+  });
+});
+
 it('requires device confirmation and an explicit conflict decision/reason', async () => {
   const value = fixture();
   const client = {
