@@ -447,11 +447,14 @@ async function collect(
   await liveLease(tx, input, actor);
   const [clock] = await tx.query<Row>(
     `SELECT clock_timestamp()::text AS now,
-      (clock_timestamp() AT TIME ZONE COALESCE(schedule_json->>'timezone','America/Bahia'))::date::text AS today
+      (clock_timestamp() AT TIME ZONE COALESCE(schedule_json->>'timezone','America/Bahia'))::date::text AS today,
+      ($2::timestamptz AT TIME ZONE COALESCE(schedule_json->>'timezone','America/Bahia'))::date::text AS observed_day
       FROM attendance.school_state_v2 WHERE academic_year=$1`,
-    [input.academicYear],
+    [input.academicYear, input.observedAt],
   );
-  validateCollection(input, str(clock!.today));
+  // A snapshot cannot certify evidence from a day after its own capture.
+  // The same school timezone governs both source and server cutoffs.
+  validateCollection(input, str(clock!.observed_day) < str(clock!.today) ? str(clock!.observed_day) : str(clock!.today));
   if (new Date(input.observedAt) > new Date(str(clock!.now))) fail('source-invalid', 400);
   const linked = await tx.query<Row>(
     `SELECT c.label,c.shift_key,c.version FROM gradebook.student_report_class_v1 c JOIN gradebook.turma t ON t.id=c.gradebook_class_id AND t.ano=c.academic_year WHERE c.academic_year=$1 AND c.gradebook_class_id=$2 AND c.class_key=$3 AND NOT c.review_required`,
