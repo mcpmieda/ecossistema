@@ -254,9 +254,11 @@ function FrequencyConflictCardV2({
                 required
               >
                 <option value="">Selecione</option>
-                <option value="X">Falta (X)</option>
-                <option value="J">Justificada (J)</option>
-                <option value="remove">Remover marcação</option>
+                {conflict.marks.includes('X') ? <option value="X">Falta (X)</option> : null}
+                {conflict.marks.includes('J') ? <option value="J">Justificada (J)</option> : null}
+                {conflict.marks.includes(null) ? (
+                  <option value="remove">Remover marcação</option>
+                ) : null}
               </select>
             </label>
             <label>
