@@ -26,14 +26,14 @@ const fixture = (month = '2026-10'): FrequencySummaryV2 => ({
     {
       date: month + '-01',
       slot: 6,
-      shift: 'matutino',
+      shift: 'MATUTINO',
       mark: 'X',
       classLabels: ['TURMA HISTÓRICA INVENTADA'],
     },
     {
       date: month + '-02',
       slot: 1,
-      shift: 'vespertino',
+      shift: 'VESPERTINO',
       mark: 'J',
       classLabels: ['TURMA ATUAL INVENTADA'],
     },
@@ -51,6 +51,7 @@ it('shows known X/J and historical origin while partial totals and percentage re
   await screen.findByText('Dados parciais');
   expect(screen.getAllByText('Indisponível')).toHaveLength(4);
   expect(screen.getByText(/Posição 6 · Matutino/)).toBeTruthy();
+  expect(screen.getByText(/Posição 1 · Vespertino/)).toBeTruthy();
   expect(screen.getByText(/Turma de origem: TURMA HISTÓRICA INVENTADA/)).toBeTruthy();
   expect(screen.getByText(/Falta \(X\)/)).toBeTruthy();
   expect(screen.getByText(/Justificada \(J\)/)).toBeTruthy();

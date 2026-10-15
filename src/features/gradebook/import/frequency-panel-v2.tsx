@@ -10,6 +10,10 @@ import {
   type FrequencyConflictV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
 import {
+  SHIFT_LABELS_V1,
+  type ShiftV1,
+} from '../../../../shared/student-portal-contracts/core-v1';
+import {
   createFrequencyAdminClientV2,
   type FrequencyAdminClientV2,
   type FrequencyAdminCommandV2,
@@ -55,8 +59,7 @@ const time = (value: string | null) =>
   value ? new Date(value).toLocaleString('pt-BR') : 'Sem comunicação';
 const markLabel = (mark: 'X' | 'J' | null) =>
   mark === null ? 'Remoção' : mark === 'X' ? 'Falta (X)' : 'Justificada (J)';
-const shiftLabel = (value: string) =>
-  value === 'matutino' ? 'Matutino' : value === 'vespertino' ? 'Vespertino' : value;
+const shiftLabel = (value: string) => SHIFT_LABELS_V1[value.toUpperCase() as ShiftV1] ?? value;
 function emptySchedule(): FrequencyScheduleV2 {
   return {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,

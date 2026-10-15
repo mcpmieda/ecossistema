@@ -1,6 +1,10 @@
 import { useCallback, useId, useState } from 'react';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
+import {
+  SHIFT_LABELS_V1,
+  type ShiftV1,
+} from '../../../../shared/student-portal-contracts/core-v1';
 import { createStudentFrequencyClientV2, type StudentFrequencyClientV2 } from './client-v2';
 import { useFrequencyReadV2 } from './use-frequency-read-v2';
 import './student-frequency-v2.css';
@@ -23,6 +27,7 @@ const months = [
 const time = (value: string | null) =>
   value ? new Date(value).toLocaleString('pt-BR') : 'Indisponível';
 const date = (value: string) => value.split('-').reverse().join('/');
+const shiftLabel = (value: string) => SHIFT_LABELS_V1[value.toUpperCase() as ShiftV1] ?? value;
 
 export function StudentFrequencyV2({
   client = defaultClient,
@@ -141,12 +146,7 @@ export function StudentFrequencyV2({
                         {date(mark.date)} · {mark.mark === 'X' ? 'Falta (X)' : 'Justificada (J)'}
                       </strong>
                       <span>
-                        Posição {mark.slot} ·{' '}
-                        {mark.shift === 'matutino'
-                          ? 'Matutino'
-                          : mark.shift === 'vespertino'
-                            ? 'Vespertino'
-                            : mark.shift}
+                        Posição {mark.slot} · {shiftLabel(mark.shift)}
                       </span>
                       <span>Turma de origem: {mark.classLabels.join(' / ') || 'Indisponível'}</span>
                     </li>
