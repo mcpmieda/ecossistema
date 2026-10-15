@@ -8,7 +8,7 @@ import {
 import type { PlatformRoute } from '../../shared/platform-contract';
 
 export const routeLabels: Record<PlatformRoute, string> = {
-  operacao: 'Saúde do Sistema',
+  operacao: 'Saúde',
   'banco-de-notas': 'Banco de notas',
   'painel-do-aluno': 'Painel do Aluno',
   configuracoes: 'Configurações',

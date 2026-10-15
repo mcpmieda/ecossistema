@@ -93,6 +93,8 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
   const [analysis, setAnalysis] = useState<PerformanceAnalysisV3 | null>(null);
   const [comparison, setComparison] = useState<PerformanceTermComparisonV4 | null>(null);
   const [dashboard, setDashboard] = useState<PerformanceDashboardV5 | null>(null);
+  // The same reading of the trimester before, for the arrows of the component chart.
+  const [previousDashboard, setPreviousDashboard] = useState<PerformanceDashboardV5 | null>(null);
   const [offers, setOffers] = useState<PerformanceMatrixV2['offers']>([]);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -151,6 +153,7 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     setAnalysis(null);
     setComparison(null);
     setDashboard(null);
+    setPreviousDashboard(null);
     setOffers([]);
     closeDetail();
     setBusy({ classes: false, matrix: false, detail: false });
@@ -230,8 +233,18 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     if (!ticket) return;
     setBusy((value) => ({ ...value, matrix: true }));
     setFailure(null);
+    const previousPeriod = request.period === 2 ? 1 : request.period === 3 ? 2 : null;
     try {
-      const response = await requestPerformanceDashboardV5(request, ticket.signal);
+      const [response, previous] = await Promise.all([
+        requestPerformanceDashboardV5(request, ticket.signal),
+        // A comparison already sets the two trimesters side by side; the arrows are not needed.
+        previousPeriod === null || request.lens === 'assessments' || request.referencePeriod !== null
+          ? null
+          : requestPerformanceDashboardV5(
+              { ...request, period: previousPeriod, referencePeriod: null },
+              ticket.signal,
+            ).catch(() => null),
+      ]);
       if (!ticket.isCurrent()) return;
       if (response.state === 'not-authorized') loseAccess();
       if (response.state !== 'ready') {
@@ -240,6 +253,7 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       }
       const current = dashboardAnalysisV5(response);
       setDashboard(response);
+      setPreviousDashboard(previous?.state === 'ready' ? previous : null);
       setMatrix(current.matrix);
       setAnalysis(current);
       setComparison(dashboardComparisonV5(response));
@@ -360,6 +374,7 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     setAnalysis(null);
     setComparison(null);
     setDashboard(null);
+    setPreviousDashboard(null);
     setFailure(null);
     setBusy((value) => ({ ...value, matrix: false }));
     if (dashboardEnabled || forceDashboard) await loadDashboard(selected);
@@ -384,6 +399,7 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     analysis,
     comparison,
     dashboard,
+    previousDashboard,
     offers,
     detail,
     detailOpen,

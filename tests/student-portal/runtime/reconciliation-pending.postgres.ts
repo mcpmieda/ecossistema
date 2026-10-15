@@ -107,6 +107,13 @@ async function list(f: Fixture) {
   if (r.state !== 'ready' || r.operation !== 'list') throw new Error('synthetic-list-missing');
   return r;
 }
+// The count of the side column follows the rule of the pending view of the screen.
+async function expectPendingCount(f: Fixture) {
+  const rows = (await list(f)).items.filter((item) => item.kind === 'external' || item.reconciliation !== 'reconciled');
+  expect(await f.service.execute({ ...base, operation: 'pending-count' }))
+    .toEqual({ contractVersion: 1, state: 'ready', operation: 'pending-count', pending: rows.length });
+  return rows.length;
+}
 async function prepareInput(f: Fixture, rows = reportRows(), sourceGeneratedAt: string | null = declaredDate): Promise<ReconciliationPrepareV1> {
   const { context } = await catalog(f);
   return { ...base, operation: 'prepare', generation: context.generation, expectedRevision: context.revision,
@@ -205,6 +212,7 @@ it('receives a report before the Relação, activates its mapped batch atomicall
   const external = (await list(pendingFirst)).items;
   expect(external).toHaveLength(2);
   expect(external.every((item) => item.kind === 'external' && item.sourceId === null && item.batchId === p.batchId)).toBe(true);
+  expect(await expectPendingCount(pendingFirst)).toBe(2);
   expect(await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.aluno')).toHaveLength(0);
   const studentUid = await insertRelation(pendingFirst);
   const c = (await catalog(pendingFirst)).context;
@@ -225,6 +233,7 @@ it('receives a report before the Relação, activates its mapped batch atomicall
   const people = (await list(pendingFirst)).items;
   expect(people.find((item) => item.kind === 'person')).toMatchObject({ studentUid, reconciliation: 'reconciled', portal: 'without-portal' });
   expect(people.filter((item) => item.kind === 'external')).toHaveLength(1);
+  expect(await expectPendingCount(pendingFirst)).toBe(1);
   expect(await pendingFirst.owner.unsafe('SELECT 1 FROM student_portal.account')).toHaveLength(0);
   pendingOrderFacts = await currentFacts(pendingFirst);
 });

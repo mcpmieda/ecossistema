@@ -25,6 +25,27 @@ const unanswered = new Set<string>();
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
+function syntheticHealth() {
+  const at = new Date().toISOString();
+  const status = new URLSearchParams(window.location.search).get('saude');
+  return {
+    schemaVersion: 1,
+    generatedAt: at,
+    portalReadState: 'ok',
+    portal: {
+      schemaVersion: 1, observedAt: at, servingEnabled: true, credentialsConfigured: true,
+      database: status === 'critical' ? 'unavailable' : 'ok', readDurationMs: 40,
+      maintenance: {
+        status: status === 'attention' ? 'attention' : 'normal', liveOutboxAvailable: true,
+        expiredIp: 0, expiredAudit: 0, backlog: false, exhausted: false, publicationDue: 0,
+        oldestPublicationDueMs: 0, liveBacklog: false, livePending: 0, liveRetrying: 0,
+        oldestLiveDueMs: 0, waitingConnections: 0, oldestWaitingQueryMs: 0,
+      },
+    },
+    publicEntry: { outcome: 'ok', status: 200, durationMs: 120, observedAt: at },
+  };
+}
+
 window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(
     typeof input === 'string' || input instanceof URL ? String(input) : input.url,
@@ -52,6 +73,13 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       return previewFetch(path, init);
     return nativeFetch(input, init);
   }
+  // A healthy system; `?saude=attention` or `?saude=critical` in the address shows the others.
+  if (path === '/api/platform/system-health') return json(syntheticHealth());
+  // Rows waiting in the Conciliação; `?pendencias=` in the address changes the number.
+  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string'
+    && init.body.includes('"operation":"pending-count"'))
+    return json({ contractVersion: 1, state: 'ready', operation: 'pending-count',
+      pending: Math.min(51, Number(new URLSearchParams(window.location.search).get('pendencias') ?? 12)) });
   if (!unanswered.has(path)) {
     unanswered.add(path);
     console.info('[preview] sem dados sintéticos para', path);
