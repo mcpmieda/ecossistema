@@ -146,8 +146,8 @@ it.each([
   await screen.findByText('ALUNO INVENTADO');
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'Conferir conflito' }));
-  const select = screen.getByLabelText('Decisão') as HTMLSelectElement;
-  expect(Array.from(select.options, (option) => option.value)).toEqual(choices);
+  const select = screen.getByLabelText('Decisão');
+  expect(Array.from(select.querySelectorAll('option'), (option) => option.value)).toEqual(choices);
   await user.selectOptions(select, decision);
   await user.type(screen.getByLabelText('Motivo da decisão'), 'Conferência sintética');
   await user.click(screen.getByRole('button', { name: 'Confirmar decisão' }));
