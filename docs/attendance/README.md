@@ -41,6 +41,8 @@ O PC recebe as operações V2 por backend HTTP. Nunca recebe conexão PostgreSQL
 
 Operações administrativas exigem o ator administrativo autorizado pela composição. Coleta, liderança, heartbeat e release exigem dispositivo. O tenant provém da identidade validada pelo servidor; não existe tenant, UID de destino nem configuração de calendário no payload da coleta.
 
+A operação `status` preserva os campos operacionais consumidos pelo Coletor Windows da PR #7 (`settings`, `lease`, `classes` e `devices`), mas retorna `conflicts: []` para dispositivos: nomes, identificadores e propostas de correção de alunos são consultados somente na sessão administrativa. Os conflitos continuam disponíveis integralmente à interface administrativa.
+
 Todas as mutations retornam `{contractVersion:2,state:'committed',operation,requestId,...}`. Recibo consulta o resultado original, nunca executa novamente uma mutation. O mesmo ID com outro payload/ator/dispositivo é recusado; repetição válida não regrava. Recibos de mutations não carregam nomes ou dados acadêmicos. Após reset, uma guarda opaca dos IDs antigos impede replay.
 
 A agenda é compartilhada pela escola/ano, com timezone e as 14 regras semanais de turno. `save-settings` e `set-paused` usam CAS da revisão escolar. A agenda define quando coletar; não prova dias letivos, quantidade de aulas ou elegibilidade acadêmica.
