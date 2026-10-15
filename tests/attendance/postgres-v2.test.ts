@@ -337,6 +337,13 @@ describe('frequency V2 private PostgreSQL service', () => {
     );
     let s = await status();
     expect(s.conflicts).toHaveLength(1);
+    const deviceStatus = (await service.execute(
+      { operation: 'status', academicYear: 2026 }, actor,
+    )) as FrequencyStatusV2;
+    expect(deviceStatus.conflicts).toEqual([]);
+    expect(deviceStatus.classes).toEqual(s.classes);
+    expect(deviceStatus.settings).toEqual(s.settings);
+    expect(deviceStatus.lease).toEqual(s.lease);
     expect((await summary()).marks).toEqual([]);
     const conflict = s.conflicts[0]!;
     await expect(
