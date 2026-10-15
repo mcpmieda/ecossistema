@@ -239,7 +239,7 @@ export function summarizeFrequencyPublicOriginsV2(
       slot: Number(v.row.slot),
       shift: str(v.row.shift),
       mark: str(v.row.mark) as 'X' | 'J',
-      classLabels: [...v.labels].sort(),
+      classLabels: [...v.labels].sort((left, right) => left.localeCompare(right, 'pt-BR')),
     }));
   // Calendar/slot counts are not approved productive sources. Known sparse marks never imply attendance.
   return {

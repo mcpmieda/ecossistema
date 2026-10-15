@@ -86,12 +86,17 @@ export type FrequencySummaryV2 = {
 };
 
 /** Same UTF-8 bytes in Python and JS; no locale-sensitive key ordering. */
+function compareCanonicalKeys(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
 export function canonicalFrequencyJsonV2(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalFrequencyJsonV2).join(',')}]`;
-  if (value !== null && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalFrequencyJsonV2((value as Record<string, unknown>)[key])}`).join(',')}}`;
+  if (value !== null && typeof value === 'object') return `{${Object.keys(value).sort(compareCanonicalKeys).map(key => `${JSON.stringify(key)}:${canonicalFrequencyJsonV2((value as Record<string, unknown>)[key])}`).join(',')}}`;
   return JSON.stringify(value);
 }
 export async function frequencyPayloadHashV2(value: unknown): Promise<string> {
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalFrequencyJsonV2(value))));
-  return btoa(String.fromCharCode(...hash)).replace(/\+/gu,'-').replace(/\//gu,'_').replace(/=+$/u,'');
+  return btoa(String.fromCodePoint(...hash)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
 }

@@ -47,13 +47,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - name: Prove disposable target
         run: |
           psql "$ATTENDANCE_TEST_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "CREATE TABLE public.attendance_test_sandbox_v1(marker uuid PRIMARY KEY); INSERT INTO public.attendance_test_sandbox_v1 VALUES ('$ATTENDANCE_TEST_POSTGRES_MARKER');"
           psql "$ATTENDANCE_TEST_POSTGRES_URL" -v ON_ERROR_STOP=1 -c 'SHOW server_version; SHOW data_directory;'
       - name: Native frequency invariants
-        run: npx vitest run '${{ matrix.suite }}' --reporter=default --reporter=json --outputFile=frequency-native-result.json
+        run: node node_modules/vitest/vitest.mjs run '${{ matrix.suite }}' --reporter=default --reporter=json --outputFile=frequency-native-result.json
       - name: Preserve synthetic gate result
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
