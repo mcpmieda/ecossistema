@@ -60,6 +60,13 @@ describe('collector own-user delegation only', () => {
     await expect(readCollectorOwnDirectoryV1(input)).rejects.toThrow('reauthentication-required');
     expect(input.fetcher).toHaveBeenCalledTimes(1);
   });
+  it('accepts the sign-in scopes Entra returns beside User.Read, never a broader Graph permission', async () => {
+    const signIn = 'openid profile email offline_access https://graph.microsoft.com/User.Read';
+    const input = setup([json({ ...token, scope: signIn }), json(me), json({ value: [group] })]);
+    await expect(readCollectorOwnDirectoryV1(input)).resolves.toMatchObject({ nextRefreshToken: token.refresh_token });
+    for (const scope of ['openid profile email', 'openid User.Read GroupMember.Read.All', 'https://graph.microsoft.com/.default'])
+      await expect(readCollectorOwnDirectoryV1(setup([json({ ...token, scope })]))).rejects.toThrow('invalid-contract');
+  });
   it('rejects broad/default scope, foreign grant and API redirects', async () => {
     await expect(readCollectorOwnDirectoryV1(setup([json({ ...token, scope: 'User.Read Directory.Read.All' })]))).rejects.toThrow();
     const input = setup(); input.expectedClientId = group;

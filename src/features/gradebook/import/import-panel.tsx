@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, ProgressBar, Surface, Tabs } from '@heroui/react';
 import { Check, FileSpreadsheet, Upload, Users } from 'lucide-react';
 import { abbreviateSha256 } from './file-manifest';
@@ -340,7 +340,11 @@ export function NotesImportPanel({
         </Tabs.Panel>
         <Tabs.Panel id="frequency" shouldForceMount>
           <div hidden={area !== 'frequency'}>
-            <FrequencyPanelV2 active={area === 'frequency'} client={frequencyClient} />
+            <FrequencyPanelV2
+              active={area === 'frequency'}
+              client={frequencyClient}
+              onOpenReport={() => setArea('workbooks')}
+            />
           </div>
         </Tabs.Panel>
       </Tabs>
@@ -348,42 +352,33 @@ export function NotesImportPanel({
   );
 }
 
-function NotesWorkbookImportPanelV2() {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const reportInputRef = useRef<HTMLInputElement>(null);
-  const [reportFile, setReportFile] = useState<File | null>(null);
-  const [asked, setAsked] = useState<'relation' | 'marks'>('marks');
+type ImportBatchV1 = ReturnType<typeof useImportBatch>;
+type ImportResultV1 = ImportBatchV1['results'][number];
+type ImportFailureV1 = ImportBatchV1['failures'][number];
+
+/** The Relação is asked for while workbooks wait on it; the workbooks once it is in. */
+function importStepTonesV1(sent: { relation: boolean; marks: boolean }, waiting: number) {
+  let relationTone: ImportStepToneV1 = 'idle';
+  if (sent.relation) relationTone = 'done';
+  else if (waiting > 0) relationTone = 'call';
+  let marksTone: ImportStepToneV1 = 'idle';
+  if (sent.marks) marksTone = 'done';
+  else if (sent.relation && waiting === 0) marksTone = 'call';
+  return { relationTone, marksTone };
+}
+
+/**
+ * Grade workbooks the server refused for want of the Relação stay in this tab; the next
+ * selection carries them along, and a batch always sends its Relação first.
+ */
+function useRelationWaitV1(batch: ImportBatchV1) {
+  const { loading, results, persistence, handleFiles } = batch;
   // Sent in this tab. A batch decides only for the kind of file it carried.
   const [sent, setSent] = useState({ relation: false, marks: false });
-  // Grade workbooks the server refused for want of the Relação stay in this tab; the next
-  // selection carries them along, and a batch always sends its Relação first.
   const batchFiles = useRef<readonly File[]>([]);
   const [waiting, setWaiting] = useState<readonly File[]>([]);
   // The waiting workbooks did not fit beside the selection: they follow once its Relação is in.
   const deferred = useRef(false);
-  const {
-    authorizationRequired,
-    cancelMovementReview,
-    confirmMovementReview,
-    diagnosticAuditFailures,
-    error,
-    failures,
-    handleFiles,
-    loading,
-    pendingPersistenceCount,
-    progress,
-    persistence,
-    results,
-    resumePendingPersistence,
-    selectedId,
-    selectedResult,
-    setSelectedId,
-    sourceDiagnostics,
-    timingReportSummary,
-    getTimingReport,
-    totals,
-  } = useImportBatch();
-
   useEffect(() => {
     if (loading) return;
     const decided = new Map(
@@ -394,10 +389,9 @@ function NotesWorkbookImportPanelV2() {
     setWaiting((current) =>
       batchFiles.current.filter((file) => {
         const state = decided.get(file.name);
-        return (
-          waitsForRelationV1(state) ||
-          (current.some((item) => item.name === file.name) && state?.state !== 'completed')
-        );
+        const stillHeld =
+          current.some((item) => item.name === file.name) && state?.state !== 'completed';
+        return waitsForRelationV1(state) || stillHeld;
       }),
     );
     if (results.length === 0) return;
@@ -409,30 +403,13 @@ function NotesWorkbookImportPanelV2() {
       relation: relations.length ? allSaved(relations) : current.relation,
       marks: marks.length ? allSaved(marks) : current.marks,
     }));
-    if (deferred.current && relations.length > 0 && allSaved(relations)) {
-      deferred.current = false;
-      const held = batchFiles.current.filter((file) => !decided.has(file.name));
-      if (held.length > 0) {
-        batchFiles.current = held;
-        void handleFiles(held);
-      }
-    }
+    if (!deferred.current || relations.length === 0 || !allSaved(relations)) return;
+    deferred.current = false;
+    const held = batchFiles.current.filter((file) => !decided.has(file.name));
+    if (held.length === 0) return;
+    batchFiles.current = held;
+    void handleFiles(held);
   }, [loading, results, persistence]);
-  // The Relação is asked for while workbooks wait on it; the workbooks once it is in.
-  const relationTone: ImportStepToneV1 = sent.relation
-    ? 'done'
-    : waiting.length > 0
-      ? 'call'
-      : 'idle';
-  const marksTone: ImportStepToneV1 = sent.marks
-    ? 'done'
-    : sent.relation && waiting.length === 0
-      ? 'call'
-      : 'idle';
-  const pick = (kind: 'relation' | 'marks') => {
-    setAsked(kind);
-    inputRef.current?.click();
-  };
   const importSelected = (selected: readonly File[]) => {
     const chosen = new Set(selected.map((file) => file.name));
     const held = waiting.filter((file) => !chosen.has(file.name));
@@ -441,12 +418,331 @@ function NotesWorkbookImportPanelV2() {
     deferred.current = held.length > 0 && batchFiles.current.length > MAX_NOTES_IMPORT_FILES;
     return handleFiles(deferred.current ? selected : batchFiles.current);
   };
+  const discard = () => {
+    batchFiles.current = [];
+    setWaiting([]);
+  };
+  return { sent, waiting, importSelected, discard };
+}
 
-  const selectedPersistence = selectedResult ? persistence[selectedResult.id] : undefined;
-  const selectedDiagnostics = selectedResult
-    ? actionableGradebookImportDiagnosticsV1(sourceDiagnostics[selectedResult.id] ?? [])
-    : [];
+function ImportStepButtonV1({
+  tone,
+  pending,
+  disabled,
+  onPress,
+  icon,
+  label,
+  doneLabel,
+}: Readonly<{
+  tone: ImportStepToneV1;
+  pending: boolean;
+  disabled: boolean;
+  onPress: () => void;
+  icon: ReactNode;
+  label: string;
+  doneLabel: string;
+}>) {
+  const done = tone === 'done';
+  return (
+    <Button
+      variant={tone === 'call' ? 'primary' : 'secondary'}
+      className={STEP_CLASS_V1[tone]}
+      isPending={pending}
+      isDisabled={disabled}
+      onPress={onPress}
+    >
+      {done ? <Check className="size-4" /> : icon}
+      {done ? doneLabel : label}
+    </Button>
+  );
+}
 
+function WaitingRelationV1({
+  waiting,
+  onPick,
+  onDiscard,
+}: Readonly<{ waiting: readonly File[]; onPick: () => void; onDiscard: () => void }>) {
+  const title =
+    waiting.length === 1
+      ? '1 planilha aguardando a Relação'
+      : `${waiting.length} planilhas aguardando a Relação`;
+  return (
+    <Alert status="warning" className="mt-5">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>{title}</Alert.Title>
+        <Alert.Description>{waiting.map((file) => file.name).join(' · ')}</Alert.Description>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="primary" onPress={onPick}>
+            <Users className="size-4" />
+            Selecionar Relação
+          </Button>
+          <Button size="sm" variant="secondary" onPress={onDiscard}>
+            Descartar
+          </Button>
+        </div>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+function ImportProgressV1({ progress }: Readonly<{ progress: ImportFlowProgressV9 }>) {
+  return (
+    <Surface variant="secondary" className="mt-5 rounded-2xl p-4">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="font-medium">{PROGRESS_STAGE[progress.stage][0]}</span>
+        <span className="text-muted">{progressValue(progress)}%</span>
+      </div>
+      <ProgressBar
+        className="mt-3"
+        value={progressValue(progress)}
+        color={progress.stage === 'completed' ? 'success' : 'accent'}
+        aria-label="Progresso da importação"
+      />
+      <p className="mt-2 truncate text-xs text-muted">{progress.fileName}</p>
+    </Surface>
+  );
+}
+
+function ImportPausedV1({
+  pending,
+  authorizationRequired,
+  loading,
+  onResume,
+}: Readonly<{
+  pending: number;
+  authorizationRequired: boolean;
+  loading: boolean;
+  onResume: () => void;
+}>) {
+  return (
+    <Surface variant="secondary" className="mt-5 rounded-2xl p-4">
+      <Alert status="warning">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>
+            {authorizationRequired
+              ? 'Sessão expirada — lote pausado'
+              : 'Importação pausada — pendentes preservados'}
+          </Alert.Title>
+          <Alert.Description>
+            Os arquivos reconhecidos continuam somente na memória desta aba.{' '}
+            {authorizationRequired && 'Renove a sessão em outra aba e volte aqui. '}
+            Retome os {pending} arquivo(s) pendente(s). Itens já concluídos não serão reenviados.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {authorizationRequired && (
+          <Button
+            variant="secondary"
+            onPress={() => {
+              globalThis.open('/auth/login', '_blank', 'noopener,noreferrer');
+            }}
+          >
+            Renovar sessão
+          </Button>
+        )}
+        <Button
+          variant="primary"
+          isPending={loading}
+          isDisabled={loading || pending === 0}
+          onPress={onResume}
+        >
+          Retomar pendentes
+        </Button>
+      </div>
+    </Surface>
+  );
+}
+
+function ImportTotalsV1({ batch }: Readonly<{ batch: ImportBatchV1 }>) {
+  const { results, failures, totals } = batch;
+  const recognized = failures.length ? `${failures.length} com erro` : 'sem erros de leitura';
+  const cards = [
+    ['Arquivos', results.length + failures.length, `limite ${MAX_NOTES_IMPORT_FILES}`],
+    ['Reconhecidos', results.length, recognized],
+    ['Turmas', totals.classes, 'somadas no lote'],
+    ['Alunos', totals.students, `${totals.gradeSheets} guias reconhecidas`],
+  ] as const;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {cards.map(([label, value, detail]) => (
+        <Surface key={label} variant="secondary" className="rounded-2xl p-4">
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">{label}</p>
+          <p className="mt-2 text-2xl font-semibold">{value}</p>
+          <p className="mt-1 text-xs text-muted">{detail}</p>
+        </Surface>
+      ))}
+    </div>
+  );
+}
+
+function ImportResultCardV1({
+  result,
+  batch,
+}: Readonly<{ result: ImportResultV1; batch: ImportBatchV1 }>) {
+  const diagnostics = actionableGradebookImportDiagnosticsV1(
+    batch.sourceDiagnostics[result.id] ?? [],
+  );
+  const blocking = diagnostics.filter((value) => value.severity === 'blocking-error').length;
+  const warnings = diagnostics.filter((value) => value.severity === 'warning').length;
+  return (
+    <Surface variant="secondary" className="rounded-2xl p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="mr-auto font-medium">{result.manifest.fileName}</p>
+        <span className="text-xs font-medium">
+          {persistenceLabel(batch.persistence[result.id])}
+        </span>
+      </div>
+      <FileHash sha256={result.manifest.sha256} />
+      <p className="mt-2 text-xs text-muted">
+        Vazio = Não fez · 0 = Tirou zero · 0,1 = nota numérica
+      </p>
+      {blocking > 0 && (
+        <p className="mt-2 text-xs font-semibold text-danger">
+          {blocking} problema(s) bloqueante(s) — corrigir antes de importar
+        </p>
+      )}
+      {warnings > 0 && (
+        <p className="mt-1 text-xs font-medium">
+          {warnings} aviso(s) de origem/lançamento — revisar
+        </p>
+      )}
+    </Surface>
+  );
+}
+
+function ImportFailureCardV1({ failure }: Readonly<{ failure: ImportFailureV1 }>) {
+  const stage = failure.stage === 'preparation' ? 'Preparação/hash' : 'Reconhecimento';
+  return (
+    <Surface variant="secondary" className="rounded-2xl p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="mr-auto font-medium">{failure.fileName}</p>
+        <span className="text-xs font-medium text-danger">Falha isolada</span>
+      </div>
+      {failure.manifest ? (
+        <FileHash sha256={failure.manifest.sha256} />
+      ) : (
+        <p className="mt-2 text-xs text-muted">Manifesto indisponível</p>
+      )}
+      <p className="mt-2 text-xs text-muted">
+        {stage} · {failure.diagnostic.code}: {failure.message}
+      </p>
+    </Surface>
+  );
+}
+
+function SelectedImportV1({
+  result,
+  batch,
+}: Readonly<{ result: ImportResultV1; batch: ImportBatchV1 }>) {
+  const state = batch.persistence[result.id];
+  const review = state?.state === 'movement-review' ? state : null;
+  return (
+    <>
+      <WorkbookInspector result={result} />
+      <ImportDiagnosticsPanelV1
+        diagnostics={actionableGradebookImportDiagnosticsV1(
+          batch.sourceDiagnostics[result.id] ?? [],
+        )}
+        auditFailure={batch.diagnosticAuditFailures[result.id]}
+      />
+      <PersistenceResult state={state} />
+      {review?.review ? (
+        <RelationMovementReviewV9
+          key={`${result.id}:${review.review.digest}`}
+          review={review.review}
+          busy={batch.loading}
+          onConfirm={(confirmation) => void batch.confirmMovementReview(result.id, confirmation)}
+          onCancel={() => batch.cancelMovementReview(result.id)}
+        />
+      ) : null}
+      {review && !review.review ? (
+        <Alert status="warning" className="mt-5">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{persistenceLabel(review)}</Alert.Title>
+            <Alert.Description>{review.message}</Alert.Description>
+            <Button
+              variant="secondary"
+              className="mt-3"
+              isDisabled={batch.loading}
+              onPress={() => void batch.resumePendingPersistence()}
+            >
+              Conferir novamente
+            </Button>
+          </Alert.Content>
+        </Alert>
+      ) : null}
+    </>
+  );
+}
+
+function ImportResultsV1({ batch }: Readonly<{ batch: ImportBatchV1 }>) {
+  const { results, failures, selectedId, setSelectedId, selectedResult } = batch;
+  return (
+    <div className="mt-6">
+      <ImportTotalsV1 batch={batch} />
+      {failures.length > 0 && (
+        <Alert status="warning" className="mt-4">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{failures.length} arquivo(s) não reconhecido(s)</Alert.Title>
+            <Alert.Description>
+              {failures.map((failure) => `${failure.fileName}: ${failure.message}`).join(' · ')}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">
+        {results.map((result) => (
+          <ImportResultCardV1 key={result.id} result={result} batch={batch} />
+        ))}
+        {failures.map((failure) => (
+          <ImportFailureCardV1 key={failure.id} failure={failure} />
+        ))}
+      </div>
+      {results.length > 0 && (
+        <div className="mt-5 overflow-x-auto pb-1">
+          <div className="flex min-w-max gap-2">
+            {results.map((result) => (
+              <Button
+                key={result.id}
+                variant={selectedId === result.id ? 'secondary' : 'ghost'}
+                size="sm"
+                onPress={() => setSelectedId(result.id)}
+              >
+                <FileSpreadsheet className="size-4" />
+                {result.summary.fileName}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+      {selectedResult && <SelectedImportV1 result={selectedResult} batch={batch} />}
+    </div>
+  );
+}
+
+function NotesWorkbookImportPanelV2() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const reportInputRef = useRef<HTMLInputElement>(null);
+  const [reportFile, setReportFile] = useState<File | null>(null);
+  const [asked, setAsked] = useState<'relation' | 'marks'>('marks');
+  const batch = useImportBatch();
+  const { loading, progress, error, pendingPersistenceCount, authorizationRequired } = batch;
+  const relationWait = useRelationWaitV1(batch);
+  const { relationTone, marksTone } = importStepTonesV1(
+    relationWait.sent,
+    relationWait.waiting.length,
+  );
+  const pick = (kind: 'relation' | 'marks') => {
+    setAsked(kind);
+    inputRef.current?.click();
+  };
+  const paused = pendingPersistenceCount > 0 && (!loading || authorizationRequired);
+  const hasResults = batch.results.length > 0 || batch.failures.length > 0;
   return (
     <Surface variant="default" className="platform-card-surface rounded-3xl p-6 sm:p-7">
       <input
@@ -469,11 +765,10 @@ function NotesWorkbookImportPanelV2() {
         accept=".xlsx,.xlsb,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.binary.macroEnabled.12"
         onChange={(event) => {
           const input = event.currentTarget;
-          if (input.files?.length) {
-            void importSelected(Array.from(input.files)).finally(() => {
-              input.value = '';
-            });
-          }
+          if (!input.files?.length) return;
+          void relationWait.importSelected(Array.from(input.files)).finally(() => {
+            input.value = '';
+          });
         }}
       />
 
@@ -486,26 +781,24 @@ function NotesWorkbookImportPanelV2() {
         </div>
         {/* Both buttons run the same import; the Relação usually lives in another folder. */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button
-            variant={relationTone === 'call' ? 'primary' : 'secondary'}
-            className={STEP_CLASS_V1[relationTone]}
-            isPending={loading && asked === 'relation'}
-            isDisabled={loading}
+          <ImportStepButtonV1
+            tone={relationTone}
+            pending={loading && asked === 'relation'}
+            disabled={loading}
             onPress={() => pick('relation')}
-          >
-            {relationTone === 'done' ? <Check className="size-4" /> : <Users className="size-4" />}
-            {relationTone === 'done' ? 'Relação enviada' : 'Selecionar Relação'}
-          </Button>
-          <Button
-            variant={marksTone === 'call' ? 'primary' : 'secondary'}
-            className={STEP_CLASS_V1[marksTone]}
-            isPending={loading && asked === 'marks'}
-            isDisabled={loading}
+            icon={<Users className="size-4" />}
+            label="Selecionar Relação"
+            doneLabel="Relação enviada"
+          />
+          <ImportStepButtonV1
+            tone={marksTone}
+            pending={loading && asked === 'marks'}
+            disabled={loading}
             onPress={() => pick('marks')}
-          >
-            {marksTone === 'done' ? <Check className="size-4" /> : <Upload className="size-4" />}
-            {marksTone === 'done' ? 'Planilhas enviadas' : 'Selecionar planilhas'}
-          </Button>
+            icon={<Upload className="size-4" />}
+            label="Selecionar planilhas"
+            doneLabel="Planilhas enviadas"
+          />
           <Button
             variant="secondary"
             isDisabled={loading}
@@ -525,51 +818,15 @@ function NotesWorkbookImportPanelV2() {
         />
       ) : null}
 
-      {waiting.length > 0 && !loading && (
-        <Alert status="warning" className="mt-5">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              {waiting.length === 1
-                ? '1 planilha aguardando a Relação'
-                : `${waiting.length} planilhas aguardando a Relação`}
-            </Alert.Title>
-            <Alert.Description>{waiting.map((file) => file.name).join(' · ')}</Alert.Description>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" variant="primary" onPress={() => pick('relation')}>
-                <Users className="size-4" />
-                Selecionar Relação
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onPress={() => {
-                  batchFiles.current = [];
-                  setWaiting([]);
-                }}
-              >
-                Descartar
-              </Button>
-            </div>
-          </Alert.Content>
-        </Alert>
+      {relationWait.waiting.length > 0 && !loading && (
+        <WaitingRelationV1
+          waiting={relationWait.waiting}
+          onPick={() => pick('relation')}
+          onDiscard={relationWait.discard}
+        />
       )}
 
-      {progress && (
-        <Surface variant="secondary" className="mt-5 rounded-2xl p-4">
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-medium">{PROGRESS_STAGE[progress.stage][0]}</span>
-            <span className="text-muted">{progressValue(progress)}%</span>
-          </div>
-          <ProgressBar
-            className="mt-3"
-            value={progressValue(progress)}
-            color={progress.stage === 'completed' ? 'success' : 'accent'}
-            aria-label="Progresso da importação"
-          />
-          <p className="mt-2 truncate text-xs text-muted">{progress.fileName}</p>
-        </Surface>
-      )}
+      {progress && <ImportProgressV1 progress={progress} />}
 
       {error && (
         <Alert status="danger" className="mt-5">
@@ -581,197 +838,20 @@ function NotesWorkbookImportPanelV2() {
         </Alert>
       )}
 
-      {pendingPersistenceCount > 0 && (!loading || authorizationRequired) && (
-        <Surface variant="secondary" className="mt-5 rounded-2xl p-4">
-          <Alert status="warning">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>
-                {authorizationRequired
-                  ? 'Sessão expirada — lote pausado'
-                  : 'Importação pausada — pendentes preservados'}
-              </Alert.Title>
-              <Alert.Description>
-                Os arquivos reconhecidos continuam somente na memória desta aba.{' '}
-                {authorizationRequired && 'Renove a sessão em outra aba e volte aqui. '}
-                Retome os {pendingPersistenceCount} arquivo(s) pendente(s). Itens já concluídos não
-                serão reenviados.
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {authorizationRequired && (
-              <Button
-                variant="secondary"
-                onPress={() => {
-                  globalThis.open('/auth/login', '_blank', 'noopener,noreferrer');
-                }}
-              >
-                Renovar sessão
-              </Button>
-            )}
-            <Button
-              variant="primary"
-              isPending={loading}
-              isDisabled={loading || pendingPersistenceCount === 0}
-              onPress={() => void resumePendingPersistence()}
-            >
-              Retomar pendentes
-            </Button>
-          </div>
-        </Surface>
+      {paused && (
+        <ImportPausedV1
+          pending={pendingPersistenceCount}
+          authorizationRequired={authorizationRequired}
+          loading={loading}
+          onResume={() => void batch.resumePendingPersistence()}
+        />
       )}
 
-      {(results.length > 0 || failures.length > 0) && (
-        <div className="mt-6">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              ['Arquivos', results.length + failures.length, `limite ${MAX_NOTES_IMPORT_FILES}`],
-              [
-                'Reconhecidos',
-                results.length,
-                failures.length ? `${failures.length} com erro` : 'sem erros de leitura',
-              ],
-              ['Turmas', totals.classes, 'somadas no lote'],
-              ['Alunos', totals.students, `${totals.gradeSheets} guias reconhecidas`],
-            ].map(([label, value, detail]) => (
-              <Surface key={String(label)} variant="secondary" className="rounded-2xl p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
-                  {label}
-                </p>
-                <p className="mt-2 text-2xl font-semibold">{value}</p>
-                <p className="mt-1 text-xs text-muted">{detail}</p>
-              </Surface>
-            ))}
-          </div>
-
-          {failures.length > 0 && (
-            <Alert status="warning" className="mt-4">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>{failures.length} arquivo(s) não reconhecido(s)</Alert.Title>
-                <Alert.Description>
-                  {failures.map((failure) => `${failure.fileName}: ${failure.message}`).join(' · ')}
-                </Alert.Description>
-              </Alert.Content>
-            </Alert>
-          )}
-
-          <div className="mt-5 grid gap-3 lg:grid-cols-2">
-            {results.map((result) => {
-              const diagnostics = actionableGradebookImportDiagnosticsV1(
-                sourceDiagnostics[result.id] ?? [],
-              );
-              const blocking = diagnostics.filter(
-                (value) => value.severity === 'blocking-error',
-              ).length;
-              const warnings = diagnostics.filter((value) => value.severity === 'warning').length;
-              return (
-                <Surface key={result.id} variant="secondary" className="rounded-2xl p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="mr-auto font-medium">{result.manifest.fileName}</p>
-                    <span className="text-xs font-medium">
-                      {persistenceLabel(persistence[result.id])}
-                    </span>
-                  </div>
-                  <FileHash sha256={result.manifest.sha256} />
-                  <p className="mt-2 text-xs text-muted">
-                    Vazio = Não fez · 0 = Tirou zero · 0,1 = nota numérica
-                  </p>
-                  {blocking > 0 && (
-                    <p className="mt-2 text-xs font-semibold text-danger">
-                      {blocking} problema(s) bloqueante(s) — corrigir antes de importar
-                    </p>
-                  )}
-                  {warnings > 0 && (
-                    <p className="mt-1 text-xs font-medium">
-                      {warnings} aviso(s) de origem/lançamento — revisar
-                    </p>
-                  )}
-                </Surface>
-              );
-            })}
-            {failures.map((failure) => (
-              <Surface key={failure.id} variant="secondary" className="rounded-2xl p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="mr-auto font-medium">{failure.fileName}</p>
-                  <span className="text-xs font-medium text-danger">Falha isolada</span>
-                </div>
-                {failure.manifest ? (
-                  <FileHash sha256={failure.manifest.sha256} />
-                ) : (
-                  <p className="mt-2 text-xs text-muted">Manifesto indisponível</p>
-                )}
-                <p className="mt-2 text-xs text-muted">
-                  {failure.stage === 'preparation' ? 'Preparação/hash' : 'Reconhecimento'} ·{' '}
-                  {failure.diagnostic.code}: {failure.message}
-                </p>
-              </Surface>
-            ))}
-          </div>
-
-          {results.length > 0 && (
-            <div className="mt-5 overflow-x-auto pb-1">
-              <div className="flex min-w-max gap-2">
-                {results.map((result) => (
-                  <Button
-                    key={result.id}
-                    variant={selectedId === result.id ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onPress={() => setSelectedId(result.id)}
-                  >
-                    <FileSpreadsheet className="size-4" />
-                    {result.summary.fileName}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedResult && (
-            <>
-              <WorkbookInspector result={selectedResult} />
-              <ImportDiagnosticsPanelV1
-                diagnostics={selectedDiagnostics}
-                auditFailure={diagnosticAuditFailures[selectedResult.id]}
-              />
-              <PersistenceResult state={selectedPersistence} />
-              {selectedPersistence?.state === 'movement-review' && selectedPersistence.review ? (
-                <RelationMovementReviewV9
-                  key={`${selectedResult.id}:${selectedPersistence.review.digest}`}
-                  review={selectedPersistence.review}
-                  busy={loading}
-                  onConfirm={(confirmation) =>
-                    void confirmMovementReview(selectedResult.id, confirmation)
-                  }
-                  onCancel={() => cancelMovementReview(selectedResult.id)}
-                />
-              ) : null}
-              {selectedPersistence?.state === 'movement-review' && !selectedPersistence.review ? (
-                <Alert status="warning" className="mt-5">
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Title>{persistenceLabel(selectedPersistence)}</Alert.Title>
-                    <Alert.Description>{selectedPersistence.message}</Alert.Description>
-                    <Button
-                      variant="secondary"
-                      className="mt-3"
-                      isDisabled={loading}
-                      onPress={() => void resumePendingPersistence()}
-                    >
-                      Conferir novamente
-                    </Button>
-                  </Alert.Content>
-                </Alert>
-              ) : null}
-            </>
-          )}
-        </div>
-      )}
+      {hasResults && <ImportResultsV1 batch={batch} />}
       <TimingDiagnostics
-        visible={timingReportSummary.runOrdinal !== null}
-        summary={timingReportSummary}
-        getReport={getTimingReport}
+        visible={batch.timingReportSummary.runOrdinal !== null}
+        summary={batch.timingReportSummary}
+        getReport={batch.getTimingReport}
       />
     </Surface>
   );

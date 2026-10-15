@@ -15,6 +15,7 @@ As migrations abaixo foram aplicadas uma vez, após ensaio PostgreSQL 17.6 com e
 | attendance/0002_runtime_bridges_v2.sql | 20261015121131 | 3b87390f4fa6babda25df09eb829d376 |
 | attendance/0003_portal_frequency_read_v2.sql | 20261015121140 | 3baf0806793e56aaba2106abb988fd7d |
 | attendance/0004_foreign_key_indexes_v2.sql | 20261015121602 | ebc36dfe66ae1834480f17dd60559b01 |
+| attendance/0005_operations_trail_v2.sql | pendente de aplicação | — |
 
 As 61 entradas anteriores do ledger permaneceram idênticas: fingerprint `cc76d2577bd5ccbeae648aca38f24bb6`, pela fórmula de `COLLECTOR_AUTH_PREPARATION.md`, excluindo somente as novas entradas. O postflight confirmou 13 tabelas com RLS forçada, constraints validadas, nenhuma leitura direta do Portal sobre ocorrências, nenhuma leitura do refresh cifrado por `gradebook_app`, nenhuma função pública de frequência e nenhuma membership SET/INHERIT nas bridges. As bridges não têm LOGIN, SUPERUSER, BYPASSRLS, INHERIT nem CREATE no schema.
 
@@ -30,6 +31,8 @@ A auditoria de segurança retornou zero avisos. O índice da FK de pareamentos e
 - `migrations/attendance/0002_runtime_bridges_v2.sql`: revalidação central da evidência histórica e invalidação do preview do reset anual.
 - `migrations/attendance/0003_portal_frequency_read_v2.sql`: leitura privada vinculada ao aluno, à conta e à sessão do Portal.
 - `migrations/attendance/0004_foreign_key_indexes_v2.sql`: índices de apoio às FKs, às verificações de pai e à limpeza anual.
+- `migrations/attendance/0005_operations_trail_v2.sql` (aditiva, aplicar antes da publicação): `attendance.failure_v2`, trilha de falhas de 7 dias, e `class_state_v2.unresolved_json`, alunos do Smecel ainda sem conciliação na coleta mais recente de cada turma.
+- `server/attendance/failure-log-v2.ts`: grava cada falha sem valores pessoais (código, operação, detalhe técnico, computador e turma), agrupa repetições em 10 minutos e apaga registros com mais de 7 dias. Erros que o computador informa no heartbeat entram na mesma trilha.
 - `server/student-portal/integration/year-reset/frequency-writer-v2.ts`: registra uma alteração de frequência no protocolo de reset existente, sem alterar a revisão acadêmica.
 - A composição HTTP administrativa e do dispositivo fica em `server/collector/frequency-http-v2.ts`, com `/api/gradebook/frequency/v2` para o Banco e `/api/frequency-collector/frequency` para o PC; a nova aba **Frequência** pertence à guia **Importação** do Banco. O Portal usa a composição autorizada existente.
 
@@ -41,7 +44,9 @@ O PC recebe as operações V2 por backend HTTP. Nunca recebe conexão PostgreSQL
 
 Operações administrativas exigem o ator administrativo autorizado pela composição. Coleta, liderança, heartbeat e release exigem dispositivo. O tenant provém da identidade validada pelo servidor; não existe tenant, UID de destino nem configuração de calendário no payload da coleta.
 
-A operação `status` preserva os campos operacionais consumidos pelo Coletor Windows da PR #7 (`settings`, `lease`, `classes` e `devices`), mas retorna `conflicts: []` para dispositivos: nomes, identificadores e propostas de correção de alunos são consultados somente na sessão administrativa. Os conflitos continuam disponíveis integralmente à interface administrativa.
+A turma do Smecel é reconhecida pela ligação Relatório ↔ Relação do Centro, sem diferenciar espaços, pontuação, acentos ou maiúsculas (`frequencyClassKeyV2`, também aplicada pelo Coletor). O rótulo do Relatório ligado é que alimenta o resolvedor central, de modo que a mesma regra vale para todos os alunos do lote.
+
+A operação `status` preserva os campos operacionais consumidos pelo Coletor Windows da PR #7 (`settings`, `lease`, `classes` e `devices`), mas retorna `conflicts`, `unresolved` e `failures` vazios para dispositivos: nomes, identificadores e propostas de correção de alunos são consultados somente na sessão administrativa. Os conflitos continuam disponíveis integralmente à interface administrativa.
 
 Todas as mutations retornam `{contractVersion:2,state:'committed',operation,requestId,...}`. Recibo consulta o resultado original, nunca executa novamente uma mutation. O mesmo ID com outro payload/ator/dispositivo é recusado; repetição válida não regrava. Recibos de mutations não carregam nomes ou dados acadêmicos. Após reset, uma guarda opaca dos IDs antigos impede replay.
 

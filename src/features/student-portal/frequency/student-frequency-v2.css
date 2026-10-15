@@ -62,3 +62,6 @@
     min-width: 0;
   }
 }
+.pa-frequency output {
+  display: block;
+}

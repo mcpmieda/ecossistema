@@ -56,6 +56,8 @@ function fixture(): FrequencyStatusV2 {
         marks: ['X', 'J', null],
       },
     ],
+    unresolved: [],
+    failures: [],
   };
 }
 beforeEach(setupOperationsDomV1);
@@ -133,32 +135,47 @@ it('saves multiple typed schedule times with CAS and pauses only after an explic
 });
 
 it.each([
-  { marks: ['X', 'J'] as ('X' | 'J' | null)[], choices: ['', 'X', 'J'], decision: 'J', expected: 'J' },
-  { marks: ['X', null] as ('X' | 'J' | null)[], choices: ['', 'X', 'remove'], decision: 'remove', expected: null },
-])('offers only conflict decisions found in the recorded evidence: $choices', async ({ marks, choices, decision, expected }) => {
-  const value = fixture();
-  value.conflicts[0]!.marks = marks;
-  const client = {
-    status: vi.fn(async () => structuredClone(value)),
-    mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
-  };
-  render(<FrequencyPanelV2 client={client} />);
-  await screen.findByText('ALUNO INVENTADO');
-  expect(screen.getByText(/Posição 2 · Matutino/)).toBeTruthy();
-  const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Conferir conflito' }));
-  const select = screen.getByLabelText('Decisão');
-  expect(Array.from(select.querySelectorAll('option'), (option) => option.value)).toEqual(choices);
-  await user.selectOptions(select, decision);
-  await user.type(screen.getByLabelText('Motivo da decisão'), 'Conferência sintética');
-  await user.click(screen.getByRole('button', { name: 'Confirmar decisão' }));
-  await waitFor(() => expect(client.mutate).toHaveBeenCalledOnce());
-  expect(client.mutate.mock.calls[0]?.[0]).toMatchObject({
-    operation: 'resolve-conflict',
-    conflictId,
-    mark: expected,
-  });
-});
+  {
+    marks: ['X', 'J'] as ('X' | 'J' | null)[],
+    choices: ['', 'X', 'J'],
+    decision: 'J',
+    expected: 'J',
+  },
+  {
+    marks: ['X', null] as ('X' | 'J' | null)[],
+    choices: ['', 'X', 'remove'],
+    decision: 'remove',
+    expected: null,
+  },
+])(
+  'offers only conflict decisions found in the recorded evidence: $choices',
+  async ({ marks, choices, decision, expected }) => {
+    const value = fixture();
+    value.conflicts[0]!.marks = marks;
+    const client = {
+      status: vi.fn(async () => structuredClone(value)),
+      mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
+    };
+    render(<FrequencyPanelV2 client={client} />);
+    await screen.findByText('ALUNO INVENTADO');
+    expect(screen.getByText(/Posição 2 · Matutino/)).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Conferir conflito' }));
+    const select = screen.getByLabelText('Decisão');
+    expect(Array.from(select.querySelectorAll('option'), (option) => option.value)).toEqual(
+      choices,
+    );
+    await user.selectOptions(select, decision);
+    await user.type(screen.getByLabelText('Motivo da decisão'), 'Conferência sintética');
+    await user.click(screen.getByRole('button', { name: 'Confirmar decisão' }));
+    await waitFor(() => expect(client.mutate).toHaveBeenCalledOnce());
+    expect(client.mutate.mock.calls[0]?.[0]).toMatchObject({
+      operation: 'resolve-conflict',
+      conflictId,
+      mark: expected,
+    });
+  },
+);
 
 it('requires device confirmation and an explicit conflict decision/reason', async () => {
   const value = fixture();
@@ -286,4 +303,74 @@ it('refuses timezone offsets and other spellings the database and Windows collec
   await user.type(timezone, 'America/Bahia');
   await user.click(screen.getByRole('button', { name: 'Salvar agenda' }));
   await waitFor(() => expect(client.mutate).toHaveBeenCalledTimes(1));
+});
+
+it('lists unrecognized Smecel students and the failure trail with the actions that resolve them', async () => {
+  const value = fixture();
+  value.unresolved = [
+    {
+      classId: 1,
+      classLabel: 'TURMA INVENTADA',
+      name: 'ALUNA NOVA INVENTADA',
+      reason: 'not_found',
+      marks: 2,
+      observedAt: '2026-10-14T12:00:00Z',
+    },
+    {
+      classId: 1,
+      classLabel: 'TURMA INVENTADA',
+      name: 'HOMÔNIMO INVENTADO',
+      reason: 'ambiguous',
+      marks: 0,
+      observedAt: '2026-10-14T12:00:00Z',
+    },
+  ];
+  value.failures = [
+    {
+      firstAt: '2026-10-14T11:00:00Z',
+      lastAt: '2026-10-14T11:20:00Z',
+      occurrences: 3,
+      origin: 'collector',
+      operation: 'collect',
+      code: 'source-invalid',
+      detail: 'observed-in-future',
+      deviceId,
+      classId: 1,
+    },
+    {
+      firstAt: '2026-10-14T12:30:00Z',
+      lastAt: '2026-10-14T12:30:00Z',
+      occurrences: 1,
+      origin: 'device-report',
+      operation: 'heartbeat',
+      code: 'SOURCE_LOGIN_REQUIRED',
+      detail: '',
+      deviceId,
+      classId: null,
+    },
+  ];
+  const openReport = vi.fn();
+  render(
+    <FrequencyPanelV2
+      client={{ status: async () => structuredClone(value), mutate: async () => {} }}
+      onOpenReport={openReport}
+    />,
+  );
+  const unresolved = await screen.findByRole('region', { name: 'Alunos não reconhecidos' });
+  expect(within(unresolved).getByText('ALUNA NOVA INVENTADA')).toBeTruthy();
+  expect(within(unresolved).getByText(/Não está no Relatório · 2 registro/)).toBeTruthy();
+  expect(within(unresolved).getByText(/Conferir na Conciliação/)).toBeTruthy();
+  expect(
+    within(unresolved).getByRole('link', { name: 'Abrir Conciliação' }).getAttribute('href'),
+  ).toBe('#/painel-do-aluno?area=reconciliation');
+  await userEvent
+    .setup()
+    .click(within(unresolved).getByRole('button', { name: 'Atualizar Relatório' }));
+  expect(openReport).toHaveBeenCalledOnce();
+  const failures = screen.getByRole('region', { name: 'Falhas dos últimos 7 dias' });
+  expect(within(failures).getByText('Dados recusados')).toBeTruthy();
+  expect(within(failures).getByText('O relógio do computador está adiantado.')).toBeTruthy();
+  expect(within(failures).getByText(/3 vezes desde/)).toBeTruthy();
+  expect(within(failures).getByText(/COMPUTADOR INVENTADO · TURMA INVENTADA/)).toBeTruthy();
+  expect(within(failures).getByText('Smecel desconectado')).toBeTruthy();
 });

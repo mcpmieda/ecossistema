@@ -62,6 +62,22 @@ export function collectorLeaseExpiryV1(binding: CollectorGrantBindingV1, evidenc
   return Math.min(now + leaseMs, evidence.directoryValidUntil);
 }
 
+/** OIDC permissions are Microsoft Graph permissions too, so Entra returns them beside User.Read. */
+const OIDC_SCOPES = new Set(['openid', 'profile', 'email', 'offline_access']);
+/**
+ * Entra returns every scope already consented for Graph, whatever the refresh
+ * asked for. The collector delegation is User.Read plus the sign-in scopes it
+ * requested; any broader Graph permission or .default token is refused.
+ */
+export function collectorDelegationScopeV1(scope: string): boolean {
+  const scopes = scope.trim().split(/\s+/u).map((value) => value.toLowerCase());
+  const userRead = new Set(['user.read', USER_READ_SCOPE.toLowerCase()]);
+  return (
+    scopes.some((value) => userRead.has(value)) &&
+    scopes.every((value) => userRead.has(value) || OIDC_SCOPES.has(value))
+  );
+}
+
 /** Server-private result. Never return its Microsoft tokens through an HTTP handler.
  * Caller must replace/discard a returned refresh token atomically under a grant
  * version/refresh lease; Microsoft does not invalidate the previous refresh token. */
@@ -92,11 +108,7 @@ export async function readCollectorOwnDirectoryV1(input: {
       throw new CollectorDirectoryErrorV1('unavailable');
     }
     const token = refreshed.parse(await readJson(response));
-    // Response scope is checked too; do not treat a broader pre-existing consent
-    // or .default token as an acceptable collector delegation.
-    const scopes = token.scope.trim().split(/\s+/u);
-    if (scopes.length !== 1 || !['User.Read', USER_READ_SCOPE].includes(scopes[0]!))
-      throw new CollectorDirectoryErrorV1('invalid-contract');
+    if (!collectorDelegationScopeV1(token.scope)) throw new CollectorDirectoryErrorV1('invalid-contract');
     const headers = { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' };
     const meResponse = await dependencies.fetch(GRAPH_ORIGIN + '/v1.0/me?$select=id,accountEnabled,signInSessionsValidFromDateTime',
       { method: 'GET', headers, redirect: 'manual', signal });

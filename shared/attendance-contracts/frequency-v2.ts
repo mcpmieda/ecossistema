@@ -79,6 +79,19 @@ export type FrequencyStatusV2 = {
   classes: FrequencyClassV2[]; devices: FrequencyDeviceV2[];
   collections: { classId: number; observedAt: string; receivedAt: string; resolvedRecords: number; unresolvedRecords: number; conflicts: number }[];
   conflicts: FrequencyConflictV2[];
+  /** Administrator view only; empty for a collector device. */
+  unresolved: FrequencyUnresolvedV2[];
+  failures: FrequencyFailureEntryV2[];
+};
+/** Smecel rows of the latest collection that no reconciled student matches yet. */
+export type FrequencyUnresolvedV2 = {
+  classId: number; classLabel: string; name: string;
+  reason: 'not_found' | 'ambiguous'; marks: number; observedAt: string;
+};
+export type FrequencyFailureEntryV2 = {
+  firstAt: string; lastAt: string; occurrences: number;
+  origin: 'collector' | 'admin' | 'device-report'; operation: string; code: string; detail: string;
+  deviceId: string | null; classId: number | null;
 };
 export type FrequencySummaryV2 = {
   contractVersion: 2; state: 'ready'; month: string;
@@ -95,9 +108,22 @@ function compareCanonicalKeys(left: string, right: string): number {
   return 0;
 }
 export function canonicalFrequencyJsonV2(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalFrequencyJsonV2).join(',')}]`;
-  if (value !== null && typeof value === 'object') return `{${Object.keys(value).sort(compareCanonicalKeys).map(key => `${JSON.stringify(key)}:${canonicalFrequencyJsonV2((value as Record<string, unknown>)[key])}`).join(',')}}`;
+  if (Array.isArray(value)) return '[' + value.map(canonicalFrequencyJsonV2).join(',') + ']';
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const members = Object.keys(record).sort(compareCanonicalKeys)
+      .map(key => JSON.stringify(key) + ':' + canonicalFrequencyJsonV2(record[key]));
+    return '{' + members.join(',') + '}';
+  }
   return JSON.stringify(value);
+}
+/**
+ * Class identity between Smecel and the Centro: accents, case, spacing and
+ * punctuation never distinguish classes ("8D 2026 -VESPERTINO"). The Windows
+ * collector applies the same rule (NFD, drop marks, upper case, keep A-Z/0-9).
+ */
+export function frequencyClassKeyV2(label: string): string {
+  return label.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase().replace(/[^A-Z0-9]/gu, '');
 }
 export async function frequencyPayloadHashV2(value: unknown): Promise<string> {
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalFrequencyJsonV2(value))));

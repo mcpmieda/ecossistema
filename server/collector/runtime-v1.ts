@@ -23,6 +23,11 @@ async function database(connectionString:string):Promise<CollectorDatabaseV1>{
     Array.from(await sql.unsafe(text,parameters as never[])) as T[],close:async()=>{await sql.end({timeout:3});}};
 }
 
+/** Names only the failed setup step, never a value, so ACCESS_NOT_CONFIGURED is traceable. */
+function unavailable(stage:string):void {
+  console.error(JSON.stringify({message:'collector_runtime_unavailable',stage}));
+}
+
 export async function createCollectorWithdrawalStoreV1(env:RuntimeEnv,dependencies:CollectorRuntimeDependenciesV1={}){
   let db:CollectorDatabaseV1|undefined;
   try{
@@ -30,25 +35,36 @@ export async function createCollectorWithdrawalStoreV1(env:RuntimeEnv,dependenci
     const connection=z.object({connectionString:z.string().min(1)}).parse(env.COLLECTOR_DB);
     db=await (dependencies.database??database)(connection.connectionString);
     return {store:new CollectorAuthorizationStoreV1(db),close:()=>db!.close()};
-  }catch{if(db)await db.close().catch(()=>undefined);return null;}
+  }catch{
+    unavailable('withdrawal-storage');
+    if(db)await db.close().catch(()=>undefined);
+    return null;
+  }
 }
 /** Dedicated optional binding/key. No fallback to PROD_DB, SESSION_SECRET,
  * Graph app permissions, browser access tokens or broad delegated scopes. */
 export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:CollectorRuntimeDependenciesV1={}):Promise<CollectorRuntimeV1|null>{
   if(env.COLLECTOR_ENABLED!=='true' || env.OFFICIAL_ORIGIN!=='https://admin.escolaieda.com')return null;
   let db:CollectorDatabaseV1|undefined;
+  let stage='database-binding';
   try{
     const connection=z.object({connectionString:z.string().min(1)}).parse(env.COLLECTOR_DB);
+    stage='refresh-key';
     const encoded=z.string().regex(/^[A-Za-z0-9_-]{43}$/u).parse(env.COLLECTOR_REFRESH_KEY);
     if(encoded===env.SESSION_SECRET)throw new Error('dedicated-key-required');
-    const key=decodeBase64Url(encoded);if(key.byteLength!==32)throw new Error('dedicated-key-required');
+    const key=decodeBase64Url(encoded);
+    if(key.byteLength!==32)throw new Error('dedicated-key-required');
+    stage='web-credential';
     const credential=dependencies.assertion?null:webCredentials(env)[0]!;
+    stage='database-connection';
     db=await (dependencies.database??database)(connection.connectionString);
+    stage='database-privileges';
     const ready=await db.query<{ready:boolean}>(`SELECT count(*)=4 AND bool_and(has_schema_privilege(current_user,n.oid,'USAGE')
       AND has_table_privilege(current_user,c.oid,'SELECT') AND has_table_privilege(current_user,c.oid,'INSERT')
       AND has_table_privilege(current_user,c.oid,'UPDATE')) AS ready FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='collector_auth' AND c.relkind='r' AND c.relname IN ('pairings','challenges','devices','oauth_grants')`,[]);
     if(ready[0]?.ready!==true)throw new Error('storage-unavailable');
+    stage='pairing-cleanup';
     const pairings=new CollectorPairingStoreV1(db),cipher=await CollectorRefreshCipherV1.fromDedicatedKey(key);
     await pairings.retireExpiredUnclaimed();
     const directory={fetch:dependencies.fetch??fetch,now:dependencies.now??Date.now,clientAssertion:dependencies.assertion??(()=>createClientAssertion({
@@ -58,5 +74,9 @@ export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:Colle
     return {access,pairings,cipher,oauth:{...directory,verifyIdToken:dependencies.verify??verifyIdToken,
       consumeConfirmedTransaction:t=>pairings.consumeConfirmedTransaction(t),registerConfirmedPairing:r=>pairings.registerConfirmedPairing(r)},
       close:()=>db!.close()};
-  }catch{if(db)await db.close().catch(()=>undefined);return null;}
+  }catch{
+    unavailable(stage);
+    if(db)await db.close().catch(()=>undefined);
+    return null;
+  }
 }

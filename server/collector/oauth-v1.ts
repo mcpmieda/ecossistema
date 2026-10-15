@@ -28,9 +28,17 @@ async function tokenBody(response:Response):Promise<unknown> {
   if(!response.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) throw new CollectorOAuthErrorV1();
   const reader=response.body?.getReader();if(!reader) throw new CollectorOAuthErrorV1();
   let size=0;const chunks:Uint8Array[]=[];
-  try {while(true){const item=await reader.read();if(item.done)break;size+=item.value.byteLength;
-    if(size>64_000) throw new CollectorOAuthErrorV1();chunks.push(item.value);}}
-  finally {await reader.cancel().catch(()=>undefined);}
+  try {
+    while(true){
+      const item=await reader.read();
+      if(item.done)break;
+      size+=item.value.byteLength;
+      if(size>64_000) throw new CollectorOAuthErrorV1();
+      chunks.push(item.value);
+    }
+  } finally {
+    await reader.cancel().catch(()=>undefined);
+  }
   const bytes=new Uint8Array(size);let offset=0;
   for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));

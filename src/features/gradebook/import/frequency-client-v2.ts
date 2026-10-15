@@ -85,6 +85,37 @@ const status = z
         })
         .strict(),
     ),
+    unresolved: z
+      .array(
+        z
+          .object({
+            classId: z.number().int().positive(),
+            classLabel: z.string().min(1).max(300),
+            name: z.string().min(1).max(300),
+            reason: z.enum(['not_found', 'ambiguous']),
+            marks: z.number().int().nonnegative(),
+            observedAt: timestamp,
+          })
+          .strict(),
+      )
+      .max(4096),
+    failures: z
+      .array(
+        z
+          .object({
+            firstAt: timestamp,
+            lastAt: timestamp,
+            occurrences: z.number().int().positive(),
+            origin: z.enum(['collector', 'admin', 'device-report']),
+            operation: z.string().min(1).max(40),
+            code: z.string().min(1).max(60),
+            detail: z.string().max(200),
+            deviceId: id.nullable(),
+            classId: z.number().int().positive().nullable(),
+          })
+          .strict(),
+      )
+      .max(100),
   })
   .strict();
 
@@ -123,19 +154,21 @@ export function createFrequencyAdminClientV2(
     },
     async mutate(input, signal) {
       const body = await send(input, signal);
-      const common = {
-        contractVersion: z.literal(2),
-        state: z.literal('committed'),
-        operation: z.literal(input.operation),
-        requestId: z.literal(input.requestId),
-      };
-      const schema =
-        input.operation === 'save-settings' || input.operation === 'set-paused'
-          ? z.object({ ...common, settingsRevision: revision }).strict()
-          : input.operation === 'resolve-conflict'
-            ? z.object({ ...common, conflictId: z.literal(input.conflictId), revision }).strict()
-            : z.object({ ...common, deviceId: z.literal(input.deviceId) }).strict();
-      if (!schema.safeParse(body).success) throw new FrequencyClientErrorV2('unavailable');
+      if (!committedSchema(input).safeParse(body).success)
+        throw new FrequencyClientErrorV2('unavailable');
     },
   };
+}
+function committedSchema(input: FrequencyAdminMutationV2) {
+  const common = {
+    contractVersion: z.literal(2),
+    state: z.literal('committed'),
+    operation: z.literal(input.operation),
+    requestId: z.literal(input.requestId),
+  };
+  if (input.operation === 'save-settings' || input.operation === 'set-paused')
+    return z.object({ ...common, settingsRevision: revision }).strict();
+  if (input.operation === 'resolve-conflict')
+    return z.object({ ...common, conflictId: z.literal(input.conflictId), revision }).strict();
+  return z.object({ ...common, deviceId: z.literal(input.deviceId) }).strict();
 }

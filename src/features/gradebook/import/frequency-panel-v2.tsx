@@ -8,11 +8,12 @@ import {
   type FrequencyScheduleV2,
   type FrequencyDeviceV2,
   type FrequencyConflictV2,
+  type FrequencyFailureEntryV2,
+  type FrequencyStatusV2,
+  type FrequencyUnresolvedV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
-import {
-  SHIFT_LABELS_V1,
-  type ShiftV1,
-} from '../../../../shared/student-portal-contracts/core-v1';
+import { SHIFT_LABELS_V1, type ShiftV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import { studentPortalHref } from '../../../platform/student-portal-module';
 import {
   createFrequencyAdminClientV2,
   type FrequencyAdminClientV2,
@@ -20,6 +21,9 @@ import {
 } from './frequency-client-v2';
 import { useFrequencyReadV2 } from '../../student-portal/frequency/use-frequency-read-v2';
 import './frequency-panel-v2.css';
+
+type Mutate = (input: FrequencyAdminCommandV2) => Promise<boolean>;
+type Rule = FrequencyScheduleV2['rules'][number];
 
 const defaultClient = createFrequencyAdminClientV2();
 const weekdays = [
@@ -55,11 +59,66 @@ const errors: Record<string, string> = {
   'source-invalid': 'A fonte precisa de conferência.',
   'identity-review': 'Há alunos aguardando conciliação.',
 };
+const failureCodes: Record<string, string> = {
+  ...errors,
+  unavailable: 'Serviço indisponível',
+  'source-invalid': 'Dados recusados',
+  'identity-review': 'Turma ou aluno sem conciliação',
+  'revision-conflict': 'Dados alterados por outra operação',
+  'lease-fenced': 'Coleta substituída',
+  'not-authorized': 'Acesso negado',
+  'invalid-request': 'Pedido inválido',
+  SOURCE_LOGIN_REQUIRED: 'Smecel desconectado',
+  SOURCE_CLASS_UNAVAILABLE: 'Turma ausente na lista do Smecel',
+  SOURCE_CLASS_AMBIGUOUS: 'Turma sem ligação no Centro',
+  CLASS_RECONCILIATION_REQUIRED: 'Turma sem ligação no Centro',
+  CENTER_CLASSES_REQUIRED: 'Relação e Relatório não importados',
+  NO_SELECTED_CLASSES: 'Nenhuma turma selecionada no computador',
+  PROTECTED_STORAGE_UNAVAILABLE: 'Proteção de dados do Windows indisponível',
+  PROTECTED_STORAGE_LIMIT: 'Fila de envio cheia',
+  LEASE_FENCED: 'Coleta substituída',
+  REVISION_CONFLICT: 'Lote pendente desatualizado',
+  SOURCE_INVALID: 'Diário recusado',
+  IDENTITY_REVIEW: 'Turma ou aluno sem conciliação',
+  UNAVAILABLE: 'Sem conexão com o Centro',
+};
+const failureDetails: Record<string, string> = {
+  'class-not-linked': 'A turma do Smecel não está ligada a uma turma da Relação.',
+  'class-shift-ambiguous': 'A turma aparece em mais de um turno.',
+  'record-class-mismatch': 'Há aluno de outra turma no diário.',
+  'observed-in-future': 'O relógio do computador está adiantado.',
+  'older-than-last-collection': 'O diário é mais antigo que a última coleta.',
+  'mark-outside-enrollment': 'Há falta fora do período de matrícula do aluno.',
+  'mark-after-capture': 'Há falta em data posterior à leitura.',
+  'coverage-after-capture': 'Há registro em data posterior à leitura.',
+  'source-version-reused': 'O mesmo diário chegou com conteúdo diferente.',
+  'request-retired': 'Pedido de um ano já reiniciado.',
+};
+const origins: Record<FrequencyFailureEntryV2['origin'], string> = {
+  collector: 'Coletor',
+  admin: 'Centro',
+  'device-report': 'Computador',
+};
+const operations: Record<string, string> = {
+  collect: 'Envio da frequência',
+  heartbeat: 'Estado do computador',
+  lease: 'Início da coleta',
+  release: 'Fim da coleta',
+  receipt: 'Recibo',
+  'save-settings': 'Agenda',
+  'set-paused': 'Pausa',
+  'rename-device': 'Nome do computador',
+  'revoke-device': 'Revogação',
+  'resolve-conflict': 'Conflito',
+};
 const time = (value: string | null) =>
   value ? new Date(value).toLocaleString('pt-BR') : 'Sem comunicação';
-const markLabel = (mark: 'X' | 'J' | null) =>
-  mark === null ? 'Remoção' : mark === 'X' ? 'Falta (X)' : 'Justificada (J)';
+const date = (value: string) => value.split('-').reverse().join('/');
 const shiftLabel = (value: string) => SHIFT_LABELS_V1[value.toUpperCase() as ShiftV1] ?? value;
+function markLabel(mark: 'X' | 'J' | null): string {
+  if (mark === null) return 'Remoção';
+  return mark === 'X' ? 'Falta (X)' : 'Justificada (J)';
+}
 function emptySchedule(): FrequencyScheduleV2 {
   return {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -74,6 +133,15 @@ function emptySchedule(): FrequencyScheduleV2 {
     ),
   };
 }
+function chipLabel(device: FrequencyDeviceV2, leader: boolean): string {
+  if (leader && device.state === 'ready') return 'Líder';
+  if (leader && device.state === 'collecting') return 'Coletando · Líder';
+  return labels[device.state];
+}
+function chipColor(device: FrequencyDeviceV2, leader: boolean) {
+  if (device.state === 'revoked' || device.state === 'error') return 'danger';
+  return leader ? 'accent' : 'default';
+}
 
 function FrequencyDeviceCardV2({
   device,
@@ -81,15 +149,13 @@ function FrequencyDeviceCardV2({
   classLabel,
   busy,
   mutate,
-}: {
+}: Readonly<{
   device: FrequencyDeviceV2;
   leader: boolean;
   classLabel: string;
   busy: boolean;
-  mutate(
-    input: Extract<FrequencyAdminCommandV2, { operation: 'rename-device' | 'revoke-device' }>,
-  ): Promise<boolean>;
-}) {
+  mutate: Mutate;
+}>) {
   const [rename, setRename] = useState(false);
   const [label, setLabel] = useState(device.label);
   const [confirm, setConfirm] = useState(false);
@@ -98,13 +164,8 @@ function FrequencyDeviceCardV2({
     <Card>
       <Card.Header>
         <Card.Title>{device.label}</Card.Title>
-        <Chip
-          size="sm"
-          variant="soft"
-          color={revoked || device.state === 'error' ? 'danger' : leader ? 'accent' : 'default'}
-        >
-          {leader && device.state === 'ready' ? 'Líder' : labels[device.state]}
-          {leader && device.state === 'collecting' ? ' · Líder' : ''}
+        <Chip size="sm" variant="soft" color={chipColor(device, leader)}>
+          {chipLabel(device, leader)}
         </Chip>
       </Card.Header>
       <Card.Content>
@@ -134,7 +195,7 @@ function FrequencyDeviceCardV2({
             }}
           >
             <label>
-              Nome do computador
+              <span>Nome do computador</span>
               <input
                 value={label}
                 maxLength={80}
@@ -175,11 +236,8 @@ function FrequencyDeviceCardV2({
           </div>
         )}
         {confirm ? (
-          <div
-            role="group"
-            aria-label={'Confirmar revogação de ' + device.label}
-            className="frequency-confirm"
-          >
+          <fieldset className="frequency-confirm">
+            <legend>Confirmar revogação de {device.label}</legend>
             <p>
               Revogar {device.label}? Este computador deixará de coletar. Para voltar, será
               necessário autorizá-lo novamente.
@@ -202,7 +260,7 @@ function FrequencyDeviceCardV2({
                 Cancelar revogação
               </Button>
             </div>
-          </div>
+          </fieldset>
         ) : null}
       </Card.Content>
     </Card>
@@ -213,11 +271,11 @@ function FrequencyConflictCardV2({
   conflict,
   busy,
   resolve,
-}: {
+}: Readonly<{
   conflict: FrequencyConflictV2;
   busy: boolean;
-  resolve(mark: 'X' | 'J' | null, reason: string): Promise<boolean>;
-}) {
+  resolve: (mark: 'X' | 'J' | null, reason: string) => Promise<boolean>;
+}>) {
   const [review, setReview] = useState(false);
   const [choice, setChoice] = useState('');
   const [reason, setReason] = useState('');
@@ -228,8 +286,8 @@ function FrequencyConflictCardV2({
       </Card.Header>
       <Card.Content>
         <p>
-          {conflict.classLabel} · {conflict.date.split('-').reverse().join('/')} · Posição{' '}
-          {conflict.slot} · {shiftLabel(conflict.shift)}
+          {conflict.classLabel} · {date(conflict.date)} · Posição {conflict.slot} ·{' '}
+          {shiftLabel(conflict.shift)}
         </p>
         <p>Valores encontrados: {conflict.marks.map(markLabel).join(' / ')}</p>
         {review ? (
@@ -237,19 +295,17 @@ function FrequencyConflictCardV2({
             onSubmit={(event) => {
               event.preventDefault();
               if (!choice || !reason.trim()) return;
-              void resolve(choice === 'remove' ? null : (choice as 'X' | 'J'), reason).then(
-                (ok) => {
-                  if (ok) {
-                    setReview(false);
-                    setReason('');
-                    setChoice('');
-                  }
-                },
-              );
+              const mark = choice === 'remove' ? null : (choice as 'X' | 'J');
+              void resolve(mark, reason).then((ok) => {
+                if (!ok) return;
+                setReview(false);
+                setReason('');
+                setChoice('');
+              });
             }}
           >
             <label>
-              Decisão
+              <span>Decisão</span>
               <select
                 aria-label="Decisão"
                 value={choice}
@@ -265,7 +321,7 @@ function FrequencyConflictCardV2({
               </select>
             </label>
             <label>
-              Motivo da decisão
+              <span>Motivo da decisão</span>
               <textarea
                 value={reason}
                 maxLength={500}
@@ -293,39 +349,388 @@ function FrequencyConflictCardV2({
   );
 }
 
-export function FrequencyPanelV2({
-  active = true,
-  client = defaultClient,
-}: {
-  active?: boolean;
-  client?: FrequencyAdminClientV2;
-}) {
-  const heading = useId();
-  const read = useCallback((signal: AbortSignal) => client.status(signal), [client]);
-  const { data, pending, error, refresh, perform } = useFrequencyReadV2(read, active);
+function ScheduleRuleV2({
+  rule,
+  times,
+  onRule,
+  onTimes,
+}: Readonly<{
+  rule: Rule;
+  times: string;
+  onRule: (value: Partial<Rule>) => void;
+  onTimes: (value: string) => void;
+}>) {
+  return (
+    <fieldset>
+      <legend>
+        {weekdays[rule.weekday]} · {shiftLabel(rule.shift)}
+      </legend>
+      <label className="frequency-checkbox">
+        <input
+          type="checkbox"
+          checked={rule.enabled}
+          onChange={(event) => onRule({ enabled: event.target.checked })}
+        />
+        <span>Coletar neste turno</span>
+      </label>
+      <label>
+        <span>Horários de coleta</span>
+        <input
+          value={times}
+          placeholder="07:30, 11:30"
+          disabled={!rule.enabled}
+          onChange={(event) => onTimes(event.target.value)}
+        />
+      </label>
+      <label>
+        <span>Rechecagem</span>
+        <input
+          type="time"
+          value={rule.recheck ?? ''}
+          disabled={!rule.enabled}
+          onChange={(event) => onRule({ recheck: event.target.value || null })}
+        />
+      </label>
+    </fieldset>
+  );
+}
+
+/** The draft lives in the panel, so refreshes, errors and tab changes never discard it. */
+function useScheduleDraftV2(data: FrequencyStatusV2 | null) {
   const [draft, setDraft] = useState<FrequencyScheduleV2>(emptySchedule);
   const [timesDraft, setTimesDraft] = useState<Record<number, string>>({});
   const [dirty, setDirty] = useState(false);
   const [draftRevision, setDraftRevision] = useState<number | null>(null);
+  useEffect(() => {
+    if (!data || dirty) return;
+    const schedule = data.settings.schedule ?? emptySchedule();
+    setDraft(schedule);
+    setTimesDraft(
+      Object.fromEntries(schedule.rules.map((rule, index) => [index, rule.times.join(', ')])),
+    );
+    setDraftRevision(data.settings.revision);
+  }, [data, dirty]);
+  return { draft, setDraft, timesDraft, setTimesDraft, dirty, setDirty, draftRevision };
+}
+type ScheduleDraftV2 = ReturnType<typeof useScheduleDraftV2>;
+
+function ScheduleEditorV2({
+  data,
+  pending,
+  mutate,
+  onInvalid,
+  state,
+}: Readonly<{
+  data: FrequencyStatusV2;
+  pending: boolean;
+  mutate: Mutate;
+  onInvalid: (message: string) => void;
+  state: ScheduleDraftV2;
+}>) {
+  const { draft, setDraft, timesDraft, setTimesDraft, dirty, setDirty, draftRevision } = state;
+  const changeRule = (index: number, value: Partial<Rule>) => {
+    setDirty(true);
+    setDraft((current) => ({
+      ...current,
+      rules: current.rules.map((rule, i) => (i === index ? { ...rule, ...value } : rule)),
+    }));
+  };
+  const stale = dirty && draftRevision !== data.settings.revision;
+  const save = () => {
+    const parsed = frequencyScheduleV2.safeParse({
+      ...draft,
+      rules: draft.rules.map((rule, index) => ({
+        ...rule,
+        times: (timesDraft[index] ?? rule.times.join(', '))
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      })),
+    });
+    if (!parsed.success) {
+      onInvalid('Confira o fuso e os horários da agenda.');
+      return;
+    }
+    if (draftRevision === null) return;
+    void mutate({
+      operation: 'save-settings',
+      expectedRevision: draftRevision,
+      schedule: parsed.data,
+    }).then((ok) => {
+      if (ok) setDirty(false);
+    });
+  };
+  return (
+    <Card>
+      <Card.Header>
+        <Card.Title>Agenda compartilhada</Card.Title>
+      </Card.Header>
+      <Card.Content>
+        {stale ? (
+          <p role="alert">
+            A agenda mudou durante sua edição. Seu rascunho foi preservado. Confira a agenda atual
+            antes de continuar.
+          </p>
+        ) : null}
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            save();
+          }}
+        >
+          <fieldset disabled={pending || (!dirty && draftRevision !== data.settings.revision)}>
+            <label>
+              <span>Fuso horário</span>
+              <input
+                value={draft.timezone}
+                maxLength={80}
+                placeholder="America/Bahia"
+                onChange={(event) => {
+                  setDirty(true);
+                  setDraft((current) => ({ ...current, timezone: event.target.value }));
+                }}
+              />
+            </label>
+            <div className="frequency-schedule">
+              {draft.rules.map((rule, index) => (
+                <ScheduleRuleV2
+                  key={`${rule.weekday}:${rule.shift}`}
+                  rule={rule}
+                  times={timesDraft[index] ?? rule.times.join(', ')}
+                  onRule={(value) => changeRule(index, value)}
+                  onTimes={(value) => {
+                    setDirty(true);
+                    setTimesDraft((current) => ({ ...current, [index]: value }));
+                  }}
+                />
+              ))}
+            </div>
+            <div className="frequency-actions">
+              <Button type="submit" isDisabled={pending || !dirty || stale}>
+                Salvar agenda
+              </Button>
+              <Button
+                variant="secondary"
+                isDisabled={pending || !dirty}
+                onPress={() => setDirty(false)}
+              >
+                Usar agenda atual
+              </Button>
+            </div>
+          </fieldset>
+        </form>
+      </Card.Content>
+    </Card>
+  );
+}
+
+function ClassCollectionsV2({ data }: Readonly<{ data: FrequencyStatusV2 }>) {
+  return (
+    <section aria-label="Últimas coletas por turma">
+      <h4>Últimas coletas por turma</h4>
+      {data.classes.length === 0 ? (
+        <p>Nenhuma turma disponível. Importe a Relação e o Relatório e confira as turmas.</p>
+      ) : (
+        <div className="frequency-cards">
+          {data.classes.map((item) => {
+            const collection = data.collections
+              .filter((c) => c.classId === item.classId)
+              .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))[0];
+            return (
+              <Card key={`${item.classId}:${item.sourceClassLabel}`}>
+                <Card.Header>
+                  <Card.Title>{item.sourceClassLabel}</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <p>{shiftLabel(item.shift)}</p>
+                  {collection ? (
+                    <>
+                      <p>Coletado em: {time(collection.observedAt)}</p>
+                      <p>Sincronizado em: {time(collection.receivedAt)}</p>
+                      <p>{collection.resolvedRecords} aluno(s) conciliado(s)</p>
+                      <p>
+                        {collection.unresolvedRecords} aluno(s) não reconhecido(s) ·{' '}
+                        {collection.conflicts} conflito(s)
+                      </p>
+                    </>
+                  ) : (
+                    <p>Sem coleta disponível.</p>
+                  )}
+                </Card.Content>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function UnresolvedStudentsV2({
+  unresolved,
+  onOpenReport,
+}: Readonly<{ unresolved: FrequencyUnresolvedV2[]; onOpenReport?: () => void }>) {
+  if (unresolved.length === 0) return null;
+  const notFound = unresolved.some((u) => u.reason === 'not_found');
+  const ambiguous = unresolved.some((u) => u.reason === 'ambiguous');
+  return (
+    <section aria-label="Alunos não reconhecidos">
+      <h4>Alunos não reconhecidos</h4>
+      <p>As faltas destes alunos só chegam ao Portal depois da conciliação.</p>
+      <div className="frequency-actions">
+        {notFound && onOpenReport ? (
+          <Button size="sm" variant="secondary" onPress={onOpenReport}>
+            Atualizar Relatório
+          </Button>
+        ) : null}
+        {ambiguous ? (
+          <a className="frequency-link" href={studentPortalHref('reconciliation')}>
+            Abrir Conciliação
+          </a>
+        ) : null}
+      </div>
+      <ul className="frequency-list">
+        {unresolved.map((item) => (
+          <li key={`${item.classId}:${item.name}:${item.reason}`}>
+            <strong>{item.name}</strong>
+            <span>
+              {item.classLabel} ·{' '}
+              {item.reason === 'not_found' ? 'Não está no Relatório' : 'Conferir na Conciliação'} ·{' '}
+              {item.marks} registro(s) aguardando
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function FailureTrailV2({ data }: Readonly<{ data: FrequencyStatusV2 }>) {
+  const deviceName = (id: string | null) =>
+    data.devices.find((d) => d.deviceId === id)?.label ?? null;
+  const className = (id: number | null) =>
+    data.classes.find((c) => c.classId === id)?.sourceClassLabel ?? null;
+  return (
+    <section aria-label="Falhas dos últimos 7 dias">
+      <h4>Falhas dos últimos 7 dias</h4>
+      {data.failures.length === 0 ? (
+        <p>Nenhuma falha registrada.</p>
+      ) : (
+        <ul className="frequency-list">
+          {data.failures.map((failure) => {
+            const where = [
+              origins[failure.origin],
+              operations[failure.operation] ?? failure.operation,
+              deviceName(failure.deviceId),
+              className(failure.classId),
+            ].filter(Boolean);
+            const repeated =
+              failure.occurrences > 1
+                ? ` · ${failure.occurrences} vezes desde ${time(failure.firstAt)}`
+                : '';
+            return (
+              <li
+                key={`${failure.lastAt}:${failure.code}:${failure.detail}:${failure.deviceId ?? ''}`}
+              >
+                <strong>{failureCodes[failure.code] ?? failure.code}</strong>
+                <span>{failureDetails[failure.detail] ?? failure.detail}</span>
+                <span>
+                  {time(failure.lastAt)} · {where.join(' · ')}
+                  {repeated}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+type SectionProps = Readonly<{ data: FrequencyStatusV2; pending: boolean; mutate: Mutate }>;
+function isLeader(data: FrequencyStatusV2, device: FrequencyDeviceV2): boolean {
+  return (
+    data.lease?.deviceId === device.deviceId &&
+    Date.parse(data.lease.expiresAt) > Date.parse(data.serverTime)
+  );
+}
+function DevicesSectionV2({ data, pending, mutate }: SectionProps) {
+  const classLabel = (classId: number | null) =>
+    data.classes.find((item) => item.classId === classId)?.sourceClassLabel ??
+    'Sem turma em coleta';
+  return (
+    <section aria-label="Computadores autorizados">
+      <h4>Computadores autorizados</h4>
+      {data.devices.length === 0 ? (
+        <p>Nenhum computador registrado.</p>
+      ) : (
+        <div className="frequency-cards">
+          {data.devices.map((device) => (
+            <FrequencyDeviceCardV2
+              key={device.deviceId}
+              device={device}
+              leader={isLeader(data, device)}
+              busy={pending}
+              classLabel={classLabel(device.classId)}
+              mutate={mutate}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+function ConflictsSectionV2({ data, pending, mutate }: SectionProps) {
+  return (
+    <section aria-label="Conflitos de frequência">
+      <h4>Conflitos de frequência</h4>
+      {data.conflicts.length === 0 ? (
+        <p>Nenhum conflito pendente.</p>
+      ) : (
+        <div className="frequency-cards">
+          {data.conflicts.map((conflict) => (
+            <FrequencyConflictCardV2
+              key={`${conflict.id}:${conflict.revision}`}
+              conflict={conflict}
+              busy={pending}
+              resolve={(mark, reason) =>
+                mutate({
+                  operation: 'resolve-conflict',
+                  conflictId: conflict.id,
+                  expectedRevision: conflict.revision,
+                  mark,
+                  reason,
+                })
+              }
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function FrequencyPanelV2({
+  active = true,
+  client = defaultClient,
+  onOpenReport,
+}: Readonly<{
+  active?: boolean;
+  client?: FrequencyAdminClientV2;
+  onOpenReport?: () => void;
+}>) {
+  const heading = useId();
+  const read = useCallback((signal: AbortSignal) => client.status(signal), [client]);
+  const { data, pending, error, refresh, perform } = useFrequencyReadV2(read, active);
   const [message, setMessage] = useState('');
   const [localError, setLocalError] = useState('');
+  const schedule = useScheduleDraftV2(data);
   useEffect(() => {
-    if (data && !dirty) {
-      const schedule = data.settings.schedule ?? emptySchedule();
-      setDraft(schedule);
-      setTimesDraft(
-        Object.fromEntries(schedule.rules.map((rule, index) => [index, rule.times.join(', ')])),
-      );
-      setDraftRevision(data.settings.revision);
-    }
-  }, [data, dirty]);
-  useEffect(() => {
-    if (!active) {
-      setMessage('');
-      setLocalError('');
-    }
+    if (active) return;
+    setMessage('');
+    setLocalError('');
   }, [active]);
-  const mutate = async (input: FrequencyAdminCommandV2) => {
+  const mutate: Mutate = async (input) => {
     setMessage('');
     setLocalError('');
     const result = await perform((signal) =>
@@ -334,26 +739,13 @@ export function FrequencyPanelV2({
     if (result) setMessage('Alteração confirmada.');
     return result;
   };
-  const changeRule = (index: number, value: Partial<FrequencyScheduleV2['rules'][number]>) => {
-    setDirty(true);
-    setDraft((current) => ({
-      ...current,
-      rules: current.rules.map((rule, i) => (i === index ? { ...rule, ...value } : rule)),
-    }));
-  };
-  const isStale = data && dirty && draftRevision !== data.settings.revision;
+  const alert = localError || (error ? (errors[error] ?? errors.unavailable) : '');
   return (
     <section className="frequency-admin" aria-labelledby={heading}>
       <div className="frequency-heading">
         <div>
           <h3 id={heading}>Frequência</h3>
-          <p>
-            {data
-              ? data.settings.paused
-                ? 'Coleta escolar pausada'
-                : 'Coleta escolar liberada'
-              : 'Sem status disponível'}
-          </p>
+          <p>{schoolState(data)}</p>
         </div>
         <div className="frequency-actions">
           <Button
@@ -382,233 +774,44 @@ export function FrequencyPanelV2({
           ) : null}
         </div>
       </div>
-      {error || localError ? (
+      {alert ? (
         <Alert status="warning" role="alert">
           <Alert.Content>
-            <Alert.Title>{localError || errors[error!] || errors.unavailable}</Alert.Title>
+            <Alert.Title>{alert}</Alert.Title>
           </Alert.Content>
         </Alert>
       ) : null}
-      {message ? <p role="status">{message}</p> : null}
-      {!data ? (
+      {message ? <output>{message}</output> : null}
+      {data ? (
+        <>
+          <DevicesSectionV2 data={data} pending={pending} mutate={mutate} />
+          <ScheduleEditorV2
+            data={data}
+            pending={pending}
+            mutate={mutate}
+            onInvalid={setLocalError}
+            state={schedule}
+          />
+          <UnresolvedStudentsV2 unresolved={data.unresolved} onOpenReport={onOpenReport} />
+          <ClassCollectionsV2 data={data} />
+          <ConflictsSectionV2 data={data} pending={pending} mutate={mutate} />
+          <FailureTrailV2 data={data} />
+        </>
+      ) : (
         <Card>
           <Card.Content>
-            <p role="status">
+            <output>
               {pending
                 ? 'Carregando frequência…'
                 : 'Computadores, coletas e conflitos indisponíveis.'}
-            </p>
+            </output>
           </Card.Content>
         </Card>
-      ) : (
-        <>
-          <section aria-label="Computadores autorizados">
-            <h4>Computadores autorizados</h4>
-            {data.devices.length === 0 ? (
-              <p>Nenhum computador registrado.</p>
-            ) : (
-              <div className="frequency-cards">
-                {data.devices.map((device) => (
-                  <FrequencyDeviceCardV2
-                    key={device.deviceId}
-                    device={device}
-                    leader={
-                      data.lease?.deviceId === device.deviceId &&
-                      Date.parse(data.lease.expiresAt) > Date.parse(data.serverTime)
-                    }
-                    busy={pending}
-                    classLabel={
-                      data.classes.find((item) => item.classId === device.classId)
-                        ?.sourceClassLabel ?? 'Sem turma em coleta'
-                    }
-                    mutate={mutate}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-          <Card>
-            <Card.Header>
-              <Card.Title>Agenda compartilhada</Card.Title>
-            </Card.Header>
-            <Card.Content>
-              {isStale ? (
-                <p role="alert">
-                  A agenda mudou durante sua edição. Seu rascunho foi preservado. Confira a agenda
-                  atual antes de continuar.
-                </p>
-              ) : null}
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const parsed = frequencyScheduleV2.safeParse({
-                    ...draft,
-                    rules: draft.rules.map((rule, index) => ({
-                      ...rule,
-                      times: (timesDraft[index] ?? rule.times.join(', '))
-                        .split(',')
-                        .map((value) => value.trim())
-                        .filter(Boolean),
-                    })),
-                  });
-                  if (!parsed.success) {
-                    setLocalError('Confira o fuso e os horários da agenda.');
-                    return;
-                  }
-                  if (draftRevision === null) return;
-                  void mutate({
-                    operation: 'save-settings',
-                    expectedRevision: draftRevision,
-                    schedule: parsed.data,
-                  }).then((ok) => {
-                    if (ok) setDirty(false);
-                  });
-                }}
-              >
-                <fieldset
-                  disabled={pending || (!dirty && draftRevision !== data.settings.revision)}
-                >
-                  <label>
-                    Fuso horário
-                    <input
-                      value={draft.timezone}
-                      maxLength={80}
-                      placeholder="America/Sao_Paulo"
-                      onChange={(event) => {
-                        setDirty(true);
-                        setDraft((current) => ({ ...current, timezone: event.target.value }));
-                      }}
-                    />
-                  </label>
-                  <div className="frequency-schedule">
-                    {draft.rules.map((rule, index) => (
-                      <fieldset key={`${rule.weekday}:${rule.shift}`}>
-                        <legend>
-                          {weekdays[rule.weekday]} · {shiftLabel(rule.shift)}
-                        </legend>
-                        <label className="frequency-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={rule.enabled}
-                            onChange={(event) =>
-                              changeRule(index, { enabled: event.target.checked })
-                            }
-                          />
-                          Coletar neste turno
-                        </label>
-                        <label>
-                          Horários de coleta
-                          <input
-                            value={timesDraft[index] ?? rule.times.join(', ')}
-                            placeholder="07:30, 11:30"
-                            disabled={!rule.enabled}
-                            onChange={(event) => {
-                              setDirty(true);
-                              setTimesDraft((current) => ({
-                                ...current,
-                                [index]: event.target.value,
-                              }));
-                            }}
-                          />
-                        </label>
-                        <label>
-                          Rechecagem
-                          <input
-                            type="time"
-                            value={rule.recheck ?? ''}
-                            disabled={!rule.enabled}
-                            onChange={(event) =>
-                              changeRule(index, { recheck: event.target.value || null })
-                            }
-                          />
-                        </label>
-                      </fieldset>
-                    ))}
-                  </div>
-                  <div className="frequency-actions">
-                    <Button type="submit" isDisabled={pending || !dirty || Boolean(isStale)}>
-                      Salvar agenda
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      isDisabled={pending || !dirty}
-                      onPress={() => {
-                        setDraft(data.settings.schedule ?? emptySchedule());
-                        setDraftRevision(data.settings.revision);
-                        setDirty(false);
-                      }}
-                    >
-                      Usar agenda atual
-                    </Button>
-                  </div>
-                </fieldset>
-              </form>
-            </Card.Content>
-          </Card>
-          <section aria-label="Últimas coletas por turma">
-            <h4>Últimas coletas por turma</h4>
-            {data.classes.length === 0 ? (
-              <p>Nenhuma turma disponível.</p>
-            ) : (
-              <div className="frequency-cards">
-                {data.classes.map((item) => {
-                  const collection = data.collections
-                    .filter((c) => c.classId === item.classId)
-                    .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))[0];
-                  return (
-                    <Card key={item.classId}>
-                      <Card.Header>
-                        <Card.Title>{item.sourceClassLabel}</Card.Title>
-                      </Card.Header>
-                      <Card.Content>
-                        <p>{shiftLabel(item.shift)}</p>
-                        {collection ? (
-                          <>
-                            <p>Coletado em: {time(collection.observedAt)}</p>
-                            <p>Sincronizado em: {time(collection.receivedAt)}</p>
-                            <p>{collection.resolvedRecords} aluno(s) conciliado(s)</p>
-                            <p>
-                              {collection.unresolvedRecords} aluno(s) aguardando conciliação ·{' '}
-                              {collection.conflicts} conflito(s)
-                            </p>
-                          </>
-                        ) : (
-                          <p>Sem coleta disponível.</p>
-                        )}
-                      </Card.Content>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-          <section aria-label="Conflitos de frequência">
-            <h4>Conflitos de frequência</h4>
-            {data.conflicts.length === 0 ? (
-              <p>Nenhum conflito pendente.</p>
-            ) : (
-              <div className="frequency-cards">
-                {data.conflicts.map((conflict) => (
-                  <FrequencyConflictCardV2
-                    key={`${conflict.id}:${conflict.revision}`}
-                    conflict={conflict}
-                    busy={pending}
-                    resolve={(mark, reason) =>
-                      mutate({
-                        operation: 'resolve-conflict',
-                        conflictId: conflict.id,
-                        expectedRevision: conflict.revision,
-                        mark,
-                        reason,
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </>
       )}
     </section>
   );
+}
+function schoolState(data: FrequencyStatusV2 | null): string {
+  if (!data) return 'Sem status disponível';
+  return data.settings.paused ? 'Coleta escolar pausada' : 'Coleta escolar liberada';
 }

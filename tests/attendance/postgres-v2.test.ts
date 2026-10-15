@@ -22,6 +22,7 @@ import {
   frequencySyntheticSetupSqlV2,
   FREQUENCY_SYNTHETIC_SEED_SQL_V2,
 } from './synthetic-fixture-v2';
+import { recordFrequencyFailureV2 } from '../../server/attendance/failure-log-v2';
 const uid = '10000000-0000-4000-8000-000000000001';
 const admin: FrequencyActorV2 = {
   actorId: '20000000-0000-4000-8000-000000000001',
@@ -330,6 +331,73 @@ describe('frequency V2 private PostgreSQL service', () => {
       actor,
     )) as FrequencyStatusV2;
     expect(leader.devices.find((d) => d.deviceId === actor.deviceId)?.state).toBe('collecting');
+  });
+  it('a Smecel label spaced differently still matches the Centro class and lists unknown students', async () => {
+    await pg.exec(
+      `UPDATE gradebook.student_report_class_v1 SET label='8D 2026 -VESPERTINO',class_key='8D 2026 -VESPERTINO' WHERE id='40000000-0000-4000-8000-000000000001'`,
+    );
+    const label = '8D 2026 - VESPERTINO';
+    const result = await service.execute(
+      collection({
+        sourceClassLabel: label,
+        records: [
+          { recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: label },
+          { recordKey: 'r9', originalName: 'ALUNO NOVO INVENTADO', originalClass: label },
+        ],
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1], complete: false },
+          { recordKey: 'r9', date: '2026-01-06', slots: [2], complete: false },
+        ],
+        marks: [
+          { recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' },
+          { recordKey: 'r9', date: '2026-01-06', slot: 2, mark: 'J' },
+        ],
+      }),
+      actor,
+    );
+    expect(result).toMatchObject({ resolvedRecords: 1, unresolvedRecords: 1 });
+    expect((await summary()).marks).toMatchObject([{ date: '2026-01-05', slot: 1, mark: 'X' }]);
+    expect((await status()).unresolved).toEqual([
+      expect.objectContaining({ classId: 101, classLabel: label, name: 'ALUNO NOVO INVENTADO', reason: 'not_found', marks: 1 }),
+    ]);
+    await expect(
+      service.execute(
+        collection({
+          sourceClassLabel: '8E 2026 - VESPERTINO',
+          records: [{ recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '8E 2026 - VESPERTINO' }],
+          expectedRevision: 1,
+          observedAt: '2026-01-11T12:00:00Z',
+        }),
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'identity-review', detail: 'class-not-linked' });
+  });
+  it('the seven-day failure trail keeps computer reports and collapses repeats', async () => {
+    const report = (status: string, code: string | null) =>
+      execute('heartbeat', { fencingToken: token, status, classId: null, code }, actor);
+    await report('login-required', 'SOURCE_LOGIN_REQUIRED');
+    await report('login-required', 'SOURCE_LOGIN_REQUIRED');
+    await report('error', 'SOURCE_CLASS_UNAVAILABLE');
+    await pg.exec(
+      `INSERT INTO attendance.failure_v2(origin,operation,code,fingerprint,first_at,last_at) VALUES('admin','status','unavailable','old',clock_timestamp()-interval '9 days',clock_timestamp()-interval '8 days')`,
+    );
+    for (let i = 0; i < 2; i++)
+      await recordFrequencyFailureV2(database, {
+        origin: 'collector',
+        operation: 'collect',
+        code: 'source-invalid',
+        detail: 'observed-in-future',
+        deviceId: actor.deviceId,
+        classId: 101,
+      });
+    const failures = (await status()).failures;
+    expect(failures.map((f) => [f.origin, f.code, f.occurrences])).toEqual([
+      ['collector', 'source-invalid', 2],
+      ['device-report', 'SOURCE_CLASS_UNAVAILABLE', 1],
+      ['device-report', 'SOURCE_LOGIN_REQUIRED', 1],
+    ]);
+    expect(failures[0]).toMatchObject({ detail: 'observed-in-future', deviceId: actor.deviceId, classId: 101 });
+    expect((await status()).failures.some((f) => f.code === 'unavailable')).toBe(false);
   });
   it('N source rows to one central UID deduplicate and preserve origins', async () => {
     const input = collection({

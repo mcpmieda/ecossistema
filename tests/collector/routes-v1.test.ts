@@ -203,6 +203,22 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
       expect(await createCollectorRuntimeV1({...env,...changes} as RuntimeEnv,{database:factory,assertion:async()=>'synthetic'})).toBeNull();
     expect(factory).not.toHaveBeenCalled();
   });
+  it('keeps the collector database open until the frequency request has finished',async()=>{
+    let open=true;
+    const dependencies:CollectorRuntimeDependenciesV1={assertion:async()=>'synthetic',database:async()=>({
+      query:async<T extends Record<string,unknown>>(sql:string,parameters:unknown[])=>{
+        if(!open)throw new Error('synthetic-connection-ended');
+        return (await db.query<T>(sql,parameters)).rows;},
+      close:async()=>{open=false;}})};
+    const body={proof:{deviceId:'66666666-6666-4666-8666-666666666666',nonce:'n'.repeat(43),signature:'s'.repeat(86)},
+      payload:{operation:'status',academicYear:2026}};
+    const reply=await handleCollectorRequestV1(new Request(origin+prefix+'frequency',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),env,dependencies);
+    // An unknown device is a denied proof, never a closed-connection outage.
+    expect(reply?.status).toBe(403);
+    expect(await reply?.json()).toEqual({contractVersion:2,state:'not-authorized'});
+    expect(open).toBe(false);
+  });
   it('never reads unverified ID token data in the callback',async()=>{
     const f=await fixture(),pair=await f.begin(),auth=await f.confirm(pair);
     f.dependencies.verify=async(token)=>{expect(decodeJson(token.split('.')[1]!)).toHaveProperty('auth_time');throw new Error('PRIVATE_ID_TOKEN_FAILURE');};

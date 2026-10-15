@@ -63,6 +63,8 @@ it('keeps the report draft and workbook importer mounted without triggering uplo
       devices: [],
       collections: [],
       conflicts: [],
+      unresolved: [],
+      failures: [],
     })),
     mutate: vi.fn(async () => {}),
   };

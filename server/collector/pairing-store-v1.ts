@@ -19,7 +19,7 @@ export class CollectorPairingStoreV1 {
     const publicKey=collectorPublicKeyV1.parse(input.publicKey),fingerprint=await collectorKeyThumbprintV1(publicKey);
     await this.sql.query(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
       VALUES($1,$2,$3,$4,$5,$6,$6::timestamptz+interval '10 minutes')`,[uuid.parse(input.id),JSON.stringify(publicKey),fingerprint,
-      hash.parse(input.pollHash),z.string().regex(/^[0-9]{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
+      hash.parse(input.pollHash),z.string().regex(/^\d{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
   }
 
   async browserView(id:string):Promise<Record<string,unknown>|null>{

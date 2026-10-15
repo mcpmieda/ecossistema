@@ -26,6 +26,12 @@ const evidence = (row:Snapshot):CollectorDirectoryEvidenceV1 | null => row.direc
   && row.directory_checked_at !== null && row.directory_valid_until !== null
   ? { tenantId:row.tenant_id,actorId:row.actor_id,grantId:row.grant_id,grantGeneration:row.grant_generation,
     originAuthenticatedAt:row.origin_authenticated_at,directoryCheckedAt:row.directory_checked_at,directoryValidUntil:row.directory_valid_until } : null;
+/** Purpose-bound nonce storage: one proof can never be replayed under another purpose. */
+function noncePrefixV1(purpose:'collector-access'|'collector-revoke'|'collector-frequency',requestHash?:string):string {
+  if(purpose==='collector-revoke')return 'collector-revoke:';
+  if(purpose==='collector-frequency')return 'collector-frequency:'+requestHash+':';
+  return '';
+}
 async function nonceHash(value:string):Promise<string> {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))))
     .map(byte=>byte.toString(16).padStart(2,'0')).join('');
@@ -51,7 +57,7 @@ export class CollectorAccessServiceV1 {
   async challenge(deviceId:string,purpose:'collector-access'|'collector-revoke'|'collector-frequency'='collector-access',requestHash?:string):Promise<CollectorChallengeV1> {
     const row=await this.active(deviceId,purpose==='collector-revoke');
     const challenge=await issueCollectorChallengeV1({...record(row),revokedAt:purpose==='collector-revoke'?null:row.device_revoked_at},this.dependencies.now(),purpose,requestHash);
-    const prefix=purpose==='collector-revoke'?'collector-revoke:':purpose==='collector-frequency'?'collector-frequency:'+challenge.requestHash+':':'';
+    const prefix=noncePrefixV1(purpose,challenge.requestHash);
     await this.store.saveChallenge({nonceHash:await nonceHash(prefix+challenge.nonce),deviceId:row.device_id,
       generation:challenge.generation,keyThumbprint:challenge.keyThumbprint,issuedAt:challenge.issuedAt,expiresAt:challenge.expiresAt});
     return challenge;

@@ -2,6 +2,12 @@ import { z } from 'zod';
 import { decodeBase64Url, encodeBase64Url } from '../auth/base64url';
 
 const b64Coordinate = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
+export type CollectorProofPurposeV1 = 'collector-access'|'collector-revoke'|'collector-frequency';
+const PROOF_PATHS_V1 = { 'collector-access': 'access', 'collector-revoke': 'revoke', 'collector-frequency': 'frequency' } as const;
+/** Each purpose signs for exactly one route. */
+export function collectorProofPathV1(purpose: CollectorProofPurposeV1): string {
+  return '/api/frequency-collector/' + PROOF_PATHS_V1[purpose];
+}
 export const collectorPublicKeyV1 = z.object({ kty: z.literal('EC'), crv: z.literal('P-256'),
   x: b64Coordinate, y: b64Coordinate, ext: z.literal(true) }).strict();
 export type CollectorPublicKeyV1 = z.infer<typeof collectorPublicKeyV1>;
@@ -12,7 +18,7 @@ export const collectorChallengeSchemaV1 = z.object({
   path: z.enum(['/api/frequency-collector/access','/api/frequency-collector/revoke','/api/frequency-collector/frequency']), purpose: z.enum(['collector-access','collector-revoke','collector-frequency']),
   requestHash: b64Coordinate.optional(),
   issuedAt: z.number().int().positive(), expiresAt: z.number().int().positive(),
-}).strict().refine(value=>value.path==='/api/frequency-collector/'+(value.purpose==='collector-access'?'access':value.purpose==='collector-revoke'?'revoke':'frequency')
+}).strict().refine(value=>value.path===collectorProofPathV1(value.purpose)
   && (value.purpose==='collector-frequency' ? value.requestHash!==undefined : value.requestHash===undefined));
 const challengeSchema = collectorChallengeSchemaV1;
 export type CollectorChallengeV1 = z.infer<typeof challengeSchema>;
@@ -56,7 +62,7 @@ export async function issueCollectorChallengeV1(record: CollectorDeviceProofReco
   return challengeSchema.parse({ deviceId: record.deviceId, generation: record.generation,
     accountKey: await collectorAccountKeyV1(record.tenantId, record.actorId), keyThumbprint: fingerprint,
     nonce: encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),
-    audience: 'https://admin.escolaieda.com', method: 'POST', path: '/api/frequency-collector/'+(purpose==='collector-access'?'access':purpose==='collector-revoke'?'revoke':'frequency'),
+    audience: 'https://admin.escolaieda.com', method: 'POST', path: collectorProofPathV1(purpose),
     ...(purpose==='collector-frequency'?{requestHash}:{}),
     purpose, issuedAt: now, expiresAt: now + 60_000 });
 }

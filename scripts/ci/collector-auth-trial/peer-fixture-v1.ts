@@ -16,4 +16,9 @@ async function main(){
   }
   throw new Error('unsupported-fixture-operation');
 }
-main().then(result=>process.stdout.write(JSON.stringify(result)),()=>{process.stdout.write(JSON.stringify({valid:false}));process.exitCode=1;});
+try{
+  process.stdout.write(JSON.stringify(await main()));
+}catch{
+  process.stdout.write(JSON.stringify({valid:false}));
+  process.exitCode=1;
+}
