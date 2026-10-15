@@ -446,8 +446,10 @@ async function collect(
 ): Promise<Row> {
   await liveLease(tx, input, actor);
   const [clock] = await tx.query<Row>(
-    `SELECT clock_timestamp()::text AS now,(clock_timestamp() AT TIME ZONE 'America/Sao_Paulo')::date::text AS today`,
-    [],
+    `SELECT clock_timestamp()::text AS now,
+      (clock_timestamp() AT TIME ZONE COALESCE(schedule_json->>'timezone','America/Bahia'))::date::text AS today
+      FROM attendance.school_state_v2 WHERE academic_year=$1`,
+    [input.academicYear],
   );
   validateCollection(input, str(clock!.today));
   if (new Date(input.observedAt) > new Date(str(clock!.now))) fail('source-invalid', 400);
