@@ -108,22 +108,38 @@ async function connectPage(url:URL,env:RuntimeEnv,runtime:CollectorRuntimeReadyV
     {'Set-Cookie':secureCookie(CONFIRM_COOKIE,cookie,{maxAge:600,sameSite:'Strict'})});
 }
 async function confirmConnect(request:Request,env:RuntimeEnv,runtime:CollectorRuntimeReadyV1):Promise<Response>{
-  enforceWriteOrigin(request,env);
-  const form=await formOf(request);
-  const keys=[...form.keys()];
-  if(keys.length!==4 || new Set(keys).size!==4 || form.get('confirm')!=='yes')throw new Error('confirmation-required');
-  const cookie=readCookie(request,CONFIRM_COOKIE),confirmed=confirmSchema.parse(cookie && cookie.length<4096?await unseal(cookie,env.SESSION_SECRET):null);
-  if(confirmed.exp<=runtime.oauth.now() || confirmed.id!==form.get('pairing') || confirmed.csrf!==form.get('csrf'))throw new Error('confirmation-denied');
-  const view=await runtime.pairings.browserView(confirmed.id);
-  if(view?.display_code===undefined || form.get('code')!==view.display_code)throw new Error('confirmation-denied');
-  const base=await newAuthTransaction(runtime.oauth.now());
-  const transaction:CollectorOAuthTransactionV1={state:'collector.'+base.state,nonce:base.nonce,verifier:base.verifier,
-    exp:Math.min(base.exp,Math.floor(confirmed.exp/1000)),startedAt:runtime.oauth.now(),pairingId:confirmed.id};
-  if(!await runtime.pairings.confirm(transaction))throw new Error('confirmation-denied');
-  const headers=new Headers({Location:collectorAuthorizationUrlV1(env,{...base,...transaction})});
-  headers.append('Set-Cookie',clearCookie(CONFIRM_COOKIE));
-  headers.append('Set-Cookie',secureCookie(AUTH_COOKIE,await seal(transaction,env.SESSION_SECRET),{maxAge:600}));
-  return new Response(null,{status:303,headers});
+  // Never commit a one-use pairing until OAuth URL, encrypted transaction
+  // cookie and redirect response have been completely constructed. A failure
+  // after DB confirmation otherwise strands the operator at a generic 403.
+  let stage='validate-request';
+  try {
+    enforceWriteOrigin(request,env);
+    const form=await formOf(request);
+    const keys=[...form.keys()];
+    if(keys.length!==4 || new Set(keys).size!==4 || form.get('confirm')!=='yes')throw new Error('confirmation-required');
+    stage='verify-confirmation';
+    const cookie=readCookie(request,CONFIRM_COOKIE),confirmed=confirmSchema.parse(cookie && cookie.length<4096?await unseal(cookie,env.SESSION_SECRET):null);
+    if(confirmed.exp<=runtime.oauth.now() || confirmed.id!==form.get('pairing') || confirmed.csrf!==form.get('csrf'))throw new Error('confirmation-denied');
+    const view=await runtime.pairings.browserView(confirmed.id);
+    if(view?.display_code===undefined || form.get('code')!==view.display_code)throw new Error('confirmation-denied');
+    stage='prepare-oauth-redirect';
+    const base=await newAuthTransaction(runtime.oauth.now());
+    const transaction:CollectorOAuthTransactionV1={state:'collector.'+base.state,nonce:base.nonce,verifier:base.verifier,
+      exp:Math.min(base.exp,Math.floor(confirmed.exp/1000)),startedAt:runtime.oauth.now(),pairingId:confirmed.id};
+    const headers=new Headers({Location:collectorAuthorizationUrlV1(env,{...base,...transaction})});
+    headers.append('Set-Cookie',clearCookie(CONFIRM_COOKIE));
+    headers.append('Set-Cookie',secureCookie(AUTH_COOKIE,await seal(transaction,env.SESSION_SECRET),{maxAge:600}));
+    const redirect=new Response(null,{status:303,headers});
+    stage='commit-confirmation';
+    if(!await runtime.pairings.confirm(transaction))throw new Error('confirmation-denied');
+    return redirect;
+  } catch(error) {
+    // Stage-only telemetry: never log pairing IDs, codes, auth cookies, OAuth
+    // state/verifier, directory identity, HTTP payload or exception message.
+    console.error(JSON.stringify({message:'collector_confirmation_failed',stage,
+      errorType:error instanceof Error?error.name:'unknown'}));
+    throw new Error('confirmation-denied');
+  }
 }
 async function pairingRequest(request:Request,url:URL,env:RuntimeEnv,runtime:CollectorRuntimeReadyV1):Promise<Response>{
   if(request.method!=='POST')return notAllowed();
@@ -199,6 +215,8 @@ export async function handleCollectorRequestV1(request:Request,env:RuntimeEnv,de
     return await runtimeRoute(request,url,env,runtime,callback);
   }catch{
     if(callback)return page('Não foi possível autorizar','<p>Volte ao Coletor e prepare o acesso novamente. Nenhuma senha é solicitada no programa.</p>',403,{'Set-Cookie':clearCookie(AUTH_COOKIE)});
+    if(url.pathname==='/frequency-collector/connect' && request.method==='POST')
+      return page('Não foi possível concluir a autorização','<p>Este pedido não pôde continuar para a Microsoft. Volte ao programa, cancele esta tentativa e inicie uma nova autorização. Não reutilize o código anterior.</p>',403);
     return json({error:'Collector access denied',code:'ACCESS_REQUIRED'},403);
   }finally{
     await runtime.close().catch(()=>undefined);
