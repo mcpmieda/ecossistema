@@ -42,7 +42,7 @@ export class CollectorPairingStoreV1 {
         RETURNING scope
       ), global_budget AS (
         INSERT INTO collector_auth.pairing_rate_v1(scope,window_started_at,requests)
-        SELECT 'global',clock_timestamp(),1 FROM local_budget
+        SELECT 'global',clock_timestamp(),1 FROM local_budget WHERE true
         ON CONFLICT(scope) DO UPDATE SET
           requests=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
              THEN 1 ELSE collector_auth.pairing_rate_v1.requests+1 END,
@@ -163,8 +163,9 @@ export class CollectorPairingStoreV1 {
       AND has_table_privilege(current_user,'collector_auth.pairings','DELETE') AS ready`,[]);
     if(grant?.ready!==true)return;
     // Only the collector runtime sees these pseudonymous rate-limit scopes.
-    await this.sql.query(`DELETE FROM collector_auth.pairing_rate_v1 WHERE scope<>'global'
-      AND window_started_at<clock_timestamp()-interval '2 days'`,[]).catch(()=>undefined);
+    await this.sql.query(`DELETE FROM collector_auth.pairing_rate_v1 WHERE ctid IN (
+      SELECT ctid FROM collector_auth.pairing_rate_v1 WHERE scope<>'global'
+      AND window_started_at<clock_timestamp()-interval '2 days' LIMIT 500)`,[]).catch(()=>undefined);
     await this.sql.query(`WITH challenges AS (DELETE FROM collector_auth.challenges WHERE ctid IN (SELECT ctid FROM collector_auth.challenges
       WHERE expires_at<clock_timestamp()-interval '1 hour' LIMIT 500) RETURNING 1
       ), pairings AS (DELETE FROM collector_auth.pairings WHERE ctid IN (SELECT ctid FROM collector_auth.pairings
