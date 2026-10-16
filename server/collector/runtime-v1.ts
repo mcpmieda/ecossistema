@@ -67,6 +67,7 @@ export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:Colle
     stage='pairing-cleanup';
     const pairings=new CollectorPairingStoreV1(db),cipher=await CollectorRefreshCipherV1.fromDedicatedKey(key);
     await pairings.retireExpiredUnclaimed();
+    await pairings.purgeFinished();
     const directory={fetch:dependencies.fetch??fetch,now:dependencies.now??Date.now,clientAssertion:dependencies.assertion??(()=>createClientAssertion({
       clientId:env.WEB_CLIENT_ID,tenantId:env.TENANT_ID,privateKeyPkcs8:credential!.privateKeyPkcs8,certificateThumbprint:credential!.certificateThumbprint}))};
     const access=new CollectorAccessServiceV1(new CollectorAuthorizationStoreV1(db),cipher,

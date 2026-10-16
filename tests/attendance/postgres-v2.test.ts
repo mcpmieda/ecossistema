@@ -399,6 +399,22 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(failures[0]).toMatchObject({ detail: 'observed-in-future', deviceId: actor.deviceId, classId: 101 });
     expect((await status()).failures.some((f) => f.code === 'unavailable')).toBe(false);
   });
+  it('heartbeat expires old failures and operational receipts but keeps batch receipts', async () => {
+    const batch = collection();
+    await service.execute(batch, actor);
+    await pg.exec(
+      `INSERT INTO attendance.failure_v2(origin,operation,code,fingerprint,first_at,last_at) VALUES('admin','status','unavailable','old',clock_timestamp()-interval '9 days',clock_timestamp()-interval '8 days');
+      INSERT INTO attendance.receipt_v2(academic_year,generation,request_id,actor_id,payload_hash,result_json,recorded_at)
+      SELECT academic_year,generation,'${id()}'::uuid,actor_id,'old','{}',clock_timestamp()-interval '9 days' FROM attendance.receipt_v2 LIMIT 1;
+      UPDATE attendance.receipt_v2 SET recorded_at=clock_timestamp()-interval '9 days' WHERE request_id='${batch.requestId}'`,
+    );
+    const before = (await pg.query<{ n: number }>('SELECT count(*)::integer AS n FROM attendance.receipt_v2')).rows[0]!.n;
+    await execute('heartbeat', { fencingToken: token, status: 'ready', classId: null, code: null }, actor);
+    const receipts = (await pg.query<{ request_id: string }>('SELECT request_id::text FROM attendance.receipt_v2')).rows;
+    expect(receipts).toHaveLength(before);
+    expect(receipts.some((r) => r.request_id === batch.requestId)).toBe(true);
+    expect((await pg.query('SELECT 1 FROM attendance.failure_v2')).rows).toHaveLength(0);
+  });
   it('N source rows to one central UID deduplicate and preserve origins', async () => {
     const input = collection({
       records: [

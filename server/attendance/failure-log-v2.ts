@@ -89,9 +89,35 @@ export async function insertFrequencyFailureV2(
         fingerprint,
       ],
     );
+  await purgeFrequencyFailuresV2(tx);
+}
+
+async function purgeFrequencyFailuresV2(tx: GradebookPostgresTransactionV1): Promise<void> {
   await tx.executeNative(
     `DELETE FROM attendance.failure_v2 WHERE last_at<clock_timestamp()-make_interval(days=>$1)`,
     [FREQUENCY_FAILURE_RETENTION_DAYS_V2],
+  );
+}
+
+/** Receipts without a batch only answer retries; the collector queue gives up after 7 days. */
+export const FREQUENCY_OPERATIONAL_RECEIPT_DAYS_V2 = 8;
+
+/**
+ * Bounded cleanup run by the active computer's heartbeat and by the admin panel,
+ * so retention holds without new failures. Batch receipts stay with their evidence.
+ * A purged requestId cannot be replayed: every request needs a fresh device proof,
+ * and settings/conflict decisions keep their own revision checks.
+ */
+export async function purgeFrequencyOperationalRowsV2(
+  tx: GradebookPostgresTransactionV1,
+): Promise<void> {
+  await purgeFrequencyFailuresV2(tx);
+  await tx.executeNative(
+    `DELETE FROM attendance.receipt_v2 WHERE ctid IN (
+    SELECT r.ctid FROM attendance.receipt_v2 r WHERE r.recorded_at<clock_timestamp()-make_interval(days=>$1)
+    AND NOT EXISTS(SELECT 1 FROM attendance.batch_v2 b WHERE b.academic_year=r.academic_year AND b.id=r.request_id)
+    LIMIT 500)`,
+    [FREQUENCY_OPERATIONAL_RECEIPT_DAYS_V2],
   );
 }
 

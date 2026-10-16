@@ -18,7 +18,11 @@ import { normalizeStudentNameV1 } from '../../shared/student-identity/reconcilia
 import { resolveReconciledSourcesV2 } from '../student-identity/reconciliation/resolve-source-batch-v2';
 import { lockResetWriterV1 } from '../student-portal/integration/year-reset/writer-v1';
 import { recordFrequencyResetWriteV2 } from '../student-portal/integration/year-reset/frequency-writer-v2';
-import { FREQUENCY_FAILURE_RETENTION_DAYS_V2, insertFrequencyFailureV2 } from './failure-log-v2';
+import {
+  FREQUENCY_FAILURE_RETENTION_DAYS_V2,
+  insertFrequencyFailureV2,
+  purgeFrequencyOperationalRowsV2,
+} from './failure-log-v2';
 import type {
   GradebookPostgresDatabaseV1,
   GradebookPostgresTransactionV1,
@@ -363,6 +367,7 @@ function unresolvedView(u: Row): FrequencyUnresolvedV2 {
   };
 }
 async function adminDiagnostics(tx: Tx, year: number) {
+  await purgeFrequencyOperationalRowsV2(tx);
   const conflicts = await tx.query<Row>(
     `SELECT c.id::text,c.revision,c.marks_json,o.student_uid::text,COALESCE(sp.name,a.nome,'Aluno') AS student_name,
     o.date::text,o.slot,o.shift,MIN(b.source_class_label) AS class_label
@@ -1169,6 +1174,7 @@ async function finishMutation(
   await lockDevice(tx, actor);
   if (input.operation === 'collect' || input.operation === 'heartbeat')
     await liveLease(tx, input, actor, input.operation === 'heartbeat');
+  if (input.operation === 'heartbeat') await purgeFrequencyOperationalRowsV2(tx);
   if (input.operation === 'lease')
     await liveLease(
       tx,

@@ -68,6 +68,25 @@ describe('owner-only pending pairing and atomic initial registration',()=>{
     const expired=await fixture(601_000);expect(await expired.store.browserView(id)).toBeNull();
     expect(await expired.store.confirm(expired.transaction)).toBe(false);expect(await expired.store.poll(id,expired.pollHash)).toBeNull();
   });
+  it('purges only finished rows: old cancelled pairings and expired challenges',async()=>{
+    const f=await fixture();await f.store.confirm(f.transaction);await f.store.consumeConfirmedTransaction(f.transaction);
+    expect(await f.store.registerConfirmedPairing(f.registration)).toBe(true);
+    const device=(await db.query<{id:string}>('SELECT id FROM collector_auth.devices')).rows[0]!.id;
+    const pairing=(age:string,state:string,code:string)=>`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at,state)
+      SELECT gen_random_uuid(),public_key,key_thumbprint,poll_hash,'${code}',t.ts,t.ts+interval '10 minutes','${state}'
+      FROM collector_auth.pairings,(SELECT clock_timestamp()-interval '${age}' AS ts) t WHERE id='${id}'`;
+    await db.exec(pairing('2 days','cancelled','000001')+';'+pairing('1 hour','cancelled','000002')+';'+pairing('2 days','pending','000003'));
+    const challenge=(nonce:string,age:string)=>`INSERT INTO collector_auth.challenges(nonce_hash,device_id,generation,key_thumbprint,issued_at,expires_at)
+      SELECT '${nonce.repeat(64)}',id,1,key_thumbprint,t.ts,t.ts+interval '60 seconds'
+      FROM collector_auth.devices,(SELECT clock_timestamp()-interval '${age}' AS ts) t WHERE id='${device}'`;
+    await db.exec(challenge('a','2 hours')+';'+challenge('b','0 seconds'));
+    await f.store.purgeFinished();
+    const codes=(await db.query<{display_code:string;state:string}>('SELECT display_code,state FROM collector_auth.pairings ORDER BY display_code')).rows;
+    expect(codes.map(r=>r.display_code)).toEqual(['000002','000003','123456']);
+    expect(codes.at(-1)!.state).toBe('completed');
+    const nonces=(await db.query<{nonce_hash:string}>('SELECT nonce_hash FROM collector_auth.challenges')).rows;
+    expect(nonces.map(r=>r.nonce_hash)).toEqual(['b'.repeat(64)]);
+  });
   it('rolls back the new grant when device registration fails inside the same statement',async()=>{
     const f=await fixture();await f.store.confirm(f.transaction);await f.store.consumeConfirmedTransaction(f.transaction);
     await db.exec(`CREATE FUNCTION collector_auth.synthetic_reject_device() RETURNS trigger LANGUAGE plpgsql AS $$

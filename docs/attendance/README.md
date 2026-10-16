@@ -16,6 +16,8 @@ As migrations abaixo foram aplicadas uma vez, após ensaio PostgreSQL 17.6 com e
 | attendance/0003_portal_frequency_read_v2.sql | 20261015121140 | 3baf0806793e56aaba2106abb988fd7d |
 | attendance/0004_foreign_key_indexes_v2.sql | 20261015121602 | ebc36dfe66ae1834480f17dd60559b01 |
 | attendance/0005_operations_trail_v2.sql | 20261015233808 | 0f4c61d7e4fece79556391c3a71f4bb1 |
+| collector/0005_retention_v2.sql | pendente de aplicação | — |
+| attendance/0006_receipt_retention_v2.sql | pendente de aplicação | — |
 
 A 0005 foi aplicada em 15/10/2026 via apply_migration, pedida pelo responsável, com executor `postgres` sem superuser. Antes: 66 entradas, fingerprint `ce146e26d75c8808c59b269ce7f13f2e` (mesma fórmula), tabela e coluna ausentes, `class_state_v2` vazia. Depois: o SQL do ledger tem o MD5 do arquivo (SHA256 `c387f8a9a507a35436472b76c627dc2495f132d0bc26aba971ecfe9f47abad11`), as 66 entradas anteriores mantiveram o fingerprint, `failure_v2` com RLS forçada, acesso só de `gradebook_app` e índices válidos, e a constraint de `unresolved_json` validada. O advisor de segurança retornou zero avisos; o de desempenho só lista índices ainda não usados e FKs antigas fora de `attendance`. O código em produção não usa essas estruturas até a publicação da PR.
 
@@ -33,6 +35,7 @@ A auditoria de segurança retornou zero avisos. O índice da FK de pareamentos e
 - `migrations/attendance/0002_runtime_bridges_v2.sql`: revalidação central da evidência histórica e invalidação do preview do reset anual.
 - `migrations/attendance/0003_portal_frequency_read_v2.sql`: leitura privada vinculada ao aluno, à conta e à sessão do Portal.
 - `migrations/attendance/0004_foreign_key_indexes_v2.sql`: índices de apoio às FKs, às verificações de pai e à limpeza anual.
+- `migrations/collector/0005_retention_v2.sql` e `migrations/attendance/0006_receipt_retention_v2.sql` (aditivas): retenção limitada sem cron. A cada acesso do Coletor, o runtime apaga desafios vencidos há mais de 1 hora e pareamentos cancelados sem computador há mais de 1 dia (pareamentos concluídos ficam, pois a autorização depende deles; sem o grant DELETE a limpeza é pulada). O heartbeat do computador ativo e a abertura do painel apagam falhas com mais de 7 dias e recibos sem lote com mais de 8 dias (a fila do Coletor desiste em 7). Recibos de coleta ficam com o lote. Um `requestId` apagado não é reaproveitável: todo pedido exige prova nova do dispositivo, e agenda/conflitos têm CAS próprio. Até 500 linhas por vez.
 - `migrations/attendance/0005_operations_trail_v2.sql` (aditiva, aplicada em 15/10/2026): `attendance.failure_v2`, trilha de falhas de 7 dias, e `class_state_v2.unresolved_json`, alunos do Smecel ainda sem conciliação na coleta mais recente de cada turma.
 - `server/attendance/failure-log-v2.ts`: grava cada falha sem valores pessoais (código, operação, detalhe técnico, computador e turma), agrupa repetições em 10 minutos e apaga registros com mais de 7 dias. Erros que o computador informa no heartbeat entram na mesma trilha.
 - `server/student-portal/integration/year-reset/frequency-writer-v2.ts`: registra uma alteração de frequência no protocolo de reset existente, sem alterar a revisão acadêmica.
@@ -44,7 +47,7 @@ O PC recebe as operações V2 por backend HTTP. Nunca recebe conexão PostgreSQL
 
 `createFrequencyServiceV2(database).execute(payload, actor)` admite `status`, `receipt`, `save-settings`, `set-paused`, `rename-device`, `revoke-device`, `lease`, `heartbeat`, `release`, `collect`, `resolve-conflict` e `monthly-summary`.
 
-Operações administrativas exigem o ator administrativo autorizado pela composição. Coleta, liderança, heartbeat e release exigem dispositivo. O tenant provém da identidade validada pelo servidor; não existe tenant, UID de destino nem configuração de calendário no payload da coleta.
+`revoke-device`, `resolve-conflict` e `monthly-summary` exigem a sessão administrativa. `save-settings` e `set-paused` aceitam a sessão administrativa **ou** um computador autorizado: o pareamento só é concluído por conta do grupo ADMIN, e a tela Horários de coleta do Coletor é o lugar onde a escola mantém a agenda compartilhada. Ambas usam CAS da revisão escolar e ficam no recibo com ator e dispositivo; um computador não altera conflitos, alunos nem outros computadores. Coleta, liderança, heartbeat e release exigem dispositivo. O tenant provém da identidade validada pelo servidor; não existe tenant, UID de destino nem configuração de calendário no payload da coleta.
 
 A turma do Smecel é reconhecida pela ligação Relatório ↔ Relação do Centro, sem diferenciar espaços, pontuação, acentos ou maiúsculas (`frequencyClassKeyV2`, também aplicada pelo Coletor). O rótulo do Relatório ligado é que alimenta o resolvedor central, de modo que a mesma regra vale para todos os alunos do lote.
 

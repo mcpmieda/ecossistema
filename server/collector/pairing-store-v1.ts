@@ -117,4 +117,19 @@ export class CollectorPairingStoreV1 {
       ) UPDATE collector_auth.pairings p SET state='cancelled',oauth_state_hash=NULL,oauth_nonce_hash=NULL,device_id=NULL,claimed_at=NULL
         FROM expired e WHERE p.id=e.id`,[]);
   }
+
+  /** Bounded retention (migration collector/0005). Only finished rows go: expired
+   * challenges (anti-replay needs them only until expiry) and cancelled pairings
+   * without a device. Completed pairings stay: authorization requires them.
+   * Skipped until the DELETE grant exists, so deploy order cannot break access. */
+  async purgeFinished():Promise<void>{
+    const [grant]=await this.sql.query<{ready:boolean}>(`SELECT has_table_privilege(current_user,'collector_auth.challenges','DELETE')
+      AND has_table_privilege(current_user,'collector_auth.pairings','DELETE') AS ready`,[]);
+    if(grant?.ready!==true)return;
+    await this.sql.query(`WITH challenges AS (DELETE FROM collector_auth.challenges WHERE ctid IN (SELECT ctid FROM collector_auth.challenges
+      WHERE expires_at<clock_timestamp()-interval '1 hour' LIMIT 500) RETURNING 1
+      ), pairings AS (DELETE FROM collector_auth.pairings WHERE ctid IN (SELECT ctid FROM collector_auth.pairings
+      WHERE state='cancelled' AND device_id IS NULL AND expires_at<clock_timestamp()-interval '1 day' LIMIT 500) RETURNING 1
+      ) SELECT (SELECT count(*) FROM challenges)+(SELECT count(*) FROM pairings) AS removed`,[]);
+  }
 }
