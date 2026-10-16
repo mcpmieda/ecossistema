@@ -130,6 +130,15 @@ async function pairingRequest(request:Request,url:URL,env:RuntimeEnv,runtime:Col
   if(foreignOrigin(request,env))return denied();
   const value=await readBoundedJson(request,2048);
   if(url.pathname==='/api/frequency-collector/pairings'){
+    // Cloudflare supplies CF-Connecting-IP at the edge; avoid storing raw IP.
+    // Do not trust forwarded client headers for authority: the independent
+    // global database budget enforces a ceiling even if this one is spoofed.
+    const edgeAddress=request.headers.get('CF-Connecting-IP')??'';
+    const source=/^[0-9a-fA-F:.]{3,48}$/u.test(edgeAddress)?edgeAddress.toLowerCase():'unknown';
+    const scope='client:'+await collectorOpaqueHashV1(env.SESSION_SECRET+'\\0'+source);
+    if(!await runtime.pairings.allowPairingRequest(scope))
+      return new Response(JSON.stringify({error:'Pairing temporarily unavailable',code:'ACCESS_UNAVAILABLE'}),{
+        status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':'600'}});
     const proof=await verifyCollectorPairingV1(value,runtime.oauth.now()),pollToken=random();
     const digits=crypto.getRandomValues(new Uint32Array(1))[0]!;
     const displayCode=String(digits%1_000_000).padStart(6,'0');
