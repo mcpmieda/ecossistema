@@ -23,9 +23,9 @@ const env={TENANT_ID:tenant,WEB_CLIENT_ID:client,GRAPH_CLIENT_ID:client,GROUP_AD
   COLLECTOR_REFRESH_KEY:encodeBase64Url(new Uint8Array(32).fill(8))} as unknown as RuntimeEnv;
 let db:PGlite;
 beforeAll(async()=>{vi.stubGlobal('crypto',webcrypto);db=new PGlite();
-  for(const name of ['0001_device_authorization.sql','0002_pending_pairings.sql'])
+  for(const name of ['0001_device_authorization.sql','0002_pending_pairings.sql','0006_pairing_rate_v1.sql'])
     await db.exec(await readFile(new URL('../../migrations/collector/'+name,import.meta.url),'utf8'));},60_000);
-beforeEach(async()=>{await db.exec('TRUNCATE collector_auth.pairings,collector_auth.challenges,collector_auth.devices,collector_auth.oauth_grants');});
+beforeEach(async()=>{await db.exec('TRUNCATE collector_auth.pairings,collector_auth.challenges,collector_auth.devices,collector_auth.oauth_grants,collector_auth.pairing_rate_v1');});
 afterAll(async()=>{await db.close();});
 
 async function fixture(){
@@ -110,6 +110,20 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
     const health=await onRequest({request:new Request(origin+'/api/health'),env:execution,waitUntil:()=>undefined} as never) as Response;
     expect(health.status).toBe(200);
     expect(await handleCollectorRequestV1(new Request(origin+'/auth/callback?state=ordinary'),env)).toBeNull();
+  });
+  it('throttles public pairing attempts even with forged edge IP values',async()=>{
+    const f=await fixture();
+    for(let i=0;i<30;i++){
+      const reply=await f.request(prefix+'pairings',{not:'a valid proof'});
+      expect(reply.status).toBe(403);
+    }
+    const blocked=await f.request(prefix+'pairings',{not:'a valid proof'});
+    expect(blocked.status).toBe(503);
+    expect(await blocked.json()).toHaveProperty('code','ACCESS_UNAVAILABLE');
+    const alternate=await f.request(prefix+'pairings',{not:'a valid proof'},{'CF-Connecting-IP':'198.51.100.21'});
+    expect(alternate.status).toBe(403);
+    const rows=(await db.query<{n:number}>("SELECT count(*)::integer AS n FROM collector_auth.pairings")).rows;
+    expect(rows[0]?.n).toBe(0);
   });
   it('runs signed pairing, explicit browser confirmation, callback, local claim and nonce-protected authorization',async()=>{
     const f=await fixture(),pair=await f.begin(),{auth,callback}=await f.complete(pair);
