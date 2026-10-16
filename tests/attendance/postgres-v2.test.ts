@@ -207,8 +207,8 @@ describe('frequency V2 private PostgreSQL service', () => {
       await expect(service.execute(input, actor)).rejects.toMatchObject({ code: 'source-invalid' });
   });
   it('accepts small client clock skew, rejects larger future timestamps',async()=>{
-    const [{now}]=(await pg.query<{now:string}>('SELECT clock_timestamp()::text AS now')).rows;
-    const near=new Date(new Date(now).getTime()+2000).toISOString();
+    const [clock]=(await pg.query<{now:string}>('SELECT clock_timestamp()::text AS now')).rows;
+    const near=new Date(new Date(clock!.now).getTime()+2000).toISOString();
     await expect(service.execute(collection({observedAt:near}),actor))
       .resolves.toMatchObject({state:'committed'});
     const tooFar=new Date(Date.now()+30000).toISOString();
