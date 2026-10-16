@@ -111,19 +111,26 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
     expect(health.status).toBe(200);
     expect(await handleCollectorRequestV1(new Request(origin+'/auth/callback?state=ordinary'),env)).toBeNull();
   });
-  it('throttles public pairing attempts even with forged edge IP values',async()=>{
+  it('rejects unsigned requests without consuming budgets; valid signed attempts still hit rate limits',async()=>{
     const f=await fixture();
-    for(let i=0;i<30;i++){
+    for(let i=0;i<35;i++){
       const reply=await f.request(prefix+'pairings',{not:'a valid proof'});
       expect(reply.status).toBe(403);
     }
-    const blocked=await f.request(prefix+'pairings',{not:'a valid proof'});
+    const forged=await f.request(prefix+'pairings',{not:'a valid proof'},{'CF-Connecting-IP':'198.51.100.21'});
+    expect(forged.status).toBe(403);
+    expect((await db.query<{n:number}>("SELECT count(*)::integer AS n FROM collector_auth.pairing_rate_v1")).rows[0]?.n).toBe(0);
+    for(let i=0;i<30;i++)await f.begin();
+    const thumb=await collectorKeyThumbprintV1(f.publicKey),id=crypto.randomUUID(),
+      nonce='n'.repeat(43),issuedAt=Date.now(),expiresAt=issuedAt+120_000;
+    const bytes=new TextEncoder().encode(JSON.stringify([id,thumb,nonce,origin,'POST',prefix+'pairings',
+      'collector-pairing',issuedAt,expiresAt]));
+    const blocked=await f.request(prefix+'pairings',{id,publicKey:f.publicKey,nonce,issuedAt,expiresAt,
+      signature:await f.sign(bytes)});
     expect(blocked.status).toBe(503);
     expect(await blocked.json()).toHaveProperty('code','ACCESS_UNAVAILABLE');
-    const alternate=await f.request(prefix+'pairings',{not:'a valid proof'},{'CF-Connecting-IP':'198.51.100.21'});
-    expect(alternate.status).toBe(403);
-    const rows=(await db.query<{n:number}>("SELECT count(*)::integer AS n FROM collector_auth.pairings")).rows;
-    expect(rows[0]?.n).toBe(0);
+    const count=(await db.query<{n:number}>("SELECT count(*)::integer AS n FROM collector_auth.pairings")).rows[0]?.n;
+    expect(count).toBe(30);
   });
   it('runs signed pairing, explicit browser confirmation, callback, local claim and nonce-protected authorization',async()=>{
     const f=await fixture(),pair=await f.begin(),{auth,callback}=await f.complete(pair);
