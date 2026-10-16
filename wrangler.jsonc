@@ -22,7 +22,8 @@
     "GROUP_APOIO_ID": "74386ce1-2db4-4352-8618-7ab4659ab7b6",
     "GROUP_VISITANTE_ID": "9b0283b8-8883-4257-8085-3ac60060d489",
     "OFFICIAL_ORIGIN": "https://admin.escolaieda.com",
-    "GRADEBOOK_STORAGE_PROVIDER": "postgres"
+    "GRADEBOOK_STORAGE_PROVIDER": "postgres",
+    "COLLECTOR_ENABLED": "true"
   },
   "services": [{
     "binding": "PORTAL_SERVICE",
@@ -37,6 +38,10 @@
     {
       "binding": "PROD_DB",
       "id": "476b417597c84b4c994bd36f1a65cb70"
+    },
+    {
+      "binding": "COLLECTOR_DB",
+      "id": "74fa00272a0b420582ccb5e55be6356f"
     }
   ]
 }

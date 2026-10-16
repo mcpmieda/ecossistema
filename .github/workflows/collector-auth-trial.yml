@@ -1,0 +1,51 @@
+name: Collector authorization native trial
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/collector-auth-trial.yml'
+      - 'server/collector/**'
+      - 'tests/collector/**'
+      - 'migrations/collector/**'
+      - 'scripts/ci/collector-auth-trial/**'
+permissions:
+  contents: read
+concurrency:
+  group: collector-auth-trial-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  trial:
+    name: Collector native PostgreSQL 17.6
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: collector_auth_synthetic_trial
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55475:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d collector_auth_synthetic_trial"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+      - name: Run isolated native migration trial
+        env:
+          TRIAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/ci/collector-auth-trial/run.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: collector-native-trial
+          path: scripts/ci/collector-auth-trial/results.json
+          if-no-files-found: error
+          retention-days: 14

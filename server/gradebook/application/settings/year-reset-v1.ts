@@ -19,6 +19,7 @@ import type {
 } from '../../persistence/postgres/postgres-database-v1';
 import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
 import { inOrderV1 } from '../../../../shared/in-order-v1';
+import { frequencyYearCountsV2, resetFrequencyYearV2 } from '../../../attendance/service-v2';
 
 type Row = Record<string, unknown>;
 type TransactionalDatabase = GradebookPostgresWritePortV1 & {
@@ -124,6 +125,9 @@ async function loadCounts(
     [year],
   );
   if (!row) throw new Error('year-reset-counts-missing');
+  const attendance = await hasFrequency(database, year)
+    ? Object.values(await frequencyYearCountsV2(database, year)).reduce((sum, value) => sum + integer(value), 0)
+    : 0;
   const counts = {
     academicYear: integer(row.academic_year),
     students: integer(row.students),
@@ -142,11 +146,18 @@ async function loadCounts(
     bulletins: integer(row.bulletins),
     histories: integer(row.histories),
     reconciliation: integer(row.reconciliation),
+    attendance,
   };
   return {
     ...counts,
     totalRows: Object.values(counts).reduce((total, value) => total + value, 0),
   };
+}
+
+async function hasFrequency(database: GradebookPostgresTransactionV1, year: number): Promise<boolean> {
+  if (year !== 2026) return false;
+  const row = await first(database, "SELECT to_regclass('attendance.school_state_v2') IS NOT NULL AS installed");
+  return row?.installed === true || row?.installed === 1;
 }
 
 function changed(result: { readonly changes: number }): number {
@@ -159,6 +170,10 @@ function changed(result: { readonly changes: number }): number {
 
 async function removeYear(database: GradebookPostgresTransactionV1, year: number): Promise<number> {
   let deleted = 0;
+  if (await hasFrequency(database, year)) {
+    const counts = await resetFrequencyYearV2(database, year);
+    deleted += Object.values(counts).reduce((sum, value) => sum + integer(value), 0);
+  }
   const run = async (sql: string) => {
     deleted += changed(await database.executeNative(sql, [year]));
   };
@@ -283,7 +298,7 @@ export function createYearResetServiceV1(database: GradebookPostgresWritePortV1,
               if (state !== 'clear')
                 return { contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, state };
               const counts = await loadCounts(transaction, request.year);
-              if (counts.academicYear !== 1 && !(counts.academicYear === 0 && counts.reconciliation > 0))
+              if (counts.academicYear !== 1 && !(counts.academicYear === 0 && counts.reconciliation + counts.attendance > 0))
                 throw new Error('year-reset-year-missing-after-proof');
               if (request.operation === 'preview') {
                 return {

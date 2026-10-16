@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { servePortalFrequencyV2 } from './frequency-v2';
 import {
   activateRequestV1,
   challengeRequestV1,
@@ -49,6 +50,7 @@ export async function servePortalSelfV1(
     return portalJsonV1(portalFailureV1('forbidden'), 403);
   const url = new URL(request.url);
   const path = url.pathname;
+  if(path==='/api/student/frequency')return servePortalFrequencyV2(request,env);
   const connectionId = url.searchParams.get('connectionId');
   if (connectionId !== null && (
     !['/api/student/session', '/api/student/live'].includes(path) ||

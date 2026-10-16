@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -27,12 +27,14 @@ describe('student shell and canonical profile', () => {
   it('renders the profile and simplified bulletin navigation from the same self object', () => {
     render(page());
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Portal do Aluno');
-    const schoolMark = screen.getByRole('img', { name: 'Escola Mun. Prof.ª Iêda Alves de Oliveira MCPM' });
+    const schoolMark = screen.getByRole('img', {
+      name: 'Escola Mun. Prof.ª Iêda Alves de Oliveira MCPM',
+    });
     expect(schoolMark.querySelector('.pa-school-logo-image')).toBeTruthy();
     const headings = screen
       .getAllByRole('heading', { level: 2 })
       .map((heading) => heading.textContent);
-    expect(headings).toEqual(['Perfil do aluno', 'Minhas notas']);
+    expect(headings).toEqual(['Perfil do aluno', 'Minhas notas', 'Frequência']);
     expect(screen.getByText('Estudante de exemplo')).toBeTruthy();
     expect(screen.getByText('Turma de exemplo')).toBeTruthy();
     // The year chip was removed (owner review 27/09/2026).
@@ -70,7 +72,9 @@ describe('student shell and canonical profile', () => {
       subjects: [],
     });
     const view = render(page({ load: { state: 'ready', data: empty } }));
-    expect(screen.getByRole('status').textContent).toBe('Notas ainda não publicadas');
+    expect(
+      within(screen.getByRole('region', { name: 'Minhas notas' })).getByRole('status').textContent,
+    ).toBe('Notas ainda não publicadas');
     expect(screen.getByText('Estudante de exemplo')).toBeTruthy();
     view.rerender(page({ load: { state: 'maintenance' } }));
     expect(screen.getByRole('alert').textContent).toContain('Portal em manutenção');
@@ -82,7 +86,9 @@ describe('student shell and canonical profile', () => {
   });
   it('shows a closed access state without retaining protected content or calling it missing grades', () => {
     const view = render(page());
-    view.rerender(page({ load: { state: 'error', error: new PortalClientErrorV1('access-closed', 403) } }));
+    view.rerender(
+      page({ load: { state: 'error', error: new PortalClientErrorV1('access-closed', 403) } }),
+    );
     expect(screen.getByRole('alert').textContent).toContain('Acesso ao Portal fechado');
     expect(screen.queryByText('Estudante de exemplo')).toBeNull();
     expect(screen.queryByText('Notas ainda não publicadas')).toBeNull();

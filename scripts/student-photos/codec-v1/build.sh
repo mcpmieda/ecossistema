@@ -42,8 +42,16 @@ const applicationBaseCommit = process.env.PR_BASE_SHA || null;
 const checkoutParents = execFileSync('git', ['cat-file', '-p', 'HEAD'], { encoding: 'utf8' })
   .split('\n').filter(line => line.startsWith('parent ')).map(line => line.slice(7));
 if (applicationHeadCommit !== null || applicationBaseCommit !== null || process.env.GITHUB_EVENT_NAME === 'pull_request') {
-  if (!/^[a-f0-9]{40}$/u.test(applicationHeadCommit ?? '') || !/^[a-f0-9]{40}$/u.test(applicationBaseCommit ?? '')
-    || checkoutParents.length !== 2 || checkoutParents[0] !== applicationBaseCommit || checkoutParents[1] !== applicationHeadCommit)
+  // GitHub may advance main while a PR event retains its earlier base.sha.
+  // Never weaken identity: the synthetic merge must contain EXACTLY the PR
+  // head as second parent and the CURRENT fetched main as first parent.
+  // The event base must be an ancestor of that main, not an unrelated ref.
+  const currentMain = execFileSync('git', ['rev-parse', 'refs/remotes/origin/main'], { encoding: 'utf8' }).trim();
+  const baseAncestor = /^[a-f0-9]{40}$/u.test(applicationBaseCommit ?? '')
+    && execFileSync('git', ['merge-base', applicationBaseCommit, currentMain], { encoding: 'utf8' }).trim() === applicationBaseCommit;
+  if (!/^[a-f0-9]{40}$/u.test(applicationHeadCommit ?? '')
+    || !baseAncestor || checkoutParents.length !== 2
+    || checkoutParents[0] !== currentMain || checkoutParents[1] !== applicationHeadCommit)
     throw new Error('student-photo-codec-provenance-mismatch');
 }
 const report = {

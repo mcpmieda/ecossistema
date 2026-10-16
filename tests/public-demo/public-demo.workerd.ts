@@ -174,6 +174,11 @@ it('serves the real isolated package without visitor writes and blocks all saved
   expect(await (await invoke('getState')).json()).toEqual(before);
   for (const path of [
     '/api/me',
+    '/api/attendance/v1',
+    '/api/attendance/v1/',
+    '/api/gradebook/frequency/v2',
+    '/api/frequency-collector/frequency',
+    '/api/student/frequency?month=2026-10',
     '/control',
     '/accesses',
     '/index',

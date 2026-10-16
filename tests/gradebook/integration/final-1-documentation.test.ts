@@ -189,8 +189,14 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(source('AGENTS.md')).toContain('Não contorne checks');
     expect(source('AGENTS.md')).toContain('CI no head final');
     expect(section('security')).toContain('automatic_authority_activation: forbidden');
+    const integrationGate = source('.github/workflows/validate-pull-request.yml');
+    // The reviewed gate now validates the actual Cloudflare Pages route
+    // artifact. Keep an exact Git blob pin AND a functional safety invariant:
+    // this is not permission to bypass checks or academic acceptance.
+    expect(integrationGate).toContain("production-inputs/dist/_routes.json");
+    expect(integrationGate).toContain('/frequency-collector/*');
     expect(blobHash('.github/workflows/validate-pull-request.yml'))
-      .toBe('ef65203ee47f6a18adab6794f85abb0d447c101f');
+      .toBe('ed496d6884f55f1da27c655bc2d8e2e281954f4d');
   });
   it('keeps the canonical local documentation links resolvable', () => {
     const pages = [

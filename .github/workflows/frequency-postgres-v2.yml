@@ -1,0 +1,64 @@
+name: Frequency PostgreSQL V2
+on:
+  pull_request:
+    paths:
+      - 'server/attendance/**'
+      - 'server/collector/**'
+      - 'server/student-identity/reconciliation/**'
+      - 'server/student-portal/**'
+      - 'server/gradebook/application/settings/year-reset-v1.ts'
+      - 'migrations/**'
+      - 'shared/attendance-contracts/**'
+      - 'tests/attendance/**'
+      - '.github/workflows/frequency-postgres-v2.yml'
+      - 'package*.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-frequency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - tests/collector/pairing-admission-v2.integration.test.ts
+          - tests/attendance/postgres-v2.test.ts
+          - tests/attendance/native-stack-v2.integration.test.ts
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: attendance_ephemeral
+          POSTGRES_DB: attendance_ephemeral_00000000000000000000000000000000
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U attendance_ephemeral -d attendance_ephemeral_00000000000000000000000000000000"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      ATTENDANCE_TEST_POSTGRES_URL: postgresql://attendance_ephemeral@127.0.0.1:5432/attendance_ephemeral_00000000000000000000000000000000
+      ATTENDANCE_TEST_POSTGRES_MARKER: 00000000-0000-4000-8000-000000000001
+      ATTENDANCE_TEST_POSTGRES_DATA_DIRECTORY: /var/lib/postgresql/data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Prove disposable target
+        run: |
+          psql "$ATTENDANCE_TEST_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "CREATE TABLE public.attendance_test_sandbox_v1(marker uuid PRIMARY KEY); INSERT INTO public.attendance_test_sandbox_v1 VALUES ('$ATTENDANCE_TEST_POSTGRES_MARKER');"
+          psql "$ATTENDANCE_TEST_POSTGRES_URL" -v ON_ERROR_STOP=1 -c 'SHOW server_version; SHOW data_directory;'
+      - name: Native frequency invariants
+        run: node node_modules/vitest/vitest.mjs run '${{ matrix.suite }}' --reporter=default --reporter=json --outputFile=frequency-native-result.json
+      - name: Preserve synthetic gate result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: frequency-native-${{ strategy.job-index }}
+          path: frequency-native-result.json
+          if-no-files-found: error

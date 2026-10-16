@@ -42,7 +42,9 @@ describe('Cloudflare Workers Paid runtime configuration', () => {
       readonly hyperdrive?: readonly { readonly binding?: unknown; readonly id?: unknown }[];
     };
     expect(config.vars?.GRADEBOOK_STORAGE_PROVIDER).toBe('postgres');
-    expect(config.hyperdrive).toEqual([{ binding: 'PROD_DB', id: '476b417597c84b4c994bd36f1a65cb70' }]);
+    expect(config.hyperdrive?.filter(({ binding }) => binding === 'PROD_DB')).toEqual([
+      { binding: 'PROD_DB', id: '476b417597c84b4c994bd36f1a65cb70' },
+    ]);
     // Remote SQL cache is verified separately, not inferred from the binding ID.
   });
   it('uses only segmented tokens and the repository account variable in Cloudflare workflows', () => {

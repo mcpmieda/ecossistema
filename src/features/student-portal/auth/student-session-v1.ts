@@ -139,6 +139,16 @@ export function createStudentSessionV1(
   };
   return {
     clear,
+    /** A server-confirmed frequency 401 invalidates ALL protected student state. */
+    invalidateAuthorization() {
+      if (disposed || blocked) return;
+      blocked = true;
+      clear();
+      expiresAt = 0;
+      preserve = false;
+      lastLoad = { state: 'error', error: new PortalClientErrorV1('unauthenticated', 401) };
+      publish(lastLoad);
+    },
     authorizeSecurity,
     acceptSecurityAuthorization,
     /** Content was dropped on pagehide (never frozen in history); reload it on return. */
@@ -241,5 +251,6 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
     refresh: () => session.current?.refresh(),
     authenticated: () => session.current?.authenticated(),
     logout: () => session.current?.logout(),
+    invalidateAuthorization: () => session.current?.invalidateAuthorization(),
   };
 }

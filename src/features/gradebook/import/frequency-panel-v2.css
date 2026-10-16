@@ -1,0 +1,128 @@
+.frequency-admin {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.frequency-admin h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.frequency-admin h4 {
+  font-weight: 600;
+  margin-bottom: 0.8rem;
+}
+.frequency-heading,
+.frequency-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+.frequency-heading {
+  justify-content: space-between;
+}
+.frequency-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 1rem;
+}
+.frequency-admin label {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+}
+.frequency-admin input:not([type='checkbox']),
+.frequency-admin select,
+.frequency-admin textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.65rem;
+  background: var(--surface);
+  color: var(--foreground);
+}
+.frequency-admin input:disabled {
+  opacity: 0.6;
+}
+.frequency-device-details {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.frequency-device-details dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.frequency-device-details dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+.frequency-confirm {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.frequency-schedule {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 0.9rem;
+  margin: 1rem 0;
+}
+.frequency-schedule fieldset {
+  min-width: 0;
+  border: 1px solid var(--border);
+  padding: 0.85rem;
+  border-radius: 0.8rem;
+}
+.frequency-schedule legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.frequency-admin .frequency-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.frequency-admin p {
+  overflow-wrap: anywhere;
+}
+.frequency-import-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.frequency-admin output {
+  display: block;
+}
+.frequency-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.frequency-list li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  overflow-wrap: anywhere;
+}
+.frequency-list li span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.frequency-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.frequency-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 0.3rem;
+}
