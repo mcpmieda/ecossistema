@@ -9,7 +9,7 @@ import type {CollectorOAuthTransactionV1,CollectorRegistrationV1} from '../../se
 let db:PGlite,publicKey:CollectorPublicKeyV1;
 beforeAll(async()=>{
   db=new PGlite();
-  for(const name of ['0001_device_authorization.sql','0002_pending_pairings.sql'])
+  for(const name of ['0001_device_authorization.sql','0002_pending_pairings.sql','0006_pairing_rate_v1.sql'])
     await db.exec(await readFile(new URL('../../migrations/collector/'+name,import.meta.url),'utf8'));
   const key=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
   const exported=await crypto.subtle.exportKey('jwk',key.publicKey);
@@ -32,6 +32,20 @@ async function fixture(age=0){
   return {store,transaction,pollHash,registration};
 }
 describe('owner-only pending pairing and atomic initial registration',()=>{
+  it('enforces atomic per-origin/global pairing windows and a pending cap',async()=>{
+    const f=await fixture(),one='client:'+'a'.repeat(64),two='client:'+'b'.repeat(64);
+    for(let i=0;i<30;i++)expect(await f.store.allowPairingRequest(one)).toBe(true);
+    expect(await f.store.allowPairingRequest(one)).toBe(false);
+    expect(await f.store.allowPairingRequest(two)).toBe(true);
+    const record=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0];
+    expect(record?.requests).toBe(31);
+    await db.exec("UPDATE collector_auth.pairing_rate_v1 SET window_started_at=clock_timestamp()-interval '11 minutes'");
+    expect(await f.store.allowPairingRequest(one)).toBe(true);
+    await db.exec(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
+      SELECT gen_random_uuid(),p.public_key,p.key_thumbprint,p.poll_hash,'123456',clock_timestamp(),clock_timestamp()+interval '10 minutes'
+      FROM collector_auth.pairings p CROSS JOIN generate_series(1,79) n WHERE p.id='${id}'`);
+    expect(await f.store.allowPairingRequest(two)).toBe(false);
+  });
   it('reveals neither public key nor poll secret in browser view and isolates polling',async()=>{
     const f=await fixture(),view=await f.store.browserView(id);
     expect(view?.display_code).toBe('123456');expect(view).not.toHaveProperty('poll_hash');expect(view).not.toHaveProperty('public_key');
