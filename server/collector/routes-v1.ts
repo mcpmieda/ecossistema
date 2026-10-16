@@ -136,10 +136,13 @@ async function pairingRequest(request:Request,url:URL,env:RuntimeEnv,runtime:Col
     const edgeAddress=request.headers.get('CF-Connecting-IP')??'';
     const source=/^[0-9a-fA-F:.]{3,48}$/u.test(edgeAddress)?edgeAddress.toLowerCase():'unknown';
     const scope='client:'+await collectorOpaqueHashV1(env.SESSION_SECRET+'\\0'+source);
+    // Malformed/unsigned requests must not consume the scarce school-wide
+    // pairing quota. A self-signed valid key is still untrusted, hence DB caps.
+    const proof=await verifyCollectorPairingV1(value,runtime.oauth.now());
     if(!await runtime.pairings.allowPairingRequest(scope))
       return new Response(JSON.stringify({error:'Pairing temporarily unavailable',code:'ACCESS_UNAVAILABLE'}),{
         status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':'600'}});
-    const proof=await verifyCollectorPairingV1(value,runtime.oauth.now()),pollToken=random();
+    const pollToken=random();
     const digits=crypto.getRandomValues(new Uint32Array(1))[0]!;
     const displayCode=String(digits%1_000_000).padStart(6,'0');
     await runtime.pairings.create({id:proof.id,publicKey:proof.publicKey,pollHash:await collectorOpaqueHashV1(pollToken),displayCode,createdAt:runtime.oauth.now()});
