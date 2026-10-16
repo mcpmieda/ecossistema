@@ -6,7 +6,7 @@ O código desta entrega é candidato; merge e publicação aguardam a validaçã
 
 ## Preparação do Supabase
 
-As migrations abaixo foram aplicadas uma vez, após ensaio PostgreSQL 17.6 com executor sem superuser. MD5 e SHA256 dos bytes dos arquivos foram comparados ao SQL registrado no ledger; todos coincidiram.
+As migrations abaixo foram aplicadas no Supabase. Para o conjunto original de 2026-10-15, MD5 e SHA256 foram cotejados com o ledger. Em 16/10/2026, novas migrations aditivas foram aplicadas e suas condições pós-migração verificadas em leitura. O job `pg_cron` é específico do Supabase: a suíte nativa com PostgreSQL Docker (sem a extensão) valida as demais migrations, e a execução do SQL agendado foi validada na base preparada.
 
 | Arquivo | Versão no ledger | MD5 do SQL |
 | --- | --- | --- |
@@ -16,8 +16,10 @@ As migrations abaixo foram aplicadas uma vez, após ensaio PostgreSQL 17.6 com e
 | attendance/0003_portal_frequency_read_v2.sql | 20261015121140 | 3baf0806793e56aaba2106abb988fd7d |
 | attendance/0004_foreign_key_indexes_v2.sql | 20261015121602 | ebc36dfe66ae1834480f17dd60559b01 |
 | attendance/0005_operations_trail_v2.sql | 20261015233808 | 0f4c61d7e4fece79556391c3a71f4bb1 |
-| collector/0005_retention_v2.sql | pendente de aplicação | — |
-| attendance/0006_receipt_retention_v2.sql | pendente de aplicação | — |
+| collector/0005_retention_v2.sql | 20261016061240 | conferência estrutural |
+| attendance/0006_receipt_retention_v2.sql | 20261016061244 | conferência estrutural |
+| collector/0006_pairing_rate_v1.sql | 20261016061913 | conferência estrutural |
+| collector/0007_scheduled_retention_v2.sql | 20261016062009 | job conferido e execução sintética limpa |
 
 A 0005 foi aplicada em 15/10/2026 via apply_migration, pedida pelo responsável, com executor `postgres` sem superuser. Antes: 66 entradas, fingerprint `ce146e26d75c8808c59b269ce7f13f2e` (mesma fórmula), tabela e coluna ausentes, `class_state_v2` vazia. Depois: o SQL do ledger tem o MD5 do arquivo (SHA256 `c387f8a9a507a35436472b76c627dc2495f132d0bc26aba971ecfe9f47abad11`), as 66 entradas anteriores mantiveram o fingerprint, `failure_v2` com RLS forçada, acesso só de `gradebook_app` e índices válidos, e a constraint de `unresolved_json` validada. O advisor de segurança retornou zero avisos; o de desempenho só lista índices ainda não usados e FKs antigas fora de `attendance`. O código em produção não usa essas estruturas até a publicação da PR.
 
@@ -35,7 +37,9 @@ A auditoria de segurança retornou zero avisos. O índice da FK de pareamentos e
 - `migrations/attendance/0002_runtime_bridges_v2.sql`: revalidação central da evidência histórica e invalidação do preview do reset anual.
 - `migrations/attendance/0003_portal_frequency_read_v2.sql`: leitura privada vinculada ao aluno, à conta e à sessão do Portal.
 - `migrations/attendance/0004_foreign_key_indexes_v2.sql`: índices de apoio às FKs, às verificações de pai e à limpeza anual.
-- `migrations/collector/0005_retention_v2.sql` e `migrations/attendance/0006_receipt_retention_v2.sql` (aditivas): retenção limitada sem cron. A cada acesso do Coletor, o runtime apaga desafios vencidos há mais de 1 hora e pareamentos cancelados sem computador há mais de 1 dia (pareamentos concluídos ficam, pois a autorização depende deles; sem o grant DELETE a limpeza é pulada). O heartbeat do computador ativo e a abertura do painel apagam falhas com mais de 7 dias e recibos sem lote com mais de 8 dias (a fila do Coletor desiste em 7). Recibos de coleta ficam com o lote. Um `requestId` apagado não é reaproveitável: todo pedido exige prova nova do dispositivo, e agenda/conflitos têm CAS próprio. Até 500 linhas por vez.
+- `migrations/collector/0005_retention_v2.sql` e `migrations/attendance/0006_receipt_retention_v2.sql` (aditivas): retenção adicional acionada por tráfego, complementada pelo cron independente. A cada acesso do Coletor, o runtime apaga desafios vencidos há mais de 1 hora e pareamentos cancelados sem computador há mais de 1 dia (pareamentos concluídos ficam, pois a autorização depende deles; sem o grant DELETE a limpeza é pulada). O heartbeat do computador ativo e a abertura do painel apagam falhas com mais de 7 dias e recibos sem lote com mais de 8 dias (a fila do Coletor desiste em 7). Recibos de coleta ficam com o lote. Um `requestId` apagado não é reaproveitável: todo pedido exige prova nova do dispositivo, e agenda/conflitos têm CAS próprio. Até 500 linhas por vez.
+- `migrations/collector/0006_pairing_rate_v1.sql` (aditiva, aplicada em 16/10/2026): orçamento atômico PostgreSQL de 30 tentativas por origem de borda e 120 tentativas globais a cada 10 minutos, mais teto de 80 pareamentos ativos não finalizados. O IP nunca é armazenado em texto; o cabeçalho `CF-Connecting-IP` só limita a origem, jamais autentica o dispositivo; um limite global continua ativo mesmo se o cabeçalho não for confiável. O excesso responde 503 temporário com `Retry-After`, compatível com o Coletor Windows.
+- `migrations/collector/0007_scheduled_retention_v2.sql` (aditiva, aplicada em 16/10/2026): `pg_cron` a cada 15 minutos no Supabase, inclusive quando todos os PCs ficam offline. Revoga credenciais de pareamentos concluídos mas não reclamados após expiração; apaga, em lotes de até 500, desafios acima de uma hora, pareamentos cancelados acima de um dia sem dispositivo, recibos operacionais sem lote acima de oito dias, falhas acima de sete dias e contadores de origem acima de dois dias. Não apaga lotes/recibos vinculados a evidências acadêmicas nem pareamentos já reclamados. O job `collector-frequency-retention-v2` está ativo no banco e o SQL foi executado uma vez com resultado sem linhas elegíveis.
 - `migrations/attendance/0005_operations_trail_v2.sql` (aditiva, aplicada em 15/10/2026): `attendance.failure_v2`, trilha de falhas de 7 dias, e `class_state_v2.unresolved_json`, alunos do Smecel ainda sem conciliação na coleta mais recente de cada turma.
 - `server/attendance/failure-log-v2.ts`: grava cada falha sem valores pessoais (código, operação, detalhe técnico, computador e turma), agrupa repetições em 10 minutos e apaga registros com mais de 7 dias. Erros que o computador informa no heartbeat entram na mesma trilha.
 - `server/student-portal/integration/year-reset/frequency-writer-v2.ts`: registra uma alteração de frequência no protocolo de reset existente, sem alterar a revisão acadêmica.
