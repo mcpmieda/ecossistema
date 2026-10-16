@@ -562,7 +562,11 @@ async function checkCollectionClock(tx: Tx, input: FrequencyCollectionV2) {
   const today = text(clock!.today);
   const observedDay = text(clock!.observed_day);
   validateCollection(input, observedDay < today ? observedDay : today);
-  rejectSource(new Date(input.observedAt) > new Date(text(clock!.now)), 'observed-in-future');
+  // The Windows collector diagnoses skew beyond five seconds using serverTime.
+  // A capture whose clock is slightly ahead must not be rejected by the
+  // server; future civil dates are still rejected against the school day.
+  rejectSource(new Date(input.observedAt).getTime() > new Date(text(clock!.now)).getTime() + 5000,
+    'observed-in-future');
 }
 /**
  * The Centro's Relatório/Relação link is the class authority. Spacing, accents
