@@ -22,6 +22,42 @@ export class CollectorPairingStoreV1 {
       hash.parse(input.pollHash),z.string().regex(/^\d{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
   }
 
+  /** Admission is a DB-atomic ten-minute budget, safe across serverless instances.
+   * The client scope is an HMAC-like hash of the edge-reported IP, never raw IP.
+   * A global budget still protects the DB if the edge header is absent/spoofed.
+   * A third guard caps unconfirmed simultaneous pairing records. */
+  async allowPairingRequest(clientScope:string):Promise<boolean>{
+    if(!/^client:[a-f0-9]{64}$/u.test(clientScope))return false;
+    const [result]=await this.sql.query<{allowed:boolean}>(`
+      WITH local_budget AS (
+        INSERT INTO collector_auth.pairing_rate_v1(scope,window_started_at,requests)
+        VALUES($1,clock_timestamp(),1)
+        ON CONFLICT(scope) DO UPDATE SET
+          requests=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+             THEN 1 ELSE collector_auth.pairing_rate_v1.requests+1 END,
+          window_started_at=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+             THEN clock_timestamp() ELSE collector_auth.pairing_rate_v1.window_started_at END
+        WHERE collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+           OR collector_auth.pairing_rate_v1.requests<30
+        RETURNING scope
+      ), global_budget AS (
+        INSERT INTO collector_auth.pairing_rate_v1(scope,window_started_at,requests)
+        SELECT 'global',clock_timestamp(),1 FROM local_budget
+        ON CONFLICT(scope) DO UPDATE SET
+          requests=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+             THEN 1 ELSE collector_auth.pairing_rate_v1.requests+1 END,
+          window_started_at=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+             THEN clock_timestamp() ELSE collector_auth.pairing_rate_v1.window_started_at END
+        WHERE collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+           OR collector_auth.pairing_rate_v1.requests<120
+        RETURNING scope
+      ) SELECT EXISTS(SELECT 1 FROM global_budget) AND
+        (SELECT count(*) FROM collector_auth.pairings
+         WHERE expires_at>clock_timestamp() AND state IN ('pending','confirmed','exchanging'))<80 AS allowed
+    `,[clientScope]);
+    return result?.allowed===true;
+  }
+
   async browserView(id:string):Promise<Record<string,unknown>|null>{
     const rows=await this.sql.query(`SELECT id,key_thumbprint,display_code,state,expires_at
       FROM collector_auth.pairings WHERE id=$1 AND expires_at>clock_timestamp() AND state='pending'`,[uuid.parse(id)]);
@@ -126,6 +162,9 @@ export class CollectorPairingStoreV1 {
     const [grant]=await this.sql.query<{ready:boolean}>(`SELECT has_table_privilege(current_user,'collector_auth.challenges','DELETE')
       AND has_table_privilege(current_user,'collector_auth.pairings','DELETE') AS ready`,[]);
     if(grant?.ready!==true)return;
+    // Only the collector runtime sees these pseudonymous rate-limit scopes.
+    await this.sql.query(`DELETE FROM collector_auth.pairing_rate_v1 WHERE scope<>'global'
+      AND window_started_at<clock_timestamp()-interval '2 days'`,[]).catch(()=>undefined);
     await this.sql.query(`WITH challenges AS (DELETE FROM collector_auth.challenges WHERE ctid IN (SELECT ctid FROM collector_auth.challenges
       WHERE expires_at<clock_timestamp()-interval '1 hour' LIMIT 500) RETURNING 1
       ), pairings AS (DELETE FROM collector_auth.pairings WHERE ctid IN (SELECT ctid FROM collector_auth.pairings
