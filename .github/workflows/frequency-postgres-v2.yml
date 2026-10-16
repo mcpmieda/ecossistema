@@ -23,6 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         suite:
+          - tests/collector/pairing-admission-v2.integration.test.ts
           - tests/attendance/postgres-v2.test.ts
           - tests/attendance/native-stack-v2.integration.test.ts
     services:

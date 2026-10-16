@@ -9,7 +9,7 @@ import type {CollectorOAuthTransactionV1,CollectorRegistrationV1} from '../../se
 let db:PGlite,publicKey:CollectorPublicKeyV1;
 beforeAll(async()=>{
   db=new PGlite();
-  for(const name of ['0001_device_authorization.sql','0002_pending_pairings.sql','0006_pairing_rate_v1.sql'])
+  for(const name of ['0001_device_authorization.sql','0002_pending_pairings.sql','0006_pairing_rate_v1.sql','0009_atomic_pairing_admission_v2.sql'])
     await db.exec(await readFile(new URL('../../migrations/collector/'+name,import.meta.url),'utf8'));
   const key=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
   const exported=await crypto.subtle.exportKey('jwk',key.publicKey);
@@ -32,46 +32,58 @@ async function fixture(age=0){
   return {store,transaction,pollHash,registration};
 }
 describe('owner-only pending pairing and atomic initial registration',()=>{
-  it('enforces atomic per-origin/global pairing windows and a pending cap',async()=>{
+  it('enforces rate windows without counting denied requests',async()=>{
     const f=await fixture(),one='client:'+'a'.repeat(64),two='client:'+'b'.repeat(64);
-    for(let i=0;i<30;i++)expect(await f.store.allowPairingRequest(one)).toBe(true);
-    expect(await f.store.allowPairingRequest(one)).toBe(false);
-    expect(await f.store.allowPairingRequest(two)).toBe(true);
-    const record=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0];
-    expect(record?.requests).toBe(31);
-    await db.exec("UPDATE collector_auth.pairing_rate_v1 SET window_started_at=clock_timestamp()-interval '11 minutes'");
-    expect(await f.store.allowPairingRequest(one)).toBe(true);
-    await db.exec(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
-      SELECT gen_random_uuid(),p.public_key,p.key_thumbprint,p.poll_hash,'123456',clock_timestamp(),clock_timestamp()+interval '10 minutes'
-      FROM collector_auth.pairings p CROSS JOIN generate_series(1,79) n WHERE p.id='${id}'`);
-    expect(await f.store.allowPairingRequest(two)).toBe(false);
-  });
-  it('does not create client scopes once the global budget is exhausted',async()=>{
-    const f=await fixture();
     await db.exec('TRUNCATE collector_auth.pairing_rate_v1');
-    for(let i=0;i<120;i++){
-      const scope='client:'+i.toString(16).padStart(64,'0');
-      expect(await f.store.allowPairingRequest(scope)).toBe(true);
-    }
-    const existing=(await db.query<{total:string}>("SELECT count(*)::text AS total FROM collector_auth.pairing_rate_v1")).rows[0]!.total;
-    expect(Number(existing)).toBe(121);
-    for(let i=120;i<150;i++){
-      const scope='client:'+i.toString(16).padStart(64,'0');
-      expect(await f.store.allowPairingRequest(scope)).toBe(false);
-    }
-    const after=(await db.query<{total:string}>("SELECT count(*)::text AS total FROM collector_auth.pairing_rate_v1")).rows[0]!.total;
-    expect(after).toBe(existing);
-    const global=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0];
-    expect(global?.requests).toBe(120);
+    const offer=async(scope:string)=>f.store.createAdmitted(scope,{
+      id:crypto.randomUUID(),publicKey,pollHash:'e'.repeat(64),displayCode:'123456',createdAt:Date.now()});
+    for(let i=0;i<30;i++)expect(await offer(one)).toBe(true);
+    expect(await offer(one)).toBe(false);
+    expect(await offer(two)).toBe(true);
+    let global=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0];
+    expect(global?.requests).toBe(31);
+    await db.exec("UPDATE collector_auth.pairing_rate_v1 SET window_started_at=clock_timestamp()-interval '11 minutes'");
+    expect(await offer(one)).toBe(true);
+    global=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0];
+    expect(global?.requests).toBe(1);
+    const count=(await db.query<{n:string}>("SELECT count(*)::text AS n FROM collector_auth.pairings")).rows[0];
+    expect(Number(count?.n)).toBe(33);
   });
-  it('an origin blocked at 30 requests cannot exhaust remaining global capacity',async()=>{
+  it('does not create client scopes after global exhaustion',async()=>{
+    const f=await fixture();
+    await db.exec("TRUNCATE collector_auth.pairing_rate_v1");
+    await db.exec("INSERT INTO collector_auth.pairing_rate_v1(scope,requests) VALUES('global',120)");
+    const before=(await db.query<{n:string}>("SELECT count(*)::text AS n FROM collector_auth.pairing_rate_v1")).rows[0]!.n;
+    for(let i=0;i<20;i++)expect(await f.store.createAdmitted('client:'+i.toString(16).padStart(64,'0'),{
+      id:crypto.randomUUID(),publicKey,pollHash:'d'.repeat(64),displayCode:'123456',createdAt:Date.now()})).toBe(false);
+    const after=(await db.query<{n:string}>("SELECT count(*)::text AS n FROM collector_auth.pairing_rate_v1")).rows[0]!.n;
+    expect(after).toBe(before);
+  });
+  it('does not consume global slots on origin limit or pending cap rejection',async()=>{
     const f=await fixture(),one='client:'+'f'.repeat(64),other='client:'+'e'.repeat(64);
     await db.exec('TRUNCATE collector_auth.pairing_rate_v1');
-    for(let i=0;i<30;i++)expect(await f.store.allowPairingRequest(one)).toBe(true);
-    for(let i=0;i<50;i++)expect(await f.store.allowPairingRequest(one)).toBe(false);
-    const global=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0];
-    expect(global?.requests).toBe(30);
-    expect(await f.store.allowPairingRequest(other)).toBe(true);
+    await db.query("INSERT INTO collector_auth.pairing_rate_v1(scope,requests) VALUES($1,30),('global',10)",[one]);
+    const offer=(scope:string)=>f.store.createAdmitted(scope,{
+      id:crypto.randomUUID(),publicKey,pollHash:'b'.repeat(64),displayCode:'123456',createdAt:Date.now()});
+    for(let i=0;i<25;i++)expect(await offer(one)).toBe(false);
+    expect((await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0]?.requests).toBe(10);
+    expect(await offer(other)).toBe(true);
+    await db.exec(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
+      SELECT gen_random_uuid(),p.public_key,p.key_thumbprint,p.poll_hash,'123456',clock_timestamp(),clock_timestamp()+interval '10 minutes'
+      FROM collector_auth.pairings p CROSS JOIN generate_series(1,77) n WHERE p.id='${id}'`);
+    // One original fixture, one admitted second scope, 77 extras => 79;
+    expect(await offer('client:'+'c'.repeat(64))).toBe(true);
+    const before=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0]?.requests;
+    expect(await offer('client:'+'d'.repeat(64))).toBe(false);
+    expect((await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0]?.requests).toBe(before);
+    expect(Number((await db.query<{n:string}>("SELECT count(*)::text AS n FROM collector_auth.pairings WHERE state='pending'")).rows[0]?.n)).toBe(80);
+  });
+  it('rolls back both budgets if the pending INSERT fails',async()=>{
+    const f=await fixture();
+    await db.exec('TRUNCATE collector_auth.pairing_rate_v1');
+    await expect(f.store.createAdmitted('client:'+'a'.repeat(64),{id,publicKey,
+      pollHash:'f'.repeat(64),displayCode:'123456',createdAt:Date.now()})).rejects.toThrow();
+    expect((await db.query("SELECT scope FROM collector_auth.pairing_rate_v1")).rows).toHaveLength(0);
   });
   it('reveals neither public key nor poll secret in browser view and isolates polling',async()=>{
     const f=await fixture(),view=await f.store.browserView(id);

@@ -22,48 +22,16 @@ export class CollectorPairingStoreV1 {
       hash.parse(input.pollHash),z.string().regex(/^\d{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
   }
 
-  /** Admission is a DB-atomic ten-minute budget, safe across serverless instances.
-   * The client scope is an HMAC-like hash of the edge-reported IP, never raw IP.
-   * A global budget still protects the DB if the edge header is absent/spoofed.
-   * A third guard caps unconfirmed simultaneous pairing records. */
-  async allowPairingRequest(clientScope:string):Promise<boolean>{
+  /** One statement, one PostgreSQL transaction: quota checks, reservations
+   * and pending INSERT are guarded by the same database advisory xact lock.
+   * Rejected or failed inserts never consume any budget or pairing slot. */
+  async createAdmitted(clientScope:string,input:{id:string;publicKey:CollectorPublicKeyV1;pollHash:string;displayCode:string;createdAt:number}):Promise<boolean>{
     if(!/^client:[a-f0-9]{64}$/u.test(clientScope))return false;
-    const [result]=await this.sql.query<{allowed:boolean}>(`
-      WITH local_precheck AS MATERIALIZED (
-        -- Do not let a single rate-limited origin drain the global budget.
-        SELECT NOT EXISTS(
-          SELECT 1 FROM collector_auth.pairing_rate_v1
-          WHERE scope=$1 AND window_started_at>=clock_timestamp()-interval '10 minutes'
-            AND requests>=30
-        ) AS eligible
-      ), global_budget AS MATERIALIZED (
-        -- Global admission is reserved FIRST: rejected global attempts never
-        -- create one new per-IP row (critical with rotating IPv6 origins).
-        INSERT INTO collector_auth.pairing_rate_v1(scope,window_started_at,requests)
-        SELECT 'global',clock_timestamp(),1 FROM local_precheck WHERE eligible
-        ON CONFLICT(scope) DO UPDATE SET
-          requests=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-             THEN 1 ELSE collector_auth.pairing_rate_v1.requests+1 END,
-          window_started_at=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-             THEN clock_timestamp() ELSE collector_auth.pairing_rate_v1.window_started_at END
-        WHERE collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-           OR collector_auth.pairing_rate_v1.requests<120
-        RETURNING scope
-      ), local_budget AS (
-        INSERT INTO collector_auth.pairing_rate_v1(scope,window_started_at,requests)
-        SELECT $1,clock_timestamp(),1 FROM global_budget
-        ON CONFLICT(scope) DO UPDATE SET
-          requests=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-             THEN 1 ELSE collector_auth.pairing_rate_v1.requests+1 END,
-          window_started_at=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-             THEN clock_timestamp() ELSE collector_auth.pairing_rate_v1.window_started_at END
-        WHERE collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-           OR collector_auth.pairing_rate_v1.requests<30
-        RETURNING scope
-      ) SELECT EXISTS(SELECT 1 FROM local_budget) AND
-        (SELECT count(*) FROM collector_auth.pairings
-         WHERE expires_at>clock_timestamp() AND state IN ('pending','confirmed','exchanging'))<80 AS allowed
-    `,[clientScope]);
+    const publicKey=collectorPublicKeyV1.parse(input.publicKey),fingerprint=await collectorKeyThumbprintV1(publicKey);
+    const [result]=await this.sql.query<{allowed:boolean}>(`SELECT collector_auth.create_pairing_limited_v2(
+      $1::text,$2::uuid,$3::jsonb,$4::text,$5::text,$6::text,$7::timestamptz) AS allowed`,[
+      clientScope,uuid.parse(input.id),JSON.stringify(publicKey),fingerprint,hash.parse(input.pollHash),
+      z.string().regex(/^\\d{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
     return result?.allowed===true;
   }
 
