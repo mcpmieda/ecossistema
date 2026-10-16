@@ -145,6 +145,25 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
     const count=(await db.query<{n:number}>("SELECT count(*)::integer AS n FROM collector_auth.pairings")).rows[0]?.n;
     expect(count).toBe(30);
   });
+  it('keeps a valid code pending if OAuth cookie preparation fails before database commit',async()=>{
+    const f=await fixture(),pair=await f.begin();
+    const first=await f.request('/frequency-collector/connect?pairing='+pair.id),markup=await first.text();
+    const csrf=markup.match(/name="csrf" value="([A-Za-z0-9_-]+)"/)![1]!;
+    const cookie=first.headers.get('Set-Cookie')!.split(';')[0]!;
+    const form=new URLSearchParams({pairing:pair.id,csrf,code:pair.displayCode,confirm:'yes'});
+    const encrypt=vi.spyOn(crypto.subtle,'encrypt').mockRejectedValueOnce(new Error('SYNTHETIC_FAIL_BEFORE_COMMIT'));
+    try{
+      const reply=await handleCollectorRequestV1(new Request(origin+'/frequency-collector/connect',{
+        method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',Cookie:cookie,Origin:origin},
+        body:form}),env,f.dependencies);
+      expect(reply?.status).toBe(403);
+      const body=await reply!.text();
+      expect(body).toContain('inicie uma nova autorização');
+      expect(body).not.toContain('SYNTHETIC_FAIL_BEFORE_COMMIT');
+      expect(body).not.toContain(pair.displayCode);
+      expect((await db.query<{state:string}>('SELECT state FROM collector_auth.pairings WHERE id=$1',[pair.id])).rows[0]?.state).toBe('pending');
+    }finally{encrypt.mockRestore();}
+  });
   it('redirects after a committed confirmation even if the SQL adapter loses its RETURNING row',async()=>{
     const f=await fixture();
     const database=f.dependencies.database!;
