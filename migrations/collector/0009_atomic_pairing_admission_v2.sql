@@ -8,7 +8,7 @@ SET LOCAL lock_timeout='5s';
 CREATE FUNCTION collector_auth.create_pairing_limited_v2(
   p_scope text,
   p_id uuid,
-  p_public_key jsonb,
+  p_public_key text,
   p_key_thumbprint text,
   p_poll_hash text,
   p_display_code text,
@@ -60,19 +60,19 @@ BEGIN
       THEN observed_at ELSE collector_auth.pairing_rate_v1.window_started_at END;
 
   INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
-  VALUES(p_id,p_public_key,p_key_thumbprint,p_poll_hash,p_display_code,p_created_at,p_created_at+interval '10 minutes');
+  VALUES(p_id,p_public_key::jsonb,p_key_thumbprint,p_poll_hash,p_display_code,p_created_at,p_created_at+interval '10 minutes');
 
   RETURN TRUE;
 END;
 $admit$;
 
 REVOKE ALL ON FUNCTION collector_auth.create_pairing_limited_v2(
-  text,uuid,jsonb,text,text,text,timestamptz) FROM PUBLIC;
+  text,uuid,text,text,text,text,timestamptz) FROM PUBLIC;
 DO $grants$
 BEGIN
  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='collector_runtime') THEN
    GRANT EXECUTE ON FUNCTION collector_auth.create_pairing_limited_v2(
-     text,uuid,jsonb,text,text,text,timestamptz) TO collector_runtime;
+     text,uuid,text,text,text,text,timestamptz) TO collector_runtime;
  END IF;
 END;
 $grants$;

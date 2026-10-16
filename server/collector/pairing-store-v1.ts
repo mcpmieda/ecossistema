@@ -18,7 +18,7 @@ export class CollectorPairingStoreV1 {
   async create(input:{id:string;publicKey:CollectorPublicKeyV1;pollHash:string;displayCode:string;createdAt:number}):Promise<void>{
     const publicKey=collectorPublicKeyV1.parse(input.publicKey),fingerprint=await collectorKeyThumbprintV1(publicKey);
     await this.sql.query(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
-      VALUES($1,$2,$3,$4,$5,$6,$6::timestamptz+interval '10 minutes')`,[uuid.parse(input.id),JSON.stringify(publicKey),fingerprint,
+      VALUES($1,$2::text::jsonb,$3,$4,$5,$6,$6::timestamptz+interval '10 minutes')`,[uuid.parse(input.id),JSON.stringify(publicKey),fingerprint,
       hash.parse(input.pollHash),z.string().regex(/^\d{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
   }
 
@@ -29,7 +29,7 @@ export class CollectorPairingStoreV1 {
     if(!/^client:[a-f0-9]{64}$/u.test(clientScope))return false;
     const publicKey=collectorPublicKeyV1.parse(input.publicKey),fingerprint=await collectorKeyThumbprintV1(publicKey);
     const [result]=await this.sql.query<{allowed:boolean}>(`SELECT collector_auth.create_pairing_limited_v2(
-      $1::text,$2::uuid,$3::jsonb,$4::text,$5::text,$6::text,$7::timestamptz) AS allowed`,[
+      $1::text,$2::uuid,$3::text,$4::text,$5::text,$6::text,$7::timestamptz) AS allowed`,[
       clientScope,uuid.parse(input.id),JSON.stringify(publicKey),fingerprint,hash.parse(input.pollHash),
       z.string().regex(/^\d{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
     return result?.allowed===true;
