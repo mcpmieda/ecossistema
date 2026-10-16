@@ -3,7 +3,7 @@ import {collectionEvents} from '../../server/attendance/service-v2';
 
 type Arguments = Parameters<typeof collectionEvents>;
 const source = (record_key:string)=>({record_key,student_uid:'00000000-0000-4000-8000-000000000001',
-  eligibility_json:[]}) as Arguments[2][number];
+  eligibility_json:[]}) as unknown as Arguments[2][number];
 const incoming = (recordKey:string,mark:'X'|'J')=>({recordKey,date:'2026-10-16',slot:1,mark});
 describe('frequency multi-origin baseline',()=>{
   it('compares each source to its own earlier mark, not a sibling origin',async()=>{
