@@ -31,7 +31,7 @@ export class CollectorPairingStoreV1 {
     const [result]=await this.sql.query<{allowed:boolean}>(`SELECT collector_auth.create_pairing_limited_v2(
       $1::text,$2::uuid,$3::jsonb,$4::text,$5::text,$6::text,$7::timestamptz) AS allowed`,[
       clientScope,uuid.parse(input.id),JSON.stringify(publicKey),fingerprint,hash.parse(input.pollHash),
-      z.string().regex(/^\\d{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
+      z.string().regex(/^\d{6}$/u).parse(input.displayCode),new Date(input.createdAt).toISOString()]);
     return result?.allowed===true;
   }
 
