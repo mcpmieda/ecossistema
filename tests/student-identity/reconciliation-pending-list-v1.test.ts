@@ -87,27 +87,30 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
         ],
         'more',
       ),
+      page([person('reconciled', 7)], null),
     );
     expect(await readReconciliationListV1(client, input, signal(), true)).toEqual(
-      page(pending, 'more'),
+      page(pending, null),
     );
-    expect(client.request).toHaveBeenCalledTimes(1);
+    expect(client.request).toHaveBeenCalledTimes(2);
   });
   it('advances past all-reconciled pages while carrying class, search, limit and signal unchanged', async () => {
     const client = mock(
       page([person('reconciled')], 'opaque-a'),
       page([person('reconciled', 2)], 'opaque-b'),
       page([person('pending', 3)], 'opaque-c'),
+      page([person('reconciled', 4), external], null),
     );
     const request = { ...input, classId: 7, search: 'SYNTHETIC', limit: 25 };
     const abort = signal();
     expect(await readReconciliationListV1(client, request, abort, true)).toEqual(
-      page([person('pending', 3)], 'opaque-c'),
+      page([person('pending', 3), external], null),
     );
     expect(client.request.mock.calls.map(([value]) => value)).toEqual([
       { ...request, cursor: null },
       { ...request, cursor: 'opaque-a' },
       { ...request, cursor: 'opaque-b' },
+      { ...request, cursor: 'opaque-c' },
     ]);
     expect(client.request.mock.calls.every(([, value]) => value === abort)).toBe(true);
   });
@@ -136,6 +139,17 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
       page([person('reconciled', 2)], null),
     );
     expect(await readReconciliationListV1(client, input, signal(), true)).toEqual(page([], null));
+    expect(client.request).toHaveBeenCalledTimes(2);
+  });
+  it('joins pending rows scattered over several pages and stops once a page of them is in', async () => {
+    const client = mock(
+      page([external, person('reconciled')], 'opaque-a'),
+      page([person('without-report', 2), person('pending', 3)], 'opaque-b'),
+      page([person('pending', 4)], 'opaque-c'),
+    );
+    expect(await readReconciliationListV1(client, { ...input, limit: 3 }, signal(), true)).toEqual(
+      page([external, person('without-report', 2), person('pending', 3)], 'opaque-b'),
+    );
     expect(client.request).toHaveBeenCalledTimes(2);
   });
   it('preserves a genuinely empty result', async () => {
