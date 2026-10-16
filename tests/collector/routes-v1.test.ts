@@ -164,28 +164,6 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
       expect((await db.query<{state:string}>('SELECT state FROM collector_auth.pairings WHERE id=$1',[pair.id])).rows[0]?.state).toBe('pending');
     }finally{encrypt.mockRestore();}
   });
-  it('redirects after a committed confirmation even if the SQL adapter loses its RETURNING row',async()=>{
-    const f=await fixture();
-    const database=f.dependencies.database!;
-    let suppressed=0;
-    f.dependencies.database=async(connectionString)=>{
-      const original=await database(connectionString);
-      return {...original,query:async <T extends Record<string,unknown>>(sql:string,params:unknown[]):Promise<T[]>=>{
-        const rows=await original.query<T>(sql,params);
-        if(sql.includes("UPDATE collector_auth.pairings SET state='confirmed'") && rows.length===1){
-          suppressed++;
-          return [];
-        }
-        return rows;
-      }};
-    };
-    const pair=await f.begin(),auth=await f.confirm(pair);
-    expect(suppressed).toBe(1);
-    expect(auth.state).toMatch(/^collector\.[A-Za-z0-9_-]{43}$/u);
-    expect((await db.query<{state:string}>('SELECT state FROM collector_auth.pairings WHERE id=$1',[pair.id])).rows[0]?.state).toBe('confirmed');
-    const callback=await f.request('/auth/callback?state='+auth.state+'&code=SYNTHETIC_CODE',undefined,{Cookie:auth.cookie});
-    expect(callback.status).toBe(200);
-  });
   it('shows safe retry instructions for a consumed pairing without revealing codes or tokens',async()=>{
     const f=await fixture(),pair=await f.begin();
     await f.confirm(pair);

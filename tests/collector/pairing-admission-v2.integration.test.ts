@@ -47,7 +47,7 @@ describe.skipIf(!url)('real PostgreSQL multi-connection pairing admission',()=>{
     const committed=await connection.unsafe("SELECT state FROM collector_auth.pairings WHERE id=$1",[id]);
     expect(committed[0]?.state).toBe('confirmed');
     expect(await store.confirm({...txn,state:'collector.'+'z'.repeat(43)})).toBe(false);
-    expect(await store.confirm(txn)).toBe(true); // Exact cryptographic binding only, no replacement.
+    expect(await store.confirm(txn)).toBe(false); // No replay, including the very same transaction.
   });
   it('admits only one of 24 concurrent callers when their local budget is 29',async()=>{
     await connection.unsafe("TRUNCATE collector_auth.pairings,collector_auth.pairing_rate_v1");

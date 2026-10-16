@@ -42,20 +42,12 @@ export class CollectorPairingStoreV1 {
   }
 
   async confirm(transaction:CollectorOAuthTransactionV1):Promise<boolean>{
-    const values=[uuid.parse(transaction.pairingId),await collectorOpaqueHashV1(transaction.state),
-      await collectorOpaqueHashV1(transaction.nonce),new Date(transaction.exp*1000).toISOString()];
     const rows=await this.sql.query(`UPDATE collector_auth.pairings SET state='confirmed',oauth_state_hash=$2,oauth_nonce_hash=$3
       WHERE id=$1 AND state='pending' AND expires_at>clock_timestamp()
-        AND $4::timestamptz>clock_timestamp() AND $4::timestamptz<=expires_at RETURNING id`,values);
-    if(rows.length===1)return true;
-    // A network/database adapter may lose the RETURNING row after committing
-    // the UPDATE. Permit recovery ONLY for this exact freshly minted OAuth
-    // state+nonce, before expiry; another request cannot replay a code using
-    // a different state or replace the original confirmed transaction.
-    const recovered=await this.sql.query(`SELECT id FROM collector_auth.pairings
-      WHERE id=$1 AND state='confirmed' AND oauth_state_hash=$2 AND oauth_nonce_hash=$3
-        AND expires_at>clock_timestamp() AND $4::timestamptz>clock_timestamp()`,values);
-    return recovered.length===1;
+        AND $4::timestamptz>clock_timestamp() AND $4::timestamptz<=expires_at RETURNING id`,
+      [uuid.parse(transaction.pairingId),await collectorOpaqueHashV1(transaction.state),await collectorOpaqueHashV1(transaction.nonce),
+        new Date(transaction.exp*1000).toISOString()]);
+    return rows.length===1;
   }
 
   async consumeConfirmedTransaction(transaction:CollectorOAuthTransactionV1):Promise<boolean>{
