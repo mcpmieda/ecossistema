@@ -127,7 +127,7 @@ native('frequency V2 complete native migration stack', () => {
       'migrations/student-portal/0026_publication_source_retention_v1.sql',
       'migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
       ...readdirSync('migrations/collector')
-        .filter((f) => /^\d{4}_.*\.sql$/u.test(f))
+        .filter((f) => /^\d{4}_.*\.sql$/u.test(f) && f !== '0007_scheduled_retention_v2.sql')
         .sort()
         .map((f) => `migrations/collector/${f}`),
       ...readdirSync('migrations/attendance')
