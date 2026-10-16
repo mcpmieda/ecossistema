@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FrequencyClientErrorV2 } from './client-v2';
 
 /** One request at a time; visibility/unmount fences every late completion. */
-export function useFrequencyReadV2<T>(read: (signal: AbortSignal) => Promise<T>, enabled: boolean) {
+export function useFrequencyReadV2<T>(read: (signal: AbortSignal) => Promise<T>, enabled: boolean,
+  onUnauthenticated?: () => void) {
+  const authenticationLost = useRef(onUnauthenticated);
+  authenticationLost.current = onUnauthenticated;
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,6 +53,8 @@ export function useFrequencyReadV2<T>(read: (signal: AbortSignal) => Promise<T>,
           terminal =
             reason instanceof FrequencyClientErrorV2 &&
             ['unauthenticated', 'forbidden', 'not-authorized'].includes(reason.state);
+          if (reason instanceof FrequencyClientErrorV2 && reason.state === 'unauthenticated')
+            authenticationLost.current?.();
         }
       } finally {
         if (valid()) {

@@ -193,6 +193,7 @@ export function StudentPortalApp({
       ) : undefined}
       onRetry={() => { void session.refresh(); }}
       onLogin={() => { discardQr(); setAccess(true); }}
+      onAuthenticationLost={() => { discardQr(); session.invalidateAuthorization(); setAccess(true); }}
       onLogout={session.load.state === 'ready' ? () => { discardQr(); void session.logout(); } : undefined}
     />
   );

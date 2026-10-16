@@ -749,15 +749,15 @@ function sourceEvents(
     }
   return events;
 }
-async function collectionEvents(tx: Tx, input: FrequencyCollectionV2, sources: StoredSource[]) {
+export async function collectionEvents(tx: Tx, input: FrequencyCollectionV2, sources: StoredSource[]) {
   const allPrior = await tx.query<Row>(
-    `SELECT DISTINCT ON(o.student_uid,o.date,o.slot) o.student_uid::text,o.date::text,o.slot,p.mark FROM attendance.origin_v2 p JOIN attendance.occurrence_v2 o ON o.id=p.occurrence_id JOIN attendance.source_row_v2 s ON s.batch_id=p.batch_id AND s.record_key=p.record_key JOIN attendance.batch_v2 b ON b.id=p.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 AND b.id<>$3::uuid ORDER BY o.student_uid,o.date,o.slot,b.received_at DESC,b.id`,
+    `SELECT DISTINCT ON(p.record_key,o.student_uid,o.date,o.slot) p.record_key,o.student_uid::text,o.date::text,o.slot,p.mark FROM attendance.origin_v2 p JOIN attendance.occurrence_v2 o ON o.id=p.occurrence_id JOIN attendance.source_row_v2 s ON s.batch_id=p.batch_id AND s.record_key=p.record_key JOIN attendance.batch_v2 b ON b.id=p.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 AND b.id<>$3::uuid ORDER BY p.record_key,o.student_uid,o.date,o.slot,b.received_at DESC,b.id DESC`,
     [input.academicYear, input.classId, input.requestId],
   );
   return sources.flatMap((source) => {
     const previous = new Map(
       allPrior
-        .filter((p) => p.student_uid === source.student_uid)
+        .filter((p) => p.student_uid === source.student_uid && p.record_key === source.record_key)
         .map((p) => [
           `${text(p.date)}:${Number(p.slot)}`,
           p.mark === null ? null : (text(p.mark) as Mark),

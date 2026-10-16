@@ -337,6 +337,7 @@ export interface StudentPagePropsV1
   status?: ReactNode;
   onRetry?: () => void;
   onLogin?: () => void;
+  onAuthenticationLost?: () => void;
   portraitSrc?: string;
   frequencyClient?: StudentFrequencyClientV2;
 }
@@ -354,6 +355,7 @@ export function StudentPortalPageV1({
   status,
   onRetry,
   onLogin,
+  onAuthenticationLost,
   portraitSrc,
   frequencyClient,
   ...shell
@@ -386,7 +388,8 @@ export function StudentPortalPageV1({
             profile={null}
           />
         )}
-        <StudentFrequencyV2 key={load.data.profile.accountId} client={frequencyClient} onLogin={onLogin} />
+        <StudentFrequencyV2 key={load.data.profile.accountId} client={frequencyClient}
+          onLogin={onLogin} onAuthenticationLost={onAuthenticationLost} />
       </>
     );
   const hero =

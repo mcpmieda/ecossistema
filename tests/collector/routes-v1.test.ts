@@ -101,6 +101,19 @@ async function fixture(){
 }
 
 describe('Pages collector orchestration, no real network/credentials',()=>{
+  it('publishes a Pages invocation route for browser pairing, revocation and CSS',async()=>{
+    const { readFile } = await import('node:fs/promises');
+    const routeFile = JSON.parse(await readFile(new URL('../../public/_routes.json',import.meta.url),'utf8')) as {
+      version:number; include:string[]; exclude:string[];
+    };
+    expect(routeFile.version).toBe(1);
+    expect(routeFile.include).toEqual(expect.arrayContaining(['/auth/*','/api/*','/frequency-collector/*']));
+    for(const url of ['/frequency-collector/connect','/frequency-collector/revoke','/frequency-collector/style.css']){
+      expect(routeFile.include.some(path=>path.endsWith('/*') && url.startsWith(path.slice(0,-1)))).toBe(true);
+    }
+    expect(routeFile.exclude).toEqual([]);
+  });
+
   it('mounts the unavailable route by default while preserving ordinary application routes',async()=>{
     const execution={...env,COLLECTOR_ENABLED:undefined,COLLECTOR_DB:undefined,COLLECTOR_REFRESH_KEY:undefined};
     for(const path of [prefix+'config',prefix+'access','/frequency-collector/connect']){

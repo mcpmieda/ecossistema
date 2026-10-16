@@ -42,6 +42,7 @@ function FrequencyUnavailableV2({
   error,
   pending,
   onLogin,
+  onAuthenticationLost,
 }: Readonly<{ error: string | null; pending: boolean; onLogin?: () => void }>) {
   const message = unavailableMessage(error, pending);
   return (
@@ -129,11 +130,12 @@ export function StudentFrequencyV2({
   client?: StudentFrequencyClientV2;
   active?: boolean;
   onLogin?: () => void;
+  onAuthenticationLost?: () => void;
 }>) {
   const heading = useId();
   const [month, setMonth] = useState(() => monthValue(new Date().getMonth()));
   const read = useCallback((signal: AbortSignal) => client.read(month, signal), [client, month]);
-  const { data: received, pending, error, refresh } = useFrequencyReadV2(read, active);
+  const { data: received, pending, error, refresh } = useFrequencyReadV2(read, active, onAuthenticationLost);
   const data = received?.month === month ? received : null;
   return (
     <section aria-labelledby={heading} className="pa-frequency">
