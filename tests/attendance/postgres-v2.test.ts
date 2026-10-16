@@ -206,7 +206,16 @@ describe('frequency V2 private PostgreSQL service', () => {
     else
       await expect(service.execute(input, actor)).rejects.toMatchObject({ code: 'source-invalid' });
   });
-  it('rejects marks from a civil day after the snapshot capture, even if already past today', async () => {
+  it('accepts small client clock skew, rejects larger future timestamps',async()=>{
+    const [{now}]=(await pg.query<{now:string}>('SELECT clock_timestamp()::text AS now')).rows;
+    const near=new Date(new Date(now).getTime()+2000).toISOString();
+    await expect(service.execute(collection({observedAt:near}),actor))
+      .resolves.toMatchObject({state:'committed'});
+    const tooFar=new Date(Date.now()+30000).toISOString();
+    await expect(service.execute(collection({observedAt:tooFar,expectedRevision:1}),actor))
+      .rejects.toMatchObject({code:'source-invalid',detail:'observed-in-future'});
+  });
+
     await expect(service.execute(collection({
       observedAt: '2026-01-05T12:00:00Z',
       coverage: [{ recordKey: 'r1', date: '2026-01-06', slots: [1], complete: false }],
