@@ -46,6 +46,33 @@ describe('owner-only pending pairing and atomic initial registration',()=>{
       FROM collector_auth.pairings p CROSS JOIN generate_series(1,79) n WHERE p.id='${id}'`);
     expect(await f.store.allowPairingRequest(two)).toBe(false);
   });
+  it('does not create client scopes once the global budget is exhausted',async()=>{
+    const f=await fixture();
+    await db.exec('TRUNCATE collector_auth.pairing_rate_v1');
+    for(let i=0;i<120;i++){
+      const scope='client:'+i.toString(16).padStart(64,'0');
+      expect(await f.store.allowPairingRequest(scope)).toBe(true);
+    }
+    const existing=(await db.query<{total:string}>("SELECT count(*)::text AS total FROM collector_auth.pairing_rate_v1")).rows[0]!.total;
+    expect(Number(existing)).toBe(121);
+    for(let i=120;i<150;i++){
+      const scope='client:'+i.toString(16).padStart(64,'0');
+      expect(await f.store.allowPairingRequest(scope)).toBe(false);
+    }
+    const after=(await db.query<{total:string}>("SELECT count(*)::text AS total FROM collector_auth.pairing_rate_v1")).rows[0]!.total;
+    expect(after).toBe(existing);
+    const global=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0];
+    expect(global?.requests).toBe(120);
+  });
+  it('an origin blocked at 30 requests cannot exhaust remaining global capacity',async()=>{
+    const f=await fixture(),one='client:'+'f'.repeat(64),other='client:'+'e'.repeat(64);
+    await db.exec('TRUNCATE collector_auth.pairing_rate_v1');
+    for(let i=0;i<30;i++)expect(await f.store.allowPairingRequest(one)).toBe(true);
+    for(let i=0;i<50;i++)expect(await f.store.allowPairingRequest(one)).toBe(false);
+    const global=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0];
+    expect(global?.requests).toBe(30);
+    expect(await f.store.allowPairingRequest(other)).toBe(true);
+  });
   it('reveals neither public key nor poll secret in browser view and isolates polling',async()=>{
     const f=await fixture(),view=await f.store.browserView(id);
     expect(view?.display_code).toBe('123456');expect(view).not.toHaveProperty('poll_hash');expect(view).not.toHaveProperty('public_key');
