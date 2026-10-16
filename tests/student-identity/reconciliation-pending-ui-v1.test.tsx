@@ -66,7 +66,7 @@ const mount = (request: ReconciliationClientV1['request']) =>
     />,
   );
 
-it('counts only loaded pendencies across mixed and filtered-empty pages, and keeps load-more until exhaustion', async () => {
+it('joins the pendencies of mixed and filtered-empty pages into one list, with no load-more left', async () => {
   const request = vi.fn<ReconciliationClientV1['request']>(async (input) => {
     if (input.operation === 'catalog') return catalog();
     if (input.operation !== 'list') throw new Error('Synthetic reads only');
@@ -75,10 +75,9 @@ it('counts only loaded pendencies across mixed and filtered-empty pages, and kee
     return page([person(4, 'review-required'), person(5, 'reconciled')], null);
   });
   mount(request);
-  expect(await screen.findByText('1 pendência carregada')).toBeTruthy();
-  expect(screen.queryByText('SYNTHETIC PERSON 2')).toBeNull();
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Carregar mais' }));
+  // Every pending row the side column counts is on screen at once (owner report of 16/10/2026).
   expect(await screen.findByText('2 pendências carregadas')).toBeTruthy();
+  expect(screen.queryByText('SYNTHETIC PERSON 2')).toBeNull();
   expect(screen.getByText('SYNTHETIC PERSON 1')).toBeTruthy();
   expect(screen.getByText('SYNTHETIC PERSON 4')).toBeTruthy();
   expect(screen.queryByText('SYNTHETIC PERSON 3')).toBeNull();
@@ -143,7 +142,7 @@ it('resets pending rows and opaque cursor for search and class changes, retainin
       return input.cursor
         ? page([person(3, 'pending', 'SYNTHETIC MATCH')], null)
         : page([person(2, 'reconciled')], 'search-page');
-    return page([person(1, 'pending')], 'old-page');
+    return input.cursor ? page([], null) : page([person(1, 'pending')], 'old-page');
   });
   const client = { request };
   const view = render(

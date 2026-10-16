@@ -4034,3 +4034,13 @@ button.performance-kpi__button:hover {
 @media (prefers-reduced-motion: reduce) {
   .performance-bar { animation: none; }
 }
+/* Phone: the side drawer runs to the bottom of the screen whatever the browser bars do (owner
+   report of 16/10/2026: with the address bar hidden, 100svh stopped short of the bottom). */
+@media (max-width: 900px) {
+  .platform-shell--v2 .shell-aside {
+    top: 0;
+    bottom: 0;
+    height: auto;
+    min-height: 100lvh;
+  }
+}
