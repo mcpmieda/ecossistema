@@ -9,11 +9,12 @@ import type {CollectorPublicKeyV1} from '../../server/collector/device-proof-v1'
 
 const url=process.env.ATTENDANCE_TEST_POSTGRES_URL;
 const expectedMarker='00000000-0000-4000-8000-000000000001';
-let connection:ReturnType<typeof postgres>,store:CollectorPairingStoreV1,publicKey:CollectorPublicKeyV1;
+let connection:ReturnType<typeof postgres>,pool:ReturnType<typeof postgres>,store:CollectorPairingStoreV1,publicKey:CollectorPublicKeyV1;
 
 beforeAll(async()=>{
   if(!url || !url.includes('127.0.0.1:5432/attendance_ephemeral_'))throw new Error('disposable-native-postgres-required');
-  connection=postgres(url,{max:25,prepare:false,connect_timeout:5});
+  // Multi-statement migrations must use exactly one reserved connection.
+  connection=postgres(url,{max:1,prepare:false,connect_timeout:5});
   const evidence=await connection.unsafe("SELECT marker::text AS marker FROM public.attendance_test_sandbox_v1");
   if(evidence.length!==1 || evidence[0]?.marker!==expectedMarker)throw new Error('disposable-native-postgres-marker-required');
   for(const migration of ['0001_device_authorization.sql','0002_pending_pairings.sql','0006_pairing_rate_v1.sql','0009_atomic_pairing_admission_v2.sql']){
@@ -22,11 +23,13 @@ beforeAll(async()=>{
   const key=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
   const jwk=await crypto.subtle.exportKey('jwk',key.publicKey);
   publicKey={kty:'EC',crv:'P-256',x:jwk.x!,y:jwk.y!,ext:true};
+  // A separate pool with multiple real connections reproduces races.
+  pool=postgres(url,{max:25,prepare:false,connect_timeout:5});
   const adapter:CollectorSqlV1={query:async<T extends Record<string,unknown>>(statement:string,params:unknown[])=>
-    Array.from(await connection.unsafe(statement,params as never[])) as T[]};
+    Array.from(await pool.unsafe(statement,params as never[])) as T[]};
   store=new CollectorPairingStoreV1(adapter);
 },60_000);
-afterAll(async()=>{if(connection)await connection.end({timeout:2});});
+afterAll(async()=>{if(pool)await pool.end({timeout:2});if(connection)await connection.end({timeout:2});});
 
 const scope=(n:string)=>'client:'+n.repeat(64);
 const offer=(target:string)=>store.createAdmitted(target,{
