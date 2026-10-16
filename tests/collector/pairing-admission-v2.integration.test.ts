@@ -51,7 +51,7 @@ describe.skipIf(!url)('real PostgreSQL multi-connection pairing admission',()=>{
     const seed=crypto.randomUUID();
     expect(await store.create({id:seed,publicKey,pollHash:'f'.repeat(64),displayCode:'123456',createdAt:Date.now()})).toBeUndefined();
     await connection.unsafe(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
-      SELECT gen_random_uuid(),p.public_key,p.key_thumbprint,p.poll_hash,'123456',clock_timestamp(),clock_timestamp()+interval '10 minutes'
+      SELECT gen_random_uuid(),p.public_key,p.key_thumbprint,p.poll_hash,'123456',p.created_at,p.expires_at
       FROM collector_auth.pairings p CROSS JOIN generate_series(1,78) n WHERE p.id=$1`,[seed]);
     const results=await Promise.all(Array.from({length:24},(_,i)=>offer('client:'+i.toString(16).padStart(64,'0'))));
     expect(results.filter(Boolean)).toHaveLength(1);

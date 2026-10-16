@@ -42,7 +42,6 @@ function FrequencyUnavailableV2({
   error,
   pending,
   onLogin,
-  onAuthenticationLost,
 }: Readonly<{ error: string | null; pending: boolean; onLogin?: () => void }>) {
   const message = unavailableMessage(error, pending);
   return (
@@ -126,6 +125,7 @@ export function StudentFrequencyV2({
   client = defaultClient,
   active = true,
   onLogin,
+  onAuthenticationLost,
 }: Readonly<{
   client?: StudentFrequencyClientV2;
   active?: boolean;
