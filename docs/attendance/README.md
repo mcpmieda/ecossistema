@@ -16,10 +16,13 @@ As migrations abaixo foram aplicadas no Supabase. Para o conjunto original de 20
 | attendance/0003_portal_frequency_read_v2.sql | 20261015121140 | 3baf0806793e56aaba2106abb988fd7d |
 | attendance/0004_foreign_key_indexes_v2.sql | 20261015121602 | ebc36dfe66ae1834480f17dd60559b01 |
 | attendance/0005_operations_trail_v2.sql | 20261015233808 | 0f4c61d7e4fece79556391c3a71f4bb1 |
-| collector/0005_retention_v2.sql | 20261016061240 | conferência estrutural |
-| attendance/0006_receipt_retention_v2.sql | 20261016061244 | conferência estrutural |
-| collector/0006_pairing_rate_v1.sql | 20261016061913 | conferência estrutural |
-| collector/0007_scheduled_retention_v2.sql | 20261016062009 | job conferido e execução sintética limpa |
+| collector/0005_retention_v2.sql | 20261016061240 | 9574a8e24fb14c1fc5e83ac0a6636178 |
+| attendance/0006_receipt_retention_v2.sql | 20261016061244 | b9d47c3a8e56158b34b163ac1d36b18f |
+| collector/0006_pairing_rate_v1.sql | 20261016061913 | 94ef3a9a64b05ae688f0eea5461e5ba3 |
+| collector/0007_scheduled_retention_v2.sql | 20261016062009 | 0bbbdf1c9ea768c3d7a4831ff6c17f93 |
+| collector/0008_cron_history_retention_v2.sql | *a aplicar* | *a confirmar pelo ledger no Supabase* |
+
+As quatro migrations aditivas de 16/10 foram comparadas byte a byte com `supabase_migrations.schema_migrations.statements[1]` diretamente no PostgreSQL. Em todos os quatro casos, `exact_match_first=true` e o MD5 do arquivo coincide com o MD5 do ledger. A `0008` é aditiva, exclusiva do Supabase e não executada no PostgreSQL efêmero sem `pg_cron`; agenda limpeza diária do histórico de execução **somente** dos dois jobs do Coletor, retendo sete dias. Não altera resultados acadêmicos nem tabelas da frequência.
 
 A 0005 foi aplicada em 15/10/2026 via apply_migration, pedida pelo responsável, com executor `postgres` sem superuser. Antes: 66 entradas, fingerprint `ce146e26d75c8808c59b269ce7f13f2e` (mesma fórmula), tabela e coluna ausentes, `class_state_v2` vazia. Depois: o SQL do ledger tem o MD5 do arquivo (SHA256 `c387f8a9a507a35436472b76c627dc2495f132d0bc26aba971ecfe9f47abad11`), as 66 entradas anteriores mantiveram o fingerprint, `failure_v2` com RLS forçada, acesso só de `gradebook_app` e índices válidos, e a constraint de `unresolved_json` validada. O advisor de segurança retornou zero avisos; o de desempenho só lista índices ainda não usados e FKs antigas fora de `attendance`. O código em produção não usa essas estruturas até a publicação da PR.
 
