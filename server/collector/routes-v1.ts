@@ -138,7 +138,7 @@ async function confirmConnect(request:Request,env:RuntimeEnv,runtime:CollectorRu
     // state/verifier, directory identity, HTTP payload or exception message.
     console.error(JSON.stringify({message:'collector_confirmation_failed',stage,
       errorType:error instanceof Error?error.name:'unknown'}));
-    throw new Error('confirmation-denied');
+    throw new Error('confirmation-denied',{cause:error});
   }
 }
 async function pairingRequest(request:Request,url:URL,env:RuntimeEnv,runtime:CollectorRuntimeReadyV1):Promise<Response>{
