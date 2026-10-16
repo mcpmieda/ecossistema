@@ -23,7 +23,7 @@ const env={TENANT_ID:tenant,WEB_CLIENT_ID:client,GRAPH_CLIENT_ID:client,GROUP_AD
   COLLECTOR_REFRESH_KEY:encodeBase64Url(new Uint8Array(32).fill(8))} as unknown as RuntimeEnv;
 let db:PGlite;
 beforeAll(async()=>{vi.stubGlobal('crypto',webcrypto);db=new PGlite();
-  for(const name of ['0001_device_authorization.sql','0002_pending_pairings.sql','0006_pairing_rate_v1.sql'])
+  for(const name of ['0001_device_authorization.sql','0002_pending_pairings.sql','0006_pairing_rate_v1.sql','0009_atomic_pairing_admission_v2.sql'])
     await db.exec(await readFile(new URL('../../migrations/collector/'+name,import.meta.url),'utf8'));},60_000);
 beforeEach(async()=>{await db.exec('TRUNCATE collector_auth.pairings,collector_auth.challenges,collector_auth.devices,collector_auth.oauth_grants,collector_auth.pairing_rate_v1');});
 afterAll(async()=>{await db.close();});
