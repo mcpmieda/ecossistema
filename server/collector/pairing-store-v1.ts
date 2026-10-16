@@ -29,20 +29,18 @@ export class CollectorPairingStoreV1 {
   async allowPairingRequest(clientScope:string):Promise<boolean>{
     if(!/^client:[a-f0-9]{64}$/u.test(clientScope))return false;
     const [result]=await this.sql.query<{allowed:boolean}>(`
-      WITH local_budget AS (
+      WITH local_precheck AS MATERIALIZED (
+        -- Do not let a single rate-limited origin drain the global budget.
+        SELECT NOT EXISTS(
+          SELECT 1 FROM collector_auth.pairing_rate_v1
+          WHERE scope=$1 AND window_started_at>=clock_timestamp()-interval '10 minutes'
+            AND requests>=30
+        ) AS eligible
+      ), global_budget AS MATERIALIZED (
+        -- Global admission is reserved FIRST: rejected global attempts never
+        -- create one new per-IP row (critical with rotating IPv6 origins).
         INSERT INTO collector_auth.pairing_rate_v1(scope,window_started_at,requests)
-        VALUES($1,clock_timestamp(),1)
-        ON CONFLICT(scope) DO UPDATE SET
-          requests=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-             THEN 1 ELSE collector_auth.pairing_rate_v1.requests+1 END,
-          window_started_at=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-             THEN clock_timestamp() ELSE collector_auth.pairing_rate_v1.window_started_at END
-        WHERE collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
-           OR collector_auth.pairing_rate_v1.requests<30
-        RETURNING scope
-      ), global_budget AS (
-        INSERT INTO collector_auth.pairing_rate_v1(scope,window_started_at,requests)
-        SELECT 'global',clock_timestamp(),1 FROM local_budget WHERE true
+        SELECT 'global',clock_timestamp(),1 FROM local_precheck WHERE eligible
         ON CONFLICT(scope) DO UPDATE SET
           requests=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
              THEN 1 ELSE collector_auth.pairing_rate_v1.requests+1 END,
@@ -51,7 +49,18 @@ export class CollectorPairingStoreV1 {
         WHERE collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
            OR collector_auth.pairing_rate_v1.requests<120
         RETURNING scope
-      ) SELECT EXISTS(SELECT 1 FROM global_budget) AND
+      ), local_budget AS (
+        INSERT INTO collector_auth.pairing_rate_v1(scope,window_started_at,requests)
+        SELECT $1,clock_timestamp(),1 FROM global_budget
+        ON CONFLICT(scope) DO UPDATE SET
+          requests=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+             THEN 1 ELSE collector_auth.pairing_rate_v1.requests+1 END,
+          window_started_at=CASE WHEN collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+             THEN clock_timestamp() ELSE collector_auth.pairing_rate_v1.window_started_at END
+        WHERE collector_auth.pairing_rate_v1.window_started_at<clock_timestamp()-interval '10 minutes'
+           OR collector_auth.pairing_rate_v1.requests<30
+        RETURNING scope
+      ) SELECT EXISTS(SELECT 1 FROM local_budget) AND
         (SELECT count(*) FROM collector_auth.pairings
          WHERE expires_at>clock_timestamp() AND state IN ('pending','confirmed','exchanging'))<80 AS allowed
     `,[clientScope]);
