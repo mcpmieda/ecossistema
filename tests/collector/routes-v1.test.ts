@@ -145,6 +145,37 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
     const count=(await db.query<{n:number}>("SELECT count(*)::integer AS n FROM collector_auth.pairings")).rows[0]?.n;
     expect(count).toBe(30);
   });
+  it('keeps a valid code pending if OAuth cookie preparation fails before database commit',async()=>{
+    const f=await fixture(),pair=await f.begin();
+    const first=await f.request('/frequency-collector/connect?pairing='+pair.id),markup=await first.text();
+    const csrf=markup.match(/name="csrf" value="([A-Za-z0-9_-]+)"/)![1]!;
+    const cookie=first.headers.get('Set-Cookie')!.split(';')[0]!;
+    const form=new URLSearchParams({pairing:pair.id,csrf,code:pair.displayCode,confirm:'yes'});
+    const encrypt=vi.spyOn(crypto.subtle,'encrypt').mockRejectedValueOnce(new Error('SYNTHETIC_FAIL_BEFORE_COMMIT'));
+    try{
+      const reply=await handleCollectorRequestV1(new Request(origin+'/frequency-collector/connect',{
+        method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',Cookie:cookie,Origin:origin},
+        body:form}),env,f.dependencies);
+      expect(reply?.status).toBe(403);
+      const body=await reply!.text();
+      expect(body).toContain('inicie uma nova autorização');
+      expect(body).not.toContain('SYNTHETIC_FAIL_BEFORE_COMMIT');
+      expect(body).not.toContain(pair.displayCode);
+      expect((await db.query<{state:string}>('SELECT state FROM collector_auth.pairings WHERE id=$1',[pair.id])).rows[0]?.state).toBe('pending');
+    }finally{encrypt.mockRestore();}
+  });
+  it('shows safe retry instructions for a consumed pairing without revealing codes or tokens',async()=>{
+    const f=await fixture(),pair=await f.begin();
+    await f.confirm(pair);
+    const expired=await f.request('/frequency-collector/connect?pairing='+pair.id);
+    // A used pairing cannot be confirmed again, and the response must stay
+    // human-readable without disclosing any keys or six-digit code.
+    expect(expired.status).toBe(410);
+    const body=await expired.text();
+    expect(body).toContain('Autorização expirada');
+    expect(body).not.toContain(pair.displayCode);
+    expect(body).not.toContain(pair.pollToken);
+  });
   it('runs signed pairing, explicit browser confirmation, callback, local claim and nonce-protected authorization',async()=>{
     const f=await fixture(),pair=await f.begin(),{auth,callback}=await f.complete(pair);
     expect((await f.request(callback,undefined,{Cookie:auth.cookie})).status).toBe(403);

@@ -37,6 +37,18 @@ const offer=(target:string)=>store.createAdmitted(target,{
   id:crypto.randomUUID(),publicKey,pollHash:'d'.repeat(64),displayCode:'123456',createdAt:Date.now()});
 const globalCount=async()=>Number((await connection.unsafe("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'"))[0]?.requests??0);
 describe.skipIf(!url)('real PostgreSQL multi-connection pairing admission',()=>{
+  it('confirms a real PostgreSQL pairing exactly once and rejects a different OAuth state',async()=>{
+    await connection.unsafe("TRUNCATE collector_auth.pairings,collector_auth.pairing_rate_v1");
+    const id=crypto.randomUUID(),now=Date.now();
+    await store.create({id,publicKey,pollHash:'e'.repeat(64),displayCode:'123456',createdAt:now});
+    const txn={pairingId:id,state:'collector.'+'a'.repeat(43),nonce:'b'.repeat(43),
+      verifier:'c'.repeat(64),startedAt:now,exp:Math.floor(now/1000)+300};
+    expect(await store.confirm(txn)).toBe(true);
+    const committed=await connection.unsafe("SELECT state FROM collector_auth.pairings WHERE id=$1",[id]);
+    expect(committed[0]?.state).toBe('confirmed');
+    expect(await store.confirm({...txn,state:'collector.'+'z'.repeat(43)})).toBe(false);
+    expect(await store.confirm(txn)).toBe(false); // No replay, including the very same transaction.
+  });
   it('admits only one of 24 concurrent callers when their local budget is 29',async()=>{
     await connection.unsafe("TRUNCATE collector_auth.pairings,collector_auth.pairing_rate_v1");
     await connection.unsafe("INSERT INTO collector_auth.pairing_rate_v1(scope,requests) VALUES('global',5),($1,29)",[scope('a')]);
