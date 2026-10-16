@@ -106,6 +106,8 @@ jobs:
           cp -a node_modules/.cache/public-demo-worker production-inputs/node_modules/.cache/public-demo-worker
           node --experimental-strip-types scripts/ci/provenance-v1.ts write validate-pull-request production-inputs/validate-provenance.json
           test -f production-inputs/dist/index.html
+          # Verify the ACTUAL Pages artifact invokes the collector browser handlers.
+          node -e "const r=JSON.parse(require('node:fs').readFileSync('production-inputs/dist/_routes.json','utf8'));for(const p of ['/auth/*','/api/*','/frequency-collector/*'])if(!r.include.includes(p)||r.exclude.some(x=>x==='/frequency-collector/*')){throw Error('missing Pages browser route: '+p)}"
           test -f production-inputs/node_modules/.cache/student-portal-edge/_worker.js
           test -f production-inputs/node_modules/.cache/public-portal-demo/index.html
           test -f production-inputs/node_modules/.cache/public-demo-worker/index.js
