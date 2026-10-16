@@ -64,7 +64,15 @@ type Context = { tx: Tx; row: Row; actor: FrequencyActorV2 };
 
 const truth = (v: unknown) => v === true || v === 1;
 const json = <T>(v: unknown): T => (typeof v === 'string' ? JSON.parse(v) : v) as T;
-const iso = (v: unknown) => new Date(String(v)).toISOString();
+/** Database values arrive as primitives: the adapter already normalizes dates, numbers and JSON. */
+function text(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean')
+    return `${value}`;
+  if (value === null || value === undefined) return `${value}`;
+  throw new FrequencyErrorV2('unavailable', 503, 'unexpected-database-value');
+}
+const iso = (v: unknown) => new Date(text(v)).toISOString();
 const DEVICE_ONLY = new Set(['lease', 'collect', 'heartbeat', 'release']);
 const ADMIN_ONLY = new Set(['revoke-device', 'resolve-conflict', 'monthly-summary']);
 const UNLEASED = new Set(['heartbeat', 'lease', 'release']);
@@ -165,7 +173,7 @@ async function centralMany(
     WHERE o.academic_year=$1 AND o.id IN(SELECT value::uuid FROM jsonb_array_elements_text($2::text::jsonb))`,
     [year, JSON.stringify(observationIds)],
   );
-  const byId = new Map(rows.map((r) => [String(r.id), r]));
+  const byId = new Map(rows.map((r) => [text(r.id), r]));
   return results.map((result) => {
     if (result.state !== 'resolved') return { ...result, eligibility: [] as Eligibility[] };
     const found = result.observationIds
@@ -184,10 +192,10 @@ async function centralMany(
     return {
       ...result,
       eligibility: found.map((r) => ({
-        sourceId: String(r.source_id),
-        observationId: String(r.id),
-        startsOn: r.enrolled_at === null ? null : String(r.enrolled_at),
-        endsOn: r.transferred_at === null ? null : String(r.transferred_at),
+        sourceId: text(r.source_id),
+        observationId: text(r.id),
+        startsOn: r.enrolled_at === null ? null : text(r.enrolled_at),
+        endsOn: r.transferred_at === null ? null : text(r.transferred_at),
       })),
     };
   });
@@ -197,7 +205,7 @@ async function sourcesValid(tx: Tx, rows: readonly Row[]) {
   const evidence = rows.map((r, index) => ({
     ordinal: index,
     year: Number(r.academic_year),
-    uid: String(r.student_uid),
+    uid: text(r.student_uid),
     class_id: Number(r.class_id),
     source_ids: json<string[]>(r.source_ids_json),
     observation_ids: json<string[]>(r.observation_ids_json),
@@ -239,16 +247,16 @@ export async function summarizeFrequencyOriginsV2(
   month: string,
 ): Promise<FrequencySummaryV2> {
   const unique = [
-    ...new Map(origins.map((r) => [`${String(r.batch_id)}:${String(r.record_key)}`, r])).values(),
+    ...new Map(origins.map((r) => [`${text(r.batch_id)}:${text(r.record_key)}`, r])).values(),
   ];
   const valid = await sourcesValid(tx, unique);
   const validity = new Map(
-    unique.map((r, i) => [`${String(r.batch_id)}:${String(r.record_key)}`, valid[i]!]),
+    unique.map((r, i) => [`${text(r.batch_id)}:${text(r.record_key)}`, valid[i]!]),
   );
   return summarizeFrequencyPublicOriginsV2(
     origins.map((r) => ({
       ...r,
-      mapping_valid: validity.get(`${String(r.batch_id)}:${String(r.record_key)}`)!,
+      mapping_valid: validity.get(`${text(r.batch_id)}:${text(r.record_key)}`)!,
     })),
     month,
   );
@@ -263,12 +271,12 @@ export function summarizeFrequencyPublicOriginsV2(
   let receivedAt: string | null = null;
   const conflicts = new Set<string>();
   for (const origin of origins) {
-    const id = String(origin.occurrence_id);
+    const id = text(origin.occurrence_id);
     const current = events.get(id) ?? { row: origin, labels: new Set<string>(), valid: true };
     current.valid &&= truth(origin.mapping_valid);
-    current.labels.add(String(origin.source_class_label));
+    current.labels.add(text(origin.source_class_label));
     events.set(id, current);
-    if (origin.conflict_id) conflicts.add(String(origin.conflict_id));
+    if (origin.conflict_id) conflicts.add(text(origin.conflict_id));
     const observed = iso(origin.observed_at),
       received = iso(origin.received_at);
     if (observedAt === null || observed > observedAt) observedAt = observed;
@@ -277,10 +285,10 @@ export function summarizeFrequencyPublicOriginsV2(
   const marks = [...events.values()]
     .filter((v) => v.valid && !v.row.conflict_id && v.row.mark !== null)
     .map((v) => ({
-      date: String(v.row.date),
+      date: text(v.row.date),
       slot: Number(v.row.slot),
-      shift: String(v.row.shift),
-      mark: String(v.row.mark) as 'X' | 'J',
+      shift: text(v.row.shift),
+      mark: text(v.row.mark) as 'X' | 'J',
       classLabels: [...v.labels].sort((left, right) => left.localeCompare(right, 'pt-BR')),
     }));
   // Calendar/slot counts are not approved productive sources. Known sparse marks never imply attendance.
@@ -311,16 +319,16 @@ function deviceState(d: Row, paused: boolean, leaseDevice: unknown, live: boolea
   if (!truth(d.online)) return 'offline';
   if (paused) return 'paused';
   if (d.state === 'login-required' || d.state === 'error') return d.state;
-  if (leaseDevice === d.device_id && live) return String(d.state) as 'ready' | 'collecting';
+  if (leaseDevice === d.device_id && live) return text(d.state) as 'ready' | 'collecting';
   return 'reserve';
 }
 const isoOrNull = (v: unknown) => (v === null ? null : iso(v));
 const numberOrNull = (v: unknown) => (v === null ? null : Number(v));
-const textOrNull = (v: unknown) => (v === null ? null : String(v));
+const textOrNull = (v: unknown) => (v === null ? null : text(v));
 function deviceView(d: Row, state: string): FrequencyDeviceV2 {
   return {
-    deviceId: String(d.device_id),
-    label: d.label ? String(d.label) : 'Computador',
+    deviceId: text(d.device_id),
+    label: d.label ? text(d.label) : 'Computador',
     state: state as FrequencyDeviceV2['state'],
     lastSeenAt: isoOrNull(d.last_seen_at),
     classId: numberOrNull(d.class_id),
@@ -333,10 +341,10 @@ function failureView(f: Row): FrequencyFailureEntryV2 {
     firstAt: iso(f.first_at),
     lastAt: iso(f.last_at),
     occurrences: Number(f.occurrences),
-    origin: String(f.origin) as FrequencyFailureEntryV2['origin'],
-    operation: String(f.operation),
-    code: String(f.code),
-    detail: String(f.detail),
+    origin: text(f.origin) as FrequencyFailureEntryV2['origin'],
+    operation: text(f.operation),
+    code: text(f.code),
+    detail: text(f.detail),
     deviceId: textOrNull(f.device_id),
     classId: numberOrNull(f.class_id),
   };
@@ -379,14 +387,14 @@ async function adminDiagnostics(tx: Tx, year: number) {
   );
   return {
     conflicts: conflicts.map((c) => ({
-      id: String(c.id),
+      id: text(c.id),
       revision: Number(c.revision),
-      studentUid: String(c.student_uid),
-      studentName: String(c.student_name),
-      classLabel: String(c.class_label),
-      date: String(c.date),
+      studentUid: text(c.student_uid),
+      studentName: text(c.student_name),
+      classLabel: text(c.class_label),
+      date: text(c.date),
       slot: Number(c.slot),
-      shift: String(c.shift),
+      shift: text(c.shift),
       marks: json<Mark[]>(c.marks_json),
     })),
     unresolved: unresolved.map(unresolvedView),
@@ -435,15 +443,15 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
     },
     lease: live
       ? {
-          deviceId: String(row.lease_device),
+          deviceId: text(row.lease_device),
           expiresAt: iso(row.lease_until),
           fencingToken: Number(row.fencing_token),
         }
       : null,
     classes: classes.map((c) => ({
       classId: Number(c.class_id),
-      sourceClassLabel: String(c.source_class_label),
-      shift: shiftName(String(c.turno)),
+      sourceClassLabel: text(c.source_class_label),
+      shift: shiftName(text(c.turno)),
       revision: Number(c.revision),
     })),
     devices: devices.map((d) => deviceView(d, deviceState(d, paused, row.lease_device, live))),
@@ -546,10 +554,10 @@ async function checkCollectionClock(tx: Tx, input: FrequencyCollectionV2) {
       FROM attendance.school_state_v2 WHERE academic_year=$1`,
     [input.academicYear, input.observedAt],
   );
-  const today = String(clock!.today);
-  const observedDay = String(clock!.observed_day);
+  const today = text(clock!.today);
+  const observedDay = text(clock!.observed_day);
   validateCollection(input, observedDay < today ? observedDay : today);
-  rejectSource(new Date(input.observedAt) > new Date(String(clock!.now)), 'observed-in-future');
+  rejectSource(new Date(input.observedAt) > new Date(text(clock!.now)), 'observed-in-future');
 }
 /**
  * The Centro's Relatório/Relação link is the class authority. Spacing, accents
@@ -563,18 +571,17 @@ async function matchCollectionClass(tx: Tx, input: FrequencyCollectionV2) {
     [input.academicYear, input.classId],
   );
   const key = frequencyClassKeyV2(input.sourceClassLabel);
-  const matched = linked.filter((r) => frequencyClassKeyV2(String(r.label)) === key);
+  const matched = linked.filter((r) => frequencyClassKeyV2(text(r.label)) === key);
   if (!matched.length) fail('identity-review', 409, 'class-not-linked');
-  if (new Set(matched.map((r) => String(r.shift_key))).size !== 1)
+  if (new Set(matched.map((r) => text(r.shift_key))).size !== 1)
     fail('identity-review', 409, 'class-shift-ambiguous');
   rejectSource(
     input.records.some((r) => frequencyClassKeyV2(r.originalClass) !== key),
     'record-class-mismatch',
   );
   const exact = normalizeStudentNameV1(input.sourceClassLabel);
-  const label =
-    matched.find((r) => normalizeStudentNameV1(String(r.label)) === exact) ?? matched[0]!;
-  return { shift: String(label.shift_key), reportLabel: String(label.label) };
+  const label = matched.find((r) => normalizeStudentNameV1(text(r.label)) === exact) ?? matched[0]!;
+  return { shift: text(label.shift_key), reportLabel: text(label.label) };
 }
 async function lockClassState(tx: Tx, input: FrequencyCollectionV2) {
   await tx.executeNative(
@@ -588,7 +595,7 @@ async function lockClassState(tx: Tx, input: FrequencyCollectionV2) {
   if (Number(classState!.revision) !== input.expectedRevision) fail('revision-conflict');
   if (
     classState!.last_observed_at &&
-    new Date(String(classState!.last_observed_at)) > new Date(input.observedAt)
+    new Date(text(classState!.last_observed_at)) > new Date(input.observedAt)
   )
     fail('source-invalid', 409, 'older-than-last-collection');
   return classState!;
@@ -616,7 +623,7 @@ async function repeatCollection(
     [input.academicYear, input.classId, evidenceHash],
   );
   if (!existing) fail('unavailable', 503, 'repeated-batch-missing');
-  const newer = new Date(input.observedAt) > new Date(String(classState.last_observed_at));
+  const newer = new Date(input.observedAt) > new Date(text(classState.last_observed_at));
   const [fresh] = (
     await tx.executeNative<Row>(
       `UPDATE attendance.class_state_v2 SET revision=revision+$4,last_observed_at=$3::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1 AND class_id=$2 RETURNING last_received_at::text`,
@@ -666,7 +673,7 @@ async function changedSourceKeys(tx: Tx, input: FrequencyCollectionV2, stored: S
     `SELECT DISTINCT ON(s.record_key) s.* FROM attendance.source_row_v2 s JOIN attendance.batch_v2 b ON b.id=s.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY s.record_key,b.received_at DESC,b.id`,
     [input.academicYear, input.classId],
   );
-  const previous = new Map(prior.map((s) => [String(s.record_key), s]));
+  const previous = new Map(prior.map((s) => [text(s.record_key), s]));
   return new Set(
     stored
       .filter((s) => {
@@ -684,7 +691,7 @@ async function coverageDelta(tx: Tx, input: FrequencyCollectionV2, changed: Set<
     `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id`,
     [input.academicYear, input.classId],
   );
-  const previous = new Map(prior.map((c) => [`${String(c.record_key)}:${String(c.date)}`, c]));
+  const previous = new Map(prior.map((c) => [`${text(c.record_key)}:${text(c.date)}`, c]));
   return input.coverage.filter((c) => {
     const p = previous.get(`${c.recordKey}:${c.date}`);
     return (
@@ -708,7 +715,7 @@ function sourceEvents(
   source: StoredSource,
   previous: Map<string, Mark>,
 ): IncomingOccurrence[] {
-  const uid = String(source.student_uid);
+  const uid = text(source.student_uid);
   const recordKey = source.record_key;
   const current = input.marks.filter((m) => m.recordKey === recordKey);
   const events: IncomingOccurrence[] = current.map((mark) => {
@@ -743,8 +750,8 @@ async function collectionEvents(tx: Tx, input: FrequencyCollectionV2, sources: S
       allPrior
         .filter((p) => p.student_uid === source.student_uid)
         .map((p) => [
-          `${String(p.date)}:${Number(p.slot)}`,
-          p.mark === null ? null : (String(p.mark) as Mark),
+          `${text(p.date)}:${Number(p.slot)}`,
+          p.mark === null ? null : (text(p.mark) as Mark),
         ]),
     );
     return sourceEvents(input, source, previous);
@@ -824,7 +831,7 @@ async function collect(
       [
         input.requestId,
         input.academicYear,
-        String(schoolRow!.generation),
+        text(schoolRow!.generation),
         input.classId,
         input.sourceClassId,
         input.sourceClassLabel,
@@ -1045,7 +1052,7 @@ async function resolveConflict(
     fail('source-invalid', 400, 'conflict-mark-not-offered');
   const evidence = await tx.query<Row>(
     `SELECT b.academic_year,b.class_id,b.id::text AS batch_id,s.* FROM attendance.origin_v2 p JOIN attendance.batch_v2 b ON b.id=p.batch_id JOIN attendance.source_row_v2 s ON s.batch_id=p.batch_id AND s.record_key=p.record_key WHERE p.occurrence_id=$1::uuid`,
-    [String(conflict.occurrence_id)],
+    [text(conflict.occurrence_id)],
   );
   if ((await sourcesValid(tx, evidence)).some((v) => !v))
     fail('identity-review', 409, 'conflict-evidence-invalid');
@@ -1055,14 +1062,14 @@ async function resolveConflict(
       input.requestId,
       input.conflictId,
       actor.actorId,
-      conflict.mark === null ? null : String(conflict.mark),
+      conflict.mark === null ? null : text(conflict.mark),
       input.mark,
       input.reason,
     ],
   );
   await tx.executeNative(
     `UPDATE attendance.occurrence_v2 SET mark=$2,revision=revision+1 WHERE id=$1::uuid`,
-    [String(conflict.occurrence_id), input.mark],
+    [text(conflict.occurrence_id), input.mark],
   );
   await tx.executeNative(
     `UPDATE attendance.conflict_v2 SET state='resolved',resolved_at=clock_timestamp(),revision=revision+1 WHERE id=$1::uuid`,
@@ -1150,7 +1157,7 @@ async function finishMutation(
     `INSERT INTO attendance.receipt_v2(academic_year,generation,request_id,actor_id,device_id,payload_hash,result_json) VALUES($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7::text::jsonb)`,
     [
       input.academicYear,
-      String(row.generation),
+      text(row.generation),
       input.requestId,
       actor.actorId,
       actor.deviceId ?? null,

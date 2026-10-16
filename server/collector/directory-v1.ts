@@ -78,6 +78,11 @@ export function collectorDelegationScopeV1(scope: string): boolean {
   );
 }
 
+/** Graph denial is a refused grant; anything else is an outage. */
+function graphFailure(response: Response): CollectorDirectoryErrorV1 {
+  return new CollectorDirectoryErrorV1([401, 403, 404].includes(response.status) ? 'access-denied' : 'unavailable');
+}
+
 /** Server-private result. Never return its Microsoft tokens through an HTTP handler.
  * Caller must replace/discard a returned refresh token atomically under a grant
  * version/refresh lease; Microsoft does not invalidate the previous refresh token. */
@@ -102,20 +107,14 @@ export async function readCollectorOwnDirectoryV1(input: {
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: await dependencies.clientAssertion() }),
     });
-    if (!response.ok) {
-      if (response.status === 400 || response.status === 401 || response.status === 403)
-        throw new CollectorDirectoryErrorV1('reauthentication-required');
-      throw new CollectorDirectoryErrorV1('unavailable');
-    }
+    if (!response.ok)
+      throw new CollectorDirectoryErrorV1([400, 401, 403].includes(response.status) ? 'reauthentication-required' : 'unavailable');
     const token = refreshed.parse(await readJson(response));
     if (!collectorDelegationScopeV1(token.scope)) throw new CollectorDirectoryErrorV1('invalid-contract');
     const headers = { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' };
     const meResponse = await dependencies.fetch(GRAPH_ORIGIN + '/v1.0/me?$select=id,accountEnabled,signInSessionsValidFromDateTime',
       { method: 'GET', headers, redirect: 'manual', signal });
-    if (!meResponse.ok) {
-      if ([401, 403, 404].includes(meResponse.status)) throw new CollectorDirectoryErrorV1('access-denied');
-      throw new CollectorDirectoryErrorV1('unavailable');
-    }
+    if (!meResponse.ok) throw graphFailure(meResponse);
     const me = ownUser.parse(await readJson(meResponse, 8192));
     if (me.id.toLowerCase() !== binding.actorId.toLowerCase()
         || Date.parse(me.signInSessionsValidFromDateTime) > binding.originAuthenticatedAt)
@@ -123,10 +122,7 @@ export async function readCollectorOwnDirectoryV1(input: {
     const groupResponse = await dependencies.fetch(GRAPH_ORIGIN + '/v1.0/me/checkMemberGroups',
       { method: 'POST', redirect: 'manual', signal, headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ groupIds: [group] }) });
-    if (!groupResponse.ok) {
-      if ([401, 403, 404].includes(groupResponse.status)) throw new CollectorDirectoryErrorV1('access-denied');
-      throw new CollectorDirectoryErrorV1('unavailable');
-    }
+    if (!groupResponse.ok) throw graphFailure(groupResponse);
     const result = memberships.parse(await readJson(groupResponse, 8192));
     if (result.value.length !== 1 || result.value[0]!.toLowerCase() !== group)
       throw new CollectorDirectoryErrorV1('access-denied');
