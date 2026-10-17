@@ -14,6 +14,28 @@ const transactionSchema=z.object({state:z.string().regex(/^collector\.[A-Za-z0-9
 export type CollectorOAuthTransactionV1=z.infer<typeof transactionSchema>;
 export class CollectorOAuthErrorV1 extends Error { constructor(){super('collector-login-denied');} }
 
+const idTokenFailureReasons=new Map([
+  ['Malformed ID token','malformed-token'],
+  ['Unable to load OIDC signing keys','signing-keys-unavailable'],
+  ['Unknown OIDC signing key','unknown-signing-key'],
+  ['Invalid ID token signature','invalid-signature'],
+  ['Invalid token authority','invalid-authority'],
+  ['Invalid token lifetime or nonce','invalid-lifetime-or-nonce'],
+  ['Group overage is not supported by the foundation','group-overage'],
+]);
+const idTokenFields=new Set(['alg','kid','keys','aud','iss','tid','oid','exp','nbf','nonce','name','preferred_username','groups','_claim_names']);
+function reportIdTokenFailure(error:unknown):void {
+  // Values and exception text can contain a complete token or directory identity.
+  // Publish only source-owned categories and whitelisted schema field names.
+  const reason=error instanceof z.ZodError?'invalid-contract'
+    :error instanceof Error?idTokenFailureReasons.get(error.message)??'unclassified':'unclassified';
+  const fields=error instanceof z.ZodError?[...new Set(error.issues.flatMap(issue=>{
+    const name=issue.path[0];return typeof name==='string'&&idTokenFields.has(name)?[name]:[];
+  }))]:[];
+  const kind=error instanceof TypeError?'type-error':error instanceof z.ZodError?'schema-error':'validation-error';
+  console.error(JSON.stringify({message:'collector_id_token_validation_failed',reason,kind,fields}));
+}
+
 /** Only the collector-specific, explicitly confirmed transaction asks for
  * User.Read/offline_access. The application's existing authorization URL is
  * unchanged, and the already registered /auth/callback is reused. */
@@ -81,7 +103,9 @@ export async function completeCollectorOAuthV1(input:{env:RuntimeEnv;transaction
     stage='read-token-response';
     const tokens=tokenSchema.parse(await tokenBody(response));
     stage='verify-id-token';
-    const claims=await dependencies.verifyIdToken(tokens.id_token,env,transaction.nonce);
+    let claims:IdClaims;
+    try {claims=await dependencies.verifyIdToken(tokens.id_token,env,transaction.nonce);}
+    catch(error){reportIdTokenFailure(error);throw error;}
     if(claims.tid!==env.TENANT_ID || claims.aud!==env.WEB_CLIENT_ID || claims.nonce!==transaction.nonce)
       throw new CollectorOAuthErrorV1();
     // Decode only after signature/authority/nonce validation. max_age requires
