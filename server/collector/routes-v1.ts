@@ -23,11 +23,15 @@ const authSchema=z.object({state:z.string().regex(/^collector\.[A-Za-z0-9_-]{43}
 const withdrawalSchema=z.object({purpose:z.literal('collector-withdraw'),device:uuid,actor:uuid,tenant:uuid,thumb:secret,csrf:secret,exp:z.number().int().positive()}).strict();
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','Pragma':'no-cache'}});
 const escaped=(text:string)=>text.replace(/[&<>"']/gu,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!));
-function page(title:string,body:string,status=200,headers:HeadersInit={}):Response{
+function page(title:string,body:string,status=200,headers:HeadersInit={},refreshUrl?:string):Response{
+  const responseHeaders=new Headers(headers);
+  responseHeaders.set('Content-Type','text/html; charset=utf-8');
+  responseHeaders.set('Cache-Control','no-store');
   return new Response(`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    ${refreshUrl?`<meta http-equiv="refresh" content="0;url=${escaped(refreshUrl)}">`:''}
     <title>${escaped(title)} — Ecossistema</title><link rel="stylesheet" href="/frequency-collector/style.css">
     <main><p class="brand">ECOSSISTEMA · COLETOR DE FREQUÊNCIA</p><h1>${escaped(title)}</h1>${body}</main></html>`,
-    {status,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',...Object.fromEntries(new Headers(headers))}});
+    {status,headers:responseHeaders});
 }
 const style=`:root{font-family:Segoe UI,system-ui,sans-serif;color:#291e23;background:#faf7f8}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box}main{background:white;border:1px solid #e8dce1;border-radius:16px;padding:36px;max-width:480px}h1{font-size:26px}p{line-height:1.6}.brand{color:#8e2841;font-size:11px;font-weight:700;letter-spacing:.1em}form{display:grid;gap:18px}label{display:block;line-height:1.5}input[type=text]{display:block;box-sizing:border-box;width:100%;font:inherit;font-size:24px;letter-spacing:.3em;padding:12px;border:1px solid #b9a7af;border-radius:8px;margin-top:8px}button{font:inherit;font-weight:600;border:0;border-radius:24px;padding:14px 18px;background:#a32743;color:white;cursor:pointer}small{display:block;overflow-wrap:anywhere;color:#64545c}a{color:#a32743}.note{padding:14px;background:#faf4f6;border-radius:8px}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #a32743;outline-offset:3px}`;
 
@@ -109,7 +113,7 @@ async function connectPage(url:URL,env:RuntimeEnv,runtime:CollectorRuntimeReadyV
 }
 async function confirmConnect(request:Request,env:RuntimeEnv,runtime:CollectorRuntimeReadyV1):Promise<Response>{
   // Never commit a one-use pairing until OAuth URL, encrypted transaction
-  // cookie and redirect response have been completely constructed. A failure
+  // cookie and handoff document have been completely constructed. A failure
   // after DB confirmation otherwise strands the operator at a generic 403.
   let stage='validate-request';
   try {
@@ -126,13 +130,17 @@ async function confirmConnect(request:Request,env:RuntimeEnv,runtime:CollectorRu
     const base=await newAuthTransaction(runtime.oauth.now());
     const transaction:CollectorOAuthTransactionV1={state:'collector.'+base.state,nonce:base.nonce,verifier:base.verifier,
       exp:Math.min(base.exp,Math.floor(confirmed.exp/1000)),startedAt:runtime.oauth.now(),pairingId:confirmed.id};
-    const headers=new Headers({Location:collectorAuthorizationUrlV1(env,{...base,...transaction})});
+    const destination=collectorAuthorizationUrlV1(env,{...base,...transaction});
+    const headers=new Headers();
     headers.append('Set-Cookie',clearCookie(CONFIRM_COOKIE));
     headers.append('Set-Cookie',secureCookie(AUTH_COOKIE,await seal(transaction,env.SESSION_SECRET),{maxAge:600}));
-    const redirect=new Response(null,{status:303,headers});
+    // Chromium applies form-action 'self' to a POST's entire redirect chain.
+    // Commit a same-origin document first; its refresh is a fresh navigation,
+    // so Microsoft sign-in works without widening the application's CSP.
+    const handoff=page('Entrando na Microsoft',`<p>Continuando para entrar na Microsoft.</p><a href="${escaped(destination)}">Continuar com Microsoft</a>`,200,headers,destination);
     stage='commit-confirmation';
     if(!await runtime.pairings.confirm(transaction))throw new Error('confirmation-denied');
-    return redirect;
+    return handoff;
   } catch(error) {
     // Stage-only telemetry: never log pairing IDs, codes, auth cookies, OAuth
     // state/verifier, directory identity, HTTP payload or exception message.

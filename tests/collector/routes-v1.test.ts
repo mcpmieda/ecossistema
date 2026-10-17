@@ -12,6 +12,7 @@ import {encodeBase64Url,decodeJson} from '../../server/auth/base64url';
 import {unseal,seal} from '../../server/auth/sealed';
 import {SESSION_COOKIE,createApplicationSession} from '../../server/auth/session';
 import {onRequest} from '../../functions/[[path]]';
+import {withSecurityHeaders,SECURITY_HEADERS} from '../../server/http/security';
 
 const origin='https://admin.escolaieda.com',prefix='/api/frequency-collector/';
 const tenant='11111111-1111-4111-8111-111111111111',client='22222222-2222-4222-8222-222222222222';
@@ -79,7 +80,21 @@ async function fixture(){
     const form=new URLSearchParams({pairing:pair.id,csrf,code:pair.displayCode,confirm:'yes'});
     const reply=await handleCollectorRequestV1(new Request(origin+'/frequency-collector/connect',{method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded',Cookie:cookie,Origin:origin},body:form}),env,dependencies);
-    expect(reply?.status).toBe(303);expect(reply?.headers.get('Location')).toContain('offline_access');
+    expect(reply?.status).toBe(200);
+    const secured=withSecurityHeaders(reply!,true),handoff=await secured.text();
+    expect(secured.headers.get('Location')).toBeNull();
+    expect(secured.headers.get('Content-Security-Policy')).toBe(SECURITY_HEADERS['Content-Security-Policy']);
+    expect(handoff).toContain('<meta http-equiv="refresh" content="0;url=https://login.microsoftonline.com/');
+    expect(handoff).toContain('offline_access');
+    expect(handoff).toContain('Continuar com Microsoft');
+    expect(handoff).not.toContain(pair.pollToken);
+    expect(handoff).not.toContain(pair.displayCode);
+    const cookies=secured.headers.getSetCookie();
+    expect(cookies).toHaveLength(2);
+    expect(cookies).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^__Host-collector_confirm=;.*Max-Age=0/u),
+      expect.stringMatching(/^__Host-collector_auth=[A-Za-z0-9_-]+;.*HttpOnly; Secure; SameSite=Lax; Max-Age=600/u),
+    ]));
     const authCookie=reply!.headers.get('Set-Cookie')!.match(/__Host-collector_auth=([^;]+)/)![1]!;
     const transaction=await unseal<{state:string;nonce:string}>(authCookie,env.SESSION_SECRET);
     expectedNonce=transaction!.nonce;
