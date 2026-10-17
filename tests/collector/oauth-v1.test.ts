@@ -93,4 +93,28 @@ describe('collector callback broker, synthetic providers only',()=>{
       expect(directory.dependencies.registerConfirmedPairing).not.toHaveBeenCalled();
     } finally { log.mockRestore(); }
   });
+  it('distinguishes local assertion failure from a refused Microsoft code exchange',async()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>undefined);
+    try {
+      const assertion=await fixture();
+      vi.mocked(assertion.dependencies.clientAssertion).mockRejectedValue(new Error('PRIVATE_KEY_FAILURE'));
+      await expect(completeCollectorOAuthV1(assertion.input)).rejects.toThrow('collector-login-denied');
+      expect(assertion.fetcher).not.toHaveBeenCalled();
+      expect(log.mock.calls).toEqual([[JSON.stringify({message:'collector_oauth_failed',stage:'prepare-client-assertion'})]]);
+      for(const providerBody of [
+        {error_codes:[700027],error_description:'PRIVATE_PROVIDER_BODY'},
+        {error_codes:['PRIVATE_SCOPE'],error_description:'PRIVATE_PROVIDER_BODY'},
+        {error_codes:Array(9).fill(700027)},
+      ]) {
+        log.mockClear();
+        const provider=await fixture();provider.replies[0]=json(providerBody,400);
+        await expect(completeCollectorOAuthV1(provider.input)).rejects.toThrow('collector-login-denied');
+        expect(log.mock.calls).toEqual([
+          [JSON.stringify({message:'collector_code_exchange_failed',status:400,providerCodes:providerBody.error_codes.length===1&&typeof providerBody.error_codes[0]==='number'?[700027]:[]})],
+          [JSON.stringify({message:'collector_oauth_failed',stage:'exchange-code'})],
+        ]);
+        expect(provider.dependencies.registerConfirmedPairing).not.toHaveBeenCalled();
+      }
+    } finally { log.mockRestore(); }
+  });
 });

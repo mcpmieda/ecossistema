@@ -71,13 +71,25 @@ export async function completeCollectorOAuthV1(input:{env:RuntimeEnv;transaction
       || !input.code || input.code.length>8192) throw new CollectorOAuthErrorV1();
     stage='consume-transaction';
     if(!await dependencies.consumeConfirmedTransaction(transaction)) throw new CollectorOAuthErrorV1();
+    stage='prepare-client-assertion';
+    const clientAssertion=await dependencies.clientAssertion();
     stage='exchange-code';
     const response=await dependencies.fetch(`https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/token`,{
       method:'POST',redirect:'manual',signal:AbortSignal.timeout(15_000),headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:new URLSearchParams({client_id:env.WEB_CLIENT_ID,grant_type:'authorization_code',code:input.code,
         code_verifier:transaction.verifier,redirect_uri:env.OFFICIAL_ORIGIN+'/auth/callback',scope:scopes,
-        client_assertion_type:'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',client_assertion:await dependencies.clientAssertion()})});
-    if(!response.ok) throw new CollectorOAuthErrorV1();
+        client_assertion_type:'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',client_assertion:clientAssertion})});
+    if(!response.ok) {
+      // Microsoft numeric error codes are bounded operational metadata. Never
+      // log error_description, correlation IDs, response bodies or credentials.
+      let providerCodes:number[]=[];
+      try {
+        const failure=z.object({error_codes:z.array(z.number().int().min(0).max(999999999)).max(8)}).parse(await tokenBody(response));
+        providerCodes=failure.error_codes;
+      } catch { /* An invalid provider error body still remains private. */ }
+      console.error(JSON.stringify({message:'collector_code_exchange_failed',status:response.status,providerCodes}));
+      throw new CollectorOAuthErrorV1();
+    }
     stage='read-token-response';
     const tokens=tokenSchema.parse(await tokenBody(response));
     stage='verify-id-token';
