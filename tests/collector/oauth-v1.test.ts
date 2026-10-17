@@ -4,6 +4,7 @@ import {CollectorRefreshCipherV1} from '../../server/collector/refresh-cipher-v1
 import {authorizationUrl,type IdClaims} from '../../server/auth/oidc';
 import {encodeBase64Url} from '../../server/auth/base64url';
 import type {RuntimeEnv} from '../../server/env';
+import {z} from 'zod';
 const tenant='11111111-1111-4111-8111-111111111111',client='22222222-2222-4222-8222-222222222222';
 const actor='33333333-3333-4333-8333-333333333333',group='44444444-4444-4444-8444-444444444444';
 // Wrangler's generated Env pins production UUID literals. This fixture deliberately
@@ -80,7 +81,10 @@ describe('collector callback broker, synthetic providers only',()=>{
       const failed=await fixture();
       vi.mocked(failed.dependencies.verifyIdToken).mockRejectedValue(new Error('PRIVATE_TOKEN_ERROR'));
       await expect(completeCollectorOAuthV1(failed.input)).rejects.toThrow('collector-login-denied');
-      expect(log.mock.calls).toEqual([[JSON.stringify({message:'collector_oauth_failed',stage:'verify-id-token'})]]);
+      expect(log.mock.calls).toEqual([
+        [JSON.stringify({message:'collector_id_token_validation_failed',reason:'unclassified',kind:'validation-error',fields:[]})],
+        [JSON.stringify({message:'collector_oauth_failed',stage:'verify-id-token'})],
+      ]);
       log.mockClear();
       const directory=await fixture();
       directory.replies[1]=json({token_type:'Bearer',access_token:'PRIVATE_DIRECTORY_ACCESS',expires_in:3600,
@@ -92,5 +96,26 @@ describe('collector callback broker, synthetic providers only',()=>{
       ]);
       expect(directory.dependencies.registerConfirmedPairing).not.toHaveBeenCalled();
     } finally { log.mockRestore(); }
+  });
+  it('diagnoses signed-token validation without logging claims or provider error text',async()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>undefined);
+    try {
+      const schema=z.object({name:z.string(),PRIVATE_FIELD:z.string()});
+      const result=schema.safeParse({name:42,PRIVATE_FIELD:42});
+      if(result.success)throw new Error('Expected synthetic schema failure');
+      for(const [error,reason,kind,fields] of [
+        [result.error,'invalid-contract','schema-error',['name']],
+        [new Error('Invalid token lifetime or nonce'),'invalid-lifetime-or-nonce','validation-error',[]],
+        [new TypeError('PRIVATE_PROVIDER_ERROR'),'unclassified','type-error',[]],
+      ] as const){
+        log.mockClear();const f=await fixture();vi.mocked(f.dependencies.verifyIdToken).mockRejectedValue(error);
+        await expect(completeCollectorOAuthV1(f.input)).rejects.toThrow('collector-login-denied');
+        expect(log.mock.calls).toEqual([
+          [JSON.stringify({message:'collector_id_token_validation_failed',reason,kind,fields})],
+          [JSON.stringify({message:'collector_oauth_failed',stage:'verify-id-token'})],
+        ]);
+        expect(f.dependencies.registerConfirmedPairing).not.toHaveBeenCalled();
+      }
+    }finally{log.mockRestore();}
   });
 });
