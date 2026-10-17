@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
-import { authorizationUrl, type AuthTransaction, type IdClaims } from '../auth/oidc';
+import { authorizationUrl, IdTokenLifetimeError, type AuthTransaction, type IdClaims } from '../auth/oidc';
 import { decodeJson } from '../auth/base64url';
 import { CollectorRefreshCipherV1, type CollectorGrantBindingV1 } from './refresh-cipher-v1';
 import { readCollectorOwnDirectoryV1, type CollectorDirectoryDependenciesV1, type CollectorDirectoryEvidenceV1 } from './directory-v1';
@@ -35,7 +35,10 @@ function reportIdTokenFailure(error:unknown):void {
     const name=issue.path[0];return typeof name==='string'&&idTokenFields.has(name)?[name]:[];
   }))]:[];
   const kind=error instanceof TypeError?'type-error':error instanceof z.ZodError?'schema-error':'validation-error';
-  console.error(JSON.stringify({message:'collector_id_token_validation_failed',reason,kind,fields}));
+  // Clock offsets in seconds only (no claim values): separates server clock
+  // skew from tokens that the provider already issued with a past expiry.
+  const offsets=error instanceof IdTokenLifetimeError?{offsets:error.offsets}:{};
+  console.error(JSON.stringify({message:'collector_id_token_validation_failed',reason,kind,fields,...offsets}));
 }
 
 /** Only the collector-specific, explicitly confirmed transaction asks for
