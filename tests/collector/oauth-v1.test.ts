@@ -38,7 +38,8 @@ describe('collector callback broker, synthetic providers only',()=>{
     const collector=new URL(collectorAuthorizationUrlV1(env,base)),normal=new URL(authorizationUrl(env,base));
     expect(collector.searchParams.get('scope')).toBe('openid profile email offline_access https://graph.microsoft.com/User.Read');
     expect(collector.searchParams.get('redirect_uri')).toBe('https://admin.escolaieda.com/auth/callback');
-    expect(collector.searchParams.get('max_age')).toBe('0');expect(normal.searchParams.get('scope')).toBe('openid profile email');
+    expect(collector.searchParams.get('prompt')).toBe('login');expect(normal.searchParams.get('prompt')).toBe('select_account');
+    expect(collector.searchParams.get('max_age')).toBe('600');expect(normal.searchParams.has('max_age')).toBe(false);expect(normal.searchParams.get('scope')).toBe('openid profile email');
     expect(()=>collectorAuthorizationUrlV1(env,{...base,state:'normal'})).toThrow('denied');
   });
   it('returns completion only and registers rotated ciphertext with original authentication time',async()=>{
