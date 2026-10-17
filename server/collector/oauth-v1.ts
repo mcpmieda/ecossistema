@@ -20,7 +20,9 @@ const idTokenFailureReasons=new Map([
   ['Unknown OIDC signing key','unknown-signing-key'],
   ['Invalid ID token signature','invalid-signature'],
   ['Invalid token authority','invalid-authority'],
-  ['Invalid token lifetime or nonce','invalid-lifetime-or-nonce'],
+  ['Invalid token nonce','nonce-mismatch'],
+  ['Expired ID token','token-expired'],
+  ['ID token not yet valid','token-not-yet-valid'],
   ['Group overage is not supported by the foundation','group-overage'],
 ]);
 const idTokenFields=new Set(['alg','kid','keys','aud','iss','tid','oid','exp','nbf','nonce','name','preferred_username','groups','_claim_names']);

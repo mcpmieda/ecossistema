@@ -174,12 +174,10 @@ export async function verifyIdToken(
   const issuer = `https://login.microsoftonline.com/${env.TENANT_ID}/v2.0`;
   if (claims.tid !== env.TENANT_ID || claims.iss !== issuer || claims.aud !== env.WEB_CLIENT_ID)
     throw new Error('Invalid token authority');
-  if (
-    claims.nonce !== expectedNonce ||
-    claims.exp <= now ||
-    (claims.nbf !== undefined && claims.nbf > now + 60)
-  )
-    throw new Error('Invalid token lifetime or nonce');
+  if (claims.nonce !== expectedNonce) throw new Error('Invalid token nonce');
+  if (claims.exp <= now) throw new Error('Expired ID token');
+  if (claims.nbf !== undefined && claims.nbf > now + 60)
+    throw new Error('ID token not yet valid');
   if (claims._claim_names?.groups)
     throw new Error('Group overage is not supported by the foundation');
   return claims;
