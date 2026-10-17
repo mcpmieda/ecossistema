@@ -47,7 +47,11 @@ function reportIdTokenFailure(error:unknown):void {
 export function collectorAuthorizationUrlV1(env:RuntimeEnv,transaction:AuthTransaction & {challenge:string}):string {
   if(!/^collector\.[A-Za-z0-9_-]{43}$/u.test(transaction.state)) throw new CollectorOAuthErrorV1();
   const url=new URL(authorizationUrl(env,transaction));
-  url.searchParams.set('scope',scopes);url.searchParams.set('max_age','0');
+  // prompt=login forces fresh credentials. Entra caps the ID token at
+  // auth_time+max_age, so max_age=0 yields a token whose exp is its issue time
+  // (always rejected as expired); 600 keeps auth_time and a usable lifetime.
+  // Freshness is still enforced by auth_time >= transaction.startedAt below.
+  url.searchParams.set('scope',scopes);url.searchParams.set('prompt','login');url.searchParams.set('max_age','600');
   return url.toString();
 }
 
