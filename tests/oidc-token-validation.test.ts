@@ -31,3 +31,18 @@ it.each([
   if (error) await expect(result).rejects.toThrow(error);
   else await expect(result).resolves.toMatchObject({ nonce: 'expected', exp: 2001, nbf: 2060 });
 });
+
+it('reports only clock offsets for an expired signed token', async () => {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const unsigned = encode({ alg: 'RS256', kid: 'synthetic-key' }) + '.' + encode({
+    aud: testEnv.WEB_CLIENT_ID, iss: `https://login.microsoftonline.com/${testEnv.TENANT_ID}/v2.0`,
+    tid: testEnv.TENANT_ID, oid: '33333333-3333-4333-8333-333333333333', name: 'Synthetic actor',
+    nonce: 'expected', iat: 1400, nbf: 1400, exp: 1700,
+  });
+  const signature = await webcrypto.subtle.sign('RSASSA-PKCS1-v1_5', key.privateKey,
+    new TextEncoder().encode(unsigned));
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ keys: [{ ...publicKey, kid: 'synthetic-key' }] })));
+  const error = await verifyIdToken(unsigned + '.' + Buffer.from(signature).toString('base64url'), testEnv, 'expected', 2000)
+    .catch((caught: unknown) => caught);
+  expect(error).toMatchObject({ message: 'Expired ID token', offsets: { exp: -300, nbf: -600, iat: -600 } });
+});

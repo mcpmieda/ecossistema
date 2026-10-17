@@ -26,6 +26,17 @@ const claimsSchema = z.object({
 });
 export type IdClaims = z.infer<typeof claimsSchema>;
 
+/** Lifetime failure with only clock offsets (seconds relative to validation time). */
+export class IdTokenLifetimeError extends Error {
+  constructor(
+    message: string,
+    readonly offsets: Readonly<Record<'exp' | 'nbf' | 'iat', number | null>>,
+  ) {
+    super(message);
+  }
+}
+const timeOffsetSchema = z.object({ iat: z.number().optional() });
+
 export async function newAuthTransaction(
   now = Date.now(),
 ): Promise<AuthTransaction & { challenge: string }> {
@@ -175,9 +186,16 @@ export async function verifyIdToken(
   if (claims.tid !== env.TENANT_ID || claims.iss !== issuer || claims.aud !== env.WEB_CLIENT_ID)
     throw new Error('Invalid token authority');
   if (claims.nonce !== expectedNonce) throw new Error('Invalid token nonce');
-  if (claims.exp <= now) throw new Error('Expired ID token');
+  const offsets = () => ({
+    exp: claims.exp - now,
+    nbf: claims.nbf === undefined ? null : claims.nbf - now,
+    iat: ((iat) => (iat === undefined ? null : iat - now))(
+      timeOffsetSchema.parse(decodeJson(parts[1]!)).iat,
+    ),
+  });
+  if (claims.exp <= now) throw new IdTokenLifetimeError('Expired ID token', offsets());
   if (claims.nbf !== undefined && claims.nbf > now + 60)
-    throw new Error('ID token not yet valid');
+    throw new IdTokenLifetimeError('ID token not yet valid', offsets());
   if (claims._claim_names?.groups)
     throw new Error('Group overage is not supported by the foundation');
   return claims;
