@@ -68,7 +68,9 @@ export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:Colle
     const pairings=new CollectorPairingStoreV1(db),cipher=await CollectorRefreshCipherV1.fromDedicatedKey(key);
     await pairings.retireExpiredUnclaimed();
     await pairings.purgeFinished();
-    const directory={fetch:dependencies.fetch??fetch,now:dependencies.now??Date.now,clientAssertion:dependencies.assertion??(()=>createClientAssertion({
+    // Workerd requires its global receiver when native fetch is stored on a
+    // dependency object; calling that unbound method throws Illegal invocation.
+    const directory={fetch:dependencies.fetch??globalThis.fetch.bind(globalThis),now:dependencies.now??Date.now,clientAssertion:dependencies.assertion??(()=>createClientAssertion({
       clientId:env.WEB_CLIENT_ID,tenantId:env.TENANT_ID,privateKeyPkcs8:credential!.privateKeyPkcs8,certificateThumbprint:credential!.certificateThumbprint}))};
     const access=new CollectorAccessServiceV1(new CollectorAuthorizationStoreV1(db),cipher,
       {tenantId:env.TENANT_ID,clientId:env.WEB_CLIENT_ID,adminGroupId:env.GROUP_ADMIN_ID},directory);
