@@ -63,24 +63,30 @@ export type CollectorOAuthDependenciesV1=CollectorDirectoryDependenciesV1 & {
  * browser confirmation; it is not installed by merely adding this module. */
 export async function completeCollectorOAuthV1(input:{env:RuntimeEnv;transaction:CollectorOAuthTransactionV1;
   callbackState:string;code:string;cipher:CollectorRefreshCipherV1;dependencies:CollectorOAuthDependenciesV1}):Promise<{completed:true}> {
+  let stage='validate-transaction';
   try {
     const {env,dependencies}=input,transaction=transactionSchema.parse(input.transaction),now=dependencies.now();
     if(env.OFFICIAL_ORIGIN!=='https://admin.escolaieda.com' || input.callbackState!==transaction.state
       || transaction.exp*1000<=now || transaction.startedAt>now || now-transaction.startedAt>600_000
       || !input.code || input.code.length>8192) throw new CollectorOAuthErrorV1();
+    stage='consume-transaction';
     if(!await dependencies.consumeConfirmedTransaction(transaction)) throw new CollectorOAuthErrorV1();
+    stage='exchange-code';
     const response=await dependencies.fetch(`https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/token`,{
       method:'POST',redirect:'manual',signal:AbortSignal.timeout(15_000),headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:new URLSearchParams({client_id:env.WEB_CLIENT_ID,grant_type:'authorization_code',code:input.code,
         code_verifier:transaction.verifier,redirect_uri:env.OFFICIAL_ORIGIN+'/auth/callback',scope:scopes,
         client_assertion_type:'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',client_assertion:await dependencies.clientAssertion()})});
     if(!response.ok) throw new CollectorOAuthErrorV1();
+    stage='read-token-response';
     const tokens=tokenSchema.parse(await tokenBody(response));
+    stage='verify-id-token';
     const claims=await dependencies.verifyIdToken(tokens.id_token,env,transaction.nonce);
     if(claims.tid!==env.TENANT_ID || claims.aud!==env.WEB_CLIENT_ID || claims.nonce!==transaction.nonce)
       throw new CollectorOAuthErrorV1();
     // Decode only after signature/authority/nonce validation. max_age requires
     // auth_time; absent/stale values cannot be replaced with callback clock time.
+    stage='verify-authentication-time';
     const payload=z.object({auth_time:z.number().int().positive()}).parse(decodeJson(tokens.id_token.split('.')[1]!));
     const authenticatedAt=payload.auth_time*1000;
     if(authenticatedAt>now || authenticatedAt<transaction.startedAt-1000 || now-authenticatedAt>600_000)
@@ -89,11 +95,19 @@ export async function completeCollectorOAuthV1(input:{env:RuntimeEnv;transaction
       grantId:crypto.randomUUID(),generation:1,version:0,originAuthenticatedAt:authenticatedAt};
     // Reacquire only User.Read, prove enabled own account, original-origin marker
     // and fixed ADMIN group; do not use the code response's access token.
+    stage='verify-own-directory';
     const result=await readCollectorOwnDirectoryV1({binding,expectedTenantId:env.TENANT_ID,expectedClientId:env.WEB_CLIENT_ID,
       adminGroupId:env.GROUP_ADMIN_ID,refreshToken:tokens.refresh_token,dependencies});
+    stage='encrypt-refresh';
     const encryptedRefresh=await input.cipher.encrypt(result.nextRefreshToken,binding);
+    stage='register-pairing';
     if(!await dependencies.registerConfirmedPairing({pairingId:transaction.pairingId,binding,encryptedRefresh,directory:result.evidence}))
       throw new CollectorOAuthErrorV1();
     return {completed:true};
-  } catch {throw new CollectorOAuthErrorV1();}
+  } catch {
+    // Fixed local stages only: provider exceptions and transaction values may
+    // contain credentials or identity and must never reach operational logs.
+    console.error(JSON.stringify({message:'collector_oauth_failed',stage}));
+    throw new CollectorOAuthErrorV1();
+  }
 }
