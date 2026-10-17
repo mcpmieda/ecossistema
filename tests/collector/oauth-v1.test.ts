@@ -105,7 +105,9 @@ describe('collector callback broker, synthetic providers only',()=>{
       if(result.success)throw new Error('Expected synthetic schema failure');
       for(const [error,reason,kind,fields] of [
         [result.error,'invalid-contract','schema-error',['name']],
-        [new Error('Invalid token lifetime or nonce'),'invalid-lifetime-or-nonce','validation-error',[]],
+        [new Error('Invalid token nonce'),'nonce-mismatch','validation-error',[]],
+        [new Error('Expired ID token'),'token-expired','validation-error',[]],
+        [new Error('ID token not yet valid'),'token-not-yet-valid','validation-error',[]],
         [new TypeError('PRIVATE_PROVIDER_ERROR'),'unclassified','type-error',[]],
       ] as const){
         log.mockClear();const f=await fixture();vi.mocked(f.dependencies.verifyIdToken).mockRejectedValue(error);
