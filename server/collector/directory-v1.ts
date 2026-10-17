@@ -91,6 +91,7 @@ export async function readCollectorOwnDirectoryV1(input: {
   refreshToken: string; dependencies: CollectorDirectoryDependenciesV1;
 }): Promise<{ evidence: CollectorDirectoryEvidenceV1; nextRefreshToken: string }> {
   const { dependencies } = input;
+  let stage = 'validate-binding';
   try {
     const binding = collectorGrantBindingV1.parse(input.binding);
     const group = z.string().uuid().parse(input.adminGroupId).toLowerCase();
@@ -99,6 +100,7 @@ export async function readCollectorOwnDirectoryV1(input: {
       throw new CollectorDirectoryErrorV1('access-denied');
     const directoryCheckedAt = dependencies.now();
     const signal = AbortSignal.timeout(15_000);
+    stage = 'refresh-token';
     const response = await dependencies.fetch(`https://login.microsoftonline.com/${binding.tenantId}/oauth2/v2.0/token`, {
       method: 'POST', redirect: 'manual', signal,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -109,29 +111,40 @@ export async function readCollectorOwnDirectoryV1(input: {
     });
     if (!response.ok)
       throw new CollectorDirectoryErrorV1([400, 401, 403].includes(response.status) ? 'reauthentication-required' : 'unavailable');
+    stage = 'read-refresh-response';
     const token = refreshed.parse(await readJson(response));
+    stage = 'validate-delegation';
     if (!collectorDelegationScopeV1(token.scope)) throw new CollectorDirectoryErrorV1('invalid-contract');
     const headers = { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' };
+    stage = 'read-own-user';
     const meResponse = await dependencies.fetch(GRAPH_ORIGIN + '/v1.0/me?$select=id,accountEnabled,signInSessionsValidFromDateTime',
       { method: 'GET', headers, redirect: 'manual', signal });
     if (!meResponse.ok) throw graphFailure(meResponse);
+    stage = 'validate-own-user';
     const me = ownUser.parse(await readJson(meResponse, 8192));
+    stage = 'verify-own-user';
     if (me.id.toLowerCase() !== binding.actorId.toLowerCase()
         || Date.parse(me.signInSessionsValidFromDateTime) > binding.originAuthenticatedAt)
       throw new CollectorDirectoryErrorV1('access-denied');
+    stage = 'read-admin-membership';
     const groupResponse = await dependencies.fetch(GRAPH_ORIGIN + '/v1.0/me/checkMemberGroups',
       { method: 'POST', redirect: 'manual', signal, headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ groupIds: [group] }) });
     if (!groupResponse.ok) throw graphFailure(groupResponse);
+    stage = 'validate-admin-membership';
     const result = memberships.parse(await readJson(groupResponse, 8192));
+    stage = 'verify-admin-membership';
     if (result.value.length !== 1 || result.value[0]!.toLowerCase() !== group)
       throw new CollectorDirectoryErrorV1('access-denied');
     const evidence = Object.freeze({ tenantId: binding.tenantId, actorId: binding.actorId,
       grantId: binding.grantId, grantGeneration: binding.generation, originAuthenticatedAt: binding.originAuthenticatedAt,
       directoryCheckedAt, directoryValidUntil: directoryCheckedAt + DIRECTORY_WINDOW_MS });
+    stage = 'validate-directory-window';
     collectorLeaseExpiryV1(binding, evidence, dependencies.now());
     return { evidence, nextRefreshToken: token.refresh_token ?? input.refreshToken };
   } catch (error) {
+    // Never include provider bodies, exception text, identities or token scopes.
+    console.error(JSON.stringify({message:'collector_directory_failed',stage}));
     if (error instanceof CollectorDirectoryErrorV1) throw error;
     // Provider bodies, tokens, assertions and malformed property values stay private.
     throw new CollectorDirectoryErrorV1('unavailable');

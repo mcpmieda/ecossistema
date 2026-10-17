@@ -74,4 +74,23 @@ describe('collector callback broker, synthetic providers only',()=>{
     const cancelled=await fixture();vi.mocked(cancelled.dependencies.registerConfirmedPairing).mockResolvedValue(false);
     await expect(completeCollectorOAuthV1(cancelled.input)).rejects.toThrow('denied');
   });
+  it('reports only fixed failure stages without provider or transaction values',async()=>{
+    const log=vi.spyOn(console,'error').mockImplementation(()=>undefined);
+    try {
+      const failed=await fixture();
+      vi.mocked(failed.dependencies.verifyIdToken).mockRejectedValue(new Error('PRIVATE_TOKEN_ERROR'));
+      await expect(completeCollectorOAuthV1(failed.input)).rejects.toThrow('collector-login-denied');
+      expect(log.mock.calls).toEqual([[JSON.stringify({message:'collector_oauth_failed',stage:'verify-id-token'})]]);
+      log.mockClear();
+      const directory=await fixture();
+      directory.replies[1]=json({token_type:'Bearer',access_token:'PRIVATE_DIRECTORY_ACCESS',expires_in:3600,
+        scope:'User.Read PRIVATE_PROVIDER_SCOPE'});
+      await expect(completeCollectorOAuthV1(directory.input)).rejects.toThrow('collector-login-denied');
+      expect(log.mock.calls).toEqual([
+        [JSON.stringify({message:'collector_directory_failed',stage:'validate-delegation'})],
+        [JSON.stringify({message:'collector_oauth_failed',stage:'verify-own-directory'})],
+      ]);
+      expect(directory.dependencies.registerConfirmedPairing).not.toHaveBeenCalled();
+    } finally { log.mockRestore(); }
+  });
 });
