@@ -67,31 +67,24 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('preserves an edited schedule after refresh and refuses to save over a newer revision', async () => {
+it('shows the agenda read-only: it is configured only in the Coletor', async () => {
   const value = fixture();
+  const monday = value.settings.schedule!.rules.find((r) => r.weekday === 1 && r.shift === 'matutino')!;
+  Object.assign(monday, { enabled: true, times: ['07:30', '11:30'], recheck: '12:15' });
   const client = {
     status: vi.fn(async () => structuredClone(value)),
     mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
   };
   render(<FrequencyPanelV2 client={client} />);
-  const user = userEvent.setup();
-  const timezone = await screen.findByLabelText('Fuso horário');
-  await waitFor(() =>
-    expect((timezone.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(false),
-  );
-  await user.clear(timezone);
-  await user.type(timezone, 'America/Manaus');
-  value.settings.revision = 4;
-  await user.click(screen.getByRole('button', { name: 'Atualizar frequência' }));
-  await screen.findByText(/A agenda mudou durante sua edição/);
-  expect((screen.getByLabelText('Fuso horário') as HTMLInputElement).value).toBe('America/Manaus');
-  expect(
-    (screen.getByRole('button', { name: 'Salvar agenda' }) as HTMLButtonElement).disabled,
-  ).toBe(true);
-  expect(client.mutate).not.toHaveBeenCalled();
+  const agenda = await screen.findByRole('region', { name: 'Agenda de coleta' });
+  expect(within(agenda).getByText('Configurada no Coletor de Frequência.')).toBeTruthy();
+  expect(within(agenda).getByText('Segunda-feira')).toBeTruthy();
+  expect(within(agenda).getByText('3 coleta(s) · 07:30 a 12:15')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Salvar agenda' })).toBeNull();
+  expect(screen.queryByLabelText('Fuso horário')).toBeNull();
 });
 
-it('saves multiple typed schedule times with CAS and pauses only after an explicit action', async () => {
+it('pauses the school collection only after an explicit action', async () => {
   const value = fixture();
   const client = {
     status: vi.fn(async () => structuredClone(value)),
@@ -102,31 +95,10 @@ it('saves multiple typed schedule times with CAS and pauses only after an explic
   render(<FrequencyPanelV2 client={client} />);
   const user = userEvent.setup();
   await screen.findByText('COMPUTADOR INVENTADO');
-  await waitFor(() =>
-    expect(
-      (screen.getByLabelText('Fuso horário').closest('fieldset') as HTMLFieldSetElement).disabled,
-    ).toBe(false),
-  );
-  await user.click(screen.getAllByLabelText('Coletar neste turno')[0]!);
-  await user.type(screen.getAllByLabelText('Horários de coleta')[0]!, '07:30, 11:30');
-  await user.click(screen.getByRole('button', { name: 'Salvar agenda' }));
-  await waitFor(() => expect(client.mutate).toHaveBeenCalledTimes(1));
-  expect(client.mutate.mock.calls[0]?.[0]).toMatchObject({
-    operation: 'save-settings',
-    expectedRevision: 3,
-    academicYear: 2026,
-    schedule: {
-      rules: expect.arrayContaining([expect.objectContaining({ times: ['07:30', '11:30'] })]),
-    },
-  });
-  await waitFor(() =>
-    expect(
-      (screen.getByRole('button', { name: 'Pausar coleta escolar' }) as HTMLButtonElement).disabled,
-    ).toBe(false),
-  );
+  expect(client.mutate).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Pausar coleta escolar' }));
   await screen.findByRole('button', { name: 'Retomar coleta escolar' });
-  expect(client.mutate.mock.calls[1]?.[0]).toMatchObject({
+  expect(client.mutate.mock.calls[0]?.[0]).toMatchObject({
     operation: 'set-paused',
     expectedRevision: 3,
     paused: true,
@@ -278,31 +250,6 @@ it('renders every operational device state without simulating a connected comput
     'Sessão da fonte expirada',
   ])
     expect(within(computers).getByText(label)).toBeTruthy();
-});
-
-it('refuses timezone offsets and other spellings the database and Windows collector read differently', async () => {
-  const value = fixture();
-  const client = {
-    status: vi.fn(async () => structuredClone(value)),
-    mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
-  };
-  render(<FrequencyPanelV2 client={client} />);
-  const user = userEvent.setup();
-  const timezone = await screen.findByLabelText('Fuso horário');
-  await waitFor(() =>
-    expect((timezone.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(false),
-  );
-  for (const zone of ['-03:00', 'america/bahia']) {
-    await user.clear(timezone);
-    await user.type(timezone, zone);
-    await user.click(screen.getByRole('button', { name: 'Salvar agenda' }));
-    expect(await screen.findByText('Confira o fuso e os horários da agenda.')).toBeTruthy();
-  }
-  expect(client.mutate).not.toHaveBeenCalled();
-  await user.clear(timezone);
-  await user.type(timezone, 'America/Bahia');
-  await user.click(screen.getByRole('button', { name: 'Salvar agenda' }));
-  await waitFor(() => expect(client.mutate).toHaveBeenCalledTimes(1));
 });
 
 it('lists unrecognized Smecel students and the failure trail with the actions that resolve them', async () => {

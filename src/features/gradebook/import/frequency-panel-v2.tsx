@@ -4,8 +4,6 @@ import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import {
-  frequencyScheduleWriteV2,
-  type FrequencyScheduleV2,
   type FrequencyDeviceV2,
   type FrequencyConflictV2,
   type FrequencyFailureEntryV2,
@@ -23,7 +21,6 @@ import { useFrequencyReadV2 } from '../../student-portal/frequency/use-frequency
 import './frequency-panel-v2.css';
 
 type Mutate = (input: FrequencyAdminCommandV2) => Promise<boolean>;
-type Rule = FrequencyScheduleV2['rules'][number];
 
 const defaultClient = createFrequencyAdminClientV2();
 const weekdays = [
@@ -118,20 +115,6 @@ const shiftLabel = (value: string) => SHIFT_LABELS_V1[value.toUpperCase() as Shi
 function markLabel(mark: 'X' | 'J' | null): string {
   if (mark === null) return 'Remoção';
   return mark === 'X' ? 'Falta (X)' : 'Justificada (J)';
-}
-function emptySchedule(): FrequencyScheduleV2 {
-  return {
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    rules: weekdays.flatMap((_, weekday) =>
-      (['matutino', 'vespertino'] as const).map((shift) => ({
-        weekday,
-        shift,
-        enabled: false,
-        times: [],
-        recheck: null,
-      })),
-    ),
-  };
 }
 function chipLabel(device: FrequencyDeviceV2, leader: boolean): string {
   if (leader && device.state === 'ready') return 'Líder';
@@ -349,183 +332,40 @@ function FrequencyConflictCardV2({
   );
 }
 
-function ScheduleRuleV2({
-  rule,
-  times,
-  onRule,
-  onTimes,
-}: Readonly<{
-  rule: Rule;
-  times: string;
-  onRule: (value: Partial<Rule>) => void;
-  onTimes: (value: string) => void;
-}>) {
+/** The agenda is configured only in the Coletor de Frequência; here it is read-only. */
+function ScheduleSummaryV2({ data }: Readonly<{ data: FrequencyStatusV2 }>) {
+  const schedule = data.settings.schedule;
+  const days = weekdays
+    .map((name, weekday) => {
+      const moments = [
+        ...new Set(
+          (schedule?.rules ?? [])
+            .filter((rule) => rule.enabled && rule.weekday === weekday)
+            .flatMap((rule) => [...rule.times, ...(rule.recheck ? [rule.recheck] : [])]),
+        ),
+      ].sort((a, b) => a.localeCompare(b));
+      return { name, moments };
+    })
+    .filter((day) => day.moments.length > 0);
   return (
-    <fieldset>
-      <legend>
-        {weekdays[rule.weekday]} · {shiftLabel(rule.shift)}
-      </legend>
-      <label className="frequency-checkbox">
-        <input
-          type="checkbox"
-          checked={rule.enabled}
-          onChange={(event) => onRule({ enabled: event.target.checked })}
-        />
-        <span>Coletar neste turno</span>
-      </label>
-      <label>
-        <span>Horários de coleta</span>
-        <input
-          value={times}
-          placeholder="07:30, 11:30"
-          disabled={!rule.enabled}
-          onChange={(event) => onTimes(event.target.value)}
-        />
-      </label>
-      <label>
-        <span>Rechecagem</span>
-        <input
-          type="time"
-          value={rule.recheck ?? ''}
-          disabled={!rule.enabled}
-          onChange={(event) => onRule({ recheck: event.target.value || null })}
-        />
-      </label>
-    </fieldset>
-  );
-}
-
-/** The draft lives in the panel, so refreshes, errors and tab changes never discard it. */
-function useScheduleDraftV2(data: FrequencyStatusV2 | null) {
-  const [draft, setDraft] = useState<FrequencyScheduleV2>(emptySchedule);
-  const [timesDraft, setTimesDraft] = useState<Record<number, string>>({});
-  const [dirty, setDirty] = useState(false);
-  const [draftRevision, setDraftRevision] = useState<number | null>(null);
-  useEffect(() => {
-    if (!data || dirty) return;
-    const schedule = data.settings.schedule ?? emptySchedule();
-    setDraft(schedule);
-    setTimesDraft(
-      Object.fromEntries(schedule.rules.map((rule, index) => [index, rule.times.join(', ')])),
-    );
-    setDraftRevision(data.settings.revision);
-  }, [data, dirty]);
-  return { draft, setDraft, timesDraft, setTimesDraft, dirty, setDirty, draftRevision };
-}
-type ScheduleDraftV2 = ReturnType<typeof useScheduleDraftV2>;
-
-function ScheduleEditorV2({
-  data,
-  pending,
-  mutate,
-  onInvalid,
-  state,
-}: Readonly<{
-  data: FrequencyStatusV2;
-  pending: boolean;
-  mutate: Mutate;
-  onInvalid: (message: string) => void;
-  state: ScheduleDraftV2;
-}>) {
-  const { draft, setDraft, timesDraft, setTimesDraft, dirty, setDirty, draftRevision } = state;
-  const changeRule = (index: number, value: Partial<Rule>) => {
-    setDirty(true);
-    setDraft((current) => ({
-      ...current,
-      rules: current.rules.map((rule, i) => (i === index ? { ...rule, ...value } : rule)),
-    }));
-  };
-  const stale = dirty && draftRevision !== data.settings.revision;
-  const save = () => {
-    const parsed = frequencyScheduleWriteV2.safeParse({
-      ...draft,
-      rules: draft.rules.map((rule, index) => ({
-        ...rule,
-        times: (timesDraft[index] ?? rule.times.join(', '))
-          .split(',')
-          .map((value) => value.trim())
-          .filter(Boolean),
-      })),
-    });
-    if (!parsed.success) {
-      onInvalid(
-        // Agenda rules explain themselves; anything else (time zone) keeps the generic hint.
-        parsed.error.issues.find((issue) => issue.code === 'custom' && issue.path[0] === 'rules')
-          ?.message ??
-          'Confira o fuso e os horários da agenda.',
-      );
-      return;
-    }
-    if (draftRevision === null) return;
-    void mutate({
-      operation: 'save-settings',
-      expectedRevision: draftRevision,
-      schedule: parsed.data,
-    }).then((ok) => {
-      if (ok) setDirty(false);
-    });
-  };
-  return (
-    <Card>
-      <Card.Header>
-        <Card.Title>Agenda compartilhada</Card.Title>
-      </Card.Header>
-      <Card.Content>
-        {stale ? (
-          <p role="alert">
-            A agenda mudou durante sua edição. Seu rascunho foi preservado. Confira a agenda atual
-            antes de continuar.
-          </p>
-        ) : null}
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            save();
-          }}
-        >
-          <fieldset disabled={pending || (!dirty && draftRevision !== data.settings.revision)}>
-            <label>
-              <span>Fuso horário</span>
-              <input
-                value={draft.timezone}
-                maxLength={80}
-                placeholder="America/Bahia"
-                onChange={(event) => {
-                  setDirty(true);
-                  setDraft((current) => ({ ...current, timezone: event.target.value }));
-                }}
-              />
-            </label>
-            <div className="frequency-schedule">
-              {draft.rules.map((rule, index) => (
-                <ScheduleRuleV2
-                  key={`${rule.weekday}:${rule.shift}`}
-                  rule={rule}
-                  times={timesDraft[index] ?? rule.times.join(', ')}
-                  onRule={(value) => changeRule(index, value)}
-                  onTimes={(value) => {
-                    setDirty(true);
-                    setTimesDraft((current) => ({ ...current, [index]: value }));
-                  }}
-                />
-              ))}
-            </div>
-            <div className="frequency-actions">
-              <Button type="submit" isDisabled={pending || !dirty || stale}>
-                Salvar agenda
-              </Button>
-              <Button
-                variant="secondary"
-                isDisabled={pending || !dirty}
-                onPress={() => setDirty(false)}
-              >
-                Usar agenda atual
-              </Button>
-            </div>
-          </fieldset>
-        </form>
-      </Card.Content>
-    </Card>
+    <section aria-label="Agenda de coleta">
+      <h4>Agenda de coleta</h4>
+      <p className="frequency-muted">Configurada no Coletor de Frequência.</p>
+      {days.length === 0 ? (
+        <p>Nenhum horário definido.</p>
+      ) : (
+        <ul className="frequency-list">
+          {days.map((day) => (
+            <li key={day.name}>
+              <strong>{day.name}</strong>
+              <span>
+                {day.moments.length} coleta(s) · {day.moments[0]} a {day.moments.at(-1)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -728,23 +568,18 @@ export function FrequencyPanelV2({
   const read = useCallback((signal: AbortSignal) => client.status(signal), [client]);
   const { data, pending, error, refresh, perform } = useFrequencyReadV2(read, active);
   const [message, setMessage] = useState('');
-  const [localError, setLocalError] = useState('');
-  const schedule = useScheduleDraftV2(data);
   useEffect(() => {
-    if (active) return;
-    setMessage('');
-    setLocalError('');
+    if (!active) setMessage('');
   }, [active]);
   const mutate: Mutate = async (input) => {
     setMessage('');
-    setLocalError('');
     const result = await perform((signal) =>
       client.mutate({ ...input, academicYear: 2026, requestId: crypto.randomUUID() }, signal),
     );
     if (result) setMessage('Alteração confirmada.');
     return result;
   };
-  const alert = localError || (error ? (errors[error] ?? errors.unavailable) : '');
+  const alert = error ? (errors[error] ?? errors.unavailable) : '';
   return (
     <section className="frequency-admin" aria-labelledby={heading}>
       <div className="frequency-heading">
@@ -790,13 +625,7 @@ export function FrequencyPanelV2({
       {data ? (
         <>
           <DevicesSectionV2 data={data} pending={pending} mutate={mutate} />
-          <ScheduleEditorV2
-            data={data}
-            pending={pending}
-            mutate={mutate}
-            onInvalid={setLocalError}
-            state={schedule}
-          />
+          <ScheduleSummaryV2 data={data} />
           <UnresolvedStudentsV2 unresolved={data.unresolved} onOpenReport={onOpenReport} />
           <ClassCollectionsV2 data={data} />
           <ConflictsSectionV2 data={data} pending={pending} mutate={mutate} />
