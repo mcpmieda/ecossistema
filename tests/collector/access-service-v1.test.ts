@@ -75,6 +75,12 @@ describe('collector broker composition without Microsoft token exposure',()=>{
     expect(await f.cipher.decrypt(String(snapshot?.encrypted_refresh),{...f.source,version:1})).toBe('synthetic-new-refresh-token');
     expect(Date.parse(reply.expiresAt)).toBeLessThanOrEqual(Date.parse(reply.directoryValidUntil));
   });
+  it('renews evidence that is about to expire, so the following requests stay authorized',async()=>{
+    const f=await fixture(250_000),challenge=await f.service.challenge(ids.device); // 50 s left.
+    const reply=await f.service.authorize({deviceId:ids.device,nonce:challenge.nonce,signature:await f.sign(challenge)});
+    expect(f.fetcher).toHaveBeenCalledTimes(3);
+    expect(Date.parse(reply.directoryValidUntil)-Date.now()).toBeGreaterThan(240_000);
+  });
   it('checks local revocation even while directory evidence remains current',async()=>{
     const f=await fixture(),challenge=await f.service.challenge(ids.device),signature=await f.sign(challenge);
     await f.store.revokeDevice(ids.device,ids.tenant,ids.actor);
