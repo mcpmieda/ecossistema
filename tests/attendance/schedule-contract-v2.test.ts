@@ -48,11 +48,23 @@ describe('frequencyScheduleWriteV2 (what a save may write)', () => {
   });
 
   it('rejects 96 distinct moments in one day across the two shifts', () => {
-    const late = times(48).map(t => `${String(Number(t.slice(0, 2)) + 12).padStart(2, '0')}${t.slice(2)}`);
-    const value = rules(i => (i === 2 ? { enabled: true, times: times(48), recheck: null }
-      : i === 3 ? { enabled: true, times: late.filter(t => t < '24'), recheck: null } : off));
-    expect(frequencyScheduleV2.safeParse(value).success).toBe(true); // Still readable.
-    expect(frequencyScheduleWriteV2.safeParse(value).success).toBe(false);
+    // Two valid rules of 48 moments each, 5 minutes apart, not overlapping:
+    // 00:00-03:55 in the morning rule and 04:00-07:55 in the afternoon rule.
+    const every5 = (start: number) =>
+      Array.from({ length: 48 }, (_, i) => {
+        const m = start + i * 5;
+        return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+      });
+    const morning = every5(0), afternoon = every5(240);
+    expect(new Set([...morning, ...afternoon]).size).toBe(96);
+    const value = rules(i => (i === 2 ? { enabled: true, times: morning, recheck: null }
+      : i === 3 ? { enabled: true, times: afternoon, recheck: null } : off));
+    expect(frequencyScheduleV2.safeParse(value).success).toBe(true); // Each rule is within 48; still readable.
+    expect(frequencyScheduleWriteV2.safeParse(value).success).toBe(false); // Over the daily budget.
+    // Exactly 48 distinct moments split across the two shifts is accepted.
+    const split = rules(i => (i === 2 ? { enabled: true, times: morning.slice(0, 24), recheck: null }
+      : i === 3 ? { enabled: true, times: morning.slice(24), recheck: null } : off));
+    expect(frequencyScheduleWriteV2.safeParse(split).success).toBe(true);
   });
 
   it('rejects an enabled shift without any moment, accepts a disabled empty one and a recheck-only one', () => {
