@@ -26,6 +26,8 @@ const evidence = (row:Snapshot):CollectorDirectoryEvidenceV1 | null => row.direc
   && row.directory_checked_at !== null && row.directory_valid_until !== null
   ? { tenantId:row.tenant_id,actorId:row.actor_id,grantId:row.grant_id,grantGeneration:row.grant_generation,
     originAuthenticatedAt:row.origin_authenticated_at,directoryCheckedAt:row.directory_checked_at,directoryValidUntil:row.directory_valid_until } : null;
+/** Renew directory evidence that has less than this left (window is 5 minutes). */
+const DIRECTORY_RENEW_MARGIN_MS = 90_000;
 /** Purpose-bound nonce storage: one proof can never be replayed under another purpose. */
 function noncePrefixV1(purpose:'collector-access'|'collector-revoke'|'collector-frequency',requestHash?:string):string {
   if(purpose==='collector-revoke')return 'collector-revoke:';
@@ -80,10 +82,25 @@ export class CollectorAccessServiceV1 {
 
   private async fresh(row:Snapshot):Promise<Snapshot> {
     const existing=evidence(row);
+    // Evidence about to expire is renewed now: the grant returned here covers
+    // the requests that follow it (status, lease, send), and evidence that ran
+    // out a few seconds after this check made them fail as not-authorized.
+    let stillValid=false;
     if (existing) {
-      try { collectorLeaseExpiryV1(binding(row),existing,this.dependencies.now()); return row; }
+      try { collectorLeaseExpiryV1(binding(row),existing,this.dependencies.now()); stillValid=true; }
       catch { /* Expired directory evidence never gets extended by local revocation checks. */ }
+      if (stillValid && existing.directoryValidUntil-this.dependencies.now()>DIRECTORY_RENEW_MARGIN_MS) return row;
     }
+    try { return await this.renew(row); }
+    catch (error) {
+      // An early renewal that could not run (another request is renewing, the
+      // directory is briefly down) keeps the evidence that is still valid.
+      if (stillValid && error instanceof CollectorAccessErrorV1 && error.reason==='unavailable') return row;
+      throw error;
+    }
+  }
+
+  private async renew(row:Snapshot):Promise<Snapshot> {
     const owner=crypto.randomUUID(), source=binding(row);
     if (!await this.store.claimRefresh(source.grantId,source.generation,source.version,owner))
       throw new CollectorAccessErrorV1('unavailable');
