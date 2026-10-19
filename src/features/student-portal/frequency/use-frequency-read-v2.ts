@@ -2,11 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FrequencyClientErrorV2 } from './client-v2';
 
 /** One request at a time; visibility/unmount fences every late completion. */
-export function useFrequencyReadV2<T>(read: (signal: AbortSignal) => Promise<T>, enabled: boolean,
-  onUnauthenticated?: () => void) {
+export function useFrequencyReadV2<T>(
+  read: (signal: AbortSignal) => Promise<T>,
+  enabled: boolean,
+  onUnauthenticated?: () => void,
+) {
   const authenticationLost = useRef(onUnauthenticated);
   authenticationLost.current = onUnauthenticated;
   const [data, setData] = useState<T | null>(null);
+  const [readAt, setReadAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const current = useRef({
@@ -42,12 +46,14 @@ export function useFrequencyReadV2<T>(read: (signal: AbortSignal) => Promise<T>,
         const result = await read(controller.signal);
         if (valid()) {
           setData(result);
+          setReadAt(new Date().toISOString());
           state.failures = 0;
           confirmed = true;
         }
       } catch (reason) {
         if (valid()) {
           setData(null);
+          setReadAt(null);
           state.failures += 1;
           setError(reason instanceof FrequencyClientErrorV2 ? reason.state : 'unavailable');
           terminal =
@@ -82,6 +88,7 @@ export function useFrequencyReadV2<T>(read: (signal: AbortSignal) => Promise<T>,
       state.pending = false;
       setPending(false);
       setData(null);
+      setReadAt(null);
       setError(null);
     };
     const visibility = () => {
@@ -100,6 +107,7 @@ export function useFrequencyReadV2<T>(read: (signal: AbortSignal) => Promise<T>,
   }, [enabled, run]);
   return {
     data,
+    readAt,
     error,
     pending,
     refresh: () => run(),

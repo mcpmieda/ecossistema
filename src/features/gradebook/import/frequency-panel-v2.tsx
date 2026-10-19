@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Alert } from '@heroui/react/alert';
+import { Accordion } from '@heroui/react/accordion';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
@@ -8,6 +9,7 @@ import {
   type FrequencyConflictV2,
   type FrequencyFailureEntryV2,
   type FrequencyStatusV2,
+  type FrequencyScheduleV2,
   type FrequencyUnresolvedV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
 import { SHIFT_LABELS_V1, type ShiftV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -332,38 +334,121 @@ function FrequencyConflictCardV2({
   );
 }
 
-/** The agenda is configured only in the Coletor de Frequência; here it is read-only. */
-function ScheduleSummaryV2({ data }: Readonly<{ data: FrequencyStatusV2 }>) {
-  const schedule = data.settings.schedule;
-  const days = weekdays
-    .map((name, weekday) => {
-      const moments = [
-        ...new Set(
-          (schedule?.rules ?? [])
-            .filter((rule) => rule.enabled && rule.weekday === weekday)
-            .flatMap((rule) => [...rule.times, ...(rule.recheck ? [rule.recheck] : [])]),
-        ),
-      ].sort((a, b) => a.localeCompare(b));
-      return { name, moments };
-    })
-    .filter((day) => day.moments.length > 0);
+function ScheduleDayV2({
+  name,
+  rules,
+}: Readonly<{ name: string; rules: FrequencyScheduleV2['rules'] }>) {
+  const enabled = rules.filter((rule) => rule.enabled);
+  const moments = enabled.flatMap((rule) => [
+    ...rule.times,
+    ...(rule.recheck ? [rule.recheck] : []),
+  ]);
+  const distinct = [...new Set(moments)].sort();
+  const repeated = distinct.filter(
+    (moment) => moments.filter((item) => item === moment).length > 1,
+  );
   return (
-    <section aria-label="Agenda de coleta">
-      <h4>Agenda de coleta</h4>
-      <p className="frequency-muted">Configurada no Coletor de Frequência.</p>
-      {days.length === 0 ? (
-        <p>Nenhum horário definido.</p>
+    <Accordion.Item id={name}>
+      <Accordion.Heading>
+        <Accordion.Trigger>
+          <span className="frequency-agenda-day">
+            <strong>{name}</strong>
+            <span>{distinct.length} horário(s) ativo(s)</span>
+          </span>
+          <Accordion.Indicator />
+        </Accordion.Trigger>
+      </Accordion.Heading>
+      <Accordion.Panel>
+        <Accordion.Body>
+          {repeated.length > 0 ? <p>Nos dois turnos: {repeated.join(', ')}.</p> : null}
+          <div className="frequency-cards">
+            {rules.map((rule) => (
+              <Card
+                key={rule.shift}
+                role="group"
+                aria-label={`${name} · ${shiftLabel(rule.shift)}`}
+              >
+                <Card.Header>
+                  <Card.Title>{shiftLabel(rule.shift)}</Card.Title>
+                  <Chip size="sm" variant="soft" color={rule.enabled ? 'accent' : 'default'}>
+                    {rule.enabled ? 'Ativo' : 'Desativado'}
+                  </Chip>
+                </Card.Header>
+                <Card.Content>
+                  <p>Coletas: {[...rule.times].sort().join(', ') || 'Nenhuma'}</p>
+                  <p>Rechecagem: {rule.recheck ?? 'Não definida'}</p>
+                </Card.Content>
+              </Card>
+            ))}
+          </div>
+        </Accordion.Body>
+      </Accordion.Panel>
+    </Accordion.Item>
+  );
+}
+
+/** This screen only reads the shared agenda; API authorization is unchanged. */
+function ScheduleSummaryV2({
+  data,
+  readAt,
+  pending,
+  refresh,
+}: Readonly<{
+  data: FrequencyStatusV2;
+  readAt: string | null;
+  pending: boolean;
+  refresh: () => Promise<boolean>;
+}>) {
+  const schedule = data.settings.schedule;
+  return (
+    <section aria-label="Agenda de coleta" aria-busy={pending}>
+      <div className="frequency-heading">
+        <h4>Agenda de coleta</h4>
+        <Button size="sm" variant="secondary" isDisabled={pending} onPress={() => void refresh()}>
+          Atualizar agenda
+        </Button>
+      </div>
+      <p>Para alterar, abra Tarefas &gt; Editar agenda em um Coletor autorizado.</p>
+      {!data.devices.some((device) => device.state !== 'revoked') ? (
+        <p>
+          Nenhum computador autorizado. Entre no Coletor com uma conta ADMIN para autorizar este
+          computador.
+        </p>
+      ) : null}
+      <p className="frequency-muted">
+        Revisão {data.settings.revision}
+        {readAt ? (
+          <>
+            {' '}
+            · Consultado às{' '}
+            <time dateTime={readAt}>{new Date(readAt).toLocaleTimeString('pt-BR')}</time> (neste
+            navegador)
+          </>
+        ) : null}
+      </p>
+      {pending ? (
+        <p role="status">Atualizando agenda. A revisão exibida aguarda confirmação.</p>
+      ) : null}
+      {schedule === null ? (
+        <p>Agenda ainda não configurada no Coletor.</p>
       ) : (
-        <ul className="frequency-list">
-          {days.map((day) => (
-            <li key={day.name}>
-              <strong>{day.name}</strong>
-              <span>
-                {day.moments.length} coleta(s) · {day.moments[0]} a {day.moments.at(-1)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p>Fuso horário: {schedule.timezone}</p>
+          {schedule.rules.every((rule) => !rule.enabled) ? (
+            <p>Coletas automáticas desativadas. Somente coleta manual.</p>
+          ) : null}
+          <Accordion allowsMultipleExpanded>
+            {weekdays.map((name, weekday) => (
+              <ScheduleDayV2
+                key={name}
+                name={name}
+                rules={schedule.rules
+                  .filter((rule) => rule.weekday === weekday)
+                  .sort((a, b) => a.shift.localeCompare(b.shift))}
+              />
+            ))}
+          </Accordion>
+        </>
       )}
     </section>
   );
@@ -566,7 +651,7 @@ export function FrequencyPanelV2({
 }>) {
   const heading = useId();
   const read = useCallback((signal: AbortSignal) => client.status(signal), [client]);
-  const { data, pending, error, refresh, perform } = useFrequencyReadV2(read, active);
+  const { data, readAt, pending, error, refresh, perform } = useFrequencyReadV2(read, active);
   const [message, setMessage] = useState('');
   useEffect(() => {
     if (!active) setMessage('');
@@ -625,7 +710,7 @@ export function FrequencyPanelV2({
       {data ? (
         <>
           <DevicesSectionV2 data={data} pending={pending} mutate={mutate} />
-          <ScheduleSummaryV2 data={data} />
+          <ScheduleSummaryV2 data={data} readAt={readAt} pending={pending} refresh={refresh} />
           <UnresolvedStudentsV2 unresolved={data.unresolved} onOpenReport={onOpenReport} />
           <ClassCollectionsV2 data={data} />
           <ConflictsSectionV2 data={data} pending={pending} mutate={mutate} />
@@ -637,7 +722,7 @@ export function FrequencyPanelV2({
             <output>
               {pending
                 ? 'Carregando frequência…'
-                : 'Computadores, coletas e conflitos indisponíveis.'}
+                : 'Agenda e status indisponíveis. Atualize a frequência para conferir.'}
             </output>
           </Card.Content>
         </Card>
