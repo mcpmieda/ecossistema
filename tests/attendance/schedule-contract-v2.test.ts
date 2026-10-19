@@ -64,7 +64,10 @@ describe('frequencyScheduleWriteV2 (what a save may write)', () => {
   it('requires at least 5 minutes between moments of the same day', () => {
     const dense = rules(i => (i === 2 ? { enabled: true, times: ['07:00', '07:04'], recheck: null } : off));
     const spaced = rules(i => (i === 2 ? { enabled: true, times: ['07:00', '07:05'], recheck: null } : off));
-    expect(frequencyScheduleWriteV2.safeParse(dense).success).toBe(false);
+    const result = frequencyScheduleWriteV2.safeParse(dense);
+    expect(result.success).toBe(false);
+    // The message names the day so the administrator finds it among the 14 rules.
+    expect(result.error?.issues.map(issue => issue.message)).toContain('Segunda-feira: deixe pelo menos 5 minutos entre as coletas.');
     expect(frequencyScheduleWriteV2.safeParse(spaced).success).toBe(true);
   });
 });

@@ -32,6 +32,8 @@ export const frequencyScheduleV2 = z.object({
 /** Collection budget of one school day, across both shifts (times and rechecks). */
 export const FREQUENCY_MAX_DAILY_SLOTS_V2 = 48;
 export const FREQUENCY_MIN_SLOT_GAP_MINUTES_V2 = 5;
+/** Index = weekday as stored (0 = Sunday), for messages that name the day. */
+const WEEKDAY_NAMES_V2 = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'] as const;
 const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 /**
  * What a save may write. Reads stay on the tolerant frequencyScheduleV2 so an
@@ -44,15 +46,15 @@ export const frequencyScheduleWriteV2 = frequencyScheduleV2.superRefine((schedul
     if (rule.enabled && rule.times.length === 0 && rule.recheck === null)
       ctx.addIssue({ code: 'custom', path: ['rules', index], message: 'Turno ativo precisa de pelo menos um horário.' });
   });
-  for (let weekday = 0; weekday < 7; weekday++) {
+  WEEKDAY_NAMES_V2.forEach((name, weekday) => {
     const day = [...new Set(schedule.rules
       .filter(r => r.enabled && r.weekday === weekday)
-      .flatMap(r => [...r.times, ...(r.recheck ? [r.recheck] : [])]))].sort();
+      .flatMap(r => [...r.times, ...(r.recheck ? [r.recheck] : [])]))].map(minutes).sort((a, b) => a - b);
     if (day.length > FREQUENCY_MAX_DAILY_SLOTS_V2)
-      ctx.addIssue({ code: 'custom', path: ['rules'], message: `No máximo ${FREQUENCY_MAX_DAILY_SLOTS_V2} coletas por dia.` });
-    if (day.some((t, i) => i > 0 && minutes(t) - minutes(day[i - 1]) < FREQUENCY_MIN_SLOT_GAP_MINUTES_V2))
-      ctx.addIssue({ code: 'custom', path: ['rules'], message: `Deixe pelo menos ${FREQUENCY_MIN_SLOT_GAP_MINUTES_V2} minutos entre as coletas do dia.` });
-  }
+      ctx.addIssue({ code: 'custom', path: ['rules'], message: `${name}: no máximo ${FREQUENCY_MAX_DAILY_SLOTS_V2} coletas por dia.` });
+    if (day.some((value, i) => i > 0 && value - (day[i - 1] ?? value) < FREQUENCY_MIN_SLOT_GAP_MINUTES_V2))
+      ctx.addIssue({ code: 'custom', path: ['rules'], message: `${name}: deixe pelo menos ${FREQUENCY_MIN_SLOT_GAP_MINUTES_V2} minutos entre as coletas.` });
+  });
 });
 const read = { academicYear: year };
 const mutation = { ...read, requestId: uid };
