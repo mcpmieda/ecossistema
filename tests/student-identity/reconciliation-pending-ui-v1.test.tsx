@@ -77,9 +77,10 @@ it('joins the pendencies of mixed and filtered-empty pages into one list, with n
   mount(request);
   // Every pending row the side column counts is on screen at once (owner report of 16/10/2026).
   expect(await screen.findByText('2 pendências carregadas')).toBeTruthy();
+  // The count can render a tick before the table rows (React Aria collection).
+  expect(await screen.findByText('SYNTHETIC PERSON 1')).toBeTruthy();
+  expect(await screen.findByText('SYNTHETIC PERSON 4')).toBeTruthy();
   expect(screen.queryByText('SYNTHETIC PERSON 2')).toBeNull();
-  expect(screen.getByText('SYNTHETIC PERSON 1')).toBeTruthy();
-  expect(screen.getByText('SYNTHETIC PERSON 4')).toBeTruthy();
   expect(screen.queryByText('SYNTHETIC PERSON 3')).toBeNull();
   expect(screen.queryByText('SYNTHETIC PERSON 5')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();

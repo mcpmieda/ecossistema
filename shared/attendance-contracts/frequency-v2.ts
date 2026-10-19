@@ -23,19 +23,46 @@ export const frequencyScheduleV2 = z.object({
     weekday: z.number().int().min(0).max(6),
     shift: z.enum(['matutino', 'vespertino']),
     enabled: z.boolean(),
-    times: z.array(time).max(16).refine(v => new Set(v).size === v.length),
+    times: z.array(time).max(48).refine(v => new Set(v).size === v.length),
     recheck: time.nullable(),
-  }).strict().refine(r => r.recheck === null || (r.times.length < 16 && r.times.every(t => t < r.recheck!)), {
+  }).strict().refine(r => r.recheck === null || (r.times.length < 48 && r.times.every(t => t < r.recheck!)), {
     message: 'Rechecagem deve ocorrer após os horários e respeitar o limite diário.',
   })).length(14).refine(v => new Set(v.map(r => `${r.weekday}:${r.shift}`)).size === 14),
 }).strict();
+/** Collection budget of one school day, across both shifts (times and rechecks). */
+export const FREQUENCY_MAX_DAILY_SLOTS_V2 = 48;
+export const FREQUENCY_MIN_SLOT_GAP_MINUTES_V2 = 5;
+/** Index = weekday as stored (0 = Sunday), for messages that name the day. */
+const WEEKDAY_NAMES_V2 = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'] as const;
+const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+/**
+ * What a save may write. Reads stay on the tolerant frequencyScheduleV2 so an
+ * agenda stored earlier is never unreadable; new agendas must be executable:
+ * an enabled shift has a time, a day has at most 48 distinct moments and two
+ * moments are at least 5 minutes apart.
+ */
+export const frequencyScheduleWriteV2 = frequencyScheduleV2.superRefine((schedule, ctx) => {
+  schedule.rules.forEach((rule, index) => {
+    if (rule.enabled && rule.times.length === 0 && rule.recheck === null)
+      ctx.addIssue({ code: 'custom', path: ['rules', index], message: 'Turno ativo precisa de pelo menos um horário.' });
+  });
+  WEEKDAY_NAMES_V2.forEach((name, weekday) => {
+    const day = [...new Set(schedule.rules
+      .filter(r => r.enabled && r.weekday === weekday)
+      .flatMap(r => [...r.times, ...(r.recheck ? [r.recheck] : [])]))].map(minutes).sort((a, b) => a - b);
+    if (day.length > FREQUENCY_MAX_DAILY_SLOTS_V2)
+      ctx.addIssue({ code: 'custom', path: ['rules'], message: `${name}: no máximo ${FREQUENCY_MAX_DAILY_SLOTS_V2} coletas por dia.` });
+    if (day.some((value, i) => i > 0 && value - (day[i - 1] ?? value) < FREQUENCY_MIN_SLOT_GAP_MINUTES_V2))
+      ctx.addIssue({ code: 'custom', path: ['rules'], message: `${name}: deixe pelo menos ${FREQUENCY_MIN_SLOT_GAP_MINUTES_V2} minutos entre as coletas.` });
+  });
+});
 const read = { academicYear: year };
 const mutation = { ...read, requestId: uid };
 const fenced = { ...mutation, fencingToken: revision };
 export const frequencyRequestV2 = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('status'), ...read }).strict(),
   z.object({ operation: z.literal('receipt'), ...mutation }).strict(),
-  z.object({ operation: z.literal('save-settings'), ...mutation, expectedRevision: revision, schedule: frequencyScheduleV2 }).strict(),
+  z.object({ operation: z.literal('save-settings'), ...mutation, expectedRevision: revision, schedule: frequencyScheduleWriteV2 }).strict(),
   z.object({ operation: z.literal('set-paused'), ...mutation, expectedRevision: revision, paused: z.boolean() }).strict(),
   z.object({ operation: z.literal('rename-device'), ...mutation, deviceId: uid, label: z.string().trim().min(1).max(80) }).strict(),
   z.object({ operation: z.literal('revoke-device'), ...mutation, deviceId: uid }).strict(),

@@ -677,6 +677,34 @@ describe('frequency V2 private PostgreSQL service', () => {
       ),
     ).rejects.toMatchObject({ code: 'not-authorized' });
   });
+  it('persists and returns 48 collections per rule (47 plus recheck), keeping the other pairs', async () => {
+    const quarter = (count: number, start: number) =>
+      Array.from({ length: count }, (_, i) => {
+        const m = start + i * 15;
+        return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+      });
+    const rules = Array.from({ length: 14 }, (_, i) => ({
+      weekday: Math.floor(i / 2),
+      shift: (i % 2 ? 'vespertino' : 'matutino') as 'matutino' | 'vespertino',
+      // Monday morning: 48; Tuesday afternoon: 47 + recheck (one school day each).
+      enabled: i === 2 || i === 5,
+      times: i === 2 ? quarter(48, 6 * 60) : i === 5 ? quarter(47, 7 * 60) : [],
+      recheck: i === 5 ? '23:45' : null,
+    }));
+    const schedule = { timezone: 'America/Bahia', rules };
+    await execute('save-settings', { expectedRevision: 0, schedule }, actor);
+    expect((await status()).settings.schedule).toEqual(schedule);
+    const tooMany = {
+      ...schedule,
+      rules: rules.map((r, i) => (i === 2 ? { ...r, times: quarter(49, 6 * 60) } : r)),
+    };
+    await expect(
+      execute('save-settings', { expectedRevision: 1, schedule: tooMany }, actor),
+    ).rejects.toMatchObject({ code: 'invalid-request' });
+    const after = await status();
+    expect(after.settings.schedule).toEqual(schedule);
+    expect(after.settings.revision).toBe(1);
+  });
   it('summary revalidates authorization before and after read and isolates months', async () => {
     await service.execute(collection(), actor);
     let calls = 0;
