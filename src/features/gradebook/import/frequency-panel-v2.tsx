@@ -4,7 +4,7 @@ import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import {
-  frequencyScheduleV2,
+  frequencyScheduleWriteV2,
   type FrequencyScheduleV2,
   type FrequencyDeviceV2,
   type FrequencyConflictV2,
@@ -437,7 +437,7 @@ function ScheduleEditorV2({
   };
   const stale = dirty && draftRevision !== data.settings.revision;
   const save = () => {
-    const parsed = frequencyScheduleV2.safeParse({
+    const parsed = frequencyScheduleWriteV2.safeParse({
       ...draft,
       rules: draft.rules.map((rule, index) => ({
         ...rule,
@@ -448,7 +448,12 @@ function ScheduleEditorV2({
       })),
     });
     if (!parsed.success) {
-      onInvalid('Confira o fuso e os horários da agenda.');
+      onInvalid(
+        // Agenda rules explain themselves; anything else (time zone) keeps the generic hint.
+        parsed.error.issues.find((issue) => issue.code === 'custom' && issue.path[0] === 'rules')
+          ?.message ??
+          'Confira o fuso e os horários da agenda.',
+      );
       return;
     }
     if (draftRevision === null) return;

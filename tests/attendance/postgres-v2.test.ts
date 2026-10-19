@@ -686,9 +686,10 @@ describe('frequency V2 private PostgreSQL service', () => {
     const rules = Array.from({ length: 14 }, (_, i) => ({
       weekday: Math.floor(i / 2),
       shift: (i % 2 ? 'vespertino' : 'matutino') as 'matutino' | 'vespertino',
-      enabled: i === 2 || i === 3,
-      times: i === 2 ? quarter(48, 6 * 60) : i === 3 ? quarter(47, 7 * 60) : [],
-      recheck: i === 3 ? '23:45' : null,
+      // Monday morning: 48; Tuesday afternoon: 47 + recheck (one school day each).
+      enabled: i === 2 || i === 5,
+      times: i === 2 ? quarter(48, 6 * 60) : i === 5 ? quarter(47, 7 * 60) : [],
+      recheck: i === 5 ? '23:45' : null,
     }));
     const schedule = { timezone: 'America/Bahia', rules };
     await execute('save-settings', { expectedRevision: 0, schedule }, actor);
@@ -699,8 +700,10 @@ describe('frequency V2 private PostgreSQL service', () => {
     };
     await expect(
       execute('save-settings', { expectedRevision: 1, schedule: tooMany }, actor),
-    ).rejects.toBeTruthy();
-    expect((await status()).settings.schedule).toEqual(schedule);
+    ).rejects.toMatchObject({ code: 'invalid-request' });
+    const after = await status();
+    expect(after.settings.schedule).toEqual(schedule);
+    expect(after.settings.revision).toBe(1);
   });
   it('summary revalidates authorization before and after read and isolates months', async () => {
     await service.execute(collection(), actor);
