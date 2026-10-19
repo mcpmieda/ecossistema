@@ -23,9 +23,9 @@ export const frequencyScheduleV2 = z.object({
     weekday: z.number().int().min(0).max(6),
     shift: z.enum(['matutino', 'vespertino']),
     enabled: z.boolean(),
-    times: z.array(time).max(16).refine(v => new Set(v).size === v.length),
+    times: z.array(time).max(48).refine(v => new Set(v).size === v.length),
     recheck: time.nullable(),
-  }).strict().refine(r => r.recheck === null || (r.times.length < 16 && r.times.every(t => t < r.recheck!)), {
+  }).strict().refine(r => r.recheck === null || (r.times.length < 48 && r.times.every(t => t < r.recheck!)), {
     message: 'Rechecagem deve ocorrer após os horários e respeitar o limite diário.',
   })).length(14).refine(v => new Set(v.map(r => `${r.weekday}:${r.shift}`)).size === 14),
 }).strict();
