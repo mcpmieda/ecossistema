@@ -458,13 +458,34 @@ describe('frequency V2 private PostgreSQL service', () => {
       (await pg.query('SELECT resolution,student_uid FROM attendance.source_row_v2')).rows,
     ).toEqual([{ resolution: 'ambiguous', student_uid: null }]);
   });
-  it('conflicting X/J requires an audited admin choice, CAS, and does not use last writer', async () => {
+  it('an absence later justified in the source (X then J) is accepted without review', async () => {
     await service.execute(collection(), actor);
+    expect(
+      await service.execute(
+        collection({
+          sourceVersion: `sha256:${'b'.repeat(64)}`,
+          expectedRevision: 1,
+          marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }],
+        }),
+        actor,
+      ),
+    ).toMatchObject({ conflicts: 0 });
+    expect((await summary()).marks[0]?.mark).toBe('J');
+    expect((await status()).conflicts).toEqual([]);
+    expect(
+      (await pg.query('SELECT before_mark,after_mark,reason FROM attendance.correction_v2')).rows,
+    ).toEqual([{ before_mark: 'X', after_mark: 'J', reason: 'Falta justificada no Smecel' }]);
+  });
+  it('conflicting J/X requires an audited admin choice, CAS, and does not use last writer', async () => {
+    await service.execute(
+      collection({ marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }] }),
+      actor,
+    );
     await service.execute(
       collection({
         sourceVersion: `sha256:${'b'.repeat(64)}`,
         expectedRevision: 1,
-        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }],
+        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' }],
       }),
       actor,
     );
