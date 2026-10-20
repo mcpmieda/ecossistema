@@ -476,6 +476,43 @@ describe('frequency V2 private PostgreSQL service', () => {
       (await pg.query('SELECT before_mark,after_mark,reason FROM attendance.correction_v2')).rows,
     ).toEqual([{ before_mark: 'X', after_mark: 'J', reason: 'Falta justificada no Smecel' }]);
   });
+  it('daily pruning keeps official marks and only the evidence the next collection needs', async () => {
+    const count = async (table: string) =>
+      Number((await pg.query<{ n: number }>(`SELECT count(*)::integer AS n FROM attendance.${table}`)).rows[0]!.n);
+    const prune = async () =>
+      (await pg.query<{ r: Record<string, number> }>('SELECT attendance.prune_superseded_evidence_v2() AS r')).rows[0]!.r;
+    await service.execute(collection(), actor);
+    await service.execute(
+      collection({
+        sourceVersion: `sha256:${'b'.repeat(64)}`,
+        expectedRevision: 1,
+        coverage: [{ recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3, 4, 5], complete: true }],
+        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }],
+      }),
+      actor,
+    );
+    expect(await count('batch_v2')).toBe(2);
+    expect(await prune()).toMatchObject({ batches: 1 });
+    expect(await count('batch_v2')).toBe(1);
+    expect(await count('origin_v2')).toBe(1);
+    expect((await summary()).marks[0]?.mark).toBe('J');
+    expect(await prune()).toEqual({ origins: 0, marks: 0, coverage: 0, sourceRows: 0, batches: 0 });
+    // The next collection still compares against the kept evidence: J -> X opens review.
+    await service.execute(
+      collection({
+        sourceVersion: `sha256:${'c'.repeat(64)}`,
+        expectedRevision: 2,
+        coverage: [{ recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3, 4, 5], complete: true }],
+        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' }],
+      }),
+      actor,
+    );
+    expect((await status()).conflicts).toHaveLength(1);
+    // Evidence behind an open conflict is never pruned.
+    await prune();
+    expect(await count('origin_v2')).toBe(2);
+    expect((await status()).conflicts).toHaveLength(1);
+  });
   it('conflicting J/X requires an audited admin choice, CAS, and does not use last writer', async () => {
     await service.execute(
       collection({ marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }] }),
