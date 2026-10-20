@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
 import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageCursorV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1, policyScopeV1 } from './core-v1';
 import { qrUrlV1 } from './auth-v1';
-import { effectiveSettingsV1, settingsOverrideV1 } from './policy-v1';
+import { effectiveSettingsV1, policyFieldV1, POLICY_FIELDS_V1, settingsOverrideV1 } from './policy-v1';
 import { publicationInheritCommandV1 } from './customizations-v1';
 import { bulkActionV1, bulkCursorV1, bulkExecuteCommandV1, bulkPreviewQueryV1, bulkPreviewResponseV1 } from './bulk-v1';
 
@@ -33,7 +33,7 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...commandMetaV1, operation: z.literal('birth-write'), item: birthWriteV1, includeSavedBirth: z.literal(true).optional() }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('birth-batch'), classId: z.number().int().positive(), expectedCount: z.number().int().min(1).max(100), items: z.array(birthWriteV1).min(1).max(100), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('settings-set'), scope: policyScopeV1, value: settingsOverrideV1, acknowledgeImmediateEffect: z.boolean() }).strict(),
-  z.object({ ...commandMetaV1, operation: z.literal('settings-inherit'), scope: policyScopeV1, keys: z.array(z.enum(['accessEnabled', 'accessSchedule', 'showPartials', 'autoUpdate', 'showFinalResult', 'showTermClosing', 'termClosingConclusive', 'allowedPeriods', 'risk', 'calendar'])).min(1).max(10) }).strict(),
+  z.object({ ...commandMetaV1, operation: z.literal('settings-inherit'), scope: policyScopeV1, keys: z.array(policyFieldV1).min(1).max(POLICY_FIELDS_V1.length) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('publish'), scope: scopeV1, period: periodV1, targetDataVersion: revisionV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('publish-update'), scope: scopeV1, period: periodV1, targetDataVersion: revisionV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('unpublish'), scope: scopeV1, period: periodV1, confirmed: z.literal(true) }).strict(),

@@ -3,7 +3,7 @@ import { DEFAULT_RISK_V1, settingsValueV1 } from '../../../shared/student-portal
 /** Explicit bootstrap only: no access, publication, institutional dates or runtime fallback. */
 export function initialPolicyDefaultsV1() {
   return settingsValueV1.parse({
-    accessEnabled: false, accessSchedule: null, showPartials: false, autoUpdate: false, showFinalResult: false, showTermClosing: false, termClosingConclusive: true, allowedPeriods: [],
+    accessEnabled: false, accessSchedule: null, showPartials: false, autoUpdate: false, showFinalResult: false, showTermClosing: false, termClosingConclusive: true, showFrequency: false, allowedPeriods: [],
     risk: DEFAULT_RISK_V1,
     calendar: {
       timezone: 'America/Sao_Paulo', enrollmentStartsAt: null, yearStartsAt: null, t1EndsAt: null,

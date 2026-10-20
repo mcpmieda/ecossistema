@@ -140,7 +140,7 @@ describe('administrative settings UI', () => {
       mock = setup(inherited);
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    expect(screen.getAllByText('Padrão da escola')).toHaveLength(9);
+    expect(screen.getAllByText('Padrão da escola')).toHaveLength(10);
     await user.click(screen.getByRole('switch', { name: 'Portal aberto agora' }));
     expect(mock.writes).toHaveLength(0);
     const dialog = screen.getByRole('dialog');

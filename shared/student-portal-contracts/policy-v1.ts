@@ -162,6 +162,9 @@ export const settingsValueV1 = z
     showTermClosing: z.boolean(),
     // On: past-tense closing of ended trimesters. Off: present-tense reading of the one in progress.
     termClosingConclusive: z.boolean(),
+    // Frequência no Portal do Aluno (owner request 20/10/2026). Off: the student sees no attendance
+    // section and the frequency API refuses the read. A missing school row reads as off.
+    showFrequency: z.boolean(),
     allowedPeriods: z
       .array(periodV1)
       .max(6)
@@ -180,6 +183,8 @@ export const OPTIONAL_STORED_POLICY_DEFAULTS_V1 = {
   termClosingConclusive: true,
   // Migration 0021 (agendamentos de acesso): no row means no schedule.
   accessSchedule: null,
+  // Migration 0027 (frequência): no row means the attendance section stays hidden.
+  showFrequency: false,
 } as const;
 export const completeStoredPolicyValueV1 = (stored: unknown): unknown =>
   stored !== null && typeof stored === 'object' && !Array.isArray(stored)
@@ -188,7 +193,7 @@ export const completeStoredPolicyValueV1 = (stored: unknown): unknown =>
 /** Every policy option, as stored one row per option and scope. */
 export const POLICY_FIELDS_V1 = [
   'accessEnabled', 'accessSchedule', 'showPartials', 'autoUpdate', 'showFinalResult',
-  'showTermClosing', 'termClosingConclusive', 'allowedPeriods', 'risk', 'calendar',
+  'showTermClosing', 'termClosingConclusive', 'showFrequency', 'allowedPeriods', 'risk', 'calendar',
 ] as const;
 export const policyFieldV1 = z.enum(POLICY_FIELDS_V1);
 export type PolicyFieldV1 = z.infer<typeof policyFieldV1>;
@@ -211,6 +216,7 @@ export const effectiveSettingsV1 = z
         showFinalResult: policyScopeV1,
         showTermClosing: policyScopeV1,
         termClosingConclusive: policyScopeV1,
+        showFrequency: policyScopeV1,
         allowedPeriods: policyScopeV1,
         risk: policyScopeV1,
         calendar: policyScopeV1,

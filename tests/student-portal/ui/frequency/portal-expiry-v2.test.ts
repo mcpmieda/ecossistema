@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   unsafe:
     vi.fn<(query: string, values?: readonly unknown[]) => Promise<Record<string, unknown>[]>>(),
   effectiveExpiry: '2026-10-14T13:00:00.000Z',
+  showFrequency: true,
 }));
 const accountId = '11111111-1111-4111-8111-111111111111';
 const sessionId = '22222222-2222-4222-8222-222222222222';
@@ -38,13 +39,13 @@ vi.mock('../../../../server/student-portal/auth/session-service-v1', () => ({
     async withAuthorized<T>(
       _token: string,
       operation: (
-        context: { account: { id: string } },
+        context: { account: { id: string }; policy: { enforcedValue: { showFrequency: boolean } } },
         tx: { unsafe: typeof mocks.unsafe },
         session: { id: string; expiresAt: string; persistent: boolean },
       ) => Promise<T>,
     ) {
       return operation(
-        { account: { id: accountId } },
+        { account: { id: accountId }, policy: { enforcedValue: { showFrequency: mocks.showFrequency } } },
         { unsafe: mocks.unsafe },
         { id: sessionId, expiresAt: mocks.effectiveExpiry, persistent: false },
       );
@@ -58,7 +59,18 @@ const env = {
   PORTAL_SERVING_ENABLED: 'true',
 } satisfies PortalCompositionEnvV1;
 const request = () => new Request(env.PORTAL_ORIGIN + '/api/student/frequency?month=2026-10');
-beforeEach(() => mocks.unsafe.mockReset());
+beforeEach(() => {
+  mocks.unsafe.mockReset();
+  mocks.showFrequency = true;
+});
+
+it('refuses the read without touching attendance data when the Frequência policy is off', async () => {
+  mocks.showFrequency = false;
+  const response = await servePortalFrequencyV2(request(), env);
+  expect(response.status).toBe(403);
+  expect(await response.json()).toEqual({ contractVersion: 2, state: 'forbidden' });
+  expect(mocks.unsafe).not.toHaveBeenCalled();
+});
 
 it('checks the effective policy/session expiration with database time after reading origins and suppresses an expired result', async () => {
   mocks.unsafe

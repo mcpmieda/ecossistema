@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentPortalApp } from '../../../src/student-portal/app';
 import { clientFixtureV1, SESSION } from '../ui/auth/fixtures-v1';
+import { SYNTHETIC_SELF_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
 import { setupOperationsDomV1 } from '../ui/overview/dom-v1';
 
 function resourceUrl(input: Parameters<typeof fetch>[0]): URL {
@@ -59,6 +60,8 @@ it.each([204, 401, 503])(
     vi.stubGlobal('WebSocket', socket);
     vi.stubGlobal('fetch', fetcher);
     const client = clientFixtureV1();
+    // Política Frequência on: the attendance section is shown and read.
+    client.me.mockResolvedValue({ ...SYNTHETIC_SELF_V1, showFrequency: true });
     // Keep the UI scheduler's real clock; only the synthetic session needs a future expiry.
     client.session.mockResolvedValue({
       ...SESSION,

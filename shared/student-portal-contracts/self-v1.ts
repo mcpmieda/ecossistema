@@ -130,6 +130,9 @@ export const selfResponseV1 = z
       .max(3)
       .refine((v) => new Set(v).size === v.length, 'Duplicate ended period')
       .optional(),
+    // Política Frequência (owner request 20/10/2026). Only `true` shows the attendance section;
+    // absent (a server before this field) keeps it hidden.
+    showFrequency: z.boolean().optional(),
   })
   .strict()
   .superRefine((v, ctx) => {

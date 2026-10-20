@@ -10,6 +10,7 @@ import { summarizeFrequencyPublicOriginsV2 } from '../../attendance/service-v2';
 
 const originsSchema=z.array(z.object({occurrence_id:z.uuid(),date:z.iso.date(),slot:z.number().int().min(1).max(6),shift:z.string().max(80),
   mark:z.enum(['X','J']).nullable(),conflict_id:z.uuid().nullable(),source_class_label:z.string().max(300),observed_at:z.string(),received_at:z.string(),mapping_valid:z.boolean()}).strict()).max(10_000);
+const HIDDEN=Symbol('frequency-hidden');
 const response=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store, no-cache, private, must-revalidate','Pragma':'no-cache','Vary':'Cookie, Authorization'}});
 export async function servePortalFrequencyV2(request:Request,env:PortalCompositionEnvV1):Promise<Response>{
   const fail=(state:string,status:number)=>response({contractVersion:2,state},status);
@@ -24,6 +25,8 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
     const keys=portalKeysV1(env);
     const summary=await portalDatabaseV1(env,'self',sql=>new SessionServiceV1(sql,keys.cryptoPort,undefined,true,
       accountId=>checkPortalOperationV1(env.PORTAL_SESSION_ACCOUNT,'session',accountId)).withAuthorized(token,async(context,tx,session)=>{
+        // Política Frequência: off for this student's level hides the attendance data entirely.
+        if(!context.policy.enforcedValue.showFrequency)return HIDDEN;
         const rows=await tx.unsafe('SELECT attendance.read_portal_origins_v2($1::uuid,$2::uuid,$3::text) AS origins',[context.account.id,session.id,month!]);
         const raw=rows[0]?.origins;if(raw===null||raw===undefined)return null;
         const origins=originsSchema.parse(typeof raw==='string'?JSON.parse(raw):raw);
@@ -31,6 +34,7 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         if(clock[0]?.active!==true)return null;
         return summarizeFrequencyPublicOriginsV2(origins,month!);
       }));
+    if(summary===HIDDEN)return fail('forbidden',403);
     return summary===null?fail('unauthenticated',401):response(summary);
   }catch(error){return error instanceof PortalRateLimitErrorV1?fail('unavailable',429):fail('unavailable',503);}
 }

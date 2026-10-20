@@ -25,7 +25,7 @@ afterEach(() => {
 
 describe('student shell and canonical profile', () => {
   it('renders the profile and simplified bulletin navigation from the same self object', () => {
-    render(page());
+    render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, showFrequency: true } } }));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Portal do Aluno');
     const schoolMark = screen.getByRole('img', {
       name: 'Escola Mun. Prof.ª Iêda Alves de Oliveira MCPM',
@@ -35,6 +35,15 @@ describe('student shell and canonical profile', () => {
       .getAllByRole('heading', { level: 2 })
       .map((heading) => heading.textContent);
     expect(headings).toEqual(['Perfil do aluno', 'Minhas notas', 'Frequência']);
+    cleanup();
+    // Política Frequência off (or a server without the field): no attendance section at all.
+    for (const data of [SYNTHETIC_SELF_V1, { ...SYNTHETIC_SELF_V1, showFrequency: false }]) {
+      render(page({ load: { state: 'ready', data } }));
+      expect(screen.queryByRole('heading', { name: 'Frequência' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Atualizar frequência' })).toBeNull();
+      cleanup();
+    }
+    render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, showFrequency: true } } }));
     expect(screen.getByText('Estudante de exemplo')).toBeTruthy();
     expect(screen.getByText('Turma de exemplo')).toBeTruthy();
     // The year chip was removed (owner review 27/09/2026).
