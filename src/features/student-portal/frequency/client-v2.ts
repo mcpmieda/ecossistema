@@ -105,6 +105,20 @@ const summary = z
       )
       .max(1000),
     conflicts: z.number().int().nonnegative(),
+    // Smecel lesson days (attendance 0008); accepted before any screen uses them.
+    days: z
+      .array(
+        z
+          .object({
+            date: z.iso.date(),
+            shift: z.string().max(80),
+            slots: z.array(z.number().int().min(1).max(6)).min(1).max(6),
+            complete: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(62)
+      .optional(),
   })
   .strict();
 

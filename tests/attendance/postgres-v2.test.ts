@@ -248,8 +248,25 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect((await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).batch_v2).toBe(0);
     expect((await status()).lease?.fencingToken).toBe(token);
   });
-  it('keeps sparse marks partial; empty slots never become presence or consolidated totals', async () => {
-    const r = await service.execute(collection(), actor);
+  it('counts complete Smecel lesson days like the Smecel and keeps a partial day without totals', async () => {
+    // Owner decision 20/10/2026: the positions of a complete day are its lessons. One X in a
+    // six-lesson day is 1 absence in 6 lessons: 100 × (6 − 1) / 6 = 83,3%.
+    const complete = await service.execute(collection(), actor);
+    expect(complete).toMatchObject({ state: 'committed', resolvedRecords: 1, conflicts: 0 });
+    expect(await summary()).toMatchObject({
+      coverage: 'reliable',
+      absences: 1,
+      justified: 0,
+      denominator: 6,
+      percentage: 83.3,
+      days: [{ date: '2026-01-05', shift: 'MATUTINO', slots: [1, 2, 3, 4, 5, 6], complete: true }],
+    });
+  });
+  it('keeps sparse marks partial; a partial day never becomes presence or consolidated totals', async () => {
+    const r = await service.execute(
+      collection({ coverage: [{ recordKey: 'r1', date: '2026-01-05', slots: [1], complete: false }] }),
+      actor,
+    );
     expect(r).toMatchObject({
       contractVersion: 2,
       state: 'committed',

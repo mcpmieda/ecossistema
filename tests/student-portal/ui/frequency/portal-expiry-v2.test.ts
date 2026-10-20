@@ -76,7 +76,7 @@ it('checks the effective policy/session expiration with database time after read
   mocks.unsafe
     .mockResolvedValueOnce([
       {
-        origins: [
+        frequency: { days: [], origins: [
           {
             occurrence_id: '33333333-3333-4333-8333-333333333333',
             date: '2026-10-01',
@@ -89,7 +89,7 @@ it('checks the effective policy/session expiration with database time after read
             received_at: '2026-10-14T12:01:00Z',
             mapping_valid: true,
           },
-        ],
+        ] },
       },
     ])
     .mockResolvedValueOnce([{ active: false }]);
@@ -103,7 +103,7 @@ it('checks the effective policy/session expiration with database time after read
 });
 
 it('returns a private incomplete summary only while the effective session remains live', async () => {
-  mocks.unsafe.mockResolvedValueOnce([{ origins: [] }]).mockResolvedValueOnce([{ active: true }]);
+  mocks.unsafe.mockResolvedValueOnce([{ frequency: { origins: [], days: [] } }]).mockResolvedValueOnce([{ active: true }]);
   const result = await servePortalFrequencyV2(request(), env);
   expect(result.status).toBe(200);
   expect(await result.json()).toMatchObject({
@@ -113,6 +113,35 @@ it('returns a private incomplete summary only while the effective session remain
     denominator: null,
     percentage: null,
     marks: [],
+  });
+});
+
+it('counts lessons, absences and justified absences from complete Smecel lesson days', async () => {
+  const mark = (slot: number, value: 'X' | 'J', id: string) => ({
+    occurrence_id: id, date: '2026-10-06', slot, shift: 'matutino', mark: value, conflict_id: null,
+    source_class_label: 'PRIVATE_SYNTHETIC_CLASS', observed_at: '2026-10-14T12:00:00Z',
+    received_at: '2026-10-14T12:01:00Z', mapping_valid: true,
+  });
+  const day = (date: string, slots: number[], complete = true) => ({ date, shift: 'matutino', slots_json: slots, complete });
+  mocks.unsafe
+    .mockResolvedValueOnce([{ frequency: {
+      origins: [mark(2, 'X', '33333333-3333-4333-8333-333333333331'), mark(4, 'J', '33333333-3333-4333-8333-333333333332')],
+      // A 5-lesson Monday and a 6-lesson Tuesday: no configuration, straight from the diary.
+      days: [day('2026-10-05', [1, 2, 3, 4, 5]), day('2026-10-06', [1, 2, 3, 4, 5, 6])],
+    } }])
+    .mockResolvedValueOnce([{ active: true }]);
+  const result = await servePortalFrequencyV2(request(), env);
+  expect(await result.json()).toMatchObject({
+    coverage: 'reliable', denominator: 11, absences: 1, justified: 1, percentage: 90.9,
+    days: [{ date: '2026-10-05', slots: [1, 2, 3, 4, 5], complete: true }, { date: '2026-10-06', slots: [1, 2, 3, 4, 5, 6], complete: true }],
+  });
+  // One day read partially: the totals are withheld instead of being wrong; marks and days stay.
+  mocks.unsafe
+    .mockResolvedValueOnce([{ frequency: { origins: [mark(2, 'X', '33333333-3333-4333-8333-333333333331')],
+      days: [day('2026-10-05', [1, 2, 3, 4, 5]), day('2026-10-06', [2], false)] } }])
+    .mockResolvedValueOnce([{ active: true }]);
+  expect(await (await servePortalFrequencyV2(request(), env)).json()).toMatchObject({
+    coverage: 'incomplete', denominator: null, percentage: null, absences: null, justified: null,
   });
 });
 
