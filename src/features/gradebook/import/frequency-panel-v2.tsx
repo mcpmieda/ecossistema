@@ -343,7 +343,7 @@ function ScheduleDayV2({
     ...rule.times,
     ...(rule.recheck ? [rule.recheck] : []),
   ]);
-  const distinct = [...new Set(moments)].sort();
+  const distinct = [...new Set(moments)].sort((a, b) => a.localeCompare(b));
   const repeated = distinct.filter(
     (moment) => moments.filter((item) => item === moment).length > 1,
   );
@@ -375,7 +375,7 @@ function ScheduleDayV2({
                   </Chip>
                 </Card.Header>
                 <Card.Content>
-                  <p>Coletas: {[...rule.times].sort().join(', ') || 'Nenhuma'}</p>
+                  <p>Coletas: {[...rule.times].sort((a, b) => a.localeCompare(b)).join(', ') || 'Nenhuma'}</p>
                   <p>Rechecagem: {rule.recheck ?? 'Não definida'}</p>
                 </Card.Content>
               </Card>
@@ -427,7 +427,7 @@ function ScheduleSummaryV2({
         ) : null}
       </p>
       {pending ? (
-        <p role="status">Atualizando agenda. A revisão exibida aguarda confirmação.</p>
+        <output>Atualizando agenda. A revisão exibida aguarda confirmação.</output>
       ) : null}
       {schedule === null ? (
         <p>Agenda ainda não configurada no Coletor.</p>
