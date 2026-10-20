@@ -876,6 +876,110 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(after.origin_v2).toBe(counts.origin_v2! + 1);
     expect((await summary()).marks).toHaveLength(2);
   });
+  it('a day a record no longer has gets a tombstone, so an old partial row stops withholding totals', async () => {
+    // The Smecel lists a student twice (two enrolments) and may swap the rows between captures, or
+    // turn the old enrolment's days into "fora do período de matrícula". The record is still in the
+    // collection, but no longer has those days: they must not stay incomplete from an older batch.
+    const records = [
+      { recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+      { recordKey: 'r2', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+    ];
+    const full = [1, 2, 3, 4, 5, 6];
+    await service.execute(
+      collection({
+        records,
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: full, complete: true },
+          { recordKey: 'r2', date: '2026-01-06', slots: [1, 2], complete: false },
+        ],
+        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' }],
+      }),
+      actor,
+    );
+    expect(await summary()).toMatchObject({ coverage: 'incomplete', denominator: null });
+    const swapped = {
+      records,
+      expectedRevision: 1,
+      coverage: [
+        { recordKey: 'r1', date: '2026-01-06', slots: full, complete: true },
+        { recordKey: 'r2', date: '2026-01-05', slots: full, complete: true },
+      ],
+      marks: [{ recordKey: 'r2', date: '2026-01-05', slot: 1, mark: 'X' as const }],
+    };
+    await service.execute(
+      collection({ ...swapped, sourceVersion: `sha256:${'b'.repeat(64)}`, observedAt: '2026-01-11T12:00:00Z' }),
+      actor,
+    );
+    expect(await summary()).toMatchObject({
+      coverage: 'reliable',
+      absences: 1,
+      denominator: 12,
+      conflicts: 0,
+      days: [
+        { date: '2026-01-05', slots: full, complete: true },
+        { date: '2026-01-06', slots: full, complete: true },
+      ],
+    });
+    const latest = async () =>
+      (
+        await pg.query<{ record_key: string; date: string; slots_json: number[]; complete: boolean }>(
+          `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id ORDER BY c.record_key,c.date,b.received_at DESC,b.id DESC`,
+        )
+      ).rows;
+    expect(await latest()).toEqual([
+      { record_key: 'r1', date: '2026-01-05', slots_json: [], complete: true },
+      { record_key: 'r1', date: '2026-01-06', slots_json: full, complete: true },
+      { record_key: 'r2', date: '2026-01-05', slots_json: full, complete: true },
+      { record_key: 'r2', date: '2026-01-06', slots_json: [], complete: true },
+    ]);
+    // A tombstone is stored once: the next unchanged capture adds no coverage rows.
+    const counts = await database.transaction((tx) => frequencyYearCountsV2(tx, 2026));
+    await service.execute(
+      collection({
+        ...swapped,
+        expectedRevision: 2,
+        sourceVersion: `sha256:${'c'.repeat(64)}`,
+        observedAt: '2026-01-12T12:00:00Z',
+      }),
+      actor,
+    );
+    expect((await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).coverage_v2).toBe(
+      counts.coverage_v2,
+    );
+    expect((await status()).conflicts).toEqual([]);
+  });
+  it('a record left out of a collection keeps its days without tombstones', async () => {
+    await service.execute(
+      collection({
+        records: [
+          { recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+          { recordKey: 'r2', originalName: 'ALUNO SINTETICO DOIS', originalClass: '6A' },
+        ],
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3, 4, 5, 6], complete: true },
+          { recordKey: 'r2', date: '2026-01-05', slots: [1], complete: false },
+        ],
+      }),
+      actor,
+    );
+    await service.execute(
+      collection({
+        expectedRevision: 1,
+        sourceVersion: `sha256:${'b'.repeat(64)}`,
+        observedAt: '2026-01-11T12:00:00Z',
+        rosterComplete: false,
+        records: [{ recordKey: 'r2', originalName: 'ALUNO SINTETICO DOIS', originalClass: '6A' }],
+        coverage: [{ recordKey: 'r2', date: '2026-01-05', slots: [1], complete: false }],
+        marks: [],
+      }),
+      actor,
+    );
+    expect(await summary()).toMatchObject({ coverage: 'reliable', denominator: 6, absences: 1 });
+    const empty = await pg.query(
+      "SELECT 1 FROM attendance.coverage_v2 WHERE slots_json='[]'::jsonb",
+    );
+    expect(empty.rows).toEqual([]);
+  });
   it('another enrollment for the same UID preserves old provenance without silent reassociation', async () => {
     await service.execute(collection(), actor);
     await pg.exec(`INSERT INTO gradebook.student_source_record_v1(id,academic_year) VALUES('50000000-0000-4000-8000-000000000003',2026);

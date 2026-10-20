@@ -10,7 +10,7 @@ import { summarizeFrequencyPublicOriginsV2, withLessonDaysV2 } from '../../atten
 
 const originsSchema=z.array(z.object({occurrence_id:z.uuid(),date:z.iso.date(),slot:z.number().int().min(1).max(6),shift:z.string().max(80),
   mark:z.enum(['X','J']).nullable(),conflict_id:z.uuid().nullable(),source_class_label:z.string().max(300),observed_at:z.string(),received_at:z.string(),mapping_valid:z.boolean()}).strict()).max(10_000);
-const daysSchema=z.array(z.object({date:z.iso.date(),shift:z.string().max(80),slots_json:z.array(z.number().int().min(1).max(6)).min(1).max(6),complete:z.boolean()}).strict()).max(62);
+const daysSchema=z.array(z.object({date:z.iso.date(),shift:z.string().max(80),slots_json:z.array(z.number().int().min(1).max(6)).max(6),complete:z.boolean()}).strict()).max(186);
 const readSchema=z.object({origins:originsSchema,days:daysSchema}).strict();
 const HIDDEN=Symbol('frequency-hidden');
 const response=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store, no-cache, private, must-revalidate','Pragma':'no-cache','Vary':'Cookie, Authorization'}});

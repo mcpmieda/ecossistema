@@ -143,6 +143,14 @@ it('counts lessons, absences and justified absences from complete Smecel lesson 
   expect(await (await servePortalFrequencyV2(request(), env)).json()).toMatchObject({
     coverage: 'incomplete', denominator: null, percentage: null, absences: null, justified: null,
   });
+  // A tombstone (a record with no lesson that day any more) is accepted and never spoils the day.
+  mocks.unsafe
+    .mockResolvedValueOnce([{ frequency: { origins: [mark(2, 'X', '33333333-3333-4333-8333-333333333331')],
+      days: [day('2026-10-05', [1, 2, 3, 4, 5]), day('2026-10-06', [1, 2, 3, 4, 5, 6]), day('2026-10-06', []), day('2026-10-07', [])] } }])
+    .mockResolvedValueOnce([{ active: true }]);
+  const tombstoned = (await (await servePortalFrequencyV2(request(), env)).json()) as { days: { date: string }[] };
+  expect(tombstoned).toMatchObject({ coverage: 'reliable', denominator: 11, absences: 1, percentage: 90.9 });
+  expect(tombstoned.days.map((d) => d.date)).toEqual(['2026-10-05', '2026-10-06']);
 });
 
 it('rejects a caller-provided student UID before reading any private origins', async () => {
