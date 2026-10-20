@@ -243,7 +243,67 @@ async function summaryInTx(
     ORDER BY o.date,o.shift,o.slot,b.received_at`,
     [year, uid, `${month}-01`],
   );
-  return summarizeFrequencyOriginsV2(tx, origins, month);
+  const coverage = await tx.query<Row>(LESSON_DAYS_SQL_V2, [year, uid, `${month}-01`]);
+  const valid = await sourcesValid(tx, coverage);
+  return withLessonDaysV2(
+    await summarizeFrequencyOriginsV2(tx, origins, month),
+    coverage.filter((_, index) => valid[index]),
+  );
+}
+/**
+ * The student's lesson days in the month: for each class, record and date, the latest coverage the
+ * collector sent (each collection stores only the days that changed). Parameters: year, student
+ * uid, first day of the month. The caller still checks each row's identity evidence.
+ */
+export const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c.date::text,b.shift,c.slots_json,c.complete,
+    b.academic_year,b.class_id,s.student_uid::text,s.source_ids_json,s.observation_ids_json
+    FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id
+    JOIN attendance.source_row_v2 s ON s.batch_id=c.batch_id AND s.record_key=c.record_key
+    WHERE b.academic_year=$1 AND s.student_uid=$2::uuid AND c.date>=$3::date AND c.date<($3::date+interval '1 month')
+    ORDER BY b.class_id,c.record_key,c.date,b.received_at DESC,b.id DESC`;
+/**
+ * Adds the Smecel lesson days to a month's summary (owner decision 20/10/2026). The counts follow
+ * the Smecel: lessons are the positions of the days, absences are X, justified are J (the yellow
+ * icon and the blue X) and do not lower the attendance: 100 × (lessons − absences) / lessons. They
+ * are given only when every day of the month was read completely and nothing is in review, so a
+ * partial reading never shows wrong totals; the marks and days are always given.
+ */
+export function withLessonDaysV2(
+  summary: FrequencySummaryV2,
+  rows: readonly Row[],
+): FrequencySummaryV2 {
+  const byDay = new Map<string, { date: string; shift: string; slots: Set<number>; complete: boolean }>();
+  for (const row of rows) {
+    const date = text(row.date);
+    const shift = text(row.shift);
+    const day = byDay.get(`${date}:${shift}`) ?? { date, shift, slots: new Set<number>(), complete: true };
+    for (const slot of json<number[]>(row.slots_json)) day.slots.add(Number(slot));
+    day.complete &&= truth(row.complete);
+    byDay.set(`${date}:${shift}`, day);
+  }
+  const days = [...byDay.values()]
+    .filter((day) => day.slots.size > 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.shift.localeCompare(b.shift))
+    .map((day) => ({
+      date: day.date,
+      shift: day.shift,
+      slots: [...day.slots].sort((a, b) => a - b),
+      complete: day.complete,
+    }));
+  if (!days.length) return summary;
+  const absences = summary.marks.filter((mark) => mark.mark === 'X').length;
+  const justified = summary.marks.filter((mark) => mark.mark === 'J').length;
+  const reliable = days.every((day) => day.complete) && summary.conflicts === 0;
+  const denominator = days.reduce((total, day) => total + day.slots.length, 0);
+  return {
+    ...summary,
+    days,
+    absences: reliable ? absences : null,
+    justified: reliable ? justified : null,
+    denominator: reliable ? denominator : null,
+    percentage: reliable ? Math.round(((denominator - absences) / denominator) * 1000) / 10 : null,
+    coverage: reliable ? 'reliable' : 'incomplete',
+  };
 }
 export async function summarizeFrequencyOriginsV2(
   tx: Tx,

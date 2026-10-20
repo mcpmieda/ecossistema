@@ -120,12 +120,21 @@ export type FrequencyFailureEntryV2 = {
   origin: 'collector' | 'admin' | 'device-report'; operation: string; code: string; detail: string;
   deviceId: string | null; classId: number | null;
 };
+/**
+ * One school day of the student in the Smecel diary (owner decision 20/10/2026): the lesson positions
+ * that existed that day (a point, an X or a justified mark), so 5- or 6-lesson days, weekends,
+ * holidays and days outside the enrolment need no configuration. `complete`: the collector read
+ * every position of the day.
+ */
+export type FrequencyDayV2 = { date: string; shift: string; slots: number[]; complete: boolean };
 export type FrequencySummaryV2 = {
   contractVersion: 2; state: 'ready'; month: string;
   absences: number | null; justified: number | null; denominator: number | null; percentage: number | null;
   coverage: 'reliable' | 'incomplete' | 'unavailable'; observedAt: string | null; receivedAt: string | null;
   marks: { date: string; slot: number; shift: string; mark: 'X' | 'J'; classLabels: string[] }[];
   conflicts: number;
+  /** Lesson days of the month; absent from a server before the Smecel lesson days. */
+  days?: FrequencyDayV2[];
 };
 
 /** Same UTF-8 bytes in Python and JS; no locale-sensitive key ordering. */

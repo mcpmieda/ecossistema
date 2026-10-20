@@ -11,6 +11,7 @@ import {
 import {
   createFrequencyServiceV2,
   summarizeFrequencyPublicOriginsV2,
+  withLessonDaysV2,
 } from '../../server/attendance/service-v2';
 import { createYearResetServiceV1 } from '../../server/gradebook/application/settings/year-reset-v1';
 import { resolveReconciledSourceV1 } from '../../server/student-identity/reconciliation/resolve-source-v1';
@@ -211,11 +212,15 @@ native('frequency V2 complete native migration stack', () => {
       await exec(`SELECT has_table_privilege('gradebook_app','collector_auth.oauth_grants','SELECT') AS auth_table,
  has_table_privilege('student_portal_app','attendance.occurrence_v2','SELECT') AS portal_table,
  has_function_privilege('anon','attendance.read_portal_origins_v2(uuid,uuid,text)','EXECUTE') AS public_rpc,
+ has_function_privilege('anon','attendance.read_portal_frequency_v3(uuid,uuid,text)','EXECUTE') AS public_rpc_v3,
+ has_table_privilege('student_portal_app','attendance.coverage_v2','SELECT') AS portal_coverage,
  has_function_privilege('collector_runtime','collector_auth.lock_active_device_v2(uuid,uuid,uuid,bigint,text)','EXECUTE') AS collector_lock`);
     expect(acl).toEqual({
       auth_table: false,
       portal_table: false,
       public_rpc: false,
+      public_rpc_v3: false,
+      portal_coverage: false,
       collector_lock: false,
     });
     const owners = await exec(
@@ -258,10 +263,27 @@ native('frequency V2 complete native migration stack', () => {
       ]),
     );
     expect(wrong!.origins).toBeNull();
+    // v3 (attendance 0008): the same marks plus the student's lesson days, under the same checks.
+    const lessonRead = (who = account) =>
+      asRole('student_portal_app', (tx) =>
+        tx.unsafe(`SELECT attendance.read_portal_frequency_v3($1::uuid,$2::uuid,$3::text) AS frequency`, [
+          who,
+          session,
+          '2026-01',
+        ]),
+      );
+    const [lessons] = await lessonRead();
+    const frequency = lessons!.frequency as { origins: Record<string, unknown>[]; days: Record<string, unknown>[] };
+    expect(frequency.origins).toHaveLength(read!.origins ? (read!.origins as unknown[]).length : 0);
+    expect(frequency.days.length).toBeGreaterThan(0);
+    const summary = withLessonDaysV2(summarizeFrequencyPublicOriginsV2(frequency.origins, '2026-01'), frequency.days);
+    expect(summary.days?.every((day) => day.slots.length > 0)).toBe(true);
+    expect((await lessonRead(crypto.randomUUID()))[0]!.frequency).toBeNull();
     await exec(
       `UPDATE student_portal.session SET revoked_at=clock_timestamp() WHERE id='${session}'`,
     );
     expect((await portalRead())[0]!.origins).toBeNull();
+    expect((await lessonRead())[0]!.frequency).toBeNull();
     for (const role of [
       'anon',
       'authenticated',
