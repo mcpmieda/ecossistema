@@ -550,6 +550,32 @@ async function addOccurrences(
   );
 }
 
+/**
+ * Owner decision (20/10/2026): an absence later justified in the Smecel (X → J) is
+ * accepted without review. Applies when the class's latest evidence is J, the stored
+ * mark is X and no other alternative is open; the X/J conflict is closed with a
+ * correction row. J → X and removals still go to human review.
+ */
+export const ACCEPT_JUSTIFIED_ABSENCES_SQL = `WITH latest AS (
+    SELECT DISTINCT ON(p.occurrence_id) p.occurrence_id,p.mark FROM attendance.origin_v2 p
+    JOIN attendance.batch_v2 b ON b.id=p.batch_id WHERE b.academic_year=$1 AND b.class_id=$2
+    ORDER BY p.occurrence_id,b.received_at DESC,b.id DESC),
+  targets AS (
+    SELECT o.id FROM latest l JOIN attendance.occurrence_v2 o ON o.id=l.occurrence_id
+    WHERE l.mark='J' AND o.mark='X' AND NOT EXISTS(SELECT 1 FROM attendance.conflict_v2 c
+      WHERE c.occurrence_id=o.id AND c.state='open' AND c.marks_json<>'["J","X"]'::jsonb)),
+  accepted AS (
+    UPDATE attendance.occurrence_v2 o SET mark='J',revision=o.revision+1 FROM targets t WHERE o.id=t.id RETURNING o.id),
+  closed AS (
+    UPDATE attendance.conflict_v2 c SET state='resolved',resolved_at=clock_timestamp(),revision=c.revision+1
+    FROM accepted a WHERE c.occurrence_id=a.id AND c.state='open' RETURNING c.id)
+  INSERT INTO attendance.correction_v2(id,conflict_id,actor_id,before_mark,after_mark,reason)
+  SELECT gen_random_uuid(),id,$3::uuid,'X','J','Falta justificada no Smecel' FROM closed`;
+
+async function acceptJustifiedAbsences(tx: Tx, year: number, classId: number, actorId: string) {
+  await tx.executeNative(ACCEPT_JUSTIFIED_ABSENCES_SQL, [year, classId, actorId]);
+}
+
 /** A snapshot cannot certify evidence from a day after its own capture; the school zone governs both. */
 async function checkCollectionClock(tx: Tx, input: FrequencyCollectionV2) {
   const [clock] = await tx.query<Row>(
@@ -885,6 +911,7 @@ async function collect(
     marks: deltaMarks,
   });
   await addOccurrences(tx, input.academicYear, shift, input.requestId, deltaEvents);
+  await acceptJustifiedAbsences(tx, input.academicYear, input.classId, actor.actorId);
   const [count] = await tx.query<Row>(
     `SELECT count(DISTINCT c.id)::integer AS count FROM attendance.conflict_v2 c JOIN attendance.origin_v2 p ON p.occurrence_id=c.occurrence_id WHERE p.batch_id=$1::uuid AND c.state='open'`,
     [input.requestId],
