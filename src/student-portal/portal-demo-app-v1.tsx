@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { StudentPortalPageV1 } from '../features/student-portal/shell/student-shell-v1';
 import { PortalSignedInNoticesV1 } from '../features/student-portal/shell/portal-notices-v1';
+import type { StudentFrequencyClientV2 } from '../features/student-portal/frequency/client-v2';
 import { selfResponseV1, type SelfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
@@ -596,6 +597,8 @@ interface AdminSimulationV1 {
   showTermClosing: boolean;
   /** Policy `termClosingConclusive`: off shows the same T1 as a trimester in progress. */
   termClosingConclusive: boolean;
+  /** Policy `showFrequency`: off hides the attendance section, as in production. */
+  showFrequency: boolean;
   periods: readonly PeriodIdV1[];
   finalDisclosed: boolean;
   /** Approved background-free portrait exists (none in production yet). */
@@ -759,8 +762,32 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
       ...(visible(situation, 'in-recovery') ? { annualSituation: situation } : {}),
     },
     subjects: withClosings,
+    showFrequency: admin.showFrequency,
   });
 }
+
+/** Invented attendance for the preview: no request leaves the page. */
+const demoFrequencyClientV2: StudentFrequencyClientV2 = {
+  read: async (month) => ({
+    contractVersion: 2,
+    state: 'ready',
+    month,
+    absences: 3,
+    justified: 1,
+    denominator: 80,
+    percentage: 96.3,
+    coverage: 'reliable',
+    observedAt: `${month}-15T12:00:00-03:00`,
+    receivedAt: `${month}-15T12:05:00-03:00`,
+    marks: [
+      { date: `${month}-06`, slot: 2, shift: 'MATUTINO', mark: 'X', classLabels: ['TURMA ARTIFICIAL'] },
+      { date: `${month}-09`, slot: 1, shift: 'MATUTINO', mark: 'J', classLabels: ['TURMA ARTIFICIAL'] },
+      { date: `${month}-14`, slot: 4, shift: 'MATUTINO', mark: 'X', classLabels: ['TURMA ARTIFICIAL'] },
+      { date: `${month}-14`, slot: 5, shift: 'MATUTINO', mark: 'X', classLabels: ['TURMA ARTIFICIAL'] },
+    ],
+    conflicts: 0,
+  }),
+};
 
 const panelStyle: CSSProperties = {
   position: 'fixed',
@@ -784,7 +811,7 @@ function AdminSimulatorPanelV1({
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
 }) {
-  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject' | 'correctedRed') => (
+  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'showFrequency' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject' | 'correctedRed') => (
     <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
   );
   return (
@@ -839,6 +866,7 @@ function AdminSimulatorPanelV1({
         <label>{toggle('showPartials')} Mostrar detalhamento</label>
         <label>{toggle('showTermClosing')} Relatório do trimestre</label>
         <label>{toggle('termClosingConclusive')} Usar termos de conclusão</label>
+        <label>{toggle('showFrequency')} Frequência</label>
         <label>{toggle('hasPortrait')} Foto do aluno</label>
       </div>
       <div style={rowStyle}>
@@ -904,6 +932,7 @@ export function PortalDemoAppV1() {
     showPartials: true,
     showTermClosing: true,
     termClosingConclusive: true,
+    showFrequency: false,
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
     hasPortrait: true,
@@ -952,6 +981,7 @@ export function PortalDemoAppV1() {
         }
         onLogout={() => undefined}
         portraitSrc={admin.hasPortrait ? previewPortrait : undefined}
+        frequencyClient={demoFrequencyClientV2}
       />
     </>
   );

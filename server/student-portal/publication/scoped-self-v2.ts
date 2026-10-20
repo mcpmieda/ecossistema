@@ -225,7 +225,11 @@ export async function scopedSelfV2(
   );
   const withClosings = await termClosingsV2(tx, context, visible, reader, decoded, sources);
   const endedPeriods = endedPeriodsV1(context.policy.enforcedValue, context.now);
-  return endedPeriods.length ? selfResponseV1.parse({ ...withClosings, endedPeriods }) : withClosings;
+  return selfResponseV1.parse({
+    ...withClosings,
+    ...(endedPeriods.length ? { endedPeriods } : {}),
+    showFrequency: context.policy.enforcedValue.showFrequency,
+  });
 }
 
 /** Fechamento do trimestre (#1132): read only when the policy and a closed trimester require it. */

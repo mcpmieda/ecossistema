@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Tabs } from '@heroui/react';
 import {
+  CalendarCheck,
   CalendarDays,
   DoorOpen,
   GraduationCap,
@@ -35,6 +36,14 @@ const categories = [
     title: 'Relatório de notas',
     description: 'A orientação por disciplina que o aluno lê sobre o trimestre.',
     fields: ['showTermClosing', 'termClosingConclusive'],
+  },
+  {
+    id: 'frequency',
+    label: 'Frequência',
+    icon: CalendarCheck,
+    title: 'Frequência',
+    description: 'Escolha se os alunos veem a própria frequência no Portal.',
+    fields: ['showFrequency'],
   },
   {
     id: 'calendar',

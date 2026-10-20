@@ -388,8 +388,10 @@ export function StudentPortalPageV1({
             profile={null}
           />
         )}
-        <StudentFrequencyV2 key={load.data.profile.accountId} client={frequencyClient}
-          onLogin={onLogin} onAuthenticationLost={onAuthenticationLost} />
+        {load.data.showFrequency === true ? (
+          <StudentFrequencyV2 key={load.data.profile.accountId} client={frequencyClient}
+            onLogin={onLogin} onAuthenticationLost={onAuthenticationLost} />
+        ) : null}
       </>
     );
   const hero =

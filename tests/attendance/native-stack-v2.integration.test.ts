@@ -125,6 +125,7 @@ native('frequency V2 complete native migration stack', () => {
       'migrations/gradebook-simplified/0015_student_reconciliation_v1.sql',
       'migrations/student-portal/0025_reconciliation_credentials_v1.sql',
       'migrations/student-portal/0026_publication_source_retention_v1.sql',
+      'migrations/student-portal/0027_frequency_policy_v1.sql',
       'migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
       ...readdirSync('migrations/collector')
         .filter((f) => /^\d{4}_.*\.sql$/u.test(f) && !['0007_scheduled_retention_v2.sql','0008_cron_history_retention_v2.sql','0010_daily_evidence_pruning_v2.sql'].includes(f))

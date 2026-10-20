@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity-v1';
 import { termClosingSummaryV1, termClosingV1, TERM_CLOSING_MODES_V1, TERM_CLOSING_PERIODS_V1 } from './term-closing-v1';
-import { policyFieldV1, settingsOverrideV1 } from './policy-v1';
+import { policyFieldV1, POLICY_FIELDS_V1, settingsOverrideV1 } from './policy-v1';
 import { accountSummaryV1, adminQueryV1 } from './admin-v1';
 import { customizationsResponseV1 } from './customizations-v1';
 import {
@@ -98,10 +98,10 @@ export const customizedSettingsRowV1 = z.object({
  */
 export const shiftSummaryV1 = z.object({
   shift: shiftV1,
-  ownFields: z.array(policyFieldV1).max(10),
+  ownFields: z.array(policyFieldV1).max(POLICY_FIELDS_V1.length),
   classes: z.array(z.object({
     classId: z.number().int().positive().safe(), label: z.string().max(80),
-    ownFields: z.array(policyFieldV1).max(10),
+    ownFields: z.array(policyFieldV1).max(POLICY_FIELDS_V1.length),
   }).strict()).max(60),
 }).strict();
 export type ShiftSummaryV1 = z.infer<typeof shiftSummaryV1>;
