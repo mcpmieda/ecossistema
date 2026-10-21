@@ -259,7 +259,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       {/*
         The month at a glance (owner request 21/10/2026: "a rosca do A com a régua do B"): a ring
         of the month's school days (frequented, with an absence, justified) around the official
-        attendance in lessons, and under it one tile per school day in the calendar's colours.
+        attendance in lessons, and under it a 0–100% ruler with the year's 75% minimum.
         Always the same height, data or not, so the calendar below never moves when the month
         changes (owner request 21/10/2026).
       */}
@@ -276,16 +276,28 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
             <li><i className="pa3-swatch pa3-swatch--justified" /><strong>{totals.justified}</strong> {totals.justified === 1 ? 'justificada' : 'justificadas'}</li>
           </ul>
         </div>
+        {/* The ruler (owner request 21/10/2026): the month's attendance in lessons from 0 to 100%,
+            with the 75% the year asks for marked on it. */}
         <div className="pa3-ruler-wrap">
-          <ol className="pa3-ruler" aria-hidden="true">
-            {countedDays.map(({ date, day }) => (
-              <li key={date} className={`pa3-ruler-day pa3-kind--${day.kind}${day.justified ? ' is-justified' : ''}`} data-tone={toneLevelOf(day)} />
-            ))}
-          </ol>
+          <div
+            className="pa3-ruler"
+            role="img"
+            aria-label={
+              tone.tone === 'none' || data.percentage === null
+                ? 'Presença do mês ainda não disponível'
+                : `${Math.floor(data.percentage)}% de presença nas aulas; o mínimo do ano é ${MINIMUM_PERCENT}%`
+            }
+          >
+            <span
+              className="pa3-ruler-fill"
+              style={{ width: `${tone.tone === 'none' || data.percentage === null ? 0 : Math.max(0, Math.min(100, data.percentage))}%` }}
+            />
+            <span className="pa3-ruler-minimum" style={{ left: `${MINIMUM_PERCENT}%` }} aria-hidden="true" />
+          </div>
           <div className="pa3-ruler-labels" aria-hidden="true">
-            <span>1º dia</span>
-            <span>dias de aula</span>
-            <span>{month === current ? 'ontem' : 'último dia'}</span>
+            <span>0%</span>
+            <span className="pa3-ruler-label-minimum" style={{ left: `${MINIMUM_PERCENT}%` }}>mínimo {MINIMUM_PERCENT}%</span>
+            <span>100%</span>
           </div>
         </div>
         <p className="pa3-summary-foot">

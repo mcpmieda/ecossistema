@@ -893,33 +893,50 @@
 .pa3-swatch--justified {
   background: var(--pa3-ring-justified);
 }
-/* The ruler: one tile per school day, the calendar's colours (green when no absence). */
+/* The ruler: attendance from 0 to 100%, the fill in the month's tone, a post at the 75% minimum. */
 .pa3-ruler-wrap {
-  min-height: 2.6rem;
+  padding-top: 0.2rem;
 }
 .pa3-ruler {
-  display: flex;
-  gap: 3px;
-  min-height: 1.6rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  position: relative;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: #e2e8f0;
 }
-.pa3-ruler-day {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 1.6rem;
-  border-radius: 0.35rem;
+.pa3-ruler-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--pa3-tone);
+  transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.pa3-ruler-day.pa3-kind--clear {
-  background: var(--pa3-ring-clear);
+.pa3-ruler-minimum {
+  position: absolute;
+  top: -0.35rem;
+  bottom: -0.35rem;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--pa3-ink);
 }
 .pa3-ruler-labels {
+  position: relative;
   display: flex;
   justify-content: space-between;
-  margin-top: 0.3rem;
-  color: #94a3b8;
-  font-size: 0.66rem;
+  height: 1rem;
+  margin-top: 0.4rem;
+  color: var(--pa3-muted);
+  font-size: 0.72rem;
+}
+.pa3-ruler-label-minimum {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-ruler-fill {
+    transition: none;
+  }
 }
 .pa3-summary-foot {
   margin: 0;
