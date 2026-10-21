@@ -1179,3 +1179,77 @@
     stroke-dasharray: var(--pa3-arc) 100;
   }
 }
+
+/* ---------- Ring with guide lines (owner choice 21/10/2026) ---------- */
+.pa3-guide-ring {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.pa3-guide-track {
+  fill: none;
+  stroke: #eef2f7;
+}
+.pa3-guide-arc {
+  fill: none;
+  stroke-dasharray: 100 100;
+  animation: pa3-guide-grow 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes pa3-guide-grow {
+  from { stroke-dasharray: 0 100; }
+  to { stroke-dasharray: 100 100; }
+}
+.pa3-guide-label {
+  animation: pa3-guide-show 420ms ease-out both;
+}
+@keyframes pa3-guide-show {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.pa3-guide-count {
+  font-size: 19px;
+  font-weight: 800;
+}
+.pa3-guide-name {
+  fill: #334155;
+  font-size: 11px;
+  font-weight: 600;
+}
+.pa3-guide-percent {
+  fill: var(--pa3-ink);
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.pa3-guide-caption {
+  fill: var(--pa3-muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+/* Darker tones under the ring too (owner request 21/10/2026). */
+.pa3-panel--frequency .pa3-summary {
+  --pa3-ruler-dark: color-mix(in srgb, var(--pa3-tone) 82%, #000);
+}
+.pa3-panel--frequency .pa3-ruler-fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pa3-ruler-dark) 70%, #fff), var(--pa3-ruler-dark));
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-guide-arc,
+  .pa3-guide-label {
+    animation: none;
+  }
+}
+
+/* Neutral card (owner request 21/10/2026: the warm/green background clashed with the ring): white,
+   a hairline border and two very soft navy light patches that keep drifting. */
+.pa3-panel--frequency .pa3-summary {
+  border-color: #e3e8f1;
+  background: #fff;
+}
+.pa3-panel--frequency .pa3-summary::before {
+  background: rgb(29 78 216 / 0.10);
+}
+.pa3-panel--frequency .pa3-summary::after {
+  background: rgb(15 42 95 / 0.07);
+}

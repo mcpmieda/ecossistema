@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react';
+import { useMemo, useRef, useState, type TouchEvent } from 'react';
 import { CalendarX2, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
 import { PREVIEW_TODAY_V3 } from './demo-data-v3';
@@ -98,77 +98,136 @@ function toneOf(data: FrequencySummaryV2) {
 }
 
 /**
- * The month's school days as a ring (owner request 21/10/2026, "less flat"): an SVG ring with a
- * light track, one rounded arc per kind (frequented green, with an absence red, justified amber),
- * each in a soft gradient, a small gap between arcs, the official attendance in its centre. Each
- * arc grows to its size when the month opens. An empty month shows the track only.
+ * The month's school days as a ring with guide lines (owner choice 21/10/2026: "a A com as
+ * legendas ao lado das setinhas guias de cada banda", darker tones). One arc per kind of day
+ * (frequented, with an absence, justified); from the middle of each arc a guide line goes out to
+ * its number and name. The official attendance in lessons sits in the centre. When the month
+ * opens, the arcs grow in turn and the labels appear after them (still with reduced motion).
  */
-const RING_RADIUS_V3 = 42;
-const RING_STROKE_V3 = 11;
-/** Arcs use pathLength 100; a round cap adds half the stroke at each end, in those units. */
-const RING_CAP_V3 = ((RING_STROKE_V3 / 2) / (2 * Math.PI * RING_RADIUS_V3)) * 100;
-const RING_GAP_V3 = 2.2;
+const RING_VIEW_V3 = { width: 330, height: 172 };
+const RING_CENTER_V3 = { x: 165, y: 86 };
+const RING_RADIUS_V3 = 52;
+const RING_STROKE_V3 = 19;
+/** A small gap between arcs, in radians. */
+const RING_GAP_V3 = 0.05;
+const RING_KINDS_V3 = [
+  { kind: 'clear', colour: '#166534', one: 'dia frequentado', many: 'dias frequentados' },
+  { kind: 'missed', colour: '#991b1b', one: 'com falta', many: 'com falta' },
+  { kind: 'justified', colour: '#b45309', one: 'justificada', many: 'justificadas' },
+] as const;
+const ringPoint = (radius: number, angle: number) => ({
+  x: RING_CENTER_V3.x + radius * Math.cos(angle),
+  y: RING_CENTER_V3.y + radius * Math.sin(angle),
+});
+const ringArc = (from: number, to: number) => {
+  const start = ringPoint(RING_RADIUS_V3, from);
+  const end = ringPoint(RING_RADIUS_V3, to);
+  return `M${start.x.toFixed(2)} ${start.y.toFixed(2)} A${RING_RADIUS_V3} ${RING_RADIUS_V3} 0 ${to - from > Math.PI ? 1 : 0} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+};
+/** Labels on one side never overlap: each keeps at least this vertical distance. */
+const RING_LABEL_GAP_V3 = 34;
+function spreadLabels<T extends { y: number }>(labels: T[]) {
+  labels.sort((first, second) => first.y - second.y);
+  for (let index = 1; index < labels.length; index++)
+    labels[index]!.y = Math.max(labels[index]!.y, labels[index - 1]!.y + RING_LABEL_GAP_V3);
+  const overflow = (labels.at(-1)?.y ?? 0) - (RING_VIEW_V3.height - 30);
+  if (overflow > 0) for (const label of labels) label.y -= overflow;
+  for (const label of labels) label.y = Math.max(20, label.y);
+  return labels;
+}
 function DayRingV3({ totals, percentage }: { totals: { days: number; clear: number; missed: number; justified: number }; percentage: number | null }) {
-  const parts = [
-    ['clear', totals.clear],
-    ['missed', totals.missed],
-    ['justified', totals.justified],
-  ] as const;
-  const shown = parts.filter(([, count]) => count > 0);
-  const single = shown.length === 1;
-  let at = 0;
-  const arcs = shown.map(([kind, count]) => {
-    const size = (count / totals.days) * 100;
-    // Leave room for the two round caps and the gap; a lone arc closes the ring with no gap.
-    const length = single ? 100 : Math.max(0.01, size - 2 * RING_CAP_V3 - RING_GAP_V3);
-    const start = single ? 0 : at + RING_CAP_V3 + RING_GAP_V3 / 2;
+  const counts = { clear: totals.clear, missed: totals.missed, justified: totals.justified };
+  const shown = RING_KINDS_V3.filter(({ kind }) => counts[kind] > 0);
+  let at = -Math.PI / 2;
+  const arcs = shown.map((item, order) => {
+    const size = (counts[item.kind] / totals.days) * 2 * Math.PI;
+    const from = at;
     at += size;
-    return { kind, length, start };
+    return { ...item, count: counts[item.kind], from, to: at, middle: from + size / 2, order };
   });
+  // Each label starts level with its arc's middle, then the ones on each side are spread apart.
+  const placed = arcs.map((arc) => {
+    const side = Math.cos(arc.middle) >= 0 ? 1 : -1;
+    const near = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 2, arc.middle);
+    const elbow = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 14, arc.middle);
+    return { ...arc, side, near, elbow, y: elbow.y };
+  });
+  for (const side of [1, -1]) spreadLabels(placed.filter((label) => label.side === side));
+  const single = arcs.length === 1;
   return (
-    <div
-      className="pa3-ring"
+    <svg
+      className="pa3-guide-ring"
+      viewBox={`0 0 ${RING_VIEW_V3.width} ${RING_VIEW_V3.height}`}
       role="img"
       aria-label={`${totals.clear} dias frequentados, ${totals.missed} com falta e ${totals.justified} com falta justificada${percentage === null ? '' : `; ${Math.floor(percentage)}% de presença nas aulas`}`}
     >
-      <svg className="pa3-ring-svg" viewBox="0 0 100 100" aria-hidden="true">
-        <defs>
-          <linearGradient id="pa3-ring-clear" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#4ade80" />
-            <stop offset="1" stopColor="#15803d" />
-          </linearGradient>
-          <linearGradient id="pa3-ring-missed" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fb7185" />
-            <stop offset="1" stopColor="#dc2626" />
-          </linearGradient>
-          <linearGradient id="pa3-ring-justified" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#fcd34d" />
-            <stop offset="1" stopColor="#f59e0b" />
-          </linearGradient>
-        </defs>
-        <circle className="pa3-ring-track" cx="50" cy="50" r={RING_RADIUS_V3} strokeWidth={RING_STROKE_V3} />
-        {arcs.map(({ kind, length, start }) => (
+      <circle className="pa3-guide-track" cx={RING_CENTER_V3.x} cy={RING_CENTER_V3.y} r={RING_RADIUS_V3} strokeWidth={RING_STROKE_V3} />
+      {placed.map((arc) =>
+        single ? (
           <circle
-            key={kind}
-            className="pa3-ring-arc"
-            cx="50"
-            cy="50"
+            key={arc.kind}
+            className="pa3-guide-arc"
+            cx={RING_CENTER_V3.x}
+            cy={RING_CENTER_V3.y}
             r={RING_RADIUS_V3}
+            stroke={arc.colour}
             strokeWidth={RING_STROKE_V3}
             pathLength={100}
-            stroke={`url(#pa3-ring-${kind})`}
-            strokeLinecap={single ? 'butt' : 'round'}
-            strokeDashoffset={-start}
-            style={{ '--pa3-arc': length } as CSSProperties}
+            transform={`rotate(-90 ${RING_CENTER_V3.x} ${RING_CENTER_V3.y})`}
+            style={{ animationDelay: '0ms' }}
           />
-        ))}
-      </svg>
-      <div className="pa3-ring-hole">
-        {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
-        <strong>{percentage === null ? '—' : `${Math.floor(percentage)}%`}</strong>
-        <span>presença<br />nas aulas</span>
-      </div>
-    </div>
+        ) : (
+          <path
+            key={arc.kind}
+            className="pa3-guide-arc"
+            d={ringArc(arc.from + RING_GAP_V3 / 2, arc.to - RING_GAP_V3 / 2)}
+            stroke={arc.colour}
+            strokeWidth={RING_STROKE_V3}
+            pathLength={100}
+            style={{ animationDelay: `${arc.order * 180}ms` }}
+          />
+        ),
+      )}
+      {placed.map((label) => {
+        const end = label.elbow.x + label.side * 16;
+        const text = end + label.side * 4;
+        const anchor = label.side > 0 ? 'start' : 'end';
+        const name = label.count === 1 ? label.one : label.many;
+        const [first, second] = name === 'dias frequentados' ? ['dias', 'frequentados'] : [name, null];
+        return (
+          <g key={label.kind} className="pa3-guide-label" style={{ animationDelay: `${450 + label.order * 160}ms` }}>
+            <circle cx={label.near.x} cy={label.near.y} r={2.2} fill={label.colour} />
+            <polyline
+              points={`${label.near.x},${label.near.y} ${label.elbow.x},${label.y} ${end},${label.y}`}
+              fill="none"
+              stroke={label.colour}
+              strokeWidth={1.3}
+            />
+            <text x={text} y={label.y - 3} textAnchor={anchor} className="pa3-guide-count" fill={label.colour}>
+              {label.count}
+            </text>
+            <text x={text} y={label.y + 10} textAnchor={anchor} className="pa3-guide-name">
+              {first}
+            </text>
+            {second ? (
+              <text x={text} y={label.y + 22} textAnchor={anchor} className="pa3-guide-name">
+                {second}
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+      {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 2} textAnchor="middle" className="pa3-guide-percent">
+        {percentage === null ? '—' : `${Math.floor(percentage)}%`}
+      </text>
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 17} textAnchor="middle" className="pa3-guide-caption">
+        presença
+      </text>
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 27} textAnchor="middle" className="pa3-guide-caption">
+        nas aulas
+      </text>
+    </svg>
   );
 }
 
@@ -307,14 +366,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
           {MONTHS[monthNumber - 1]}
           {totals.days ? ` · ${plural(totals.days, 'dia', 'dias')}` : ''}
         </p>
-        <div className="pa3-ring-row">
-          <DayRingV3 key={month} totals={totals} percentage={tone.tone === 'none' ? null : data.percentage} />
-          <ul className="pa3-ring-legend">
-            <li className="pa3-ring-item pa3-ring-item--clear"><strong>{totals.clear}</strong><span>{totals.clear === 1 ? 'dia frequentado' : 'dias frequentados'}</span></li>
-            <li className="pa3-ring-item pa3-ring-item--missed"><strong>{totals.missed}</strong><span>com falta</span></li>
-            <li className="pa3-ring-item pa3-ring-item--justified"><strong>{totals.justified}</strong><span>{totals.justified === 1 ? 'justificada' : 'justificadas'}</span></li>
-          </ul>
-        </div>
+        <DayRingV3 key={month} totals={totals} percentage={tone.tone === 'none' ? null : data.percentage} />
         {/* The ruler (owner request 21/10/2026): the month's attendance in lessons from 0 to 100%,
             with the 75% the year asks for marked on it. */}
         <div className="pa3-ruler-wrap">
