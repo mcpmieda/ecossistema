@@ -344,7 +344,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
                 onClick={() => setPicked(date)}
               >
                 <span className="pa3-day-number">{index + 1}</span>
-                {date === PREVIEW_TODAY_V3 ? <span className="pa3-day-today">hoje</span> : null}
+                {date === PREVIEW_TODAY_V3 ? <span className="pa3-day-today">HOJE</span> : null}
               </button>
             );
           })}

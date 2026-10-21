@@ -673,7 +673,7 @@
   background: #f59e0b;
   color: #fff;
 }
-/* Today: a small "hoje" under the number, instead of an underline. */
+/* Today: a small "HOJE" under the number, instead of an underline. */
 .pa3-day.is-today {
   grid-template-rows: auto auto;
   align-content: center;
@@ -687,7 +687,7 @@
   font-size: 0.55rem;
   font-weight: 700;
   line-height: 1;
-  text-transform: lowercase;
+  letter-spacing: 0.04em;
   opacity: 0.85;
 }
 
