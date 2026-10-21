@@ -107,17 +107,18 @@ function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
 }
 
 /**
- * "★ 2 selos brilhantes" in the hero. With none, the same pill shows "0 selos brilhantes", dimmed
- * and without shine (owner request 29/09/2026).
+ * "★ 2 selos Brilhante" in the hero. With none, the same pill shows "0 selos Brilhante", dimmed
+ * and without shine (owner request 29/09/2026). "Brilhante" is the name of the seal's level, so it
+ * stays capitalized and invariable (owner decision 20/10/2026).
  */
 function SealCountV1({ count }: { count: number }) {
   const empty = count <= 0;
   return (
     <span className={empty ? 'pa-seal-count pa-seal-count--empty' : 'pa-seal-count'}>
       <Star size={12} strokeWidth={2} fill={empty ? 'none' : 'currentColor'} aria-hidden="true" />
-      {/* One text run, so the flex gap never adds a second space before "brilhante". */}
+      {/* One text run, so the flex gap never adds a second space before "Brilhante". */}
       <span>
-        {Math.max(0, count)} {count === 1 ? 'selo brilhante' : 'selos brilhantes'}
+        {Math.max(0, count)} {count === 1 ? 'selo Brilhante' : 'selos Brilhante'}
       </span>
     </span>
   );

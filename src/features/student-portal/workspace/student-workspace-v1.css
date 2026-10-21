@@ -206,9 +206,13 @@
 
 /* Arrow after each mark in the Boletim: the row opens its discipline. */
 .pa-workspace-list .pa-list-chevron {
+  --chevron-rest: #94a3b8;
+  /* The colour and glow at the peak of the arrow's move: the row's own colour, never blue on gold. */
+  --chevron-peak: #1d4ed8;
+  --chevron-glow: rgb(37 99 235 / 0.55);
   flex: none;
   margin-left: -0.35rem;
-  color: #94a3b8;
+  color: var(--chevron-rest);
   transition: transform 150ms ease-out, color 150ms ease-out;
 }
 .pa-workspace-list [data-hovered='true'] .pa-list-chevron,
@@ -438,7 +442,7 @@
   font-size: 0.72rem;
 }
 
-/* "vale 30 pontos" under a trimester's name in the Boletim tabs, much smaller and quieter. */
+/* "vale 30 · 18 passa" under a trimester's name in the Boletim tabs, much smaller and quieter. */
 .pa-term-value {
   display: block;
   color: #64748b;
@@ -1090,62 +1094,86 @@
   }
 }
 
+/* The arrows' wave (owner request 20/10/2026): on entering the Boletim, and then again every 15 s
+   while the list is on screen, so the rows keep saying "tap to open". Each row waits its turn. */
+.pa-workspace-list [role='option'] .pa-list-chevron {
+  animation: pa-workspace-chevron-repeat 15s ease-in-out calc(var(--chevron-delay, 0ms) + 15s) infinite;
+}
 .pa-list-enter .pa-workspace-list [role='option'] .pa-list-chevron {
-  animation: pa-workspace-chevron-emphasis 430ms ease-in-out backwards;
+  animation:
+    pa-workspace-chevron-emphasis 430ms ease-in-out var(--chevron-delay, 0ms) backwards,
+    pa-workspace-chevron-repeat 15s ease-in-out calc(var(--chevron-delay, 0ms) + 15s) infinite;
 }
 
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(1) .pa-list-chevron {
-  animation-delay: 390ms;
+.pa-workspace-list [role='option']:nth-child(1) .pa-list-chevron {
+  --chevron-delay: 390ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(2) .pa-list-chevron {
-  animation-delay: 465ms;
+.pa-workspace-list [role='option']:nth-child(2) .pa-list-chevron {
+  --chevron-delay: 465ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(3) .pa-list-chevron {
-  animation-delay: 540ms;
+.pa-workspace-list [role='option']:nth-child(3) .pa-list-chevron {
+  --chevron-delay: 540ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(4) .pa-list-chevron {
-  animation-delay: 615ms;
+.pa-workspace-list [role='option']:nth-child(4) .pa-list-chevron {
+  --chevron-delay: 615ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(5) .pa-list-chevron {
-  animation-delay: 690ms;
+.pa-workspace-list [role='option']:nth-child(5) .pa-list-chevron {
+  --chevron-delay: 690ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(6) .pa-list-chevron {
-  animation-delay: 765ms;
+.pa-workspace-list [role='option']:nth-child(6) .pa-list-chevron {
+  --chevron-delay: 765ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(7) .pa-list-chevron {
-  animation-delay: 840ms;
+.pa-workspace-list [role='option']:nth-child(7) .pa-list-chevron {
+  --chevron-delay: 840ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(8) .pa-list-chevron {
-  animation-delay: 915ms;
+.pa-workspace-list [role='option']:nth-child(8) .pa-list-chevron {
+  --chevron-delay: 915ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(9) .pa-list-chevron {
-  animation-delay: 990ms;
+.pa-workspace-list [role='option']:nth-child(9) .pa-list-chevron {
+  --chevron-delay: 990ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(10) .pa-list-chevron {
-  animation-delay: 1065ms;
+.pa-workspace-list [role='option']:nth-child(10) .pa-list-chevron {
+  --chevron-delay: 1065ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(11) .pa-list-chevron {
-  animation-delay: 1140ms;
+.pa-workspace-list [role='option']:nth-child(11) .pa-list-chevron {
+  --chevron-delay: 1140ms;
 }
-.pa-list-enter .pa-workspace-list [role='option']:nth-child(n + 12) .pa-list-chevron {
-  animation-delay: 1215ms;
+.pa-workspace-list [role='option']:nth-child(n + 12) .pa-list-chevron {
+  --chevron-delay: 1215ms;
 }
 
 @keyframes pa-workspace-chevron-emphasis {
   0%,
   100% {
-    color: #94a3b8;
+    color: var(--chevron-rest);
     transform: translateX(0) scale(1);
     filter: none;
   }
   50% {
-    color: #1d4ed8;
+    color: var(--chevron-peak);
     transform: translateX(5px) scale(1.22);
-    filter: drop-shadow(0 0 3px rgb(37 99 235 / 0.55));
+    filter: drop-shadow(0 0 3px var(--chevron-glow));
   }
 }
 
+/* The same move as the entrance, once in each 15 s cycle (430 ms ≈ 2.9 %). Between waves each
+   arrow rests in its row's own colour (gold, red or grey), set by --chevron-rest. */
+@keyframes pa-workspace-chevron-repeat {
+  0%,
+  2.9%,
+  100% {
+    color: var(--chevron-rest);
+    transform: translateX(0) scale(1);
+    filter: none;
+  }
+  1.45% {
+    color: var(--chevron-peak);
+    transform: translateX(5px) scale(1.22);
+    filter: drop-shadow(0 0 3px var(--chevron-glow));
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  .pa-workspace-list [role='option'] .pa-list-chevron,
   .pa-list-enter .pa-workspace-list [role='option'] .pa-list-chevron,
   .pa-closing-flag-cloth,
   .pa-closing-sparkles > *,
@@ -1168,10 +1196,14 @@
 }
 /* The arrow sits inside the band: tinted to match a red or gold row. */
 .pa-workspace-list .pa-list-band--below .pa-list-chevron {
-  color: rgb(163 45 45 / 0.6);
+  --chevron-rest: rgb(163 45 45 / 0.6);
+  --chevron-peak: #a32d2d;
+  --chevron-glow: rgb(163 45 45 / 0.45);
 }
 .pa-workspace-list .pa-list-band--brilliant .pa-list-chevron {
-  color: #ba7517;
+  --chevron-rest: #ba7517;
+  --chevron-peak: #8a5300;
+  --chevron-glow: rgb(239 159 39 / 0.75);
 }
 .pa-workspace-list .pa-list-band--below {
   background: rgb(252 235 235 / 0.8);
@@ -1935,7 +1967,7 @@
   /* A thin amber-gold edge and a warm glow make the white read on the light gold. */
   filter: drop-shadow(0 0 0.6px rgb(186 117 23 / 0.95)) drop-shadow(0 0 5px rgb(239 159 39 / 0.85));
   transform: scale(0);
-  animation: pa-head-sparkle 9s ease-in-out var(--delay) infinite;
+  animation: pa-head-sparkle 6s ease-in-out var(--delay) infinite;
 }
 .pa-head-sparkles i::before {
   content: '';
@@ -1944,25 +1976,34 @@
   background: #fff;
   clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
 }
-.pa-head-sparkles i:nth-child(1) { --size: 16px; --delay: 1s; top: 12%; left: 58%; }
-.pa-head-sparkles i:nth-child(2) { --size: 21px; --delay: 2.8s; top: 20%; left: 86%; }
-.pa-head-sparkles i:nth-child(3) { --size: 14px; --delay: 4.6s; top: 70%; left: 93%; }
-.pa-head-sparkles i:nth-child(4) { --size: 17px; --delay: 6.2s; top: 78%; left: 74%; }
-.pa-head-sparkles i:nth-child(5) { --size: 12px; --delay: 7.8s; top: 8%; left: 36%; }
+/* Twelve of them, staggered so about five shine at any moment (owner request 20/10/2026), all
+   around the edges and between the blocks, never over the mark or the texts. */
+.pa-head-sparkles i:nth-child(1) { --size: 16px; --delay: 0.1s; top: 12%; left: 58%; }
+.pa-head-sparkles i:nth-child(2) { --size: 21px; --delay: 0.7s; top: 20%; left: 88%; }
+.pa-head-sparkles i:nth-child(3) { --size: 14px; --delay: 1.2s; top: 70%; left: 93%; }
+.pa-head-sparkles i:nth-child(4) { --size: 17px; --delay: 1.7s; top: 84%; left: 72%; }
+.pa-head-sparkles i:nth-child(5) { --size: 12px; --delay: 2.3s; top: 8%; left: 36%; }
+.pa-head-sparkles i:nth-child(6) { --size: 10px; --delay: 2.7s; top: 46%; left: 96%; }
+.pa-head-sparkles i:nth-child(7) { --size: 13px; --delay: 3.3s; top: 88%; left: 8%; }
+.pa-head-sparkles i:nth-child(8) { --size: 9px; --delay: 3.7s; top: 30%; left: 48%; }
+.pa-head-sparkles i:nth-child(9) { --size: 15px; --delay: 4.2s; top: 6%; left: 74%; }
+.pa-head-sparkles i:nth-child(10) { --size: 11px; --delay: 4.7s; top: 90%; left: 44%; }
+.pa-head-sparkles i:nth-child(11) { --size: 8px; --delay: 5.1s; top: 4%; left: 6%; }
+.pa-head-sparkles i:nth-child(12) { --size: 12px; --delay: 5.6s; top: 58%; left: 50%; }
 /* A slow, soft glint: grows, turns a little, fades. */
 @keyframes pa-head-sparkle {
   0%,
-  26%,
+  44%,
   100% {
     transform: scale(0) rotate(0deg);
     opacity: 0;
   }
-  10% {
+  12% {
     transform: scale(1) rotate(30deg);
     opacity: 1;
   }
-  18% {
-    transform: scale(0.8) rotate(50deg);
+  30% {
+    transform: scale(0.8) rotate(55deg);
     opacity: 0.85;
   }
 }
@@ -2156,4 +2197,160 @@
 .pa-subject-bar .tabs__list-container__scroller[data-left-scroll='false'][data-right-scroll='true'] {
   -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
   mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
+}
+
+/* Recovery marks on a phone (owner request 20/10/2026): two or three marks beside the subject's
+   name would cover it, so they move to a second line under the name, right-aligned with the
+   arrow kept on the first line. A single mark still fits beside the name. */
+@media (max-width: 560px) {
+  .pa-workspace-list .pa-list-band--recovery {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+  }
+  .pa-workspace-list .pa-list-band--recovery .pa-recovery-marks {
+    order: 1;
+    flex: 1 0 100%;
+    justify-content: flex-end;
+    padding-right: 1.6rem;
+  }
+}
+
+/* Period cards keep their full name on one line (owner decision 20/10/2026): never shrunk below
+   it, so with six cards on a phone the row scrolls sideways like the bar of disciplines. */
+.pa-period-tab-label {
+  white-space: nowrap;
+}
+.pa-student-workspace
+  .pa-period-tabs.tabs[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .pa-period-tab {
+  flex: 1 0 auto;
+}
+
+/* The sliding content keeps its own margins inside it (owner review 20/10/2026): otherwise the
+   list's top margin escapes the live element but not its absolutely placed copy, and the copy that
+   leaves starts 13px lower — the "pulinho" before every slide. */
+.pa-slide-stage > [data-slide-live],
+.pa-slide-stage > .pa-swipe-track > [data-slide-live],
+.pa-slide-stage > [role='tabpanel'],
+[data-area-live] {
+  display: flow-root;
+}
+
+/* Drag to switch (owner request 20/10/2026): the content follows the finger and the neighbour,
+   drawn beside it, comes in from the side. The page still scrolls vertically and can be zoomed. */
+.pa-swipe-area {
+  touch-action: pan-y pinch-zoom;
+}
+.pa-swipe-track {
+  position: relative;
+}
+.pa-swipe-peek {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  pointer-events: none;
+}
+/* 0.75rem: the same air as DRAG_GAP_PX_V1 between the two pages. */
+.pa-swipe-peek--next {
+  left: calc(100% + 0.75rem);
+}
+.pa-swipe-peek--prev {
+  right: calc(100% + 0.75rem);
+}
+.pa-swipe-peek *,
+.pa-swipe-peek *::before,
+.pa-swipe-peek *::after {
+  animation: none !important;
+}
+/* With the margin kept inside the sliding list, it no longer overlaps the 0.4rem under the column
+   labels; 0.4rem here keeps the list exactly where it was (0.8rem from the labels). */
+.pa-boletim-section .pa-slide-stage .pa-workspace-list {
+  margin-top: 0.4rem;
+}
+
+/* The Boletim/Disciplina stage is a grid item: without this it grows to the width of the strip of
+   trimester cards and the whole page scrolls sideways on a phone. */
+.pa-student-workspace > .pa-slide-stage {
+  min-width: 0;
+}
+
+/* Discipline header, one line (owner review 20/10/2026): Back, the bar of disciplines (the chosen one
+   highlighted, the next ones peeking in at the edge) and the place in the list. */
+.pa-subject-head {
+  display: grid;
+  /* minmax(0, …): the bar scrolls inside the row instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
+}
+.pa-subject-head-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+}
+.pa-subject-head-row > .pa-subject-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.pa-subject-tab-icon {
+  display: inline-grid;
+  margin-right: 0.3rem;
+  place-items: center;
+  opacity: 0.75;
+}
+.pa-subject-bar [role='tab'][aria-selected='true'] .pa-subject-tab-icon {
+  opacity: 1;
+}
+.pa-subject-position {
+  flex: 0 0 auto;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #eef2f8;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.pa-subject-official {
+  justify-self: start;
+}
+/* Back keeps its round size beside the bar; the subject icon inside a tab is the glyph alone. */
+.pa-subject-head-row > .pa-workspace-back {
+  flex: 0 0 auto;
+}
+.pa-subject-tab-icon .pa-subject-icon {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* As many disciplines in view as the old full-width bar (owner review 20/10/2026): compact tabs
+   and a smaller Back beside them. */
+.pa-subject-head-row {
+  gap: 0.3rem;
+}
+.pa-subject-head-row > .pa-workspace-back {
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+}
+.pa-subject-bar [role='tab'] {
+  padding-inline: 0.6rem;
+}
+/* Phone (owner review 20/10/2026): the Boletim/Disciplina panel and the trimester panel add no
+   side padding, so the cards and the list run close to the sheet's edge. */
+@media (max-width: 560px) {
+  .pa-student-workspace > .pa-slide-stage > .tabs__panel,
+  .pa-period-tabs > .pa-slide-stage > .tabs__panel {
+    padding-inline: 0;
+  }
 }

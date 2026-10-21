@@ -338,31 +338,119 @@ const showcaseTerm = (period: 'T1' | 'T2', [av1, av2, work, list, class_]: Showc
     partial('LISTA DE EXERCÍCIOS', list, 3),
     partial('PARTICIPAÇÃO', class_, 3),
   ]);
-const SHOWCASE_CASES_V1: readonly [label: string, t1: ShowcaseTermV1, t2: ShowcaseTermV1][] = [
-  // Brilhante in both; the 2º has reds elsewhere, so only the 1º earns a seal. Subiu.
-  ['MATEMÁTICA', [10, 9.5, 4, 3, 2.5], [10, 10, 4, 3, 2.5]],
-  // Brilhante (seal) in the 1º, Excelente in the 2º: "Porém caiu".
-  ['INGLÊS', [9.5, 9.5, 4, 3, 2.5], [8, 8.5, 3.5, 2.5, 2.5]],
-  // Foi bem → Excelente: "Subiu".
-  ['PORTUGUÊS', [7, 7, 3, 2, 2], [8, 8, 3, 2.5, 2.5]],
-  // Foi bem → Não foi muito bem: "Caiu consideravelmente".
-  ['HISTÓRIA', [7.5, 7, 3, 2.5, 2], [4.5, 4, 2, 1.5, 2]],
-  // Foi bem → Precisa melhorar: "Caiu consideravelmente".
-  ['CIÊNCIAS', [6, 6, 3, 2, 2], [3, 2.5, 1, 1, 2]],
+const SHOWCASE_CASES_V1: readonly [
+  label: string,
+  t1: ShowcaseTermV1,
+  t2: ShowcaseTermV1,
+  t3: ShowcaseTermV1,
+][] = [
+  // Brilhante in all three; the 2º has reds elsewhere, so only the 1º and 3º earn a seal. Subiu.
+  ['MATEMÁTICA', [10, 9.5, 4, 3, 2.5], [10, 10, 4, 3, 2.5], [15, 14, 4, 3, 2.5]],
+  // Brilhante (seal) in the 1º, Excelente in the 2º: "Porém caiu"; Excelente again in the 3º.
+  ['INGLÊS', [9.5, 9.5, 4, 3, 2.5], [8, 8.5, 3.5, 2.5, 2.5], [13, 13, 3.5, 2.5, 2.5]],
+  // Foi bem → Excelente: "Subiu"; holds Excelente in the 3º.
+  ['PORTUGUÊS', [7, 7, 3, 2, 2], [8, 8, 3, 2.5, 2.5], [12, 12, 3, 2.5, 2.5]],
+  // Foi bem → Não foi muito bem: "Caiu consideravelmente"; back just above the minimum (24) in the 3º.
+  ['HISTÓRIA', [7.5, 7, 3, 2.5, 2], [4.5, 4, 2, 1.5, 2], [10, 9, 2.5, 2, 2]],
+  // Foi bem → Precisa melhorar: "Caiu consideravelmente"; recovers in the 3º.
+  ['CIÊNCIAS', [6, 6, 3, 2, 2], [3, 2.5, 1, 1, 2], [11, 10, 3, 2, 2]],
   // Same mark: "Se manteve igual".
-  ['ARTE', [6.5, 6.5, 3, 2, 2], [6.5, 6.5, 3, 2, 2]],
-  // Right at the minimum (18,0), then up.
-  ['GEOGRAFIA', [6, 5.5, 2.5, 2, 2], [6.5, 6, 3, 2, 2]],
+  ['ARTE', [6.5, 6.5, 3, 2, 2], [6.5, 6.5, 3, 2, 2], [10, 10, 3, 2, 2]],
+  // Right at the minimum (18,0), then up; exactly the 3º minimum (24,0).
+  ['GEOGRAFIA', [6, 5.5, 2.5, 2, 2], [6.5, 6, 3, 2, 2], [9, 9, 2.5, 1.5, 2]],
 ];
-let showcaseDataV1: typeof previewData | undefined;
-const showcasePreviewData = () =>
-  (showcaseDataV1 ??= selfResponseV1.parse({
+/*
+ * 3º trimestre in the Vitrine (owner request 20/10/2026), chosen in "Simular admin": not started
+ * (no tab), in progress (activities so far, no trimester mark) or closed (mark of 40, minimum 24).
+ */
+type ThirdTermStateV1 = 'hidden' | 'ongoing' | 'closed';
+const showcaseThirdTerm = (state: ThirdTermStateV1, [av1, av2, work, list, class_]: ShowcaseTermV1) =>
+  state === 'closed'
+    ? {
+        period: 'T3' as const,
+        final: score(av1 + av2 + work + list + class_, TERM_MAXIMUM.T3),
+        partials: [
+          partial('Avaliação 1', av1, 15),
+          partial('Avaliação 2', av2, 15),
+          partial('TRABALHO EM GRUPO', work, 4),
+          partial('LISTA DE EXERCÍCIOS', list, 3),
+          partial('PARTICIPAÇÃO', class_, 3),
+        ],
+      }
+    : ongoingT3([partial('Avaliação 1', av1, 15), partial('TRABALHO EM GRUPO', work, 4)]);
+const showcaseDataV1 = new Map<ThirdTermStateV1, typeof previewData>();
+const showcasePreviewData = (thirdTerm: ThirdTermStateV1) => {
+  const cached = showcaseDataV1.get(thirdTerm);
+  if (cached) return cached;
+  const data = selfResponseV1.parse({
     ...previewData,
-    subjects: SHOWCASE_CASES_V1.map(([label, t1, t2], order) => ({
+    // A closed 3º trimestre ends the year's terms, so its seals count like the others.
+    ...(thirdTerm === 'closed'
+      ? { generatedAt: '2026-12-10T12:00:00-03:00', endedPeriods: ['T1', 'T2', 'T3'] }
+      : {}),
+    subjects: SHOWCASE_CASES_V1.map(([label, t1, t2, t3], order) => ({
       subjectId: 940001 + order,
       label,
       order,
-      periods: [showcaseTerm('T1', t1), showcaseTerm('T2', t2)],
+      periods: [
+        showcaseTerm('T1', t1),
+        showcaseTerm('T2', t2),
+        ...(thirdTerm === 'hidden' ? [] : [showcaseThirdTerm(thirdTerm, t3)]),
+      ],
+    })),
+  });
+  showcaseDataV1.set(thirdTerm, data);
+  return data;
+};
+/*
+ * "Recuperação nos 3 trimestres" (owner request 20/10/2026): MATEMÁTICA falls below the minimum
+ * in the 1º, 2º and 3º trimestres and takes REC1, REC2 and REC3, each scored against its
+ * trimester maximum (30/30/40). The other subjects pass every trimester, so only one row carries
+ * recoveries. All three trimesters are closed, as at the end of the year.
+ */
+const half = (value: number) => Math.round(value * 2) / 2;
+// Two assessments (10/10, or 15/15 in the 3º) and participation (10) adding up to the term mark.
+const recoveryTerm = (period: 'T1' | 'T2' | 'T3', final: number) => {
+  const assessment = half(final * 0.4);
+  const maximum = period === 'T3' ? 15 : 10;
+  return {
+    period,
+    final: score(final, TERM_MAXIMUM[period]),
+    partials: [
+      partial('Avaliação 1', assessment, maximum),
+      partial('Avaliação 2', assessment, maximum),
+      partial('Participação em sala', final - 2 * assessment, 10),
+    ],
+  };
+};
+const recoveryScore = (period: 'REC1' | 'REC2' | 'REC3', value: number) => ({
+  period,
+  final: score(value, TERM_MAXIMUM[period === 'REC1' ? 'T1' : period === 'REC2' ? 'T2' : 'T3']),
+});
+const RECOVERY_CASES_V1: readonly [label: string, t1: number, t2: number, t3: number][] = [
+  ['MATEMÁTICA', 12, 14.5, 18],
+  ['PORTUGUÊS', 21, 22.5, 30],
+  ['CIÊNCIAS', 24, 20, 31],
+  ['HISTÓRIA', 19, 23, 28],
+  ['GEOGRAFIA', 22, 21.5, 29.5],
+];
+let recoveryDataV1: typeof previewData | undefined;
+const recoveryPreviewData = () =>
+  (recoveryDataV1 ??= selfResponseV1.parse({
+    ...previewData,
+    generatedAt: '2026-12-10T12:00:00-03:00',
+    subjects: RECOVERY_CASES_V1.map(([label, t1, t2, t3], order) => ({
+      subjectId: 950001 + order,
+      label,
+      order,
+      periods: [
+        recoveryTerm('T1', t1),
+        recoveryTerm('T2', t2),
+        recoveryTerm('T3', t3),
+        ...(order === 0
+          ? [recoveryScore('REC1', 19.5), recoveryScore('REC2', 18), recoveryScore('REC3', 26)]
+          : []),
+      ],
     })),
   }));
 const realPreviewData = selfResponseV1.parse({
@@ -605,8 +693,10 @@ interface AdminSimulationV1 {
   hasPortrait: boolean;
   studentName: string;
   situation: AnnualSituationV1 | 'none';
-  dataset: 'showcase' | 'real' | 'example' | 'trend';
+  dataset: 'showcase' | 'real' | 'example' | 'trend' | 'recovery';
   academicState: SelfResponseV1['profile']['academicState'];
+  /** 3º trimestre of the Vitrine: not started, in progress or closed. */
+  thirdTerm: ThirdTermStateV1;
   /** Two real students have a single published subject. */
   singleSubject: boolean;
   /** Portal notices (/api/student/status): release countdown or grades hidden again. */
@@ -827,9 +917,25 @@ function AdminSimulatorPanelV1({
           <option value="real">Como na produção (7º ANO, só T1)</option>
           <option value="example">Exemplo completo (T1–T3 e REC)</option>
           <option value="trend">Casos de tendência (2º vs 1º)</option>
+          <option value="recovery">Recuperação nos 3 trimestres (MATEMÁTICA)</option>
         </select>
         <label>{toggle('singleSubject')} Só 1 disciplina</label>
       </div>
+      {value.dataset === 'showcase' ? (
+        <div style={rowStyle}>
+          <span style={{ opacity: 0.7 }}>3º trimestre:</span>
+          <select
+            value={value.thirdTerm}
+            onChange={(event) =>
+              onChange({ ...value, thirdTerm: event.target.value as AdminSimulationV1['thirdTerm'] })
+            }
+          >
+            <option value="hidden">Não iniciado</option>
+            <option value="ongoing">Em andamento (sem nota final)</option>
+            <option value="closed">Encerrado (nota final)</option>
+          </select>
+        </div>
+      ) : null}
       {value.dataset === 'real' ? (
         <div style={rowStyle}>
           <label>
@@ -939,6 +1045,7 @@ export function PortalDemoAppV1() {
     studentName: PREVIEW_NAMES_V1[0]!,
     situation: 'none',
     dataset: 'showcase',
+    thirdTerm: 'closed',
     academicState: 'regular',
     singleSubject: false,
     notice: 'none',
@@ -951,8 +1058,10 @@ export function PortalDemoAppV1() {
           ? withRealCorrectionV1(realPreviewData, admin.correctedRed)
           : admin.dataset === 'trend'
             ? trendPreviewData()
+            : admin.dataset === 'recovery'
+              ? recoveryPreviewData()
             : admin.dataset === 'showcase'
-              ? showcasePreviewData()
+              ? showcasePreviewData(admin.thirdTerm)
             : previewData,
         admin.notice === 'countdown' ? { ...admin, periods: [] } : admin,
       ),

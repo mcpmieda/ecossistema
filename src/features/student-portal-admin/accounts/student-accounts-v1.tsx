@@ -103,7 +103,7 @@ export function StudentAccountsV1(props: StudentAccountsPropsV1) {
 type AccountOrderV1 = 'name' | 'seals' | 'last-access';
 const ACCOUNT_ORDERS_V1: readonly { id: AccountOrderV1; label: string; icon: ReactNode }[] = [
   { id: 'name', label: 'Nome (A–Z)', icon: <ArrowDownAZ size={13} aria-hidden /> },
-  { id: 'seals', label: 'Selos brilhantes', icon: <Star size={13} aria-hidden /> },
+  { id: 'seals', label: 'Selos Brilhante', icon: <Star size={13} aria-hidden /> },
   { id: 'last-access', label: 'Último acesso', icon: <Clock size={13} aria-hidden /> },
 ];
 type AccountsBodyPropsV1 = StudentAccountsPropsV1 & { restoreAccountFromHash: boolean };
