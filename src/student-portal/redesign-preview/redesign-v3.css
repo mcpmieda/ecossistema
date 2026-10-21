@@ -1253,3 +1253,8 @@
 .pa3-panel--frequency .pa3-summary::after {
   background: rgb(15 42 95 / 0.07);
 }
+
+/* The month's tag centred over the ring (owner request 21/10/2026). */
+.pa3-panel--frequency .pa3-summary-title {
+  justify-self: center;
+}
