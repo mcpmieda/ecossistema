@@ -1064,3 +1064,70 @@
     animation: none;
   }
 }
+
+/* ---------- Summary motion (owner request 21/10/2026) ----------
+   The background: two soft light patches in the month's tone drift slowly, without end. The ruler:
+   faint diagonal stripes in the fill keep walking to the right. Both stop with reduced motion. */
+.pa3-panel--frequency .pa3-summary {
+  isolation: isolate;
+}
+.pa3-panel--frequency .pa3-summary::before,
+.pa3-panel--frequency .pa3-summary::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(28px);
+  opacity: 0.55;
+}
+.pa3-panel--frequency .pa3-summary::before {
+  top: -35%;
+  left: -20%;
+  background: color-mix(in srgb, var(--pa3-tone) 22%, transparent);
+  animation: pa3-drift-a 22s ease-in-out infinite alternate;
+}
+.pa3-panel--frequency .pa3-summary::after {
+  right: -25%;
+  bottom: -40%;
+  background: color-mix(in srgb, var(--pa3-ring-clear) 14%, transparent);
+  animation: pa3-drift-b 26s ease-in-out infinite alternate;
+}
+@keyframes pa3-drift-a {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(18%, 12%) scale(1.12); }
+  100% { transform: translate(6%, 26%) scale(0.95); }
+}
+@keyframes pa3-drift-b {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-16%, -10%) scale(1.08); }
+  100% { transform: translate(-28%, -4%) scale(1); }
+}
+.pa3-panel--frequency .pa3-ruler-fill {
+  position: relative;
+  overflow: hidden;
+}
+.pa3-panel--frequency .pa3-ruler-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(255 255 255 / 0.22) 0 6px,
+    transparent 6px 14px
+  );
+  animation: pa3-walk 1.4s linear infinite;
+}
+@keyframes pa3-walk {
+  from { background-position: 0 0; }
+  to { background-position: 19.8px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-panel--frequency .pa3-summary::before,
+  .pa3-panel--frequency .pa3-summary::after,
+  .pa3-panel--frequency .pa3-ruler-fill::after {
+    animation: none;
+  }
+}
