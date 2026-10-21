@@ -243,7 +243,69 @@ async function summaryInTx(
     ORDER BY o.date,o.shift,o.slot,b.received_at`,
     [year, uid, `${month}-01`],
   );
-  return summarizeFrequencyOriginsV2(tx, origins, month);
+  const coverage = await tx.query<Row>(LESSON_DAYS_SQL_V2, [year, uid, `${month}-01`]);
+  const valid = await sourcesValid(tx, coverage);
+  return withLessonDaysV2(
+    await summarizeFrequencyOriginsV2(tx, origins, month),
+    coverage.filter((_, index) => valid[index]),
+  );
+}
+/**
+ * The student's lesson days in the month: for each class, record and date, the latest coverage the
+ * collector sent (each collection stores only the days that changed). Parameters: year, student
+ * uid, first day of the month. The caller still checks each row's identity evidence.
+ */
+export const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c.date::text,b.shift,c.slots_json,c.complete,
+    b.academic_year,b.class_id,s.student_uid::text,s.source_ids_json,s.observation_ids_json
+    FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id
+    JOIN attendance.source_row_v2 s ON s.batch_id=c.batch_id AND s.record_key=c.record_key
+    WHERE b.academic_year=$1 AND s.student_uid=$2::uuid AND c.date>=$3::date AND c.date<($3::date+interval '1 month')
+    ORDER BY b.class_id,c.record_key,c.date,b.received_at DESC,b.id DESC`;
+/**
+ * Adds the Smecel lesson days to a month's summary (owner decision 20/10/2026). The counts follow
+ * the Smecel: lessons are the positions of the days, absences are X, justified are J (the yellow
+ * icon and the blue X) and do not lower the attendance: 100 × (lessons − absences) / lessons. They
+ * are given only when every day of the month was read completely and nothing is in review, so a
+ * partial reading never shows wrong totals; the marks and days are always given.
+ */
+export function withLessonDaysV2(
+  summary: FrequencySummaryV2,
+  rows: readonly Row[],
+): FrequencySummaryV2 {
+  const byDay = new Map<string, { date: string; shift: string; slots: Set<number>; complete: boolean }>();
+  for (const row of rows) {
+    // A tombstone (no slots) only says the record has no lesson that day.
+    if (!json<number[]>(row.slots_json).length) continue;
+    const date = text(row.date);
+    const shift = text(row.shift);
+    const day = byDay.get(`${date}:${shift}`) ?? { date, shift, slots: new Set<number>(), complete: true };
+    for (const slot of json<number[]>(row.slots_json)) day.slots.add(Number(slot));
+    day.complete &&= truth(row.complete);
+    byDay.set(`${date}:${shift}`, day);
+  }
+  const days = [...byDay.values()]
+    .filter((day) => day.slots.size > 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.shift.localeCompare(b.shift))
+    .map((day) => ({
+      date: day.date,
+      shift: day.shift,
+      slots: [...day.slots].sort((a, b) => a - b),
+      complete: day.complete,
+    }));
+  if (!days.length) return summary;
+  const absences = summary.marks.filter((mark) => mark.mark === 'X').length;
+  const justified = summary.marks.filter((mark) => mark.mark === 'J').length;
+  const reliable = days.every((day) => day.complete) && summary.conflicts === 0;
+  const denominator = days.reduce((total, day) => total + day.slots.length, 0);
+  return {
+    ...summary,
+    days,
+    absences: reliable ? absences : null,
+    justified: reliable ? justified : null,
+    denominator: reliable ? denominator : null,
+    percentage: reliable ? Math.round(((denominator - absences) / denominator) * 1000) / 10 : null,
+    coverage: reliable ? 'reliable' : 'incomplete',
+  };
 }
 export async function summarizeFrequencyOriginsV2(
   tx: Tx,
@@ -587,12 +649,14 @@ async function checkCollectionClock(tx: Tx, input: FrequencyCollectionV2) {
   );
   const today = text(clock!.today);
   const observedDay = text(clock!.observed_day);
-  validateCollection(input, observedDay < today ? observedDay : today);
+  const cutoff = observedDay < today ? observedDay : today;
+  validateCollection(input, cutoff);
   // The Windows collector diagnoses skew beyond five seconds using serverTime.
   // A capture whose clock is slightly ahead must not be rejected by the
   // server; future civil dates are still rejected against the school day.
   rejectSource(new Date(input.observedAt).getTime() > new Date(text(clock!.now)).getTime() + 5000,
     'observed-in-future');
+  return cutoff;
 }
 /**
  * The Centro's Relatório/Relação link is the class authority. Spacing, accents
@@ -721,21 +785,45 @@ async function changedSourceKeys(tx: Tx, input: FrequencyCollectionV2, stored: S
       .map((s) => s.record_key),
   );
 }
-async function coverageDelta(tx: Tx, input: FrequencyCollectionV2, changed: Set<string>) {
+/**
+ * The coverage rows to store: the days that changed, plus a tombstone (no slots, complete) for each
+ * day up to the capture that a record of this collection had before and no longer has. The diary is
+ * annual, so a missing day has no lesson for that record now (the Smecel lists a student twice and
+ * swaps the rows' order, or the days became "fora do período de matrícula"). Without it the old row
+ * stays the latest and the readers keep an incomplete day. A tombstone never proposes removing a
+ * mark: the occurrence belongs to the student and another record may still hold it.
+ */
+async function coverageDelta(
+  tx: Tx,
+  input: FrequencyCollectionV2,
+  changed: Set<string>,
+  cutoff: string,
+) {
   const prior = await tx.query<Row>(
-    `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id`,
+    `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id DESC`,
     [input.academicYear, input.classId],
   );
   const previous = new Map(prior.map((c) => [`${text(c.record_key)}:${text(c.date)}`, c]));
-  return input.coverage.filter((c) => {
-    const p = previous.get(`${c.recordKey}:${c.date}`);
-    return (
-      changed.has(c.recordKey) ||
-      !p ||
-      truth(p.complete) !== c.complete ||
-      canonicalFrequencyJsonV2(json<number[]>(p.slots_json)) !== canonicalFrequencyJsonV2(c.slots)
-    );
-  });
+  const delta: { recordKey: string; date: string; slots: number[]; complete: boolean }[] =
+    input.coverage.filter((c) => {
+      const p = previous.get(`${c.recordKey}:${c.date}`);
+      return (
+        changed.has(c.recordKey) ||
+        !p ||
+        truth(p.complete) !== c.complete ||
+        canonicalFrequencyJsonV2(json<number[]>(p.slots_json)) !== canonicalFrequencyJsonV2(c.slots)
+      );
+    });
+  const records = new Set(input.records.map((r) => r.recordKey));
+  const current = new Set(input.coverage.map((c) => `${c.recordKey}:${c.date}`));
+  for (const p of prior) {
+    const recordKey = text(p.record_key);
+    const date = text(p.date);
+    const tombstone = truth(p.complete) && json<number[]>(p.slots_json).length === 0;
+    if (records.has(recordKey) && date <= cutoff && !tombstone && !current.has(`${recordKey}:${date}`))
+      delta.push({ recordKey, date, slots: [], complete: true });
+  }
+  return delta;
 }
 function outsideEnrollment(eligibility: Eligibility[], date: string): boolean {
   return (
@@ -826,7 +914,7 @@ async function collect(
   actor: FrequencyActorV2,
 ): Promise<Row> {
   await liveLease(tx, input, actor);
-  await checkCollectionClock(tx, input);
+  const cutoff = await checkCollectionClock(tx, input);
   const { shift, reportLabel } = await matchCollectionClass(tx, input);
   const classState = await lockClassState(tx, input);
   const contentHash = await frequencyPayloadHashV2({
@@ -885,7 +973,7 @@ async function collect(
   const resolvedRecords = storedSources.filter((s) => s.resolution === 'resolved').length;
   const unresolvedRecords = storedSources.length - resolvedRecords;
   const changedSources = await changedSourceKeys(tx, input, storedSources);
-  const deltaCoverage = await coverageDelta(tx, input, changedSources);
+  const deltaCoverage = await coverageDelta(tx, input, changedSources, cutoff);
   const events = await collectionEvents(
     tx,
     input,
