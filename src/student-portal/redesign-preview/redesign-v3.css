@@ -679,21 +679,6 @@
   color: var(--pa3-ink);
 }
 
-/* The month as a row of school days: one tile each, like the calendar. */
-.pa3-daystrip {
-  display: flex;
-  flex: 1 0 100%;
-  gap: 3px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.pa3-daystrip-tile {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 1.35rem;
-  border-radius: 0.3rem;
-}
 .pa3-summary .pa3-counts {
   flex: 1 0 100%;
 }
@@ -737,4 +722,63 @@
 .pa3-legend-hint {
   flex: 1 0 100%;
   font-size: 0.68rem;
+}
+
+/* Summary option A (owner request 21/10/2026): the month in days, about absences only. */
+.pa3-summary-month {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--pa3-ink);
+  font-size: 0.95rem;
+}
+.pa3-summary-month strong {
+  font-weight: 780;
+}
+.pa3-summary-month-hint {
+  color: var(--pa3-muted);
+  font-size: 0.75rem;
+}
+.pa3-daycounts {
+  display: grid;
+  flex: 1 0 100%;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa3-daycount {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--pa3-ink);
+  font-size: 0.92rem;
+}
+.pa3-daycount::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 0.25rem;
+}
+.pa3-daycount strong {
+  min-width: 1.4rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  text-align: right;
+}
+.pa3-daycount--absent::before {
+  background: var(--pa3-red);
+}
+.pa3-daycount--absent strong {
+  color: var(--pa3-red);
+}
+.pa3-daycount--clear::before {
+  background: var(--pa3-green-soft);
+  box-shadow: inset 0 0 0 1px #86c7a1;
+}
+.pa3-daycount--justified::before {
+  background: #f59e0b;
+}
+.pa3-daycount--justified strong {
+  color: var(--pa3-amber);
 }

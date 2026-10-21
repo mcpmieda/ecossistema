@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react';
 import { Tabs } from '@heroui/react';
-import { CalendarX2, Check, ChevronRight, Clock3, FileCheck2, Hourglass, TriangleAlert, X } from 'lucide-react';
+import { CalendarX2, Check, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
 import { PREVIEW_TODAY_V3 } from './demo-data-v3';
 
@@ -93,20 +93,6 @@ function toneOf(data: FrequencySummaryV2) {
   if (data.percentage < MINIMUM_PERCENT) return { tone: 'low', text: `abaixo de ${MINIMUM_PERCENT}%` } as const;
   if (data.percentage < 85) return { tone: 'warn', text: `perto de ${MINIMUM_PERCENT}%` } as const;
   return { tone: 'good', text: 'boa' } as const;
-}
-
-/**
- * The month as a row of days (owner request 21/10/2026): one tile per school day already over, in
- * the calendar's colours, so "11 de 14 dias sem falta" is seen before it is read.
- */
-function DayStripV3({ days }: { days: { date: string; day: DayV3 }[] }) {
-  return (
-    <ol className="pa3-daystrip" aria-hidden="true">
-      {days.map(({ date, day }) => (
-        <li key={date} className={`pa3-daystrip-tile pa3-kind--${day.kind}${day.justified ? ' is-justified' : ''}`} style={fillOf(day)} />
-      ))}
-    </ol>
-  );
 }
 
 /**
@@ -277,42 +263,43 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
         </Tabs>
       </div>
 
+      {/*
+        The month in days, about absences only (owner request 21/10/2026, option A). The rule of a
+        day: "com falta" when the diary has at least one absence (X) that day, X and J together
+        included; "com falta justificada" when every absence of the day is justified; "sem falta"
+        when it has none. No threshold, so no absence the diary records ever disappears from the
+        days. The legal figure (75% of the year's lessons) stays below, in lessons.
+      */}
       <div className={'pa3-summary pa3-summary--' + tone.tone}>
-        <div className="pa3-summary-head">
-          <span className="pa3-summary-icon" aria-hidden="true">
-            {tone.tone === 'good' ? <Check size={22} strokeWidth={3} /> : tone.tone === 'warn' ? <TriangleAlert size={20} strokeWidth={2.6} /> : tone.tone === 'low' ? <X size={22} strokeWidth={3} /> : <Hourglass size={20} strokeWidth={2.4} />}
-          </span>
-          {totals.days ? (
-            <span className="pa3-summary-value pa3-summary-value--days">
-              {totals.clear}
-              <small>
-                de {plural(totals.days, 'dia', 'dias')}
-                <br />
-                sem falta
-              </small>
-            </span>
-          ) : (
-            <span className="pa3-summary-value">
-              —<small>{tone.text}</small>
-            </span>
-          )}
-        </div>
         {totals.days ? (
           <>
-            <DayStripV3 days={countedDays} />
-            <ul className="pa3-counts">
-              <li className="pa3-count pa3-count--present"><strong>{totals.clear}</strong> sem falta</li>
-              {totals.missed ? <li className="pa3-count pa3-count--absent"><strong>{totals.missed}</strong> com falta</li> : null}
-              {totals.justified ? <li className="pa3-count pa3-count--justified"><strong>{totals.justified}</strong> com falta justificada</li> : null}
+            <p className="pa3-summary-month">
+              {MONTHS[monthNumber - 1]}: <strong>{plural(totals.days, 'dia de aula', 'dias de aula')}</strong>
+              {month === current ? <span className="pa3-summary-month-hint"> até ontem</span> : null}
+            </p>
+            <ul className="pa3-daycounts">
+              <li className="pa3-daycount pa3-daycount--absent">
+                <strong>{totals.missed}</strong> {totals.missed === 1 ? 'dia com falta' : 'dias com falta'}
+              </li>
+              <li className="pa3-daycount pa3-daycount--clear">
+                <strong>{totals.clear}</strong> {totals.clear === 1 ? 'dia sem falta' : 'dias sem falta'}
+              </li>
+              {totals.justified ? (
+                <li className="pa3-daycount pa3-daycount--justified">
+                  <strong>{totals.justified}</strong> {totals.justified === 1 ? 'dia com falta justificada' : 'dias com falta justificada'}
+                </li>
+              ) : null}
             </ul>
           </>
-        ) : null}
+        ) : (
+          <p className="pa3-summary-month">{tone.text}</p>
+        )}
         {/* The legal figure stays: the year's minimum is counted in lessons, not in days. */}
         {tone.tone !== 'none' && data.percentage !== null ? (
           <p className="pa3-summary-official">
             {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
-            <strong>{Math.floor(data.percentage)}%</strong> de presença nas aulas · {tone.text}
-            <span className="pa3-summary-official-hint"> (o mínimo do ano é {MINIMUM_PERCENT}%)</span>
+            <strong>{Math.floor(data.percentage)}%</strong> de presença nas aulas
+            <span className="pa3-summary-official-hint"> · o mínimo do ano é {MINIMUM_PERCENT}%</span>
           </p>
         ) : null}
         {data.conflicts > 0 ? (
