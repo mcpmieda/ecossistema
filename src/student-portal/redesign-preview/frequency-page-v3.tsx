@@ -300,16 +300,6 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
             <span>100%</span>
           </div>
         </div>
-        <p className="pa3-summary-foot">
-          {tone.tone === 'none' ? (
-            tone.text
-          ) : (
-            <>
-              <strong>{tone.text}</strong> · o ano pede {MINIMUM_PERCENT}% de presença
-            </>
-          )}
-          {data.conflicts > 0 ? ` · ${plural(data.conflicts, 'registro', 'registros')} em revisão` : ''}
-        </p>
       </div>
 
       <div className="pa3-card" {...swipe}>
