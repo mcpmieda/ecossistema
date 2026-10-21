@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type TouchEvent } from 'react';
+import { useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react';
 import { CalendarX2, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
 import { PREVIEW_TODAY_V3 } from './demo-data-v3';
@@ -98,32 +98,71 @@ function toneOf(data: FrequencySummaryV2) {
 }
 
 /**
- * The month's school days as a ring (frequented green, with an absence red, justified amber),
- * the official attendance in lessons in its centre. An empty month is a grey ring.
+ * The month's school days as a ring (owner request 21/10/2026, "less flat"): an SVG ring with a
+ * light track, one rounded arc per kind (frequented green, with an absence red, justified amber),
+ * each in a soft gradient, a small gap between arcs, the official attendance in its centre. Each
+ * arc grows to its size when the month opens. An empty month shows the track only.
  */
+const RING_RADIUS_V3 = 42;
+const RING_STROKE_V3 = 11;
+/** Arcs use pathLength 100; a round cap adds half the stroke at each end, in those units. */
+const RING_CAP_V3 = ((RING_STROKE_V3 / 2) / (2 * Math.PI * RING_RADIUS_V3)) * 100;
+const RING_GAP_V3 = 2.2;
 function DayRingV3({ totals, percentage }: { totals: { days: number; clear: number; missed: number; justified: number }; percentage: number | null }) {
-  const gap = totals.days > 1 ? 0.6 : 0;
   const parts = [
-    ['var(--pa3-ring-clear)', totals.clear],
-    ['var(--pa3-ring-missed)', totals.missed],
-    ['var(--pa3-ring-justified)', totals.justified],
+    ['clear', totals.clear],
+    ['missed', totals.missed],
+    ['justified', totals.justified],
   ] as const;
+  const shown = parts.filter(([, count]) => count > 0);
+  const single = shown.length === 1;
   let at = 0;
-  const stops: string[] = [];
-  for (const [colour, count] of parts) {
-    if (!count) continue;
+  const arcs = shown.map(([kind, count]) => {
     const size = (count / totals.days) * 100;
-    stops.push(`${colour} ${at}% ${at + size - gap}%`, `#fff ${at + size - gap}% ${at + size}%`);
+    // Leave room for the two round caps and the gap; a lone arc closes the ring with no gap.
+    const length = single ? 100 : Math.max(0.01, size - 2 * RING_CAP_V3 - RING_GAP_V3);
+    const start = single ? 0 : at + RING_CAP_V3 + RING_GAP_V3 / 2;
     at += size;
-  }
-  const background = totals.days ? `conic-gradient(${stops.join(', ')})` : '#e2e8f0';
+    return { kind, length, start };
+  });
   return (
     <div
       className="pa3-ring"
-      style={{ background }}
       role="img"
       aria-label={`${totals.clear} dias frequentados, ${totals.missed} com falta e ${totals.justified} com falta justificada${percentage === null ? '' : `; ${Math.floor(percentage)}% de presença nas aulas`}`}
     >
+      <svg className="pa3-ring-svg" viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <linearGradient id="pa3-ring-clear" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#4ade80" />
+            <stop offset="1" stopColor="#15803d" />
+          </linearGradient>
+          <linearGradient id="pa3-ring-missed" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fb7185" />
+            <stop offset="1" stopColor="#dc2626" />
+          </linearGradient>
+          <linearGradient id="pa3-ring-justified" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fcd34d" />
+            <stop offset="1" stopColor="#f59e0b" />
+          </linearGradient>
+        </defs>
+        <circle className="pa3-ring-track" cx="50" cy="50" r={RING_RADIUS_V3} strokeWidth={RING_STROKE_V3} />
+        {arcs.map(({ kind, length, start }) => (
+          <circle
+            key={kind}
+            className="pa3-ring-arc"
+            cx="50"
+            cy="50"
+            r={RING_RADIUS_V3}
+            strokeWidth={RING_STROKE_V3}
+            pathLength={100}
+            stroke={`url(#pa3-ring-${kind})`}
+            strokeLinecap={single ? 'butt' : 'round'}
+            strokeDashoffset={-start}
+            style={{ '--pa3-arc': length } as CSSProperties}
+          />
+        ))}
+      </svg>
       <div className="pa3-ring-hole">
         {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
         <strong>{percentage === null ? '—' : `${Math.floor(percentage)}%`}</strong>

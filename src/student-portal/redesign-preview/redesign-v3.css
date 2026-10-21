@@ -1131,3 +1131,51 @@
     animation: none;
   }
 }
+
+/* ---------- The ring as SVG (owner request 21/10/2026: less flat) ---------- */
+@property --pa3-arc-now {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+.pa3-panel--frequency .pa3-ring {
+  position: relative;
+  background: none;
+  -webkit-mask: none;
+  mask: none;
+  animation: none;
+  filter: drop-shadow(0 10px 16px rgb(15 42 95 / 0.14));
+}
+.pa3-ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.pa3-ring-track {
+  fill: none;
+  stroke: #eef2f7;
+}
+.pa3-ring-arc {
+  fill: none;
+  stroke-dasharray: var(--pa3-arc-now) 100;
+  animation: pa3-arc-grow 950ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes pa3-arc-grow {
+  from { --pa3-arc-now: 0; }
+  to { --pa3-arc-now: var(--pa3-arc); }
+}
+.pa3-panel--frequency .pa3-ring-hole {
+  position: relative;
+  width: 5.7rem;
+  height: 5.7rem;
+  background: #fff;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-ring-arc {
+    animation: none;
+    stroke-dasharray: var(--pa3-arc) 100;
+  }
+}
