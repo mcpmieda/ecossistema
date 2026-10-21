@@ -653,14 +653,11 @@
 }
 
 /* ---------- Frequência por dias (owner requests 21/10/2026) ----------
-   Only a day with an absence is coloured; others stay neutral. How much of it had absences is a level: the
-   tile fills from the bottom in proportion to its lessons with an absence (--pa3-fill), so it never
-   tells which part of the day. Red for an absence, amber when justified. Shared by the calendar,
-   the row of days, the legend and the list. */
-.pa3-app {
-  --pa3-miss: var(--pa3-red);
-  --pa3-clear-bg: var(--pa3-green-soft);
-}
+   Only a day with an absence is coloured; others stay neutral. Tone (owner choice "A com os
+   pontinhos do B"): the more of the day's lessons with an absence, the stronger the colour, full
+   colour when every lesson had one; one dot per absence under the number. It never tells which
+   part of the day. Red for an absence, amber when justified. Shared by the calendar, the legend
+   and the list. */
 /* No absence: neutral, it states nothing about the day (owner decision 21/10/2026). */
 .pa3-kind--clear {
   background: transparent;
@@ -669,18 +666,57 @@
   cursor: default;
 }
 .pa3-kind--missed {
-  background: linear-gradient(to top, var(--pa3-miss) var(--pa3-fill, 100%), #fbe4e1 var(--pa3-fill, 100%));
+  --pa3-dot: var(--pa3-red);
+  position: relative;
+  background: #f6c7c1;
+  color: #7a1c13;
+}
+.pa3-kind--missed[data-tone='2'] {
+  background: #e8857a;
+  color: #fff;
+  --pa3-dot: #fff;
+}
+.pa3-kind--missed[data-tone='3'] {
+  background: var(--pa3-red);
+  color: #fff;
+  --pa3-dot: #fff;
 }
 .pa3-kind--missed.is-justified {
-  --pa3-miss: #f59e0b;
-  background: linear-gradient(to top, var(--pa3-miss) var(--pa3-fill, 100%), #fdf0d5 var(--pa3-fill, 100%));
+  --pa3-dot: #b45309;
+  background: #fde7b0;
+  color: #7a4a00;
 }
-/* The day number stays readable whatever the level. */
+.pa3-kind--missed.is-justified[data-tone='2'] {
+  background: #f8c665;
+  color: #7a4a00;
+}
+.pa3-kind--missed.is-justified[data-tone='3'] {
+  background: #f59e0b;
+  color: #fff;
+  --pa3-dot: #fff;
+}
+/* One dot per absence, under the day's number. */
+.pa3-day-dots {
+  position: absolute;
+  right: 0;
+  bottom: 14%;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+.pa3-day-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pa3-dot);
+}
 .pa3-day.pa3-kind--missed .pa3-day-number {
-  padding: 0 0.2rem;
-  border-radius: 0.35rem;
-  background: rgb(255 255 255 / 0.9);
-  color: var(--pa3-ink);
+  transform: translateY(-12%);
+}
+.pa3-absence-badge .pa3-day-dots {
+  bottom: 20%;
 }
 
 .pa3-summary .pa3-counts {

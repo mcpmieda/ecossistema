@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import { Tabs } from '@heroui/react';
 import { CalendarX2, Check, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
@@ -29,7 +29,7 @@ type DayKindV3 = 'clear' | 'missed';
 type DayStateV3 = DayKindV3 | 'pending' | 'off' | 'unknown' | 'future';
 type MarkV3 = FrequencySummaryV2['marks'][number];
 type ShiftLessonsV3 = { shift: string; slots: number[]; complete: boolean };
-/** `share`: lessons with an absence ÷ lessons of the day, drawn as the tile's fill level. */
+/** `share`: lessons with an absence ÷ lessons of the day, drawn as the tile's tone. */
 type DayV3 = { kind: DayKindV3; justified: boolean; missed: MarkV3[]; lessons: number; share: number };
 
 const pad = (value: number) => String(value).padStart(2, '0');
@@ -80,8 +80,19 @@ function daySentence(day: DayV3) {
   if (day.missed.length >= day.lessons) return `Falta em todas as ${plural(day.lessons, 'aula', 'aulas')}${reason}.`;
   return `${plural(day.missed.length, 'falta', 'faltas')} em ${plural(day.lessons, 'aula', 'aulas')}${reason}.`;
 }
-/** The tile's fill level, as a CSS custom property. */
-const fillOf = (day: DayV3 | null) => ({ '--pa3-fill': `${Math.round((day?.share ?? 0) * 100)}%` }) as CSSProperties;
+/**
+ * The tile's tone (owner choice 21/10/2026, "A com os pontinhos do B"): 1 = up to a third of the
+ * day's lessons with an absence, 2 = more, 3 = every lesson (full colour). One dot per absence.
+ */
+const toneLevelOf = (day: DayV3 | null) => (!day || day.share <= 0 ? 0 : day.share >= 1 ? 3 : day.share > 1 / 3 ? 2 : 1);
+const AbsenceDotsV3 = ({ day }: { day: DayV3 | null }) =>
+  day && day.missed.length ? (
+    <span className="pa3-day-dots" aria-hidden="true">
+      {day.missed.map((mark) => (
+        <i key={`${mark.shift}:${mark.slot}`} />
+      ))}
+    </span>
+  ) : null;
 
 function toneOf(data: FrequencySummaryV2) {
   // Only a reliable month has a percentage worth judging (the server gives none otherwise).
@@ -305,9 +316,9 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
           <h2>Dias do mês</h2>
         </div>
         <ul className="pa3-legend" aria-label="Legenda">
-          <li><span className="pa3-dot pa3-kind--missed" style={{ '--pa3-fill': '50%' } as CSSProperties} /> Com falta</li>
-          <li><span className="pa3-dot pa3-kind--missed is-justified" style={{ '--pa3-fill': '50%' } as CSSProperties} /> Justificada</li>
-          <li className="pa3-legend-hint">Quanto mais cheio, mais aulas com falta no dia.</li>
+          <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Com falta</li>
+          <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
+          <li className="pa3-legend-hint">Cada pontinho é uma falta; cor cheia, falta em todas as aulas do dia.</li>
         </ul>
         {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
         <div className="pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`} role="group">
@@ -338,10 +349,11 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
                 disabled={!pickable}
                 aria-pressed={selected === date}
                 aria-label={ariaOf(date, state)}
-                style={state === 'missed' ? fillOf(dayAt(date)) : undefined}
+                data-tone={state === 'missed' ? toneLevelOf(dayAt(date)) : undefined}
                 onClick={() => setPicked(date)}
               >
                 <span className="pa3-day-number">{index + 1}</span>
+                {state === 'missed' ? <AbsenceDotsV3 day={dayAt(date)} /> : null}
               </button>
             );
           })}
@@ -404,7 +416,9 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
                     className={'pa3-absence' + (selected === date ? ' is-selected' : '')}
                     onClick={() => setPicked(date)}
                   >
-                    <span className={`pa3-absence-badge pa3-kind--${day.kind}${day.justified ? ' is-justified' : ''}`} style={fillOf(day)} aria-hidden="true" />
+                    <span className={`pa3-absence-badge pa3-kind--${day.kind}${day.justified ? ' is-justified' : ''}`} data-tone={toneLevelOf(day)} aria-hidden="true">
+                      <AbsenceDotsV3 day={day} />
+                    </span>
                     <span className="pa3-absence-copy">
                       <strong>
                         {shortDay(date)}
