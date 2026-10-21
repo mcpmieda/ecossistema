@@ -6,7 +6,7 @@ import { PREVIEW_TODAY_V3 } from './demo-data-v3';
 
 /*
  * Frequência in a page of its own (owner request 20/10/2026, preview only): one month at a time,
- * read in DAYS (owner request 21/10/2026). A school day is only "sem falta" or "com falta"; how
+ * read in DAYS, about absences only (owner request 21/10/2026). A day is "com falta" or not marked; how
  * much of it had absences is a LEVEL (the tile fills in proportion to the lessons with an
  * absence), never a label: no "arrived late", "left early" or "partly", which would be the portal
  * interpreting the diary (owner decisions 21/10/2026). Which lessons only shows in the lesson
@@ -167,7 +167,6 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   );
   const totals = {
     days: countedDays.length,
-    clear: countedDays.filter(({ day }) => day.kind === 'clear').length,
     missed: countedDays.filter(({ day }) => day.kind === 'missed' && !day.justified).length,
     justified: countedDays.filter(({ day }) => day.justified).length,
   };
@@ -220,7 +219,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
     const day = dayAt(date);
     const today = date === PREVIEW_TODAY_V3 ? ' (hoje, ainda não entra na conta)' : '';
     const text: Record<DayStateV3, string> = {
-      clear: 'sem falta',
+      clear: 'nenhuma falta registrada',
       missed: day ? daySentence(day) : '',
       pending: 'leitura incompleta',
       off: 'sem aula',
@@ -264,25 +263,19 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       </div>
 
       {/*
-        The month in days, about absences only (owner request 21/10/2026, option A). The rule of a
-        day: "com falta" when the diary has at least one absence (X) that day, X and J together
-        included; "com falta justificada" when every absence of the day is justified; "sem falta"
-        when it has none. No threshold, so no absence the diary records ever disappears from the
-        days. The legal figure (75% of the year's lessons) stays below, in lessons.
+        The month in days, about ABSENCES ONLY (owner request 21/10/2026, option A). A day is "com
+        falta" when the diary has at least one absence (X) that day, X and J together included, and
+        "com falta justificada" when every absence of the day is justified. No threshold, so no
+        absence the diary records disappears from the days. Never "dias sem falta" nor a count of
+        school days: sometimes there is no lesson while the students are at school, and the portal
+        must not state either (owner decision 21/10/2026). The legal figure stays below, in lessons.
       */}
       <div className={'pa3-summary pa3-summary--' + tone.tone}>
         {totals.days ? (
           <>
-            <p className="pa3-summary-month">
-              {MONTHS[monthNumber - 1]}: <strong>{plural(totals.days, 'dia de aula', 'dias de aula')}</strong>
-              {month === current ? <span className="pa3-summary-month-hint"> até ontem</span> : null}
-            </p>
             <ul className="pa3-daycounts">
               <li className="pa3-daycount pa3-daycount--absent">
                 <strong>{totals.missed}</strong> {totals.missed === 1 ? 'dia com falta' : 'dias com falta'}
-              </li>
-              <li className="pa3-daycount pa3-daycount--clear">
-                <strong>{totals.clear}</strong> {totals.clear === 1 ? 'dia sem falta' : 'dias sem falta'}
               </li>
               {totals.justified ? (
                 <li className="pa3-daycount pa3-daycount--justified">
@@ -292,7 +285,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
             </ul>
           </>
         ) : (
-          <p className="pa3-summary-month">{tone.text}</p>
+          <p className="pa3-summary-note">{tone.text}</p>
         )}
         {/* The legal figure stays: the year's minimum is counted in lessons, not in days. */}
         {tone.tone !== 'none' && data.percentage !== null ? (
@@ -312,7 +305,6 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
           <h2>Dias do mês</h2>
         </div>
         <ul className="pa3-legend" aria-label="Legenda">
-          <li><span className="pa3-dot pa3-kind--clear" /> Sem falta</li>
           <li><span className="pa3-dot pa3-kind--missed" style={{ '--pa3-fill': '50%' } as CSSProperties} /> Com falta</li>
           <li><span className="pa3-dot pa3-kind--missed is-justified" style={{ '--pa3-fill': '50%' } as CSSProperties} /> Justificada</li>
           <li className="pa3-legend-hint">Quanto mais cheio, mais aulas com falta no dia.</li>
@@ -331,7 +323,8 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
             const date = `${month}-${pad(index + 1)}`;
             const state = stateOf(date);
             const justified = dayAt(date)?.justified ?? false;
-            const pickable = state !== 'off' && state !== 'unknown' && state !== 'future';
+            // Only a day with an absence (or today's, still open) is highlighted and opens.
+            const pickable = state === 'missed' || state === 'pending';
             return (
               <button
                 key={date}

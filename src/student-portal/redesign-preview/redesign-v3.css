@@ -653,7 +653,7 @@
 }
 
 /* ---------- Frequência por dias (owner requests 21/10/2026) ----------
-   A day is "sem falta" (green) or "com falta". How much of the day had absences is a level: the
+   Only a day with an absence is coloured; others stay neutral. How much of it had absences is a level: the
    tile fills from the bottom in proportion to its lessons with an absence (--pa3-fill), so it never
    tells which part of the day. Red for an absence, amber when justified. Shared by the calendar,
    the row of days, the legend and the list. */
@@ -661,8 +661,12 @@
   --pa3-miss: var(--pa3-red);
   --pa3-clear-bg: var(--pa3-green-soft);
 }
+/* No absence: neutral, it states nothing about the day (owner decision 21/10/2026). */
 .pa3-kind--clear {
-  background: var(--pa3-clear-bg);
+  background: transparent;
+  /* The same grey as a day without lessons: the calendar never tells one from the other. */
+  color: #b6c0cf;
+  cursor: default;
 }
 .pa3-kind--missed {
   background: linear-gradient(to top, var(--pa3-miss) var(--pa3-fill, 100%), #fbe4e1 var(--pa3-fill, 100%));
@@ -725,19 +729,6 @@
 }
 
 /* Summary option A (owner request 21/10/2026): the month in days, about absences only. */
-.pa3-summary-month {
-  flex: 1 0 100%;
-  margin: 0;
-  color: var(--pa3-ink);
-  font-size: 0.95rem;
-}
-.pa3-summary-month strong {
-  font-weight: 780;
-}
-.pa3-summary-month-hint {
-  color: var(--pa3-muted);
-  font-size: 0.75rem;
-}
 .pa3-daycounts {
   display: grid;
   flex: 1 0 100%;
@@ -771,10 +762,6 @@
 }
 .pa3-daycount--absent strong {
   color: var(--pa3-red);
-}
-.pa3-daycount--clear::before {
-  background: var(--pa3-green-soft);
-  box-shadow: inset 0 0 0 1px #86c7a1;
 }
 .pa3-daycount--justified::before {
   background: #f59e0b;
