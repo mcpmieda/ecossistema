@@ -218,10 +218,6 @@
   color: #b6c0cf;
   cursor: default;
 }
-.pa3-day.is-today .pa3-day-number {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
 .pa3-day.is-selected {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
   transform: scale(1.04);
@@ -652,13 +648,12 @@
   outline: none;
 }
 
-/* ---------- Frequência por dias (owner requests 21/10/2026) ----------
-   Only a day with an absence is coloured; others stay neutral. Tone (owner choice "A com os
-   pontinhos do B"): the more of the day's lessons with an absence, the stronger the colour, full
-   colour when every lesson had one; one dot per absence under the number. It never tells which
-   part of the day. Red for an absence, amber when justified. Shared by the calendar, the legend
-   and the list. */
-/* No absence: neutral, it states nothing about the day (owner decision 21/10/2026). */
+/* ---------- Frequência por dias (owner decisions 21/10/2026) ----------
+   Only a day with an absence is coloured; others stay neutral. Red: every lesson of the day had an
+   absence; light red: some did; amber: the day's absences are all justified (some or all). No
+   legend for "some": the tile tells it, and it never says which part of the day. Shared by the
+   calendar, the legend and the list. */
+/* No absence: neutral, it states nothing about the day. */
 .pa3-kind--clear {
   background: transparent;
   /* The same grey as a day without lessons: the calendar never tells one from the other. */
@@ -666,57 +661,34 @@
   cursor: default;
 }
 .pa3-kind--missed {
-  --pa3-dot: var(--pa3-red);
-  position: relative;
   background: #f6c7c1;
   color: #7a1c13;
-}
-.pa3-kind--missed[data-tone='2'] {
-  background: #e8857a;
-  color: #fff;
-  --pa3-dot: #fff;
 }
 .pa3-kind--missed[data-tone='3'] {
   background: var(--pa3-red);
   color: #fff;
-  --pa3-dot: #fff;
 }
-.pa3-kind--missed.is-justified {
-  --pa3-dot: #b45309;
-  background: #fde7b0;
-  color: #7a4a00;
-}
-.pa3-kind--missed.is-justified[data-tone='2'] {
-  background: #f8c665;
-  color: #7a4a00;
-}
+.pa3-kind--missed.is-justified,
 .pa3-kind--missed.is-justified[data-tone='3'] {
   background: #f59e0b;
   color: #fff;
-  --pa3-dot: #fff;
 }
-/* One dot per absence, under the day's number. */
-.pa3-day-dots {
-  position: absolute;
-  right: 0;
-  bottom: 14%;
-  left: 0;
-  display: flex;
-  justify-content: center;
-  gap: 2px;
-  pointer-events: none;
+/* Today: a small "hoje" under the number, instead of an underline. */
+.pa3-day.is-today {
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 0;
 }
-.pa3-day-dots i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--pa3-dot);
+.pa3-day.is-today .pa3-day-number {
+  text-decoration: none;
+  line-height: 1.1;
 }
-.pa3-day.pa3-kind--missed .pa3-day-number {
-  transform: translateY(-12%);
-}
-.pa3-absence-badge .pa3-day-dots {
-  bottom: 20%;
+.pa3-day-today {
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: lowercase;
+  opacity: 0.85;
 }
 
 .pa3-summary .pa3-counts {
