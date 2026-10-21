@@ -92,9 +92,45 @@ function toneOf(data: FrequencySummaryV2) {
       ? ({ tone: 'none', text: 'Sem dados deste mês' } as const)
       : ({ tone: 'none', text: 'Ainda em apuração' } as const);
   }
-  if (data.percentage < MINIMUM_PERCENT) return { tone: 'low', text: `abaixo de ${MINIMUM_PERCENT}%` } as const;
-  if (data.percentage < 85) return { tone: 'warn', text: `perto de ${MINIMUM_PERCENT}%` } as const;
-  return { tone: 'good', text: 'boa' } as const;
+  if (data.percentage < MINIMUM_PERCENT) return { tone: 'low', text: `Abaixo de ${MINIMUM_PERCENT}% neste mês` } as const;
+  if (data.percentage < 85) return { tone: 'warn', text: `Perto de ${MINIMUM_PERCENT}% neste mês` } as const;
+  return { tone: 'good', text: 'Acima do mínimo' } as const;
+}
+
+/**
+ * The month's school days as a ring (frequented green, with an absence red, justified amber),
+ * the official attendance in lessons in its centre. An empty month is a grey ring.
+ */
+function DayRingV3({ totals, percentage }: { totals: { days: number; clear: number; missed: number; justified: number }; percentage: number | null }) {
+  const gap = totals.days > 1 ? 0.6 : 0;
+  const parts = [
+    ['var(--pa3-ring-clear)', totals.clear],
+    ['var(--pa3-ring-missed)', totals.missed],
+    ['var(--pa3-ring-justified)', totals.justified],
+  ] as const;
+  let at = 0;
+  const stops: string[] = [];
+  for (const [colour, count] of parts) {
+    if (!count) continue;
+    const size = (count / totals.days) * 100;
+    stops.push(`${colour} ${at}% ${at + size - gap}%`, `#fff ${at + size - gap}% ${at + size}%`);
+    at += size;
+  }
+  const background = totals.days ? `conic-gradient(${stops.join(', ')})` : '#e2e8f0';
+  return (
+    <div
+      className="pa3-ring"
+      style={{ background }}
+      role="img"
+      aria-label={`${totals.clear} dias frequentados, ${totals.missed} com falta e ${totals.justified} com falta justificada${percentage === null ? '' : `; ${Math.floor(percentage)}% de presença nas aulas`}`}
+    >
+      <div className="pa3-ring-hole">
+        {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
+        <strong>{percentage === null ? '—' : `${Math.floor(percentage)}%`}</strong>
+        <span>presença<br />nas aulas</span>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -169,6 +205,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   );
   const totals = {
     days: countedDays.length,
+    clear: countedDays.filter(({ day }) => day.kind === 'clear').length,
     missed: countedDays.filter(({ day }) => day.kind === 'missed' && !day.justified).length,
     justified: countedDays.filter(({ day }) => day.justified).length,
   };
@@ -220,42 +257,47 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       </h1>
 
       {/*
-        The month in days, about ABSENCES ONLY (owner request 21/10/2026, option A). A day is "com
-        falta" when the diary has at least one absence (X) that day, X and J together included, and
-        "com falta justificada" when every absence of the day is justified. No threshold, so no
-        absence the diary records disappears from the days. Never "dias sem falta" nor a count of
-        school days: sometimes there is no lesson while the students are at school, and the portal
-        must not state either (owner decision 21/10/2026). The legal figure stays below, in lessons.
+        The month at a glance (owner request 21/10/2026: "a rosca do A com a régua do B"): a ring
+        of the month's school days (frequented, with an absence, justified) around the official
+        attendance in lessons, and under it one tile per school day in the calendar's colours.
+        Always the same height, data or not, so the calendar below never moves when the month
+        changes (owner request 21/10/2026).
       */}
       <div className={'pa3-summary pa3-summary--' + tone.tone}>
-        {totals.days ? (
-          <>
-            <p className="pa3-summary-title">Faltas em {MONTHS[monthNumber - 1]!.toLowerCase()}</p>
-            <ul className="pa3-daycounts">
-              <li className="pa3-daycount pa3-daycount--absent">
-                <strong>{totals.missed}</strong> {totals.missed === 1 ? 'dia com falta' : 'dias com falta'}
-              </li>
-              {totals.justified ? (
-                <li className="pa3-daycount pa3-daycount--justified">
-                  <strong>{totals.justified}</strong> {totals.justified === 1 ? 'dia com falta justificada' : 'dias com falta justificada'}
-                </li>
-              ) : null}
-            </ul>
-          </>
-        ) : (
-          <p className="pa3-summary-note">{tone.text}</p>
-        )}
-        {/* The legal figure stays: the year's minimum is counted in lessons, not in days. */}
-        {tone.tone !== 'none' && data.percentage !== null ? (
-          <p className="pa3-summary-official">
-            {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
-            <strong>{Math.floor(data.percentage)}%</strong> de presença nas aulas
-            <span className="pa3-summary-official-hint"> · o mínimo do ano é {MINIMUM_PERCENT}%</span>
-          </p>
-        ) : null}
-        {data.conflicts > 0 ? (
-          <p className="pa3-summary-note">Há {plural(data.conflicts, 'registro', 'registros')} em revisão pela escola neste mês.</p>
-        ) : null}
+        <p className="pa3-summary-title">
+          {MONTHS[monthNumber - 1]}
+          {totals.days ? ` · ${plural(totals.days, 'dia', 'dias')}` : ''}
+        </p>
+        <div className="pa3-ring-row">
+          <DayRingV3 totals={totals} percentage={tone.tone === 'none' ? null : data.percentage} />
+          <ul className="pa3-ring-legend">
+            <li><i className="pa3-swatch pa3-swatch--clear" /><strong>{totals.clear}</strong> {totals.clear === 1 ? 'dia frequentado' : 'dias frequentados'}</li>
+            <li><i className="pa3-swatch pa3-swatch--missed" /><strong>{totals.missed}</strong> com falta</li>
+            <li><i className="pa3-swatch pa3-swatch--justified" /><strong>{totals.justified}</strong> {totals.justified === 1 ? 'justificada' : 'justificadas'}</li>
+          </ul>
+        </div>
+        <div className="pa3-ruler-wrap">
+          <ol className="pa3-ruler" aria-hidden="true">
+            {countedDays.map(({ date, day }) => (
+              <li key={date} className={`pa3-ruler-day pa3-kind--${day.kind}${day.justified ? ' is-justified' : ''}`} data-tone={toneLevelOf(day)} />
+            ))}
+          </ol>
+          <div className="pa3-ruler-labels" aria-hidden="true">
+            <span>1º dia</span>
+            <span>dias de aula</span>
+            <span>{month === current ? 'ontem' : 'último dia'}</span>
+          </div>
+        </div>
+        <p className="pa3-summary-foot">
+          {tone.tone === 'none' ? (
+            tone.text
+          ) : (
+            <>
+              <strong>{tone.text}</strong> · o ano pede {MINIMUM_PERCENT}% de presença
+            </>
+          )}
+          {data.conflicts > 0 ? ` · ${plural(data.conflicts, 'registro', 'registros')} em revisão` : ''}
+        </p>
       </div>
 
       <div className="pa3-card" {...swipe}>

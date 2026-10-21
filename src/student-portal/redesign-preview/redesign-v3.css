@@ -810,3 +810,125 @@
 .pa3-card-head {
   align-items: center;
 }
+
+/* ---------- Summary: ring of days + ruler (owner request 21/10/2026) ---------- */
+.pa3-app {
+  --pa3-ring-clear: #16a34a;
+  --pa3-ring-missed: #dc2626;
+  --pa3-ring-justified: #f59e0b;
+}
+/* Always the same height: the calendar below never moves when the month changes. */
+.pa3-summary {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  min-height: 20rem;
+}
+.pa3-ring-row {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+.pa3-ring {
+  display: grid;
+  flex: none;
+  width: 8rem;
+  height: 8rem;
+  place-items: center;
+  border-radius: 50%;
+}
+.pa3-ring-hole {
+  display: grid;
+  width: 5.5rem;
+  height: 5.5rem;
+  place-content: center;
+  border-radius: 50%;
+  background: #fff;
+  text-align: center;
+  line-height: 1.05;
+}
+.pa3-ring-hole strong {
+  color: var(--pa3-ink);
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+.pa3-ring-hole span {
+  color: var(--pa3-muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+.pa3-ring-legend {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa3-ring-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--pa3-ink);
+  font-size: 0.9rem;
+}
+.pa3-ring-legend strong {
+  min-width: 1.3rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  text-align: right;
+}
+.pa3-swatch {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.2rem;
+}
+.pa3-swatch--clear {
+  background: var(--pa3-ring-clear);
+}
+.pa3-swatch--missed {
+  background: var(--pa3-ring-missed);
+}
+.pa3-swatch--justified {
+  background: var(--pa3-ring-justified);
+}
+/* The ruler: one tile per school day, the calendar's colours (green when no absence). */
+.pa3-ruler-wrap {
+  min-height: 2.6rem;
+}
+.pa3-ruler {
+  display: flex;
+  gap: 3px;
+  min-height: 1.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa3-ruler-day {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1.6rem;
+  border-radius: 0.35rem;
+}
+.pa3-ruler-day.pa3-kind--clear {
+  background: var(--pa3-ring-clear);
+}
+.pa3-ruler-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  color: #94a3b8;
+  font-size: 0.66rem;
+}
+.pa3-summary-foot {
+  margin: 0;
+  padding-top: 0.6rem;
+  border-top: 1px dashed color-mix(in srgb, var(--pa3-tone) 35%, transparent);
+  color: var(--pa3-muted);
+  font-size: 0.78rem;
+}
+.pa3-summary-foot strong {
+  color: var(--pa3-tone);
+  font-size: 0.92rem;
+}
