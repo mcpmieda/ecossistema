@@ -115,15 +115,6 @@
   white-space: nowrap;
 }
 
-.pa-workspace-intro h2 {
-  margin: 0;
-  color: #0f2a5f;
-  font-size: clamp(1.2rem, 1rem + 1vw, 1.65rem);
-  line-height: 1.2;
-  font-weight: 750;
-  letter-spacing: -0.035em;
-}
-
 .pa-workspace-eyebrow {
   margin: 0 0 0.2rem;
   color: #2563eb;
@@ -132,20 +123,6 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.pa-workspace-intro {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.2rem 0.1rem 0.35rem;
-  background: transparent;
-}
-
-.pa-workspace-intro > span {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
 }
 
 /* Boletim entrance: each subject rises in slightly after the previous one (up to ~0.5 s). */
@@ -219,13 +196,6 @@
 .pa-workspace-list [data-pressed='true'] .pa-list-chevron {
   color: #1d4ed8;
   transform: translateX(2px);
-}
-
-/* Back to the Boletim, just before the subject's icon. */
-.pa-workspace-intro .pa-workspace-back {
-  flex: none;
-  margin-inline: -0.4rem -0.3rem;
-  color: #164e9a;
 }
 
 .pa-subject-icon {
@@ -562,11 +532,6 @@
   font-weight: 600;
 }
 
-.pa-workspace-intro-aside {
-  margin-left: auto;
-  flex: 0 0 auto;
-}
-
 .pa-workspace-nav-surface {
   position: fixed;
   left: 50%;
@@ -706,10 +671,6 @@
     min-height: 2.35rem;
     padding-inline: 0.35rem;
     font-size: 0.68rem;
-  }
-
-  .pa-workspace-intro h2 {
-    font-size: 1.15rem;
   }
 
   .pa-workspace-nav-surface {
@@ -1412,7 +1373,9 @@
   line-height: 1.15;
   text-wrap: balance;
 }
-/* The period cards always fit, so no scroll arrows or edge fade. */
+/* No scroll arrows on the period cards. With six of them a phone row scrolls sideways (full names,
+   see below), so the same thin edge fade as the subject bar says "more this way" — only on the
+   side where more cards are, and none when they all fit. */
 .pa-student-workspace .pa-period-tabs .tabs__list-container__scroll-prev,
 .pa-student-workspace .pa-period-tabs .tabs__list-container__scroll-next {
   display: none;
@@ -1420,6 +1383,18 @@
 .pa-student-workspace .pa-period-tabs .tabs__list-container__scroller {
   mask-image: none;
   -webkit-mask-image: none;
+}
+.pa-student-workspace .pa-period-tabs .tabs__list-container__scroller[data-left-scroll='true'][data-right-scroll='true'] {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
+}
+.pa-student-workspace .pa-period-tabs .tabs__list-container__scroller[data-left-scroll='true'][data-right-scroll='false'] {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.25rem);
+  mask-image: linear-gradient(90deg, transparent, #000 1.25rem);
+}
+.pa-student-workspace .pa-period-tabs .tabs__list-container__scroller[data-left-scroll='false'][data-right-scroll='true'] {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
 }
 
 /* Excelente: light blue that celebrates once — it pops in, one shine sweeps across and the star

@@ -78,6 +78,19 @@ function termValueV1(subjects: readonly SubjectV1[], period: PeriodIdV1): number
   }
   return TERM_VALUE_V1[period] ?? null;
 }
+/**
+ * The school's minimum is the server's (`meetsMinimum`), not a constant here. The 60% line is only
+ * stated while every published trimester mark agrees with it; one that does not (a school with
+ * another minimum) hides "passa" rather than give a wrong passing mark (PR 1317 review).
+ */
+function minimumIsSixtyPercentV1(subjects: readonly SubjectV1[], period: PeriodIdV1): boolean {
+  return subjects.every((subject) => {
+    const final = subjectPeriodV1(subject, period)?.final;
+    if (final?.kind !== 'score' || !final.maximum || final.meetsMinimum === null) return true;
+    const reaches = final.value * 100 >= final.maximum * METER_MINIMUM_PERCENT_V1 - 1e-9;
+    return reaches === final.meetsMinimum;
+  });
+}
 function TermValueV1({ subjects, period }: { subjects: readonly SubjectV1[]; period: PeriodIdV1 }) {
   const value = termValueV1(subjects, period);
   if (value === null) return null;
@@ -86,7 +99,7 @@ function TermValueV1({ subjects, period }: { subjects: readonly SubjectV1[]; per
   const passing = (value * METER_MINIMUM_PERCENT_V1) / 100;
   return (
     <span className="pa-term-value">
-      vale {number.format(value)} · {number.format(passing)} passa
+      {`vale ${number.format(value)}${minimumIsSixtyPercentV1(subjects, period) ? ` · ${number.format(passing)} passa` : ''}`}
     </span>
   );
 }
@@ -335,40 +348,6 @@ function SubjectIconV1({ label, size = 18, animated = false }: { label: string; 
     >
       <Icon size={size} strokeWidth={1.8} />
     </span>
-  );
-}
-
-function PageIntroV1({
-  icon,
-  title,
-  aside,
-  onBack,
-}: {
-  icon: ReactNode;
-  title: string;
-  aside?: ReactNode;
-  onBack?: () => void;
-}) {
-  return (
-    <div className="pa-workspace-intro">
-      {onBack ? (
-        <Button
-          isIconOnly
-          size="sm"
-          variant="tertiary"
-          className="pa-workspace-back"
-          aria-label="Voltar para o boletim"
-          onPress={onBack}
-        >
-          <ChevronLeft size={20} aria-hidden="true" />
-        </Button>
-      ) : null}
-      <span aria-hidden="true">{icon}</span>
-      <div>
-        <h2>{title}</h2>
-      </div>
-      {aside ? <div className="pa-workspace-intro-aside">{aside}</div> : null}
-    </div>
   );
 }
 
@@ -825,16 +804,23 @@ const DRAG_LOCK_PX_V1 = 8;
 const DRAG_EDGE_PX_V1 = 24;
 const DRAG_COMMIT_RATIO_V1 = 0.3;
 const DRAG_FLICK_PX_PER_MS_V1 = 0.45;
-/** Same as the gap of .pa-swipe-peek in the CSS: a little air between the two pages. */
-const DRAG_GAP_PX_V1 = 12;
+/** How long after a real drag its own tap is swallowed (the press that ended it). */
+const DRAG_SWALLOW_MS_V1 = 400;
+/**
+ * The air between the two pages: .pa-swipe-peek sits at calc(100% + 0.75rem), so it follows the
+ * root font size (a reader's larger text included), read when the gesture ends.
+ */
+const dragGapPxV1 = () => 0.75 * (Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
 type DragStepV1 = 1 | -1;
 type DragSampleV1 = { x: number; at: number };
-type DragGestureV1 = { x: number; y: number; dx: number; locked: boolean | null; samples: DragSampleV1[] };
+type DragGestureV1 = { id: number; x: number; y: number; dx: number; locked: boolean | null; samples: DragSampleV1[] };
 function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step: DragStepV1) => void) {
   const track = useRef<HTMLDivElement>(null);
   const gesture = useRef<DragGestureV1 | null>(null);
   const busy = useRef(false);
-  // A drag is not a tap: the press that ends it must not open the row it started on.
+  const running = useRef<Animation | null>(null);
+  // A drag is not a tap: the one press that ends a real drag must not open the row it started on.
+  // Armed only by a horizontal drag, and spent by the first click, so a new tap goes through.
   const swallowUntil = useRef(0);
   const shown = useRef<DragStepV1 | null>(null);
   const [peek, setPeek] = useState<DragStepV1 | null>(null);
@@ -847,12 +833,24 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
   const place = (px: number) => {
     if (track.current) track.current.style.transform = px ? `translate3d(${px}px, 0, 0)` : '';
   };
-  /** Glides from where the finger left the content to its resting place, then runs `done`. */
+  const restore = () => {
+    showPeek(null);
+    place(0);
+    clipping(false);
+  };
+  // Leaving the page mid-move: stop it; its end never navigates (see settle).
+  useEffect(() => () => running.current?.cancel(), []);
+  /**
+   * Glides from where the finger left the content to its resting place, then runs `done`. A move
+   * cut short (cancelled) never runs `done`: the content goes back in place without navigating.
+   * Reduced motion: no glide, straight to the end.
+   */
   const settle = (from: number, to: number, done: () => void) => {
     const element = track.current;
-    if (!element || typeof element.animate !== 'function' || from === to) {
+    const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (!element || typeof element.animate !== 'function' || from === to || reduced) {
       done();
-      swallowUntil.current = performance.now() + 400;
+      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
       return;
     }
     busy.current = true;
@@ -861,46 +859,76 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
       [{ transform: `translate3d(${from}px, 0, 0)` }, { transform: `translate3d(${to}px, 0, 0)` }],
       { duration, easing: 'cubic-bezier(0.25, 0.8, 0.3, 1)', fill: 'forwards' },
     );
-    const finish = () => {
-      // `done` swaps the content and resets the offset before the animation's hold is released,
-      // all in this task, so no frame ever shows the content out of place.
-      done();
-      animation.cancel();
+    running.current = animation;
+    const release = () => {
+      running.current = null;
       busy.current = false;
       // Counted from the end of the move: a slow swap must not let the tap through afterwards.
-      swallowUntil.current = performance.now() + 400;
+      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
     };
-    animation.finished.then(finish, finish);
+    animation.finished.then(
+      () => {
+        // `done` swaps the content and resets the offset before the animation's hold is released,
+        // all in this task, so no frame ever shows the content out of place.
+        done();
+        animation.cancel();
+        release();
+      },
+      () => {
+        if (track.current) restore();
+        release();
+      },
+    );
   };
-  const swallow = (event: ReactSyntheticEventV1) => {
+  const swallow = (event: ReactSyntheticEventV1, spend: boolean) => {
     if (performance.now() > swallowUntil.current) return;
     event.stopPropagation();
     event.preventDefault();
+    if (spend) swallowUntil.current = 0;
   };
-  const springBack = (from: number) =>
-    settle(from, 0, () => {
-      showPeek(null);
-      place(0);
-      clipping(false);
-    });
+  const springBack = (from: number) => settle(from, 0, restore);
+  /** The gesture stops being a drag (a second finger, a cancelled touch): back in place, no step. */
+  const abandon = () => {
+    const drag = gesture.current;
+    gesture.current = null;
+    if (!drag?.locked) return;
+    swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
+    springBack(drag.dx);
+  };
   const handlers = {
     onTouchStart: (event: ReactTouchEventV1) => {
+      if (event.touches.length !== 1) {
+        abandon();
+        return;
+      }
       const touch = event.touches[0];
       const target = event.target as HTMLElement;
       gesture.current =
         !busy.current &&
-        event.touches.length === 1 &&
         touch &&
         touch.clientX > DRAG_EDGE_PX_V1 &&
         touch.clientX < window.innerWidth - DRAG_EDGE_PX_V1 &&
         !target.closest('[role="tablist"], button, a, input, label, select, summary, [role="switch"]')
-          ? { x: touch.clientX, y: touch.clientY, dx: 0, locked: null, samples: [{ x: touch.clientX, at: event.timeStamp }] }
+          ? {
+              id: touch.identifier,
+              x: touch.clientX,
+              y: touch.clientY,
+              dx: 0,
+              locked: null,
+              samples: [{ x: touch.clientX, at: event.timeStamp }],
+            }
           : null;
     },
     onTouchMove: (event: ReactTouchEventV1) => {
       const drag = gesture.current;
-      const touch = event.touches[0];
-      if (!drag || !touch) return;
+      if (!drag) return;
+      // A second finger (pinch to zoom) is never a drag.
+      if (event.touches.length !== 1) {
+        abandon();
+        return;
+      }
+      const touch = Array.from(event.touches).find((item) => item.identifier === drag.id);
+      if (!touch) return;
       const dx = touch.clientX - drag.x;
       const dy = touch.clientY - drag.y;
       if (drag.locked === null) {
@@ -915,24 +943,34 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
       }
       const step: DragStepV1 = dx < 0 ? 1 : -1;
       const open = canStep(step);
-      if (open) showPeek(step);
+      // The neighbour shown always matches the side the finger moves to; none past the last item.
+      showPeek(open ? step : null);
       // At the first or last item the content gives a little and comes back: nothing is there.
       drag.dx = open ? dx : dx * 0.25;
       drag.samples = [...drag.samples.slice(-5), { x: touch.clientX, at: event.timeStamp }];
       place(drag.dx);
     },
-    onTouchEnd: () => {
+    onTouchEnd: (event: ReactTouchEventV1) => {
       const drag = gesture.current;
       gesture.current = null;
       if (!drag?.locked) return;
-      swallowUntil.current = performance.now() + 400;
-      const width = (track.current?.offsetWidth ?? window.innerWidth) + DRAG_GAP_PX_V1;
+      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
+      // Where the finger really lifted: it may have gone on after the last move event arrived.
+      const lifted = Array.from(event.changedTouches).find((item) => item.identifier === drag.id);
+      if (lifted) {
+        const rawDx = lifted.clientX - drag.x;
+        drag.dx = canStep(rawDx < 0 ? 1 : -1) ? rawDx : rawDx * 0.25;
+        drag.samples = [...drag.samples.slice(-5), { x: lifted.clientX, at: event.timeStamp }];
+        place(drag.dx);
+      }
+      const width = (track.current?.offsetWidth ?? window.innerWidth) + dragGapPxV1();
       const step: DragStepV1 = drag.dx < 0 ? 1 : -1;
       const last = drag.samples.at(-1)!;
       const first = drag.samples.find((sample) => last.at - sample.at <= 100) ?? last;
       const velocity = (last.x - first.x) / Math.max(1, last.at - first.at);
       const flick = Math.abs(velocity) > DRAG_FLICK_PX_PER_MS_V1 && Math.sign(velocity) === Math.sign(drag.dx);
       if (canStep(step) && (Math.abs(drag.dx) > width * DRAG_COMMIT_RATIO_V1 || flick)) {
+        showPeek(step);
         settle(drag.dx, -step * width, () => {
           flushSync(() => {
             onCommit(step);
@@ -943,14 +981,10 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
         });
       } else springBack(drag.dx);
     },
-    onTouchCancel: () => {
-      const drag = gesture.current;
-      gesture.current = null;
-      swallowUntil.current = performance.now() + 400;
-      if (drag?.locked) springBack(drag.dx);
-    },
-    onPointerUpCapture: (event: ReactSyntheticEventV1) => swallow(event),
-    onClickCapture: (event: ReactSyntheticEventV1) => swallow(event),
+    // Only a drag already under way arms the swallow; a cancelled scroll or tap blocks nothing.
+    onTouchCancel: () => abandon(),
+    onPointerUpCapture: (event: ReactSyntheticEventV1) => swallow(event, false),
+    onClickCapture: (event: ReactSyntheticEventV1) => swallow(event, true),
   };
   return { track, peek, handlers };
 }
@@ -1147,7 +1181,8 @@ function SubjectHeaderV1({
                     {/* Only the chosen tab carries its icon: the others stay narrow, so more fit. */}
                     {item.subjectId === subject.subjectId ? (
                       <span className="pa-subject-tab-icon" aria-hidden="true">
-                        <SubjectIconV1 label={item.label} size={15} />
+                        {/* Mounted afresh on each discipline, so the subject's own motion plays once. */}
+                        <SubjectIconV1 label={item.label} size={15} animated />
                       </span>
                     ) : null}
                     {item.label}
@@ -1182,8 +1217,11 @@ function SubjectV1View({
   academicState,
   sealed,
   assessmentSealed,
+  preview = false,
 }: {
   subject: SubjectV1;
+  /** The neighbour drawn beside a drag: nothing in it may record that it was seen. */
+  preview?: boolean;
   /** Whether the student holds the selo brilhante of the trimester being read. */
   sealed: (period: PeriodIdV1) => boolean;
   /** Whether that activity (AV1/AV2) earned its own seal (see earnsAssessmentSealV1). */
@@ -1409,6 +1447,7 @@ function SubjectV1View({
               closing={closingOfV1(subject, active)!}
               subjectId={subject.subjectId}
               accountId={accountId}
+              preview={preview}
             />
           ) : null}
         </Tabs.Panel>
@@ -1662,6 +1701,7 @@ export function StudentPortalWorkspaceV1({
                   inert
                 >
                   <SubjectV1View
+                    preview
                     subject={peekSubject}
                     selected={subjectPeriod}
                     onSelect={() => undefined}

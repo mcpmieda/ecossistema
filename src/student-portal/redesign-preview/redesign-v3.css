@@ -20,64 +20,6 @@
   background: var(--pa3-bg);
   color: #0f172a;
 }
-.pa3-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* Top bar: compact, like a system's header. */
-.pa3-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: calc(0.6rem + env(safe-area-inset-top, 0px)) 1rem 0.6rem;
-  background: linear-gradient(120deg, #0b2a6f, #1440a6);
-  color: #fff;
-  box-shadow: 0 6px 18px -12px rgb(11 42 111 / 0.8);
-}
-.pa3-logo {
-  flex: 0 0 auto;
-  width: 2.2rem;
-  height: 2.2rem;
-  border-radius: 50%;
-  background: #fff url('../assets/school-logo.webp') center / contain no-repeat;
-}
-.pa3-brand {
-  display: grid;
-  flex: 1 1 auto;
-  min-width: 0;
-  line-height: 1.2;
-}
-.pa3-brand strong {
-  font-size: 1rem;
-  letter-spacing: -0.02em;
-}
-.pa3-brand span {
-  overflow: hidden;
-  color: rgb(255 255 255 / 0.75);
-  font-size: 0.7rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pa3-icon-button {
-  display: grid;
-  flex: 0 0 auto;
-  width: 2.4rem;
-  height: 2.4rem;
-  place-items: center;
-  border: 1px solid rgb(255 255 255 / 0.25);
-  border-radius: 0.8rem;
-  background: rgb(255 255 255 / 0.1);
-  color: #fff;
-  cursor: pointer;
-}
 
 /* Menu of icons: bottom bar on a phone, side bar on a computer. */
 .pa3-nav {
@@ -126,76 +68,12 @@
   outline-offset: 2px;
   border-radius: 0.8rem;
 }
-
-.pa3-main {
-  width: min(100%, 64rem);
-  margin: 0 auto;
-  padding: 0.9rem 0.6rem calc(var(--pa3-nav-height) + 1.5rem + env(safe-area-inset-bottom, 0px));
-}
 .pa3-page-title {
   margin: 0.4rem 0.35rem 0.8rem;
   color: var(--pa3-ink);
   font-size: 1.35rem;
   font-weight: 760;
   letter-spacing: -0.03em;
-}
-
-/* Who is reading: small, at the top of every page. */
-.pa3-student {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.7rem 0.85rem;
-  border: 1px solid var(--pa3-line);
-  border-radius: 1.1rem;
-  background: var(--pa3-surface);
-  box-shadow: 0 8px 22px -20px rgb(15 42 95 / 0.6);
-}
-.pa3-avatar {
-  flex: 0 0 auto;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 50%;
-  background: #dbe7ff;
-  object-fit: cover;
-  object-position: top;
-}
-.pa3-student-copy {
-  display: grid;
-  flex: 1 1 auto;
-  min-width: 0;
-  line-height: 1.2;
-}
-.pa3-hello {
-  color: var(--pa3-muted);
-  font-size: 0.72rem;
-}
-.pa3-student-copy strong {
-  color: var(--pa3-ink);
-  font-size: 1rem;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
-}
-.pa3-student-copy > span:nth-child(3) {
-  color: var(--pa3-muted);
-  font-size: 0.75rem;
-}
-.pa3-seals {
-  display: inline-flex;
-  justify-self: start;
-  margin-top: 0.35rem;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 999px;
-  background: linear-gradient(120deg, #fff3d6, #fac775);
-  color: #633806;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-.pa3-seals--empty {
-  background: #eef2f8;
-  color: var(--pa3-muted);
 }
 
 /* The real Notas page with its cover, without its floating switch (the menu replaces it). */
@@ -238,47 +116,6 @@
 .pa3-frequency .pa3-page-title {
   margin-bottom: 0;
 }
-.pa3-month {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem;
-  border: 1px solid var(--pa3-line);
-  border-radius: 999px;
-  background: var(--pa3-surface);
-}
-.pa3-month-step {
-  display: grid;
-  flex: 0 0 auto;
-  width: 2.5rem;
-  height: 2.5rem;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: #eef2f8;
-  color: var(--pa3-ink);
-  cursor: pointer;
-}
-.pa3-month-step:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.pa3-month-pick {
-  position: relative;
-  flex: 1 1 auto;
-  color: var(--pa3-ink);
-  font-size: 1.05rem;
-  font-weight: 700;
-  text-align: center;
-}
-/* The native list opens on tap; the label above it is what the eye reads. */
-.pa3-month-pick select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
 
 .pa3-summary {
   --pa3-tone: var(--pa3-green);
@@ -300,92 +137,12 @@
   --pa3-tone: var(--pa3-red);
   --pa3-tone-soft: var(--pa3-red-soft);
 }
-.pa3-ring {
-  flex: 0 0 auto;
-  width: 8.2rem;
-  height: 8.2rem;
-}
-.pa3-ring-track,
-.pa3-ring-fill {
-  fill: none;
-  stroke-width: 12;
-}
-.pa3-ring-track {
-  stroke: #e7edf5;
-}
-.pa3-ring-fill {
-  stroke: var(--pa3-tone);
-  stroke-linecap: round;
-  transition: stroke-dasharray 500ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.pa3-ring-notch {
-  stroke: var(--pa3-ink);
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-.pa3-ring-value {
-  fill: var(--pa3-ink);
-  font-size: 1.55rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-}
-.pa3-ring-caption {
-  fill: var(--pa3-muted);
-  font-size: 0.62rem;
-  font-weight: 600;
-}
-.pa3-summary-copy {
-  display: grid;
-  /* Beside the ring, sharing the row; only the stats go to the row below. */
-  flex: 1 1 0;
-  gap: 0.45rem;
-  min-width: 0;
-}
 .pa3-summary-status {
   margin: 0;
   color: var(--pa3-tone);
   font-size: 1.05rem;
   font-weight: 780;
   line-height: 1.2;
-}
-.pa3-summary-hint {
-  margin: 0;
-  color: var(--pa3-muted);
-  font-size: 0.72rem;
-  line-height: 1.35;
-}
-/* Faltas · Justificadas · Aulas on their own row under the ring, full width, so every name fits. */
-.pa3-stats {
-  display: grid;
-  flex: 1 0 100%;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.45rem;
-  margin: 0;
-}
-.pa3-stat {
-  min-width: 0;
-  padding: 0.4rem 0.2rem;
-  border-radius: 0.75rem;
-  background: rgb(255 255 255 / 0.8);
-  box-shadow: inset 0 0 0 1px var(--pa3-line);
-  text-align: center;
-}
-.pa3-stat dt {
-  color: var(--pa3-muted);
-  font-size: 0.68rem;
-  font-weight: 600;
-}
-.pa3-stat dd {
-  margin: 0;
-  color: var(--pa3-ink);
-  font-size: 1.15rem;
-  font-weight: 800;
-}
-.pa3-stat--absent dd {
-  color: var(--pa3-red);
-}
-.pa3-stat--justified dd {
-  color: var(--pa3-amber);
 }
 
 .pa3-card {
@@ -464,7 +221,8 @@
   cursor: pointer;
   transition: transform 120ms ease-out, box-shadow 120ms ease-out;
 }
-.pa3-day--weekend,
+.pa3-day--off,
+.pa3-day--unknown,
 .pa3-day--future {
   background: transparent;
   color: #b6c0cf;
@@ -557,8 +315,18 @@
   font-weight: 750;
 }
 .pa3-lesson-state {
+  max-width: 100%;
   font-size: 0.64rem;
   font-weight: 650;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+/* Narrow phones: five or six tiles in a row leave no room for "Justificada"; three per row. */
+@media (max-width: 26rem) {
+  .pa3-lessons {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .pa3-absence-list {
@@ -671,25 +439,20 @@
     width: 2.4rem;
     height: 2.4rem;
   }
-  .pa3-main {
-    padding: 1.4rem 1.5rem 3rem 14.5rem;
-    width: min(100%, 78rem);
-  }
   .pa3-frequency {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
   .pa3-frequency > .pa3-page-title,
-  .pa3-frequency > .pa3-month,
+  .pa3-frequency > .pa3-month-bar,
   .pa3-frequency > .pa3-footnote {
     grid-column: 1 / -1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pa3-ring-fill,
   .pa3-day,
-  .pa3-nav-icon {
+.pa3-nav-icon {
     transition: none;
   }
 }
@@ -885,4 +648,47 @@
 .pa3-lesson--pending {
   background: #f1f5f9;
   color: var(--pa3-muted);
+}
+
+/* No percentage to judge (month still being read, or no data): neutral, never the green of a good result. */
+.pa3-summary--none {
+  --pa3-tone: var(--pa3-muted);
+  --pa3-tone-soft: #eef2f8;
+}
+.pa3-summary-note {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--pa3-muted);
+  font-size: 0.75rem;
+}
+/* A day with lessons not fully read yet: dashed, neither an absence nor "sem falta". */
+.pa3-day--pending {
+  background: #fff;
+  box-shadow: inset 0 0 0 1.5px #cbd5e1;
+  color: var(--pa3-muted);
+}
+/* The lessons of the day per shift (a day can have two). */
+.pa3-shift + .pa3-shift {
+  margin-top: 0.75rem;
+}
+.pa3-shift-title {
+  margin: 0 0 0.4rem;
+  color: var(--pa3-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.pa3-shift-foot {
+  margin: 0.45rem 0 0;
+  color: var(--pa3-muted);
+  font-size: 0.72rem;
+}
+/* Below the side-bar layout the menu is a fixed bar at the bottom: the sheet keeps room for it at
+   every width, including 768–899 px where the portal shell itself reserves less. */
+@media (max-width: 899.98px) {
+  .pa3-app--cover .pa-shell--with-hero .pa-shell-content {
+    padding-bottom: calc(var(--pa3-nav-height) + env(safe-area-inset-bottom, 0px) + 1.75rem);
+  }
+}
+.pa3-panel:focus {
+  outline: none;
 }

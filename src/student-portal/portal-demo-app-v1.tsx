@@ -384,10 +384,11 @@ const showcasePreviewData = (thirdTerm: ThirdTermStateV1) => {
   if (cached) return cached;
   const data = selfResponseV1.parse({
     ...previewData,
-    // A closed 3º trimestre ends the year's terms, so its seals count like the others.
+    // 1º and 2º trimesters are over in every scenario, so their seals never depend on the 3º;
+    // a closed 3º trimester ends the year's terms and its seals count like the others.
     ...(thirdTerm === 'closed'
       ? { generatedAt: '2026-12-10T12:00:00-03:00', endedPeriods: ['T1', 'T2', 'T3'] }
-      : {}),
+      : { endedPeriods: ['T1', 'T2'] }),
     subjects: SHOWCASE_CASES_V1.map(([label, t1, t2, t3], order) => ({
       subjectId: 940001 + order,
       label,

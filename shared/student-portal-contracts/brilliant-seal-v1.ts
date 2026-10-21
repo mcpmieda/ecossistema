@@ -61,7 +61,14 @@ export function earnsAssessmentSealV1(
   partial: PartialV1,
   endedPeriods: readonly string[] = [],
 ): boolean {
-  if (!isSealPeriodV1(period) || partial.assessment !== true || partial.notDone || !isBrilliantMarkV1(partial.mark))
+  // Only AV1/AV2, never the parallel exam: a partial flagged as both is not trusted as an AV.
+  if (
+    !isSealPeriodV1(period) ||
+    partial.assessment !== true ||
+    partial.parallel === true ||
+    partial.notDone ||
+    !isBrilliantMarkV1(partial.mark)
+  )
     return false;
   const term = subject.periods.find((item) => item.period === period);
   return endedPeriods.includes(period) && term?.final.kind === 'score' && !hasRedMarkV1(subjects, period);

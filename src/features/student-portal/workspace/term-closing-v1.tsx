@@ -28,10 +28,12 @@ function readSeenV1(storageKey: string): Set<string> {
 }
 
 /** "Novo" until first opened on this browser (D13, R8). No server state or personal data. */
-export function useTermClosingNewV1(key: string): boolean {
+/** `record: false` (a drag preview of a neighbour) shows the badge without marking it as seen. */
+export function useTermClosingNewV1(key: string, record = true): boolean {
   const storageKey = usePortalPreferenceKeyV1(SEEN_KEY_V1);
   const [isNew] = useState(() => !readSeenV1(storageKey).has(key));
   useEffect(() => {
+    if (!record) return;
     try {
       const seen = readSeenV1(storageKey);
       if (seen.has(key)) return;
@@ -40,7 +42,7 @@ export function useTermClosingNewV1(key: string): boolean {
     } catch {
       /* Private mode or blocked storage: the badge may simply show again. */
     }
-  }, [key, storageKey]);
+  }, [key, storageKey, record]);
   return isNew;
 }
 
@@ -57,12 +59,15 @@ export function TermClosingCardV1({
   closing,
   subjectId,
   accountId,
+  preview = false,
 }: {
   closing: TermClosingV1;
   subjectId: number;
   accountId: string;
+  /** Drawn only as the neighbour beside a drag: the student has not opened it, so not "seen". */
+  preview?: boolean;
 }) {
-  const isNew = useTermClosingNewV1(`${accountId}|${subjectId}|${closing.period}|${closing.mode}`);
+  const isNew = useTermClosingNewV1(`${accountId}|${subjectId}|${closing.period}|${closing.mode}`, !preview);
   const label = termClosingLabelV1(closing.period, closing.mode);
   const text = (message: TermClosingV1['conclusion'] | undefined) =>
     message ? renderTermClosingMessageV1(message, { period: closing.period }) : null;

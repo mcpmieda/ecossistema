@@ -407,7 +407,9 @@ describe('student portal grade workspace', () => {
     expect(list.querySelector('.pa-subject-icon--animated')).toBeNull();
 
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
-    const icon = document.querySelector('.pa-workspace-intro .pa-subject-icon--animated');
+    // The chosen discipline's tab carries the icon (the old page intro was replaced by the tab bar).
+    const tab = screen.getByRole('tab', { name: new RegExp(first.label, 'u'), selected: true });
+    const icon = tab.querySelector('.pa-subject-icon--animated');
     expect(icon?.getAttribute('data-motion')).toBe('spin');
   });
 

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { CalendarCheck2, NotebookPen } from 'lucide-react';
 import {
@@ -63,10 +63,23 @@ function useNavHighlightV3(page: PageV3) {
   return { nav, pill };
 }
 
+/*
+ * Notas ⇄ Frequência is a step of the browser's Back, kept beside the Notas workspace's own entry in
+ * history.state (Copilot review of PR 1317): Back from Frequência returns to Notas as it was, and a
+ * Back inside Notas never changes the page hidden behind Frequência.
+ */
+const PAGE_HISTORY_KEY_V3 = 'pa3Page';
+const pageOfState = (state: unknown): PageV3 =>
+  state && typeof state === 'object' && (state as Record<string, unknown>)[PAGE_HISTORY_KEY_V3] === 'frequency'
+    ? 'frequency'
+    : 'grades';
+
 export function RedesignAppV3() {
   const data = REDESIGN_SELF_V3;
   const seals = brilliantSealCountV1(data.subjects, data.endedPeriods);
-  const [page, setPage] = useState<PageV3>('grades');
+  const [page, setPage] = useState<PageV3>(() =>
+    typeof window === 'undefined' ? 'grades' : pageOfState(window.history.state),
+  );
   // The content sliding out, until its move ends.
   const [leaving, setLeaving] = useState<PageV3 | null>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -75,7 +88,9 @@ export function RedesignAppV3() {
   const entering = useRef<SlideV3 | null>(null);
   const highlight = useNavHighlightV3(page);
   const elementOf = (id: PageV3) => (id === 'grades' ? grades.current : frequency.current);
-  const choose = (next: PageV3) => {
+  // Set by a switch the reader asked for (menu or Back), never by the first render.
+  const switched = useRef(false);
+  const show = (next: PageV3) => {
     if (next === page || leaving) return;
     const direction: SlideV3 =
       PAGES.findIndex((item) => item.id === next) > PAGES.findIndex((item) => item.id === page)
@@ -83,17 +98,37 @@ export function RedesignAppV3() {
         : 'back';
     const animated = typeof elementOf(page)?.animate === 'function' && !reducedMotionV3();
     entering.current = animated ? direction : null;
+    switched.current = true;
     if (animated) setLeaving(page);
     setPage(next);
   };
+  const choose = (next: PageV3) => {
+    if (next === page || leaving) return;
+    const state = window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
+    window.history.pushState({ ...state, [PAGE_HISTORY_KEY_V3]: next }, '');
+    show(next);
+  };
+  const showRef = useRef(show);
+  showRef.current = show;
+  useEffect(() => {
+    const restore = (event: PopStateEvent) => showRef.current(pageOfState(event.state));
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, []);
+  // After a switch, with or without the slide: the top of the sheet in view (instantly) and the
+  // focus on the page that came in, so a keyboard or screen reader starts there.
+  useLayoutEffect(() => {
+    if (!switched.current) return;
+    switched.current = false;
+    const top = (stage.current?.getBoundingClientRect().top ?? 0) + window.scrollY - 16;
+    if (window.scrollY > top) window.scrollTo({ top, behavior: 'instant' });
+    elementOf(page)?.focus({ preventScroll: true });
+  }, [page]);
   // Both moves start together, after the new content is in the sheet and before the browser paints.
   useLayoutEffect(() => {
     const direction = entering.current;
     entering.current = null;
     if (!direction || !leaving) return;
-    // Read deep down the previous content? Bring the top of the sheet into view, instantly.
-    const top = (stage.current?.getBoundingClientRect().top ?? 0) + window.scrollY - 16;
-    if (window.scrollY > top) window.scrollTo({ top, behavior: 'instant' });
     const side = direction === 'forward' ? 1 : -1;
     elementOf(page)?.animate(
       [{ transform: `translateX(${side * 100}%)` }, { transform: 'translateX(0)' }],
@@ -127,12 +162,8 @@ export function RedesignAppV3() {
   const frequencyContent = useMemo(() => <FrequencyPageV3 read={demoFrequencyV3} />, []);
   const hero = useMemo(
     () => (
-      <StudentProfileV1
-        profile={data.profile}
-        seals={seals}
-        onLogout={() => undefined}
-        portraitSrc={portrait}
-      />
+      // No onLogout: the preview has no session, so it shows no "Sair" that would do nothing.
+      <StudentProfileV1 profile={data.profile} seals={seals} portraitSrc={portrait} />
     ),
     [data, seals],
   );
@@ -148,6 +179,7 @@ export function RedesignAppV3() {
             type="button"
             className="pa3-nav-item"
             aria-current={page === id ? 'page' : undefined}
+            aria-controls={`pa3-panel-${id}`}
             onClick={() => choose(id)}
           >
             <span className="pa3-nav-icon">
@@ -159,10 +191,14 @@ export function RedesignAppV3() {
       </nav>
 
       <div className="pa3-page">
-        <StudentPortalShellV1 onLogout={() => undefined} hero={hero}>
+        <StudentPortalShellV1 hero={hero}>
           <div ref={stage} className="pa3-stage">
             <div
               ref={grades}
+              id="pa3-panel-grades"
+              role="region"
+              aria-label="Notas"
+              tabIndex={-1}
               inert={page !== 'grades'}
               className={'pa3-panel pa3-panel--grades' + stateOf('grades')}
             >
@@ -170,6 +206,10 @@ export function RedesignAppV3() {
             </div>
             <div
               ref={frequency}
+              id="pa3-panel-frequency"
+              role="region"
+              aria-label="Frequência"
+              tabIndex={-1}
               inert={page !== 'frequency'}
               className={'pa3-panel pa3-panel--frequency' + stateOf('frequency')}
             >

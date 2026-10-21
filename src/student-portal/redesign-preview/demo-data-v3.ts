@@ -1,10 +1,8 @@
 import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
-import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
+import type { FrequencyDayV2, FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
 
-/** The summary with the Smecel lesson days (`days`), as the server sends it from attendance 0008. */
-export type DemoFrequencyV3 = FrequencySummaryV2 & {
-  days: { date: string; shift: string; slots: number[]; complete: boolean }[];
-};
+/** The official summary with its Smecel lesson days (`days`, attendance 0008). */
+export type DemoFrequencyV3 = FrequencySummaryV2 & { days: FrequencyDayV2[] };
 
 /*
  * Redesign preview (owner request 20/10/2026): invented data only, self-contained so the product
@@ -163,6 +161,8 @@ export function demoFrequencyV3(month: string): DemoFrequencyV3 {
   const denominator = counted.reduce((total, day) => total + day.slots.length, 0);
   const absences = countedMarks.filter((mark) => mark.mark === 'X').length;
   const justified = countedMarks.filter((mark) => mark.mark === 'J').length;
+  // Read at the end of the last school day shown (a month of 30 or 31 days included), never before it.
+  const lastDay = days.at(-1)?.date ?? `${month}-01`;
   return {
     contractVersion: 2,
     state: 'ready',
@@ -172,8 +172,8 @@ export function demoFrequencyV3(month: string): DemoFrequencyV3 {
     denominator,
     percentage: denominator ? Math.round(((denominator - absences) / denominator) * 1000) / 10 : null,
     coverage: 'reliable',
-    observedAt: `${month === PREVIEW_TODAY_V3.slice(0, 7) ? PREVIEW_TODAY_V3 : `${month}-28`}T12:00:00-03:00`,
-    receivedAt: `${month === PREVIEW_TODAY_V3.slice(0, 7) ? PREVIEW_TODAY_V3 : `${month}-28`}T12:05:00-03:00`,
+    observedAt: `${lastDay}T17:40:00-03:00`,
+    receivedAt: `${lastDay}T17:45:00-03:00`,
     marks,
     conflicts: 0,
     days,
