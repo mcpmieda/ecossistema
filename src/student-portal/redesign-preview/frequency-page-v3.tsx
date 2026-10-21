@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
-import { Tabs } from '@heroui/react';
-import { CalendarX2, Check, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
+import { useMemo, useRef, useState, type TouchEvent } from 'react';
+import { CalendarX2, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
 import { PREVIEW_TODAY_V3 } from './demo-data-v3';
 
@@ -177,28 +176,6 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   const [picked, setPicked] = useState<string | null>(null);
   const selected = picked && picked.startsWith(month) ? picked : (daysWithMarks[0] ?? null);
   const tone = toneOf(data);
-  const months = Array.from({ length: Number(current.slice(5)) - Number(FIRST_MONTH.slice(5)) + 1 }, (_, index) =>
-    monthKey(2026, index + Number(FIRST_MONTH.slice(5))),
-  );
-  // Keep the chosen month centred in the bar (inline only, so the page itself never scrolls).
-  const monthTabs = useRef<HTMLDivElement>(null);
-  const mounted = useRef(false);
-  useEffect(() => {
-    const smooth = mounted.current && !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    mounted.current = true;
-    const reveal = () => {
-      const tab = monthTabs.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
-      const scroller = tab?.closest<HTMLElement>('.scroll-shadow') ?? tab?.parentElement?.parentElement;
-      if (!tab || !scroller) return;
-      const offset = tab.offsetLeft - (scroller.clientWidth - tab.offsetWidth) / 2;
-      const left = Math.max(0, Math.min(offset, scroller.scrollWidth - scroller.clientWidth));
-      scroller.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' });
-    };
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(reveal);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [month]);
   const go = (step: number) => {
     setMonth((value) => shiftMonth(value, step));
     setPicked(null);
@@ -242,29 +219,6 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
         Frequência
       </h1>
 
-      {/* The months as tabs, exactly like the bar of disciplines on Notas (owner request
-          20/10/2026): the chosen one in white and centred, the others a tap or a scroll away. */}
-      <div ref={monthTabs} className="pa-subject-bar pa3-month-bar">
-        <Tabs
-          selectedKey={month}
-          onSelectionChange={(key) => {
-            setMonth(String(key));
-            setPicked(null);
-          }}
-        >
-          <Tabs.ListContainer>
-            <Tabs.List aria-label="Escolher mês">
-              {months.map((key) => (
-                <Tabs.Tab id={key} key={key}>
-                  {MONTHS[Number(key.slice(5)) - 1]}
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs.ListContainer>
-        </Tabs>
-      </div>
-
       {/*
         The month in days, about ABSENCES ONLY (owner request 21/10/2026, option A). A day is "com
         falta" when the diary has at least one absence (X) that day, X and J together included, and
@@ -276,6 +230,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       <div className={'pa3-summary pa3-summary--' + tone.tone}>
         {totals.days ? (
           <>
+            <p className="pa3-summary-title">Faltas em {MONTHS[monthNumber - 1]!.toLowerCase()}</p>
             <ul className="pa3-daycounts">
               <li className="pa3-daycount pa3-daycount--absent">
                 <strong>{totals.missed}</strong> {totals.missed === 1 ? 'dia com falta' : 'dias com falta'}
@@ -305,7 +260,16 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
 
       <div className="pa3-card" {...swipe}>
         <div className="pa3-card-head">
-          <h2>Dias do mês</h2>
+          {/* The month and its arrows (owner request 21/10/2026): the month bar is gone. */}
+          <h2 aria-live="polite">{monthLabel(month)}</h2>
+          <div className="pa3-month-arrows">
+            <button type="button" className="pa3-month-arrow" aria-label="Mês anterior" disabled={month <= FIRST_MONTH} onClick={() => go(-1)}>
+              <ChevronLeft size={18} aria-hidden="true" />
+            </button>
+            <button type="button" className="pa3-month-arrow" aria-label="Próximo mês" disabled={month >= current} onClick={() => go(1)}>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+          </div>
         </div>
         <ul className="pa3-legend" aria-label="Legenda">
           <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Com falta</li>

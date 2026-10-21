@@ -399,7 +399,6 @@
     align-items: start;
   }
   .pa3-frequency > .pa3-page-title,
-  .pa3-frequency > .pa3-month-bar,
   .pa3-frequency > .pa3-footnote {
     grid-column: 1 / -1;
   }
@@ -420,10 +419,6 @@
   margin-top: 0.2rem;
 }
 
-/* The month bar uses the Notas discipline bar's own look (.pa-subject-bar); no extra margins. */
-.pa3-month-bar {
-  margin: 0;
-}
 
 /* The menu's highlight: one pill gliding under the chosen icon, at the pace of the content. */
 .pa3-nav {
@@ -776,4 +771,42 @@
 }
 .pa3-daycount--justified strong {
   color: var(--pa3-amber);
+}
+
+/* Previous / next month, at the right of "Dias do mês". */
+.pa3-month-arrows {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+.pa3-month-arrow {
+  display: grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  place-items: center;
+  border: 1px solid var(--pa3-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--pa3-ink);
+  cursor: pointer;
+}
+.pa3-month-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pa3-month-arrow:focus-visible {
+  outline: 2px solid var(--pa3-blue);
+  outline-offset: 2px;
+}
+
+/* Which month the summary is about. */
+.pa3-summary-title {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--pa3-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.pa3-card-head {
+  align-items: center;
 }
