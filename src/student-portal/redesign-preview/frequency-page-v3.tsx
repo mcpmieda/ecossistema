@@ -269,11 +269,11 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
           {totals.days ? ` · ${plural(totals.days, 'dia', 'dias')}` : ''}
         </p>
         <div className="pa3-ring-row">
-          <DayRingV3 totals={totals} percentage={tone.tone === 'none' ? null : data.percentage} />
+          <DayRingV3 key={month} totals={totals} percentage={tone.tone === 'none' ? null : data.percentage} />
           <ul className="pa3-ring-legend">
-            <li><i className="pa3-swatch pa3-swatch--clear" /><strong>{totals.clear}</strong> {totals.clear === 1 ? 'dia frequentado' : 'dias frequentados'}</li>
-            <li><i className="pa3-swatch pa3-swatch--missed" /><strong>{totals.missed}</strong> com falta</li>
-            <li><i className="pa3-swatch pa3-swatch--justified" /><strong>{totals.justified}</strong> {totals.justified === 1 ? 'justificada' : 'justificadas'}</li>
+            <li className="pa3-ring-item pa3-ring-item--clear"><strong>{totals.clear}</strong><span>{totals.clear === 1 ? 'dia frequentado' : 'dias frequentados'}</span></li>
+            <li className="pa3-ring-item pa3-ring-item--missed"><strong>{totals.missed}</strong><span>com falta</span></li>
+            <li className="pa3-ring-item pa3-ring-item--justified"><strong>{totals.justified}</strong><span>{totals.justified === 1 ? 'justificada' : 'justificadas'}</span></li>
           </ul>
         </div>
         {/* The ruler (owner request 21/10/2026): the month's attendance in lessons from 0 to 100%,
@@ -292,11 +292,12 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
               className="pa3-ruler-fill"
               style={{ width: `${tone.tone === 'none' || data.percentage === null ? 0 : Math.max(0, Math.min(100, data.percentage))}%` }}
             />
-            <span className="pa3-ruler-minimum" style={{ left: `${MINIMUM_PERCENT}%` }} aria-hidden="true" />
+            <span className="pa3-ruler-minimum" style={{ left: `${MINIMUM_PERCENT}%` }} aria-hidden="true">
+              <span className="pa3-ruler-flag">mín. {MINIMUM_PERCENT}%</span>
+            </span>
           </div>
           <div className="pa3-ruler-labels" aria-hidden="true">
             <span>0%</span>
-            <span className="pa3-ruler-label-minimum" style={{ left: `${MINIMUM_PERCENT}%` }}>mínimo {MINIMUM_PERCENT}%</span>
             <span>100%</span>
           </div>
         </div>

@@ -938,3 +938,129 @@
     transition: none;
   }
 }
+
+/* ---------- Summary polish (owner request 21/10/2026: "deixar mais bonito o card todo") ---------- */
+@property --pa3-sweep {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 100;
+}
+.pa3-panel--frequency .pa3-summary {
+  position: relative;
+  overflow: hidden;
+  padding: 1.1rem 1.1rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--pa3-tone) 18%, #e2e8f0);
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--pa3-tone) 12%, transparent), transparent 60%),
+    #fff;
+  box-shadow: 0 18px 40px -30px rgb(15 42 95 / 0.45);
+}
+.pa3-panel--frequency .pa3-summary-title {
+  justify-self: start;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pa3-ink) 6%, #fff);
+  color: var(--pa3-ink);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+/* The ring: a little larger, a soft shadow, and it draws itself on each month. */
+.pa3-panel--frequency .pa3-ring {
+  width: 8.6rem;
+  height: 8.6rem;
+  filter: drop-shadow(0 8px 14px rgb(15 42 95 / 0.12));
+  -webkit-mask: conic-gradient(#000 calc(var(--pa3-sweep) * 1%), transparent 0);
+  mask: conic-gradient(#000 calc(var(--pa3-sweep) * 1%), transparent 0);
+  animation: pa3-ring-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes pa3-ring-draw {
+  from {
+    --pa3-sweep: 0;
+  }
+  to {
+    --pa3-sweep: 100;
+  }
+}
+.pa3-panel--frequency .pa3-ring-hole {
+  width: 6rem;
+  height: 6rem;
+  box-shadow: inset 0 0 0 1px #eef2f8, 0 2px 6px rgb(15 42 95 / 0.06);
+}
+.pa3-panel--frequency .pa3-ring-hole strong {
+  font-size: 1.85rem;
+  letter-spacing: -0.04em;
+}
+/* The three counts as soft pills, the number in its colour. */
+.pa3-panel--frequency .pa3-ring-legend {
+  flex: 1 1 auto;
+  gap: 0.4rem;
+}
+.pa3-ring-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--pa3-item) 9%, #fff);
+  color: var(--pa3-ink);
+  font-size: 0.8rem;
+  line-height: 1.15;
+}
+.pa3-ring-item strong {
+  min-width: 1.2rem;
+  color: var(--pa3-item);
+  font-size: 1.2rem;
+  font-weight: 800;
+  text-align: right;
+}
+.pa3-ring-item--clear {
+  --pa3-item: var(--pa3-ring-clear);
+}
+.pa3-ring-item--missed {
+  --pa3-item: var(--pa3-ring-missed);
+}
+.pa3-ring-item--justified {
+  --pa3-item: #d97706;
+}
+/* The ruler: thicker, a gradient fill, and the 75% minimum as a small flag over its post. */
+.pa3-panel--frequency .pa3-ruler-wrap {
+  padding-top: 1.35rem;
+}
+.pa3-panel--frequency .pa3-ruler {
+  height: 0.75rem;
+  background: #edf1f7;
+  box-shadow: inset 0 1px 2px rgb(15 42 95 / 0.08);
+}
+.pa3-panel--frequency .pa3-ruler-fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pa3-tone) 55%, #fff), var(--pa3-tone));
+}
+.pa3-panel--frequency .pa3-ruler-minimum {
+  top: -0.3rem;
+  bottom: -0.3rem;
+  width: 2px;
+  margin-left: -1px;
+}
+.pa3-ruler-flag {
+  position: absolute;
+  bottom: calc(100% + 0.2rem);
+  left: 50%;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: var(--pa3-ink);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.pa3-panel--frequency .pa3-ruler-labels {
+  height: auto;
+  font-size: 0.68rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-panel--frequency .pa3-ring {
+    animation: none;
+  }
+}
