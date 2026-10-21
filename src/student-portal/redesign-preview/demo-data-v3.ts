@@ -88,12 +88,15 @@ const pad = (value: number) => String(value).padStart(2, '0');
 export const PREVIEW_TODAY_V3 = '2026-10-20';
 
 /** Hand-written October, so the story is easy to follow; other months are generated. */
+// Each kind of day (owner request 21/10/2026): whole days (one justified) and days absent in
+// some lessons only (at the start, at the end, in the middle; one justified).
 const OCTOBER: Record<string, readonly [slot: number, mark: 'X' | 'J'][]> = {
-  '2026-10-06': [[2, 'X']],
+  '2026-10-06': [[1, 'X'], [2, 'X']],
+  '2026-10-08': [[1, 'X'], [2, 'X'], [3, 'X'], [4, 'X'], [5, 'X'], [6, 'X']],
   '2026-10-09': [[1, 'J'], [2, 'J'], [3, 'J'], [4, 'J'], [5, 'J']],
-  '2026-10-15': [[6, 'J']],
   '2026-10-14': [[4, 'X'], [5, 'X']],
-  '2026-10-16': [[1, 'X']],
+  '2026-10-15': [[6, 'J']],
+  '2026-10-16': [[3, 'X']],
   // Today: shown on the calendar, not yet counted (the roll call may still be under way).
   '2026-10-20': [[1, 'X']],
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from 'react';
 import { Tabs } from '@heroui/react';
 import { CalendarX2, Check, ChevronRight, Clock3, FileCheck2, Hourglass, TriangleAlert, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
@@ -6,28 +6,31 @@ import { PREVIEW_TODAY_V3 } from './demo-data-v3';
 
 /*
  * Frequência in a page of its own (owner request 20/10/2026, preview only): one month at a time,
- * read at a glance. The bar says how present the student was; the calendar shows which days had
- * an absence; tapping a day shows in which lessons. Everything below repeats it as a list.
+ * read in DAYS (owner request 21/10/2026). A school day is only "sem falta" or "com falta"; how
+ * much of it had absences is a LEVEL (the tile fills in proportion to the lessons with an
+ * absence), never a label: no "arrived late", "left early" or "partly", which would be the portal
+ * interpreting the diary (owner decisions 21/10/2026). Which lessons only shows in the lesson
+ * tiles of the day. The official attendance stays the legal one, by lessons.
  */
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAYS_SHORT = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const FIRST_MONTH = '2026-02';
 /**
- * Attendance required over the whole year (LDB, art. 24, VI). A month is only compared with it as
- * a reference: one month below it does not fail the year, one above it does not secure it.
+ * Attendance required over the whole year (LDB, art. 24, VI), counted in lessons. A month is only
+ * compared with it as a reference: one month below it does not fail the year.
  */
 const MINIMUM_PERCENT = 75;
 const SHIFT_LABELS: Record<string, string> = { MATUTINO: 'Manhã', VESPERTINO: 'Tarde', NOTURNO: 'Noite', INTEGRAL: 'Integral' };
 
-/**
- * absent/justified/clear: a day with lessons, read in full; pending: lessons not fully read yet;
- * off: no lesson that day (weekend, holiday, outside the enrolment); unknown: no reliable reading;
- * future: the day has not happened yet.
- */
-type DayStateV3 = 'absent' | 'justified' | 'clear' | 'pending' | 'off' | 'unknown' | 'future';
+/** A school day: with or without an absence (89,7% of the school's days have none, 21/10/2026). */
+type DayKindV3 = 'clear' | 'missed';
+/** The calendar's state of a date: a day kind, or a date with nothing to judge yet. */
+type DayStateV3 = DayKindV3 | 'pending' | 'off' | 'unknown' | 'future';
 type MarkV3 = FrequencySummaryV2['marks'][number];
 type ShiftLessonsV3 = { shift: string; slots: number[]; complete: boolean };
+/** `share`: lessons with an absence ÷ lessons of the day, drawn as the tile's fill level. */
+type DayV3 = { kind: DayKindV3; justified: boolean; missed: MarkV3[]; lessons: number; share: number };
 
 const pad = (value: number) => String(value).padStart(2, '0');
 const monthKey = (year: number, month: number) => `${year}-${pad(month)}`;
@@ -48,15 +51,37 @@ const shortDay = (date: string) => {
   const parsed = new Date(`${date}T12:00:00Z`);
   return `${WEEKDAYS_LONG[parsed.getUTCDay()]!.slice(0, 3)} ${pad(parsed.getUTCDate())}/${pad(parsed.getUTCMonth() + 1)}`;
 };
-const lessonsText = (slots: readonly number[]) => {
-  const names = slots.map((slot) => `${slot}ª`);
-  return names.length === 1 ? `${names[0]} aula` : `${names.slice(0, -1).join(', ')} e ${names.at(-1)} aulas`;
-};
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 /** The shift as people say it; an unknown value is left out rather than guessed. */
 const shiftLabel = (shift: string) => SHIFT_LABELS[shift.trim().toUpperCase()] ?? null;
 /** A lesson is one position of one shift: two shifts may both have a "1ª aula". */
 const lessonKey = (shift: string, slot: number) => `${shift}:${slot}`;
+
+/** The day's lessons in order (shift, then position) and which of them were missed. */
+function dayOf(lessons: readonly ShiftLessonsV3[], marks: readonly MarkV3[]): DayV3 {
+  const order = lessons.flatMap((group) => group.slots.map((slot) => lessonKey(group.shift, slot)));
+  const missedAt = new Map(marks.map((mark) => [lessonKey(mark.shift, mark.slot), mark]));
+  const missed = order.map((key) => missedAt.has(key));
+  const count = missed.filter(Boolean).length;
+  return {
+    kind: count === 0 ? 'clear' : 'missed',
+    justified: count > 0 && marks.every((mark) => mark.mark === 'J'),
+    missed: [...marks],
+    lessons: order.length,
+    share: order.length ? count / order.length : 0,
+  };
+}
+
+/** One sentence a parent reads: only counts the diary records, never what they might mean. */
+function daySentence(day: DayV3) {
+  const reason = day.justified ? ' (justificada)' : day.missed.some((mark) => mark.mark === 'J') ? ' (parte justificada)' : '';
+  // A Smecel point is "lesson planned or present": never claimed as a confirmed presence.
+  if (day.kind === 'clear') return 'Nenhuma falta neste dia.';
+  if (day.missed.length >= day.lessons) return `Falta em todas as ${plural(day.lessons, 'aula', 'aulas')}${reason}.`;
+  return `${plural(day.missed.length, 'falta', 'faltas')} em ${plural(day.lessons, 'aula', 'aulas')}${reason}.`;
+}
+/** The tile's fill level, as a CSS custom property. */
+const fillOf = (day: DayV3 | null) => ({ '--pa3-fill': `${Math.round((day?.share ?? 0) * 100)}%` }) as CSSProperties;
 
 function toneOf(data: FrequencySummaryV2) {
   // Only a reliable month has a percentage worth judging (the server gives none otherwise).
@@ -65,40 +90,22 @@ function toneOf(data: FrequencySummaryV2) {
       ? ({ tone: 'none', text: 'Sem dados deste mês' } as const)
       : ({ tone: 'none', text: 'Ainda em apuração' } as const);
   }
-  if (data.percentage < MINIMUM_PERCENT) return { tone: 'low', text: `Abaixo de ${MINIMUM_PERCENT}% neste mês` } as const;
-  if (data.percentage < 85) return { tone: 'warn', text: `Perto de ${MINIMUM_PERCENT}% neste mês` } as const;
-  return { tone: 'good', text: 'Boa frequência neste mês' } as const;
+  if (data.percentage < MINIMUM_PERCENT) return { tone: 'low', text: `abaixo de ${MINIMUM_PERCENT}%` } as const;
+  if (data.percentage < 85) return { tone: 'warn', text: `perto de ${MINIMUM_PERCENT}%` } as const;
+  return { tone: 'good', text: 'boa' } as const;
 }
 
-/*
- * Presence at a glance (owner review 20/10/2026, "read as a parent"): the month's lessons as one bar,
- * green where the student was in class, amber for justified absences and red for absences, with a
- * flag at 75%. The colours tie each number below to its part of the bar, so no sentence is needed.
+/**
+ * The month as a row of days (owner request 21/10/2026): one tile per school day already over, in
+ * the calendar's colours, so "11 de 14 dias sem falta" is seen before it is read.
  */
-function PresenceBarV3({ data }: { data: FrequencySummaryV2 }) {
-  const lessons = data.denominator ?? 0;
-  const absences = data.absences ?? 0;
-  const justified = data.justified ?? 0;
-  // Lessons without a recorded absence: the Smecel point means "lesson planned or present", so this is
-  // "sem falta", never a confirmed presence (owner decision 20/10/2026).
-  const clear = Math.max(0, lessons - absences - justified);
-  const share = (count: number) => (lessons ? (count / lessons) * 100 : 0);
+function DayStripV3({ days }: { days: { date: string; day: DayV3 }[] }) {
   return (
-    <div className="pa3-bar-wrap">
-      <div className="pa3-bar" role="img" aria-label={`${clear} aulas sem falta, ${justified} faltas justificadas e ${absences} faltas, de ${lessons} aulas no mês; a referência do ano é ${MINIMUM_PERCENT}%`}>
-        <span className="pa3-bar-part pa3-bar-part--present" style={{ width: `${share(clear)}%` }} />
-        <span className="pa3-bar-part pa3-bar-part--justified" style={{ width: `${share(justified)}%` }} />
-        <span className="pa3-bar-part pa3-bar-part--absent" style={{ width: `${share(absences)}%` }} />
-        <span className="pa3-bar-minimum" style={{ left: `${MINIMUM_PERCENT}%` }} aria-hidden="true">
-          <span className="pa3-bar-flag">{MINIMUM_PERCENT}%</span>
-        </span>
-      </div>
-      <ul className="pa3-counts">
-        <li className="pa3-count pa3-count--present"><strong>{clear}</strong> sem falta</li>
-        <li className="pa3-count pa3-count--justified"><strong>{justified}</strong> {justified === 1 ? 'justificada' : 'justificadas'}</li>
-        <li className="pa3-count pa3-count--absent"><strong>{absences}</strong> {absences === 1 ? 'falta' : 'faltas'}</li>
-      </ul>
-    </div>
+    <ol className="pa3-daystrip" aria-hidden="true">
+      {days.map(({ date, day }) => (
+        <li key={date} className={`pa3-daystrip-tile pa3-kind--${day.kind}${day.justified ? ' is-justified' : ''}`} style={fillOf(day)} />
+      ))}
+    </ol>
   );
 }
 
@@ -138,8 +145,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   const [month, setMonth] = useState(current);
   const data = useMemo(() => read(month), [read, month]);
   const reliable = data.coverage === 'reliable';
-  // Lessons of each day, straight from the Smecel diary (data.days), kept per shift: 5 or 6, none on
-  // weekends, holidays or outside the enrolment. No configuration anywhere.
+  // Lessons of each day, straight from the Smecel diary (data.days), kept per shift.
   const lessonsByDay = useMemo(() => {
     const map = new Map<string, ShiftLessonsV3[]>();
     for (const day of data.days ?? []) {
@@ -154,18 +160,32 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
     for (const list of map.values()) list.sort((a, b) => a.shift.localeCompare(b.shift));
     return map;
   }, [data]);
-  const byDay = useMemo(() => {
+  const marksByDay = useMemo(() => {
     const map = new Map<string, MarkV3[]>();
     for (const mark of data.marks) map.set(mark.date, [...(map.get(mark.date) ?? []), mark]);
     for (const list of map.values()) list.sort((a, b) => a.shift.localeCompare(b.shift) || a.slot - b.slot);
     return map;
   }, [data]);
-  const countsOf = (date: string) => {
-    const marks = byDay.get(date) ?? [];
-    return { absent: marks.filter((mark) => mark.mark === 'X').length, justified: marks.filter((mark) => mark.mark === 'J').length };
+  const dayAt = (date: string) => {
+    const lessons = lessonsByDay.get(date);
+    return lessons ? dayOf(lessons, marksByDay.get(date) ?? []) : null;
   };
-  const lessonCount = (date: string) => (lessonsByDay.get(date) ?? []).reduce((total, item) => total + item.slots.length, 0);
-  const daysWithMarks = [...byDay.keys()].sort().reverse();
+  // The days that count: over (today is still going on) and read in full.
+  const countedDays = useMemo(
+    () =>
+      [...lessonsByDay.entries()]
+        .filter(([date, lessons]) => date < PREVIEW_TODAY_V3 && lessons.every((item) => item.complete))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, lessons]) => ({ date, day: dayOf(lessons, marksByDay.get(date) ?? []) })),
+    [lessonsByDay, marksByDay],
+  );
+  const totals = {
+    days: countedDays.length,
+    clear: countedDays.filter(({ day }) => day.kind === 'clear').length,
+    missed: countedDays.filter(({ day }) => day.kind === 'missed' && !day.justified).length,
+    justified: countedDays.filter(({ day }) => day.justified).length,
+  };
+  const daysWithMarks = [...marksByDay.keys()].sort().reverse();
   const [picked, setPicked] = useState<string | null>(null);
   const selected = picked && picked.startsWith(month) ? picked : (daysWithMarks[0] ?? null);
   const tone = toneOf(data);
@@ -195,8 +215,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
     setMonth((value) => shiftMonth(value, step));
     setPicked(null);
   };
-  // Only the days area swipes: the month bar scrolls sideways on its own (scrolling it to reach a
-  // far month must never change the month by itself).
+  // Only the days area swipes: the month bar scrolls sideways on its own.
   const swipe = useMonthSwipeV3(go, month > FIRST_MONTH, month < current);
 
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
@@ -205,21 +224,18 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   const stateOf = (date: string): DayStateV3 => {
     if (date > PREVIEW_TODAY_V3) return 'future';
     const lessons = lessonsByDay.get(date);
-    if (!lessons) return reliable ? 'off' : byDay.has(date) ? 'pending' : 'unknown';
-    const { absent, justified } = countsOf(date);
-    if (absent) return 'absent';
-    if (justified) return 'justified';
+    if (!lessons) return reliable ? 'off' : marksByDay.has(date) ? 'pending' : 'unknown';
+    const day = dayOf(lessons, marksByDay.get(date) ?? []);
+    if (day.kind !== 'clear') return day.kind;
     // A day only reads "sem falta" when every lesson of it was read and the day is over.
     return date < PREVIEW_TODAY_V3 && lessons.every((item) => item.complete) ? 'clear' : 'pending';
   };
   const ariaOf = (date: string, state: DayStateV3) => {
-    const { absent, justified } = countsOf(date);
-    const parts = [absent ? plural(absent, 'falta', 'faltas') : '', justified ? plural(justified, 'falta justificada', 'faltas justificadas') : ''].filter(Boolean);
+    const day = dayAt(date);
     const today = date === PREVIEW_TODAY_V3 ? ' (hoje, ainda não entra na conta)' : '';
     const text: Record<DayStateV3, string> = {
-      absent: parts.join(' e '),
-      justified: parts.join(' e '),
       clear: 'sem falta',
+      missed: day ? daySentence(day) : '',
       pending: 'leitura incompleta',
       off: 'sem aula',
       unknown: 'sem dados',
@@ -228,20 +244,9 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
     return `${dayLabel(date)}: ${text[state]}${today}`;
   };
   const selectedLessons = selected ? (lessonsByDay.get(selected) ?? []) : [];
-  const selectedMarks = selected ? (byDay.get(selected) ?? []) : [];
-  const markAt = new Map(selectedMarks.map((mark) => [lessonKey(mark.shift, mark.slot), mark]));
-  const selectedTotal = selected ? lessonCount(selected) : 0;
-  const selectedCounts = selected ? countsOf(selected) : { absent: 0, justified: 0 };
+  const selectedDay = selected ? dayAt(selected) : null;
+  const markAt = new Map((selected ? (marksByDay.get(selected) ?? []) : []).map((mark) => [lessonKey(mark.shift, mark.slot), mark]));
   const isToday = selected === PREVIEW_TODAY_V3;
-  const detailSummary = () => {
-    const missed = selectedCounts.absent + selectedCounts.justified;
-    if (missed === 0) return 'Nenhuma falta registrada neste dia.';
-    const kinds = [
-      selectedCounts.absent ? plural(selectedCounts.absent, 'falta', 'faltas') : '',
-      selectedCounts.justified ? plural(selectedCounts.justified, 'justificada', 'justificadas') : '',
-    ].filter(Boolean).join(' e ');
-    return selectedTotal && missed === selectedTotal ? `Todas as ${selectedTotal} aulas: ${kinds}` : `${kinds} em ${plural(selectedTotal, 'aula', 'aulas')}`;
-  };
 
   return (
     <section className="pa3-frequency" aria-labelledby="pa3-frequency-title">
@@ -277,14 +282,39 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
           <span className="pa3-summary-icon" aria-hidden="true">
             {tone.tone === 'good' ? <Check size={22} strokeWidth={3} /> : tone.tone === 'warn' ? <TriangleAlert size={20} strokeWidth={2.6} /> : tone.tone === 'low' ? <X size={22} strokeWidth={3} /> : <Hourglass size={20} strokeWidth={2.4} />}
           </span>
-          <span className="pa3-summary-value">
-            {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
-            {tone.tone === 'none' || data.percentage === null ? '—' : `${Math.floor(data.percentage)}%`}
-            <small>de presença</small>
-          </span>
-          <span className="pa3-summary-status">{tone.text}</span>
+          {totals.days ? (
+            <span className="pa3-summary-value pa3-summary-value--days">
+              {totals.clear}
+              <small>
+                de {plural(totals.days, 'dia', 'dias')}
+                <br />
+                sem falta
+              </small>
+            </span>
+          ) : (
+            <span className="pa3-summary-value">
+              —<small>{tone.text}</small>
+            </span>
+          )}
         </div>
-        {reliable && data.denominator ? <PresenceBarV3 data={data} /> : null}
+        {totals.days ? (
+          <>
+            <DayStripV3 days={countedDays} />
+            <ul className="pa3-counts">
+              <li className="pa3-count pa3-count--present"><strong>{totals.clear}</strong> sem falta</li>
+              {totals.missed ? <li className="pa3-count pa3-count--absent"><strong>{totals.missed}</strong> com falta</li> : null}
+              {totals.justified ? <li className="pa3-count pa3-count--justified"><strong>{totals.justified}</strong> com falta justificada</li> : null}
+            </ul>
+          </>
+        ) : null}
+        {/* The legal figure stays: the year's minimum is counted in lessons, not in days. */}
+        {tone.tone !== 'none' && data.percentage !== null ? (
+          <p className="pa3-summary-official">
+            {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
+            <strong>{Math.floor(data.percentage)}%</strong> de presença nas aulas · {tone.text}
+            <span className="pa3-summary-official-hint"> (o mínimo do ano é {MINIMUM_PERCENT}%)</span>
+          </p>
+        ) : null}
         {data.conflicts > 0 ? (
           <p className="pa3-summary-note">Há {plural(data.conflicts, 'registro', 'registros')} em revisão pela escola neste mês.</p>
         ) : null}
@@ -293,12 +323,13 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       <div className="pa3-card" {...swipe}>
         <div className="pa3-card-head">
           <h2>Dias do mês</h2>
-          <ul className="pa3-legend" aria-label="Legenda">
-            <li><span className="pa3-dot pa3-dot--absent" /> Falta</li>
-            <li><span className="pa3-dot pa3-dot--justified" /> Justificada</li>
-            <li><span className="pa3-dot pa3-dot--clear" /> Sem falta</li>
-          </ul>
         </div>
+        <ul className="pa3-legend" aria-label="Legenda">
+          <li><span className="pa3-dot pa3-kind--clear" /> Sem falta</li>
+          <li><span className="pa3-dot pa3-kind--missed" style={{ '--pa3-fill': '50%' } as CSSProperties} /> Com falta</li>
+          <li><span className="pa3-dot pa3-kind--missed is-justified" style={{ '--pa3-fill': '50%' } as CSSProperties} /> Justificada</li>
+          <li className="pa3-legend-hint">Quanto mais cheio, mais aulas com falta no dia.</li>
+        </ul>
         {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
         <div className="pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`} role="group">
           {WEEKDAYS_SHORT.map((day, index) => (
@@ -312,32 +343,38 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
           {Array.from({ length: daysInMonth }, (_, index) => {
             const date = `${month}-${pad(index + 1)}`;
             const state = stateOf(date);
-            const { absent, justified } = countsOf(date);
-            const pickable = state === 'absent' || state === 'justified' || state === 'clear' || state === 'pending';
+            const justified = dayAt(date)?.justified ?? false;
+            const pickable = state !== 'off' && state !== 'unknown' && state !== 'future';
             return (
               <button
                 key={date}
                 type="button"
-                className={'pa3-day pa3-day--' + state + (selected === date ? ' is-selected' : '') + (date === PREVIEW_TODAY_V3 ? ' is-today' : '')}
+                className={
+                  'pa3-day pa3-day--' + state + ' pa3-kind--' + state +
+                  (justified ? ' is-justified' : '') +
+                  (selected === date ? ' is-selected' : '') +
+                  (date === PREVIEW_TODAY_V3 ? ' is-today' : '')
+                }
                 disabled={!pickable}
                 aria-pressed={selected === date}
                 aria-label={ariaOf(date, state)}
+                style={state === 'missed' ? fillOf(dayAt(date)) : undefined}
                 onClick={() => setPicked(date)}
               >
                 <span className="pa3-day-number">{index + 1}</span>
-                {/* The badge counts absences only; a day with justified ones only shows those. */}
-                {state === 'absent' ? <span className="pa3-day-count">{absent}</span> : state === 'justified' ? <span className="pa3-day-count">{justified}</span> : null}
               </button>
             );
           })}
         </div>
       </div>
 
-      {selected ? (
+      {selected && selectedDay ? (
         <div className="pa3-card pa3-day-detail" aria-live="polite">
           <h2>{dayLabel(selected)}</h2>
           {isToday ? <p className="pa3-today-note">Hoje · entra na conta amanhã</p> : null}
-          <p className="pa3-day-detail-sub">{detailSummary()}</p>
+          <p className="pa3-day-detail-sub">
+            {daySentence(selectedDay)}
+          </p>
           {selectedLessons.map((group) => {
             const label = shiftLabel(group.shift);
             return (
@@ -346,9 +383,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
                 <ol className="pa3-lessons" data-count={group.slots.length}>
                   {group.slots.map((slot) => {
                     const mark = markAt.get(lessonKey(group.shift, slot));
-                    // Today a lesson without a mark is still to be confirmed (the roll call may come
-                    // later); a mark already in the Smecel is shown, and the note above says it does
-                    // not count until tomorrow.
+                    // Today a lesson without a mark is still to be confirmed (the roll call may come later).
                     const state = mark?.mark === 'X' ? 'absent' : mark?.mark === 'J' ? 'justified' : isToday || !group.complete ? 'pending' : 'clear';
                     return (
                       <li key={slot} className={'pa3-lesson pa3-lesson--' + state}>
@@ -363,7 +398,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
                     );
                   })}
                 </ol>
-                {label && selectedLessons.length === 1 ? <p className="pa3-shift-foot">{label}</p> : null}
+                {label && selectedLessons.length === 1 ? <p className="pa3-shift-foot">{label} · {plural(group.slots.length, 'aula', 'aulas')}</p> : null}
               </div>
             );
           })}
@@ -380,10 +415,8 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
         ) : (
           <ul className="pa3-absence-list">
             {daysWithMarks.map((date) => {
-              const marks = byDay.get(date)!;
-              const { absent, justified } = countsOf(date);
-              const total = lessonCount(date);
-              const slots = marks.map((mark) => mark.slot);
+              const day = dayAt(date);
+              if (!day) return null;
               return (
                 <li key={date}>
                   <button
@@ -391,15 +424,15 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
                     className={'pa3-absence' + (selected === date ? ' is-selected' : '')}
                     onClick={() => setPicked(date)}
                   >
-                    <span className={'pa3-absence-badge pa3-absence-badge--' + (absent ? 'absent' : 'justified')}>
-                      {absent || justified}
-                    </span>
+                    <span className={`pa3-absence-badge pa3-kind--${day.kind}${day.justified ? ' is-justified' : ''}`} style={fillOf(day)} aria-hidden="true" />
                     <span className="pa3-absence-copy">
-                      <strong>{shortDay(date)}{date === PREVIEW_TODAY_V3 ? ' · hoje' : ''}</strong>
+                      <strong>
+                        {shortDay(date)}
+                        {date === PREVIEW_TODAY_V3 ? ' · hoje' : ''}
+                      </strong>
                       <span>
-                        {total && marks.length === total ? 'Dia todo' : lessonsText([...new Set(slots)])}
-                        {absent && justified ? ` · ${plural(absent, 'falta', 'faltas')} e ${plural(justified, 'justificada', 'justificadas')}` : justified ? ' · justificada' : ''}
-                        {date === PREVIEW_TODAY_V3 ? ' · ainda não conta' : ''}
+                        {daySentence(day)}
+                        {date === PREVIEW_TODAY_V3 ? ' Ainda não conta.' : ''}
                       </span>
                     </span>
                     <ChevronRight size={18} aria-hidden="true" className="pa3-absence-chevron" />

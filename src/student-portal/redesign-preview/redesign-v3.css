@@ -183,16 +183,6 @@
   height: 0.6rem;
   border-radius: 50%;
 }
-.pa3-dot--absent {
-  background: var(--pa3-red);
-}
-.pa3-dot--justified {
-  background: #f59e0b;
-}
-.pa3-dot--clear {
-  background: #cfe9d9;
-  box-shadow: inset 0 0 0 1px #86c7a1;
-}
 
 .pa3-calendar {
   display: grid;
@@ -228,14 +218,6 @@
   color: #b6c0cf;
   cursor: default;
 }
-.pa3-day--absent {
-  background: var(--pa3-red);
-  color: #fff;
-}
-.pa3-day--justified {
-  background: #f59e0b;
-  color: #fff;
-}
 .pa3-day.is-today .pa3-day-number {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -243,23 +225,6 @@
 .pa3-day.is-selected {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
   transform: scale(1.04);
-}
-/* How many lessons were missed that day, in a small badge at the corner. */
-.pa3-day-count {
-  position: absolute;
-  top: -0.3rem;
-  right: -0.3rem;
-  display: grid;
-  min-width: 1.1rem;
-  height: 1.1rem;
-  padding: 0 0.2rem;
-  place-items: center;
-  border: 2px solid #fff;
-  border-radius: 999px;
-  background: var(--pa3-ink);
-  color: #fff;
-  font-size: 0.6rem;
-  font-weight: 800;
 }
 
 .pa3-day-detail h2 {
@@ -363,12 +328,6 @@
   border-radius: 0.7rem;
   color: #fff;
   font-weight: 800;
-}
-.pa3-absence-badge--absent {
-  background: var(--pa3-red);
-}
-.pa3-absence-badge--justified {
-  background: #f59e0b;
 }
 .pa3-absence-copy {
   display: grid;
@@ -691,4 +650,91 @@
 }
 .pa3-panel:focus {
   outline: none;
+}
+
+/* ---------- Frequência por dias (owner requests 21/10/2026) ----------
+   A day is "sem falta" (green) or "com falta". How much of the day had absences is a level: the
+   tile fills from the bottom in proportion to its lessons with an absence (--pa3-fill), so it never
+   tells which part of the day. Red for an absence, amber when justified. Shared by the calendar,
+   the row of days, the legend and the list. */
+.pa3-app {
+  --pa3-miss: var(--pa3-red);
+  --pa3-clear-bg: var(--pa3-green-soft);
+}
+.pa3-kind--clear {
+  background: var(--pa3-clear-bg);
+}
+.pa3-kind--missed {
+  background: linear-gradient(to top, var(--pa3-miss) var(--pa3-fill, 100%), #fbe4e1 var(--pa3-fill, 100%));
+}
+.pa3-kind--missed.is-justified {
+  --pa3-miss: #f59e0b;
+  background: linear-gradient(to top, var(--pa3-miss) var(--pa3-fill, 100%), #fdf0d5 var(--pa3-fill, 100%));
+}
+/* The day number stays readable whatever the level. */
+.pa3-day.pa3-kind--missed .pa3-day-number {
+  padding: 0 0.2rem;
+  border-radius: 0.35rem;
+  background: rgb(255 255 255 / 0.9);
+  color: var(--pa3-ink);
+}
+
+/* The month as a row of school days: one tile each, like the calendar. */
+.pa3-daystrip {
+  display: flex;
+  flex: 1 0 100%;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa3-daystrip-tile {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1.35rem;
+  border-radius: 0.3rem;
+}
+.pa3-summary .pa3-counts {
+  flex: 1 0 100%;
+}
+.pa3-summary-value--days small {
+  line-height: 1.15;
+}
+.pa3-summary-official {
+  flex: 1 0 100%;
+  margin: 0;
+  padding-top: 0.6rem;
+  border-top: 1px dashed color-mix(in srgb, var(--pa3-tone) 30%, transparent);
+  color: var(--pa3-ink);
+  font-size: 0.82rem;
+}
+.pa3-summary-official strong {
+  color: var(--pa3-tone);
+  font-size: 1rem;
+}
+.pa3-summary-official-hint {
+  color: var(--pa3-muted);
+  font-size: 0.72rem;
+}
+
+/* Legend and list: the same tiles in small. */
+.pa3-legend {
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
+}
+.pa3-legend .pa3-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 0.2rem;
+  box-shadow: inset 0 0 0 1px rgb(15 42 95 / 0.12);
+}
+.pa3-absence-badge {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.6rem;
+  box-shadow: inset 0 0 0 1px rgb(15 42 95 / 0.12);
+}
+.pa3-legend-hint {
+  flex: 1 0 100%;
+  font-size: 0.68rem;
 }
