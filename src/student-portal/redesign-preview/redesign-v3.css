@@ -1217,3 +1217,53 @@
   background: #fff;
   box-shadow: 0 0 0 1px var(--pa3-ink);
 }
+
+/* The year's ruler (owner request 21/10/2026): its own heading, the month name in the ring. */
+.pa3-guide-month {
+  fill: var(--pa3-ink);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.pa3-year-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 1.6rem;
+  color: var(--pa3-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.pa3-year-head strong {
+  color: var(--pa3-ruler-dark);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.pa3-panel--frequency .pa3-summary--none .pa3-year-head strong {
+  color: var(--pa3-muted);
+  font-size: 0.85rem;
+}
+.pa3-panel--frequency .pa3-ruler-wrap {
+  padding-top: 0.4rem;
+}
+
+/* Tighter (owner request 21/10/2026: "deixe menos afastado tudo"): the 75% flag sits under the
+   ruler, between 0% and 100%, so the heading can come right down to the ruler. */
+.pa3-panel--frequency .pa3-summary {
+  row-gap: 0.5rem;
+}
+.pa3-panel--frequency .pa3-ruler-wrap {
+  padding-top: 0;
+}
+.pa3-panel--frequency .pa3-year-head {
+  margin-bottom: 0.4rem;
+}
+.pa3-panel--frequency .pa3-ruler-flag {
+  top: calc(100% + 0.15rem);
+  bottom: auto;
+}
+.pa3-panel--frequency .pa3-ruler-labels {
+  margin-top: 0.3rem;
+}

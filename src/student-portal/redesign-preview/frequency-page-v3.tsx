@@ -81,15 +81,23 @@ function daySentence(day: DayV3) {
  */
 const toneLevelOf = (day: DayV3 | null) => (!day || day.share <= 0 ? 0 : day.share >= 1 ? 3 : 1);
 
-function toneOf(data: FrequencySummaryV2) {
-  // Only a reliable month has a percentage worth judging (the server gives none otherwise).
-  if (data.coverage !== 'reliable' || data.percentage === null) {
-    return data.coverage === 'unavailable'
-      ? ({ tone: 'none', text: 'Sem dados deste mês' } as const)
-      : ({ tone: 'none', text: 'Ainda em apuração' } as const);
+/**
+ * The year so far (owner request 21/10/2026: "a régua sobre o ano"). The law's 75% is over all
+ * the year's lessons, so the ruler adds up every month from the first one to now, with the
+ * server's rule: 100 × (lessons − absences) / lessons, justified absences not taken off. Only
+ * when every month is reliable; otherwise the year is still being worked out. On the real
+ * portal the server sends this figure.
+ */
+function yearOf(read: (month: string) => FrequencySummaryV2, current: string) {
+  let lessons = 0;
+  let absences = 0;
+  for (let month = FIRST_MONTH; month <= current; month = shiftMonth(month, 1)) {
+    const data = read(month);
+    if (data.coverage !== 'reliable' || data.denominator === null || data.absences === null) return null;
+    lessons += data.denominator;
+    absences += data.absences;
   }
-  if (data.percentage < MINIMUM_PERCENT) return { tone: 'low', text: `Abaixo de ${MINIMUM_PERCENT}% neste mês` } as const;
-  return { tone: 'good', text: 'Acima do mínimo' } as const;
+  return lessons ? Math.round(((lessons - absences) / lessons) * 1000) / 10 : null;
 }
 
 /**
@@ -130,7 +138,7 @@ function spreadLabels<T extends { y: number }>(labels: T[]) {
   for (const label of labels) label.y = Math.max(20, label.y);
   return labels;
 }
-function DayRingV3({ totals, percentage }: { totals: { days: number; clear: number; missed: number; justified: number }; percentage: number | null }) {
+function DayRingV3({ totals, monthName }: { totals: { days: number; clear: number; missed: number; justified: number }; monthName: string }) {
   const counts = { clear: totals.clear, missed: totals.missed, justified: totals.justified };
   const shown = RING_KINDS_V3.filter(({ kind }) => counts[kind] > 0);
   let at = -Math.PI / 2;
@@ -154,7 +162,7 @@ function DayRingV3({ totals, percentage }: { totals: { days: number; clear: numb
       className="pa3-guide-ring"
       viewBox={`0 0 ${RING_VIEW_V3.width} ${RING_VIEW_V3.height}`}
       role="img"
-      aria-label={`${totals.clear} dias frequentados, ${totals.missed} com falta e ${totals.justified} com falta justificada${percentage === null ? '' : `; ${Math.floor(percentage)}% de presença nas aulas`}`}
+      aria-label={`${monthName}: ${totals.clear} dias frequentados, ${totals.missed} com falta e ${totals.justified} com falta justificada`}
     >
       <circle className="pa3-guide-track" cx={RING_CENTER_V3.x} cy={RING_CENTER_V3.y} r={RING_RADIUS_V3} strokeWidth={RING_STROKE_V3} />
       {placed.map((arc) =>
@@ -212,16 +220,15 @@ function DayRingV3({ totals, percentage }: { totals: { days: number; clear: numb
           </g>
         );
       })}
-      {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 2} textAnchor="middle" className="pa3-guide-percent">
-        {percentage === null ? '—' : `${Math.floor(percentage)}%`}
+      {/* The month in the centre: the attendance in lessons moved to the year's ruler below. */}
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + (totals.days ? 2 : 6)} textAnchor="middle" className="pa3-guide-month">
+        {monthName}
       </text>
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 17} textAnchor="middle" className="pa3-guide-caption">
-        presença
-      </text>
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 27} textAnchor="middle" className="pa3-guide-caption">
-        nas aulas
-      </text>
+      {totals.days ? (
+        <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 17} textAnchor="middle" className="pa3-guide-caption">
+          {plural(totals.days, 'dia', 'dias')}
+        </text>
+      ) : null}
     </svg>
   );
 }
@@ -305,7 +312,8 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   const daysWithMarks = [...marksByDay.keys()].sort().reverse();
   const [picked, setPicked] = useState<string | null>(null);
   const selected = picked && picked.startsWith(month) ? picked : (daysWithMarks[0] ?? null);
-  const tone = toneOf(data);
+  const yearPercent = useMemo(() => yearOf(read, current), [read, current]);
+  const yearTone = yearPercent === null ? 'none' : yearPercent < MINIMUM_PERCENT ? 'low' : 'good';
   const go = (step: number) => {
     setMonth((value) => shiftMonth(value, step));
     setPicked(null);
@@ -356,28 +364,26 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
         Always the same height, data or not, so the calendar below never moves when the month
         changes (owner request 21/10/2026).
       */}
-      <div className={'pa3-summary pa3-summary--' + tone.tone}>
-        <p className="pa3-summary-title">
-          {MONTHS[monthNumber - 1]}
-          {totals.days ? ` · ${plural(totals.days, 'dia', 'dias')}` : ''}
-        </p>
-        <DayRingV3 key={month} totals={totals} percentage={tone.tone === 'none' ? null : data.percentage} />
-        {/* The ruler (owner request 21/10/2026): the month's attendance in lessons from 0 to 100%,
-            with the 75% the year asks for marked on it. */}
+      <div className={'pa3-summary pa3-summary--' + yearTone}>
+        <DayRingV3 key={month} totals={totals} monthName={MONTHS[monthNumber - 1]!} />
+        {/* The ruler is the year so far, not the month (owner request 21/10/2026): the 75% is the
+            law's minimum over all the year's lessons, so only the year's figure meets it. */}
         <div className="pa3-ruler-wrap">
+          <p className="pa3-year-head">
+            <span>Presença no ano até agora</span>
+            {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
+            <strong>{yearPercent === null ? 'em apuração' : `${Math.floor(yearPercent)}%`}</strong>
+          </p>
           <div
             className="pa3-ruler"
             role="img"
             aria-label={
-              tone.tone === 'none' || data.percentage === null
-                ? 'Presença do mês ainda não disponível'
-                : `${Math.floor(data.percentage)}% de presença nas aulas; o mínimo do ano é ${MINIMUM_PERCENT}%`
+              yearPercent === null
+                ? 'Presença do ano ainda em apuração'
+                : `${Math.floor(yearPercent)}% de presença nas aulas do ano até agora; o mínimo do ano é ${MINIMUM_PERCENT}%`
             }
           >
-            <span
-              className="pa3-ruler-fill"
-              style={{ width: `${tone.tone === 'none' || data.percentage === null ? 0 : Math.max(0, Math.min(100, data.percentage))}%` }}
-            />
+            <span className="pa3-ruler-fill" style={{ width: `${yearPercent === null ? 0 : Math.max(0, Math.min(100, yearPercent))}%` }} />
             <span className="pa3-ruler-minimum" style={{ left: `${MINIMUM_PERCENT}%` }} aria-hidden="true">
               <span className="pa3-ruler-flag">mín. {MINIMUM_PERCENT}%</span>
             </span>
