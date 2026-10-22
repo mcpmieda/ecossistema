@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState, type TouchEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
-import { PREVIEW_TODAY_V3 } from './demo-data-v3';
+import { previewTodayV3 } from './demo-data-v3';
 
 /*
  * Frequência in a page of its own (owner request 20/10/2026, preview only): one month at a time,
@@ -343,10 +343,45 @@ function useMonthSwipeV3(go: (step: number) => void, canBack: boolean, canForwar
   };
 }
 
+/**
+ * Today, kept current while the page stays open (owner request 21/10/2026): a phone left on the
+ * portal overnight moves "HOJE" (and, on the 1st, the month) when the parent comes back to it, and
+ * at midnight. The school's clock: America/Bahia, always UTC−3 (no daylight saving since 2012).
+ */
+const SCHOOL_UTC_OFFSET_MS = -3 * 3_600_000;
+const DAY_MS = 86_400_000;
+function useTodayV3() {
+  const [today, setToday] = useState(previewTodayV3);
+  useEffect(() => {
+    const check = () => setToday(previewTodayV3());
+    const untilMidnight = () => DAY_MS - ((Date.now() + SCHOOL_UTC_OFFSET_MS) % DAY_MS) + 1_000;
+    let timer = window.setTimeout(function tick() {
+      check();
+      timer = window.setTimeout(tick, untilMidnight());
+    }, untilMidnight());
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', check);
+    };
+  }, []);
+  return today;
+}
+
 export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySummaryV2 }) {
-  const current = PREVIEW_TODAY_V3.slice(0, 7);
-  const [month, setMonth] = useState(current);
-  const data = useMemo(() => read(month), [read, month]);
+  const today = useTodayV3();
+  const current = today.slice(0, 7);
+  // null: the current month, which follows the calendar (a new month on the 1st); a month the
+  // parent picked stays until they leave the page.
+  const [chosenMonth, setChosenMonth] = useState<string | null>(null);
+  const month = chosenMonth && chosenMonth < current ? chosenMonth : current;
+  // `today` too: what a month holds changes with the day (today's lessons, yesterday counted).
+  const data = useMemo(() => read(month), [read, month, today]);
   const reliable = data.coverage === 'reliable';
   // Lessons of each day, straight from the Smecel diary (data.days), kept per shift.
   const lessonsByDay = useMemo(() => {
@@ -377,10 +412,10 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   const countedDays = useMemo(
     () =>
       [...lessonsByDay.entries()]
-        .filter(([date, lessons]) => date < PREVIEW_TODAY_V3 && lessons.every((item) => item.complete))
+        .filter(([date, lessons]) => date < today && lessons.every((item) => item.complete))
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([date, lessons]) => ({ date, day: dayOf(lessons, marksByDay.get(date) ?? []) })),
-    [lessonsByDay, marksByDay],
+    [lessonsByDay, marksByDay, today],
   );
   const totals = {
     days: countedDays.length,
@@ -392,10 +427,11 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   const daysWithMarks = [...marksByDay.keys()].sort().reverse();
   const [picked, setPicked] = useState<string | null>(null);
   const selected = picked && picked.startsWith(month) ? picked : (daysWithMarks[0] ?? null);
-  const yearPercent = useMemo(() => yearOf(read, current), [read, current]);
+  const yearPercent = useMemo(() => yearOf(read, current), [read, current, today]);
   const yearTone = yearPercent === null ? 'none' : yearPercent < MINIMUM_PERCENT ? 'low' : 'good';
   const go = (step: number) => {
-    setMonth((value) => shiftMonth(value, step));
+    const next = shiftMonth(month, step);
+    setChosenMonth(next >= current ? null : next);
     setPicked(null);
   };
   // Only the days area swipes: the month bar scrolls sideways on its own.
@@ -405,17 +441,17 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const stateOf = (date: string): DayStateV3 => {
-    if (date > PREVIEW_TODAY_V3) return 'future';
+    if (date > today) return 'future';
     const lessons = lessonsByDay.get(date);
     if (!lessons) return reliable ? 'off' : marksByDay.has(date) ? 'pending' : 'unknown';
     const day = dayOf(lessons, marksByDay.get(date) ?? []);
     if (day.kind !== 'clear') return day.kind;
     // A day only reads "sem falta" when every lesson of it was read and the day is over.
-    return date < PREVIEW_TODAY_V3 && lessons.every((item) => item.complete) ? 'clear' : 'pending';
+    return date < today && lessons.every((item) => item.complete) ? 'clear' : 'pending';
   };
   const ariaOf = (date: string, state: DayStateV3) => {
     const day = dayAt(date);
-    const today = date === PREVIEW_TODAY_V3 ? ' (hoje, dia em andamento: conta a partir de amanhã)' : '';
+    const todayNote = date === today ? ' (hoje, dia em andamento: conta a partir de amanhã)' : '';
     const text: Record<DayStateV3, string> = {
       clear: 'nenhuma falta registrada',
       missed: day ? daySentence(day) : '',
@@ -424,12 +460,12 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       unknown: 'sem dados',
       future: 'data futura, frequência ainda não disponível',
     };
-    return `${dayLabel(date)}: ${text[state]}${today}`;
+    return `${dayLabel(date)}: ${text[state]}${todayNote}`;
   };
   const selectedLessons = selected ? (lessonsByDay.get(selected) ?? []) : [];
   const selectedDay = selected ? dayAt(selected) : null;
   const markAt = new Map((selected ? (marksByDay.get(selected) ?? []) : []).map((mark) => [lessonKey(mark.shift, mark.slot), mark]));
-  const isToday = selected === PREVIEW_TODAY_V3;
+  const isToday = selected === today;
 
   return (
     <section className="pa3-frequency" aria-labelledby="pa3-frequency-title">
@@ -527,7 +563,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
                   'pa3-day pa3-day--' + state + ' pa3-kind--' + state +
                   (justified ? ' is-justified' : '') +
                   (selected === date ? ' is-selected' : '') +
-                  (date === PREVIEW_TODAY_V3 ? ' is-today' : '')
+                  (date === today ? ' is-today' : '')
                 }
                 disabled={!pickable}
                 aria-pressed={selected === date}
@@ -536,7 +572,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
                 onClick={() => setPicked(date)}
               >
                 <span className="pa3-day-number">{index + 1}</span>
-                {date === PREVIEW_TODAY_V3 ? <span className="pa3-day-today">HOJE</span> : null}
+                {date === today ? <span className="pa3-day-today">HOJE</span> : null}
               </button>
             );
           })}
@@ -547,9 +583,9 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
         <div className="pa3-card pa3-day-detail" aria-live="polite">
           {/* Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026), on one line. */}
           <h2 className="pa3-day-detail-title">
-            {selected === PREVIEW_TODAY_V3
+            {selected === today
               ? `Hoje, ${dayLabel(selected).toLowerCase()}`
-              : selected === dayBefore(PREVIEW_TODAY_V3)
+              : selected === dayBefore(today)
                 ? `Ontem, ${dayLabel(selected).toLowerCase()}`
                 : dayLabel(selected)}
           </h2>

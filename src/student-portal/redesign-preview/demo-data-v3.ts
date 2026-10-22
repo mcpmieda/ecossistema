@@ -90,7 +90,7 @@ const pad = (value: number) => String(value).padStart(2, '0');
  * On the real portal the server must send this date (it already works out the school's "today"
  * in America/Bahia for the collector).
  */
-export const PREVIEW_TODAY_V3 = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
+export const previewTodayV3 = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
 
 /** Hand-written October, so the story is easy to follow; other months are generated. */
 // Each kind of day (owner request 21/10/2026): whole days (one justified) and days absent in
@@ -118,13 +118,14 @@ function seeded(seed: number) {
   };
 }
 function marksOf(month: string): FrequencySummaryV2['marks'] {
+  const today = previewTodayV3();
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const random = seeded(monthNumber * 97);
   const marks: FrequencySummaryV2['marks'] = [];
   for (let day = 1; day <= days; day++) {
     const date = `${month}-${pad(day)}`;
-    if (date > PREVIEW_TODAY_V3) break;
+    if (date > today) break;
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6 || HOLIDAYS.has(date)) continue;
     const planned = month === '2026-10' ? OCTOBER[date] : undefined;
@@ -143,12 +144,13 @@ function marksOf(month: string): FrequencySummaryV2['marks'] {
   return marks;
 }
 function daysOf(month: string): DemoFrequencyV3['days'] {
+  const today = previewTodayV3();
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const result: DemoFrequencyV3['days'] = [];
   for (let day = 1; day <= days; day++) {
     const date = `${month}-${pad(day)}`;
-    if (date > PREVIEW_TODAY_V3) break;
+    if (date > today) break;
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6 || HOLIDAYS.has(date)) continue;
     result.push({ date, shift: 'MATUTINO', slots: Array.from({ length: lessonsOn(date) }, (_, index) => index + 1), complete: true });
@@ -158,13 +160,14 @@ function daysOf(month: string): DemoFrequencyV3['days'] {
 
 /** The month's summary in the same shape the Portal's frequency API returns. */
 export function demoFrequencyV3(month: string): DemoFrequencyV3 {
+  const today = previewTodayV3();
   const marks = marksOf(month);
   const days = daysOf(month);
   // The server's rule (withLessonDaysV2): lessons of the days, X absences, J justified;
   // 100 × (lessons − absences) / lessons. Today stays out of the totals until it ends: its roll
   // call may still be under way, so a point there is not yet "no absence" (owner decision 20/10/2026).
-  const counted = days.filter((day) => day.date < PREVIEW_TODAY_V3);
-  const countedMarks = marks.filter((mark) => mark.date < PREVIEW_TODAY_V3);
+  const counted = days.filter((day) => day.date < today);
+  const countedMarks = marks.filter((mark) => mark.date < today);
   const denominator = counted.reduce((total, day) => total + day.slots.length, 0);
   const absences = countedMarks.filter((mark) => mark.mark === 'X').length;
   const justified = countedMarks.filter((mark) => mark.mark === 'J').length;
