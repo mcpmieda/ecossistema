@@ -1379,3 +1379,14 @@
 .pa3-day.is-selected.pa3-kind--missed:not([data-tone='3']):not(.is-justified) {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
 }
+/* Today with no absence yet (owner request 21/10/2026: the grey outline looked bad): a navy tile
+   in the same gradient style as the others, white number and "HOJE". A today with an absence
+   keeps its red or yellow. */
+.pa3-day--pending.is-today {
+  background: linear-gradient(180deg, #24427f, #0f2a5f);
+  box-shadow: none;
+  color: #fff;
+}
+.pa3-day--pending.is-today.is-selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
+}
