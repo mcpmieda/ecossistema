@@ -119,11 +119,20 @@ const RING_RADIUS_V3 = 52;
 const RING_STROKE_V3 = 19;
 /** A small gap between arcs, in radians. */
 const RING_GAP_V3 = 0.05;
+/**
+ * The four kinds of day, the same as the calendar's colours (owner decision 21/10/2026: a student
+ * who misses only some lessons, arriving at the third, did not miss the day). Every school day
+ * already over falls in exactly one: no absence; an absence in every lesson (one at least not
+ * justified); an absence in some lessons only (one at least not justified); every absence of the
+ * day justified, all lessons or some.
+ */
 const RING_KINDS_V3 = [
   { kind: 'clear', colour: '#166534', one: 'dia frequentado', many: 'dias frequentados' },
-  { kind: 'missed', colour: '#991b1b', one: 'com falta', many: 'com falta' },
+  { kind: 'full', colour: '#991b1b', one: 'falta total', many: 'faltas totais' },
+  { kind: 'partial', colour: '#d45a4f', one: 'falta parcial', many: 'faltas parciais' },
   { kind: 'justified', colour: '#b45309', one: 'justificada', many: 'justificadas' },
 ] as const;
+type RingTotalsV3 = { days: number; clear: number; full: number; partial: number; justified: number };
 const ringPoint = (radius: number, angle: number) => ({
   x: RING_CENTER_V3.x + radius * Math.cos(angle),
   y: RING_CENTER_V3.y + radius * Math.sin(angle),
@@ -151,21 +160,49 @@ function CalendarFlipV3() {
   );
 }
 
-/** Labels on one side never overlap: each keeps at least this vertical distance. */
-const RING_LABEL_GAP_V3 = 34;
+/**
+ * Labels on one side never overlap: each keeps at least this vertical distance, the height of a
+ * label of two lines (the count, then "faltas / parciais"). At most three labels share a side.
+ */
+const RING_LABEL_GAP_V3 = 50;
+type PointV3 = { x: number; y: number };
+/** Whether a guide curve (a cubic Bézier) comes within the ring, with a hair of room. */
+function curveCrossesRing(start: PointV3, first: PointV3, second: PointV3, end: PointV3) {
+  for (let step = 1; step < 24; step++) {
+    const t = step / 24;
+    const u = 1 - t;
+    const x = u * u * u * start.x + 3 * u * u * t * first.x + 3 * u * t * t * second.x + t * t * t * end.x;
+    const y = u * u * u * start.y + 3 * u * u * t * first.y + 3 * u * t * t * second.y + t * t * t * end.y;
+    if (Math.hypot(x - RING_CENTER_V3.x, y - RING_CENTER_V3.y) < RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 3) return true;
+  }
+  return false;
+}
+/** The short level stroke from a line's bend to its words. */
+const RING_LABEL_LEAD_V3 = 8;
 function spreadLabels<T extends { y: number }>(labels: T[]) {
+  // As close to the edges as the words allow: the count above a label's line, two lines below it.
+  const top = 22;
+  const bottom = RING_VIEW_V3.height - 25;
   labels.sort((first, second) => first.y - second.y);
-  for (let index = 1; index < labels.length; index++)
-    labels[index]!.y = Math.max(labels[index]!.y, labels[index - 1]!.y + RING_LABEL_GAP_V3);
-  const overflow = (labels.at(-1)?.y ?? 0) - (RING_VIEW_V3.height - 30);
-  if (overflow > 0) for (const label of labels) label.y -= overflow;
-  for (const label of labels) label.y = Math.max(20, label.y);
+  // Down from the top edge, each one at least a label's height below the one above it…
+  for (const [index, label] of labels.entries())
+    label.y = Math.max(label.y, index ? labels[index - 1]!.y + RING_LABEL_GAP_V3 : top);
+  // …then up from the bottom edge the same way, so a label pushed past it brings the others up…
+  for (let index = labels.length - 1; index >= 0; index--)
+    labels[index]!.y = Math.min(labels[index]!.y, index < labels.length - 1 ? labels[index + 1]!.y - RING_LABEL_GAP_V3 : bottom);
+  // …and never above the top (three labels always fit between the two edges).
+  for (const [index, label] of labels.entries())
+    label.y = Math.max(label.y, index ? labels[index - 1]!.y + RING_LABEL_GAP_V3 : top);
   return labels;
 }
-function DayRingV3({ totals, monthName }: { totals: { days: number; clear: number; missed: number; justified: number }; monthName: string }) {
-  const counts = { clear: totals.clear, missed: totals.missed, justified: totals.justified };
-  const shown = RING_KINDS_V3.filter(({ kind }) => counts[kind] > 0);
-  let at = -Math.PI / 2;
+function DayRingV3({ totals, monthName }: { totals: RingTotalsV3; monthName: string }) {
+  const counts = { clear: totals.clear, full: totals.full, partial: totals.partial, justified: totals.justified };
+  // Absences first, then the frequented days. The ring is turned so the absences sit centred on
+  // the left and the frequented days on the right (owner request 21/10/2026): every arc then
+  // points sideways, and every guide line runs out nearly level, with no hooks.
+  const shown = [...RING_KINDS_V3.filter(({ kind }) => kind !== 'clear'), RING_KINDS_V3[0]].filter(({ kind }) => counts[kind] > 0);
+  const absent = totals.days - totals.clear;
+  let at = Math.PI - (absent / totals.days) * Math.PI;
   const arcs = shown.map((item, order) => {
     const size = (counts[item.kind] / totals.days) * 2 * Math.PI;
     const from = at;
@@ -173,11 +210,13 @@ function DayRingV3({ totals, monthName }: { totals: { days: number; clear: numbe
     return { ...item, count: counts[item.kind], from, to: at, middle: from + size / 2, order };
   });
   // Each label starts level with its arc's middle, then the ones on each side are spread apart.
+  // Each label on its arc's side: with the absences turned to the left, they share the left side
+  // (three at most, which always fit) and the frequented days take the right.
   const placed = arcs.map((arc) => {
     const side = Math.cos(arc.middle) >= 0 ? 1 : -1;
     // The pointer starts a little away from the ring, not touching it (owner request 21/10/2026).
-    const near = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 7, arc.middle);
-    const elbow = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 20, arc.middle);
+    const near = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 6, arc.middle);
+    const elbow = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 14, arc.middle);
     return { ...arc, side, near, elbow, y: elbow.y };
   });
   for (const side of [1, -1]) spreadLabels(placed.filter((label) => label.side === side));
@@ -187,7 +226,7 @@ function DayRingV3({ totals, monthName }: { totals: { days: number; clear: numbe
       className="pa3-guide-ring"
       viewBox={`0 0 ${RING_VIEW_V3.width} ${RING_VIEW_V3.height}`}
       role="img"
-      aria-label={`${monthName}: ${totals.clear} dias frequentados, ${totals.missed} com falta e ${totals.justified} com falta justificada`}
+      aria-label={`${monthName}, ${totals.days} dias de aula: ${totals.clear} frequentados, ${totals.full} com falta total, ${totals.partial} com falta parcial e ${totals.justified} com falta justificada`}
     >
       <circle className="pa3-guide-track" cx={RING_CENTER_V3.x} cy={RING_CENTER_V3.y} r={RING_RADIUS_V3} strokeWidth={RING_STROKE_V3} />
       {placed.map((arc) =>
@@ -217,19 +256,36 @@ function DayRingV3({ totals, monthName }: { totals: { days: number; clear: numbe
         ),
       )}
       {placed.map((label) => {
-        const end = label.elbow.x + label.side * 14;
-        const text = end + label.side * 4;
+        // One smooth curve, as short as it can be (owner requests 21/10/2026: no crooked arrows,
+        // no needless bends, curves instead of corners): it leaves the arc pointing outwards and
+        // reaches the words level. It goes further out only as far as the words need to clear
+        // the ring at their own height.
+        const outer = RING_RADIUS_V3 + RING_STROKE_V3 / 2;
+        const above = Math.max(0, RING_CENTER_V3.y - (label.y + 25), label.y - 22 - RING_CENTER_V3.y);
+        const needed = above >= outer ? 0 : Math.sqrt(outer * outer - above * above) + 5 - RING_LABEL_LEAD_V3;
+        let reach = Math.max(Math.abs(label.elbow.x - RING_CENTER_V3.x), needed);
+        const curveTo = (out: number) => {
+          const post = RING_CENTER_V3.x + label.side * out;
+          return [label.near, label.elbow, { x: post, y: label.y }, { x: post + label.side * RING_LABEL_LEAD_V3, y: label.y }] as const;
+        };
+        // A label moved up or down: its curve must not graze the ring either.
+        while (reach < outer + 40 && curveCrossesRing(...curveTo(reach))) reach += 2;
+        const [, bend, level, finish] = curveTo(reach);
+        const end = finish.x;
+        const text = end + label.side * 3;
         const anchor = label.side > 0 ? 'start' : 'end';
         const name = label.count === 1 ? label.one : label.many;
-        const [first, second] = name === 'dias frequentados' ? ['dias', 'frequentados'] : [name, null];
+        // Two words on two lines ("dias / frequentados", "falta / parcial"); one word stays alone.
+        const [first, second] = name.includes(' ') ? [name.slice(0, name.indexOf(' ')), name.slice(name.indexOf(' ') + 1)] : [name, null];
         return (
           <g key={label.kind} className="pa3-guide-label" style={{ animationDelay: `${450 + label.order * 160}ms` }}>
             <circle cx={label.near.x} cy={label.near.y} r={2.2} fill={label.colour} />
-            <polyline
-              points={`${label.near.x},${label.near.y} ${label.elbow.x},${label.y} ${end},${label.y}`}
+            <path
+              d={`M${label.near.x.toFixed(1)} ${label.near.y.toFixed(1)} C${bend.x.toFixed(1)} ${bend.y.toFixed(1)} ${level.x.toFixed(1)} ${level.y.toFixed(1)} ${end.toFixed(1)} ${label.y.toFixed(1)}`}
               fill="none"
               stroke={label.colour}
               strokeWidth={1.3}
+              strokeLinecap="round"
             />
             <text x={text} y={label.y - 3} textAnchor={anchor} className="pa3-guide-count" fill={label.colour}>
               {label.count}
@@ -329,7 +385,8 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   const totals = {
     days: countedDays.length,
     clear: countedDays.filter(({ day }) => day.kind === 'clear').length,
-    missed: countedDays.filter(({ day }) => day.kind === 'missed' && !day.justified).length,
+    full: countedDays.filter(({ day }) => day.kind === 'missed' && !day.justified && day.share >= 1).length,
+    partial: countedDays.filter(({ day }) => day.kind === 'missed' && !day.justified && day.share < 1).length,
     justified: countedDays.filter(({ day }) => day.justified).length,
   };
   const daysWithMarks = [...marksByDay.keys()].sort().reverse();
@@ -441,7 +498,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
           </div>
         </div>
         <ul className="pa3-legend" aria-label="Legenda">
-          <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Com falta</li>
+          <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Falta total</li>
           {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
           <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Falta parcial</li>
           <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
