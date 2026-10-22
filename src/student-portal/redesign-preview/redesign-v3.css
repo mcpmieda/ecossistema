@@ -1380,10 +1380,11 @@
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
 }
 /* Today with no absence yet (owner request 21/10/2026: the grey outline looked bad, then the navy
-   tile sat too close to the absence colours): a soft blue tile in the same gradient style. A today with an absence
+   tile sat too close to the absence colours, then no fill at all): no background, navy number,
+   blue "HOJE". A today with an absence
    keeps its red or yellow. */
 .pa3-day--pending.is-today {
-  background: linear-gradient(180deg, #eef3ff, #dbe5fa);
+  background: transparent;
   box-shadow: none;
   color: var(--pa3-ink);
 }
