@@ -129,10 +129,6 @@
   border-radius: 1.3rem;
   background: linear-gradient(140deg, var(--pa3-tone-soft), #fff 75%);
 }
-.pa3-summary--warn {
-  --pa3-tone: var(--pa3-amber);
-  --pa3-tone-soft: var(--pa3-amber-soft);
-}
 .pa3-summary--low {
   --pa3-tone: var(--pa3-red);
   --pa3-tone-soft: var(--pa3-red-soft);
@@ -1191,4 +1187,30 @@
 /* The month's tag centred over the ring (owner request 21/10/2026). */
 .pa3-panel--frequency .pa3-summary-title {
   justify-self: center;
+}
+
+/* The ruler in two colours only (owner request 21/10/2026): green from the 75% minimum up, red
+   below it. Amber means "justificada" everywhere else, so the ruler never uses it. The same clean
+   tones as the ring, no black mixed in; softer stripes; a post that shows on any colour. */
+.pa3-panel--frequency .pa3-summary {
+  --pa3-ruler-dark: #166534;
+}
+.pa3-panel--frequency .pa3-summary--low {
+  --pa3-ruler-dark: #991b1b;
+}
+.pa3-panel--frequency .pa3-ruler-fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pa3-ruler-dark) 78%, #fff), var(--pa3-ruler-dark));
+}
+.pa3-panel--frequency .pa3-ruler-fill::after {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(255 255 255 / 0.12) 0 6px,
+    transparent 6px 14px
+  );
+}
+.pa3-panel--frequency .pa3-ruler-minimum {
+  width: 3px;
+  margin-left: -1.5px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--pa3-ink);
 }

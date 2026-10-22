@@ -89,7 +89,6 @@ function toneOf(data: FrequencySummaryV2) {
       : ({ tone: 'none', text: 'Ainda em apuração' } as const);
   }
   if (data.percentage < MINIMUM_PERCENT) return { tone: 'low', text: `Abaixo de ${MINIMUM_PERCENT}% neste mês` } as const;
-  if (data.percentage < 85) return { tone: 'warn', text: `Perto de ${MINIMUM_PERCENT}% neste mês` } as const;
   return { tone: 'good', text: 'Acima do mínimo' } as const;
 }
 
