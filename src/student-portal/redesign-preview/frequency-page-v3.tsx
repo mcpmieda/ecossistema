@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type TouchEvent } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
 import { PREVIEW_TODAY_V3 } from './demo-data-v3';
 
@@ -131,6 +131,24 @@ const ringArc = (from: number, to: number) => {
   const end = ringPoint(RING_RADIUS_V3, to);
   return `M${start.x.toFixed(2)} ${start.y.toFixed(2)} A${RING_RADIUS_V3} ${RING_RADIUS_V3} 0 ${to - from > Math.PI ? 1 : 0} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
 };
+/**
+ * The month tag's calendar icon, its sheet turning over from top to bottom without end (owner
+ * request 21/10/2026), like a flip calendar: the upper half folds down to the middle, the lower
+ * half of the next sheet unfolds below it. Still with reduced motion.
+ */
+function CalendarFlipV3() {
+  return (
+    <svg className="pa3-flip" width={15} height={15} viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 3v4M16 3v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <rect className="pa3-flip-sheet" x="7" y="10" width="10" height="4" rx="1" />
+      <rect className="pa3-flip-sheet" x="7" y="14.6" width="10" height="3.6" rx="1" />
+      <rect className="pa3-flip-sheet pa3-flip-top" x="7" y="10" width="10" height="4" rx="1" />
+      <rect className="pa3-flip-sheet pa3-flip-bottom" x="7" y="14.6" width="10" height="3.6" rx="1" />
+    </svg>
+  );
+}
+
 /** Labels on one side never overlap: each keeps at least this vertical distance. */
 const RING_LABEL_GAP_V3 = 34;
 function spreadLabels<T extends { y: number }>(labels: T[]) {
@@ -369,7 +387,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       <div className={'pa3-summary pa3-summary--' + yearTone}>
         {/* The month's name on a tag at the top (owner request 21/10/2026: "sentindo falta do nome"). */}
         <p className="pa3-summary-title">
-          <CalendarDays size={14} aria-hidden="true" />
+          <CalendarFlipV3 />
           {monthLabel(month)}
         </p>
         <DayRingV3 key={month} totals={totals} monthName={MONTHS[monthNumber - 1]!} />

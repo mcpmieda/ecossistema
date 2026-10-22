@@ -1302,3 +1302,47 @@
   flex: 0 0 auto;
   color: var(--pa3-blue);
 }
+
+/* The calendar icon turns a sheet over, top to bottom, every few seconds (owner request 21/10/2026). */
+.pa3-flip-sheet {
+  fill: currentColor;
+  opacity: 0.28;
+  transform-box: fill-box;
+}
+/* At rest only the light sheet shows; each turn, a solid flap folds down from the top half and
+   unfolds over the bottom half, then fades, so the loop starts again with no jump. */
+.pa3-flip-top,
+.pa3-flip-bottom {
+  opacity: 0;
+}
+.pa3-flip-top {
+  transform-origin: 50% 100%;
+  animation: pa3-flip-top 3.2s ease-in infinite;
+}
+.pa3-flip-bottom {
+  transform-origin: 50% 0;
+  animation: pa3-flip-bottom 3.2s ease-out infinite;
+}
+@keyframes pa3-flip-top {
+  0%, 60% { opacity: 0; transform: scaleY(1); }
+  62% { opacity: 0.9; transform: scaleY(1); }
+  76% { opacity: 0.9; transform: scaleY(0); }
+  77%, 100% { opacity: 0; transform: scaleY(0); }
+}
+@keyframes pa3-flip-bottom {
+  0%, 75% { opacity: 0; transform: scaleY(0); }
+  76% { opacity: 0.9; transform: scaleY(0); }
+  90% { opacity: 0.9; transform: scaleY(1); }
+  100% { opacity: 0; transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-flip-top,
+  .pa3-flip-bottom {
+    animation: none;
+  }
+}
+
+/* Owner request 21/10/2026: the month tag without its shadow, only the outline. */
+.pa3-panel--frequency .pa3-summary-title {
+  box-shadow: none;
+}
