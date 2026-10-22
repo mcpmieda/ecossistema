@@ -1370,3 +1370,12 @@
 .pa3-day.is-selected.pa3-kind--missed {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
 }
+/* Light red in the same style as the others (owner request 21/10/2026): a soft top-to-bottom
+   gradient, no outline. */
+.pa3-kind--missed:not([data-tone='3']):not(.is-justified) {
+  background: linear-gradient(180deg, #fde8e5, #f7c4bc);
+  box-shadow: none;
+}
+.pa3-day.is-selected.pa3-kind--missed:not([data-tone='3']):not(.is-justified) {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
+}
