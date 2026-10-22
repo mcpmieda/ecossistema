@@ -1279,3 +1279,10 @@
 .pa3-panel--frequency .pa3-year-head {
   align-items: center;
 }
+
+/* A thin divider between the month (ring) and the year (ruler) (owner request 21/10/2026). */
+.pa3-panel--frequency .pa3-ruler-wrap {
+  margin-top: 0.25rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #e3e8f1;
+}
