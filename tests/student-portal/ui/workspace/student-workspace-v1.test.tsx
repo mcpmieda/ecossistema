@@ -434,6 +434,20 @@ describe('student portal grade workspace', () => {
     expect(within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected'))
       .toBe('true');
   });
+
+  it('ignores a Back that carries its own entry unchanged (another menu on the page moved)', async () => {
+    renderWorkspace();
+    const live = () => document.querySelector('[data-area-live]')!.className;
+    const before = live();
+    const unchanged = window.history.state.__studentPortalWorkspaceV1;
+    // The Notas ⇄ Frequência menu keeps its own key in the same entry: only that key changed.
+    await act(async () => {
+      window.dispatchEvent(
+        new PopStateEvent('popstate', { state: { __studentPortalWorkspaceV1: { ...unchanged }, pa3Page: 'grades' } }),
+      );
+    });
+    expect(live()).toBe(before);
+  });
 });
 
 describe('Relatório do trimestre summary on the Boletim', () => {

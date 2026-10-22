@@ -1518,6 +1518,10 @@ export function StudentPortalWorkspaceV1({
 
   const validSubjectIdV1 = (subjectId: number) =>
     subjects.some((subject) => subject.subjectId === subjectId) ? subjectId : firstSubjectId;
+  // The entry on screen. Another part of the page (the Notas ⇄ Frequência menu) keeps its own key
+  // in the same history entry: its Back/Forward carries this entry unchanged, and replaying it
+  // would restart the area's entrance animation inside a page that is already sliding.
+  const shownEntry = useRef<WorkspaceEntryV1 | null>(null);
 
   const applyEntry = (
     entry: WorkspaceEntryV1,
@@ -1525,6 +1529,7 @@ export function StudentPortalWorkspaceV1({
     slide: SlideV1 | null = null,
     areaChange: SlideV1 | 'still' | null = null,
   ) => {
+    shownEntry.current = entry;
     setSubjectSlide(slide);
     setAreaSlide(areaChange);
     const resolvedDirection =
@@ -1582,6 +1587,7 @@ export function StudentPortalWorkspaceV1({
   const remember = (patch: Partial<WorkspaceEntryV1>) => {
     const entry = { ...current, ...patch };
     writeEntry(entry, 'replace');
+    shownEntry.current = entry;
     if (patch.period !== undefined) setSubjectPeriod(patch.period);
     if (patch.summary !== undefined) setSummaryTab(patch.summary);
   };
@@ -1590,11 +1596,22 @@ export function StudentPortalWorkspaceV1({
     if (typeof window === 'undefined') return;
     const initial = readWorkspaceEntryV1(window.history.state);
     if (initial) applyEntry(initial);
-    else writeEntry({ area: 'summary', subjectId: firstSubjectId }, 'replace');
+    else {
+      writeEntry({ area: 'summary', subjectId: firstSubjectId }, 'replace');
+      shownEntry.current = { area: 'summary', subjectId: firstSubjectId };
+    }
 
     const restore = (event: PopStateEvent) => {
       const entry = readWorkspaceEntryV1(event.state);
-      if (entry) applyEntry(entry, entry.area === 'summary' ? 'back' : 'forward');
+      const shown = shownEntry.current;
+      const same =
+        !!entry &&
+        !!shown &&
+        entry.area === shown.area &&
+        entry.subjectId === shown.subjectId &&
+        entry.period === shown.period &&
+        entry.summary === shown.summary;
+      if (entry && !same) applyEntry(entry, entry.area === 'summary' ? 'back' : 'forward');
     };
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);

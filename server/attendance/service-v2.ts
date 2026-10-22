@@ -267,6 +267,12 @@ export const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.
  * icon and the blue X) and do not lower the attendance: 100 × (lessons − absences) / lessons. They
  * are given only when every day of the month was read completely and nothing is in review, so a
  * partial reading never shows wrong totals; the marks and days are always given.
+ *
+ * MERGE (PR 1317, Portal redesign): the owner's rule is that TODAY never counts (its roll call may
+ * still be under way). These totals still include today, and today's unfinished reading makes the
+ * whole month 'incomplete'. The redesigned page counts from `days`/`marks` without today; move that
+ * rule here (school's today in the agenda's timezone) and add the year's lessons and absences
+ * before the page replaces student-frequency-v2.
  */
 export function withLessonDaysV2(
   summary: FrequencySummaryV2,

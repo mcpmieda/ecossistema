@@ -90,8 +90,13 @@ export function RedesignAppV3() {
   const elementOf = (id: PageV3) => (id === 'grades' ? grades.current : frequency.current);
   // Set by a switch the reader asked for (menu or Back), never by the first render.
   const switched = useRef(false);
+  // A Back or Forward that came during the slide: the browser has already moved in its history, so
+  // it cannot be dropped like a second tap on the menu; it is applied when the slide ends.
+  const pending = useRef<PageV3 | null>(null);
   const show = (next: PageV3) => {
+    if (next === page) pending.current = null;
     if (next === page || leaving) return;
+    pending.current = null;
     const direction: SlideV3 =
       PAGES.findIndex((item) => item.id === next) > PAGES.findIndex((item) => item.id === page)
         ? 'forward'
@@ -111,7 +116,10 @@ export function RedesignAppV3() {
   const showRef = useRef(show);
   showRef.current = show;
   useEffect(() => {
-    const restore = (event: PopStateEvent) => showRef.current(pageOfState(event.state));
+    const restore = (event: PopStateEvent) => {
+      pending.current = pageOfState(event.state);
+      showRef.current(pending.current);
+    };
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
   }, []);
@@ -148,6 +156,7 @@ export function RedesignAppV3() {
     const done = () => {
       flushSync(() => setLeaving(null));
       move.cancel();
+      if (pending.current) showRef.current(pending.current);
     };
     move.finished.then(done, done);
   }, [page]);
@@ -159,6 +168,11 @@ export function RedesignAppV3() {
     () => <StudentPortalWorkspaceV1 data={{ ...data, showFrequency: false }} profile={null} />,
     [data],
   );
+  // MERGE (portal real): this menu and its two pages go into the authenticated app (the shell of
+  // StudentPortalPageV1), with the profile and `showFrequency` from /api/student/me. When
+  // showFrequency !== true (the admin's "Frequência" policy key, off in production on 21/10/2026)
+  // there is no menu and no Frequência page, and nothing of /api/student/frequency is fetched. The
+  // page then reads the real client instead of demoFrequencyV3 (see frequency-page-v3.tsx).
   const frequencyContent = useMemo(() => <FrequencyPageV3 read={demoFrequencyV3} />, []);
   const hero = useMemo(
     () => (

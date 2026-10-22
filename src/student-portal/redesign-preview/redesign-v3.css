@@ -109,36 +109,12 @@
 /* ---------- Frequência ---------- */
 .pa3-frequency {
   display: grid;
-  /* minmax(0, …): the month bar scrolls inside the page instead of widening it. */
+  /* minmax(0, …): nothing inside ever widens the page. */
   grid-template-columns: minmax(0, 1fr);
   gap: 0.85rem;
 }
 .pa3-frequency .pa3-page-title {
   margin-bottom: 0;
-}
-
-.pa3-summary {
-  --pa3-tone: var(--pa3-green);
-  --pa3-tone-soft: var(--pa3-green-soft);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid color-mix(in srgb, var(--pa3-tone) 25%, transparent);
-  border-radius: 1.3rem;
-  background: linear-gradient(140deg, var(--pa3-tone-soft), #fff 75%);
-}
-.pa3-summary--low {
-  --pa3-tone: var(--pa3-red);
-  --pa3-tone-soft: var(--pa3-red-soft);
-}
-.pa3-summary-status {
-  margin: 0;
-  color: var(--pa3-tone);
-  font-size: 1.05rem;
-  font-weight: 780;
-  line-height: 1.2;
 }
 
 .pa3-card {
@@ -278,14 +254,6 @@
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
-/* Narrow phones: five or six tiles in a row leave no room for "Justificada"; three per row. */
-@media (max-width: 26rem) {
-  .pa3-lessons {
-    grid-auto-flow: row;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 .pa3-footnote {
   margin: 0;
   color: var(--pa3-muted);
@@ -342,7 +310,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pa3-day,
-.pa3-nav-icon {
+  .pa3-nav-icon {
     transition: none;
   }
 }
@@ -354,7 +322,6 @@
 .pa3-panel--frequency .pa3-frequency .pa3-page-title {
   margin-top: 0.2rem;
 }
-
 
 /* The menu's highlight: one pill gliding under the chosen icon, at the pace of the content. */
 .pa3-nav {
@@ -385,169 +352,27 @@
   }
 }
 
-/* Presence at a glance (owner review 20/10/2026): percentage with its sign, then the month's lessons
-   as one bar, coloured like the numbers under it, with a flag at the minimum. */
-.pa3-summary {
-  display: grid;
-  gap: 0.9rem;
-}
-.pa3-summary-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.7rem;
-}
-.pa3-summary-icon {
-  display: grid;
-  flex: 0 0 auto;
-  width: 2.6rem;
-  height: 2.6rem;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--pa3-tone);
-  color: #fff;
-}
-.pa3-summary-value {
-  display: grid;
-  color: var(--pa3-ink);
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 1;
-}
-.pa3-summary-value small {
-  color: var(--pa3-muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0;
-}
-.pa3-summary-head .pa3-summary-status {
-  margin-left: auto;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pa3-tone) 14%, #fff);
-  color: var(--pa3-tone);
-  font-size: 0.85rem;
-  font-weight: 750;
-}
-.pa3-bar-wrap {
-  display: grid;
-  gap: 0.6rem;
-  padding-top: 1.1rem;
-}
-.pa3-bar {
-  position: relative;
-  display: flex;
-  height: 1.1rem;
-  border-radius: 999px;
-  background: #e7edf5;
-}
-.pa3-bar-part {
-  height: 100%;
-}
-.pa3-bar-part:first-child {
-  border-radius: 999px 0 0 999px;
-}
-.pa3-bar-part:nth-last-child(2) {
-  border-radius: 0 999px 999px 0;
-}
-.pa3-bar-part--present {
-  background: var(--pa3-green);
-}
-.pa3-bar-part--justified {
-  background: #f59e0b;
-}
-.pa3-bar-part--absent {
-  background: var(--pa3-red);
-}
-/* The minimum: a post through the bar with a small flag on top. */
-.pa3-bar-minimum {
-  position: absolute;
-  top: -0.35rem;
-  bottom: -0.35rem;
-  width: 3px;
-  margin-left: -1.5px;
-  border-radius: 2px;
-  background: var(--pa3-ink);
-}
-.pa3-bar-flag {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 0.15rem;
-  padding: 0.05rem 0.35rem;
-  border-radius: 0.35rem 0.35rem 0.35rem 0;
-  background: var(--pa3-ink);
-  color: #fff;
-  font-size: 0.6rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.pa3-counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--pa3-muted);
-  font-size: 0.8rem;
-}
-.pa3-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-.pa3-count::before {
-  content: '';
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-}
-.pa3-count strong {
-  color: var(--pa3-ink);
-  font-size: 1rem;
-}
-.pa3-count--present::before {
-  background: var(--pa3-green);
-}
-.pa3-count--justified::before {
-  background: #f59e0b;
-}
-.pa3-count--absent::before {
-  background: var(--pa3-red);
-}
-
-/* Today's day: shown, but not counted until it ends (the roll call may still be under way). */
+/* Today's day: shown, but not counted until it ends (the roll call may still be under way); the
+   same pill says when a past day is not read in full yet. */
 .pa3-today-note {
   display: inline-block;
   margin: 0 0 0.4rem;
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
   background: #eef2f8;
-  color: var(--pa3-muted);
+  /* slate-600: 6,7:1 on the pill (the muted grey was 4,2:1 at this small size). */
+  color: #475569;
   font-size: 0.7rem;
   font-weight: 650;
 }
 
-/* A lesson of today without a mark: neither "sem falta" nor an absence yet. */
+/* A lesson without a mark yet (today, or a reading not complete): neither "sem falta" nor an absence. */
 .pa3-lesson--pending {
   background: #f1f5f9;
-  color: var(--pa3-muted);
+  color: #475569;
 }
 
-/* No percentage to judge (month still being read, or no data): neutral, never the green of a good result. */
-.pa3-summary--none {
-  --pa3-tone: var(--pa3-muted);
-  --pa3-tone-soft: #eef2f8;
-}
-.pa3-summary-note {
-  flex: 1 0 100%;
-  margin: 0;
-  color: var(--pa3-muted);
-  font-size: 0.75rem;
-}
-/* A day with lessons not fully read yet: dashed, neither an absence nor "sem falta". */
+/* A past day not read in full yet: outlined, neither an absence nor "sem falta". */
 .pa3-day--pending {
   background: #fff;
   box-shadow: inset 0 0 0 1.5px #cbd5e1;
@@ -569,83 +394,79 @@
   font-size: 0.72rem;
 }
 /* Below the side-bar layout the menu is a fixed bar at the bottom: the sheet keeps room for it at
-   every width, including 768–899 px where the portal shell itself reserves less. */
+   every width, including 768–899 px where the portal shell itself reserves less, and a control
+   reached with Tab is scrolled clear of the bar, never left under it (WCAG 2.4.11). */
 @media (max-width: 899.98px) {
   .pa3-app--cover .pa-shell--with-hero .pa-shell-content {
     padding-bottom: calc(var(--pa3-nav-height) + env(safe-area-inset-bottom, 0px) + 1.75rem);
+  }
+  html:has(.pa3-app) {
+    scroll-padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px) + 0.5rem);
   }
 }
 .pa3-panel:focus {
   outline: none;
 }
+/* A page out of view keeps its endless animations still (the stripes, the drifting patches, the
+   turning calendar sheet). */
+.pa3-panel--inactive *,
+.pa3-panel--inactive *::before,
+.pa3-panel--inactive *::after {
+  animation-play-state: paused;
+}
 
-/* ---------- Frequência por dias (owner decisions 21/10/2026) ----------
-   Only a day with an absence is coloured; others stay neutral. Red: every lesson of the day had an
-   absence; light red: some did; amber: the day's absences are all justified (some or all). No
-   legend for "some": the tile tells it, and it never says which part of the day. Shared by the
-   calendar, the legend and the list. */
-/* No absence: neutral, it states nothing about the day. */
+/* ---------- The calendar's days (owner decisions 21/10/2026) ----------
+   Only a day with an absence is coloured; a day without one stays neutral, the same grey as a day
+   without lessons. Red: an absence in every lesson ("Falta total"); light red: in some lessons only
+   ("Falta parcial"); yellow: every absence of the day justified, all lessons or some. Each a soft
+   top-to-bottom gradient; the blue selection ring shows around any of them. Shared by the calendar
+   and the legend. */
 .pa3-kind--clear {
   background: transparent;
-  /* The same grey as a day without lessons: the calendar never tells one from the other. */
   color: #b6c0cf;
   cursor: default;
 }
 .pa3-kind--missed {
-  background: #f6c7c1;
-  color: #7a1c13;
+  background: linear-gradient(180deg, #fde8e5, #f7c4bc);
+  color: #9b1c13;
 }
 .pa3-kind--missed[data-tone='3'] {
-  background: var(--pa3-red);
+  background: linear-gradient(180deg, #d0392d, #ab1f15);
   color: #fff;
 }
-.pa3-kind--missed.is-justified,
-.pa3-kind--missed.is-justified[data-tone='3'] {
-  background: #f59e0b;
-  color: #fff;
+/* Yellow with dark brown text (white on orange was hard to read). */
+.pa3-kind--missed.is-justified {
+  background: linear-gradient(180deg, #fdd44b, #f6b31b);
+  color: #5f3305;
 }
-/* Today: a small "HOJE" under the number, instead of an underline. */
-.pa3-day.is-today {
-  grid-template-rows: auto auto;
-  align-content: center;
-  gap: 0;
-}
-.pa3-day.is-today .pa3-day-number {
-  text-decoration: none;
-  line-height: 1.1;
-}
+/* Today: its number in the same size and place as every other date, a small "HOJE" on its own near
+   the bottom of the tile. Without an absence it has no fill at all (owner requests 21/10/2026: a
+   strong fill next to a red day read as one more kind of absence) — on a school day still open as
+   on a weekend or holiday, so "HOJE" never fades into the grey of a day without lessons. */
 .pa3-day-today {
+  position: absolute;
+  right: 0;
+  bottom: 0.1rem;
+  left: 0;
   font-size: 0.55rem;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.04em;
-  opacity: 0.85;
+  text-align: center;
 }
-
-.pa3-summary .pa3-counts {
-  flex: 1 0 100%;
-}
-.pa3-summary-value--days small {
-  line-height: 1.15;
-}
-.pa3-summary-official {
-  flex: 1 0 100%;
-  margin: 0;
-  padding-top: 0.6rem;
-  border-top: 1px dashed color-mix(in srgb, var(--pa3-tone) 30%, transparent);
+.pa3-day.is-today:not(.pa3-kind--missed) {
+  background: transparent;
+  box-shadow: none;
   color: var(--pa3-ink);
-  font-size: 0.82rem;
 }
-.pa3-summary-official strong {
-  color: var(--pa3-tone);
-  font-size: 1rem;
+.pa3-day.is-today:not(.pa3-kind--missed) .pa3-day-today {
+  color: var(--pa3-blue);
 }
-.pa3-summary-official-hint {
-  color: var(--pa3-muted);
-  font-size: 0.72rem;
+.pa3-day.is-today.is-selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
 }
 
-/* Legend and list: the same tiles in small. */
+/* The legend: the same colours in small squares, with an outline so the light red one shows on white. */
 .pa3-legend {
   flex-wrap: wrap;
   row-gap: 0.3rem;
@@ -656,54 +477,11 @@
   border-radius: 0.2rem;
   box-shadow: inset 0 0 0 1px rgb(15 42 95 / 0.12);
 }
-.pa3-legend-hint {
-  flex: 1 0 100%;
-  font-size: 0.68rem;
+.pa3-legend .pa3-dot[data-tone='1']:not(.is-justified) {
+  box-shadow: inset 0 0 0 1px rgb(155 28 19 / 0.35);
 }
 
-/* Summary option A (owner request 21/10/2026): the month in days, about absences only. */
-.pa3-daycounts {
-  display: grid;
-  flex: 1 0 100%;
-  gap: 0.45rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.pa3-daycount {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: var(--pa3-ink);
-  font-size: 0.92rem;
-}
-.pa3-daycount::before {
-  content: '';
-  flex: 0 0 auto;
-  width: 0.95rem;
-  height: 0.95rem;
-  border-radius: 0.25rem;
-}
-.pa3-daycount strong {
-  min-width: 1.4rem;
-  font-size: 1.35rem;
-  font-weight: 800;
-  text-align: right;
-}
-.pa3-daycount--absent::before {
-  background: var(--pa3-red);
-}
-.pa3-daycount--absent strong {
-  color: var(--pa3-red);
-}
-.pa3-daycount--justified::before {
-  background: #f59e0b;
-}
-.pa3-daycount--justified strong {
-  color: var(--pa3-amber);
-}
-
-/* Previous / next month, at the right of "Dias do mês". */
+/* Previous / next month, at the right of the calendar's month. */
 .pa3-month-arrows {
   display: flex;
   gap: 0.35rem;
@@ -728,284 +506,43 @@
   outline: 2px solid var(--pa3-blue);
   outline-offset: 2px;
 }
-
-/* Which month the summary is about. */
-.pa3-summary-title {
-  flex: 1 0 100%;
-  margin: 0;
-  color: var(--pa3-muted);
-  font-size: 0.8rem;
-  font-weight: 650;
-}
 .pa3-card-head {
   align-items: center;
 }
 
-/* ---------- Summary: ring of days + ruler (owner request 21/10/2026) ---------- */
-.pa3-app {
-  --pa3-ring-clear: #16a34a;
-  --pa3-ring-missed: #dc2626;
-  --pa3-ring-justified: #f59e0b;
-}
-/* Always the same height: the calendar below never moves when the month changes. */
+/* ---------- The month's summary and the year's ruler (owner requests 21/10/2026) ----------
+   One card: the month's tag, the ring of the month's counted days, a thin divider, then the year so
+   far on a 0–100% ruler with the law's 75% minimum. Always the same height, so the calendar below
+   never moves when the month changes. White, a hairline border and two very soft navy light patches
+   drifting behind it. */
 .pa3-summary {
+  /* The year's colour: green from the 75% minimum up, red below it, grey while the year is still
+     being worked out. Amber means "justificada" everywhere else, so the ruler never uses it. */
+  --pa3-ruler-dark: #166534;
+  position: relative;
+  isolation: isolate;
   display: grid;
-  gap: 0.85rem;
   align-content: start;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
   min-height: 15.25rem;
-}
-.pa3-ring-row {
-  display: flex;
-  align-items: center;
-  gap: 1.1rem;
-}
-.pa3-ring {
-  display: grid;
-  flex: none;
-  width: 8rem;
-  height: 8rem;
-  place-items: center;
-  border-radius: 50%;
-}
-.pa3-ring-hole {
-  display: grid;
-  width: 5.5rem;
-  height: 5.5rem;
-  place-content: center;
-  border-radius: 50%;
-  background: #fff;
-  text-align: center;
-  line-height: 1.05;
-}
-.pa3-ring-hole strong {
-  color: var(--pa3-ink);
-  font-size: 1.6rem;
-  font-weight: 800;
-}
-.pa3-ring-hole span {
-  color: var(--pa3-muted);
-  font-size: 0.66rem;
-  font-weight: 600;
-}
-.pa3-ring-legend {
-  display: grid;
-  gap: 0.55rem;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.pa3-ring-legend li {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--pa3-ink);
-  font-size: 0.9rem;
-}
-.pa3-ring-legend strong {
-  min-width: 1.3rem;
-  font-size: 1.2rem;
-  font-weight: 800;
-  text-align: right;
-}
-.pa3-swatch {
-  flex: none;
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 0.2rem;
-}
-.pa3-swatch--clear {
-  background: var(--pa3-ring-clear);
-}
-.pa3-swatch--missed {
-  background: var(--pa3-ring-missed);
-}
-.pa3-swatch--justified {
-  background: var(--pa3-ring-justified);
-}
-/* The ruler: attendance from 0 to 100%, the fill in the month's tone, a post at the 75% minimum. */
-.pa3-ruler-wrap {
-  padding-top: 0.2rem;
-}
-.pa3-ruler {
-  position: relative;
-  height: 0.6rem;
-  border-radius: 999px;
-  background: #e2e8f0;
-}
-.pa3-ruler-fill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--pa3-tone);
-  transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.pa3-ruler-minimum {
-  position: absolute;
-  top: -0.35rem;
-  bottom: -0.35rem;
-  width: 3px;
-  margin-left: -1.5px;
-  border-radius: 2px;
-  background: var(--pa3-ink);
-}
-.pa3-ruler-labels {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  height: 1rem;
-  margin-top: 0.4rem;
-  color: var(--pa3-muted);
-  font-size: 0.72rem;
-}
-.pa3-ruler-label-minimum {
-  position: absolute;
-  transform: translateX(-50%);
-  white-space: nowrap;
-}
-@media (prefers-reduced-motion: reduce) {
-  .pa3-ruler-fill {
-    transition: none;
-  }
-}
-
-/* ---------- Summary polish (owner request 21/10/2026: "deixar mais bonito o card todo") ---------- */
-@property --pa3-sweep {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 100;
-}
-.pa3-panel--frequency .pa3-summary {
-  position: relative;
-  overflow: hidden;
+  padding: 1.1rem 1.1rem 1rem;
   /* clip, not just hidden: the drifting patches reach past the edge, and a hidden box can still be
      scrolled by the page (focus, find in page), cutting the ring off at the top. */
   overflow: clip;
-  padding: 1.1rem 1.1rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--pa3-tone) 18%, #e2e8f0);
+  border: 1px solid #e3e8f1;
   border-radius: 1.5rem;
-  background:
-    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--pa3-tone) 12%, transparent), transparent 60%),
-    #fff;
+  background: #fff;
   box-shadow: 0 18px 40px -30px rgb(15 42 95 / 0.45);
 }
-.pa3-panel--frequency .pa3-summary-title {
-  justify-self: start;
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pa3-ink) 6%, #fff);
-  color: var(--pa3-ink);
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+.pa3-summary--low {
+  --pa3-ruler-dark: #991b1b;
 }
-/* The ring: a little larger, a soft shadow, and it draws itself on each month. */
-.pa3-panel--frequency .pa3-ring {
-  width: 8.6rem;
-  height: 8.6rem;
-  filter: drop-shadow(0 8px 14px rgb(15 42 95 / 0.12));
-  -webkit-mask: conic-gradient(#000 calc(var(--pa3-sweep) * 1%), transparent 0);
-  mask: conic-gradient(#000 calc(var(--pa3-sweep) * 1%), transparent 0);
-  animation: pa3-ring-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.pa3-summary--none {
+  --pa3-ruler-dark: #64748b;
 }
-@keyframes pa3-ring-draw {
-  from {
-    --pa3-sweep: 0;
-  }
-  to {
-    --pa3-sweep: 100;
-  }
-}
-.pa3-panel--frequency .pa3-ring-hole {
-  width: 6rem;
-  height: 6rem;
-  box-shadow: inset 0 0 0 1px #eef2f8, 0 2px 6px rgb(15 42 95 / 0.06);
-}
-.pa3-panel--frequency .pa3-ring-hole strong {
-  font-size: 1.85rem;
-  letter-spacing: -0.04em;
-}
-/* The three counts as soft pills, the number in its colour. */
-.pa3-panel--frequency .pa3-ring-legend {
-  flex: 1 1 auto;
-  gap: 0.4rem;
-}
-.pa3-ring-item {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.4rem 0.65rem;
-  border-radius: 0.85rem;
-  background: color-mix(in srgb, var(--pa3-item) 9%, #fff);
-  color: var(--pa3-ink);
-  font-size: 0.8rem;
-  line-height: 1.15;
-}
-.pa3-ring-item strong {
-  min-width: 1.2rem;
-  color: var(--pa3-item);
-  font-size: 1.2rem;
-  font-weight: 800;
-  text-align: right;
-}
-.pa3-ring-item--clear {
-  --pa3-item: var(--pa3-ring-clear);
-}
-.pa3-ring-item--missed {
-  --pa3-item: var(--pa3-ring-missed);
-}
-.pa3-ring-item--justified {
-  --pa3-item: #d97706;
-}
-/* The ruler: thicker, a gradient fill, and the 75% minimum as a small flag over its post. */
-.pa3-panel--frequency .pa3-ruler-wrap {
-  padding-top: 1.35rem;
-}
-.pa3-panel--frequency .pa3-ruler {
-  height: 0.75rem;
-  background: #edf1f7;
-  box-shadow: inset 0 1px 2px rgb(15 42 95 / 0.08);
-}
-.pa3-panel--frequency .pa3-ruler-fill {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--pa3-tone) 55%, #fff), var(--pa3-tone));
-}
-.pa3-panel--frequency .pa3-ruler-minimum {
-  top: -0.3rem;
-  bottom: -0.3rem;
-  width: 2px;
-  margin-left: -1px;
-}
-.pa3-ruler-flag {
-  position: absolute;
-  bottom: calc(100% + 0.2rem);
-  left: 50%;
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
-  background: var(--pa3-ink);
-  color: #fff;
-  font-size: 0.62rem;
-  font-weight: 700;
-  white-space: nowrap;
-  transform: translateX(-50%);
-}
-.pa3-panel--frequency .pa3-ruler-labels {
-  height: auto;
-  font-size: 0.68rem;
-}
-@media (prefers-reduced-motion: reduce) {
-  .pa3-panel--frequency .pa3-ring {
-    animation: none;
-  }
-}
-
-/* ---------- Summary motion (owner request 21/10/2026) ----------
-   The background: two soft light patches in the month's tone drift slowly, without end. The ruler:
-   faint diagonal stripes in the fill keep walking to the right. Both stop with reduced motion. */
-.pa3-panel--frequency .pa3-summary {
-  isolation: isolate;
-}
-.pa3-panel--frequency .pa3-summary::before,
-.pa3-panel--frequency .pa3-summary::after {
+.pa3-summary::before,
+.pa3-summary::after {
   content: '';
   position: absolute;
   z-index: -1;
@@ -1016,16 +553,16 @@
   filter: blur(28px);
   opacity: 0.55;
 }
-.pa3-panel--frequency .pa3-summary::before {
+.pa3-summary::before {
   top: -35%;
   left: -20%;
-  background: color-mix(in srgb, var(--pa3-tone) 22%, transparent);
+  background: rgb(29 78 216 / 0.1);
   animation: pa3-drift-a 22s ease-in-out infinite alternate;
 }
-.pa3-panel--frequency .pa3-summary::after {
+.pa3-summary::after {
   right: -25%;
   bottom: -40%;
-  background: color-mix(in srgb, var(--pa3-ring-clear) 14%, transparent);
+  background: rgb(15 42 95 / 0.07);
   animation: pa3-drift-b 26s ease-in-out infinite alternate;
 }
 @keyframes pa3-drift-a {
@@ -1038,86 +575,68 @@
   50% { transform: translate(-16%, -10%) scale(1.08); }
   100% { transform: translate(-28%, -4%) scale(1); }
 }
-.pa3-panel--frequency .pa3-ruler-fill {
-  position: relative;
-  overflow: hidden;
-}
-.pa3-panel--frequency .pa3-ruler-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgb(255 255 255 / 0.22) 0 6px,
-    transparent 6px 14px
-  );
-  animation: pa3-walk 1.4s linear infinite;
-}
-@keyframes pa3-walk {
-  from { background-position: 0 0; }
-  to { background-position: 19.8px 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pa3-panel--frequency .pa3-summary::before,
-  .pa3-panel--frequency .pa3-summary::after,
-  .pa3-panel--frequency .pa3-ruler-fill::after {
-    animation: none;
-  }
-}
 
-/* ---------- The ring as SVG (owner request 21/10/2026: less flat) ---------- */
-@property --pa3-arc-now {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 0;
-}
-.pa3-panel--frequency .pa3-ring {
-  position: relative;
-  background: none;
-  -webkit-mask: none;
-  mask: none;
-  animation: none;
-  filter: drop-shadow(0 10px 16px rgb(15 42 95 / 0.14));
-}
-.pa3-ring-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-.pa3-ring-track {
-  fill: none;
-  stroke: #eef2f7;
-}
-.pa3-ring-arc {
-  fill: none;
-  stroke-dasharray: var(--pa3-arc-now) 100;
-  animation: pa3-arc-grow 950ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-@keyframes pa3-arc-grow {
-  from { --pa3-arc-now: 0; }
-  to { --pa3-arc-now: var(--pa3-arc); }
-}
-.pa3-panel--frequency .pa3-ring-hole {
-  position: relative;
-  width: 5.7rem;
-  height: 5.7rem;
+/* The month's tag, centred over the ring: white with a fine outline, a small calendar icon. */
+.pa3-summary-title {
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.32rem 0.85rem 0.32rem 0.7rem;
+  border: 1px solid #d6deea;
+  border-radius: 999px;
   background: #fff;
-  box-shadow: none;
+  color: var(--pa3-ink);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
-@media (prefers-reduced-motion: reduce) {
-  .pa3-ring-arc {
-    animation: none;
-    stroke-dasharray: var(--pa3-arc) 100;
-  }
+.pa3-summary-title svg {
+  flex: 0 0 auto;
+  color: var(--pa3-blue);
+}
+/* The calendar icon turns a sheet over, top to bottom, every few seconds. At rest only the light
+   sheet shows; each turn, a solid flap folds down from the top half and unfolds over the bottom
+   half, then fades, so the loop starts again with no jump. */
+.pa3-flip-sheet {
+  fill: currentColor;
+  opacity: 0.28;
+  transform-box: fill-box;
+}
+.pa3-flip-top,
+.pa3-flip-bottom {
+  opacity: 0;
+}
+.pa3-flip-top {
+  transform-origin: 50% 100%;
+  animation: pa3-flip-top 3.2s ease-in infinite;
+}
+.pa3-flip-bottom {
+  transform-origin: 50% 0;
+  animation: pa3-flip-bottom 3.2s ease-out infinite;
+}
+@keyframes pa3-flip-top {
+  0%, 60% { opacity: 0; transform: scaleY(1); }
+  62% { opacity: 0.9; transform: scaleY(1); }
+  76% { opacity: 0.9; transform: scaleY(0); }
+  77%, 100% { opacity: 0; transform: scaleY(0); }
+}
+@keyframes pa3-flip-bottom {
+  0%, 75% { opacity: 0; transform: scaleY(0); }
+  76% { opacity: 0.9; transform: scaleY(0); }
+  90% { opacity: 0.9; transform: scaleY(1); }
+  100% { opacity: 0; transform: scaleY(1); }
 }
 
-/* ---------- Ring with guide lines (owner choice 21/10/2026) ---------- */
+/* The ring with its guide lines. It follows the card's width, up to a size that still sits well
+   beside the rest of the card on a tablet or a phone held sideways. */
 .pa3-guide-ring {
   display: block;
   width: 100%;
+  max-width: 24rem;
   height: auto;
+  margin-inline: auto;
   overflow: visible;
 }
 .pa3-guide-track {
@@ -1149,6 +668,7 @@
   font-size: 11px;
   font-weight: 600;
 }
+/* The number of counted days in the centre, and "dias" under it. */
 .pa3-guide-percent {
   fill: var(--pa3-ink);
   font-size: 27px;
@@ -1160,114 +680,24 @@
   font-size: 9px;
   font-weight: 600;
 }
-/* Darker tones under the ring too (owner request 21/10/2026). */
-.pa3-panel--frequency .pa3-summary {
-  --pa3-ruler-dark: color-mix(in srgb, var(--pa3-tone) 82%, #000);
-}
-.pa3-panel--frequency .pa3-ruler-fill {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--pa3-ruler-dark) 70%, #fff), var(--pa3-ruler-dark));
-}
-@media (prefers-reduced-motion: reduce) {
-  .pa3-guide-arc,
-  .pa3-guide-label {
-    animation: none;
-  }
-}
 
-/* Neutral card (owner request 21/10/2026: the warm/green background clashed with the ring): white,
-   a hairline border and two very soft navy light patches that keep drifting. */
-.pa3-panel--frequency .pa3-summary {
-  border-color: #e3e8f1;
-  background: #fff;
-}
-.pa3-panel--frequency .pa3-summary::before {
-  background: rgb(29 78 216 / 0.10);
-}
-.pa3-panel--frequency .pa3-summary::after {
-  background: rgb(15 42 95 / 0.07);
-}
-
-/* The month's tag centred over the ring (owner request 21/10/2026). */
-.pa3-panel--frequency .pa3-summary-title {
-  justify-self: center;
-}
-
-/* The ruler in two colours only (owner request 21/10/2026): green from the 75% minimum up, red
-   below it. Amber means "justificada" everywhere else, so the ruler never uses it. The same clean
-   tones as the ring, no black mixed in; softer stripes; a post that shows on any colour. */
-.pa3-panel--frequency .pa3-summary {
-  --pa3-ruler-dark: #166534;
-}
-.pa3-panel--frequency .pa3-summary--low {
-  --pa3-ruler-dark: #991b1b;
-}
-.pa3-panel--frequency .pa3-ruler-fill {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--pa3-ruler-dark) 78%, #fff), var(--pa3-ruler-dark));
-}
-.pa3-panel--frequency .pa3-ruler-fill::after {
-  background: repeating-linear-gradient(
-    -45deg,
-    rgb(255 255 255 / 0.12) 0 6px,
-    transparent 6px 14px
-  );
-}
-.pa3-panel--frequency .pa3-ruler-minimum {
-  width: 3px;
-  margin-left: -1.5px;
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--pa3-ink);
-}
-
-/* The year's ruler (owner request 21/10/2026): its own heading, the month name in the ring. */
-.pa3-guide-month {
-  fill: var(--pa3-ink);
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+/* The year so far: its heading and how the figure moves, the figure on a soft badge in the year's
+   colour, then the ruler with the 75% flag under its post. */
+.pa3-ruler-wrap {
+  margin-top: 0.25rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #e3e8f1;
 }
 .pa3-year-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  margin: 0 0 1.6rem;
+  margin: 0 0 0.4rem;
   color: var(--pa3-muted);
   font-size: 0.78rem;
   font-weight: 650;
 }
-.pa3-year-head strong {
-  color: var(--pa3-ruler-dark);
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-.pa3-panel--frequency .pa3-summary--none .pa3-year-head strong {
-  color: var(--pa3-muted);
-  font-size: 0.85rem;
-}
-.pa3-panel--frequency .pa3-ruler-wrap {
-  padding-top: 0.4rem;
-}
-
-/* Tighter (owner request 21/10/2026: "deixe menos afastado tudo"): the 75% flag sits under the
-   ruler, between 0% and 100%, so the heading can come right down to the ruler. */
-.pa3-panel--frequency .pa3-summary {
-  row-gap: 0.5rem;
-}
-.pa3-panel--frequency .pa3-ruler-wrap {
-  padding-top: 0;
-}
-.pa3-panel--frequency .pa3-year-head {
-  margin-bottom: 0.4rem;
-}
-.pa3-panel--frequency .pa3-ruler-flag {
-  top: calc(100% + 0.15rem);
-  bottom: auto;
-}
-.pa3-panel--frequency .pa3-ruler-labels {
-  margin-top: 0.3rem;
-}
-
 .pa3-year-head small {
   display: block;
   margin-top: 0.1rem;
@@ -1276,161 +706,104 @@
   font-weight: 500;
   line-height: 1.3;
 }
-.pa3-panel--frequency .pa3-year-head {
-  align-items: center;
-}
-
-/* A thin divider between the month (ring) and the year (ruler) (owner request 21/10/2026). */
-.pa3-panel--frequency .pa3-ruler-wrap {
-  margin-top: 0.25rem;
-  padding-top: 0.8rem;
-  border-top: 1px solid #e3e8f1;
-}
-
-/* The month tag: white with a fine outline and a light lift, a small calendar icon (owner request 21/10/2026). */
-.pa3-panel--frequency .pa3-summary-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.32rem 0.85rem 0.32rem 0.7rem;
-  border: 1px solid #d6deea;
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(15 42 95 / 0.06), 0 4px 10px -6px rgb(15 42 95 / 0.18);
-  color: var(--pa3-ink);
-}
-.pa3-panel--frequency .pa3-summary-title svg {
+.pa3-year-head strong {
   flex: 0 0 auto;
-  color: var(--pa3-blue);
+  padding: 0.2rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--pa3-ruler-dark) 22%, #fff);
+  border-radius: 0.8rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pa3-ruler-dark) 6%, #fff),
+    color-mix(in srgb, var(--pa3-ruler-dark) 14%, #fff)
+  );
+  color: var(--pa3-ruler-dark);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
-
-/* The calendar icon turns a sheet over, top to bottom, every few seconds (owner request 21/10/2026). */
-.pa3-flip-sheet {
-  fill: currentColor;
-  opacity: 0.28;
-  transform-box: fill-box;
+/* "em apuração": small and grey (slate-600, 7:1 on its badge). */
+.pa3-summary--none .pa3-year-head strong {
+  border-color: #e3e8f1;
+  background: #f4f6fa;
+  color: #475569;
+  font-size: 0.85rem;
 }
-/* At rest only the light sheet shows; each turn, a solid flap folds down from the top half and
-   unfolds over the bottom half, then fades, so the loop starts again with no jump. */
-.pa3-flip-top,
-.pa3-flip-bottom {
-  opacity: 0;
+.pa3-ruler {
+  position: relative;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: #edf1f7;
+  box-shadow: inset 0 1px 2px rgb(15 42 95 / 0.08);
 }
-.pa3-flip-top {
-  transform-origin: 50% 100%;
-  animation: pa3-flip-top 3.2s ease-in infinite;
+/* The fill in the year's colour, with faint diagonal stripes that keep walking to the right. */
+.pa3-ruler-fill {
+  position: relative;
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pa3-ruler-dark) 78%, #fff), var(--pa3-ruler-dark));
+  transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.pa3-flip-bottom {
-  transform-origin: 50% 0;
-  animation: pa3-flip-bottom 3.2s ease-out infinite;
-}
-@keyframes pa3-flip-top {
-  0%, 60% { opacity: 0; transform: scaleY(1); }
-  62% { opacity: 0.9; transform: scaleY(1); }
-  76% { opacity: 0.9; transform: scaleY(0); }
-  77%, 100% { opacity: 0; transform: scaleY(0); }
-}
-@keyframes pa3-flip-bottom {
-  0%, 75% { opacity: 0; transform: scaleY(0); }
-  76% { opacity: 0.9; transform: scaleY(0); }
-  90% { opacity: 0.9; transform: scaleY(1); }
-  100% { opacity: 0; transform: scaleY(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pa3-flip-top,
-  .pa3-flip-bottom {
-    animation: none;
-  }
-}
-
-/* Owner request 21/10/2026: the month tag without its shadow, only the outline. */
-.pa3-panel--frequency .pa3-summary-title {
-  box-shadow: none;
-}
-
-/* Calendar colours, refined (owner request 21/10/2026; the blue selection stays). Red for a whole
-   day has a little depth; light red has a fine outline so it never looks washed out; justified is
-   a true yellow with dark brown text, readable (white on orange was hard to read). */
-.pa3-kind--missed {
-  background: #fde4e1;
-  box-shadow: inset 0 0 0 1px #f4b3ab;
-  color: #9b1c13;
-}
-.pa3-kind--missed[data-tone='3'] {
-  background: linear-gradient(180deg, #d0392d, #ab1f15);
-  box-shadow: none;
-  color: #fff;
-}
-.pa3-kind--missed.is-justified,
-.pa3-kind--missed.is-justified[data-tone='3'] {
-  background: linear-gradient(180deg, #fdd44b, #f6b31b);
-  box-shadow: none;
-  color: #5f3305;
-}
-/* The selection ring keeps its blue around any colour. */
-.pa3-day.is-selected.pa3-kind--missed {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
-}
-/* Light red in the same style as the others (owner request 21/10/2026): a soft top-to-bottom
-   gradient, no outline. */
-.pa3-kind--missed:not([data-tone='3']):not(.is-justified) {
-  background: linear-gradient(180deg, #fde8e5, #f7c4bc);
-  box-shadow: none;
-}
-.pa3-day.is-selected.pa3-kind--missed:not([data-tone='3']):not(.is-justified) {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
-}
-/* Today with no absence yet (owner request 21/10/2026: the grey outline looked bad, then the navy
-   tile sat too close to the absence colours, then no fill at all): no background, navy number,
-   blue "HOJE". A today with an absence
-   keeps its red or yellow. */
-.pa3-day--pending.is-today {
-  background: transparent;
-  box-shadow: none;
-  color: var(--pa3-ink);
-}
-/* Soft, not a strong fill: next to a red day it must never read as one more kind of absence. */
-.pa3-day--pending.is-today .pa3-day-today {
-  color: var(--pa3-blue);
-  opacity: 1;
-}
-.pa3-day--pending.is-today.is-selected {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
-}
-/* "HOJE" a little lower under the number (owner request 21/10/2026). */
-.pa3-day-today {
-  margin-top: 0.2rem;
-}
-/* Today's number keeps the same size and place as every other date; "HOJE" sits on its own near
-   the bottom of the tile, so it never pushes the number up (owner request 21/10/2026). */
-.pa3-day.is-today {
-  grid-template-rows: none;
-  align-content: normal;
-}
-.pa3-day.is-today .pa3-day-number {
-  line-height: inherit;
-}
-.pa3-day-today {
+.pa3-ruler-fill::after {
+  content: '';
   position: absolute;
-  bottom: 0.1rem;
-  left: 0;
-  right: 0;
-  margin-top: 0;
-  text-align: center;
+  inset: 0;
+  background: repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.12) 0 6px, transparent 6px 14px);
+  animation: pa3-walk 1.4s linear infinite;
+}
+@keyframes pa3-walk {
+  from { background-position: 0 0; }
+  to { background-position: 19.8px 0; }
+}
+/* The 75% post shows on any colour: white with a navy edge. */
+.pa3-ruler-minimum {
+  position: absolute;
+  top: -0.3rem;
+  bottom: -0.3rem;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--pa3-ink);
+}
+.pa3-ruler-flag {
+  position: absolute;
+  top: calc(100% + 0.15rem);
+  left: 50%;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: var(--pa3-ink);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.pa3-ruler-labels {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  color: var(--pa3-muted);
+  font-size: 0.68rem;
 }
 
-/* The day's title never breaks into two lines (owner request 21/10/2026): the type shrinks with
-   the card's width, sized for the longest title, "Ontem, quarta-feira, 30 de setembro". */
+/* ---------- The day's detail ---------- */
+/* Its heading block centred: title, the note and the sentence. The title never breaks into two
+   lines: the type shrinks with the card's width, sized with some room for the longest title of the
+   year, "Ontem, segunda-feira, 30 de novembro" (5,2cqi left it 0,1 px of room). */
 .pa3-day-detail {
   container-type: inline-size;
 }
 .pa3-day-detail .pa3-day-detail-title {
   overflow: hidden;
-  font-size: min(1rem, 5.2cqi);
+  font-size: min(1rem, 5cqi);
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The day's heading block centred: title, today's note and the sentence (owner request 21/10/2026). */
-.pa3-day-detail .pa3-day-detail-title,
 .pa3-day-detail .pa3-day-detail-sub {
   text-align: center;
 }
@@ -1439,16 +812,27 @@
   width: fit-content;
   margin-inline: auto;
 }
-/* The year's figure on a soft badge in its own colour (owner request 21/10/2026). */
-.pa3-panel--frequency .pa3-year-head strong {
-  flex: 0 0 auto;
-  padding: 0.2rem 0.6rem;
-  border: 1px solid color-mix(in srgb, var(--pa3-ruler-dark) 22%, #fff);
-  border-radius: 0.8rem;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--pa3-ruler-dark) 6%, #fff), color-mix(in srgb, var(--pa3-ruler-dark) 14%, #fff));
-  line-height: 1.2;
+/* Five or six lesson tiles in a narrow card leave no room for "Justificada": three per row. The
+   card's own width decides (a container query), not the window's: on a computer the card is half
+   the page. */
+@container (max-width: 28rem) {
+  .pa3-lessons {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
-.pa3-panel--frequency .pa3-summary--none .pa3-year-head strong {
-  border-color: #e3e8f1;
-  background: #f4f6fa;
+
+@media (prefers-reduced-motion: reduce) {
+  .pa3-ruler-fill {
+    transition: none;
+  }
+  .pa3-summary::before,
+  .pa3-summary::after,
+  .pa3-ruler-fill::after,
+  .pa3-guide-arc,
+  .pa3-guide-label,
+  .pa3-flip-top,
+  .pa3-flip-bottom {
+    animation: none;
+  }
 }

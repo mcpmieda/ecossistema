@@ -87,8 +87,8 @@ const pad = (value: number) => String(value).padStart(2, '0');
 /**
  * Today as the school's clock reads it (owner question 21/10/2026: "hoje" must follow the real
  * day). The school's time zone, not the phone's, so a phone set to another zone still agrees.
- * On the real portal the server must send this date (it already works out the school's "today"
- * in America/Bahia for the collector).
+ * MERGE: on the real portal the server must send this date (it already works out the school's
+ * "today" in America/Bahia for the collector, service-v2 checkCollectionClock).
  */
 export const previewTodayV3 = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
 
@@ -117,8 +117,7 @@ function seeded(seed: number) {
     return state / 2147483648;
   };
 }
-function marksOf(month: string): FrequencySummaryV2['marks'] {
-  const today = previewTodayV3();
+function marksOf(month: string, today: string): FrequencySummaryV2['marks'] {
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const random = seeded(monthNumber * 97);
@@ -143,8 +142,7 @@ function marksOf(month: string): FrequencySummaryV2['marks'] {
   }
   return marks;
 }
-function daysOf(month: string): DemoFrequencyV3['days'] {
-  const today = previewTodayV3();
+function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const result: DemoFrequencyV3['days'] = [];
@@ -158,32 +156,34 @@ function daysOf(month: string): DemoFrequencyV3['days'] {
   return result;
 }
 
-/** The month's summary in the same shape the Portal's frequency API returns. */
-export function demoFrequencyV3(month: string): DemoFrequencyV3 {
-  const today = previewTodayV3();
-  const marks = marksOf(month);
-  const days = daysOf(month);
-  // The server's rule (withLessonDaysV2): lessons of the days, X absences, J justified;
-  // 100 × (lessons − absences) / lessons. Today stays out of the totals until it ends: its roll
-  // call may still be under way, so a point there is not yet "no absence" (owner decision 20/10/2026).
-  const counted = days.filter((day) => day.date < today);
-  const countedMarks = marks.filter((mark) => mark.date < today);
-  const denominator = counted.reduce((total, day) => total + day.slots.length, 0);
-  const absences = countedMarks.filter((mark) => mark.mark === 'X').length;
-  const justified = countedMarks.filter((mark) => mark.mark === 'J').length;
-  // Read at the end of the last school day shown (a month of 30 or 31 days included), never before it.
-  const lastDay = days.at(-1)?.date ?? `${month}-01`;
+/**
+ * The month's summary as the Portal's frequency API returns it TODAY (withLessonDaysV2 in
+ * server/attendance/service-v2.ts), so the page is built against the real shape: the totals count
+ * every lesson day sent, today's included; reliable only when every day was read in full; without
+ * lesson days the month is 'unavailable' (or 'incomplete' with marks) and the totals are null.
+ * The page never shows these totals: it counts from `days` and `marks` without today (owner
+ * decision 20/10/2026). `today` is the page's own clock, so one render never mixes two days.
+ */
+export function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
+  const marks = marksOf(month, today);
+  const days = daysOf(month, today);
+  const reliable = days.length > 0 && days.every((day) => day.complete);
+  const denominator = days.reduce((total, day) => total + day.slots.length, 0);
+  const absences = marks.filter((mark) => mark.mark === 'X').length;
+  // As the server: the time a mark last changed (here, the end of the last day with one, never
+  // later than yesterday), and nothing for a month without marks.
+  const lastMarked = marks.filter((mark) => mark.date < today).at(-1)?.date;
   return {
     contractVersion: 2,
     state: 'ready',
     month,
-    absences,
-    justified,
-    denominator,
-    percentage: denominator ? Math.round(((denominator - absences) / denominator) * 1000) / 10 : null,
-    coverage: 'reliable',
-    observedAt: `${lastDay}T17:40:00-03:00`,
-    receivedAt: `${lastDay}T17:45:00-03:00`,
+    absences: reliable ? absences : null,
+    justified: reliable ? marks.length - absences : null,
+    denominator: reliable ? denominator : null,
+    percentage: reliable ? Math.round(((denominator - absences) / denominator) * 1000) / 10 : null,
+    coverage: reliable ? 'reliable' : marks.length ? 'incomplete' : 'unavailable',
+    observedAt: lastMarked ? `${lastMarked}T17:40:00-03:00` : null,
+    receivedAt: lastMarked ? `${lastMarked}T17:45:00-03:00` : null,
     marks,
     conflicts: 0,
     days,
