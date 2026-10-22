@@ -189,3 +189,27 @@ export function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
     days,
   };
 }
+
+/**
+ * The class's weekly grid (owner decision 22/10/2026), shaped like a real Smecel "Grade de
+ * horários": subjects as the Smecel names them, no teacher, a free position left out (it shows as a
+ * blank space). Monday, Wednesday and Friday have no 6th lesson.
+ */
+const WEEK: readonly (readonly (string | null)[])[] = [
+  // Monday … Friday, per lesson position.
+  ['ARTE', 'CIENCIAS', 'ETICA E CIDADANIA', 'REDACAO', 'LINGUA PORTUGUESA'],
+  ['LINGUA PORTUGUESA', 'EDUCACAO FISICA', 'INFORMATICA/COMPUTACAO', 'REDACAO', 'LINGUA PORTUGUESA'],
+  ['LINGUA PORTUGUESA', 'ARTE', 'ENSINO RELIGIOSO', 'GEOGRAFIA', 'CIENCIAS'],
+  ['LINGUA INGLESA', 'LINGUA PORTUGUESA', 'MATEMATICA', 'ETICA E CIDADANIA', 'GEOGRAFIA'],
+  ['HISTORIA', 'MATEMATICA', 'MATEMATICA', 'CIENCIAS', 'EDUCACAO FISICA'],
+  [null, 'MATEMATICA', null, 'HISTORIA', null],
+];
+export const demoScheduleV3 = () => [
+  {
+    label: 'TURMA ARTIFICIAL',
+    observedAt: `${previewTodayV3()}T10:12:00Z`,
+    lessons: WEEK.flatMap((row, index) =>
+      row.flatMap((subject, day) => (subject ? [{ weekday: day + 1, slot: index + 1, subject }] : [])),
+    ),
+  },
+];

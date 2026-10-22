@@ -406,7 +406,7 @@ function useMonthSwipeV3(go: (step: number) => void, canBack: boolean, canForwar
  */
 const SCHOOL_UTC_OFFSET_MS = -3 * 3_600_000;
 const DAY_MS = 86_400_000;
-function useTodayV3() {
+export function useTodayV3() {
   const [today, setToday] = useState(previewTodayV3);
   useEffect(() => {
     const check = () => setToday(previewTodayV3());

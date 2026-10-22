@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { CalendarCheck2, NotebookPen } from 'lucide-react';
+import { CalendarCheck2, Clock, NotebookPen } from 'lucide-react';
 import {
   StudentPortalShellV1,
   StudentProfileV1,
@@ -8,29 +8,31 @@ import {
 import { StudentPortalWorkspaceV1 } from '../../features/student-portal/workspace/student-workspace-v1';
 import { brilliantSealCountV1 } from '../../features/student-portal/grades/brilliant-seal-v1';
 import { FrequencyPageV3 } from './frequency-page-v3';
-import { demoFrequencyV3, REDESIGN_SELF_V3 } from './demo-data-v3';
+import { SchedulePageV3 } from './schedule-page-v3';
+import { demoFrequencyV3, demoScheduleV3, REDESIGN_SELF_V3 } from './demo-data-v3';
 // The portal's own shell styles (helpers such as the screen-reader-only text), loaded unchanged.
 import '../../features/student-portal/shell/student-shell-v1.css';
 import './redesign-v3.css';
 
 /*
  * Redesign preview (owner request 20/10/2026, "caminho A"): the portal's own cover and white sheet,
- * shared by Notas and Frequência, and a menu of icons at the bottom on a phone and at the side on a
- * computer. Switching only changes what is inside the sheet: the cover, the sheet and the menu stay
+ * shared by Notas, Frequência and Horário (owner decision 22/10/2026), and a menu of icons at the
+ * bottom on a phone and at the side on a computer. Switching only changes what is inside the sheet: the cover, the sheet and the menu stay
  * still; the menu's highlight glides to the chosen item.
  */
-type PageV3 = 'grades' | 'frequency';
+type PageV3 = 'grades' | 'frequency' | 'schedule';
 const portrait = new URL('../assets/demo-student-boy.webp', import.meta.url).href;
 
 const PAGES: readonly { id: PageV3; label: string; Icon: typeof NotebookPen }[] = [
   { id: 'grades', label: 'Notas', Icon: NotebookPen },
   { id: 'frequency', label: 'Frequência', Icon: CalendarCheck2 },
+  { id: 'schedule', label: 'Horário', Icon: Clock },
 ];
 
 /*
  * Notas ⇄ Frequência (owner request 20/10/2026): the same move as between trimesters, inside the
  * sheet only. The content being left slides out to one side while the chosen one comes in from the
- * other; Frequência sits to the right of Notas, as in the menu.
+ * other; each page sits to the right of the one before it, as in the menu (Notas, Frequência, Horário).
  */
 const SLIDE_MS_V3 = 340;
 const SLIDE_EASING_V3 = 'cubic-bezier(0.4, 0, 0.2, 1)';
@@ -69,10 +71,10 @@ function useNavHighlightV3(page: PageV3) {
  * Back inside Notas never changes the page hidden behind Frequência.
  */
 const PAGE_HISTORY_KEY_V3 = 'pa3Page';
-const pageOfState = (state: unknown): PageV3 =>
-  state && typeof state === 'object' && (state as Record<string, unknown>)[PAGE_HISTORY_KEY_V3] === 'frequency'
-    ? 'frequency'
-    : 'grades';
+const pageOfState = (state: unknown): PageV3 => {
+  const saved = state && typeof state === 'object' ? (state as Record<string, unknown>)[PAGE_HISTORY_KEY_V3] : null;
+  return PAGES.find((item) => item.id === saved)?.id ?? 'grades';
+};
 
 export function RedesignAppV3() {
   const data = REDESIGN_SELF_V3;
@@ -83,11 +85,10 @@ export function RedesignAppV3() {
   // The content sliding out, until its move ends.
   const [leaving, setLeaving] = useState<PageV3 | null>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const grades = useRef<HTMLDivElement>(null);
-  const frequency = useRef<HTMLDivElement>(null);
+  const panels = useRef<Partial<Record<PageV3, HTMLDivElement | null>>>({});
   const entering = useRef<SlideV3 | null>(null);
   const highlight = useNavHighlightV3(page);
-  const elementOf = (id: PageV3) => (id === 'grades' ? grades.current : frequency.current);
+  const elementOf = (id: PageV3) => panels.current[id] ?? null;
   // Set by a switch the reader asked for (menu or Back), never by the first render.
   const switched = useRef(false);
   // A Back or Forward that came during the slide: the browser has already moved in its history, so
@@ -174,6 +175,14 @@ export function RedesignAppV3() {
   // there is no menu and no Frequência page, and nothing of /api/student/frequency is fetched. The
   // page then reads the real client instead of demoFrequencyV3 (see frequency-page-v3.tsx).
   const frequencyContent = useMemo(() => <FrequencyPageV3 read={demoFrequencyV3} />, []);
+  // MERGE (portal real): Horário only when `showSchedule === true` (the admin's "Horário" policy
+  // key), reading /api/student/schedule instead of demoScheduleV3 (see schedule-page-v3.tsx).
+  const scheduleContent = useMemo(() => <SchedulePageV3 classes={demoScheduleV3()} />, []);
+  const contentOf: Record<PageV3, ReactNode> = {
+    grades: gradesContent,
+    frequency: frequencyContent,
+    schedule: scheduleContent,
+  };
   const hero = useMemo(
     () => (
       // No onLogout: the preview has no session, so it shows no "Sair" that would do nothing.
@@ -207,28 +216,22 @@ export function RedesignAppV3() {
       <div className="pa3-page">
         <StudentPortalShellV1 hero={hero}>
           <div ref={stage} className="pa3-stage">
-            <div
-              ref={grades}
-              id="pa3-panel-grades"
-              role="region"
-              aria-label="Notas"
-              tabIndex={-1}
-              inert={page !== 'grades'}
-              className={'pa3-panel pa3-panel--grades' + stateOf('grades')}
-            >
-              {gradesContent}
-            </div>
-            <div
-              ref={frequency}
-              id="pa3-panel-frequency"
-              role="region"
-              aria-label="Frequência"
-              tabIndex={-1}
-              inert={page !== 'frequency'}
-              className={'pa3-panel pa3-panel--frequency' + stateOf('frequency')}
-            >
-              {frequencyContent}
-            </div>
+            {PAGES.map(({ id, label }) => (
+              <div
+                key={id}
+                ref={(element) => {
+                  panels.current[id] = element;
+                }}
+                id={`pa3-panel-${id}`}
+                role="region"
+                aria-label={label}
+                tabIndex={-1}
+                inert={page !== id}
+                className={`pa3-panel pa3-panel--${id}` + stateOf(id)}
+              >
+                {contentOf[id]}
+              </div>
+            ))}
           </div>
         </StudentPortalShellV1>
       </div>
