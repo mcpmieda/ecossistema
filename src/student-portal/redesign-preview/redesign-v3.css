@@ -1400,3 +1400,20 @@
 .pa3-day-today {
   margin-top: 0.2rem;
 }
+/* Today's number keeps the same size and place as every other date; "HOJE" sits on its own near
+   the bottom of the tile, so it never pushes the number up (owner request 21/10/2026). */
+.pa3-day.is-today {
+  grid-template-rows: none;
+  align-content: normal;
+}
+.pa3-day.is-today .pa3-day-number {
+  line-height: inherit;
+}
+.pa3-day-today {
+  position: absolute;
+  bottom: 0.1rem;
+  left: 0;
+  right: 0;
+  margin-top: 0;
+  text-align: center;
+}
