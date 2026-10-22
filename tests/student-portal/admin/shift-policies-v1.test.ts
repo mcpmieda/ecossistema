@@ -32,7 +32,7 @@ beforeAll(async () => {
   originalPin = (await pinMetadata())[0]!;
   // Apply the real complete migration after the atomic-publication foundation; the shared
   // historical fixture installs only the narrow view for old-policy compatibility reads.
-  for (const name of ['0021_access_schedule_v1.sql', '0022_shift_policy_v1.sql', '0027_frequency_policy_v1.sql'])
+  for (const name of ['0021_access_schedule_v1.sql', '0022_shift_policy_v1.sql', '0027_frequency_policy_v1.sql', '0028_schedule_policy_v1.sql'])
     await pg.exec(readFileSync('migrations/student-portal/' + name, 'utf8'));
   policy = new PolicyServiceV1(sql);
 }, 30_000);
@@ -92,11 +92,11 @@ it('normalizes current Relação shifts and keeps the view and replacement pin p
     VALUES('shift:2026:INVALID','autoUpdate','shift','false','{"kind":"shift"}',1)`)).rejects.toMatchObject({ code: '23514' });
 });
 
-it('applies all eleven policy fields, preserves inactive class choices and restores them on inherit', async () => {
+it('applies all twelve policy fields, preserves inactive class choices and restores them on inherit', async () => {
   const defaults = initialPolicyDefaultsV1();
   const classValues = { ...defaults, accessEnabled: true, accessSchedule: [{ at: '2026-10-01T12:00:00Z', action: 'close' }],
     showPartials: true, autoUpdate: true, showFinalResult: true, showTermClosing: true,
-    termClosingConclusive: false, showFrequency: true, allowedPeriods: ['T1'], risk: { ...defaults.risk, blockSeconds: 600 },
+    termClosingConclusive: false, showFrequency: true, showSchedule: true, allowedPeriods: ['T1'], risk: { ...defaults.risk, blockSeconds: 600 },
     calendar: { ...defaults.calendar, finalDisclosureAt: '2026-12-01T12:00:00Z' } };
   const shiftValues = { ...defaults, accessSchedule: [] };
   await set(CLASS, classValues);

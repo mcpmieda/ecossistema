@@ -175,6 +175,7 @@ beforeAll(async () => {
   await migrator.unsafe(readFileSync('migrations/student-portal/0023_audit_detail_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0024_seal_count_cache_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0027_frequency_policy_v1.sql', 'utf8'));
+  await migrator.unsafe(readFileSync('migrations/student-portal/0028_schedule_policy_v1.sql', 'utf8'));
   await installReconciliationSchemaFixtureV1({exec:(sql)=>admin.unsafe(sql,[],{prepare:false})});
   await admin.unsafe(readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'));
   await admin.unsafe(readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'));
