@@ -1417,3 +1417,15 @@
   margin-top: 0;
   text-align: center;
 }
+
+/* The day's title never breaks into two lines (owner request 21/10/2026): the type shrinks with
+   the card's width, sized for the longest title, "Ontem, quarta-feira, 30 de setembro". */
+.pa3-day-detail {
+  container-type: inline-size;
+}
+.pa3-day-detail .pa3-day-detail-title {
+  overflow: hidden;
+  font-size: min(1rem, 5.2cqi);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

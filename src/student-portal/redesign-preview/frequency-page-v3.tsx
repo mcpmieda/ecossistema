@@ -46,6 +46,8 @@ const dayLabel = (date: string) => {
   const parsed = new Date(`${date}T12:00:00Z`);
   return `${WEEKDAYS_LONG[parsed.getUTCDay()]}, ${parsed.getUTCDate()} de ${MONTHS[parsed.getUTCMonth()]!.toLowerCase()}`;
 };
+/** The calendar day before, "ontem" (a weekend or holiday included). */
+const dayBefore = (date: string) => new Date(Date.parse(`${date}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 /** The shift as people say it; an unknown value is left out rather than guessed. */
 const shiftLabel = (shift: string) => SHIFT_LABELS[shift.trim().toUpperCase()] ?? null;
@@ -486,7 +488,14 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
 
       {selected && selectedDay ? (
         <div className="pa3-card pa3-day-detail" aria-live="polite">
-          <h2>{dayLabel(selected)}</h2>
+          {/* Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026), on one line. */}
+          <h2 className="pa3-day-detail-title">
+            {selected === PREVIEW_TODAY_V3
+              ? `Hoje, ${dayLabel(selected).toLowerCase()}`
+              : selected === dayBefore(PREVIEW_TODAY_V3)
+                ? `Ontem, ${dayLabel(selected).toLowerCase()}`
+                : dayLabel(selected)}
+          </h2>
           {isToday ? <p className="pa3-today-note">Dia em andamento · conta a partir de amanhã</p> : null}
           <p className="pa3-day-detail-sub">
             {daySentence(selectedDay)}
