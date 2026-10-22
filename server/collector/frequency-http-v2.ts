@@ -36,7 +36,8 @@ const proofSchema = z
   })
   .strict();
 /** Expected while a reserve computer waits or the school is paused: not failures. */
-const ROUTINE = new Set(['lease-busy', 'paused']);
+// 'payload-required' is the expected answer to an unchanged diary the server cannot confirm.
+const ROUTINE = new Set(['lease-busy', 'paused', 'payload-required']);
 
 function failed(error: unknown): Response {
   if (error instanceof FrequencyErrorV2)
@@ -140,7 +141,11 @@ export async function handleFrequencyAdminRequestV2(
     const session = await requireAuth(request, env);
     requireRole(session.roles, 'ADMINISTRADOR');
     const input = frequencyRequestV2.parse(await readBoundedJson(request, FREQUENCY_BODY_BYTES_V2));
-    if (['lease', 'heartbeat', 'release', 'collect'].includes(input.operation))
+    if (
+      ['lease', 'heartbeat', 'release', 'collect', 'collect-unchanged', 'schedule-collect'].includes(
+        input.operation,
+      )
+    )
       return reply({ contractVersion: 2, state: 'not-authorized' }, 403);
     return await execute(env, 'admin', input, {
       mode: 'admin',
