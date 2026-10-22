@@ -85,7 +85,7 @@ const toneLevelOf = (day: DayV3 | null) => (!day || day.share <= 0 ? 0 : day.sha
  * The year so far (owner request 21/10/2026: "a régua sobre o ano"). The law's 75% is over all
  * the year's lessons, so the ruler adds up every month from the first one to now, with the
  * server's rule: 100 × (lessons − absences) / lessons, justified absences not taken off. Only
- * when every month is reliable; otherwise the year is still being worked out. On the real
+ * when every month with lessons is reliable; otherwise the year is still being worked out. On the real
  * portal the server sends this figure.
  */
 function yearOf(read: (month: string) => FrequencySummaryV2, current: string) {
@@ -93,6 +93,10 @@ function yearOf(read: (month: string) => FrequencySummaryV2, current: string) {
   let absences = 0;
   for (let month = FIRST_MONTH; month <= current; month = shiftMonth(month, 1)) {
     const data = read(month);
+    // A month with nothing at all (before the student arrived, after they left) adds nothing; a
+    // real database check (21/10/2026) found 14 students who started after February and 30 who
+    // left before October.
+    if (data.coverage === 'unavailable') continue;
     if (data.coverage !== 'reliable' || data.denominator === null || data.absences === null) return null;
     lessons += data.denominator;
     absences += data.absences;
