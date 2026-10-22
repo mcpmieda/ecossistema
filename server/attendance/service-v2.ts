@@ -1,11 +1,15 @@
 import {
   canonicalFrequencyJsonV2,
   frequencyClassKeyV2,
+  frequencyContentHashV2,
   frequencyRequestV2,
   frequencyPayloadHashV2,
+  frequencyScheduleHashV2,
   type FrequencyRequestV2,
   type FrequencyActorV2,
   type FrequencyCollectionV2,
+  type FrequencyScheduleCollectionV2,
+  type FrequencyUnchangedV2,
   type FrequencyDeviceV2,
   type FrequencyFailureEntryV2,
   type FrequencyStatusV2,
@@ -77,7 +81,9 @@ function text(value: unknown): string {
   throw new FrequencyErrorV2('unavailable', 503, 'unexpected-database-value');
 }
 const iso = (v: unknown) => new Date(text(v)).toISOString();
-const DEVICE_ONLY = new Set(['lease', 'collect', 'heartbeat', 'release']);
+const DEVICE_ONLY = new Set(['lease', 'collect', 'collect-unchanged', 'schedule-collect', 'heartbeat', 'release']);
+/** Operations that write evidence under the live lease, as `collect` does. */
+const COLLECTING = new Set(['collect', 'collect-unchanged', 'schedule-collect']);
 const ADMIN_ONLY = new Set(['revoke-device', 'resolve-conflict', 'monthly-summary']);
 const UNLEASED = new Set(['heartbeat', 'lease', 'release']);
 
@@ -669,7 +675,10 @@ async function checkCollectionClock(tx: Tx, input: FrequencyCollectionV2) {
  * and punctuation never block a class; the matched report label feeds the
  * central resolver so the same rule applies to every student of the batch.
  */
-async function matchCollectionClass(tx: Tx, input: FrequencyCollectionV2) {
+async function matchSourceClass(
+  tx: Tx,
+  input: { academicYear: number; classId: number; sourceClassLabel: string },
+) {
   const linked = await tx.query<Row>(
     `SELECT c.label,c.shift_key FROM gradebook.student_report_class_v1 c JOIN gradebook.turma t ON t.id=c.gradebook_class_id AND t.ano=c.academic_year
     WHERE c.academic_year=$1 AND c.gradebook_class_id=$2 AND NOT c.review_required ORDER BY c.label`,
@@ -680,13 +689,18 @@ async function matchCollectionClass(tx: Tx, input: FrequencyCollectionV2) {
   if (!matched.length) fail('identity-review', 409, 'class-not-linked');
   if (new Set(matched.map((r) => text(r.shift_key))).size !== 1)
     fail('identity-review', 409, 'class-shift-ambiguous');
+  const exact = normalizeStudentNameV1(input.sourceClassLabel);
+  const label = matched.find((r) => normalizeStudentNameV1(text(r.label)) === exact) ?? matched[0]!;
+  return { shift: text(label.shift_key), reportLabel: text(label.label) };
+}
+async function matchCollectionClass(tx: Tx, input: FrequencyCollectionV2) {
+  const matched = await matchSourceClass(tx, input);
+  const key = frequencyClassKeyV2(input.sourceClassLabel);
   rejectSource(
     input.records.some((r) => frequencyClassKeyV2(r.originalClass) !== key),
     'record-class-mismatch',
   );
-  const exact = normalizeStudentNameV1(input.sourceClassLabel);
-  const label = matched.find((r) => normalizeStudentNameV1(text(r.label)) === exact) ?? matched[0]!;
-  return { shift: text(label.shift_key), reportLabel: text(label.label) };
+  return matched;
 }
 async function lockClassState(tx: Tx, input: FrequencyCollectionV2) {
   await tx.executeNative(
@@ -923,15 +937,7 @@ async function collect(
   const cutoff = await checkCollectionClock(tx, input);
   const { shift, reportLabel } = await matchCollectionClass(tx, input);
   const classState = await lockClassState(tx, input);
-  const contentHash = await frequencyPayloadHashV2({
-    classId: input.classId,
-    sourceClassId: input.sourceClassId,
-    sourceClassLabel: input.sourceClassLabel,
-    rosterComplete: input.rosterComplete,
-    records: input.records,
-    coverage: input.coverage,
-    marks: input.marks,
-  });
+  const contentHash = await frequencyContentHashV2(input);
   const resolutions = await centralMany(
     tx,
     input.academicYear,
@@ -1207,6 +1213,101 @@ async function resolveConflict(
   );
   return { conflictId: input.conflictId, revision: Number(conflict.revision) + 1 };
 }
+/**
+ * The diary did not change since the content the collector last sent (owner decision 22/10/2026):
+ * it sends the students and the content's hash instead of coverage and marks. Every guard of a
+ * collection still applies (lease, device, clock, class, revision, order). The students are
+ * resolved again, so a link made in the Centro since the last batch changes the evidence; only the
+ * evidence the class already holds moves freshness, like a repeated payload. Anything else asks
+ * for the whole diary ('payload-required'), so the collector's local copy never decides alone.
+ */
+async function collectUnchanged(tx: Tx, input: FrequencyUnchangedV2, actor: FrequencyActorV2): Promise<Row> {
+  const { contentHash, ...fields } = input;
+  const collection: FrequencyCollectionV2 = { ...fields, operation: 'collect', coverage: [], marks: [] };
+  await liveLease(tx, collection, actor);
+  await checkCollectionClock(tx, collection);
+  const { reportLabel } = await matchCollectionClass(tx, collection);
+  const classState = await lockClassState(tx, collection);
+  const resolutions = await centralMany(
+    tx,
+    input.academicYear,
+    input.records,
+    input.sourceVersion,
+    input.classId,
+    reportLabel,
+  );
+  const evidenceHash = await frequencyPayloadHashV2({ contentHash, resolutions });
+  if (classState.last_payload_hash !== evidenceHash)
+    fail('payload-required', 409, 'evidence-changed');
+  return repeatCollection(tx, collection, actor, classState, evidenceHash);
+}
+/**
+ * The school's weekly grid (owner decision 22/10/2026): one capture of the Smecel "Grade de
+ * horários" with every linked class. A class whose grid changed gets a new version (the history
+ * stays); an unchanged one only moves its freshness. A class not linked in the Centro, or a
+ * capture older than the class's last one, rejects the whole capture.
+ */
+async function collectSchedule(
+  tx: Tx,
+  input: FrequencyScheduleCollectionV2,
+  actor: FrequencyActorV2,
+): Promise<Row> {
+  await liveLease(tx, input, actor);
+  const [clock] = await tx.query<Row>(`SELECT clock_timestamp()::text AS now`, []);
+  rejectSource(
+    new Date(input.observedAt).getTime() > new Date(text(clock!.now)).getTime() + 5000,
+    'observed-in-future',
+  );
+  const classes: { classId: number; changed: boolean }[] = [];
+  for (const item of input.classes) {
+    await matchSourceClass(tx, { academicYear: input.academicYear, ...item });
+    const contentHash = await frequencyScheduleHashV2(item);
+    const [state] = await tx.query<Row>(
+      `SELECT s.last_observed_at::text,v.content_hash FROM attendance.schedule_state_v2 s
+      JOIN attendance.schedule_version_v2 v ON v.id=s.current_version_id
+      WHERE s.academic_year=$1 AND s.class_id=$2 FOR UPDATE OF s`,
+      [input.academicYear, item.classId],
+    );
+    if (state && new Date(text(state.last_observed_at)) > new Date(input.observedAt))
+      fail('source-invalid', 409, 'older-than-last-collection');
+    if (state && text(state.content_hash) === contentHash) {
+      await tx.executeNative(
+        `UPDATE attendance.schedule_state_v2 SET last_observed_at=$3::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1 AND class_id=$2`,
+        [input.academicYear, item.classId, input.observedAt],
+      );
+      classes.push({ classId: item.classId, changed: false });
+      continue;
+    }
+    const lessons = [...item.lessons].sort((a, b) => a.weekday - b.weekday || a.slot - b.slot);
+    const [version] = (
+      await tx.executeNative<Row>(
+        `INSERT INTO attendance.schedule_version_v2(id,academic_year,class_id,source_version,source_class_id,source_class_label,content_hash,lessons_json,observed_at,actor_id,device_id)
+        VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7::text::jsonb,$8::timestamptz,$9::uuid,$10::uuid) RETURNING id::text`,
+        [
+          input.academicYear,
+          item.classId,
+          input.sourceVersion,
+          item.sourceClassId,
+          item.sourceClassLabel,
+          contentHash,
+          JSON.stringify(lessons),
+          input.observedAt,
+          actor.actorId,
+          device(actor),
+        ],
+      )
+    ).rows;
+    await tx.executeNative(
+      `INSERT INTO attendance.schedule_state_v2(academic_year,class_id,current_version_id,last_observed_at,last_received_at)
+      VALUES($1,$2,$3::uuid,$4::timestamptz,clock_timestamp())
+      ON CONFLICT(academic_year,class_id) DO UPDATE SET current_version_id=EXCLUDED.current_version_id,
+        last_observed_at=EXCLUDED.last_observed_at,last_received_at=EXCLUDED.last_received_at`,
+      [input.academicYear, item.classId, text(version!.id), input.observedAt],
+    );
+    classes.push({ classId: item.classId, changed: true });
+  }
+  return { classes };
+}
 function mutate(context: Context, input: Mutation): Promise<Row> {
   switch (input.operation) {
     case 'save-settings':
@@ -1222,6 +1323,10 @@ function mutate(context: Context, input: Mutation): Promise<Row> {
       return reportOnLease(context, input);
     case 'collect':
       return collect(context.tx, input, context.actor);
+    case 'collect-unchanged':
+      return collectUnchanged(context.tx, input, context.actor);
+    case 'schedule-collect':
+      return collectSchedule(context.tx, input, context.actor);
     case 'resolve-conflict':
       return resolveConflict(context, input);
   }
@@ -1297,8 +1402,8 @@ async function finishMutation(
   );
   if (!UNLEASED.has(input.operation)) await recordFrequencyResetWriteV2(tx, input.academicYear);
   await lockDevice(tx, actor);
-  if (input.operation === 'collect' || input.operation === 'heartbeat')
-    await liveLease(tx, input, actor, input.operation === 'heartbeat');
+  if (COLLECTING.has(input.operation) || input.operation === 'heartbeat')
+    await liveLease(tx, input as { academicYear: number; fencingToken: number }, actor, input.operation === 'heartbeat');
   if (input.operation === 'heartbeat') await purgeFrequencyOperationalRowsV2(tx);
   if (input.operation === 'lease')
     await liveLease(
@@ -1386,6 +1491,11 @@ const yearlyTables = [
   'correction_v2',
   'conflict_v2',
   'origin_v2',
+  // Evidence lines removed by the nightly pruning, archived with their school year (0009).
+  'pruned_origin_v2',
+  // The weekly grids (0010): the current pointer, then every version.
+  'schedule_state_v2',
+  'schedule_version_v2',
   'source_mark_v2',
   'coverage_v2',
   'source_row_v2',

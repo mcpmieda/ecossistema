@@ -23,6 +23,7 @@ import {
   FREQUENCY_SYNTHETIC_SEED_SQL_V2,
 } from './synthetic-fixture-v2';
 import { recordFrequencyFailureV2 } from '../../server/attendance/failure-log-v2';
+import { frequencyContentHashV2 } from '../../shared/attendance-contracts/frequency-v2';
 const uid = '10000000-0000-4000-8000-000000000001';
 const admin: FrequencyActorV2 = {
   actorId: '20000000-0000-4000-8000-000000000001',
@@ -513,7 +514,7 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(await count('batch_v2')).toBe(1);
     expect(await count('origin_v2')).toBe(1);
     expect((await summary()).marks[0]?.mark).toBe('J');
-    expect(await prune()).toEqual({ origins: 0, marks: 0, coverage: 0, sourceRows: 0, batches: 0 });
+    expect(await prune()).toMatchObject({ origins: 0, marks: 0, coverage: 0, sourceRows: 0, batches: 0 });
     // The next collection still compares against the kept evidence: J -> X opens review.
     await service.execute(
       collection({
@@ -529,6 +530,252 @@ describe('frequency V2 private PostgreSQL service', () => {
     await prune();
     expect(await count('origin_v2')).toBe(2);
     expect((await status()).conflicts).toHaveLength(1);
+  });
+  it('pruning removes, traceably, an absence left under the other ficha of the same student', async () => {
+    const prune = async (dryRun = false) =>
+      (
+        await pg.query<{ r: Record<string, unknown> }>(
+          'SELECT attendance.prune_superseded_evidence_v2($1) AS r',
+          [dryRun],
+        )
+      ).rows[0]!.r;
+    const origins = async () =>
+      (
+        await pg.query<{ record_key: string }>(
+          'SELECT record_key FROM attendance.origin_v2 ORDER BY record_key',
+        )
+      ).rows.map((row) => row.record_key);
+    const records = [
+      { recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+      { recordKey: 'r2', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+    ];
+    // Two fichas of one student (a re-enrolment). An early reading swapped them: the old ficha's
+    // lesson and absence of the 5th came under r2, the new ficha's day under r1.
+    await service.execute(
+      collection({
+        records,
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-06', slots: [1, 2], complete: true },
+          { recordKey: 'r2', date: '2026-01-05', slots: [1, 2], complete: true },
+        ],
+        marks: [{ recordKey: 'r2', date: '2026-01-05', slot: 1, mark: 'X' }],
+      }),
+      actor,
+    );
+    // The next reading is right: r1 is the old ficha (the 5th, with its absence), r2 the new one.
+    await service.execute(
+      collection({
+        records,
+        sourceVersion: `sha256:${'b'.repeat(64)}`,
+        expectedRevision: 1,
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1, 2], complete: true },
+          { recordKey: 'r2', date: '2026-01-06', slots: [1, 2], complete: true },
+        ],
+        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' }],
+      }),
+      actor,
+    );
+    expect((await status()).conflicts).toHaveLength(0);
+    expect(await origins()).toEqual(['r1', 'r2']);
+
+    // A simulation counts and records itself, and removes nothing.
+    expect(await prune(true)).toMatchObject({ dryRun: true, recordWithoutLesson: 1, origins: 1 });
+    expect(await origins()).toEqual(['r1', 'r2']);
+    expect(
+      (await pg.query('SELECT dry_run FROM attendance.prune_run_v2 ORDER BY id')).rows,
+    ).toEqual([{ dry_run: true }]);
+
+    // The real run copies the stray line first, then removes it; the absence keeps r1's evidence.
+    expect(await prune()).toMatchObject({
+      dryRun: false,
+      recordWithoutLesson: 1,
+      checks: { occurrencesWithoutEvidence: 0, unprovenRecordWithoutLesson: 0 },
+    });
+    expect(await origins()).toEqual(['r1']);
+    expect(
+      (
+        await pg.query(
+          'SELECT reason,record_key,mark,date::text,slot,student_uid::text FROM attendance.pruned_origin_v2',
+        )
+      ).rows,
+    ).toEqual([
+      { reason: 'record-without-lesson', record_key: 'r2', mark: 'X', date: '2026-01-05', slot: 1, student_uid: uid },
+    ]);
+    expect((await summary()).marks).toEqual([expect.objectContaining({ date: '2026-01-05', slot: 1, mark: 'X' })]);
+    // Healthy: nothing for the panel's failure trail.
+    expect((await status()).failures).toEqual([]);
+    // The archive goes with its school year.
+    expect((await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).pruned_origin_v2).toBe(1);
+    await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
+    expect(
+      (await pg.query('SELECT count(*)::integer AS n FROM attendance.pruned_origin_v2')).rows,
+    ).toEqual([{ n: 0 }]);
+  });
+  it('pruning never removes evidence it cannot prove elsewhere and reports it on the panel', async () => {
+    await service.execute(collection(), actor);
+    // The only ficha holding the absence no longer has that lesson (nothing else proves it).
+    await pg.exec(`UPDATE attendance.coverage_v2 SET slots_json='[2,3,4,5,6]'::jsonb`);
+    // And an absence with no evidence at all.
+    await pg.exec(
+      `INSERT INTO attendance.occurrence_v2(id,academic_year,student_uid,date,shift,slot,mark)
+       VALUES(gen_random_uuid(),2026,'${uid}','2026-01-07','MATUTINO',2,'X')`,
+    );
+    const result = (
+      await pg.query<{ r: Record<string, unknown> }>(
+        'SELECT attendance.prune_superseded_evidence_v2() AS r',
+      )
+    ).rows[0]!.r;
+    expect(result).toMatchObject({
+      origins: 0,
+      checks: { occurrencesWithoutEvidence: 1, unprovenRecordWithoutLesson: 1 },
+    });
+    expect(
+      (await pg.query('SELECT count(*)::integer AS n FROM attendance.origin_v2')).rows,
+    ).toEqual([{ n: 1 }]);
+    const failures = (await status()).failures;
+    expect(failures.map((failure) => failure.code).sort()).toEqual([
+      'EVIDENCE_UNPROVEN',
+      'EVIDENCE_WITHOUT_ORIGIN',
+    ]);
+    expect(failures.every((failure) => failure.operation === 'evidence-pruning')).toBe(true);
+    expect(failures.map((failure) => failure.detail)).toEqual([
+      'Revisar 1 registro(s) no banco.',
+      'Revisar 1 registro(s) no banco.',
+    ]);
+  });
+  it('an unchanged diary only moves freshness; what the server cannot confirm asks for the whole diary', async () => {
+    const input = collection();
+    await service.execute(input, actor);
+    const contentHash = await frequencyContentHashV2(input);
+    const unchanged = (fields: Record<string, unknown> = {}) => ({
+      operation: 'collect-unchanged',
+      academicYear: 2026,
+      requestId: id(),
+      fencingToken: token,
+      classId: 101,
+      expectedRevision: 1,
+      sourceVersion: `sha256:${'b'.repeat(64)}`,
+      sourceClassId: '123',
+      sourceClassLabel: '6A',
+      observedAt: '2026-01-11T12:00:00Z',
+      rosterComplete: true,
+      records: input.records,
+      contentHash,
+      ...fields,
+    });
+    const counts = async () => database.transaction((tx) => frequencyYearCountsV2(tx, 2026));
+    const before = await counts();
+    // No coverage, no marks: only the receipt and the freshness move.
+    expect(await service.execute(unchanged(), actor)).toMatchObject({
+      operation: 'collect-unchanged',
+      classId: 101,
+      revision: 2,
+      resolvedRecords: 1,
+      conflicts: 0,
+    });
+    const after = await counts();
+    for (const name of ['batch_v2', 'source_row_v2', 'coverage_v2', 'source_mark_v2', 'occurrence_v2', 'origin_v2'])
+      expect(after[name]).toBe(before[name]);
+    expect((await status()).collections[0]?.observedAt).toBe('2026-01-11T12:00:00.000Z');
+    expect((await summary()).marks).toHaveLength(1);
+    // Content the server does not hold (the collector's copy is wrong, or the server lost it).
+    await expect(
+      service.execute(
+        unchanged({ expectedRevision: 2, observedAt: '2026-01-12T12:00:00Z', contentHash: 'A'.repeat(43) }),
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'payload-required' });
+    // A link changed in the Centro since the last batch changes the evidence too.
+    await pg.exec(
+      "UPDATE gradebook.student_source_observation_v1 SET name_key='ALUNA SINTETICA UM' WHERE name_key='ALUNO SINTETICO DOIS'",
+    );
+    await expect(
+      service.execute(unchanged({ expectedRevision: 2, observedAt: '2026-01-12T12:00:00Z' }), actor),
+    ).rejects.toMatchObject({ code: 'payload-required' });
+    // The usual guards stay: an older capture, a stale revision, an administrator.
+    await pg.exec(
+      "UPDATE gradebook.student_source_observation_v1 SET name_key='ALUNO SINTETICO DOIS' WHERE id='60000000-0000-4000-8000-000000000002'",
+    );
+    await expect(
+      service.execute(unchanged({ expectedRevision: 2, observedAt: '2026-01-10T11:00:00Z' }), actor),
+    ).rejects.toMatchObject({ code: 'source-invalid' });
+    await expect(service.execute(unchanged({ expectedRevision: 1 }), actor)).rejects.toMatchObject({
+      code: 'revision-conflict',
+    });
+    await expect(service.execute(unchanged({ expectedRevision: 2 }), admin)).rejects.toMatchObject({
+      code: 'not-authorized',
+    });
+  });
+  it('the weekly grid keeps one version per change and only freshness otherwise', async () => {
+    const grid = (lessons: { weekday: number; slot: number; subject: string }[], fields: Record<string, unknown> = {}) => ({
+      operation: 'schedule-collect',
+      academicYear: 2026,
+      requestId: id(),
+      fencingToken: token,
+      sourceVersion: `sha256:${'d'.repeat(64)}`,
+      observedAt: '2026-01-10T12:00:00Z',
+      classes: [{ classId: 101, sourceClassId: '123', sourceClassLabel: '6A', lessons }],
+      ...fields,
+    });
+    const first = [
+      { weekday: 1, slot: 1, subject: 'LINGUA PORTUGUESA' },
+      { weekday: 1, slot: 2, subject: 'MATEMATICA' },
+      { weekday: 2, slot: 6, subject: 'ARTE' },
+    ];
+    const versions = async () =>
+      (
+        await pg.query<{ lessons_json: unknown }>(
+          'SELECT lessons_json FROM attendance.schedule_version_v2 ORDER BY received_at,id',
+        )
+      ).rows;
+    expect(await service.execute(grid(first), actor)).toMatchObject({
+      operation: 'schedule-collect',
+      classes: [{ classId: 101, changed: true }],
+    });
+    // The same grid in another order is the same grid: freshness only.
+    expect(
+      await service.execute(grid([...first].reverse(), { observedAt: '2026-01-11T12:00:00Z' }), actor),
+    ).toMatchObject({ classes: [{ classId: 101, changed: false }] });
+    expect(await versions()).toHaveLength(1);
+    expect(
+      (await pg.query('SELECT last_observed_at::text AS at FROM attendance.schedule_state_v2')).rows,
+    ).toEqual([{ at: expect.stringMatching(/^2026-01-11 /u) }]);
+    // A change adds a version; the history stays and the class points at the new one.
+    const second = [...first.slice(0, 2), { weekday: 2, slot: 6, subject: 'MATEMATICA' }];
+    expect(
+      await service.execute(grid(second, { observedAt: '2026-01-12T12:00:00Z' }), actor),
+    ).toMatchObject({ classes: [{ classId: 101, changed: true }] });
+    expect(await versions()).toHaveLength(2);
+    expect(
+      (
+        await pg.query(
+          'SELECT v.lessons_json->2->>\'subject\' AS subject FROM attendance.schedule_state_v2 s JOIN attendance.schedule_version_v2 v ON v.id=s.current_version_id',
+        )
+      ).rows,
+    ).toEqual([{ subject: 'MATEMATICA' }]);
+    // Guards: an older capture, a class not linked in the Centro, a lesson twice, an administrator.
+    await expect(
+      service.execute(grid(first, { observedAt: '2026-01-10T13:00:00Z' }), actor),
+    ).rejects.toMatchObject({ code: 'source-invalid' });
+    await expect(
+      service.execute(
+        grid(first, {
+          observedAt: '2026-01-13T12:00:00Z',
+          classes: [{ classId: 101, sourceClassId: '123', sourceClassLabel: '9Z', lessons: first }],
+        }),
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'identity-review' });
+    await expect(
+      service.execute(grid([...first, first[0]!], { observedAt: '2026-01-13T12:00:00Z' }), actor),
+    ).rejects.toMatchObject({ code: 'invalid-request' });
+    await expect(
+      service.execute(grid(first, { observedAt: '2026-01-13T12:00:00Z' }), admin),
+    ).rejects.toMatchObject({ code: 'not-authorized' });
+    // The grids go with their school year.
+    await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
+    expect(await versions()).toHaveLength(0);
   });
   it('conflicting J/X requires an audited admin choice, CAS, and does not use last writer', async () => {
     await service.execute(

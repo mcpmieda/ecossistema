@@ -133,6 +133,8 @@ export const selfResponseV1 = z
     // Política Frequência (owner request 20/10/2026). Only `true` shows the attendance section;
     // absent (a server before this field) keeps it hidden.
     showFrequency: z.boolean().optional(),
+    // Política Horário (owner decision 22/10/2026). Only `true` shows the "Horário" tab.
+    showSchedule: z.boolean().optional(),
   })
   .strict()
   .superRefine((v, ctx) => {

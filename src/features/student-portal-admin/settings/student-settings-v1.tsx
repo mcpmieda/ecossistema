@@ -93,6 +93,8 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
     'Escolha entre a conclusão do trimestre encerrado e a orientação durante o trimestre.',
   showFrequency:
     'Mostra ao aluno a frequência do mês. Desativada, a seção some do Portal e a consulta é recusada.',
+  showSchedule:
+    'Mostra ao aluno a grade semanal da turma, como está no Smecel. Desativada, a aba some do Portal e a consulta é recusada.',
   allowedPeriods:
     'Define quais notas podem aparecer. Também é necessário publicar e respeitar as datas de divulgação.',
   risk: 'Os limites de sessão e proteção são uma configuração única. A sessão curta não pode exceder a persistente; a verificação deve começar antes do bloqueio.',

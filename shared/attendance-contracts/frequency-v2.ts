@@ -57,6 +57,18 @@ export const frequencyScheduleWriteV2 = frequencyScheduleV2.superRefine((schedul
   });
 });
 const read = { academicYear: year };
+const classId = z.number().int().positive();
+const sourceVersion = z.string().regex(/^sha256:[a-f0-9]{64}$/u);
+const sourceClassId = z.string().regex(/^[1-9]\d{0,9}$/u);
+const observedAt = z.iso.datetime({ offset: true });
+const records = z.array(z.object({ recordKey, originalName: label, originalClass: label }).strict()).min(1).max(64);
+/** frequencyPayloadHashV2 output: base64url SHA-256, no padding. */
+const payloadHash = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
+/** One lesson of a class's weekly grid: Monday (1) to Friday (5), the diary's position, the subject as the Smecel names it. */
+const scheduleLesson = z.object({
+  weekday: z.number().int().min(1).max(5), slot,
+  subject: z.string().trim().min(1).max(120),
+}).strict();
 const mutation = { ...read, requestId: uid };
 const fenced = { ...mutation, fencingToken: revision };
 export const frequencyRequestV2 = z.discriminatedUnion('operation', [
@@ -70,19 +82,38 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('heartbeat'), ...fenced, status: z.enum(['ready', 'collecting', 'login-required', 'error']), classId: z.number().int().positive().nullable(), code: z.string().regex(/^[A-Z_]{1,60}$/u).nullable() }).strict(),
   z.object({ operation: z.literal('release'), ...fenced, code: z.string().regex(/^[A-Z_]{1,60}$/u).nullable() }).strict(),
   z.object({ operation: z.literal('collect'), ...fenced,
-    classId: z.number().int().positive(), expectedRevision: revision,
-    sourceVersion: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
-    sourceClassId: z.string().regex(/^[1-9]\d{0,9}$/u), sourceClassLabel: label,
-    observedAt: z.iso.datetime({ offset: true }), rosterComplete: z.boolean(),
-    records: z.array(z.object({ recordKey, originalName: label, originalClass: label }).strict()).min(1).max(64),
+    classId, expectedRevision: revision, sourceVersion, sourceClassId, sourceClassLabel: label,
+    observedAt, rosterComplete: z.boolean(), records,
     coverage: z.array(z.object({ recordKey, date: civilDate, slots, complete: z.boolean() }).strict()).max(24_000),
     marks: z.array(z.object({ recordKey, date: civilDate, slot, mark: z.enum(['X', 'J']) }).strict()).max(130_000),
+  }).strict(),
+  /**
+   * The class's diary did not change since the content the collector last sent (owner decision
+   * 22/10/2026): the same fields as `collect` but, instead of coverage and marks, their
+   * frequencyContentHashV2. The server answers 'payload-required' unless it matches what it holds.
+   */
+  z.object({ operation: z.literal('collect-unchanged'), ...fenced,
+    classId, expectedRevision: revision, sourceVersion, sourceClassId, sourceClassLabel: label,
+    observedAt, rosterComplete: z.boolean(), records, contentHash: payloadHash,
+  }).strict(),
+  /** The school's weekly grid (Smecel "Grade de horários"), every linked class in one capture. */
+  z.object({ operation: z.literal('schedule-collect'), ...fenced, sourceVersion, observedAt,
+    classes: z.array(z.object({
+      classId, sourceClassId, sourceClassLabel: label,
+      lessons: z.array(scheduleLesson).max(30)
+        .refine(v => new Set(v.map(l => `${l.weekday}:${l.slot}`)).size === v.length),
+    }).strict()).min(1).max(64)
+      .refine(v => new Set(v.map(c => c.classId)).size === v.length)
+      .refine(v => new Set(v.map(c => c.sourceClassId)).size === v.length),
   }).strict(),
   z.object({ operation: z.literal('resolve-conflict'), ...mutation, conflictId: uid, expectedRevision: revision, mark: z.enum(['X','J']).nullable(), reason: z.string().trim().min(1).max(500) }).strict(),
   z.object({ operation: z.literal('monthly-summary'), ...read, studentUid: uid, month: z.string().regex(/^2026-(0[1-9]|1[0-2])$/u) }).strict(),
 ]);
 export type FrequencyRequestV2 = z.infer<typeof frequencyRequestV2>;
 export type FrequencyCollectionV2 = Extract<FrequencyRequestV2, { operation: 'collect' }>;
+export type FrequencyUnchangedV2 = Extract<FrequencyRequestV2, { operation: 'collect-unchanged' }>;
+export type FrequencyScheduleCollectionV2 = Extract<FrequencyRequestV2, { operation: 'schedule-collect' }>;
+export type FrequencyScheduleLessonV2 = z.infer<typeof scheduleLesson>;
 export type FrequencyScheduleV2 = z.infer<typeof frequencyScheduleV2>;
 
 /** Server-created only, after Entra session or payload-bound device proof. */
@@ -164,4 +195,23 @@ export function frequencyClassKeyV2(label: string): string {
 export async function frequencyPayloadHashV2(value: unknown): Promise<string> {
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalFrequencyJsonV2(value))));
   return btoa(String.fromCodePoint(...hash)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
+}
+/**
+ * The content of one class's diary, as the server compares it: the collector computes the same
+ * value (canonical JSON, SHA-256, base64url) to know whether anything changed since its last send.
+ */
+export function frequencyContentHashV2(input: Pick<FrequencyCollectionV2,
+  'classId' | 'sourceClassId' | 'sourceClassLabel' | 'rosterComplete' | 'records' | 'coverage' | 'marks'>): Promise<string> {
+  return frequencyPayloadHashV2({
+    classId: input.classId, sourceClassId: input.sourceClassId, sourceClassLabel: input.sourceClassLabel,
+    rosterComplete: input.rosterComplete, records: input.records, coverage: input.coverage, marks: input.marks,
+  });
+}
+/** One class's weekly grid as stored and compared: lessons in day then position order. */
+export function frequencyScheduleHashV2(item: { classId: number; sourceClassId: string; sourceClassLabel: string;
+  lessons: readonly FrequencyScheduleLessonV2[] }): Promise<string> {
+  return frequencyPayloadHashV2({
+    classId: item.classId, sourceClassId: item.sourceClassId, sourceClassLabel: item.sourceClassLabel,
+    lessons: [...item.lessons].sort((a, b) => a.weekday - b.weekday || a.slot - b.slot),
+  });
 }
