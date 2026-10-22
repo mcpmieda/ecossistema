@@ -328,7 +328,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
   };
   const ariaOf = (date: string, state: DayStateV3) => {
     const day = dayAt(date);
-    const today = date === PREVIEW_TODAY_V3 ? ' (hoje, ainda não entra na conta)' : '';
+    const today = date === PREVIEW_TODAY_V3 ? ' (hoje, dia em andamento: conta a partir de amanhã)' : '';
     const text: Record<DayStateV3, string> = {
       clear: 'nenhuma falta registrada',
       missed: day ? daySentence(day) : '',
@@ -450,7 +450,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       {selected && selectedDay ? (
         <div className="pa3-card pa3-day-detail" aria-live="polite">
           <h2>{dayLabel(selected)}</h2>
-          {isToday ? <p className="pa3-today-note">Hoje · entra na conta amanhã</p> : null}
+          {isToday ? <p className="pa3-today-note">Dia em andamento · conta a partir de amanhã</p> : null}
           <p className="pa3-day-detail-sub">
             {daySentence(selectedDay)}
           </p>
