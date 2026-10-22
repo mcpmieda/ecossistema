@@ -224,15 +224,13 @@ function DayRingV3({ totals, monthName }: { totals: { days: number; clear: numbe
           </g>
         );
       })}
-      {/* The month in the centre: the attendance in lessons moved to the year's ruler below. */}
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + (totals.days ? 2 : 6)} textAnchor="middle" className="pa3-guide-month">
-        {monthName}
+      {/* The month's days in the centre; the month's name is on the tag above the ring. */}
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 6} textAnchor="middle" className="pa3-guide-percent">
+        {totals.days}
       </text>
-      {totals.days ? (
-        <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 17} textAnchor="middle" className="pa3-guide-caption">
-          {plural(totals.days, 'dia', 'dias')}
-        </text>
-      ) : null}
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 20} textAnchor="middle" className="pa3-guide-caption">
+        {totals.days === 1 ? 'dia' : 'dias'}
+      </text>
     </svg>
   );
 }
@@ -369,6 +367,8 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
         changes (owner request 21/10/2026).
       */}
       <div className={'pa3-summary pa3-summary--' + yearTone}>
+        {/* The month's name on a tag at the top (owner request 21/10/2026: "sentindo falta do nome"). */}
+        <p className="pa3-summary-title">{monthLabel(month)}</p>
         <DayRingV3 key={month} totals={totals} monthName={MONTHS[monthNumber - 1]!} />
         {/* The ruler is the year so far, not the month (owner request 21/10/2026): the 75% is the
             law's minimum over all the year's lessons, so only the year's figure meets it. */}
