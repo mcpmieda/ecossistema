@@ -1439,3 +1439,16 @@
   width: fit-content;
   margin-inline: auto;
 }
+/* The year's figure on a soft badge in its own colour (owner request 21/10/2026). */
+.pa3-panel--frequency .pa3-year-head strong {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--pa3-ruler-dark) 22%, #fff);
+  border-radius: 0.8rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pa3-ruler-dark) 6%, #fff), color-mix(in srgb, var(--pa3-ruler-dark) 14%, #fff));
+  line-height: 1.2;
+}
+.pa3-panel--frequency .pa3-summary--none .pa3-year-head strong {
+  border-color: #e3e8f1;
+  background: #f4f6fa;
+}
