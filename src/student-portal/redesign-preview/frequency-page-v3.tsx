@@ -377,7 +377,7 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
             <span>
               Presença no ano até agora
               {/* How the figure moves, in plain words (owner request 21/10/2026). */}
-              <small>Cai quando o aluno falta e sobe quando ele vem às aulas.</small>
+              <small>Cai quando o aluno falta e sobe quando ele vem às aulas. Faltas justificadas não prejudicam.</small>
             </span>
             {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
             <strong>{yearPercent === null ? 'em apuração' : `${Math.floor(yearPercent)}%`}</strong>
