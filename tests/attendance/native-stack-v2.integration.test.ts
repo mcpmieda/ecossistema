@@ -127,6 +127,7 @@ native('frequency V2 complete native migration stack', () => {
       'migrations/student-portal/0025_reconciliation_credentials_v1.sql',
       'migrations/student-portal/0026_publication_source_retention_v1.sql',
       'migrations/student-portal/0027_frequency_policy_v1.sql',
+      'migrations/student-portal/0028_schedule_policy_v1.sql',
       'migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
       ...readdirSync('migrations/collector')
         .filter((f) => /^\d{4}_.*\.sql$/u.test(f) && !['0007_scheduled_retention_v2.sql','0008_cron_history_retention_v2.sql','0010_daily_evidence_pruning_v2.sql'].includes(f))
@@ -279,11 +280,62 @@ native('frequency V2 complete native migration stack', () => {
     const summary = withLessonDaysV2(summarizeFrequencyPublicOriginsV2(frequency.origins, '2026-01'), frequency.days);
     expect(summary.days?.every((day) => day.slots.length > 0)).toBe(true);
     expect((await lessonRead(crypto.randomUUID()))[0]!.frequency).toBeNull();
+    // Horário (attendance 0010/0011): the grid of the student's current class, under the same checks.
+    const lessonsOfGrid = [
+      { weekday: 1, slot: 1, subject: 'LINGUA PORTUGUESA' },
+      { weekday: 5, slot: 6, subject: 'ARTE' },
+    ];
+    expect(
+      await service.execute(
+        request('schedule-collect', {
+          fencingToken: Number(lease.fencingToken),
+          sourceVersion: `sha256:${'c'.repeat(64)}`,
+          observedAt: '2026-01-10T12:00:00Z',
+          classes: [{ classId: 101, sourceClassId: '123', sourceClassLabel: '6A', lessons: lessonsOfGrid }],
+        }),
+        deviceActor,
+      ),
+    ).toMatchObject({ state: 'committed', classes: [{ classId: 101, changed: true }] });
+    const scheduleRead = (who = account) =>
+      asRole('student_portal_app', (tx) =>
+        tx.unsafe(`SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule`, [who, session]),
+      );
+    expect((await scheduleRead())[0]!.schedule).toEqual({
+      classes: [{ label: '6A', observedAt: expect.any(String), lessons: lessonsOfGrid }],
+    });
+    expect((await scheduleRead(crypto.randomUUID()))[0]!.schedule).toBeNull();
+    // Another student, not in the class's diary, sees no grid at all.
+    const other = { uid: crypto.randomUUID(), account: crypto.randomUUID(), session: crypto.randomUUID() };
+    await exec(`SET ROLE frequency_migrator_v2;
+ INSERT INTO gradebook.student_identity(id) VALUES('${other.uid}');
+ INSERT INTO gradebook.aluno(id,ano,nome,student_uid) VALUES(2,2026,'OTHER SYNTHETIC PERSON','${other.uid}');
+ INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility,student_uid) VALUES('${other.account}',2026,2,'active','eligible','${other.uid}');
+ INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent) VALUES('${other.session}','${other.account}','synthetic-hash-2',0,clock_timestamp()+interval '10 minutes',false); RESET ROLE;`);
+    const [otherRead] = await asRole('student_portal_app', (tx) =>
+      tx.unsafe(`SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule`, [other.account, other.session]),
+    );
+    expect(otherRead!.schedule).toEqual({ classes: [] });
+    const [scheduleAcl] = await exec(`SELECT
+ has_function_privilege('anon','attendance.read_portal_schedule_v1(uuid,uuid)','EXECUTE') AS public_rpc,
+ has_function_privilege('gradebook_app','attendance.read_portal_schedule_v1(uuid,uuid)','EXECUTE') AS gradebook_rpc,
+ has_table_privilege('student_portal_app','attendance.schedule_version_v2','SELECT') AS portal_table`);
+    expect(scheduleAcl).toEqual({ public_rpc: false, gradebook_rpc: false, portal_table: false });
+    // Moved out of the class (the diary keeps the row with a transfer date): from the day after the
+    // transfer, that class's grid is no longer the student's.
+    const [open] = await exec(`SELECT
+ attendance.portal_enrolment_open_v1('[]','2026-03-01') AS no_evidence,
+ attendance.portal_enrolment_open_v1('[{"endsOn":null}]','2026-03-01') AS enrolled,
+ attendance.portal_enrolment_open_v1('[{"endsOn":"2026-03-01"}]','2026-03-01') AS last_day,
+ attendance.portal_enrolment_open_v1('[{"endsOn":"2026-02-28"}]','2026-03-01') AS transferred,
+ attendance.portal_enrolment_open_v1('[{"endsOn":"2026-02-28"},{"endsOn":null}]','2026-03-01') AS came_back,
+ has_function_privilege('student_portal_app','attendance.portal_enrolment_open_v1(jsonb,date)','EXECUTE') AS portal_rpc`);
+    expect(open).toEqual({ no_evidence: true, enrolled: true, last_day: true, transferred: false, came_back: true, portal_rpc: false });
     await exec(
       `UPDATE student_portal.session SET revoked_at=clock_timestamp() WHERE id='${session}'`,
     );
     expect((await portalRead())[0]!.origins).toBeNull();
     expect((await lessonRead())[0]!.frequency).toBeNull();
+    expect((await scheduleRead())[0]!.schedule).toBeNull();
     for (const role of [
       'anon',
       'authenticated',
@@ -316,7 +368,7 @@ native('frequency V2 complete native migration stack', () => {
       code: 'not-authorized',
     });
     await exec(
-      `UPDATE student_portal.account SET gradebook_student_id=NULL,eligibility='unlinked',closed_at=clock_timestamp() WHERE id='${account}'`,
+      `UPDATE student_portal.account SET gradebook_student_id=NULL,eligibility='unlinked',closed_at=clock_timestamp() WHERE academic_year=2026`,
     );
     const reset = createYearResetServiceV1(database, actorId);
     let preview = await reset.execute({ contractVersion: 1, operation: 'preview', year: 2026 });

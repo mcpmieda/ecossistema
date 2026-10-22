@@ -10,7 +10,7 @@ const meta = { contractVersion: 1, expectedVersion: 0, idempotencyKey: id };
 const scope = { kind: 'account', academicYear: 2026, accountId: id };
 const envelope = { contractVersion: 1, requestId: id };
 const at = '2026-09-01T12:00:00Z';
-const value = { accessEnabled: false, accessSchedule: null, showPartials: false, autoUpdate: false, showFinalResult: false, showTermClosing: false, termClosingConclusive: true, showFrequency: false, allowedPeriods: [], risk: DEFAULT_RISK_V1, calendar: EMPTY_CALENDAR_V1 };
+const value = { accessEnabled: false, accessSchedule: null, showPartials: false, autoUpdate: false, showFinalResult: false, showTermClosing: false, termClosingConclusive: true, showFrequency: false, showSchedule: false, allowedPeriods: [], risk: DEFAULT_RISK_V1, calendar: EMPTY_CALENDAR_V1 };
 
 describe('Portal V1 identity and envelope', () => {
   it('limits opt-in read context to audit detail and single-account birth years', () => {

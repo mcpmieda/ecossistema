@@ -21,6 +21,7 @@ export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   showTermClosing: 'Fechamento do trimestre',
   termClosingConclusive: 'Tipo de orientação',
   showFrequency: 'Frequência no Portal',
+  showSchedule: 'Horário no Portal',
   allowedPeriods: 'Períodos permitidos',
   risk: 'Segurança do acesso',
   calendar: 'Datas',

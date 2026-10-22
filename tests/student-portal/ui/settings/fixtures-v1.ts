@@ -18,6 +18,7 @@ export function settingsFixtureV1(scope: ScopeV1 = SETTINGS_SCHOOL_V1): Effectiv
     showTermClosing: false,
     termClosingConclusive: true,
     showFrequency: false,
+    showSchedule: false,
     allowedPeriods: ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'],
     risk: { ...DEFAULT_RISK_V1 },
     calendar: structuredClone(EMPTY_CALENDAR_V1),

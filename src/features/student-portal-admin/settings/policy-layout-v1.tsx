@@ -3,6 +3,7 @@ import { Tabs } from '@heroui/react';
 import {
   CalendarCheck,
   CalendarDays,
+  Clock,
   DoorOpen,
   GraduationCap,
   NotebookPen,
@@ -44,6 +45,14 @@ const categories = [
     title: 'Frequência',
     description: 'Escolha se os alunos veem a própria frequência no Portal.',
     fields: ['showFrequency'],
+  },
+  {
+    id: 'schedule',
+    label: 'Horário',
+    icon: Clock,
+    title: 'Horário das aulas',
+    description: 'Escolha se os alunos veem a grade semanal da turma no Portal.',
+    fields: ['showSchedule'],
   },
   {
     id: 'calendar',
