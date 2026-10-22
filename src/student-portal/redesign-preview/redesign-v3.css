@@ -1286,3 +1286,19 @@
   padding-top: 0.8rem;
   border-top: 1px solid #e3e8f1;
 }
+
+/* The month tag: white with a fine outline and a light lift, a small calendar icon (owner request 21/10/2026). */
+.pa3-panel--frequency .pa3-summary-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.32rem 0.85rem 0.32rem 0.7rem;
+  border: 1px solid #d6deea;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 42 95 / 0.06), 0 4px 10px -6px rgb(15 42 95 / 0.18);
+  color: var(--pa3-ink);
+}
+.pa3-panel--frequency .pa3-summary-title svg {
+  flex: 0 0 auto;
+  color: var(--pa3-blue);
+}

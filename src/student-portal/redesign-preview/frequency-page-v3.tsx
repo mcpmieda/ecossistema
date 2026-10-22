@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type TouchEvent } from 'react';
-import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
 import { PREVIEW_TODAY_V3 } from './demo-data-v3';
 
@@ -368,7 +368,10 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
       */}
       <div className={'pa3-summary pa3-summary--' + yearTone}>
         {/* The month's name on a tag at the top (owner request 21/10/2026: "sentindo falta do nome"). */}
-        <p className="pa3-summary-title">{monthLabel(month)}</p>
+        <p className="pa3-summary-title">
+          <CalendarDays size={14} aria-hidden="true" />
+          {monthLabel(month)}
+        </p>
         <DayRingV3 key={month} totals={totals} monthName={MONTHS[monthNumber - 1]!} />
         {/* The ruler is the year so far, not the month (owner request 21/10/2026): the 75% is the
             law's minimum over all the year's lessons, so only the year's figure meets it. */}
