@@ -513,7 +513,7 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(await count('batch_v2')).toBe(1);
     expect(await count('origin_v2')).toBe(1);
     expect((await summary()).marks[0]?.mark).toBe('J');
-    expect(await prune()).toEqual({ origins: 0, marks: 0, coverage: 0, sourceRows: 0, batches: 0 });
+    expect(await prune()).toMatchObject({ origins: 0, marks: 0, coverage: 0, sourceRows: 0, batches: 0 });
     // The next collection still compares against the kept evidence: J -> X opens review.
     await service.execute(
       collection({
@@ -529,6 +529,119 @@ describe('frequency V2 private PostgreSQL service', () => {
     await prune();
     expect(await count('origin_v2')).toBe(2);
     expect((await status()).conflicts).toHaveLength(1);
+  });
+  it('pruning removes, traceably, an absence left under the other ficha of the same student', async () => {
+    const prune = async (dryRun = false) =>
+      (
+        await pg.query<{ r: Record<string, unknown> }>(
+          'SELECT attendance.prune_superseded_evidence_v2($1) AS r',
+          [dryRun],
+        )
+      ).rows[0]!.r;
+    const origins = async () =>
+      (
+        await pg.query<{ record_key: string }>(
+          'SELECT record_key FROM attendance.origin_v2 ORDER BY record_key',
+        )
+      ).rows.map((row) => row.record_key);
+    const records = [
+      { recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+      { recordKey: 'r2', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+    ];
+    // Two fichas of one student (a re-enrolment). An early reading swapped them: the old ficha's
+    // lesson and absence of the 5th came under r2, the new ficha's day under r1.
+    await service.execute(
+      collection({
+        records,
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-06', slots: [1, 2], complete: true },
+          { recordKey: 'r2', date: '2026-01-05', slots: [1, 2], complete: true },
+        ],
+        marks: [{ recordKey: 'r2', date: '2026-01-05', slot: 1, mark: 'X' }],
+      }),
+      actor,
+    );
+    // The next reading is right: r1 is the old ficha (the 5th, with its absence), r2 the new one.
+    await service.execute(
+      collection({
+        records,
+        sourceVersion: `sha256:${'b'.repeat(64)}`,
+        expectedRevision: 1,
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1, 2], complete: true },
+          { recordKey: 'r2', date: '2026-01-06', slots: [1, 2], complete: true },
+        ],
+        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' }],
+      }),
+      actor,
+    );
+    expect((await status()).conflicts).toHaveLength(0);
+    expect(await origins()).toEqual(['r1', 'r2']);
+
+    // A simulation counts and records itself, and removes nothing.
+    expect(await prune(true)).toMatchObject({ dryRun: true, recordWithoutLesson: 1, origins: 1 });
+    expect(await origins()).toEqual(['r1', 'r2']);
+    expect(
+      (await pg.query('SELECT dry_run FROM attendance.prune_run_v2 ORDER BY id')).rows,
+    ).toEqual([{ dry_run: true }]);
+
+    // The real run copies the stray line first, then removes it; the absence keeps r1's evidence.
+    expect(await prune()).toMatchObject({
+      dryRun: false,
+      recordWithoutLesson: 1,
+      checks: { occurrencesWithoutEvidence: 0, unprovenRecordWithoutLesson: 0 },
+    });
+    expect(await origins()).toEqual(['r1']);
+    expect(
+      (
+        await pg.query(
+          'SELECT reason,record_key,mark,date::text,slot,student_uid::text FROM attendance.pruned_origin_v2',
+        )
+      ).rows,
+    ).toEqual([
+      { reason: 'record-without-lesson', record_key: 'r2', mark: 'X', date: '2026-01-05', slot: 1, student_uid: uid },
+    ]);
+    expect((await summary()).marks).toEqual([expect.objectContaining({ date: '2026-01-05', slot: 1, mark: 'X' })]);
+    // Healthy: nothing for the panel's failure trail.
+    expect((await status()).failures).toEqual([]);
+    // The archive goes with its school year.
+    expect((await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).pruned_origin_v2).toBe(1);
+    await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
+    expect(
+      (await pg.query('SELECT count(*)::integer AS n FROM attendance.pruned_origin_v2')).rows,
+    ).toEqual([{ n: 0 }]);
+  });
+  it('pruning never removes evidence it cannot prove elsewhere and reports it on the panel', async () => {
+    await service.execute(collection(), actor);
+    // The only ficha holding the absence no longer has that lesson (nothing else proves it).
+    await pg.exec(`UPDATE attendance.coverage_v2 SET slots_json='[2,3,4,5,6]'::jsonb`);
+    // And an absence with no evidence at all.
+    await pg.exec(
+      `INSERT INTO attendance.occurrence_v2(id,academic_year,student_uid,date,shift,slot,mark)
+       VALUES(gen_random_uuid(),2026,'${uid}','2026-01-07','MATUTINO',2,'X')`,
+    );
+    const result = (
+      await pg.query<{ r: Record<string, unknown> }>(
+        'SELECT attendance.prune_superseded_evidence_v2() AS r',
+      )
+    ).rows[0]!.r;
+    expect(result).toMatchObject({
+      origins: 0,
+      checks: { occurrencesWithoutEvidence: 1, unprovenRecordWithoutLesson: 1 },
+    });
+    expect(
+      (await pg.query('SELECT count(*)::integer AS n FROM attendance.origin_v2')).rows,
+    ).toEqual([{ n: 1 }]);
+    const failures = (await status()).failures;
+    expect(failures.map((failure) => failure.code).sort()).toEqual([
+      'EVIDENCE_UNPROVEN',
+      'EVIDENCE_WITHOUT_ORIGIN',
+    ]);
+    expect(failures.every((failure) => failure.operation === 'evidence-pruning')).toBe(true);
+    expect(failures.map((failure) => failure.detail)).toEqual([
+      'Revisar 1 registro(s) no banco.',
+      'Revisar 1 registro(s) no banco.',
+    ]);
   });
   it('conflicting J/X requires an audited admin choice, CAS, and does not use last writer', async () => {
     await service.execute(

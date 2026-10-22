@@ -1380,6 +1380,8 @@ const yearlyTables = [
   'correction_v2',
   'conflict_v2',
   'origin_v2',
+  // Evidence lines removed by the nightly pruning, archived with their school year (0009).
+  'pruned_origin_v2',
   'source_mark_v2',
   'coverage_v2',
   'source_row_v2',

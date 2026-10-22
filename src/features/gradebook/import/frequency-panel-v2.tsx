@@ -71,6 +71,9 @@ const failureCodes: Record<string, string> = {
   SOURCE_CLASS_UNAVAILABLE: 'Turma ausente na lista do Smecel',
   SOURCE_CLASS_AMBIGUOUS: 'Turma sem ligação no Centro',
   CLASS_RECONCILIATION_REQUIRED: 'Turma sem ligação no Centro',
+  // Health checks of the nightly evidence pruning (migrations/attendance/0009).
+  EVIDENCE_WITHOUT_ORIGIN: 'Falta sem registro de origem',
+  EVIDENCE_UNPROVEN: 'Falta só em ficha sem aula',
   CENTER_CLASSES_REQUIRED: 'Relação e Relatório não importados',
   NO_SELECTED_CLASSES: 'Nenhuma turma selecionada no computador',
   PROTECTED_STORAGE_UNAVAILABLE: 'Proteção de dados do Windows indisponível',
@@ -109,6 +112,7 @@ const operations: Record<string, string> = {
   'rename-device': 'Nome do computador',
   'revoke-device': 'Revogação',
   'resolve-conflict': 'Conflito',
+  'evidence-pruning': 'Limpeza noturna',
 };
 const time = (value: string | null) =>
   value ? new Date(value).toLocaleString('pt-BR') : 'Sem comunicação';
