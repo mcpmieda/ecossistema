@@ -84,8 +84,13 @@ const lessonsOn = (date: string) => ([2, 4].includes(new Date(`${date}T12:00:00Z
 /** A holiday in the preview: the diary's calendar icon, so no lessons that day. */
 const HOLIDAYS = new Set(['2026-10-12']);
 const pad = (value: number) => String(value).padStart(2, '0');
-/** A fixed "today" so the preview always tells the same story. */
-export const PREVIEW_TODAY_V3 = '2026-10-20';
+/**
+ * Today as the school's clock reads it (owner question 21/10/2026: "hoje" must follow the real
+ * day). The school's time zone, not the phone's, so a phone set to another zone still agrees.
+ * On the real portal the server must send this date (it already works out the school's "today"
+ * in America/Bahia for the collector).
+ */
+export const PREVIEW_TODAY_V3 = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
 
 /** Hand-written October, so the story is easy to follow; other months are generated. */
 // Each kind of day (owner request 21/10/2026): whole days (one justified) and days absent in
@@ -97,7 +102,6 @@ const OCTOBER: Record<string, readonly [slot: number, mark: 'X' | 'J'][]> = {
   '2026-10-14': [[4, 'X'], [5, 'X']],
   '2026-10-15': [[6, 'J']],
   '2026-10-16': [[3, 'X']],
-  // Today: shown on the calendar, not yet counted (the roll call may still be under way).
   '2026-10-20': [[1, 'X']],
 };
 /** Chance of a whole day and of one lesson missed: near the minimum in May, below it in August. */

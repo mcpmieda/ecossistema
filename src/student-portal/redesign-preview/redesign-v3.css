@@ -1346,3 +1346,27 @@
 .pa3-panel--frequency .pa3-summary-title {
   box-shadow: none;
 }
+
+/* Calendar colours, refined (owner request 21/10/2026; the blue selection stays). Red for a whole
+   day has a little depth; light red has a fine outline so it never looks washed out; justified is
+   a true yellow with dark brown text, readable (white on orange was hard to read). */
+.pa3-kind--missed {
+  background: #fde4e1;
+  box-shadow: inset 0 0 0 1px #f4b3ab;
+  color: #9b1c13;
+}
+.pa3-kind--missed[data-tone='3'] {
+  background: linear-gradient(180deg, #d0392d, #ab1f15);
+  box-shadow: none;
+  color: #fff;
+}
+.pa3-kind--missed.is-justified,
+.pa3-kind--missed.is-justified[data-tone='3'] {
+  background: linear-gradient(180deg, #fdd44b, #f6b31b);
+  box-shadow: none;
+  color: #5f3305;
+}
+/* The selection ring keeps its blue around any colour. */
+.pa3-day.is-selected.pa3-kind--missed {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
+}

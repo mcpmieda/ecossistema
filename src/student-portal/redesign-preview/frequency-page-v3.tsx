@@ -440,6 +440,8 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
         </div>
         <ul className="pa3-legend" aria-label="Legenda">
           <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Com falta</li>
+          {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
+          <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Falta parcial</li>
           <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
         </ul>
         {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
