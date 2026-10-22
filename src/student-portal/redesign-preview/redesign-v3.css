@@ -1267,3 +1267,15 @@
 .pa3-panel--frequency .pa3-ruler-labels {
   margin-top: 0.3rem;
 }
+
+.pa3-year-head small {
+  display: block;
+  margin-top: 0.1rem;
+  color: var(--pa3-muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.pa3-panel--frequency .pa3-year-head {
+  align-items: center;
+}

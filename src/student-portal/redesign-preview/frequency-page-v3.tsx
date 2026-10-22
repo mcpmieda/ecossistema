@@ -374,7 +374,11 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
             law's minimum over all the year's lessons, so only the year's figure meets it. */}
         <div className="pa3-ruler-wrap">
           <p className="pa3-year-head">
-            <span>Presença no ano até agora</span>
+            <span>
+              Presença no ano até agora
+              {/* How the figure moves, in plain words (owner request 21/10/2026). */}
+              <small>Cai quando o aluno falta e sobe quando ele vem às aulas.</small>
+            </span>
             {/* Whole number, rounded down (owner decision 20/10/2026): 74,9% never reads as 75%. */}
             <strong>{yearPercent === null ? 'em apuração' : `${Math.floor(yearPercent)}%`}</strong>
           </p>
