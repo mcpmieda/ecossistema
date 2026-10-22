@@ -173,8 +173,9 @@ function DayRingV3({ totals, monthName }: { totals: { days: number; clear: numbe
   // Each label starts level with its arc's middle, then the ones on each side are spread apart.
   const placed = arcs.map((arc) => {
     const side = Math.cos(arc.middle) >= 0 ? 1 : -1;
-    const near = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 2, arc.middle);
-    const elbow = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 14, arc.middle);
+    // The pointer starts a little away from the ring, not touching it (owner request 21/10/2026).
+    const near = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 7, arc.middle);
+    const elbow = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 20, arc.middle);
     return { ...arc, side, near, elbow, y: elbow.y };
   });
   for (const side of [1, -1]) spreadLabels(placed.filter((label) => label.side === side));
@@ -214,7 +215,7 @@ function DayRingV3({ totals, monthName }: { totals: { days: number; clear: numbe
         ),
       )}
       {placed.map((label) => {
-        const end = label.elbow.x + label.side * 16;
+        const end = label.elbow.x + label.side * 14;
         const text = end + label.side * 4;
         const anchor = label.side > 0 ? 'start' : 'end';
         const name = label.count === 1 ? label.one : label.many;
