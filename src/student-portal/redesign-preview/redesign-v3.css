@@ -1429,3 +1429,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The day's heading block centred: title, today's note and the sentence (owner request 21/10/2026). */
+.pa3-day-detail .pa3-day-detail-title,
+.pa3-day-detail .pa3-day-detail-sub {
+  text-align: center;
+}
+.pa3-day-detail .pa3-today-note {
+  display: block;
+  width: fit-content;
+  margin-inline: auto;
+}
