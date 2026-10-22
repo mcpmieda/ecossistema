@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type TouchEvent } from 'react';
-import { CalendarX2, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
 import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
 import { PREVIEW_TODAY_V3 } from './demo-data-v3';
 
@@ -45,10 +45,6 @@ const monthLabel = (key: string) => {
 const dayLabel = (date: string) => {
   const parsed = new Date(`${date}T12:00:00Z`);
   return `${WEEKDAYS_LONG[parsed.getUTCDay()]}, ${parsed.getUTCDate()} de ${MONTHS[parsed.getUTCMonth()]!.toLowerCase()}`;
-};
-const shortDay = (date: string) => {
-  const parsed = new Date(`${date}T12:00:00Z`);
-  return `${WEEKDAYS_LONG[parsed.getUTCDay()]!.slice(0, 3)} ${pad(parsed.getUTCDate())}/${pad(parsed.getUTCMonth() + 1)}`;
 };
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 /** The shift as people say it; an unknown value is left out rather than guessed. */
@@ -487,45 +483,6 @@ export function FrequencyPageV3({ read }: { read: (month: string) => FrequencySu
           })}
         </div>
       ) : null}
-
-      <div className="pa3-card">
-        <h2>Dias com falta</h2>
-        {daysWithMarks.length === 0 ? (
-          <p className="pa3-empty">
-            <CalendarX2 size={18} aria-hidden="true" />{' '}
-            {reliable ? `Nenhuma falta em ${MONTHS[monthNumber - 1]!.toLowerCase()}.` : 'Nenhuma falta registrada até agora.'}
-          </p>
-        ) : (
-          <ul className="pa3-absence-list">
-            {daysWithMarks.map((date) => {
-              const day = dayAt(date);
-              if (!day) return null;
-              return (
-                <li key={date}>
-                  <button
-                    type="button"
-                    className={'pa3-absence' + (selected === date ? ' is-selected' : '')}
-                    onClick={() => setPicked(date)}
-                  >
-                    <span className={`pa3-absence-badge pa3-kind--${day.kind}${day.justified ? ' is-justified' : ''}`} data-tone={toneLevelOf(day)} aria-hidden="true" />
-                    <span className="pa3-absence-copy">
-                      <strong>
-                        {shortDay(date)}
-                        {date === PREVIEW_TODAY_V3 ? ' · hoje' : ''}
-                      </strong>
-                      <span>
-                        {daySentence(day)}
-                        {date === PREVIEW_TODAY_V3 ? ' Ainda não conta.' : ''}
-                      </span>
-                    </span>
-                    <ChevronRight size={18} aria-hidden="true" className="pa3-absence-chevron" />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
 
       {/* Only a time the server gave: none is invented when the month has no reading. */}
       {data.receivedAt ? (

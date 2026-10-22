@@ -290,66 +290,6 @@
   }
 }
 
-.pa3-absence-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.pa3-absence {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  width: 100%;
-  padding: 0.55rem 0.6rem;
-  border: 1px solid var(--pa3-line);
-  border-radius: 0.9rem;
-  background: #fff;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.pa3-absence.is-selected {
-  border-color: var(--pa3-blue);
-  background: #f5f8ff;
-}
-.pa3-absence-badge {
-  display: grid;
-  flex: 0 0 auto;
-  width: 2.1rem;
-  height: 2.1rem;
-  place-items: center;
-  border-radius: 0.7rem;
-  color: #fff;
-  font-weight: 800;
-}
-.pa3-absence-copy {
-  display: grid;
-  flex: 1 1 auto;
-  line-height: 1.25;
-}
-.pa3-absence-copy strong {
-  color: var(--pa3-ink);
-  font-size: 0.9rem;
-}
-.pa3-absence-copy span {
-  color: var(--pa3-muted);
-  font-size: 0.78rem;
-}
-.pa3-absence-chevron {
-  flex: 0 0 auto;
-  color: #94a3b8;
-}
-.pa3-empty {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0;
-  color: var(--pa3-green);
-  font-weight: 650;
-}
 .pa3-footnote {
   margin: 0;
   color: var(--pa3-muted);
@@ -718,12 +658,6 @@
   width: 0.8rem;
   height: 0.8rem;
   border-radius: 0.2rem;
-  box-shadow: inset 0 0 0 1px rgb(15 42 95 / 0.12);
-}
-.pa3-absence-badge {
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 0.6rem;
   box-shadow: inset 0 0 0 1px rgb(15 42 95 / 0.12);
 }
 .pa3-legend-hint {
