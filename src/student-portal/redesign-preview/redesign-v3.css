@@ -1396,3 +1396,7 @@
 .pa3-day--pending.is-today.is-selected {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
 }
+/* "HOJE" a little lower under the number (owner request 21/10/2026). */
+.pa3-day-today {
+  margin-top: 0.2rem;
+}
