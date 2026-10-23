@@ -737,9 +737,9 @@ function FrequencyMonthV3({
       <div className="pa3-card" {...swipe}>
         <MonthHeadV3 month={month} canBack={month > firstMonth} canForward={month < current} go={go} />
         <ul className="pa3-legend" aria-label="Legenda">
-          <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Falta total</li>
+          <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Faltou o dia todo</li>
           {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
-          <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Falta parcial</li>
+          <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Faltou algumas aulas</li>
           <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
         </ul>
         {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
