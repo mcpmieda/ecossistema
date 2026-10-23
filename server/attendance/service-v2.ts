@@ -728,29 +728,39 @@ async function addOccurrences(
 }
 
 /**
- * Owner decision (20/10/2026): an absence later justified in the Smecel (X → J) is
- * accepted without review. Applies when the class's latest evidence is J, the stored
- * mark is X and no other alternative is open; the X/J conflict is closed with a
- * correction row. J → X and removals still go to human review.
+ * Owner decisions (20/10/2026 and 23/10/2026): the Smecel's latest reading always prevails. When the
+ * class's latest evidence of a lesson differs from the stored mark (X → J, J → X, or the absence
+ * removed), the stored mark follows it without review: the open conflict is closed with a
+ * correction row. The latest evidence is the class's newest batch that has the lesson; only when two
+ * fichas of the student disagree in that same batch does the conflict stay open for a person.
+ * An open conflict whose stored mark already matches the latest evidence is simply closed.
  */
-export const ACCEPT_JUSTIFIED_ABSENCES_SQL = `WITH latest AS (
-    SELECT DISTINCT ON(p.occurrence_id) p.occurrence_id,p.mark FROM attendance.origin_v2 p
+export const FOLLOW_LATEST_READING_SQL = `WITH latest_batch AS (
+    SELECT DISTINCT ON(p.occurrence_id) p.occurrence_id,p.batch_id FROM attendance.origin_v2 p
     JOIN attendance.batch_v2 b ON b.id=p.batch_id WHERE b.academic_year=$1 AND b.class_id=$2
     ORDER BY p.occurrence_id,b.received_at DESC,b.id DESC),
+  latest AS (
+    SELECT l.occurrence_id,min(p.mark) AS mark FROM latest_batch l
+    JOIN attendance.origin_v2 p ON p.occurrence_id=l.occurrence_id AND p.batch_id=l.batch_id
+    GROUP BY l.occurrence_id HAVING count(DISTINCT coalesce(p.mark,'-'))=1),
   targets AS (
-    SELECT o.id FROM latest l JOIN attendance.occurrence_v2 o ON o.id=l.occurrence_id
-    WHERE l.mark='J' AND o.mark='X' AND NOT EXISTS(SELECT 1 FROM attendance.conflict_v2 c
-      WHERE c.occurrence_id=o.id AND c.state='open' AND c.marks_json<>'["J","X"]'::jsonb)),
-  accepted AS (
-    UPDATE attendance.occurrence_v2 o SET mark='J',revision=o.revision+1 FROM targets t WHERE o.id=t.id RETURNING o.id),
+    SELECT o.id,c.id AS conflict_id,o.mark AS before_mark,l.mark AS after_mark FROM latest l
+    JOIN attendance.occurrence_v2 o ON o.id=l.occurrence_id
+    JOIN attendance.conflict_v2 c ON c.occurrence_id=o.id AND c.state='open'),
+  changed AS (
+    UPDATE attendance.occurrence_v2 o SET mark=t.after_mark,revision=o.revision+1 FROM targets t
+    WHERE o.id=t.id AND t.before_mark IS DISTINCT FROM t.after_mark RETURNING o.id),
   closed AS (
     UPDATE attendance.conflict_v2 c SET state='resolved',resolved_at=clock_timestamp(),revision=c.revision+1
-    FROM accepted a WHERE c.occurrence_id=a.id AND c.state='open' RETURNING c.id)
+    FROM targets t WHERE c.id=t.conflict_id RETURNING c.id)
   INSERT INTO attendance.correction_v2(id,conflict_id,actor_id,before_mark,after_mark,reason)
-  SELECT gen_random_uuid(),id,$3::uuid,'X','J','Falta justificada no Smecel' FROM closed`;
+  SELECT gen_random_uuid(),t.conflict_id,$3::uuid,t.before_mark,t.after_mark,
+    CASE WHEN t.after_mark='J' THEN 'Falta justificada no Smecel'
+         WHEN t.after_mark IS NULL THEN 'Falta apagada no Smecel' ELSE 'Falta marcada no Smecel' END
+  FROM targets t WHERE t.before_mark IS DISTINCT FROM t.after_mark AND t.id IN(SELECT id FROM changed)`;
 
-async function acceptJustifiedAbsences(tx: Tx, year: number, classId: number, actorId: string) {
-  await tx.executeNative(ACCEPT_JUSTIFIED_ABSENCES_SQL, [year, classId, actorId]);
+async function followLatestReading(tx: Tx, year: number, classId: number, actorId: string) {
+  await tx.executeNative(FOLLOW_LATEST_READING_SQL, [year, classId, actorId]);
 }
 
 /** A snapshot cannot certify evidence from a day after its own capture; the school zone governs both. */
@@ -976,7 +986,7 @@ function sourceEvents(
       changed: !previous.has(key) || previous.get(key) !== mark.mark,
     };
   });
-  // Only explicit complete slot evidence can propose removal, and removal is always reviewed.
+  // Only explicit complete slot evidence can propose removal (then applied by followLatestReading).
   for (const coverage of input.coverage.filter((c) => c.recordKey === recordKey && c.complete))
     for (const slot of coverage.slots) {
       const key = `${coverage.date}:${slot}`;
@@ -1114,7 +1124,7 @@ async function collect(
     marks: deltaMarks,
   });
   await addOccurrences(tx, input.academicYear, shift, input.requestId, deltaEvents);
-  await acceptJustifiedAbsences(tx, input.academicYear, input.classId, actor.actorId);
+  await followLatestReading(tx, input.academicYear, input.classId, actor.actorId);
   const [count] = await tx.query<Row>(
     `SELECT count(DISTINCT c.id)::integer AS count FROM attendance.conflict_v2 c JOIN attendance.origin_v2 p ON p.occurrence_id=c.occurrence_id WHERE p.batch_id=$1::uuid AND c.state='open'`,
     [input.requestId],

@@ -494,6 +494,34 @@ describe('frequency V2 private PostgreSQL service', () => {
       (await pg.query('SELECT before_mark,after_mark,reason FROM attendance.correction_v2')).rows,
     ).toEqual([{ before_mark: 'X', after_mark: 'J', reason: 'Falta justificada no Smecel' }]);
   });
+  it("the source's latest reading always prevails: J then X, and an absence removed", async () => {
+    // Owner decision 23/10/2026: no review; the Smecel's last update wins.
+    const coverage = [{ recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3, 4, 5], complete: true }];
+    await service.execute(collection({ coverage, marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }] }), actor);
+    await service.execute(
+      collection({
+        sourceVersion: `sha256:${'b'.repeat(64)}`,
+        expectedRevision: 1,
+        coverage,
+        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' }],
+      }),
+      actor,
+    );
+    expect((await summary()).marks[0]?.mark).toBe('X');
+    expect((await status()).conflicts).toEqual([]);
+    await service.execute(
+      collection({ sourceVersion: `sha256:${'c'.repeat(64)}`, expectedRevision: 2, coverage, marks: [] }),
+      actor,
+    );
+    expect((await summary()).marks).toEqual([]);
+    expect((await status()).conflicts).toEqual([]);
+    expect(
+      (await pg.query('SELECT before_mark,after_mark,reason FROM attendance.correction_v2 ORDER BY recorded_at')).rows,
+    ).toEqual([
+      { before_mark: 'J', after_mark: 'X', reason: 'Falta marcada no Smecel' },
+      { before_mark: 'X', after_mark: null, reason: 'Falta apagada no Smecel' },
+    ]);
+  });
   it('daily pruning keeps official marks and only the evidence the next collection needs', async () => {
     const count = async (table: string) =>
       Number((await pg.query<{ n: number }>(`SELECT count(*)::integer AS n FROM attendance.${table}`)).rows[0]!.n);
@@ -515,20 +543,30 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(await count('origin_v2')).toBe(1);
     expect((await summary()).marks[0]?.mark).toBe('J');
     expect(await prune()).toMatchObject({ origins: 0, marks: 0, coverage: 0, sourceRows: 0, batches: 0 });
-    // The next collection still compares against the kept evidence: J -> X opens review.
+    // Two fichas of the student disagreeing in the same reading: the only case left to a person.
     await service.execute(
       collection({
         sourceVersion: `sha256:${'c'.repeat(64)}`,
         expectedRevision: 2,
-        coverage: [{ recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3, 4, 5], complete: true }],
-        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' }],
+        records: [
+          { recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+          { recordKey: 'r2', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+        ],
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3, 4, 5], complete: true },
+          { recordKey: 'r2', date: '2026-01-05', slots: [1, 2, 3, 4, 5], complete: true },
+        ],
+        marks: [
+          { recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' },
+          { recordKey: 'r2', date: '2026-01-05', slot: 1, mark: 'J' },
+        ],
       }),
       actor,
     );
     expect((await status()).conflicts).toHaveLength(1);
     // Evidence behind an open conflict is never pruned.
     await prune();
-    expect(await count('origin_v2')).toBe(2);
+    expect(await count('origin_v2')).toBe(3);
     expect((await status()).conflicts).toHaveLength(1);
   });
   it('pruning removes, traceably, an absence left under the other ficha of the same student', async () => {
@@ -777,16 +815,21 @@ describe('frequency V2 private PostgreSQL service', () => {
     await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
     expect(await versions()).toHaveLength(0);
   });
-  it('conflicting J/X requires an audited admin choice, CAS, and does not use last writer', async () => {
-    await service.execute(
-      collection({ marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }] }),
-      actor,
-    );
+  it('two fichas disagreeing (J/X) in one reading require an audited admin choice, CAS, and no last writer', async () => {
     await service.execute(
       collection({
-        sourceVersion: `sha256:${'b'.repeat(64)}`,
-        expectedRevision: 1,
-        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' }],
+        records: [
+          { recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+          { recordKey: 'r2', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+        ],
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1], complete: true },
+          { recordKey: 'r2', date: '2026-01-05', slots: [1], complete: true },
+        ],
+        marks: [
+          { recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' },
+          { recordKey: 'r2', date: '2026-01-05', slot: 1, mark: 'X' },
+        ],
       }),
       actor,
     );
@@ -834,7 +877,7 @@ describe('frequency V2 private PostgreSQL service', () => {
       { reason: 'Correção sintética' },
     ]);
   });
-  it('partial sources keep history; complete disappearance opens conflict including null', async () => {
+  it('partial sources keep history; complete disappearance removes the absence', async () => {
     await service.execute(collection(), actor);
     await service.execute(
       collection({
@@ -850,14 +893,8 @@ describe('frequency V2 private PostgreSQL service', () => {
       collection({ sourceVersion: `sha256:${'c'.repeat(64)}`, expectedRevision: 2, marks: [] }),
       actor,
     );
-    const [conflict] = (await status()).conflicts;
-    expect(conflict?.marks).toEqual(['X', null]);
-    await execute('resolve-conflict', {
-      conflictId: conflict!.id,
-      expectedRevision: conflict!.revision,
-      mark: null,
-      reason: 'Remoção conferida',
-    });
+    // Owner decision 23/10/2026: removed in the source, removed here, without review.
+    expect((await status()).conflicts).toEqual([]);
     expect((await summary()).marks).toEqual([]);
   });
   it('central corrections block earlier evidence and never silently reassign history', async () => {

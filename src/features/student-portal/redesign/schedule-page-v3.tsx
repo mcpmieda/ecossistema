@@ -750,7 +750,7 @@ export function ScheduleWeekV3({
         status
       ) : classes.length === 0 ? (
         <Card className="pa3-card">
-          <p className="pa3-schedule-empty">O horário da turma ainda não foi lido do Smecel.</p>
+          <p className="pa3-schedule-empty">O horário da turma ainda não está disponível.</p>
         </Card>
       ) : (
         <>
@@ -867,7 +867,7 @@ export function ScheduleWeekV3({
             </Card>
           ))}
 
-          {/* When the class's grid was last read (owner request 23/10/2026: without "Conforme o Smecel"). */}
+          {/* When the class's grid was last read (owner request 23/10/2026: no source name). */}
           {latest ? (
             <p className="pa3-footnote">
               Atualizado em{' '}
