@@ -90,12 +90,13 @@ export function frequencyCommentV2({
   const alert = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'alert', text });
   const good = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'good', text });
   if (absenceDays > MAXIMUM_ABSENCE_DAYS_V2)
-    return alert('over-limit', `Já faltou cerca de ${days(shown)}. Passou do limite da lei (${MAXIMUM_ABSENCE_DAYS_V2} dias).`);
+    return alert('over-limit', `Já faltou cerca de ${days(shown)}. Pode reprovar por falta.`);
   if (absenceDays + recentRate * remainingSchoolDays > MAXIMUM_ABSENCE_DAYS_V2)
-    return alert('will-pass', `Já faltou cerca de ${days(shown)}. Faltando assim, vai passar do limite da lei (${MAXIMUM_ABSENCE_DAYS_V2} dias).`);
-  // From 30 days on (owner decision 23/10/2026), never as days still "left" to miss.
+    return alert('will-pass', `Já faltou cerca de ${days(shown)}. Faltando assim, pode reprovar por falta.`);
+  // From 30 days on (owner decision 23/10/2026). No sentence names the limit (owner decision
+  // 23/10/2026: a number of days reads as freedom to miss); it only decides when a warning shows.
   if (absenceDays >= NEAR_LIMIT_DAYS_V2)
-    return alert('near-limit', `Já faltou cerca de ${days(shown)}. Está perto do limite da lei (${MAXIMUM_ABSENCE_DAYS_V2} dias).`);
+    return alert('near-limit', `Já faltou cerca de ${days(shown)}. Mais faltas podem reprovar.`);
   if (streak >= 3)
     return alert('in-a-row', `Não vem à escola desde ${dateLabel(weekdays[streak - 1]!.date)} (${streak} dias seguidos).`);
   if (recentAbsenceDays >= 4 && recentRate >= 2 * beforeRate)

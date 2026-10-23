@@ -37,7 +37,7 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
     expect(year(older(52, 2))).toEqual({
       kind: 'over-limit',
       tone: 'alert',
-      text: 'Já faltou cerca de 52 dias. Passou do limite da lei (50 dias).',
+      text: 'Já faltou cerca de 52 dias. Pode reprovar por falta.',
     });
   });
 
@@ -45,15 +45,15 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
     // 30 old days plus 12 of the last 20 weekdays (60%): 42 now, about 23 more in 39 days.
     const comment = year([...older(30, 3).filter((date) => date < weekdays.at(-20)!), ...recent(20).filter((_, index) => index % 5 < 3)]);
     expect(comment?.kind).toBe('will-pass');
-    expect(comment?.text).toMatch(/^Já faltou cerca de \d+ dias\. Faltando assim, vai passar do limite da lei \(50 dias\)\.$/u);
+    expect(comment?.text).toMatch(/^Já faltou cerca de \d+ dias\. Faltando assim, pode reprovar por falta\.$/u);
   });
 
-  it('from 30 days on: near the limit, never as days still left to miss', () => {
+  it('from 30 days on: a warning that never names the limit', () => {
     // 31 whole days long ago, none lately: not "will pass", but near the limit.
     expect(year(older(31, 3))).toEqual({
       kind: 'near-limit',
       tone: 'alert',
-      text: 'Já faltou cerca de 31 dias. Está perto do limite da lei (50 dias).',
+      text: 'Já faltou cerca de 31 dias. Mais faltas podem reprovar.',
     });
   });
 
