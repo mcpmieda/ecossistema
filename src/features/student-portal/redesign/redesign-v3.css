@@ -541,6 +541,10 @@
 .pa3-summary--none {
   --pa3-ruler-dark: #64748b;
 }
+/* 30 to 40 days of absence in the year: getting close to the maximum of 50. */
+.pa3-summary--warn {
+  --pa3-ruler-dark: #b45309;
+}
 .pa3-summary::before,
 .pa3-summary::after {
   content: '';
@@ -1008,12 +1012,33 @@
   margin-top: 0.05rem;
 }
 .pa3-comment--alert {
-  border: 1px solid #fcd9a5;
-  background: var(--pa3-amber-soft);
-  color: #7c2d12;
+  border: 1px solid #f5c2bd;
+  background: var(--pa3-red-soft);
+  color: #8a1c12;
 }
 .pa3-comment--good {
   border: 1px solid #bfe5cc;
   background: var(--pa3-green-soft);
   color: #14532d;
+}
+
+/* Notas alone: the new layout without the menu, so neither the side bar's room nor the bottom
+   bar's is kept. */
+.pa3-app--single .pa3-nav {
+  display: none;
+}
+@media (min-width: 900px) {
+  .pa3-app--single .pa3-page {
+    padding-left: 0;
+  }
+}
+@media (max-width: 899.98px) {
+  .pa3-app--single.pa3-app--cover .pa-shell--with-hero .pa-shell-content {
+    padding-bottom: 1.75rem;
+  }
+}
+
+/* The ruler of the year's absences: room under it for the maximum's flag. */
+.pa3-ruler-wrap .pa3-ruler {
+  margin-bottom: 1.4rem;
 }

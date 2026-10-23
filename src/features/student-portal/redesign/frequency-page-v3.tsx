@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type
 import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, PartyPopper, TriangleAlert, X } from 'lucide-react';
 import {
   frequencyCountV2,
-  type FrequencyCountV2,
   type FrequencySummaryV2,
   type FrequencyYearSummaryV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
 import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
 import { usePortalPageActiveV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
+import { MAXIMUM_ABSENCE_DAYS_V2 } from '../../../../shared/attendance-contracts/frequency-comment-v2';
 import { PortalCountdownV1 } from '../shell/portal-notices-v1';
 
 /*
@@ -36,8 +36,8 @@ const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira
  */
 const firstMonthOf = (year: number) => `${year}-02`;
 const lastMonthOf = (year: number) => `${year}-12`;
-/** Attendance required over the whole year (LDB, art. 24, VI), counted in lessons. */
-const MINIMUM_PERCENT = 75;
+/** The ruler of the year's absences runs a little past the maximum, so going over it shows. */
+const RULER_DAYS = 60;
 const SHIFT_LABELS: Record<string, string> = { MATUTINO: 'Manhã', VESPERTINO: 'Tarde', NOTURNO: 'Noite', INTEGRAL: 'Integral' };
 
 /** A school day: with or without an absence (89,7% of the school's days have none, 21/10/2026). */
@@ -107,16 +107,6 @@ function daySentence(day: DayV3, open: boolean) {
  * light red when only some did, amber when the day's absences are all justified (some or all).
  */
 const toneLevelOf = (day: DayV3 | null) => (!day || day.share <= 0 ? 0 : day.share >= 1 ? 3 : 1);
-
-/** Lessons and absences (X) of days already over (frequencyCountV2, shared with the server). */
-type CountV3 = FrequencyCountV2;
-/**
- * The percentage as shown: a whole number rounded DOWN from the exact counts (owner decision
- * 20/10/2026: 74,97% never reads as 75%). Never from a figure already rounded to one decimal.
- */
-const shownPercent = ({ lessons, absences }: Pick<CountV3, 'lessons' | 'absences'>) => Math.floor((100 * (lessons - absences)) / lessons);
-/** Below the legal minimum, compared in whole numbers so no rounding can lift it. */
-const belowMinimum = ({ lessons, absences }: Pick<CountV3, 'lessons' | 'absences'>) => 100 * (lessons - absences) < MINIMUM_PERCENT * lessons;
 
 /**
  * The month's school days as a ring with guide lines (owner choices 21/10/2026: "a A com as
@@ -669,7 +659,15 @@ function FrequencyMonthV3({
   };
   // The year so far, worked out by the server by the same rule (null while any month is unknown).
   const yearCount = data.year ?? null;
-  const yearTone = yearCount === null ? 'none' : belowMinimum(yearCount) ? 'low' : 'good';
+  // The year's absences in days (owner decisions 22/10/2026): the absences in lessons divided by
+  // the student's own lessons per day, to the nearest whole day; the maximum is 50 of the 200 days.
+  const absenceDays =
+    yearCount === null || totals.days === 0
+      ? null
+      : yearCount.absences / (yearCount.lessons / totals.days);
+  const shownDays = absenceDays === null ? null : Math.round(absenceDays);
+  const yearTone =
+    shownDays === null ? 'none' : shownDays > 40 ? 'low' : shownDays >= 30 ? 'warn' : 'good';
   const [picked, setPicked] = useState<string | null>(null);
   const go = (step: number) => {
     onMonth(shiftMonth(month, step));
@@ -738,35 +736,40 @@ function FrequencyMonthV3({
         {/* The ruler is the year so far, not the month (owner request 21/10/2026): the 75% is the
             law's minimum over all the year's lessons, so only the year's figure meets it. */}
         <div className="pa3-ruler-wrap">
+          {/* The year's absences in days, a ruler that only grows (owner request 22/10/2026). */}
           <p className="pa3-year-head">
             <span>
-              Presença no ano até agora
-              {/* How the figure moves, in plain words (owner request 21/10/2026). */}
-              <small>Cai quando o aluno falta e sobe quando ele vem às aulas. Faltas justificadas não prejudicam.</small>
+              Faltas no ano
+              <small>
+                {shownDays === null || shownDays === 0
+                  ? `O máximo é ${MAXIMUM_ABSENCE_DAYS_V2} dias. Só contam faltas sem justificativa.`
+                  : `Cerca de ${shownDays === 1 ? '1 dia' : `${shownDays} dias`}, de ${MAXIMUM_ABSENCE_DAYS_V2} permitidos. Só contam faltas sem justificativa.`}
+              </small>
             </span>
-            {/* Whole number, rounded down from the exact counts (owner decision 20/10/2026). */}
-            <strong>{yearCount === null ? 'em apuração' : `${shownPercent(yearCount)}%`}</strong>
+            <strong>
+              {shownDays === null ? 'em apuração' : shownDays === 0 ? 'nenhuma' : shownDays === 1 ? '1 dia' : `${shownDays} dias`}
+            </strong>
           </p>
           <div
             className="pa3-ruler"
             role="img"
             aria-label={
-              yearCount === null
-                ? 'Presença do ano ainda em apuração'
-                : `${shownPercent(yearCount)}% de presença nas aulas do ano até agora; o mínimo do ano é ${MINIMUM_PERCENT}%`
+              shownDays === null
+                ? 'Faltas do ano ainda em apuração'
+                : `Cerca de ${shownDays} dias de falta no ano; o máximo permitido é ${MAXIMUM_ABSENCE_DAYS_V2} dias`
             }
           >
             <span
               className="pa3-ruler-fill"
-              style={{ width: `${yearCount === null ? 0 : (100 * (yearCount.lessons - yearCount.absences)) / yearCount.lessons}%` }}
+              style={{ width: `${shownDays === null ? 0 : Math.min(100, (100 * (absenceDays ?? 0)) / RULER_DAYS)}%` }}
             />
-            <span className="pa3-ruler-minimum" style={{ left: `${MINIMUM_PERCENT}%` }} aria-hidden="true">
-              <span className="pa3-ruler-flag">mín. {MINIMUM_PERCENT}%</span>
+            <span
+              className="pa3-ruler-minimum"
+              style={{ left: `${(100 * MAXIMUM_ABSENCE_DAYS_V2) / RULER_DAYS}%` }}
+              aria-hidden="true"
+            >
+              <span className="pa3-ruler-flag">máx. {MAXIMUM_ABSENCE_DAYS_V2} dias</span>
             </span>
-          </div>
-          <div className="pa3-ruler-labels" aria-hidden="true">
-            <span>0%</span>
-            <span>100%</span>
           </div>
         </div>
       </div>

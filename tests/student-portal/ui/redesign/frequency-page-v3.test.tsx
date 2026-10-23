@@ -81,19 +81,30 @@ afterEach(() => {
 });
 
 describe('Frequência page', () => {
-  it('rounds the year DOWN from the exact counts: 74,97% reads 74% and red, never 75%', async () => {
-    // 903 lessons, 226 absences: 74,972…%. Rounded to one decimal first, it became 75,0.
-    render(<FrequencyPageV3 client={clientOf({}, { year: { lessons: 903, absences: 226 } })} />);
-    await ready();
-    expect(yearBadge()).toBe('74%');
-    expect(summaryCard().className).toContain('pa3-summary--low');
-  });
-
-  it('shows exactly 75% as reaching the minimum', async () => {
-    render(<FrequencyPageV3 client={clientOf({}, { year: { lessons: 100, absences: 25 } })} />);
-    await ready();
-    expect(yearBadge()).toBe('75%');
-    expect(summaryCard().className).toContain('pa3-summary--good');
+  it("shows the year's absences in days, a ruler that only grows (owner decision 22/10/2026)", async () => {
+    // 60 school days of 5 lessons before today (September and October).
+    const days = (month: string, from: number, count: number) =>
+      Array.from({ length: count }, (_, index) => lessonDay(`${month}-${String(from + index).padStart(2, '0')}`));
+    const months = {
+      '2026-09': summary('2026-09', days('2026-09', 1, 30)),
+      '2026-10': summary('2026-10', days('2026-10', 1, 20)),
+    };
+    const ruler = async (absences: number) => {
+      cleanup();
+      render(<FrequencyPageV3 client={clientOf(months, { year: { lessons: 250, absences } })} />);
+      await ready();
+      return { badge: yearBadge(), tone: summaryCard().className };
+    };
+    // 50 counted days of 5 lessons: 5 lessons a day. 60 lessons ≈ 12 days, green.
+    expect(await ruler(60)).toMatchObject({ badge: '12 dias' });
+    expect((await ruler(60)).tone).toContain('pa3-summary--good');
+    // 32 days: getting close, amber.
+    expect((await ruler(160)).tone).toContain('pa3-summary--warn');
+    // 41 days: red; the sentence under it says "cerca de".
+    const red = await ruler(205);
+    expect(red).toMatchObject({ badge: '41 dias' });
+    expect(red.tone).toContain('pa3-summary--low');
+    expect(screen.getByText('Cerca de 41 dias, de 50 permitidos. Só contam faltas sem justificativa.')).toBeTruthy();
   });
 
   it('shows the year as still being worked out while the server has no figure', async () => {

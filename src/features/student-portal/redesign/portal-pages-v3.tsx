@@ -12,7 +12,7 @@ import './redesign-v3.css';
  * icons at the bottom on a phone and at the side on a computer. Switching only changes what is
  * inside the sheet: the cover, the sheet and the menu stay still; the menu's highlight glides to
  * the chosen item. A page the school turned off in the ADM (Frequência, Horário) has no menu item,
- * and with Notas alone there is no menu at all: the portal as it was.
+ * and with Notas alone there is no menu at all (the same new layout).
  */
 export type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule';
 /**
@@ -90,12 +90,8 @@ export type PortalPagesPropsV3 = Omit<StudentShellPropsV1, 'children' | 'hero' |
 export function PortalPagesV3({ hero, grades, frequency, schedule, ...shell }: PortalPagesPropsV3) {
   const contentOf: Record<PageV3, ReactNode> = { grades, frequency, schedule };
   const pages = PAGES.filter((item) => item.id === 'grades' || contentOf[item.id] != null);
-  if (pages.length === 1)
-    return (
-      <StudentPortalShellV1 {...shell} hero={hero}>
-        {grades}
-      </StudentPortalShellV1>
-    );
+  // Notas alone (owner request 22/10/2026: "esse preview tá estranho, antigo"): the same new
+  // layout, without a menu of one item.
   return <PortalMenuPagesV3 hero={hero} pages={pages} contentOf={contentOf} shell={shell} />;
 }
 
@@ -201,8 +197,8 @@ function PortalMenuPagesV3({
   const stateOf = (id: PageV3) =>
     id === page ? '' : leaving === id ? ' pa3-panel--leaving' : ' pa3-panel--inactive';
   return (
-    <div className="pa3-app pa3-app--cover">
-      <nav ref={highlight.nav} className="pa3-nav" aria-label="Menu do Portal">
+    <div className={'pa3-app pa3-app--cover' + (pages.length === 1 ? ' pa3-app--single' : '')}>
+      <nav ref={highlight.nav} className="pa3-nav" aria-label="Menu do Portal" hidden={pages.length === 1}>
         <span ref={highlight.pill} className="pa3-nav-highlight" aria-hidden="true" />
         {pages.map(({ id, label, Icon }) => (
           <button
