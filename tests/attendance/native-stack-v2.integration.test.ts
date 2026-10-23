@@ -340,6 +340,25 @@ native('frequency V2 complete native migration stack', () => {
       classes: [{ label: '6A', observedAt: expect.any(String), lessons: lessonsOfGrid }],
     });
     expect((await scheduleRead(crypto.randomUUID()))[0]!.schedule).toBeNull();
+    // A later reading in which this student's diary did not change stores no row for them (only what
+    // changed is sent): the grid and the "last reading" still come (attendance 0013).
+    const [kept] = await exec(`SELECT last_batch_id::text AS id,last_observed_at::text AS at FROM attendance.class_state_v2 WHERE class_id=101`);
+    const laterBatch = crypto.randomUUID();
+    await exec(`WITH later AS(INSERT INTO attendance.batch_v2 SELECT (jsonb_populate_record(b,jsonb_build_object(
+ 'id','${laterBatch}','received_at',b.received_at+interval '1 hour','observed_at',b.observed_at+interval '1 hour',
+ 'content_hash',md5(b.content_hash),'evidence_hash',md5(b.evidence_hash)))).* FROM attendance.batch_v2 b
+ WHERE b.id='${kept!.id}' RETURNING id,observed_at)
+ UPDATE attendance.class_state_v2 cs SET last_batch_id=later.id,last_observed_at=later.observed_at FROM later WHERE cs.class_id=101`);
+    expect((await scheduleRead())[0]!.schedule).toEqual({
+      classes: [{ label: '6A', observedAt: expect.any(String), lessons: lessonsOfGrid }],
+    });
+    expect(new Date(((await yearRead())[0]!.frequency as PortalFrequencyYearReadV2).lastReadAt!).toISOString()).toBe(
+      '2026-01-10T13:00:00.000Z',
+    );
+    await exec(
+      `UPDATE attendance.class_state_v2 SET last_batch_id='${kept!.id}',last_observed_at='${kept!.at}' WHERE class_id=101`,
+    );
+    await exec(`DELETE FROM attendance.batch_v2 WHERE id='${laterBatch}'`);
     // Another student, not in the class's diary, sees no grid at all.
     const other = { uid: crypto.randomUUID(), account: crypto.randomUUID(), session: crypto.randomUUID() };
     await exec(`SET ROLE frequency_migrator_v2;

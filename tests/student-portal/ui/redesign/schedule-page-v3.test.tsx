@@ -227,7 +227,7 @@ it('says when it was read, without "Conforme o Smecel" (owner request 23/10/2026
 
 it('says so when the grid was never read', () => {
   render(<SchedulePageV3 classes={[]} />);
-  expect(screen.getByText('O horário da turma ainda não foi lido do Smecel.')).toBeTruthy();
+  expect(screen.getByText('O horário da turma ainda não está disponível.')).toBeTruthy();
   expect(screen.queryByRole('list')).toBeNull();
 });
 
