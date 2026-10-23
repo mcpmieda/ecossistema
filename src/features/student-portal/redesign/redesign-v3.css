@@ -526,59 +526,17 @@
   align-items: center;
 }
 
-/* ---------- The year at a glance (owner requests 21–22/10/2026) ----------
-   One card with the ring of the year's counted days. No ruler and no limit (a limit shown to
-   everyone reads as freedom to miss). White, a hairline border and two very soft navy light patches
-   drifting behind it. */
+/* ---------- The year at a glance (owner requests 21–23/10/2026) ----------
+   One card with the ring of the year's counted days, in the same card as the rest of the page
+   (white, hairline border, same corners and padding). No ruler and no limit. */
 .pa3-summary {
-  position: relative;
-  isolation: isolate;
   display: grid;
   align-content: start;
   align-items: center;
-  gap: 0.5rem 0.85rem;
-  padding: 1.1rem 1.1rem 1rem;
-  /* clip, not just hidden: the drifting patches reach past the edge, and a hidden box can still be
-     scrolled by the page (focus, find in page), cutting the ring off at the top. */
-  overflow: clip;
-  border: 1px solid #e3e8f1;
-  border-radius: 1.5rem;
-  background: #fff;
-  box-shadow: 0 18px 40px -30px rgb(15 42 95 / 0.45);
-}
-.pa3-summary::before,
-.pa3-summary::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  width: 70%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  pointer-events: none;
-  filter: blur(28px);
-  opacity: 0.55;
-}
-.pa3-summary::before {
-  top: -35%;
-  left: -20%;
-  background: rgb(29 78 216 / 0.1);
-  animation: pa3-drift-a 22s ease-in-out infinite alternate;
-}
-.pa3-summary::after {
-  right: -25%;
-  bottom: -40%;
-  background: rgb(15 42 95 / 0.07);
-  animation: pa3-drift-b 26s ease-in-out infinite alternate;
-}
-@keyframes pa3-drift-a {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(18%, 12%) scale(1.12); }
-  100% { transform: translate(6%, 26%) scale(0.95); }
-}
-@keyframes pa3-drift-b {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-16%, -10%) scale(1.08); }
-  100% { transform: translate(-28%, -4%) scale(1); }
+  padding: 0.9rem;
+  border: 1px solid var(--pa3-line);
+  border-radius: 1.2rem;
+  background: var(--pa3-surface);
 }
 
 /* The ring with its guide lines. It follows the card's width, up to a size that still sits well
