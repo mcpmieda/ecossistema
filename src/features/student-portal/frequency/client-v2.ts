@@ -150,6 +150,16 @@ const wholeYear = z
     year: yearCounts.nullable(),
     lastReadAt: timestamp,
     months: z.array(summary).max(12),
+    schoolYear: z
+      .object({
+        schoolDays: z.number().int().nonnegative().max(366),
+        remaining: z.number().int().nonnegative().max(366),
+        firstDay: z.iso.date().nullable(),
+        lastDay: z.iso.date().nullable(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
   })
   .strict();
 

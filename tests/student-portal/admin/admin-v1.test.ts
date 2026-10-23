@@ -93,6 +93,7 @@ beforeAll(async () => {
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await installResetSchemaFixtureV1(pg);
   await pg.exec(ACADEMIC_FIXTURE_SQL_V1);
+  await pg.exec(readFileSync('migrations/student-portal/0029_school_calendar_v1.sql', 'utf8'));
   accounts = (
     await pg.query<{ id: string; student: number }>(
       'SELECT id,gradebook_student_id AS student FROM student_portal.account ORDER BY gradebook_student_id',
@@ -168,6 +169,31 @@ async function seedRecovery(accountIds = accounts.map((account) => account.id)) 
 }
 
 describe('private administrative API with real persistence', () => {
+  // Calendário escolar (owner decision 22/10/2026).
+  const day = (date: string, kind = 'letivo', note?: string) => ({ date, kind, ...(note ? { note } : {}) });
+  it('is read and written whole, school-wide, with its version and never past 200 school days', async () => {
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({ calendar: null });
+    // Only the school scope: a class never has a calendar of its own.
+    expect((await api.query(context(), { contractVersion: 1, operation: 'school-calendar', scope: CLASS, page: {} })).state).toBe('forbidden');
+    const days = [day('2026-03-02'), day('2026-03-03'), day('2026-04-03', 'feriado', 'Paixão de Cristo')];
+    const first = command('school-calendar-set', 0, { academicYear: 2026, days });
+    const saved = state(await api.command(context(), first), 'committed');
+    expect(state(await api.command(context(), first), 'committed')).toMatchObject({ operationId: saved.operationId });
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({
+      calendar: { academicYear: 2026, version: 1, days },
+    });
+    // A write from an older reading is refused (two admins never overwrite each other).
+    expect((await api.command(context(), command('school-calendar-set', 0, { academicYear: 2026, days: [] }))).state).toBe('conflict');
+    // 201 school days are refused before anything is written.
+    const many = Array.from({ length: 201 }, (_, index) =>
+      day(new Date(Date.UTC(2026, 0, 1 + index)).toISOString().slice(0, 10)),
+    );
+    expect((await api.command(context(), command('school-calendar-set', 1, { academicYear: 2026, days: many }))).state).toBe('invalid-request');
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({ calendar: { version: 1 } });
+    // Exactly 200 is the rule and is accepted.
+    state(await api.command(context(), command('school-calendar-set', 1, { academicYear: 2026, days: many.slice(0, 200) })), 'committed');
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({ calendar: { version: 2 } });
+  });
   it.each([200, 201, 300])('preserves %i-character accented names through QR batches and V1/V2 cursor pages', async (length) => {
     const original = (await pg.query<{ id: number; nome: string }>(
       'SELECT id,nome FROM gradebook.aluno WHERE id=ANY($1::bigint[])',

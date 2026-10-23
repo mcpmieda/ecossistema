@@ -3,6 +3,7 @@ import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity
 import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageCursorV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1, policyScopeV1 } from './core-v1';
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, policyFieldV1, POLICY_FIELDS_V1, settingsOverrideV1 } from './policy-v1';
+import { schoolCalendarDaysV1, schoolCalendarV1 } from './school-calendar-v1';
 import { publicationInheritCommandV1 } from './customizations-v1';
 import { bulkActionV1, bulkCursorV1, bulkExecuteCommandV1, bulkPreviewQueryV1, bulkPreviewResponseV1 } from './bulk-v1';
 
@@ -39,6 +40,8 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...commandMetaV1, operation: z.literal('unpublish'), scope: scopeV1, period: periodV1, confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('links-close'), academicYear: z.literal(2026), previewToken: opaqueV1, expectedCount: z.number().int().nonnegative(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('population-start'), academicYear: z.literal(2026), clearOverrides: z.literal(true), confirmed: z.literal(true) }).strict(),
+  // Calendário escolar (owner decision 22/10/2026): the whole year's marked days, school-wide.
+  z.object({ ...commandMetaV1, operation: z.literal('school-calendar-set'), academicYear: z.literal(2026), days: schoolCalendarDaysV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('qr-batch'), classId: z.number().int().positive(), accountIds: z.array(portalIdV1).min(1).max(100), mode: printModeV1.default('qr-name-class'), confirmed: z.literal(true) }).strict(),
 ]).superRefine((v, ctx) => {
   if (v.operation === 'birth-batch' && (v.expectedCount !== v.items.length || new Set(v.items.map((i) => i.accountId)).size !== v.items.length)) ctx.addIssue({ code: 'custom', path: ['items'], message: 'Scope count or duplicate account' });
@@ -47,7 +50,7 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
 });
 export const auditKindV1 = z.enum(['login', 'login-failed', 'activated', 'password-reset', 'account-reset', 'qr-issued', 'qr-reprinted', 'qr-regenerated', 'blocked', 'unblocked', 'session-revoked', 'birth-changed', 'settings-changed', 'published', 'unpublished', 'projection-updated', 'links-closed']);
 export const adminQueryV1 = z.object({
-  contractVersion: z.literal(1), operation: z.enum(['accounts', 'sessions', 'birth-years', 'settings', 'publication', 'audit', 'audit-detail', 'presence', 'health', 'links-preview', 'population', 'bulk-preview']),
+  contractVersion: z.literal(1), operation: z.enum(['accounts', 'sessions', 'birth-years', 'settings', 'publication', 'audit', 'audit-detail', 'presence', 'health', 'links-preview', 'population', 'bulk-preview', 'school-calendar']),
   scope: policyScopeV1, page: pageRequestV1.extend({ cursor: bulkCursorV1.optional() }), action: bulkActionV1.optional(), from: instantV1.optional(), until: instantV1.optional(), event: auditKindV1.optional(), result: z.enum(['success', 'denied', 'failed']).optional(),
   includeReadContext: z.literal(true).optional(), includeEntities: z.literal(true).optional(), eventId: portalIdV1.optional(), accountState: accountStateV1.optional(), blocked: z.boolean().optional(), nameSearch: z.string().min(1).max(200).optional(),
 }).strict().refine((v) => !v.from || !v.until || Date.parse(v.from) <= Date.parse(v.until), 'Invalid interval')
@@ -112,6 +115,7 @@ export const adminResponseV1 = z.discriminatedUnion('state', [
   z.object({ ...base, state: z.literal('health'), status: z.enum(['normal', 'attention', 'intervention']) }).strict(),
   z.object({ ...base, state: z.literal('links-preview'), count: z.number().int().nonnegative(), previewToken: opaqueV1, expiresAt: instantV1, version: versionV1 }).strict(),
   z.object({ ...base, state: z.literal('population'), enabled: z.boolean(), version: versionV1, sourceProfiles: z.number().int().nonnegative().safe(), eligibleSourceProfiles: z.number().int().nonnegative().safe(), exitSourceProfiles: z.number().int().nonnegative().safe(), classes: z.number().int().nonnegative().safe(), accounts: z.number().int().nonnegative().safe(), eligibleAccounts: z.number().int().nonnegative().safe(), deniedAccounts: z.number().int().nonnegative().safe(), missingProfiles: z.number().int().nonnegative().safe(), overrideRows: z.number().int().nonnegative().safe() }).strict(),
+  z.object({ ...base, state: z.literal('school-calendar'), calendar: schoolCalendarV1.nullable() }).strict(),
   z.object({ ...base, state: z.literal('committed'), operationId: portalIdV1, version: versionV1, savedBirth: savedBirthV1.optional() }).strict(),
   z.object({ ...base, state: z.literal('qr'), cards: z.array(printCardV1).min(1).max(100), version: versionV1 }).strict(),
   z.object({ ...base, state: z.literal('batch'), operationId: portalIdV1, items: z.array(z.object({ accountId: portalIdV1, state: z.enum(['committed', 'conflict', 'forbidden', 'unavailable']), version: versionV1 }).strict()).max(100) }).strict(),

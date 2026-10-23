@@ -79,6 +79,7 @@ export function PolicyLayoutV1({
   disabled,
   shift = false,
   customizations,
+  schoolCalendar,
 }: {
   field: (name: SettingsFieldV1) => ReactNode;
   /** The Notas tab: periods (publication and agenda), Resultado anual and options. */
@@ -87,6 +88,8 @@ export function PolicyLayoutV1({
   shift?: boolean;
   /** Class and student overrides of this scope: a tab of its own, mounted on first visit. */
   customizations?: ReactNode;
+  /** The school's calendar of school days (school scope only), under the Calendário dates. */
+  schoolCalendar?: ReactNode;
 }) {
   const [selected, setSelected] = useState<string>('access');
   const [publicationVisited, setPublicationVisited] = useState(false);
@@ -132,6 +135,7 @@ export function PolicyLayoutV1({
           {category.fields.length ? (
             <div className="pa-settings-fields">{category.fields.map(field)}</div>
           ) : null}
+          {category.id === 'calendar' ? schoolCalendar : null}
           {category.id === 'grades' && publicationVisited ? (
             <LiveRefreshScopeV1 active={selected === 'grades'}>
               <div className="pa-grades">{grades}</div>

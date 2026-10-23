@@ -214,10 +214,16 @@ it('answers the whole year so far in one read (?year=2026), month by month', asy
       today: '2026-03-10', lastReadAt: '2026-03-10 09:30:00+00', origins: [],
       days: [day('2026-02-23', [1, 2, 3, 4, 5]), day('2026-03-09', [1, 2, 3, 4, 5])],
     } }])
-    .mockResolvedValueOnce([{ active: true }]);
+    .mockResolvedValueOnce([{ active: true }])
+    // The school's calendar (ADM): three school days, two of them from today on.
+    .mockResolvedValueOnce([{ days_json: [
+      { date: '2026-03-09', kind: 'letivo' }, { date: '2026-03-10', kind: 'letivo' },
+      { date: '2026-03-11', kind: 'feriado', note: 'Feriado' }, { date: '2026-03-12', kind: 'letivo' },
+    ] }]);
   const result = await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency?year=2026'), env);
   const body = (await result.json()) as { months: { month: string; denominator: number | null }[] };
   expect(body).toMatchObject({ contractVersion: 2, state: 'ready', academicYear: 2026, today: '2026-03-10', year: { lessons: 10, absences: 0 } });
+  expect(body).toMatchObject({ schoolYear: { schoolDays: 3, remaining: 2, firstDay: '2026-03-09', lastDay: '2026-03-12' } });
   expect(body.months.map((month) => [month.month, month.denominator])).toEqual([['2026-01', null], ['2026-02', 5], ['2026-03', 5]]);
   // Only one of the two forms, and only this year.
   for (const query of ['?year=2025', '?year=2026&month=2026-03', '?year=all'])

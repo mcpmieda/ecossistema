@@ -115,10 +115,13 @@ export function PortalCountdownV1({
   at,
   title,
   done,
+  when,
 }: {
   at: string;
   title: string;
   done: string;
+  /** What follows the title instead of "dd/mm às hh:mm" (the school year's end says only the day). */
+  when?: string;
 }) {
   const target = Date.parse(at);
   const now = useNowV1(target);
@@ -144,7 +147,7 @@ export function PortalCountdownV1({
     <div className="pa-countdown">
       <span className="pa-countdown__title">
         <CalendarClock size={16} aria-hidden="true" />
-        {title} {whenV1(at)}
+        {title} {when ?? whenV1(at)}
       </span>
       <div
         className="pa-countdown__clock"

@@ -7,6 +7,7 @@ import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import { portalFrequencySummaryV2, portalFrequencyYearV2 } from '../../attendance/service-v2';
+import { schoolCalendarDaysV1, schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
 
 const originsSchema=z.array(z.object({occurrence_id:z.uuid(),date:z.iso.date(),slot:z.number().int().min(1).max(6),shift:z.string().max(80),
   mark:z.enum(['X','J']).nullable(),conflict_id:z.uuid().nullable(),source_class_label:z.string().max(300),observed_at:z.string(),received_at:z.string(),mapping_valid:z.boolean()}).strict()).max(10_000);
@@ -43,7 +44,11 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         const read=readSchema.parse(typeof raw==='string'?JSON.parse(raw):raw);
         const clock=await tx.unsafe('SELECT clock_timestamp() < $1::timestamptz AS active',[session.expiresAt]);
         if(clock[0]?.active!==true)return null;
-        return asYear?portalFrequencyYearV2(read):portalFrequencySummaryV2(read,month!);
+        if(!asYear)return portalFrequencySummaryV2(read,month!);
+        // The school's calendar (ADM, student-portal 0029): the countdown to the last school day.
+        const calendar=await tx.unsafe('SELECT days_json FROM student_portal.school_calendar_v1 WHERE academic_year=2026',[]);
+        const days=calendar[0]?.days_json;
+        return {...portalFrequencyYearV2(read),schoolYear:days==null?null:schoolYearProgressOfV1(schoolCalendarDaysV1.parse(typeof days==='string'?JSON.parse(days):days),read.today)};
       }));
     if(summary===HIDDEN)return fail('forbidden',403);
     return summary===null?fail('unauthenticated',401):response(summary);

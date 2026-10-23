@@ -11,6 +11,7 @@ import {
 } from '@heroui/react';
 import { GRADE_LABELS_V1 } from './grades-agenda-v1';
 import { PolicyLayoutV1 } from './policy-layout-v1';
+import { SchoolCalendarEditorV1 } from './school-calendar-editor-v1';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import type { PolicyScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -559,6 +560,11 @@ function SettingsReadyV1({
       {area === 'policies' ? (
         <PolicyLayoutV1
           customizations={customizations}
+          schoolCalendar={
+            fixedScope.kind === 'school' ? (
+              <SchoolCalendarEditorV1 client={client} canWrite={canWrite} />
+            ) : undefined
+          }
           field={renderField}
           shift={fixedScope.kind === 'shift'}
           grades={

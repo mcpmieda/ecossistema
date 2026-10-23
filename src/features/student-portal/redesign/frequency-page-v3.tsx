@@ -4,10 +4,12 @@ import {
   frequencyCountV2,
   type FrequencyCountV2,
   type FrequencySummaryV2,
+  type FrequencyYearSummaryV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
 import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
 import { usePortalPageActiveV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
+import { PortalCountdownV1 } from '../shell/portal-notices-v1';
 
 /*
  * Frequência in a page of its own (owner requests 20–21/10/2026, preview only): one month at a
@@ -507,11 +509,38 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
           current={current}
           firstMonth={firstMonth}
           onMonth={(next) => setChosenMonth(next >= current ? null : next)}
+          countdown={<SchoolYearCountdownV3 schoolYear={year.schoolYear ?? null} />}
         />
       ) : (
         <FrequencyStatusV3 error={load.error} onLogin={onLogin} onRetry={load.retry} />
       )}
     </section>
+  );
+}
+
+/**
+ * How long until the school year ends (owner request 22/10/2026), with the same split-flap clock as
+ * the portal's opening countdown. It runs to the end of the last school day of the calendar marked
+ * in the ADM, and says how many school days are left. Nothing while no calendar is marked.
+ */
+function SchoolYearCountdownV3({ schoolYear }: { schoolYear: NonNullable<FrequencyYearSummaryV2['schoolYear']> | null }) {
+  if (!schoolYear?.lastDay) return null;
+  const [year, month, day] = schoolYear.lastDay.split('-');
+  return (
+    <div className="pa3-card pa3-countdown">
+      <PortalCountdownV1
+        at={`${schoolYear.lastDay}T23:59:59-03:00`}
+        title="O ano letivo termina em"
+        when={`${day}/${month}/${year}`}
+        done="O ano letivo terminou."
+      />
+      <p className="pa3-countdown-days">
+        {schoolYear.remaining === 1
+          ? 'Falta 1 dia letivo'
+          : `Faltam ${schoolYear.remaining} dias letivos`}{' '}
+        de {schoolYear.schoolDays}.
+      </p>
+    </div>
   );
 }
 
@@ -569,6 +598,7 @@ function FrequencyMonthV3({
   current,
   firstMonth,
   onMonth,
+  countdown,
 }: {
   data: FrequencySummaryV2;
   /** The ring: the whole year so far. */
@@ -579,6 +609,8 @@ function FrequencyMonthV3({
   current: string;
   firstMonth: string;
   onMonth: (month: string) => void;
+  /** The school year's countdown, under the year at a glance. */
+  countdown?: ReactNode;
 }) {
   const monthCount = useMemo(() => frequencyCountV2(data, today), [data, today]);
   // Lessons of each day, straight from the Smecel diary (data.days), kept per shift.
@@ -726,6 +758,7 @@ function FrequencyMonthV3({
         </div>
       </div>
 
+      {countdown}
       <div className="pa3-card" {...swipe}>
         <MonthHeadV3 month={month} canBack={month > firstMonth} canForward={month < current} go={go} />
         <ul className="pa3-legend" aria-label="Legenda">

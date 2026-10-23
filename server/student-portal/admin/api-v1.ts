@@ -1,3 +1,4 @@
+import { readSchoolCalendarV1, setSchoolCalendarV1 } from './school-calendar-v1';
 import { withAuditSqlV1 } from '../observability/audit-context-v1';
 import { z } from 'zod';
 import { adminReadQueryV2, type AdminReadResponseV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
@@ -107,6 +108,9 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
           case 'links-preview':
             if (query.scope.kind !== 'school') throw new Error('student-portal-preview-forbidden');
             return adminResponseV1.parse({ ...base, ...await new LinkClosureServiceV1(sql).preview(context.actorId) });
+          case 'school-calendar':
+            if (query.scope.kind !== 'school') throw new Error('student-portal-school-calendar-forbidden');
+            return adminResponseV1.parse({ ...base, state: 'school-calendar', calendar: await readSchoolCalendarV1(tx) });
           case 'population':
             if (query.scope.kind !== 'school') throw new Error('student-portal-population-forbidden');
             return adminResponseV1.parse({ ...base, ...await readPopulationV1(tx) });
@@ -155,6 +159,7 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
           return committed(await new ScopedPublicationServiceV2(sql).command(context.actorId, command));
         case 'links-close': return committed(await closeLinksIdempotentlyV1(sql, context.actorId, command));
         case 'population-start': return committed(await startPopulationV1(sql, context.actorId, command));
+        case 'school-calendar-set': return committed(await setSchoolCalendarV1(sql, context.actorId, command));
       }
     } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
   }

@@ -974,3 +974,19 @@
   outline: 2px solid var(--pa3-blue);
   outline-offset: 2px;
 }
+
+/* The school year's countdown (owner request 22/10/2026): the portal's opening clock, in a card. */
+.pa3-countdown {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+}
+.pa3-countdown .pa-countdown {
+  width: 100%;
+}
+.pa3-countdown-days {
+  margin: 0;
+  color: var(--pa3-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}

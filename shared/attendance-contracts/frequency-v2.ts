@@ -183,6 +183,8 @@ export type FrequencyYearSummaryV2 = {
   contractVersion: 2; state: 'ready'; academicYear: 2026; today: string;
   year: { lessons: number; absences: number } | null; lastReadAt: string | null;
   months: FrequencySummaryV2[];
+  /** The school's calendar marked in the ADM (null before it is): the countdown to the year's end. */
+  schoolYear?: { schoolDays: number; remaining: number; firstDay: string | null; lastDay: string | null } | null;
 };
 
 /** Lessons and absences (X) of the days already over; `reliable`: nothing of them is still unknown. */
