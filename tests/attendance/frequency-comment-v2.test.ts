@@ -37,7 +37,7 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
     expect(year(older(52, 2))).toEqual({
       kind: 'over-limit',
       tone: 'alert',
-      text: 'Já faltou cerca de 52 dias. O limite da lei é 50 dias. Pode reprovar por falta.',
+      text: 'Já faltou cerca de 52 dias. Passou do limite da lei (50 dias).',
     });
   });
 
@@ -45,7 +45,16 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
     // 30 old days plus 12 of the last 20 weekdays (60%): 42 now, about 23 more in 39 days.
     const comment = year([...older(30, 3).filter((date) => date < weekdays.at(-20)!), ...recent(20).filter((_, index) => index % 5 < 3)]);
     expect(comment?.kind).toBe('will-pass');
-    expect(comment?.text).toMatch(/^Já faltou cerca de \d+ dias\. Faltando assim, vai passar do limite de 50 dias\.$/u);
+    expect(comment?.text).toMatch(/^Já faltou cerca de \d+ dias\. Faltando assim, vai passar do limite da lei \(50 dias\)\.$/u);
+  });
+
+  it('from 30 days on: near the limit, never as days still left to miss', () => {
+    // 31 whole days long ago, none lately: not "will pass", but near the limit.
+    expect(year(older(31, 3))).toEqual({
+      kind: 'near-limit',
+      tone: 'alert',
+      text: 'Já faltou cerca de 31 dias. Está perto do limite da lei (50 dias).',
+    });
   });
 
   it('three weekdays in a row without coming, unjustified; a Saturday between never breaks it', () => {
@@ -76,10 +85,13 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
   });
 
   it('missing much less lately', () => {
-    // One lesson of five on every old weekday (20%, never a whole day), none in the last four
-    // weeks: improving wins over "none recently".
-    const marks = weekdays.slice(0, -20).map((date) => ({ date, slot: 1, shift: 'MATUTINO', mark: 'X' as const, classLabels: ['TURMA'] }));
-    // About 23 days in all: far from the 50.
+    // Two lessons of five on every third old weekday (about 13%, never a whole day), none in the
+    // last four weeks: improving wins over "none recently".
+    const marks = weekdays
+      .slice(0, -20)
+      .filter((_, index) => index % 3 === 0)
+      .flatMap((date) => [1, 2].map((slot) => ({ date, slot, shift: 'MATUTINO', mark: 'X' as const, classLabels: ['TURMA'] })));
+    // About 21 days in all: below the 30 of "perto do limite".
     const comment = frequencyCommentV2({
       months: [{ days: weekdays.map(lessonDay), marks }],
       today: TODAY,

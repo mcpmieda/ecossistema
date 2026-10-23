@@ -11,6 +11,8 @@ import type { FrequencyDayV2, FrequencySummaryV2 } from './frequency-v2';
  * Only the first sentence that applies is shown; with none, nothing is shown.
  */
 export const MAXIMUM_ABSENCE_DAYS_V2 = 50;
+/** "Perto do limite" from this many days of absence on. */
+export const NEAR_LIMIT_DAYS_V2 = 30;
 /** The last four weeks: the twenty most recent weekdays with lessons. */
 const RECENT_WEEKDAYS = 20;
 
@@ -88,11 +90,12 @@ export function frequencyCommentV2({
   const alert = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'alert', text });
   const good = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'good', text });
   if (absenceDays > MAXIMUM_ABSENCE_DAYS_V2)
-    return alert('over-limit', `Já faltou cerca de ${days(shown)}. O limite da lei é ${MAXIMUM_ABSENCE_DAYS_V2} dias. Pode reprovar por falta.`);
+    return alert('over-limit', `Já faltou cerca de ${days(shown)}. Passou do limite da lei (${MAXIMUM_ABSENCE_DAYS_V2} dias).`);
   if (absenceDays + recentRate * remainingSchoolDays > MAXIMUM_ABSENCE_DAYS_V2)
-    return alert('will-pass', `Já faltou cerca de ${days(shown)}. Faltando assim, vai passar do limite de ${MAXIMUM_ABSENCE_DAYS_V2} dias.`);
-  if (absenceDays >= 40)
-    return alert('near-limit', `Já faltou cerca de ${days(shown)}. Só pode faltar mais ${days(Math.max(0, MAXIMUM_ABSENCE_DAYS_V2 - shown))} este ano.`);
+    return alert('will-pass', `Já faltou cerca de ${days(shown)}. Faltando assim, vai passar do limite da lei (${MAXIMUM_ABSENCE_DAYS_V2} dias).`);
+  // From 30 days on (owner decision 23/10/2026), never as days still "left" to miss.
+  if (absenceDays >= NEAR_LIMIT_DAYS_V2)
+    return alert('near-limit', `Já faltou cerca de ${days(shown)}. Está perto do limite da lei (${MAXIMUM_ABSENCE_DAYS_V2} dias).`);
   if (streak >= 3)
     return alert('in-a-row', `Não vem à escola desde ${dateLabel(weekdays[streak - 1]!.date)} (${streak} dias seguidos).`);
   if (recentAbsenceDays >= 4 && recentRate >= 2 * beforeRate)
