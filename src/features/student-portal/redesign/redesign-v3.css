@@ -1005,3 +1005,21 @@
   border-radius: 999px;
   line-height: 1.2;
 }
+/* Filled (owner request 23/10/2026): the pill in the state's colour, the word in white. */
+.pa3-lesson .pa3-lesson-state {
+  border-color: transparent;
+  color: #fff;
+  font-weight: 700;
+}
+.pa3-lesson--absent .pa3-lesson-state {
+  background: var(--pa3-red);
+}
+.pa3-lesson--justified .pa3-lesson-state {
+  background: var(--pa3-amber);
+}
+.pa3-lesson--clear .pa3-lesson-state {
+  background: var(--pa3-green);
+}
+.pa3-lesson--pending .pa3-lesson-state {
+  background: #475569;
+}
