@@ -990,3 +990,30 @@
   font-size: 0.82rem;
   font-weight: 650;
 }
+
+/* The sentence about the absences, first on the page (owner decisions 22/10/2026). */
+.pa3-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.pa3-comment svg {
+  flex: 0 0 auto;
+  margin-top: 0.05rem;
+}
+.pa3-comment--alert {
+  border: 1px solid #fcd9a5;
+  background: var(--pa3-amber-soft);
+  color: #7c2d12;
+}
+.pa3-comment--good {
+  border: 1px solid #bfe5cc;
+  background: var(--pa3-green-soft);
+  color: #14532d;
+}

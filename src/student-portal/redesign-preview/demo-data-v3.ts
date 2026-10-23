@@ -10,6 +10,7 @@ import type { StudentScheduleClientV1 } from '../../features/student-portal/sche
 import { schoolDateOnDeviceV3 } from '../../features/student-portal/redesign/frequency-page-v3';
 import { officialCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
 import { schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
+import { frequencyCommentV2, type FrequencyCommentKindV2 } from '../../../shared/attendance-contracts/frequency-comment-v2';
 
 const demoCalendarV3 = officialCalendar2026V1;
 
@@ -224,7 +225,9 @@ export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
   const months = Array.from({ length: 12 }, (_, index) => `2026-${pad(index + 1)}`).filter((key) => key <= today.slice(0, 7));
   const answers = months.map((key) => demoFrequencyV3(key, today));
   const first = answers[0] ?? demoFrequencyV3('2026-01', today);
+  const schoolYear = schoolYearProgressOfV1(demoCalendarV3(), today);
   return {
+    comment: frequencyCommentV2({ months: answers, today, remainingSchoolDays: schoolYear.remaining }),
     contractVersion: 2,
     state: 'ready',
     academicYear: 2026,
@@ -232,7 +235,7 @@ export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
     year: first.year ?? null,
     lastReadAt: first.lastReadAt ?? null,
     // The official calendar of 2026 (200 school days).
-    schoolYear: schoolYearProgressOfV1(demoCalendarV3(), today),
+    schoolYear,
     months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => {
       void _today;
       void _year;
@@ -251,10 +254,34 @@ const later = <T,>(value: () => T, signal: AbortSignal) =>
       reject(signal.reason);
     });
   });
-/** The preview's frequency "API": the same answers as the real one. */
-export const createDemoFrequencyClientV3 = (): StudentFrequencyClientV2 => ({
+/**
+ * One example of each sentence about the absences (owner decisions 22/10/2026), for the "Simular
+ * admin" panel: the same wording the server writes, with invented numbers.
+ */
+export const DEMO_FREQUENCY_COMMENTS_V3: Record<FrequencyCommentKindV2, { label: string; tone: 'alert' | 'good'; text: string }> = {
+  'over-limit': { label: 'Já passou do limite', tone: 'alert', text: 'Já faltou cerca de 52 dias. O máximo permitido é 50 dias. Pode reprovar por falta.' },
+  'will-pass': { label: 'Vai passar do limite', tone: 'alert', text: 'Já faltou cerca de 43 dias, de 50 dias permitidos. Faltando assim, vai passar do máximo.' },
+  'near-limit': { label: 'Perto do limite', tone: 'alert', text: 'Já faltou cerca de 45 dias. Só pode faltar mais 5 dias este ano.' },
+  'in-a-row': { label: 'Dias seguidos sem vir', tone: 'alert', text: 'Não vem à escola desde 19/10 (3 dias seguidos).' },
+  rising: { label: 'Faltando mais', tone: 'alert', text: 'Faltou cerca de 6 dias nas últimas 4 semanas. Antes, faltava menos.' },
+  weekday: { label: 'Dia da semana', tone: 'alert', text: 'Falta muito às segundas-feiras.' },
+  improving: { label: 'Melhorando', tone: 'good', text: 'Está faltando menos dias. Continue assim!' },
+  'none-recently': { label: 'Sem faltas em 4 semanas', tone: 'good', text: 'Nenhuma falta nas últimas 4 semanas. Muito bem!' },
+  'none-this-year': { label: 'Sem faltas no ano', tone: 'good', text: 'Nenhuma falta este ano. Parabéns!' },
+};
+export type DemoCommentChoiceV3 = 'auto' | 'none' | FrequencyCommentKindV2;
+
+/** The preview's frequency "API": the same answers as the real one; a sentence may be forced. */
+export const createDemoFrequencyClientV3 = (comment: DemoCommentChoiceV3 = 'auto'): StudentFrequencyClientV2 => ({
   read: (month, signal) => later(() => demoFrequencyV3(month, previewTodayV3()), signal),
-  readYear: (signal) => later(() => demoFrequencyYearV3(previewTodayV3()), signal),
+  readYear: (signal) =>
+    later(() => {
+      const year = demoFrequencyYearV3(previewTodayV3());
+      if (comment === 'auto') return year;
+      if (comment === 'none') return { ...year, comment: null };
+      const { tone, text } = DEMO_FREQUENCY_COMMENTS_V3[comment];
+      return { ...year, comment: { kind: comment, tone, text } };
+    }, signal),
 });
 
 /**

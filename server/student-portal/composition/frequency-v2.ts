@@ -51,7 +51,8 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         const marked=calendarDays==null?null:schoolCalendarDaysV1.parse(typeof calendarDays==="string"?JSON.parse(calendarDays):calendarDays);
         const schoolDays=marked?new Set(schoolDaysOfV1(marked)):undefined;
         if(!asYear)return portalFrequencySummaryV2(read,month!,schoolDays);
-        return {...portalFrequencyYearV2(read,schoolDays),schoolYear:marked?schoolYearProgressOfV1(marked,read.today):null};
+        const schoolYear=marked?schoolYearProgressOfV1(marked,read.today):null;
+        return {...portalFrequencyYearV2(read,schoolDays,schoolYear?.remaining??0),schoolYear};
       }));
     if(summary===HIDDEN)return fail('forbidden',403);
     return summary===null?fail('unauthenticated',401):response(summary);

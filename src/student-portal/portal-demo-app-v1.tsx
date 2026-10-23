@@ -1,7 +1,12 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { StudentPortalPageV1 } from '../features/student-portal/shell/student-shell-v1';
 import { PortalSignedInNoticesV1 } from '../features/student-portal/shell/portal-notices-v1';
-import { createDemoFrequencyClientV3, createDemoScheduleClientV3 } from './redesign-preview/demo-data-v3';
+import {
+  createDemoFrequencyClientV3,
+  createDemoScheduleClientV3,
+  DEMO_FREQUENCY_COMMENTS_V3,
+  type DemoCommentChoiceV3,
+} from './redesign-preview/demo-data-v3';
 import { selfResponseV1, type SelfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
@@ -690,6 +695,8 @@ interface AdminSimulationV1 {
   showFrequency: boolean;
   /** Policy `showSchedule` (owner decision 22/10/2026): off hides the "Horário" page. */
   showSchedule: boolean;
+  /** The sentence about the absences on Frequência: computed from the invented data, or forced. */
+  frequencyComment: DemoCommentChoiceV3;
   periods: readonly PeriodIdV1[];
   finalDisclosed: boolean;
   /** Approved background-free portrait exists (none in production yet). */
@@ -861,7 +868,6 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
 }
 
 /** Invented attendance and weekly grid (the redesign's demo clients): no request leaves the page. */
-const demoFrequencyClient = createDemoFrequencyClientV3();
 const demoScheduleClient = createDemoScheduleClientV3();
 
 const panelStyle: CSSProperties = {
@@ -959,6 +965,21 @@ function AdminSimulatorPanelV1({
         <label>{toggle('termClosingConclusive')} Usar termos de conclusão</label>
         <label>{toggle('showFrequency')} Frequência</label>
         <label>{toggle('showSchedule')} Horário</label>
+        <label>
+          Frase da frequência{' '}
+          <select
+            value={value.frequencyComment}
+            onChange={(event) => onChange({ ...value, frequencyComment: event.target.value as DemoCommentChoiceV3 })}
+          >
+            <option value="auto">Automática</option>
+            <option value="none">Nenhuma</option>
+            {Object.entries(DEMO_FREQUENCY_COMMENTS_V3).map(([kind, item]) => (
+              <option key={kind} value={kind}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>{toggle('hasPortrait')} Foto do aluno</label>
       </div>
       <div style={rowStyle}>
@@ -1026,6 +1047,7 @@ export function PortalDemoAppV1() {
     termClosingConclusive: true,
     showFrequency: false,
     showSchedule: false,
+    frequencyComment: 'auto',
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
     hasPortrait: true,
@@ -1054,6 +1076,8 @@ export function PortalDemoAppV1() {
       ),
     [admin],
   );
+  // A new client per choice, so the page reads the forced sentence again (keyed below).
+  const frequencyClient = useMemo(() => createDemoFrequencyClientV3(admin.frequencyComment), [admin.frequencyComment]);
   const [releaseAt] = useState(() => new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60) * 1000).toISOString());
   return (
     <>
@@ -1077,7 +1101,7 @@ export function PortalDemoAppV1() {
         }
         onLogout={() => undefined}
         portraitSrc={admin.hasPortrait ? previewPortrait : undefined}
-        frequencyClient={demoFrequencyClient}
+        frequencyClient={frequencyClient}
         scheduleClient={demoScheduleClient}
       />
     </>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
-import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, PartyPopper, TriangleAlert, X } from 'lucide-react';
 import {
   frequencyCountV2,
   type FrequencyCountV2,
@@ -494,6 +494,8 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
       <h2 id="pa3-frequency-title" className="pa3-page-title" tabIndex={-1}>
         Frequência do aluno
       </h2>
+      {/* One sentence about the absences, first (owner decisions 22/10/2026); none, nothing. */}
+      {year?.comment ? <FrequencyCommentV3 comment={year.comment} /> : null}
       {year && totals ? (
         <FrequencyMonthV3
           data={{
@@ -515,6 +517,17 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
         <FrequencyStatusV3 error={load.error} onLogin={onLogin} onRetry={load.retry} />
       )}
     </section>
+  );
+}
+
+/** The sentence for the family: a warning in amber, a good news in green. */
+function FrequencyCommentV3({ comment }: { comment: NonNullable<FrequencyYearSummaryV2['comment']> }) {
+  const Icon = comment.tone === 'alert' ? TriangleAlert : PartyPopper;
+  return (
+    <p className={`pa3-comment pa3-comment--${comment.tone}`} role={comment.tone === 'alert' ? 'alert' : 'status'}>
+      <Icon size={20} aria-hidden="true" />
+      <span>{comment.text}</span>
+    </p>
   );
 }
 

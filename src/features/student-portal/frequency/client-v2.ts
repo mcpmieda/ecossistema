@@ -160,6 +160,15 @@ const wholeYear = z
       .strict()
       .nullable()
       .optional(),
+    comment: z
+      .object({
+        kind: z.enum(['over-limit', 'will-pass', 'near-limit', 'in-a-row', 'rising', 'weekday', 'improving', 'none-recently', 'none-this-year']),
+        tone: z.enum(['alert', 'good']),
+        text: z.string().min(1).max(200),
+      })
+      .strict()
+      .nullable()
+      .optional(),
   })
   .strict();
 

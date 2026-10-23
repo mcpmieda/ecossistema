@@ -20,6 +20,7 @@ import {
   type FrequencyUnresolvedV2,
 } from '../../shared/attendance-contracts/frequency-v2';
 import { studentUidV1 } from '../../shared/student-identity/student-identity-v1';
+import { frequencyCommentV2 } from '../../shared/attendance-contracts/frequency-comment-v2';
 import { normalizeStudentNameV1 } from '../../shared/student-identity/reconciliation-normalization-v1';
 import { resolveReconciledSourcesV2 } from '../student-identity/reconciliation/resolve-source-batch-v2';
 import { lockResetWriterV1 } from '../student-portal/integration/year-reset/writer-v1';
@@ -424,10 +425,12 @@ export function portalFrequencySummaryV2(
 export function portalFrequencyYearV2(
   whole: PortalFrequencyYearReadV2,
   schoolDays?: ReadonlySet<string>,
+  remainingSchoolDays = 0,
 ): FrequencyYearSummaryV2 {
   const read = onSchoolDaysV2(whole, schoolDays);
   const months = monthsSoFarV2(read.today).map((key) => monthOfReadV2(read, key));
   return {
+    comment: frequencyCommentV2({ months, today: read.today, remainingSchoolDays }),
     contractVersion: 2,
     state: 'ready',
     academicYear: 2026,

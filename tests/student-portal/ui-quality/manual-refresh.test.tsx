@@ -37,19 +37,17 @@ it.each([204, 401, 503])(
       const url = resourceUrl(input);
       if (url.pathname === '/api/student/photo') return new Response(null, { status });
       if (url.pathname === '/api/student/frequency')
+        // The whole year in one answer (?year=2026), read with the sign-in.
         return Response.json({
           contractVersion: 2,
           state: 'ready',
-          month: url.searchParams.get('month'),
-          absences: null,
-          justified: null,
-          denominator: null,
-          percentage: null,
-          coverage: 'unavailable',
-          observedAt: null,
-          receivedAt: null,
-          marks: [],
-          conflicts: 0,
+          academicYear: 2026,
+          today: '2026-10-22',
+          year: null,
+          lastReadAt: null,
+          months: [],
+          schoolYear: null,
+          comment: null,
         });
       throw new Error('Unexpected synthetic Portal resource');
     });
@@ -83,8 +81,9 @@ it.each([204, 401, 503])(
         redirect: 'error',
       }),
     ]);
-    // Frequência is a page of its own behind the menu: nothing is read until it is opened.
-    expect(frequencyRequests()).toHaveLength(0);
+    // The whole year is read once with the sign-in, like the grades; opening Frequência asks nothing.
+    await waitFor(() => expect(frequencyRequests()).toHaveLength(1));
+    expect(resourceUrl(frequencyRequests()[0]![0]).search).toBe('?year=2026');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Frequência' }));
     await screen.findByRole('heading', { level: 3, name: /de 2026$/u });
     expect(frequencyRequests()).toHaveLength(1);
@@ -99,9 +98,8 @@ it.each([204, 401, 503])(
     const url = new URL(String((socket.mock.calls[0] as unknown[])[0]));
     expect(url.pathname).toBe('/api/student/live');
     expect(url.searchParams.get('purpose')).toBe('security');
-    // Frequency revalidates on visibility; optional photos and academic data stay independent.
-    await waitFor(() => expect(frequencyRequests()).toHaveLength(2));
-    // Reading the frequency again never fetches the optional portrait, notes or notices again.
+    // Back on screen within ten minutes: nothing is read again (the year read with the sign-in stays).
+    expect(frequencyRequests()).toHaveLength(1);
     expect(photoRequests()).toHaveLength(1);
     await act(async () => {
       vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
@@ -109,13 +107,16 @@ it.each([204, 401, 503])(
       window.dispatchEvent(new Event('focus'));
       window.dispatchEvent(new Event('online'));
     });
-    expect(frequencyRequests()).toHaveLength(2);
+    expect(frequencyRequests()).toHaveLength(1);
     expect(photoRequests()).toHaveLength(1);
+    // After ten minutes, coming back reads the year again, in the background.
+    const later = Date.now() + 11 * 60_000;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
     await act(async () => {
       vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    await waitFor(() => expect(frequencyRequests()).toHaveLength(3));
+    await waitFor(() => expect(frequencyRequests()).toHaveLength(2));
     expect(photoRequests()).toHaveLength(1);
     for (const [, init] of frequencyRequests())
       expect(init).toMatchObject({
