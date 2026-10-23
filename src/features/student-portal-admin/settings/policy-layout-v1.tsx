@@ -51,8 +51,9 @@ const categories = [
     icon: CalendarDays,
     title: 'Datas e horários',
     description:
-      'Ano letivo, trimestres, dias letivos e o horário das aulas. Notas e resultado anual ficam na aba Notas. Horário de Brasília.',
-    fields: ['calendar'],
+      'Dias letivos, datas principais do ano e o horário das aulas. Notas e resultado anual ficam na aba Notas.',
+    // The main dates are marked on the school calendar (owner decision 23/10/2026), no form.
+    fields: [],
   },
   {
     id: 'security',

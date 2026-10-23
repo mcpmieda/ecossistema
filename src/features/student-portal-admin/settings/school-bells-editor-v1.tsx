@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from '@heroui/react';
+import { Time } from '@internationalized/date';
+import { I18nProvider } from 'react-aria-components';
+import { Alert, Button, Card, Chip, Spinner, TimeField, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { Coffee, Plus, Trash2 } from 'lucide-react';
 import {
   bellDayV1,
@@ -128,162 +130,205 @@ export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminC
 
   if (state === 'loading' && !draft)
     return (
-      <section className="pa-school-bells" aria-busy="true">
-        <p className="pa-school-bells__status">Carregando horários…</p>
-      </section>
+      <Card className="pa-school-bells" aria-busy="true">
+        <Card.Content className="pa-school-bells__status">
+          <Spinner size="sm" /> Carregando horários…
+        </Card.Content>
+      </Card>
     );
   if (state === 'error' || !draft || !saved)
     return (
-      <section className="pa-school-bells">
-        <p className="pa-school-bells__status" role="alert">
-          Não foi possível carregar os horários.
-        </p>
-        <Button size="sm" variant="secondary" onPress={() => void load()}>
-          Tentar de novo
-        </Button>
-      </section>
+      <Alert status="danger" className="pa-school-bells">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Não foi possível carregar os horários.</Alert.Title>
+          <Alert.Description>
+            <Button size="sm" variant="secondary" onPress={() => void load()}>
+              Tentar de novo
+            </Button>
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
     );
 
   const editable = canWrite && state === 'ready';
+  /** "07:55" as the field's value, and back. */
+  const timeOf = (text: string) => new Time(Number(text.slice(0, 2)), Number(text.slice(3, 5)));
+  const textOf = (time: Time) => `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`;
   return (
-    <section className="pa-school-bells" aria-labelledby="pa-school-bells-title">
-      <header className="pa-school-bells__head">
-        <div>
-          <h3 id="pa-school-bells-title">Horário de cada aula</h3>
-          <p>Vale para a escola inteira. O Portal mostra a hora de cada aula, o intervalo no lugar certo e a aula de agora.
-            A ordem se ajusta sozinha pela hora de início.</p>
-        </div>
-        <div className="pa-school-bells__shifts" role="radiogroup" aria-label="Turno">
-          {SHIFTS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="radio"
-              aria-checked={shift === item.id}
-              className="pa-school-bells__shift"
-              onClick={() => setShift(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {saved.version === 0 ? (
-        <p className="pa-school-bells__start" role="note">
-          Estes são os horários de 2026 (folhas de 22/06). Confira e clique em Salvar horários para valerem no Portal.
-        </p>
-      ) : null}
-      {message ? (
-        <p className="pa-school-bells__message" role="status">
-          {message}
-        </p>
-      ) : null}
-
-      <div className="pa-school-bells__days">
-        {DAYS.map(({ weekday, label }) => {
-          const items = draft[shift][weekday];
-          const hasBreak = items.some((item) => item.kind === 'intervalo');
-          const wrong = invalid.has(`${shift}:${weekday}`);
-          const lastEnd = items.at(-1)?.end ?? (shift === 'matutino' ? '07:00' : '13:15');
-          return (
-            <div key={weekday} className={'pa-school-bells__day' + (wrong ? ' is-wrong' : '')}>
-              <h4>
-                {label}
-                <small>{items.filter((item) => item.kind === 'aula').length} aulas</small>
-              </h4>
-              <ol>
-                {items.map((item, index) => {
-                  const name = item.kind === 'aula' ? `${item.slot}ª aula` : 'Intervalo';
-                  const setTime = (part: 'start' | 'end', value: string) => {
-                    if (/^\d\d:\d\d$/u.test(value))
-                      editDay(weekday, (list) => list.map((each, at) => (at === index ? { ...each, [part]: value } : each)));
-                  };
-                  return (
-                    <li key={index} className={'pa-school-bells__item pa-school-bells__item--' + item.kind}>
-                      <span className="pa-school-bells__name">
-                        {item.kind === 'intervalo' ? <Coffee size={14} aria-hidden="true" /> : null}
-                        {name}
-                      </span>
-                      <span className="pa-school-bells__times">
-                        <input
-                          type="time"
-                          value={item.start}
-                          aria-label={`${label}, ${name}: início`}
-                          disabled={!editable}
-                          onChange={(event) => setTime('start', event.target.value)}
-                          onBlur={sortDay(weekday)}
-                        />
-                        <span aria-hidden="true">–</span>
-                        <input
-                          type="time"
-                          value={item.end}
-                          aria-label={`${label}, ${name}: fim`}
-                          disabled={!editable}
-                          onChange={(event) => setTime('end', event.target.value)}
-                          onBlur={sortDay(weekday)}
-                        />
-                      </span>
-                      {editable ? (
-                        <button
-                          type="button"
-                          className="pa-school-bells__remove"
-                          aria-label={`Remover ${name} de ${label.toLowerCase()}`}
-                          onClick={() => editDay(weekday, (list) => list.filter((_, at) => at !== index))}
-                        >
-                          <Trash2 size={14} aria-hidden="true" />
-                        </button>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ol>
-              {wrong ? (
-                <p className="pa-school-bells__error" role="alert">
-                  Confira os horários: estão fora de ordem, um começa antes do outro acabar ou há mais de um intervalo.
-                </p>
-              ) : null}
-              {editable ? (
-                <div className="pa-school-bells__add">
-                  <button
-                    type="button"
-                    disabled={items.filter((item) => item.kind === 'aula').length >= 6 || items.length >= 8}
-                    onClick={() =>
-                      editDay(weekday, (list) => [...list, { kind: 'aula', slot: 0, start: lastEnd, end: later(lastEnd, 50) }])
-                    }
-                  >
-                    <Plus size={14} aria-hidden="true" /> Aula
-                  </button>
-                  <button
-                    type="button"
-                    disabled={hasBreak || items.length >= 8}
-                    onClick={() =>
-                      editDay(weekday, (list) => [...list, { kind: 'intervalo', start: lastEnd, end: later(lastEnd, 15) }])
-                    }
-                  >
-                    <Plus size={14} aria-hidden="true" /> Intervalo
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-
-      {canWrite ? (
-        <footer className="pa-school-bells__actions">
-          <Button onPress={() => void save()} isDisabled={!changed || state === 'saving' || invalid.size > 0}>
-            {state === 'saving' ? 'Salvando…' : 'Salvar horários'}
-          </Button>
-          <Button
-            variant="secondary"
-            isDisabled={!changed || state === 'saving' || saved.version === 0}
-            onPress={() => setDraft(structuredClone(saved.bells))}
+    <I18nProvider locale="pt-BR">
+      <Card className="pa-school-bells" aria-labelledby="pa-school-bells-title">
+        <Card.Header className="pa-school-bells__head">
+          <div>
+            <Card.Title id="pa-school-bells-title">Horário de cada aula</Card.Title>
+            <Card.Description>
+              Vale para a escola inteira. O Portal mostra a hora de cada aula, o intervalo no lugar certo e a
+              aula de agora. A ordem se ajusta sozinha pela hora de início.
+            </Card.Description>
+          </div>
+          <ToggleButtonGroup
+            aria-label="Turno"
+            size="sm"
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[shift]}
+            onSelectionChange={(keys) => {
+              const next = [...keys][0];
+              if (next === 'matutino' || next === 'vespertino') setShift(next);
+            }}
           >
-            Desfazer alterações
-          </Button>
-        </footer>
-      ) : null}
-    </section>
+            {SHIFTS.map((item) => (
+              <ToggleButton key={item.id} id={item.id}>
+                {item.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </Card.Header>
+
+        <Card.Content className="pa-school-bells__body">
+          {saved.version === 0 ? (
+            <Alert status="accent">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>
+                  Estes são os horários de 2026 (folhas de 22/06). Confira e clique em Salvar horários para
+                  valerem no Portal.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+          {message ? (
+            <Alert status={message === 'Horários salvos.' ? 'success' : 'danger'}>
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>{message}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+
+          <div className="pa-school-bells__days">
+            {DAYS.map(({ weekday, label }) => {
+              const items = draft[shift][weekday];
+              const lessons = items.filter((item) => item.kind === 'aula').length;
+              const hasBreak = items.some((item) => item.kind === 'intervalo');
+              const wrong = invalid.has(`${shift}:${weekday}`);
+              const lastEnd = items.at(-1)?.end ?? (shift === 'matutino' ? '07:00' : '13:15');
+              return (
+                <Card key={weekday} variant="secondary" className={'pa-school-bells__day' + (wrong ? ' is-wrong' : '')}>
+                  <Card.Header className="pa-school-bells__day-head">
+                    <Card.Title>{label}</Card.Title>
+                    <Chip size="sm" variant="soft" color={wrong ? 'danger' : 'default'}>
+                      {lessons} aulas
+                    </Chip>
+                  </Card.Header>
+                  <Card.Content>
+                    <ol className="pa-school-bells__list">
+                      {items.map((item, index) => {
+                        const name = item.kind === 'aula' ? `${item.slot}ª aula` : 'Intervalo';
+                        const setTime = (part: 'start' | 'end', value: Time | null) => {
+                          if (value)
+                            editDay(weekday, (list) =>
+                              list.map((each, at) => (at === index ? { ...each, [part]: textOf(value) } : each)),
+                            );
+                        };
+                        const field = (part: 'start' | 'end') => (
+                          <TimeField
+                            aria-label={`${label}, ${name}: ${part === 'start' ? 'início' : 'fim'}`}
+                            value={timeOf(item[part])}
+                            onChange={(value) => setTime(part, value)}
+                            onBlur={sortDay(weekday)}
+                            hourCycle={24}
+                            shouldForceLeadingZeros
+                            isDisabled={!editable}
+                            isInvalid={wrong}
+                          >
+                            <TimeField.Group>
+                              <TimeField.Input>{(segment) => <TimeField.Segment segment={segment} />}</TimeField.Input>
+                            </TimeField.Group>
+                          </TimeField>
+                        );
+                        return (
+                          <li key={index} className={'pa-school-bells__item pa-school-bells__item--' + item.kind}>
+                            <span className="pa-school-bells__name">
+                              {item.kind === 'intervalo' ? <Coffee size={14} aria-hidden="true" /> : null}
+                              {name}
+                            </span>
+                            <span className="pa-school-bells__times">
+                              {field('start')}
+                              <span aria-hidden="true">–</span>
+                              {field('end')}
+                            </span>
+                            {editable ? (
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="ghost"
+                                aria-label={`Remover ${name} de ${label.toLowerCase()}`}
+                                onPress={() => editDay(weekday, (list) => list.filter((_, at) => at !== index))}
+                              >
+                                <Trash2 size={14} aria-hidden="true" />
+                              </Button>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                    {wrong ? (
+                      <p className="pa-school-bells__error" role="alert">
+                        Confira os horários: estão fora de ordem, um começa antes do outro acabar ou há mais de um
+                        intervalo.
+                      </p>
+                    ) : null}
+                  </Card.Content>
+                  {editable ? (
+                    <Card.Footer className="pa-school-bells__add">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        isDisabled={lessons >= 6 || items.length >= 8}
+                        onPress={() =>
+                          editDay(weekday, (list) => [...list, { kind: 'aula', slot: 0, start: lastEnd, end: later(lastEnd, 50) }])
+                        }
+                      >
+                        <Plus size={14} aria-hidden="true" /> Aula
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        isDisabled={hasBreak || items.length >= 8}
+                        onPress={() =>
+                          editDay(weekday, (list) => [...list, { kind: 'intervalo', start: lastEnd, end: later(lastEnd, 15) }])
+                        }
+                      >
+                        <Plus size={14} aria-hidden="true" /> Intervalo
+                      </Button>
+                    </Card.Footer>
+                  ) : null}
+                </Card>
+              );
+            })}
+          </div>
+        </Card.Content>
+
+        {canWrite ? (
+          <Card.Footer className="pa-school-bells__actions">
+            <Button
+              variant="primary"
+              onPress={() => void save()}
+              isDisabled={!changed || state === 'saving' || invalid.size > 0}
+            >
+              {state === 'saving' ? 'Salvando…' : 'Salvar horários'}
+            </Button>
+            <Button
+              variant="secondary"
+              isDisabled={!changed || state === 'saving' || saved.version === 0}
+              onPress={() => setDraft(structuredClone(saved.bells))}
+            >
+              Desfazer alterações
+            </Button>
+          </Card.Footer>
+        ) : null}
+      </Card>
+    </I18nProvider>
   );
 }

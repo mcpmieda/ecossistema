@@ -164,8 +164,10 @@ describe('policy categories preserve editing and inheritance', () => {
       fireEvent.change(screen.getByRole('spinbutton', { name: 'Pedir verificação após' }), {
         target: { value: '4' },
       });
-      await user.click(screen.getByRole('tab', { name: 'Calendário' }));
-      await user.click(screen.getByRole('button', { name: 'Usar padrão de Datas' }));
+      // The main dates are marked on the school calendar now (owner decision 23/10/2026): a level's
+      // own dates return to the default from the Notas tab.
+      await user.click(screen.getByRole('tab', { name: 'Notas' }));
+      await user.click(await screen.findByRole('button', { name: 'Usar padrão das datas' }));
       expect(mock.writes).toHaveLength(0);
       await user.click(
         within(screen.getByRole('dialog')).getByRole('button', { name: 'Usar padrão' }),
@@ -180,7 +182,7 @@ describe('policy categories preserve editing and inheritance', () => {
         expect(mock.writes[2]).toEqual(mock.writes[0]);
       }
       await vi.waitFor(() =>
-        expect(screen.queryByRole('button', { name: 'Usar padrão de Datas' })).toBeNull(),
+        expect(screen.queryByRole('button', { name: 'Usar padrão das datas' })).toBeNull(),
       );
       expect(mock.writes).toHaveLength(failFirstWrite ? 3 : 1);
       expect(mock.writes[0]).toMatchObject({

@@ -183,10 +183,9 @@ it('disables class fields controlled by its shift while leaving independent fiel
   expect(
     (screen.getByRole('switch', { name: 'Portal aberto agora' }) as HTMLInputElement).disabled,
   ).toBe(true);
-  await user.click(screen.getByRole('tab', { name: 'Calendário' }));
-  expect(
-    (screen.getByRole('button', { name: 'Revisar Datas' }) as HTMLButtonElement).disabled,
-  ).toBe(true);
+  // The dates follow the shift (owner decision 23/10/2026: marked on the school calendar, never per class).
+  await user.click(screen.getByRole('tab', { name: 'Notas' }));
+  expect(await screen.findByText(/Esta turma segue as datas de/u)).toBeTruthy();
   await user.click(screen.getByRole('tab', { name: 'Segurança' }));
   expect(
     screen.getByRole('spinbutton', { name: 'Pedir verificação após' }).hasAttribute('disabled'),

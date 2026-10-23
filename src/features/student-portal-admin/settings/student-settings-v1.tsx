@@ -462,6 +462,7 @@ function SettingsReadyV1({
   onReview,
   onRetry,
   onReload,
+  onRefresh,
   clock,
   onOpenCustomization,
   linksClosed,
@@ -487,6 +488,8 @@ function SettingsReadyV1({
   onReview: (review: ReviewV1) => void;
   onRetry: () => void;
   onReload: () => void;
+  /** Reads the settings again, keeping what is being edited (the school calendar saved its dates). */
+  onRefresh: () => void;
   clock: number;
   onOpenCustomization?: OpenCustomizationV1;
   linksClosed: () => void;
@@ -563,7 +566,7 @@ function SettingsReadyV1({
           customizations={customizations}
           schoolCalendar={
             fixedScope.kind === 'school' ? (
-              <SchoolCalendarEditorV1 client={client} canWrite={canWrite} />
+              <SchoolCalendarEditorV1 client={client} canWrite={canWrite} onSaved={onRefresh} />
             ) : undefined
           }
           schoolBells={
@@ -918,6 +921,7 @@ function SettingsScopeV1({
             onReview={setReview}
             onRetry={() => void writer.retry()}
             onReload={discardAndReload}
+            onRefresh={() => void reload(true)}
             clock={clock}
             onOpenCustomization={onOpenCustomization}
             linksClosed={linksClosed}
