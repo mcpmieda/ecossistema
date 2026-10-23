@@ -3,6 +3,7 @@ import {
   frequencyClassKeyV2,
   frequencyContentHashV2,
   frequencyRequestV2,
+  frequencyCountV2,
   frequencyPayloadHashV2,
   frequencyScheduleHashV2,
   type FrequencyRequestV2,
@@ -14,10 +15,12 @@ import {
   type FrequencyFailureEntryV2,
   type FrequencyStatusV2,
   type FrequencySummaryV2,
+  type FrequencyYearSummaryV2,
   type FrequencyScheduleV2,
   type FrequencyUnresolvedV2,
 } from '../../shared/attendance-contracts/frequency-v2';
 import { studentUidV1 } from '../../shared/student-identity/student-identity-v1';
+import { frequencyCommentV2 } from '../../shared/attendance-contracts/frequency-comment-v2';
 import { normalizeStudentNameV1 } from '../../shared/student-identity/reconciliation-normalization-v1';
 import { resolveReconciledSourcesV2 } from '../student-identity/reconciliation/resolve-source-batch-v2';
 import { lockResetWriterV1 } from '../student-portal/integration/year-reset/writer-v1';
@@ -251,9 +254,15 @@ async function summaryInTx(
   );
   const coverage = await tx.query<Row>(LESSON_DAYS_SQL_V2, [year, uid, `${month}-01`]);
   const valid = await sourcesValid(tx, coverage);
+  // The school's today, as the collector's clock check reads it (the agenda's timezone).
+  const [clock] = await tx.query<Row>(
+    `SELECT (clock_timestamp() AT TIME ZONE COALESCE((SELECT schedule_json->>'timezone' FROM attendance.school_state_v2 WHERE academic_year=$1),'America/Bahia'))::date::text AS today`,
+    [year],
+  );
   return withLessonDaysV2(
     await summarizeFrequencyOriginsV2(tx, origins, month),
     coverage.filter((_, index) => valid[index]),
+    text(clock!.today),
   );
 }
 /**
@@ -270,13 +279,16 @@ export const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.
 /**
  * Adds the Smecel lesson days to a month's summary (owner decision 20/10/2026). The counts follow
  * the Smecel: lessons are the positions of the days, absences are X, justified are J (the yellow
- * icon and the blue X) and do not lower the attendance: 100 × (lessons − absences) / lessons. They
- * are given only when every day of the month was read completely and nothing is in review, so a
- * partial reading never shows wrong totals; the marks and days are always given.
+ * icon and the blue X) and do not lower the attendance: 100 × (lessons − absences) / lessons.
+ * TODAY never counts (owner decision 21/10/2026: its roll call may still be under way), so neither
+ * its lessons nor its marks enter the totals, and its unfinished reading never makes the month
+ * incomplete (frequencyCountV2). The totals are given only when every day already over was read
+ * completely and nothing is in review; the marks and days are always given.
  */
 export function withLessonDaysV2(
   summary: FrequencySummaryV2,
   rows: readonly Row[],
+  today: string,
 ): FrequencySummaryV2 {
   const byDay = new Map<string, { date: string; shift: string; slots: Set<number>; complete: boolean }>();
   for (const row of rows) {
@@ -299,18 +311,19 @@ export function withLessonDaysV2(
       complete: day.complete,
     }));
   if (!days.length) return summary;
-  const absences = summary.marks.filter((mark) => mark.mark === 'X').length;
-  const justified = summary.marks.filter((mark) => mark.mark === 'J').length;
-  const reliable = days.every((day) => day.complete) && summary.conflicts === 0;
-  const denominator = days.reduce((total, day) => total + day.slots.length, 0);
+  const count = frequencyCountV2({ marks: summary.marks, conflicts: summary.conflicts, days }, today);
+  const justified = summary.marks.filter((mark) => mark.mark === 'J' && mark.date < today).length;
   return {
     ...summary,
     days,
-    absences: reliable ? absences : null,
-    justified: reliable ? justified : null,
-    denominator: reliable ? denominator : null,
-    percentage: reliable ? Math.round(((denominator - absences) / denominator) * 1000) / 10 : null,
-    coverage: reliable ? 'reliable' : 'incomplete',
+    absences: count.reliable ? count.absences : null,
+    justified: count.reliable ? justified : null,
+    denominator: count.reliable ? count.lessons : null,
+    percentage:
+      count.reliable && count.lessons
+        ? Math.round(((count.lessons - count.absences) / count.lessons) * 1000) / 10
+        : null,
+    coverage: count.reliable ? 'reliable' : 'incomplete',
   };
 }
 export async function summarizeFrequencyOriginsV2(
@@ -334,6 +347,102 @@ export async function summarizeFrequencyOriginsV2(
   );
 }
 /** The private reader supplies mapping_valid after checking its central evidence. */
+/** One read of the student's year (attendance 0012, read_portal_frequency_v4). */
+export type PortalFrequencyYearReadV2 = {
+  origins: readonly Row[];
+  days: readonly Row[];
+  today: string;
+  lastReadAt: string | null;
+  /** The database's clock at the read (0012), for the countdown. */
+  now?: string;
+};
+/** One month of the year's read, by the owner's rule (today never counts). */
+function monthOfReadV2(read: PortalFrequencyYearReadV2, key: string): FrequencySummaryV2 {
+  return withLessonDaysV2(
+    summarizeFrequencyPublicOriginsV2(
+      read.origins.filter((row) => text(row.date).startsWith(`${key}-`)),
+      key,
+    ),
+    read.days.filter((row) => text(row.date).startsWith(`${key}-`)),
+    read.today,
+  );
+}
+/** January to the school's current month (December once the year is over; none before it). */
+function monthsSoFarV2(today: string): string[] {
+  const current = today.startsWith('2026-') ? today.slice(0, 7) : today < '2026' ? null : '2026-12';
+  if (current === null) return [];
+  return Array.from({ length: 12 }, (_, index) => `2026-${String(index + 1).padStart(2, '0')}`).filter(
+    (key) => key <= current,
+  );
+}
+/**
+ * The year so far: every month from January to the current one by the same rule (today
+ * excluded); a month with nothing adds nothing, one month not known in full leaves the year
+ * unknown (null), as does a year with no lesson yet.
+ */
+function yearOfMonthsV2(months: readonly FrequencySummaryV2[], today: string) {
+  let lessons = 0;
+  let absences = 0;
+  for (const month of months) {
+    const count = frequencyCountV2(month, today);
+    if (!count.reliable) return null;
+    lessons += count.lessons;
+    absences += count.absences;
+  }
+  return lessons > 0 ? { lessons, absences } : null;
+}
+const lastReadOfV2 = (read: PortalFrequencyYearReadV2) => (read.lastReadAt === null ? null : iso(read.lastReadAt));
+/**
+ * Only the school days of the calendar marked in the ADM count (owner decision 22/10/2026): a day
+ * the diary has lessons on but the official calendar does not (the six compensation Saturdays of
+ * 2026 the Secretaria did not list) neither adds lessons nor shows. Without a calendar, the diary.
+ */
+function onSchoolDaysV2(read: PortalFrequencyYearReadV2, schoolDays?: ReadonlySet<string>): PortalFrequencyYearReadV2 {
+  if (!schoolDays) return read;
+  const kept = (row: Row) => schoolDays.has(text(row.date));
+  return { ...read, origins: read.origins.filter(kept), days: read.days.filter(kept) };
+}
+/**
+ * The Portal's answer for one month (GET ?month=): the month's marks, lesson days and totals, plus
+ * the school's today, the year so far and the class's last reading, from ONE read of the year.
+ */
+export function portalFrequencySummaryV2(
+  whole: PortalFrequencyYearReadV2,
+  month: string,
+  schoolDays?: ReadonlySet<string>,
+): FrequencySummaryV2 {
+  const read = onSchoolDaysV2(whole, schoolDays);
+  const months = monthsSoFarV2(read.today).map((key) => monthOfReadV2(read, key));
+  return {
+    ...(months.find((item) => item.month === month) ?? monthOfReadV2(read, month)),
+    today: read.today,
+    year: yearOfMonthsV2(months, read.today),
+    lastReadAt: lastReadOfV2(read),
+  };
+}
+/**
+ * The whole year so far in one answer (GET ?year=2026, PR 1317): the Portal reads it with the
+ * sign-in, so changing months is instant and never asks the server again.
+ */
+export function portalFrequencyYearV2(
+  whole: PortalFrequencyYearReadV2,
+  schoolDays?: ReadonlySet<string>,
+  remainingSchoolDays = 0,
+): FrequencyYearSummaryV2 {
+  const read = onSchoolDaysV2(whole, schoolDays);
+  const months = monthsSoFarV2(read.today).map((key) => monthOfReadV2(read, key));
+  return {
+    comment: frequencyCommentV2({ months, today: read.today, remainingSchoolDays }),
+    contractVersion: 2,
+    state: 'ready',
+    academicYear: 2026,
+    today: read.today,
+    year: yearOfMonthsV2(months, read.today),
+    lastReadAt: lastReadOfV2(read),
+    months,
+    ...(read.now ? { serverNow: iso(read.now) } : {}),
+  };
+}
 export function summarizeFrequencyPublicOriginsV2(
   origins: readonly Row[],
   month: string,

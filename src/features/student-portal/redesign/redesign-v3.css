@@ -1,0 +1,1224 @@
+/* Redesign preview (owner request 20/10/2026). Scoped to .pa3-*, loaded only by redesign-preview.html. */
+.pa3-app {
+  --pa3-ink: #0f2a5f;
+  --pa3-blue: #1d4ed8;
+  --pa3-muted: #64748b;
+  --pa3-line: #e2e8f0;
+  --pa3-bg: #f3f6fb;
+  --pa3-red: #b42318;
+  --pa3-red-soft: #fdecea;
+  --pa3-amber: #b45309;
+  --pa3-amber-soft: #fef3c7;
+  --pa3-green: #15803d;
+  --pa3-green-soft: #e8f6ee;
+  --pa3-nav-height: 4.25rem;
+  min-height: 100dvh;
+  /* Safety net (owner request 20/10/2026): nothing in the page ever adds a sideways scroll bar;
+     wide rows (months, disciplines) scroll inside their own bar instead. */
+  overflow-x: clip;
+  background: var(--pa3-bg);
+  color: #0f172a;
+}
+
+/* Menu of icons: bottom bar on a phone, side bar on a computer. */
+.pa3-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: space-around;
+  height: calc(var(--pa3-nav-height) + env(safe-area-inset-bottom, 0px));
+  padding: 0.35rem 1rem env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--pa3-line);
+  background: rgb(255 255 255 / 0.96);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 -8px 24px -18px rgb(15 42 95 / 0.5);
+  /* The highlight pill glides under the chosen icon, behind it. */
+  isolation: isolate;
+}
+.pa3-nav-item {
+  display: grid;
+  flex: 1 1 0;
+  max-width: 9rem;
+  gap: 0.15rem;
+  place-items: center;
+  padding: 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--pa3-muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pa3-nav-icon {
+  display: grid;
+  width: 3.4rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+.pa3-nav-item[aria-current='page'] {
+  color: var(--pa3-blue);
+}
+.pa3-nav-item:focus-visible {
+  outline: 2px solid var(--pa3-blue);
+  outline-offset: 2px;
+  border-radius: 0.8rem;
+}
+.pa3-page-title {
+  margin: 0.4rem 0.35rem 0.8rem;
+  color: var(--pa3-ink);
+  font-size: 1.35rem;
+  font-weight: 760;
+  letter-spacing: -0.03em;
+}
+
+/* The real Notas page with its cover, without its floating switch (the menu replaces it). */
+.pa3-panel--grades .pa-workspace-nav-surface {
+  display: none;
+}
+/* Inside the white sheet: only this stage's content moves; the sheet and the cover stay still. */
+.pa3-stage {
+  position: relative;
+  overflow-x: clip;
+}
+/* The content not on screen stays laid out but invisible and out of the flow, so switching only
+   slides (no first layout in the middle of the move) and it never takes space or focus. */
+.pa3-panel--inactive {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+/* The content sliding out, over the stage, while the chosen one comes in. */
+.pa3-panel--leaving {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* ---------- Frequência ---------- */
+.pa3-frequency {
+  display: grid;
+  /* minmax(0, …): nothing inside ever widens the page. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+}
+.pa3-frequency .pa3-page-title {
+  margin-bottom: 0;
+}
+
+.pa3-card {
+  gap: 0.6rem;
+}
+.pa3-card h3 {
+  margin: 0;
+}
+.pa3-card-head {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+/* The legend: the same colours in small squares, in two columns (owner request 23/10/2026: "Sem
+   falta" under "Faltou algumas aulas"). */
+.pa3-legend {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  color: var(--pa3-muted);
+  font-size: 0.7rem;
+  list-style: none;
+  grid-template-columns: repeat(2, max-content);
+  column-gap: 1.1rem;
+  row-gap: 0.3rem;
+}
+.pa3-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.pa3-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+}
+
+.pa3-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+.pa3-weekday {
+  padding-bottom: 0.15rem;
+  color: var(--pa3-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+}
+.pa3-day {
+  position: relative;
+  display: grid;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 0;
+  border-radius: 0.7rem;
+  background: var(--pa3-green-soft);
+  color: var(--pa3-ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+.pa3-day--off,
+.pa3-day--unknown,
+.pa3-day--future {
+  background: transparent;
+  color: #b6c0cf;
+  cursor: default;
+}
+.pa3-day.is-selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
+  transform: scale(1.04);
+}
+
+.pa3-day-detail h3 {
+  margin-bottom: 0.15rem;
+}
+.pa3-day-detail-sub {
+  margin: 0 0 0.75rem;
+  color: var(--pa3-muted);
+  font-size: 0.8rem;
+}
+/* One tile per lesson of the day: which ones were missed is visible at once. */
+.pa3-lessons {
+  display: grid;
+  /* One column per lesson of the day: five or six, as the diary says. */
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* One tile per lesson; every tile has its lines in the same places (owner request 23/10/2026): icon,
+   lesson, time, subject (room for two lines), and the state always at the bottom. */
+.pa3-lesson {
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.55rem 0.2rem;
+  border-radius: 0.8rem;
+  background: var(--pa3-green-soft);
+  color: var(--pa3-green);
+  text-align: center;
+  flex-direction: column;
+  align-items: center;
+}
+.pa3-lesson--absent {
+  background: var(--pa3-red-soft);
+  color: var(--pa3-red);
+  box-shadow: inset 0 0 0 1.5px var(--pa3-red);
+}
+.pa3-lesson--justified {
+  background: var(--pa3-amber-soft);
+  color: var(--pa3-amber);
+  box-shadow: inset 0 0 0 1.5px #f59e0b;
+}
+.pa3-lesson-icon {
+  display: grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+}
+.pa3-lesson-name {
+  color: var(--pa3-ink);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+/* The lesson's state in a filled pill of its own colour (owner request 23/10/2026). */
+.pa3-lesson-state {
+  max-width: 100%;
+  font-size: 0.64rem;
+  font-weight: 650;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  margin-top: auto;
+  padding: 0.1rem 0.5rem;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+}
+.pa3-footnote {
+  margin: 0;
+  color: var(--pa3-muted);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+/* Computer: the menu becomes a side bar under the top bar. */
+@media (min-width: 900px) {
+  /* On Notas there is no top bar: the side bar starts at the top and the cover sits beside it. */
+  .pa3-app--cover .pa3-nav {
+    top: 0;
+  }
+  .pa3-page {
+    padding-left: 13rem;
+  }
+  .pa3-nav {
+    top: 3.6rem;
+    right: auto;
+    bottom: 0;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    width: 13rem;
+    height: auto;
+    padding: 1rem 0.75rem;
+    border-top: 0;
+    border-right: 1px solid var(--pa3-line);
+    box-shadow: none;
+  }
+  .pa3-nav-item {
+    display: flex;
+    flex: 0 0 auto;
+    max-width: none;
+    gap: 0.6rem;
+    justify-content: flex-start;
+    padding: 0.3rem;
+    border-radius: 0.9rem;
+    font-size: 0.92rem;
+  }
+  .pa3-nav-icon {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+  .pa3-frequency {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .pa3-frequency > .pa3-page-title,
+  .pa3-frequency > .pa3-footnote {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pa3-day,
+  .pa3-nav-icon {
+    transition: none;
+  }
+}
+
+/* Frequência under the portal's cover: the page sits in the cover's white sheet. */
+.pa3-panel--frequency .pa3-frequency {
+  padding-top: 0.2rem;
+}
+.pa3-panel--frequency .pa3-frequency .pa3-page-title {
+  margin-top: 0.2rem;
+}
+
+
+.pa3-nav-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  border-radius: 999px;
+  background: #dbe7ff;
+  opacity: 0;
+  transition:
+    transform 340ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 340ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 340ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+@media (min-width: 900px) {
+  .pa3-nav-highlight {
+    background: #eef3ff;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-nav-highlight {
+    transition: none;
+  }
+}
+
+/* Today's day: shown, but not counted until it ends (the roll call may still be under way); the
+   same pill says when a past day is not read in full yet. */
+.pa3-today-note {
+  margin-bottom: 0.2rem;
+}
+
+/* A lesson without a mark yet (today, or a reading not complete): neither "sem falta" nor an absence. */
+.pa3-lesson--pending {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* A past day not read in full yet: outlined, neither an absence nor "sem falta". */
+.pa3-day--pending {
+  background: #fff;
+  box-shadow: inset 0 0 0 1.5px #cbd5e1;
+  color: var(--pa3-muted);
+}
+/* The lessons of the day per shift (a day can have two). */
+.pa3-shift + .pa3-shift {
+  margin-top: 0.75rem;
+}
+.pa3-shift-title {
+  margin: 0 0 0.4rem;
+  color: var(--pa3-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.pa3-shift-foot {
+  margin: 0.45rem 0 0;
+  color: var(--pa3-muted);
+  font-size: 0.72rem;
+}
+/* Below the side-bar layout the menu is a fixed bar at the bottom: the sheet keeps room for it at
+   every width, including 768–899 px where the portal shell itself reserves less, and a control
+   reached with Tab is scrolled clear of the bar, never left under it (WCAG 2.4.11). */
+@media (max-width: 899.98px) {
+  .pa3-app--cover .pa-shell--with-hero .pa-shell-content {
+    padding-bottom: calc(var(--pa3-nav-height) + env(safe-area-inset-bottom, 0px) + 1.75rem);
+  }
+  html:has(.pa3-app) {
+    scroll-padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px) + 0.5rem);
+  }
+}
+.pa3-panel:focus {
+  outline: none;
+}
+/* A page out of view keeps its endless animations still (the stripes, the drifting patches, the
+   turning calendar sheet). */
+.pa3-panel--inactive *,
+.pa3-panel--inactive *::before,
+.pa3-panel--inactive *::after {
+  animation-play-state: paused;
+}
+
+/* ---------- The calendar's days (owner decisions 21/10/2026) ----------
+   Only a day with an absence is coloured; a day without one stays neutral, the same grey as a day
+   without lessons. Red: an absence in every lesson ("Falta total"); light red: in some lessons only
+   ("Falta parcial"); yellow: every absence of the day justified, all lessons or some. Each a soft
+   top-to-bottom gradient; the blue selection ring shows around any of them. Shared by the calendar
+   and the legend. */
+.pa3-kind--clear {
+  background: transparent;
+  color: #b6c0cf;
+  cursor: default;
+}
+/* A day without absence in the calendar: still not coloured, but it opens (its number a little
+   darker than a day without lessons, a soft hover). */
+.pa3-day.pa3-kind--clear {
+  color: #64748b;
+  cursor: pointer;
+}
+.pa3-day.pa3-kind--clear:hover {
+  background: #eef2f8;
+}
+.pa3-kind--missed {
+  background: linear-gradient(180deg, #fde8e5, #f7c4bc);
+  color: #9b1c13;
+}
+.pa3-kind--missed[data-tone='3'] {
+  background: linear-gradient(180deg, #d0392d, #ab1f15);
+  color: #fff;
+}
+/* Yellow with dark brown text (white on orange was hard to read). */
+.pa3-kind--missed.is-justified {
+  background: linear-gradient(180deg, #fdd44b, #f6b31b);
+  color: #5f3305;
+}
+/* Today: its number in the same size and place as every other date, a small "HOJE" on its own near
+   the bottom of the tile. Without an absence it has no fill at all (owner requests 21/10/2026: a
+   strong fill next to a red day read as one more kind of absence) — on a school day still open as
+   on a weekend or holiday, so "HOJE" never fades into the grey of a day without lessons. */
+.pa3-day-today {
+  position: absolute;
+  right: 0;
+  bottom: 0.1rem;
+  left: 0;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.pa3-day.is-today:not(.pa3-kind--missed) {
+  background: transparent;
+  box-shadow: none;
+  color: var(--pa3-ink);
+}
+.pa3-day.is-today:not(.pa3-kind--missed) .pa3-day-today {
+  color: var(--pa3-blue);
+}
+.pa3-day.is-today.is-selected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
+}
+
+
+.pa3-legend .pa3-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 0.2rem;
+  box-shadow: inset 0 0 0 1px rgb(15 42 95 / 0.12);
+}
+.pa3-legend .pa3-dot[data-tone='1']:not(.is-justified) {
+  box-shadow: inset 0 0 0 1px rgb(155 28 19 / 0.35);
+}
+.pa3-legend .pa3-dot--clear {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #cbd5e1;
+}
+
+.pa3-month-arrows {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+/* ---------- The year at a glance (owner requests 21–23/10/2026) ----------
+   One card with the ring of the year's counted days, in the same card as the rest of the page
+   (white, hairline border, same corners and padding). No ruler and no limit. */
+.pa3-summary {
+  display: grid;
+  align-content: start;
+  align-items: center;
+}
+
+/* The ring with its guide lines. It follows the card's width, up to a size that still sits well
+   beside the rest of the card on a tablet or a phone held sideways. */
+.pa3-guide-ring {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  height: auto;
+  margin-inline: auto;
+  overflow: visible;
+}
+.pa3-guide-track {
+  fill: none;
+  stroke: #eef2f7;
+}
+.pa3-guide-arc {
+  fill: none;
+  stroke-dasharray: 100 100;
+  animation: pa3-guide-grow 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes pa3-guide-grow {
+  from { stroke-dasharray: 0 100; }
+  to { stroke-dasharray: 100 100; }
+}
+.pa3-guide-label {
+  animation: pa3-guide-show 420ms ease-out both;
+}
+@keyframes pa3-guide-show {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.pa3-guide-count {
+  font-size: 19px;
+  font-weight: 800;
+}
+.pa3-guide-name {
+  fill: #334155;
+  font-size: 11px;
+  font-weight: 600;
+}
+/* The number of counted days in the centre, and "dias" under it. */
+.pa3-guide-percent {
+  fill: var(--pa3-ink);
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.pa3-guide-caption {
+  fill: var(--pa3-muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+/* ---------- The day's detail ---------- */
+/* Its heading block centred: title, the note and the sentence. The title never breaks into two
+   lines: the type shrinks with the card's width, sized with some room for the longest title of the
+   year, "Ontem, segunda-feira, 30 de novembro" (5,2cqi left it 0,1 px of room). */
+.pa3-day-detail {
+  container-type: inline-size;
+}
+.pa3-day-detail .pa3-day-detail-title {
+  overflow: hidden;
+  font-size: min(1rem, 5cqi);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa3-day-detail .pa3-day-detail-sub {
+  text-align: center;
+}
+.pa3-day-detail .pa3-today-note {
+  display: block;
+  width: fit-content;
+  margin-inline: auto;
+}
+/* Five or six lesson tiles in a narrow card leave no room for "Justificada": three per row. The
+   card's own width decides (a container query), not the window's: on a computer the card is half
+   the page. */
+@container (max-width: 28rem) {
+  .pa3-lessons {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Horário (owner decision 22/10/2026) ----------
+   A phone shows one day at a time, today first; a computer, the whole week with today marked. The
+   subject as the Smecel names it; a free position is a blank space. */
+.pa3-schedule {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  padding-top: 0.2rem;
+}
+.pa3-schedule .pa3-page-title {
+  margin-top: 0.2rem;
+  margin-bottom: 0;
+}
+.pa3-week-chips {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.pa3-week-chip {
+  flex-direction: column;
+  gap: 0;
+  height: auto;
+  min-height: 3.1rem;
+  padding: 0.35rem 0.2rem;
+  font-weight: 700;
+  width: 100%;
+}
+.pa3-week-chip-today {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pa3-week-chip:not([aria-pressed='true']) .pa3-week-chip-today {
+  color: var(--accent);
+}
+.pa3-schedule-class {
+  margin: 0 0 0.5rem;
+  color: var(--pa3-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.pa3-schedule-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa3-schedule-row {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 2.75rem;
+  border-radius: 0.8rem;
+  background: #f3f6fb;
+}
+/* A free position: the space stays, empty. */
+.pa3-schedule-row.is-free {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--pa3-line);
+}
+/* The break in its place (owner request 23/10/2026), lighter than a lesson. */
+.pa3-schedule-break {
+  min-height: 2.1rem;
+  background: var(--pa3-amber-soft);
+  color: var(--pa3-amber);
+}
+.pa3-schedule-break .pa3-schedule-slot,
+.pa3-schedule-break .pa3-schedule-subject,
+.pa3-schedule-break .pa3-schedule-time {
+  color: #92400e;
+}
+.pa3-schedule-break .pa3-schedule-slot {
+  display: grid;
+  place-items: center;
+}
+.pa3-schedule-break .pa3-schedule-subject {
+  font-size: 0.8rem;
+}
+/* The lesson going on now. */
+.pa3-schedule-row.is-now {
+  background: #e3ecff;
+  box-shadow: inset 0 0 0 2px var(--pa3-blue);
+  padding-block: 0.35rem;
+}
+.pa3-schedule-slot {
+  color: var(--pa3-muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+  text-align: center;
+}
+.pa3-schedule-subject {
+  padding: 0.45rem 0.5rem 0.45rem 0;
+  color: var(--pa3-ink);
+  font-size: 0.86rem;
+  font-weight: 680;
+  overflow-wrap: break-word;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.2rem 0.4rem;
+}
+.pa3-schedule-time {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.15rem;
+  padding-right: 0.7rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-direction: column-reverse;
+}
+.pa3-schedule-empty {
+  margin: 0;
+  color: var(--pa3-muted);
+  font-size: 0.9rem;
+}
+.pa3-week-chip.is-off:not([aria-pressed='true']) {
+  color: var(--muted);
+}
+.pa3-week-chip.is-off:not([aria-pressed='true']) .pa3-week-chip-today {
+  color: var(--muted);
+}
+
+/* "Agora" (owner decision 23/10/2026): the lesson going on and a short clock to what comes next. */
+.pa3-now {
+  gap: 0.45rem;
+}
+.pa3-now-head {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 0.6rem;
+}
+.pa3-now-title {
+  margin: 0;
+  color: var(--pa3-ink);
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+.pa3-now-after {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.pa3-now .pa3-now-clock {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: start;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.8rem;
+  text-align: left;
+}
+.pa3-now-label {
+  color: var(--pa3-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.pa3-now .pa-countdown__clock {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 2.7rem;
+  gap: 0.3rem;
+}
+.pa3-now .pa-countdown__unit {
+  gap: 0.15rem;
+}
+.pa3-now .pa-countdown__unit small {
+  font-size: 0.52rem;
+  letter-spacing: 0.04em;
+}
+.pa3-now .pa-flip {
+  --pa-flip-h: 2.35rem;
+  border-radius: 0.45rem;
+  box-shadow: 0 3px 8px rgb(15 23 42 / 0.25);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.pa3-now .pa-flip::after {
+  opacity: 0.35;
+}
+.pa3-now .pa-flip__half--top {
+  border-radius: 0.4rem 0.4rem 0 0;
+}
+.pa3-now .pa-flip__half--bottom {
+  border-radius: 0 0 0.4rem 0.4rem;
+}
+
+.pa3-schedule-week {
+  display: none;
+}
+@media (min-width: 900px) {
+  .pa3-week-chips,
+  .pa3-schedule-day {
+    display: none;
+  }
+  /* Each day its own column: the break sits after a different lesson on different days. */
+  .pa3-schedule-week {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .pa3-schedule-column {
+    display: grid;
+    align-content: start;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+  .pa3-schedule-column h3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0.3rem 0.2rem;
+    border-radius: 0.7rem;
+    color: var(--pa3-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .pa3-schedule-column.is-today h3 {
+    background: var(--pa3-blue);
+    color: #fff;
+  }
+  .pa3-schedule-column .pa3-schedule-list {
+    gap: 0.3rem;
+  }
+  .pa3-schedule-column .pa3-schedule-row {
+    grid-template-columns: 1.8rem minmax(0, 1fr);
+    min-height: 3rem;
+  }
+  .pa3-schedule-column .pa3-schedule-subject {
+    font-size: 0.76rem;
+    padding: 0.35rem 0.4rem 0 0;
+  }
+  .pa3-schedule-column .pa3-schedule-time {
+    grid-column: 2;
+    padding: 0 0.4rem 0.35rem 0;
+    font-size: 0.68rem;
+  }
+  .pa3-schedule-column .pa3-schedule-break {
+    min-height: 2rem;
+  }
+  .pa3-schedule-column .pa3-schedule-break .pa3-schedule-subject {
+    padding-bottom: 0;
+  }
+  .pa3-schedule-column.is-today .pa3-schedule-row:not(.is-free):not(.pa3-schedule-break):not(.is-now) {
+    background: #eef3ff;
+  }
+}
+
+/* ---------- Reading states (PR 1317, real data) ----------
+   While a month or the week has not come yet, or cannot be shown: one card that says so in plain
+   words, the month and its arrows kept so a slow month never traps the reader. */
+.pa3-status {
+  display: grid;
+  gap: 0.6rem;
+  min-height: 7rem;
+  align-content: start;
+}
+.pa3-status-action {
+  justify-self: start;
+}
+.pa3-status-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* The school year's countdown (owner requests 22–23/10/2026): the portal's opening clock, made
+   short so parents scroll less: the title beside a small clock, the school days left under it. */
+.pa3-countdown {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.55rem 0.7rem;
+}
+.pa3-countdown .pa-countdown {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.8rem;
+  text-align: left;
+}
+.pa3-countdown .pa-countdown__title {
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+/* No calendar icon beside the year's end (owner request 23/10/2026). */
+.pa3-countdown .pa-countdown__title svg {
+  display: none;
+}
+.pa3-countdown .pa-countdown__clock {
+  grid-template-columns: repeat(4, 2.7rem);
+  gap: 0.3rem;
+}
+.pa3-countdown .pa-countdown__unit {
+  gap: 0.15rem;
+}
+.pa3-countdown .pa-countdown__unit small {
+  font-size: 0.52rem;
+  letter-spacing: 0.04em;
+}
+.pa3-countdown .pa-flip {
+  --pa-flip-h: 2.35rem;
+  border-radius: 0.45rem;
+  box-shadow: 0 3px 8px rgb(15 23 42 / 0.25);
+  /* Readable when small (owner request 23/10/2026): larger, lighter digits. */
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+/* The hinge across the middle, fainter so it never cuts the small digits. */
+.pa3-countdown .pa-flip::after {
+  opacity: 0.35;
+}
+.pa3-countdown .pa-flip__half--top {
+  border-radius: 0.4rem 0.4rem 0 0;
+}
+.pa3-countdown .pa-flip__half--bottom {
+  border-radius: 0 0 0.4rem 0.4rem;
+}
+.pa3-countdown-days {
+  margin: 0;
+  color: var(--pa3-muted);
+  font-size: 0.74rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+/* The sentence about the absences, first on the page (owner decisions 22/10/2026). */
+.pa3-comment {
+  font-size: 0.95rem;
+}
+
+/* Days without school and the time of each lesson (owner decision 23/10/2026). A holiday or recess
+   is a soft slate tile with a dashed edge (never a colour of absence); tapping it says why. */
+.pa3-day.pa3-day--holiday {
+  background: #eef2f7;
+  color: #64748b;
+  box-shadow: inset 0 0 0 1.5px #c3cddb;
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgb(100 116 139 / 0.12) 5px 6px);
+  cursor: pointer;
+}
+.pa3-legend .pa3-dot--holiday {
+  background: #eef2f7;
+  background-image: repeating-linear-gradient(135deg, transparent 0 2px, rgb(100 116 139 / 0.35) 2px 3px);
+  box-shadow: inset 0 0 0 1px #c3cddb;
+}
+/* A lesson's time and subject inside its tile (owner request 23/10/2026). */
+.pa3-lesson-time {
+  color: var(--pa3-muted);
+  font-size: 0.62rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.pa3-lesson-subject {
+  max-width: 100%;
+  color: var(--pa3-ink);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  min-height: calc(2 * 1.15em);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+
+.pa3-card-head h3,
+.pa3-day-detail .pa3-day-detail-title,
+.pa3-schedule-day h3 {
+  color: var(--pa3-ink);
+  font-weight: 750;
+}
+
+
+
+
+/* Filled (owner request 23/10/2026): the pill in the state's colour, the word in white. */
+.pa3-lesson .pa3-lesson-state {
+  border-color: transparent;
+  color: #fff;
+  font-weight: 700;
+}
+.pa3-lesson--absent .pa3-lesson-state {
+  background: var(--pa3-red);
+}
+.pa3-lesson--justified .pa3-lesson-state {
+  background: var(--pa3-amber);
+}
+.pa3-lesson--clear .pa3-lesson-state {
+  background: var(--pa3-green);
+}
+.pa3-lesson--pending .pa3-lesson-state {
+  background: #475569;
+}
+/* The Frequência item says how it is going (owner decision 23/10/2026): green check, red X. */
+.pa3-nav-icon--good {
+  color: var(--pa3-green);
+}
+.pa3-nav-icon--alert {
+  color: var(--pa3-red);
+}
+/* "Agora": how much of the lesson or the break has gone by (owner request 23/10/2026). */
+.pa3-now-progress {
+  width: 100%;
+}
+/* Lessons already over today: faded, still readable for checking before and after. */
+.pa3-schedule-row.is-done {
+  opacity: 0.55;
+}
+
+/* Each subject with its own colour and icon (owner decision 23/10/2026), the same every day: a soft
+   background and the icon in the strong colour. */
+.pa3-subject {
+  background: color-mix(in srgb, var(--pa3-subject-strong) 6%, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pa3-subject-strong) 14%, transparent);
+}
+.pa3-subject .pa3-schedule-slot,
+.pa3-subject-icon {
+  color: var(--pa3-subject-strong);
+}
+.pa3-subject-icon {
+  flex: 0 0 auto;
+}
+.pa3-subject-name {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-wrap: normal;
+}
+/* Twelve subjects, twelve colours a step apart on the colour wheel (owner request 23/10/2026:
+   Matemática and Religião were too alike); the background is a faint wash of the same colour. */
+.pa3-subject--0 {
+  --pa3-subject-strong: #1d4ed8;
+}
+.pa3-subject--1 {
+  --pa3-subject-strong: #dc2626;
+}
+.pa3-subject--2 {
+  --pa3-subject-strong: #15803d;
+}
+.pa3-subject--3 {
+  --pa3-subject-strong: #7c4a1e;
+}
+.pa3-subject--4 {
+  --pa3-subject-strong: #0e7490;
+}
+.pa3-subject--5 {
+  --pa3-subject-strong: #a21caf;
+}
+.pa3-subject--6 {
+  --pa3-subject-strong: #ea580c;
+}
+.pa3-subject--7 {
+  --pa3-subject-strong: #6d28d9;
+}
+.pa3-subject--8 {
+  --pa3-subject-strong: #4d7c0f;
+}
+.pa3-subject--9 {
+  --pa3-subject-strong: #a16207;
+}
+.pa3-subject--10 {
+  --pa3-subject-strong: #0f766e;
+}
+.pa3-subject--11 {
+  --pa3-subject-strong: #475569;
+}
+
+
+/* A thin line between the lesson's number and its subject (owner request 23/10/2026). */
+.pa3-schedule-row .pa3-schedule-slot {
+  display: grid;
+  align-self: stretch;
+  place-items: center;
+  margin-block: 0.45rem;
+  border-right: 1px solid rgb(15 42 95 / 0.14);
+}
+.pa3-schedule-row .pa3-schedule-subject {
+  padding-left: 0.6rem;
+}
+/* The break has no dividing line (owner request 23/10/2026). */
+.pa3-schedule-row.pa3-schedule-break .pa3-schedule-slot {
+  border-right: 0;
+}
+
+/* The break's mug: its three wisps of steam drift up and fade, one after the other, while the
+   break is going on (owner request 23/10/2026). */
+.pa3-mug {
+  overflow: visible;
+}
+.pa3-mug-steam {
+  opacity: 0;
+}
+.pa3-mug.is-steaming .pa3-mug-steam {
+  animation: pa3-steam 2.4s ease-out infinite;
+}
+.pa3-mug.is-steaming .pa3-mug-steam:nth-child(2) {
+  animation-delay: 0.8s;
+}
+.pa3-mug.is-steaming .pa3-mug-steam:nth-child(3) {
+  animation-delay: 1.6s;
+}
+.pa3-mug:not(.is-steaming) .pa3-mug-steam {
+  opacity: 1;
+}
+@keyframes pa3-steam {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-mug.is-steaming .pa3-mug-steam {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+
+
+/* The menu's clock shows the time (owner request 23/10/2026): its hands follow the school's clock. */
+.pa3-clock-hand {
+  transform-origin: 12px 12px;
+  transition: transform 400ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-clock-hand {
+    transition: none;
+  }
+}
+
+.pa3-schedule-now {
+  height: auto;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.66rem;
+  line-height: 1.3;
+}
+/* The break going on keeps its yellow, with the blue outline of "agora". */
+.pa3-schedule-break.is-now {
+  background: var(--pa3-amber-soft);
+}
+
+/* The day follows the finger (owner request 23/10/2026): three days side by side, the one shown in
+   the middle; the neighbours come in as it slides. Vertical drags stay the page's scroll. */
+.pa3-day-slider {
+  overflow: hidden;
+  touch-action: pan-y;
+  transition: height 200ms ease-out;
+}
+.pa3-day-track {
+  display: flex;
+  align-items: flex-start;
+  will-change: transform;
+}
+.pa3-day-track.is-settling {
+  transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pa3-day-panel {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+/* Still, the neighbours are not painted: half a pixel of the next day never shows at the edge. */
+.pa3-day-slider:not(.is-moving) .pa3-day-panel[aria-hidden='true'] {
+  visibility: hidden;
+}
+.pa3-day-panel > h3 {
+  margin-bottom: 0.6rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-day-track.is-settling {
+    transition: none;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.pa3-subject.is-now {
+  box-shadow: inset 0 0 0 2px var(--pa3-blue);
+}
+
+/* The parada (owner decision 23/10/2026): the drill before the lessons (and after Friday
+   afternoon's last one), a row of its own like the break, in a calm slate; never a lesson. */
+.pa3-schedule-parada {
+  min-height: 2.1rem;
+  background: #eef2f7;
+}
+.pa3-schedule-parada .pa3-schedule-slot,
+.pa3-schedule-parada .pa3-schedule-subject,
+.pa3-schedule-parada .pa3-schedule-time {
+  color: #334155;
+}
+.pa3-schedule-parada .pa3-schedule-subject {
+  font-size: 0.8rem;
+}
+.pa3-schedule-row.pa3-schedule-parada .pa3-schedule-slot {
+  border-right: 0;
+}

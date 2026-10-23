@@ -945,3 +945,11 @@
     font-size: 2rem;
   }
 }
+
+/* Phone: content closer to the sheet's edge (owner review 20/10/2026), so cards and lists gain
+   width; the inner panels of the workspace add no side padding of their own there. */
+@media (max-width: 560px) {
+  .pa-shell--with-hero .pa-shell-content {
+    padding-inline: 0.55rem;
+  }
+}

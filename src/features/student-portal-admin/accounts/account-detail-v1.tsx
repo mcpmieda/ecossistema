@@ -509,7 +509,7 @@ function RecordSealsV1({ reader, accountId }: { reader: AccountDetailPropsV1['re
     <span className="pa-record-seals" aria-label={sealLabelV1(count)}>
       <Star size={16} fill="currentColor" aria-hidden="true" />
       <strong>{count}</strong>
-      <span>{count === 1 ? 'selo brilhante' : 'selos brilhantes'}</span>
+      <span>{count === 1 ? 'selo Brilhante' : 'selos Brilhante'}</span>
     </span>
   );
 }

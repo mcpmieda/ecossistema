@@ -3,7 +3,6 @@ import { Tabs } from '@heroui/react';
 import {
   CalendarCheck,
   CalendarDays,
-  Clock,
   DoorOpen,
   GraduationCap,
   NotebookPen,
@@ -47,21 +46,14 @@ const categories = [
     fields: ['showFrequency'],
   },
   {
-    id: 'schedule',
-    label: 'Horário',
-    icon: Clock,
-    title: 'Horário das aulas',
-    description: 'Escolha se os alunos veem a grade semanal da turma no Portal.',
-    fields: ['showSchedule'],
-  },
-  {
     id: 'calendar',
     label: 'Calendário',
     icon: CalendarDays,
     title: 'Datas e horários',
     description:
-      'Ano letivo e trimestres. Notas e resultado anual ficam na aba Notas. Horário de Brasília.',
-    fields: ['calendar'],
+      'Dias letivos, datas principais do ano e o horário das aulas. Notas e resultado anual ficam na aba Notas.',
+    // The main dates are marked on the school calendar (owner decision 23/10/2026), no form.
+    fields: [],
   },
   {
     id: 'security',
@@ -79,6 +71,8 @@ export function PolicyLayoutV1({
   disabled,
   shift = false,
   customizations,
+  schoolCalendar,
+  schoolBells,
 }: {
   field: (name: SettingsFieldV1) => ReactNode;
   /** The Notas tab: periods (publication and agenda), Resultado anual and options. */
@@ -87,6 +81,10 @@ export function PolicyLayoutV1({
   shift?: boolean;
   /** Class and student overrides of this scope: a tab of its own, mounted on first visit. */
   customizations?: ReactNode;
+  /** The school's calendar of school days (school scope only), under the Calendário dates. */
+  schoolCalendar?: ReactNode;
+  /** The time of each lesson and of the break (school scope only), under the Horário switch. */
+  schoolBells?: ReactNode;
 }) {
   const [selected, setSelected] = useState<string>('access');
   const [publicationVisited, setPublicationVisited] = useState(false);
@@ -131,6 +129,15 @@ export function PolicyLayoutV1({
           </header>
           {category.fields.length ? (
             <div className="pa-settings-fields">{category.fields.map(field)}</div>
+          ) : null}
+          {category.id === 'calendar' ? schoolCalendar : null}
+          {/* Horário das aulas inside Calendário (owner request 23/10/2026: no tab of its own): the
+              switch that shows the weekly grid in the Portal, then each lesson's time. */}
+          {category.id === 'calendar' ? (
+            <>
+              <div className="pa-settings-fields pa-settings-fields--after">{field('showSchedule')}</div>
+              {schoolBells}
+            </>
           ) : null}
           {category.id === 'grades' && publicationVisited ? (
             <LiveRefreshScopeV1 active={selected === 'grades'}>

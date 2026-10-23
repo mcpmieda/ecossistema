@@ -47,6 +47,33 @@ export function earnsSealV1(subjects: readonly SubjectV1[], subject: SubjectV1, 
   return isSealPeriodV1(period) && isBrilliantMarkV1(markOf(subject, period)) && !hasRedMarkV1(subjects, period);
 }
 
+type PartialV1 = NonNullable<SubjectV1['periods'][number]['partials']>[number];
+
+/**
+ * Whether one activity of the subject earned a seal: a Brilhante AV1/AV2 the student did, in an
+ * ended trimester whose mark is out, with no red mark in any subject. The same rule counts the
+ * seals and labels the activity "selo Brilhante" (owner request 20/10/2026), so they never disagree.
+ */
+export function earnsAssessmentSealV1(
+  subjects: readonly SubjectV1[],
+  subject: SubjectV1,
+  period: string,
+  partial: PartialV1,
+  endedPeriods: readonly string[] = [],
+): boolean {
+  // Only AV1/AV2, never the parallel exam: a partial flagged as both is not trusted as an AV.
+  if (
+    !isSealPeriodV1(period) ||
+    partial.assessment !== true ||
+    partial.parallel === true ||
+    partial.notDone ||
+    !isBrilliantMarkV1(partial.mark)
+  )
+    return false;
+  const term = subject.periods.find((item) => item.period === period);
+  return endedPeriods.includes(period) && term?.final.kind === 'score' && !hasRedMarkV1(subjects, period);
+}
+
 /** Seals from the subject's Brilhante assessments in an ended trimester whose mark is out. */
 function assessmentSealsV1(
   subjects: readonly SubjectV1[],
@@ -55,10 +82,8 @@ function assessmentSealsV1(
   endedPeriods: readonly string[],
 ): number {
   const term = subject.periods.find((item) => item.period === period);
-  if (!endedPeriods.includes(period) || term?.final.kind !== 'score' || hasRedMarkV1(subjects, period))
-    return 0;
-  return (term.partials ?? []).filter(
-    (partial) => partial.assessment === true && !partial.notDone && isBrilliantMarkV1(partial.mark),
+  return (term?.partials ?? []).filter((partial) =>
+    earnsAssessmentSealV1(subjects, subject, period, partial, endedPeriods),
   ).length;
 }
 

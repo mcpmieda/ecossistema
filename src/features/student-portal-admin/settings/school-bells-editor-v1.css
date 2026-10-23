@@ -1,0 +1,88 @@
+/* Horário das aulas (owner decision 23/10/2026): HeroUI cards, one per weekday, with the times of
+   each lesson and of the break, per shift. Colours from the theme. */
+.pa-school-bells {
+  margin-top: 1rem;
+}
+.pa-school-bells__status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+}
+.pa-school-bells__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.pa-school-bells__body {
+  display: grid;
+  gap: 0.9rem;
+}
+.pa-school-bells__days {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 0.75rem;
+}
+.pa-school-bells__day {
+  align-content: start;
+}
+.pa-school-bells__day.is-wrong {
+  box-shadow: inset 0 0 0 1.5px var(--danger);
+}
+.pa-school-bells__day-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.pa-school-bells__list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa-school-bells__item {
+  display: grid;
+  grid-template-columns: 4.6rem auto auto;
+  justify-content: start;
+  align-items: center;
+  gap: 0.35rem;
+}
+.pa-school-bells__item--intervalo .pa-school-bells__name {
+  color: var(--warning-soft-foreground);
+}
+.pa-school-bells__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.pa-school-bells__times {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  color: var(--muted);
+}
+.pa-school-bells__times > * {
+  flex: 0 0 auto;
+}
+.pa-school-bells__error {
+  margin: 0.5rem 0 0;
+  color: var(--danger);
+  font-size: 0.78rem;
+}
+.pa-school-bells__add,
+.pa-school-bells__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.pa-school-bells__item--parada .pa-school-bells__name {
+  color: var(--muted);
+}

@@ -31,8 +31,9 @@ function securityQueryAllowedV1(url: URL): boolean {
   if (!url.search) return true;
   if (url.pathname === '/api/student/frequency') {
     const entries = [...url.searchParams];
-    return entries.length === 1 && entries[0]?.[0] === 'month'
-      && /^2026-(0[1-9]|1[0-2])$/u.test(entries[0]?.[1] ?? '');
+    // One month, or the whole year so far (PR 1317).
+    return entries.length === 1 && ((entries[0]?.[0] === 'month'
+      && /^2026-(0[1-9]|1[0-2])$/u.test(entries[0]?.[1] ?? '')) || (entries[0]?.[0] === 'year' && entries[0]?.[1] === '2026'));
   }
   // This is only a freshness selector. The photo handler still authorizes the
   // session and binds the read to its own account; it never accepts a student ID.

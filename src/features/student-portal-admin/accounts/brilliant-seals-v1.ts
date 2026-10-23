@@ -249,7 +249,7 @@ export function useSealCountsV1(
 }
 
 export function sealLabelV1(count: number) {
-  return `${count} ${count === 1 ? 'selo brilhante' : 'selos brilhantes'}`;
+  return `${count} ${count === 1 ? 'selo Brilhante' : 'selos Brilhante'}`;
 }
 
 function accountBatchesV1(ids: string): SealTargetV1[] {

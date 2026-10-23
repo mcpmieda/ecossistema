@@ -205,6 +205,21 @@ describe('student authentication forms', () => {
     await s.user.click(screen.getByRole('button', { name: 'Criar senha e entrar' }));
     await waitFor(() => expect(s.success).toHaveBeenCalledOnce());
   });
+  it('on a computer, Enter goes on after the last digit and the next step is ready to type (owner report 23/10/2026)', async () => {
+    const s = view();
+    const pin = await screen.findByLabelText('Ano de nascimento do aluno');
+    // The first step takes the focus by itself.
+    await waitFor(() => expect(document.activeElement).toBe(pin));
+    s.client.challenge.mockResolvedValueOnce(PROOF);
+    await s.user.keyboard('0001');
+    // The last digit hands the focus to the button: Enter goes on.
+    const proceed = screen.getByRole('button', { name: 'Continuar' });
+    await waitFor(() => expect(document.activeElement).toBe(proceed));
+    await s.user.keyboard('{Enter}');
+    // The next step's field is ready to type, with no click.
+    const password = await screen.findByLabelText('Nova senha');
+    await waitFor(() => expect(document.activeElement).toBe(password));
+  });
   it('refuses an easy password at once, without spending a try', async () => {
     const s = view();
     await s.user.type(await screen.findByLabelText('Ano de nascimento do aluno'), '0001');

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
+import { officialBells2026V1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { servePortalFrequencyV2 } from '../../../../server/student-portal/composition/frequency-v2';
 import type { PortalCompositionEnvV1 } from '../../../../server/student-portal/composition/config-v1';
 
@@ -8,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     vi.fn<(query: string, values?: readonly unknown[]) => Promise<Record<string, unknown>[]>>(),
   effectiveExpiry: '2026-10-14T13:00:00.000Z',
   showFrequency: true,
+  showSchedule: false,
 }));
 const accountId = '11111111-1111-4111-8111-111111111111';
 const sessionId = '22222222-2222-4222-8222-222222222222';
@@ -39,13 +41,13 @@ vi.mock('../../../../server/student-portal/auth/session-service-v1', () => ({
     async withAuthorized<T>(
       _token: string,
       operation: (
-        context: { account: { id: string }; policy: { enforcedValue: { showFrequency: boolean } } },
+        context: { account: { id: string }; policy: { enforcedValue: { showFrequency: boolean; showSchedule: boolean } } },
         tx: { unsafe: typeof mocks.unsafe },
         session: { id: string; expiresAt: string; persistent: boolean },
       ) => Promise<T>,
     ) {
       return operation(
-        { account: { id: accountId }, policy: { enforcedValue: { showFrequency: mocks.showFrequency } } },
+        { account: { id: accountId }, policy: { enforcedValue: { showFrequency: mocks.showFrequency, showSchedule: mocks.showSchedule } } },
         { unsafe: mocks.unsafe },
         { id: sessionId, expiresAt: mocks.effectiveExpiry, persistent: false },
       );
@@ -58,6 +60,8 @@ const env = {
   PORTAL_ADMIN_TENANT_ID: accountId,
   PORTAL_SERVING_ENABLED: 'true',
 } satisfies PortalCompositionEnvV1;
+// The school's today in every read (attendance 0012); after the synthetic days of October.
+const TODAY = '2026-10-22';
 const request = () => new Request(env.PORTAL_ORIGIN + '/api/student/frequency?month=2026-10');
 beforeEach(() => {
   mocks.unsafe.mockReset();
@@ -76,7 +80,7 @@ it('checks the effective policy/session expiration with database time after read
   mocks.unsafe
     .mockResolvedValueOnce([
       {
-        frequency: { days: [], origins: [
+        frequency: { today: TODAY, lastReadAt: null, days: [], origins: [
           {
             occurrence_id: '33333333-3333-4333-8333-333333333333',
             date: '2026-10-01',
@@ -94,7 +98,8 @@ it('checks the effective policy/session expiration with database time after read
     ])
     .mockResolvedValueOnce([{ active: false }]);
   const result = await servePortalFrequencyV2(request(), env);
-  expect(mocks.unsafe.mock.calls[0]?.[1]).toEqual([accountId, sessionId, '2026-10']);
+  // One read of the whole year; the month is worked out from it.
+  expect(mocks.unsafe.mock.calls[0]?.[1]).toEqual([accountId, sessionId, '2026-01', '2026-12']);
   expect(mocks.unsafe.mock.calls[1]?.[0]).toContain('clock_timestamp()');
   expect(mocks.unsafe.mock.calls[1]?.[1]).toEqual([mocks.effectiveExpiry]);
   expect(result.status).toBe(401);
@@ -103,7 +108,7 @@ it('checks the effective policy/session expiration with database time after read
 });
 
 it('returns a private incomplete summary only while the effective session remains live', async () => {
-  mocks.unsafe.mockResolvedValueOnce([{ frequency: { origins: [], days: [] } }]).mockResolvedValueOnce([{ active: true }]);
+  mocks.unsafe.mockResolvedValueOnce([{ frequency: { today: TODAY, lastReadAt: null, origins: [], days: [] } }]).mockResolvedValueOnce([{ active: true }]);
   const result = await servePortalFrequencyV2(request(), env);
   expect(result.status).toBe(200);
   expect(await result.json()).toMatchObject({
@@ -124,7 +129,7 @@ it('counts lessons, absences and justified absences from complete Smecel lesson 
   });
   const day = (date: string, slots: number[], complete = true) => ({ date, shift: 'matutino', slots_json: slots, complete });
   mocks.unsafe
-    .mockResolvedValueOnce([{ frequency: {
+    .mockResolvedValueOnce([{ frequency: { today: TODAY, lastReadAt: null,
       origins: [mark(2, 'X', '33333333-3333-4333-8333-333333333331'), mark(4, 'J', '33333333-3333-4333-8333-333333333332')],
       // A 5-lesson Monday and a 6-lesson Tuesday: no configuration, straight from the diary.
       days: [day('2026-10-05', [1, 2, 3, 4, 5]), day('2026-10-06', [1, 2, 3, 4, 5, 6])],
@@ -137,7 +142,7 @@ it('counts lessons, absences and justified absences from complete Smecel lesson 
   });
   // One day read partially: the totals are withheld instead of being wrong; marks and days stay.
   mocks.unsafe
-    .mockResolvedValueOnce([{ frequency: { origins: [mark(2, 'X', '33333333-3333-4333-8333-333333333331')],
+    .mockResolvedValueOnce([{ frequency: { today: TODAY, lastReadAt: null, origins: [mark(2, 'X', '33333333-3333-4333-8333-333333333331')],
       days: [day('2026-10-05', [1, 2, 3, 4, 5]), day('2026-10-06', [2], false)] } }])
     .mockResolvedValueOnce([{ active: true }]);
   expect(await (await servePortalFrequencyV2(request(), env)).json()).toMatchObject({
@@ -145,7 +150,7 @@ it('counts lessons, absences and justified absences from complete Smecel lesson 
   });
   // A tombstone (a record with no lesson that day any more) is accepted and never spoils the day.
   mocks.unsafe
-    .mockResolvedValueOnce([{ frequency: { origins: [mark(2, 'X', '33333333-3333-4333-8333-333333333331')],
+    .mockResolvedValueOnce([{ frequency: { today: TODAY, lastReadAt: null, origins: [mark(2, 'X', '33333333-3333-4333-8333-333333333331')],
       days: [day('2026-10-05', [1, 2, 3, 4, 5]), day('2026-10-06', [1, 2, 3, 4, 5, 6]), day('2026-10-06', []), day('2026-10-07', [])] } }])
     .mockResolvedValueOnce([{ active: true }]);
   const tombstoned = (await (await servePortalFrequencyV2(request(), env)).json()) as { days: { date: string }[] };
@@ -160,4 +165,95 @@ it('rejects a caller-provided student UID before reading any private origins', a
   );
   expect(result.status).toBe(403);
   expect(mocks.unsafe).not.toHaveBeenCalled();
+});
+
+it("never counts today, adds the year up to now and gives the class's last reading", async () => {
+  const mark = (date: string, slot: number, value: 'X' | 'J', id: string) => ({
+    occurrence_id: id, date, slot, shift: 'matutino', mark: value, conflict_id: null,
+    source_class_label: 'PRIVATE_SYNTHETIC_CLASS', observed_at: '2026-10-14T12:00:00Z',
+    received_at: '2026-10-14T12:01:00Z', mapping_valid: true,
+  });
+  const day = (date: string, slots: number[], complete = true) => ({ date, shift: 'matutino', slots_json: slots, complete });
+  const read = (days: ReturnType<typeof day>[], origins: ReturnType<typeof mark>[] = []) => [{ frequency: {
+    today: '2026-10-07', lastReadAt: '2026-10-07 09:30:00+00', origins, days,
+  } }];
+  mocks.unsafe
+    .mockResolvedValueOnce(read(
+      [day('2026-09-30', [1, 2, 3, 4, 5]), day('2026-10-06', [1, 2, 3, 4, 5]), day('2026-10-07', [1, 2], false)],
+      [mark('2026-09-30', 1, 'X', '33333333-3333-4333-8333-333333333331'),
+        mark('2026-10-07', 1, 'X', '33333333-3333-4333-8333-333333333332'),
+        mark('2026-10-07', 2, 'J', '33333333-3333-4333-8333-333333333333')],
+    ))
+    .mockResolvedValueOnce([{ active: true }]);
+  // Today (07/10) is half read and has an absence and a justified one: neither its lessons nor its
+  // marks count, and the month stays reliable. The year: September's 5 lessons and 1 X plus
+  // October's 5. Today's marks are still shown.
+  expect(await (await servePortalFrequencyV2(request(), env)).json()).toMatchObject({
+    today: '2026-10-07', coverage: 'reliable', denominator: 5, absences: 0, justified: 0, percentage: 100,
+    year: { lessons: 10, absences: 1 }, lastReadAt: '2026-10-07T09:30:00.000Z',
+    marks: [{ date: '2026-10-07', slot: 1, mark: 'X' }, { date: '2026-10-07', slot: 2, mark: 'J' }],
+  });
+  // A past month not read in full leaves the year unknown; the month asked for still has totals.
+  mocks.unsafe
+    .mockResolvedValueOnce(read([day('2026-09-30', [1, 2, 3], false), day('2026-10-06', [1, 2, 3, 4, 5])]))
+    .mockResolvedValueOnce([{ active: true }]);
+  expect(await (await servePortalFrequencyV2(request(), env)).json()).toMatchObject({
+    coverage: 'reliable', denominator: 5, year: null,
+  });
+  // A month after today adds nothing to the year.
+  mocks.unsafe
+    .mockResolvedValueOnce(read([day('2026-10-06', [1, 2, 3, 4, 5]), day('2026-11-03', [1, 2], false)]))
+    .mockResolvedValueOnce([{ active: true }]);
+  expect(await (await servePortalFrequencyV2(request(), env)).json()).toMatchObject({
+    year: { lessons: 5, absences: 0 },
+  });
+});
+
+it('answers the whole year so far in one read (?year=2026), month by month, on the calendar days only', async () => {
+  const day = (date: string, slots: number[]) => ({ date, shift: 'matutino', slots_json: slots, complete: true });
+  mocks.unsafe
+    .mockResolvedValueOnce([{ frequency: {
+      today: '2026-03-10', lastReadAt: '2026-03-10 09:30:00+00', origins: [],
+      // 28/02: a compensation Saturday the diary has but the official calendar does not.
+      days: [day('2026-02-23', [1, 2, 3, 4, 5]), day('2026-02-28', [1, 2, 3, 4, 5]), day('2026-03-09', [1, 2, 3, 4, 5])],
+    } }])
+    .mockResolvedValueOnce([{ active: true }])
+    // The school's calendar (ADM): four school days, two of them from today on.
+    .mockResolvedValueOnce([{ days_json: [
+      { date: '2026-02-23', kind: 'evento-letivo', note: 'Início do ano letivo' },
+      { date: '2026-03-09', kind: 'letivo' }, { date: '2026-03-10', kind: 'letivo' },
+      { date: '2026-03-11', kind: 'feriado', note: 'Feriado' }, { date: '2026-03-12', kind: 'letivo' },
+    ] }]);
+  const result = await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency?year=2026'), env);
+  const body = (await result.json()) as { months: { month: string; denominator: number | null }[] };
+  expect(body).toMatchObject({ contractVersion: 2, state: 'ready', academicYear: 2026, today: '2026-03-10', year: { lessons: 10, absences: 0 } });
+  expect(body).toMatchObject({ schoolYear: { schoolDays: 4, remaining: 2, firstDay: '2026-02-23', lastDay: '2026-03-12' } });
+  expect(body.months.map((month) => [month.month, month.denominator])).toEqual([['2026-01', null], ['2026-02', 5], ['2026-03', 5]]);
+  // Only one of the two forms, and only this year.
+  for (const query of ['?year=2025', '?year=2026&month=2026-03', '?year=all'])
+    expect((await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency' + query), env)).status).toBeGreaterThanOrEqual(400);
+});
+
+it("adds the days without school, each lesson's time and, with the Horário on, the week's subjects (owner decision 23/10/2026)", async () => {
+  const frequency = { frequency: { today: '2026-10-22', lastReadAt: null, origins: [], days: [] } };
+  const calendar = { days_json: [{ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' }, { date: '2026-10-13', kind: 'letivo' }] };
+  const grid = { classes: [{ label: '6º ANO A - MATUTINO', observedAt: 'x', lessons: [{ weekday: 1, slot: 3, subject: 'MATEMATICA' }] }] };
+  const read = async () => (await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency?year=2026'), env)).json();
+  mocks.showSchedule = true;
+  mocks.unsafe.mockReset()
+    .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1() }]).mockResolvedValueOnce([calendar])
+    .mockResolvedValueOnce([{ schedule: grid }]);
+  expect(await read()).toMatchObject({
+    daysOff: [{ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' }],
+    bells: officialBells2026V1(),
+    grid: [{ shift: 'matutino', lessons: [{ weekday: 1, slot: 3, subject: 'MATEMATICA' }] }],
+  });
+  // Horário off: no subject, and the grid is never read.
+  mocks.showSchedule = false;
+  mocks.unsafe.mockReset()
+    .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1() }]).mockResolvedValueOnce([calendar]);
+  expect(await read()).toMatchObject({ grid: [], bells: officialBells2026V1() });
+  expect(mocks.unsafe.mock.calls.some(([query]) => query.includes('read_portal_schedule'))).toBe(false);
 });

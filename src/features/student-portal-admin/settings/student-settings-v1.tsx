@@ -11,6 +11,8 @@ import {
 } from '@heroui/react';
 import { GRADE_LABELS_V1 } from './grades-agenda-v1';
 import { PolicyLayoutV1 } from './policy-layout-v1';
+import { SchoolCalendarEditorV1 } from './school-calendar-editor-v1';
+import { SchoolBellsEditorV1 } from './school-bells-editor-v1';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import type { PolicyScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -460,6 +462,7 @@ function SettingsReadyV1({
   onReview,
   onRetry,
   onReload,
+  onRefresh,
   clock,
   onOpenCustomization,
   linksClosed,
@@ -485,6 +488,8 @@ function SettingsReadyV1({
   onReview: (review: ReviewV1) => void;
   onRetry: () => void;
   onReload: () => void;
+  /** Reads the settings again, keeping what is being edited (the school calendar saved its dates). */
+  onRefresh: () => void;
   clock: number;
   onOpenCustomization?: OpenCustomizationV1;
   linksClosed: () => void;
@@ -559,6 +564,14 @@ function SettingsReadyV1({
       {area === 'policies' ? (
         <PolicyLayoutV1
           customizations={customizations}
+          schoolCalendar={
+            fixedScope.kind === 'school' ? (
+              <SchoolCalendarEditorV1 client={client} canWrite={canWrite} onSaved={onRefresh} />
+            ) : undefined
+          }
+          schoolBells={
+            fixedScope.kind === 'school' ? <SchoolBellsEditorV1 client={client} canWrite={canWrite} /> : undefined
+          }
           field={renderField}
           shift={fixedScope.kind === 'shift'}
           grades={
@@ -908,6 +921,7 @@ function SettingsScopeV1({
             onReview={setReview}
             onRetry={() => void writer.retry()}
             onReload={discardAndReload}
+            onRefresh={() => void reload(true)}
             clock={clock}
             onOpenCustomization={onOpenCustomization}
             linksClosed={linksClosed}

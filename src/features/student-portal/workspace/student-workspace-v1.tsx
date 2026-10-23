@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEventV1 } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEventV1, type SyntheticEvent as ReactSyntheticEventV1 } from 'react';
+import { flushSync } from 'react-dom';
 import {
   Button,
   Card,
@@ -39,7 +40,7 @@ import {
 } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
-import { earnsSealV1 } from '../grades/brilliant-seal-v1';
+import { earnsAssessmentSealV1, earnsSealV1 } from '../grades/brilliant-seal-v1';
 import { BrilliantSealBadgeV1 } from '../grades/brilliant-seal-badge-v1';
 import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import './student-workspace-v1.css';
@@ -62,8 +63,8 @@ const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
   REC3: 'REC 3º Trimestre',
 };
 /*
- * What each trimester is worth, shown under its Boletim tab only ("vale 30 pontos", owner review
- * 27/09/2026); inside a discipline the header already reads "de 30 pontos".
+ * What each trimester is worth and its passing mark, under its Boletim tab only ("vale 30 · 18
+ * passa"; "vale 30 pontos" from 27/09/2026 to 20/10/2026); inside a discipline the header already reads "de 30 pontos".
  * A published mark carries its own maximum; this fallback mirrors the engine's term maxima
  * (SIMPLIFIED_TERM_MAXIMUM_MILLI_V1), which the UI bundle may not import.
  */
@@ -77,9 +78,30 @@ function termValueV1(subjects: readonly SubjectV1[], period: PeriodIdV1): number
   }
   return TERM_VALUE_V1[period] ?? null;
 }
+/**
+ * The school's minimum is the server's (`meetsMinimum`), not a constant here. The 60% line is only
+ * stated while every published trimester mark agrees with it; one that does not (a school with
+ * another minimum) hides "passa" rather than give a wrong passing mark (PR 1317 review).
+ */
+function minimumIsSixtyPercentV1(subjects: readonly SubjectV1[], period: PeriodIdV1): boolean {
+  return subjects.every((subject) => {
+    const final = subjectPeriodV1(subject, period)?.final;
+    if (final?.kind !== 'score' || !final.maximum || final.meetsMinimum === null) return true;
+    const reaches = final.value * 100 >= final.maximum * METER_MINIMUM_PERCENT_V1 - 1e-9;
+    return reaches === final.meetsMinimum;
+  });
+}
 function TermValueV1({ subjects, period }: { subjects: readonly SubjectV1[]; period: PeriodIdV1 }) {
   const value = termValueV1(subjects, period);
-  return value === null ? null : <span className="pa-term-value">vale {number.format(value)} pontos</span>;
+  if (value === null) return null;
+  // "vale 30 · 18 passa" (owner request 20/10/2026): what the trimester is worth and the
+  // minimum to pass it, the same 60% line the discipline's meter marks.
+  const passing = (value * METER_MINIMUM_PERCENT_V1) / 100;
+  return (
+    <span className="pa-term-value">
+      {`vale ${number.format(value)}${minimumIsSixtyPercentV1(subjects, period) ? ` · ${number.format(passing)} passa` : ''}`}
+    </span>
+  );
 }
 const BULLETIN_PERIOD_LABELS_V1: Partial<Record<PeriodIdV1, string>> = {
   T1: '1º Trimestre',
@@ -329,40 +351,6 @@ function SubjectIconV1({ label, size = 18, animated = false }: { label: string; 
   );
 }
 
-function PageIntroV1({
-  icon,
-  title,
-  aside,
-  onBack,
-}: {
-  icon: ReactNode;
-  title: string;
-  aside?: ReactNode;
-  onBack?: () => void;
-}) {
-  return (
-    <div className="pa-workspace-intro">
-      {onBack ? (
-        <Button
-          isIconOnly
-          size="sm"
-          variant="tertiary"
-          className="pa-workspace-back"
-          aria-label="Voltar para o boletim"
-          onPress={onBack}
-        >
-          <ChevronLeft size={20} aria-hidden="true" />
-        </Button>
-      ) : null}
-      <span aria-hidden="true">{icon}</span>
-      <div>
-        <h2>{title}</h2>
-      </div>
-      {aside ? <div className="pa-workspace-intro-aside">{aside}</div> : null}
-    </div>
-  );
-}
-
 function SummaryV1({
   data,
   profile,
@@ -387,9 +375,10 @@ function SummaryV1({
     ...(hasRecovery ? (['REC'] as const) : []),
   ];
   const active = selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
-  // Null until the first switch, so the list does not animate twice on mount.
-  const [listMotion, setListMotion] = useState<'forward' | 'back' | null>(null);
-  const listStage = useSlideStageV1();
+  // Null until the first switch, so the list does not animate twice on mount; 'still' after a
+  // drag, which already moved the new list into place.
+  const [listMotion, setListMotion] = useState<SlideV1 | 'still' | null>(null);
+  const listStage = useSlideStageV1(':scope > .pa-swipe-track > [data-slide-live]');
   /** Tabs and swipes alike: the old list leaves to one side, the new one comes from the other. */
   const choosePeriod = (next: SummaryKeyV1) => {
     if (next === active) return;
@@ -398,17 +387,15 @@ function SummaryV1({
     setListMotion(direction);
     onSelect(next);
   };
-  const periodSwipe = useSubjectSwipeV1((step) => {
-    const next = available[available.indexOf(active) + step];
-    if (next) choosePeriod(next);
-  });
-  const recoveryPeriodsOf = (subject: SubjectV1) =>
-    subject.periods.filter((period) => RECOVERY_PERIODS_V1.includes(period.period));
-  const published = subjects.filter((subject) =>
-    active === 'REC'
-      ? recoveryPeriodsOf(subject).length > 0
-      : subjectPeriodV1(subject, active),
+  const neighbourPeriod = (step: DragStepV1) => available[available.indexOf(active) + step];
+  const periodDrag = useDragSwipeV1(
+    (step) => neighbourPeriod(step) !== undefined,
+    (step) => {
+      setListMotion('still');
+      onSelect(neighbourPeriod(step)!);
+    },
   );
+  const peekPeriod = periodDrag.peek === null ? undefined : neighbourPeriod(periodDrag.peek);
   const situation =
     data.profile.annualSituation === 'awaiting-council' ? 'in-recovery' : data.profile.annualSituation;
   const finalResult = situation
@@ -500,93 +487,36 @@ function SummaryV1({
         {/* Entering the Boletim: the subjects rise in one after another; switching trimesters
             keeps the sideways slide. */}
         {/* With more than one period, a sideways swipe on the list moves between them. */}
-        <div className="pa-slide-stage" ref={listStage.stage} {...(available.length > 1 ? periodSwipe : {})}>
+        <div
+          className={'pa-slide-stage' + (available.length > 1 ? ' pa-swipe-area' : '')}
+          ref={listStage.stage}
+          {...(available.length > 1 ? periodDrag.handlers : {})}
+        >
         <div className="pa-slide-ghosts" ref={listStage.ghostLayer} aria-hidden="true" />
+        <div className="pa-swipe-track" ref={periodDrag.track}>
         <div
           key={active}
           data-slide-live=""
-          className={listMotion ? 'pa-slide-in pa-slide-in--' + listMotion : 'pa-list-enter'}
+          className={
+            listMotion === 'still'
+              ? undefined
+              : listMotion
+                ? 'pa-slide-in pa-slide-in--' + listMotion
+                : 'pa-list-enter'
+          }
         >
-        <ListBox
-          aria-label="Disciplinas publicadas"
-          selectionMode="none"
-          onAction={(key) => {
-            // Open the discipline on the period being browsed (first recovery for the REC tab).
-            const subject = published.find((item) => item.subjectId === Number(key));
-            const period =
-              active === 'REC' ? (subject && recoveryPeriodsOf(subject)[0]?.period) : active;
-            onOpenSubject(Number(key), period);
-          }}
-          className="pa-workspace-list"
-        >
-          {published.map((subject) => {
-            const outcome = subjectSituationV1(subject);
-            // Below the minimum on this trimester: a soft red band runs from the icon to the mark.
-            const below =
-              active !== 'REC' && scoreOfV1(subjectPeriodV1(subject, active))?.meetsMinimum === false;
-            // A Brilhante trimester (90%+) earns a gold seal in the Boletim, to collect, unless
-            // any subject is red in that trimester; a missing seal is simply not shown.
-            const brilliant = active !== 'REC' && earnsSealV1(subjects, subject, active);
-            return (
-              <ListBox.Item
-                id={String(subject.subjectId)}
-                key={subject.subjectId}
-                textValue={subject.label}
-              >
-                <span
-                  className={
-                    'pa-list-band' +
-                    (below ? ' pa-list-band--below' : '') +
-                    (brilliant ? ' pa-list-band--brilliant' : '')
-                  }
-                >
-                <SubjectIconV1 label={subject.label} />
-                <div className="pa-workspace-list-copy">
-                  <Label>{subject.label}</Label>
-                  {outcome ? (
-                    <Chip
-                      size="sm"
-                      variant="soft"
-                      color={chipColorV1(outcome.tone)}
-                      className={['pa-list-outcome', chipToneClassV1(outcome.tone)].filter(Boolean).join(' ')}
-                    >
-                      <span className="pa-visually-hidden">Resultado oficial: </span>
-                      {outcome.label}
-                    </Chip>
-                  ) : null}
-                </div>
-                {active === 'REC' ? (
-                  <span className="pa-recovery-marks">
-                    {recoveryPeriodsOf(subject).map((period) => (
-                      <span key={period.period} className="pa-recovery-mark">
-                        <span className="pa-recovery-mark-label">
-                          {PERIOD_LABELS_V1[period.period].replace('REC ', '')}
-                        </span>
-                        <strong><StudentMarkV1 mark={period.final} oneDecimal /></strong>
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <>
-                    {brilliant ? (
-                      <BrilliantSealBadgeV1 />
-                    ) : null}
-                    <strong>
-                      <StudentMarkV1
-                        mark={subjectPeriodV1(subject, active)?.final ?? { kind: 'absent' }}
-                        oneDecimal
-                      />
-                    </strong>
-                  </>
-                )}
-                {/* Each row opens its discipline. Inside the band, so a red or gold row runs to the
-                    arrow (owner review 27/09/2026). */}
-                <ChevronRight className="pa-list-chevron" size={18} aria-hidden="true" />
-                </span>
-              </ListBox.Item>
-            );
-          })}
-        </ListBox>
+        <BulletinListV1 subjects={subjects} period={active} onOpenSubject={onOpenSubject} />
+        </div>
+        {/* The neighbouring trimester, drawn beside the list only while a finger drags it. */}
+        {peekPeriod ? (
+          <div
+            className={'pa-swipe-peek pa-swipe-peek--' + (periodDrag.peek === 1 ? 'next' : 'prev')}
+            aria-hidden="true"
+            inert
+          >
+            <BulletinListV1 subjects={subjects} period={peekPeriod} onOpenSubject={() => undefined} />
+          </div>
+        ) : null}
         </div>
         </div>
         {/* Below the marks, like the subject closing under its breakdown. */}
@@ -599,6 +529,108 @@ function SummaryV1({
         ) : null}
       </section>
     </div>
+  );
+}
+
+/** The Boletim list of one period: the live one, or the neighbour seen while dragging. */
+function BulletinListV1({
+  subjects,
+  period: active,
+  onOpenSubject,
+}: {
+  subjects: readonly SubjectV1[];
+  period: SummaryKeyV1;
+  onOpenSubject: (subjectId: number, period?: PeriodIdV1) => void;
+}) {
+  const recoveryPeriodsOf = (subject: SubjectV1) =>
+    subject.periods.filter((period) => RECOVERY_PERIODS_V1.includes(period.period));
+  const published = subjects.filter((subject) =>
+    active === 'REC'
+      ? recoveryPeriodsOf(subject).length > 0
+      : subjectPeriodV1(subject, active),
+  );
+  return (
+    <ListBox
+      aria-label="Disciplinas publicadas"
+      selectionMode="none"
+      onAction={(key) => {
+        // Open the discipline on the period being browsed (first recovery for the REC tab).
+        const subject = published.find((item) => item.subjectId === Number(key));
+        const period =
+          active === 'REC' ? (subject && recoveryPeriodsOf(subject)[0]?.period) : active;
+        onOpenSubject(Number(key), period);
+      }}
+      className="pa-workspace-list"
+    >
+      {published.map((subject) => {
+        const outcome = subjectSituationV1(subject);
+        // Below the minimum on this trimester: a soft red band runs from the icon to the mark.
+        const below =
+          active !== 'REC' && scoreOfV1(subjectPeriodV1(subject, active))?.meetsMinimum === false;
+        // A Brilhante trimester (90%+) earns a gold seal in the Boletim, to collect, unless
+        // any subject is red in that trimester; a missing seal is simply not shown.
+        const brilliant = active !== 'REC' && earnsSealV1(subjects, subject, active);
+        return (
+          <ListBox.Item
+            id={String(subject.subjectId)}
+            key={subject.subjectId}
+            textValue={subject.label}
+          >
+            <span
+              className={
+                'pa-list-band' +
+                (below ? ' pa-list-band--below' : '') +
+                (brilliant ? ' pa-list-band--brilliant' : '') +
+                (active === 'REC' && recoveryPeriodsOf(subject).length > 1 ? ' pa-list-band--recovery' : '')
+              }
+            >
+            <SubjectIconV1 label={subject.label} />
+            <div className="pa-workspace-list-copy">
+              <Label>{subject.label}</Label>
+              {outcome ? (
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  color={chipColorV1(outcome.tone)}
+                  className={['pa-list-outcome', chipToneClassV1(outcome.tone)].filter(Boolean).join(' ')}
+                >
+                  <span className="pa-visually-hidden">Resultado oficial: </span>
+                  {outcome.label}
+                </Chip>
+              ) : null}
+            </div>
+            {active === 'REC' ? (
+              <span className="pa-recovery-marks">
+                {recoveryPeriodsOf(subject).map((period) => (
+                  <span key={period.period} className="pa-recovery-mark">
+                    <span className="pa-recovery-mark-label">
+                      {PERIOD_LABELS_V1[period.period].replace('REC ', '')}
+                    </span>
+                    <strong><StudentMarkV1 mark={period.final} oneDecimal /></strong>
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <>
+                {brilliant ? (
+                  <BrilliantSealBadgeV1 />
+                ) : null}
+                <strong>
+                  <StudentMarkV1
+                    mark={subjectPeriodV1(subject, active)?.final ?? { kind: 'absent' }}
+                    oneDecimal
+                  />
+                </strong>
+              </>
+            )}
+            {/* Each row opens its discipline. Inside the band, so a red or gold row runs to the
+                arrow (owner review 27/09/2026). */}
+            <ChevronRight className="pa-list-chevron" size={18} aria-hidden="true" />
+            </span>
+          </ListBox.Item>
+        );
+      })}
+    </ListBox>
   );
 }
 
@@ -681,10 +713,12 @@ function partialBandV1(partial: PartialV1): PartialBandV1 | null {
  * `calm`: the trimester mark is below the minimum, so an Excelente stays still — the celebration
  * is kept for a trimester that went well (owner decision 2026-09-27). Brilhante always shines.
  */
-function PartialFeedbackV1({ partial, calm }: { partial: PartialV1; calm: boolean }) {
+function PartialFeedbackV1({ partial, calm, sealed = false }: { partial: PartialV1; calm: boolean; sealed?: boolean }) {
   const band = partialBandV1(partial);
   if (!band) return null;
-  const { label } = PARTIAL_BANDS_V1[band];
+  // An assessment that earned a seal reads "selo Brilhante"; a Brilhante that did not (a red
+  // mark in the trimester, or the trimester not over yet) keeps "Brilhante" (owner request 20/10/2026).
+  const label = band === 'brilliant' && sealed ? 'selo Brilhante' : PARTIAL_BANDS_V1[band].label;
   return (
     <Chip
       size="sm"
@@ -758,43 +792,201 @@ function periodStatusV1(period: PeriodV1 | undefined) {
 }
 
 /*
- * Swipe between disciplines (owner request 27/09/2026): a clear horizontal flick on the discipline
- * view opens the next (left) or previous (right) one, in the order of the subject bar; no wrap.
- * Ignored when it starts on a tab bar (they scroll sideways themselves), on a control, or near the
- * screen edges (the browser's own back gesture), and when the finger moved mostly vertically.
+ * Drag to switch (owner requests 27/09 and 20/10/2026): on the Boletim a sideways drag moves
+ * between trimesters; on a discipline, between disciplines in the order of the subject bar, with no
+ * wrap. The content follows the finger and the neighbour comes in from the side while dragging, so
+ * nothing appears only after the gesture. Releasing past a third of the width, or with a quick
+ * flick, finishes the move; otherwise the content springs back. Ignored when the gesture starts on
+ * a tab bar or a control, near the screen edges (the browser's own back gesture), and when the
+ * finger moves mostly vertically (the page scrolls).
  */
-const SWIPE_MIN_PX_V1 = 60;
-const SWIPE_EDGE_PX_V1 = 24;
-const SWIPE_MAX_MS_V1 = 700;
-function useSubjectSwipeV1(onSwipe: (step: 1 | -1) => void) {
-  const start = useRef<{ x: number; y: number; at: number } | null>(null);
-  return {
+const DRAG_LOCK_PX_V1 = 8;
+const DRAG_EDGE_PX_V1 = 24;
+const DRAG_COMMIT_RATIO_V1 = 0.3;
+const DRAG_FLICK_PX_PER_MS_V1 = 0.45;
+/** How long after a real drag its own tap is swallowed (the press that ended it). */
+const DRAG_SWALLOW_MS_V1 = 400;
+/**
+ * The air between the two pages: .pa-swipe-peek sits at calc(100% + 0.75rem), so it follows the
+ * root font size (a reader's larger text included), read when the gesture ends.
+ */
+const dragGapPxV1 = () => 0.75 * (Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+type DragStepV1 = 1 | -1;
+type DragSampleV1 = { x: number; at: number };
+type DragGestureV1 = { id: number; x: number; y: number; dx: number; locked: boolean | null; samples: DragSampleV1[] };
+function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step: DragStepV1) => void) {
+  const track = useRef<HTMLDivElement>(null);
+  const gesture = useRef<DragGestureV1 | null>(null);
+  const busy = useRef(false);
+  const running = useRef<Animation | null>(null);
+  // A drag is not a tap: the one press that ends a real drag must not open the row it started on.
+  // Armed only by a horizontal drag, and spent by the first click, so a new tap goes through.
+  const swallowUntil = useRef(0);
+  const shown = useRef<DragStepV1 | null>(null);
+  const [peek, setPeek] = useState<DragStepV1 | null>(null);
+  const showPeek = (step: DragStepV1 | null) => {
+    if (shown.current === step) return;
+    shown.current = step;
+    setPeek(step);
+  };
+  const clipping = (on: boolean) => track.current?.parentElement?.classList.toggle('is-sliding', on);
+  const place = (px: number) => {
+    if (track.current) track.current.style.transform = px ? `translate3d(${px}px, 0, 0)` : '';
+  };
+  const restore = () => {
+    showPeek(null);
+    place(0);
+    clipping(false);
+  };
+  // Leaving the page mid-move: stop it; its end never navigates (see settle).
+  useEffect(() => () => running.current?.cancel(), []);
+  /**
+   * Glides from where the finger left the content to its resting place, then runs `done`. A move
+   * cut short (cancelled) never runs `done`: the content goes back in place without navigating.
+   * Reduced motion: no glide, straight to the end.
+   */
+  const settle = (from: number, to: number, done: () => void) => {
+    const element = track.current;
+    const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (!element || typeof element.animate !== 'function' || from === to || reduced) {
+      done();
+      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
+      return;
+    }
+    busy.current = true;
+    const duration = Math.round(Math.max(140, Math.min(300, Math.abs(to - from) * 0.9)));
+    const animation = element.animate(
+      [{ transform: `translate3d(${from}px, 0, 0)` }, { transform: `translate3d(${to}px, 0, 0)` }],
+      { duration, easing: 'cubic-bezier(0.25, 0.8, 0.3, 1)', fill: 'forwards' },
+    );
+    running.current = animation;
+    const release = () => {
+      running.current = null;
+      busy.current = false;
+      // Counted from the end of the move: a slow swap must not let the tap through afterwards.
+      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
+    };
+    animation.finished.then(
+      () => {
+        // `done` swaps the content and resets the offset before the animation's hold is released,
+        // all in this task, so no frame ever shows the content out of place.
+        done();
+        animation.cancel();
+        release();
+      },
+      () => {
+        if (track.current) restore();
+        release();
+      },
+    );
+  };
+  const swallow = (event: ReactSyntheticEventV1, spend: boolean) => {
+    if (performance.now() > swallowUntil.current) return;
+    event.stopPropagation();
+    event.preventDefault();
+    if (spend) swallowUntil.current = 0;
+  };
+  const springBack = (from: number) => settle(from, 0, restore);
+  /** The gesture stops being a drag (a second finger, a cancelled touch): back in place, no step. */
+  const abandon = () => {
+    const drag = gesture.current;
+    gesture.current = null;
+    if (!drag?.locked) return;
+    swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
+    springBack(drag.dx);
+  };
+  const handlers = {
     onTouchStart: (event: ReactTouchEventV1) => {
+      if (event.touches.length !== 1) {
+        abandon();
+        return;
+      }
       const touch = event.touches[0];
       const target = event.target as HTMLElement;
-      start.current =
-        event.touches.length === 1 &&
+      gesture.current =
+        !busy.current &&
         touch &&
-        touch.clientX > SWIPE_EDGE_PX_V1 &&
-        touch.clientX < window.innerWidth - SWIPE_EDGE_PX_V1 &&
-        !target.closest('[role="tablist"], button, a, input, label, [role="switch"]')
-          ? { x: touch.clientX, y: touch.clientY, at: Date.now() }
+        touch.clientX > DRAG_EDGE_PX_V1 &&
+        touch.clientX < window.innerWidth - DRAG_EDGE_PX_V1 &&
+        !target.closest('[role="tablist"], button, a, input, label, select, summary, [role="switch"]')
+          ? {
+              id: touch.identifier,
+              x: touch.clientX,
+              y: touch.clientY,
+              dx: 0,
+              locked: null,
+              samples: [{ x: touch.clientX, at: event.timeStamp }],
+            }
           : null;
     },
+    onTouchMove: (event: ReactTouchEventV1) => {
+      const drag = gesture.current;
+      if (!drag) return;
+      // A second finger (pinch to zoom) is never a drag.
+      if (event.touches.length !== 1) {
+        abandon();
+        return;
+      }
+      const touch = Array.from(event.touches).find((item) => item.identifier === drag.id);
+      if (!touch) return;
+      const dx = touch.clientX - drag.x;
+      const dy = touch.clientY - drag.y;
+      if (drag.locked === null) {
+        if (Math.abs(dx) < DRAG_LOCK_PX_V1 && Math.abs(dy) < DRAG_LOCK_PX_V1) return;
+        drag.locked = Math.abs(dx) > Math.abs(dy) * 1.2;
+        if (!drag.locked) {
+          gesture.current = null;
+          return;
+        }
+        swallowUntil.current = Number.POSITIVE_INFINITY;
+        clipping(true);
+      }
+      const step: DragStepV1 = dx < 0 ? 1 : -1;
+      const open = canStep(step);
+      // The neighbour shown always matches the side the finger moves to; none past the last item.
+      showPeek(open ? step : null);
+      // At the first or last item the content gives a little and comes back: nothing is there.
+      drag.dx = open ? dx : dx * 0.25;
+      drag.samples = [...drag.samples.slice(-5), { x: touch.clientX, at: event.timeStamp }];
+      place(drag.dx);
+    },
     onTouchEnd: (event: ReactTouchEventV1) => {
-      const from = start.current;
-      start.current = null;
-      const touch = event.changedTouches[0];
-      if (!from || !touch || Date.now() - from.at > SWIPE_MAX_MS_V1) return;
-      const dx = touch.clientX - from.x;
-      const dy = touch.clientY - from.y;
-      if (Math.abs(dx) < SWIPE_MIN_PX_V1 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      onSwipe(dx < 0 ? 1 : -1);
+      const drag = gesture.current;
+      gesture.current = null;
+      if (!drag?.locked) return;
+      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
+      // Where the finger really lifted: it may have gone on after the last move event arrived.
+      const lifted = Array.from(event.changedTouches).find((item) => item.identifier === drag.id);
+      if (lifted) {
+        const rawDx = lifted.clientX - drag.x;
+        drag.dx = canStep(rawDx < 0 ? 1 : -1) ? rawDx : rawDx * 0.25;
+        drag.samples = [...drag.samples.slice(-5), { x: lifted.clientX, at: event.timeStamp }];
+        place(drag.dx);
+      }
+      const width = (track.current?.offsetWidth ?? window.innerWidth) + dragGapPxV1();
+      const step: DragStepV1 = drag.dx < 0 ? 1 : -1;
+      const last = drag.samples.at(-1)!;
+      const first = drag.samples.find((sample) => last.at - sample.at <= 100) ?? last;
+      const velocity = (last.x - first.x) / Math.max(1, last.at - first.at);
+      const flick = Math.abs(velocity) > DRAG_FLICK_PX_PER_MS_V1 && Math.sign(velocity) === Math.sign(drag.dx);
+      if (canStep(step) && (Math.abs(drag.dx) > width * DRAG_COMMIT_RATIO_V1 || flick)) {
+        showPeek(step);
+        settle(drag.dx, -step * width, () => {
+          flushSync(() => {
+            onCommit(step);
+            showPeek(null);
+          });
+          place(0);
+          clipping(false);
+        });
+      } else springBack(drag.dx);
     },
-    onTouchCancel: () => {
-      start.current = null;
-    },
+    // Only a drag already under way arms the swallow; a cancelled scroll or tap blocks nothing.
+    onTouchCancel: () => abandon(),
+    onPointerUpCapture: (event: ReactSyntheticEventV1) => swallow(event, false),
+    onClickCapture: (event: ReactSyntheticEventV1) => swallow(event, true),
   };
+  return { track, peek, handlers };
 }
 
 /*
@@ -825,7 +1017,12 @@ function useSlideStageV1(liveSelector = ':scope > [data-slide-live]') {
     ghost.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
     ghost.setAttribute('inert', '');
     // A still frame of what was on screen: no entrance motion of its own replays while it leaves.
-    ghost.className = 'pa-slide-ghost';
+    // Its other classes stay (e.g. the tab panel's padding), or the copy would sit a few pixels
+    // off the original and jump before sliding (owner review 20/10/2026).
+    ghost.className = [...live.classList]
+      .filter((name) => !/^pa-(slide-in|list-enter|tab-motion)/u.test(name))
+      .concat('pa-slide-ghost')
+      .join(' ');
     // Exactly where the content was: the live element may sit inside a padded panel, and any offset
     // here shows as a jump before the slide (owner review 28/09/2026).
     const from = live.getBoundingClientRect();
@@ -910,6 +1107,13 @@ function useCaptionFitV1(key: string) {
  * title and the subject bar. The bar is one persistent Tabs, so its white pill glides to the
  * discipline chosen; the icon replays its own motion for each discipline.
  */
+/*
+ * Discipline header (owner review 20/10/2026): one line with Back and the bar of disciplines, so a
+ * parent sees at once that there are others and changes with one tap. The chosen one is the
+ * highlighted tab (with its icon), centred in the bar; the next ones peek in at the edge. Only
+ * the chosen tab has an icon and the tabs are compact, so a phone shows as many as before. The big title above the bar, which repeated the name, is gone;
+ * the heading stays for screen readers.
+ */
 function SubjectHeaderV1({
   subject,
   subjects,
@@ -918,6 +1122,7 @@ function SubjectHeaderV1({
 }: {
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
+  period?: PeriodIdV1;
   onSubjectChange: (id: number) => void;
   onBack: () => void;
 }) {
@@ -951,45 +1156,56 @@ function SubjectHeaderV1({
   // Only an official result earns a chip here; "Em curso" lives under the class in the hero.
   const official = subjectSituationV1(subject);
   return (
-    <>
-      <PageIntroV1
-        key={subject.subjectId}
-        icon={<SubjectIconV1 label={subject.label} size={20} animated />}
-        onBack={onBack}
-        title={subject.label}
-        aside={
-          official ? (
-            <Chip
-              size="sm"
-              variant="soft"
-              color={chipColorV1(official.tone)}
-              className={chipToneClassV1(official.tone)}
-            >
-              <span className="pa-visually-hidden">Resultado oficial: </span>
-              {official.label}
-            </Chip>
-          ) : undefined
-        }
-      />
-
-      <div ref={subjectTabs} className="pa-subject-bar">
-      <Tabs
-        selectedKey={String(subject.subjectId)}
-        onSelectionChange={(key) => onSubjectChange(Number(key))}
-      >
-        <Tabs.ListContainer>
-          <Tabs.List aria-label="Trocar disciplina">
-            {subjects.map((item) => (
-              <Tabs.Tab id={String(item.subjectId)} key={item.subjectId}>
-                {item.label}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs.ListContainer>
-      </Tabs>
+    <div className="pa-subject-head">
+      <h2 className="pa-visually-hidden">{subject.label}</h2>
+      <div className="pa-subject-head-row">
+        <Button
+          isIconOnly
+          size="sm"
+          variant="tertiary"
+          className="pa-workspace-back"
+          aria-label="Voltar para o boletim"
+          onPress={onBack}
+        >
+          <ChevronLeft size={20} aria-hidden="true" />
+        </Button>
+        <div ref={subjectTabs} className="pa-subject-bar">
+          <Tabs
+            selectedKey={String(subject.subjectId)}
+            onSelectionChange={(key) => onSubjectChange(Number(key))}
+          >
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="Trocar disciplina">
+                {subjects.map((item) => (
+                  <Tabs.Tab id={String(item.subjectId)} key={item.subjectId}>
+                    {/* Only the chosen tab carries its icon: the others stay narrow, so more fit. */}
+                    {item.subjectId === subject.subjectId ? (
+                      <span className="pa-subject-tab-icon" aria-hidden="true">
+                        {/* Mounted afresh on each discipline, so the subject's own motion plays once. */}
+                        <SubjectIconV1 label={item.label} size={15} animated />
+                      </span>
+                    ) : null}
+                    {item.label}
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs.ListContainer>
+          </Tabs>
+        </div>
       </div>
-    </>
+      {official ? (
+        <Chip
+          size="sm"
+          variant="soft"
+          color={chipColorV1(official.tone)}
+          className={'pa-subject-official ' + (chipToneClassV1(official.tone) ?? '')}
+        >
+          <span className="pa-visually-hidden">Resultado oficial: </span>
+          {official.label}
+        </Chip>
+      ) : null}
+    </div>
   );
 }
 
@@ -1000,10 +1216,16 @@ function SubjectV1View({
   accountId,
   academicState,
   sealed,
+  assessmentSealed,
+  preview = false,
 }: {
   subject: SubjectV1;
+  /** The neighbour drawn beside a drag: nothing in it may record that it was seen. */
+  preview?: boolean;
   /** Whether the student holds the selo brilhante of the trimester being read. */
   sealed: (period: PeriodIdV1) => boolean;
+  /** Whether that activity (AV1/AV2) earned its own seal (see earnsAssessmentSealV1). */
+  assessmentSealed: (period: PeriodIdV1, partial: PartialV1) => boolean;
   /** Chosen period, kept across subjects; a subject without it falls back to its first one. */
   selected: PeriodIdV1 | undefined;
   onSelect: (period: PeriodIdV1) => void;
@@ -1014,7 +1236,9 @@ function SubjectV1View({
   const available = subjectPeriodsV1(subject);
   // Direction follows tab order (3º → 1º slides back); null until the first switch, since the
   // whole view already slides in when it opens.
-  const [periodMotion, setPeriodMotion] = useState<'forward' | 'back' | null>(null);
+  const [periodMotion, setPeriodMotion] = useState<SlideV1 | null>(null);
+  // Trimester cards slide like the Boletim lists: the old card leaves while the new one comes in.
+  const periodStage = useSlideStageV1(':scope > [role="tabpanel"]');
   const period = subjectPeriodV1(subject, active);
   const mark = scoreOfV1(period);
   const recoveryOf = RECOVERY_OF_V1[active];
@@ -1035,7 +1259,9 @@ function SubjectV1View({
         selectedKey={active}
         onSelectionChange={(key) => {
           const next = String(key) as PeriodIdV1;
-          setPeriodMotion(available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward');
+          const direction = available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward';
+          periodStage.leave(direction);
+          setPeriodMotion(direction);
           onSelect(next);
         }}
       >
@@ -1050,6 +1276,8 @@ function SubjectV1View({
                 // Each card wears its trimester's band (owner review 28/09/2026); gold shines.
                 data-tone={periodStatusV1(subjectPeriodV1(subject, item)).band ?? undefined}
               >
+                {/* Always the full name, as in production ("1º Trimestre"); when six cards do not
+                    fit a phone, the row scrolls sideways instead (owner decision 20/10/2026). */}
                 <span className="pa-period-tab-label">{PERIOD_LABELS_V1[item]}</span>
                 {/* The chosen trimester's mark heads the card below; the others stay here so a
                     parent can compare (owner review 27/09/2026). */}
@@ -1066,15 +1294,19 @@ function SubjectV1View({
             ))}
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel id={active} key={active}>
+        <div className="pa-slide-stage" ref={periodStage.stage}>
+        <div className="pa-slide-ghosts" ref={periodStage.ghostLayer} aria-hidden="true" />
+        <Tabs.Panel
+          id={active}
+          key={active}
+          className={periodMotion ? 'pa-slide-in pa-slide-in--' + periodMotion : undefined}
+        >
           {/* One card per trimester: the final mark heads it and partials follow, so it is never repeated.
               The closing follows the marks and never shows without them. */}
           {period ? (
           <Card
             className={
-              'pa-score-card pa-score-card--' +
-              scoreToneV1(mark) +
-              (periodMotion ? ' pa-tab-motion pa-tab-motion--' + periodMotion : '')
+              'pa-score-card pa-score-card--' + scoreToneV1(mark)
             }
           >
             <Card.Content
@@ -1085,11 +1317,9 @@ function SubjectV1View({
               {periodStatusV1(period).band === 'brilliant' ? (
                 // Crisp white sparkles, each twinkling in its own time (owner request 27/09/2026).
                 <span className="pa-head-sparkles" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
+                  {Array.from({ length: 12 }, (_, index) => (
+                    <i key={index} />
+                  ))}
                 </span>
               ) : null}
               <span className="pa-score-head-label">
@@ -1164,7 +1394,11 @@ function SubjectV1View({
                             label={partial.label}
                             feedback={
                               <>
-                                <PartialFeedbackV1 partial={partial} calm={mark?.meetsMinimum === false} />
+                                <PartialFeedbackV1
+                                  partial={partial}
+                                  calm={mark?.meetsMinimum === false}
+                                  sealed={assessmentSealed(active, partial)}
+                                />
                                 {/* A taken parallel exam (a score, zero included) was a second chance. */}
                                 {partial.parallel && partial.mark.kind === 'score' ? (
                                   <span className="pa-partial-second-chance">
@@ -1213,9 +1447,11 @@ function SubjectV1View({
               closing={closingOfV1(subject, active)!}
               subjectId={subject.subjectId}
               accountId={accountId}
+              preview={preview}
             />
           ) : null}
         </Tabs.Panel>
+        </div>
       </Tabs>
     </div>
   );
@@ -1264,10 +1500,11 @@ export function StudentPortalWorkspaceV1({
   const [motionDirection, setMotionDirection] = useState<'forward' | 'back'>('forward');
   // Set only while moving from one discipline to another: then the view slides across.
   const [subjectSlide, setSubjectSlide] = useState<SlideV1 | null>(null);
-  const subjectStage = useSlideStageV1();
+  const subjectStage = useSlideStageV1(':scope > .pa-swipe-track > [data-slide-live]');
   // Boletim ⇄ Disciplina slide across too (owner review 27/09/2026): opening a discipline pushes the
   // Boletim out to the left; going back brings it in from the left.
-  const [areaSlide, setAreaSlide] = useState<SlideV1 | null>(null);
+  // 'still': the area stays as it is (switching disciplines moves only the body below the header).
+  const [areaSlide, setAreaSlide] = useState<SlideV1 | 'still' | null>(null);
   const areaStage = useSlideStageV1(':scope > [role="tabpanel"] [data-area-live]');
   const goArea = (patch: Partial<WorkspaceEntryV1> & { area: WorkspaceAreaV1 }) => {
     const slide: SlideV1 = patch.area === 'subject' ? 'forward' : 'back';
@@ -1281,13 +1518,18 @@ export function StudentPortalWorkspaceV1({
 
   const validSubjectIdV1 = (subjectId: number) =>
     subjects.some((subject) => subject.subjectId === subjectId) ? subjectId : firstSubjectId;
+  // The entry on screen. Another part of the page (the Notas ⇄ Frequência menu) keeps its own key
+  // in the same history entry: its Back/Forward carries this entry unchanged, and replaying it
+  // would restart the area's entrance animation inside a page that is already sliding.
+  const shownEntry = useRef<WorkspaceEntryV1 | null>(null);
 
   const applyEntry = (
     entry: WorkspaceEntryV1,
     direction?: 'forward' | 'back',
     slide: SlideV1 | null = null,
-    areaChange: SlideV1 | null = null,
+    areaChange: SlideV1 | 'still' | null = null,
   ) => {
+    shownEntry.current = entry;
     setSubjectSlide(slide);
     setAreaSlide(areaChange);
     const resolvedDirection =
@@ -1315,7 +1557,7 @@ export function StudentPortalWorkspaceV1({
     patch: Partial<WorkspaceEntryV1>,
     direction?: 'forward' | 'back',
     slide: SlideV1 | null = null,
-    areaChange: SlideV1 | null = null,
+    areaChange: SlideV1 | 'still' | null = null,
   ) => {
     const entry = { ...current, ...patch };
     writeEntry(entry, 'push');
@@ -1327,16 +1569,25 @@ export function StudentPortalWorkspaceV1({
     if (!selectedSubject || subjectId === selectedSubject.subjectId) return;
     const slide = orderOf(subjectId) < orderOf(selectedSubject.subjectId) ? 'back' : 'forward';
     subjectStage.leave(slide);
-    go({ area: 'subject', subjectId }, slide, slide);
+    // Only the body slides; the view around it must not replay its own entrance.
+    go({ area: 'subject', subjectId }, slide, slide, 'still');
   };
-  const subjectSwipe = useSubjectSwipeV1((step) => {
-    const next = selectedSubject && subjects[orderOf(selectedSubject.subjectId) + step];
-    if (next) changeSubject(next.subjectId);
-  });
+  const neighbourSubject = (step: DragStepV1) =>
+    selectedSubject ? subjects[orderOf(selectedSubject.subjectId) + step] : undefined;
+  const subjectDrag = useDragSwipeV1(
+    (step) => neighbourSubject(step) !== undefined,
+    (step) => {
+      const next = neighbourSubject(step)!;
+      // The drag already brought the new discipline into place: no slide on top of it.
+      go({ area: 'subject', subjectId: next.subjectId }, step === 1 ? 'forward' : 'back', null, 'still');
+    },
+  );
+  const peekSubject = subjectDrag.peek === null ? undefined : neighbourSubject(subjectDrag.peek);
   /** A tab inside the same place only updates the current step. */
   const remember = (patch: Partial<WorkspaceEntryV1>) => {
     const entry = { ...current, ...patch };
     writeEntry(entry, 'replace');
+    shownEntry.current = entry;
     if (patch.period !== undefined) setSubjectPeriod(patch.period);
     if (patch.summary !== undefined) setSummaryTab(patch.summary);
   };
@@ -1345,11 +1596,22 @@ export function StudentPortalWorkspaceV1({
     if (typeof window === 'undefined') return;
     const initial = readWorkspaceEntryV1(window.history.state);
     if (initial) applyEntry(initial);
-    else writeEntry({ area: 'summary', subjectId: firstSubjectId }, 'replace');
+    else {
+      writeEntry({ area: 'summary', subjectId: firstSubjectId }, 'replace');
+      shownEntry.current = { area: 'summary', subjectId: firstSubjectId };
+    }
 
     const restore = (event: PopStateEvent) => {
       const entry = readWorkspaceEntryV1(event.state);
-      if (entry) applyEntry(entry, entry.area === 'summary' ? 'back' : 'forward');
+      const shown = shownEntry.current;
+      const same =
+        !!entry &&
+        !!shown &&
+        entry.area === shown.area &&
+        entry.subjectId === shown.subjectId &&
+        entry.period === shown.period &&
+        entry.summary === shown.summary;
+      if (entry && !same) applyEntry(entry, entry.area === 'summary' ? 'back' : 'forward');
     };
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
@@ -1388,9 +1650,11 @@ export function StudentPortalWorkspaceV1({
           key={'summary-' + area}
           data-area-live=""
           className={
-            areaSlide
-              ? 'pa-slide-in pa-slide-in--' + areaSlide
-              : 'pa-tab-motion pa-tab-motion--' + motionDirection
+            areaSlide === 'still'
+              ? undefined
+              : areaSlide
+                ? 'pa-slide-in pa-slide-in--' + areaSlide
+                : 'pa-tab-motion pa-tab-motion--' + motionDirection
           }
         >
           <SummaryV1
@@ -1408,16 +1672,19 @@ export function StudentPortalWorkspaceV1({
           <div
             data-area-live=""
             className={
-              'pa-workspace-view ' +
-              (areaSlide
-                ? 'pa-slide-in pa-slide-in--' + areaSlide
-                : 'pa-tab-motion pa-tab-motion--' + motionDirection)
+              'pa-workspace-view pa-swipe-area' +
+              (areaSlide === 'still'
+                ? ''
+                : areaSlide
+                  ? ' pa-slide-in pa-slide-in--' + areaSlide
+                  : ' pa-tab-motion pa-tab-motion--' + motionDirection)
             }
-            {...subjectSwipe}
+            {...subjectDrag.handlers}
           >
             <SubjectHeaderV1
               subject={selectedSubject}
               subjects={subjects}
+              period={subjectPeriod}
               // Switching subjects keeps the trimester being read.
               onSubjectChange={changeSubject}
               onBack={() => goArea({ area: 'summary', subjectId: selectedSubject.subjectId })}
@@ -1425,6 +1692,7 @@ export function StudentPortalWorkspaceV1({
             {/* Only the body slides between disciplines; the header above stays. */}
             <div className="pa-slide-stage" ref={subjectStage.stage}>
               <div className="pa-slide-ghosts" ref={subjectStage.ghostLayer} aria-hidden="true" />
+              <div className="pa-swipe-track" ref={subjectDrag.track}>
               <div
                 key={'subject-' + selectedSubject.subjectId}
                 data-slide-live=""
@@ -1437,7 +1705,32 @@ export function StudentPortalWorkspaceV1({
                   accountId={data.profile.accountId}
                   academicState={data.profile.academicState}
                   sealed={(period) => earnsSealV1(subjects, selectedSubject, period)}
+                  assessmentSealed={(period, partial) =>
+                    earnsAssessmentSealV1(subjects, selectedSubject, period, partial, data.endedPeriods)
+                  }
                 />
+              </div>
+              {/* The neighbouring discipline, beside this one only while a finger drags it. */}
+              {peekSubject ? (
+                <div
+                  className={'pa-swipe-peek pa-swipe-peek--' + (subjectDrag.peek === 1 ? 'next' : 'prev')}
+                  aria-hidden="true"
+                  inert
+                >
+                  <SubjectV1View
+                    preview
+                    subject={peekSubject}
+                    selected={subjectPeriod}
+                    onSelect={() => undefined}
+                    accountId={data.profile.accountId}
+                    academicState={data.profile.academicState}
+                    sealed={(period) => earnsSealV1(subjects, peekSubject, period)}
+                    assessmentSealed={(period, partial) =>
+                      earnsAssessmentSealV1(subjects, peekSubject, period, partial, data.endedPeriods)
+                    }
+                  />
+                </div>
+              ) : null}
               </div>
             </div>
           </div>

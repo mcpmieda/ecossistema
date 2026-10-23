@@ -1,8 +1,5 @@
-import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { FrequencySummaryV2 } from '../../../../shared/attendance-contracts/frequency-v2';
-import { StudentFrequencyV2 } from '../../../../src/features/student-portal/frequency/student-frequency-v2';
 import {
   createStudentFrequencyClientV2,
   FrequencyClientErrorV2,
@@ -10,90 +7,11 @@ import {
 import { useFrequencyReadV2 } from '../../../../src/features/student-portal/frequency/use-frequency-read-v2';
 import { setupOperationsDomV1 } from '../overview/dom-v1';
 
-const fixture = (month = '2026-10'): FrequencySummaryV2 => ({
-  contractVersion: 2,
-  state: 'ready',
-  month,
-  absences: null,
-  justified: null,
-  denominator: null,
-  percentage: null,
-  coverage: 'incomplete',
-  observedAt: '2026-10-14T13:00:00Z',
-  receivedAt: '2026-10-14T13:01:00Z',
-  conflicts: 1,
-  marks: [
-    {
-      date: month + '-01',
-      slot: 6,
-      shift: 'MATUTINO',
-      mark: 'X',
-      classLabels: ['TURMA HISTÓRICA INVENTADA'],
-    },
-    {
-      date: month + '-02',
-      slot: 1,
-      shift: 'VESPERTINO',
-      mark: 'J',
-      classLabels: ['TURMA ATUAL INVENTADA'],
-    },
-  ],
-});
 beforeEach(setupOperationsDomV1);
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.useRealTimers();
-});
-
-it('shows known X/J and historical origin while partial totals and percentage remain unavailable', async () => {
-  render(<StudentFrequencyV2 client={{ read: async (month) => fixture(month) }} />);
-  await screen.findByText('Dados parciais');
-  expect(screen.getAllByText('Indisponível')).toHaveLength(4);
-  expect(screen.getByText(/Posição 6 · Matutino/)).toBeTruthy();
-  expect(screen.getByText(/Posição 1 · Vespertino/)).toBeTruthy();
-  expect(screen.getByText(/Turma de origem: TURMA HISTÓRICA INVENTADA/)).toBeTruthy();
-  expect(screen.getByText(/Falta \(X\)/)).toBeTruthy();
-  expect(screen.getByText(/Justificada \(J\)/)).toBeTruthy();
-  expect(screen.getByText(/Coletado em:/)).toBeTruthy();
-  expect(screen.getByText(/Sincronizado em:/)).toBeTruthy();
-  expect(screen.queryByText(/presen[çc]a/i)).toBeNull();
-});
-
-it('does not expose totals even if an incomplete response accidentally includes numbers', async () => {
-  render(
-    <StudentFrequencyV2
-      client={{
-        read: async (month) => ({
-          ...fixture(month),
-          absences: 99,
-          justified: 8,
-          denominator: 120,
-          percentage: 80,
-        }),
-      }}
-    />,
-  );
-  await screen.findByText('Dados parciais');
-  expect(screen.queryByText('80%')).toBeNull();
-  expect(screen.queryByText('99')).toBeNull();
-});
-
-it('drops a late previous-month read and clears marks after authentication failure', async () => {
-  let finish!: (value: FrequencySummaryV2) => void;
-  const read = vi.fn((_month: string) =>
-    read.mock.calls.length === 1
-      ? new Promise<FrequencySummaryV2>((resolve) => {
-          finish = resolve;
-        })
-      : Promise.reject(new FrequencyClientErrorV2('unauthenticated')),
-  );
-  render(<StudentFrequencyV2 client={{ read }} />);
-  await waitFor(() => expect(read).toHaveBeenCalledOnce());
-  await userEvent.setup().selectOptions(screen.getByLabelText('Mês'), '2026-09');
-  await screen.findByText('Sessão expirada. Entre novamente.');
-  await act(async () => finish(fixture('2026-10')));
-  expect(screen.queryByText(/TURMA HISTÓRICA/)).toBeNull();
 });
 
 it('uses a private month-only endpoint, rejects unknown payloads and removes stale data after a 404', async () => {

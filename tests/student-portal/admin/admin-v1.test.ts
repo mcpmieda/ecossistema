@@ -1,6 +1,7 @@
 import { cleanupPortalV1 } from '../../../server/student-portal/maintenance/retention-v1';
 import type { AdminReadResponseV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import { readFileSync } from 'node:fs';
+import { officialBells2026V1 } from '../../../shared/student-portal-contracts/school-bells-v1';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
@@ -93,6 +94,9 @@ beforeAll(async () => {
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await installResetSchemaFixtureV1(pg);
   await pg.exec(ACADEMIC_FIXTURE_SQL_V1);
+  await pg.exec(readFileSync('migrations/student-portal/0029_school_calendar_v1.sql', 'utf8'));
+  await pg.exec(readFileSync('migrations/student-portal/0030_school_bells_v1.sql', 'utf8'));
+  await pg.exec(readFileSync('migrations/student-portal/0031_school_bells_parada_v1.sql', 'utf8'));
   accounts = (
     await pg.query<{ id: string; student: number }>(
       'SELECT id,gradebook_student_id AS student FROM student_portal.account ORDER BY gradebook_student_id',
@@ -168,6 +172,60 @@ async function seedRecovery(accountIds = accounts.map((account) => account.id)) 
 }
 
 describe('private administrative API with real persistence', () => {
+  // Calendário escolar (owner decision 22/10/2026).
+  const day = (date: string, kind = 'letivo', note?: string) => ({ date, kind, ...(note ? { note } : {}) });
+  it('is read and written whole, school-wide, with its version and never past 200 school days', async () => {
+    // It starts with the official calendar of 2026, saved by migration 0029 (200 school days).
+    const official = await query('school-calendar', { scope: SCHOOL });
+    expect(official.calendar?.version).toBe(1);
+    expect(official.calendar?.days.filter((item) => item.kind !== 'feriado' && item.kind !== 'recesso' && item.kind !== 'evento')).toHaveLength(200);
+    // Only the school scope: a class never has a calendar of its own.
+    expect((await api.query(context(), { contractVersion: 1, operation: 'school-calendar', scope: CLASS, page: {} })).state).toBe('forbidden');
+    const days = [day('2026-03-02'), day('2026-03-03'), day('2026-04-03', 'feriado', 'Paixão de Cristo')];
+    const first = command('school-calendar-set', 1, { academicYear: 2026, days });
+    const saved = state(await api.command(context(), first), 'committed');
+    expect(state(await api.command(context(), first), 'committed')).toMatchObject({ operationId: saved.operationId });
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({
+      calendar: { academicYear: 2026, version: 2, days },
+    });
+    // A write from an older reading is refused (two admins never overwrite each other).
+    expect((await api.command(context(), command('school-calendar-set', 1, { academicYear: 2026, days: [] }))).state).toBe('conflict');
+    // 201 school days are refused before anything is written.
+    const many = Array.from({ length: 201 }, (_, index) =>
+      day(new Date(Date.UTC(2026, 0, 1 + index)).toISOString().slice(0, 10)),
+    );
+    expect((await api.command(context(), command('school-calendar-set', 2, { academicYear: 2026, days: many }))).state).toBe('invalid-request');
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({ calendar: { version: 2 } });
+    // Exactly 200 is the rule and is accepted.
+    state(await api.command(context(), command('school-calendar-set', 2, { academicYear: 2026, days: many.slice(0, 200) })), 'committed');
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({ calendar: { version: 3 } });
+  });
+  // Horário das aulas (owner decision 23/10/2026).
+  it('reads and writes the bells whole, school-wide, with their version, refusing a wrong day', async () => {
+    // It starts with the school's sheets of 22/06, saved by migration 0030, with the parada (0031).
+    const official = await query('school-bells', { scope: SCHOOL });
+    expect(official.bells).toEqual({ academicYear: 2026, version: 2, bells: officialBells2026V1() });
+    expect((await api.query(context(), { contractVersion: 1, operation: 'school-bells', scope: CLASS, page: {} })).state).toBe('forbidden');
+    const bells = officialBells2026V1();
+    bells.matutino[1] = [
+      { kind: 'aula', slot: 1, start: '07:10', end: '08:00' },
+      { kind: 'intervalo', start: '08:00', end: '08:20' },
+      { kind: 'aula', slot: 2, start: '08:20', end: '09:10' },
+    ];
+    const first = command('school-bells-set', 2, { academicYear: 2026, bells });
+    const saved = state(await api.command(context(), first), 'committed');
+    expect(state(await api.command(context(), first), 'committed')).toMatchObject({ operationId: saved.operationId });
+    expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({ bells: { version: 3, bells } });
+    // An older reading is refused; so is a day with two lessons at the same time.
+    expect((await api.command(context(), command('school-bells-set', 2, { academicYear: 2026, bells }))).state).toBe('conflict');
+    const wrong = officialBells2026V1();
+    wrong.vespertino[2] = [
+      { kind: 'aula', slot: 1, start: '13:15', end: '14:00' },
+      { kind: 'aula', slot: 2, start: '13:30', end: '14:15' },
+    ];
+    expect((await api.command(context(), command('school-bells-set', 3, { academicYear: 2026, bells: wrong }))).state).toBe('invalid-request');
+    expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({ bells: { version: 3 } });
+  });
   it.each([200, 201, 300])('preserves %i-character accented names through QR batches and V1/V2 cursor pages', async (length) => {
     const original = (await pg.query<{ id: number; nome: string }>(
       'SELECT id,nome FROM gradebook.aluno WHERE id=ANY($1::bigint[])',

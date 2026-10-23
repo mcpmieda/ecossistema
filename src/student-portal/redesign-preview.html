@@ -1,0 +1,20 @@
+<!doctype html>
+<!--
+  Redesign preview, served ONLY by the Vite dev server (npm run dev:student-portal →
+  /redesign-preview.html). On purpose it is not a build input of vite.student-portal.config.ts and
+  the Portal's edge router serves only / and /access, so this draft never reaches production.
+  Synthetic data only (redesign-preview/demo-data-v3.ts).
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32.png" />
+    <title>Redesign · Portal do Aluno</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/redesign-preview/main-v3.tsx"></script>
+  </body>
+</html>

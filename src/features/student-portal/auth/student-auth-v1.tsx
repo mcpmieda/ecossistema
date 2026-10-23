@@ -25,9 +25,16 @@ const SECRET_REVEAL_MS_V1 = 1200;
  * button into view only if it is hidden ('nearest' never jumps a visible button).
  */
 function settleAfterTypingV1(input: HTMLInputElement | null) {
-  const button = input?.closest('form')?.querySelector<HTMLElement>('.pa-auth-submit');
-  input?.blur();
+  const button = input?.closest('form')?.querySelector<HTMLButtonElement>('.pa-auth-submit');
   const smooth = !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // The last digit moves the focus to the button (owner report 23/10/2026: on a computer, Enter did
+  // nothing once the field let go of the focus); on a phone the keyboard still closes. The button is
+  // enabled by the render that follows the last digit, so this waits for it; a button still
+  // disabled (the risk check pending) only releases the field.
+  setTimeout(() => {
+    if (button && !button.disabled) button.focus({ preventScroll: true });
+    else input?.blur();
+  }, 0);
   setTimeout(() => button?.scrollIntoView?.({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' }), 300);
 }
 
@@ -54,10 +61,12 @@ function NumericCredentialV1({
 }>) {
   const id = useId();
   const own = useRef<HTMLInputElement>(null);
+  // Ready to type on every step (owner report 23/10/2026: on the next screen the field had to be
+  // clicked again): on arrival, and again when the field comes back from waiting for the server.
   useEffect(() => {
-    if (!autoFocus) return;
+    if (!autoFocus || disabled) return;
     own.current?.focus({ preventScroll: true });
-  }, [autoFocus]);
+  }, [autoFocus, disabled]);
   // Secret digits: only the one just typed shows, and it turns into * after a short pause, on
   // deletion or when the field loses focus.
   const [revealed, setRevealed] = useState<number | null>(null);
@@ -327,6 +336,8 @@ function CredentialFieldsV1({
       ) : null}
       {showCredential ? (
         <NumericCredentialV1
+          // A field of its own on each step, so the new step's field takes the focus.
+          key={state.step}
           label={credentialLabelV1(state.step)}
           length={length}
           value={value}

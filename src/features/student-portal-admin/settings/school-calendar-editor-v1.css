@@ -1,0 +1,226 @@
+/* Calendário escolar (owner decisions 22–23/10/2026): HeroUI cards, a progress bar against the rule
+   of 200 school days, the main dates and twelve small months (plus December of the year before for
+   the enrollment). Theme colours everywhere; only the kinds of day keep their own colours. */
+.pa-school-calendar {
+  --sc-letivo: #15803d;
+  --sc-sabado: #0f766e;
+  --sc-evento-letivo: #1d4ed8;
+  --sc-feriado: #b42318;
+  --sc-recesso: #c2410c;
+  --sc-evento: #6b7280;
+  margin-top: 1rem;
+}
+.pa-school-calendar__status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+}
+.pa-school-calendar__head {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.pa-school-calendar__count {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 14rem;
+}
+.pa-school-calendar__count strong {
+  font-size: 1.15rem;
+}
+.pa-school-calendar__count-note {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.pa-school-calendar__count-note--done {
+  color: var(--success);
+}
+.pa-school-calendar__count-note--over {
+  color: var(--danger);
+}
+.pa-school-calendar__count-note--short {
+  color: var(--warning-soft-foreground);
+}
+.pa-school-calendar__body {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Datas principais: a toggle per date (the one being placed is selected), its day in a chip. */
+.pa-school-marks__body {
+  display: grid;
+  gap: 0.6rem;
+}
+.pa-school-marks__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa-school-mark {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.pa-school-mark__pick {
+  flex: 1;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  height: auto;
+  min-height: 2.25rem;
+  padding-block: 0.35rem;
+  text-align: left;
+}
+.pa-school-mark__label {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+}
+
+/* Brushes: detached toggles, each with the colour of its kind of day. */
+.pa-school-calendar__tools {
+  flex-wrap: wrap;
+}
+.pa-school-brush {
+  height: auto;
+  min-height: 2.6rem;
+  gap: 0.45rem;
+  padding-block: 0.35rem;
+  text-align: left;
+}
+.pa-school-brush__text {
+  display: grid;
+  line-height: 1.15;
+}
+.pa-school-brush__text small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+.pa-school-brush__dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 0.25rem;
+  background: var(--sc-color, var(--surface));
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.pa-school-kind--letivo { --sc-color: var(--sc-letivo); }
+.pa-school-kind--sabado-letivo { --sc-color: var(--sc-sabado); }
+.pa-school-kind--evento-letivo { --sc-color: var(--sc-evento-letivo); }
+.pa-school-kind--feriado { --sc-color: var(--sc-feriado); }
+.pa-school-kind--recesso { --sc-color: var(--sc-recesso); }
+.pa-school-kind--evento { --sc-color: var(--sc-evento); }
+.pa-school-kind--clear { --sc-color: var(--surface); }
+.pa-school-calendar__note {
+  max-width: 26rem;
+}
+
+/* The months. */
+.pa-school-calendar__months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
+  gap: 0.9rem;
+}
+.pa-school-month {
+  gap: 0.4rem;
+  padding: 0.75rem;
+}
+.pa-school-month--before {
+  opacity: 0.85;
+}
+.pa-school-month__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--foreground);
+}
+.pa-school-month__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.2rem;
+  user-select: none;
+  touch-action: none;
+}
+.pa-school-month__weekday {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: center;
+}
+.pa-school-day {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--radius-lg) * 0.5);
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: box-shadow 120ms ease-out;
+}
+.pa-school-day[class*='pa-school-kind--'] {
+  background: var(--sc-color);
+  color: #fff;
+}
+.pa-school-day:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.pa-school-day:not(:disabled):hover {
+  box-shadow: inset 0 0 0 2px var(--foreground);
+}
+.pa-school-day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* A day with a main date: outlined in the accent, a small flag in its corner. */
+.pa-school-day.has-mark {
+  position: relative;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.pa-school-day.has-mark::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  border-top: 6px solid var(--accent);
+  border-left: 6px solid transparent;
+}
+.pa-school-month__events {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.pa-school-month__events li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.pa-school-month__mark {
+  color: var(--accent);
+  font-weight: 650;
+}
+.pa-school-calendar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-school-day {
+    transition: none;
+  }
+}

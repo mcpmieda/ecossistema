@@ -140,7 +140,7 @@ describe('student portal grade workspace', () => {
     expect(within(row('PARALELA PENDENTE')).queryByText('Foi uma segunda chance')).toBeNull();
   });
 
-  it('swipes to the next or previous discipline, never on a tab bar or a vertical scroll', async () => {
+  it('drags to the next or previous discipline, never on a tab bar or a vertical scroll', async () => {
     const data = gradesFixtureV1(false);
     const [first, second] = [...data.subjects].sort((a, b) => a.order - b.order) as [
       (typeof data.subjects)[number],
@@ -148,8 +148,10 @@ describe('student portal grade workspace', () => {
     ];
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    // The content follows the finger (touchmove) and the move completes on release.
     const swipe = (target: Element, from: [number, number], to: [number, number]) => {
       fireEvent.touchStart(target, { touches: [{ clientX: from[0], clientY: from[1] }] });
+      fireEvent.touchMove(target, { touches: [{ clientX: to[0], clientY: to[1] }] });
       fireEvent.touchEnd(target, { changedTouches: [{ clientX: to[0], clientY: to[1] }] });
     };
     const heading = () => screen.getByRole('heading', { level: 2, name: /Disciplina sintética/u }).textContent;
@@ -164,10 +166,50 @@ describe('student portal grade workspace', () => {
     swipe(screen.getByRole('tablist', { name: 'Trocar disciplina' }), [260, 150], [100, 150]);
     expect(heading()).toBe(first.label);
 
+    // While dragging, the next discipline is already drawn beside this one (hidden from assistive tech).
+    const card = screen.getByText('Sua nota do 1º trimestre');
+    fireEvent.touchStart(card, { touches: [{ clientX: 260, clientY: 300 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 180, clientY: 302 }] });
+    expect(document.querySelector('.pa-swipe-peek--next')?.getAttribute('aria-hidden')).toBe('true');
+    fireEvent.touchCancel(card);
+    expect(document.querySelector('.pa-swipe-peek')).toBeNull();
+    expect(heading()).toBe(first.label);
+
     swipe(screen.getByText('Sua nota do 1º trimestre'), [260, 300], [100, 305]);
     expect(heading()).toBe(second.label);
     swipe(screen.getByText('Sua nota do 1º trimestre'), [100, 300], [260, 305]);
     expect(heading()).toBe(first.label);
+  });
+
+  it('drags the Boletim between trimesters without opening the subject under the finger', () => {
+    const data = gradesFixtureV1(false);
+    for (const subject of data.subjects)
+      subject.periods = [
+        { period: 'T1', final: { kind: 'score', value: 20, maximum: 30, meetsMinimum: true } },
+        { period: 'T2', final: { kind: 'score', value: 21, maximum: 30, meetsMinimum: true } },
+      ];
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    const selectedPeriod = () =>
+      within(screen.getByRole('tablist', { name: 'Período das notas' }))
+        .getAllByRole('tab')
+        .find((tab) => tab.getAttribute('aria-selected') === 'true')!.textContent;
+    const row = () => screen.getAllByRole('option')[0]!;
+    const drag = (from: number, to: number) => {
+      fireEvent.touchStart(row(), { touches: [{ clientX: from, clientY: 300 }] });
+      fireEvent.touchMove(row(), { touches: [{ clientX: to, clientY: 302 }] });
+      fireEvent.touchEnd(row(), { changedTouches: [{ clientX: to, clientY: 302 }] });
+      // The browser's tap that follows the release is swallowed: the Boletim stays open.
+      fireEvent.click(row());
+    };
+    expect(selectedPeriod()).toContain('1º Trimestre');
+    drag(260, 100);
+    expect(selectedPeriod()).toContain('2º Trimestre');
+    expect(screen.getByRole('tablist', { name: 'Período das notas' })).toBeTruthy();
+    // Past the last trimester the list only gives a little and comes back.
+    drag(260, 100);
+    expect(selectedPeriod()).toContain('2º Trimestre');
+    drag(100, 260);
+    expect(selectedPeriod()).toContain('1º Trimestre');
   });
 
   it('keeps the chosen trimester across subjects, the Boletim tab on return and a reload', async () => {
@@ -365,7 +407,9 @@ describe('student portal grade workspace', () => {
     expect(list.querySelector('.pa-subject-icon--animated')).toBeNull();
 
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
-    const icon = document.querySelector('.pa-workspace-intro .pa-subject-icon--animated');
+    // The chosen discipline's tab carries the icon (the old page intro was replaced by the tab bar).
+    const tab = screen.getByRole('tab', { name: new RegExp(first.label, 'u'), selected: true });
+    const icon = tab.querySelector('.pa-subject-icon--animated');
     expect(icon?.getAttribute('data-motion')).toBe('spin');
   });
 
@@ -389,6 +433,20 @@ describe('student portal grade workspace', () => {
 
     expect(within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected'))
       .toBe('true');
+  });
+
+  it('ignores a Back that carries its own entry unchanged (another menu on the page moved)', async () => {
+    renderWorkspace();
+    const live = () => document.querySelector('[data-area-live]')!.className;
+    const before = live();
+    const unchanged = window.history.state.__studentPortalWorkspaceV1;
+    // The Notas ⇄ Frequência menu keeps its own key in the same entry: only that key changed.
+    await act(async () => {
+      window.dispatchEvent(
+        new PopStateEvent('popstate', { state: { __studentPortalWorkspaceV1: { ...unchanged }, pa3Page: 'grades' } }),
+      );
+    });
+    expect(live()).toBe(before);
   });
 });
 

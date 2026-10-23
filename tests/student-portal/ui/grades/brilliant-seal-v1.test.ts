@@ -139,4 +139,10 @@ describe('selos das avaliações (owner rules 28/09/2026)', () => {
     const math = subject(term('T1', 20, [activity, parallel, notDone, av(13, 8.99)]));
     expect(brilliantSealCountV1([math], ['T1'])).toBe(0);
   });
+
+  it('a partial flagged both AV and parallel is never trusted as an AV (PR 1317 review)', () => {
+    const both = av(14, 10, { parallel: true });
+    const math = subject(term('T1', 20, [both]));
+    expect(brilliantSealCountV1([math], ['T1'])).toBe(0);
+  });
 });
