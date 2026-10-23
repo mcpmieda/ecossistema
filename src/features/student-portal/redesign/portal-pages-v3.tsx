@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { CalendarCheck2, Clock, NotebookPen } from 'lucide-react';
+import { CalendarCheck2, CalendarX2, Clock, NotebookPen } from 'lucide-react';
 import { StudentPortalShellV1, type StudentShellPropsV1 } from '../shell/student-shell-v1';
 // The portal's own shell styles (helpers such as the screen-reader-only text), loaded unchanged.
 import '../shell/student-shell-v1.css';
@@ -22,6 +22,18 @@ export type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule';
 const PortalPageActiveV3 = createContext(true);
 export const usePortalPageActiveV3 = () => useContext(PortalPageActiveV3);
 type PageV3 = PortalPageIdV3;
+
+/**
+ * The Frequência item of the menu says how it is going (owner decision 23/10/2026): a red calendar
+ * with an X while the page has a red warning at the top (its approved sentences), a green calendar
+ * with a check otherwise. Unknown until the year is read (the plain icon). The page reports it.
+ */
+export type FrequencyToneV3 = 'good' | 'alert' | null;
+const FrequencyToneReportV3 = createContext<(tone: FrequencyToneV3) => void>(() => {});
+export function useReportFrequencyToneV3(tone: FrequencyToneV3) {
+  const report = useContext(FrequencyToneReportV3);
+  useEffect(() => report(tone), [report, tone]);
+}
 
 const PAGES: readonly { id: PageV3; label: string; Icon: typeof NotebookPen }[] = [
   { id: 'grades', label: 'Notas', Icon: NotebookPen },
@@ -115,6 +127,7 @@ function PortalMenuPagesV3({
   const panels = useRef<Partial<Record<PageV3, HTMLDivElement | null>>>({});
   const entering = useRef<SlideV3 | null>(null);
   const highlight = useNavHighlightV3(page);
+  const [frequencyTone, setFrequencyTone] = useState<FrequencyToneV3>(null);
   const elementOf = (id: PageV3) => panels.current[id] ?? null;
   // Set by a switch the reader asked for (menu or Back), never by the first render.
   const switched = useRef(false);
@@ -209,15 +222,27 @@ function PortalMenuPagesV3({
             aria-controls={`pa3-panel-${id}`}
             onClick={() => choose(id)}
           >
-            <span className="pa3-nav-icon">
-              <Icon size={22} aria-hidden="true" />
+            <span
+              className={'pa3-nav-icon' + (id === 'frequency' && frequencyTone ? ` pa3-nav-icon--${frequencyTone}` : '')}
+            >
+              {id === 'frequency' && frequencyTone === 'alert' ? (
+                <CalendarX2 size={22} aria-hidden="true" />
+              ) : (
+                <Icon size={22} aria-hidden="true" />
+              )}
             </span>
             <span className="pa3-nav-label">{label}</span>
+            {id === 'frequency' && frequencyTone ? (
+              <span className="pa-visually-hidden">
+                {frequencyTone === 'alert' ? ', com aviso' : ', sem aviso'}
+              </span>
+            ) : null}
           </button>
         ))}
       </nav>
 
       <div className="pa3-page">
+        <FrequencyToneReportV3 value={setFrequencyTone}>
         <StudentPortalShellV1 {...shell} hero={hero}>
           <div ref={stage} className="pa3-stage">
             {pages.map(({ id, label }) => (
@@ -238,6 +263,7 @@ function PortalMenuPagesV3({
             ))}
           </div>
         </StudentPortalShellV1>
+        </FrequencyToneReportV3>
       </div>
     </div>
   );

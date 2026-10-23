@@ -89,6 +89,26 @@ describe('student shell and canonical profile', () => {
     expect(scheduleClient.read).toHaveBeenCalledOnce();
     expect(frequencyClient.read).not.toHaveBeenCalled();
   });
+  it("marks the Frequência item green, or red with an X while the page has a red warning (owner decision 23/10/2026)", async () => {
+    const year = (tone: 'alert' | 'good' | null) => ({
+      contractVersion: 2 as const, state: 'ready' as const, academicYear: 2026 as const, today: '2026-10-21',
+      year: null, lastReadAt: null, months: [],
+      comment: tone ? { kind: 'near-limit', tone, text: 'Frase' } : null,
+    });
+    const icon = () => document.querySelector('.pa3-nav-item[aria-controls="pa3-panel-frequency"] .pa3-nav-icon')!;
+    for (const [tone, expected, name] of [
+      ['alert', 'pa3-nav-icon--alert', 'Frequência, com aviso'],
+      ['good', 'pa3-nav-icon--good', 'Frequência, sem aviso'],
+      [null, 'pa3-nav-icon--good', 'Frequência, sem aviso'],
+    ] as const) {
+      const frequencyClient = { read: vi.fn(() => new Promise<never>(() => undefined)), readYear: vi.fn(async () => year(tone)) };
+      render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, showFrequency: true } }, frequencyClient }));
+      // Unknown until the year is read: the plain icon.
+      await vi.waitFor(() => expect(icon().className).toContain(expected));
+      expect(screen.getByRole('button', { name })).toBeTruthy();
+      cleanup();
+    }
+  });
   it('clears protected profile and grade content in loading, errors and expiration', () => {
     const view = render(page());
     view.rerender(page({ load: { state: 'loading' } }));

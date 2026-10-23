@@ -1023,3 +1023,10 @@
 .pa3-lesson--pending .pa3-lesson-state {
   background: #475569;
 }
+/* The Frequência item says how it is going (owner decision 23/10/2026): green check, red X. */
+.pa3-nav-icon--good {
+  color: var(--pa3-green);
+}
+.pa3-nav-icon--alert {
+  color: var(--pa3-red);
+}

@@ -17,7 +17,7 @@ import {
   bellShiftOfLabelV1,
 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolDayOffLabelV1, type SchoolDayOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
-import { usePortalPageActiveV3 } from './portal-pages-v3';
+import { usePortalPageActiveV3, useReportFrequencyToneV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
 
@@ -477,6 +477,8 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
     [client],
   );
   const load = useCachedReadV3(read, usePortalPageActiveV3(), onAuthenticationLost);
+  // The menu's icon: red with an X while the page shows a red warning, green otherwise.
+  useReportFrequencyToneV3(load.data ? (load.data.comment?.tone === 'alert' ? 'alert' : 'good') : null);
   // The school's today as the server reads it (the collection agenda's timezone): a phone with a
   // wrong clock never moves "HOJE".
   const deviceToday = useTodayV3();
