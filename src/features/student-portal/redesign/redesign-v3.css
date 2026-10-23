@@ -489,6 +489,10 @@
 .pa3-legend .pa3-dot[data-tone='1']:not(.is-justified) {
   box-shadow: inset 0 0 0 1px rgb(155 28 19 / 0.35);
 }
+.pa3-legend .pa3-dot--clear {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #cbd5e1;
+}
 
 /* Previous / next month, at the right of the calendar's month. */
 .pa3-month-arrows {

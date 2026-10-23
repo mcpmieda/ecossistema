@@ -741,6 +741,8 @@ function FrequencyMonthV3({
           {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
           <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Faltou algumas aulas</li>
           <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
+          {/* A day without absence (owner request 23/10/2026): a white square, as on the calendar. */}
+          <li><span className="pa3-dot pa3-dot--clear" /> Sem falta</li>
         </ul>
         {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
         <div className="pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`} role="group">
