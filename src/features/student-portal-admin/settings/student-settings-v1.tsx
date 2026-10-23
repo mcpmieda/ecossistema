@@ -506,7 +506,7 @@ function SettingsReadyV1({
   const accessDisabled =
     fieldDisabled || controlledByShift('accessEnabled') || controlledByShift('accessSchedule');
   const gradesDisabled = fieldDisabled || controlledByShift('calendar');
-  const renderField = (field: SettingsFieldV1) =>
+  const renderField = (field: SettingsFieldV1, locked = false) =>
     field === 'accessSchedule' ? null : field === 'accessEnabled' ? (
       // The switch and its schedules are one unit, edited on their own card.
       <AccessPlanCardV1
@@ -523,7 +523,7 @@ function SettingsReadyV1({
         key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
         field={field}
         settings={data}
-        canWrite={canWrite}
+        canWrite={canWrite && !locked}
         disabled={fieldDisabled || controlledByShift(field)}
         compact={area === 'policies'}
         sourceLabel={sourceLabel(data.sources[field])}
@@ -564,13 +564,18 @@ function SettingsReadyV1({
       {area === 'policies' ? (
         <PolicyLayoutV1
           customizations={customizations}
+          calendarEditable={canWrite && fixedScope.kind === 'school'}
           schoolCalendar={
-            fixedScope.kind === 'school' ? (
-              <SchoolCalendarEditorV1 client={client} canWrite={canWrite} onSaved={onRefresh} />
-            ) : undefined
+            fixedScope.kind === 'school'
+              ? (editing) => (
+                  <SchoolCalendarEditorV1 client={client} canWrite={canWrite && editing} onSaved={onRefresh} />
+                )
+              : undefined
           }
           schoolBells={
-            fixedScope.kind === 'school' ? <SchoolBellsEditorV1 client={client} canWrite={canWrite} /> : undefined
+            fixedScope.kind === 'school'
+              ? (editing) => <SchoolBellsEditorV1 client={client} canWrite={canWrite && editing} />
+              : undefined
           }
           field={renderField}
           shift={fixedScope.kind === 'shift'}
@@ -650,7 +655,7 @@ function SettingsReadyV1({
         />
       ) : area !== 'general' ? (
         <div className="pa-settings-fields">
-          {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map(renderField)}
+          {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map((name) => renderField(name))}
         </div>
       ) : null}
       {area !== 'general' && area !== 'policies' ? customizations : null}
