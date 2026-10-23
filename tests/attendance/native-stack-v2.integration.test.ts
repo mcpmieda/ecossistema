@@ -11,6 +11,7 @@ import {
 import {
   createFrequencyServiceV2,
   portalFrequencySummaryV2,
+  portalFrequencyYearV2,
   summarizeFrequencyPublicOriginsV2,
   withLessonDaysV2,
   type PortalFrequencyYearReadV2,
@@ -297,6 +298,9 @@ native('frequency V2 complete native migration stack', () => {
     const year = (await yearRead())[0]!.frequency as PortalFrequencyYearReadV2;
     const [schoolDay] = await exec(`SELECT (clock_timestamp() AT TIME ZONE 'America/Bahia')::date::text AS today`);
     expect(year.today).toBe(schoolDay!.today);
+    // The database's clock, for the school year's countdown (not the phone's).
+    expect(Math.abs(Date.parse(year.now!) - Date.now())).toBeLessThan(60_000);
+    expect(portalFrequencyYearV2(year).serverNow).toBe(new Date(year.now!).toISOString());
     expect(year.origins).toEqual(frequency.origins);
     expect(year.days).toEqual(frequency.days);
     expect(new Date(year.lastReadAt!).toISOString()).toBe('2026-01-10T12:00:00.000Z');

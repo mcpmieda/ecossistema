@@ -150,6 +150,7 @@ const wholeYear = z
     year: yearCounts.nullable(),
     lastReadAt: timestamp,
     months: z.array(summary).max(12),
+    serverNow: z.iso.datetime({ offset: true }).optional(),
     schoolYear: z
       .object({
         schoolDays: z.number().int().nonnegative().max(366),

@@ -8,7 +8,8 @@
 --   * today: the school's date (the collection agenda's timezone, America/Bahia by default), the
 --     same day the collector's clock check uses, so a phone with a wrong clock never moves "HOJE";
 --   * lastReadAt: the last reading of the diary of the student's class(es) (class_state_v2, moved
---     by every collection, unchanged ones included), for "Atualizado em".
+--     by every collection, unchanged ones included), for "Atualizado em";
+--   * now: the database's clock, so the school year's countdown runs on it, not on the phone's.
 -- Additive: v3 stays for the Worker in production until the new one is deployed; apply this BEFORE
 -- that Worker. The bridge gains SELECT on the school's agenda timezone only.
 BEGIN;
@@ -66,7 +67,7 @@ CREATE FUNCTION attendance.read_portal_frequency_v4(p_account uuid,p_session uui
   IF NOT EXISTS(SELECT 1 FROM student_portal.session s JOIN student_portal.account a ON a.id=s.account_id
    WHERE s.id=p_session AND a.id=p_account AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp()
     AND s.security_version=a.security_version AND a.closed_at IS NULL AND NOT a.blocked AND a.eligibility='eligible') THEN RETURN NULL; END IF;
-  RETURN jsonb_build_object('origins',v_origins,'days',v_days,'today',v_today,'lastReadAt',v_read);
+  RETURN jsonb_build_object('origins',v_origins,'days',v_days,'today',v_today,'lastReadAt',v_read,'now',clock_timestamp()::text);
  END $$;
 REVOKE ALL ON FUNCTION attendance.read_portal_frequency_v4(uuid,uuid,text,text) FROM PUBLIC,anon,authenticated,gradebook_app;
 DO $$ BEGIN

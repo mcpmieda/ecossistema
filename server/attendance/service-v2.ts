@@ -353,6 +353,8 @@ export type PortalFrequencyYearReadV2 = {
   days: readonly Row[];
   today: string;
   lastReadAt: string | null;
+  /** The database's clock at the read (0012), for the countdown. */
+  now?: string;
 };
 /** One month of the year's read, by the owner's rule (today never counts). */
 function monthOfReadV2(read: PortalFrequencyYearReadV2, key: string): FrequencySummaryV2 {
@@ -438,6 +440,7 @@ export function portalFrequencyYearV2(
     year: yearOfMonthsV2(months, read.today),
     lastReadAt: lastReadOfV2(read),
     months,
+    ...(read.now ? { serverNow: iso(read.now) } : {}),
   };
 }
 export function summarizeFrequencyPublicOriginsV2(

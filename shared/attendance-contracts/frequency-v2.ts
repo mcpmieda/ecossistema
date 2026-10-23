@@ -185,6 +185,8 @@ export type FrequencyYearSummaryV2 = {
   months: FrequencySummaryV2[];
   /** The school's calendar marked in the ADM (null before it is): the countdown to the year's end. */
   schoolYear?: { schoolDays: number; remaining: number; firstDay: string | null; lastDay: string | null } | null;
+  /** The database's clock when the year was read: the countdown runs on it, not on the phone's. */
+  serverNow?: string;
   /** One sentence about the absences for the family (frequency-comment-v2.ts), or none. */
   comment?: { kind: string; tone: 'alert' | 'good'; text: string } | null;
 };

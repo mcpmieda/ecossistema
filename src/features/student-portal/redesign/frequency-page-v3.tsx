@@ -8,7 +8,7 @@ import {
 import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
 import { usePortalPageActiveV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
-import { PortalCountdownV1 } from '../shell/portal-notices-v1';
+import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
 
 /*
  * Frequência in a page of its own (owner requests 20–21/10/2026, preview only): one month at a
@@ -449,7 +449,15 @@ function FrequencyStatusV3({
 export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthenticationLost }: FrequencyPageV3Props) {
   // The whole school year so far, read once with the sign-in (owner request 22/10/2026: changing
   // months must never blink nor wait): every month, the school's today, the year's counts.
-  const read = useCallback((signal: AbortSignal) => client.readYear(signal), [client]);
+  const read = useCallback(
+    async (signal: AbortSignal) => {
+      const value = await client.readYear(signal);
+      // The countdown runs on the database's clock, never on a phone set to the wrong time.
+      if (value.serverNow) syncPortalClockV1(value.serverNow);
+      return value;
+    },
+    [client],
+  );
   const load = useCachedReadV3(read, usePortalPageActiveV3(), onAuthenticationLost);
   // The school's today as the server reads it (the collection agenda's timezone): a phone with a
   // wrong clock never moves "HOJE".

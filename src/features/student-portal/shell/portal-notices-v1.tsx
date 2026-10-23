@@ -21,6 +21,11 @@ export type PortalStatusClientV1 = ReturnType<typeof createPortalStatusClientV1>
 // wrong time would otherwise open (or never open) the countdown at the wrong moment.
 let clockOffsetMsV1 = 0;
 const portalNowV1 = () => Date.now() + clockOffsetMsV1;
+/** The server's clock from another answer (the frequency's, from the database): countdowns follow it. */
+export function syncPortalClockV1(serverNow: string) {
+  const at = Date.parse(serverNow);
+  if (Number.isFinite(at)) clockOffsetMsV1 = at - Date.now();
+}
 
 /** Reads the notices once per `key` (anonymous / signed in). A failure shows no notice at all. */
 export function usePortalNoticesV1(read: PortalStatusClientV1, key: string | null) {
