@@ -6,7 +6,7 @@ import {
   type SchoolCalendarDayV1,
   type SchoolDayKindV1,
 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
-import { smecelCalendar2026V1 } from '../../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
+import { officialCalendar2026V1 } from '../../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import './school-calendar-editor-v1.css';
@@ -95,7 +95,8 @@ export function SchoolCalendarEditorV1({
         if (result.state !== 'school-calendar') throw new PortalClientErrorV1('invalid-response');
         const days = mapOf(result.calendar?.days ?? []);
         setSaved({ version: result.calendar?.version ?? 0, days });
-        setDraft(new Map(days));
+        // Nothing saved yet: the official calendar of 2026 is already on screen, to check and save.
+        setDraft(result.calendar ? new Map(days) : mapOf(officialCalendar2026V1()));
         setState('ready');
       } catch {
         if (!signal?.aborted) setState('error');
@@ -214,12 +215,12 @@ export function SchoolCalendarEditorV1({
         </div>
       </header>
 
-      {saved.days.size === 0 && draft.size === 0 && canWrite ? (
-        <div className="pa-school-calendar__start">
-          <p>Nenhum calendário marcado ainda.</p>
-          <Button size="sm" onPress={() => setDraft(mapOf(smecelCalendar2026V1()))}>
-            Começar com o calendário de 2026 do Smecel
-          </Button>
+      {saved.version === 0 ? (
+        <div className="pa-school-calendar__start" role="note">
+          <p>
+            Este é o calendário oficial de 2026 da Secretaria de Educação. Confira e clique em
+            Salvar calendário para ele valer no Portal.
+          </p>
         </div>
       ) : null}
 

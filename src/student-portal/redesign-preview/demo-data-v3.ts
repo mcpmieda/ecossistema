@@ -8,14 +8,10 @@ import {
 import type { StudentFrequencyClientV2 } from '../../features/student-portal/frequency/client-v2';
 import type { StudentScheduleClientV1 } from '../../features/student-portal/schedule/client-v1';
 import { schoolDateOnDeviceV3 } from '../../features/student-portal/redesign/frequency-page-v3';
-import { smecelCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
+import { officialCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
 import { schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
 
-const demoCalendarV3 = () => {
-  const days = smecelCalendar2026V1();
-  const cut = new Set(days.filter((day) => day.kind === 'letivo').slice(-6).map((day) => day.date));
-  return days.filter((day) => !cut.has(day.date));
-};
+const demoCalendarV3 = officialCalendar2026V1;
 
 /** The official summary with its Smecel lesson days (`days`, attendance 0008). */
 export type DemoFrequencyV3 = FrequencySummaryV2 & { days: FrequencyDayV2[] };
@@ -235,7 +231,7 @@ export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
     today,
     year: first.year ?? null,
     lastReadAt: first.lastReadAt ?? null,
-    // An invented calendar of 200 school days (the Smecel start without six plain days).
+    // The official calendar of 2026 (200 school days).
     schoolYear: schoolYearProgressOfV1(demoCalendarV3(), today),
     months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => {
       void _today;
