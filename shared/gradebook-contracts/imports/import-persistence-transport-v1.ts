@@ -556,7 +556,7 @@ function isRecognizedNote(value: unknown): value is GradebookImportRecognizedNot
     case 'negative':
       return finiteNumber(value.source) && value.source < 0 && value.value === value.source;
     case 'official-zero':
-      return value.source === 0.1 && value.value === 0;
+      return value.source === 0.1 && value.value === 0; // NOSONAR: the exact literal the source/profile carries, never a computed value
     case 'legacy-zero':
       return value.source === 0 && value.value === 0;
     default:

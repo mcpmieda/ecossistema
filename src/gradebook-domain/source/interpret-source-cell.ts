@@ -131,7 +131,7 @@ export function interpretSourceCell(
       const value = evidence.rawValue;
       if (value === null || value === '' || value === 0)
         return result(evidence, { state: 'absent' }, false, true);
-      if (value === 0.1)
+      if (value === 0.1 /* NOSONAR: exact source marker */)
         return result(
           evidence,
           { state: 'official-zero', value: 0, sourceMarker: 0.1 },

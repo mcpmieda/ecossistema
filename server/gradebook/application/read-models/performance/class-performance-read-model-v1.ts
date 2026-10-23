@@ -481,7 +481,7 @@ function cloneGrade(value: AcademicGradeValueV1): AcademicGradeValueV1 {
       if (!Number.isFinite(value.value)) return fail('incompatible-source-result');
       return { state: 'numeric', value: value.value };
     case 'official-zero':
-      if (value.value !== 0 || value.sourceMarker !== 0.1) {
+      if (value.value !== 0 || value.sourceMarker !== 0.1 /* NOSONAR: exact source marker */) {
         return fail('incompatible-source-result');
       }
       return { state: 'official-zero', value: 0, sourceMarker: 0.1 };

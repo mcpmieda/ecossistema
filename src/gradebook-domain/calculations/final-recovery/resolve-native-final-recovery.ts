@@ -119,7 +119,7 @@ function validateProfile(profile: NativeFinalRecoveryProfileV1): void {
     typeof profile !== 'object' ||
     profile.version !== 1 ||
     profile.academicYear !== 2026 ||
-    profile.applicabilityRatio !== 0.6 ||
+    profile.applicabilityRatio !== 0.6 || // NOSONAR: the exact literal the source/profile carries, never a computed value
     composition?.version !== expected.version ||
     composition.academicYear !== expected.academicYear ||
     composition.termMaximums?.[1] !== expected.termMaximums[1] ||

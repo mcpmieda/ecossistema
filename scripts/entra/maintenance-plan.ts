@@ -117,7 +117,8 @@ async function graphJson<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetcher(graphReadUrlV1(path), {
+    // graphReadUrlV1 allows only fixed Graph read paths on the Graph origin.
+    response = await fetcher(graphReadUrlV1(path), { // NOSONAR
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,

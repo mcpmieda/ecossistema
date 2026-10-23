@@ -68,7 +68,8 @@ export const schoolDaysOfV1 = (days: readonly SchoolCalendarDayV1[]) =>
   days
     .filter((day) => SCHOOL_DAY_COUNTS_V1[day.kind])
     .map((day) => day.date)
-    .sort();
+    // ISO dates: code-unit order is the calendar order.
+    .sort((a, b) => Number(a > b) - Number(a < b));
 
 /**
  * What the Portal shows of the calendar (no notes, no other kinds): how many school days the year

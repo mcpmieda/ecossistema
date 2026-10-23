@@ -82,7 +82,7 @@ function validateProfile(profile: NativeParallelRecoveryProfileV1): void {
     typeof profile !== 'object' ||
     profile.version !== 1 ||
     profile.academicYear !== 2026 ||
-    profile.applicabilityRatio !== 0.6 ||
+    profile.applicabilityRatio !== 0.6 || // NOSONAR: the exact literal the source/profile carries, never a computed value
     composition?.version !== expectedComposition.version ||
     composition.academicYear !== expectedComposition.academicYear ||
     composition.termMaximums?.[1] !== expectedComposition.termMaximums[1] ||
