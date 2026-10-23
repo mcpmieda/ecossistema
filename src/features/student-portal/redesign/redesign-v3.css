@@ -426,6 +426,15 @@
   color: #b6c0cf;
   cursor: default;
 }
+/* A day without absence in the calendar: still not coloured, but it opens (its number a little
+   darker than a day without lessons, a soft hover). */
+.pa3-day.pa3-kind--clear {
+  color: #64748b;
+  cursor: pointer;
+}
+.pa3-day.pa3-kind--clear:hover {
+  background: #eef2f8;
+}
 .pa3-kind--missed {
   background: linear-gradient(180deg, #fde8e5, #f7c4bc);
   color: #9b1c13;

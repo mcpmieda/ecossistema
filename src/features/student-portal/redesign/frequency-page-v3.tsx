@@ -695,6 +695,9 @@ function FrequencyMonthV3({
   };
   // Only a day with an absence, or one still open, is highlighted and opens.
   const isPickable = (state: DayStateV3) => state === 'missed' || state === 'pending';
+  // A day without absence opens too (owner request 22/10/2026): a parent whose child never misses
+  // can still see that day's lessons, every one "Sem falta". It is never chosen at first.
+  const opens = (state: DayStateV3) => isPickable(state) || state === 'clear';
   // At first, the latest day with a mark that opens, so the page never selects a day it cannot show.
   const firstPick =
     [...marksByDay.keys()]
@@ -755,7 +758,7 @@ function FrequencyMonthV3({
                   (selected === date ? ' is-selected' : '') +
                   (date === today ? ' is-today' : '')
                 }
-                disabled={!isPickable(state)}
+                disabled={!opens(state)}
                 aria-pressed={selected === date}
                 aria-label={ariaOf(date, state)}
                 data-tone={state === 'missed' ? toneLevelOf(dayAt(date)) : undefined}

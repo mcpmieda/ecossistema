@@ -118,6 +118,19 @@ describe('Frequência page', () => {
     expect(screen.getByText('2 faltas registradas até agora.')).toBeTruthy();
   });
 
+  it('opens a day without absence too, every lesson "Sem falta" (owner request 22/10/2026)', async () => {
+    render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-19'), lessonDay('2026-10-20')], [{ date: '2026-10-19', slot: 2, mark: 'X' }]) })} />);
+    await ready();
+    // At first, the day with an absence; a day without one is never chosen first.
+    expect(dayButton(19).getAttribute('aria-pressed')).toBe('true');
+    const clear = dayButton(20) as HTMLButtonElement;
+    expect(clear.disabled).toBe(false);
+    fireEvent.click(clear);
+    expect(clear.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('Nenhuma falta neste dia.')).toBeTruthy();
+    expect(screen.getAllByText('Sem falta')).toHaveLength(5);
+  });
+
   it('never says "sem aula" for today before its first reading', async () => {
     render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })} />);
     await ready();
