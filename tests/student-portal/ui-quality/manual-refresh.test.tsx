@@ -16,6 +16,8 @@ function resourceUrl(input: Parameters<typeof fetch>[0]): URL {
 
 beforeEach(() => {
   setupOperationsDomV1();
+  // The page on screen is kept in history.state (a reload stays on it): start every case on Notas.
+  window.history.replaceState(null, '');
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
 });
@@ -81,7 +83,10 @@ it.each([204, 401, 503])(
         redirect: 'error',
       }),
     ]);
-    await screen.findByText('Cobertura indisponível');
+    // Frequência is a page of its own behind the menu: nothing is read until it is opened.
+    expect(frequencyRequests()).toHaveLength(0);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Frequência' }));
+    await screen.findByRole('heading', { level: 3, name: /de 2026$/u });
     expect(frequencyRequests()).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Sair' })).toBeTruthy();
     await act(async () => {
@@ -96,12 +101,7 @@ it.each([204, 401, 503])(
     expect(url.searchParams.get('purpose')).toBe('security');
     // Frequency revalidates on visibility; optional photos and academic data stay independent.
     await waitFor(() => expect(frequencyRequests()).toHaveLength(2));
-    expect(photoRequests()).toHaveLength(1);
-    const refreshFrequency = screen.getByRole('button', { name: 'Atualizar frequência' });
-    await waitFor(() => expect((refreshFrequency as HTMLButtonElement).disabled).toBe(false));
-    await userEvent.setup().click(refreshFrequency);
-    await waitFor(() => expect(frequencyRequests()).toHaveLength(3));
-    // A manual frequency refresh does not fetch the optional portrait, notes or notices again.
+    // Reading the frequency again never fetches the optional portrait, notes or notices again.
     expect(photoRequests()).toHaveLength(1);
     await act(async () => {
       vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
@@ -109,13 +109,13 @@ it.each([204, 401, 503])(
       window.dispatchEvent(new Event('focus'));
       window.dispatchEvent(new Event('online'));
     });
-    expect(frequencyRequests()).toHaveLength(3);
+    expect(frequencyRequests()).toHaveLength(2);
     expect(photoRequests()).toHaveLength(1);
     await act(async () => {
       vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    await waitFor(() => expect(frequencyRequests()).toHaveLength(4));
+    await waitFor(() => expect(frequencyRequests()).toHaveLength(3));
     expect(photoRequests()).toHaveLength(1);
     for (const [, init] of frequencyRequests())
       expect(init).toMatchObject({

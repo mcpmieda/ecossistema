@@ -1,16 +1,24 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FrequencySummaryV2 } from '../../../../shared/attendance-contracts/frequency-v2';
-import { FrequencyPageV3 } from '../../../../src/student-portal/redesign-preview/frequency-page-v3';
+import type {
+  FrequencySummaryV2,
+  FrequencyYearSummaryV2,
+} from '../../../../shared/attendance-contracts/frequency-v2';
+import {
+  FrequencyClientErrorV2,
+  type StudentFrequencyClientV2,
+} from '../../../../src/features/student-portal/frequency/client-v2';
+import { FrequencyPageV3 } from '../../../../src/features/student-portal/redesign/frequency-page-v3';
 
 /*
- * The redesigned Frequência page (PR 1317 preview), fed with summaries shaped like the real API's
- * (withLessonDaysV2): the page counts from `days` and `marks` itself, never from the server's
- * totals, which still include today.
+ * The redesigned Frequência page (PR 1317), fed through a client with answers shaped like the
+ * real API's (portalFrequencyYearV2): the whole year so far in one answer, read once, with the
+ * school's today and the year's counts worked out by the server. Changing months asks nothing.
  */
 type DayV2 = NonNullable<FrequencySummaryV2['days']>[number];
 type MarkInput = { date: string; slot: number; mark: 'X' | 'J'; shift?: string };
+type YearV2 = FrequencySummaryV2['year'];
 
 const lessonDay = (date: string, lessons = 5, complete = true, shift = 'MATUTINO'): DayV2 => ({
   date,
@@ -22,46 +30,46 @@ const summary = (month: string, days: DayV2[], marks: MarkInput[] = []): Frequen
   contractVersion: 2,
   state: 'ready',
   month,
-  // As the server: totals over every day sent, today's included (the page must ignore them).
-  absences: marks.filter((mark) => mark.mark === 'X').length,
-  justified: marks.filter((mark) => mark.mark === 'J').length,
-  denominator: days.reduce((total, day) => total + day.slots.length, 0),
-  percentage: 100,
-  coverage: days.length ? (days.every((day) => day.complete) ? 'reliable' : 'incomplete') : marks.length ? 'incomplete' : 'unavailable',
+  absences: null,
+  justified: null,
+  denominator: null,
+  percentage: null,
+  coverage: days.length ? 'reliable' : marks.length ? 'incomplete' : 'unavailable',
   observedAt: null,
   receivedAt: null,
   marks: marks.map((mark) => ({ shift: 'MATUTINO', classLabels: ['TURMA'], ...mark })),
   conflicts: 0,
   days,
 });
-const readerOf = (months: Record<string, FrequencySummaryV2>) => (month: string) => months[month] ?? summary(month, []);
-
-/** A year of `lessons` lessons and `absences` X, spread over February to September (6 a day). */
-function yearOf(lessons: number, absences: number) {
-  const months: Record<string, FrequencySummaryV2> = {};
-  let left = lessons;
-  let missing = absences;
-  for (let month = 2; month <= 9 && left > 0; month++) {
-    const key = `2026-${String(month).padStart(2, '0')}`;
-    const days: DayV2[] = [];
-    const marks: MarkInput[] = [];
-    for (let day = 1; day <= 28 && left > 0; day++) {
-      const date = `${key}-${String(day).padStart(2, '0')}`;
-      const count = Math.min(6, left);
-      left -= count;
-      days.push(lessonDay(date, count));
-      for (let slot = 1; slot <= count && missing > 0; slot++, missing--) marks.push({ date, slot, mark: 'X' });
-    }
-    months[key] = summary(key, days, marks);
-  }
-  expect(left).toBe(0);
-  expect(missing).toBe(0);
-  return months;
-}
+/** A client answering like the server: the whole year so far in one answer. */
+const clientOf = (
+  months: Record<string, FrequencySummaryV2> = {},
+  { today = '2026-10-21', year = { lessons: 100, absences: 0 } as YearV2 } = {},
+) => {
+  const count = today > '2026-12-31' ? 12 : Number(today.slice(5, 7));
+  const readYear = vi.fn(
+    async (): Promise<FrequencyYearSummaryV2> => ({
+      contractVersion: 2,
+      state: 'ready',
+      academicYear: 2026,
+      today,
+      year: year ?? null,
+      lastReadAt: `${today}T10:10:00Z`,
+      months: Array.from({ length: count }, (_, index) => {
+        const key = `2026-${String(index + 1).padStart(2, '0')}`;
+        return months[key] ?? summary(key, []);
+      }),
+    }),
+  );
+  const read = vi.fn(async (month: string) => summary(month, []));
+  return { read, readYear } satisfies StudentFrequencyClientV2;
+};
 
 const yearBadge = () => document.querySelector('.pa3-year-head strong')?.textContent;
 const summaryCard = () => document.querySelector('.pa3-summary')!;
-const dayButton = (day: number) => screen.getAllByRole('button').find((button) => button.querySelector('.pa3-day-number')?.textContent === String(day))!;
+const dayButton = (day: number) =>
+  screen.getAllByRole('button').find((button) => button.querySelector('.pa3-day-number')?.textContent === String(day))!;
+const ready = () => screen.findByRole('heading', { level: 3, name: /de 2026$/u });
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -72,49 +80,51 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('Frequência page (redesign preview)', () => {
-  it('rounds the year DOWN from the exact counts: 74,97% reads 74% and red, never 75%', () => {
+describe('Frequência page', () => {
+  it('rounds the year DOWN from the exact counts: 74,97% reads 74% and red, never 75%', async () => {
     // 903 lessons, 226 absences: 74,972…%. Rounded to one decimal first, it became 75,0.
-    render(<FrequencyPageV3 read={readerOf(yearOf(903, 226))} />);
+    render(<FrequencyPageV3 client={clientOf({}, { year: { lessons: 903, absences: 226 } })} />);
+    await ready();
     expect(yearBadge()).toBe('74%');
     expect(summaryCard().className).toContain('pa3-summary--low');
   });
 
-  it('shows exactly 75% as reaching the minimum', () => {
-    render(<FrequencyPageV3 read={readerOf(yearOf(100, 25))} />);
+  it('shows exactly 75% as reaching the minimum', async () => {
+    render(<FrequencyPageV3 client={clientOf({}, { year: { lessons: 100, absences: 25 } })} />);
+    await ready();
     expect(yearBadge()).toBe('75%');
     expect(summaryCard().className).toContain('pa3-summary--good');
   });
 
-  it("never counts today, although the server's totals include it", () => {
-    const months = yearOf(100, 25);
-    // Today: five lessons, all missed. Counted, the year would fall to 71%.
-    months['2026-10'] = summary('2026-10', [lessonDay('2026-10-21')], [1, 2, 3, 4, 5].map((slot) => ({ date: '2026-10-21', slot, mark: 'X' as const })));
-    render(<FrequencyPageV3 read={readerOf(months)} />);
-    expect(yearBadge()).toBe('75%');
-    // Today keeps its colour on the calendar, but the ring counts no day yet.
+  it('shows the year as still being worked out while the server has no figure', async () => {
+    render(<FrequencyPageV3 client={clientOf({}, { year: null })} />);
+    await ready();
+    expect(yearBadge()).toBe('em apuração');
+  });
+
+  it("keeps today's colour on the calendar, while the ring counts no day yet", async () => {
+    const months = {
+      '2026-10': summary('2026-10', [lessonDay('2026-10-21')], [1, 2, 3, 4, 5].map((slot) => ({ date: '2026-10-21', slot, mark: 'X' as const }))),
+    };
+    render(<FrequencyPageV3 client={clientOf(months)} />);
+    await ready();
     expect(dayButton(21).className).toContain('pa3-day--missed');
-    expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(/^Outubro, 0 dias de aula contados/u);
+    expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(/^Ano letivo 2026, 0 dias de aula contados/u);
   });
 
-  it('does not let an unfinished reading of today make the whole year unknown', () => {
-    const months = yearOf(100, 25);
-    months['2026-10'] = summary('2026-10', [lessonDay('2026-10-20'), lessonDay('2026-10-21', 5, false)]);
-    render(<FrequencyPageV3 read={readerOf(months)} />);
-    expect(yearBadge()).toBe('76%');
-  });
-
-  it('shows a past day not read in full as "leitura incompleta", never as a coloured total', () => {
-    const months = yearOf(100, 0);
-    months['2026-10'] = summary(
-      '2026-10',
-      [{ date: '2026-10-20', shift: 'MATUTINO', slots: [1, 2], complete: false }],
-      [
-        { date: '2026-10-20', slot: 1, mark: 'X' },
-        { date: '2026-10-20', slot: 2, mark: 'X' },
-      ],
-    );
-    render(<FrequencyPageV3 read={readerOf(months)} />);
+  it('shows a past day not read in full as "leitura incompleta", never as a coloured total', async () => {
+    const months = {
+      '2026-10': summary(
+        '2026-10',
+        [{ date: '2026-10-20', shift: 'MATUTINO', slots: [1, 2], complete: false }],
+        [
+          { date: '2026-10-20', slot: 1, mark: 'X' },
+          { date: '2026-10-20', slot: 2, mark: 'X' },
+        ],
+      ),
+    };
+    render(<FrequencyPageV3 client={clientOf(months, { year: null })} />);
+    await ready();
     const button = dayButton(20);
     expect(button.className).toContain('pa3-day--pending');
     expect(button.className).not.toContain('pa3-day--missed');
@@ -122,54 +132,130 @@ describe('Frequência page (redesign preview)', () => {
     // Chosen at first, it explains itself and does not claim "todas as aulas".
     expect(screen.getByText('Leitura incompleta · conta quando o diário for lido')).toBeTruthy();
     expect(screen.getByText('2 faltas registradas até agora.')).toBeTruthy();
-    expect(yearBadge()).toBe('em apuração');
   });
 
-  it('never says "sem aula" for today before its first reading', () => {
-    const months = yearOf(100, 0);
-    months['2026-10'] = summary('2026-10', [lessonDay('2026-10-20')]);
-    render(<FrequencyPageV3 read={readerOf(months)} />);
+  it('never says "sem aula" for today before its first reading', async () => {
+    render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })} />);
+    await ready();
     const label = dayButton(21).getAttribute('aria-label')!;
     expect(label).toContain('nenhuma aula lida até agora');
     expect(label).not.toContain('sem aula');
   });
 
-  it('shows the marks of a day the server sent without its lesson day', () => {
-    const months = yearOf(100, 0);
-    months['2026-10'] = summary('2026-10', [lessonDay('2026-10-14')], [{ date: '2026-10-15', slot: 3, mark: 'X' }]);
-    render(<FrequencyPageV3 read={readerOf(months)} />);
+  it('shows the marks of a day the server sent without its lesson day', async () => {
+    const months = { '2026-10': summary('2026-10', [lessonDay('2026-10-14')], [{ date: '2026-10-15', slot: 3, mark: 'X' }]) };
+    render(<FrequencyPageV3 client={clientOf(months)} />);
+    await ready();
     const button = dayButton(15);
     expect(button.className).toContain('pa3-day--pending');
     expect((button as HTMLButtonElement).disabled).toBe(false);
     expect(screen.getByText('1 falta registrada até agora.')).toBeTruthy();
     expect(screen.getByText('3ª aula')).toBeTruthy();
-    expect(yearBadge()).toBe('em apuração');
   });
 
-  it('reads every month with the same "today" (one clock per render)', () => {
-    const read = vi.fn((month: string, today: string) => {
-      void today;
-      return summary(month, []);
-    });
-    render(<FrequencyPageV3 read={read} />);
-    expect(new Set(read.mock.calls.map(([, today]) => today))).toEqual(new Set(['2026-10-21']));
+  it("follows the school's today from the server, not the phone's clock", async () => {
+    // The phone says 21/10; the school's clock says 20/10.
+    render(<FrequencyPageV3 client={clientOf({}, { today: '2026-10-20' })} />);
+    await ready();
+    expect(dayButton(20).className).toContain('is-today');
+    expect(dayButton(21).className).not.toContain('is-today');
   });
 
-  it('stays on December after the school year ends', () => {
-    vi.setSystemTime(new Date('2027-01-10T12:00:00-03:00'));
-    const read = vi.fn((month: string) => summary(month, []));
-    render(<FrequencyPageV3 read={read} />);
-    expect(screen.getByRole('heading', { level: 2, name: 'Dezembro de 2026' })).toBeTruthy();
+  it('stays on December after the school year ends', async () => {
+    const client = clientOf({}, { today: '2027-01-10' });
+    render(<FrequencyPageV3 client={client} />);
+    expect(await screen.findByRole('heading', { level: 3, name: 'Dezembro de 2026' })).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Próximo mês' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(read.mock.calls.every(([month]) => month >= '2026-02' && month <= '2026-12')).toBe(true);
+    expect(client.read).not.toHaveBeenCalled();
   });
 
-  it('says the ring in correct Portuguese for one day', () => {
-    const months = yearOf(100, 0);
-    months['2026-10'] = summary('2026-10', [lessonDay('2026-10-20')]);
-    render(<FrequencyPageV3 read={readerOf(months)} />);
+  it('says the ring in correct Portuguese for one day', async () => {
+    render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })} />);
+    await ready();
     expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toBe(
-      'Outubro, 1 dia de aula contado: 1 dia frequentado, 0 faltas totais, 0 faltas parciais, 0 justificadas',
+      'Ano letivo 2026, 1 dia de aula contado: 1 dia frequentado, 0 faltas totais, 0 faltas parciais, 0 justificadas',
     );
+  });
+
+  it('counts the whole year in the ring, whatever month the calendar shows (owner request 22/10/2026)', async () => {
+    const months = {
+      '2026-09': summary('2026-09', [lessonDay('2026-09-29'), lessonDay('2026-09-30')], [{ date: '2026-09-30', slot: 1, mark: 'X' }]),
+      '2026-10': summary('2026-10', [lessonDay('2026-10-20')]),
+    };
+    render(<FrequencyPageV3 client={clientOf(months)} />);
+    await ready();
+    const ring = () => document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label');
+    expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados: 2 dias frequentados, 0 faltas totais, 1 falta parcial/u);
+    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    expect(screen.getByRole('heading', { level: 3, name: 'Setembro de 2026' })).toBeTruthy();
+    expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados/u);
+  });
+
+  it("shows the class's last reading as \"Atualizado em\"", async () => {
+    render(<FrequencyPageV3 client={clientOf()} />);
+    await ready();
+    expect(screen.getByText(/^Atualizado em 21\/10\/2026, 07:10$/u)).toBeTruthy();
+  });
+});
+
+describe('Frequência page: reading', () => {
+  it('says it is loading only until the year comes, then changes months without asking again', async () => {
+    let finish!: (value: FrequencyYearSummaryV2) => void;
+    const client = {
+      read: vi.fn(async (month: string) => summary(month, [])),
+      readYear: vi.fn(() => new Promise<FrequencyYearSummaryV2>((resolve) => (finish = resolve))),
+    };
+    render(<FrequencyPageV3 client={client} />);
+    expect(await screen.findByText('Carregando frequência…')).toBeTruthy();
+    const answer = await clientOf().readYear();
+    await act(async () => finish(answer));
+    expect(await screen.findByRole('heading', { level: 3, name: 'Outubro de 2026' })).toBeTruthy();
+    for (let step = 0; step < 3; step++) fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    // Every month shows at once: no "Carregando", no request.
+    expect(screen.getByRole('heading', { level: 3, name: 'Julho de 2026' })).toBeTruthy();
+    expect(screen.queryByText('Carregando frequência…')).toBeNull();
+    expect(client.readYear).toHaveBeenCalledOnce();
+    expect(client.read).not.toHaveBeenCalled();
+  });
+
+  it('hides everything and offers to sign in again when the session expires', async () => {
+    const client = { read: vi.fn(), readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unauthenticated'))) };
+    const onLogin = vi.fn();
+    const onAuthenticationLost = vi.fn();
+    render(<FrequencyPageV3 client={client} onLogin={onLogin} onAuthenticationLost={onAuthenticationLost} />);
+    expect(await screen.findByText('Sua sessão expirou. Entre novamente para ver a frequência.')).toBeTruthy();
+    expect(onAuthenticationLost).toHaveBeenCalledOnce();
+    expect(document.querySelector('.pa3-calendar')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+    expect(onLogin).toHaveBeenCalledOnce();
+  });
+
+  it('says so when the policy was turned off meanwhile, and retries other failures', async () => {
+    const forbidden = { read: vi.fn(), readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('forbidden'))) };
+    const view = render(<FrequencyPageV3 client={forbidden} />);
+    expect(await screen.findByText('A frequência não está disponível no momento.')).toBeTruthy();
+    view.unmount();
+    const failing = { read: vi.fn(), readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unavailable'))) };
+    render(<FrequencyPageV3 client={failing} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Tentar agora' }));
+    await waitFor(() => expect(failing.readYear).toHaveBeenCalledTimes(2));
+  });
+
+  it('reads again in the background only when the page comes back after ten minutes', async () => {
+    const client = clientOf();
+    render(<FrequencyPageV3 client={client} />);
+    await ready();
+    expect(client.readYear).toHaveBeenCalledOnce();
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(client.readYear).toHaveBeenCalledOnce();
+    await act(async () => {
+      vi.setSystemTime(new Date('2026-10-21T12:11:00-03:00'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await waitFor(() => expect(client.readYear).toHaveBeenCalledTimes(2));
+    // The month stays on screen while it is read again.
+    expect(screen.getByRole('heading', { level: 3, name: 'Outubro de 2026' })).toBeTruthy();
   });
 });

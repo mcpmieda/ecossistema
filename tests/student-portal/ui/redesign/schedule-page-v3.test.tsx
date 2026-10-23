@@ -2,9 +2,9 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
-  SchedulePageV3,
+  ScheduleWeekV3 as SchedulePageV3,
   type ScheduleClassV3,
-} from '../../../../src/student-portal/redesign-preview/schedule-page-v3';
+} from '../../../../src/features/student-portal/redesign/schedule-page-v3';
 
 /*
  * The redesigned Horário page (owner decision 22/10/2026), fed with grids shaped like

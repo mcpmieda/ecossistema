@@ -1,5 +1,13 @@
 import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
-import type { FrequencyDayV2, FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
+import {
+  frequencyCountV2,
+  type FrequencyDayV2,
+  type FrequencySummaryV2,
+  type FrequencyYearSummaryV2,
+} from '../../../shared/attendance-contracts/frequency-v2';
+import type { StudentFrequencyClientV2 } from '../../features/student-portal/frequency/client-v2';
+import type { StudentScheduleClientV1 } from '../../features/student-portal/schedule/client-v1';
+import { schoolDateOnDeviceV3 } from '../../features/student-portal/redesign/frequency-page-v3';
 
 /** The official summary with its Smecel lesson days (`days`, attendance 0008). */
 export type DemoFrequencyV3 = FrequencySummaryV2 & { days: FrequencyDayV2[] };
@@ -68,6 +76,7 @@ export const REDESIGN_SELF_V3: SelfResponseV1 = selfResponseV1.parse({
   generatedAt: '2026-12-10T12:00:00-03:00',
   endedPeriods: ['T1', 'T2', 'T3'],
   showFrequency: true,
+  showSchedule: true,
   subjects: CASES.map(([label, t1, t2, t3], order) => ({
     subjectId: 970001 + order,
     label,
@@ -83,14 +92,11 @@ export const REDESIGN_SELF_V3: SelfResponseV1 = selfResponseV1.parse({
 const lessonsOn = (date: string) => ([2, 4].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? 6 : 5);
 /** A holiday in the preview: the diary's calendar icon, so no lessons that day. */
 const HOLIDAYS = new Set(['2026-10-12']);
+/** The first school day of 2026, as in the real diary (23/02). */
+const FIRST_SCHOOL_DAY = '2026-02-23';
 const pad = (value: number) => String(value).padStart(2, '0');
-/**
- * Today as the school's clock reads it (owner question 21/10/2026: "hoje" must follow the real
- * day). The school's time zone, not the phone's, so a phone set to another zone still agrees.
- * MERGE: on the real portal the server must send this date (it already works out the school's
- * "today" in America/Bahia for the collector, service-v2 checkCollectionClock).
- */
-export const previewTodayV3 = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
+/** Today as the school's clock reads it (the same helper as the real page). */
+export const previewTodayV3 = schoolDateOnDeviceV3;
 
 /** Hand-written October, so the story is easy to follow; other months are generated. */
 // Each kind of day (owner request 21/10/2026): whole days (one justified) and days absent in
@@ -125,6 +131,7 @@ function marksOf(month: string, today: string): FrequencySummaryV2['marks'] {
   for (let day = 1; day <= days; day++) {
     const date = `${month}-${pad(day)}`;
     if (date > today) break;
+    if (date < FIRST_SCHOOL_DAY) continue;
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6 || HOLIDAYS.has(date)) continue;
     const planned = month === '2026-10' ? OCTOBER[date] : undefined;
@@ -149,6 +156,7 @@ function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
   for (let day = 1; day <= days; day++) {
     const date = `${month}-${pad(day)}`;
     if (date > today) break;
+    if (date < FIRST_SCHOOL_DAY) continue;
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6 || HOLIDAYS.has(date)) continue;
     result.push({ date, shift: 'MATUTINO', slots: Array.from({ length: lessonsOn(date) }, (_, index) => index + 1), complete: true });
@@ -157,38 +165,91 @@ function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
 }
 
 /**
- * The month's summary as the Portal's frequency API returns it TODAY (withLessonDaysV2 in
- * server/attendance/service-v2.ts), so the page is built against the real shape: the totals count
- * every lesson day sent, today's included; reliable only when every day was read in full; without
- * lesson days the month is 'unavailable' (or 'incomplete' with marks) and the totals are null.
- * The page never shows these totals: it counts from `days` and `marks` without today (owner
- * decision 20/10/2026). `today` is the page's own clock, so one render never mixes two days.
+ * The month as the Portal's frequency API answers it (portalFrequencySummaryV2 in
+ * server/attendance/service-v2.ts), so the page is built against the real shape: the totals by
+ * the owner's rule (frequencyCountV2: today never counts), the school's today, the year so far
+ * (null while any month is unknown) and the class's last reading.
  */
 export function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
-  const marks = marksOf(month, today);
-  const days = daysOf(month, today);
-  const reliable = days.length > 0 && days.every((day) => day.complete);
-  const denominator = days.reduce((total, day) => total + day.slots.length, 0);
-  const absences = marks.filter((mark) => mark.mark === 'X').length;
-  // As the server: the time a mark last changed (here, the end of the last day with one, never
-  // later than yesterday), and nothing for a month without marks.
-  const lastMarked = marks.filter((mark) => mark.date < today).at(-1)?.date;
+  const monthOf = (key: string) => {
+    const marks = marksOf(key, today);
+    const days = daysOf(key, today);
+    const count = frequencyCountV2({ marks, conflicts: 0, days }, today);
+    const reliable = days.length > 0 && count.reliable;
+    // As the server: the time a mark last changed, and nothing for a month without marks.
+    const lastMarked = marks.filter((mark) => mark.date < today).at(-1)?.date;
+    return {
+      contractVersion: 2 as const,
+      state: 'ready' as const,
+      month: key,
+      absences: reliable ? count.absences : null,
+      justified: reliable ? marks.filter((mark) => mark.mark === 'J' && mark.date < today).length : null,
+      denominator: reliable ? count.lessons : null,
+      percentage:
+        reliable && count.lessons ? Math.round(((count.lessons - count.absences) / count.lessons) * 1000) / 10 : null,
+      coverage: reliable ? ('reliable' as const) : marks.length ? ('incomplete' as const) : ('unavailable' as const),
+      observedAt: lastMarked ? `${lastMarked}T17:40:00-03:00` : null,
+      receivedAt: lastMarked ? `${lastMarked}T17:45:00-03:00` : null,
+      marks,
+      conflicts: 0,
+      days,
+    };
+  };
+  let lessons = 0;
+  let absences = 0;
+  let known = true;
+  for (let index = 1; index <= 12; index++) {
+    const key = `2026-${pad(index)}`;
+    if (key > today.slice(0, 7)) break;
+    const count = frequencyCountV2(monthOf(key), today);
+    known &&= count.reliable;
+    lessons += count.lessons;
+    absences += count.absences;
+  }
+  return {
+    ...monthOf(month),
+    today,
+    year: known && lessons ? { lessons, absences } : null,
+    // The collector read the diary this morning (an unchanged reading still moves this time).
+    lastReadAt: `${today}T07:10:00-03:00`,
+  };
+}
+
+/** The whole year so far, as GET /api/student/frequency?year=2026 answers it. */
+export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
+  const months = Array.from({ length: 12 }, (_, index) => `2026-${pad(index + 1)}`).filter((key) => key <= today.slice(0, 7));
+  const answers = months.map((key) => demoFrequencyV3(key, today));
+  const first = answers[0] ?? demoFrequencyV3('2026-01', today);
   return {
     contractVersion: 2,
     state: 'ready',
-    month,
-    absences: reliable ? absences : null,
-    justified: reliable ? marks.length - absences : null,
-    denominator: reliable ? denominator : null,
-    percentage: reliable ? Math.round(((denominator - absences) / denominator) * 1000) / 10 : null,
-    coverage: reliable ? 'reliable' : marks.length ? 'incomplete' : 'unavailable',
-    observedAt: lastMarked ? `${lastMarked}T17:40:00-03:00` : null,
-    receivedAt: lastMarked ? `${lastMarked}T17:45:00-03:00` : null,
-    marks,
-    conflicts: 0,
-    days,
+    academicYear: 2026,
+    today,
+    year: first.year ?? null,
+    lastReadAt: first.lastReadAt ?? null,
+    months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => {
+      void _today;
+      void _year;
+      void _read;
+      return month;
+    }),
   };
 }
+
+/** After a short wait like a real request. */
+const later = <T,>(value: () => T, signal: AbortSignal) =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => resolve(value()), 250);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    });
+  });
+/** The preview's frequency "API": the same answers as the real one. */
+export const createDemoFrequencyClientV3 = (): StudentFrequencyClientV2 => ({
+  read: (month, signal) => later(() => demoFrequencyV3(month, previewTodayV3()), signal),
+  readYear: (signal) => later(() => demoFrequencyYearV3(previewTodayV3()), signal),
+});
 
 /**
  * The class's weekly grid (owner decision 22/10/2026), shaped like a real Smecel "Grade de
@@ -213,3 +274,15 @@ export const demoScheduleV3 = () => [
     ),
   },
 ];
+
+/** The preview's schedule "API". */
+export const createDemoScheduleClientV3 = (): StudentScheduleClientV1 => ({
+  read: (signal) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve(demoScheduleV3()), 250);
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      });
+    }),
+});

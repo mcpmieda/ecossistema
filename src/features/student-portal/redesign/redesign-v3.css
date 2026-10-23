@@ -123,7 +123,7 @@
   border-radius: 1.2rem;
   background: var(--pa3-surface);
 }
-.pa3-card h2 {
+.pa3-card h3 {
   margin: 0 0 0.6rem;
   color: var(--pa3-ink);
   font-size: 1rem;
@@ -195,7 +195,7 @@
   transform: scale(1.04);
 }
 
-.pa3-day-detail h2 {
+.pa3-day-detail h3 {
   margin-bottom: 0.15rem;
 }
 .pa3-day-detail-sub {
@@ -576,59 +576,6 @@
   100% { transform: translate(-28%, -4%) scale(1); }
 }
 
-/* The month's tag, centred over the ring: white with a fine outline, a small calendar icon. */
-.pa3-summary-title {
-  display: inline-flex;
-  align-items: center;
-  justify-self: center;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0.32rem 0.85rem 0.32rem 0.7rem;
-  border: 1px solid #d6deea;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--pa3-ink);
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-.pa3-summary-title svg {
-  flex: 0 0 auto;
-  color: var(--pa3-blue);
-}
-/* The calendar icon turns a sheet over, top to bottom, every few seconds. At rest only the light
-   sheet shows; each turn, a solid flap folds down from the top half and unfolds over the bottom
-   half, then fades, so the loop starts again with no jump. */
-.pa3-flip-sheet {
-  fill: currentColor;
-  opacity: 0.28;
-  transform-box: fill-box;
-}
-.pa3-flip-top,
-.pa3-flip-bottom {
-  opacity: 0;
-}
-.pa3-flip-top {
-  transform-origin: 50% 100%;
-  animation: pa3-flip-top 3.2s ease-in infinite;
-}
-.pa3-flip-bottom {
-  transform-origin: 50% 0;
-  animation: pa3-flip-bottom 3.2s ease-out infinite;
-}
-@keyframes pa3-flip-top {
-  0%, 60% { opacity: 0; transform: scaleY(1); }
-  62% { opacity: 0.9; transform: scaleY(1); }
-  76% { opacity: 0.9; transform: scaleY(0); }
-  77%, 100% { opacity: 0; transform: scaleY(0); }
-}
-@keyframes pa3-flip-bottom {
-  0%, 75% { opacity: 0; transform: scaleY(0); }
-  76% { opacity: 0.9; transform: scaleY(0); }
-  90% { opacity: 0.9; transform: scaleY(1); }
-  100% { opacity: 0; transform: scaleY(1); }
-}
-
 /* The ring with its guide lines. It follows the card's width, up to a size that still sits well
    beside the rest of the card on a tablet or a phone held sideways. */
 .pa3-guide-ring {
@@ -830,9 +777,7 @@
   .pa3-summary::after,
   .pa3-ruler-fill::after,
   .pa3-guide-arc,
-  .pa3-guide-label,
-  .pa3-flip-top,
-  .pa3-flip-bottom {
+  .pa3-guide-label {
     animation: none;
   }
 }
@@ -992,4 +937,40 @@
   .pa3-week-chip {
     transition: none;
   }
+}
+
+/* ---------- Reading states (PR 1317, real data) ----------
+   While a month or the week has not come yet, or cannot be shown: one card that says so in plain
+   words, the month and its arrows kept so a slow month never traps the reader. */
+.pa3-status {
+  display: grid;
+  gap: 0.6rem;
+  min-height: 7rem;
+  align-content: start;
+}
+.pa3-status output,
+.pa3-status p {
+  margin: 0;
+  color: var(--pa3-muted);
+  font-size: 0.9rem;
+}
+.pa3-status[role='alert'] p {
+  color: var(--pa3-ink);
+}
+.pa3-status-action {
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0.55rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pa3-blue);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pa3-status-action:focus-visible {
+  outline: 2px solid var(--pa3-blue);
+  outline-offset: 2px;
 }

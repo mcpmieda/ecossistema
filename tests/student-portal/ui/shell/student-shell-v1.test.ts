@@ -34,12 +34,12 @@ describe('student shell and canonical profile', () => {
     const headings = screen
       .getAllByRole('heading', { level: 2 })
       .map((heading) => heading.textContent);
-    expect(headings).toEqual(['Perfil do aluno', 'Minhas notas', 'Frequência']);
+    expect(headings).toEqual(['Perfil do aluno', 'Minhas notas', 'Frequência do aluno']);
     cleanup();
     // Política Frequência off (or a server without the field): no attendance section at all.
     for (const data of [SYNTHETIC_SELF_V1, { ...SYNTHETIC_SELF_V1, showFrequency: false }]) {
       render(page({ load: { state: 'ready', data } }));
-      expect(screen.queryByRole('heading', { name: 'Frequência' })).toBeNull();
+      expect(screen.queryByRole('heading', { name: /Frequência/u })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Atualizar frequência' })).toBeNull();
       cleanup();
     }
@@ -55,6 +55,39 @@ describe('student shell and canonical profile', () => {
     expect(screen.queryByRole('tab', { name: 'Evolução' })).toBeNull();
     expect(document.querySelector('aside')).toBeNull();
     expect(document.querySelector('time')).toBeNull();
+  });
+  it('shows a menu item only for the pages the school turned on, each read once with the sign-in', async () => {
+    const frequencyClient = {
+      read: vi.fn(() => new Promise<never>(() => undefined)),
+      readYear: vi.fn(() => new Promise<never>(() => undefined)),
+    };
+    const scheduleClient = { read: vi.fn(() => new Promise<never>(() => undefined)) };
+    const menu = () =>
+      screen.queryByRole('navigation', { name: 'Menu do Portal' }) &&
+      within(screen.getByRole('navigation', { name: 'Menu do Portal' }))
+        .getAllByRole('button')
+        .map((item) => item.textContent);
+    const show = (fields: { showFrequency?: boolean; showSchedule?: boolean }) =>
+      render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, ...fields } }, frequencyClient, scheduleClient }));
+    // Both keys off (or a server without them): the portal as it was, no menu.
+    show({ showFrequency: false, showSchedule: false });
+    expect(menu()).toBeNull();
+    cleanup();
+    show({ showSchedule: true });
+    expect(menu()).toEqual(['Notas', 'Horário']);
+    cleanup();
+    frequencyClient.readYear.mockClear();
+    scheduleClient.read.mockClear();
+    show({ showFrequency: true, showSchedule: true });
+    expect(menu()).toEqual(['Notas', 'Frequência', 'Horário']);
+    // Each page is read once, with the sign-in like the grades (one request each), and opening it
+    // asks nothing more.
+    await vi.waitFor(() => expect(frequencyClient.readYear).toHaveBeenCalledOnce());
+    expect(scheduleClient.read).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Horário' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(scheduleClient.read).toHaveBeenCalledOnce();
+    expect(frequencyClient.read).not.toHaveBeenCalled();
   });
   it('clears protected profile and grade content in loading, errors and expiration', () => {
     const view = render(page());

@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import type { FrequencySummaryV2 } from '../../../../shared/attendance-contracts/frequency-v2';
+import type {
+  FrequencySummaryV2,
+  FrequencyYearSummaryV2,
+} from '../../../../shared/attendance-contracts/frequency-v2';
 
 export class FrequencyClientErrorV2 extends Error {
   constructor(readonly state: string) {
@@ -119,11 +122,41 @@ const summary = z
       )
       .max(62)
       .optional(),
+    // The school's today, the year so far and the class's last reading (attendance 0012).
+    today: z.iso.date().optional(),
+    year: z
+      .object({ lessons: z.number().int().positive().max(100_000), absences: z.number().int().nonnegative().max(100_000) })
+      .strict()
+      .refine((value) => value.absences <= value.lessons)
+      .nullable()
+      .optional(),
+    lastReadAt: timestamp.optional(),
+  })
+  .strict();
+
+const yearCounts = z
+  .object({
+    lessons: z.number().int().positive().max(100_000),
+    absences: z.number().int().nonnegative().max(100_000),
+  })
+  .strict()
+  .refine((value) => value.absences <= value.lessons);
+const wholeYear = z
+  .object({
+    contractVersion: z.literal(2),
+    state: z.literal('ready'),
+    academicYear: z.literal(2026),
+    today: z.iso.date(),
+    year: yearCounts.nullable(),
+    lastReadAt: timestamp,
+    months: z.array(summary).max(12),
   })
   .strict();
 
 export type StudentFrequencyClientV2 = {
   read(month: string, signal: AbortSignal): Promise<FrequencySummaryV2>;
+  /** The whole school year so far in one answer (read with the sign-in, PR 1317). */
+  readYear(signal: AbortSignal): Promise<FrequencyYearSummaryV2>;
 };
 export function createStudentFrequencyClientV2(
   fetcher: typeof fetch = (...args) => globalThis.fetch(...args),
@@ -143,6 +176,21 @@ export function createStudentFrequencyClientV2(
         !parsed.success ||
         parsed.data.month !== month ||
         parsed.data.marks.some((mark) => !mark.date.startsWith(month + '-'))
+      )
+        throw new FrequencyClientErrorV2('unavailable');
+      return parsed.data;
+    },
+    async readYear(signal) {
+      const parsed = wholeYear.safeParse(
+        await frequencyJsonV2(fetcher, '/api/student/frequency?year=2026', { signal }),
+      );
+      if (
+        !parsed.success ||
+        parsed.data.months.some(
+          (month, index) =>
+            month.month !== `2026-${String(index + 1).padStart(2, '0')}` ||
+            month.marks.some((mark) => !mark.date.startsWith(month.month + '-')),
+        )
       )
         throw new FrequencyClientErrorV2('unavailable');
       return parsed.data;

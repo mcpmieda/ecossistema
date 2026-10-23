@@ -10,8 +10,10 @@ import {
 } from '../../server/gradebook/persistence/postgres/postgres-database-v1';
 import {
   createFrequencyServiceV2,
+  portalFrequencySummaryV2,
   summarizeFrequencyPublicOriginsV2,
   withLessonDaysV2,
+  type PortalFrequencyYearReadV2,
 } from '../../server/attendance/service-v2';
 import { createYearResetServiceV1 } from '../../server/gradebook/application/settings/year-reset-v1';
 import { resolveReconciledSourceV1 } from '../../server/student-identity/reconciliation/resolve-source-v1';
@@ -277,9 +279,36 @@ native('frequency V2 complete native migration stack', () => {
     const frequency = lessons!.frequency as { origins: Record<string, unknown>[]; days: Record<string, unknown>[] };
     expect(frequency.origins).toHaveLength(read!.origins ? (read!.origins as unknown[]).length : 0);
     expect(frequency.days.length).toBeGreaterThan(0);
-    const summary = withLessonDaysV2(summarizeFrequencyPublicOriginsV2(frequency.origins, '2026-01'), frequency.days);
+    const summary = withLessonDaysV2(summarizeFrequencyPublicOriginsV2(frequency.origins, '2026-01'), frequency.days, '2026-10-22');
     expect(summary.days?.every((day) => day.slots.length > 0)).toBe(true);
     expect((await lessonRead(crypto.randomUUID()))[0]!.frequency).toBeNull();
+    // v4 (attendance 0012): the whole year in one read, with the school's today and the class's
+    // last reading; the Portal works out the month and the year from it.
+    const yearRead = (who = account, from = '2026-01', to = '2026-12') =>
+      asRole('student_portal_app', (tx) =>
+        tx.unsafe(`SELECT attendance.read_portal_frequency_v4($1::uuid,$2::uuid,$3::text,$4::text) AS frequency`, [
+          who,
+          session,
+          from,
+          to,
+        ]),
+      );
+    const year = (await yearRead())[0]!.frequency as PortalFrequencyYearReadV2;
+    const [schoolDay] = await exec(`SELECT (clock_timestamp() AT TIME ZONE 'America/Bahia')::date::text AS today`);
+    expect(year.today).toBe(schoolDay!.today);
+    expect(year.origins).toEqual(frequency.origins);
+    expect(year.days).toEqual(frequency.days);
+    expect(new Date(year.lastReadAt!).toISOString()).toBe('2026-01-10T12:00:00.000Z');
+    const january = portalFrequencySummaryV2(year, '2026-01');
+    expect(january).toMatchObject({ absences: 1, denominator: 1, coverage: 'reliable', year: { lessons: 1, absences: 1 } });
+    expect((await yearRead(crypto.randomUUID()))[0]!.frequency).toBeNull();
+    for (const [from, to] of [['2026-03', '2026-02'], ['2025-12', '2026-01'], ['2026-01', '2026-13']])
+      expect((await yearRead(account, from, to))[0]!.frequency).toBeNull();
+    const [v4Acl] = await exec(`SELECT
+ has_function_privilege('anon','attendance.read_portal_frequency_v4(uuid,uuid,text,text)','EXECUTE') AS public_rpc,
+ has_function_privilege('gradebook_app','attendance.read_portal_frequency_v4(uuid,uuid,text,text)','EXECUTE') AS gradebook_rpc,
+ has_table_privilege('student_portal_app','attendance.school_state_v2','SELECT') AS portal_table`);
+    expect(v4Acl).toEqual({ public_rpc: false, gradebook_rpc: false, portal_table: false });
     // Horário (attendance 0010/0011): the grid of the student's current class, under the same checks.
     const lessonsOfGrid = [
       { weekday: 1, slot: 1, subject: 'LINGUA PORTUGUESA' },
@@ -335,6 +364,7 @@ native('frequency V2 complete native migration stack', () => {
     );
     expect((await portalRead())[0]!.origins).toBeNull();
     expect((await lessonRead())[0]!.frequency).toBeNull();
+    expect((await yearRead())[0]!.frequency).toBeNull();
     expect((await scheduleRead())[0]!.schedule).toBeNull();
     for (const role of [
       'anon',

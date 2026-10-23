@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, X } from 'lucide-react';
-import type { FrequencySummaryV2 } from '../../../shared/attendance-contracts/frequency-v2';
-import { previewTodayV3 } from './demo-data-v3';
+import {
+  frequencyCountV2,
+  type FrequencyCountV2,
+  type FrequencySummaryV2,
+} from '../../../../shared/attendance-contracts/frequency-v2';
+import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
+import { usePortalPageActiveV3 } from './portal-pages-v3';
+import { useCachedReadV3 } from './use-cached-read-v3';
 
 /*
  * Frequência in a page of its own (owner requests 20–21/10/2026, preview only): one month at a
@@ -13,21 +19,21 @@ import { previewTodayV3 } from './demo-data-v3';
  * missed only shows in the lesson tiles of the day. The legal attendance stays by lessons, over the
  * whole year (the ruler).
  *
- * MERGE (portal real): this page still reads the invented demo synchronously. Before it replaces
- * src/features/student-portal/frequency/student-frequency-v2.tsx, see the "MERGE" notes below and
- * the PR's checklist: real client (createStudentFrequencyClientV2, async, loading/error/session
- * states), the showFrequency gate, the school's "today" and the year's counts from the server.
+ * Data (PR 1317 checklist, 22/10/2026): the real client (createStudentFrequencyClientV2), one month
+ * per request, kept per month so going back and forth never waits twice. The server works out the
+ * month's and the year's counts by the same rule (frequencyCountV2: today never counts) and sends
+ * the school's today and the class's last reading; the page only draws them.
  */
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAYS_SHORT = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 /**
- * The school year shown (2026). The API only accepts months of 2026 (frequency-v2 monthly-summary);
- * after December the page stays on December instead of asking for a month it would refuse.
- * MERGE: take both ends from the student's academic year (profile.link.academicYear), not fixed.
+ * The school year shown: February to December of the student's academic year
+ * (profile.link.academicYear). After December the page stays on December instead of asking for a
+ * month the API would refuse.
  */
-const FIRST_MONTH = '2026-02';
-const LAST_MONTH = '2026-12';
+const firstMonthOf = (year: number) => `${year}-02`;
+const lastMonthOf = (year: number) => `${year}-12`;
 /** Attendance required over the whole year (LDB, art. 24, VI), counted in lessons. */
 const MINIMUM_PERCENT = 75;
 const SHIFT_LABELS: Record<string, string> = { MATUTINO: 'Manhã', VESPERTINO: 'Tarde', NOTURNO: 'Noite', INTEGRAL: 'Integral' };
@@ -100,60 +106,15 @@ function daySentence(day: DayV3, open: boolean) {
  */
 const toneLevelOf = (day: DayV3 | null) => (!day || day.share <= 0 ? 0 : day.share >= 1 ? 3 : 1);
 
-/** Lessons and absences (X) of days already over; `reliable`: nothing of them is still unknown. */
-type CountV3 = { lessons: number; absences: number; reliable: boolean };
-/**
- * A month's counts by the owner's rule, worked out here from the diary itself (`days` and `marks`)
- * rather than from the server's totals: lessons are the positions of the days already over (today
- * never counts), absences their X marks, a J is not taken off. Reliable when every one of those
- * days was read in full, no conflict is open and every mark of them has its lesson day.
- *
- * MERGE: the server's withLessonDaysV2 (server/attendance/service-v2.ts) still counts TODAY in
- * `denominator`/`absences`/`percentage` and lets today's unfinished reading make the whole month
- * 'incomplete'. Until the server applies this rule itself (and sends the school's today), keep
- * counting here and never show its `percentage`.
- */
-function monthCountOf(data: FrequencySummaryV2, today: string): CountV3 {
-  const lessonsOver = new Set(
-    (data.days ?? []).filter((day) => day.date < today).flatMap((day) => day.slots.map((slot) => `${day.date}|${lessonKey(day.shift, slot)}`)),
-  );
-  const marksOver = data.marks.filter((mark) => mark.date < today);
-  return {
-    lessons: lessonsOver.size,
-    absences: marksOver.filter((mark) => mark.mark === 'X').length,
-    reliable:
-      data.conflicts === 0 &&
-      (data.days ?? []).every((day) => day.date >= today || day.complete) &&
-      marksOver.every((mark) => lessonsOver.has(`${mark.date}|${lessonKey(mark.shift, mark.slot)}`)),
-  };
-}
-/**
- * The year so far (owner request 21/10/2026: "a régua sobre o ano"). The law's 75% is over all
- * the year's lessons, so the ruler adds up every month from the first one to now. A month with
- * nothing at all (before the student arrived, after they left: 14 and 30 real students on
- * 21/10/2026) adds nothing; one month still unknown leaves the year unknown (null).
- *
- * MERGE: asking the API for every month (up to 11 requests) on each visit is too much; the server
- * should send the year's lessons and absences (same rule, today excluded) in one answer.
- */
-function yearOf(read: (month: string) => FrequencySummaryV2, current: string, today: string): CountV3 | null {
-  let lessons = 0;
-  let absences = 0;
-  for (let month = FIRST_MONTH; month <= current; month = shiftMonth(month, 1)) {
-    const count = monthCountOf(read(month), today);
-    if (!count.reliable) return null;
-    lessons += count.lessons;
-    absences += count.absences;
-  }
-  return lessons ? { lessons, absences, reliable: true } : null;
-}
+/** Lessons and absences (X) of days already over (frequencyCountV2, shared with the server). */
+type CountV3 = FrequencyCountV2;
 /**
  * The percentage as shown: a whole number rounded DOWN from the exact counts (owner decision
  * 20/10/2026: 74,97% never reads as 75%). Never from a figure already rounded to one decimal.
  */
-const shownPercent = ({ lessons, absences }: CountV3) => Math.floor((100 * (lessons - absences)) / lessons);
+const shownPercent = ({ lessons, absences }: Pick<CountV3, 'lessons' | 'absences'>) => Math.floor((100 * (lessons - absences)) / lessons);
 /** Below the legal minimum, compared in whole numbers so no rounding can lift it. */
-const belowMinimum = ({ lessons, absences }: CountV3) => 100 * (lessons - absences) < MINIMUM_PERCENT * lessons;
+const belowMinimum = ({ lessons, absences }: Pick<CountV3, 'lessons' | 'absences'>) => 100 * (lessons - absences) < MINIMUM_PERCENT * lessons;
 
 /**
  * The month's school days as a ring with guide lines (owner choices 21/10/2026: "a A com as
@@ -185,6 +146,35 @@ const RING_KINDS_V3 = [
   { kind: 'justified', colour: '#b45309', ink: '#b45309', one: 'justificada', many: 'justificadas' },
 ] as const;
 type RingTotalsV3 = { days: number; clear: number; full: number; partial: number; justified: number };
+/**
+ * The school days already over and read in full, by kind (today never counts), over the lesson
+ * days and marks given: the whole year so far for the ring (owner request 22/10/2026: "os dados
+ * do ano inteiro e não mais o mês, pra casar com a régua").
+ */
+function ringTotalsOf(days: readonly NonNullable<FrequencySummaryV2['days']>[number][], marks: readonly MarkV3[], today: string): RingTotalsV3 {
+  const lessonsByDay = new Map<string, ShiftLessonsV3[]>();
+  for (const day of days) {
+    const list = lessonsByDay.get(day.date) ?? [];
+    const same = list.find((item) => item.shift === day.shift);
+    if (same) {
+      same.slots = [...new Set([...same.slots, ...day.slots])];
+      same.complete &&= day.complete;
+    } else list.push({ shift: day.shift, slots: [...day.slots], complete: day.complete });
+    lessonsByDay.set(day.date, list);
+  }
+  const marksByDay = new Map<string, MarkV3[]>();
+  for (const mark of marks) marksByDay.set(mark.date, [...(marksByDay.get(mark.date) ?? []), mark]);
+  const counted = [...lessonsByDay.entries()]
+    .filter(([date, lessons]) => date < today && lessons.every((item) => item.complete))
+    .map(([date, lessons]) => dayOf(lessons, marksByDay.get(date) ?? []));
+  return {
+    days: counted.length,
+    clear: counted.filter((day) => day.kind === 'clear').length,
+    full: counted.filter((day) => day.kind === 'missed' && !day.justified && day.share >= 1).length,
+    partial: counted.filter((day) => day.kind === 'missed' && !day.justified && day.share < 1).length,
+    justified: counted.filter((day) => day.justified).length,
+  };
+}
 const ringPoint = (radius: number, angle: number) => ({
   x: RING_CENTER_V3.x + radius * Math.cos(angle),
   y: RING_CENTER_V3.y + radius * Math.sin(angle),
@@ -194,24 +184,6 @@ const ringArc = (from: number, to: number) => {
   const end = ringPoint(RING_RADIUS_V3, to);
   return `M${start.x.toFixed(2)} ${start.y.toFixed(2)} A${RING_RADIUS_V3} ${RING_RADIUS_V3} 0 ${to - from > Math.PI ? 1 : 0} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
 };
-/**
- * The month tag's calendar icon, its sheet turning over from top to bottom without end (owner
- * request 21/10/2026), like a flip calendar: the upper half folds down to the middle, the lower
- * half of the next sheet unfolds below it. Still with reduced motion.
- */
-function CalendarFlipV3() {
-  return (
-    <svg className="pa3-flip" width={15} height={15} viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="5" width="18" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M8 3v4M16 3v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <rect className="pa3-flip-sheet" x="7" y="10" width="10" height="4" rx="1" />
-      <rect className="pa3-flip-sheet" x="7" y="14.6" width="10" height="3.6" rx="1" />
-      <rect className="pa3-flip-sheet pa3-flip-top" x="7" y="10" width="10" height="4" rx="1" />
-      <rect className="pa3-flip-sheet pa3-flip-bottom" x="7" y="14.6" width="10" height="3.6" rx="1" />
-    </svg>
-  );
-}
-
 /**
  * Labels on one side never overlap: each keeps at least this vertical distance, the height of a
  * label of two lines (the count, then "faltas / parciais"). At most three labels share a side.
@@ -247,7 +219,7 @@ function spreadLabels<T extends { y: number }>(labels: T[]) {
     label.y = Math.max(label.y, index ? labels[index - 1]!.y + RING_LABEL_GAP_V3 : top);
   return labels;
 }
-function DayRingV3({ totals, monthName }: { totals: RingTotalsV3; monthName: string }) {
+function DayRingV3({ totals, label }: { totals: RingTotalsV3; label: string }) {
   const counts = { clear: totals.clear, full: totals.full, partial: totals.partial, justified: totals.justified };
   // Absences first, then the frequented days. The ring is turned so the absences sit centred on
   // the left and the frequented days on the right (owner request 21/10/2026): every arc then
@@ -280,7 +252,7 @@ function DayRingV3({ totals, monthName }: { totals: RingTotalsV3; monthName: str
       className="pa3-guide-ring"
       viewBox={`0 0 ${RING_VIEW_V3.width} ${RING_VIEW_V3.height}`}
       role="img"
-      aria-label={`${monthName}, ${plural(totals.days, 'dia de aula contado', 'dias de aula contados')}: ${RING_KINDS_V3.map((kind) => plural(totals[kind.kind], kind.one, kind.many)).join(', ')}`}
+      aria-label={`${label}, ${plural(totals.days, 'dia de aula contado', 'dias de aula contados')}: ${RING_KINDS_V3.map((kind) => plural(totals[kind.kind], kind.one, kind.many)).join(', ')}`}
     >
       <circle className="pa3-guide-track" cx={RING_CENTER_V3.x} cy={RING_CENTER_V3.y} r={RING_RADIUS_V3} strokeWidth={RING_STROKE_V3} />
       {placed.map((arc) =>
@@ -355,12 +327,16 @@ function DayRingV3({ totals, monthName }: { totals: RingTotalsV3; monthName: str
           </g>
         );
       })}
-      {/* The month's days in the centre; the month's name is on the tag above the ring. */}
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 6} textAnchor="middle" className="pa3-guide-percent">
+      {/* The school days of the year already over, in the centre (owner request 22/10/2026:
+          "x dias já se passaram"), on two short lines so they stay inside the ring. */}
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 2} textAnchor="middle" className="pa3-guide-percent">
         {totals.days}
       </text>
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 20} textAnchor="middle" className="pa3-guide-caption">
-        {totals.days === 1 ? 'dia' : 'dias'}
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 15} textAnchor="middle" className="pa3-guide-caption">
+        {totals.days === 1 ? 'dia já' : 'dias já'}
+      </text>
+      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 25} textAnchor="middle" className="pa3-guide-caption">
+        {totals.days === 1 ? 'se passou' : 'se passaram'}
       </text>
     </svg>
   );
@@ -401,15 +377,18 @@ function useMonthSwipeV3(go: (step: number) => void, canBack: boolean, canForwar
  * Today, kept current while the page stays open (owner request 21/10/2026): a phone left on the
  * portal overnight moves "HOJE" (and, on the 1st, the month) when the parent comes back to it, and
  * at midnight. The school's clock: America/Bahia, always UTC−3 (no daylight saving since 2012).
- * MERGE: start from the school's "today" sent by the server (the timezone of the collection
- * agenda, frequency-v2 schedule), so a phone with a wrong clock never moves "HOJE".
+ * Frequência uses it only until the server's today arrives (a phone with a wrong clock never moves
+ * "HOJE" there); Horário marks today's column with it.
  */
+/** The phone's date in the school's time zone (America/Bahia), until the server's today arrives. */
+export const schoolDateOnDeviceV3 = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
 const SCHOOL_UTC_OFFSET_MS = -3 * 3_600_000;
 const DAY_MS = 86_400_000;
 export function useTodayV3() {
-  const [today, setToday] = useState(previewTodayV3);
+  const [today, setToday] = useState(schoolDateOnDeviceV3);
   useEffect(() => {
-    const check = () => setToday(previewTodayV3());
+    const check = () => setToday(schoolDateOnDeviceV3());
     const untilMidnight = () => DAY_MS - ((Date.now() + SCHOOL_UTC_OFFSET_MS) % DAY_MS) + 1_000;
     let timer = window.setTimeout(function tick() {
       check();
@@ -429,21 +408,179 @@ export function useTodayV3() {
   return today;
 }
 
-export function FrequencyPageV3({ read }: { read: (month: string, today: string) => FrequencySummaryV2 }) {
-  const today = useTodayV3();
-  // The current month, kept inside the school year: from January 2027 the page stays on December.
+type FrequencyPageV3Props = {
+  client: StudentFrequencyClientV2;
+  /** The student's school year (profile.link.academicYear). */
+  academicYear?: number;
+  /** "Entrar" after the session expired. */
+  onLogin?: () => void;
+  /** The session expired while reading (401): the app goes back to the sign-in. */
+  onAuthenticationLost?: () => void;
+};
+
+/** While the month has not come yet, or cannot be shown: what happened, in plain words. */
+function FrequencyStatusV3({
+  error,
+  onLogin,
+  onRetry,
+  month,
+}: {
+  error: string | null;
+  onLogin?: () => void;
+  onRetry: () => void;
+  /** The month and its arrows, so a month that is slow to come never traps the reader. */
+  month?: ReactNode;
+}) {
+  if (!error)
+    return (
+      <div className="pa3-card pa3-status">
+        {month}
+        <output>Carregando frequência…</output>
+      </div>
+    );
+  const [message, action] =
+    error === 'unauthenticated'
+      ? ['Sua sessão expirou. Entre novamente para ver a frequência.', onLogin ? ['Entrar', onLogin] : null]
+      : error === 'forbidden'
+        ? ['A frequência não está disponível no momento.', null]
+        : ['Não foi possível carregar a frequência agora. Vamos tentar de novo em instantes.', ['Tentar agora', onRetry]];
+  return (
+    <div className="pa3-card pa3-status" role="alert">
+      {month}
+      <p>{message}</p>
+      {action ? (
+        <button type="button" className="pa3-status-action" onClick={action[1] as () => void}>
+          {action[0] as string}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthenticationLost }: FrequencyPageV3Props) {
+  // The whole school year so far, read once with the sign-in (owner request 22/10/2026: changing
+  // months must never blink nor wait): every month, the school's today, the year's counts.
+  const read = useCallback((signal: AbortSignal) => client.readYear(signal), [client]);
+  const load = useCachedReadV3(read, usePortalPageActiveV3(), onAuthenticationLost);
+  // The school's today as the server reads it (the collection agenda's timezone): a phone with a
+  // wrong clock never moves "HOJE".
+  const deviceToday = useTodayV3();
+  const today = load.data?.today ?? deviceToday;
+  const firstMonth = firstMonthOf(academicYear);
+  const lastMonth = lastMonthOf(academicYear);
+  // The current month, kept inside the school year: from January the page stays on December.
   const todayMonth = today.slice(0, 7);
-  const current = todayMonth > LAST_MONTH ? LAST_MONTH : todayMonth < FIRST_MONTH ? FIRST_MONTH : todayMonth;
+  const current = todayMonth > lastMonth ? lastMonth : todayMonth < firstMonth ? firstMonth : todayMonth;
   // null: the current month, which follows the calendar (a new month on the 1st); a month the
   // parent picked stays until they leave the page.
   const [chosenMonth, setChosenMonth] = useState<string | null>(null);
   const month = chosenMonth && chosenMonth < current ? chosenMonth : current;
-  // One clock per render: the data is read with the page's own `today`, so the ring, the calendar
-  // and the counts never disagree around midnight. MERGE: the real client is async
-  // (createStudentFrequencyClientV2.read(month, signal)): fetch per month with loading, error,
-  // expired-session (401 → sign in again) and 'unavailable' states instead of this synchronous read.
-  const data = useMemo(() => read(month, today), [read, month, today]);
-  const monthCount = useMemo(() => monthCountOf(data, today), [data, today]);
+  const year = load.data;
+  const totals = useMemo(
+    () =>
+      year
+        ? ringTotalsOf(
+            year.months.flatMap((item) => item.days ?? []),
+            year.months.flatMap((item) => item.marks),
+            year.today,
+          )
+        : null,
+    [year],
+  );
+  return (
+    <section className="pa3-frequency" aria-labelledby="pa3-frequency-title">
+      <h2 id="pa3-frequency-title" className="pa3-page-title" tabIndex={-1}>
+        Frequência do aluno
+      </h2>
+      {year && totals ? (
+        <FrequencyMonthV3
+          data={{
+            ...(year.months.find((item) => item.month === month) ?? emptyMonthV3(month)),
+            today: year.today,
+            year: year.year,
+            lastReadAt: year.lastReadAt,
+          }}
+          totals={totals}
+          academicYear={academicYear}
+          today={today}
+          month={month}
+          current={current}
+          firstMonth={firstMonth}
+          onMonth={(next) => setChosenMonth(next >= current ? null : next)}
+        />
+      ) : (
+        <FrequencyStatusV3 error={load.error} onLogin={onLogin} onRetry={load.retry} />
+      )}
+    </section>
+  );
+}
+
+/** A month the year's answer has nothing for (before the student's first day). */
+const emptyMonthV3 = (month: string): FrequencySummaryV2 => ({
+  contractVersion: 2,
+  state: 'ready',
+  month,
+  absences: null,
+  justified: null,
+  denominator: null,
+  percentage: null,
+  coverage: 'unavailable',
+  observedAt: null,
+  receivedAt: null,
+  marks: [],
+  conflicts: 0,
+  days: [],
+});
+
+/** The month's name and its arrows (owner request 21/10/2026: the month bar is gone). */
+function MonthHeadV3({
+  month,
+  canBack,
+  canForward,
+  go,
+}: {
+  month: string;
+  canBack: boolean;
+  canForward: boolean;
+  go: (step: number) => void;
+}) {
+  return (
+    <div className="pa3-card-head">
+      <h3 aria-live="polite">{monthLabel(month)}</h3>
+      <div className="pa3-month-arrows">
+        <button type="button" className="pa3-month-arrow" aria-label="Mês anterior" disabled={!canBack} onClick={() => go(-1)}>
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+        <button type="button" className="pa3-month-arrow" aria-label="Próximo mês" disabled={!canForward} onClick={() => go(1)}>
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** One month, drawn from the server's answer. */
+function FrequencyMonthV3({
+  data,
+  totals,
+  academicYear,
+  today,
+  month,
+  current,
+  firstMonth,
+  onMonth,
+}: {
+  data: FrequencySummaryV2;
+  /** The ring: the whole year so far. */
+  totals: RingTotalsV3;
+  academicYear: number;
+  today: string;
+  month: string;
+  current: string;
+  firstMonth: string;
+  onMonth: (month: string) => void;
+}) {
+  const monthCount = useMemo(() => frequencyCountV2(data, today), [data, today]);
   // Lessons of each day, straight from the Smecel diary (data.days), kept per shift.
   const lessonsByDay = useMemo(() => {
     const map = new Map<string, ShiftLessonsV3[]>();
@@ -485,32 +622,16 @@ export function FrequencyPageV3({ read }: { read: (month: string, today: string)
     const lessons = lessonsAt(date);
     return lessons ? dayOf(lessons, marksByDay.get(date) ?? []) : null;
   };
-  // The days that count: over (today is still going on) and read in full.
-  const countedDays = useMemo(
-    () =>
-      [...lessonsByDay.entries()]
-        .filter(([date, lessons]) => date < today && lessons.every((item) => item.complete))
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, lessons]) => ({ date, day: dayOf(lessons, marksByDay.get(date) ?? []) })),
-    [lessonsByDay, marksByDay, today],
-  );
-  const totals: RingTotalsV3 = {
-    days: countedDays.length,
-    clear: countedDays.filter(({ day }) => day.kind === 'clear').length,
-    full: countedDays.filter(({ day }) => day.kind === 'missed' && !day.justified && day.share >= 1).length,
-    partial: countedDays.filter(({ day }) => day.kind === 'missed' && !day.justified && day.share < 1).length,
-    justified: countedDays.filter(({ day }) => day.justified).length,
-  };
-  const yearCount = useMemo(() => yearOf((other) => read(other, today), current, today), [read, current, today]);
+  // The year so far, worked out by the server by the same rule (null while any month is unknown).
+  const yearCount = data.year ?? null;
   const yearTone = yearCount === null ? 'none' : belowMinimum(yearCount) ? 'low' : 'good';
   const [picked, setPicked] = useState<string | null>(null);
   const go = (step: number) => {
-    const next = shiftMonth(month, step);
-    setChosenMonth(next >= current ? null : next);
+    onMonth(shiftMonth(month, step));
     setPicked(null);
   };
   // Only the calendar card swipes, like the arrows in its head.
-  const swipe = useMonthSwipeV3(go, month > FIRST_MONTH, month < current);
+  const swipe = useMonthSwipeV3(go, month > firstMonth, month < current);
 
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
@@ -560,24 +681,15 @@ export function FrequencyPageV3({ read }: { read: (month: string, today: string)
   const isOpen = isToday || !selectedLessons.every((group) => group.complete);
 
   return (
-    <section className="pa3-frequency" aria-labelledby="pa3-frequency-title">
-      <h1 id="pa3-frequency-title" className="pa3-page-title" tabIndex={-1}>
-        Frequência
-      </h1>
+    <>
 
       {/*
-        The month at a glance (owner request 21/10/2026: "a rosca do A com a régua do B"): a ring
-        of the month's counted school days by kind, and under it a 0–100% ruler of the YEAR so far
-        with the law's 75% minimum. Always the same height, data or not, so the calendar below
-        never moves when the month changes (owner request 21/10/2026).
+        The year at a glance (owner requests 21–22/10/2026): a ring of the school days counted so
+        far this year, by kind, and under it a 0–100% ruler of the same year with the law's 75%
+        minimum. Both are the whole year, so they agree and never move when the month changes.
       */}
       <div className={'pa3-summary pa3-summary--' + yearTone}>
-        {/* The month's name on a tag at the top (owner request 21/10/2026: "sentindo falta do nome"). */}
-        <p className="pa3-summary-title">
-          <CalendarFlipV3 />
-          {monthLabel(month)}
-        </p>
-        <DayRingV3 key={month} totals={totals} monthName={MONTHS[monthNumber - 1]!} />
+        <DayRingV3 totals={totals} label={`Ano letivo ${academicYear}`} />
         {/* The ruler is the year so far, not the month (owner request 21/10/2026): the 75% is the
             law's minimum over all the year's lessons, so only the year's figure meets it. */}
         <div className="pa3-ruler-wrap">
@@ -615,18 +727,7 @@ export function FrequencyPageV3({ read }: { read: (month: string, today: string)
       </div>
 
       <div className="pa3-card" {...swipe}>
-        <div className="pa3-card-head">
-          {/* The month and its arrows (owner request 21/10/2026): the month bar is gone. */}
-          <h2 aria-live="polite">{monthLabel(month)}</h2>
-          <div className="pa3-month-arrows">
-            <button type="button" className="pa3-month-arrow" aria-label="Mês anterior" disabled={month <= FIRST_MONTH} onClick={() => go(-1)}>
-              <ChevronLeft size={18} aria-hidden="true" />
-            </button>
-            <button type="button" className="pa3-month-arrow" aria-label="Próximo mês" disabled={month >= current} onClick={() => go(1)}>
-              <ChevronRight size={18} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+        <MonthHeadV3 month={month} canBack={month > firstMonth} canForward={month < current} go={go} />
         <ul className="pa3-legend" aria-label="Legenda">
           <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Falta total</li>
           {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
@@ -674,13 +775,13 @@ export function FrequencyPageV3({ read }: { read: (month: string, today: string)
       {selected && selectedDay ? (
         <div className="pa3-card pa3-day-detail" aria-live="polite">
           {/* Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026), on one line. */}
-          <h2 className="pa3-day-detail-title">
+          <h3 className="pa3-day-detail-title">
             {selected === today
               ? `Hoje, ${dayLabel(selected).toLowerCase()}`
               : selected === dayBefore(today)
                 ? `Ontem, ${dayLabel(selected).toLowerCase()}`
                 : dayLabel(selected)}
-          </h2>
+          </h3>
           {isToday ? (
             <p className="pa3-today-note">Dia em andamento · conta a partir de amanhã</p>
           ) : isOpen ? (
@@ -691,7 +792,7 @@ export function FrequencyPageV3({ read }: { read: (month: string, today: string)
             const label = shiftLabel(group.shift);
             return (
               <div key={group.shift} className="pa3-shift">
-                {label && selectedLessons.length > 1 ? <h3 className="pa3-shift-title">{label}</h3> : null}
+                {label && selectedLessons.length > 1 ? <h4 className="pa3-shift-title">{label}</h4> : null}
                 <ol className="pa3-lessons" data-count={group.slots.length}>
                   {group.slots.map((slot) => {
                     const mark = markAt.get(lessonKey(group.shift, slot));
@@ -717,17 +818,14 @@ export function FrequencyPageV3({ read }: { read: (month: string, today: string)
         </div>
       ) : null}
 
-      {/*
-        Only a time the server gave: none is invented when the month has no reading. MERGE: the
-        server's receivedAt is the last time a MARK of this student changed, not the last reading
-        of the diary (a month with no absence has none); send the class's last reading instead,
-        or this line says "Atualizado em 07/10" for a diary read today.
-      */}
-      {data.receivedAt ? (
+      {/* The last reading of the class's diary (owner request 21/10/2026: "Atualizado em"),
+          unchanged readings included; none is invented when the server has none. */}
+      {data.lastReadAt ? (
         <p className="pa3-footnote">
-          Atualizado em {new Date(data.receivedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+          Atualizado em{' '}
+          {new Date(data.lastReadAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Bahia' })}
         </p>
       ) : null}
-    </section>
+    </>
   );
 }

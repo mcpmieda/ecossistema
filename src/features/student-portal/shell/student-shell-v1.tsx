@@ -11,8 +11,14 @@ import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
 import { brilliantSealCountV1 } from '../grades/brilliant-seal-v1';
 import { SCHOOL_NAME_V1 } from '../../../shared/brand/school-mark-v1';
 import './student-shell-v1.css';
-import { StudentFrequencyV2 } from '../frequency/student-frequency-v2';
-import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
+import { createStudentFrequencyClientV2, type StudentFrequencyClientV2 } from '../frequency/client-v2';
+import { createStudentScheduleClientV1, type StudentScheduleClientV1 } from '../schedule/client-v1';
+import { PortalPagesV3 } from '../redesign/portal-pages-v3';
+import { FrequencyPageV3 } from '../redesign/frequency-page-v3';
+import { SchedulePageV3 } from '../redesign/schedule-page-v3';
+
+const defaultFrequencyClient = createStudentFrequencyClientV2();
+const defaultScheduleClient = createStudentScheduleClientV1();
 
 export const STUDENT_SCHOOL_NAME_V1 = SCHOOL_NAME_V1;
 const outcome = {
@@ -341,6 +347,7 @@ export interface StudentPagePropsV1
   onAuthenticationLost?: () => void;
   portraitSrc?: string;
   frequencyClient?: StudentFrequencyClientV2;
+  scheduleClient?: StudentScheduleClientV1;
 }
 
 function errorMessageKindV1(state: string): StudentMessageKindV1 {
@@ -358,43 +365,11 @@ export function StudentPortalPageV1({
   onLogin,
   onAuthenticationLost,
   portraitSrc,
-  frequencyClient,
+  frequencyClient = defaultFrequencyClient,
+  scheduleClient = defaultScheduleClient,
   ...shell
 }: StudentPagePropsV1) {
   const gradesHeading = useId();
-  let content: ReactNode = <StudentPageSkeletonV1 />;
-  if (load.state === 'maintenance')
-    content = <StudentPortalMessageV1 kind="maintenance" onAction={onRetry} />;
-  else if (load.state === 'error') {
-    const kind = errorMessageKindV1(load.error.state);
-    content = (
-      <StudentPortalMessageV1 kind={kind} onAction={kind === 'expired' ? onLogin : onRetry} />
-    );
-  } else if (load.state === 'ready')
-    content = (
-      <>
-        {status}
-        {load.data.state === 'no-publication' || load.data.subjects.length === 0 ? (
-          <>
-            <section className="pa-grades-section" aria-labelledby={gradesHeading}>
-              <h2 id={gradesHeading} className="pa-section-title">
-                Minhas notas
-              </h2>
-              <StudentPortalMessageV1 kind="empty" />
-            </section>
-          </>
-        ) : (
-          <StudentPortalWorkspaceV1
-            data={load.data}
-            profile={null}
-          />
-        )}
-        {load.data.showFrequency === true ? (
-          <StudentFrequencyV2 key={load.data.profile.accountId} client={frequencyClient}
-            onLogin={onLogin} onAuthenticationLost={onAuthenticationLost} />
-        ) : null}
-      </>
-    );
   const hero =
     load.state === 'ready' ? (
       <StudentProfileV1
@@ -407,7 +382,65 @@ export function StudentPortalPageV1({
         portraitSrc={portraitSrc}
       />
     ) : undefined;
-
+  if (load.state === 'ready') {
+    const data = load.data;
+    // Notas, Frequência and Horário (PR 1317): one page each behind the menu. Frequência and
+    // Horário exist only when the school's ADM keys are on for this student (`showFrequency`,
+    // `showSchedule` from /api/student/me); off, nothing of their APIs is asked for, and with Notas
+    // alone the portal looks as it did. Each page is keyed by the account, so a new sign-in never
+    // shows what the previous one read.
+    return (
+      <PortalPagesV3
+        {...shell}
+        hero={hero}
+        grades={
+          <>
+            {status}
+            {data.state === 'no-publication' || data.subjects.length === 0 ? (
+              <section className="pa-grades-section" aria-labelledby={gradesHeading}>
+                <h2 id={gradesHeading} className="pa-section-title">
+                  Minhas notas
+                </h2>
+                <StudentPortalMessageV1 kind="empty" />
+              </section>
+            ) : (
+              <StudentPortalWorkspaceV1 data={data} profile={null} />
+            )}
+          </>
+        }
+        frequency={
+          data.showFrequency === true ? (
+            <FrequencyPageV3
+              key={data.profile.accountId}
+              client={frequencyClient}
+              academicYear={data.profile.link.academicYear}
+              onLogin={onLogin}
+              onAuthenticationLost={onAuthenticationLost}
+            />
+          ) : undefined
+        }
+        schedule={
+          data.showSchedule === true ? (
+            <SchedulePageV3
+              key={data.profile.accountId}
+              client={scheduleClient}
+              onLogin={onLogin}
+              onAuthenticationLost={onAuthenticationLost}
+            />
+          ) : undefined
+        }
+      />
+    );
+  }
+  let content: ReactNode = <StudentPageSkeletonV1 />;
+  if (load.state === 'maintenance')
+    content = <StudentPortalMessageV1 kind="maintenance" onAction={onRetry} />;
+  else if (load.state === 'error') {
+    const kind = errorMessageKindV1(load.error.state);
+    content = (
+      <StudentPortalMessageV1 kind={kind} onAction={kind === 'expired' ? onLogin : onRetry} />
+    );
+  }
   return (
     <StudentPortalShellV1
       {...shell}

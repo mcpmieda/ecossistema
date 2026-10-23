@@ -166,7 +166,52 @@ export type FrequencySummaryV2 = {
   conflicts: number;
   /** Lesson days of the month; absent from a server before the Smecel lesson days. */
   days?: FrequencyDayV2[];
+  /** The school's date (attendance 0012): today never counts and the page marks it "HOJE". */
+  today?: string;
+  /** Lessons and absences of the year so far, today excluded; null while any month is unknown. */
+  year?: { lessons: number; absences: number } | null;
+  /** The last reading of the diary of the student's class(es), for "Atualizado em". */
+  lastReadAt?: string | null;
 };
+
+/**
+ * The student's whole school year so far in one answer (GET /api/student/frequency?year=2026): one
+ * summary per month from January to the current one, the school's today, the year's counts and the
+ * class's last reading. Read with the sign-in, so changing months never asks the server again.
+ */
+export type FrequencyYearSummaryV2 = {
+  contractVersion: 2; state: 'ready'; academicYear: 2026; today: string;
+  year: { lessons: number; absences: number } | null; lastReadAt: string | null;
+  months: FrequencySummaryV2[];
+};
+
+/** Lessons and absences (X) of the days already over; `reliable`: nothing of them is still unknown. */
+export type FrequencyCountV2 = { lessons: number; absences: number; reliable: boolean };
+/**
+ * A month's counts by the owner's rule (20–21/10/2026): lessons are the positions of the days
+ * already over (TODAY never counts: its roll call may still be under way), absences their X marks,
+ * a J is not taken off. Reliable when every one of those days was read in full, no conflict is
+ * open and every mark of them has its lesson day. The server's totals and the Portal agree on it.
+ */
+export function frequencyCountV2(
+  summary: Pick<FrequencySummaryV2, 'marks' | 'conflicts' | 'days'>,
+  today: string,
+): FrequencyCountV2 {
+  const lessonsOver = new Set(
+    (summary.days ?? [])
+      .filter((day) => day.date < today)
+      .flatMap((day) => day.slots.map((slot) => `${day.date}|${day.shift}:${slot}`)),
+  );
+  const marksOver = summary.marks.filter((mark) => mark.date < today);
+  return {
+    lessons: lessonsOver.size,
+    absences: marksOver.filter((mark) => mark.mark === 'X').length,
+    reliable:
+      summary.conflicts === 0 &&
+      (summary.days ?? []).every((day) => day.date >= today || day.complete) &&
+      marksOver.every((mark) => lessonsOver.has(`${mark.date}|${mark.shift}:${mark.slot}`)),
+  };
+}
 
 /** Same UTF-8 bytes in Python and JS; no locale-sensitive key ordering. */
 function compareCanonicalKeys(left: string, right: string): number {

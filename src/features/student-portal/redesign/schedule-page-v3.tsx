@@ -1,4 +1,7 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useCallback, useState, type ReactNode } from 'react';
+import type { StudentScheduleClientV1 } from '../schedule/client-v1';
+import { usePortalPageActiveV3 } from './portal-pages-v3';
+import { useCachedReadV3 } from './use-cached-read-v3';
 import { useTodayV3 } from './frequency-page-v3';
 
 /*
@@ -8,10 +11,9 @@ import { useTodayV3 } from './frequency-page-v3';
  * teacher; a free position ("VAGA") is a blank space. On a phone, one day at a time (today first);
  * on a computer, the whole week with today's column marked.
  *
- * MERGE (portal real): read GET /api/student/schedule (server/student-portal/composition/
- * schedule-v1.ts: { contractVersion: 1, state: 'ready', classes }) with loading, error and
- * expired-session (401 → sign in again) states, and show the page only when the self response
- * says `showSchedule === true` (the admin's "Horário" policy key; 403 otherwise).
+ * Data: GET /api/student/schedule (createStudentScheduleClientV1), read with the sign-in and
+ * kept (useCachedReadV3); shown only when the self response says `showSchedule === true` (the admin's
+ * "Horário" policy key; the API answers 403 otherwise).
  */
 export type ScheduleLessonV3 = { weekday: number; slot: number; subject: string };
 export type ScheduleClassV3 = {
@@ -51,7 +53,52 @@ const subjectText = (subject: string) =>
 const subjectAt = (lessons: readonly ScheduleLessonV3[], weekday: number, slot: number) =>
   lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null;
 
-export function SchedulePageV3({ classes }: { classes: readonly ScheduleClassV3[] }) {
+export function SchedulePageV3({
+  client,
+  onLogin,
+  onAuthenticationLost,
+}: {
+  client: StudentScheduleClientV1;
+  onLogin?: () => void;
+  onAuthenticationLost?: () => void;
+}) {
+  const read = useCallback((signal: AbortSignal) => client.read(signal), [client]);
+  // Read with the sign-in and kept (read again only when opened after ten minutes).
+  const load = useCachedReadV3(read, usePortalPageActiveV3(), onAuthenticationLost);
+  const classes = load.data;
+  if (classes) return <ScheduleWeekV3 classes={classes} />;
+  const [message, action]: [string, [string, () => void] | null] = !load.error
+    ? ['Carregando horário…', null]
+    : load.error === 'unauthenticated'
+      ? ['Sua sessão expirou. Entre novamente para ver o horário.', onLogin ? ['Entrar', onLogin] : null]
+      : load.error === 'forbidden'
+        ? ['O horário não está disponível no momento.', null]
+        : ['Não foi possível carregar o horário agora. Vamos tentar de novo em instantes.', ['Tentar agora', load.retry]];
+  return (
+    <ScheduleWeekV3
+      classes={null}
+      status={
+        <div className="pa3-card pa3-status" role={load.error ? 'alert' : undefined}>
+          {load.error ? <p>{message}</p> : <output>{message}</output>}
+          {action ? (
+            <button type="button" className="pa3-status-action" onClick={action[1]}>
+              {action[0]}
+            </button>
+          ) : null}
+        </div>
+      }
+    />
+  );
+}
+
+/** The week as read; `classes` null while it has not come yet (then `status` says why). */
+export function ScheduleWeekV3({
+  classes,
+  status,
+}: {
+  classes: readonly ScheduleClassV3[] | null;
+  status?: ReactNode;
+}) {
   const today = useTodayV3();
   const todayWeekday = weekdayOf(today);
   const schoolDay = todayWeekday >= 1 && todayWeekday <= 5;
@@ -59,18 +106,20 @@ export function SchedulePageV3({ classes }: { classes: readonly ScheduleClassV3[
   const [picked, setPicked] = useState<number | null>(null);
   const shown = picked ?? (schoolDay ? todayWeekday : 1);
   const shownDay = DAYS[shown - 1]!;
-  const latest = classes
+  const latest = (classes ?? [])
     .map((item) => item.observedAt)
     .sort()
     .at(-1);
 
   return (
     <section className="pa3-schedule" aria-labelledby="pa3-schedule-title">
-      <h1 id="pa3-schedule-title" className="pa3-page-title" tabIndex={-1}>
+      <h2 id="pa3-schedule-title" className="pa3-page-title" tabIndex={-1}>
         Horário
-      </h1>
+      </h2>
 
-      {classes.length === 0 ? (
+      {classes === null ? (
+        status
+      ) : classes.length === 0 ? (
         <div className="pa3-card">
           <p className="pa3-schedule-empty">O horário da turma ainda não foi lido do Smecel.</p>
         </div>
@@ -105,11 +154,11 @@ export function SchedulePageV3({ classes }: { classes: readonly ScheduleClassV3[
                 {classes.length > 1 ? <p className="pa3-schedule-class">{item.label}</p> : null}
 
                 <div className="pa3-schedule-day">
-                  <h2 aria-live="polite">
+                  <h3 aria-live="polite">
                     {schoolDay && shown === todayWeekday
                       ? `Hoje, ${shownDay.long.toLowerCase()}`
                       : shownDay.long}
-                  </h2>
+                  </h3>
                   <ol className="pa3-schedule-list">
                     {positions.map((slot) => {
                       const subject = subjectAt(item.lessons, shown, slot);
