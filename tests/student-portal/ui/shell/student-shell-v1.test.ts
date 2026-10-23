@@ -69,9 +69,9 @@ describe('student shell and canonical profile', () => {
         .map((item) => item.textContent);
     const show = (fields: { showFrequency?: boolean; showSchedule?: boolean }) =>
       render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, ...fields } }, frequencyClient, scheduleClient }));
-    // Both keys off (or a server without them): the portal as it was, no menu.
+    // Both keys off (or a server without them): the bottom bar with Notas only (owner decision 23/10/2026).
     show({ showFrequency: false, showSchedule: false });
-    expect(menu()).toBeNull();
+    expect(menu()).toEqual(['Notas']);
     cleanup();
     show({ showSchedule: true });
     expect(menu()).toEqual(['Notas', 'Horário']);

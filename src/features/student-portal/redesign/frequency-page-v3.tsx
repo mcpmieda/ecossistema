@@ -17,6 +17,7 @@ import {
   bellShiftOfLabelV1,
 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolDayOffLabelV1, type SchoolDayOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
+import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
 import { usePortalPageActiveV3, useReportFrequencyToneV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
@@ -674,7 +675,8 @@ function FrequencyMonthV3({
       grid
         .find((item) => item.shift === bellShift)
         ?.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null;
-    return time || subject ? { time: time ? `${time.start}–${time.end}` : null, subject } : null;
+    const official = subject ? officialSubjectV1(subject) : null;
+    return time || official ? { time: time ? `${time.start}–${time.end}` : null, subject: official } : null;
   };
   const monthCount = useMemo(() => frequencyCountV2(data, today), [data, today]);
   // Lessons of each day, straight from the Smecel diary (data.days), kept per shift.

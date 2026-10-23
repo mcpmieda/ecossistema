@@ -204,6 +204,7 @@ describe('Frequência page', () => {
 describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () => {
   const daysOff = [{ date: '2026-10-12', kind: 'feriado' as const, note: 'Nossa Senhora Aparecida' }];
   const bells = officialBells2026V1();
+  // The Smecel's name; the tile shows the official one (owner decision 23/10/2026).
   const grid = [{ shift: 'matutino' as const, lessons: [{ weekday: 4, slot: 3, subject: 'MATEMATICA' }] }];
 
   it('marks a holiday on the calendar and says why when it is opened', async () => {
@@ -230,7 +231,7 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
     await ready();
     fireEvent.click(dayButton(15));
     const tiles = () => [...document.querySelectorAll('.pa3-day-detail .pa3-lesson')].map((tile) => tile.textContent);
-    expect(tiles()[2]).toBe('3ª aula08:30–09:15MATEMATICAFaltou');
+    expect(tiles()[2]).toBe('3ª aula08:30–09:15MATEMÁTICAFaltou');
     expect(tiles()[4]).toBe('5ª aula10:15–11:00Justificada');
     expect(tiles()[0]).toBe('1ª aula07:00–07:45Sem falta');
     // 18/06, before the bells of 22/06: no time, no subject.

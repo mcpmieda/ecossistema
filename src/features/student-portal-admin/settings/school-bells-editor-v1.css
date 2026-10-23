@@ -83,3 +83,6 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+.pa-school-bells__item--parada .pa-school-bells__name {
+  color: var(--muted);
+}

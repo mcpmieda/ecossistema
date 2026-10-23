@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { flushSync } from 'react-dom';
 import { CalendarCheck2, CalendarX2, Clock, NotebookPen } from 'lucide-react';
 import { StudentPortalShellV1, type StudentShellPropsV1 } from '../shell/student-shell-v1';
+import { portalNowV1 } from '../shell/portal-notices-v1';
 // The portal's own shell styles (helpers such as the screen-reader-only text), loaded unchanged.
 import '../shell/student-shell-v1.css';
 import './redesign-v3.css';
@@ -12,7 +13,7 @@ import './redesign-v3.css';
  * icons at the bottom on a phone and at the side on a computer. Switching only changes what is
  * inside the sheet: the cover, the sheet and the menu stay still; the menu's highlight glides to
  * the chosen item. A page the school turned off in the ADM (Frequência, Horário) has no menu item,
- * and with Notas alone there is no menu at all (the same new layout).
+ * and with Notas alone the menu shows Notas only (owner decision 23/10/2026).
  */
 export type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule';
 /**
@@ -40,6 +41,47 @@ const PAGES: readonly { id: PageV3; label: string; Icon: typeof NotebookPen }[] 
   { id: 'frequency', label: 'Frequência', Icon: CalendarCheck2 },
   { id: 'schedule', label: 'Horário', Icon: Clock },
 ];
+
+/**
+ * The Horário item's clock tells the time (owner request 23/10/2026): its hands follow the school's
+ * clock (the server's time, Brasília), moved once a minute. Drawn like lucide's "clock".
+ */
+const SCHOOL_HOUR_V3 = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'America/Bahia',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+function schoolTimeV3() {
+  const [hour, minute] = SCHOOL_HOUR_V3.format(new Date(portalNowV1())).split(':').map(Number) as [number, number];
+  return { hour, minute };
+}
+function LiveClockIconV3({ size }: { size: number }) {
+  const [time, setTime] = useState(schoolTimeV3);
+  useEffect(() => {
+    const timer = window.setInterval(() => setTime(schoolTimeV3()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const hourAngle = ((time.hour % 12) + time.minute / 60) * 30;
+  const minuteAngle = time.minute * 6;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line className="pa3-clock-hand" x1="12" y1="12" x2="12" y2="7.5" style={{ transform: `rotate(${hourAngle}deg)` }} />
+      <line className="pa3-clock-hand" x1="12" y1="12" x2="12" y2="5" strokeWidth="1.6" style={{ transform: `rotate(${minuteAngle}deg)` }} />
+    </svg>
+  );
+}
 
 /*
  * Notas ⇄ Frequência (owner request 20/10/2026): the same move as between trimesters, inside the
@@ -102,8 +144,7 @@ export type PortalPagesPropsV3 = Omit<StudentShellPropsV1, 'children' | 'hero' |
 export function PortalPagesV3({ hero, grades, frequency, schedule, ...shell }: PortalPagesPropsV3) {
   const contentOf: Record<PageV3, ReactNode> = { grades, frequency, schedule };
   const pages = PAGES.filter((item) => item.id === 'grades' || contentOf[item.id] != null);
-  // Notas alone (owner request 22/10/2026: "esse preview tá estranho, antigo"): the same new
-  // layout, without a menu of one item.
+  // Notas alone (owner decision 23/10/2026: both keys off): the bottom bar stays, with Notas only.
   return <PortalMenuPagesV3 hero={hero} pages={pages} contentOf={contentOf} shell={shell} />;
 }
 
@@ -210,37 +251,7 @@ function PortalMenuPagesV3({
   const stateOf = (id: PageV3) =>
     id === page ? '' : leaving === id ? ' pa3-panel--leaving' : ' pa3-panel--inactive';
   return (
-    <div className={'pa3-app pa3-app--cover' + (pages.length === 1 ? ' pa3-app--single' : '')}>
-      <nav ref={highlight.nav} className="pa3-nav" aria-label="Menu do Portal" hidden={pages.length === 1}>
-        <span ref={highlight.pill} className="pa3-nav-highlight" aria-hidden="true" />
-        {pages.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            className="pa3-nav-item"
-            aria-current={page === id ? 'page' : undefined}
-            aria-controls={`pa3-panel-${id}`}
-            aria-describedby={id === 'frequency' && frequencyTone ? 'pa3-frequency-tone' : undefined}
-            onClick={() => choose(id)}
-          >
-            <span
-              className={'pa3-nav-icon' + (id === 'frequency' && frequencyTone ? ` pa3-nav-icon--${frequencyTone}` : '')}
-            >
-              {id === 'frequency' && frequencyTone === 'alert' ? (
-                <CalendarX2 size={22} aria-hidden="true" />
-              ) : (
-                <Icon size={22} aria-hidden="true" />
-              )}
-            </span>
-            <span className="pa3-nav-label">{label}</span>
-          </button>
-        ))}
-        {frequencyTone ? (
-          <span id="pa3-frequency-tone" className="pa-visually-hidden">
-            {frequencyTone === 'alert' ? 'Com aviso' : 'Sem aviso'}
-          </span>
-        ) : null}
-      </nav>
+    <div className="pa3-app pa3-app--cover">
 
       <div className="pa3-page">
         <FrequencyToneReportV3 value={setFrequencyTone}>
@@ -266,6 +277,41 @@ function PortalMenuPagesV3({
         </StudentPortalShellV1>
         </FrequencyToneReportV3>
       </div>
+
+      {/* After the page in the reading order (owner review 23/10/2026): the skip link stays the first
+          stop of the keyboard; the bar is fixed, so it shows in the same place. */}
+      <nav ref={highlight.nav} className="pa3-nav" aria-label="Menu do Portal">
+        <span ref={highlight.pill} className="pa3-nav-highlight" aria-hidden="true" />
+        {pages.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            className="pa3-nav-item"
+            aria-current={page === id ? 'page' : undefined}
+            aria-controls={`pa3-panel-${id}`}
+            aria-describedby={id === 'frequency' && frequencyTone ? 'pa3-frequency-tone' : undefined}
+            onClick={() => choose(id)}
+          >
+            <span
+              className={'pa3-nav-icon' + (id === 'frequency' && frequencyTone ? ` pa3-nav-icon--${frequencyTone}` : '')}
+            >
+              {id === 'frequency' && frequencyTone === 'alert' ? (
+                <CalendarX2 size={22} aria-hidden="true" />
+              ) : id === 'schedule' ? (
+                <LiveClockIconV3 size={22} />
+              ) : (
+                <Icon size={22} aria-hidden="true" />
+              )}
+            </span>
+            <span className="pa3-nav-label">{label}</span>
+          </button>
+        ))}
+        {frequencyTone ? (
+          <span id="pa3-frequency-tone" className="pa-visually-hidden">
+            {frequencyTone === 'alert' ? 'Com aviso' : 'Sem aviso'}
+          </span>
+        ) : null}
+      </nav>
     </div>
   );
 }

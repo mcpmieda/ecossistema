@@ -35,6 +35,8 @@
   background: rgb(255 255 255 / 0.96);
   backdrop-filter: blur(10px);
   box-shadow: 0 -8px 24px -18px rgb(15 42 95 / 0.5);
+  /* The highlight pill glides under the chosen icon, behind it. */
+  isolation: isolate;
 }
 .pa3-nav-item {
   display: grid;
@@ -130,14 +132,19 @@
   justify-content: space-between;
   gap: 0.25rem 0.75rem;
 }
+/* The legend: the same colours in small squares, in two columns (owner request 23/10/2026: "Sem
+   falta" under "Faltou algumas aulas"). */
 .pa3-legend {
-  display: flex;
+  display: grid;
   gap: 0.7rem;
   margin: 0 0 0.6rem;
   padding: 0;
   color: var(--pa3-muted);
   font-size: 0.7rem;
   list-style: none;
+  grid-template-columns: repeat(2, max-content);
+  column-gap: 1.1rem;
+  row-gap: 0.3rem;
 }
 .pa3-legend li {
   display: inline-flex;
@@ -208,15 +215,18 @@
   padding: 0;
   list-style: none;
 }
+/* One tile per lesson; every tile has its lines in the same places (owner request 23/10/2026): icon,
+   lesson, time, subject (room for two lines), and the state always at the bottom. */
 .pa3-lesson {
-  display: grid;
+  display: flex;
   gap: 0.2rem;
-  place-items: center;
   padding: 0.55rem 0.2rem;
   border-radius: 0.8rem;
   background: var(--pa3-green-soft);
   color: var(--pa3-green);
   text-align: center;
+  flex-direction: column;
+  align-items: center;
 }
 .pa3-lesson--absent {
   background: var(--pa3-red-soft);
@@ -241,12 +251,17 @@
   font-size: 0.78rem;
   font-weight: 750;
 }
+/* The lesson's state in a filled pill of its own colour (owner request 23/10/2026). */
 .pa3-lesson-state {
   max-width: 100%;
   font-size: 0.64rem;
   font-weight: 650;
-  line-height: 1.15;
+  line-height: 1.2;
   overflow-wrap: anywhere;
+  margin-top: auto;
+  padding: 0.1rem 0.5rem;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
 }
 .pa3-footnote {
   margin: 0;
@@ -317,10 +332,7 @@
   margin-top: 0.2rem;
 }
 
-/* The menu's highlight: one pill gliding under the chosen icon, at the pace of the content. */
-.pa3-nav {
-  isolation: isolate;
-}
+
 .pa3-nav-highlight {
   position: absolute;
   top: 0;
@@ -461,14 +473,7 @@
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--pa3-blue);
 }
 
-/* The legend: the same colours in small squares, with an outline so the light red one shows on white. */
-/* Two columns (owner request 23/10/2026): "Sem falta" sits under "Faltou algumas aulas". */
-.pa3-legend {
-  display: grid;
-  grid-template-columns: repeat(2, max-content);
-  column-gap: 1.1rem;
-  row-gap: 0.3rem;
-}
+
 .pa3-legend .pa3-dot {
   width: 0.8rem;
   height: 0.8rem;
@@ -607,6 +612,7 @@
   min-height: 3.1rem;
   padding: 0.35rem 0.2rem;
   font-weight: 700;
+  width: 100%;
 }
 .pa3-week-chip-today {
   display: block;
@@ -668,6 +674,7 @@
 .pa3-schedule-row.is-now {
   background: #e3ecff;
   box-shadow: inset 0 0 0 2px var(--pa3-blue);
+  padding-block: 0.35rem;
 }
 .pa3-schedule-slot {
   color: var(--pa3-muted);
@@ -681,17 +688,22 @@
   font-size: 0.86rem;
   font-weight: 680;
   overflow-wrap: break-word;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.2rem 0.4rem;
 }
 .pa3-schedule-time {
   display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  align-items: flex-end;
+  gap: 0.15rem;
   padding-right: 0.7rem;
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  flex-direction: column-reverse;
 }
 .pa3-schedule-empty {
   margin: 0;
@@ -925,21 +937,6 @@
   font-size: 0.95rem;
 }
 
-/* Notas alone: the new layout without the menu, so neither the side bar's room nor the bottom
-   bar's is kept. */
-.pa3-app--single .pa3-nav {
-  display: none;
-}
-@media (min-width: 900px) {
-  .pa3-app--single .pa3-page {
-    padding-left: 0;
-  }
-}
-@media (max-width: 899.98px) {
-  .pa3-app--single.pa3-app--cover .pa-shell--with-hero .pa-shell-content {
-    padding-bottom: 1.75rem;
-  }
-}
 /* Days without school and the time of each lesson (owner decision 23/10/2026). A holiday or recess
    is a soft slate tile with a dashed edge (never a colour of absence); tapping it says why. */
 .pa3-day.pa3-day--holiday {
@@ -968,43 +965,24 @@
   font-weight: 700;
   line-height: 1.15;
   overflow-wrap: anywhere;
-}
-
-/* HeroUI cards on the Frequência and Horário pages (owner request 23/10/2026): each weekday button
-   fills its column, and the cards' titles keep the page's weight. */
-.pa3-week-chip {
-  width: 100%;
-}
-.pa3-card-head h3,
-.pa3-day-detail .pa3-day-detail-title,
-.pa3-schedule-day h3 {
-  color: var(--pa3-ink);
-  font-weight: 750;
-}
-/* The tiles line up (owner request 23/10/2026): icon, lesson, time and subject on the same lines in
-   every tile (the subject keeps room for two lines), the state always at the bottom. */
-.pa3-lesson {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.pa3-lesson-subject {
   display: -webkit-box;
   min-height: calc(2 * 1.15em);
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-.pa3-lesson-state {
-  margin-top: auto;
+
+
+.pa3-card-head h3,
+.pa3-day-detail .pa3-day-detail-title,
+.pa3-schedule-day h3 {
+  color: var(--pa3-ink);
+  font-weight: 750;
 }
-/* The lesson's state in an outlined pill of its own colour (owner request 23/10/2026). */
-.pa3-lesson-state {
-  padding: 0.1rem 0.5rem;
-  border: 1.5px solid currentColor;
-  border-radius: 999px;
-  line-height: 1.2;
-}
+
+
+
+
 /* Filled (owner request 23/10/2026): the pill in the state's colour, the word in white. */
 .pa3-lesson .pa3-lesson-state {
   border-color: transparent;
@@ -1029,4 +1007,218 @@
 }
 .pa3-nav-icon--alert {
   color: var(--pa3-red);
+}
+/* "Agora": how much of the lesson or the break has gone by (owner request 23/10/2026). */
+.pa3-now-progress {
+  width: 100%;
+}
+/* Lessons already over today: faded, still readable for checking before and after. */
+.pa3-schedule-row.is-done {
+  opacity: 0.55;
+}
+
+/* Each subject with its own colour and icon (owner decision 23/10/2026), the same every day: a soft
+   background and the icon in the strong colour. */
+.pa3-subject {
+  background: color-mix(in srgb, var(--pa3-subject-strong) 6%, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pa3-subject-strong) 14%, transparent);
+}
+.pa3-subject .pa3-schedule-slot,
+.pa3-subject-icon {
+  color: var(--pa3-subject-strong);
+}
+.pa3-subject-icon {
+  flex: 0 0 auto;
+}
+.pa3-subject-name {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-wrap: normal;
+}
+/* Twelve subjects, twelve colours a step apart on the colour wheel (owner request 23/10/2026:
+   Matemática and Religião were too alike); the background is a faint wash of the same colour. */
+.pa3-subject--0 {
+  --pa3-subject-strong: #1d4ed8;
+}
+.pa3-subject--1 {
+  --pa3-subject-strong: #dc2626;
+}
+.pa3-subject--2 {
+  --pa3-subject-strong: #15803d;
+}
+.pa3-subject--3 {
+  --pa3-subject-strong: #7c4a1e;
+}
+.pa3-subject--4 {
+  --pa3-subject-strong: #0e7490;
+}
+.pa3-subject--5 {
+  --pa3-subject-strong: #a21caf;
+}
+.pa3-subject--6 {
+  --pa3-subject-strong: #ea580c;
+}
+.pa3-subject--7 {
+  --pa3-subject-strong: #6d28d9;
+}
+.pa3-subject--8 {
+  --pa3-subject-strong: #4d7c0f;
+}
+.pa3-subject--9 {
+  --pa3-subject-strong: #a16207;
+}
+.pa3-subject--10 {
+  --pa3-subject-strong: #0f766e;
+}
+.pa3-subject--11 {
+  --pa3-subject-strong: #475569;
+}
+
+
+/* A thin line between the lesson's number and its subject (owner request 23/10/2026). */
+.pa3-schedule-row .pa3-schedule-slot {
+  display: grid;
+  align-self: stretch;
+  place-items: center;
+  margin-block: 0.45rem;
+  border-right: 1px solid rgb(15 42 95 / 0.14);
+}
+.pa3-schedule-row .pa3-schedule-subject {
+  padding-left: 0.6rem;
+}
+/* The break has no dividing line (owner request 23/10/2026). */
+.pa3-schedule-row.pa3-schedule-break .pa3-schedule-slot {
+  border-right: 0;
+}
+
+/* The break's mug: its three wisps of steam drift up and fade, one after the other, while the
+   break is going on (owner request 23/10/2026). */
+.pa3-mug {
+  overflow: visible;
+}
+.pa3-mug-steam {
+  opacity: 0;
+}
+.pa3-mug.is-steaming .pa3-mug-steam {
+  animation: pa3-steam 2.4s ease-out infinite;
+}
+.pa3-mug.is-steaming .pa3-mug-steam:nth-child(2) {
+  animation-delay: 0.8s;
+}
+.pa3-mug.is-steaming .pa3-mug-steam:nth-child(3) {
+  animation-delay: 1.6s;
+}
+.pa3-mug:not(.is-steaming) .pa3-mug-steam {
+  opacity: 1;
+}
+@keyframes pa3-steam {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-mug.is-steaming .pa3-mug-steam {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+
+
+/* The menu's clock shows the time (owner request 23/10/2026): its hands follow the school's clock. */
+.pa3-clock-hand {
+  transform-origin: 12px 12px;
+  transition: transform 400ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-clock-hand {
+    transition: none;
+  }
+}
+
+.pa3-schedule-now {
+  height: auto;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.66rem;
+  line-height: 1.3;
+}
+/* The break going on keeps its yellow, with the blue outline of "agora". */
+.pa3-schedule-break.is-now {
+  background: var(--pa3-amber-soft);
+}
+
+/* The day follows the finger (owner request 23/10/2026): three days side by side, the one shown in
+   the middle; the neighbours come in as it slides. Vertical drags stay the page's scroll. */
+.pa3-day-slider {
+  overflow: hidden;
+  touch-action: pan-y;
+  transition: height 200ms ease-out;
+}
+.pa3-day-track {
+  display: flex;
+  align-items: flex-start;
+  will-change: transform;
+}
+.pa3-day-track.is-settling {
+  transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pa3-day-panel {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+/* Still, the neighbours are not painted: half a pixel of the next day never shows at the edge. */
+.pa3-day-slider:not(.is-moving) .pa3-day-panel[aria-hidden='true'] {
+  visibility: hidden;
+}
+.pa3-day-panel > h3 {
+  margin-bottom: 0.6rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa3-day-track.is-settling {
+    transition: none;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.pa3-subject.is-now {
+  box-shadow: inset 0 0 0 2px var(--pa3-blue);
+}
+
+/* The parada (owner decision 23/10/2026): the drill before the lessons (and after Friday
+   afternoon's last one), a row of its own like the break, in a calm slate; never a lesson. */
+.pa3-schedule-parada {
+  min-height: 2.1rem;
+  background: #eef2f7;
+}
+.pa3-schedule-parada .pa3-schedule-slot,
+.pa3-schedule-parada .pa3-schedule-subject,
+.pa3-schedule-parada .pa3-schedule-time {
+  color: #334155;
+}
+.pa3-schedule-parada .pa3-schedule-subject {
+  font-size: 0.8rem;
+}
+.pa3-schedule-row.pa3-schedule-parada .pa3-schedule-slot {
+  border-right: 0;
 }

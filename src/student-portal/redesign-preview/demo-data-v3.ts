@@ -103,6 +103,17 @@ const FIRST_SCHOOL_DAY = '2026-02-23';
 const pad = (value: number) => String(value).padStart(2, '0');
 /** Today as the school's clock reads it (the same helper as the real page). */
 export const previewTodayV3 = schoolDateOnDeviceV3;
+/**
+ * The preview's clock: the real time, or a simulated one with ?hora=15:35 in the address (owner
+ * request 23/10/2026: "simula o intervalo"), today at that time in Brasília, running from there.
+ */
+const SIMULATED_AT_V3 = (() => {
+  const hora = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('hora');
+  if (!hora || !/^([01]\d|2[0-3]):[0-5]\d$/u.test(hora)) return null;
+  return { at: Date.parse(`${schoolDateOnDeviceV3()}T${hora}:00-03:00`), loadedAt: Date.now() };
+})();
+export const previewNowV3 = () =>
+  new Date(SIMULATED_AT_V3 ? SIMULATED_AT_V3.at + (Date.now() - SIMULATED_AT_V3.loadedAt) : Date.now()).toISOString();
 
 /** Hand-written October, so the story is easy to follow; other months are generated. */
 // Each kind of day (owner request 21/10/2026): whole days (one justified) and days absent in
@@ -151,7 +162,7 @@ function marksOf(month: string, today: string): FrequencySummaryV2['marks'] {
       else if (roll < oneLesson) dayMarks = [[1 + Math.floor(random() * lessons), 'X']];
     }
     for (const [slot, mark] of dayMarks)
-      marks.push({ date, slot, shift: 'MATUTINO', mark, classLabels: ['TURMA ARTIFICIAL'] });
+      marks.push({ date, slot, shift: 'VESPERTINO', mark, classLabels: ['TURMA ARTIFICIAL'] });
   }
   return marks;
 }
@@ -165,7 +176,7 @@ function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
     if (date < FIRST_SCHOOL_DAY) continue;
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6 || HOLIDAYS.has(date)) continue;
-    result.push({ date, shift: 'MATUTINO', slots: Array.from({ length: lessonsOn(date) }, (_, index) => index + 1), complete: true });
+    result.push({ date, shift: 'VESPERTINO', slots: Array.from({ length: lessonsOn(date) }, (_, index) => index + 1), complete: true });
   }
   return result;
 }
@@ -239,7 +250,7 @@ export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
     schoolYear,
     daysOff: schoolDaysOffOfV1(demoCalendarV3()),
     bells: officialBells2026V1(),
-    grid: [{ shift: 'matutino', lessons: demoScheduleV3()[0]!.lessons }],
+    grid: [{ shift: 'vespertino', lessons: demoScheduleV3()[0]!.lessons }],
     months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => {
       void _today;
       void _year;
@@ -304,9 +315,9 @@ const WEEK: readonly (readonly (string | null)[])[] = [
 ];
 export const demoScheduleV3 = () => [
   {
-    label: 'TURMA ARTIFICIAL - MATUTINO',
-    // The school's official bells of the morning (sheets of 22/06).
-    bells: officialBells2026V1().matutino,
+    label: 'TURMA ARTIFICIAL - VESPERTINO',
+    // The school's official bells of the afternoon (sheets of 22/06): a class of the vespertino.
+    bells: officialBells2026V1().vespertino,
     observedAt: `${previewTodayV3()}T10:12:00Z`,
     lessons: WEEK.flatMap((row, index) =>
       row.flatMap((subject, day) => (subject ? [{ weekday: day + 1, slot: index + 1, subject }] : [])),
@@ -323,7 +334,7 @@ export const createDemoScheduleClientV3 = (): StudentScheduleClientV1 => ({
           resolve({
             classes: demoScheduleV3(),
             today: previewTodayV3(),
-            now: new Date().toISOString(),
+            now: previewNowV3(),
             daysOff: schoolDaysOffOfV1(demoCalendarV3()),
           }),
         250,

@@ -177,9 +177,12 @@ export function PortalCountdownV1({
  */
 export function PortalTimerV1({ seconds, label }: { seconds: number; label: string }) {
   const left = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(left / 3600);
+  const days = Math.floor(left / 86400);
+  const hours = Math.floor((left % 86400) / 3600);
+  // Days only when there is at least one (the next lessons after a weekend).
   const units = [
-    ...(hours ? ([[hours, 'h']] as const) : []),
+    ...(days ? ([[days, 'dias']] as const) : []),
+    ...(days || hours ? ([[hours, 'h']] as const) : []),
     [Math.floor((left % 3600) / 60), 'min'],
     [left % 60, 'seg'],
   ] as const;
@@ -188,7 +191,7 @@ export function PortalTimerV1({ seconds, label }: { seconds: number; label: stri
     <div
       className="pa-countdown__clock"
       role="timer"
-      aria-label={`${label} ${hours ? `${countV1(hours, 'hora')} e ` : ''}${countV1(hours ? Math.floor((left % 3600) / 60) : minutes, 'minuto')}`}
+      aria-label={`${label} ${days ? `${countV1(days, 'dia')}, ` : ''}${days || hours ? `${countV1(hours, 'hora')} e ` : ''}${countV1(days || hours ? Math.floor((left % 3600) / 60) : minutes, 'minuto')}`}
     >
       {units.map(([value, unit]) => (
         <span key={unit} className="pa-countdown__unit" aria-hidden="true">

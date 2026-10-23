@@ -2,8 +2,12 @@ import { z } from 'zod';
 
 /*
  * Horário das aulas (owner decision 23/10/2026): the time of each lesson and of the break, per
- * shift and weekday, marked in the ADM (Portal do Aluno → Políticas → Horário), one for the whole
+ * shift and weekday, marked in the ADM (Portal do Aluno → Políticas → Calendário), one for the whole
  * school. The Portal's "Horário" shows each lesson with its time and the break in its place.
+ *
+ * The "parada" (owner decision 23/10/2026) is the students' drill, the ordem unida, before the
+ * lessons and, on Friday afternoons, after the last one until 18:00: a time of the school day, never
+ * a lesson (no number, no subject, never counted as one).
  */
 export const BELL_SHIFTS_V1 = ['matutino', 'vespertino'] as const;
 export type BellShiftV1 = (typeof BELL_SHIFTS_V1)[number];
@@ -13,23 +17,30 @@ const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
 export const bellItemV1 = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('aula'), slot: z.number().int().min(1).max(6), start: time, end: time }).strict(),
   z.object({ kind: z.literal('intervalo'), start: time, end: time }).strict(),
+  z.object({ kind: z.literal('parada'), start: time, end: time }).strict(),
 ]);
 export type BellItemV1 = z.infer<typeof bellItemV1>;
 
-/** A day's items in time order, never overlapping, lessons numbered 1, 2, 3… with one break at most. */
+/**
+ * A day's items in time order, never overlapping, lessons numbered 1, 2, 3… with one break at most
+ * and a parada at most before the lessons and after them (never between two lessons).
+ */
 export const bellDayV1 = z
   .array(bellItemV1)
-  .max(8)
+  .max(10)
   .superRefine((items, ctx) => {
     let previousEnd = '';
     let slot = 0;
     let breaks = 0;
-    for (const item of items) {
+    for (const [index, item] of items.entries()) {
       if (item.end <= item.start) ctx.addIssue({ code: 'custom', message: 'Ends before it starts' });
       if (item.start < previousEnd) ctx.addIssue({ code: 'custom', message: 'Overlaps the previous one' });
       previousEnd = item.end;
       if (item.kind === 'intervalo') breaks += 1;
-      else if (item.slot !== ++slot) ctx.addIssue({ code: 'custom', message: 'Lessons out of order' });
+      else if (item.kind === 'parada') {
+        if (index !== 0 && index !== items.length - 1)
+          ctx.addIssue({ code: 'custom', message: 'A parada only before or after the lessons' });
+      } else if (item.slot !== ++slot) ctx.addIssue({ code: 'custom', message: 'Lessons out of order' });
     }
     if (breaks > 1) ctx.addIssue({ code: 'custom', message: 'More than one break' });
   });
@@ -70,7 +81,9 @@ const lessons = (times: readonly [string, string][], breakAfter: number, breakTi
  * The official "Horário Matutino / Vespertino 2026 — 22/06" of the school (owner decision
  * 23/10/2026: already filled in). Monday and Wednesday: five 55-minute lessons, the break after the
  * 3rd (morning) or 2nd (afternoon); Tuesday and Thursday: six 45-minute lessons, the break after the
- * 4th (morning) or 3rd (afternoon); Friday: five lessons, the break after the 3rd.
+ * 4th (morning) or 3rd (afternoon); Friday: five lessons, the break after the 3rd. The parada
+ * comes first every day (06:45–07:00 in the morning, 06:45–07:45 on Friday; 13:00–13:15 in the
+ * afternoon), and again after Friday afternoon's last lesson, 17:15–18:00.
  */
 export function officialBells2026V1(): SchoolBellsDaysV1 {
   const morningLong = lessons(
@@ -103,9 +116,24 @@ export function officialBells2026V1(): SchoolBellsDaysV1 {
     3,
     ['15:30', '15:45'],
   );
+  const parada = (start: string, end: string): BellItemV1 => ({ kind: 'parada', start, end });
+  const morning = (day: BellDayV1) => [parada('06:45', '07:00'), ...day];
+  const afternoon = (day: BellDayV1) => [parada('13:00', '13:15'), ...day];
   return {
-    matutino: { 1: morningLong, 2: morningShort, 3: morningLong, 4: morningShort, 5: morningFriday },
-    vespertino: { 1: afternoonLong, 2: afternoonShort, 3: afternoonLong, 4: afternoonShort, 5: afternoonFriday },
+    matutino: {
+      1: morning(morningLong),
+      2: morning(morningShort),
+      3: morning(morningLong),
+      4: morning(morningShort),
+      5: [parada('06:45', '07:45'), ...morningFriday],
+    },
+    vespertino: {
+      1: afternoon(afternoonLong),
+      2: afternoon(afternoonShort),
+      3: afternoon(afternoonLong),
+      4: afternoon(afternoonShort),
+      5: [...afternoon(afternoonFriday), parada('17:15', '18:00')],
+    },
   };
 }
 

@@ -194,7 +194,7 @@ export type FrequencyYearSummaryV2 = {
   /** Each lesson's and the break's time by shift and weekday (ADM, student-portal 0030), or null. */
   bells?: Record<'matutino' | 'vespertino', Record<1 | 2 | 3 | 4 | 5, (
     | { kind: 'aula'; slot: number; start: string; end: string }
-    | { kind: 'intervalo'; start: string; end: string })[]>> | null;
+    | { kind: 'intervalo' | 'parada'; start: string; end: string })[]>> | null;
   /** The subject of each position of the week by shift, only when the Horário is on for the student. */
   grid?: { shift: 'matutino' | 'vespertino'; lessons: { weekday: number; slot: number; subject: string }[] }[];
 };

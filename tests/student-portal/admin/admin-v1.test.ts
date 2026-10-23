@@ -96,6 +96,7 @@ beforeAll(async () => {
   await pg.exec(ACADEMIC_FIXTURE_SQL_V1);
   await pg.exec(readFileSync('migrations/student-portal/0029_school_calendar_v1.sql', 'utf8'));
   await pg.exec(readFileSync('migrations/student-portal/0030_school_bells_v1.sql', 'utf8'));
+  await pg.exec(readFileSync('migrations/student-portal/0031_school_bells_parada_v1.sql', 'utf8'));
   accounts = (
     await pg.query<{ id: string; student: number }>(
       'SELECT id,gradebook_student_id AS student FROM student_portal.account ORDER BY gradebook_student_id',
@@ -201,9 +202,9 @@ describe('private administrative API with real persistence', () => {
   });
   // Horário das aulas (owner decision 23/10/2026).
   it('reads and writes the bells whole, school-wide, with their version, refusing a wrong day', async () => {
-    // It starts with the school's sheets of 22/06, saved by migration 0030.
+    // It starts with the school's sheets of 22/06, saved by migration 0030, with the parada (0031).
     const official = await query('school-bells', { scope: SCHOOL });
-    expect(official.bells).toEqual({ academicYear: 2026, version: 1, bells: officialBells2026V1() });
+    expect(official.bells).toEqual({ academicYear: 2026, version: 2, bells: officialBells2026V1() });
     expect((await api.query(context(), { contractVersion: 1, operation: 'school-bells', scope: CLASS, page: {} })).state).toBe('forbidden');
     const bells = officialBells2026V1();
     bells.matutino[1] = [
@@ -211,19 +212,19 @@ describe('private administrative API with real persistence', () => {
       { kind: 'intervalo', start: '08:00', end: '08:20' },
       { kind: 'aula', slot: 2, start: '08:20', end: '09:10' },
     ];
-    const first = command('school-bells-set', 1, { academicYear: 2026, bells });
+    const first = command('school-bells-set', 2, { academicYear: 2026, bells });
     const saved = state(await api.command(context(), first), 'committed');
     expect(state(await api.command(context(), first), 'committed')).toMatchObject({ operationId: saved.operationId });
-    expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({ bells: { version: 2, bells } });
+    expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({ bells: { version: 3, bells } });
     // An older reading is refused; so is a day with two lessons at the same time.
-    expect((await api.command(context(), command('school-bells-set', 1, { academicYear: 2026, bells }))).state).toBe('conflict');
+    expect((await api.command(context(), command('school-bells-set', 2, { academicYear: 2026, bells }))).state).toBe('conflict');
     const wrong = officialBells2026V1();
     wrong.vespertino[2] = [
       { kind: 'aula', slot: 1, start: '13:15', end: '14:00' },
       { kind: 'aula', slot: 2, start: '13:30', end: '14:15' },
     ];
-    expect((await api.command(context(), command('school-bells-set', 2, { academicYear: 2026, bells: wrong }))).state).toBe('invalid-request');
-    expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({ bells: { version: 2 } });
+    expect((await api.command(context(), command('school-bells-set', 3, { academicYear: 2026, bells: wrong }))).state).toBe('invalid-request');
+    expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({ bells: { version: 3 } });
   });
   it.each([200, 201, 300])('preserves %i-character accented names through QR batches and V1/V2 cursor pages', async (length) => {
     const original = (await pg.query<{ id: number; nome: string }>(

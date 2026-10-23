@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Time } from '@internationalized/date';
 import { I18nProvider } from 'react-aria-components';
 import { Alert, Button, Card, Chip, Spinner, TimeField, ToggleButton, ToggleButtonGroup } from '@heroui/react';
-import { Coffee, Plus, Trash2 } from 'lucide-react';
+import { Coffee, Flag, Plus, Trash2 } from 'lucide-react';
 import {
   bellDayV1,
   officialBells2026V1,
@@ -41,9 +41,9 @@ const renumbered = (items: readonly BellItemV1[]): BellDayV1 => {
   let slot = 0;
   return items.map((item) => (item.kind === 'aula' ? { ...item, slot: ++slot } : item));
 };
-/** "07:55" plus minutes, kept within the day. */
+/** "07:55" plus (or minus) minutes, kept within the day. */
 const later = (time: string, minutes: number) => {
-  const total = Math.min(23 * 60 + 59, Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) + minutes);
+  const total = Math.max(0, Math.min(23 * 60 + 59, Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) + minutes));
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 };
 
@@ -162,8 +162,8 @@ export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminC
           <div>
             <Card.Title id="pa-school-bells-title">Horário de cada aula</Card.Title>
             <Card.Description>
-              Vale para a escola inteira. O Portal mostra a hora de cada aula, o intervalo no lugar certo e a
-              aula de agora. A ordem se ajusta sozinha pela hora de início.
+              Vale para a escola inteira. O Portal mostra a hora de cada aula, o intervalo e a parada no lugar
+              certo e a aula de agora. A ordem se ajusta sozinha pela hora de início.
             </Card.Description>
           </div>
           <ToggleButtonGroup
@@ -211,6 +211,9 @@ export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminC
               const items = draft[shift][weekday];
               const lessons = items.filter((item) => item.kind === 'aula').length;
               const hasBreak = items.some((item) => item.kind === 'intervalo');
+              // A parada (owner decision 23/10/2026) before the lessons and, at most, one after them.
+              const paradas = items.filter((item) => item.kind === 'parada').length;
+              const firstStart = items[0]?.start ?? (shift === 'matutino' ? '07:00' : '13:15');
               const wrong = invalid.has(`${shift}:${weekday}`);
               const lastEnd = items.at(-1)?.end ?? (shift === 'matutino' ? '07:00' : '13:15');
               return (
@@ -224,7 +227,8 @@ export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminC
                   <Card.Content>
                     <ol className="pa-school-bells__list">
                       {items.map((item, index) => {
-                        const name = item.kind === 'aula' ? `${item.slot}ª aula` : 'Intervalo';
+                        const name =
+                          item.kind === 'aula' ? `${item.slot}ª aula` : item.kind === 'parada' ? 'Parada' : 'Intervalo';
                         const setTime = (part: 'start' | 'end', value: Time | null) => {
                           if (value)
                             editDay(weekday, (list) =>
@@ -251,6 +255,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminC
                           <li key={index} className={'pa-school-bells__item pa-school-bells__item--' + item.kind}>
                             <span className="pa-school-bells__name">
                               {item.kind === 'intervalo' ? <Coffee size={14} aria-hidden="true" /> : null}
+                              {item.kind === 'parada' ? <Flag size={14} aria-hidden="true" /> : null}
                               {name}
                             </span>
                             <span className="pa-school-bells__times">
@@ -275,8 +280,8 @@ export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminC
                     </ol>
                     {wrong ? (
                       <p className="pa-school-bells__error" role="alert">
-                        Confira os horários: estão fora de ordem, um começa antes do outro acabar ou há mais de um
-                        intervalo.
+                        Confira os horários: estão fora de ordem, um começa antes do outro acabar, há mais de um
+                        intervalo ou uma parada entre as aulas (ela só vem antes ou depois delas).
                       </p>
                     ) : null}
                   </Card.Content>
@@ -285,7 +290,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminC
                       <Button
                         size="sm"
                         variant="secondary"
-                        isDisabled={lessons >= 6 || items.length >= 8}
+                        isDisabled={lessons >= 6 || items.length >= 10}
                         onPress={() =>
                           editDay(weekday, (list) => [...list, { kind: 'aula', slot: 0, start: lastEnd, end: later(lastEnd, 50) }])
                         }
@@ -295,12 +300,23 @@ export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminC
                       <Button
                         size="sm"
                         variant="secondary"
-                        isDisabled={hasBreak || items.length >= 8}
+                        isDisabled={hasBreak || items.length >= 10}
                         onPress={() =>
                           editDay(weekday, (list) => [...list, { kind: 'intervalo', start: lastEnd, end: later(lastEnd, 15) }])
                         }
                       >
                         <Plus size={14} aria-hidden="true" /> Intervalo
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        isDisabled={paradas >= 2 || items.length >= 10}
+                        onPress={() =>
+                          // Before the lessons (the usual one); the day's order is kept by the start time.
+                          editDay(weekday, (list) => [{ kind: 'parada', start: later(firstStart, -15), end: firstStart }, ...list])
+                        }
+                      >
+                        <Plus size={14} aria-hidden="true" /> Parada
                       </Button>
                     </Card.Footer>
                   ) : null}
