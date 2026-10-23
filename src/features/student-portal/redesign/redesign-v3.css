@@ -954,43 +954,20 @@
   background-image: repeating-linear-gradient(135deg, transparent 0 2px, rgb(100 116 139 / 0.35) 2px 3px);
   box-shadow: inset 0 0 0 1px #c3cddb;
 }
-.pa3-missed-list {
-  display: grid;
-  gap: 0.2rem;
-  margin: 0.6rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-/* One line per absence: lesson, time, subject (owner decision 23/10/2026). */
-.pa3-missed-list li {
-  display: grid;
-  grid-template-columns: 3.4rem 5.6rem minmax(0, 1fr);
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.6rem;
-  border-left: 3px solid var(--pa3-red);
-  border-radius: 0.4rem;
-  background: var(--pa3-red-soft);
-  color: #334155;
-  font-size: 0.74rem;
-}
-.pa3-missed-list li b {
-  color: var(--pa3-red);
-  font-weight: 750;
-}
-.pa3-missed-time {
+/* A lesson's time and subject inside its tile (owner request 23/10/2026). */
+.pa3-lesson-time {
+  color: var(--pa3-muted);
+  font-size: 0.62rem;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
-.pa3-missed-subject {
+.pa3-lesson-subject {
+  max-width: 100%;
+  color: var(--pa3-ink);
+  font-size: 0.62rem;
   font-weight: 700;
+  line-height: 1.15;
   overflow-wrap: anywhere;
-}
-.pa3-missed-list li.is-justified {
-  border-left-color: #f59e0b;
-  background: var(--pa3-amber-soft);
-}
-.pa3-missed-list li.is-justified b {
-  color: var(--pa3-amber);
 }
 
 /* HeroUI cards on the Frequência and Horário pages (owner request 23/10/2026): each weekday button
@@ -1003,4 +980,21 @@
 .pa3-schedule-day h3 {
   color: var(--pa3-ink);
   font-weight: 750;
+}
+/* The tiles line up (owner request 23/10/2026): icon, lesson, time and subject on the same lines in
+   every tile (the subject keeps room for two lines), the state always at the bottom. */
+.pa3-lesson {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.pa3-lesson-subject {
+  display: -webkit-box;
+  min-height: calc(2 * 1.15em);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.pa3-lesson-state {
+  margin-top: auto;
 }

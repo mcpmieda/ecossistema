@@ -218,7 +218,7 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
     expect(screen.getByText(/Feriado · Nossa Senhora Aparecida/u)).toBeTruthy();
   });
 
-  it('lists each absence with its time and subject, from 22/06 on only', async () => {
+  it("shows each lesson's time and subject inside its tile, from 22/06 on only", async () => {
     const months = {
       '2026-06': summary('2026-06', [lessonDay('2026-06-18', 6)], [{ date: '2026-06-18', slot: 3, mark: 'X' }]),
       '2026-10': summary('2026-10', [lessonDay('2026-10-15', 6)], [
@@ -229,19 +229,15 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
     render(<FrequencyPageV3 client={clientOf(months, { extra: { bells, grid } })} />);
     await ready();
     fireEvent.click(dayButton(15));
-    const list = screen.getByRole('list', { name: 'Aulas com falta' });
-    expect([...list.querySelectorAll('li')].map((item) => item.textContent)).toEqual([
-      'Faltou na 3ª aula08:30–09:15MATEMATICA',
-      'Falta justificada na 5ª aula10:15–11:00',
-    ]);
+    const tiles = () => [...document.querySelectorAll('.pa3-day-detail .pa3-lesson')].map((tile) => tile.textContent);
+    expect(tiles()[2]).toBe('3ª aula08:30–09:15MATEMATICAFaltou');
+    expect(tiles()[4]).toBe('5ª aula10:15–11:00Justificada');
+    expect(tiles()[0]).toBe('1ª aula07:00–07:45Sem falta');
     // 18/06, before the bells of 22/06: no time, no subject.
-    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    for (let step = 0; step < 4; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
     await screen.findByRole('heading', { level: 3, name: 'Junho de 2026' });
     fireEvent.click(dayButton(18));
-    expect(screen.queryByRole('list', { name: 'Aulas com falta' })).toBeNull();
+    expect(tiles()[2]).toBe('3ª aulaFaltou');
   });
 });
 

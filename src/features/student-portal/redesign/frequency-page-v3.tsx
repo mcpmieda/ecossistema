@@ -890,44 +890,23 @@ function FrequencyMonthV3({
                     const mark = markAt.get(lessonKey(group.shift, slot));
                     // Today, or in a reading not complete, a lesson without a mark is still to be confirmed.
                     const state = mark?.mark === 'X' ? 'absent' : mark?.mark === 'J' ? 'justified' : isToday || !group.complete ? 'pending' : 'clear';
+                    // Its time and subject inside the tile (owner request 23/10/2026), when known.
+                    const info = lessonInfo(selected, group.shift, slot);
                     return (
                       <li key={slot} className={'pa3-lesson pa3-lesson--' + state}>
                         <span className="pa3-lesson-icon" aria-hidden="true">
                           {state === 'absent' ? <X size={16} strokeWidth={3} /> : state === 'justified' ? <FileCheck2 size={15} /> : state === 'pending' ? <Clock3 size={15} /> : <Check size={16} strokeWidth={3} />}
                         </span>
                         <span className="pa3-lesson-name">{slot}ª aula</span>
-
+                        {info?.time ? <span className="pa3-lesson-time">{info.time}</span> : null}
+                        {info?.subject ? <span className="pa3-lesson-subject">{info.subject}</span> : null}
                         <span className="pa3-lesson-state">
-                          {state === 'absent' ? 'Falta' : state === 'justified' ? 'Justificada' : state === 'pending' ? 'A confirmar' : 'Sem falta'}
+                          {state === 'absent' ? 'Faltou' : state === 'justified' ? 'Justificada' : state === 'pending' ? 'A confirmar' : 'Sem falta'}
                         </span>
                       </li>
                     );
                   })}
                 </ol>
-                {/* Each absence with its time and subject, when known (owner decision 23/10/2026). */}
-                {group.slots.some((slot) => markAt.get(lessonKey(group.shift, slot)) && lessonInfo(selected, group.shift, slot)) ? (
-                  <ul className="pa3-missed-list" aria-label="Aulas com falta">
-                    {group.slots.flatMap((slot) => {
-                      const mark = markAt.get(lessonKey(group.shift, slot));
-                      const info = mark ? lessonInfo(selected, group.shift, slot) : null;
-                      if (!mark || !info) return [];
-                      return [
-                        <li key={slot} className={mark.mark === 'J' ? 'is-justified' : undefined}>
-                          <span className="pa-visually-hidden">{mark.mark === 'J' ? 'Falta justificada na ' : 'Faltou na '}</span>
-                          <b>{slot}ª aula</b>
-                          <span className="pa3-missed-time">
-                            {info.time ? (
-                              <Chip size="sm" variant="soft" color={mark.mark === 'J' ? 'warning' : 'danger'}>
-                                {info.time}
-                              </Chip>
-                            ) : null}
-                          </span>
-                          <span className="pa3-missed-subject">{info.subject ?? ''}</span>
-                        </li>,
-                      ];
-                    })}
-                  </ul>
-                ) : null}
                 {label && selectedLessons.length === 1 ? <p className="pa3-shift-foot">{label} · {plural(group.slots.length, 'aula', 'aulas')}</p> : null}
               </div>
             );
