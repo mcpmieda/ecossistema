@@ -884,8 +884,8 @@
   display: none;
 }
 .pa3-countdown .pa-countdown__clock {
-  grid-template-columns: repeat(4, 2.35rem);
-  gap: 0.25rem;
+  grid-template-columns: repeat(4, 2.7rem);
+  gap: 0.3rem;
 }
 .pa3-countdown .pa-countdown__unit {
   gap: 0.15rem;
@@ -895,10 +895,17 @@
   letter-spacing: 0.04em;
 }
 .pa3-countdown .pa-flip {
-  --pa-flip-h: 1.9rem;
-  border-radius: 0.4rem;
+  --pa-flip-h: 2.35rem;
+  border-radius: 0.45rem;
   box-shadow: 0 3px 8px rgb(15 23 42 / 0.25);
-  font-size: 1.05rem;
+  /* Readable when small (owner request 23/10/2026): larger, lighter digits. */
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+/* The hinge across the middle, fainter so it never cuts the small digits. */
+.pa3-countdown .pa-flip::after {
+  opacity: 0.35;
 }
 .pa3-countdown .pa-flip__half--top {
   border-radius: 0.4rem 0.4rem 0 0;
