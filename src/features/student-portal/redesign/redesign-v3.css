@@ -1042,3 +1042,8 @@
 .pa3-ruler-wrap .pa3-ruler {
   margin-bottom: 1.4rem;
 }
+
+/* Far from the limit: neutral navy, never green (absences are never "good"). */
+.pa3-summary--calm {
+  --pa3-ruler-dark: var(--pa3-ink);
+}

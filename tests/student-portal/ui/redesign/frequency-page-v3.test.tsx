@@ -97,14 +97,15 @@ describe('Frequência page', () => {
     };
     // 50 counted days of 5 lessons: 5 lessons a day. 60 lessons ≈ 12 days, green.
     expect(await ruler(60)).toMatchObject({ badge: '12 dias' });
-    expect((await ruler(60)).tone).toContain('pa3-summary--good');
+    // Far from the limit: neutral, never green.
+    expect((await ruler(60)).tone).toContain('pa3-summary--calm');
     // 32 days: getting close, amber.
     expect((await ruler(160)).tone).toContain('pa3-summary--warn');
-    // 41 days: red; the sentence under it says "cerca de".
+    // 41 days: red.
     const red = await ruler(205);
     expect(red).toMatchObject({ badge: '41 dias' });
     expect(red.tone).toContain('pa3-summary--low');
-    expect(screen.getByText('Cerca de 41 dias, de 50 permitidos. Só contam faltas sem justificativa.')).toBeTruthy();
+    expect(screen.getByText('O limite da lei é 50 dias. Acima disso, o aluno pode reprovar. Só contam faltas sem justificativa.')).toBeTruthy();
   });
 
   it('shows the year as still being worked out while the server has no figure', async () => {

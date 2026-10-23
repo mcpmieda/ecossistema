@@ -667,7 +667,8 @@ function FrequencyMonthV3({
       : yearCount.absences / (yearCount.lessons / totals.days);
   const shownDays = absenceDays === null ? null : Math.round(absenceDays);
   const yearTone =
-    shownDays === null ? 'none' : shownDays > 40 ? 'low' : shownDays >= 30 ? 'warn' : 'good';
+    // Never green: absences are never "good", only far from the limit (owner decision 22/10/2026).
+    shownDays === null ? 'none' : shownDays > 40 ? 'low' : shownDays >= 30 ? 'warn' : 'calm';
   const [picked, setPicked] = useState<string | null>(null);
   const go = (step: number) => {
     onMonth(shiftMonth(month, step));
@@ -740,10 +741,10 @@ function FrequencyMonthV3({
           <p className="pa3-year-head">
             <span>
               Faltas no ano
+              {/* Never "permitidos": the limit is not a right to miss (owner decision 22/10/2026). */}
               <small>
-                {shownDays === null || shownDays === 0
-                  ? `O máximo é ${MAXIMUM_ABSENCE_DAYS_V2} dias. Só contam faltas sem justificativa.`
-                  : `Cerca de ${shownDays === 1 ? '1 dia' : `${shownDays} dias`}, de ${MAXIMUM_ABSENCE_DAYS_V2} permitidos. Só contam faltas sem justificativa.`}
+                O limite da lei é {MAXIMUM_ABSENCE_DAYS_V2} dias. Acima disso, o aluno pode reprovar. Só contam
+                faltas sem justificativa.
               </small>
             </span>
             <strong>
@@ -756,7 +757,7 @@ function FrequencyMonthV3({
             aria-label={
               shownDays === null
                 ? 'Faltas do ano ainda em apuração'
-                : `Cerca de ${shownDays} dias de falta no ano; o máximo permitido é ${MAXIMUM_ABSENCE_DAYS_V2} dias`
+                : `Cerca de ${shownDays} dias de falta no ano; o limite da lei é ${MAXIMUM_ABSENCE_DAYS_V2} dias`
             }
           >
             <span
@@ -768,7 +769,7 @@ function FrequencyMonthV3({
               style={{ left: `${(100 * MAXIMUM_ABSENCE_DAYS_V2) / RULER_DAYS}%` }}
               aria-hidden="true"
             >
-              <span className="pa3-ruler-flag">máx. {MAXIMUM_ABSENCE_DAYS_V2} dias</span>
+              <span className="pa3-ruler-flag">limite {MAXIMUM_ABSENCE_DAYS_V2} dias</span>
             </span>
           </div>
         </div>
