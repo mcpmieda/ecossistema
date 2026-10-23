@@ -55,6 +55,8 @@ const frequencyCandidate = '0027_frequency_policy_v1.sql';
 const scheduleCandidate = '0028_schedule_policy_v1.sql';
 /** Calendário escolar (owner decision of 22/10/2026). */
 const calendarCandidate = '0029_school_calendar_v1.sql';
+/** Horário das aulas (owner decision of 23/10/2026). */
+const bellsCandidate = '0030_school_bells_v1.sql';
 
 describe('current canonical project state', () => {
   it('preserves the latest applied Gradebook migration separately from draft candidates', () => {
@@ -88,7 +90,7 @@ describe('current canonical project state', () => {
     const latest = migrationFiles('migrations/student-portal')
       .filter(
         (file) =>
-          !new Set<string>([...reconciliationCandidates.portal, retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate]).has(file),
+          !new Set<string>([...reconciliationCandidates.portal, retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate, bellsCandidate]).has(file),
       )
       .at(-1);
     expect(latest).toBe('0024_seal_count_cache_v1.sql');
@@ -170,7 +172,7 @@ describe('current canonical project state', () => {
     ).toEqual(reconciliationCandidates.portal);
     expect(
       migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) > 25),
-    ).toEqual([retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate]);
+    ).toEqual([retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate, bellsCandidate]);
     const contract = source('docs/student-identity/RECONCILIATION_V1.md');
     const order = [
       'gradebook-simplified/0015_student_reconciliation_v1.sql',

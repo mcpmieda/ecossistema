@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
+import { bellDayV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
+import { schoolDaysOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 
 /*
  * The weekly grid of the student's own class(es) (owner decision 22/10/2026), from
@@ -25,10 +27,19 @@ const answer = z
             label: z.string().min(1).max(300),
             observedAt: z.string().min(1).max(64),
             lessons: z.array(lesson).max(30),
+            // The time of each lesson and of the break of this class's shift (ADM), or null.
+            bells: z
+              .object({ 1: bellDayV1, 2: bellDayV1, 3: bellDayV1, 4: bellDayV1, 5: bellDayV1 })
+              .strict()
+              .nullable(),
           })
           .strict(),
       )
       .max(8),
+    // The school's today and the database's clock: "Agora" and its countdown never use the phone's.
+    today: z.iso.date(),
+    now: z.iso.datetime({ offset: true }),
+    daysOff: schoolDaysOffV1,
   })
   .strict();
 const failure = z
@@ -37,7 +48,7 @@ const failure = z
     state: z.enum(['unauthenticated', 'forbidden', 'invalid-request', 'unavailable']),
   })
   .passthrough();
-export type StudentScheduleV1 = z.infer<typeof answer>['classes'];
+export type StudentScheduleV1 = Omit<z.infer<typeof answer>, 'contractVersion' | 'state'>;
 export type StudentScheduleClientV1 = { read(signal: AbortSignal): Promise<StudentScheduleV1> };
 
 export function createStudentScheduleClientV1(
@@ -68,7 +79,8 @@ export function createStudentScheduleClientV1(
       if (failed.success) throw new FrequencyClientErrorV2(failed.data.state);
       const parsed = answer.safeParse(body);
       if (!response.ok || !parsed.success) throw new FrequencyClientErrorV2('unavailable');
-      return parsed.data.classes;
+      const { classes, today, now, daysOff } = parsed.data;
+      return { classes, today, now, daysOff };
     },
   };
 }

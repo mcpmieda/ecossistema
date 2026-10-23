@@ -8,6 +8,10 @@ import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import { portalFrequencySummaryV2, portalFrequencyYearV2 } from '../../attendance/service-v2';
 import { schoolCalendarDaysV1, schoolDaysOfV1, schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
+import { bellShiftOfLabelV1 } from '../../../shared/student-portal-contracts/school-bells-v1';
+import { schoolBellsAndDaysOffV1 } from './schedule-v1';
+const gridSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string(),
+  lessons:z.array(z.object({weekday:z.number().int().min(1).max(5),slot:z.number().int().min(1).max(6),subject:z.string().min(1).max(120)}).strict()).max(30)}).strict()).max(8)}).strict();
 
 const originsSchema=z.array(z.object({occurrence_id:z.uuid(),date:z.iso.date(),slot:z.number().int().min(1).max(6),shift:z.string().max(80),
   mark:z.enum(['X','J']).nullable(),conflict_id:z.uuid().nullable(),source_class_label:z.string().max(300),observed_at:z.string(),received_at:z.string(),mapping_valid:z.boolean()}).strict()).max(10_000);
@@ -52,7 +56,18 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         const schoolDays=marked?new Set(schoolDaysOfV1(marked)):undefined;
         if(!asYear)return portalFrequencySummaryV2(read,month!,schoolDays);
         const schoolYear=marked?schoolYearProgressOfV1(marked,read.today):null;
-        return {...portalFrequencyYearV2(read,schoolDays,schoolYear?.remaining??0),schoolYear};
+        // The days without school with their description (Frequência calendar), each lesson's time
+        // and, when the Horário is on for this student, the subject of each position of the week
+        // (owner decision 23/10/2026: "Faltou na 3ª aula (08:50–09:45), MATEMATICA").
+        const{bells,daysOff}=await schoolBellsAndDaysOffV1(tx);
+        let grid:{shift:'matutino'|'vespertino';lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
+        if(context.policy.enforcedValue.showSchedule){
+          const found=await tx.unsafe('SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule',[context.account.id,session.id]);
+          const rawGrid=found[0]?.schedule;
+          if(rawGrid!=null)grid=gridSchema.parse(typeof rawGrid==='string'?JSON.parse(rawGrid):rawGrid).classes.flatMap(item=>{
+            const shift=bellShiftOfLabelV1(item.label);return shift?[{shift,lessons:item.lessons}]:[];});
+        }
+        return {...portalFrequencyYearV2(read,schoolDays,schoolYear?.remaining??0),schoolYear,daysOff,bells,grid};
       }));
     if(summary===HIDDEN)return fail('forbidden',403);
     return summary===null?fail('unauthenticated',401):response(summary);

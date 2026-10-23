@@ -1,5 +1,6 @@
 import type { PortalFetchV1 } from '../features/student-portal/shared/transport-v1';
 import { officialCalendar2026V1 } from '../../shared/student-portal-contracts/school-calendar-2026-start-v1';
+import { officialBells2026V1 } from '../../shared/student-portal-contracts/school-bells-v1';
 import type { AdminQueryV1 } from '../../shared/student-portal-contracts/admin-v1';
 import type { AdminReadQueryV2 } from '../../shared/student-portal-contracts/admin-read-v2';
 import {
@@ -95,6 +96,8 @@ type LocalStudent = {
 const syntheticView = new URLSearchParams(window.location.search).has('synthetic');
 /** The preview's school calendar: the official one of 2026, as migration 0029 saves it. */
 let previewCalendar: { version: number; days: unknown[] } = { version: 1, days: officialCalendar2026V1() };
+/** The preview's bells: the official sheets of 2026, as migration 0030 saves them. */
+let previewBells: { version: number; bells: unknown } = { version: 1, bells: officialBells2026V1() };
 export const localStudents = syntheticView
   ? undefined
   : Object.values(
@@ -270,6 +273,13 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
         return opJsonV1({ ...meta, state: 'conflict' }, 409);
       previewCalendar = { version: previewCalendar.version + 1, days: calendar.days };
       return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9970), version: previewCalendar.version });
+    }
+    if (command.operation === 'school-bells-set') {
+      const bells = command as unknown as { expectedVersion: number; bells: unknown };
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (bells.expectedVersion !== previewBells.version) return opJsonV1({ ...meta, state: 'conflict' }, 409);
+      previewBells = { version: previewBells.version + 1, bells: bells.bells };
+      return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9971), version: previewBells.version });
     }
     if (command.operation === 'settings-set' || command.operation === 'settings-inherit') {
       const settings = command as unknown as {
@@ -578,6 +588,12 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
       calendar: previewCalendar.version
         ? { academicYear: 2026, version: previewCalendar.version, days: previewCalendar.days }
         : null,
+    });
+  if (query.operation === 'school-bells')
+    return opJsonV1({
+      ...meta,
+      state: 'school-bells',
+      bells: { academicYear: 2026, version: previewBells.version, bells: previewBells.bells },
     });
   if (query.operation === 'population') {
     const count = mock.accounts.length;

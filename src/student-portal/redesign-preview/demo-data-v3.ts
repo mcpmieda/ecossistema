@@ -9,7 +9,8 @@ import type { StudentFrequencyClientV2 } from '../../features/student-portal/fre
 import type { StudentScheduleClientV1 } from '../../features/student-portal/schedule/client-v1';
 import { schoolDateOnDeviceV3 } from '../../features/student-portal/redesign/frequency-page-v3';
 import { officialCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
-import { schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
+import { schoolDaysOffOfV1, schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
+import { officialBells2026V1 } from '../../../shared/student-portal-contracts/school-bells-v1';
 import { frequencyCommentV2, type FrequencyCommentKindV2 } from '../../../shared/attendance-contracts/frequency-comment-v2';
 
 const demoCalendarV3 = officialCalendar2026V1;
@@ -234,8 +235,11 @@ export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
     today,
     year: first.year ?? null,
     lastReadAt: first.lastReadAt ?? null,
-    // The official calendar of 2026 (200 school days).
+    // The official calendar of 2026 (200 school days), its days without school and the bells.
     schoolYear,
+    daysOff: schoolDaysOffOfV1(demoCalendarV3()),
+    bells: officialBells2026V1(),
+    grid: [{ shift: 'matutino', lessons: demoScheduleV3()[0]!.lessons }],
     months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => {
       void _today;
       void _year;
@@ -300,7 +304,9 @@ const WEEK: readonly (readonly (string | null)[])[] = [
 ];
 export const demoScheduleV3 = () => [
   {
-    label: 'TURMA ARTIFICIAL',
+    label: 'TURMA ARTIFICIAL - MATUTINO',
+    // The school's official bells of the morning (sheets of 22/06).
+    bells: officialBells2026V1().matutino,
     observedAt: `${previewTodayV3()}T10:12:00Z`,
     lessons: WEEK.flatMap((row, index) =>
       row.flatMap((subject, day) => (subject ? [{ weekday: day + 1, slot: index + 1, subject }] : [])),
@@ -312,7 +318,16 @@ export const demoScheduleV3 = () => [
 export const createDemoScheduleClientV3 = (): StudentScheduleClientV1 => ({
   read: (signal) =>
     new Promise((resolve, reject) => {
-      const timer = setTimeout(() => resolve(demoScheduleV3()), 250);
+      const timer = setTimeout(
+        () =>
+          resolve({
+            classes: demoScheduleV3(),
+            today: previewTodayV3(),
+            now: new Date().toISOString(),
+            daysOff: schoolDaysOffOfV1(demoCalendarV3()),
+          }),
+        250,
+      );
       signal.addEventListener('abort', () => {
         clearTimeout(timer);
         reject(signal.reason);

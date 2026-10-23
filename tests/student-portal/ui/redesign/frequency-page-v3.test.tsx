@@ -10,6 +10,7 @@ import {
   type StudentFrequencyClientV2,
 } from '../../../../src/features/student-portal/frequency/client-v2';
 import { FrequencyPageV3 } from '../../../../src/features/student-portal/redesign/frequency-page-v3';
+import { officialBells2026V1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 
 /*
  * The redesigned Frequência page (PR 1317), fed through a client with answers shaped like the
@@ -44,7 +45,11 @@ const summary = (month: string, days: DayV2[], marks: MarkInput[] = []): Frequen
 /** A client answering like the server: the whole year so far in one answer. */
 const clientOf = (
   months: Record<string, FrequencySummaryV2> = {},
-  { today = '2026-10-21', year = { lessons: 100, absences: 0 } as YearV2 } = {},
+  {
+    today = '2026-10-21',
+    year = { lessons: 100, absences: 0 } as YearV2,
+    extra = {} as Partial<FrequencyYearSummaryV2>,
+  } = {},
 ) => {
   const count = today > '2026-12-31' ? 12 : Number(today.slice(5, 7));
   const readYear = vi.fn(
@@ -59,6 +64,7 @@ const clientOf = (
         const key = `2026-${String(index + 1).padStart(2, '0')}`;
         return months[key] ?? summary(key, []);
       }),
+      ...extra,
     }),
   );
   const read = vi.fn(async (month: string) => summary(month, []));
@@ -192,6 +198,50 @@ describe('Frequência page', () => {
     render(<FrequencyPageV3 client={clientOf()} />);
     await ready();
     expect(screen.getByText(/^Atualizado em 21\/10\/2026, 07:10$/u)).toBeTruthy();
+  });
+});
+
+describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () => {
+  const daysOff = [{ date: '2026-10-12', kind: 'feriado' as const, note: 'Nossa Senhora Aparecida' }];
+  const bells = officialBells2026V1();
+  const grid = [{ shift: 'matutino' as const, lessons: [{ weekday: 4, slot: 3, subject: 'MATEMATICA' }] }];
+
+  it('marks a holiday on the calendar and says why when it is opened', async () => {
+    const months = { '2026-10': summary('2026-10', [lessonDay('2026-10-13')]) };
+    render(<FrequencyPageV3 client={clientOf(months, { extra: { daysOff } })} />);
+    await ready();
+    const holiday = dayButton(12);
+    expect(holiday.className).toContain('pa3-day--holiday');
+    expect(holiday.getAttribute('aria-label')).toBe('Segunda-feira, 12 de outubro: sem aula, Feriado · Nossa Senhora Aparecida');
+    expect(screen.getByText('Feriado ou recesso')).toBeTruthy();
+    fireEvent.click(holiday);
+    expect(screen.getByText(/Feriado · Nossa Senhora Aparecida/u)).toBeTruthy();
+  });
+
+  it('lists each absence with its time and subject, from 22/06 on only', async () => {
+    const months = {
+      '2026-06': summary('2026-06', [lessonDay('2026-06-18', 6)], [{ date: '2026-06-18', slot: 3, mark: 'X' }]),
+      '2026-10': summary('2026-10', [lessonDay('2026-10-15', 6)], [
+        { date: '2026-10-15', slot: 3, mark: 'X' },
+        { date: '2026-10-15', slot: 5, mark: 'J' },
+      ]),
+    };
+    render(<FrequencyPageV3 client={clientOf(months, { extra: { bells, grid } })} />);
+    await ready();
+    fireEvent.click(dayButton(15));
+    const list = screen.getByRole('list', { name: 'Aulas com falta' });
+    expect([...list.querySelectorAll('li')].map((item) => item.textContent)).toEqual([
+      'Faltou na 3ª aula08:30–09:15MATEMATICA',
+      'Falta justificada na 5ª aula10:15–11:00',
+    ]);
+    // 18/06, before the bells of 22/06: no time, no subject.
+    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    await screen.findByRole('heading', { level: 3, name: 'Junho de 2026' });
+    fireEvent.click(dayButton(18));
+    expect(screen.queryByRole('list', { name: 'Aulas com falta' })).toBeNull();
   });
 });
 

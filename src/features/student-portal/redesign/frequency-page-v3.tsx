@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
-import { Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, PartyPopper, TriangleAlert, X } from 'lucide-react';
+import { CalendarOff, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, PartyPopper, TriangleAlert, X } from 'lucide-react';
 import {
   frequencyCountV2,
   type FrequencySummaryV2,
   type FrequencyYearSummaryV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
 import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
+import {
+  BELLS_VALID_FROM_V1,
+  bellLessonV1,
+  bellShiftOfLabelV1,
+} from '../../../../shared/student-portal-contracts/school-bells-v1';
+import { schoolDayOffLabelV1, type SchoolDayOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 import { usePortalPageActiveV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
@@ -40,7 +46,7 @@ const SHIFT_LABELS: Record<string, string> = { MATUTINO: 'Manhã', VESPERTINO: '
 /** A school day: with or without an absence (89,7% of the school's days have none, 21/10/2026). */
 type DayKindV3 = 'clear' | 'missed';
 /** The calendar's state of a date: a day kind, or a date with nothing to judge yet. */
-type DayStateV3 = DayKindV3 | 'pending' | 'off' | 'unknown' | 'future';
+type DayStateV3 = DayKindV3 | 'pending' | 'off' | 'holiday' | 'unknown' | 'future';
 type MarkV3 = FrequencySummaryV2['marks'][number];
 type ShiftLessonsV3 = { shift: string; slots: number[]; complete: boolean };
 /** `share`: lessons with an absence ÷ lessons of the day, drawn as the tile's tone. */
@@ -506,6 +512,9 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
           current={current}
           firstMonth={firstMonth}
           onMonth={(next) => setChosenMonth(next >= current ? null : next)}
+          daysOff={year.daysOff}
+          bells={year.bells}
+          grid={year.grid}
           countdown={<SchoolYearCountdownV3 schoolYear={year.schoolYear ?? null} />}
         />
       ) : (
@@ -607,6 +616,9 @@ function FrequencyMonthV3({
   firstMonth,
   onMonth,
   countdown,
+  daysOff = [],
+  bells = null,
+  grid = [],
 }: {
   data: FrequencySummaryV2;
   /** The ring: the whole year so far. */
@@ -619,7 +631,29 @@ function FrequencyMonthV3({
   onMonth: (month: string) => void;
   /** The school year's countdown, under the year at a glance. */
   countdown?: ReactNode;
+  /** The days without school the ADM calendar names (owner decision 23/10/2026: say why). */
+  daysOff?: readonly SchoolDayOffV1[];
+  /** Each lesson's time by shift and weekday (ADM) and the week's subjects, for an absence. */
+  bells?: FrequencyYearSummaryV2['bells'];
+  grid?: FrequencyYearSummaryV2['grid'];
 }) {
+  const offByDate = useMemo(() => new Map(daysOff.map((day) => [day.date, day])), [daysOff]);
+  /**
+   * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula
+   * (08:50–09:45), MATEMATICA"): only from the day the current bells began (22/06), never for an
+   * older day whose times or grid may have been different.
+   */
+  const lessonInfo = (date: string, shift: string, slot: number) => {
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const bellShift = bellShiftOfLabelV1(shift);
+    if (date < BELLS_VALID_FROM_V1 || weekday < 1 || weekday > 5 || !bellShift) return null;
+    const time = bells ? bellLessonV1(bells[bellShift][weekday as 1 | 2 | 3 | 4 | 5], slot) : null;
+    const subject =
+      grid
+        .find((item) => item.shift === bellShift)
+        ?.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null;
+    return time || subject ? { time: time ? `${time.start}–${time.end}` : null, subject } : null;
+  };
   const monthCount = useMemo(() => frequencyCountV2(data, today), [data, today]);
   // Lessons of each day, straight from the Smecel diary (data.days), kept per shift.
   const lessonsByDay = useMemo(() => {
@@ -674,8 +708,10 @@ function FrequencyMonthV3({
   const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const stateOf = (date: string): DayStateV3 => {
-    if (date > today) return 'future';
     const lessons = lessonsAt(date);
+    // A holiday, a recess or an event without school (ADM calendar), past or to come: it says why.
+    if (offByDate.has(date) && !lessons) return 'holiday';
+    if (date > today) return 'future';
     // No lesson day: never "sem aula" for today (the first reading of the day may not have come
     // yet), and only in a month read in full for the other days.
     if (!lessons) return date !== today && monthCount.reliable ? 'off' : 'unknown';
@@ -696,6 +732,7 @@ function FrequencyMonthV3({
       missed: day ? daySentence(day, isDay) : '',
       pending: isDay ? 'aulas a confirmar' : 'leitura incompleta',
       off: 'sem aula',
+      holiday: offByDate.has(date) ? `sem aula, ${schoolDayOffLabelV1(offByDate.get(date)!)}` : 'sem aula',
       unknown: isDay ? 'nenhuma aula lida até agora' : 'sem dados',
       future: 'data futura, frequência ainda não disponível',
     };
@@ -705,7 +742,8 @@ function FrequencyMonthV3({
   const isPickable = (state: DayStateV3) => state === 'missed' || state === 'pending';
   // A day without absence opens too (owner request 22/10/2026): a parent whose child never misses
   // can still see that day's lessons, every one "Sem falta". It is never chosen at first.
-  const opens = (state: DayStateV3) => isPickable(state) || state === 'clear';
+  // A day without school opens too, to say why (owner decision 23/10/2026).
+  const opens = (state: DayStateV3) => isPickable(state) || state === 'clear' || state === 'holiday';
   // At first, the latest day with a mark that opens, so the page never selects a day it cannot show.
   const firstPick =
     [...marksByDay.keys()]
@@ -715,6 +753,7 @@ function FrequencyMonthV3({
   const selected = picked && picked.startsWith(month) ? picked : firstPick;
   const selectedLessons = selected ? (lessonsAt(selected) ?? []) : [];
   const selectedDay = selected ? dayAt(selected) : null;
+  const selectedOff = selected && !selectedDay ? (offByDate.get(selected) ?? null) : null;
   const markAt = new Map((selected ? (marksByDay.get(selected) ?? []) : []).map((mark) => [lessonKey(mark.shift, mark.slot), mark]));
   const isToday = selected === today;
   // Today, or a past day not read in full: more marks may still come, so nothing is final yet.
@@ -743,6 +782,10 @@ function FrequencyMonthV3({
           <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
           {/* A day without absence (owner request 23/10/2026): a white square, as on the calendar. */}
           <li><span className="pa3-dot pa3-dot--clear" /> Sem falta</li>
+          {/* A holiday or recess (owner decision 23/10/2026): tap it to see why there was no school. */}
+          {daysOff.some((day) => day.date.startsWith(month)) ? (
+            <li><span className="pa3-dot pa3-dot--holiday" /> Feriado ou recesso</li>
+          ) : null}
         </ul>
         {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
         <div className="pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`} role="group">
@@ -782,6 +825,18 @@ function FrequencyMonthV3({
         </div>
       </div>
 
+      {selected && selectedOff ? (
+        <div className="pa3-card pa3-day-detail" aria-live="polite">
+          <h3 className="pa3-day-detail-title">{dayLabel(selected)}</h3>
+          <p className="pa3-day-off">
+            <CalendarOff size={18} aria-hidden="true" />
+            <span>
+              <b>Sem aula</b> · {schoolDayOffLabelV1(selectedOff)}
+            </span>
+          </p>
+        </div>
+      ) : null}
+
       {selected && selectedDay ? (
         <div className="pa3-card pa3-day-detail" aria-live="polite">
           {/* Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026), on one line. */}
@@ -814,6 +869,7 @@ function FrequencyMonthV3({
                           {state === 'absent' ? <X size={16} strokeWidth={3} /> : state === 'justified' ? <FileCheck2 size={15} /> : state === 'pending' ? <Clock3 size={15} /> : <Check size={16} strokeWidth={3} />}
                         </span>
                         <span className="pa3-lesson-name">{slot}ª aula</span>
+
                         <span className="pa3-lesson-state">
                           {state === 'absent' ? 'Falta' : state === 'justified' ? 'Justificada' : state === 'pending' ? 'A confirmar' : 'Sem falta'}
                         </span>
@@ -821,6 +877,24 @@ function FrequencyMonthV3({
                     );
                   })}
                 </ol>
+                {/* Each absence with its time and subject, when known (owner decision 23/10/2026). */}
+                {group.slots.some((slot) => markAt.get(lessonKey(group.shift, slot)) && lessonInfo(selected, group.shift, slot)) ? (
+                  <ul className="pa3-missed-list" aria-label="Aulas com falta">
+                    {group.slots.flatMap((slot) => {
+                      const mark = markAt.get(lessonKey(group.shift, slot));
+                      const info = mark ? lessonInfo(selected, group.shift, slot) : null;
+                      if (!mark || !info) return [];
+                      return [
+                        <li key={slot} className={mark.mark === 'J' ? 'is-justified' : undefined}>
+                          <span className="pa-visually-hidden">{mark.mark === 'J' ? 'Falta justificada na ' : 'Faltou na '}</span>
+                          <b>{slot}ª aula</b>
+                          <span className="pa3-missed-time">{info.time ?? ''}</span>
+                          <span className="pa3-missed-subject">{info.subject ?? ''}</span>
+                        </li>,
+                      ];
+                    })}
+                  </ul>
+                ) : null}
                 {label && selectedLessons.length === 1 ? <p className="pa3-shift-foot">{label} · {plural(group.slots.length, 'aula', 'aulas')}</p> : null}
               </div>
             );

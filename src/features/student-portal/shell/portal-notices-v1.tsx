@@ -20,7 +20,8 @@ export type PortalStatusClientV1 = ReturnType<typeof createPortalStatusClientV1>
 // Server clock minus this device's clock, learned from the last status read. A phone set to the
 // wrong time would otherwise open (or never open) the countdown at the wrong moment.
 let clockOffsetMsV1 = 0;
-const portalNowV1 = () => Date.now() + clockOffsetMsV1;
+/** Now on the server's clock (the last status or frequency read), never only the phone's. */
+export const portalNowV1 = () => Date.now() + clockOffsetMsV1;
 /** The server's clock from another answer (the frequency's, from the database): countdowns follow it. */
 export function syncPortalClockV1(serverNow: string) {
   const at = Date.parse(serverNow);
@@ -166,6 +167,35 @@ export function PortalCountdownV1({
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The same split-flap clock, short (owner decision 23/10/2026: "Intervalo em", "Saída em" on the
+ * Horário): minutes and seconds, hours only when there is at least one. The caller counts.
+ */
+export function PortalTimerV1({ seconds, label }: { seconds: number; label: string }) {
+  const left = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(left / 3600);
+  const units = [
+    ...(hours ? ([[hours, 'h']] as const) : []),
+    [Math.floor((left % 3600) / 60), 'min'],
+    [left % 60, 'seg'],
+  ] as const;
+  const minutes = Math.ceil(left / 60);
+  return (
+    <div
+      className="pa-countdown__clock"
+      role="timer"
+      aria-label={`${label} ${hours ? `${countV1(hours, 'hora')} e ` : ''}${countV1(hours ? Math.floor((left % 3600) / 60) : minutes, 'minuto')}`}
+    >
+      {units.map(([value, unit]) => (
+        <span key={unit} className="pa-countdown__unit" aria-hidden="true">
+          <FlipCardV1 value={String(value).padStart(2, '0')} />
+          <small>{unit}</small>
+        </span>
+      ))}
     </div>
   );
 }

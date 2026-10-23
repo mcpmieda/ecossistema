@@ -3,6 +3,8 @@ import type {
   FrequencySummaryV2,
   FrequencyYearSummaryV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
+import { BELL_SHIFTS_V1, schoolBellsDaysV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
+import { schoolDaysOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 
 export class FrequencyClientErrorV2 extends Error {
   constructor(readonly state: string) {
@@ -169,6 +171,30 @@ const wholeYear = z
       })
       .strict()
       .nullable()
+      .optional(),
+    // The days without school, each lesson's time and the week's subjects (owner decision 23/10/2026).
+    daysOff: schoolDaysOffV1.optional(),
+    bells: schoolBellsDaysV1.nullable().optional(),
+    grid: z
+      .array(
+        z
+          .object({
+            shift: z.enum(BELL_SHIFTS_V1),
+            lessons: z
+              .array(
+                z
+                  .object({
+                    weekday: z.number().int().min(1).max(5),
+                    slot: z.number().int().min(1).max(6),
+                    subject: z.string().min(1).max(120),
+                  })
+                  .strict(),
+              )
+              .max(30),
+          })
+          .strict(),
+      )
+      .max(8)
       .optional(),
   })
   .strict();

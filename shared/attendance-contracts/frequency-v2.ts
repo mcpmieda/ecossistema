@@ -189,6 +189,14 @@ export type FrequencyYearSummaryV2 = {
   serverNow?: string;
   /** One sentence about the absences for the family (frequency-comment-v2.ts), or none. */
   comment?: { kind: string; tone: 'alert' | 'good'; text: string } | null;
+  /** The weekdays without school the ADM calendar names, with their description (feriado, recesso…). */
+  daysOff?: { date: string; kind: 'feriado' | 'recesso' | 'evento'; note?: string }[];
+  /** Each lesson's and the break's time by shift and weekday (ADM, student-portal 0030), or null. */
+  bells?: Record<'matutino' | 'vespertino', Record<1 | 2 | 3 | 4 | 5, (
+    | { kind: 'aula'; slot: number; start: string; end: string }
+    | { kind: 'intervalo'; start: string; end: string })[]>> | null;
+  /** The subject of each position of the week by shift, only when the Horário is on for the student. */
+  grid?: { shift: 'matutino' | 'vespertino'; lessons: { weekday: number; slot: number; subject: string }[] }[];
 };
 
 /** Lessons and absences (X) of the days already over; `reliable`: nothing of them is still unknown. */

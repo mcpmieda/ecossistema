@@ -694,7 +694,7 @@
 }
 .pa3-schedule-row {
   display: grid;
-  grid-template-columns: 2.4rem minmax(0, 1fr);
+  grid-template-columns: 2.4rem minmax(0, 1fr) auto;
   align-items: center;
   min-height: 2.75rem;
   border-radius: 0.8rem;
@@ -705,6 +705,29 @@
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--pa3-line);
 }
+/* The break in its place (owner request 23/10/2026), lighter than a lesson. */
+.pa3-schedule-break {
+  min-height: 2.1rem;
+  background: var(--pa3-amber-soft);
+  color: var(--pa3-amber);
+}
+.pa3-schedule-break .pa3-schedule-slot,
+.pa3-schedule-break .pa3-schedule-subject,
+.pa3-schedule-break .pa3-schedule-time {
+  color: #92400e;
+}
+.pa3-schedule-break .pa3-schedule-slot {
+  display: grid;
+  place-items: center;
+}
+.pa3-schedule-break .pa3-schedule-subject {
+  font-size: 0.8rem;
+}
+/* The lesson going on now. */
+.pa3-schedule-row.is-now {
+  background: #e3ecff;
+  box-shadow: inset 0 0 0 2px var(--pa3-blue);
+}
 .pa3-schedule-slot {
   color: var(--pa3-muted);
   font-size: 0.8rem;
@@ -712,17 +735,127 @@
   text-align: center;
 }
 .pa3-schedule-subject {
-  padding: 0.45rem 0.7rem 0.45rem 0;
+  padding: 0.45rem 0.5rem 0.45rem 0;
   color: var(--pa3-ink);
   font-size: 0.86rem;
   font-weight: 680;
   overflow-wrap: break-word;
+}
+.pa3-schedule-time {
+  padding-right: 0.7rem;
+  color: var(--pa3-muted);
+  font-size: 0.74rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .pa3-schedule-empty {
   margin: 0;
   color: var(--pa3-muted);
   font-size: 0.9rem;
 }
+.pa3-week-chip.is-off:not([aria-pressed='true']) {
+  border-style: dashed;
+  color: var(--pa3-muted);
+}
+.pa3-week-chip.is-off:not([aria-pressed='true']) .pa3-week-chip-today {
+  color: var(--pa3-muted);
+}
+/* A day without school (ADM calendar): why. */
+.pa3-schedule-off {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.8rem;
+  background: #f1f5f9;
+  color: #334155;
+}
+.pa3-schedule-off svg {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+}
+.pa3-schedule-off p {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0;
+  font-size: 0.86rem;
+}
+.pa3-schedule-off b {
+  color: var(--pa3-ink);
+}
+
+/* "Agora" (owner decision 23/10/2026): the lesson going on and a short clock to what comes next. */
+.pa3-now {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem 0.8rem;
+}
+.pa3-now-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 0.6rem;
+}
+.pa3-now-title {
+  margin: 0;
+  color: var(--pa3-ink);
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+.pa3-now-until,
+.pa3-now-after {
+  margin: 0;
+  color: var(--pa3-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.pa3-now .pa3-now-clock {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: start;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.8rem;
+  text-align: left;
+}
+.pa3-now-label {
+  color: var(--pa3-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.pa3-now .pa-countdown__clock {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 2.7rem;
+  gap: 0.3rem;
+}
+.pa3-now .pa-countdown__unit {
+  gap: 0.15rem;
+}
+.pa3-now .pa-countdown__unit small {
+  font-size: 0.52rem;
+  letter-spacing: 0.04em;
+}
+.pa3-now .pa-flip {
+  --pa-flip-h: 2.35rem;
+  border-radius: 0.45rem;
+  box-shadow: 0 3px 8px rgb(15 23 42 / 0.25);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.pa3-now .pa-flip::after {
+  opacity: 0.35;
+}
+.pa3-now .pa-flip__half--top {
+  border-radius: 0.4rem 0.4rem 0 0;
+}
+.pa3-now .pa-flip__half--bottom {
+  border-radius: 0 0 0.4rem 0.4rem;
+}
+
 .pa3-schedule-week {
   display: none;
 }
@@ -731,47 +864,58 @@
   .pa3-schedule-day {
     display: none;
   }
+  /* Each day its own column: the break sits after a different lesson on different days. */
   .pa3-schedule-week {
-    display: table;
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0.3rem;
-    table-layout: fixed;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.5rem;
   }
-  .pa3-schedule-week th {
+  .pa3-schedule-column {
+    display: grid;
+    align-content: start;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+  .pa3-schedule-column h3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0.3rem 0.2rem;
+    border-radius: 0.7rem;
     color: var(--pa3-muted);
     font-size: 0.78rem;
     font-weight: 700;
   }
-  .pa3-schedule-week thead th {
-    padding: 0.3rem 0.2rem;
-    border-radius: 0.7rem;
-  }
-  .pa3-schedule-week thead th:first-child,
-  .pa3-schedule-week tbody th {
-    width: 2.4rem;
-  }
-  .pa3-schedule-week thead th.is-today {
+  .pa3-schedule-column.is-today h3 {
     background: var(--pa3-blue);
     color: #fff;
   }
-  .pa3-schedule-week td {
-    height: 3rem;
-    padding: 0.4rem 0.5rem;
-    border-radius: 0.7rem;
-    background: #f3f6fb;
-    color: var(--pa3-ink);
-    font-size: 0.78rem;
-    font-weight: 680;
-    text-align: center;
-    overflow-wrap: break-word;
+  .pa3-schedule-column .pa3-schedule-list {
+    gap: 0.3rem;
   }
-  .pa3-schedule-week td.is-today {
-    background: #e3ecff;
+  .pa3-schedule-column .pa3-schedule-row {
+    grid-template-columns: 1.8rem minmax(0, 1fr);
+    min-height: 3rem;
   }
-  .pa3-schedule-week td.is-free {
-    background: transparent;
-    box-shadow: inset 0 0 0 1px var(--pa3-line);
+  .pa3-schedule-column .pa3-schedule-subject {
+    font-size: 0.76rem;
+    padding: 0.35rem 0.4rem 0 0;
+  }
+  .pa3-schedule-column .pa3-schedule-time {
+    grid-column: 2;
+    padding: 0 0.4rem 0.35rem 0;
+    font-size: 0.68rem;
+  }
+  .pa3-schedule-column .pa3-schedule-break {
+    min-height: 2rem;
+  }
+  .pa3-schedule-column .pa3-schedule-break .pa3-schedule-subject {
+    padding-bottom: 0;
+  }
+  .pa3-schedule-column.is-today .pa3-schedule-row:not(.is-free):not(.pa3-schedule-break):not(.is-now) {
+    background: #eef3ff;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -920,4 +1064,71 @@
   .pa3-app--single.pa3-app--cover .pa-shell--with-hero .pa-shell-content {
     padding-bottom: 1.75rem;
   }
+}
+/* Days without school and the time of each lesson (owner decision 23/10/2026). A holiday or recess
+   is a soft slate tile with a dashed edge (never a colour of absence); tapping it says why. */
+.pa3-day.pa3-day--holiday {
+  background: #eef2f7;
+  color: #64748b;
+  box-shadow: inset 0 0 0 1.5px #c3cddb;
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgb(100 116 139 / 0.12) 5px 6px);
+  cursor: pointer;
+}
+.pa3-legend .pa3-dot--holiday {
+  background: #eef2f7;
+  background-image: repeating-linear-gradient(135deg, transparent 0 2px, rgb(100 116 139 / 0.35) 2px 3px);
+  box-shadow: inset 0 0 0 1px #c3cddb;
+}
+.pa3-day-off {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.8rem;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.9rem;
+}
+.pa3-day-off b {
+  color: var(--pa3-ink);
+}
+.pa3-missed-list {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+/* One line per absence: lesson, time, subject (owner decision 23/10/2026). */
+.pa3-missed-list li {
+  display: grid;
+  grid-template-columns: 3.4rem 5.6rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border-left: 3px solid var(--pa3-red);
+  border-radius: 0.4rem;
+  background: var(--pa3-red-soft);
+  color: #334155;
+  font-size: 0.74rem;
+}
+.pa3-missed-list li b {
+  color: var(--pa3-red);
+  font-weight: 750;
+}
+.pa3-missed-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+.pa3-missed-subject {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.pa3-missed-list li.is-justified {
+  border-left-color: #f59e0b;
+  background: var(--pa3-amber-soft);
+}
+.pa3-missed-list li.is-justified b {
+  color: var(--pa3-amber);
 }

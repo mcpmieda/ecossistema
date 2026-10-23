@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
+import { officialBells2026V1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { servePortalFrequencyV2 } from '../../../../server/student-portal/composition/frequency-v2';
 import type { PortalCompositionEnvV1 } from '../../../../server/student-portal/composition/config-v1';
 
@@ -8,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     vi.fn<(query: string, values?: readonly unknown[]) => Promise<Record<string, unknown>[]>>(),
   effectiveExpiry: '2026-10-14T13:00:00.000Z',
   showFrequency: true,
+  showSchedule: false,
 }));
 const accountId = '11111111-1111-4111-8111-111111111111';
 const sessionId = '22222222-2222-4222-8222-222222222222';
@@ -39,13 +41,13 @@ vi.mock('../../../../server/student-portal/auth/session-service-v1', () => ({
     async withAuthorized<T>(
       _token: string,
       operation: (
-        context: { account: { id: string }; policy: { enforcedValue: { showFrequency: boolean } } },
+        context: { account: { id: string }; policy: { enforcedValue: { showFrequency: boolean; showSchedule: boolean } } },
         tx: { unsafe: typeof mocks.unsafe },
         session: { id: string; expiresAt: string; persistent: boolean },
       ) => Promise<T>,
     ) {
       return operation(
-        { account: { id: accountId }, policy: { enforcedValue: { showFrequency: mocks.showFrequency } } },
+        { account: { id: accountId }, policy: { enforcedValue: { showFrequency: mocks.showFrequency, showSchedule: mocks.showSchedule } } },
         { unsafe: mocks.unsafe },
         { id: sessionId, expiresAt: mocks.effectiveExpiry, persistent: false },
       );
@@ -230,4 +232,28 @@ it('answers the whole year so far in one read (?year=2026), month by month, on t
   // Only one of the two forms, and only this year.
   for (const query of ['?year=2025', '?year=2026&month=2026-03', '?year=all'])
     expect((await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency' + query), env)).status).toBeGreaterThanOrEqual(400);
+});
+
+it("adds the days without school, each lesson's time and, with the Horário on, the week's subjects (owner decision 23/10/2026)", async () => {
+  const frequency = { frequency: { today: '2026-10-22', lastReadAt: null, origins: [], days: [] } };
+  const calendar = { days_json: [{ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' }, { date: '2026-10-13', kind: 'letivo' }] };
+  const grid = { classes: [{ label: '6º ANO A - MATUTINO', observedAt: 'x', lessons: [{ weekday: 1, slot: 3, subject: 'MATEMATICA' }] }] };
+  const read = async () => (await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency?year=2026'), env)).json();
+  mocks.showSchedule = true;
+  mocks.unsafe.mockReset()
+    .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1() }]).mockResolvedValueOnce([calendar])
+    .mockResolvedValueOnce([{ schedule: grid }]);
+  expect(await read()).toMatchObject({
+    daysOff: [{ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' }],
+    bells: officialBells2026V1(),
+    grid: [{ shift: 'matutino', lessons: [{ weekday: 1, slot: 3, subject: 'MATEMATICA' }] }],
+  });
+  // Horário off: no subject, and the grid is never read.
+  mocks.showSchedule = false;
+  mocks.unsafe.mockReset()
+    .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1() }]).mockResolvedValueOnce([calendar]);
+  expect(await read()).toMatchObject({ grid: [], bells: officialBells2026V1() });
+  expect(mocks.unsafe.mock.calls.some(([query]) => query.includes('read_portal_schedule'))).toBe(false);
 });

@@ -1,0 +1,197 @@
+/* Horário das aulas (owner decision 23/10/2026): a column per weekday, with the times of each lesson
+   and of the break, per shift. Same card as the school calendar. */
+.pa-school-bells {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+}
+.pa-school-bells__status {
+  margin: 0;
+  color: #64748b;
+}
+.pa-school-bells__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.pa-school-bells__head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #0f2a5f;
+}
+.pa-school-bells__head p {
+  max-width: 38rem;
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.pa-school-bells__shifts {
+  display: inline-flex;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+}
+.pa-school-bells__shift {
+  padding: 0.4rem 0.95rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.pa-school-bells__shift[aria-checked='true'] {
+  background: #fff;
+  color: #0f2a5f;
+  box-shadow: 0 1px 3px rgb(15 42 95 / 0.15);
+}
+.pa-school-bells__shift:focus-visible,
+.pa-school-bells__add button:focus-visible,
+.pa-school-bells__remove:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+.pa-school-bells__start,
+.pa-school-bells__message {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.7rem;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.85rem;
+}
+.pa-school-bells__days {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+}
+.pa-school-bells__day {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+}
+.pa-school-bells__day.is-wrong {
+  border-color: #f04438;
+  background: #fef3f2;
+}
+.pa-school-bells__day h4 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  color: #0f2a5f;
+  font-size: 0.95rem;
+}
+.pa-school-bells__day h4 small {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.pa-school-bells__day ol {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pa-school-bells__item {
+  display: grid;
+  grid-template-columns: 3.9rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 0.6rem;
+  background: #fff;
+}
+.pa-school-bells__item--intervalo {
+  background: #fef6e7;
+  color: #92400e;
+}
+.pa-school-bells__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.pa-school-bells__times {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+}
+.pa-school-bells__times input {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.4rem;
+  background: #fff;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.pa-school-bells__remove {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.pa-school-bells__remove:hover {
+  background: #fee4e2;
+  color: #b42318;
+}
+.pa-school-bells__error {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.78rem;
+}
+.pa-school-bells__add {
+  display: flex;
+  gap: 0.4rem;
+}
+.pa-school-bells__add button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px dashed #94a3b8;
+  border-radius: 999px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.pa-school-bells__add button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.pa-school-bells__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+/* Typed, not picked: the clock icon of the browser would leave no room for "07:55" in a column. */
+.pa-school-bells__times input::-webkit-calendar-picker-indicator {
+  display: none;
+}

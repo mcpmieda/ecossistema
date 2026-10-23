@@ -92,3 +92,41 @@ export function schoolYearProgressOfV1(days: readonly SchoolCalendarDayV1[], tod
     lastDay: school.at(-1) ?? null,
   };
 }
+
+/**
+ * The days without school the calendar names (owner decision 23/10/2026): a holiday, a recess or an
+ * event without lessons, with its note, so the Portal says why there is no lesson ("Feriado ·
+ * Finados") on the Horário and on the Frequência calendar. Weekdays only: a weekend is never marked.
+ */
+export const schoolDayOffV1 = z
+  .object({
+    date: z.iso.date(),
+    kind: z.enum(['feriado', 'recesso', 'evento']),
+    note: z.string().trim().max(80).optional(),
+  })
+  .strict();
+export type SchoolDayOffV1 = z.infer<typeof schoolDayOffV1>;
+export const schoolDaysOffV1 = z.array(schoolDayOffV1).max(366);
+export const schoolDaysOffOfV1 = (days: readonly SchoolCalendarDayV1[]): SchoolDayOffV1[] =>
+  days
+    .filter((day) => !SCHOOL_DAY_COUNTS_V1[day.kind])
+    .filter((day) => {
+      const weekday = new Date(`${day.date}T12:00:00Z`).getUTCDay();
+      return weekday >= 1 && weekday <= 5;
+    })
+    .map((day) => ({
+      date: day.date,
+      kind: day.kind as SchoolDayOffV1['kind'],
+      ...(day.note ? { note: day.note } : {}),
+    }))
+    .sort((left, right) => left.date.localeCompare(right.date));
+const DAY_OFF_NAMES_V1: Record<SchoolDayOffV1['kind'], string> = {
+  feriado: 'Feriado',
+  recesso: 'Recesso',
+  evento: 'Sem aula',
+};
+/** "Feriado · Finados", "Recesso", "Sem aula · Jornada pedagógica". */
+export const schoolDayOffLabelV1 = (day: SchoolDayOffV1) =>
+  day.note && day.note !== DAY_OFF_NAMES_V1[day.kind]
+    ? `${DAY_OFF_NAMES_V1[day.kind]} · ${day.note}`
+    : DAY_OFF_NAMES_V1[day.kind];

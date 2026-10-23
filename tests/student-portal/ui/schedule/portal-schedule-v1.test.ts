@@ -2,6 +2,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { servePortalScheduleV1 } from '../../../../server/student-portal/composition/schedule-v1';
 import type { PortalCompositionEnvV1 } from '../../../../server/student-portal/composition/config-v1';
+import { officialBells2026V1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
+import { officialCalendar2026V1 } from '../../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
 
 const mocks = vi.hoisted(() => ({
   unsafe:
@@ -80,15 +82,45 @@ it('refuses the read without touching the grid when the Horário policy is off',
   expect(mocks.unsafe).not.toHaveBeenCalled();
 });
 
+const clock = { active: true, today: '2026-10-22', now: '2026-10-22T12:30:00.000Z' };
 it("returns the student's own grid, read with its account and session only", async () => {
   mocks.unsafe
     .mockResolvedValueOnce([{ schedule: grid }])
-    .mockResolvedValueOnce([{ active: true }]);
+    .mockResolvedValueOnce([clock])
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([]);
   const response = await servePortalScheduleV1(request(), env);
   expect(response.status).toBe(200);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
-  expect(await response.json()).toEqual({ contractVersion: 1, state: 'ready', ...grid });
+  // No bells nor calendar marked yet: the grid without times, no day without school.
+  expect(await response.json()).toEqual({
+    contractVersion: 1,
+    state: 'ready',
+    classes: grid.classes.map((item) => ({ ...item, bells: null })),
+    today: '2026-10-22',
+    now: '2026-10-22T12:30:00.000Z',
+    daysOff: [],
+  });
   expect(mocks.unsafe.mock.calls[0]?.[1]).toEqual([accountId, sessionId]);
+});
+
+it("adds the bells of each class's shift and the days without school (owner decision 23/10/2026)", async () => {
+  const classes = [
+    { label: '6º ANO A - MATUTINO', observedAt: 'x', lessons: [] },
+    { label: 'AEE', observedAt: 'x', lessons: [] },
+  ];
+  mocks.unsafe
+    .mockResolvedValueOnce([{ schedule: { classes } }])
+    .mockResolvedValueOnce([clock])
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1() }])
+    .mockResolvedValueOnce([{ days_json: officialCalendar2026V1() }]);
+  const body = (await (await servePortalScheduleV1(request(), env)).json()) as {
+    classes: { bells: unknown }[];
+    daysOff: { date: string; kind: string; note?: string }[];
+  };
+  expect(body.classes.map((item: { bells: unknown }) => item.bells)).toEqual([officialBells2026V1().matutino, null]);
+  expect(body.daysOff).toContainEqual({ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' });
+  expect(body.daysOff.every((day: { kind: string }) => ['feriado', 'recesso', 'evento'].includes(day.kind))).toBe(true);
 });
 
 it('suppresses a result read past the session expiry', async () => {
