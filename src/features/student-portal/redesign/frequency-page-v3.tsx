@@ -6,6 +6,11 @@ import {
   type FrequencyYearSummaryV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
 import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
+import { Alert } from '@heroui/react/alert';
+import { Button } from '@heroui/react/button';
+import { Card } from '@heroui/react/card';
+import { Chip } from '@heroui/react/chip';
+import { Spinner } from '@heroui/react/spinner';
 import {
   BELLS_VALID_FROM_V1,
   bellLessonV1,
@@ -428,10 +433,12 @@ function FrequencyStatusV3({
 }) {
   if (!error)
     return (
-      <div className="pa3-card pa3-status">
+      <Card className="pa3-card pa3-status">
         {month}
-        <output>Carregando frequência…</output>
-      </div>
+        <output className="pa3-status-loading">
+          <Spinner size="sm" /> Carregando frequência…
+        </output>
+      </Card>
     );
   const [message, action] =
     error === 'unauthenticated'
@@ -440,15 +447,20 @@ function FrequencyStatusV3({
         ? ['A frequência não está disponível no momento.', null]
         : ['Não foi possível carregar a frequência agora. Vamos tentar de novo em instantes.', ['Tentar agora', onRetry]];
   return (
-    <div className="pa3-card pa3-status" role="alert">
+    <Card className="pa3-card pa3-status" role="alert">
       {month}
-      <p>{message}</p>
+      <Alert status={error === 'unauthenticated' ? 'warning' : 'danger'}>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Description>{message}</Alert.Description>
+        </Alert.Content>
+      </Alert>
       {action ? (
-        <button type="button" className="pa3-status-action" onClick={action[1] as () => void}>
+        <Button size="sm" variant="secondary" className="pa3-status-action" onPress={action[1] as () => void}>
           {action[0] as string}
-        </button>
+        </Button>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -528,10 +540,18 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
 function FrequencyCommentV3({ comment }: { comment: NonNullable<FrequencyYearSummaryV2['comment']> }) {
   const Icon = comment.tone === 'alert' ? TriangleAlert : PartyPopper;
   return (
-    <p className={`pa3-comment pa3-comment--${comment.tone}`} role={comment.tone === 'alert' ? 'alert' : 'status'}>
-      <Icon size={20} aria-hidden="true" />
-      <span>{comment.text}</span>
-    </p>
+    <Alert
+      status={comment.tone === 'alert' ? 'danger' : 'success'}
+      className="pa3-comment"
+      role={comment.tone === 'alert' ? 'alert' : 'status'}
+    >
+      <Alert.Indicator>
+        <Icon size={20} aria-hidden="true" />
+      </Alert.Indicator>
+      <Alert.Content>
+        <Alert.Title>{comment.text}</Alert.Title>
+      </Alert.Content>
+    </Alert>
   );
 }
 
@@ -544,7 +564,7 @@ function SchoolYearCountdownV3({ schoolYear }: { schoolYear: NonNullable<Frequen
   if (!schoolYear?.lastDay) return null;
   const [year, month, day] = schoolYear.lastDay.split('-');
   return (
-    <div className="pa3-card pa3-countdown">
+    <Card className="pa3-card pa3-countdown">
       <PortalCountdownV1
         at={`${schoolYear.lastDay}T23:59:59-03:00`}
         title="O ano letivo termina em"
@@ -557,7 +577,7 @@ function SchoolYearCountdownV3({ schoolYear }: { schoolYear: NonNullable<Frequen
           : `Faltam ${schoolYear.remaining} dias letivos`}{' '}
         de {schoolYear.schoolDays}.
       </p>
-    </div>
+    </Card>
   );
 }
 
@@ -591,17 +611,17 @@ function MonthHeadV3({
   go: (step: number) => void;
 }) {
   return (
-    <div className="pa3-card-head">
-      <h3 aria-live="polite">{monthLabel(month)}</h3>
+    <Card.Header className="pa3-card-head">
+      <Card.Title aria-live="polite">{monthLabel(month)}</Card.Title>
       <div className="pa3-month-arrows">
-        <button type="button" className="pa3-month-arrow" aria-label="Mês anterior" disabled={!canBack} onClick={() => go(-1)}>
+        <Button isIconOnly size="sm" variant="secondary" aria-label="Mês anterior" isDisabled={!canBack} onPress={() => go(-1)}>
           <ChevronLeft size={18} aria-hidden="true" />
-        </button>
-        <button type="button" className="pa3-month-arrow" aria-label="Próximo mês" disabled={!canForward} onClick={() => go(1)}>
+        </Button>
+        <Button isIconOnly size="sm" variant="secondary" aria-label="Próximo mês" isDisabled={!canForward} onPress={() => go(1)}>
           <ChevronRight size={18} aria-hidden="true" />
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card.Header>
   );
 }
 
@@ -768,12 +788,12 @@ function FrequencyMonthV3({
         to everyone reads as freedom to miss); the limit only appears in the warning at the top,
         when there is a risk.
       */}
-      <div className="pa3-summary">
+      <Card className="pa3-card pa3-summary">
         <DayRingV3 totals={totals} label={`Ano letivo ${academicYear}`} />
-      </div>
+      </Card>
 
       {countdown}
-      <div className="pa3-card" {...swipe}>
+      <Card className="pa3-card pa3-month" {...swipe}>
         <MonthHeadV3 month={month} canBack={month > firstMonth} canForward={month < current} go={go} />
         <ul className="pa3-legend" aria-label="Legenda">
           <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Faltou o dia todo</li>
@@ -823,34 +843,41 @@ function FrequencyMonthV3({
             );
           })}
         </div>
-      </div>
+      </Card>
 
       {selected && selectedOff ? (
-        <div className="pa3-card pa3-day-detail" aria-live="polite">
-          <h3 className="pa3-day-detail-title">{dayLabel(selected)}</h3>
-          <p className="pa3-day-off">
-            <CalendarOff size={18} aria-hidden="true" />
-            <span>
-              <b>Sem aula</b> · {schoolDayOffLabelV1(selectedOff)}
-            </span>
-          </p>
-        </div>
+        <Card className="pa3-card pa3-day-detail" aria-live="polite">
+          <Card.Title className="pa3-day-detail-title">{dayLabel(selected)}</Card.Title>
+          <Alert status="default" className="pa3-day-off">
+            <Alert.Indicator>
+              <CalendarOff size={18} aria-hidden="true" />
+            </Alert.Indicator>
+            <Alert.Content>
+              <Alert.Title>Sem aula</Alert.Title>
+              <Alert.Description>{schoolDayOffLabelV1(selectedOff)}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        </Card>
       ) : null}
 
       {selected && selectedDay ? (
-        <div className="pa3-card pa3-day-detail" aria-live="polite">
+        <Card className="pa3-card pa3-day-detail" aria-live="polite">
           {/* Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026), on one line. */}
-          <h3 className="pa3-day-detail-title">
+          <Card.Title className="pa3-day-detail-title">
             {selected === today
               ? `Hoje, ${dayLabel(selected).toLowerCase()}`
               : selected === dayBefore(today)
                 ? `Ontem, ${dayLabel(selected).toLowerCase()}`
                 : dayLabel(selected)}
-          </h3>
+          </Card.Title>
           {isToday ? (
-            <p className="pa3-today-note">Dia em andamento · conta a partir de amanhã</p>
+            <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
+              Dia em andamento · conta a partir de amanhã
+            </Chip>
           ) : isOpen ? (
-            <p className="pa3-today-note">Leitura incompleta · conta quando o diário for lido</p>
+            <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
+              Leitura incompleta · conta quando o diário for lido
+            </Chip>
           ) : null}
           <p className="pa3-day-detail-sub">{daySentence(selectedDay, isOpen)}</p>
           {selectedLessons.map((group) => {
@@ -888,7 +915,13 @@ function FrequencyMonthV3({
                         <li key={slot} className={mark.mark === 'J' ? 'is-justified' : undefined}>
                           <span className="pa-visually-hidden">{mark.mark === 'J' ? 'Falta justificada na ' : 'Faltou na '}</span>
                           <b>{slot}ª aula</b>
-                          <span className="pa3-missed-time">{info.time ?? ''}</span>
+                          <span className="pa3-missed-time">
+                            {info.time ? (
+                              <Chip size="sm" variant="soft" color={mark.mark === 'J' ? 'warning' : 'danger'}>
+                                {info.time}
+                              </Chip>
+                            ) : null}
+                          </span>
                           <span className="pa3-missed-subject">{info.subject ?? ''}</span>
                         </li>,
                       ];
@@ -899,7 +932,7 @@ function FrequencyMonthV3({
               </div>
             );
           })}
-        </div>
+        </Card>
       ) : null}
 
       {/* The last reading of the class's diary (owner request 21/10/2026: "Atualizado em"),

@@ -1,5 +1,11 @@
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { CalendarOff, Coffee } from 'lucide-react';
+import { Alert } from '@heroui/react/alert';
+import { Button } from '@heroui/react/button';
+import { Card } from '@heroui/react/card';
+import { Chip } from '@heroui/react/chip';
+import { Spinner } from '@heroui/react/spinner';
+import { ToggleButton } from '@heroui/react/toggle-button';
 import {
   bellLessonV1,
   bellMinutesV1,
@@ -162,14 +168,25 @@ export function SchedulePageV3({
     <ScheduleWeekV3
       classes={null}
       status={
-        <div className="pa3-card pa3-status" role={load.error ? 'alert' : undefined}>
-          {load.error ? <p>{message}</p> : <output>{message}</output>}
+        <Card className="pa3-card pa3-status" role={load.error ? 'alert' : undefined}>
+          {load.error ? (
+            <Alert status={load.error === 'unauthenticated' ? 'warning' : 'danger'}>
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>{message}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : (
+            <output className="pa3-status-loading">
+              <Spinner size="sm" /> {message}
+            </output>
+          )}
           {action ? (
-            <button type="button" className="pa3-status-action" onClick={action[1]}>
+            <Button size="sm" variant="secondary" className="pa3-status-action" onPress={action[1]}>
               {action[0]}
-            </button>
+            </Button>
           ) : null}
-        </div>
+        </Card>
       }
     />
   );
@@ -214,7 +231,16 @@ function DayListV3({
               <span className="pa-visually-hidden">{`${row.slot}ª aula: `}</span>
               {row.subject ? subjectText(row.subject) : <span className="pa-visually-hidden">sem aula</span>}
             </span>
-            {row.time ? <span className="pa3-schedule-time">{timeText(row.time)}</span> : null}
+            {row.time ? (
+              <span className="pa3-schedule-time">
+                {isNow(row.time) ? (
+                  <Chip size="sm" variant="primary" color="accent" className="pa3-schedule-now">
+                    agora
+                  </Chip>
+                ) : null}
+                {timeText(row.time)}
+              </span>
+            ) : null}
           </li>
         ),
       )}
@@ -225,13 +251,15 @@ function DayListV3({
 /** Why a date has no school, as the ADM calendar says ("Feriado · Finados"). */
 function DayOffV3({ day, today }: { day: SchoolDayOffV1; today: boolean }) {
   return (
-    <div className="pa3-schedule-off" role="note">
-      <CalendarOff size={18} aria-hidden="true" />
-      <p>
-        <b>{today ? 'Sem aula hoje' : `Sem aula em ${shortDate(day.date)}`}</b>
-        <span>{schoolDayOffLabelV1(day)}</span>
-      </p>
-    </div>
+    <Alert status="default" className="pa3-schedule-off" role="note">
+      <Alert.Indicator>
+        <CalendarOff size={18} aria-hidden="true" />
+      </Alert.Indicator>
+      <Alert.Content>
+        <Alert.Title>{today ? 'Sem aula hoje' : `Sem aula em ${shortDate(day.date)}`}</Alert.Title>
+        <Alert.Description>{schoolDayOffLabelV1(day)}</Alert.Description>
+      </Alert.Content>
+    </Alert>
   );
 }
 
@@ -281,12 +309,16 @@ function NowCardV3({ item, bells, weekday, seconds, named }: {
           moment.state === 'before' ? moment.next : null,
         ];
   return (
-    <div className="pa3-card pa3-now" role="status" aria-live="off">
+    <Card className="pa3-card pa3-now" role="status" aria-live="off">
       {named ? <p className="pa3-schedule-class">{item.label}</p> : null}
-      <div className="pa3-now-head">
-        <p className="pa3-now-title">{title}</p>
-        {moment.state === 'in' ? <p className="pa3-now-until">até {moment.current.end}</p> : null}
-      </div>
+      <Card.Header className="pa3-now-head">
+        <Card.Title className="pa3-now-title">{title}</Card.Title>
+        {moment.state === 'in' ? (
+          <Chip size="sm" variant="soft" color="accent" className="pa3-now-until">
+            até {moment.current.end}
+          </Chip>
+        ) : null}
+      </Card.Header>
       <div className="pa3-now-clock pa-countdown">
         <span className="pa3-now-label">{clockLabel}</span>
         <PortalTimerV1 seconds={until(target)} label={clockLabel} />
@@ -298,7 +330,7 @@ function NowCardV3({ item, bells, weekday, seconds, named }: {
             : `Depois: ${itemName(after, subjectOf(after))} · ${after.start}`}
         </p>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -342,16 +374,14 @@ export function ScheduleWeekV3({
       {classes === null ? (
         status
       ) : classes.length === 0 ? (
-        <div className="pa3-card">
+        <Card className="pa3-card">
           <p className="pa3-schedule-empty">O horário da turma ainda não foi lido do Smecel.</p>
-        </div>
+        </Card>
       ) : (
         <>
           {/* Today without school: why (ADM calendar). Otherwise the lesson going on now. */}
           {todayOff ? (
-            <div className="pa3-card">
-              <DayOffV3 day={todayOff} today />
-            </div>
+            <DayOffV3 day={todayOff} today />
           ) : schoolDay ? (
             classes.map((item) =>
               item.bells ? (
@@ -370,17 +400,16 @@ export function ScheduleWeekV3({
           {/* Phone: the day's lessons, one day at a time. */}
           <div className="pa3-week-chips" role="group" aria-label="Dia da semana">
             {DAYS.map((day) => (
-              <button
+              <ToggleButton
                 key={day.weekday}
-                type="button"
                 className={
                   'pa3-week-chip' + (isToday(day.weekday) ? ' is-today' : '') + (offAt(day.weekday) ? ' is-off' : '')
                 }
-                aria-pressed={day.weekday === shown}
+                isSelected={day.weekday === shown}
                 aria-label={
                   day.long + (isToday(day.weekday) ? ' (hoje)' : '') + (offAt(day.weekday) ? ', sem aula' : '')
                 }
-                onClick={() => setPicked(day.weekday)}
+                onChange={() => setPicked(day.weekday)}
               >
                 <span>{day.short}</span>
                 {isToday(day.weekday) ? (
@@ -388,14 +417,14 @@ export function ScheduleWeekV3({
                 ) : offAt(day.weekday) ? (
                   <span className="pa3-week-chip-today">sem aula</span>
                 ) : null}
-              </button>
+              </ToggleButton>
             ))}
           </div>
 
           {classes.map((item) => {
             const off = offAt(shown);
             return (
-              <div key={item.label} className="pa3-card pa3-schedule-card">
+              <Card key={item.label} className="pa3-card pa3-schedule-card">
                 {/* The class's name only when the student has more than one (regular + integral, AEE). */}
                 {classes.length > 1 ? <p className="pa3-schedule-class">{item.label}</p> : null}
 
@@ -420,7 +449,11 @@ export function ScheduleWeekV3({
                   {DAYS.map((day) => {
                     const dayOff = offAt(day.weekday);
                     return (
-                      <div key={day.weekday} className={'pa3-schedule-column' + (isToday(day.weekday) ? ' is-today' : '')}>
+                      <Card
+                        key={day.weekday}
+                        variant="secondary"
+                        className={'pa3-schedule-column' + (isToday(day.weekday) ? ' is-today' : '')}
+                      >
                         <h3>
                           {day.long.replace('-feira', '')}
                           {isToday(day.weekday) ? <span className="pa3-week-chip-today">hoje</span> : null}
@@ -434,11 +467,11 @@ export function ScheduleWeekV3({
                             label={`Aulas de ${day.long.toLowerCase()}`}
                           />
                         )}
-                      </div>
+                      </Card>
                     );
                   })}
                 </div>
-              </div>
+              </Card>
             );
           })}
 

@@ -2281,16 +2281,6 @@
 .pa-subject-bar [role='tab'][aria-selected='true'] .pa-subject-tab-icon {
   opacity: 1;
 }
-.pa-subject-position {
-  flex: 0 0 auto;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  background: #eef2f8;
-  color: #475569;
-  font-size: 0.72rem;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
 .pa-subject-official {
   justify-self: start;
 }
