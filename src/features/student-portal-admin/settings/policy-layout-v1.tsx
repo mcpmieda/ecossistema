@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { Tabs } from '@heroui/react';
+import { Alert, Button, Tabs } from '@heroui/react';
 import {
   CalendarCheck,
   CalendarDays,
   DoorOpen,
   GraduationCap,
+  LockKeyhole,
   NotebookPen,
+  PencilLine,
   ShieldCheck,
   UserCog,
 } from 'lucide-react';
@@ -73,22 +75,30 @@ export function PolicyLayoutV1({
   customizations,
   schoolCalendar,
   schoolBells,
+  calendarEditable = false,
 }: {
-  field: (name: SettingsFieldV1) => ReactNode;
+  /** locked: shown read-only (the Calendário tab outside its edit mode). */
+  field: (name: SettingsFieldV1, locked?: boolean) => ReactNode;
   /** The Notas tab: periods (publication and agenda), Resultado anual and options. */
   grades?: ReactNode;
   disabled: boolean;
   shift?: boolean;
   /** Class and student overrides of this scope: a tab of its own, mounted on first visit. */
   customizations?: ReactNode;
-  /** The school's calendar of school days (school scope only), under the Calendário dates. */
-  schoolCalendar?: ReactNode;
+  /** The school's calendar of school days (school scope only), editable only in edit mode. */
+  schoolCalendar?: (editing: boolean) => ReactNode;
   /** The time of each lesson and of the break (school scope only), under the Horário switch. */
-  schoolBells?: ReactNode;
+  schoolBells?: (editing: boolean) => ReactNode;
+  /** The person may change the Calendário tab: it shows "Editar" (owner request 23/10/2026). */
+  calendarEditable?: boolean;
 }) {
   const [selected, setSelected] = useState<string>('access');
   const [publicationVisited, setPublicationVisited] = useState(false);
   const [customizationsVisited, setCustomizationsVisited] = useState(false);
+  // Calendário opens read-only, so nothing changes by an accidental click (owner request
+  // 23/10/2026); "Editar" unlocks it and shows the save buttons. Leaving discards unsaved changes.
+  const [calendarEditing, setCalendarEditing] = useState(false);
+  const [calendarSession, setCalendarSession] = useState(0);
   return (
     <Tabs
       className="pa-policy-tabs"
@@ -128,16 +138,50 @@ export function PolicyLayoutV1({
             </p>
           </header>
           {category.fields.length ? (
-            <div className="pa-settings-fields">{category.fields.map(field)}</div>
+            <div className="pa-settings-fields">{category.fields.map((name) => field(name))}</div>
           ) : null}
-          {category.id === 'calendar' ? schoolCalendar : null}
-          {/* Horário das aulas inside Calendário (owner request 23/10/2026: no tab of its own): the
-              switch that shows the weekly grid in the Portal, then each lesson's time. */}
+          {category.id === 'calendar' && calendarEditable ? (
+            <div className="pa-policy-edit-bar">
+              {calendarEditing ? (
+                <>
+                  <Alert status="warning" className="pa-policy-edit-bar__note">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Title>Modo de edição</Alert.Title>
+                      <Alert.Description>
+                        Salve cada parte antes de sair. O que não for salvo é descartado.
+                      </Alert.Description>
+                    </Alert.Content>
+                  </Alert>
+                  <Button
+                    variant="secondary"
+                    onPress={() => {
+                      setCalendarEditing(false);
+                      setCalendarSession((value) => value + 1);
+                    }}
+                  >
+                    <LockKeyhole size={16} aria-hidden />
+                    Sair da edição
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" onPress={() => setCalendarEditing(true)}>
+                  <PencilLine size={16} aria-hidden />
+                  Editar
+                </Button>
+              )}
+            </div>
+          ) : null}
           {category.id === 'calendar' ? (
-            <>
-              <div className="pa-settings-fields pa-settings-fields--after">{field('showSchedule')}</div>
-              {schoolBells}
-            </>
+            <div key={calendarSession} className="pa-policy-calendar">
+              {schoolCalendar?.(calendarEditing)}
+              {/* Horário das aulas inside Calendário (owner request 23/10/2026: no tab of its own):
+                  the switch that shows the weekly grid in the Portal, then each lesson's time. */}
+              <div className="pa-settings-fields pa-settings-fields--after">
+                {field('showSchedule', calendarEditable && !calendarEditing)}
+              </div>
+              {schoolBells?.(calendarEditing)}
+            </div>
           ) : null}
           {category.id === 'grades' && publicationVisited ? (
             <LiveRefreshScopeV1 active={selected === 'grades'}>
