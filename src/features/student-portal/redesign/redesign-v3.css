@@ -476,8 +476,11 @@
 }
 
 /* The legend: the same colours in small squares, with an outline so the light red one shows on white. */
+/* Two columns (owner request 23/10/2026): "Sem falta" sits under "Faltou algumas aulas". */
 .pa3-legend {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  column-gap: 1.1rem;
   row-gap: 0.3rem;
 }
 .pa3-legend .pa3-dot {

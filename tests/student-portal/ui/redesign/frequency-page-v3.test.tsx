@@ -128,7 +128,7 @@ describe('Frequência page', () => {
     fireEvent.click(clear);
     expect(clear.getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByText('Nenhuma falta neste dia.')).toBeTruthy();
-    expect(screen.getAllByText('Sem falta')).toHaveLength(5);
+    expect(document.querySelectorAll('.pa3-day-detail .pa3-lesson--clear')).toHaveLength(5);
   });
 
   it('never says "sem aula" for today before its first reading', async () => {
