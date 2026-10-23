@@ -998,3 +998,10 @@
 .pa3-lesson-state {
   margin-top: auto;
 }
+/* The lesson's state in an outlined pill of its own colour (owner request 23/10/2026). */
+.pa3-lesson-state {
+  padding: 0.1rem 0.5rem;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  line-height: 1.2;
+}
