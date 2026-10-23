@@ -737,7 +737,7 @@ export function ScheduleWeekV3({
   const isToday = (weekday: number) => schoolDay && weekday === todayWeekday;
   const latest = (classes ?? [])
     .map((item) => item.observedAt)
-    .sort()
+    .sort((a, b) => Number(a > b) - Number(a < b))
     .at(-1);
 
   return (

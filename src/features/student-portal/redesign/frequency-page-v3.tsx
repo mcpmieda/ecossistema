@@ -771,7 +771,7 @@ function FrequencyMonthV3({
   // At first, the latest day with a mark that opens, so the page never selects a day it cannot show.
   const firstPick =
     [...marksByDay.keys()]
-      .sort()
+      .sort((a, b) => Number(a > b) - Number(a < b))
       .reverse()
       .find((date) => date <= today && isPickable(stateOf(date))) ?? null;
   const selected = picked && picked.startsWith(month) ? picked : firstPick;

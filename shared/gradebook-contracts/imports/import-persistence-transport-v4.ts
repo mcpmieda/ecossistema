@@ -242,7 +242,7 @@ export function isGradebookImportResultCellObservationV4(
     case 'manual-legacy-zero':
       return hasExactKeys(value, ['classification', 'rawValue']) && value.rawValue === 0;
     case 'manual-official-zero-marker':
-      return hasExactKeys(value, ['classification', 'rawValue']) && value.rawValue === 0.1;
+      return hasExactKeys(value, ['classification', 'rawValue']) && value.rawValue === 0.1; // NOSONAR: the exact literal the source/profile carries, never a computed value
     case 'formula-nonzero':
       return (
         hasExactKeys(value, ['classification', 'rawValue', 'formula', 'cachedValue']) &&

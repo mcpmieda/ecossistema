@@ -95,8 +95,8 @@ function validateProfile(profile: NativeTermCompositionProfileV1): void {
     profile.termMaximums?.[1] !== 30 ||
     profile.termMaximums?.[2] !== 30 ||
     profile.termMaximums?.[3] !== 40 ||
-    profile.quantitativeWeight !== 0.45 ||
-    profile.qualitativeWeight !== 0.55
+    profile.quantitativeWeight !== 0.45 || // NOSONAR: the exact literal the source/profile carries, never a computed value
+    profile.qualitativeWeight !== 0.55 // NOSONAR: the exact literal the source/profile carries, never a computed value
   ) {
     throw new RangeError(INVALID_PROFILE_MESSAGE);
   }

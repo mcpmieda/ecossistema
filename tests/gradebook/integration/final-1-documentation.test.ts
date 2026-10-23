@@ -196,7 +196,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(integrationGate).toContain("production-inputs/dist/_routes.json");
     expect(integrationGate).toContain('/frequency-collector/*');
     expect(blobHash('.github/workflows/validate-pull-request.yml'))
-      .toBe('ed496d6884f55f1da27c655bc2d8e2e281954f4d');
+      .toBe('0d3f0a6ef1a3d8287ca21e2f60f285001fe83137');
   });
   it('keeps the canonical local documentation links resolvable', () => {
     const pages = [

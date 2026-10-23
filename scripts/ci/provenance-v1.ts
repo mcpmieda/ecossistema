@@ -43,7 +43,8 @@ const requiredEnvironmentV1 = (environment: EnvironmentV1, key: string) => {
   if (!value) throw new Error(`Missing ${key}`);
   return value;
 };
-const gitV1 = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+// The CI runner's own git; no user input reaches PATH.
+const gitV1 = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim(); // NOSONAR
 
 export function parseCiProvenanceV1(input: unknown): CiProvenanceV1 {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid provenance');
