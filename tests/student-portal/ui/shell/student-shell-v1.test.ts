@@ -97,15 +97,15 @@ describe('student shell and canonical profile', () => {
     });
     const icon = () => document.querySelector('.pa3-nav-item[aria-controls="pa3-panel-frequency"] .pa3-nav-icon')!;
     for (const [tone, expected, name] of [
-      ['alert', 'pa3-nav-icon--alert', 'Frequência, com aviso'],
-      ['good', 'pa3-nav-icon--good', 'Frequência, sem aviso'],
-      [null, 'pa3-nav-icon--good', 'Frequência, sem aviso'],
+      ['alert', 'pa3-nav-icon--alert', 'Com aviso'],
+      ['good', 'pa3-nav-icon--good', 'Sem aviso'],
+      [null, 'pa3-nav-icon--good', 'Sem aviso'],
     ] as const) {
       const frequencyClient = { read: vi.fn(() => new Promise<never>(() => undefined)), readYear: vi.fn(async () => year(tone)) };
       render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, showFrequency: true } }, frequencyClient }));
       // Unknown until the year is read: the plain icon.
       await vi.waitFor(() => expect(icon().className).toContain(expected));
-      expect(screen.getByRole('button', { name })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Frequência', description: name })).toBeTruthy();
       cleanup();
     }
   });

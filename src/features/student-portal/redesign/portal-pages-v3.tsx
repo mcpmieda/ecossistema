@@ -220,6 +220,7 @@ function PortalMenuPagesV3({
             className="pa3-nav-item"
             aria-current={page === id ? 'page' : undefined}
             aria-controls={`pa3-panel-${id}`}
+            aria-describedby={id === 'frequency' && frequencyTone ? 'pa3-frequency-tone' : undefined}
             onClick={() => choose(id)}
           >
             <span
@@ -232,13 +233,13 @@ function PortalMenuPagesV3({
               )}
             </span>
             <span className="pa3-nav-label">{label}</span>
-            {id === 'frequency' && frequencyTone ? (
-              <span className="pa-visually-hidden">
-                {frequencyTone === 'alert' ? ', com aviso' : ', sem aviso'}
-              </span>
-            ) : null}
           </button>
         ))}
+        {frequencyTone ? (
+          <span id="pa3-frequency-tone" className="pa-visually-hidden">
+            {frequencyTone === 'alert' ? 'Com aviso' : 'Sem aviso'}
+          </span>
+        ) : null}
       </nav>
 
       <div className="pa3-page">
