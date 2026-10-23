@@ -1,4 +1,5 @@
 import type { PortalFetchV1 } from '../features/student-portal/shared/transport-v1';
+import { officialCalendar2026V1 } from '../../shared/student-portal-contracts/school-calendar-2026-start-v1';
 import type { AdminQueryV1 } from '../../shared/student-portal-contracts/admin-v1';
 import type { AdminReadQueryV2 } from '../../shared/student-portal-contracts/admin-read-v2';
 import {
@@ -92,8 +93,8 @@ type LocalStudent = {
   shift?: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO';
 };
 const syntheticView = new URLSearchParams(window.location.search).has('synthetic');
-/** The preview's school calendar (none at first, as in production before it is marked). */
-let previewCalendar: { version: number; days: unknown[] } = { version: 0, days: [] };
+/** The preview's school calendar: the official one of 2026, as migration 0029 saves it. */
+let previewCalendar: { version: number; days: unknown[] } = { version: 1, days: officialCalendar2026V1() };
 export const localStudents = syntheticView
   ? undefined
   : Object.values(

@@ -207,23 +207,25 @@ it("never counts today, adds the year up to now and gives the class's last readi
   });
 });
 
-it('answers the whole year so far in one read (?year=2026), month by month', async () => {
+it('answers the whole year so far in one read (?year=2026), month by month, on the calendar days only', async () => {
   const day = (date: string, slots: number[]) => ({ date, shift: 'matutino', slots_json: slots, complete: true });
   mocks.unsafe
     .mockResolvedValueOnce([{ frequency: {
       today: '2026-03-10', lastReadAt: '2026-03-10 09:30:00+00', origins: [],
-      days: [day('2026-02-23', [1, 2, 3, 4, 5]), day('2026-03-09', [1, 2, 3, 4, 5])],
+      // 28/02: a compensation Saturday the diary has but the official calendar does not.
+      days: [day('2026-02-23', [1, 2, 3, 4, 5]), day('2026-02-28', [1, 2, 3, 4, 5]), day('2026-03-09', [1, 2, 3, 4, 5])],
     } }])
     .mockResolvedValueOnce([{ active: true }])
-    // The school's calendar (ADM): three school days, two of them from today on.
+    // The school's calendar (ADM): four school days, two of them from today on.
     .mockResolvedValueOnce([{ days_json: [
+      { date: '2026-02-23', kind: 'evento-letivo', note: 'Início do ano letivo' },
       { date: '2026-03-09', kind: 'letivo' }, { date: '2026-03-10', kind: 'letivo' },
       { date: '2026-03-11', kind: 'feriado', note: 'Feriado' }, { date: '2026-03-12', kind: 'letivo' },
     ] }]);
   const result = await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency?year=2026'), env);
   const body = (await result.json()) as { months: { month: string; denominator: number | null }[] };
   expect(body).toMatchObject({ contractVersion: 2, state: 'ready', academicYear: 2026, today: '2026-03-10', year: { lessons: 10, absences: 0 } });
-  expect(body).toMatchObject({ schoolYear: { schoolDays: 3, remaining: 2, firstDay: '2026-03-09', lastDay: '2026-03-12' } });
+  expect(body).toMatchObject({ schoolYear: { schoolDays: 4, remaining: 2, firstDay: '2026-02-23', lastDay: '2026-03-12' } });
   expect(body.months.map((month) => [month.month, month.denominator])).toEqual([['2026-01', null], ['2026-02', 5], ['2026-03', 5]]);
   // Only one of the two forms, and only this year.
   for (const query of ['?year=2025', '?year=2026&month=2026-03', '?year=all'])

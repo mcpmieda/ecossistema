@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { officialCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
 import {
@@ -35,6 +36,12 @@ describe('school calendar (owner decision 22/10/2026)', () => {
     // The six Saturdays the Smecel had and the official calendar does not.
     for (const date of ['2026-04-18', '2026-05-09', '2026-05-16', '2026-06-27', '2026-07-04', '2026-07-18'])
       expect(school).not.toContain(date);
+  });
+
+  it('is saved by migration 0029 exactly as the official calendar (no drift)', () => {
+    const sql = readFileSync('migrations/student-portal/0029_school_calendar_v1.sql', 'utf8');
+    const saved = /VALUES\(2026,'(.+)'::jsonb,1,/u.exec(sql)?.[1];
+    expect(saved && JSON.parse(saved)).toEqual(officialCalendar2026V1());
   });
 
   it('never takes more than 200 school days', () => {

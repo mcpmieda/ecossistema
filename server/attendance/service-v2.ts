@@ -390,10 +390,25 @@ function yearOfMonthsV2(months: readonly FrequencySummaryV2[], today: string) {
 }
 const lastReadOfV2 = (read: PortalFrequencyYearReadV2) => (read.lastReadAt === null ? null : iso(read.lastReadAt));
 /**
+ * Only the school days of the calendar marked in the ADM count (owner decision 22/10/2026): a day
+ * the diary has lessons on but the official calendar does not (the six compensation Saturdays of
+ * 2026 the Secretaria did not list) neither adds lessons nor shows. Without a calendar, the diary.
+ */
+function onSchoolDaysV2(read: PortalFrequencyYearReadV2, schoolDays?: ReadonlySet<string>): PortalFrequencyYearReadV2 {
+  if (!schoolDays) return read;
+  const kept = (row: Row) => schoolDays.has(text(row.date));
+  return { ...read, origins: read.origins.filter(kept), days: read.days.filter(kept) };
+}
+/**
  * The Portal's answer for one month (GET ?month=): the month's marks, lesson days and totals, plus
  * the school's today, the year so far and the class's last reading, from ONE read of the year.
  */
-export function portalFrequencySummaryV2(read: PortalFrequencyYearReadV2, month: string): FrequencySummaryV2 {
+export function portalFrequencySummaryV2(
+  whole: PortalFrequencyYearReadV2,
+  month: string,
+  schoolDays?: ReadonlySet<string>,
+): FrequencySummaryV2 {
+  const read = onSchoolDaysV2(whole, schoolDays);
   const months = monthsSoFarV2(read.today).map((key) => monthOfReadV2(read, key));
   return {
     ...(months.find((item) => item.month === month) ?? monthOfReadV2(read, month)),
@@ -406,7 +421,11 @@ export function portalFrequencySummaryV2(read: PortalFrequencyYearReadV2, month:
  * The whole year so far in one answer (GET ?year=2026, PR 1317): the Portal reads it with the
  * sign-in, so changing months is instant and never asks the server again.
  */
-export function portalFrequencyYearV2(read: PortalFrequencyYearReadV2): FrequencyYearSummaryV2 {
+export function portalFrequencyYearV2(
+  whole: PortalFrequencyYearReadV2,
+  schoolDays?: ReadonlySet<string>,
+): FrequencyYearSummaryV2 {
+  const read = onSchoolDaysV2(whole, schoolDays);
   const months = monthsSoFarV2(read.today).map((key) => monthOfReadV2(read, key));
   return {
     contractVersion: 2,
