@@ -8,7 +8,6 @@ import {
 import type { StudentFrequencyClientV2 } from '../frequency/client-v2';
 import { usePortalPageActiveV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
-import { MAXIMUM_ABSENCE_DAYS_V2 } from '../../../../shared/attendance-contracts/frequency-comment-v2';
 import { PortalCountdownV1 } from '../shell/portal-notices-v1';
 
 /*
@@ -36,8 +35,6 @@ const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira
  */
 const firstMonthOf = (year: number) => `${year}-02`;
 const lastMonthOf = (year: number) => `${year}-12`;
-/** The ruler of the year's absences runs a little past the maximum, so going over it shows. */
-const RULER_DAYS = 60;
 const SHIFT_LABELS: Record<string, string> = { MATUTINO: 'Manhã', VESPERTINO: 'Tarde', NOTURNO: 'Noite', INTEGRAL: 'Integral' };
 
 /** A school day: with or without an absence (89,7% of the school's days have none, 21/10/2026). */
@@ -657,18 +654,6 @@ function FrequencyMonthV3({
     const lessons = lessonsAt(date);
     return lessons ? dayOf(lessons, marksByDay.get(date) ?? []) : null;
   };
-  // The year so far, worked out by the server by the same rule (null while any month is unknown).
-  const yearCount = data.year ?? null;
-  // The year's absences in days (owner decisions 22/10/2026): the absences in lessons divided by
-  // the student's own lessons per day, to the nearest whole day; the maximum is 50 of the 200 days.
-  const absenceDays =
-    yearCount === null || totals.days === 0
-      ? null
-      : yearCount.absences / (yearCount.lessons / totals.days);
-  const shownDays = absenceDays === null ? null : Math.round(absenceDays);
-  const yearTone =
-    // Never green: absences are never "good", only far from the limit (owner decision 22/10/2026).
-    shownDays === null ? 'none' : shownDays > 40 ? 'low' : shownDays >= 30 ? 'warn' : 'calm';
   const [picked, setPicked] = useState<string | null>(null);
   const go = (step: number) => {
     onMonth(shiftMonth(month, step));
@@ -729,50 +714,12 @@ function FrequencyMonthV3({
 
       {/*
         The year at a glance (owner requests 21–22/10/2026): a ring of the school days counted so
-        far this year, by kind, and under it a 0–100% ruler of the same year with the law's 75%
-        minimum. Both are the whole year, so they agree and never move when the month changes.
+        far this year, by kind. No ruler and no limit here (owner decision 22/10/2026: a limit shown
+        to everyone reads as freedom to miss); the limit only appears in the warning at the top,
+        when there is a risk.
       */}
-      <div className={'pa3-summary pa3-summary--' + yearTone}>
+      <div className="pa3-summary">
         <DayRingV3 totals={totals} label={`Ano letivo ${academicYear}`} />
-        {/* The ruler is the year so far, not the month (owner request 21/10/2026): the 75% is the
-            law's minimum over all the year's lessons, so only the year's figure meets it. */}
-        <div className="pa3-ruler-wrap">
-          {/* The year's absences in days, a ruler that only grows (owner request 22/10/2026). */}
-          <p className="pa3-year-head">
-            <span>
-              Faltas no ano
-              {/* Never "permitidos": the limit is not a right to miss (owner decision 22/10/2026). */}
-              <small>
-                O limite da lei é {MAXIMUM_ABSENCE_DAYS_V2} dias. Acima disso, o aluno pode reprovar. Só contam
-                faltas sem justificativa.
-              </small>
-            </span>
-            <strong>
-              {shownDays === null ? 'em apuração' : shownDays === 0 ? 'nenhuma' : shownDays === 1 ? '1 dia' : `${shownDays} dias`}
-            </strong>
-          </p>
-          <div
-            className="pa3-ruler"
-            role="img"
-            aria-label={
-              shownDays === null
-                ? 'Faltas do ano ainda em apuração'
-                : `Cerca de ${shownDays} dias de falta no ano; o limite da lei é ${MAXIMUM_ABSENCE_DAYS_V2} dias`
-            }
-          >
-            <span
-              className="pa3-ruler-fill"
-              style={{ width: `${shownDays === null ? 0 : Math.min(100, (100 * (absenceDays ?? 0)) / RULER_DAYS)}%` }}
-            />
-            <span
-              className="pa3-ruler-minimum"
-              style={{ left: `${(100 * MAXIMUM_ABSENCE_DAYS_V2) / RULER_DAYS}%` }}
-              aria-hidden="true"
-            >
-              <span className="pa3-ruler-flag">limite {MAXIMUM_ABSENCE_DAYS_V2} dias</span>
-            </span>
-          </div>
-        </div>
       </div>
 
       {countdown}

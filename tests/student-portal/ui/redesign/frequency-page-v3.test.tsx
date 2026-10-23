@@ -65,8 +65,6 @@ const clientOf = (
   return { read, readYear } satisfies StudentFrequencyClientV2;
 };
 
-const yearBadge = () => document.querySelector('.pa3-year-head strong')?.textContent;
-const summaryCard = () => document.querySelector('.pa3-summary')!;
 const dayButton = (day: number) =>
   screen.getAllByRole('button').find((button) => button.querySelector('.pa3-day-number')?.textContent === String(day))!;
 const ready = () => screen.findByRole('heading', { level: 3, name: /de 2026$/u });
@@ -81,37 +79,11 @@ afterEach(() => {
 });
 
 describe('Frequência page', () => {
-  it("shows the year's absences in days, a ruler that only grows (owner decision 22/10/2026)", async () => {
-    // 60 school days of 5 lessons before today (September and October).
-    const days = (month: string, from: number, count: number) =>
-      Array.from({ length: count }, (_, index) => lessonDay(`${month}-${String(from + index).padStart(2, '0')}`));
-    const months = {
-      '2026-09': summary('2026-09', days('2026-09', 1, 30)),
-      '2026-10': summary('2026-10', days('2026-10', 1, 20)),
-    };
-    const ruler = async (absences: number) => {
-      cleanup();
-      render(<FrequencyPageV3 client={clientOf(months, { year: { lessons: 250, absences } })} />);
-      await ready();
-      return { badge: yearBadge(), tone: summaryCard().className };
-    };
-    // 50 counted days of 5 lessons: 5 lessons a day. 60 lessons ≈ 12 days, green.
-    expect(await ruler(60)).toMatchObject({ badge: '12 dias' });
-    // Far from the limit: neutral, never green.
-    expect((await ruler(60)).tone).toContain('pa3-summary--calm');
-    // 32 days: getting close, amber.
-    expect((await ruler(160)).tone).toContain('pa3-summary--warn');
-    // 41 days: red.
-    const red = await ruler(205);
-    expect(red).toMatchObject({ badge: '41 dias' });
-    expect(red.tone).toContain('pa3-summary--low');
-    expect(screen.getByText('O limite da lei é 50 dias. Acima disso, o aluno pode reprovar. Só contam faltas sem justificativa.')).toBeTruthy();
-  });
-
-  it('shows the year as still being worked out while the server has no figure', async () => {
-    render(<FrequencyPageV3 client={clientOf({}, { year: null })} />);
+  it('shows no ruler and no limit: the limit only appears in a warning (owner decision 22/10/2026)', async () => {
+    render(<FrequencyPageV3 client={clientOf({}, { year: { lessons: 250, absences: 60 } })} />);
     await ready();
-    expect(yearBadge()).toBe('em apuração');
+    expect(document.querySelector('.pa3-ruler')).toBeNull();
+    expect(screen.queryByText(/limite/u)).toBeNull();
   });
 
   it("keeps today's colour on the calendar, while the ring counts no day yet", async () => {

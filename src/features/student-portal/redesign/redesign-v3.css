@@ -510,22 +510,17 @@
   align-items: center;
 }
 
-/* ---------- The month's summary and the year's ruler (owner requests 21/10/2026) ----------
-   One card: the month's tag, the ring of the month's counted days, a thin divider, then the year so
-   far on a 0–100% ruler with the law's 75% minimum. Always the same height, so the calendar below
-   never moves when the month changes. White, a hairline border and two very soft navy light patches
+/* ---------- The year at a glance (owner requests 21–22/10/2026) ----------
+   One card with the ring of the year's counted days. No ruler and no limit (a limit shown to
+   everyone reads as freedom to miss). White, a hairline border and two very soft navy light patches
    drifting behind it. */
 .pa3-summary {
-  /* The year's colour: green from the 75% minimum up, red below it, grey while the year is still
-     being worked out. Amber means "justificada" everywhere else, so the ruler never uses it. */
-  --pa3-ruler-dark: #166534;
   position: relative;
   isolation: isolate;
   display: grid;
   align-content: start;
   align-items: center;
   gap: 0.5rem 0.85rem;
-  min-height: 15.25rem;
   padding: 1.1rem 1.1rem 1rem;
   /* clip, not just hidden: the drifting patches reach past the edge, and a hidden box can still be
      scrolled by the page (focus, find in page), cutting the ring off at the top. */
@@ -534,16 +529,6 @@
   border-radius: 1.5rem;
   background: #fff;
   box-shadow: 0 18px 40px -30px rgb(15 42 95 / 0.45);
-}
-.pa3-summary--low {
-  --pa3-ruler-dark: #991b1b;
-}
-.pa3-summary--none {
-  --pa3-ruler-dark: #64748b;
-}
-/* 30 to 40 days of absence in the year: getting close to the maximum of 50. */
-.pa3-summary--warn {
-  --pa3-ruler-dark: #b45309;
 }
 .pa3-summary::before,
 .pa3-summary::after {
@@ -632,115 +617,6 @@
   font-weight: 600;
 }
 
-/* The year so far: its heading and how the figure moves, the figure on a soft badge in the year's
-   colour, then the ruler with the 75% flag under its post. */
-.pa3-ruler-wrap {
-  margin-top: 0.25rem;
-  padding-top: 0.8rem;
-  border-top: 1px solid #e3e8f1;
-}
-.pa3-year-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin: 0 0 0.4rem;
-  color: var(--pa3-muted);
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-.pa3-year-head small {
-  display: block;
-  margin-top: 0.1rem;
-  color: var(--pa3-muted);
-  font-size: 0.68rem;
-  font-weight: 500;
-  line-height: 1.3;
-}
-.pa3-year-head strong {
-  flex: 0 0 auto;
-  padding: 0.2rem 0.6rem;
-  border: 1px solid color-mix(in srgb, var(--pa3-ruler-dark) 22%, #fff);
-  border-radius: 0.8rem;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--pa3-ruler-dark) 6%, #fff),
-    color-mix(in srgb, var(--pa3-ruler-dark) 14%, #fff)
-  );
-  color: var(--pa3-ruler-dark);
-  font-size: 1.35rem;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-/* "em apuração": small and grey (slate-600, 7:1 on its badge). */
-.pa3-summary--none .pa3-year-head strong {
-  border-color: #e3e8f1;
-  background: #f4f6fa;
-  color: #475569;
-  font-size: 0.85rem;
-}
-.pa3-ruler {
-  position: relative;
-  height: 0.75rem;
-  border-radius: 999px;
-  background: #edf1f7;
-  box-shadow: inset 0 1px 2px rgb(15 42 95 / 0.08);
-}
-/* The fill in the year's colour, with faint diagonal stripes that keep walking to the right. */
-.pa3-ruler-fill {
-  position: relative;
-  display: block;
-  height: 100%;
-  overflow: hidden;
-  border-radius: 999px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--pa3-ruler-dark) 78%, #fff), var(--pa3-ruler-dark));
-  transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.pa3-ruler-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.12) 0 6px, transparent 6px 14px);
-  animation: pa3-walk 1.4s linear infinite;
-}
-@keyframes pa3-walk {
-  from { background-position: 0 0; }
-  to { background-position: 19.8px 0; }
-}
-/* The 75% post shows on any colour: white with a navy edge. */
-.pa3-ruler-minimum {
-  position: absolute;
-  top: -0.3rem;
-  bottom: -0.3rem;
-  width: 3px;
-  margin-left: -1.5px;
-  border-radius: 2px;
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--pa3-ink);
-}
-.pa3-ruler-flag {
-  position: absolute;
-  top: calc(100% + 0.15rem);
-  left: 50%;
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
-  background: var(--pa3-ink);
-  color: #fff;
-  font-size: 0.62rem;
-  font-weight: 700;
-  white-space: nowrap;
-  transform: translateX(-50%);
-}
-.pa3-ruler-labels {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.3rem;
-  color: var(--pa3-muted);
-  font-size: 0.68rem;
-}
-
 /* ---------- The day's detail ---------- */
 /* Its heading block centred: title, the note and the sentence. The title never breaks into two
    lines: the type shrinks with the card's width, sized with some room for the longest title of the
@@ -770,19 +646,6 @@
   .pa3-lessons {
     grid-auto-flow: row;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pa3-ruler-fill {
-    transition: none;
-  }
-  .pa3-summary::before,
-  .pa3-summary::after,
-  .pa3-ruler-fill::after,
-  .pa3-guide-arc,
-  .pa3-guide-label {
-    animation: none;
   }
 }
 
@@ -1036,14 +899,4 @@
   .pa3-app--single.pa3-app--cover .pa-shell--with-hero .pa-shell-content {
     padding-bottom: 1.75rem;
   }
-}
-
-/* The ruler of the year's absences: room under it for the maximum's flag. */
-.pa3-ruler-wrap .pa3-ruler {
-  margin-bottom: 1.4rem;
-}
-
-/* Far from the limit: neutral navy, never green (absences are never "good"). */
-.pa3-summary--calm {
-  --pa3-ruler-dark: var(--pa3-ink);
 }
