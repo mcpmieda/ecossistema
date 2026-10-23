@@ -858,20 +858,56 @@
   outline-offset: 2px;
 }
 
-/* The school year's countdown (owner request 22/10/2026): the portal's opening clock, in a card. */
+/* The school year's countdown (owner requests 22–23/10/2026): the portal's opening clock, made
+   short so parents scroll less: the title beside a small clock, the school days left under it. */
 .pa3-countdown {
   display: grid;
-  justify-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
+  padding: 0.55rem 0.7rem;
 }
 .pa3-countdown .pa-countdown {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: start;
+  gap: 0.6rem;
   width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.8rem;
+  text-align: left;
+}
+.pa3-countdown .pa-countdown__title {
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+.pa3-countdown .pa-countdown__clock {
+  grid-template-columns: repeat(4, 2.35rem);
+  gap: 0.25rem;
+}
+.pa3-countdown .pa-countdown__unit {
+  gap: 0.15rem;
+}
+.pa3-countdown .pa-countdown__unit small {
+  font-size: 0.52rem;
+  letter-spacing: 0.04em;
+}
+.pa3-countdown .pa-flip {
+  --pa-flip-h: 1.9rem;
+  border-radius: 0.4rem;
+  box-shadow: 0 3px 8px rgb(15 23 42 / 0.25);
+  font-size: 1.05rem;
+}
+.pa3-countdown .pa-flip__half--top {
+  border-radius: 0.4rem 0.4rem 0 0;
+}
+.pa3-countdown .pa-flip__half--bottom {
+  border-radius: 0 0 0.4rem 0.4rem;
 }
 .pa3-countdown-days {
   margin: 0;
   color: var(--pa3-muted);
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 650;
+  text-align: center;
 }
 
 /* The sentence about the absences, first on the page (owner decisions 22/10/2026). */
