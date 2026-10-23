@@ -580,3 +580,7 @@
   flex: 0 0 auto;
   color: var(--muted);
 }
+/* A switch under a panel's own editor (Horário no Portal, under the school calendar). */
+.pa-settings-fields--after {
+  margin-top: 1rem;
+}

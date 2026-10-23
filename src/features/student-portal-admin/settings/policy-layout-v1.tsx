@@ -3,7 +3,6 @@ import { Tabs } from '@heroui/react';
 import {
   CalendarCheck,
   CalendarDays,
-  Clock,
   DoorOpen,
   GraduationCap,
   NotebookPen,
@@ -47,20 +46,12 @@ const categories = [
     fields: ['showFrequency'],
   },
   {
-    id: 'schedule',
-    label: 'Horário',
-    icon: Clock,
-    title: 'Horário das aulas',
-    description: 'Escolha se os alunos veem a grade semanal da turma no Portal.',
-    fields: ['showSchedule'],
-  },
-  {
     id: 'calendar',
     label: 'Calendário',
     icon: CalendarDays,
     title: 'Datas e horários',
     description:
-      'Ano letivo e trimestres. Notas e resultado anual ficam na aba Notas. Horário de Brasília.',
+      'Ano letivo, trimestres, dias letivos e o horário das aulas. Notas e resultado anual ficam na aba Notas. Horário de Brasília.',
     fields: ['calendar'],
   },
   {
@@ -139,7 +130,14 @@ export function PolicyLayoutV1({
             <div className="pa-settings-fields">{category.fields.map(field)}</div>
           ) : null}
           {category.id === 'calendar' ? schoolCalendar : null}
-          {category.id === 'schedule' ? schoolBells : null}
+          {/* Horário das aulas inside Calendário (owner request 23/10/2026: no tab of its own): the
+              switch that shows the weekly grid in the Portal, then each lesson's time. */}
+          {category.id === 'calendar' ? (
+            <>
+              <div className="pa-settings-fields pa-settings-fields--after">{field('showSchedule')}</div>
+              {schoolBells}
+            </>
+          ) : null}
           {category.id === 'grades' && publicationVisited ? (
             <LiveRefreshScopeV1 active={selected === 'grades'}>
               <div className="pa-grades">{grades}</div>
