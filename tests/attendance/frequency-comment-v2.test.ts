@@ -37,7 +37,7 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
     expect(year(older(52, 2))).toEqual({
       kind: 'over-limit',
       tone: 'alert',
-      text: 'Já faltou cerca de 52 dias. O máximo permitido é 50 dias. Pode reprovar por falta.',
+      text: 'Já faltou cerca de 52 dias. O limite da lei é 50 dias. Pode reprovar por falta.',
     });
   });
 
@@ -45,7 +45,7 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
     // 30 old days plus 12 of the last 20 weekdays (60%): 42 now, about 23 more in 39 days.
     const comment = year([...older(30, 3).filter((date) => date < weekdays.at(-20)!), ...recent(20).filter((_, index) => index % 5 < 3)]);
     expect(comment?.kind).toBe('will-pass');
-    expect(comment?.text).toMatch(/^Já faltou cerca de \d+ dias, de 50 dias permitidos\. Faltando assim, vai passar do máximo\.$/u);
+    expect(comment?.text).toMatch(/^Já faltou cerca de \d+ dias\. Faltando assim, vai passar do limite de 50 dias\.$/u);
   });
 
   it('three weekdays in a row without coming, unjustified; a Saturday between never breaks it', () => {

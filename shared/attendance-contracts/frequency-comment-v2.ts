@@ -5,7 +5,8 @@ import type { FrequencyDayV2, FrequencySummaryV2 } from './frequency-v2';
  * 22/10/2026). Plain words for families: only absences WITHOUT justification (justified ones are
  * transport, medical appointments… and never count), told in days ("cerca de"): the student's
  * absences in lessons divided by their own average of lessons per day, rounded to the nearest
- * whole day. The law's 75% makes the maximum 50 of the 200 school days. Saturdays are symbolic
+ * whole day. The law's 75% makes the limit 50 of the 200 school days, never told as days "permitidos"
+ * (owner decision 22/10/2026: it is not a right to miss them). Saturdays are symbolic
  * compensation days with automatic attendance, so they never show a trend (only weekdays do).
  * Only the first sentence that applies is shown; with none, nothing is shown.
  */
@@ -87,9 +88,9 @@ export function frequencyCommentV2({
   const alert = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'alert', text });
   const good = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'good', text });
   if (absenceDays > MAXIMUM_ABSENCE_DAYS_V2)
-    return alert('over-limit', `Já faltou cerca de ${days(shown)}. O máximo permitido é ${MAXIMUM_ABSENCE_DAYS_V2} dias. Pode reprovar por falta.`);
+    return alert('over-limit', `Já faltou cerca de ${days(shown)}. O limite da lei é ${MAXIMUM_ABSENCE_DAYS_V2} dias. Pode reprovar por falta.`);
   if (absenceDays + recentRate * remainingSchoolDays > MAXIMUM_ABSENCE_DAYS_V2)
-    return alert('will-pass', `Já faltou cerca de ${days(shown)}, de ${MAXIMUM_ABSENCE_DAYS_V2} dias permitidos. Faltando assim, vai passar do máximo.`);
+    return alert('will-pass', `Já faltou cerca de ${days(shown)}. Faltando assim, vai passar do limite de ${MAXIMUM_ABSENCE_DAYS_V2} dias.`);
   if (absenceDays >= 40)
     return alert('near-limit', `Já faltou cerca de ${days(shown)}. Só pode faltar mais ${days(Math.max(0, MAXIMUM_ABSENCE_DAYS_V2 - shown))} este ano.`);
   if (streak >= 3)

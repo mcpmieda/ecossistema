@@ -259,8 +259,8 @@ const later = <T,>(value: () => T, signal: AbortSignal) =>
  * admin" panel: the same wording the server writes, with invented numbers.
  */
 export const DEMO_FREQUENCY_COMMENTS_V3: Record<FrequencyCommentKindV2, { label: string; tone: 'alert' | 'good'; text: string }> = {
-  'over-limit': { label: 'Já passou do limite', tone: 'alert', text: 'Já faltou cerca de 52 dias. O máximo permitido é 50 dias. Pode reprovar por falta.' },
-  'will-pass': { label: 'Vai passar do limite', tone: 'alert', text: 'Já faltou cerca de 43 dias, de 50 dias permitidos. Faltando assim, vai passar do máximo.' },
+  'over-limit': { label: 'Já passou do limite', tone: 'alert', text: 'Já faltou cerca de 52 dias. O limite da lei é 50 dias. Pode reprovar por falta.' },
+  'will-pass': { label: 'Vai passar do limite', tone: 'alert', text: 'Já faltou cerca de 43 dias. Faltando assim, vai passar do limite de 50 dias.' },
   'near-limit': { label: 'Perto do limite', tone: 'alert', text: 'Já faltou cerca de 45 dias. Só pode faltar mais 5 dias este ano.' },
   'in-a-row': { label: 'Dias seguidos sem vir', tone: 'alert', text: 'Não vem à escola desde 19/10 (3 dias seguidos).' },
   rising: { label: 'Faltando mais', tone: 'alert', text: 'Faltou cerca de 6 dias nas últimas 4 semanas. Antes, faltava menos.' },
