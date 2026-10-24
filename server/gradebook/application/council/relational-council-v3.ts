@@ -242,7 +242,6 @@ async function openSessionV3(db: GradebookPostgresTransactionV1, request: OpenRe
   await recordIdempotency(db, request, 1, actorId);
   await db.executeNative(`INSERT INTO gradebook.conselho_sessao_historico (ano,turma_id,versao,evento,estado_anterior,estado_novo,justificativa,alterado_por,chave_idempotencia) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [request.year, request.classId, 1, SESSION_EVENT.open, null, SESSION_STATE.open, request.justification, actorId, request.idempotencyKey]);
   return ready(db, request);
-  return ready(db, request);
 }
 
 /** Reopening a closed meeting, with its justification in the history. */
@@ -258,7 +257,6 @@ async function reopenSessionV3(
   if (newVersion === null) return fail('version-conflict', currentVersion);
   await recordIdempotency(db, request, newVersion, actorId);
   await db.executeNative(`INSERT INTO gradebook.conselho_sessao_historico (ano,turma_id,versao,evento,estado_anterior,estado_novo,justificativa,alterado_por,chave_idempotencia) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [request.year, request.classId, newVersion, SESSION_EVENT.reopen, SESSION_STATE.closed, SESSION_STATE.open, request.justification, actorId, request.idempotencyKey]);
-  return ready(db, request);
   return ready(db, request);
 }
 
