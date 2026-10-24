@@ -147,7 +147,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
         <div className="learning-component-scroll"><AnalyticsBarsV6 items={value.components.map((item) => ({
           id: item.offer.id, label: item.offer.subject.label, value: item.summary.result.mean,
           below: item.summary.result.mean !== null && item.summary.result.mean < value.minimumPercent,
-          secondary: `${item.summary.below} abaixo da referência · ${item.summary.complete} com resultado${item.summary.movement.meanDeltaPP !== null ? ` · ${delta(item.summary.movement.meanDeltaPP)}` : ''}`,
+          secondary: `${item.summary.below} abaixo da referência · ${item.summary.complete} com resultado${item.summary.movement.meanDeltaPP !== null ? ' · ' + delta(item.summary.movement.meanDeltaPP) : ''}`,
         }))} onSelect={onComponent} /></div>
       </Panel>
     </div>

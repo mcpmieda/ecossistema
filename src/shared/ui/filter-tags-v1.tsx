@@ -33,7 +33,7 @@ export function FilterTagsV1({
       disallowEmptySelection={single}
       selectedKeys={selected as Set<string>}
       size="sm"
-      className={`filter-tags-v1${inline ? ' filter-tags-v1--inline' : ''}${className ? ` ${className}` : ''}`}
+      className={`filter-tags-v1${inline ? ' filter-tags-v1--inline' : ''}${className ? ' ' + className : ''}`}
       onSelectionChange={(keys) => {
         const allowed = new Set(options.map((item) => item.id));
         onChange(

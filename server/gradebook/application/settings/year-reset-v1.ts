@@ -82,6 +82,11 @@ async function first(
   return (await database.query<Row>(sql, values))[0] ?? null;
 }
 
+/** One count per reconciliation table of the year, summed in SQL. */
+const RECONCILIATION_COUNTS_SQL_V1 = RECONCILIATION_TABLES_V1.map(
+  (table) => '(SELECT count(*) FROM gradebook.' + table + ' r,y WHERE r.academic_year=y.ano)',
+).join('+');
+
 async function loadCounts(
   database: GradebookPostgresTransactionV1,
   year: number,
@@ -91,7 +96,7 @@ async function loadCounts(
     `WITH y AS (SELECT $1::smallint AS ano)
      SELECT
        (SELECT count(*)::integer FROM gradebook.ano_letivo a,y WHERE a.ano=y.ano) AS academic_year,
-       (${RECONCILIATION_TABLES_V1.map((table) => `(SELECT count(*) FROM gradebook.${table} r,y WHERE r.academic_year=y.ano)`).join('+')}
+       (${RECONCILIATION_COUNTS_SQL_V1}
          +student_portal.reconciliation_credential_counts_v1($1::smallint))::integer AS reconciliation,
        (SELECT count(*)::integer FROM gradebook.aluno a,y WHERE a.ano=y.ano) AS students,
        (SELECT count(*)::integer FROM gradebook.turma t,y WHERE t.ano=y.ano) AS classes,
@@ -284,7 +289,7 @@ export function createYearResetServiceV1(database: GradebookPostgresWritePortV1,
               await lockYearResetV1(transaction, request.year, request.operation);
               if (request.operation === 'execute') {
                 await transaction.executeNative(
-                  `LOCK TABLE ${RESET_TABLES_V1.map((table) => `gradebook.${table}`).join(',')} IN SHARE ROW EXCLUSIVE MODE`,
+                  `LOCK TABLE ${RESET_TABLES_V1.map((table) => 'gradebook.' + table).join(',')} IN SHARE ROW EXCLUSIVE MODE`,
                   [],
                 );
               }

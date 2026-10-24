@@ -99,7 +99,7 @@ function TermValueV1({ subjects, period }: Readonly<{ subjects: readonly Subject
   const passing = (value * METER_MINIMUM_PERCENT_V1) / 100;
   return (
     <span className="pa-term-value">
-      {`vale ${number.format(value)}${minimumIsSixtyPercentV1(subjects, period) ? ` · ${number.format(passing)} passa` : ''}`}
+      {`vale ${number.format(value)}${minimumIsSixtyPercentV1(subjects, period) ? ' · ' + number.format(passing) + ' passa' : ''}`}
     </span>
   );
 }

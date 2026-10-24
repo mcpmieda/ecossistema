@@ -146,7 +146,7 @@ export function buildRelationalBulletinPdfLinesV2(
     text(
       lines,
       'section',
-      `${subject.subject.abbreviation ? `${subject.subject.abbreviation} · ` : ''}${subject.subject.label}`,
+      `${subject.subject.abbreviation ? subject.subject.abbreviation + ' · ' : ''}${subject.subject.label}`,
     );
     text(lines, 'meta', `Professor: ${subject.teacher.label}`, 20);
     for (const term of subject.terms) {
@@ -195,13 +195,14 @@ export function buildRelationalBulletinPdfLinesV2(
       text(
         lines,
         'body',
-        `REC: ${subject.annual.recoveryTerms
-          .map((recovery) =>
-            recovery.applicable
-              ? `${recovery.term}º ${recoveryGrade(recovery.source)}`
-              : `${recovery.term}º —`,
-          )
-          .join(' · ')}`,
+        'REC: ' +
+          subject.annual.recoveryTerms
+            .map((recovery) =>
+              recovery.applicable
+                ? `${recovery.term}º ${recoveryGrade(recovery.source)}`
+                : `${recovery.term}º —`,
+            )
+            .join(' · '),
         20,
       );
       text(

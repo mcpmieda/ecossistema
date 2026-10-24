@@ -594,7 +594,7 @@ const itemName = (item: BellItemV1, subject: string | null) => {
   if (item.kind === 'parada') {
     return 'Parada';
   }
-  return `${item.slot}ª aula${subject ? ` · ${subject}` : ''}`;
+  return `${item.slot}ª aula${subject ? ' · ' + subject : ''}`;
 };
 /**
  * Today, now (owner decision 23/10/2026): the lesson going on and a short clock to what comes next
@@ -864,7 +864,7 @@ export function ScheduleWeekV3({
                     after a different lesson each day, so each day is its own column). */}
               <div
                 className="pa3-schedule-week"
-                aria-label={`Horário da semana${classes.length > 1 ? `, ${item.label}` : ''}`}
+                aria-label={`Horário da semana${classes.length > 1 ? ', ' + item.label : ''}`}
                 role="group"
               >
                 {DAYS.map((day) => {

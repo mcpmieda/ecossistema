@@ -180,7 +180,7 @@ function reasonForState(
     case 'absent':
       return `${input}:absent`;
     case 'not-applicable':
-      return `${input}:not-applicable${value.reason ? `:${value.reason}` : ''}`;
+      return `${input}:not-applicable${value.reason ? ':' + value.reason : ''}`;
     case 'insufficient-data':
       return `${input}:insufficient-data:${value.reason}`;
     case 'numeric':

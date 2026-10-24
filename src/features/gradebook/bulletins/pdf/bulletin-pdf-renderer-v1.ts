@@ -341,7 +341,7 @@ export function assembleBulletinRasterPdfV1(pages: readonly BulletinPdfRasterPag
   beginObject(2);
   const pageObjectIds = pages.map((_, index) => 3 + index * 3);
   appendAscii(
-    `<< /Type /Pages /Count ${pages.length} /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] >>\n`,
+    `<< /Type /Pages /Count ${pages.length} /Kids [${pageObjectIds.map((id) => id + ' 0 R').join(' ')}] >>\n`,
   );
   endObject();
 

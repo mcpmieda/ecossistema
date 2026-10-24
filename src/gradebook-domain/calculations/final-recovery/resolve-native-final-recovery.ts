@@ -208,7 +208,7 @@ function reasonForState(
     case 'absent':
       return `${input}[${term}]:absent`;
     case 'not-applicable':
-      return `${input}[${term}]:not-applicable${value.reason ? `:${value.reason}` : ''}`;
+      return `${input}[${term}]:not-applicable${value.reason ? ':' + value.reason : ''}`;
     case 'insufficient-data':
       return `${input}[${term}]:insufficient-data:${value.reason}`;
     case 'numeric':
