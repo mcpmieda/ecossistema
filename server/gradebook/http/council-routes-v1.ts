@@ -74,7 +74,7 @@ function operationFromPayload(value: unknown): CouncilHttpOperationV1 | null {
 function isInstitutionalOperation(
   operation: CouncilHttpOperationV1,
 ): operation is CouncilInstitutionalOperationV2 {
-  return COUNCIL_INSTITUTIONAL_OPERATIONS_V2.includes(operation);
+  return COUNCIL_INSTITUTIONAL_OPERATIONS_V2.some((candidate) => candidate === operation);
 }
 
 function invalidQueue(outcome: 'invalid-request' | 'invalid-cursor'): Response {

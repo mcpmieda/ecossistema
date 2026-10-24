@@ -30,7 +30,7 @@ export function buildPerformanceDashboardOverviewV5(
   for (const studentId of eligibleIds) {
     const row = rows.get(studentId);
     const buckets = row?.values.map((value) => value.bucket) ?? [];
-    if (buckets.includes('below')) groups.withBelow.push(studentId);
+    if (buckets.some((bucket) => bucket === 'below')) groups.withBelow.push(studentId);
     else if (buckets.length > 0 && buckets.every((bucket) => bucket === 'above')) {
       groups.allAtOrAbove.push(studentId);
     } else groups.pending.push(studentId);

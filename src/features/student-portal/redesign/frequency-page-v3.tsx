@@ -488,7 +488,7 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
   const lastMonth = lastMonthOf(academicYear);
   // The current month, kept inside the school year: from January the page stays on December.
   const todayMonth = today.slice(0, 7);
-  const current = todayMonth > lastMonth ? lastMonth : Math.max(todayMonth, firstMonth);
+  const current = todayMonth > lastMonth ? lastMonth : todayMonth < firstMonth ? firstMonth : todayMonth;
   // null: the current month, which follows the calendar (a new month on the 1st); a month the
   // parent picked stays until they leave the page.
   const [chosenMonth, setChosenMonth] = useState<string | null>(null);
