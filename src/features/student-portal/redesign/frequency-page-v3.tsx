@@ -100,6 +100,27 @@ function dayOf(lessons: readonly ShiftLessonsV3[], marks: readonly MarkV3[]): Da
  * One sentence a parent reads: only counts the diary records, never what they might mean. `open`:
  * today, or a past day not read in full yet — more marks may still come, so nothing is final.
  */
+/** Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026). */
+function dayTitle(selected: string, today: string) {
+  if (selected === today) return `Hoje, ${dayLabel(selected).toLowerCase()}`;
+  if (selected === dayBefore(today)) return `Ontem, ${dayLabel(selected).toLowerCase()}`;
+  return dayLabel(selected);
+}
+
+type LessonStateV3 = 'absent' | 'justified' | 'pending' | 'clear';
+const LESSON_ICON: Record<LessonStateV3, ReactNode> = {
+  absent: <X size={16} strokeWidth={3} />,
+  justified: <FileCheck2 size={15} />,
+  pending: <Clock3 size={15} />,
+  clear: <Check size={16} strokeWidth={3} />,
+};
+const LESSON_STATE_LABEL: Record<LessonStateV3, string> = {
+  absent: 'Faltou',
+  justified: 'Justificada',
+  pending: 'A confirmar',
+  clear: 'Sem falta',
+};
+
 function daySentence(day: DayV3, open: boolean) {
   let reason: ' (justificada)' | ' (parte justificada)' | '';
   if (day.justified) {
@@ -434,6 +455,18 @@ type FrequencyPageV3Props = {
   onAuthenticationLost?: () => void;
 };
 
+/** The message for a failed read and the button that helps, when there is one. */
+function frequencyFailureV3(
+  error: string,
+  onLogin: (() => void) | undefined,
+  onRetry: () => void,
+): [string, [string, () => void] | null] {
+  if (error === 'unauthenticated')
+    return ['Sua sessão expirou. Entre novamente para ver a frequência.', onLogin ? ['Entrar', onLogin] : null];
+  if (error === 'forbidden') return ['A frequência não está disponível no momento.', null];
+  return ['Não foi possível carregar a frequência agora. Vamos tentar de novo em instantes.', ['Tentar agora', onRetry]];
+}
+
 /** While the month has not come yet, or cannot be shown: what happened, in plain words. */
 function FrequencyStatusV3({
   error,
@@ -456,12 +489,7 @@ function FrequencyStatusV3({
         </output>
       </Card>
     );
-  const [message, action] =
-    error === 'unauthenticated'
-      ? ['Sua sessão expirou. Entre novamente para ver a frequência.', onLogin ? ['Entrar', onLogin] : null]
-      : error === 'forbidden'
-        ? ['A frequência não está disponível no momento.', null]
-        : ['Não foi possível carregar a frequência agora. Vamos tentar de novo em instantes.', ['Tentar agora', onRetry]];
+  const [message, action] = frequencyFailureV3(error, onLogin, onRetry);
   return (
     <Card className="pa3-card pa3-status" role="alert">
       {month}
@@ -472,8 +500,8 @@ function FrequencyStatusV3({
         </Alert.Content>
       </Alert>
       {action ? (
-        <Button size="sm" variant="secondary" className="pa3-status-action" onPress={action[1] as () => void}>
-          {action[0] as string}
+        <Button size="sm" variant="secondary" className="pa3-status-action" onPress={action[1]}>
+          {action[0]}
         </Button>
       ) : null}
     </Card>
@@ -494,7 +522,9 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
   );
   const load = useCachedReadV3(read, usePortalPageActiveV3(), onAuthenticationLost);
   // The menu's icon: red with an X while the page shows a red warning, green otherwise.
-  useReportFrequencyToneV3(load.data ? (load.data.comment?.tone === 'alert' ? 'alert' : 'good') : null);
+  let tone: 'alert' | 'good' | null = null;
+  if (load.data) tone = load.data.comment?.tone === 'alert' ? 'alert' : 'good';
+  useReportFrequencyToneV3(tone);
   // The school's today as the server reads it (the collection agenda's timezone): a phone with a
   // wrong clock never moves "HOJE".
   const deviceToday = useTodayV3();
@@ -888,21 +918,13 @@ function FrequencyMonthV3({
 
       {selected && selectedDay ? (
         <Card className="pa3-card pa3-day-detail" aria-live="polite">
-          {/* Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026), on one line. */}
           <Card.Title className="pa3-day-detail-title">
-            {selected === today
-              ? `Hoje, ${dayLabel(selected).toLowerCase()}`
-              : selected === dayBefore(today)
-                ? `Ontem, ${dayLabel(selected).toLowerCase()}`
-                : dayLabel(selected)}
+            {dayTitle(selected, today)}
           </Card.Title>
-          {isToday ? (
+          {/* Today is always open; a past day is open while its reading is incomplete. */}
+          {isOpen ? (
             <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
-              Dia em andamento · conta a partir de amanhã
-            </Chip>
-          ) : isOpen ? (
-            <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
-              Leitura incompleta · conta quando o diário for lido
+              {isToday ? 'Dia em andamento · conta a partir de amanhã' : 'Leitura incompleta · conta quando o diário for lido'}
             </Chip>
           ) : null}
           <p className="pa3-day-detail-sub">{daySentence(selectedDay, isOpen)}</p>
@@ -915,7 +937,7 @@ function FrequencyMonthV3({
                   {group.slots.map((slot) => {
                     const mark = markAt.get(lessonKey(group.shift, slot));
                     // Today, or in a reading not complete, a lesson without a mark is still to be confirmed.
-                    let state: 'absent' | 'justified' | 'pending' | 'clear';
+                    let state: LessonStateV3;
                     if (mark?.mark === 'X') {
                       state = 'absent';
                     } else if (mark?.mark === 'J') {
@@ -930,13 +952,13 @@ function FrequencyMonthV3({
                     return (
                       <li key={slot} className={'pa3-lesson pa3-lesson--' + state}>
                         <span className="pa3-lesson-icon" aria-hidden="true">
-                          {state === 'absent' ? <X size={16} strokeWidth={3} /> : state === 'justified' ? <FileCheck2 size={15} /> : state === 'pending' ? <Clock3 size={15} /> : <Check size={16} strokeWidth={3} />}
+                          {LESSON_ICON[state]}
                         </span>
                         <span className="pa3-lesson-name">{slot}ª aula</span>
                         {info?.time ? <span className="pa3-lesson-time">{info.time}</span> : null}
                         {info?.subject ? <span className="pa3-lesson-subject">{info.subject}</span> : null}
                         <span className="pa3-lesson-state">
-                          {state === 'absent' ? 'Faltou' : state === 'justified' ? 'Justificada' : state === 'pending' ? 'A confirmar' : 'Sem falta'}
+                          {LESSON_STATE_LABEL[state]}
                         </span>
                       </li>
                     );

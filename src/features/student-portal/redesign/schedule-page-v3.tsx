@@ -100,12 +100,16 @@ function useSchoolClockV3(ticking: boolean) {
 
 /** 0 (Sunday) to 6 (Saturday), for a YYYY-MM-DD date. */
 const weekdayOf = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
+/** Days from a weekday to the Monday of the week shown (Saturday and Sunday look ahead). */
+const daysToMondayV3 = (weekday: number) => {
+  if (weekday === 6) return 2;
+  if (weekday === 0) return 1;
+  return 1 - weekday;
+};
 /** The date of a weekday in the week shown: this week, or the next one from Saturday on. */
 const dateOfWeekday = (today: string, weekday: number) => {
   const todayWeekday = weekdayOf(today);
-  const monday =
-    Date.parse(`${today}T12:00:00Z`) +
-    (todayWeekday === 6 ? 2 : todayWeekday === 0 ? 1 : 1 - todayWeekday) * 86_400_000;
+  const monday = Date.parse(`${today}T12:00:00Z`) + daysToMondayV3(todayWeekday) * 86_400_000;
   return new Date(monday + (weekday - 1) * 86_400_000).toISOString().slice(0, 10);
 };
 const shortDate = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
@@ -253,7 +257,10 @@ function DaySliderV3({
     drag.current = null;
     if (!current || current.axis !== 'x') return;
     const width = box.current?.offsetWidth ?? 1;
-    settle(current.dx < -width / 5 ? 1 : current.dx > width / 5 ? -1 : 0);
+    let step: -1 | 0 | 1 = 0;
+    if (current.dx < -width / 5) step = 1;
+    else if (current.dx > width / 5) step = -1;
+    settle(step);
   };
   return (
     <div
@@ -310,19 +317,7 @@ export function SchedulePageV3({
     return (
       <ScheduleWeekV3 classes={load.data.classes} daysOff={load.data.daysOff} ticking={active} />
     );
-  const [message, action]: [string, [string, () => void] | null] = !load.error
-    ? ['Carregando horário…', null]
-    : load.error === 'unauthenticated'
-      ? [
-          'Sua sessão expirou. Entre novamente para ver o horário.',
-          onLogin ? ['Entrar', onLogin] : null,
-        ]
-      : load.error === 'forbidden'
-        ? ['O horário não está disponível no momento.', null]
-        : [
-            'Não foi possível carregar o horário agora. Vamos tentar de novo em instantes.',
-            ['Tentar agora', load.retry],
-          ];
+  const [message, action] = scheduleStatusV3(load.error, onLogin, load.retry);
   return (
     <ScheduleWeekV3
       classes={null}
@@ -377,6 +372,40 @@ function MugV3({ steaming }: Readonly<{ steaming: boolean }>) {
   );
 }
 
+/** The message while the week has not come yet, and the button that helps, when there is one. */
+function scheduleStatusV3(
+  error: string | null,
+  onLogin: (() => void) | undefined,
+  onRetry: () => void,
+): [string, [string, () => void] | null] {
+  if (!error) return ['Carregando horário…', null];
+  if (error === 'unauthenticated')
+    return [
+      'Sua sessão expirou. Entre novamente para ver o horário.',
+      onLogin ? ['Entrar', onLogin] : null,
+    ];
+  if (error === 'forbidden') return ['O horário não está disponível no momento.', null];
+  return [
+    'Não foi possível carregar o horário agora. Vamos tentar de novo em instantes.',
+    ['Tentar agora', onRetry],
+  ];
+}
+
+/** What the clock counts down to while something goes on now. */
+function clockLabelInV3(current: BellItemV1, next: BellItemV1 | null) {
+  if (current.kind === 'intervalo') return 'Volta em';
+  if (current.kind === 'parada') return next ? 'Aulas começam em' : 'Saída em';
+  if (next?.kind === 'intervalo') return 'Intervalo em';
+  if (next?.kind === 'parada') return 'Parada em';
+  return next ? 'Próxima aula em' : 'Saída em';
+}
+
+const PASSED_LABEL: Record<BellItemV1['kind'], string> = {
+  intervalo: 'do intervalo',
+  parada: 'da parada',
+  aula: 'da aula',
+};
+
 /** One day's lessons as a list: time, subject, the break in its place, the lesson going on now. */
 function DayListV3({
   rows,
@@ -411,54 +440,58 @@ function DayListV3({
     !!item && minute !== null && !dayOver && minute >= bellMinutesV1(item.end);
   return (
     <ol className="pa3-schedule-list" aria-label={label}>
-      {rows.map((row) =>
-        row.kind === 'parada' ? (
-          <li
-            key={'parada' + row.start}
-            aria-current={isNow(row) ? 'time' : undefined}
-            className={
-              'pa3-schedule-row pa3-schedule-parada' +
-              (isNow(row) ? ' is-now' : '') +
-              (isDone(row) ? ' is-done' : '')
-            }
-          >
-            <span className="pa3-schedule-slot" aria-hidden="true">
-              <Flag size={16} />
-            </span>
-            <span className="pa3-schedule-subject">Parada</span>
-            <span className="pa3-schedule-time">
-              {isNow(row) ? (
-                <Chip size="sm" variant="primary" color="accent" className="pa3-schedule-now">
-                  agora
-                </Chip>
-              ) : null}
-              {timeText(row)}
-            </span>
-          </li>
-        ) : row.kind === 'intervalo' ? (
-          <li
-            key="intervalo"
-            aria-current={isNow(row) ? 'time' : undefined}
-            className={
-              'pa3-schedule-row pa3-schedule-break' +
-              (isNow(row) ? ' is-now' : '') +
-              (isDone(row) ? ' is-done' : '')
-            }
-          >
-            <span className="pa3-schedule-slot" aria-hidden="true">
-              <MugV3 steaming={isNow(row)} />
-            </span>
-            <span className="pa3-schedule-subject">Intervalo</span>
-            <span className="pa3-schedule-time">
-              {isNow(row) ? (
-                <Chip size="sm" variant="primary" color="warning" className="pa3-schedule-now">
-                  agora
-                </Chip>
-              ) : null}
-              {timeText(row)}
-            </span>
-          </li>
-        ) : (
+      {rows.map((row) => {
+        if (row.kind === 'parada')
+          return (
+            <li
+              key={'parada' + row.start}
+              aria-current={isNow(row) ? 'time' : undefined}
+              className={
+                'pa3-schedule-row pa3-schedule-parada' +
+                (isNow(row) ? ' is-now' : '') +
+                (isDone(row) ? ' is-done' : '')
+              }
+            >
+              <span className="pa3-schedule-slot" aria-hidden="true">
+                <Flag size={16} />
+              </span>
+              <span className="pa3-schedule-subject">Parada</span>
+              <span className="pa3-schedule-time">
+                {isNow(row) ? (
+                  <Chip size="sm" variant="primary" color="accent" className="pa3-schedule-now">
+                    agora
+                  </Chip>
+                ) : null}
+                {timeText(row)}
+              </span>
+            </li>
+          );
+        if (row.kind === 'intervalo')
+          return (
+            <li
+              key="intervalo"
+              aria-current={isNow(row) ? 'time' : undefined}
+              className={
+                'pa3-schedule-row pa3-schedule-break' +
+                (isNow(row) ? ' is-now' : '') +
+                (isDone(row) ? ' is-done' : '')
+              }
+            >
+              <span className="pa3-schedule-slot" aria-hidden="true">
+                <MugV3 steaming={isNow(row)} />
+              </span>
+              <span className="pa3-schedule-subject">Intervalo</span>
+              <span className="pa3-schedule-time">
+                {isNow(row) ? (
+                  <Chip size="sm" variant="primary" color="warning" className="pa3-schedule-now">
+                    agora
+                  </Chip>
+                ) : null}
+                {timeText(row)}
+              </span>
+            </li>
+          );
+        return (
           <li
             key={row.slot}
             className={
@@ -500,8 +533,8 @@ function DayListV3({
               </span>
             ) : null}
           </li>
-        ),
-      )}
+        );
+      })}
     </ol>
   );
 }
@@ -635,45 +668,31 @@ function NowCardV3({
   const subjectOf = (bell: BellItemV1 | null) =>
     bell?.kind === 'aula' ? subjectAt(item.lessons, weekday, bell.slot) : null;
   const until = (time: string) => bellMinutesV1(time) * 60 - seconds;
-  const [title, clockLabel, target, after] =
-    moment.state === 'in'
-      ? [
-          `Agora: ${itemName(moment.current, subjectOf(moment.current))}`,
-          moment.current.kind === 'intervalo'
-            ? 'Volta em'
-            : moment.current.kind === 'parada'
-              ? moment.next
-                ? 'Aulas começam em'
-                : 'Saída em'
-              : moment.next?.kind === 'intervalo'
-                ? 'Intervalo em'
-                : moment.next?.kind === 'parada'
-                  ? 'Parada em'
-                  : moment.next
-                    ? 'Próxima aula em'
-                    : 'Saída em',
-          moment.current.end,
-          moment.next
-            ? moment.next.kind === 'intervalo'
-              ? (day[day.indexOf(moment.next) + 1] ?? null)
-              : moment.next
-            : null,
-        ]
-      : [
-          moment.state === 'before'
-            ? moment.next.kind === 'parada'
-              ? `Hoje a parada começa às ${moment.next.start}`
-              : `Hoje as aulas começam às ${moment.next.start}`
-            : `Próxima: ${itemName(moment.next, subjectOf(moment.next))}`,
-          'Começa em',
-          moment.next.start,
-          // Before the day: its first lesson (after the parada, when the day starts with one).
-          moment.state === 'before'
-            ? moment.next.kind === 'parada'
-              ? (day.find((bell) => bell.kind === 'aula') ?? null)
-              : moment.next
-            : null,
-        ];
+  let title: string;
+  let clockLabel: string;
+  let target: string;
+  let after: BellItemV1 | null = null;
+  if (moment.state === 'in') {
+    title = `Agora: ${itemName(moment.current, subjectOf(moment.current))}`;
+    clockLabel = clockLabelInV3(moment.current, moment.next);
+    target = moment.current.end;
+    // After the break comes the lesson that follows it.
+    if (moment.next?.kind === 'intervalo') after = day[day.indexOf(moment.next) + 1] ?? null;
+    else if (moment.next) after = moment.next;
+  } else {
+    clockLabel = 'Começa em';
+    target = moment.next.start;
+    if (moment.state !== 'before') {
+      title = `Próxima: ${itemName(moment.next, subjectOf(moment.next))}`;
+    } else if (moment.next.kind === 'parada') {
+      title = `Hoje a parada começa às ${moment.next.start}`;
+      // Before the day: its first lesson, after the parada the day starts with.
+      after = day.find((bell) => bell.kind === 'aula') ?? null;
+    } else {
+      title = `Hoje as aulas começam às ${moment.next.start}`;
+      after = moment.next;
+    }
+  }
   return (
     <Card className="pa3-card pa3-now" role="status" aria-live="off">
       {named ? <p className="pa3-schedule-class">{item.label}</p> : null}
@@ -692,7 +711,7 @@ function NowCardV3({
       {moment.state === 'in' ? (
         <ProgressBar
           className="pa3-now-progress"
-          aria-label={`Quanto já passou ${moment.current.kind === 'intervalo' ? 'do intervalo' : moment.current.kind === 'parada' ? 'da parada' : 'da aula'}`}
+          aria-label={`Quanto já passou ${PASSED_LABEL[moment.current.kind]}`}
           size="sm"
           color={moment.current.kind === 'intervalo' ? 'warning' : 'accent'}
           value={Math.min(
@@ -757,13 +776,13 @@ export function ScheduleWeekV3({
         Horário
       </h2>
 
-      {classes === null ? (
-        status
-      ) : classes.length === 0 ? (
+      {classes === null ? status : null}
+      {classes?.length === 0 ? (
         <Card className="pa3-card">
           <p className="pa3-schedule-empty">O horário da turma ainda não está disponível.</p>
         </Card>
-      ) : (
+      ) : null}
+      {classes && classes.length > 0 ? (
         <>
           {/* Today without school: why (ADM calendar). Otherwise the lesson going on now. */}
           {todayOff ? <DayOffV3 day={todayOff} today /> : null}
@@ -800,10 +819,10 @@ export function ScheduleWeekV3({
                 onChange={() => setPicked(day.weekday)}
               >
                 <span>{day.short}</span>
-                {isToday(day.weekday) ? (
-                  <span className="pa3-week-chip-today">hoje</span>
-                ) : offAt(day.weekday) ? (
-                  <span className="pa3-week-chip-today">sem aula</span>
+                {isToday(day.weekday) || offAt(day.weekday) ? (
+                  <span className="pa3-week-chip-today">
+                    {isToday(day.weekday) ? 'hoje' : 'sem aula'}
+                  </span>
                 ) : null}
               </ToggleButton>
             ))}
@@ -890,7 +909,7 @@ export function ScheduleWeekV3({
             </p>
           ) : null}
         </>
-      )}
+      ) : null}
     </section>
   );
 }
