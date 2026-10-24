@@ -84,6 +84,104 @@ export function projectPerformanceFactsV2(
   return { offerId, facts, closing, terms, recovery, minimumApprovalMilli };
 }
 
+type TermOutcomeV2 = PerformanceProjectionV2['terms'][number];
+type CellResultV2 = { state: PerformanceCellV2['state']; valueMilli: number | null };
+
+/** The warnings shown with a cell: of its term (or all terms), plus the recovery's in that mode. */
+function cellWarningsV2(
+  projection: PerformanceProjectionV2,
+  period: PerformancePeriodV2,
+  mode: PerformanceModeV2,
+  term: TermOutcomeV2 | null,
+) {
+  const recovery = projection.recovery;
+  return [
+    ...(period === 'annual'
+      ? projection.terms.flatMap((value) => value?.warnings ?? [])
+      : (term?.warnings ?? [])),
+    ...(mode === 'recovery'
+      ? (recovery?.warnings.filter((value) => period === 'annual' || value.term === period) ?? [])
+      : []),
+  ];
+}
+
+/** The source's own result to compare with: U for the annual recovery, AM for a regular term. */
+function sourceReferenceV2(
+  projection: PerformanceProjectionV2,
+  period: PerformancePeriodV2,
+  mode: PerformanceModeV2,
+): number | null {
+  if (period === 'annual') return mode === 'recovery' ? projection.closing.u : null;
+  return mode === 'regular' ? projection.closing.am[period - 1]! : null;
+}
+
+/** The regular result: the term's (or the year's original total) once every term is known. */
+function regularResultV2(
+  projection: PerformanceProjectionV2,
+  period: PerformancePeriodV2,
+  term: TermOutcomeV2 | null,
+): CellResultV2 {
+  const outcomes = period === 'annual' ? projection.terms : [term];
+  if (!outcomes.every((value) => value !== null)) return { state: 'unavailable', valueMilli: null };
+  // BN-DEC-042: every result counts. "partial" only marks that some instrument is blank.
+  const state = outcomes.every((value) => value!.coverage.missingSlots.length === 0)
+    ? 'complete'
+    : 'partial';
+  return {
+    state,
+    valueMilli: period === 'annual' ? projection.recovery!.originalTotalMilli : term!.roundedMilli,
+  };
+}
+
+/** The recovery result: R/R first, then not applicable, then the recovery's own value. */
+function recoveryResultV2(
+  projection: PerformanceProjectionV2,
+  period: PerformancePeriodV2,
+  applicable: boolean | null,
+): CellResultV2 {
+  const recovery = projection.recovery;
+  if (period === 'annual' && recovery?.classification === 'failed-repeat')
+    return { state: 'repeat-failure', valueMilli: null };
+  if (period !== 'annual' && recovery?.recoveryTerms[period].source === 'RR')
+    return { state: 'repeat-failure', valueMilli: null };
+  if (applicable === false) return { state: 'not-applicable', valueMilli: null };
+  if (applicable !== true || recovery === null) return { state: 'unavailable', valueMilli: null };
+  if (period === 'annual') return annualRecoveryResultV2(recovery);
+  return termRecoveryResultV2(recovery.recoveryTerms[period].source);
+}
+
+function annualRecoveryResultV2(recovery: NonNullable<PerformanceProjectionV2['recovery']>): CellResultV2 {
+  if (recovery.classification === 'failed-repeat') return { state: 'repeat-failure', valueMilli: null };
+  if (recovery.classification === 'failed-no-show') return { state: 'no-show', valueMilli: null };
+  if (recovery.postRecoveryTotalMilli === null) return { state: 'recovery-pending', valueMilli: null };
+  return { state: 'complete', valueMilli: recovery.postRecoveryTotalMilli };
+}
+
+/** A term's REC source: R/R, N/C, still to come, or its grade. */
+function termRecoveryResultV2(value: number | 'RR' | 'NC' | null): CellResultV2 {
+  if (value === 'RR') return { state: 'repeat-failure', valueMilli: null };
+  if (value === 'NC') return { state: 'no-show', valueMilli: null };
+  if (value === null) return { state: 'recovery-pending', valueMilli: null };
+  return { state: 'complete', valueMilli: value };
+}
+
+/** A read-only proportional classification using the configured annual threshold. */
+function cellLevelV2(state: PerformanceCellV2['state'], meetsMinimum: boolean | null) {
+  if (state === 'repeat-failure') return 'below';
+  if (meetsMinimum === null) return 'not-classified';
+  return meetsMinimum ? 'at-or-above' : 'below';
+}
+
+function sourceComparisonV2(
+  state: PerformanceCellV2['state'],
+  sourceReferenceMilli: number | null,
+  valueMilli: number | null,
+) {
+  if (!performanceResultCountsV2(state) || sourceReferenceMilli === null || valueMilli === null)
+    return 'unavailable';
+  return valueMilli === sourceReferenceMilli ? 'match' : 'mismatch';
+}
+
 export function performanceCellV2(
   projection: PerformanceProjectionV2,
   period: PerformancePeriodV2,
@@ -98,65 +196,18 @@ export function performanceCellV2(
     period === 'annual'
       ? (recovery?.recoveryRequired ?? null)
       : (recovery?.recoveryTerms[period].applicable ?? null);
-  const warnings = [
-    ...(period === 'annual'
-      ? projection.terms.flatMap((value) => value?.warnings ?? [])
-      : (term?.warnings ?? [])),
-    ...(mode === 'recovery'
-      ? (recovery?.warnings.filter((value) => period === 'annual' || value.term === period) ?? [])
-      : []),
-  ];
-  // The source's own result to compare with: U for the annual recovery, AM for a regular term.
-  let sourceReferenceMilli = null;
-  if (period === 'annual') {
-    if (mode === 'recovery') sourceReferenceMilli = projection.closing.u;
-  } else if (mode === 'regular') {
-    sourceReferenceMilli = projection.closing.am[period - 1]!;
-  }
+  const warnings = cellWarningsV2(projection, period, mode, term);
   const base = {
     offerId: projection.offerId,
     maximumMilli,
-    sourceReferenceMilli,
+    sourceReferenceMilli: sourceReferenceV2(projection, period, mode),
     recoveryApplicable: applicable,
     warningCodes: [...new Set(warnings.map((value) => value.code))],
   };
-  let state: PerformanceCellV2['state'] = 'unavailable';
-  let valueMilli: number | null = null;
-  if (mode === 'regular') {
-    const outcomes = period === 'annual' ? projection.terms : [term];
-    if (outcomes.every((value) => value !== null)) {
-      // BN-DEC-042: every result counts. "partial" only marks that some instrument is blank.
-      state = outcomes.every((value) => value!.coverage.missingSlots.length === 0)
-        ? 'complete'
-        : 'partial';
-      if (state === 'complete' || state === 'partial')
-        valueMilli = period === 'annual' ? recovery!.originalTotalMilli : term!.roundedMilli;
-    }
-  } else if (period === 'annual' && recovery?.classification === 'failed-repeat') {
-    state = 'repeat-failure';
-  } else if (period !== 'annual' && recovery?.recoveryTerms[period].source === 'RR') {
-    state = 'repeat-failure';
-  } else if (applicable === false) state = 'not-applicable';
-  else if (applicable === true && recovery !== null) {
-    if (period === 'annual') {
-      if (recovery.classification === 'failed-repeat') state = 'repeat-failure';
-      else if (recovery.classification === 'failed-no-show') state = 'no-show';
-      else if (recovery.postRecoveryTotalMilli === null) state = 'recovery-pending';
-      else {
-        state = 'complete';
-        valueMilli = recovery.postRecoveryTotalMilli;
-      }
-    } else {
-      const value = recovery.recoveryTerms[period].source;
-      if (value === 'RR') state = 'repeat-failure';
-      else if (value === 'NC') state = 'no-show';
-      else if (value === null) state = 'recovery-pending';
-      else {
-        state = 'complete';
-        valueMilli = value;
-      }
-    }
-  }
+  const { state, valueMilli } =
+    mode === 'regular'
+      ? regularResultV2(projection, period, term)
+      : recoveryResultV2(projection, period, applicable);
   const meetsMinimum =
     state === 'complete' || state === 'partial'
       ? resolveStudentMarkPresentationV1({
@@ -165,12 +216,6 @@ export function performanceCellV2(
           minimumApprovalMilli: projection.minimumApprovalMilli,
         })
       : null;
-  let level: 'below' | 'not-classified' | 'at-or-above' = 'below';
-  if (state !== 'repeat-failure' && meetsMinimum === null) level = 'not-classified';
-  else if (state !== 'repeat-failure' && meetsMinimum) level = 'at-or-above';
-  let sourceComparison: 'unavailable' | 'match' | 'mismatch' = 'unavailable';
-  if (performanceResultCountsV2(state) && base.sourceReferenceMilli !== null && valueMilli !== null)
-    sourceComparison = valueMilli === base.sourceReferenceMilli ? 'match' : 'mismatch';
   return {
     ...base,
     state,
@@ -180,7 +225,7 @@ export function performanceCellV2(
       : {}),
     // This is a read-only proportional classification using the configured annual threshold.
     // It is not the separate central rule that determines REC eligibility.
-    level,
-    sourceComparison,
+    level: cellLevelV2(state, meetsMinimum),
+    sourceComparison: sourceComparisonV2(state, base.sourceReferenceMilli, valueMilli),
   };
 }

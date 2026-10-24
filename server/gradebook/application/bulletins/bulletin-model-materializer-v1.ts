@@ -487,20 +487,20 @@ function findStudent(
   };
 }
 
-async function materializeReady(
-  dependencies: BulletinModelMaterializerDependenciesV1,
-  request: BulletinStudentEmissionRequestV1,
-  classGroup: ClassGroupCenterReadModelV1,
-): Promise<Extract<BulletinModelMaterializationResultV1, { readonly status: 'ready' }>> {
-  if (
-    classGroup.academicYearId !== request.academicYearId ||
-    classGroup.classGroup.value.id !== request.target.classGroupId ||
-    classGroup.classGroup.value.academicYearId !== request.academicYearId
-  ) {
-    block(BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData);
-  }
+type BulletinAssignmentV1 = ClassGroupCenterReadModelV1['assignments'][number];
+type BulletinTokensV1 = ReturnType<typeof versionToken>[];
+type BulletinBuildV1 = {
+  dependencies: BulletinModelMaterializerDependenciesV1;
+  request: BulletinStudentEmissionRequestV1;
+  assignments: readonly BulletinAssignmentV1[];
+  tokens: BulletinTokensV1;
+};
 
-  const student = findStudent(classGroup, request);
+/** The class's teaching assignments, by subject name; each must belong to this class and year. */
+function checkedAssignmentsV1(
+  classGroup: ClassGroupCenterReadModelV1,
+  request: BulletinStudentEmissionRequestV1,
+) {
   const assignments = [...classGroup.assignments].sort((left, right) => {
     if (left.subject === null || right.subject === null) return 0;
     return (
@@ -522,6 +522,115 @@ async function materializeReady(
       block(BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData);
     }
   }
+  return assignments;
+}
+
+/** The subject of an assignment, with both versions recorded in the data version. */
+function subjectOfV1(assignment: BulletinAssignmentV1, tokens: BulletinTokensV1) {
+  if (assignment.subject === null) block(BULLETIN_MATERIALIZATION_REASONS_V1.subjectNotFound);
+  tokens.push(versionToken('teaching-assignment', assignment.assignment));
+  tokens.push(versionToken('subject', assignment.subject));
+  return {
+    id: assignment.subject.value.id,
+    teachingAssignmentId: assignment.assignment.value.id,
+    displayName: assignment.subject.value.displayName,
+  };
+}
+
+function requestedTermsV1(request: BulletinStudentEmissionRequestV1) {
+  return request.period.kind === 'term' ? [request.period.term] : ACADEMIC_TERMS_V1;
+}
+
+async function annualResultV1(build: BulletinBuildV1, assignment: BulletinAssignmentV1) {
+  return build.request.period.kind === 'annual'
+    ? await loadAnnual(build.dependencies.academicRecords, build.request, assignment, build.tokens)
+    : null;
+}
+
+async function syntheticSubjectsV1(build: BulletinBuildV1) {
+  const { dependencies, request, tokens } = build;
+  const subjects: BulletinSyntheticSubjectV1[] = [];
+  for (const assignment of build.assignments) {
+    const subject = subjectOfV1(assignment, tokens);
+    const result =
+      request.period.kind === 'term'
+        ? (
+            await loadTerm(
+              dependencies.academicRecords,
+              request,
+              assignment,
+              request.period.term,
+              tokens,
+            )
+          ).summary
+        : await loadAnnual(dependencies.academicRecords, request, assignment, tokens);
+    subjects.push({ subject, result });
+  }
+  return subjects;
+}
+
+async function compositionSubjectsV1(build: BulletinBuildV1) {
+  const { dependencies, request, tokens } = build;
+  const subjects: BulletinCompositionSubjectV1[] = [];
+  for (const assignment of build.assignments) {
+    const subject = subjectOfV1(assignment, tokens);
+    const terms: BulletinTermCompositionV1[] = [];
+    for (const term of requestedTermsV1(request)) {
+      terms.push(
+        (await loadTerm(dependencies.academicRecords, request, assignment, term, tokens))
+          .composition,
+      );
+    }
+    subjects.push({ subject, terms, annualResult: await annualResultV1(build, assignment) });
+  }
+  return subjects;
+}
+
+async function detailedSubjectsV1(build: BulletinBuildV1) {
+  const { dependencies, request, tokens } = build;
+  const subjects: BulletinDetailedSubjectV1[] = [];
+  for (const assignment of build.assignments) {
+    const subject = subjectOfV1(assignment, tokens);
+    const terms: BulletinDetailedTermV1[] = [];
+    for (const term of requestedTermsV1(request)) {
+      const loaded = await loadTerm(
+        dependencies.academicRecords,
+        request,
+        assignment,
+        term,
+        tokens,
+      );
+      terms.push({
+        ...loaded.composition,
+        assessments: await loadAssessments(
+          dependencies.academicRecords,
+          request,
+          assignment,
+          term,
+          tokens,
+        ),
+      });
+    }
+    subjects.push({ subject, terms, annualResult: await annualResultV1(build, assignment) });
+  }
+  return subjects;
+}
+
+async function materializeReady(
+  dependencies: BulletinModelMaterializerDependenciesV1,
+  request: BulletinStudentEmissionRequestV1,
+  classGroup: ClassGroupCenterReadModelV1,
+): Promise<Extract<BulletinModelMaterializationResultV1, { readonly status: 'ready' }>> {
+  if (
+    classGroup.academicYearId !== request.academicYearId ||
+    classGroup.classGroup.value.id !== request.target.classGroupId ||
+    classGroup.classGroup.value.academicYearId !== request.academicYearId
+  ) {
+    block(BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData);
+  }
+
+  const student = findStudent(classGroup, request);
+  const assignments = checkedAssignmentsV1(classGroup, request);
 
   const tokens = [
     versionToken('class-group', classGroup.classGroup),
@@ -540,107 +649,15 @@ async function materializeReady(
     },
     authorityMode: BULLETIN_AUTHORITY_MODE_V1,
   } as const;
+  const build: BulletinBuildV1 = { dependencies, request, assignments, tokens };
 
   let model: BulletinModelV1;
   if (request.model === 'synthetic') {
-    const subjects: BulletinSyntheticSubjectV1[] = [];
-    for (const assignment of assignments) {
-      if (assignment.subject === null) block(BULLETIN_MATERIALIZATION_REASONS_V1.subjectNotFound);
-      tokens.push(versionToken('teaching-assignment', assignment.assignment));
-      tokens.push(versionToken('subject', assignment.subject));
-      const result =
-        request.period.kind === 'term'
-          ? (
-              await loadTerm(
-                dependencies.academicRecords,
-                request,
-                assignment,
-                request.period.term,
-                tokens,
-              )
-            ).summary
-          : await loadAnnual(dependencies.academicRecords, request, assignment, tokens);
-      subjects.push({
-        subject: {
-          id: assignment.subject.value.id,
-          teachingAssignmentId: assignment.assignment.value.id,
-          displayName: assignment.subject.value.displayName,
-        },
-        result,
-      });
-    }
-    model = { ...base, modelKind: request.model, subjects };
+    model = { ...base, modelKind: request.model, subjects: await syntheticSubjectsV1(build) };
   } else if (request.model === 'composition') {
-    const subjects: BulletinCompositionSubjectV1[] = [];
-    for (const assignment of assignments) {
-      if (assignment.subject === null) block(BULLETIN_MATERIALIZATION_REASONS_V1.subjectNotFound);
-      tokens.push(versionToken('teaching-assignment', assignment.assignment));
-      tokens.push(versionToken('subject', assignment.subject));
-      const requestedTerms =
-        request.period.kind === 'term' ? [request.period.term] : ACADEMIC_TERMS_V1;
-      const terms: BulletinTermCompositionV1[] = [];
-      for (const term of requestedTerms) {
-        terms.push(
-          (await loadTerm(dependencies.academicRecords, request, assignment, term, tokens))
-            .composition,
-        );
-      }
-      subjects.push({
-        subject: {
-          id: assignment.subject.value.id,
-          teachingAssignmentId: assignment.assignment.value.id,
-          displayName: assignment.subject.value.displayName,
-        },
-        terms,
-        annualResult:
-          request.period.kind === 'annual'
-            ? await loadAnnual(dependencies.academicRecords, request, assignment, tokens)
-            : null,
-      });
-    }
-    model = { ...base, modelKind: request.model, subjects };
+    model = { ...base, modelKind: request.model, subjects: await compositionSubjectsV1(build) };
   } else {
-    const subjects: BulletinDetailedSubjectV1[] = [];
-    for (const assignment of assignments) {
-      if (assignment.subject === null) block(BULLETIN_MATERIALIZATION_REASONS_V1.subjectNotFound);
-      tokens.push(versionToken('teaching-assignment', assignment.assignment));
-      tokens.push(versionToken('subject', assignment.subject));
-      const requestedTerms =
-        request.period.kind === 'term' ? [request.period.term] : ACADEMIC_TERMS_V1;
-      const terms: BulletinDetailedTermV1[] = [];
-      for (const term of requestedTerms) {
-        const loaded = await loadTerm(
-          dependencies.academicRecords,
-          request,
-          assignment,
-          term,
-          tokens,
-        );
-        terms.push({
-          ...loaded.composition,
-          assessments: await loadAssessments(
-            dependencies.academicRecords,
-            request,
-            assignment,
-            term,
-            tokens,
-          ),
-        });
-      }
-      subjects.push({
-        subject: {
-          id: assignment.subject.value.id,
-          teachingAssignmentId: assignment.assignment.value.id,
-          displayName: assignment.subject.value.displayName,
-        },
-        terms,
-        annualResult:
-          request.period.kind === 'annual'
-            ? await loadAnnual(dependencies.academicRecords, request, assignment, tokens)
-            : null,
-      });
-    }
-    model = { ...base, modelKind: request.model, subjects };
+    model = { ...base, modelKind: request.model, subjects: await detailedSubjectsV1(build) };
   }
 
   return { status: 'ready', model, dataVersion: dataVersion(model, tokens) };
@@ -675,6 +692,68 @@ function studentRequestOrNull(
   request: BulletinEmissionRequestV1,
 ): BulletinStudentEmissionRequestV1 | null {
   return request.target.kind === 'student' ? (request as BulletinStudentEmissionRequestV1) : null;
+}
+
+/** A class read for another year or another class cannot back the request. */
+function incompatibleClassGroupV1(
+  classGroup: ClassGroupCenterReadModelV1,
+  request: BulletinEmissionRequestV1,
+) {
+  return (
+    classGroup.academicYearId !== request.academicYearId ||
+    classGroup.classGroup.value.id !== request.target.classGroupId ||
+    classGroup.classGroup.value.academicYearId !== request.academicYearId
+  );
+}
+
+/** One student's request as is; a class request becomes one per enrolled student, in enrollment
+ * order. An empty class or an enrollment of another class is reported in `results` instead. */
+function studentRequestsV1(
+  sourceRequest: BulletinEmissionRequestV1,
+  classGroup: ClassGroupCenterReadModelV1,
+  requestIndex: number,
+  results: BulletinAggregateMaterializationItemV1[],
+): BulletinStudentEmissionRequestV1[] {
+  if (sourceRequest.target.kind === 'student') return [sourceRequest as BulletinStudentEmissionRequestV1];
+  const students = [...classGroup.students].sort((left, right) =>
+    codeUnitCompare(left.enrollment.value.id, right.enrollment.value.id),
+  );
+  if (students.length === 0) {
+    results.push({
+      requestIndex,
+      request: null,
+      materialization: unavailableMaterialization(
+        BULLETIN_MATERIALIZATION_REASONS_V1.studentTargetNotFound,
+      ),
+    });
+    return [];
+  }
+  const studentRequests: BulletinStudentEmissionRequestV1[] = [];
+  for (const { enrollment } of students) {
+    if (
+      enrollment.value.academicYearId !== sourceRequest.academicYearId ||
+      enrollment.value.classGroupId !== sourceRequest.target.classGroupId
+    ) {
+      results.push({
+        requestIndex,
+        request: null,
+        materialization: unavailableMaterialization(
+          BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData,
+        ),
+      });
+      continue;
+    }
+    studentRequests.push({
+      ...sourceRequest,
+      target: {
+        kind: 'student',
+        classGroupId: enrollment.value.classGroupId,
+        studentId: enrollment.value.studentId,
+        enrollmentId: enrollment.value.id,
+      },
+    });
+  }
+  return studentRequests;
 }
 
 export function createBulletinModelMaterializerV1(
@@ -760,75 +839,20 @@ export function createBulletinModelMaterializerV1(
           continue;
         }
 
-        if (classGroup === null) {
+        if (classGroup === null || incompatibleClassGroupV1(classGroup, sourceRequest)) {
           results.push({
             requestIndex,
             request: studentRequestOrNull(sourceRequest),
             materialization: unavailableMaterialization(
-              BULLETIN_MATERIALIZATION_REASONS_V1.classGroupNotFound,
+              classGroup === null
+                ? BULLETIN_MATERIALIZATION_REASONS_V1.classGroupNotFound
+                : BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData,
             ),
           });
           continue;
         }
 
-        if (
-          classGroup.academicYearId !== sourceRequest.academicYearId ||
-          classGroup.classGroup.value.id !== sourceRequest.target.classGroupId ||
-          classGroup.classGroup.value.academicYearId !== sourceRequest.academicYearId
-        ) {
-          results.push({
-            requestIndex,
-            request: studentRequestOrNull(sourceRequest),
-            materialization: unavailableMaterialization(
-              BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData,
-            ),
-          });
-          continue;
-        }
-
-        const studentRequests: BulletinStudentEmissionRequestV1[] = [];
-        if (sourceRequest.target.kind === 'student') {
-          studentRequests.push(sourceRequest as BulletinStudentEmissionRequestV1);
-        } else {
-          const students = [...classGroup.students].sort((left, right) =>
-            codeUnitCompare(left.enrollment.value.id, right.enrollment.value.id),
-          );
-          if (students.length === 0) {
-            results.push({
-              requestIndex,
-              request: null,
-              materialization: unavailableMaterialization(
-                BULLETIN_MATERIALIZATION_REASONS_V1.studentTargetNotFound,
-              ),
-            });
-            continue;
-          }
-          for (const { enrollment } of students) {
-            if (
-              enrollment.value.academicYearId !== sourceRequest.academicYearId ||
-              enrollment.value.classGroupId !== sourceRequest.target.classGroupId
-            ) {
-              results.push({
-                requestIndex,
-                request: null,
-                materialization: unavailableMaterialization(
-                  BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData,
-                ),
-              });
-              continue;
-            }
-            studentRequests.push({
-              ...sourceRequest,
-              target: {
-                kind: 'student',
-                classGroupId: enrollment.value.classGroupId,
-                studentId: enrollment.value.studentId,
-                enrollmentId: enrollment.value.id,
-              },
-            });
-          }
-        }
-
+        const studentRequests = studentRequestsV1(sourceRequest, classGroup, requestIndex, results);
         for (const studentRequest of studentRequests) {
           results.push({
             requestIndex,

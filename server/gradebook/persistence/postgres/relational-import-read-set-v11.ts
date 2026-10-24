@@ -65,14 +65,44 @@ export async function loadRelationalImportReadSetV11(
       values,
     )
   ).rows;
-  const scope = (row: Row) => {
-    const state = result.get(importReadIntegerV11(row.oferta_id, 'offer-id'));
-    if (!state) throw new Error('gradebook-import-read-set-unexpected-offer');
-    return state;
-  };
+  addInstrumentRowsV11(result, instruments);
+  const notes = (
+    await database.executeNative<Row>(
+      `SELECT i.oferta_id, n.instrumento_id, n.aluno_id, n.valor
+     FROM gradebook.nota n JOIN gradebook.instrumento i ON i.id = n.instrumento_id
+     JOIN gradebook.oferta o ON o.id = i.oferta_id
+     WHERE o.ano = $1 AND o.id IN (${offersSql}) /* import-read-set:notes */`,
+      values,
+    )
+  ).rows;
+  addNoteRowsV11(result, notes);
+  const closings = (
+    await database.executeNative<Row>(
+      `SELECT f.oferta_id, f.aluno_id, f.am1_fonte, f.am2_fonte, f.am3_fonte,
+       f.rec1, f.rec2, f.rec3, f.rec_nc_mask, f.rec_rr_mask, f.u_fonte
+     FROM gradebook.fechamento f JOIN gradebook.oferta o ON o.id = f.oferta_id
+     WHERE o.ano = $1 AND o.id IN (${offersSql}) /* import-read-set:closings */`,
+      values,
+    )
+  ).rows;
+  addClosingRowsV11(result, closings);
+  return result;
+}
+
+/** The offer a read row belongs to; a row of another offer is refused. */
+function readStateOfV11(result: ReadonlyMap<number, ImportOfferReadStateV11>, row: Row) {
+  const state = result.get(importReadIntegerV11(row.oferta_id, 'offer-id'));
+  if (!state) throw new Error('gradebook-import-read-set-unexpected-offer');
+  return state;
+}
+
+function addInstrumentRowsV11(
+  result: ReadonlyMap<number, ImportOfferReadStateV11>,
+  rows: readonly Row[],
+) {
   const seenInstrumentIds = new Set<number>();
-  for (const row of instruments) {
-    const state = scope(row);
+  for (const row of rows) {
+    const state = readStateOfV11(result, row);
     const key = `${importReadIntegerV11(row.trimestre, 'term')}:${importReadIntegerV11(row.slot, 'slot')}`;
     if (state.instruments.has(key))
       throw new Error('gradebook-import-read-set-duplicate-instrument');
@@ -86,23 +116,20 @@ export async function loadRelationalImportReadSetV11(
       descricao: nullableText(row.descricao),
     });
   }
-  const notes = (
-    await database.executeNative<Row>(
-      `SELECT i.oferta_id, n.instrumento_id, n.aluno_id, n.valor
-     FROM gradebook.nota n JOIN gradebook.instrumento i ON i.id = n.instrumento_id
-     JOIN gradebook.oferta o ON o.id = i.oferta_id
-     WHERE o.ano = $1 AND o.id IN (${offersSql}) /* import-read-set:notes */`,
-      values,
-    )
-  ).rows;
+}
+
+function addNoteRowsV11(
+  result: ReadonlyMap<number, ImportOfferReadStateV11>,
+  rows: readonly Row[],
+) {
   const instrumentIds = new Map(
     [...result].map(([id, state]) => [
       id,
       new Set([...state.instruments.values()].map((instrument) => instrument.id)),
     ]),
   );
-  for (const row of notes) {
-    const state = scope(row);
+  for (const row of rows) {
+    const state = readStateOfV11(result, row);
     const id = importReadIntegerV11(row.instrumento_id, 'instrument-id');
     const key = `${id}:${importReadIntegerV11(row.aluno_id, 'student-id')}`;
     if (state.notes.has(key)) throw new Error('gradebook-import-read-set-duplicate-note');
@@ -111,17 +138,14 @@ export async function loadRelationalImportReadSetV11(
     state.notes.set(key, nullableInteger(row.valor, 'note'));
     state.observedInstruments.add(id);
   }
-  const closings = (
-    await database.executeNative<Row>(
-      `SELECT f.oferta_id, f.aluno_id, f.am1_fonte, f.am2_fonte, f.am3_fonte,
-       f.rec1, f.rec2, f.rec3, f.rec_nc_mask, f.rec_rr_mask, f.u_fonte
-     FROM gradebook.fechamento f JOIN gradebook.oferta o ON o.id = f.oferta_id
-     WHERE o.ano = $1 AND o.id IN (${offersSql}) /* import-read-set:closings */`,
-      values,
-    )
-  ).rows;
-  for (const row of closings) {
-    const state = scope(row);
+}
+
+function addClosingRowsV11(
+  result: ReadonlyMap<number, ImportOfferReadStateV11>,
+  rows: readonly Row[],
+) {
+  for (const row of rows) {
+    const state = readStateOfV11(result, row);
     const id = importReadIntegerV11(row.aluno_id, 'student-id');
     if (state.closing.has(id)) throw new Error('gradebook-import-read-set-duplicate-closing');
     state.closing.set(id, {
@@ -141,7 +165,6 @@ export async function loadRelationalImportReadSetV11(
       u: nullableInteger(row.u_fonte, 'u'),
     });
   }
-  return result;
 }
 
 export interface ImportCatalogSourceV11 {
@@ -154,6 +177,19 @@ export interface ImportResolvedCatalogV11 {
   readonly disciplinaId: number;
   readonly catalogChanged: boolean;
 }
+
+type DisciplineChoiceV11 = { id: number; changed: boolean };
+type DisciplineGroupV11 = {
+  source: ImportCatalogSourceV11;
+  id: number | null;
+  currentName: string | null;
+  sources: ImportCatalogSourceV11[];
+};
+type DisciplinesV11 = {
+  ids: Map<number, DisciplineChoiceV11>;
+  writes: number;
+  globalAcademicChange: boolean;
+};
 
 /** SQL owns normalized subject identity. Ambiguous display labels retain V9's sequential resolver. */
 export async function resolveRelationalImportCatalogV11(
@@ -170,132 +206,268 @@ export async function resolveRelationalImportCatalogV11(
   const sourceByIndex = new Map(sources.map((source) => [source.sourceIndex, source]));
   if (sourceByIndex.size !== sources.length)
     throw new Error('gradebook-import-duplicate-source-index');
-  let writes = 0;
-  let globalAcademicChange = false;
-  const disciplineIds = new Map<number, { id: number; changed: boolean }>();
   // V9 reads the raw label with SQL btrim (U+0020 only), then persists JS trim.
   // Other boundary whitespace therefore requires its original source-order
   // resolver for every subject; mixing preloaded creates would change conflicts.
   const needsSequentialWhitespace = sources.some(
     (source) => source.name.trim() !== trimCharsV1(source.name, ' '),
   );
-  if (needsSequentialWhitespace) {
-    for (const source of [...sources].sort((a, b) => a.sourceIndex - b.sourceIndex)) {
-      const resolved = await resolveAmbiguous(source.name);
-      disciplineIds.set(source.sourceIndex, {
-        id: importReadIntegerV11(resolved.id, 'discipline-id'),
-        changed: resolved.changed,
-      });
-    }
-  } else {
-    const groups = new Map<
-      string,
-      {
-        source: ImportCatalogSourceV11;
-        id: number | null;
-        currentName: string | null;
-        sources: ImportCatalogSourceV11[];
-      }
-    >();
-    const seen = new Set<number>();
-    const disciplineKeysById = new Map<number, string>();
-    for (const chunk of jsonRecordChunksV1(
-      sources.map((source) =>
-        serializeJsonRecordV1({ source_index: source.sourceIndex, nome: source.name }),
-      ),
-    )) {
-      const rows = (
-        await database.executeNative<Row>(
-          `SELECT s.source_index, lower(btrim(s.nome)) AS normalized, d.id, d.nome
+  const disciplines = needsSequentialWhitespace
+    ? await resolveDisciplinesInOrderV11(sources, resolveAmbiguous)
+    : await resolveDisciplinesInSqlV11(database, ano, sources, sourceByIndex, resolveAmbiguous);
+  const offers = await resolveOffersV11(database, ano, professorId, sources, disciplines.ids);
+  return {
+    offers: offers.offers,
+    writes: disciplines.writes + offers.writes,
+    globalAcademicChange: disciplines.globalAcademicChange,
+  };
+}
+
+/** Every subject through V9's resolver, in source order. */
+async function resolveDisciplinesInOrderV11(
+  sources: readonly ImportCatalogSourceV11[],
+  resolveAmbiguous: (name: string) => Promise<{ id: number; changed: boolean }>,
+): Promise<DisciplinesV11> {
+  const ids = new Map<number, DisciplineChoiceV11>();
+  for (const source of [...sources].sort((a, b) => a.sourceIndex - b.sourceIndex)) {
+    const resolved = await resolveAmbiguous(source.name);
+    ids.set(source.sourceIndex, {
+      id: importReadIntegerV11(resolved.id, 'discipline-id'),
+      changed: resolved.changed,
+    });
+  }
+  return { ids, writes: 0, globalAcademicChange: false };
+}
+
+/** Subjects read, created and renamed in batches; labels written differently stay sequential. */
+async function resolveDisciplinesInSqlV11(
+  database: GradebookPostgresWritePortV1,
+  ano: number,
+  sources: readonly ImportCatalogSourceV11[],
+  sourceByIndex: ReadonlyMap<number, ImportCatalogSourceV11>,
+  resolveAmbiguous: (name: string) => Promise<{ id: number; changed: boolean }>,
+): Promise<DisciplinesV11> {
+  const ids = new Map<number, DisciplineChoiceV11>();
+  const { groups, disciplineKeysById } = await readDisciplineGroupsV11(
+    database,
+    ano,
+    sources,
+    sourceByIndex,
+  );
+  const plan = await planDisciplineWritesV11(groups, ids, resolveAmbiguous);
+  let writes = await createDisciplinesV11(database, ano, plan.creates, {
+    groups,
+    disciplineKeysById,
+    ids,
+  });
+  writes += await updateDisciplinesV11(database, ano, plan.updates);
+  return { ids, writes, globalAcademicChange: plan.globalAcademicChange };
+}
+
+async function readDisciplineGroupsV11(
+  database: GradebookPostgresWritePortV1,
+  ano: number,
+  sources: readonly ImportCatalogSourceV11[],
+  sourceByIndex: ReadonlyMap<number, ImportCatalogSourceV11>,
+) {
+  const groups = new Map<string, DisciplineGroupV11>();
+  const seen = new Set<number>();
+  const disciplineKeysById = new Map<number, string>();
+  for (const chunk of jsonRecordChunksV1(
+    sources.map((source) =>
+      serializeJsonRecordV1({ source_index: source.sourceIndex, nome: source.name }),
+    ),
+  )) {
+    const rows = (
+      await database.executeNative<Row>(
+        `SELECT s.source_index, lower(btrim(s.nome)) AS normalized, d.id, d.nome
        FROM gradebook.disciplina d RIGHT JOIN jsonb_to_recordset($2::text::jsonb) AS s(source_index integer, nome text)
          ON d.ano = $1 AND lower(btrim(d.nome)) = lower(btrim(s.nome)) /* import-catalog:disciplines-read */`,
-          [ano, postgresJsonTextV1(chunk.jsonText)],
-        )
-      ).rows;
-      if (rows.length !== chunk.rows)
-        throw new Error('gradebook-import-catalog-cardinality-mismatch');
-      for (const row of rows) {
-        const index = importReadIntegerV11(row.source_index, 'source-index');
-        const source = sourceByIndex.get(index);
-        if (!source || seen.has(index) || typeof row.normalized !== 'string')
-          throw new Error('gradebook-import-catalog-unexpected-source');
-        seen.add(index);
-        const id = row.id === null ? null : importReadIntegerV11(row.id, 'discipline-id');
-        const currentName = nullableText(row.nome);
-        if (id !== null) {
-          const priorKey = disciplineKeysById.get(id);
-          if (priorKey !== undefined && priorKey !== row.normalized)
-            throw new Error('gradebook-import-catalog-duplicate-discipline-id');
-          disciplineKeysById.set(id, row.normalized);
-        }
-        const group = groups.get(row.normalized);
-        if (group) {
-          if (group.id !== id || group.currentName !== currentName)
-            throw new Error('gradebook-import-catalog-ambiguous-result');
-          group.sources.push(source);
-        } else groups.set(row.normalized, { source, id, currentName, sources: [source] });
-      }
-    }
-    if (seen.size !== sources.length) throw new Error('gradebook-import-catalog-missing-source');
-    const creates: Array<{ nome: string; normalized: string }> = [];
-    const updates: Array<{ id: number; nome: string }> = [];
-    for (const [normalized, group] of groups) {
-      if (new Set(group.sources.map((source) => source.name.trim())).size > 1) {
-        for (const source of group.sources.sort((a, b) => a.sourceIndex - b.sourceIndex))
-          disciplineIds.set(source.sourceIndex, await resolveAmbiguous(source.name));
-        continue;
-      }
-      const changed = group.id === null || group.currentName !== group.source.name.trim();
-      if (group.id === null) creates.push({ nome: group.source.name.trim(), normalized });
-      else {
-        if (changed) {
-          updates.push({ id: group.id, nome: group.source.name.trim() });
-          globalAcademicChange = true;
-        }
-        for (const source of group.sources)
-          disciplineIds.set(source.sourceIndex, { id: group.id, changed });
-      }
-    }
-    for (const chunk of jsonRecordChunksV1(creates.map(serializeJsonRecordV1))) {
-      const execution = await database.executeNative<Row>(
-        `INSERT INTO gradebook.disciplina (ano, nome)
-       SELECT $1, s.nome FROM jsonb_to_recordset($2::text::jsonb) AS s(nome text, normalized text)
-       RETURNING id, lower(btrim(nome)) AS normalized /* import-catalog:disciplines-create */`,
         [ano, postgresJsonTextV1(chunk.jsonText)],
-      );
-      assertImportChangesV11(execution.changes, chunk.rows);
-      if (execution.rows.length !== chunk.rows)
-        throw new Error('gradebook-import-catalog-cardinality-mismatch');
-      const expected = new Set<string>(
-        (JSON.parse(chunk.jsonText) as typeof creates).map((row) => row.normalized),
-      );
-      for (const row of execution.rows) {
-        if (typeof row.normalized !== 'string' || !expected.delete(row.normalized))
-          throw new Error('gradebook-import-catalog-unexpected-discipline');
-        const group = groups.get(row.normalized)!;
-        const id = importReadIntegerV11(row.id, 'discipline-id');
-        if (disciplineKeysById.has(id))
-          throw new Error('gradebook-import-catalog-duplicate-discipline-id');
-        disciplineKeysById.set(id, row.normalized);
-        for (const source of group.sources)
-          disciplineIds.set(source.sourceIndex, { id, changed: true });
-      }
-      if (expected.size > 0) throw new Error('gradebook-import-catalog-missing-discipline');
-      writes += execution.changes;
+      )
+    ).rows;
+    if (rows.length !== chunk.rows)
+      throw new Error('gradebook-import-catalog-cardinality-mismatch');
+    for (const row of rows)
+      addDisciplineRowV11(row, sourceByIndex, seen, disciplineKeysById, groups);
+  }
+  if (seen.size !== sources.length) throw new Error('gradebook-import-catalog-missing-source');
+  return { groups, disciplineKeysById };
+}
+
+/** One read row: its source, the stored subject it matched (if any), grouped by normalized name. */
+function addDisciplineRowV11(
+  row: Row,
+  sourceByIndex: ReadonlyMap<number, ImportCatalogSourceV11>,
+  seen: Set<number>,
+  disciplineKeysById: Map<number, string>,
+  groups: Map<string, DisciplineGroupV11>,
+) {
+  const index = importReadIntegerV11(row.source_index, 'source-index');
+  const source = sourceByIndex.get(index);
+  if (!source || seen.has(index) || typeof row.normalized !== 'string')
+    throw new Error('gradebook-import-catalog-unexpected-source');
+  seen.add(index);
+  const id = row.id === null ? null : importReadIntegerV11(row.id, 'discipline-id');
+  const currentName = nullableText(row.nome);
+  if (id !== null) {
+    const priorKey = disciplineKeysById.get(id);
+    if (priorKey !== undefined && priorKey !== row.normalized)
+      throw new Error('gradebook-import-catalog-duplicate-discipline-id');
+    disciplineKeysById.set(id, row.normalized);
+  }
+  const group = groups.get(row.normalized);
+  if (group) {
+    if (group.id !== id || group.currentName !== currentName)
+      throw new Error('gradebook-import-catalog-ambiguous-result');
+    group.sources.push(source);
+  } else groups.set(row.normalized, { source, id, currentName, sources: [source] });
+}
+
+/** What each group needs: V9's resolver when spelled differently, a create, a rename, or nothing. */
+async function planDisciplineWritesV11(
+  groups: ReadonlyMap<string, DisciplineGroupV11>,
+  ids: Map<number, DisciplineChoiceV11>,
+  resolveAmbiguous: (name: string) => Promise<{ id: number; changed: boolean }>,
+) {
+  let globalAcademicChange = false;
+  const creates: Array<{ nome: string; normalized: string }> = [];
+  const updates: Array<{ id: number; nome: string }> = [];
+  for (const [normalized, group] of groups) {
+    if (new Set(group.sources.map((source) => source.name.trim())).size > 1) {
+      for (const source of group.sources.sort((a, b) => a.sourceIndex - b.sourceIndex))
+        ids.set(source.sourceIndex, await resolveAmbiguous(source.name));
+      continue;
     }
-    for (const chunk of jsonRecordChunksV1(updates.map(serializeJsonRecordV1))) {
-      const execution = await database.executeNative(
-        `UPDATE gradebook.disciplina d SET nome = s.nome
-       FROM jsonb_to_recordset($2::text::jsonb) AS s(id bigint, nome text)
-       WHERE d.id = s.id AND d.ano = $1 /* import-catalog:disciplines-update */`,
-        [ano, postgresJsonTextV1(chunk.jsonText)],
-      );
-      assertImportChangesV11(execution.changes, chunk.rows);
-      writes += execution.changes;
+    const changed = group.id === null || group.currentName !== group.source.name.trim();
+    if (group.id === null) creates.push({ nome: group.source.name.trim(), normalized });
+    else {
+      if (changed) {
+        updates.push({ id: group.id, nome: group.source.name.trim() });
+        globalAcademicChange = true;
+      }
+      for (const source of group.sources) ids.set(source.sourceIndex, { id: group.id, changed });
     }
   }
-  const offerKey = (turmaId: number, disciplinaId: number) =>
-    `${turmaId}:${professorId}:${disciplinaId}`;
+  return { creates, updates, globalAcademicChange };
+}
+
+async function createDisciplinesV11(
+  database: GradebookPostgresWritePortV1,
+  ano: number,
+  creates: ReadonlyArray<{ nome: string; normalized: string }>,
+  state: {
+    groups: ReadonlyMap<string, DisciplineGroupV11>;
+    disciplineKeysById: Map<number, string>;
+    ids: Map<number, DisciplineChoiceV11>;
+  },
+) {
+  let writes = 0;
+  for (const chunk of jsonRecordChunksV1(creates.map(serializeJsonRecordV1))) {
+    const execution = await database.executeNative<Row>(
+      `INSERT INTO gradebook.disciplina (ano, nome)
+       SELECT $1, s.nome FROM jsonb_to_recordset($2::text::jsonb) AS s(nome text, normalized text)
+       RETURNING id, lower(btrim(nome)) AS normalized /* import-catalog:disciplines-create */`,
+      [ano, postgresJsonTextV1(chunk.jsonText)],
+    );
+    assertImportChangesV11(execution.changes, chunk.rows);
+    if (execution.rows.length !== chunk.rows)
+      throw new Error('gradebook-import-catalog-cardinality-mismatch');
+    const expected = new Set<string>(
+      (JSON.parse(chunk.jsonText) as typeof creates).map((row) => row.normalized),
+    );
+    for (const row of execution.rows) acceptCreatedDisciplineV11(row, expected, state);
+    if (expected.size > 0) throw new Error('gradebook-import-catalog-missing-discipline');
+    writes += execution.changes;
+  }
+  return writes;
+}
+
+function acceptCreatedDisciplineV11(
+  row: Row,
+  expected: Set<string>,
+  state: {
+    groups: ReadonlyMap<string, DisciplineGroupV11>;
+    disciplineKeysById: Map<number, string>;
+    ids: Map<number, DisciplineChoiceV11>;
+  },
+) {
+  if (typeof row.normalized !== 'string' || !expected.delete(row.normalized))
+    throw new Error('gradebook-import-catalog-unexpected-discipline');
+  const group = state.groups.get(row.normalized)!;
+  const id = importReadIntegerV11(row.id, 'discipline-id');
+  if (state.disciplineKeysById.has(id))
+    throw new Error('gradebook-import-catalog-duplicate-discipline-id');
+  state.disciplineKeysById.set(id, row.normalized);
+  for (const source of group.sources) state.ids.set(source.sourceIndex, { id, changed: true });
+}
+
+async function updateDisciplinesV11(
+  database: GradebookPostgresWritePortV1,
+  ano: number,
+  updates: ReadonlyArray<{ id: number; nome: string }>,
+) {
+  let writes = 0;
+  for (const chunk of jsonRecordChunksV1(updates.map(serializeJsonRecordV1))) {
+    const execution = await database.executeNative(
+      `UPDATE gradebook.disciplina d SET nome = s.nome
+       FROM jsonb_to_recordset($2::text::jsonb) AS s(id bigint, nome text)
+       WHERE d.id = s.id AND d.ano = $1 /* import-catalog:disciplines-update */`,
+      [ano, postgresJsonTextV1(chunk.jsonText)],
+    );
+    assertImportChangesV11(execution.changes, chunk.rows);
+    writes += execution.changes;
+  }
+  return writes;
+}
+
+type OfferRecordV11 = { turma_id: number; professor_id: number; disciplina_id: number };
+type OfferResolutionV11 = {
+  professorId: number;
+  disciplineIds: ReadonlyMap<number, DisciplineChoiceV11>;
+  expectedOffers: ReadonlyMap<string, ImportCatalogSourceV11[]>;
+  offers: Map<number, ImportResolvedCatalogV11>;
+  missing: OfferRecordV11[];
+  offerSeen: Set<string>;
+  offerKeysById: Map<number, string>;
+};
+
+/** One offer row, read or just created: an expected offer, at most once; a read one may be missing. */
+function acceptOfferRowV11(resolution: OfferResolutionV11, row: Row, created: boolean) {
+  const { professorId, expectedOffers, offerSeen, offerKeysById } = resolution;
+  const turmaId = importReadIntegerV11(row.turma_id, 'class-id');
+  const teacherId = importReadIntegerV11(row.professor_id, 'professor-id');
+  const disciplinaId = importReadIntegerV11(row.disciplina_id, 'discipline-id');
+  const key = `${turmaId}:${professorId}:${disciplinaId}`;
+  const group = expectedOffers.get(key);
+  if (!group || teacherId !== professorId || offerSeen.has(key))
+    throw new Error('gradebook-import-catalog-unexpected-offer');
+  offerSeen.add(key);
+  if (row.id === null && !created) {
+    resolution.missing.push({
+      turma_id: turmaId,
+      professor_id: professorId,
+      disciplina_id: disciplinaId,
+    });
+    return;
+  }
+  const ofertaId = importReadIntegerV11(row.id, 'offer-id');
+  if (offerKeysById.has(ofertaId)) throw new Error('gradebook-import-catalog-duplicate-offer-id');
+  offerKeysById.set(ofertaId, key);
+  for (const source of group)
+    resolution.offers.set(source.sourceIndex, {
+      ofertaId,
+      disciplinaId,
+      catalogChanged: created || resolution.disciplineIds.get(source.sourceIndex)!.changed,
+    });
+}
+
+/** The sources that share one offer (class, teacher, subject), by the offer's key. */
+function groupSourcesByOfferV11(
+  sources: readonly ImportCatalogSourceV11[],
+  disciplineIds: ReadonlyMap<number, DisciplineChoiceV11>,
+  offerKey: (turmaId: number, disciplinaId: number) => string,
+) {
   const expectedOffers = new Map<string, ImportCatalogSourceV11[]>();
   for (const source of sources) {
     const discipline = disciplineIds.get(source.sourceIndex);
@@ -305,38 +477,36 @@ export async function resolveRelationalImportCatalogV11(
     group.push(source);
     expectedOffers.set(key, group);
   }
+  return expectedOffers;
+}
+
+/** The offers (class, teacher, subject): read in batches, the missing ones created. */
+async function resolveOffersV11(
+  database: GradebookPostgresWritePortV1,
+  ano: number,
+  professorId: number,
+  sources: readonly ImportCatalogSourceV11[],
+  disciplineIds: ReadonlyMap<number, DisciplineChoiceV11>,
+) {
+  const offerKey = (turmaId: number, disciplinaId: number) =>
+    `${turmaId}:${professorId}:${disciplinaId}`;
+  const expectedOffers = groupSourcesByOfferV11(sources, disciplineIds, offerKey);
   const offerRecords = [...expectedOffers.values()].map(([source]) => ({
     turma_id: source!.turmaId,
     professor_id: professorId,
     disciplina_id: disciplineIds.get(source!.sourceIndex)!.id,
   }));
-  const offers = new Map<number, ImportResolvedCatalogV11>();
-  const missing: typeof offerRecords = [];
-  const offerSeen = new Set<string>();
-  const offerKeysById = new Map<number, string>();
-  const accept = (row: Row, created: boolean) => {
-    const turmaId = importReadIntegerV11(row.turma_id, 'class-id');
-    const teacherId = importReadIntegerV11(row.professor_id, 'professor-id');
-    const disciplinaId = importReadIntegerV11(row.disciplina_id, 'discipline-id');
-    const key = offerKey(turmaId, disciplinaId);
-    const group = expectedOffers.get(key);
-    if (!group || teacherId !== professorId || offerSeen.has(key))
-      throw new Error('gradebook-import-catalog-unexpected-offer');
-    offerSeen.add(key);
-    if (row.id === null && !created) {
-      missing.push({ turma_id: turmaId, professor_id: professorId, disciplina_id: disciplinaId });
-      return;
-    }
-    const ofertaId = importReadIntegerV11(row.id, 'offer-id');
-    if (offerKeysById.has(ofertaId)) throw new Error('gradebook-import-catalog-duplicate-offer-id');
-    offerKeysById.set(ofertaId, key);
-    for (const source of group)
-      offers.set(source.sourceIndex, {
-        ofertaId,
-        disciplinaId,
-        catalogChanged: created || disciplineIds.get(source.sourceIndex)!.changed,
-      });
+  const resolution: OfferResolutionV11 = {
+    professorId,
+    disciplineIds,
+    expectedOffers,
+    offers: new Map(),
+    missing: [],
+    offerSeen: new Set(),
+    offerKeysById: new Map(),
   };
+  const { offers, missing, offerSeen } = resolution;
+  const accept = (row: Row, created: boolean) => acceptOfferRowV11(resolution, row, created);
   for (const chunk of jsonRecordChunksV1(offerRecords.map(serializeJsonRecordV1))) {
     const execution = await database.executeNative<Row>(
       `SELECT s.turma_id, s.professor_id, s.disciplina_id, o.id
@@ -352,6 +522,7 @@ export async function resolveRelationalImportCatalogV11(
   if (offerSeen.size !== expectedOffers.size)
     throw new Error('gradebook-import-catalog-missing-offer');
   for (const record of missing) offerSeen.delete(offerKey(record.turma_id, record.disciplina_id));
+  let writes = 0;
   for (const chunk of jsonRecordChunksV1(missing.map(serializeJsonRecordV1))) {
     const execution = await database.executeNative<Row>(
       `INSERT INTO gradebook.oferta (ano, turma_id, professor_id, disciplina_id)
@@ -367,5 +538,5 @@ export async function resolveRelationalImportCatalogV11(
     writes += execution.changes;
   }
   if (offers.size !== sources.length) throw new Error('gradebook-import-catalog-missing-offer');
-  return { offers, writes, globalAcademicChange };
+  return { offers, writes };
 }
