@@ -53,13 +53,13 @@ const term = (period: 'T1' | 'T2', final: number, partials: PartialV1[]) => ({
   partials,
 });
 const ongoingT3 = (partials: PartialV1[]) => ({ period: 'T3' as const, final: absent, partials });
-const recovery = (period: 'REC1' | 'REC2', value?: number) => ({
-  period,
-  final:
-    value === undefined
-      ? { kind: 'recovery-pending' as const }
-      : score(value, TERM_MAXIMUM[period === 'REC1' ? 'T1' : 'T2']),
-});
+const recovery = (period: 'REC1' | 'REC2', value?: number) => {
+  const term = period === 'REC1' ? 'T1' : 'T2';
+  return {
+    period,
+    final: value === undefined ? { kind: 'recovery-pending' as const } : score(value, TERM_MAXIMUM[term]),
+  };
+};
 
 const previewData = selfResponseV1.parse({
   contractVersion: 1,
@@ -815,9 +815,10 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     value !== undefined && (final || (recoveryDisclosed && value === early));
   const assisted = admin.academicState === 'assisted';
   const situation = admin.situation === 'none' || assisted ? undefined : admin.situation;
+  const shownSubjects = admin.singleSubject ? 1 : undefined;
   const subjects = admin.accessEnabled
     ? data.subjects
-        .slice(0, admin.singleSubject ? 1 : undefined)
+        .slice(0, shownSubjects)
         .map((subject) => {
           const subjectSituation = subjectSituationFor(admin.situation, subject.label);
           let outcome;

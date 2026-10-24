@@ -581,6 +581,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     read.clear();
     read.reload();
   };
+  const loadingNote = current?.nextCursor ? ' · lista em carregamento' : '';
+  const sealsNote = props.order === 'seals' && seals.state === 'loading' ? ' · contando selos' : '';
+  const listCount = `${orderedItems.length} ${orderedItems.length === 1 ? 'aluno' : 'alunos'}${loadingNote}${sealsNote}`;
   return (
     <>
       {props.qrMount &&
@@ -630,11 +633,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
       <Card className="pa-account-list-card">
         <Card.Content>
           <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>
-            <p role="status">
-              {current
-                ? `${orderedItems.length} ${orderedItems.length === 1 ? 'aluno' : 'alunos'}${current.nextCursor ? ' · lista em carregamento' : ''}${props.order === 'seals' && seals.state === 'loading' ? ' · contando selos' : ''}`
-                : 'Alunos'}
-            </p>
+            <p role="status">{current ? listCount : 'Alunos'}</p>
             <LiveReadNoticeV1
               failed={Boolean(read.refreshError || (props.order === 'seals' && sealError))}
             />

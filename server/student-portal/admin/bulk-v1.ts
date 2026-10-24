@@ -77,6 +77,16 @@ function sameScope(a: z.infer<typeof bulkScopeV1>, b: z.infer<typeof bulkScopeV1
   return a.academicYear === b.academicYear && a.classId === b.classId;
 }
 
+/** Why a student cannot take the bulk action: already blocked, or no way to recover the account. */
+function ineligibilityV1(
+  action: string,
+  row: Readonly<Record<string, unknown>>,
+) {
+  if (action === 'block') return row.blocked ? 'already-blocked' : null;
+  const recoveryNeeded = action !== 'qr-regenerate' || row.auth_state !== 'active';
+  return recoveryNeeded && !row.recovery_ready ? 'recovery-unavailable' : null;
+}
+
 /** Administrative primitive. The RPC boundary verifies tenant and capability before invoking it. */
 export class BulkAdminV1 {
   private readonly secret: string;
@@ -148,10 +158,7 @@ export class BulkAdminV1 {
         classId: z.number().int().positive().safe().parse(row.class_id),
         name: row.name,
         classLabel: row.class_label,
-        ineligibility: query.action === 'block'
-          ? row.blocked ? 'already-blocked' : null
-          : (query.action !== 'qr-regenerate' || row.auth_state !== 'active') && !row.recovery_ready
-            ? 'recovery-unavailable' : null,
+        ineligibility: ineligibilityV1(query.action, row),
       }));
       const proof = bulkProofTokenV1.parse(
         await seal(

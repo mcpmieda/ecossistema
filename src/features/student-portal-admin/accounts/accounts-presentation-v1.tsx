@@ -4,6 +4,11 @@ import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-
 import { StudentAvatarV1 } from '../shared/student-avatar-v1';
 import { accountStateLabelV1 } from './accounts-values-v1';
 
+function accountColorV1(account: { linkClosed?: boolean; state: string }) {
+  if (account.linkClosed) return 'default';
+  return account.state === 'active' ? 'success' : 'warning';
+}
+
 export function AccountIdentityV1({ account, detail = false }: Readonly<{ account: AdminAccountReadV2; detail?: boolean }>) {
   const name = account.name || 'Nome indisponível';
   return (
@@ -21,7 +26,7 @@ export function AccountStatusV1({ account }: Readonly<{ account: AdminAccountRea
     <div className="pa-account-tags">
       <Chip
         size="sm"
-        color={account.linkClosed ? 'default' : account.state === 'active' ? 'success' : 'warning'}
+        color={accountColorV1(account)}
         variant="soft"
       >
         {account.linkClosed ? 'Encerrada' : accountStateLabelV1(account)}

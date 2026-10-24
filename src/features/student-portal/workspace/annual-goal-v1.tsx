@@ -76,6 +76,10 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: Annual
   } else {
     Icon = Flag;
   }
+  let goalText = `O 3º trimestre vale 40 pontos. Cada ponto dele conta, e a recuperação do fim do ano é a chance de completar o que faltar.`;
+  if (goal.state === 'reached') goalText = 'O 3º trimestre continua valendo para o seu boletim.';
+  else if (goal.state === 'reachable')
+    goalText = `${points(goal.neededMilli)} ${goal.neededMilli === 1000 ? 'ponto é' : 'pontos é'} o que você precisa no 3º trimestre para fechar o ano em ${subjectInSentenceV1(subjectLabel)}.`;
   return (
     <section className={'pa-annual-goal pa-annual-goal--' + goal.state} aria-labelledby="pa-annual-goal-title">
       <header className="pa-annual-goal-header">
@@ -130,11 +134,7 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: Annual
       </div>
 
       <p className="pa-annual-goal-text">
-        {goal.state === 'reached'
-          ? 'O 3º trimestre continua valendo para o seu boletim.'
-          : goal.state === 'reachable'
-            ? `${points(goal.neededMilli)} ${goal.neededMilli === 1000 ? 'ponto é' : 'pontos é'} o que você precisa no 3º trimestre para fechar o ano em ${subjectInSentenceV1(subjectLabel)}.`
-            : `O 3º trimestre vale 40 pontos. Cada ponto dele conta, e a recuperação do fim do ano é a chance de completar o que faltar.`}
+        {goalText}
       </p>
     </section>
   );

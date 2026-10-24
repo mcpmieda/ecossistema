@@ -46,6 +46,11 @@ const eventLabels: Record<NonNullable<AdminQueryV1['event']>, string> = {
 };
 const resultLabels = { success: 'Concluído', denied: 'Negado', failed: 'Falhou' } as const;
 type FiltersV1 = Pick<AdminQueryV1, 'from' | 'until' | 'event' | 'result'>;
+function resultColor(result: string) {
+  if (result === 'success') return 'success';
+  return result === 'denied' ? 'warning' : 'danger';
+}
+
 export function StudentAuditV1(props: Readonly<OperationsPropsV1>) {
   return (
     <OperationsScopeV1 {...props}>
@@ -434,17 +439,7 @@ const AuditEventsV1 = memo(function AuditEventsV1({
                 </Table.Cell>
                 <Table.Cell>{actorLabelV1(item)}</Table.Cell>
                 <Table.Cell>
-                  <Chip
-                    size="sm"
-                    variant="soft"
-                    color={
-                      item.result === 'success'
-                        ? 'success'
-                        : item.result === 'denied'
-                          ? 'warning'
-                          : 'danger'
-                    }
-                  >
+                  <Chip size="sm" variant="soft" color={resultColor(item.result)}>
                     <Chip.Label>{resultLabels[item.result]}</Chip.Label>
                   </Chip>
                 </Table.Cell>

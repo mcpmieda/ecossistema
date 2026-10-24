@@ -117,6 +117,12 @@ function officialEditionTermV1(term: ReturnType<typeof resolveSimplifiedTermV1>)
   };
 }
 
+/** Smecel's status: 2 is assisted (AEE), 1 special, anything else regular. */
+function academicStateV1(status: unknown) {
+  if (status === 2) return 'assisted';
+  return status === 1 ? 'special' : 'regular';
+}
+
 function mark(
   value: number | null,
   maximumMilli: number | null,
@@ -417,17 +423,12 @@ export class AcademicStudentReaderPostgresV1
       for (const term of [1, 2, 3] as const) {
         const rec = recovery.recoveryTerms[term];
         if (rec.applicable !== true) continue;
-        periods.push({
-          period: `REC${term}`,
-          final:
-            rec.source === 'RR'
-              ? { kind: 'rr' }
-              : rec.source === 'NC'
-                ? { kind: 'nc' }
-                : rec.source === null
-                  ? { kind: 'recovery-pending' }
-                  : mark(rec.source, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term], minimum),
-        });
+        let final: (typeof periods)[number]['final'];
+        if (rec.source === 'RR') final = { kind: 'rr' };
+        else if (rec.source === 'NC') final = { kind: 'nc' };
+        else if (rec.source === null) final = { kind: 'recovery-pending' };
+        else final = mark(rec.source, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term], minimum);
+        periods.push({ period: `REC${term}`, final });
       }
       const classification = recovery.classification;
       let officialOutcome;
@@ -519,7 +520,7 @@ export class AcademicStudentReaderPostgresV1
         name: row.name,
         classId: eligibility.current.classId,
         classLabel: bindings[0]!.classLabel,
-        academicState: status === 2 ? 'assisted' : status === 1 ? 'special' : 'regular',
+        academicState: academicStateV1(status),
         result,
         ...(annualSituation === undefined ? {} : { annualSituation }),
       },

@@ -232,6 +232,7 @@ function RetryCountdownV1({ retryAt }: Readonly<{ retryAt: number }>) {
   const minutes = Math.ceil(seconds / 60);
   const clock =
     seconds >= 60 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : `${seconds}s`;
+  const minuteWord = minutes === 1 ? 'minuto' : 'minutos';
   return (
     <output className="pa-auth-countdown">
       <span
@@ -243,7 +244,7 @@ function RetryCountdownV1({ retryAt }: Readonly<{ retryAt: number }>) {
       </span>
       <span>
         {seconds >= 60
-          ? `Tente novamente em ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`
+          ? `Tente novamente em ${minutes} ${minuteWord}.`
           : `Tente novamente em ${seconds} segundos.`}
       </span>
     </output>

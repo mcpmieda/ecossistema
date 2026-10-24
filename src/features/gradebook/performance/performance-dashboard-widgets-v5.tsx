@@ -191,8 +191,9 @@ function ComponentBarsV5({ value, previous, selection, onSelectionChange, open }
                 } else {
                   priorCount = prior.below;
                 }
-                const change = priorCount === undefined || priorCount === count ? ''
-                  : `, ${count > priorCount ? 'mais' : 'menos'} que no ${previousPeriod}º trimestre (${priorCount})`;
+                let change = '';
+                if (priorCount !== undefined && priorCount !== count)
+                  change = `, ${count > priorCount ? 'mais' : 'menos'} que no ${previousPeriod}º trimestre (${priorCount})`;
                 return <button key={bucket} type="button" data-bar={`${column.key}:${bucket}`} className={`performance-bar performance-bar--${bucket} ${active ? 'performance-bar--selected' : ''}`}
                   style={{ height: `${Math.max(count === 0 ? 1.5 : 8, count / maximum * 86)}%` }} aria-pressed={active}
                   aria-label={`${title}: ${count} estudante(s) ${bucket === 'above' ? 'no mínimo ou acima' : 'abaixo do mínimo'}${change}`}

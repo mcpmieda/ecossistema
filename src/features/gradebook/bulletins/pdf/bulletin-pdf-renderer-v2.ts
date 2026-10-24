@@ -171,10 +171,14 @@ export function buildRelationalBulletinPdfLinesV2(
       );
       if (model.detail === 'detailed') {
         for (const instrument of term.instruments) {
+          let shown: string;
+          if (instrument.notDone) shown = 'Não fez';
+          else if (instrument.valueMilli === 0) shown = 'Tirou zero';
+          else shown = 'nota ' + grade(instrument.valueMilli);
           text(
             lines,
             'meta',
-            `${instrument.label} · ${instrument.notDone ? 'Não fez' : instrument.valueMilli === 0 ? 'Tirou zero' : 'nota ' + grade(instrument.valueMilli)} / ${grade(instrument.maximumMilli)}`,
+            `${instrument.label} · ${shown} / ${grade(instrument.maximumMilli)}`,
             36,
           );
         }

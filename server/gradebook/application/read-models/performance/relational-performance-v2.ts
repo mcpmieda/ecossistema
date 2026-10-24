@@ -93,12 +93,7 @@ function student(row: Row): PerformanceRowV2['student'] {
     name: text(row.nome),
     number: integer(row.numero),
     status,
-    statusLabel:
-      status === null
-        ? 'Em curso'
-        : status === 7 && relatedClass !== null
-          ? `ESTAVA NO ${relatedClass}`
-          : STATUS_LABELS[status],
+    statusLabel: statusLabelV2(status, relatedClass),
     indicatorEligible: status === null || status === 7,
   };
 }
@@ -171,6 +166,12 @@ function makeRow(
         : { code: decision, label: DECISION_LABELS[decision] },
     cells: projections.map((value) => performanceCellV2(value, request.period, request.mode)),
   };
+}
+
+/** The enrolment status in words; a transfer names the class the student came from. */
+function statusLabelV2(status: keyof typeof STATUS_LABELS | null, relatedClass: string | null) {
+  if (status === null) return 'Em curso';
+  return status === 7 && relatedClass !== null ? `ESTAVA NO ${relatedClass}` : STATUS_LABELS[status];
 }
 
 export async function readRelationalPerformanceV2(

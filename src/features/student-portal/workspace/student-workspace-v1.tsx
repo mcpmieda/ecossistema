@@ -400,6 +400,8 @@ function SummaryV1({
     ...(hasRecovery ? (['REC'] as const) : []),
   ];
   const active = selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
+  const activeName =
+    active === 'REC' ? 'Recuperação' : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active]);
   // Null until the first switch, so the list does not animate twice on mount; 'still' after a
   // drag, which already moved the new list into place.
   const [listMotion, setListMotion] = useState<SlideV1 | 'still' | null>(null);
@@ -506,7 +508,7 @@ function SummaryV1({
           <span>Disciplinas</span>
           <span>
             {available.length === 1
-              ? `Notas · ${active === 'REC' ? 'Recuperação' : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active])}`
+              ? `Notas · ${activeName}`
               : 'Notas'}
           </span>
         </div>
@@ -982,7 +984,8 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
       const lifted = Array.from(event.changedTouches).find((item) => item.identifier === drag.id);
       if (lifted) {
         const rawDx = lifted.clientX - drag.x;
-        drag.dx = canStep(rawDx < 0 ? 1 : -1) ? rawDx : rawDx * 0.25;
+        const step = rawDx < 0 ? 1 : -1;
+        drag.dx = canStep(step) ? rawDx : rawDx * 0.25;
         drag.samples = [...drag.samples.slice(-5), { x: lifted.clientX, at: event.timeStamp }];
         place(drag.dx);
       }

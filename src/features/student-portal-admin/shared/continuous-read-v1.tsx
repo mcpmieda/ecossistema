@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Button, Spinner } from '@heroui/react';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { useOperationalReadV1 } from '../overview/operations-values-v1';
@@ -83,7 +83,7 @@ export function useContinuousReadV1<P extends CursorPage>(
         desired = Math.max(pageSize, cache.data?.items.length ?? 0);
       }
       // Rebuild only the previously visited window; a fresh append adds one bounded page.
-      const maxPages = seed || !cache.data ? 1 : Math.max(1, cache.cursors.size) + (append ? 1 : 0);
+      const maxPages = seed || !cache.data ? 1 : Math.max(1, cache.cursors.size) + Number(append);
       const cursors = seed ? new Set(cache.cursors) : new Set<string | undefined>();
       cache.append = false;
       try {
@@ -171,20 +171,26 @@ export function ContinuousEndV1({
     observer.observe(ref.current);
     return () => observer.disconnect();
   }, [active, more, busy, failed]);
+  let status: ReactNode = null;
+  if (failed && more) {
+    status = (
+      <Button size="sm" variant="ghost" onPress={retry}>
+        Tentar carregar novamente
+      </Button>
+    );
+  } else if (more && busy) {
+    status = (
+      <>
+        <Spinner size="sm" />
+        <span>Carregando mais registros…</span>
+      </>
+    );
+  } else if (more) {
+    status = <span>Role para carregar mais registros.</span>;
+  }
   return (
     <div ref={ref} className="pa-continuous-end" role="status">
-      {failed && more ? (
-        <Button size="sm" variant="ghost" onPress={retry}>
-          Tentar carregar novamente
-        </Button>
-      ) : more && busy ? (
-        <>
-          <Spinner size="sm" />
-          <span>Carregando mais registros…</span>
-        </>
-      ) : more ? (
-        <span>Role para carregar mais registros.</span>
-      ) : null}
+      {status}
     </div>
   );
 }

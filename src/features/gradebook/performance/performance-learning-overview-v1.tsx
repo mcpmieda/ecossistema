@@ -34,6 +34,12 @@ function MetricBar({ label, caption, value, tone }: Readonly<{ label: string; ca
 
 const FILTER_BUTTON = { attention: 'Acompanhar', rising: 'Evoluções', falling: 'Quedas', all: 'Todos' } as const;
 
+/** Which group of grades is ahead, in a sentence. */
+function gapText(gapPP: number) {
+  if (gapPP === 0) return 'Mesmo desempenho nos dois grupos.';
+  return `${gapPP > 0 ? 'Qualitativo' : 'Quantitativo'} acima nesta comparação.`;
+}
+
 export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, onPeriod, onNotes }: Readonly<{
   value: PerformanceAnalyticsV6;
   onStudent: (id: number, offerId?: number) => void;
@@ -118,7 +124,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
         <div className="learning-composition">
           <MetricBar label="Quantitativo" caption="Duas avaliações por trimestre" value={learning?.dimensions.quantitativePercent ?? null} tone="accent" />
           <MetricBar label="Qualitativo" caption="Atividades + participação" value={learning?.dimensions.qualitativePercent ?? null} tone="violet" />
-          <div className="learning-composition-note">{learning?.dimensions.gapPP != null ? <><strong>{number(Math.abs(learning.dimensions.gapPP))} p.p.</strong><span>{learning.dimensions.gapPP === 0 ? 'Mesmo desempenho nos dois grupos.' : `${learning.dimensions.gapPP > 0 ? 'Qualitativo' : 'Quantitativo'} acima nesta comparação.`}</span></> : <span>Comparação aguardando notas dos dois grupos.</span>}</div>
+          <div className="learning-composition-note">{learning?.dimensions.gapPP != null ? <><strong>{number(Math.abs(learning.dimensions.gapPP))} p.p.</strong><span>{gapText(learning.dimensions.gapPP)}</span></> : <span>Comparação aguardando notas dos dois grupos.</span>}</div>
           <span className="learning-muted">Base comum: {learning?.dimensions.students ?? 0} alunos.</span>
         </div>
       </Panel>

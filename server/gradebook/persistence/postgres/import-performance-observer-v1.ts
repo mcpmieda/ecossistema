@@ -154,8 +154,13 @@ function directMutation(
   }
   return {
     category: tableCategory,
-    action: match[1] === 'insert into' ? 'insert' : match[1] === 'update' ? 'update' : 'delete',
+    action: statementActionV1(match[1]),
   };
+}
+
+function statementActionV1(verb: string | undefined) {
+  if (verb === 'insert into') return 'insert';
+  return verb === 'update' ? 'update' : 'delete';
 }
 
 /** One observer per authorized request, below V11's buffer; no parameters/results retained. */

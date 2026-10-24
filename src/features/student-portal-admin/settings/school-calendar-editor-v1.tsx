@@ -100,7 +100,7 @@ type MarkersV1 = Record<MarkerKeyV1, string | null>;
 const LOCAL_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
 /** The school day an instant names: an end is the day before its moment (its last day). */
 const dateOfInstant = (instant: string | null, end: boolean) =>
-  instant ? LOCAL_DATE.format(new Date(Date.parse(instant) - (end ? 1 : 0))) : null;
+  instant ? LOCAL_DATE.format(new Date(Date.parse(instant) - Number(end))) : null;
 /** Back to the instant, at the day's first moment in Brasília (UTC−3, no daylight saving). */
 const instantOfDate = (date: string, end: boolean) => {
   const day = end ? new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10) : date;
@@ -351,8 +351,9 @@ export function SchoolCalendarEditorV1({
             const date = `${prefix}${pad(offset + 1)}`;
             const day = draft.get(date);
             const flags = markersAt(date);
+            const note = day?.note ? ` — ${day.note}` : '';
             const label =
-              `${dayLabel(date)}: ${day ? KIND_LABELS[day.kind] + (day.note ? ` — ${day.note}` : '') : 'sem marcação'}` +
+              `${dayLabel(date)}: ${day ? KIND_LABELS[day.kind] + note : 'sem marcação'}` +
               flags.map((flag) => ` · ${flag.label}`).join('');
             return (
               <button

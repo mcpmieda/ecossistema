@@ -117,7 +117,8 @@ function ScopedPersonalizedPublicationV1(props: Props) {
             A visualização continua sujeita ao acesso, às datas e aos períodos permitidos.
           </p>
         </div>
-      ) : context && !context.resolved ? (
+      ) : null}
+      {context && !context.resolved ? (
         <p role="status">Não foi possível resolver o padrão para este vínculo.</p>
       ) : null}
       <StudentPublicationV1 {...props} />

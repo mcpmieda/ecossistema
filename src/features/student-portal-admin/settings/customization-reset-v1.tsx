@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Modal } from '@heroui/react';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
@@ -58,6 +58,20 @@ export function CustomizationResetV1({ client, label, choices, canWrite, onClose
       if (!controller.signal.aborted) setBusy(false);
     }
   }
+  let failureText = 'Não foi possível aplicar a alteração. Feche e consulte os dados novamente.';
+  if (denied) failureText = 'A autorização terminou. Feche e entre novamente.';
+  else if (failure?.state === 'conflict')
+    failureText = 'A configuração mudou. Feche, confira os dados atualizados e revise novamente.';
+  else if (retryable)
+    failureText = 'A confirmação não chegou. Tentar novamente repete a mesma solicitação, sem criar outra alteração.';
+  // One action button: retry the same request, or confirm while nothing has failed.
+  let action: ReactNode = null;
+  if (!denied && retryable)
+    action = <Button isDisabled={!canWrite || busy || clock < retryAt.current}
+      isPending={busy} onPress={() => void submit(true)}>Tentar novamente</Button>;
+  else if (!failure)
+    action = <Button variant="danger" isDisabled={!canWrite || !choice || busy}
+      isPending={busy} onPress={() => void submit()}>Confirmar retorno ao padrão</Button>;
   return (
     <Modal.Backdrop isOpen isDismissable={!busy} isKeyboardDismissDisabled={busy}
       onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
@@ -87,18 +101,12 @@ export function CustomizationResetV1({ client, label, choices, canWrite, onClose
             ) : null}
             {!denied ? <p className="text-sm text-muted">Somente a opção selecionada será redefinida. As demais personalizações, notas e registros de auditoria serão preservados. O alvo passará a acompanhar o padrão aplicável, inclusive suas próximas alterações.</p> : null}
             {failure ? (
-              <p role="alert">{denied ? 'A autorização terminou. Feche e entre novamente.'
-                : failure.state === 'conflict' ? 'A configuração mudou. Feche, confira os dados atualizados e revise novamente.'
-                  : retryable ? 'A confirmação não chegou. Tentar novamente repete a mesma solicitação, sem criar outra alteração.'
-                    : 'Não foi possível aplicar a alteração. Feche e consulte os dados novamente.'}</p>
+              <p role="alert">{failureText}</p>
             ) : null}
           </Modal.Body>
           <Modal.Footer>
             <Button variant="ghost" isDisabled={busy} onPress={onClose}>{failure ? 'Fechar e atualizar' : 'Cancelar'}</Button>
-            {!denied && retryable ? <Button isDisabled={!canWrite || busy || clock < retryAt.current}
-              isPending={busy} onPress={() => void submit(true)}>Tentar novamente</Button>
-              : !failure ? <Button variant="danger" isDisabled={!canWrite || !choice || busy}
-                isPending={busy} onPress={() => void submit()}>Confirmar retorno ao padrão</Button> : null}
+            {action}
           </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
