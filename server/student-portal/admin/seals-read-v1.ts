@@ -17,18 +17,11 @@ import { readSealCacheV1, type SealCacheWriteV1 } from './seal-cache-v1';
 
 const accountIdV1 = z.uuid();
 
-/**
- * Selos brilhantes in the ADM (owner request 29/09/2026): the count each student sees on the
- * Portal, from the same projection and the same shared rule, never a second rule. One record or
- * one class per read, inside the dispatcher's read-only snapshot; it writes nothing.
- */
-export async function readSealsV1(
-  tx: StudentPortalPostgresQueryV1,
-  query: AdminReadQueryV2,
-  requestId: string,
-  now: Date,
-  pendingCacheWrites?: SealCacheWriteV1[],
-) {
+type SealContextV1 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
+type SealPlansV1 = Awaited<ReturnType<typeof readSealCacheV1>>;
+
+/** The accounts of the read: the chosen ones (school), the one record, or the class's enrolled. */
+async function sealRowsV1(tx: StudentPortalPostgresQueryV1, query: AdminReadQueryV2) {
   const selectedIds = 'accountIds' in query ? query.accountIds : undefined;
   if (query.scope.kind === 'school' && selectedIds === undefined)
     throw new Error('student-portal-seals-invalid-request');
@@ -53,6 +46,68 @@ export async function readSealsV1(
   }
   if (rows.length > (query.scope.kind === 'school' ? 400 : 200))
     throw new Error('student-portal-admin-scope-unavailable');
+  return rows;
+}
+
+/** The publication contexts of every account, read 200 at a time. */
+async function loadSealContextsV1(
+  tx: StudentPortalPostgresQueryV1,
+  rows: readonly Readonly<Record<string, unknown>>[],
+  cacheTime: Date | undefined,
+) {
+  const contexts = new Map<string, SealContextV1>();
+  for (let offset = 0; offset < rows.length; offset += 200) {
+    const loaded = await sealContextsBatchV1(
+      tx,
+      rows.slice(offset, offset + 200).map((row) => accountIdV1.parse(row.id)),
+      cacheTime,
+    );
+    for (const [id, context] of loaded) contexts.set(id, context);
+  }
+  return contexts;
+}
+
+/** One account in a batch read: the cached count when it still holds, else the projection's. */
+async function batchSealsOfV1(
+  tx: StudentPortalPostgresQueryV1,
+  accountId: string,
+  batch: {
+    contexts: ReadonlyMap<string, SealContextV1>;
+    plans: SealPlansV1 | null;
+    sources: Awaited<ReturnType<typeof sealSourcesBatchV1>> | undefined;
+    requestId: string;
+    pendingCacheWrites: SealCacheWriteV1[] | undefined;
+  },
+): Promise<number | null> {
+  const plan = batch.plans?.get(accountId);
+  if (plan?.hit) return plan.hit.seals;
+  const context = batch.contexts.get(accountId);
+  if (!context) return null;
+  try {
+    const self = await scopedSelfV2(tx, context, batch.requestId, batch.sources);
+    const seals =
+      self.state === 'ready' ? brilliantSealCountV1(self.subjects, self.endedPeriods) : null;
+    if (plan && batch.pendingCacheWrites) batch.pendingCacheWrites.push({ ...plan.write, seals });
+    return seals;
+  } catch {
+    /* Unprepared publications expose no marks or seals, as in the one-account read. */
+    return null;
+  }
+}
+
+/**
+ * Selos brilhantes in the ADM (owner request 29/09/2026): the count each student sees on the
+ * Portal, from the same projection and the same shared rule, never a second rule. One record or
+ * one class per read, inside the dispatcher's read-only snapshot; it writes nothing.
+ */
+export async function readSealsV1(
+  tx: StudentPortalPostgresQueryV1,
+  query: AdminReadQueryV2,
+  requestId: string,
+  now: Date,
+  pendingCacheWrites?: SealCacheWriteV1[],
+) {
+  const rows = await sealRowsV1(tx, query);
   const sql: StudentPortalPostgresSqlV1 = {
     unsafe: (text, values) => tx.unsafe(text, values),
     begin: (run) => run(tx),
@@ -60,57 +115,46 @@ export async function readSealsV1(
   const items: { accountId: string; seals: number | null }[] = [];
   const useBatch =
     rows.length > 1 || pendingCacheWrites !== undefined || query.scope.kind === 'school';
-  const contexts = useBatch
-    ? new Map<string, NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>>()
-    : null;
-  if (contexts)
-    for (let offset = 0; offset < rows.length; offset += 200) {
-      const loaded = await sealContextsBatchV1(
-        tx,
-        rows.slice(offset, offset + 200).map((row) => accountIdV1.parse(row.id)),
-        pendingCacheWrites !== undefined ? now : undefined,
-      );
-      for (const [id, context] of loaded) contexts.set(id, context);
+  if (!useBatch) {
+    for (const row of rows) {
+      const accountId = accountIdV1.parse(row.id);
+      items.push({ accountId, seals: await sealsOfV1(sql, tx, accountId, requestId) });
     }
-  const plans =
-    contexts && pendingCacheWrites ? await readSealCacheV1(tx, [...contexts.values()]) : null;
+    return sealsResponseV1(requestId, now, items);
+  }
+  const contexts = await loadSealContextsV1(
+    tx,
+    rows,
+    pendingCacheWrites !== undefined ? now : undefined,
+  );
+  const plans = pendingCacheWrites ? await readSealCacheV1(tx, [...contexts.values()]) : null;
   for (let offset = 0; offset < rows.length; offset += 200) {
     const selected = rows.slice(offset, offset + 200);
-    const misses = contexts
-      ? selected.flatMap((row) => {
-          const context = contexts.get(accountIdV1.parse(row.id));
-          return context && !plans?.get(context.account.id)?.hit ? [context] : [];
-        })
-      : [];
-    const sources = contexts && misses.length ? await sealSourcesBatchV1(tx, misses) : undefined;
+    const misses = selected.flatMap((row) => {
+      const context = contexts.get(accountIdV1.parse(row.id));
+      return context && !plans?.get(context.account.id)?.hit ? [context] : [];
+    });
+    const sources = misses.length ? await sealSourcesBatchV1(tx, misses) : undefined;
     for (const row of selected) {
       const accountId = accountIdV1.parse(row.id);
-      if (!contexts)
-        items.push({ accountId, seals: await sealsOfV1(sql, tx, accountId, requestId) });
-      else {
-        const plan = plans?.get(accountId);
-        if (plan?.hit) {
-          items.push({ accountId, seals: plan.hit.seals });
-          continue;
-        }
-        const context = contexts.get(accountId);
-        let seals: number | null = null;
-        if (context) {
-          try {
-            const self = await scopedSelfV2(tx, context, requestId, sources);
-            seals =
-              self.state === 'ready'
-                ? brilliantSealCountV1(self.subjects, self.endedPeriods)
-                : null;
-            if (plan && pendingCacheWrites) pendingCacheWrites.push({ ...plan.write, seals });
-          } catch {
-            /* Unprepared publications expose no marks or seals, as in the one-account read. */
-          }
-        }
-        items.push({ accountId, seals });
-      }
+      const seals = await batchSealsOfV1(tx, accountId, {
+        contexts,
+        plans,
+        sources,
+        requestId,
+        pendingCacheWrites,
+      });
+      items.push({ accountId, seals });
     }
   }
+  return sealsResponseV1(requestId, now, items);
+}
+
+function sealsResponseV1(
+  requestId: string,
+  now: Date,
+  items: { accountId: string; seals: number | null }[],
+) {
   return adminReadResponseV2.parse({
     contractVersion: 2,
     requestId,
