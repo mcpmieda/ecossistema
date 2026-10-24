@@ -39,6 +39,34 @@ const agendaInstantsV1 = (plan: AgendaPlanV1): AgendaPlanV1 => ({
   schedule: plan.schedule.map((event) => ({ at: instant(event.at)!, action: event.action })),
 });
 
+/** The grade disclosure with its instants in UTC, second precision, kept in its own mode. */
+function disclosureInstantsV1(disclosure: CalendarV1['disclosure']) {
+  if (disclosure.mode === 'agenda')
+    return {
+      mode: 'agenda',
+      periods: Object.fromEntries(
+        Object.entries(disclosure.periods).map(([key, plan]) => [key, agendaInstantsV1(plan)]),
+      ),
+    };
+  if (disclosure.mode === 'single')
+    return {
+      ...disclosure,
+      at: instant(disclosure.at),
+      ...(disclosure.endsAt === undefined ? {} : { endsAt: instant(disclosure.endsAt) }),
+    };
+  return {
+    mode: 'per-period',
+    at: Object.fromEntries(Object.entries(disclosure.at).map(([key, value]) => [key, instant(value)])),
+    ...(disclosure.endsAt === undefined
+      ? {}
+      : {
+          endsAt: Object.fromEntries(
+            Object.entries(disclosure.endsAt).map(([key, value]) => [key, instant(value)]),
+          ),
+        }),
+  };
+}
+
 /** UTC persistence with second precision; dates are never filled from the current year. */
 export function normalizeCalendarV1(input: unknown): CalendarV1 {
   const parsed = calendarV1.parse(input);
@@ -62,41 +90,7 @@ export function normalizeCalendarV1(input: unknown): CalendarV1 {
     yearEndsAt: instant(parsed.yearEndsAt),
     finalDisclosureAt: instant(parsed.finalDisclosureAt),
     ...(parsed.finalAgenda === undefined ? {} : { finalAgenda: agendaInstantsV1(parsed.finalAgenda) }),
-    disclosure:
-      parsed.disclosure.mode === 'agenda'
-        ? {
-            mode: 'agenda',
-            periods: Object.fromEntries(
-              Object.entries(parsed.disclosure.periods).map(([key, plan]) => [
-                key,
-                agendaInstantsV1(plan),
-              ]),
-            ),
-          }
-        : parsed.disclosure.mode === 'single'
-        ? {
-            ...parsed.disclosure,
-            at: instant(parsed.disclosure.at),
-            ...(parsed.disclosure.endsAt === undefined
-              ? {}
-              : { endsAt: instant(parsed.disclosure.endsAt) }),
-          }
-        : {
-            mode: 'per-period',
-            at: Object.fromEntries(
-              Object.entries(parsed.disclosure.at).map(([key, value]) => [key, instant(value)]),
-            ),
-            ...(parsed.disclosure.endsAt === undefined
-              ? {}
-              : {
-                  endsAt: Object.fromEntries(
-                    Object.entries(parsed.disclosure.endsAt).map(([key, value]) => [
-                      key,
-                      instant(value),
-                    ]),
-                  ),
-                }),
-          },
+    disclosure: disclosureInstantsV1(parsed.disclosure),
   });
 }
 
@@ -292,13 +286,13 @@ export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): Porta
     if (opens > current && (release === null || opens < release)) release = opens;
   }
   const iso = (time: number | null) => (time === null ? null : new Date(time).toISOString());
+  // With schedules, the next scheduled opening; without them, the Calendário's start while still ahead.
+  let opensAt: number | null = null;
+  if (plan) opensAt = scheduledOpening;
+  else if (!open && value.accessEnabled && accessStart !== null && accessStart > current) opensAt = accessStart;
   return portalNoticesV1.parse({
     access: open ? 'open' : 'closed',
-    accessOpensAt: plan
-      ? iso(scheduledOpening)
-      : !open && value.accessEnabled && accessStart !== null && accessStart > current
-        ? iso(accessStart)
-        : null,
+    accessOpensAt: iso(opensAt),
     gradesReleaseAt: opensLater ? iso(release) : null,
     disclosureEnded: ended === null ? null : { period: ended.period, at: iso(ended.at)! },
   });
@@ -369,18 +363,16 @@ export function applyPublishedVisibilityV1(
     accessOn &&
     projection.profile.academicState !== 'assisted' &&
     situationVisible(annualSituation, 'in-recovery');
+  let result = projection.profile.result;
+  if (projection.profile.academicState === 'assisted') result = 'not-applicable';
+  else if (!(final && accessOn)) result = 'in-progress';
   return selfResponseV1.parse({
     ...projection,
     state: subjects.length > 0 ? 'ready' : 'no-publication',
     profile: {
       ...profile,
       ...(showSituation ? { annualSituation } : {}),
-      result:
-        projection.profile.academicState === 'assisted'
-          ? 'not-applicable'
-          : final && accessOn
-            ? projection.profile.result
-            : 'in-progress',
+      result,
     },
     subjects,
   });

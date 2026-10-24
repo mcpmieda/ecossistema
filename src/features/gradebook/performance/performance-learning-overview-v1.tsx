@@ -32,6 +32,8 @@ function MetricBar({ label, caption, value, tone }: Readonly<{ label: string; ca
   </div>;
 }
 
+const FILTER_BUTTON = { attention: 'Acompanhar', rising: 'Evoluções', falling: 'Quedas', all: 'Todos' } as const;
+
 export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, onPeriod, onNotes }: Readonly<{
   value: PerformanceAnalyticsV6;
   onStudent: (id: number, offerId?: number) => void;
@@ -99,6 +101,9 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
     { key: 'below', label: 'Abaixo em algum componente', count: count('below'), tone: 'warning' },
     { key: 'pending', label: 'Ainda sem conclusão', count: count('pending'), tone: 'muted' },
   ];
+  let emptyText = 'Nenhum aluno neste grupo.';
+  if (query) emptyText = 'Nenhum aluno encontrado nesta busca.';
+  else if (filter === 'attention' && !assessed) emptyText = 'Ainda não há notas suficientes para avaliar a recorrência.';
   return <div className="learning-overview" data-testid="performance-learning-overview-v1">
     <div className="learning-kpis learning-enter">
       {kpis.map((item) => <Card key={item.title} className={`learning-kpi learning-tone--${item.tone}`}>
@@ -142,7 +147,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
     </div>
     <div className="learning-row learning-row--action learning-enter">
       <Panel title="Acompanhamento dos alunos" hint={<Hint what="Os alunos de cada indicador desta tela." steps={['Notas: a média do aluno no período, de 0 a 100.', 'O número ao lado: quanto essa média mudou desde o trimestre anterior.']} note="Clique em um indicador para filtrar a lista. Ela mostra as notas que pedem acompanhamento; não é um diagnóstico do aluno." />}>
-        <div className="learning-filters" aria-label="Filtros de acompanhamento">{(['attention', 'rising', 'falling', 'all'] as const).map((key) => <Button key={key} size="sm" variant={filter === key ? 'secondary' : 'ghost'} aria-pressed={filter === key} onPress={() => { setFilter(key); setSearch(''); }}>{key === 'attention' ? 'Acompanhar' : key === 'rising' ? 'Evoluções' : key === 'falling' ? 'Quedas' : 'Todos'}</Button>)}</div>
+        <div className="learning-filters" aria-label="Filtros de acompanhamento">{(['attention', 'rising', 'falling', 'all'] as const).map((key) => <Button key={key} size="sm" variant={filter === key ? 'secondary' : 'ghost'} aria-pressed={filter === key} onPress={() => { setFilter(key); setSearch(''); }}>{FILTER_BUTTON[key]}</Button>)}</div>
         <div className="learning-list-heading"><h3 ref={listHeading} tabIndex={-1}>{LABELS[filter]}</h3><Chip size="sm">{selectedRows.length}</Chip></div>
         <SearchField aria-label="Buscar no acompanhamento" value={search} onChange={setSearch}><SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Buscar aluno" /><SearchField.ClearButton /></SearchField.Group></SearchField>
         <div className="learning-students">
@@ -158,9 +163,12 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
             } else {
               reasons = 'Ainda sem resultado suficiente';
             }
-            return <Table.Row key={row.student.id} id={String(row.student.id)}><Table.Cell><div className="learning-student-name"><LinkedStudentPhotoAvatarV1 decorative size="sm" className="pa-student-avatar" fallbackTone={row.student.id % 6} subject={{ source: 'gradebook', academicYear: value.context.year, studentIds: [row.student.id] }} /><Button size="sm" variant="ghost" onPress={() => onStudent(row.student.id, filter === 'attention' ? first?.offerId : undefined)} aria-label={`Ver notas de ${row.student.name}`}>{row.student.name}</Button></div></Table.Cell><Table.Cell><strong>{percent(filter === 'participation' ? row.evidence?.participation.percent ?? null : row.summary.result.mean)}</strong><span className="learning-muted">{delta(filter === 'participation' ? row.evidence?.participation.deltaPP ?? null : row.summary.movement.meanDeltaPP)}</span></Table.Cell><Table.Cell><span>{filter === 'participation' ? `${row.evidence?.participation.components ?? 0} componentes · ${row.evidence?.participation.recorded ?? 0} notas de participação` : filter === 'recovery' ? `${row.evidence?.parallelImprovements ?? 0} resultados melhorados com a paralela` : reasons}</span></Table.Cell></Table.Row>;
+            let note = reasons;
+            if (filter === 'participation') note = `${row.evidence?.participation.components ?? 0} componentes · ${row.evidence?.participation.recorded ?? 0} notas de participação`;
+            else if (filter === 'recovery') note = `${row.evidence?.parallelImprovements ?? 0} resultados melhorados com a paralela`;
+            return <Table.Row key={row.student.id} id={String(row.student.id)}><Table.Cell><div className="learning-student-name"><LinkedStudentPhotoAvatarV1 decorative size="sm" className="pa-student-avatar" fallbackTone={row.student.id % 6} subject={{ source: 'gradebook', academicYear: value.context.year, studentIds: [row.student.id] }} /><Button size="sm" variant="ghost" onPress={() => onStudent(row.student.id, filter === 'attention' ? first?.offerId : undefined)} aria-label={`Ver notas de ${row.student.name}`}>{row.student.name}</Button></div></Table.Cell><Table.Cell><strong>{percent(filter === 'participation' ? row.evidence?.participation.percent ?? null : row.summary.result.mean)}</strong><span className="learning-muted">{delta(filter === 'participation' ? row.evidence?.participation.deltaPP ?? null : row.summary.movement.meanDeltaPP)}</span></Table.Cell><Table.Cell><span>{note}</span></Table.Cell></Table.Row>;
           })}</Table.Body></Table.Content></Table.ScrollContainer></Table>
-          {!visibleRows.length ? <p className="learning-empty">{query ? 'Nenhum aluno encontrado nesta busca.' : filter === 'attention' && !assessed ? 'Ainda não há notas suficientes para avaliar a recorrência.' : 'Nenhum aluno neste grupo.'}</p> : null}
+          {!visibleRows.length ? <p className="learning-empty">{emptyText}</p> : null}
         </div>
         {reference ? <div className="learning-priority" aria-label="Nível atual e evolução">{(['below-up', 'below-down', 'above-down'] as const).map((key) => <Button key={key} size="sm" variant="ghost" onPress={() => select(key)}><strong>{count(key)}</strong><span>{LABELS[key]}</span></Button>)}</div> : null}
       </Panel>

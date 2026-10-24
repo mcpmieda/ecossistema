@@ -104,10 +104,14 @@ function DeltaV5({ now, before, bucket, period }: {
 }) {
   if (before === undefined) return null;
   const change = now - before;
+  let direction: 'up' | 'down' | 'none' = 'none';
+  if (change > 0) direction = 'up';
+  else if (change < 0) direction = 'down';
   return <span className={`performance-delta performance-delta--${bucket}`}
-    data-change={change > 0 ? 'up' : change < 0 ? 'down' : 'none'}
+    data-change={direction}
     title={`${change > 0 ? '+' : ''}${change} em relação ao ${period}º trimestre`}>
-    {change > 0 ? <ArrowUp size={9} strokeWidth={3} aria-hidden/> : change < 0 ? <ArrowDown size={9} strokeWidth={3} aria-hidden/> : null}
+    {direction === 'up' ? <ArrowUp size={9} strokeWidth={3} aria-hidden/> : null}
+    {direction === 'down' ? <ArrowDown size={9} strokeWidth={3} aria-hidden/> : null}
     {change === 0 ? '=' : Math.abs(change)}
   </span>;
 }
@@ -154,7 +158,10 @@ function ComponentBarsV5({ value, previous, selection, onSelectionChange, open }
     setBack(active);
     onSelectionChange(active ? null : { kind: 'column', key, bucket });
   };
-  return <Surface ref={card} variant="default" className={`performance-widget min-w-0 ${selectedColumn ? 'performance-widget--detail' : back ? 'performance-slide--back' : ''}`}>
+  let slide = '';
+  if (selectedColumn) slide = 'performance-widget--detail';
+  else if (back) slide = 'performance-slide--back';
+  return <Surface ref={card} variant="default" className={`performance-widget min-w-0 ${slide}`}>
     {!selectedColumn ? <header className="performance-widget__header">
       <span className="performance-widget__icon performance-widget__icon--accent"><ChartNoAxesColumnIncreasing size={18}/></span>
       <span className="min-w-0"><h3 className="text-sm font-semibold">Situação por componente</h3></span>
