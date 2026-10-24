@@ -5,8 +5,15 @@ import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persi
 import { PERIODS_V1, publicationDigestV1 } from './state-v1';
 import { LEGACY_ALLOWED_SQL_V1, releaseSelectionSqlV1 } from './release-selection-v1';
 
-export const scopedKeyV2 = (scope: ScopeV1) => scope.kind === 'school' ? 'school:2026'
-  : scope.kind === 'class' ? `class:2026:${scope.classId}` : `account:2026:${scope.accountId.toLowerCase()}`;
+export const scopedKeyV2 = (scope: ScopeV1) => {
+  if (scope.kind === 'school') {
+    return 'school:2026';
+  }
+  if (scope.kind === 'class') {
+    return `class:2026:${scope.classId}`;
+  }
+  return `account:2026:${scope.accountId.toLowerCase()}`;
+};
 const sourceAccountIdV2 = z.uuid();
 
 export async function scopedPublicationEnabledV2(sql: StudentPortalPostgresQueryV1): Promise<boolean> {

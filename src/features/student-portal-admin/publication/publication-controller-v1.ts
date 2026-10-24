@@ -68,8 +68,14 @@ export function createPublicationControllerV1(
   let intended: PublicationCommandV1 | undefined;
   const emit = () => publish({ ...view });
   const reader = createLatestPortalRequestV1<PublicationSnapshotV1>((next) => {
-    const error =
-      next.state === 'error' ? next.error : next.state === 'ready' ? next.refreshError : undefined;
+    let error;
+    if (next.state === 'error') {
+      error = next.error;
+    } else if (next.state === 'ready') {
+      error = next.refreshError;
+    } else {
+      error = undefined;
+    }
     view = {
       ...view,
       load: next,
@@ -109,12 +115,14 @@ export function createPublicationControllerV1(
     const checks = accepted.checks + 1;
     if (view.load.state !== 'ready' || view.load.refreshError) {
       // Retained content cannot confirm a new decision after an unsuccessful read.
-      const error =
-        view.load.state === 'error'
-          ? view.load.error
-          : view.load.state === 'ready'
-            ? view.load.refreshError
-            : undefined;
+      let error;
+      if (view.load.state === 'error') {
+        error = view.load.error;
+      } else if (view.load.state === 'ready') {
+        error = view.load.refreshError;
+      } else {
+        error = undefined;
+      }
       const retryable = error && ['network-error', 'unavailable'].includes(error.state);
       const observation = retryable && checks < maxChecks ? 'observing' : 'unconfirmed';
       view = { ...view, mutation: { ...accepted, checks, observation } };

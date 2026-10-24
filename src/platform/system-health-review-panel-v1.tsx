@@ -27,8 +27,28 @@ function ReviewContent({ data }: Readonly<{ data: HealthReviewV1 }>) {
     <div>
       <div role="list" aria-label="Faixas horárias de coleta" className="grid grid-cols-12 gap-1 sm:grid-cols-[repeat(24,minmax(0,1fr))]">
         {data.hours.map((h) => {
-          const status = h.critical ? 'Com intervenção' : h.attention ? 'Com atenção' : h.samples === 0 ? 'Sem registro' : h.missing || h.unknown ? 'Cobertura parcial' : 'Sem atenção nos sinais';
-          const color = h.critical ? 'bg-danger' : h.attention ? 'bg-warning' : h.samples === 12 && !h.unknown ? 'bg-success' : 'bg-default';
+          let status: 'Com intervenção' | 'Com atenção' | 'Sem registro' | 'Cobertura parcial' | 'Sem atenção nos sinais';
+          if (h.critical) {
+            status = 'Com intervenção';
+          } else if (h.attention) {
+            status = 'Com atenção';
+          } else if (h.samples === 0) {
+            status = 'Sem registro';
+          } else if (h.missing || h.unknown) {
+            status = 'Cobertura parcial';
+          } else {
+            status = 'Sem atenção nos sinais';
+          }
+          let color: 'bg-danger' | 'bg-warning' | 'bg-success' | 'bg-default';
+          if (h.critical) {
+            color = 'bg-danger';
+          } else if (h.attention) {
+            color = 'bg-warning';
+          } else if (h.samples === 12 && !h.unknown) {
+            color = 'bg-success';
+          } else {
+            color = 'bg-default';
+          }
           const label = `${new Date(h.startAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}: ${status}; ${h.samples} de 12 coletas`;
           return <span key={h.startAt} role="listitem" aria-label={label} title={label} className={`h-5 rounded-sm ${color}`} />;
         })}

@@ -135,10 +135,24 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
       value={value} onStudent={onCell} onComponent={openComponent} onPeriod={onPeriod} onNotes={onNotes}
     />
   </div>;
-  const selectedSummary = tab === 'components' && component ? component.summary : tab === 'teachers' && teacher ? teacher.summary : value.summary;
+  let selectedSummary;
+  if (tab === 'components' && component) {
+    selectedSummary = component.summary;
+  } else if (tab === 'teachers' && teacher) {
+    selectedSummary = teacher.summary;
+  } else {
+    selectedSummary = value.summary;
+  }
   const components = tab === 'teachers' && teacher ? value.components.filter((item) => teacher.offerIds.includes(item.offer.id)) : value.components;
   // Results with a blank instrument in the scope on screen, read from the cells.
-  const scopeOffers = tab === 'components' && component ? [component.offer.id] : tab === 'teachers' && teacher ? teacher.offerIds : null;
+  let scopeOffers;
+  if (tab === 'components' && component) {
+    scopeOffers = [component.offer.id];
+  } else if (tab === 'teachers' && teacher) {
+    scopeOffers = teacher.offerIds;
+  } else {
+    scopeOffers = null;
+  }
   const scopePartial = value.students.reduce((sum, item) => sum + item.cells.filter((cell) =>
     (scopeOffers === null || scopeOffers.includes(cell.offerId)) && cell.result.state === 'partial').length, 0);
   const allStudents = analyticsStudentItemsV6(value);

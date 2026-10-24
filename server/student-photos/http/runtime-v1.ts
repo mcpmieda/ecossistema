@@ -104,7 +104,14 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
     }
     const parsedImage = image ? readImageQuery(url) : null;
     const raw: unknown = image ? null : await readPhotoJsonV1(request, request.signal);
-    const input = image ? null : path === paths.recover ? recoverRequest.parse(raw) : photoCatalogRequestV1.parse(raw);
+    let input;
+    if (image) {
+      input = null;
+    } else if (path === paths.recover) {
+      input = recoverRequest.parse(raw);
+    } else {
+      input = photoCatalogRequestV1.parse(raw);
+    }
     const subject: PhotoAdminSubjectV1 = parsedImage?.subject ?? input!.subject;
     const context = photoWriteContextV1.parse({ actorId: initial.actorId, studentUid: await repository.resolve(subject) });
     const authorize = async (candidate: PhotoWriteContextV1) => {

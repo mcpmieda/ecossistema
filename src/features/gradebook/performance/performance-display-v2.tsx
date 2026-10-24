@@ -15,7 +15,14 @@ export function GradeValue({ cell, prominent = false, partialAsMarker = false }:
   readonly prominent?: boolean;
   readonly partialAsMarker?: boolean;
 }) {
-  const tone = cell.level === 'below' ? 'text-danger' : cell.level === 'at-or-above' ? 'text-accent' : 'text-foreground';
+  let tone: 'text-danger' | 'text-accent' | 'text-foreground';
+  if (cell.level === 'below') {
+    tone = 'text-danger';
+  } else if (cell.level === 'at-or-above') {
+    tone = 'text-accent';
+  } else {
+    tone = 'text-foreground';
+  }
   const partialMarker = cell.state === 'partial' && partialAsMarker;
   return <span className={`inline-flex flex-col items-center ${prominent ? 'gap-0.5' : 'gap-0'} ${tone}`}>
     <span className="relative inline-flex items-start">

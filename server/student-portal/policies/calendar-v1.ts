@@ -152,13 +152,16 @@ export function sessionExpiryV1(
 }
 
 function periodStartV1(calendar: CalendarV1, period: PeriodV1): string | null {
-  return period === 'T1'
-    ? calendar.yearStartsAt
-    : period === 'T2'
-      ? (calendar.t2StartsAt ?? calendar.t1EndsAt)
-      : period === 'T3'
-        ? (calendar.t3StartsAt ?? calendar.t2EndsAt)
-        : calendar.recoveriesStartAt;
+  if (period === 'T1') {
+    return calendar.yearStartsAt;
+  }
+  if (period === 'T2') {
+    return calendar.t2StartsAt ?? calendar.t1EndsAt;
+  }
+  if (period === 'T3') {
+    return calendar.t3StartsAt ?? calendar.t2EndsAt;
+  }
+  return calendar.recoveriesStartAt;
 }
 
 /** Joint publication window: inclusive start, exclusive end; never grants academic authority. */

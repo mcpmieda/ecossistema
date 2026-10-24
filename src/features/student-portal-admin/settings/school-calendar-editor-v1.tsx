@@ -396,7 +396,14 @@ export function SchoolCalendarEditorV1({
     );
   };
 
-  const tone = count === SCHOOL_DAYS_REQUIRED_V1 ? 'done' : count > SCHOOL_DAYS_REQUIRED_V1 ? 'over' : 'short';
+  let tone: 'done' | 'over' | 'short';
+  if (count === SCHOOL_DAYS_REQUIRED_V1) {
+    tone = 'done';
+  } else if (count > SCHOOL_DAYS_REQUIRED_V1) {
+    tone = 'over';
+  } else {
+    tone = 'short';
+  }
   const armedLabel = MARKERS.find(({ key }) => key === armed)?.label;
   return (
     <Card className="pa-school-calendar" aria-labelledby="pa-school-calendar-title">

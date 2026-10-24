@@ -611,12 +611,14 @@ export function RelationalCurrentAuditPageV2() {
         });
         if (response.state !== 'ready' || response.operation !== 'record') {
           if (response.state !== 'unavailable') treatmentRetryKeysRef.current.delete(retryIdentity);
-          const message =
-            response.state === 'not-found'
-              ? 'O achado já saiu das pendências. Atualize a Auditoria.'
-              : response.state === 'not-authorized'
-                ? 'Sua sessão não pode registrar tratamento.'
-                : 'Não foi possível registrar a ação. Tente novamente.';
+          let message: 'O achado já saiu das pendências. Atualize a Auditoria.' | 'Sua sessão não pode registrar tratamento.' | 'Não foi possível registrar a ação. Tente novamente.';
+          if (response.state === 'not-found') {
+            message = 'O achado já saiu das pendências. Atualize a Auditoria.';
+          } else if (response.state === 'not-authorized') {
+            message = 'Sua sessão não pode registrar tratamento.';
+          } else {
+            message = 'Não foi possível registrar a ação. Tente novamente.';
+          }
           setFeedback((current) => ({ ...current, [value.id]: message }));
           return false;
         }

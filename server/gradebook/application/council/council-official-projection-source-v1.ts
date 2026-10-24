@@ -179,13 +179,15 @@ function termPeriod(
     record === undefined ||
     !validOfficialRecord(record, academicYearId, enrollment, assignment)
   ) {
-    const reason =
-      candidates.length > 1
-        ? 'official-term-result-ambiguous'
-        : record?.authorityMode !== undefined &&
-            record.authorityMode !== COUNCIL_OFFICIAL_PROJECTION_AUTHORITY_MODE_V1
-          ? 'authority-mode-incompatible'
-          : 'official-term-result-absent-or-incompatible';
+    let reason: 'official-term-result-ambiguous' | 'authority-mode-incompatible' | 'official-term-result-absent-or-incompatible';
+    if (candidates.length > 1) {
+      reason = 'official-term-result-ambiguous';
+    } else if (record?.authorityMode !== undefined &&
+            record.authorityMode !== COUNCIL_OFFICIAL_PROJECTION_AUTHORITY_MODE_V1) {
+      reason = 'authority-mode-incompatible';
+    } else {
+      reason = 'official-term-result-absent-or-incompatible';
+    }
     return {
       period: `T${term}`,
       value: insufficientGrade(reason),
@@ -292,13 +294,15 @@ function annualComponent(
     record === undefined ||
     !validOfficialRecord(record, academicYearId, enrollment, assignment)
   ) {
-    const reason =
-      candidates.length > 1
-        ? 'official-annual-result-ambiguous'
-        : record?.authorityMode !== undefined &&
-            record.authorityMode !== COUNCIL_OFFICIAL_PROJECTION_AUTHORITY_MODE_V1
-          ? 'authority-mode-incompatible'
-          : 'official-annual-result-absent-or-incompatible';
+    let reason: 'official-annual-result-ambiguous' | 'authority-mode-incompatible' | 'official-annual-result-absent-or-incompatible';
+    if (candidates.length > 1) {
+      reason = 'official-annual-result-ambiguous';
+    } else if (record?.authorityMode !== undefined &&
+            record.authorityMode !== COUNCIL_OFFICIAL_PROJECTION_AUTHORITY_MODE_V1) {
+      reason = 'authority-mode-incompatible';
+    } else {
+      reason = 'official-annual-result-absent-or-incompatible';
+    }
     const coverage = technicalCoverage(reason);
     return {
       input: {

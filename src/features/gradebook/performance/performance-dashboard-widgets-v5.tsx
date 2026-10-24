@@ -78,9 +78,15 @@ function PerformanceKpisV5({ value, selection, onSelectionChange }: {
  * its last word (E.FÍS, E.FIN). */
 function shortSubjectsV5(texts: readonly string[]): string[] {
   const words = (text: string) => text.split(/\s+/u).filter((word) => word.length > 2);
-  const initials = (text: string) => text.length <= 4 ? text
-    : words(text).length > 1 ? words(text).map((word) => word[0]).join('').toUpperCase()
-    : text.slice(0, 3).toUpperCase();
+  const initials = (text: string) => {
+    if (text.length <= 4) {
+      return text;
+    }
+    if (words(text).length > 1) {
+      return words(text).map((word) => word[0]).join('').toUpperCase();
+    }
+    return text.slice(0, 3).toUpperCase();
+  };
   const first = texts.map(initials);
   return texts.map((text, index) => {
     if (first.indexOf(first[index]!) === first.lastIndexOf(first[index]!) || first[index] === text) return first[index]!;
@@ -170,7 +176,14 @@ function ComponentBarsV5({ value, previous, selection, onSelectionChange, open }
               {(['above', 'below'] as const).map((bucket) => {
                 const count = bucket === 'above' ? column.atOrAbove : column.below;
                 const active = selection?.kind === 'column' && selection.key === column.key && selection.bucket === bucket;
-                const priorCount = prior === undefined ? undefined : bucket === 'above' ? prior.atOrAbove : prior.below;
+                let priorCount;
+                if (prior === undefined) {
+                  priorCount = undefined;
+                } else if (bucket === 'above') {
+                  priorCount = prior.atOrAbove;
+                } else {
+                  priorCount = prior.below;
+                }
                 const change = priorCount === undefined || priorCount === count ? ''
                   : `, ${count > priorCount ? 'mais' : 'menos'} que no ${previousPeriod}º trimestre (${priorCount})`;
                 return <button key={bucket} type="button" data-bar={`${column.key}:${bucket}`} className={`performance-bar performance-bar--${bucket} ${active ? 'performance-bar--selected' : ''}`}

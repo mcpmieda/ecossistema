@@ -233,7 +233,14 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     if (!ticket) return;
     setBusy((value) => ({ ...value, matrix: true }));
     setFailure(null);
-    const previousPeriod = request.period === 2 ? 1 : request.period === 3 ? 2 : null;
+    let previousPeriod: 1 | 2 | null;
+    if (request.period === 2) {
+      previousPeriod = 1;
+    } else if (request.period === 3) {
+      previousPeriod = 2;
+    } else {
+      previousPeriod = null;
+    }
     try {
       const [response, previous] = await Promise.all([
         requestPerformanceDashboardV5(request, ticket.signal),

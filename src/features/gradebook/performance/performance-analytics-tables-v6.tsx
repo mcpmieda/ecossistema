@@ -62,14 +62,16 @@ export function AnalyticsStudentsTableV6({
         String(item.number) === query,
     )
     .sort((a, b) => {
-      const key =
-        sort.column === 'mean'
-          ? 'meanPercent'
-          : sort.column === 'delta'
-            ? 'deltaPP'
-            : sort.column === 'below'
-              ? 'below'
-              : 'number';
+      let key: 'meanPercent' | 'deltaPP' | 'below' | 'number';
+      if (sort.column === 'mean') {
+        key = 'meanPercent';
+      } else if (sort.column === 'delta') {
+        key = 'deltaPP';
+      } else if (sort.column === 'below') {
+        key = 'below';
+      } else {
+        key = 'number';
+      }
       const left = a[key],
         right = b[key];
       if (left === null) return right === null ? a.number - b.number : 1;

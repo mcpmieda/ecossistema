@@ -125,12 +125,14 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
   const listBlocks = useDeferredValue(blocks);
   const listSearch = useDeferredValue(name.trim());
   // The class comes from the panel, or from this list's own tabs when it stands alone.
-  const classId =
-    props.scope.kind === 'class'
-      ? props.scope.classId
-      : props.scope.kind === 'school'
-        ? (selectedClass?.id ?? null)
-        : null;
+  let classId;
+  if (props.scope.kind === 'class') {
+    classId = props.scope.classId;
+  } else if (props.scope.kind === 'school') {
+    classId = selectedClass?.id ?? null;
+  } else {
+    classId = null;
+  }
   const listClassId = useDeferredValue(classId);
   const listClassLabel = useDeferredValue(
     props.scope.kind === 'class' ? props.scopeLabel : selectedClass?.label,
@@ -554,12 +556,14 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     },
     [props.sealCache],
   );
-  const sealError =
-    seals.state === 'error'
-      ? seals.error
-      : seals.state === 'ready'
-        ? seals.refreshError
-        : undefined;
+  let sealError;
+  if (seals.state === 'error') {
+    sealError = seals.error;
+  } else if (seals.state === 'ready') {
+    sealError = seals.refreshError;
+  } else {
+    sealError = undefined;
+  }
   useEffect(() => {
     if (sealError && ['unauthenticated', 'forbidden'].includes(sealError.state))
       onAuthorizationLost(sealError);

@@ -35,7 +35,14 @@ export function buildPerformanceLearningV1(
   includeStudentDimensions = true,
 ): PerformanceLearningV1 {
   const selectedTerms = value.period === 'annual' ? TERMS : [value.period];
-  const reference: Term | null = value.period === 2 ? 1 : value.period === 3 ? 2 : null;
+  let reference: Term | null;
+  if (value.period === 2) {
+    reference = 1;
+  } else if (value.period === 3) {
+    reference = 2;
+  } else {
+    reference = null;
+  }
   const quantitativeStudents: number[] = [], qualitativeStudents: number[] = [], gains: number[] = [];
   let dimensionComponents = 0;
   const students: PerformanceLearningV1['students'] = value.students.map((student) => {

@@ -101,13 +101,15 @@ export function inspectGradebookImportPersistenceRequestV8(
       return 'payload-too-large';
     const inspectCells = (values: GradebookSnapshotCellsV8) => {
       if (!values || typeof values !== 'object' || Array.isArray(values)) return false;
-      return Object.values(values).every((cell) =>
-        Array.isArray(cell)
-          ? cell.length === 1 && cell[0] === 'u'
-          : typeof cell === 'number'
-            ? Number.isFinite(cell)
-            : typeof cell === 'boolean' || (typeof cell === 'string' && !cell.includes('\u0000')),
-      );
+      return Object.values(values).every((cell) => {
+        if (Array.isArray(cell)) {
+          return cell.length === 1 && cell[0] === 'u';
+        }
+        if (typeof cell === 'number') {
+          return Number.isFinite(cell);
+        }
+        return typeof cell === 'boolean' || (typeof cell === 'string' && !cell.includes('\u0000'));
+      });
     };
     for (const course of request.courses) {
       for (const term of course.terms)

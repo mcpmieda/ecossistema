@@ -12,14 +12,16 @@ export function PolicyScopeV1({
   /** A short warning about shift rules (owner decision 28/09/2026). */
   note?: ReactNode;
 }>) {
-  const Icon =
-    scope.kind === 'school'
-      ? Building2
-      : scope.kind === 'class'
-        ? GraduationCap
-        : scope.kind === 'shift'
-          ? Clock3
-          : UserRound;
+  let Icon;
+  if (scope.kind === 'school') {
+    Icon = Building2;
+  } else if (scope.kind === 'class') {
+    Icon = GraduationCap;
+  } else if (scope.kind === 'shift') {
+    Icon = Clock3;
+  } else {
+    Icon = UserRound;
+  }
   return (
     <div
       className={'pa-policy-scope pa-policy-scope--' + scope.kind}

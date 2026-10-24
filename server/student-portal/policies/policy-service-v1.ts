@@ -311,11 +311,13 @@ function targetClassV1(target: Record<string, unknown>) {
 }
 /** A shift scope is its own level; any other target takes the shift of its class, if known. */
 function targetShiftV1(scope: PolicyScopeV1, target: Record<string, unknown>) {
-  return scope.kind === 'shift'
-    ? scope.shift
-    : target.shift === null || target.shift === undefined
-      ? null
-      : shiftV1.parse(target.shift);
+  if (scope.kind === 'shift') {
+    return scope.shift;
+  }
+  if (target.shift === null || target.shift === undefined) {
+    return null;
+  }
+  return shiftV1.parse(target.shift);
 }
 
 type SettingsSetCommandV1 = Extract<AdminCommandV1, { operation: 'settings-set' }>;

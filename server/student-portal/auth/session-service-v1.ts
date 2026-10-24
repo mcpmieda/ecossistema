@@ -33,10 +33,20 @@ export class SessionServiceV1 {
 
   private async revocationScope(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
     const scope = scopeV1.parse(input);
-    const predicate = scope.kind === 'account' ? 'a.id=$1::uuid' : scope.kind === 'school' ? 'true' : `a.id IN (
+    let predicate: 'a.id=$1::uuid' | 'true' | `a.id IN (
       SELECT a2.id FROM student_portal.account a2 JOIN student_portal.academic_binding_v1 b
         ON b.student_id=a2.gradebook_student_id AND b.academic_year=a2.academic_year
       WHERE b.class_id=$1 AND b.status IS DISTINCT FROM 6)`;
+    if (scope.kind === 'account') {
+      predicate = 'a.id=$1::uuid';
+    } else if (scope.kind === 'school') {
+      predicate = 'true';
+    } else {
+      predicate = `a.id IN (
+      SELECT a2.id FROM student_portal.account a2 JOIN student_portal.academic_binding_v1 b
+        ON b.student_id=a2.gradebook_student_id AND b.academic_year=a2.academic_year
+      WHERE b.class_id=$1 AND b.status IS DISTINCT FROM 6)`;
+    }
     const rows = await tx.unsafe(`SELECT a.id,a.version::text FROM student_portal.account a
       WHERE a.academic_year=2026 AND ${predicate} ORDER BY a.id`,
     scope.kind === 'account' ? [scope.accountId] : scope.kind === 'class' ? [scope.classId] : []);

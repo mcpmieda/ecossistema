@@ -243,14 +243,18 @@ async function buildOpenReviewCandidate(
     const version = versions[index];
     if (version === undefined) throw new CouncilWorkspaceSourceErrorV1('insufficient-data');
     const currentDecision = currents[index] ?? null;
-    const consistency =
-      item.calculated.queueState === 'eligible-for-council'
-        ? currentDecision === null
-          ? 'decision-required'
-          : 'ready'
-        : currentDecision === null
-          ? 'ready'
-          : 'decision-inconsistent';
+    let consistency: 'decision-required' | 'ready' | 'decision-inconsistent';
+    if (item.calculated.queueState === 'eligible-for-council') {
+      if (currentDecision === null) {
+        consistency = 'decision-required';
+      } else {
+        consistency = 'ready';
+      }
+    } else if (currentDecision === null) {
+      consistency = 'ready';
+    } else {
+      consistency = 'decision-inconsistent';
+    }
     return {
       studentReference: item.studentReference,
       studentLabel: item.studentLabel,

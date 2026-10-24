@@ -78,11 +78,14 @@ const ready = z.object({
   for (const row of value.rows) for (const item of row.values) {
     if (item.state !== 'comparable') continue;
     const delta = item.currentPercent - item.referencePercent;
-    const relationContradictsDelta = item.relation === 'equal'
-      ? item.deltaPercentagePoints !== 0
-      : item.relation === 'higher'
-        ? item.deltaPercentagePoints < 0
-        : item.deltaPercentagePoints > 0;
+    let relationContradictsDelta;
+    if (item.relation === 'equal') {
+      relationContradictsDelta = item.deltaPercentagePoints !== 0;
+    } else if (item.relation === 'higher') {
+      relationContradictsDelta = item.deltaPercentagePoints < 0;
+    } else {
+      relationContradictsDelta = item.deltaPercentagePoints > 0;
+    }
     if (Math.abs(delta - item.deltaPercentagePoints) > 1e-9 || relationContradictsDelta) fail();
   }
 });

@@ -193,12 +193,14 @@ function unresolvedFinding(
     return null;
   }
 
-  const detail =
-    grade.state === 'absent'
-      ? 'is absent'
-      : grade.state === 'not-applicable'
-        ? `is not applicable${grade.reason ? `: ${grade.reason}` : ''}`
-        : `has insufficient data: ${grade.reason}`;
+  let detail;
+  if (grade.state === 'absent') {
+    detail = 'is absent';
+  } else if (grade.state === 'not-applicable') {
+    detail = `is not applicable${grade.reason ? `: ${grade.reason}` : ''}`;
+  } else {
+    detail = `has insufficient data: ${grade.reason}`;
+  }
   return {
     code:
       input === 'original-total'
@@ -324,16 +326,18 @@ function resolveComponent(
     classification === 'approved-direct' ||
     classification === 'approved-after-recovery' ||
     classification === 'not-approved';
-  const classificationReason =
-    classification === 'approved-direct'
-      ? `original-total-at-or-above-cutoff:${profile.approvalCutoff}`
-      : classification === 'approved-after-recovery'
-        ? `post-recovery-total-at-or-above-cutoff:${profile.approvalCutoff}`
-        : classification === 'not-approved'
-          ? `post-recovery-total-below-cutoff:${profile.approvalCutoff}`
-          : classification === 'not-applicable'
-            ? 'component-total-not-applicable'
-            : 'component-outcome-unresolved';
+  let classificationReason;
+  if (classification === 'approved-direct') {
+    classificationReason = `original-total-at-or-above-cutoff:${profile.approvalCutoff}`;
+  } else if (classification === 'approved-after-recovery') {
+    classificationReason = `post-recovery-total-at-or-above-cutoff:${profile.approvalCutoff}`;
+  } else if (classification === 'not-approved') {
+    classificationReason = `post-recovery-total-below-cutoff:${profile.approvalCutoff}`;
+  } else if (classification === 'not-applicable') {
+    classificationReason = 'component-total-not-applicable';
+  } else {
+    classificationReason = 'component-outcome-unresolved';
+  }
 
   return {
     componentKey: component.componentKey,

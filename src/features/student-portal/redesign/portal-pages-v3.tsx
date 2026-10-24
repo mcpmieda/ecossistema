@@ -248,8 +248,15 @@ function PortalMenuPagesV3({
   // re-renders only the wrappers and the move starts at the next frame. Notas (the portal's
   // workspace, its floating Boletim/Disciplina switch hidden: the menu replaces it) stays mounted,
   // so coming back keeps the trimester and the discipline.
-  const stateOf = (id: PageV3) =>
-    id === page ? '' : leaving === id ? ' pa3-panel--leaving' : ' pa3-panel--inactive';
+  const stateOf = (id: PageV3) => {
+    if (id === page) {
+      return '';
+    }
+    if (leaving === id) {
+      return ' pa3-panel--leaving';
+    }
+    return ' pa3-panel--inactive';
+  };
   return (
     <div className="pa3-app pa3-app--cover">
 

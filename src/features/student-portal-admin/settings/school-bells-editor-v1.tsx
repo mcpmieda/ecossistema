@@ -227,8 +227,14 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                   <Card.Content>
                     <ol className="pa-school-bells__list">
                       {items.map((item, index) => {
-                        const name =
-                          item.kind === 'aula' ? `${item.slot}ª aula` : item.kind === 'parada' ? 'Parada' : 'Intervalo';
+                        let name;
+                        if (item.kind === 'aula') {
+                          name = `${item.slot}ª aula`;
+                        } else if (item.kind === 'parada') {
+                          name = 'Parada';
+                        } else {
+                          name = 'Intervalo';
+                        }
                         const setTime = (part: 'start' | 'end', value: Time | null) => {
                           if (value)
                             editDay(weekday, (list) =>

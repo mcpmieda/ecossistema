@@ -35,25 +35,31 @@ const previewSchool = (() => {
 })();
 const previewOverrides = new Map<string, Partial<EffectiveSettingsV1['value']>>();
 let previewSettingsVersion = 7;
-const previewScopeKey = (scope: PolicyScopeV1) =>
-  scope.kind === 'school'
-    ? 'school'
-    : scope.kind === 'class'
-      ? `class:${scope.classId}`
-      : scope.kind === 'shift'
-        ? `shift:${scope.shift}`
-        : `account:${scope.accountId}`;
+const previewScopeKey = (scope: PolicyScopeV1) => {
+  if (scope.kind === 'school') {
+    return 'school';
+  }
+  if (scope.kind === 'class') {
+    return `class:${scope.classId}`;
+  }
+  if (scope.kind === 'shift') {
+    return `shift:${scope.shift}`;
+  }
+  return `account:${scope.accountId}`;
+};
 function previewSettingsV1(scope: PolicyScopeV1): EffectiveSettingsV1 {
   const value: Record<string, unknown> = { ...previewSchool };
   const sources: Record<string, PolicyScopeV1> = Object.fromEntries(
     Object.keys(previewSchool).map((key) => [key, { kind: 'school', academicYear: 2026 }]),
   );
-  const classId =
-    scope.kind === 'class'
-      ? scope.classId
-      : scope.kind === 'account'
-        ? mock.accounts.find((item) => item.accountId === scope.accountId)?.classId
-        : undefined;
+  let classId;
+  if (scope.kind === 'class') {
+    classId = scope.classId;
+  } else if (scope.kind === 'account') {
+    classId = mock.accounts.find((item) => item.accountId === scope.accountId)?.classId;
+  } else {
+    classId = undefined;
+  }
   const classroom = classes.find((item) => item.id === classId);
   const chain: PolicyScopeV1[] = [
     ...(classroom

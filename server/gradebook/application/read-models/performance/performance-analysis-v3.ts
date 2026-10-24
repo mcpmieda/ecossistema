@@ -110,21 +110,23 @@ function reading(
     classificationReady && raw.valueMilli !== null && raw.maximumMilli !== null
       ? (raw.valueMilli / raw.maximumMilli) * 100
       : null;
-  const bucket =
-    !eligible || raw.state === 'not-applicable'
-      ? 'excluded'
-      : raw.state === 'repeat-failure'
-        ? 'below'
-        : raw.state === 'no-show'
-          ? 'no-show'
-          : !classificationReady
-            ? 'incomplete'
-            : percent === null
-              ? 'unscaled'
-              : BigInt(raw.valueMilli!) * BigInt(ANNUAL_MAXIMUM) >=
-                  BigInt(raw.maximumMilli!) * BigInt(minimum)
-                ? 'above'
-                : 'below';
+  let bucket: 'excluded' | 'below' | 'no-show' | 'incomplete' | 'unscaled' | 'above';
+  if (!eligible || raw.state === 'not-applicable') {
+    bucket = 'excluded';
+  } else if (raw.state === 'repeat-failure') {
+    bucket = 'below';
+  } else if (raw.state === 'no-show') {
+    bucket = 'no-show';
+  } else if (!classificationReady) {
+    bucket = 'incomplete';
+  } else if (percent === null) {
+    bucket = 'unscaled';
+  } else if (BigInt(raw.valueMilli!) * BigInt(ANNUAL_MAXIMUM) >=
+                  BigInt(raw.maximumMilli!) * BigInt(minimum)) {
+    bucket = 'above';
+  } else {
+    bucket = 'below';
+  }
   return { ...raw, key, percent, bucket };
 }
 function emptySummary(): Column['summary'] {
@@ -180,19 +182,21 @@ export function buildPerformanceAnalysisV3(
       values: columns.map((column) => {
         const cell = row.cells[offerIndexes.get(column.offerId)!]!;
         const projection = byOffer.get(column.offerId);
-        const raw: RawReading =
-          request.lens === 'result'
-            ? {
+        let raw: RawReading;
+        if (request.lens === 'result') {
+          raw = {
                 valueMilli: cell.valueMilli,
                 maximumMilli: cell.maximumMilli,
                 recordedMilli: null,
                 state: cell.state,
-              }
-            : !projection
-              ? empty()
-              : request.lens === 'assessments'
-                ? assessment(projection, column)
-                : dimension(projection, request);
+              };
+        } else if (!projection) {
+          raw = empty();
+        } else if (request.lens === 'assessments') {
+          raw = assessment(projection, column);
+        } else {
+          raw = dimension(projection, request);
+        }
         return reading(
           raw,
           column.key,

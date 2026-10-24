@@ -136,24 +136,22 @@ function directMutation(
   );
   if (!match) return null;
   const table = match[2]!;
-  const tableCategory: ImportCommitCategoryV1 = [
-    'professor',
-    'disciplina',
-    'oferta',
-    'instrumento',
-    'nota',
-    'fechamento',
-  ].includes(table)
-    ? (table as ImportCommitCategoryV1)
-    : [
-          'importacao',
-          'fechamento_historico',
-          'vinculo_historico',
-          'nota_historico',
-          'instrumento_historico',
-        ].includes(table)
-      ? 'history-import'
-      : 'other';
+  let tableCategory: ImportCommitCategoryV1;
+  if (['professor', 'disciplina', 'oferta', 'instrumento', 'nota', 'fechamento'].includes(table)) {
+    tableCategory = table as ImportCommitCategoryV1;
+  } else if (
+    [
+      'importacao',
+      'fechamento_historico',
+      'vinculo_historico',
+      'nota_historico',
+      'instrumento_historico',
+    ].includes(table)
+  ) {
+    tableCategory = 'history-import';
+  } else {
+    tableCategory = 'other';
+  }
   return {
     category: tableCategory,
     action: match[1] === 'insert into' ? 'insert' : match[1] === 'update' ? 'update' : 'delete',

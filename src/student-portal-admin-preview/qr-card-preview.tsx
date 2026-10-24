@@ -43,8 +43,14 @@ function QrCardPreview() {
   );
   const [symbolSpacing, setSymbolSpacing] = useState(() => savedSetting(spacingKey, 10, 4, 12));
   const [symbolRows, setSymbolRows] = useState(() => savedSetting(rowsKey, 4, 3, 6));
-  const nameSize =
-    selectedName.length > 42 ? 'xlong' : selectedName.length > 25 ? 'long' : 'regular';
+  let nameSize: 'xlong' | 'long' | 'regular';
+  if (selectedName.length > 42) {
+    nameSize = 'xlong';
+  } else if (selectedName.length > 25) {
+    nameSize = 'long';
+  } else {
+    nameSize = 'regular';
+  }
   const footerRows = Math.min(4, symbolRows - 1);
   const headerSize = sizeForRows(132, symbolRows, symbolSpacing);
   const footerSize = sizeForRows(84, footerRows, symbolSpacing);

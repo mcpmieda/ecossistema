@@ -28,12 +28,14 @@ function SearchResults({
   return (
     <ul aria-label="Resultados da busca" className="platform-search-results">
       {items.map((item) => {
-        const Icon =
-          item.iconKind === 'system'
-            ? Boxes
-            : item.iconKind === 'configuration'
-              ? Settings2
-              : routeIcons[item.route ?? 'banco-de-notas'];
+        let Icon;
+        if (item.iconKind === 'system') {
+          Icon = Boxes;
+        } else if (item.iconKind === 'configuration') {
+          Icon = Settings2;
+        } else {
+          Icon = routeIcons[item.route ?? 'banco-de-notas'];
+        }
         return (
           <li key={item.id}>
             <Button

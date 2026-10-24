@@ -69,14 +69,16 @@ function NamesEditorV1({
     domains: ['gradebook'],
     canRefresh: () => editor.current?.canRefresh() ?? false,
   });
-  const label =
-    state.phase === 'saving'
-      ? 'Salvando…'
-      : state.failure
-        ? 'Não salvo'
-        : state.dirty
-          ? 'Editando'
-          : 'Salvo';
+  let label: 'Salvando…' | 'Não salvo' | 'Editando' | 'Salvo';
+  if (state.phase === 'saving') {
+    label = 'Salvando…';
+  } else if (state.failure) {
+    label = 'Não salvo';
+  } else if (state.dirty) {
+    label = 'Editando';
+  } else {
+    label = 'Salvo';
+  }
   return (
     <Card aria-label="Nomear avaliações">
       <Card.Header className="flex-row items-center justify-between gap-3">

@@ -41,12 +41,14 @@ export const eligibilitySchemaV1 = z
     ) {
       ctx.addIssue({ code: 'custom', message: 'Invalid current binding', path: ['current'] });
     }
-    const state =
-      current === null
-        ? 'unresolved'
-        : [3, 4, 5].includes(current.status ?? 0)
-          ? 'exit'
-          : 'eligible';
+    let state: 'unresolved' | 'exit' | 'eligible';
+    if (current === null) {
+      state = 'unresolved';
+    } else if ([3, 4, 5].includes(current.status ?? 0)) {
+      state = 'exit';
+    } else {
+      state = 'eligible';
+    }
     if (value.state !== state)
       ctx.addIssue({ code: 'custom', message: 'Inconsistent eligibility', path: ['state'] });
   });

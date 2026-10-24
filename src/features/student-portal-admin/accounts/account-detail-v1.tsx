@@ -190,12 +190,14 @@ function AccountDetailBodyV1({
   const protectedFailure =
     failed && ['unauthenticated', 'forbidden'].includes(mutation.error.state);
   useEffect(() => {
-    const error =
-      mutation.state === 'error'
-        ? mutation.error
-        : read.state.state === 'error'
-          ? read.state.error
-          : null;
+    let error;
+    if (mutation.state === 'error') {
+      error = mutation.error;
+    } else if (read.state.state === 'error') {
+      error = read.state.error;
+    } else {
+      error = null;
+    }
     if (error && ['unauthenticated', 'forbidden'].includes(error.state))
       onAuthorizationLost?.(error);
   }, [mutation, read.state, onAuthorizationLost]);

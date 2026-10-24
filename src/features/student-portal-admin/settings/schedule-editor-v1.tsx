@@ -181,7 +181,18 @@ export function ScheduleEditorV1({
             isDisabled={disabled || rows.length >= 40}
             onPress={() => {
               const last = rows.at(-1);
-              const action = last ? (last.action === 'open' ? 'close' : 'open') : openNow ? 'close' : 'open';
+              let action: 'close' | 'open';
+              if (last) {
+                if (last.action === 'open') {
+                  action = 'close';
+                } else {
+                  action = 'open';
+                }
+              } else if (openNow) {
+                action = 'close';
+              } else {
+                action = 'open';
+              }
               onRowsChange([...rows, { id: nextRowId++, at: '', action }]);
             }}
           >

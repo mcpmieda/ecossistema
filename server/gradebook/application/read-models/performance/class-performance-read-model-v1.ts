@@ -879,17 +879,21 @@ function cloneSignals(
               : fail('incompatible-source-result'),
       };
     })
-    .sort((left, right) =>
-      left.code < right.code
-        ? -1
-        : left.code > right.code
-          ? 1
-          : left.explanation < right.explanation
-            ? -1
-            : left.explanation > right.explanation
-              ? 1
-              : 0,
-    );
+    .sort((left, right) => {
+      if (left.code < right.code) {
+        return -1;
+      }
+      if (left.code > right.code) {
+        return 1;
+      }
+      if (left.explanation < right.explanation) {
+        return -1;
+      }
+      if (left.explanation > right.explanation) {
+        return 1;
+      }
+      return 0;
+    });
 }
 
 function cloneCell(

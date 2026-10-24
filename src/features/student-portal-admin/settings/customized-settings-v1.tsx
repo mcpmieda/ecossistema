@@ -29,17 +29,23 @@ type Props = {
   scope: ScopeV1;
   onOpen: OpenCustomizationV1;
 };
-const valueLabel = (value: unknown) =>
-  typeof value === 'boolean'
-    ? value
-      ? 'Ativado'
-      : 'Desativado'
-    : Array.isArray(value) && value.some((item) => typeof item === 'object')
-      ? `${value.length} ${value.length === 1 ? 'agendamento' : 'agendamentos'}`
-      : Array.isArray(value)
-        ? value.map((period) => customizationPeriodV1(String(period))).join(', ') ||
-          'Nenhum período'
-        : 'Personalizado';
+const valueLabel = (value: unknown) => {
+  if (typeof value === 'boolean') {
+    if (value) {
+      return 'Ativado';
+    }
+    return 'Desativado';
+  }
+  if (Array.isArray(value) && value.some((item) => typeof item === 'object')) {
+    return `${value.length} ${value.length === 1 ? 'agendamento' : 'agendamentos'}`;
+  }
+  if (Array.isArray(value)) {
+    return (
+      value.map((period) => customizationPeriodV1(String(period))).join(', ') || 'Nenhum período'
+    );
+  }
+  return 'Personalizado';
+};
 function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: Readonly<Props>) {
   const key = settingsScopeKeyV1(scope);
   const [search, setSearch] = useState('');

@@ -21,9 +21,16 @@ export const customizationRowV1 = z.object({
   value: settingsOverrideV1.nullable(), inheritedValue: settingsOverrideV1.nullable(), schoolValue: settingsOverrideV1.nullable(),
   blocked: z.boolean(), publications: z.array(publicationContextItemV1).max(6), updatedAt: instantV1,
 }).strict().superRefine((row, ctx) => {
-  const id = row.scope.kind === 'class' ? `class:2026:${row.scope.classId}`
-    : row.scope.kind === 'shift' ? `shift:2026:${row.scope.shift}`
-      : row.scope.kind === 'account' ? `account:2026:${row.scope.accountId.toLowerCase()}` : '';
+  let id;
+  if (row.scope.kind === 'class') {
+    id = `class:2026:${row.scope.classId}`;
+  } else if (row.scope.kind === 'shift') {
+    id = `shift:2026:${row.scope.shift}`;
+  } else if (row.scope.kind === 'account') {
+    id = `account:2026:${row.scope.accountId.toLowerCase()}`;
+  } else {
+    id = '';
+  }
   if (row.id !== id || (row.scope.kind === 'class' && (row.classId !== row.scope.classId || row.blocked)))
     ctx.addIssue({ code: 'custom', message: 'Invalid customization owner' });
   // A shift owns options only (owner decision 28/09/2026): no class, block or publication.

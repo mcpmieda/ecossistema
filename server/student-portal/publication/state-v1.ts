@@ -29,7 +29,14 @@ export async function publicationScopeVersionV1(tx: StudentPortalPostgresQueryV1
 }
 export async function publicationAccountsV1(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
   const scope = scopeV1.parse(input);
-  const predicate = scope.kind === 'account' ? 'a.id=$1::uuid' : scope.kind === 'class' ? 'b.class_id=$1' : 'true';
+  let predicate: 'a.id=$1::uuid' | 'b.class_id=$1' | 'true';
+  if (scope.kind === 'account') {
+    predicate = 'a.id=$1::uuid';
+  } else if (scope.kind === 'class') {
+    predicate = 'b.class_id=$1';
+  } else {
+    predicate = 'true';
+  }
   const rows = await tx.unsafe(`SELECT a.id,a.version::text AS version,b.class_id
     FROM student_portal.account a JOIN LATERAL (SELECT min(class_id) AS class_id,count(*)::integer AS matches,
       bool_and(status IS NULL OR status IN (1,2,7)) AS eligible FROM student_portal.academic_binding_v1

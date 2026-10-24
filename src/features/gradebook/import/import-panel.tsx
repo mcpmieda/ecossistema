@@ -44,20 +44,22 @@ function progressValue(progress: ImportFlowProgressV9): number {
   const [, base] = PROGRESS_STAGE[progress.stage];
   if (progress.stage === 'completed') return 100;
   const fraction = progress.total > 0 ? Math.min(1, progress.current / progress.total) : 0;
-  const next =
-    progress.stage === 'preparing'
-      ? 20
-      : progress.stage === 'recognizing'
-        ? 35
-        : progress.stage === 'roster'
-          ? 65
-          : progress.stage === 'grades'
-            ? 75
-            : progress.stage === 'recovery'
-              ? 85
-              : progress.stage === 'compacting'
-                ? 95
-                : 100;
+  let next: 20 | 35 | 65 | 75 | 85 | 95 | 100;
+  if (progress.stage === 'preparing') {
+    next = 20;
+  } else if (progress.stage === 'recognizing') {
+    next = 35;
+  } else if (progress.stage === 'roster') {
+    next = 65;
+  } else if (progress.stage === 'grades') {
+    next = 75;
+  } else if (progress.stage === 'recovery') {
+    next = 85;
+  } else if (progress.stage === 'compacting') {
+    next = 95;
+  } else {
+    next = 100;
+  }
   return Math.round(base + (next - base) * fraction);
 }
 

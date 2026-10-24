@@ -59,7 +59,14 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
           signal.throwIfAborted();
           if (!response.ok) {
             const header = response.headers.get('Retry-After');
-            const deadline = header && /^\d+$/u.test(header) ? now() + Number(header) * 1000 : header ? Date.parse(header) : 0;
+            let deadline;
+            if (header && /^\d+$/u.test(header)) {
+              deadline = now() + Number(header) * 1000;
+            } else if (header) {
+              deadline = Date.parse(header);
+            } else {
+              deadline = 0;
+            }
             throw new ReadError(response.status, Number.isFinite(deadline) ? deadline : 0);
           }
           const result = platformSnapshotSchemaV2.safeParse(await response.json());

@@ -57,7 +57,13 @@ function reviewReference(year: number, classId: number, version: number): string
   return `council-review:${year}:${classId}:${version}`;
 }
 function voteComparison(favoraveis: number, contrarios: number): 'favoraveis' | 'contrarios' | 'empate' {
-  return favoraveis === contrarios ? 'empate' : favoraveis > contrarios ? 'favoraveis' : 'contrarios';
+  if (favoraveis === contrarios) {
+    return 'empate';
+  }
+  if (favoraveis > contrarios) {
+    return 'favoraveis';
+  }
+  return 'contrarios';
 }
 function cell(projection: PerformanceProjectionV2, period: 1 | 2 | 3 | 'annual', mode: 'regular' | 'recovery') {
   const value = performanceCellV2(projection, period, mode);

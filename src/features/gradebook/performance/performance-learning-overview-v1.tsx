@@ -148,7 +148,16 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
         <div className="learning-students">
           <Table><Table.ScrollContainer><Table.Content aria-label={LABELS[filter]}><Table.Header><Table.Column id="student" isRowHeader>Aluno</Table.Column><Table.Column id="result">{filter === 'participation' ? 'Participação' : 'Notas'}</Table.Column><Table.Column id="reason">O que observar</Table.Column></Table.Header><Table.Body>{visibleRows.map((row) => {
             const first = row.evidence?.recurring[0];
-            const reasons = first ? `${componentLabels.get(first.offerId) ?? 'Componente'}: ${first.consecutiveTerms.length ? 'abaixo em trimestres seguidos' : 'notas baixas em mais de um instrumento'}` : row.summary.below ? `${row.summary.below} componentes abaixo da referência` : row.summary.complete ? 'Confira o desempenho por componente' : 'Ainda sem resultado suficiente';
+            let reasons;
+            if (first) {
+              reasons = `${componentLabels.get(first.offerId) ?? 'Componente'}: ${first.consecutiveTerms.length ? 'abaixo em trimestres seguidos' : 'notas baixas em mais de um instrumento'}`;
+            } else if (row.summary.below) {
+              reasons = `${row.summary.below} componentes abaixo da referência`;
+            } else if (row.summary.complete) {
+              reasons = 'Confira o desempenho por componente';
+            } else {
+              reasons = 'Ainda sem resultado suficiente';
+            }
             return <Table.Row key={row.student.id} id={String(row.student.id)}><Table.Cell><div className="learning-student-name"><LinkedStudentPhotoAvatarV1 decorative size="sm" className="pa-student-avatar" fallbackTone={row.student.id % 6} subject={{ source: 'gradebook', academicYear: value.context.year, studentIds: [row.student.id] }} /><Button size="sm" variant="ghost" onPress={() => onStudent(row.student.id, filter === 'attention' ? first?.offerId : undefined)} aria-label={`Ver notas de ${row.student.name}`}>{row.student.name}</Button></div></Table.Cell><Table.Cell><strong>{percent(filter === 'participation' ? row.evidence?.participation.percent ?? null : row.summary.result.mean)}</strong><span className="learning-muted">{delta(filter === 'participation' ? row.evidence?.participation.deltaPP ?? null : row.summary.movement.meanDeltaPP)}</span></Table.Cell><Table.Cell><span>{filter === 'participation' ? `${row.evidence?.participation.components ?? 0} componentes · ${row.evidence?.participation.recorded ?? 0} notas de participação` : filter === 'recovery' ? `${row.evidence?.parallelImprovements ?? 0} resultados melhorados com a paralela` : reasons}</span></Table.Cell></Table.Row>;
           })}</Table.Body></Table.Content></Table.ScrollContainer></Table>
           {!visibleRows.length ? <p className="learning-empty">{query ? 'Nenhum aluno encontrado nesta busca.' : filter === 'attention' && !assessed ? 'Ainda não há notas suficientes para avaliar a recorrência.' : 'Nenhum aluno neste grupo.'}</p> : null}

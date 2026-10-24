@@ -101,7 +101,14 @@ function dayOf(lessons: readonly ShiftLessonsV3[], marks: readonly MarkV3[]): Da
  * today, or a past day not read in full yet — more marks may still come, so nothing is final.
  */
 function daySentence(day: DayV3, open: boolean) {
-  const reason = day.justified ? ' (justificada)' : day.missed.some((mark) => mark.mark === 'J') ? ' (parte justificada)' : '';
+  let reason: ' (justificada)' | ' (parte justificada)' | '';
+  if (day.justified) {
+    reason = ' (justificada)';
+  } else if (day.missed.some((mark) => mark.mark === 'J')) {
+    reason = ' (parte justificada)';
+  } else {
+    reason = '';
+  }
   // A Smecel point is "lesson planned or present": never claimed as a confirmed presence.
   if (open)
     return day.kind === 'clear'
@@ -115,7 +122,15 @@ function daySentence(day: DayV3, open: boolean) {
  * The tile's colour (owner decision 21/10/2026): red when every lesson of the day had an absence,
  * light red when only some did, amber when the day's absences are all justified (some or all).
  */
-const toneLevelOf = (day: DayV3 | null) => (!day || day.share <= 0 ? 0 : day.share >= 1 ? 3 : 1);
+const toneLevelOf = (day: DayV3 | null) => {
+  if (!day || day.share <= 0) {
+    return 0;
+  }
+  if (day.share >= 1) {
+    return 3;
+  }
+  return 1;
+};
 
 /**
  * The month's school days as a ring with guide lines (owner choices 21/10/2026: "a A com as
@@ -488,7 +503,14 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
   const lastMonth = lastMonthOf(academicYear);
   // The current month, kept inside the school year: from January the page stays on December.
   const todayMonth = today.slice(0, 7);
-  const current = todayMonth > lastMonth ? lastMonth : todayMonth < firstMonth ? firstMonth : todayMonth;
+  let current;
+  if (todayMonth > lastMonth) {
+    current = lastMonth;
+  } else if (todayMonth < firstMonth) {
+    current = firstMonth;
+  } else {
+    current = todayMonth;
+  }
   // null: the current month, which follows the calendar (a new month on the 1st); a month the
   // parent picked stays until they leave the page.
   const [chosenMonth, setChosenMonth] = useState<string | null>(null);
@@ -893,7 +915,16 @@ function FrequencyMonthV3({
                   {group.slots.map((slot) => {
                     const mark = markAt.get(lessonKey(group.shift, slot));
                     // Today, or in a reading not complete, a lesson without a mark is still to be confirmed.
-                    const state = mark?.mark === 'X' ? 'absent' : mark?.mark === 'J' ? 'justified' : isToday || !group.complete ? 'pending' : 'clear';
+                    let state: 'absent' | 'justified' | 'pending' | 'clear';
+                    if (mark?.mark === 'X') {
+                      state = 'absent';
+                    } else if (mark?.mark === 'J') {
+                      state = 'justified';
+                    } else if (isToday || !group.complete) {
+                      state = 'pending';
+                    } else {
+                      state = 'clear';
+                    }
                     // Its time and subject inside the tile (owner request 23/10/2026), when known.
                     const info = lessonInfo(selected, group.shift, slot);
                     return (

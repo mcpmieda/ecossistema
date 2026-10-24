@@ -305,12 +305,14 @@ export function GradesScopeNoteV1({
   onInherit: () => void;
 }>) {
   if (settings.scope.kind === 'school') return null;
-  const level =
-    settings.scope.kind === 'class'
-      ? 'Esta turma'
-      : settings.scope.kind === 'shift'
-        ? 'Este turno'
-        : 'Este aluno';
+  let level: 'Esta turma' | 'Este turno' | 'Este aluno';
+  if (settings.scope.kind === 'class') {
+    level = 'Esta turma';
+  } else if (settings.scope.kind === 'shift') {
+    level = 'Este turno';
+  } else {
+    level = 'Este aluno';
+  }
   const owns = ownsSettingV1(settings, 'calendar');
   return (
     <div className="pa-grades-scope" role="note">
