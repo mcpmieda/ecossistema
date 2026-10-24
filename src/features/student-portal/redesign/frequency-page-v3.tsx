@@ -96,10 +96,6 @@ function dayOf(lessons: readonly ShiftLessonsV3[], marks: readonly MarkV3[]): Da
   };
 }
 
-/**
- * One sentence a parent reads: only counts the diary records, never what they might mean. `open`:
- * today, or a past day not read in full yet — more marks may still come, so nothing is final.
- */
 /** Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026). */
 function dayTitle(selected: string, today: string) {
   if (selected === today) return `Hoje, ${dayLabel(selected).toLowerCase()}`;
@@ -121,6 +117,10 @@ const LESSON_STATE_LABEL: Record<LessonStateV3, string> = {
   clear: 'Sem falta',
 };
 
+/**
+ * One sentence a parent reads: only counts the diary records, never what they might mean. `open`:
+ * today, or a past day not read in full yet — more marks may still come, so nothing is final.
+ */
 function daySentence(day: DayV3, open: boolean) {
   let reason: ' (justificada)' | ' (parte justificada)' | '';
   if (day.justified) {

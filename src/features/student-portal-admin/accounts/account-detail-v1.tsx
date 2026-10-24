@@ -74,6 +74,16 @@ const slotLabels = {
   audit: 'Auditoria',
   settings: 'Políticas',
 } as const;
+/** Why the last action failed, and what to do next. */
+function failureText(conflict: boolean, protectedFailure: boolean, retryable: boolean) {
+  if (conflict) return 'A conta mudou. Recarregue e revise uma nova ação.';
+  if (protectedFailure)
+    return 'A autorização administrativa terminou. Os dados desta ficha foram removidos.';
+  return retryable
+    ? 'Não foi possível confirmar a resposta. A ação pode ter sido concluída; repetir usa a mesma solicitação.'
+    : 'A ação foi recusada. Recarregue a ficha antes de decidir novamente.';
+}
+
 export function AccountDetailV1(props: Readonly<AccountDetailPropsV1>) {
   return (
     <Drawer.Backdrop
@@ -265,13 +275,7 @@ function AccountDetailBodyV1({
         {failed && (
           <div role="alert" className="pa-account-notice">
             <p>
-              {mutation.error.state === 'conflict'
-                ? 'A conta mudou. Recarregue e revise uma nova ação.'
-                : protectedFailure
-                  ? 'A autorização administrativa terminou. Os dados desta ficha foram removidos.'
-                  : mutation.retryable
-                    ? 'Não foi possível confirmar a resposta. A ação pode ter sido concluída; repetir usa a mesma solicitação.'
-                    : 'A ação foi recusada. Recarregue a ficha antes de decidir novamente.'}
+              {failureText(mutation.error.state === 'conflict', protectedFailure, mutation.retryable)}
             </p>
             {mutation.retryable && (
               <Button
@@ -353,7 +357,8 @@ function AccountDetailBodyV1({
             {!canWrite && <p>Modo somente leitura.</p>}
             {account.eligibility === 'exit' ? (
               <p>Aluno com saída da escola: ficha somente para consulta.</p>
-            ) : !accountManageableV1(account) ? (
+            ) : null}
+            {account.eligibility !== 'exit' && !accountManageableV1(account) ? (
               <p>
                 As ações de credenciais estão indisponíveis para este vínculo. Corrija a origem ou
                 use o procedimento administrativo próprio; não há associação por nome.

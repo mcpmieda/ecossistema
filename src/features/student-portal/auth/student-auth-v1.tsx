@@ -602,7 +602,8 @@ export function StudentAuthenticationV1({
               Preparando a entrada…
             </span>
           </output>
-        ) : state.step === 'scan' ? (
+        ) : null}
+        {state.step === 'scan' && !state.pending ? (
           <fieldset className="pa-qr-controls">
             {state.retryAt ? <RetryCountdownV1 retryAt={state.retryAt} /> : null}
             <StudentQrReaderV1

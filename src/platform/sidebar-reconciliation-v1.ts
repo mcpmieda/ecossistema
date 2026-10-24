@@ -24,8 +24,8 @@ export function useSidebarPendingV1(enabled: boolean, visit: string): string | n
           { contractVersion: 1, academicYear: 2026, operation: 'pending-count' }, controller.signal);
         if (stopped) return;
         if (result.state !== 'ready' || result.operation !== 'pending-count') { setLabel(null); return; }
-        setLabel(result.pending === 0 ? null
-          : result.pending > RECONCILIATION_PENDING_CAP_V1 ? `${RECONCILIATION_PENDING_CAP_V1}+` : String(result.pending));
+        if (result.pending === 0) setLabel(null);
+        else setLabel(result.pending > RECONCILIATION_PENDING_CAP_V1 ? `${RECONCILIATION_PENDING_CAP_V1}+` : String(result.pending));
       } catch {
         if (!stopped) setLabel(null);
       } finally { if (active === controller) active = undefined; }

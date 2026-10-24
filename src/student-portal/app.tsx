@@ -83,10 +83,10 @@ export function StudentPortalApp({
   // page, which shows the closed notice with its countdown instead of a bare error.
   const accessClosed = session.load.state === 'error' && session.load.error.state === 'access-closed';
   const signingIn = access || session.logoutState === 'done' || anonymous || accessClosed;
-  const notices = usePortalNoticesV1(
-    statusClient,
-    session.load.state === 'ready' && !signingIn ? 'student' : signingIn ? 'anonymous' : null,
-  )?.value;
+  let noticesAudience: 'student' | 'anonymous' | null = null;
+  if (signingIn) noticesAudience = 'anonymous';
+  else if (session.load.state === 'ready') noticesAudience = 'student';
+  const notices = usePortalNoticesV1(statusClient, noticesAudience)?.value;
   if (entry.route === 'unknown')
     return (
       <StudentPortalShellV1>

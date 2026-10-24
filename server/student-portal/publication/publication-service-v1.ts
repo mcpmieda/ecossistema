@@ -23,10 +23,17 @@ export class PublicationServiceV1 {
         const published = revisions.length > 0;
         const pending = selected.some((row) => row.state === 'update-pending'
           || (row.published_revision !== null && row.published_revision !== currentRevision));
-        return { period, state: pending ? 'update-pending' as const : published ? 'published' as const
-          : selected.some((row) => row.state === 'available') ? 'available' as const : 'no-data' as const,
+        let state: 'update-pending' | 'published' | 'available' | 'no-data' = 'no-data';
+        if (pending) state = 'update-pending';
+        else if (published) state = 'published';
+        else if (selected.some((row) => row.state === 'available')) state = 'available';
+        // One revision is named; several are summarized by a digest of the sorted list.
+        let publishedRevision: string | null = null;
+        if (revisions.length === 1) publishedRevision = scalarTextV1(revisions[0]);
+        else if (revisions.length > 1) publishedRevision = `mixed:${publicationDigestV1(revisions.sort((left, right) => scalarTextV1(left).localeCompare(scalarTextV1(right))))}`;
+        return { period, state,
         availableRevision: selected.some((row) => row.available_revision !== null) ? currentRevision : null,
-        publishedRevision: revisions.length === 1 ? scalarTextV1(revisions[0]) : revisions.length > 1 ? `mixed:${publicationDigestV1(revisions.sort((left, right) => scalarTextV1(left).localeCompare(scalarTextV1(right))))}` : null,
+        publishedRevision,
         version };
       }) };
     });

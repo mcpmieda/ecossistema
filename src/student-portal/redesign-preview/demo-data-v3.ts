@@ -195,6 +195,9 @@ export function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
     const reliable = days.length > 0 && count.reliable;
     // As the server: the time a mark last changed, and nothing for a month without marks.
     const lastMarked = marks.filter((mark) => mark.date < today).at(-1)?.date;
+    let coverage: 'reliable' | 'incomplete' | 'unavailable' = 'unavailable';
+    if (reliable) coverage = 'reliable';
+    else if (marks.length) coverage = 'incomplete';
     return {
       contractVersion: 2 as const,
       state: 'ready' as const,
@@ -204,7 +207,7 @@ export function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
       denominator: reliable ? count.lessons : null,
       percentage:
         reliable && count.lessons ? Math.round(((count.lessons - count.absences) / count.lessons) * 1000) / 10 : null,
-      coverage: reliable ? ('reliable' as const) : marks.length ? ('incomplete' as const) : ('unavailable' as const),
+      coverage,
       observedAt: lastMarked ? `${lastMarked}T17:40:00-03:00` : null,
       receivedAt: lastMarked ? `${lastMarked}T17:45:00-03:00` : null,
       marks,

@@ -80,6 +80,12 @@ export interface StudentAccountsPropsV1 extends Pick<
 const SCHOOL_V1: ScopeV1 = { kind: 'school', academicYear: 2026 };
 /** A class is a view of the school collection: changing class keeps what was already read. */
 const readScopeV1 = (scope: ScopeV1) => (scope.kind === 'account' ? scope : SCHOOL_V1);
+/** The account's access right now, as the table says it. */
+function accessText(access: { state: string; accessPermitted?: boolean }) {
+  if (access.state !== 'resolved') return 'Indisponível';
+  return access.accessPermitted ? 'Permitido' : 'Fechado';
+}
+
 export function StudentAccountsV1(props: Readonly<StudentAccountsPropsV1>) {
   const authority = `${props.identityKey}:${props.canWrite}`;
   const [restorationAuthority, setRestorationAuthority] = useState<string | null>(authority);
@@ -755,13 +761,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
                             </span>
                           )}
                         </Table.Cell>
-                        <Table.Cell>
-                          {account.access.state !== 'resolved'
-                            ? 'Indisponível'
-                            : account.access.accessPermitted
-                              ? 'Permitido'
-                              : 'Fechado'}
-                        </Table.Cell>
+                        <Table.Cell>{accessText(account.access)}</Table.Cell>
                         <Table.Cell>
                           {lastAuthenticationLabelV1(account.lastAuthenticationAt)}
                         </Table.Cell>

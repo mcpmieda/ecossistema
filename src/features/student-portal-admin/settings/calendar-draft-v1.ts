@@ -88,6 +88,34 @@ export function calendarDraftModeV1(
     periodAt: emptyPeriodDates(),
   };
 }
+/** The draft's disclosure: the agenda when there is one, else the single date or one per period. */
+function draftDisclosureV1(draft: CalendarDraftV1) {
+  if (draft.agenda?.disclosure) return draft.agenda.disclosure;
+  if (draft.mode === 'single')
+    return {
+      mode: 'single',
+      at: calendarInstantV1(draft.singleAt),
+      periods: draft.singlePeriods,
+      ...(draft.singleUntil ? { endsAt: calendarInstantV1(draft.singleUntil) } : {}),
+    };
+  return {
+    mode: 'per-period',
+    ...(PERIODS_V1.some((period) => draft.periodUntil?.[period])
+      ? {
+          endsAt: Object.fromEntries(
+            PERIODS_V1.map((period) => [
+              period,
+              calendarInstantV1(draft.periodUntil?.[period] ?? ''),
+            ]),
+          ),
+        }
+      : {}),
+    at: Object.fromEntries(
+      PERIODS_V1.map((period) => [period, calendarInstantV1(draft.periodAt[period])]),
+    ),
+  };
+}
+
 export function parseCalendarDraftV1(draft: CalendarDraftV1): CalendarV1 {
   const dates = Object.fromEntries(
     Object.keys(CALENDAR_LABELS_V1).map((key) => [
@@ -103,30 +131,6 @@ export function parseCalendarDraftV1(draft: CalendarDraftV1): CalendarV1 {
     timezone: 'America/Sao_Paulo',
     ...dates,
     ...(draft.agenda?.finalAgenda ? { finalAgenda: draft.agenda.finalAgenda } : {}),
-    disclosure: draft.agenda?.disclosure
-      ? draft.agenda.disclosure
-      : draft.mode === 'single'
-        ? {
-            mode: 'single',
-            at: calendarInstantV1(draft.singleAt),
-            periods: draft.singlePeriods,
-            ...(draft.singleUntil ? { endsAt: calendarInstantV1(draft.singleUntil) } : {}),
-          }
-        : {
-            mode: 'per-period',
-            ...(PERIODS_V1.some((period) => draft.periodUntil?.[period])
-              ? {
-                  endsAt: Object.fromEntries(
-                    PERIODS_V1.map((period) => [
-                      period,
-                      calendarInstantV1(draft.periodUntil?.[period] ?? ''),
-                    ]),
-                  ),
-                }
-              : {}),
-            at: Object.fromEntries(
-              PERIODS_V1.map((period) => [period, calendarInstantV1(draft.periodAt[period])]),
-            ),
-          },
+    disclosure: draftDisclosureV1(draft),
   });
 }

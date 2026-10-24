@@ -36,6 +36,13 @@ export function useReportFrequencyToneV3(tone: FrequencyToneV3) {
   useEffect(() => report(tone), [report, tone]);
 }
 
+/** A menu item's icon: the red calendar while Frequência warns, the live clock for Horário. */
+function NavIconV3({ id, Icon, alert }: Readonly<{ id: PageV3; Icon: typeof NotebookPen; alert: boolean }>) {
+  if (alert) return <CalendarX2 size={22} aria-hidden="true" />;
+  if (id === 'schedule') return <LiveClockIconV3 size={22} />;
+  return <Icon size={22} aria-hidden="true" />;
+}
+
 const PAGES: readonly { id: PageV3; label: string; Icon: typeof NotebookPen }[] = [
   { id: 'grades', label: 'Notas', Icon: NotebookPen },
   { id: 'frequency', label: 'Frequência', Icon: CalendarCheck2 },
@@ -302,13 +309,7 @@ function PortalMenuPagesV3({
             <span
               className={'pa3-nav-icon' + (id === 'frequency' && frequencyTone ? ` pa3-nav-icon--${frequencyTone}` : '')}
             >
-              {id === 'frequency' && frequencyTone === 'alert' ? (
-                <CalendarX2 size={22} aria-hidden="true" />
-              ) : id === 'schedule' ? (
-                <LiveClockIconV3 size={22} />
-              ) : (
-                <Icon size={22} aria-hidden="true" />
-              )}
+              <NavIconV3 id={id} Icon={Icon} alert={id === 'frequency' && frequencyTone === 'alert'} />
             </span>
             <span className="pa3-nav-label">{label}</span>
           </button>

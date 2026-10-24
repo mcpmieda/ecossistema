@@ -192,6 +192,25 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
   );
 }
 
+/** The run's state; anything but running or paused reads as finished. */
+function importStatusText(status: ImportTimingSummaryV1['status']) {
+  if (status === 'in-progress') return 'Em andamento';
+  return status === 'paused' ? 'Pausado' : 'Finalizado';
+}
+
+/** What happened to the last copy of the diagnostic. */
+function copyStatusText(
+  status: 'idle' | 'copying' | 'copied' | 'failed',
+  manualText: string | null,
+) {
+  if (status === 'copied') return 'Diagnóstico copiado.';
+  if (status === 'failed')
+    return manualText === null
+      ? 'Não foi possível obter o diagnóstico.'
+      : 'Não foi possível copiar. Selecione o texto abaixo para copiar manualmente.';
+  return status === 'copying' ? 'Copiando diagnóstico…' : '';
+}
+
 export function TimingDiagnostics({
   visible,
   summary,
@@ -259,11 +278,7 @@ export function TimingDiagnostics({
         </Button>
       </div>
       <p className="mt-2 text-xs text-muted">
-        {summary.status === 'in-progress'
-          ? 'Em andamento'
-          : summary.status === 'paused'
-            ? 'Pausado'
-            : 'Finalizado'}
+        {importStatusText(summary.status)}
         {summary.diagnosticFailures > 0 ? ' · Diagnóstico parcial' : ''}
         {summary.discardedEvents > 0
           ? ` · ${summary.discardedEvents} eventos recentes descartados`
@@ -273,15 +288,7 @@ export function TimingDiagnostics({
           : ''}
       </p>
       <p role="status" aria-live="polite" className="mt-2 text-sm">
-        {copyStatus === 'copied'
-          ? 'Diagnóstico copiado.'
-          : copyStatus === 'failed'
-            ? manualText === null
-              ? 'Não foi possível obter o diagnóstico.'
-              : 'Não foi possível copiar. Selecione o texto abaixo para copiar manualmente.'
-            : copyStatus === 'copying'
-              ? 'Copiando diagnóstico…'
-              : ''}
+        {copyStatusText(copyStatus, manualText)}
       </p>
       {manualText !== null && (
         <label className="mt-2 block text-sm">
