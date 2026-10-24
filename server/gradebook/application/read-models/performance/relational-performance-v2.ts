@@ -174,6 +174,206 @@ function statusLabelV2(status: keyof typeof STATUS_LABELS | null, relatedClass: 
   return status === 7 && relatedClass !== null ? `ESTAVA NO ${relatedClass}` : STATUS_LABELS[status];
 }
 
+type PerformanceDetailRequestV2 = Exclude<PerformanceRequestV2, { operation: 'classes' }>;
+type PerformanceOptionsV2 = {
+  readonly descriptionOfferId?: number;
+  readonly includeInstrumentDescriptions?: boolean;
+};
+
+/** The classes of the year, one page at a time, with the status options of the filter. */
+async function readClassesV2(
+  db: GradebookPostgresReadPortV1,
+  request: Extract<PerformanceRequestV2, { operation: 'classes' }>,
+  common: { transportVersion: 2; state: 'ready'; authority: 'calculated-preview'; context: { year: number; minimumApprovalMilli: number; maxCouncilComponents: number }; readAt: string },
+): Promise<PerformanceResponseV2> {
+  const classesQuery = parameters();
+  const classesYear = classesQuery.param(request.year);
+  const classesLimit = classesQuery.param(request.limit + 1);
+  const classesOffset = classesQuery.param(request.offset);
+  const rows = await all(
+    db,
+    `SELECT id, codigo FROM gradebook.turma WHERE ano = ${classesYear} ORDER BY codigo COLLATE "C", id LIMIT ${classesLimit} OFFSET ${classesOffset}`,
+    classesQuery.values,
+  );
+  const nextOffset = rows.length > request.limit ? request.offset + request.limit : null;
+  if (nextOffset !== null && nextOffset > 100_000) return fail('scope-too-large');
+  return {
+    ...common,
+    operation: 'classes',
+    statusOptions: [
+      { value: null, label: 'Em curso' },
+      ...([1, 2, 3, 4, 5, 7] as const).map((value) => ({
+        value,
+        label: STATUS_LABELS[value],
+      })),
+    ],
+    classes: rows
+      .slice(0, request.limit)
+      .map((value) => ({ id: integer(value.id), label: text(value.codigo) })),
+    nextOffset,
+  };
+}
+
+/** The class's students (or the one asked for), bounded to one more than the limit. */
+async function readStudentsV2(db: GradebookPostgresReadPortV1, request: PerformanceDetailRequestV2) {
+  const specificStudent = request.operation !== 'matrix';
+  const studentsQuery = parameters();
+  const studentsYear = studentsQuery.param(request.year);
+  const studentsClass = studentsQuery.param(request.classId);
+  const studentsFilter = specificStudent ? `AND a.id=${studentsQuery.param(request.studentId)}` : '';
+  const studentsLimit = studentsQuery.param(PERFORMANCE_LIMITS_V2.students + 1);
+  return all(
+    db,
+    `SELECT a.id,COALESCE(presentation.name,a.nome) AS nome,v.numero,v.situacao,tr.codigo AS turma_relacionada_codigo,cd.decisao
+    FROM gradebook.vinculo v
+    JOIN gradebook.aluno a ON a.id=v.aluno_id AND a.ano=v.ano
+    LEFT JOIN gradebook.student_presentation_v1 presentation ON presentation.student_id=a.id AND presentation.academic_year=a.ano
+    LEFT JOIN gradebook.turma tr ON tr.id=v.turma_relacionada_id AND tr.ano=v.ano
+    LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id=a.id
+    WHERE v.ano=${studentsYear} AND v.turma_id=${studentsClass} AND v.situacao IS DISTINCT FROM 6 ${studentsFilter}
+    ORDER BY v.numero,a.id LIMIT ${studentsLimit}`,
+    studentsQuery.values,
+  );
+}
+
+/** The class's offers (or the one asked for), in subject order. */
+async function readOffersV2(db: GradebookPostgresReadPortV1, request: PerformanceDetailRequestV2) {
+  const specificOffer = request.operation === 'cell-detail';
+  const offersQuery = parameters();
+  const offersYear = offersQuery.param(request.year);
+  const offersClass = offersQuery.param(request.classId);
+  const offersFilter = specificOffer ? `AND o.id=${offersQuery.param(request.offerId)}` : '';
+  const offersLimit = offersQuery.param(PERFORMANCE_LIMITS_V2.offers + 1);
+  return (
+    await all(
+      db,
+      `SELECT o.id,o.disciplina_id,d.nome AS disciplina_nome,o.professor_id,p.nome AS professor_nome
+    FROM gradebook.oferta o
+    JOIN gradebook.disciplina d ON d.id=o.disciplina_id AND d.ano=o.ano
+    JOIN gradebook.professor p ON p.id=o.professor_id AND p.ano=o.ano
+    WHERE o.ano=${offersYear} AND o.turma_id=${offersClass} ${offersFilter}
+    ORDER BY d.nome COLLATE "C",o.id LIMIT ${offersLimit}`,
+      offersQuery.values,
+    )
+  )
+    .map(offer)
+    .sort(orderOffers);
+}
+
+/** The instrument description column: the detail's own, one chosen offer's, labels up to 500
+ * characters, or none. */
+function factsDescriptionV2(
+  factsQuery: ReturnType<typeof parameters>,
+  specificOffer: boolean,
+  options: PerformanceOptionsV2,
+) {
+  if (specificOffer) {
+    return 'i.descricao';
+  } else if (options.descriptionOfferId !== undefined) {
+    return `CASE WHEN o.id=${factsQuery.param(options.descriptionOfferId)} THEN i.descricao ELSE NULL::text END`;
+  } else if (options.includeInstrumentDescriptions === true) {
+    return 'CASE WHEN char_length(i.descricao) <= 500 THEN i.descricao ELSE NULL::text END';
+  } else {
+    return 'NULL::text';
+  }
+}
+
+/** Every instrument, mark and closing of the bounded scope, grouped by student and offer. */
+async function readGroupedFactsV2(
+  db: GradebookPostgresReadPortV1,
+  request: PerformanceDetailRequestV2,
+  options: PerformanceOptionsV2,
+  assessmentNames: ReturnType<typeof assessmentNamesSchemaV1.parse>,
+) {
+  const specificStudent = request.operation !== 'matrix';
+  const specificOffer = request.operation === 'cell-detail';
+  const grouped = new Map<string, { facts: PerformanceFactV2[]; closing: PerformanceClosingV2 }>();
+  // The V6 label budget is 500 characters. Do not truncate a compound description into a
+  // participation alias: oversized labels keep their original source and use a generic label.
+  const factsQuery = parameters();
+  const description = factsDescriptionV2(factsQuery, specificOffer, options);
+  // One query for the entire bounded scope. A detail restricts SQL, not just its response.
+  const factsYear = factsQuery.param(request.year);
+  const factsClass = factsQuery.param(request.classId);
+  const factsStudent = specificStudent ? `AND v.aluno_id=${factsQuery.param(request.studentId)}` : '';
+  const factsOffer = specificOffer ? `AND o.id=${factsQuery.param(request.offerId)}` : '';
+  const facts = await all(
+    db,
+    `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,n.instrumento_id IS NOT NULL AS observed,
+    ${description} AS descricao,
+    f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,
+    COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint,0) AS rec_rr_mask,f.u_fonte
+    FROM gradebook.vinculo v JOIN gradebook.oferta o ON o.ano=v.ano AND o.turma_id=v.turma_id
+    LEFT JOIN gradebook.instrumento i ON i.oferta_id=o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
+    LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id AND n.aluno_id=v.aluno_id
+    LEFT JOIN gradebook.fechamento f ON f.oferta_id=o.id AND f.aluno_id=v.aluno_id
+    WHERE v.ano=${factsYear} AND v.turma_id=${factsClass} AND v.situacao IS DISTINCT FROM 6
+      ${factsStudent} ${factsOffer}
+    ORDER BY v.aluno_id,o.id,i.trimestre,i.slot`,
+    factsQuery.values,
+  );
+  for (const row of facts) {
+    const key = `${integer(row.aluno_id)}:${integer(row.oferta_id)}`;
+    const group = grouped.get(key) ?? { facts: [], closing: closing(row) };
+    if (row.slot !== null) {
+      const slot = integer(row.slot) as SimplifiedInstrumentSlotV1;
+      group.facts.push({
+        term: integer(row.trimestre) as SimplifiedAcademicTermV1,
+        slot,
+        maximumMilli: nullable(row.maximo),
+        valueMilli: nullable(row.valor),
+        observed: row.observed === true || row.observed === 1,
+        label: assessmentLabelV1(
+          slot,
+          integer(row.trimestre),
+          assessmentNames,
+          typeof row.descricao === 'string' ? row.descricao : null,
+        ),
+      });
+    }
+    grouped.set(key, group);
+  }
+  return grouped;
+}
+
+/** The three terms of a cell detail: grades, recovery visibility, both cells and the instruments. */
+function cellDetailTermsV2(projection: PerformanceProjectionV2, includeRawSum: boolean) {
+  return TERMS.map((term) => {
+    const outcome = projection.terms[term - 1] ?? null;
+    const visibility = termRecoveryVisibilityV1(
+      outcome,
+      projection.recovery?.recoveryTerms[term].applicable ?? null,
+    );
+    const hasGrades =
+      projection.facts.some(
+        (fact) => fact.term === term && (fact.valueMilli !== null || fact.observed === true),
+      ) ||
+      projection.closing.am[term - 1] !== null ||
+      projection.closing.rec[term - 1] !== null;
+    return {
+      term,
+      hasGrades,
+      ...visibility,
+      regular: performanceCellV2(projection, term, 'regular', includeRawSum),
+      recovery: performanceCellV2(projection, term, 'recovery'),
+      quantitativeOriginalMilli: outcome?.quantitativeOriginalMilli ?? null,
+      quantitativeConsideredMilli: outcome?.quantitativeConsideredMilli ?? null,
+      qualitativeMilli: outcome?.qualitativeOperationalMilli ?? null,
+      parallelMilli: outcome?.parallelMilli ?? null,
+      parallelApplicable: outcome?.parallelApplicable ?? null,
+      instruments: projection.facts
+        .filter((value) => value.term === term)
+        .map(({ slot, label, maximumMilli, valueMilli, observed }) => ({
+          slot,
+          label,
+          maximumMilli: slot === 3 ? (outcome?.quantitativeMaximumMilli ?? null) : maximumMilli,
+          valueMilli,
+          ...(observed === true && valueMilli === null ? { notDone: true as const } : {}),
+        })),
+    };
+  }) as Extract<PerformanceResponseV2, { operation: 'cell-detail' }>['terms'];
+}
+
 export async function readRelationalPerformanceV2(
   db: GradebookPostgresReadPortV1,
   request: PerformanceRequestV2,
@@ -206,34 +406,7 @@ export async function readRelationalPerformanceV2(
     },
     readAt: text(year.read_at),
   } as const;
-  if (request.operation === 'classes') {
-    const classesQuery = parameters();
-    const classesYear = classesQuery.param(request.year);
-    const classesLimit = classesQuery.param(request.limit + 1);
-    const classesOffset = classesQuery.param(request.offset);
-    const rows = await all(
-      db,
-      `SELECT id, codigo FROM gradebook.turma WHERE ano = ${classesYear} ORDER BY codigo COLLATE "C", id LIMIT ${classesLimit} OFFSET ${classesOffset}`,
-      classesQuery.values,
-    );
-    const nextOffset = rows.length > request.limit ? request.offset + request.limit : null;
-    if (nextOffset !== null && nextOffset > 100_000) return fail('scope-too-large');
-    return {
-      ...common,
-      operation: 'classes',
-      statusOptions: [
-        { value: null, label: 'Em curso' },
-        ...([1, 2, 3, 4, 5, 7] as const).map((value) => ({
-          value,
-          label: STATUS_LABELS[value],
-        })),
-      ],
-      classes: rows
-        .slice(0, request.limit)
-        .map((value) => ({ id: integer(value.id), label: text(value.codigo) })),
-      nextOffset,
-    };
-  }
+  if (request.operation === 'classes') return readClassesV2(db, request, common);
   const classQuery = parameters();
   const classYearParam = classQuery.param(request.year);
   const classIdParam = classQuery.param(request.classId);
@@ -254,44 +427,10 @@ export async function readRelationalPerformanceV2(
   };
   const specificStudent = request.operation !== 'matrix';
   const specificOffer = request.operation === 'cell-detail';
-  const studentsQuery = parameters();
-  const studentsYear = studentsQuery.param(request.year);
-  const studentsClass = studentsQuery.param(request.classId);
-  const studentsFilter = specificStudent ? `AND a.id=${studentsQuery.param(request.studentId)}` : '';
-  const studentsLimit = studentsQuery.param(PERFORMANCE_LIMITS_V2.students + 1);
-  const students = await all(
-    db,
-    `SELECT a.id,COALESCE(presentation.name,a.nome) AS nome,v.numero,v.situacao,tr.codigo AS turma_relacionada_codigo,cd.decisao
-    FROM gradebook.vinculo v
-    JOIN gradebook.aluno a ON a.id=v.aluno_id AND a.ano=v.ano
-    LEFT JOIN gradebook.student_presentation_v1 presentation ON presentation.student_id=a.id AND presentation.academic_year=a.ano
-    LEFT JOIN gradebook.turma tr ON tr.id=v.turma_relacionada_id AND tr.ano=v.ano
-    LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id=a.id
-    WHERE v.ano=${studentsYear} AND v.turma_id=${studentsClass} AND v.situacao IS DISTINCT FROM 6 ${studentsFilter}
-    ORDER BY v.numero,a.id LIMIT ${studentsLimit}`,
-    studentsQuery.values,
-  );
+  const students = await readStudentsV2(db, request);
   if (specificStudent && students.length === 0) return fail('not-found');
   if (students.length > PERFORMANCE_LIMITS_V2.students) return fail('scope-too-large');
-  const offersQuery = parameters();
-  const offersYear = offersQuery.param(request.year);
-  const offersClass = offersQuery.param(request.classId);
-  const offersFilter = specificOffer ? `AND o.id=${offersQuery.param(request.offerId)}` : '';
-  const offersLimit = offersQuery.param(PERFORMANCE_LIMITS_V2.offers + 1);
-  const offers = (
-    await all(
-      db,
-      `SELECT o.id,o.disciplina_id,d.nome AS disciplina_nome,o.professor_id,p.nome AS professor_nome
-    FROM gradebook.oferta o
-    JOIN gradebook.disciplina d ON d.id=o.disciplina_id AND d.ano=o.ano
-    JOIN gradebook.professor p ON p.id=o.professor_id AND p.ano=o.ano
-    WHERE o.ano=${offersYear} AND o.turma_id=${offersClass} ${offersFilter}
-    ORDER BY d.nome COLLATE "C",o.id LIMIT ${offersLimit}`,
-      offersQuery.values,
-    )
-  )
-    .map(offer)
-    .sort(orderOffers);
+  const offers = await readOffersV2(db, request);
   if (specificOffer && offers.length === 0) return fail('not-found');
   if (
     offers.length > PERFORMANCE_LIMITS_V2.offers ||
@@ -301,63 +440,10 @@ export async function readRelationalPerformanceV2(
   if (new Set(offers.map((value) => value.subject.id)).size !== offers.length)
     return fail('ambiguous-offers');
 
-  const grouped = new Map<string, { facts: PerformanceFactV2[]; closing: PerformanceClosingV2 }>();
-  if (students.length && offers.length) {
-    // The V6 label budget is 500 characters. Do not truncate a compound description into a
-    // participation alias: oversized labels keep their original source and use a generic label.
-    const factsQuery = parameters();
-    let description;
-    if (specificOffer) {
-      description = 'i.descricao';
-    } else if (options.descriptionOfferId !== undefined) {
-      description = `CASE WHEN o.id=${factsQuery.param(options.descriptionOfferId)} THEN i.descricao ELSE NULL::text END`;
-    } else if (options.includeInstrumentDescriptions === true) {
-      description = 'CASE WHEN char_length(i.descricao) <= 500 THEN i.descricao ELSE NULL::text END';
-    } else {
-      description = 'NULL::text';
-    }
-    // One query for the entire bounded scope. A detail restricts SQL, not just its response.
-    const factsYear = factsQuery.param(request.year);
-    const factsClass = factsQuery.param(request.classId);
-    const factsStudent = specificStudent ? `AND v.aluno_id=${factsQuery.param(request.studentId)}` : '';
-    const factsOffer = specificOffer ? `AND o.id=${factsQuery.param(request.offerId)}` : '';
-    const facts = await all(
-      db,
-      `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,n.instrumento_id IS NOT NULL AS observed,
-      ${description} AS descricao,
-      f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,
-      COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint,0) AS rec_rr_mask,f.u_fonte
-      FROM gradebook.vinculo v JOIN gradebook.oferta o ON o.ano=v.ano AND o.turma_id=v.turma_id
-      LEFT JOIN gradebook.instrumento i ON i.oferta_id=o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
-      LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id AND n.aluno_id=v.aluno_id
-      LEFT JOIN gradebook.fechamento f ON f.oferta_id=o.id AND f.aluno_id=v.aluno_id
-      WHERE v.ano=${factsYear} AND v.turma_id=${factsClass} AND v.situacao IS DISTINCT FROM 6
-        ${factsStudent} ${factsOffer}
-      ORDER BY v.aluno_id,o.id,i.trimestre,i.slot`,
-      factsQuery.values,
-    );
-    for (const row of facts) {
-      const key = `${integer(row.aluno_id)}:${integer(row.oferta_id)}`;
-      const group = grouped.get(key) ?? { facts: [], closing: closing(row) };
-      if (row.slot !== null) {
-        const slot = integer(row.slot) as SimplifiedInstrumentSlotV1;
-        group.facts.push({
-          term: integer(row.trimestre) as SimplifiedAcademicTermV1,
-          slot,
-          maximumMilli: nullable(row.maximo),
-          valueMilli: nullable(row.valor),
-          observed: row.observed === true || row.observed === 1,
-          label: assessmentLabelV1(
-            slot,
-            integer(row.trimestre),
-            assessmentNames,
-            typeof row.descricao === 'string' ? row.descricao : null,
-          ),
-        });
-      }
-      grouped.set(key, group);
-    }
-  }
+  const grouped =
+    students.length && offers.length
+      ? await readGroupedFactsV2(db, request, options, assessmentNames)
+      : new Map<string, { facts: PerformanceFactV2[]; closing: PerformanceClosingV2 }>();
   const project = (value: Row) =>
     offers.map((offering) => {
       const group = grouped.get(`${integer(value.id)}:${offering.id}`);
@@ -376,40 +462,7 @@ export async function readRelationalPerformanceV2(
       operation: 'cell-detail',
       student: student(students[0]!),
       offer: offers[0]!,
-      terms: TERMS.map((term) => {
-        const outcome = projection.terms[term - 1] ?? null;
-        const visibility = termRecoveryVisibilityV1(
-          outcome,
-          projection.recovery?.recoveryTerms[term].applicable ?? null,
-        );
-        const hasGrades =
-          projection.facts.some(
-            (fact) => fact.term === term && (fact.valueMilli !== null || fact.observed === true),
-          ) ||
-          projection.closing.am[term - 1] !== null ||
-          projection.closing.rec[term - 1] !== null;
-        return {
-          term,
-          hasGrades,
-          ...visibility,
-          regular: performanceCellV2(projection, term, 'regular', request.includeRawSum === true),
-          recovery: performanceCellV2(projection, term, 'recovery'),
-          quantitativeOriginalMilli: outcome?.quantitativeOriginalMilli ?? null,
-          quantitativeConsideredMilli: outcome?.quantitativeConsideredMilli ?? null,
-          qualitativeMilli: outcome?.qualitativeOperationalMilli ?? null,
-          parallelMilli: outcome?.parallelMilli ?? null,
-          parallelApplicable: outcome?.parallelApplicable ?? null,
-          instruments: projection.facts
-            .filter((value) => value.term === term)
-            .map(({ slot, label, maximumMilli, valueMilli, observed }) => ({
-              slot,
-              label,
-              maximumMilli: slot === 3 ? (outcome?.quantitativeMaximumMilli ?? null) : maximumMilli,
-              valueMilli,
-              ...(observed === true && valueMilli === null ? { notDone: true as const } : {}),
-            })),
-        };
-      }) as Extract<PerformanceResponseV2, { operation: 'cell-detail' }>['terms'],
+      terms: cellDetailTermsV2(projection, request.includeRawSum === true),
     };
   }
   if (request.operation === 'student-detail') {
