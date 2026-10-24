@@ -30,7 +30,9 @@ function timestamp(value: string | null): number | null {
 const instant = (value: string | null): string | null => {
   if (value === null) return null;
   const date = new Date(value);
-  if (/\.\d*[1-9]\d*(?:Z|[+-]\d{2}:\d{2})$/u.test(value) || date.getUTCMilliseconds() !== 0)
+  // A fraction of a second with any digit other than zero ("…:00.500Z") is refused.
+  const fraction = /\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/u.exec(value)?.[1];
+  if ((fraction !== undefined && /[1-9]/u.test(fraction)) || date.getUTCMilliseconds() !== 0)
     throw new Error('student-portal-calendar-second-precision');
   return date.toISOString().replace('.000Z', 'Z');
 };

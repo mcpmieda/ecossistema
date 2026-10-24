@@ -162,15 +162,15 @@ function planLabelsV1(
     if (surface) surface.canvas.width = surface.canvas.height = 1;
   }
 }
+/** Where the labels go under a card's QR: left edge, top, width and the height they may use. */
+type LabelBoxV1 = { x: number; top: number; width: number; maxHeight: number };
+
 async function drawLabelsV1(
   pdf: PDFDocument,
   page: PDFPage,
   font: PDFFont,
   plan: LabelPlanV1,
-  x: number,
-  top: number,
-  width: number,
-  maxHeight: number,
+  { x, top, width, maxHeight }: LabelBoxV1,
   signal: AbortSignal,
 ) {
   const { parts, supported } = plan;
@@ -298,10 +298,12 @@ export async function renderQrPdfV1(
         page!,
         font,
         plans[column]!,
-        x + 8,
-        qrTop - layout.qrSize - 4,
-        width - 16,
-        height - 6 - layout.qrSize - 4 - 8,
+        {
+          x: x + 8,
+          top: qrTop - layout.qrSize - 4,
+          width: width - 16,
+          maxHeight: height - 6 - layout.qrSize - 4 - 8,
+        },
         signal,
       );
       signal.throwIfAborted();

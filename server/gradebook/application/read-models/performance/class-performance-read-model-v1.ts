@@ -57,6 +57,7 @@ import {
   type ResultCoverageV1,
 } from '../../../../../shared/gradebook-contracts/results/results-contract-v1';
 import type { AcademicRecordV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import { trimEndCharsV1 } from '../../../../../shared/trim-chars-v1';
 
 const ROW_CURSOR_PREFIX = 'class-performance-row-v1.';
 const COLUMN_CURSOR_PREFIX = 'class-performance-column-v1.';
@@ -345,7 +346,7 @@ function encodeBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value);
   let binary = '';
   for (const byte of bytes) binary += String.fromCodePoint(byte);
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+  return trimEndCharsV1(btoa(binary).replaceAll('+', '-').replaceAll('/', '_'), '=');
 }
 
 function decodeBase64Url(value: string): string | null {

@@ -92,7 +92,7 @@ export function AnalyticsKpisV6({
     {
       label: 'Mediana',
       value: percent(summary.result.median),
-      sub: `Dispersão ${summary.result.deviation === null ? '—' : `${number(summary.result.deviation)} p.p.`}`,
+      sub: `Dispersão ${summary.result.deviation === null ? '—' : number(summary.result.deviation) + ' p.p.'}`,
       hint: 'Valor central dos percentuais dos resultados. Dispersão: desvio-padrão populacional.',
     },
     {

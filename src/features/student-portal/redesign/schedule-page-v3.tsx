@@ -594,7 +594,7 @@ const itemName = (item: BellItemV1, subject: string | null) => {
   if (item.kind === 'parada') {
     return 'Parada';
   }
-  return `${item.slot}ª aula${subject ? ` · ${subject}` : ''}`;
+  return `${item.slot}ª aula${subject ? ' · ' + subject : ''}`;
 };
 /**
  * Today, now (owner decision 23/10/2026): the lesson going on and a short clock to what comes next
@@ -739,6 +739,35 @@ function NowCardV3({
   );
 }
 
+/** One day of the phone's slider: its name, then why there is no school or its lessons. */
+function dayPanelV3(
+  item: ScheduleClassV3,
+  offAt: (weekday: number) => SchoolDayOffV1 | null,
+  isToday: (weekday: number) => boolean,
+  seconds: number,
+) {
+  return (weekday: WeekdayV3, current: boolean) => {
+    const day = DAYS[weekday - 1]!;
+    const dayOff = offAt(weekday);
+    return (
+      <>
+        <h3 aria-live={current ? 'polite' : undefined}>
+          {isToday(weekday) ? `Hoje, ${day.long.toLowerCase()}` : day.long}
+        </h3>
+        {dayOff ? (
+          <DayOffV3 day={dayOff} today={isToday(weekday)} />
+        ) : (
+          <DayListV3
+            rows={rowsOf(item, weekday)}
+            now={isToday(weekday) ? seconds : null}
+            label={`Aulas de ${day.long.toLowerCase()}`}
+          />
+        )}
+      </>
+    );
+  };
+}
+
 /** The week as read; `classes` null while it has not come yet (then `status` says why). */
 export function ScheduleWeekV3({
   classes,
@@ -837,26 +866,7 @@ export function ScheduleWeekV3({
                 <DaySliderV3
                   shown={shown}
                   onChange={setPicked}
-                  panel={(weekday, current) => {
-                    const day = DAYS[weekday - 1]!;
-                    const dayOff = offAt(weekday);
-                    return (
-                      <>
-                        <h3 aria-live={current ? 'polite' : undefined}>
-                          {isToday(weekday) ? `Hoje, ${day.long.toLowerCase()}` : day.long}
-                        </h3>
-                        {dayOff ? (
-                          <DayOffV3 day={dayOff} today={isToday(weekday)} />
-                        ) : (
-                          <DayListV3
-                            rows={rowsOf(item, weekday)}
-                            now={isToday(weekday) ? clock.seconds : null}
-                            label={`Aulas de ${day.long.toLowerCase()}`}
-                          />
-                        )}
-                      </>
-                    );
-                  }}
+                  panel={dayPanelV3(item, offAt, isToday, clock.seconds)}
                 />
               </div>
 
@@ -864,7 +874,7 @@ export function ScheduleWeekV3({
                     after a different lesson each day, so each day is its own column). */}
               <div
                 className="pa3-schedule-week"
-                aria-label={`Horário da semana${classes.length > 1 ? `, ${item.label}` : ''}`}
+                aria-label={`Horário da semana${classes.length > 1 ? ', ' + item.label : ''}`}
                 role="group"
               >
                 {DAYS.map((day) => {

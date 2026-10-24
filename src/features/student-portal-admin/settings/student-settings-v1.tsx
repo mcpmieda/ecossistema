@@ -446,6 +446,50 @@ function SettingsMutationFeedbackV1({
   );
 }
 
+/** The school's own calendar and bell editors on the policies page, open for editing or not. */
+function schoolEditorsV1(client: PortalAdminClientV1, canWrite: boolean, onSaved: () => void) {
+  return {
+    calendar: (editing: boolean) => (
+      <SchoolCalendarEditorV1 client={client} canWrite={canWrite && editing} onSaved={onSaved} />
+    ),
+    bells: (editing: boolean) => <SchoolBellsEditorV1 client={client} canWrite={canWrite && editing} />,
+  };
+}
+
+/** Each trimester's status chip and its show/hide card, placed by the publication list. */
+function publicationSlotsV1({
+  data,
+  discardVersion,
+  fieldVersions,
+  canWrite,
+  disabled,
+  onReview,
+  onDirtyChange,
+}: {
+  data: EffectiveSettingsV1;
+  discardVersion: number;
+  fieldVersions: Partial<Record<string, number>>;
+  canWrite: boolean;
+  disabled: boolean;
+  onReview: (review: ReviewV1) => void;
+  onDirtyChange: (key: string, dirty: boolean) => void;
+}): PublicationSlotsV1 {
+  return {
+    periodStatus: (item) => <GradeStatusChipV1 settings={data} period={item.period} state={item.state} />,
+    periodExtra: (item) => (
+      <GradeShowV1
+        key={`${discardVersion}:${item.period}:${fieldVersions['grades:' + item.period] ?? 0}`}
+        settings={data}
+        gradeKey={item.period}
+        canWrite={canWrite}
+        disabled={disabled}
+        review={(intent: GradeReviewIntentV1) => onReview({ ...intent, expectedVersion: data.version })}
+        onDirtyChange={onDirtyChange}
+      />
+    ),
+  };
+}
+
 function SettingsReadyV1({
   publication,
   fieldVersions,
@@ -560,24 +604,17 @@ function SettingsReadyV1({
         </Card>
       ));
     if (typeof publication !== 'function') return publication;
-    return publication({
-      periodStatus: (item) => (
-        <GradeStatusChipV1 settings={data} period={item.period} state={item.state} />
-      ),
-      periodExtra: (item) => (
-        <GradeShowV1
-          key={`${discardVersion}:${item.period}:${fieldVersions['grades:' + item.period] ?? 0}`}
-          settings={data}
-          gradeKey={item.period}
-          canWrite={canWrite}
-          disabled={gradesDisabled}
-          review={(intent: GradeReviewIntentV1) =>
-            onReview({ ...intent, expectedVersion: data.version })
-          }
-          onDirtyChange={onDirtyChange}
-        />
-      ),
-    });
+    return publication(
+      publicationSlotsV1({
+        data,
+        discardVersion,
+        fieldVersions,
+        canWrite,
+        disabled: gradesDisabled,
+        onReview,
+        onDirtyChange,
+      }),
+    );
   };
   const customizations =
     reader &&
@@ -593,6 +630,8 @@ function SettingsReadyV1({
         onOpen={onOpenCustomization}
       />
     ) : null;
+  const schoolEditors =
+    fixedScope.kind === 'school' ? schoolEditorsV1(client, canWrite, onRefresh) : undefined;
   return (
     <>
       <SettingsMutationFeedbackV1
@@ -613,18 +652,8 @@ function SettingsReadyV1({
         <PolicyLayoutV1
           customizations={customizations}
           calendarEditable={canWrite && fixedScope.kind === 'school'}
-          schoolCalendar={
-            fixedScope.kind === 'school'
-              ? (editing) => (
-                  <SchoolCalendarEditorV1 client={client} canWrite={canWrite && editing} onSaved={onRefresh} />
-                )
-              : undefined
-          }
-          schoolBells={
-            fixedScope.kind === 'school'
-              ? (editing) => <SchoolBellsEditorV1 client={client} canWrite={canWrite && editing} />
-              : undefined
-          }
+          schoolCalendar={schoolEditors?.calendar}
+          schoolBells={schoolEditors?.bells}
           field={renderField}
           shift={fixedScope.kind === 'shift'}
           grades={

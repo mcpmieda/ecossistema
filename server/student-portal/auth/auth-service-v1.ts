@@ -132,15 +132,13 @@ async function failed(
     'login-failed',
     context.now,
     requestId,
-    context.account.id,
-    'denied',
-    {
+    { actorId: context.account.id, result: 'denied', detail: {
       reason: kind === 'pin' ? 'wrong-pin' : 'wrong-password',
       step: kind,
       failures,
       blockAfter: context.policy.enforcedValue.risk.blockAfter,
       ...(attempt.blockedUntil ? { blockedUntil: attempt.blockedUntil } : {}),
-    },
+    } },
   );
   // Return, never throw: a failed credential must commit its durable counter.
   return blocked(attempt, context, requestId) ?? denied(requestId);
@@ -165,7 +163,7 @@ async function auditedDenied(
   requestId: string,
   detail?: AuditDetailV1,
 ) {
-  await authAuditV1(store, account, 'login-failed', now, requestId, account.id, 'denied', detail);
+  await authAuditV1(store, account, 'login-failed', now, requestId, { actorId: account.id, result: 'denied', detail });
   return denied(requestId);
 }
 
@@ -182,13 +180,13 @@ async function auditedBlockedV1(
   requestId: string,
   step: NonNullable<AuditDetailV1['step']>,
 ) {
-  await authAuditV1(store, context.account, 'login-failed', context.now, requestId, context.account.id, 'denied', {
+  await authAuditV1(store, context.account, 'login-failed', context.now, requestId, { actorId: context.account.id, result: 'denied', detail: {
     reason: 'temporarily-blocked',
     step,
     failures: attempt.failures,
     blockAfter: context.policy.enforcedValue.risk.blockAfter,
     ...(attempt.blockedUntil ? { blockedUntil: attempt.blockedUntil } : {}),
-  });
+  } });
 }
 
 function sameVerifier(left: VerifierV1, right: VerifierV1): boolean {
@@ -261,10 +259,10 @@ async function qrAuthStateV1(
       }),
     };
   if (!context.accessOpen) {
-    await authAuditV1(store, account, 'login-failed', context.now, requestId, account.id, 'denied', {
+    await authAuditV1(store, account, 'login-failed', context.now, requestId, { actorId: account.id, result: 'denied', detail: {
       reason: 'access-closed',
       step,
-    });
+    } });
     return { result: accessClosed(requestId) };
   }
   return { accountId, context, credential, attempt: await attempts(store, context) };
@@ -602,9 +600,7 @@ export class AuthServiceV1 {
         'activated',
         current.context.now,
         requestId,
-        current.context.account.id,
-        'success',
-        { keepConnected: request.keepConnected, ...(this.device ? { device: this.device } : {}) },
+        { actorId: current.context.account.id, result: 'success', detail: { keepConnected: request.keepConnected, ...(this.device ? { device: this.device } : {}) } },
       );
       return createSessionV1(
         store,
@@ -670,10 +666,10 @@ export class AuthServiceV1 {
       if (!passwordProof.valid) return failed(store, context, attempt, requestId, 'password');
       context.now = await authNowV1(tx);
       await clearAttempts(store, context, attempt);
-      await authAuditV1(store, context.account, 'login', context.now, requestId, context.account.id, 'success', {
+      await authAuditV1(store, context.account, 'login', context.now, requestId, { actorId: context.account.id, result: 'success', detail: {
         keepConnected: request.keepConnected,
         ...device,
-      });
+      } });
       return createSessionV1(store, context, this.cryptoPort, request.keepConnected, requestId);
     });
   }

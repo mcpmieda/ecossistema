@@ -65,7 +65,7 @@ function countNote(tone: keyof typeof COUNT_COLOR, count: number) {
   return `Faltam ${SCHOOL_DAYS_REQUIRED_V1 - count} para 200.`;
 }
 const pad = (value: number) => String(value).padStart(2, '0');
-const dayLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith("2026") ? "" : `/${date.slice(0, 4)}`}`;
+const dayLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith("2026") ? "" : '/' + date.slice(0, 4)}`;
 
 const mapOf = (days: readonly SchoolCalendarDayV1[]) =>
   new Map<string, DayV1>(days.map((day) => [day.date, { kind: day.kind, ...(day.note ? { note: day.note } : {}) }]));
@@ -108,7 +108,7 @@ const instantOfDate = (date: string, end: boolean) => {
 };
 const markersOf = (calendar: CalendarV1): MarkersV1 =>
   Object.fromEntries(MARKERS.map(({ key, end }) => [key, dateOfInstant(calendar[key] ?? null, end)])) as MarkersV1;
-const shortDate = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith('2026') ? '' : `/${date.slice(0, 4)}`}`;
+const shortDate = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith('2026') ? '' : '/' + date.slice(0, 4)}`;
 
 /** Consecutive days of the same kind and description, shown as one line ("20/07 a 31/07 · Recesso"). */
 function eventsOf(days: ReadonlyMap<string, DayV1>, month: number) {

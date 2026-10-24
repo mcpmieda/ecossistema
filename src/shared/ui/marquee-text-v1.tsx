@@ -25,7 +25,7 @@ export function MarqueeTextV1({
     return () => observer.disconnect();
   }, [children]);
   return (
-    <span ref={box} className={`marquee-text-v1${className ? ` ${className}` : ''}`}>
+    <span ref={box} className={`marquee-text-v1${className ? ' ' + className : ''}`}>
       <span>{children}</span>
     </span>
   );

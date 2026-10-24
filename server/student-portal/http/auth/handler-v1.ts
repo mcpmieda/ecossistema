@@ -27,7 +27,7 @@ export function sessionCookieTokenV1(request: Request): string {
 }
 function cookie(token: string, expiresAt: string, persistent: boolean): string {
   if (!/^[A-Za-z0-9_-]{43}$/u.test(token)) throw new Error('student-portal-session-token-invalid');
-  return `${COOKIE}${token}${FLAGS}${persistent ? `; Expires=${new Date(expiresAt).toUTCString()}` : ''}`;
+  return `${COOKIE}${token}${FLAGS}${persistent ? '; Expires=' + new Date(expiresAt).toUTCString() : ''}`;
 }
 async function readBody(request: Request): Promise<unknown> {
   const length = request.headers.get('content-length');

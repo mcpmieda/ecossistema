@@ -113,6 +113,70 @@ if (typeof window !== 'undefined') {
 const sectionFallback = (
   <output className="block py-6 text-sm text-muted">Carregando área do Painel…</output>
 );
+/** What every area of the Painel do Aluno receives: the clients, the panel's scope and the rights. */
+type PanelCommonV1 = {
+  client: ReturnType<typeof createPortalAdminClientV1>;
+  reconciliation: ReturnType<typeof createReconciliationClientV1>;
+  reader: ReturnType<typeof createPortalAdminReadClientV2>;
+  catalog: ReturnType<typeof createPortalClassCatalogV2>;
+  scope: ScopeV1;
+  scopeLabel: string;
+  identityKey: string;
+  canWrite: boolean;
+  onAuthorizationLost: (error: PortalClientErrorV1) => void;
+};
+
+/** The student record's own areas (birth year, card, sessions, closing, audit, settings), opened inside it. */
+function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
+  return {
+    birth: (context) => (
+      <StudentBirthYearsV1
+        {...common}
+        scope={context.scope}
+        scopeLabel={context.account.name}
+        initialAccount={{ account: context.account, scopeVersion: context.accountsScopeVersion }}
+        canWrite={context.canWrite}
+      />
+    ),
+    credentials: (context) => (
+      <StudentCredentialsV1
+        {...common}
+        refreshKey={context.account.version}
+        scope={context.scope}
+        scopeLabel={context.account.name}
+        canWrite={context.canWrite}
+      />
+    ),
+    sessions: (context) => (
+      <StudentSessionsV1
+        {...common}
+        scope={context.scope}
+        scopeLabel={context.account.name}
+        canWrite={context.canWrite}
+      />
+    ),
+    closing: (context) => <AccountClosingPreviewV1 reader={common.reader} scope={context.scope} />,
+    audit: (context) => (
+      <StudentAuditV1
+        {...common}
+        scope={context.scope}
+        scopeLabel={context.account.name}
+        canWrite={context.canWrite}
+      />
+    ),
+    settings: (context) => (
+      <StudentPoliciesV1
+        client={common.client}
+        reader={common.reader}
+        scope={context.scope}
+        scopeLabel={context.account.name}
+        canWrite={context.canWrite}
+        onCommitted={context.refresh}
+      />
+    ),
+  };
+}
+
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
 const enterInstitutionalLogin = () => window.location.replace('/auth/login');
@@ -300,7 +364,7 @@ function PortalWorkspace({
     }),
     [selectedClass],
   );
-  const common = useMemo(
+  const common = useMemo<PanelCommonV1>(
     () => ({
       ...clients,
       scope: panelScope.scope,
@@ -318,58 +382,7 @@ function PortalWorkspace({
     setCustomizationTarget(null);
     customizationChanged();
   };
-  const slots = useMemo<AccountSlotsV1>(
-    () => ({
-      birth: (context) => (
-        <StudentBirthYearsV1
-          {...common}
-          scope={context.scope}
-          scopeLabel={context.account.name}
-          initialAccount={{ account: context.account, scopeVersion: context.accountsScopeVersion }}
-          canWrite={context.canWrite}
-        />
-      ),
-      credentials: (context) => (
-        <StudentCredentialsV1
-          {...common}
-          refreshKey={context.account.version}
-          scope={context.scope}
-          scopeLabel={context.account.name}
-          canWrite={context.canWrite}
-        />
-      ),
-      sessions: (context) => (
-        <StudentSessionsV1
-          {...common}
-          scope={context.scope}
-          scopeLabel={context.account.name}
-          canWrite={context.canWrite}
-        />
-      ),
-      closing: (context) => (
-        <AccountClosingPreviewV1 reader={common.reader} scope={context.scope} />
-      ),
-      audit: (context) => (
-        <StudentAuditV1
-          {...common}
-          scope={context.scope}
-          scopeLabel={context.account.name}
-          canWrite={context.canWrite}
-        />
-      ),
-      settings: (context) => (
-        <StudentPoliciesV1
-          client={common.client}
-          reader={common.reader}
-          scope={context.scope}
-          scopeLabel={context.account.name}
-          canWrite={context.canWrite}
-          onCommitted={context.refresh}
-        />
-      ),
-    }),
-    [common],
-  );
+  const slots = useMemo(() => accountSlotsV1(common), [common]);
   const reprint = useCallback((context: AccountSlotContextV1) => {
     setCustomizationTarget(null);
     setTarget(context);

@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react';
-import { StudentSettingsV1, type StudentSettingsPropsV1 } from './student-settings-v1';
+import {
+  StudentSettingsV1,
+  type PublicationSlotsV1,
+  type StudentSettingsPropsV1,
+} from './student-settings-v1';
 import { PersonalizedPublicationV1 } from '../publication/personalized-publication-v1';
 import type { PortalAdminReadClientV2 } from '../accounts/accounts-client-v2';
+import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import { PolicyScopeV1 } from './policy-scope-v1';
 import { useAccountsReadV1 } from '../accounts/accounts-read-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
@@ -53,6 +58,24 @@ function ShiftNoticeV1({
     </>
   );
 }
+/** The publication list of a class or the school, with the Notas tab's slots placed in it. */
+function personalizedPublicationV1(
+  props: StudentSettingsPropsV1 & { reader: PortalAdminReadClientV2 },
+  scope: ScopeV1,
+) {
+  return (slots: PublicationSlotsV1) => (
+    <PersonalizedPublicationV1
+      client={props.client}
+      reader={props.reader}
+      scope={scope}
+      scopeLabel={props.scopeLabel}
+      canWrite={props.canWrite}
+      embedded
+      {...slots}
+    />
+  );
+}
+
 export function StudentPoliciesV1(
   props: StudentSettingsPropsV1 & { reader: PortalAdminReadClientV2 },
 ) {
@@ -77,21 +100,7 @@ export function StudentPoliciesV1(
         {...props}
         onCommitted={committed}
         area="policies"
-        publication={
-          scope.kind === 'shift'
-            ? undefined
-            : (slots) => (
-                <PersonalizedPublicationV1
-                  client={props.client}
-                  reader={props.reader}
-                  scope={scope}
-                  scopeLabel={props.scopeLabel}
-                  canWrite={props.canWrite}
-                  embedded
-                  {...slots}
-                />
-              )
-        }
+        publication={scope.kind === 'shift' ? undefined : personalizedPublicationV1(props, scope)}
       />
     </section>
   );

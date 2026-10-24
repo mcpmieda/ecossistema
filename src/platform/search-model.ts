@@ -82,7 +82,7 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
   const systems = snapshot.registeredModules.map((module) => ({
     id: `system:${module.id}`,
     label: module.name,
-    description: `${module.integrationState === 'ready' ? 'Sistema integrado' : 'Sistema registrado'} · ${module.key}${module.version ? ` · v${module.version}` : ''}`,
+    description: `${module.integrationState === 'ready' ? 'Sistema integrado' : 'Sistema registrado'} · ${module.key}${module.version ? ' · v' + module.version : ''}`,
     category: 'Sistema' as const,
     href: platformHref('operacao'),
     searchText: normalizeSearch(
@@ -95,7 +95,7 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
   const configurations = snapshot.configurations.map((configuration) => ({
     id: `config:${configuration.id}`,
     label: configuration.key,
-    description: `Configuração ${configuration.scope}${configuration.version ? ` · v${configuration.version}` : ''}`,
+    description: `Configuração ${configuration.scope}${configuration.version ? ' · v' + configuration.version : ''}`,
     category: 'Configuração' as const,
     href: platformHref('configuracoes'),
     searchText: normalizeSearch(

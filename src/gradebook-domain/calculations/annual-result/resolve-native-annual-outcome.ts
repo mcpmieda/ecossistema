@@ -202,7 +202,7 @@ function unresolvedFinding(
   if (grade.state === 'absent') {
     detail = 'is absent';
   } else if (grade.state === 'not-applicable') {
-    detail = `is not applicable${grade.reason ? `: ${grade.reason}` : ''}`;
+    detail = `is not applicable${grade.reason ? ': ' + grade.reason : ''}`;
   } else {
     detail = `has insufficient data: ${grade.reason}`;
   }

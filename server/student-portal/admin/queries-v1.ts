@@ -126,8 +126,12 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
   if (query.scope.kind === 'account') predicates.push(`e.account_id=${bind(query.scope.accountId)}::uuid`);
   if (query.scope.kind === 'class') {
     const classParam = bind(query.scope.classId);
+    // With entities the event carries the student's class; otherwise it is found through the account.
+    const inClass = query.includeEntities
+      ? `e.subject_class_id=${classParam}::integer`
+      : `EXISTS(SELECT 1 ${ACCOUNT_JOIN_V1} WHERE a.id=e.account_id AND b.class_id=${classParam}::integer)`;
     predicates.push(`((e.scope_json->>'kind'='class' AND e.scope_json->>'classId'=${classParam}::text)
-      OR ${query.includeEntities ? `e.subject_class_id=${classParam}::integer` : `EXISTS(SELECT 1 ${ACCOUNT_JOIN_V1} WHERE a.id=e.account_id AND b.class_id=${classParam}::integer)`})`);
+      OR ${inClass})`);
   }
   if (query.from) predicates.push(`e.occurred_at>=${bind(query.from)}::text::timestamptz`);
   if (query.until) predicates.push(`e.occurred_at<=${bind(query.until)}::text::timestamptz`);
@@ -136,11 +140,13 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
   if (query.eventId) predicates.push(`e.event_id=${bind(query.eventId)}::uuid`);
   // Keep microseconds as text through postgres.js; its timestamp serializer otherwise truncates to JS milliseconds.
   if (after) predicates.push(`(e.occurred_at,e.event_id)<(${bind(after.at)}::text::timestamptz,${bind(after.id)}::uuid)`);
-  const rows = await tx.unsafe(`SELECT e.event_id,e.occurred_at,to_char(e.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,e.actor_id,e.account_id,e.scope_json,e.kind,e.result,
-    e.request_id,e.version::text,e.masked_ip,to_jsonb(e)->'detail_json' AS detail_json ${query.includeEntities ? ',e.actor_name,e.subject_name,e.subject_class_id,e.subject_class_label' : ''} ${query.operation === 'audit-detail' ? `,
+  // The IP is shown only in the detail, and only while it is still kept (90 days at most).
+  const ipColumns = query.operation === 'audit-detail' ? `,
     CASE WHEN e.ip_expires_at>statement_timestamp() AND e.occurred_at>statement_timestamp()-interval '90 days' THEN host(e.raw_ip) ELSE NULL END AS ip,
     CASE WHEN e.ip_expires_at>statement_timestamp() AND e.occurred_at>statement_timestamp()-interval '90 days'
-      THEN LEAST(e.ip_expires_at,e.occurred_at+interval '90 days') ELSE NULL END AS ip_expires_at` : ''}
+      THEN LEAST(e.ip_expires_at,e.occurred_at+interval '90 days') ELSE NULL END AS ip_expires_at` : '';
+  const rows = await tx.unsafe(`SELECT e.event_id,e.occurred_at,to_char(e.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,e.actor_id,e.account_id,e.scope_json,e.kind,e.result,
+    e.request_id,e.version::text,e.masked_ip,to_jsonb(e)->'detail_json' AS detail_json ${query.includeEntities ? ',e.actor_name,e.subject_name,e.subject_class_id,e.subject_class_label' : ''} ${ipColumns}
     FROM student_portal.audit_event e WHERE ${predicates.join(' AND ')} ORDER BY e.occurred_at DESC,e.event_id DESC
     LIMIT ${bind(query.operation === 'audit-detail' ? 1 : query.page.limit + 1)}`, parameters);
   const event = (row: Record<string, unknown>) => auditEventV1.parse({ eventId: row.event_id, at: adminInstantV1(row.occurred_at),

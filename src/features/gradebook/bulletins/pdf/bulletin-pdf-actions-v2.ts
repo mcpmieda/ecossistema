@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 
 import type { RelationalBulletinSnapshotV2 } from '../../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
+import { trimCharsV1 } from '../../../../../shared/trim-chars-v1';
 
 export type RelationalBulletinPdfActionV2 = 'download' | 'print';
 export type RelationalBulletinPdfFailureV2 =
@@ -38,7 +39,7 @@ export class RelationalBulletinPdfActionErrorV2 extends Error {
 }
 
 function sanitize(value: string, fallback: string): string {
-  const normalized = Array.from(value.normalize('NFC'), (character) => {
+  const spaced = Array.from(value.normalize('NFC'), (character) => {
     const codePoint = character.codePointAt(0) ?? 0;
     return codePoint <= 0x1f || codePoint === 0x7f ? ' ' : character;
   })
@@ -46,8 +47,8 @@ function sanitize(value: string, fallback: string): string {
     .replaceAll(/[\\/<>:"|?*]/gu, '-')
     .replaceAll(/\s+/gu, ' ')
     .replaceAll(/\.{2,}/gu, '.')
-    .trim()
-    .replaceAll(/^[. -]+|[. -]+$/gu, '');
+    .trim();
+  const normalized = trimCharsV1(spaced, '. -');
   return (
     Array.from(normalized || fallback)
       .slice(0, 72)
