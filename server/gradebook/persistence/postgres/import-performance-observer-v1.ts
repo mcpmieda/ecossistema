@@ -229,6 +229,69 @@ export function createImportPerformanceObserverV1() {
     ) as typeof attemptedRows;
   }
 
+  /** The JSON batch of a read-set or instrument statement: only its length (and size) is kept. */
+  function measureJsonBody(readSet: boolean, body: GradebookPostgresValueV1 | undefined) {
+    if (typeof body !== 'object' || body === null) return;
+    // The bounded JSON array is inspected only for its length; no values survive.
+    let count: number | null = null;
+    try {
+      const rows: unknown = JSON.parse(body.jsonText);
+      if (Array.isArray(rows)) count = rows.length;
+    } catch {
+      /* Optional measurement must not reject a persistence call. */
+    }
+    if (count === null) return;
+    if (readSet) {
+      currentReadSetRows = 0;
+      metrics.readSetBlocks++;
+      metrics.readSetOffers += count;
+      metrics.maximumReadSetOffers = Math.max(metrics.maximumReadSetOffers, count);
+    } else {
+      metrics.instrumentStatements++;
+      metrics.maximumInstrumentGroupRows = Math.max(
+        metrics.maximumInstrumentGroupRows,
+        count,
+      );
+      metrics.maximumInstrumentGroupBytes = Math.max(
+        metrics.maximumInstrumentGroupBytes,
+        new TextEncoder().encode(body.jsonText).byteLength,
+      );
+    }
+  }
+
+  /** The rows a classified mutation reports; anything not a safe count stays unmeasured. */
+  function countAttemptedRows(
+    mutation: NonNullable<ReturnType<typeof directMutation>>,
+    affected: number | null,
+  ) {
+    const previous = attemptedRows[mutation.category][mutation.action];
+    if (
+      affected !== null &&
+      Number.isSafeInteger(affected) &&
+      affected >= 0 &&
+      Number.isSafeInteger(previous + affected)
+    ) {
+      attemptedRows[mutation.category][mutation.action] += affected;
+    } else unmeasuredStatements++;
+  }
+
+  /** Rows read, the read set's running size and the instruments created, updated or retired. */
+  function recordResultRows(
+    kind: ReturnType<typeof category>,
+    known: ReturnType<typeof marker>,
+    rows: number,
+    changed: number | null,
+  ) {
+    if (kind === 'read') metrics.rowsRead += rows;
+    if (known?.startsWith('read-set-')) {
+      currentReadSetRows += rows;
+      metrics.maximumReadSetRows = Math.max(metrics.maximumReadSetRows, currentReadSetRows);
+    }
+    if (known === 'instruments-create') metrics.instrumentsCreated += changed ?? 0;
+    if (known === 'instruments-update') metrics.instrumentsUpdated += changed ?? 0;
+    if (known === 'instruments-retire') metrics.instrumentsRetired += changed ?? 0;
+  }
+
   async function observeSql<T>(
     sql: string,
     operation: () => Promise<T>,
@@ -246,37 +309,8 @@ export function createImportPerformanceObserverV1() {
       if (kind === 'read') metrics.catalogReadCalls++;
       else metrics.catalogWriteCalls++;
     }
-    if (known === 'read-set-instruments' || known?.startsWith('instruments-')) {
-      const body = values[1];
-      if (typeof body === 'object' && body !== null) {
-        // The bounded JSON array is inspected only for its length; no values survive.
-        let count: number | null = null;
-        try {
-          const rows: unknown = JSON.parse(body.jsonText);
-          if (Array.isArray(rows)) count = rows.length;
-        } catch {
-          /* Optional measurement must not reject a persistence call. */
-        }
-        if (count !== null) {
-          if (known === 'read-set-instruments') {
-            currentReadSetRows = 0;
-            metrics.readSetBlocks++;
-            metrics.readSetOffers += count;
-            metrics.maximumReadSetOffers = Math.max(metrics.maximumReadSetOffers, count);
-          } else {
-            metrics.instrumentStatements++;
-            metrics.maximumInstrumentGroupRows = Math.max(
-              metrics.maximumInstrumentGroupRows,
-              count,
-            );
-            metrics.maximumInstrumentGroupBytes = Math.max(
-              metrics.maximumInstrumentGroupBytes,
-              new TextEncoder().encode(body.jsonText).byteLength,
-            );
-          }
-        }
-      }
-    }
+    if (known === 'read-set-instruments' || known?.startsWith('instruments-'))
+      measureJsonBody(known === 'read-set-instruments', values[1]);
     metrics.sqlCalls++;
     if (kind === 'read') metrics.sqlReadCalls++;
     else if (kind === 'write' || kind === 'finalizer') metrics.sqlWriteCalls++;
@@ -284,26 +318,9 @@ export function createImportPerformanceObserverV1() {
     const started = importPerformanceNowV1();
     try {
       const result = await operation();
-      if (mutation) {
-        const affected = changes(result);
-        const previous = attemptedRows[mutation.category][mutation.action];
-        if (
-          affected !== null &&
-          Number.isSafeInteger(affected) &&
-          affected >= 0 &&
-          Number.isSafeInteger(previous + affected)
-        ) {
-          attemptedRows[mutation.category][mutation.action] += affected;
-        } else unmeasuredStatements++;
-      } else if (unclassifiedMutation) unmeasuredStatements++;
-      if (kind === 'read') metrics.rowsRead += rowCount(result);
-      if (known?.startsWith('read-set-')) {
-        currentReadSetRows += rowCount(result);
-        metrics.maximumReadSetRows = Math.max(metrics.maximumReadSetRows, currentReadSetRows);
-      }
-      if (known === 'instruments-create') metrics.instrumentsCreated += changes(result) ?? 0;
-      if (known === 'instruments-update') metrics.instrumentsUpdated += changes(result) ?? 0;
-      if (known === 'instruments-retire') metrics.instrumentsRetired += changes(result) ?? 0;
+      if (mutation) countAttemptedRows(mutation, changes(result));
+      else if (unclassifiedMutation) unmeasuredStatements++;
+      recordResultRows(kind, known, rowCount(result), changes(result));
       return result;
     } catch (cause) {
       metrics.sqlFailedCalls++;
