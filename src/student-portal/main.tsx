@@ -6,13 +6,17 @@ import { StudentDiagnosticBoundaryV1 } from './diagnostic-boundary-v1';
 import { enableStudentDiagnosticsV1 } from './diagnostics-v1';
 import '../features/student-portal/shared/styles.css';
 
+function routeOf(pathname: string): StudentEntryV1['route'] {
+  if (pathname === '/') return 'root';
+  return pathname === '/access' ? 'access' : 'unknown';
+}
+
 const root = document.getElementById('root');
 if (!root) throw new Error('Portal root missing');
 const entry: StudentEntryV1 = {
   qr: null,
   invalidQr: false,
-  route:
-    location.pathname === '/' ? 'root' : location.pathname === '/access' ? 'access' : 'unknown',
+  route: routeOf(location.pathname),
 };
 // Remove even malformed fragments before rendering or mounting the external risk widget.
 try {

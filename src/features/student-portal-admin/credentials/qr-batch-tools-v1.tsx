@@ -11,6 +11,12 @@ import type { QrCardArtSourceV1 } from './qr-access-card-pdf-v1';
 
 type QrBatchLayoutV1 = 'card' | 'compact';
 
+/** A failed request before the file: the class changed, or the result is not confirmed. */
+const batchFailureText = (state: string) =>
+  state === 'conflict'
+    ? 'A turma mudou. Recarregue a lista e revise os alunos antes de gerar.'
+    : 'Não foi possível confirmar o resultado. Não gere outra solicitação sem revisar.';
+
 export function QrBatchToolsV1({
   client,
   accounts,
@@ -329,9 +335,7 @@ export function QrBatchToolsV1({
           <p>
             {state.stage === 'render'
               ? 'O servidor confirmou os QR. Tentar novamente gera somente o arquivo.'
-              : state.error.state === 'conflict'
-                ? 'A turma mudou. Recarregue a lista e revise os alunos antes de gerar.'
-                : 'Não foi possível confirmar o resultado. Não gere outra solicitação sem revisar.'}
+              : batchFailureText(state.error.state)}
           </p>
           {state.retryable ? (
             <Button

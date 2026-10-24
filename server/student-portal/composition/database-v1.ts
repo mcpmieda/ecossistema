@@ -33,7 +33,8 @@ export async function portalDatabaseV1<T>(env: PortalCompositionEnvV1, operation
       },
     );
     const failure = failureV1.safeParse(result);
-    outcome = failure.success ? failure.data.state === 'unavailable' ? 'unavailable' : 'denied' : result === null ? 'denied' : 'ok';
+    if (failure.success) outcome = failure.data.state === 'unavailable' ? 'unavailable' : 'denied';
+    else outcome = result === null ? 'denied' : 'ok';
     return result;
   } catch (error) {
     if (error instanceof PortalRateLimitErrorV1 && error.state === 'rate-limited') outcome = 'denied';

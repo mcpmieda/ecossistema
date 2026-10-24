@@ -169,6 +169,8 @@ export async function readAdminHealthV1(tx: StudentPortalPostgresQueryV1, query:
     ${ACCOUNT_JOIN_V1} JOIN student_portal.publication_job j ON j.account_id=a.id WHERE ${filter}`, parameters),
     portalMaintenanceHealthV1(tx),
   ]);
-  return { status: rows[0]?.intervention || maintenance.status === 'intervention' ? 'intervention' as const
-    : rows[0]?.attention || maintenance.status === 'attention' ? 'attention' as const : 'normal' as const };
+  let status: 'intervention' | 'attention' | 'normal' = 'normal';
+  if (rows[0]?.intervention || maintenance.status === 'intervention') status = 'intervention';
+  else if (rows[0]?.attention || maintenance.status === 'attention') status = 'attention';
+  return { status };
 }

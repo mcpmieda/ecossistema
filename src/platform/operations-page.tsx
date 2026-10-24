@@ -44,6 +44,19 @@ function SignalChip({ status }: Readonly<{ status: SignalStatus }>) {
   );
 }
 
+function auditDescription(failures: number, lastAuditAt: string) {
+  if (failures > 0)
+    return `${failures} evento(s) recente(s) possuem resultado explicitamente iniciado por erro ou falha.`;
+  return lastAuditAt
+    ? `Nenhum resultado explicitamente classificado como erro/falha nos eventos carregados. Último evento: ${formatDate(lastAuditAt)}.`
+    : 'Nenhum evento recente foi carregado; não há evidência suficiente para inferir atividade.';
+}
+
+function auditStatus(failures: number, lastAuditAt: string) {
+  if (lastAuditAt === '') return 'unknown';
+  return failures > 0 ? 'attention' : 'ok';
+}
+
 export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapshotContract }>) {
   const operational = snapshot.operational;
 
@@ -94,17 +107,9 @@ export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapsh
       icon: Activity,
       title: 'Auditoria recente',
       description:
-        operational.recentAuditFailureCount === 0
-          ? operational.lastAuditAt
-            ? `Nenhum resultado explicitamente classificado como erro/falha nos eventos carregados. Último evento: ${formatDate(operational.lastAuditAt)}.`
-            : 'Nenhum evento recente foi carregado; não há evidência suficiente para inferir atividade.'
-          : `${operational.recentAuditFailureCount} evento(s) recente(s) possuem resultado explicitamente iniciado por erro ou falha.`,
+        auditDescription(operational.recentAuditFailureCount, operational.lastAuditAt),
       status:
-        operational.lastAuditAt === ''
-          ? 'unknown'
-          : operational.recentAuditFailureCount > 0
-            ? 'attention'
-            : 'ok',
+        auditStatus(operational.recentAuditFailureCount, operational.lastAuditAt),
     },
     {
       id: 'health',

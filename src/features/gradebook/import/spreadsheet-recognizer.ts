@@ -18,6 +18,12 @@ import type {
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
 
+/** The error text a cell carries: its value, else its formatted text, when not blank. */
+function errorTextOf(cell: { v?: unknown; w?: unknown }) {
+  if (typeof cell.v === 'string' && cell.v.trim()) return cell.v;
+  return typeof cell.w === 'string' && cell.w.trim() ? cell.w : null;
+}
+
 export const ACCEPTED_EXTENSIONS = ['xlsx', 'xlsb', 'xls'] as const;
 
 type Cell = {
@@ -337,12 +343,7 @@ function readResultCellObservationV4(
       rawValue,
       formula: cell.f,
       cachedValue: null,
-      sourceError:
-        typeof cell.v === 'string' && cell.v.trim()
-          ? cell.v
-          : typeof cell.w === 'string' && cell.w.trim()
-            ? cell.w
-            : null,
+      sourceError: errorTextOf(cell),
     };
   }
 

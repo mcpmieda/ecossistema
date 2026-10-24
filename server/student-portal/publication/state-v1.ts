@@ -4,6 +4,12 @@ import { periodV1, scopeV1, versionV1, type ScopeV1 } from '../../../shared/stud
 import { academicVersionSchemaV1 } from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 
+/** The query's one parameter: the account or the class; the whole school has none. */
+function scopeParametersV1(scope: { kind: string; accountId?: unknown; classId?: unknown }) {
+  if (scope.kind === 'account') return [scope.accountId];
+  return scope.kind === 'class' ? [scope.classId] : [];
+}
+
 export const PERIODS_V1 = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const;
 export type PeriodV1 = typeof PERIODS_V1[number];
 export const publicationKeyV1 = (accountId: string) => `account:2026:${accountId}`;
@@ -42,7 +48,7 @@ export async function publicationAccountsV1(tx: StudentPortalPostgresQueryV1, in
       bool_and(status IS NULL OR status IN (1,2,7)) AS eligible FROM student_portal.academic_binding_v1
       WHERE student_id=a.gradebook_student_id AND academic_year=2026 AND status IS DISTINCT FROM 6) b ON b.matches=1 AND b.eligible
     WHERE a.academic_year=2026 AND a.closed_at IS NULL AND ${predicate} ORDER BY a.id LIMIT 1001`,
-  scope.kind === 'account' ? [scope.accountId] : scope.kind === 'class' ? [scope.classId] : []);
+  scopeParametersV1(scope));
   if (rows.length > 1000) throw new Error('student-portal-publication-scope-too-large');
   return rows.map((row) => ({ id: z.uuid().parse(row.id), version: versionV1.parse(Number(row.version)), classId: z.number().int().positive().parse(row.class_id) }));
 }

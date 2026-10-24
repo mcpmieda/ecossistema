@@ -171,10 +171,16 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
     items: PERIODS_V1.map((period) => {
       const value = periods.find((item) => item.period === period);
       const revisions = value?.revisions ?? [];
-      return { period, version, state: revisions.length ? value?.pending ? 'update-pending' as const : 'published' as const
-        : value?.available ? 'available' as const : 'no-data' as const,
+      let state: 'update-pending' | 'published' | 'available' | 'no-data' = 'no-data';
+      if (revisions.length) state = value?.pending ? 'update-pending' : 'published';
+      else if (value?.available) state = 'available';
+      // One revision is named; several are summarized by a digest of the sorted list.
+      let publishedRevision: string | null = null;
+      if (revisions.length === 1) publishedRevision = revisions[0]!;
+      else if (revisions.length > 1) publishedRevision = `mixed:${publicationDigestV1([...revisions].sort((left, right) => left.localeCompare(right)))}`;
+      return { period, version, state,
         availableRevision: value?.available ? dataVersion : null,
-        publishedRevision: revisions.length === 1 ? revisions[0]! : revisions.length > 1 ? `mixed:${publicationDigestV1([...revisions].sort((left, right) => left.localeCompare(right)))}` : null };
+        publishedRevision };
     }),
   };
 }

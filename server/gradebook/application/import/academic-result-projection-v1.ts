@@ -146,6 +146,10 @@ export function materializeImportedRecoveryApplicabilityV1(input: {
     return { state: 'review-required', applicability };
   }
   const authoritativeValue = input.observation.rawValue;
+  let classification: 'not-applicable' | 'manual-negative-number' | 'manual-positive-number' =
+    'manual-positive-number';
+  if (authoritativeValue === 0) classification = 'not-applicable';
+  else if (authoritativeValue < 0) classification = 'manual-negative-number';
   return {
     state: 'ready',
     value: {
@@ -157,23 +161,11 @@ export function materializeImportedRecoveryApplicabilityV1(input: {
               reason: 'source REC value is not the numeric applicability marker 1',
             },
       evidence: [
-        authoritativeValue === 0
-          ? {
-              provenance: input.provenance,
-              classification: 'not-applicable',
-              rawValue: 0,
-            }
-          : authoritativeValue < 0
-            ? {
-                provenance: input.provenance,
-                classification: 'manual-negative-number',
-                rawValue: authoritativeValue,
-              }
-            : {
-                provenance: input.provenance,
-                classification: 'manual-positive-number',
-                rawValue: authoritativeValue,
-              },
+        {
+          provenance: input.provenance,
+          classification,
+          rawValue: authoritativeValue === 0 ? 0 : authoritativeValue,
+        },
       ],
     },
   };

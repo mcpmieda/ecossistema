@@ -466,6 +466,11 @@ async function route(context: Context, correlationId: string): Promise<Response>
   throw new HttpError(404, 'Not found');
 }
 
+function errorMessageOf(status: number, error: unknown) {
+  if (status === 500) return 'Internal server error';
+  return error instanceof Error ? error.message : 'Request failed';
+}
+
 export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   const correlationId = crypto.randomUUID();
   try {
@@ -492,12 +497,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
     return withSecurityHeaders(
       json(
         {
-          error:
-            status === 500
-              ? 'Internal server error'
-              : error instanceof Error
-                ? error.message
-                : 'Request failed',
+          error: errorMessageOf(status, error),
           correlationId,
         },
         status,

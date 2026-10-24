@@ -20,6 +20,11 @@ import { createRelationalWorkspaceV2 } from '../application/operational-workspac
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
+function httpStatusOf(state: string) {
+  if (state === 'not-found') return 404;
+  return state === 'invalid-request' ? 400 : 200;
+}
+
 export const GRADEBOOK_OPERATIONAL_WORKSPACE_ROUTE_V1 = '/api/gradebook/operational-workspace';
 
 function noStoreJson(value: unknown, status = 200): Response {
@@ -68,7 +73,7 @@ export async function handleOperationalWorkspaceRequestV1(request: Request, env:
         !env.GRADEBOOK_DATABASE) return noStoreJson({contractVersion:2,state:'unavailable'},503);
     try {
       const response = await createRelationalWorkspaceV2(env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1).execute(payload);
-      return noStoreJson(response, response.state === 'not-found' ? 404 : response.state === 'invalid-request' ? 400 : 200);
+      return noStoreJson(response, httpStatusOf(response.state));
     } catch { return noStoreJson({contractVersion:2,state:'unavailable'},503); }
   }
 

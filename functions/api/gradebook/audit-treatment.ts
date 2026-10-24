@@ -14,15 +14,15 @@ import {
 type Context = EventContext<RuntimeEnv, string, unknown>;
 const handler = createImportDiagnosticTreatmentRequestHandlerV1();
 
+function failureStateOf(status: number) {
+  if (status === 401 || status === 403) return 'not-authorized';
+  return status < 500 ? 'invalid-request' : 'unavailable';
+}
+
 function failure(status = 503): Response {
   const value: ImportDiagnosticTreatmentResponseV1 = {
     contractVersion: IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
-    state:
-      status === 401 || status === 403
-        ? 'not-authorized'
-        : status < 500
-          ? 'invalid-request'
-          : 'unavailable',
+    state: failureStateOf(status),
   };
   return Response.json(value, {
     status,

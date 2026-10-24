@@ -5,6 +5,11 @@ import type {
   ResultCoverageV1,
 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
 
+function outOfRangeCode(below: boolean, original: boolean) {
+  if (below) return original ? 'component-original-total-below-minimum' : 'component-post-recovery-total-below-minimum';
+  return original ? 'component-original-total-above-maximum' : 'component-post-recovery-total-above-maximum';
+}
+
 export interface NativeAnnualOutcomeProfileV1 {
   readonly version: 1;
   readonly academicYear: 2026;
@@ -225,13 +230,7 @@ function rangeFinding(
 
   const original = input === 'original-total';
   return {
-    code: below
-      ? original
-        ? 'component-original-total-below-minimum'
-        : 'component-post-recovery-total-below-minimum'
-      : original
-        ? 'component-original-total-above-maximum'
-        : 'component-post-recovery-total-above-maximum',
+    code: outOfRangeCode(below, original),
     componentKey,
     input,
     value,

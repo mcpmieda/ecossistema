@@ -71,7 +71,7 @@ function SignalReader({ onDenied }: Readonly<{ onDenied: () => void }>) {
             <Table.Cell className="whitespace-nowrap py-2">{new Date(point.bucketAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}</Table.Cell>
             <Table.Cell className="py-2">{names[point.source]}</Table.Cell><Table.Cell className="py-2">{point.source.startsWith('browser-') ? 'Relato do navegador' : outcomes[point.outcome]}</Table.Cell>
             <Table.Cell className="py-2">{point.samples}{point.capped ? '+' : ''}</Table.Cell>
-            <Table.Cell className="py-2">{point.source.startsWith('browser-') ? '—' : `${point.maxMs}${point.maxMs === 60_000 ? '+' : ''} ms`}</Table.Cell>
+            <Table.Cell className="py-2">{point.source.startsWith('browser-') ? '—' : maxMsText(point.maxMs)}</Table.Cell>
             <Table.Cell className="py-2">{point.source.startsWith('browser-') ? '—' : point.slow}</Table.Cell>
           </Table.Row>)}</Table.Body>
         </Table.Content></Table.ScrollContainer></Table>}
@@ -79,6 +79,9 @@ function SignalReader({ onDenied }: Readonly<{ onDenied: () => void }>) {
     </> : null}
   </>;
 }
+/** The slowest time; 60 s is the cap, so it may have been longer. */
+const maxMsText = (ms: number) => `${ms}${ms === 60_000 ? '+' : ''} ms`;
+
 export function SystemHealthSignalsPanelV1({ onDenied }: Readonly<{ onDenied: () => void }>) {
   const [open, setOpen] = useState(false);
   return <Card variant="default" className="mt-3 min-w-0 overflow-hidden"><Card.Header>

@@ -31,6 +31,17 @@ const labels = {
   revoked: 'Encerrada',
   unavailable: 'Sem acesso',
 } as const;
+const retryText = (retryable: boolean) =>
+  retryable
+    ? 'Não foi possível confirmar a resposta. Retomar repete somente a mesma solicitação.'
+    : 'A solicitação não pôde ser concluída.';
+const emptyText = (active: boolean) =>
+  active ? 'Nenhuma sessão ativa.' : 'Nenhuma sessão no histórico.';
+function validityColor(validity: string) {
+  if (validity === 'valid') return 'success';
+  return validity === 'unavailable' ? 'warning' : 'default';
+}
+
 export function StudentSessionsV1(props: Readonly<OperationsPropsV1>) {
   return (
     <OperationsScopeV1 {...props}>
@@ -247,9 +258,7 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
             <p>
               {mutation.error.state === 'conflict'
                 ? 'O estado mudou. Consulte novamente antes de confirmar.'
-                : mutation.retryable
-                  ? 'Não foi possível confirmar a resposta. Retomar repete somente a mesma solicitação.'
-                  : 'A solicitação não pôde ser concluída.'}
+                : retryText(mutation.retryable)}
             </p>
             <div className="pa-operations-actions">
               {mutation.retryable && (
@@ -506,11 +515,7 @@ function SessionFeedV1({
       </div>
       {!data.items.length ? (
         <p className="text-sm text-muted">
-          {data.nextCursor
-            ? 'Carregando registros…'
-            : active
-              ? 'Nenhuma sessão ativa.'
-              : 'Nenhuma sessão no histórico.'}
+          {data.nextCursor ? 'Carregando registros…' : emptyText(active)}
         </p>
       ) : (
         <Table variant="secondary">
@@ -557,17 +562,7 @@ function SessionFeedV1({
                     <Table.Cell>
                       <Tooltip>
                         <Tooltip.Trigger>
-                          <Chip
-                            size="sm"
-                            color={
-                              row.validity === 'valid'
-                                ? 'success'
-                                : row.validity === 'unavailable'
-                                  ? 'warning'
-                                  : 'default'
-                            }
-                            variant="soft"
-                          >
+                          <Chip size="sm" color={validityColor(row.validity)} variant="soft">
                             <Chip.Label>{labels[row.validity]}</Chip.Label>
                           </Chip>
                         </Tooltip.Trigger>

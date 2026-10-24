@@ -182,7 +182,7 @@ async function readWorkspace(
     context: { year, minimumApprovalMilli: integer(base.minimo_aprovacao), maxCouncilComponents },
     classGroup: { id: integer(base.id), label: text(base.codigo), name: text(base.nome) }, readAt: text(base.read_at),
     authority: 'calculated-eligibility-explicit-human-decision',
-    session: { state: base.estado === null ? 'not-opened' : integer(base.estado) === SESSION_STATE.open ? 'open' : 'closed',
+    session: { state: sessionStateOf(base.estado),
       version, reviewReference: reviewReference(year, classId, version), closedAt: base.fechado_em === null ? null : text(base.fechado_em), snapshotCount: integer(base.snapshot_count) },
     summary, students,
     timeline: timelineRows.map((row) => ({ id: text(row.timeline_id), action: text(row.action) as RelationalCouncilWorkspaceV3['timeline'][number]['action'],
@@ -308,6 +308,12 @@ async function mutate(db: GradebookPostgresTransactionV1, request: WriteRequest,
   return ready(db, request);
 }
 
+/** The meeting's state from its row: none yet, open, or closed. */
+function sessionStateOf(estado: unknown) {
+  if (estado === null) return 'not-opened';
+  return integer(estado) === SESSION_STATE.open ? 'open' : 'closed';
+}
+
 export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1, actorId: string) {
   return { async execute(input: unknown): Promise<RelationalCouncilResponseV3> {
     const parsed = relationalCouncilRequestSchemaV3.safeParse(input);
@@ -327,7 +333,7 @@ export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1
           WHERE t.ano=$1 ORDER BY t.codigo COLLATE "C",t.id LIMIT $2 OFFSET $3`, [request.year, request.limit + 1, request.offset]);
         return { contractVersion: 3, state: 'ready', operation: 'classes', year: request.year,
           classes: rows.slice(0, request.limit).map((row) => ({ id: integer(row.id), label: text(row.codigo), name: text(row.nome),
-            sessionState: row.estado === null ? 'not-opened' as const : integer(row.estado) === SESSION_STATE.open ? 'open' as const : 'closed' as const,
+            sessionState: sessionStateOf(row.estado),
             sessionVersion: nullableInteger(row.version) ?? 0 })), nextOffset: rows.length > request.limit ? request.offset + request.limit : null };
       }
       if (request.operation === 'workspace') return ready(db, request);

@@ -858,6 +858,11 @@ function cloneAssessmentsProjection(
   return { items: items.sort(compareAssessmentValues) };
 }
 
+function signalDetailRef(detail: unknown, detailRef: PerformanceCellDetailRefV1) {
+  if (detail === 'cell') return detailRef;
+  return detail === 'none' ? null : fail('incompatible-source-result');
+}
+
 function cloneSignals(
   values: readonly PerformanceSourceSignalV1[],
   detailRef: PerformanceCellDetailRefV1,
@@ -871,12 +876,7 @@ function cloneSignals(
         code: requireNonEmpty(signal.code),
         explanation: requireNonEmpty(signal.explanation),
         source: signal.source,
-        detailRef:
-          signal.detail === 'cell'
-            ? detailRef
-            : signal.detail === 'none'
-              ? null
-              : fail('incompatible-source-result'),
+        detailRef: signalDetailRef(signal.detail, detailRef),
       };
     })
     .sort((left, right) => {

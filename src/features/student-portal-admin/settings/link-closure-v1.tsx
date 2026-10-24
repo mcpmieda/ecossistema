@@ -18,6 +18,11 @@ const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeStyle: 'medium',
 });
 
+const closureRetryText = (retryable: boolean) =>
+  retryable
+    ? 'O resultado do encerramento ainda não foi confirmado. Repetir mantém exatamente a mesma operação.'
+    : 'A operação não foi autorizada ou não pôde ser validada. Recarregue o estado antes de tentar novamente.';
+
 /** School-only composition. Preview token never enters the rendered state, storage or logs. */
 export function LinkClosureV1({
   client,
@@ -164,9 +169,11 @@ export function LinkClosureV1({
               <p role="alert" className="pa-settings-error">
                 A prévia expirou. Prepare uma nova antes de confirmar.
               </p>
-            ) : load.data.count === 0 ? (
+            ) : null}
+            {!expired && load.data.count === 0 ? (
               <p role="status">Não há vínculos atuais para encerrar.</p>
-            ) : (
+            ) : null}
+            {!expired && load.data.count !== 0 ? (
               <>
                 <TextField isDisabled={disabled || busy || mutation.state === 'error'}>
                   <Label>Digite {CONFIRMATION} para confirmar</Label>
@@ -198,7 +205,7 @@ export function LinkClosureV1({
                   Encerrar os vínculos de 2026
                 </Button>
               </>
-            )}
+            ) : null}
           </div>
         ) : null}
         {mutation.state === 'error' ? (
@@ -206,9 +213,7 @@ export function LinkClosureV1({
             <p>
               {mutation.error.state === 'conflict'
                 ? 'Os vínculos ou a prévia mudaram. Prepare uma nova prévia e confira a contagem.'
-                : mutation.retryable
-                  ? 'O resultado do encerramento ainda não foi confirmado. Repetir mantém exatamente a mesma operação.'
-                  : 'A operação não foi autorizada ou não pôde ser validada. Recarregue o estado antes de tentar novamente.'}
+                : closureRetryText(mutation.retryable)}
             </p>
             {mutation.retryable ? (
               <Button

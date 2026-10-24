@@ -502,7 +502,8 @@ export function RelationalPerformancePageV2({
                       onCell={open}
                       onNotes={openAssessmentNotes}
                     />
-                  ) : analytics.busy ? (
+                  ) : null}
+                  {!analytics.data && analytics.busy ? (
                     <div role="status" aria-label="Carregando indicadores" className="grid gap-4">
                       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                         {[1, 2, 3, 4].map((id) => (
@@ -511,7 +512,8 @@ export function RelationalPerformancePageV2({
                       </div>
                       <Skeleton className="h-72 rounded-2xl" />
                     </div>
-                  ) : (
+                  ) : null}
+                  {!analytics.data && !analytics.busy ? (
                     <div className="grid min-h-64 place-items-center text-center">
                       <p className="text-sm text-muted">
                         {state.filters.classId === null
@@ -519,7 +521,7 @@ export function RelationalPerformancePageV2({
                           : 'Nenhuma leitura disponível.'}
                       </p>
                     </div>
-                  )}
+                  ) : null}
                 </>
               ) : null}
             </Tabs.Panel>
