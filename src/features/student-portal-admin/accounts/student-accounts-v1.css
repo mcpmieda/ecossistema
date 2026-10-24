@@ -1,7 +1,7 @@
 .pa-accounts {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.45rem;
+  gap: 0.75rem;
   min-width: 0;
 }
 .pa-account-controls-card,
@@ -20,7 +20,8 @@
   margin: 0;
 }
 .pa-account-qr-panel .pa-qr-batch-tools .radio-group {
-  gap: 0.3rem 0.35rem;
+  gap: 0.25rem 0.3rem;
+  align-items: center;
 }
 .pa-account-qr-panel .radio {
   padding: 0.125rem 0.5rem;
@@ -50,6 +51,7 @@
 }
 .pa-account-qr-panel .pa-credentials-actions {
   gap: 0.35rem;
+  flex: 1 1 auto;
 }
 .pa-account-qr-panel .pa-credentials-actions button {
   padding-inline: 0.25rem;
@@ -178,6 +180,7 @@
 }
 .pa-account-facts dd {
   overflow-wrap: anywhere;
+  font-weight: 600;
 }
 .pa-account-notice {
   padding: 0.85rem;
@@ -188,8 +191,9 @@
 }
 .pa-account-slot {
   border-top: 1px solid var(--border);
-  padding-top: 1rem;
+  padding-top: 0.5rem;
   min-width: 0;
+  border: 0;
 }
 .pa-account-dialog {
   max-height: 85dvh;
@@ -229,13 +233,7 @@
   }
 }
 
-.pa-account-facts dd {
-  font-weight: 600;
-}
-.pa-account-slot {
-  border: 0;
-  padding-top: 0.5rem;
-}
+
 
 .pa-accounts .card__content {
   padding: 0.65rem 0.8rem;
@@ -286,7 +284,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .pa-account-table .table__cell {
-  padding-block: 0.35rem;
+  padding-block: 0.55rem;
 }
 @media (max-width: 640px) {
   .pa-account-scroll {
@@ -377,24 +375,16 @@
   display: flex;
 }
 
-/* Tighter HeroUI chrome, wider content: the list card matches the controls card, and the room
-   saved goes to the gaps between blocks, filters and rows. */
-.pa-accounts {
-  gap: 0.75rem;
-}
+
 .pa-accounts .pa-account-list-card {
   padding: 0.5rem;
 }
 .pa-accounts .pa-account-list-card > .card__content {
   padding: 0.25rem;
-}
-.pa-account-table .table__cell {
-  padding-block: 0.55rem;
-}
-/* The count sits right above its table: one small gap instead of three stacked ones. */
-.pa-accounts .pa-account-list-card > .card__content {
   gap: 0.35rem;
 }
+
+
 .pa-accounts .pa-account-list-card .pa-account-page-controls,
 .pa-accounts .pa-account-list-card .pa-account-table {
   margin-block: 0;
@@ -493,17 +483,12 @@
   gap: 0.35rem 1rem;
   min-width: 0;
 }
-.pa-account-qr-panel .pa-credentials-actions {
-  flex: 1 1 auto;
-}
+
 .pa-account-bulk-content > p {
   font-size: 0.8rem;
   font-weight: 600;
 }
-.pa-account-qr-panel .pa-qr-batch-tools .radio-group {
-  align-items: center;
-  gap: 0.25rem 0.3rem;
-}
+
 /* The rail already names the group; the label stays for assistive technology. */
 .pa-account-qr-panel .pa-qr-batch-tools > .radio-group:first-child > .label {
   position: absolute;
