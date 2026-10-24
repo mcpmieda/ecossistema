@@ -27,6 +27,126 @@ function participationValue(facts: readonly PerformanceFactV2[]) {
   };
 }
 
+type LearningContextV1 = { selectedTerms: readonly Term[]; reference: Term | null; minimumPercent: number };
+type LearningCellV1 = PerformanceAnalyticsV6['students'][number]['cells'][number];
+
+/** Instruments of a term (no parallel, no participation) with a value and a maximum. */
+function termInstrumentsV1(projection: PerformanceProjectionV2, term: Term) {
+  return projection.facts.filter((fact) => fact.term === term && fact.slot !== 3 &&
+    !(fact.slot >= 11 && isParticipationLabelV1(fact.label)) &&
+    fact.valueMilli !== null && fact.maximumMilli !== null && fact.maximumMilli > 0);
+}
+
+/** Recurrence in one term: two or more instruments below the minimum (of three or more), or
+ * below in this term and the one before. `assessed` says whether there was enough to tell. */
+function termRecurrenceV1(projection: PerformanceProjectionV2, term: Term, minimumPercent: number) {
+  let assessed = false, instruments = false, consecutive = false;
+  const facts = termInstrumentsV1(projection, term);
+  if (facts.length >= 3) {
+    assessed = true;
+    instruments =
+      facts.filter((fact) => fact.valueMilli! / fact.maximumMilli! * 100 < minimumPercent).length >= 2;
+  }
+  if (term > 1) {
+    const currentResult = performanceCellV2(projection, term, 'regular');
+    const previousResult = performanceCellV2(projection, (term - 1) as Term, 'regular');
+    if (performanceResultCountsV2(currentResult.state) && performanceResultCountsV2(previousResult.state)) {
+      assessed = true;
+      consecutive = currentResult.level === 'below' && previousResult.level === 'below';
+    }
+  }
+  return { assessed, instruments, consecutive };
+}
+
+/** The points the parallel exam added to a term, in percentage points; null when it added none. */
+function parallelGainV1(projection: PerformanceProjectionV2, term: Term) {
+  const outcome = projection.terms[term - 1];
+  if (!outcome || outcome.quantitativeMaximumMilli <= 0 ||
+    outcome.quantitativeConsideredMilli <= outcome.quantitativeOriginalMilli) return null;
+  return (outcome.quantitativeConsideredMilli - outcome.quantitativeOriginalMilli) / outcome.quantitativeMaximumMilli * 100;
+}
+
+/** Original two-assessment result, before parallel substitution, on the SAME complete pairs. */
+function originalDimensionV1(cell: LearningCellV1, projection: PerformanceProjectionV2, selectedTerms: readonly Term[]) {
+  if (!cell.quantitative.complete || !cell.qualitative.complete || cell.qualitative.percent === null) return null;
+  const outcomes = selectedTerms.map((term) => projection.terms[term - 1]);
+  if (!outcomes.every((outcome) => outcome !== null)) return null;
+  const maximum = outcomes.reduce((sum, outcome) => sum + outcome!.quantitativeMaximumMilli, 0);
+  const points = outcomes.reduce((sum, outcome) => sum + outcome!.quantitativeOriginalMilli, 0);
+  if (maximum <= 0) return null;
+  return { quantitative: points / maximum * 100, qualitative: cell.qualitative.percent };
+}
+
+/** One component of a student: participation now and its change, recurrence, parallel gains. */
+function cellLearningV1(cell: LearningCellV1, projection: PerformanceProjectionV2, context: LearningContextV1) {
+  const current = participationValue(participationFacts(projection, context.selectedTerms));
+  let change: number | null = null;
+  if (context.reference !== null && current.percent !== null) {
+    const previous = participationValue(participationFacts(projection, [context.reference]));
+    if (previous.percent !== null) change = current.percent - previous.percent;
+  }
+  const instrumentTerms: Term[] = [], consecutiveTerms: Term[] = [], gains: number[] = [];
+  let assessed = false;
+  for (const term of context.selectedTerms) {
+    const recurrence = termRecurrenceV1(projection, term, context.minimumPercent);
+    if (recurrence.assessed) assessed = true;
+    if (recurrence.instruments) instrumentTerms.push(term);
+    if (recurrence.consecutive) consecutiveTerms.push(term);
+    const gain = parallelGainV1(projection, term);
+    if (gain !== null) gains.push(gain);
+  }
+  const recurring = instrumentTerms.length || consecutiveTerms.length
+    ? { offerId: cell.offerId, instrumentTerms, consecutiveTerms } : null;
+  return { current, change, assessed, recurring, gains, dimension: originalDimensionV1(cell, projection, context.selectedTerms) };
+}
+
+/** A student's evidence over every component, and the totals the overview adds up. */
+function studentLearningV1(
+  student: PerformanceAnalyticsV6['students'][number],
+  projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]>,
+  context: LearningContextV1,
+) {
+  const byOffer = new Map((projections.get(student.student.id) ?? []).map((projection) => [projection.offerId, projection]));
+  const recurring: PerformanceLearningV1['students'][number]['recurring'] = [];
+  const currentParticipation: number[] = [], participationChanges: number[] = [];
+  const quantitative: number[] = [], qualitative: number[] = [], gains: number[] = [];
+  let recorded = 0, expected = 0, unscaled = 0, recurrenceAssessed = false;
+  for (const cell of student.cells) {
+    const projection = byOffer.get(cell.offerId);
+    if (!projection) throw new Error('learning-missing-projection');
+    const result = cellLearningV1(cell, projection, context);
+    recorded += result.current.recorded;
+    expected += result.current.expected;
+    unscaled += result.current.unscaled;
+    if (result.current.percent !== null) currentParticipation.push(result.current.percent);
+    if (result.change !== null) participationChanges.push(result.change);
+    if (result.assessed) recurrenceAssessed = true;
+    if (result.recurring) recurring.push(result.recurring);
+    gains.push(...result.gains);
+    if (result.dimension) {
+      quantitative.push(result.dimension.quantitative);
+      qualitative.push(result.dimension.qualitative);
+    }
+  }
+  return {
+    student: {
+      studentId: student.student.id,
+      recurrenceAssessed,
+      recurring,
+      participation: {
+        percent: mean(currentParticipation), deltaPP: mean(participationChanges),
+        components: currentParticipation.length, comparedComponents: participationChanges.length,
+        recorded, expected, unscaled,
+      },
+      parallelImprovements: gains.length,
+    },
+    gains,
+    dimensionComponents: quantitative.length,
+    q: mean(quantitative),
+    a: mean(qualitative),
+  };
+}
+
 /** Descriptive evidence over the already authorized, repeatable-read projections.
  * No SQL, writes, academic recalculation, source-history ordering or browser-side inference. */
 export function buildPerformanceLearningV1(
@@ -43,88 +163,21 @@ export function buildPerformanceLearningV1(
   } else {
     reference = null;
   }
+  const context: LearningContextV1 = { selectedTerms, reference, minimumPercent: value.minimumPercent };
   const quantitativeStudents: number[] = [], qualitativeStudents: number[] = [], gains: number[] = [];
   let dimensionComponents = 0;
   const students: PerformanceLearningV1['students'] = value.students.map((student) => {
-    const byOffer = new Map((projections.get(student.student.id) ?? []).map((projection) => [projection.offerId, projection]));
-    const recurring: PerformanceLearningV1['students'][number]['recurring'] = [];
-    const currentParticipation: number[] = [], participationChanges: number[] = [];
-    const quantitative: number[] = [], qualitative: number[] = [];
-    let recorded = 0, expected = 0, unscaled = 0, parallelImprovements = 0, recurrenceAssessed = false;
-    for (const cell of student.cells) {
-      const projection = byOffer.get(cell.offerId);
-      if (!projection) throw new Error('learning-missing-projection');
-      const current = participationValue(participationFacts(projection, selectedTerms));
-      recorded += current.recorded;
-      expected += current.expected;
-      unscaled += current.unscaled;
-      if (current.percent !== null) currentParticipation.push(current.percent);
-      if (reference !== null && current.percent !== null) {
-        const previous = participationValue(participationFacts(projection, [reference]));
-        if (previous.percent !== null)
-          participationChanges.push(current.percent - previous.percent);
-      }
-      const instrumentTerms: Term[] = [], consecutiveTerms: Term[] = [];
-      for (const term of selectedTerms) {
-        const facts = projection.facts.filter((fact) => fact.term === term && fact.slot !== 3 &&
-          !(fact.slot >= 11 && isParticipationLabelV1(fact.label)) &&
-          fact.valueMilli !== null && fact.maximumMilli !== null && fact.maximumMilli > 0);
-        if (facts.length >= 3) {
-          recurrenceAssessed = true;
-          if (facts.filter((fact) => fact.valueMilli! / fact.maximumMilli! * 100 < value.minimumPercent).length >= 2)
-            instrumentTerms.push(term);
-        }
-        if (term > 1) {
-          const currentResult = performanceCellV2(projection, term, 'regular');
-          const previousResult = performanceCellV2(projection, (term - 1) as Term, 'regular');
-          if (
-            performanceResultCountsV2(currentResult.state) &&
-            performanceResultCountsV2(previousResult.state)
-          ) {
-            recurrenceAssessed = true;
-            if (currentResult.level === 'below' && previousResult.level === 'below') consecutiveTerms.push(term);
-          }
-        }
-        const outcome = projection.terms[term - 1];
-        if (outcome && outcome.quantitativeMaximumMilli > 0 &&
-          outcome.quantitativeConsideredMilli > outcome.quantitativeOriginalMilli) {
-          parallelImprovements++;
-          gains.push((outcome.quantitativeConsideredMilli - outcome.quantitativeOriginalMilli) / outcome.quantitativeMaximumMilli * 100);
-        }
-      }
-      if (instrumentTerms.length || consecutiveTerms.length)
-        recurring.push({ offerId: cell.offerId, instrumentTerms, consecutiveTerms });
-      // Original two-assessment result, before parallel substitution, on the SAME complete pairs.
-      if (cell.quantitative.complete && cell.qualitative.complete && cell.qualitative.percent !== null) {
-        const outcomes = selectedTerms.map((term) => projection.terms[term - 1]);
-        if (outcomes.every((outcome) => outcome !== null)) {
-          const maximum = outcomes.reduce((sum, outcome) => sum + outcome!.quantitativeMaximumMilli, 0);
-          const points = outcomes.reduce((sum, outcome) => sum + outcome!.quantitativeOriginalMilli, 0);
-          if (maximum > 0) {
-            quantitative.push(points / maximum * 100);
-            qualitative.push(cell.qualitative.percent);
-            dimensionComponents++;
-          }
-        }
-      }
-    }
-    const q = mean(quantitative), a = mean(qualitative);
-    if (q !== null && a !== null) { quantitativeStudents.push(q); qualitativeStudents.push(a); }
+    const result = studentLearningV1(student, projections, context);
+    gains.push(...result.gains);
+    dimensionComponents += result.dimensionComponents;
+    if (result.q !== null && result.a !== null) { quantitativeStudents.push(result.q); qualitativeStudents.push(result.a); }
     return {
-      studentId: student.student.id,
-      recurrenceAssessed,
-      recurring,
-      participation: {
-        percent: mean(currentParticipation), deltaPP: mean(participationChanges),
-        components: currentParticipation.length, comparedComponents: participationChanges.length,
-        recorded, expected, unscaled,
-      },
-      parallelImprovements,
+      ...result.student,
       // Reuse the exact values already feeding the overview; never the legacy adjusted summaries.
       ...(includeStudentDimensions ? { dimensions: {
-        quantitativePercent: q, qualitativePercent: a,
-        gapPP: q !== null && a !== null ? a - q : null,
-        components: quantitative.length,
+        quantitativePercent: result.q, qualitativePercent: result.a,
+        gapPP: result.q !== null && result.a !== null ? result.a - result.q : null,
+        components: result.dimensionComponents,
       } } : {}),
     };
   });
