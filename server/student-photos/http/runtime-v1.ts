@@ -60,6 +60,100 @@ function readImageQuery(url: URL) {
   return { subject, variant: value.variant, revision: value.v ?? null };
 }
 
+/** A recovery request, or a catalog request naming its student. */
+function photoRequestInputV1(path: string, raw: unknown) {
+  return path === paths.recover ? recoverRequest.parse(raw) : photoCatalogRequestV1.parse(raw);
+}
+
+/** Whether the same reader may also change this student's photo. */
+async function mayWriteV1(
+  request: Request,
+  env: RuntimeEnv,
+  traceId: string,
+  reader: { actorId: string; tenantId: string },
+) {
+  const writeContext = await verifiedPagesContextV1(request, env, true, traceId);
+  return typeof writeContext !== 'string' && writeContext.actorId.toLowerCase() === reader.actorId
+    && writeContext.tenantId === reader.tenantId;
+}
+
+/** The signed-in reader of the Pages session; a missing or refused one is denied (401 or 403). */
+async function requirePagesContextV1(request: Request, env: RuntimeEnv, write: boolean, traceId: string) {
+  const context = await verifiedPagesContextV1(request, env, write, traceId);
+  if (typeof context === 'string') throw new AccessDenied(context === 'unauthenticated' ? 401 : 403);
+  return context;
+}
+
+type PagesContextV1 = Awaited<ReturnType<typeof requirePagesContextV1>>;
+
+/** The joint avatar read: read-only, the same reader checked again before each image goes out. */
+async function serveAvatarBatchV1(
+  request: Request,
+  env: RuntimeEnv,
+  repository: PhotoCatalogRepositoryV1,
+  initial: PagesContextV1,
+  traceId: string,
+) {
+  const batch = photoAvatarBatchRequestV1.parse(await readPhotoJsonV1(request, request.signal));
+  // Read-only transport: any upload or removal attempted through it is refused.
+  const storage = new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, async () => { throw new PhotoWriteErrorV1('invalid'); });
+  const images = await readAvatarBatchV1(batch.subjects, {
+    families: subjects => repository.avatarFamilies(subjects),
+    read: (asset, signal) => storage.read(asset, signal),
+    authorize: async () => {
+      request.signal.throwIfAborted();
+      const current = await requirePagesContextV1(request, env, false, traceId);
+      if (current.actorId.toLowerCase() !== initial.actorId.toLowerCase() || current.tenantId !== initial.tenantId)
+        throw new AccessDenied(403);
+    },
+  }, request.signal);
+  try {
+    const body = encodePhotoAvatarBatchV1(images);
+    return new Response(body.buffer as ArrayBuffer, { headers: { ...privateHeaders,
+      'Content-Type': PHOTO_AVATAR_BATCH_TYPE_V1, 'Content-Length': String(body.length) } });
+  } finally { for (const item of images) if (item instanceof Uint8Array) item.fill(0); }
+}
+
+/** One image: the WebP, or (authorized again) the colored circle for a missing avatar, or 404. */
+async function serveImageV1(
+  service: ReturnType<typeof createPhotoRuntimeServiceV1>,
+  context: PhotoWriteContextV1,
+  parsedImage: NonNullable<ReturnType<typeof readImageQuery>>,
+  authorize: (candidate: PhotoWriteContextV1) => Promise<void>,
+  signal: AbortSignal,
+) {
+  const bytes = await service.catalog.read(context, parsedImage.variant, parsedImage.revision, signal);
+  if (!bytes) {
+    await authorize(context);
+    if (parsedImage.variant === 'avatar') {
+      // A server-derived color keeps the same person's fallback identical across modules.
+      const hue = photoFallbackHueV1(context.studentUid);
+      return new Response(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="hsl(${hue},48%,44%)"/></svg>`, {
+        headers: { ...privateHeaders, 'Content-Type': 'image/svg+xml', 'Content-Security-Policy': "default-src 'none'; sandbox" },
+      });
+    }
+    return new Response(null, { status: 404, headers: privateHeaders });
+  }
+  try {
+    return new Response(new Uint8Array(bytes).buffer, { headers: { ...privateHeaders,
+      'Content-Type': 'image/webp', 'Content-Length': String(bytes.length) } });
+  } finally { bytes.fill(0); }
+}
+
+/** A failure as the client reads it; an image failure is also logged with its storage reason. */
+function photoFailureV1(error: unknown, image: boolean, signal: AbortSignal, traceId: string) {
+  if (image && error instanceof Error) {
+    const reason = /^student-photo-storage-[a-z-]+(?:-\d{3})?$/u.test(error.message)
+      ? error.message : error.name;
+    console.error('student-photo-image-unavailable', reason);
+  }
+  if (error instanceof AccessDenied) return json({ state: error.status === 401 ? 'unauthenticated' : 'forbidden', traceId }, error.status);
+  if (error instanceof PhotoTransportReadErrorV1) return json({ state: error.code, traceId }, error.code === 'too-large' ? 413 : 400);
+  if (error instanceof PhotoWriteErrorV1) return json({ state: error.code, traceId }, error.code === 'not-found' ? 404 : 409);
+  if (error instanceof z.ZodError) return json({ state: 'invalid', traceId }, 400);
+  return json({ state: signal.aborted ? 'cancelled' : 'unavailable', traceId }, 503);
+}
+
 /** Actual Pages integration. No Graph/privileged services are exposed to the student worker. */
 export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, codec: StudentWebpCodecV1): Promise<Response> {
   const traceId = crypto.randomUUID(), url = new URL(request.url), path = url.pathname;
@@ -71,8 +165,7 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
   let connection: Awaited<ReturnType<typeof openPhotoDatabaseV1>> | undefined;
   try {
     // Authenticate before opening a database connection or receiving any image bytes.
-    const initial = await verifiedPagesContextV1(request, env, write, traceId);
-    if (typeof initial === 'string') throw new AccessDenied(initial === 'unauthenticated' ? 401 : 403);
+    const initial = await requirePagesContextV1(request, env, write, traceId);
     request.signal.throwIfAborted();
     connection = await openPhotoDatabaseV1(env);
     const repository = new PhotoCatalogRepositoryV1(connection.database);
@@ -81,43 +174,15 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
       resolveSubject: async (_admin, subject, signal) => { signal.throwIfAborted(); return repository.resolve(subject); },
       createService: authorize => createPhotoRuntimeServiceV1({ env, database: connection!.database, codec, authorize }).edit,
     });
-    if (path === paths.avatars) {
-      const batch = photoAvatarBatchRequestV1.parse(await readPhotoJsonV1(request, request.signal));
-      // Read-only transport: any upload or removal attempted through it is refused.
-      const storage = new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, async () => { throw new PhotoWriteErrorV1('invalid'); });
-      const images = await readAvatarBatchV1(batch.subjects, {
-        families: subjects => repository.avatarFamilies(subjects),
-        read: (asset, signal) => storage.read(asset, signal),
-        authorize: async () => {
-          request.signal.throwIfAborted();
-          const current = await verifiedPagesContextV1(request, env, false, traceId);
-          if (typeof current === 'string') throw new AccessDenied(current === 'unauthenticated' ? 401 : 403);
-          if (current.actorId.toLowerCase() !== initial.actorId.toLowerCase() || current.tenantId !== initial.tenantId)
-            throw new AccessDenied(403);
-        },
-      }, request.signal);
-      try {
-        const body = encodePhotoAvatarBatchV1(images);
-        return new Response(body.buffer as ArrayBuffer, { headers: { ...privateHeaders,
-          'Content-Type': PHOTO_AVATAR_BATCH_TYPE_V1, 'Content-Length': String(body.length) } });
-      } finally { for (const item of images) if (item instanceof Uint8Array) item.fill(0); }
-    }
+    if (path === paths.avatars) return await serveAvatarBatchV1(request, env, repository, initial, traceId);
     const parsedImage = image ? readImageQuery(url) : null;
     const raw: unknown = image ? null : await readPhotoJsonV1(request, request.signal);
-    let input;
-    if (image) {
-      input = null;
-    } else if (path === paths.recover) {
-      input = recoverRequest.parse(raw);
-    } else {
-      input = photoCatalogRequestV1.parse(raw);
-    }
+    const input = image ? null : photoRequestInputV1(path, raw);
     const subject: PhotoAdminSubjectV1 = parsedImage?.subject ?? input!.subject;
     const context = photoWriteContextV1.parse({ actorId: initial.actorId, studentUid: await repository.resolve(subject) });
     const authorize = async (candidate: PhotoWriteContextV1) => {
       request.signal.throwIfAborted();
-      const current = await verifiedPagesContextV1(request, env, write, traceId);
-      if (typeof current === 'string') throw new AccessDenied(current === 'unauthenticated' ? 401 : 403);
+      const current = await requirePagesContextV1(request, env, write, traceId);
       if (current.actorId.toLowerCase() !== context.actorId || current.tenantId !== initial.tenantId
         || candidate.actorId !== context.actorId || candidate.studentUid !== context.studentUid
         || await repository.resolve(subject) !== context.studentUid) throw new AccessDenied(403);
@@ -127,24 +192,7 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
     // check back to back only added database round trips to every avatar.
     if (!parsedImage) await authorize(context);
     const service = createPhotoRuntimeServiceV1({ env, database: connection.database, codec, authorize });
-    if (parsedImage) {
-      const bytes = await service.catalog.read(context, parsedImage.variant, parsedImage.revision, request.signal);
-      if (!bytes) {
-        await authorize(context);
-        if (parsedImage.variant === 'avatar') {
-          // A server-derived color keeps the same person's fallback identical across modules.
-          const hue = photoFallbackHueV1(context.studentUid);
-          return new Response(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="hsl(${hue},48%,44%)"/></svg>`, {
-            headers: { ...privateHeaders, 'Content-Type': 'image/svg+xml', 'Content-Security-Policy': "default-src 'none'; sandbox" },
-          });
-        }
-        return new Response(null, { status: 404, headers: privateHeaders });
-      }
-      try {
-        return new Response(new Uint8Array(bytes).buffer, { headers: { ...privateHeaders,
-          'Content-Type': 'image/webp', 'Content-Length': String(bytes.length) } });
-      } finally { bytes.fill(0); }
-    }
+    if (parsedImage) return await serveImageV1(service, context, parsedImage, authorize, request.signal);
     if (path === paths.recover) {
       const requestId = recoverRequest.parse(input).requestId;
       const result = await service.recover(context, requestId, request.signal);
@@ -153,21 +201,10 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
     const catalog = path === paths.open
       ? await service.catalog.open(context, request.signal) : await repository.state(context);
     await authorize(context);
-    const writeContext = await verifiedPagesContextV1(request, env, true, traceId);
-    const canWrite = typeof writeContext !== 'string' && writeContext.actorId.toLowerCase() === context.actorId
-      && writeContext.tenantId === initial.tenantId;
+    const canWrite = await mayWriteV1(request, env, traceId, { actorId: context.actorId, tenantId: initial.tenantId });
     return json({ version: 1, state: 'catalog', traceId, canWrite, catalog });
   } catch (error) {
-    if (image && error instanceof Error) {
-      const reason = /^student-photo-storage-[a-z-]+(?:-\d{3})?$/u.test(error.message)
-        ? error.message : error.name;
-      console.error('student-photo-image-unavailable', reason);
-    }
-    if (error instanceof AccessDenied) return json({ state: error.status === 401 ? 'unauthenticated' : 'forbidden', traceId }, error.status);
-    if (error instanceof PhotoTransportReadErrorV1) return json({ state: error.code, traceId }, error.code === 'too-large' ? 413 : 400);
-    if (error instanceof PhotoWriteErrorV1) return json({ state: error.code, traceId }, error.code === 'not-found' ? 404 : 409);
-    if (error instanceof z.ZodError) return json({ state: 'invalid', traceId }, 400);
-    return json({ state: request.signal.aborted ? 'cancelled' : 'unavailable', traceId }, 503);
+    return photoFailureV1(error, image, request.signal, traceId);
   } finally {
     // Closing a connection after a committed mutation cannot invalidate its receipt.
     await connection?.close().catch(() => undefined);
