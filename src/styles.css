@@ -524,10 +524,6 @@ button.performance-kpi__button:hover {
   border-radius: var(--radius-2xl);
 }
 
-.performance-kpi__icon {
-  width: 2.7rem;
-  height: 2.7rem;
-}
 
 .performance-kpi__icon--accent,
 .performance-widget__icon--accent {
@@ -573,10 +569,6 @@ button.performance-kpi__button:hover {
   gap: 0.7rem;
 }
 
-.performance-widget__icon {
-  width: 2.35rem;
-  height: 2.35rem;
-}
 
 .performance-legend {
   display: inline-block;
@@ -643,16 +635,9 @@ button.performance-kpi__button:hover {
     transform 140ms var(--platform-ease);
 }
 
-.performance-bar:hover {
-  filter: saturate(1.12) brightness(0.98);
-  transform: translateY(-2px);
-}
-.performance-bar--above {
-  background: linear-gradient(180deg, #3b91ff, var(--performance-above));
-}
-.performance-bar--below {
-  background: linear-gradient(180deg, #ff7a82, var(--performance-below));
-}
+
+
+
 .performance-bar--selected {
   box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 24%, transparent);
 }
@@ -792,13 +777,6 @@ button.performance-kpi__button:hover {
   padding: 0.75rem;
 }
 
-.performance-panorama {
-  display: grid;
-  grid-template-columns: minmax(8rem, 0.85fr) minmax(11rem, 1.15fr);
-  align-items: center;
-  gap: 1rem;
-  margin-top: 1.25rem;
-}
 
 .performance-donut {
   display: grid;
@@ -825,10 +803,6 @@ button.performance-kpi__button:hover {
 .performance-donut__center strong {
   font-size: 1.8rem;
   letter-spacing: -0.05em;
-}
-.performance-donut__center span {
-  color: var(--muted);
-  font-size: 0.72rem;
 }
 
 .performance-panorama__item,
@@ -912,24 +886,23 @@ button.performance-kpi__button:hover {
 
 .performance-ranking > ol {
   overflow: hidden;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-2xl);
+  border: 0;
+  border-radius: 0.55rem;
 }
 
 .performance-ranking li + li {
-  border-top: 1px solid color-mix(in oklab, var(--separator) 70%, transparent);
+  border-top: 0;
 }
 
 .performance-ranking li > button {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.55rem;
-  padding: 0.38rem 0.5rem;
   font-size: 0.7rem;
+  border: 0;
+  border-radius: 0;
+  padding: 0.3rem 0.5rem;
 }
 
-.performance-ranking li > button:hover {
-  background: var(--surface-secondary);
-}
 
 .performance-ranking__position {
   display: grid;
@@ -1646,6 +1619,7 @@ button.performance-kpi__button:hover {
   gap: 0.25rem 1.25rem;
   min-height: var(--shell-top);
   padding: 0.35rem 1rem;
+  position: sticky;
 }
 .shell-brand {
   display: flex;
@@ -1667,11 +1641,7 @@ button.performance-kpi__button:hover {
   gap: 0.5rem;
   min-width: 0;
 }
-/* One row at every width. Below 1500px the areas need the room, so the brand keeps only its
-   mark, the profile only its avatar, and the search rests as an icon that opens on focus. */
-.shell-topbar {
-  position: sticky;
-}
+
 .shell-tools .platform-search-desktop {
   width: 15rem;
   max-width: none;
@@ -1992,9 +1962,7 @@ button.performance-kpi__button:hover {
   font-size: 0.75rem;
   line-height: 1.3;
 }
-.performance-period-tabs .tabs__list {
-  height: 2.1rem;
-}
+
 .performance-period-tabs .tabs__tab {
   min-width: 3.4rem;
   font-size: 0.8rem;
@@ -2094,8 +2062,8 @@ button.performance-kpi__button:hover {
 }
 .performance-notes-bar__selects .select__trigger {
   width: auto;
-  min-width: 9rem;
   min-height: 2.25rem;
+  min-width: 7.5rem;
 }
 .performance-workspace .school-class-tabs[data-orientation='horizontal'] > .tabs__list-container,
 .performance-workspace .tabs[data-orientation='horizontal'] > .performance-perspectives.tabs__list-container {
@@ -2153,6 +2121,7 @@ button.performance-kpi__button:hover {
   width: auto;
   flex: 0 0 auto;
   white-space: nowrap;
+  min-width: 0;
 }
 .performance-kpi .items-baseline {
   white-space: nowrap;
@@ -2160,12 +2129,8 @@ button.performance-kpi__button:hover {
 .performance-workspace.performance-workspace .school-class-tabs > .tabs__list-container {
   border-radius: 0;
 }
-.performance-notes-bar > .tabs__list-container .tabs__tab {
-  min-width: 0;
-}
-.performance-notes-bar__selects .select__trigger {
-  min-width: 7.5rem;
-}
+
+
 .performance-period-tabs .tabs__list {
   height: 2.25rem;
 }
@@ -2226,6 +2191,7 @@ button.performance-kpi__button:hover {
   background: var(--performance-below);
 }
 .performance-bar:hover {
+  filter: saturate(1.12) brightness(0.98);
   transform: none;
 }
 .performance-bar > span {
@@ -2238,19 +2204,29 @@ button.performance-kpi__button:hover {
   font-size: 0.65rem;
   line-height: 0.85rem;
 }
-.performance-bars__column:nth-child(2) .performance-bar { animation-delay: 30ms; }
-.performance-bars__column:nth-child(3) .performance-bar { animation-delay: 60ms; }
-.performance-bars__column:nth-child(4) .performance-bar { animation-delay: 90ms; }
-.performance-bars__column:nth-child(5) .performance-bar { animation-delay: 120ms; }
-.performance-bars__column:nth-child(6) .performance-bar { animation-delay: 150ms; }
-.performance-bars__column:nth-child(7) .performance-bar { animation-delay: 180ms; }
-.performance-bars__column:nth-child(8) .performance-bar { animation-delay: 210ms; }
-.performance-bars__column:nth-child(n + 9) .performance-bar { animation-delay: 240ms; }
-.performance-panorama {
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.9rem;
-  margin-top: 0.6rem;
+.performance-bars__column:nth-child(2) .performance-bar {
+  animation-delay: 30ms, -1.06s;
 }
+.performance-bars__column:nth-child(3) .performance-bar {
+  animation-delay: 60ms, -1.59s;
+}
+.performance-bars__column:nth-child(4) .performance-bar {
+  animation-delay: 90ms, -2.12s;
+}
+.performance-bars__column:nth-child(5) .performance-bar {
+  animation-delay: 120ms, -2.65s;
+}
+.performance-bars__column:nth-child(6) .performance-bar {
+  animation-delay: 150ms, -3.18s;
+}
+.performance-bars__column:nth-child(7) .performance-bar {
+  animation-delay: 180ms, -3.71s;
+}
+.performance-bars__column:nth-child(8) .performance-bar {
+  animation-delay: 210ms, -0.04s;
+}
+.performance-bars__column:nth-child(n + 9) .performance-bar { animation-delay: 240ms; }
+
 .performance-donut {
   width: 7rem;
 }
@@ -2263,6 +2239,7 @@ button.performance-kpi__button:hover {
   line-height: 1.3rem;
 }
 .performance-donut__center span {
+  color: var(--muted);
   font-size: 0.65rem;
 }
 .performance-panorama__counts {
@@ -2379,16 +2356,16 @@ button.performance-kpi__button:hover {
 
 /* Information panel of the analytics cards: whole words, the calculation set apart. */
 .analytics-hint {
-  width: 20rem;
   max-width: calc(100vw - 2rem);
   padding: 0.75rem 0.85rem;
-  font-size: 0.75rem;
-  line-height: 1.15rem;
   text-align: left;
   word-break: normal;
   overflow-wrap: normal;
   hyphens: none;
   white-space: normal;
+  width: 21rem;
+  font-size: 0.78rem;
+  line-height: 1.2rem;
 }
 .analytics-hint__body {
   display: grid;
@@ -2418,11 +2395,7 @@ button.performance-kpi__button:hover {
   color: var(--muted);
 }
 
-.analytics-hint {
-  width: 21rem;
-  font-size: 0.78rem;
-  line-height: 1.2rem;
-}
+
 .analytics-hint__calc > ol {
   display: grid;
   gap: 0.3rem;
@@ -2688,12 +2661,7 @@ button.performance-kpi__button:hover {
   gap: 1.25rem;
   overflow-y: auto;
 }
-.shell-side__group-label {
-  margin: 0 0 0.35rem 0.8rem;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 500;
-}
+
 .shell-side__areas {
   display: grid;
   gap: 0.15rem;
@@ -3375,6 +3343,7 @@ button.performance-kpi__button:hover {
   gap: 1.6rem;
 }
 .shell-side__group-label {
+  margin: 0 0 0.35rem 0.8rem;
   margin-bottom: 0.45rem;
   color: color-mix(in oklab, var(--muted) 75%, transparent);
   font-size: 0.66rem;
@@ -3518,15 +3487,7 @@ button.performance-kpi__button:hover {
   font-size: 0.68rem;
   letter-spacing: 0.02em;
 }
-.performance-delta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.05rem;
-  padding: 0.05rem 0.2rem;
-  border-radius: 999px;
-  font-size: 0.56rem;
-  font-weight: 700;
-}
+
 .performance-delta--above {
   background: color-mix(in oklab, var(--performance-above) 14%, transparent);
   color: var(--performance-above);
@@ -3536,7 +3497,8 @@ button.performance-kpi__button:hover {
   color: var(--performance-below);
 }
 .performance-delta[data-change='none'] {
-  background: transparent;
+  padding: 0.05rem 0.3rem;
+  background: color-mix(in oklab, var(--muted) 14%, transparent);
   color: var(--muted);
 }
 /* Up or down with the number; a small square when nothing changed (owner request of 15/10/2026). */
@@ -3546,11 +3508,9 @@ button.performance-kpi__button:hover {
   height: 0.35rem;
   border-radius: 0.06rem;
   background: currentColor;
-  content: '';
+  content: none;
 }
-.performance-delta[data-change='none'] {
-  padding: 0.15rem;
-}
+
 /* Every component fits the width of the card, up to twelve, without a scrollbar. */
 .performance-bars {
   overflow-x: visible;
@@ -3570,6 +3530,12 @@ button.performance-kpi__button:hover {
   font-size: 0.62rem;
 }
 .performance-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.05rem 0.2rem;
+  border-radius: 999px;
+  font-weight: 700;
   font-size: 0.52rem;
 }
 /* Up is blue, down is red, whatever bar it sits on (owner request of 15/10/2026). */
@@ -3581,15 +3547,8 @@ button.performance-kpi__button:hover {
   background: color-mix(in oklab, var(--performance-below) 14%, transparent);
   color: var(--performance-below);
 }
-/* The same number as before is a pill like the others, grey, with "=" (owner request of 15/10/2026). */
-.performance-delta[data-change='none'] {
-  padding: 0.05rem 0.3rem;
-  background: color-mix(in oklab, var(--muted) 14%, transparent);
-  color: var(--muted);
-}
-.performance-delta[data-change='none']::before {
-  content: none;
-}
+
+
 /* A selected component takes the whole card: the back button, its name and the students below
    the minimum, with the list running to the bottom edge (owner request of 15/10/2026). */
 .performance-widget--detail {
@@ -3626,6 +3585,8 @@ button.performance-kpi__button:hover {
   padding: 0.3rem 1rem;
   font-size: 0.72rem;
   line-height: 1.2;
+  gap: 0.4rem;
+  padding-left: 0.35rem;
 }
 .performance-widget--detail .performance-bars__student-group > ul {
   scrollbar-width: thin;
@@ -3823,21 +3784,12 @@ button.performance-kpi__button:hover {
   border-top: 0;
   padding-top: 0.25rem;
 }
-.performance-ranking > ol {
-  border: 0;
-  border-radius: 0.55rem;
-}
-.performance-ranking li + li {
-  border-top: 0;
-}
+
+
 .performance-ranking li:nth-child(even) > button {
   background: color-mix(in oklab, var(--foreground) 4%, transparent);
 }
-.performance-ranking li > button {
-  border: 0;
-  border-radius: 0;
-  padding: 0.3rem 0.5rem;
-}
+
 .performance-ranking li > button:hover {
   background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
@@ -3871,7 +3823,6 @@ button.performance-kpi__button:hover {
    15/10/2026). */
 .performance-ranking__open {
   display: flex;
-  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -3883,6 +3834,8 @@ button.performance-kpi__button:hover {
   color: inherit;
   cursor: pointer;
   text-align: left;
+  width: auto;
+  margin-left: auto;
 }
 .performance-ranking__open:hover {
   background: color-mix(in oklab, var(--accent) 8%, transparent);
@@ -3902,9 +3855,7 @@ button.performance-kpi__button:hover {
   color: var(--muted);
   font-size: 0.65rem;
 }
-.performance-bars__student-group--ranking li > button {
-  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
-}
+
 .performance-bars__student-group--ranking li > button > strong {
   font-size: 0.75rem;
 }
@@ -3913,11 +3864,7 @@ button.performance-kpi__button:hover {
   color: var(--muted);
   font-size: 0.62rem;
 }
-/* The lists inside the cards start closer to the left edge (owner request of 15/10/2026). */
-.performance-widget--detail .performance-bars__student-group li > button {
-  gap: 0.4rem;
-  padding-left: 0.35rem;
-}
+
 .performance-bars__student-group li > button {
   grid-template-columns: 1.1rem minmax(0, 1fr);
 }
@@ -3964,11 +3911,7 @@ button.performance-kpi__button:hover {
 .performance-medal--bronze {
   color: #b87333;
 }
-/* Only "Top 10" opens the ranking; the button sits at the right of the card. */
-.performance-ranking__open {
-  width: auto;
-  margin-left: auto;
-}
+
 /* Panorama: "Top 10" at the top right; the larger pie and its counts in the middle of the card
    (owner request of 15/10/2026). */
 .performance-widget--panorama {
@@ -4009,19 +3952,19 @@ button.performance-kpi__button:hover {
 }
 .performance-bars__column:nth-child(1) .performance-bar { animation-delay: 0ms, -0.53s; }
 .performance-bars__column:nth-child(1) .performance-bar--below { animation-delay: 0ms, -2.13s; }
-.performance-bars__column:nth-child(2) .performance-bar { animation-delay: 30ms, -1.06s; }
+
 .performance-bars__column:nth-child(2) .performance-bar--below { animation-delay: 30ms, -2.66s; }
-.performance-bars__column:nth-child(3) .performance-bar { animation-delay: 60ms, -1.59s; }
+
 .performance-bars__column:nth-child(3) .performance-bar--below { animation-delay: 60ms, -3.19s; }
-.performance-bars__column:nth-child(4) .performance-bar { animation-delay: 90ms, -2.12s; }
+
 .performance-bars__column:nth-child(4) .performance-bar--below { animation-delay: 90ms, -3.72s; }
-.performance-bars__column:nth-child(5) .performance-bar { animation-delay: 120ms, -2.65s; }
+
 .performance-bars__column:nth-child(5) .performance-bar--below { animation-delay: 120ms, -0.05s; }
-.performance-bars__column:nth-child(6) .performance-bar { animation-delay: 150ms, -3.18s; }
+
 .performance-bars__column:nth-child(6) .performance-bar--below { animation-delay: 150ms, -0.58s; }
-.performance-bars__column:nth-child(7) .performance-bar { animation-delay: 180ms, -3.71s; }
+
 .performance-bars__column:nth-child(7) .performance-bar--below { animation-delay: 180ms, -1.11s; }
-.performance-bars__column:nth-child(8) .performance-bar { animation-delay: 210ms, -0.04s; }
+
 .performance-bars__column:nth-child(8) .performance-bar--below { animation-delay: 210ms, -1.64s; }
 .performance-bars__column:nth-child(9) .performance-bar { animation-delay: 240ms, -0.57s; }
 .performance-bars__column:nth-child(9) .performance-bar--below { animation-delay: 240ms, -2.17s; }

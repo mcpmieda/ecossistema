@@ -19,9 +19,7 @@
   padding: 0;
   margin: 0;
 }
-.pa-account-qr-panel .pa-qr-batch-tools .radio-group {
-  gap: 0.3rem 0.35rem;
-}
+
 .pa-account-qr-panel .radio {
   padding: 0.125rem 0.5rem;
   border: 0;
@@ -50,6 +48,7 @@
 }
 .pa-account-qr-panel .pa-credentials-actions {
   gap: 0.35rem;
+  flex: 1 1 auto;
 }
 .pa-account-qr-panel .pa-credentials-actions button {
   padding-inline: 0.25rem;
@@ -178,6 +177,7 @@
 }
 .pa-account-facts dd {
   overflow-wrap: anywhere;
+  font-weight: 600;
 }
 .pa-account-notice {
   padding: 0.85rem;
@@ -187,9 +187,9 @@
   gap: 0.65rem;
 }
 .pa-account-slot {
-  border-top: 1px solid var(--border);
-  padding-top: 1rem;
   min-width: 0;
+  border: 0;
+  padding-top: 0.5rem;
 }
 .pa-account-dialog {
   max-height: 85dvh;
@@ -229,13 +229,7 @@
   }
 }
 
-.pa-account-facts dd {
-  font-weight: 600;
-}
-.pa-account-slot {
-  border: 0;
-  padding-top: 0.5rem;
-}
+
 
 .pa-accounts .card__content {
   padding: 0.65rem 0.8rem;
@@ -286,7 +280,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .pa-account-table .table__cell {
-  padding-block: 0.35rem;
+  padding-block: 0.55rem;
 }
 @media (max-width: 640px) {
   .pa-account-scroll {
@@ -387,14 +381,10 @@
 }
 .pa-accounts .pa-account-list-card > .card__content {
   padding: 0.25rem;
-}
-.pa-account-table .table__cell {
-  padding-block: 0.55rem;
-}
-/* The count sits right above its table: one small gap instead of three stacked ones. */
-.pa-accounts .pa-account-list-card > .card__content {
   gap: 0.35rem;
 }
+
+
 .pa-accounts .pa-account-list-card .pa-account-page-controls,
 .pa-accounts .pa-account-list-card .pa-account-table {
   margin-block: 0;
@@ -493,9 +483,7 @@
   gap: 0.35rem 1rem;
   min-width: 0;
 }
-.pa-account-qr-panel .pa-credentials-actions {
-  flex: 1 1 auto;
-}
+
 .pa-account-bulk-content > p {
   font-size: 0.8rem;
   font-weight: 600;
