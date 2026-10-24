@@ -1,8 +1,8 @@
 .pa-accounts {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
   min-width: 0;
-  gap: 0.75rem;
 }
 .pa-account-controls-card,
 .pa-account-bulk-mount {
@@ -19,10 +19,7 @@
   padding: 0;
   margin: 0;
 }
-.pa-account-qr-panel .pa-qr-batch-tools .radio-group {
-  align-items: center;
-  gap: 0.25rem 0.3rem;
-}
+
 .pa-account-qr-panel .radio {
   padding: 0.125rem 0.5rem;
   border: 0;
@@ -374,7 +371,11 @@
   display: flex;
 }
 
-
+/* Tighter HeroUI chrome, wider content: the list card matches the controls card, and the room
+   saved goes to the gaps between blocks, filters and rows. */
+.pa-accounts {
+  gap: 0.75rem;
+}
 .pa-accounts .pa-account-list-card {
   padding: 0.5rem;
 }
@@ -487,7 +488,10 @@
   font-size: 0.8rem;
   font-weight: 600;
 }
-
+.pa-account-qr-panel .pa-qr-batch-tools .radio-group {
+  align-items: center;
+  gap: 0.25rem 0.3rem;
+}
 /* The rail already names the group; the label stays for assistive technology. */
 .pa-account-qr-panel .pa-qr-batch-tools > .radio-group:first-child > .label {
   position: absolute;

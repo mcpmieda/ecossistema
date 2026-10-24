@@ -570,6 +570,7 @@
   align-items: flex-start;
   gap: 0.65rem;
   counter-increment: pa-step;
+  font-size: var(--text-sm);
 }
 .pa-camera-blocked-steps li::before {
   content: counter(pa-step);
@@ -727,6 +728,4 @@
   font-size: var(--text-base);
   font-weight: 600;
 }
-.pa-camera-blocked-steps li {
-  font-size: var(--text-sm);
-}
+
