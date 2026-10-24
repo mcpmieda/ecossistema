@@ -66,7 +66,10 @@ export function assertPhotoUploadedAssetsV1(receipt: PhotoWriteReceiptV1, upload
   const used = new Set<string>();
   for (const variant of ['portrait', 'avatar'] as const) {
     const wanted = receipt.plan[variant], actual = uploaded[variant];
-    if (!wanted) { if (actual) throw new PhotoWriteErrorV1('invalid'); continue; }
+    if (!wanted) {
+      if (actual) throw new PhotoWriteErrorV1('invalid');
+      continue;
+    }
     if (!actual || actual.sha256 !== wanted.sha256 || actual.byteSize !== wanted.byteSize
       || actual.width !== wanted.width || actual.height !== wanted.height) throw new PhotoWriteErrorV1('invalid');
     const key = photoAssetKeyV1(actual);

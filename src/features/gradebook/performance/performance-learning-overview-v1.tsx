@@ -80,7 +80,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
       return a.student.number - b.student.number;
     });
   const assessed = learning?.students.filter((item) => item.recurrenceAssessed).length ?? 0;
-  const componentLabels = new Map(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
+  const componentLabels = new Map<number, string>(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
   const instruments = new Map(value.components.flatMap((component) => component.instruments.map((instrument) => [instrument.key, { ...instrument, offerId: component.offer.id, subject: component.offer.subject.label }] as const)));
   const reviewActivities = (learning?.activitiesToReview ?? []).map((key) => instruments.get(key)).filter((item): item is NonNullable<typeof item> => item !== undefined);
   const periodName = value.period === 'annual' ? 'Ano letivo' : `${value.period}º trimestre`;

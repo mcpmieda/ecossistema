@@ -2,10 +2,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentPortalAdminPage } from '../features/student-portal-admin/student-portal-admin-page';
 import { localStudents, previewFetch } from './preview-fetch-v1';
+import { scalarTextV1 } from '../../shared/scalar-text-v1';
 
 // The class catalog and other browser reads use fetch directly; keep this preview offline.
 window.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
-  previewFetch(String(input), init ?? {})) as typeof window.fetch;
+  previewFetch(scalarTextV1(input), init ?? {})) as typeof window.fetch;
 
 if (!window.location.hash) window.history.replaceState(null, '', '#/painel-do-aluno');
 const root = document.getElementById('root');

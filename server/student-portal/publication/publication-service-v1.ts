@@ -2,6 +2,7 @@ import { type ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { accountTransactionV1 } from '../auth/transaction-v1';
 import { currentRevisionV1, PERIODS_V1, publicationAccountsV1, publicationDigestV1, publicationScopeVersionV1 } from './state-v1';
+import { scalarTextV1 } from '../../../shared/scalar-text-v1';
 
 /** Read-only legacy publication states. Publishing is owned by ScopedPublicationServiceV2. */
 export class PublicationServiceV1 {
@@ -25,7 +26,7 @@ export class PublicationServiceV1 {
         return { period, state: pending ? 'update-pending' as const : published ? 'published' as const
           : selected.some((row) => row.state === 'available') ? 'available' as const : 'no-data' as const,
         availableRevision: selected.some((row) => row.available_revision !== null) ? currentRevision : null,
-        publishedRevision: revisions.length === 1 ? String(revisions[0]) : revisions.length > 1 ? `mixed:${publicationDigestV1(revisions.sort((left, right) => String(left).localeCompare(String(right))))}` : null,
+        publishedRevision: revisions.length === 1 ? scalarTextV1(revisions[0]) : revisions.length > 1 ? `mixed:${publicationDigestV1(revisions.sort((left, right) => scalarTextV1(left).localeCompare(scalarTextV1(right))))}` : null,
         version };
       }) };
     });

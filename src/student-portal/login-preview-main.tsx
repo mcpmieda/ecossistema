@@ -10,6 +10,7 @@ import { PortalClosedNoticeV1 } from '../features/student-portal/shell/portal-no
 import { createPortalSelfClientV1 } from '../features/student-portal/shared/self-client-v1';
 import { PORTAL_ORIGIN_V1 } from '../../shared/student-portal-contracts/core-v1';
 import '../features/student-portal/shared/styles.css';
+import { scalarTextV1 } from '../../shared/scalar-text-v1';
 
 /*
  * Login preview only. The real sign-in screens and flow run against an invented in-browser
@@ -130,8 +131,8 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 function previewFetchV1(screen: ScreenV1): typeof fetch {
   let riskPassed = false;
   return async (input, init) => {
-    const path = String(input);
-    const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+    const path = scalarTextV1(input);
+    const body = init?.body ? (JSON.parse(scalarTextV1(init.body)) as Record<string, unknown>) : {};
     if (path === '/api/student/auth/challenge') {
       const challenge = screen.challenge ?? 'password';
       await wait(challenge === 'slow' ? 10 * 60_000 : 500);

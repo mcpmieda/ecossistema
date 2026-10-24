@@ -15,6 +15,7 @@ import type {
   WorkbookSummary,
 } from './spreadsheet-recognizer';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
+import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
 
 export interface GradebookImportDiagnosticV1 extends GradebookImportDiagnosticAuditItemV1 {
   readonly studentName?: string;
@@ -90,7 +91,7 @@ function snapshot(sheet: GradeSheetRecognition, address: string): unknown {
 function displayValue(value: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   if (Array.isArray(value)) return undefined;
-  return String(value).trim().slice(0, 240) || undefined;
+  return scalarTextV1(value).trim().slice(0, 240) || undefined;
 }
 
 function numericValue(value: unknown): number | null {

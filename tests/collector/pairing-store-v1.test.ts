@@ -69,8 +69,9 @@ describe('owner-only pending pairing and atomic initial registration',()=>{
     expect((await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0]?.requests).toBe(10);
     expect(await offer(other)).toBe(true);
     await db.exec(`INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at)
-      SELECT gen_random_uuid(),p.public_key,p.key_thumbprint,p.poll_hash,'123456',clock_timestamp(),clock_timestamp()+interval '10 minutes'
-      FROM collector_auth.pairings p CROSS JOIN generate_series(1,77) n WHERE p.id='${id}'`);
+      SELECT gen_random_uuid(),p.public_key,p.key_thumbprint,p.poll_hash,'123456',t.at,t.at+interval '10 minutes'
+      FROM collector_auth.pairings p CROSS JOIN generate_series(1,77) n
+      CROSS JOIN (SELECT clock_timestamp() AS at) t WHERE p.id='${id}'`);
     // One original fixture, one admitted second scope, 77 extras => 79;
     expect(await offer('client:'+'c'.repeat(64))).toBe(true);
     const before=(await db.query<{requests:number}>("SELECT requests FROM collector_auth.pairing_rate_v1 WHERE scope='global'")).rows[0]?.requests;

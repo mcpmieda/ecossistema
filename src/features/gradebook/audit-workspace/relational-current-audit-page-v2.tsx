@@ -535,7 +535,11 @@ export function RelationalCurrentAuditPageV2() {
       );
       if (controller.signal.aborted) return;
       if (response.state === 'not-authorized') { setItems([]); setState('not-authorized'); return false; }
-      if (response.state !== 'ready') { if (background) setStale(true); else setState('unavailable'); return false; }
+      if (response.state !== 'ready') {
+        if (background) setStale(true);
+        else setState('unavailable');
+        return false;
+      }
       if (background && draftFindingsRef.current.size > 0) return;
       setItems(response.items);
       setNextOffset(response.nextOffset);
@@ -881,7 +885,15 @@ export function RelationalCurrentAuditPageV2() {
                       busy={busyTreatments.has(item.id)}
                       feedback={feedback[item.id] || null}
                       onRecord={recordTreatment}
-                      onDraftChange={(id, dirty) => setDraftFindings((current) => { const next = new Set(current); if (dirty) next.add(id); else next.delete(id); draftFindingsRef.current = next; return next; })}
+                      onDraftChange={(id, dirty) =>
+                        setDraftFindings((current) => {
+                          const next = new Set(current);
+                          if (dirty) next.add(id);
+                          else next.delete(id);
+                          draftFindingsRef.current = next;
+                          return next;
+                        })
+                      }
                     />
                   ))}
                 </ol>

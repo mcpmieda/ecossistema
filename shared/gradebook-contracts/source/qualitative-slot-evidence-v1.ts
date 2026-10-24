@@ -1,9 +1,10 @@
 import type { GradebookImportPersistenceRequestV9, GradebookImportTermV9 } from '../imports/import-persistence-transport-v9';
+import { scalarTextV1 } from '../../scalar-text-v1';
 /** A printed column ordinal is not an activity. A maximum or any saved grade is evidence. */
 export function isQualitativeColumnOrdinalV1(slot: number, description: unknown): boolean {
   if (slot < 11 || slot > 20) return false;
   if (description === undefined || description === null || description === '') return true;
-  const value = String(description).trim();
+  const value = scalarTextV1(description).trim();
   return value === '' || new RegExp(`^${slot - 10}([.,]0+)?$`, 'u').test(value);
 }
 

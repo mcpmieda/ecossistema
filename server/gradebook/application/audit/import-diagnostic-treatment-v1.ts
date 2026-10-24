@@ -14,6 +14,7 @@ import {
   type ImportDiagnosticTreatmentRequestV1,
   type ImportDiagnosticTreatmentResponseV1,
 } from '../../../../shared/gradebook-contracts/audit/import-diagnostic-treatment-v1';
+import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
 
 
 type Row = Record<string, unknown>;
@@ -50,7 +51,7 @@ function integer(value: unknown): number {
 }
 
 function nullableText(value: unknown): string | null {
-  return value === null || value === undefined ? null : String(value);
+  return value === null || value === undefined ? null : scalarTextV1(value);
 }
 
 function boolean(value: unknown): boolean {

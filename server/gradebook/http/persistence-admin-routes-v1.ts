@@ -34,8 +34,9 @@ export async function handleGradebookPersistenceAdminRequestV1(request: Request,
   if (pathname === GRADEBOOK_PERSISTENCE_MIGRATIONS_ROUTE)
     return noStoreJson({ state: 'retired', provider: 'postgres', message: 'Production migrations use the reviewed deployment process.' }, 410);
   const production = (env.RUNTIME_ENVIRONMENT ?? 'production') === 'production';
-  if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || (production && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true'))
-      return unavailable('unconfigured');
+  if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || (production && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true')) {
+    return unavailable('unconfigured');
+  }
     try {
       return await withOfficialGradebookDatabaseV1(env, async (execution) => {
         const database = execution.GRADEBOOK_DATABASE as GradebookPostgresReadPortV1;

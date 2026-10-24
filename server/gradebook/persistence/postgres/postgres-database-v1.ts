@@ -1,4 +1,5 @@
 import type { GradebookPostgresValueV1, GradebookPostgresScalarV1 } from './postgres-values-v1';
+import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
 export type { GradebookPostgresScalarV1 } from './postgres-values-v1';
 
 type PostgresFactoryV1 = typeof import('postgres');
@@ -84,7 +85,7 @@ interface GradebookPostgresFailureStateV1 {
 }
 
 function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause ?? '');
+  return cause instanceof Error ? cause.message : scalarTextV1(cause ?? '');
 }
 
 function failureDiagnostic(query: string, cause: unknown): GradebookPostgresFailureDiagnosticV1 {

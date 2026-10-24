@@ -180,7 +180,7 @@ export function createRelationalWorkspaceV2(database: GradebookPostgresWritePort
   return {
     async execute(input: unknown): Promise<OperationalWorkspaceResponseV2> {
     if (!isOperationalWorkspaceRequestV2(input)) return {contractVersion:2,state:'invalid-request'};
-      if (!('transaction' in database) || typeof database.transaction !== 'function') throw new Error('workspace-transaction-unavailable');
+    if (!('transaction' in database) || typeof database.transaction !== 'function') throw new Error('workspace-transaction-unavailable');
       const request = {...input}; // Only scalar values; caller mutation cannot change the scope while waiting.
       return (database as Database).transaction(async (db) => {
         await db.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
