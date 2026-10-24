@@ -46,6 +46,6 @@ export function subjectStyleV3(subject: string): { Icon: LucideIcon; tone: numbe
   const known = KNOWN_V3.find(([pattern]) => pattern.test(name));
   if (known) return { Icon: known[1], tone: known[2] };
   let hash = 0;
-  for (const letter of name) hash = (hash * 31 + letter.charCodeAt(0)) >>> 0;
+  for (const letter of name) hash = (hash * 31 + letter.codePointAt(0)!) >>> 0;
   return { Icon: BookMarked, tone: hash % SUBJECT_TONES_V3 };
 }

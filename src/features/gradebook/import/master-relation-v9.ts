@@ -53,7 +53,7 @@ function columnName(oneBased: number): string {
   let result = '';
   while (value > 0) {
     value -= 1;
-    result = String.fromCharCode(65 + (value % 26)) + result;
+    result = String.fromCodePoint(65 + (value % 26)) + result;
     value = Math.floor(value / 26);
   }
   return result;

@@ -5,6 +5,7 @@ import { versionV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import { accountsScopeVersionV1, adminInstantV1 } from './common-v1';
 import type { AdminCursorV1 } from './cursor-v1';
+import { scalarTextV1 } from '../../../shared/scalar-text-v1';
 
 export const ACCOUNT_JOIN_V1 = `FROM student_portal.account a
   LEFT JOIN student_portal.academic_student_v1 s ON s.student_id=a.gradebook_student_id AND s.academic_year=a.academic_year
@@ -72,7 +73,7 @@ async function accountListResultV1(tx: StudentPortalPostgresQueryV1, query: Admi
     return { scopeVersion: versionV1.parse(Number(revision[0]!.version)),
       ...(query.includeReadContext && query.scope.kind === 'account' ? { accountsScopeVersion: await accountsScopeVersionV1(tx) } : {}),
       items: selected.map((row) => ({ accountId: row.id,
-      accountVersion: Number(row.account_version), year: row.birth_year === null ? null : String(row.birth_year),
+      accountVersion: Number(row.account_version), year: row.birth_year === null ? null : scalarTextV1(row.birth_year),
       confirmation: row.confirmation, version: Number(row.birth_version) })), nextCursor };
   }
   return { scopeVersion: await accountsScopeVersionV1(tx), items: selected.map((row) => ({ accountId: row.id,

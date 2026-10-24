@@ -24,6 +24,7 @@ import {
 } from '../publication/scoped-source-v2';
 import type { ScopedSelfSourceReaderV2 } from '../publication/scoped-self-v2';
 import { termClosingTargetsV1 } from '../publication/term-closing-self-v1';
+import { scalarTextV1 } from '../../../shared/scalar-text-v1';
 
 type ContextV1 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
 // Built once: a schema created for each account costs more than the validation it performs.
@@ -134,7 +135,7 @@ export async function sealSourcesBatchV1(
         ? {
             payload_json: row.payload_json,
             class_id: Number(row.class_id),
-            revision: String(row.revision),
+            revision: scalarTextV1(row.revision),
           }
         : null;
     },

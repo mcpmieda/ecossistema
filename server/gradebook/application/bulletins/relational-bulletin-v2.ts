@@ -230,7 +230,7 @@ function fnvDataVersion(model: RelationalBulletinModelV2): string {
   const serialized = JSON.stringify({ ...model, readAt: '' });
   let hash = 0x811c9dc5;
   for (let index = 0; index < serialized.length; index += 1) {
-    hash ^= serialized.charCodeAt(index);
+    hash ^= serialized.charCodeAt(index); // NOSONAR: UTF-16 code units on purpose, so the stored hash stays the same
     hash = Math.imul(hash, 0x01000193);
   }
   return `relational-bulletin-v2:${(hash >>> 0).toString(16).padStart(8, '0')}:${serialized.length}`;

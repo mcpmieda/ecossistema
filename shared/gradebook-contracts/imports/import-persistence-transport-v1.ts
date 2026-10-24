@@ -21,6 +21,7 @@ import {
   type SourceQualitativeActivitySlotV2,
   type SourceQuantitativeAssessmentSlotV2,
 } from '../source/source-contract-v2';
+import { scalarTextV1 } from '../../scalar-text-v1';
 
 /**
  * Bounded JSON transport between the local workbook recognizer and a future authorized backend.
@@ -937,7 +938,7 @@ export function inspectGradebookImportPersistenceRequestV1(
     if (inspection.state === 'duplicate-identity') return 'duplicate-identity';
     if (inspection.state === 'invalid' || !isRecord(sheet)) return 'invalid-academic-shape';
     const sheetName = String(sheet.sourceSheetName);
-    const scope = `${String(sheet.teachingAssignmentId)}:${String(sheet.kind)}:${String(sheet.term ?? '')}`;
+    const scope = `${String(sheet.teachingAssignmentId)}:${String(sheet.kind)}:${scalarTextV1(sheet.term ?? '')}`;
     if (sheetNames.has(sheetName) || academicScopes.has(scope)) return 'duplicate-identity';
     sheetNames.add(sheetName);
     academicScopes.add(scope);

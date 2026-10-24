@@ -84,6 +84,7 @@ import type { PhotoAdminSubjectV1 } from '../../shared/student-photos/admin-http
 import { SYNTHETIC_QR_V1 } from '../../shared/student-portal-contracts/fixtures-v1';
 import syntheticPortraitWebp from './assets/synthetic-student-portrait.webp';
 import '../styles.css';
+import { scalarTextV1 } from '../../shared/scalar-text-v1';
 
 /** Local visual preview. Optional personal data lives only in a git-ignored file. */
 type LocalStudent = {
@@ -195,7 +196,7 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
   }
   if (path === PHOTO_AVATAR_BATCH_PATH_V1) {
     // The joint avatar read, served from the same local or synthetic images as the single read.
-    const { subjects } = JSON.parse(String(init.body)) as { subjects: PhotoAdminSubjectV1[] };
+    const { subjects } = JSON.parse(scalarTextV1(init.body)) as { subjects: PhotoAdminSubjectV1[] };
     const images = await Promise.all(
       subjects.map(async (subject) => {
         const response = await nativeFetch(
@@ -219,7 +220,7 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
       capabilities: ['platform.settings.read', 'platform.settings.write'],
     });
   if (path === '/api/gradebook/operational-workspace') {
-    const input = JSON.parse(String(init.body)) as { offset: number; limit: number; query: string };
+    const input = JSON.parse(scalarTextV1(init.body)) as { offset: number; limit: number; query: string };
     const filtered = classes.filter((item) =>
       item.label.toLocaleLowerCase('pt-BR').includes(input.query.toLocaleLowerCase('pt-BR')),
     );
@@ -236,7 +237,7 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
     });
   }
   if (path === '/api/student-portal/admin/command') {
-    const command = JSON.parse(String(init.body)) as {
+    const command = JSON.parse(scalarTextV1(init.body)) as {
       operation: string;
       accountId?: string;
       accountIds?: string[];
@@ -328,7 +329,7 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
   if (path !== '/api/student-portal/admin/query')
     return opJsonV1({ ...meta, state: 'not-found' }, 404);
 
-  const query = JSON.parse(String(init.body)) as AdminQueryV1 | AdminReadQueryV2;
+  const query = JSON.parse(scalarTextV1(init.body)) as AdminQueryV1 | AdminReadQueryV2;
   const scope = query.scope;
   if (query.operation === 'settings')
     return opJsonV1({ ...meta, state: 'settings', settings: previewSettingsV1(scope) });

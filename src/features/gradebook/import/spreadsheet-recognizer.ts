@@ -16,6 +16,7 @@ import type {
   GradebookImportResultCellObservationV4,
   GradebookImportTermResultObservationsV4,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
+import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
 
 export const ACCEPTED_EXTENSIONS = ['xlsx', 'xlsb', 'xls'] as const;
 
@@ -237,7 +238,7 @@ function a1Coordinates(address: string): { readonly row: number; readonly column
   if (!match?.[1] || !match[2]) return null;
   let column = 0;
   for (const character of match[1].toUpperCase()) {
-    column = column * 26 + character.charCodeAt(0) - 64;
+    column = column * 26 + character.codePointAt(0)! - 64;
   }
   const row = Number(match[2]);
   return Number.isInteger(row) && row > 0 ? { row, column } : null;
@@ -352,7 +353,7 @@ function readResultCellObservationV4(
     return { classification: 'manual-positive-number', rawValue: cell.v };
   }
   if (typeof cell.v === 'string') return { classification: 'invalid-text', rawValue: cell.v };
-  return { classification: 'invalid-text', rawValue: String(cell.v) };
+  return { classification: 'invalid-text', rawValue: scalarTextV1(cell.v) };
 }
 
 function readRecoveryApplicability(
@@ -392,7 +393,7 @@ function readRecoveryApplicability(
   if (typeof cell.v === 'string' || typeof cell.v === 'boolean') {
     return { classification: 'unrecognized', rawValue: cell.v };
   }
-  return { classification: 'unrecognized', rawValue: String(cell.v) };
+  return { classification: 'unrecognized', rawValue: scalarTextV1(cell.v) };
 }
 
 function isStudentNumber(value: string): boolean {

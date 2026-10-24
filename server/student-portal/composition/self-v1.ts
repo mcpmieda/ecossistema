@@ -242,7 +242,10 @@ export async function servePortalSelfV1(
                   await authNowV1(tx),
                 ),
               )
-              .catch(error => { if (error instanceof PortalRateLimitErrorV1) throw error; return null; })
+              .catch(error => {
+                if (error instanceof PortalRateLimitErrorV1) throw error;
+                return null;
+              })
           : null;
         if (student) return { scope: 'student' as const, notices: student, now };
         const school = await policies.readSnapshot({ kind: 'school', academicYear: 2026 });

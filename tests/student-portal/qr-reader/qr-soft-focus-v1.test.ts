@@ -43,5 +43,6 @@ describe('soft-focus camera frames', () => {
     const before = pixels.slice();
     expect(decodeQrPixelsV1(sharpenQrPixelsV1(pixels, side, side), side, side)).toEqual([qr]);
     expect(pixels).toEqual(before);
-  });
+    // A 220 px frame decoded twice: under a full parallel suite it can pass 20 s (24/10/2026).
+  }, 60_000);
 });

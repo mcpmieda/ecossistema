@@ -16,6 +16,6 @@ export function canvasBlobSyncV1(
   if (!url.startsWith(prefix)) throw new QrArtifactErrorV1('render-unavailable');
   const binary = atob(url.slice(prefix.length));
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.codePointAt(index)!;
   return new Blob([bytes], { type });
 }

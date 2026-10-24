@@ -478,7 +478,7 @@ function canvasToJpegBytes(canvas: HTMLCanvasElement): Uint8Array {
   }
   const binary = atob(url.slice(prefix.length));
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.codePointAt(index)!;
   return bytes;
 }
 
