@@ -102,9 +102,15 @@ type LocalStudent = {
 };
 const syntheticView = new URLSearchParams(window.location.search).has('synthetic');
 /** The preview's school calendar: the official one of 2026, as migration 0029 saves it. */
-let previewCalendar: { version: number; days: unknown[] } = { version: 1, days: officialCalendar2026V1() };
+let previewCalendar: { version: number; days: unknown[] } = {
+  version: 1,
+  days: officialCalendar2026V1(),
+};
 /** The preview's bells: the official sheets of 2026, as migration 0030 saves them. */
-let previewBells: { version: number; bells: unknown } = { version: 1, bells: officialBells2026V1() };
+let previewBells: { version: number; bells: unknown } = {
+  version: 1,
+  bells: officialBells2026V1(),
+};
 export const localStudents = syntheticView
   ? undefined
   : Object.values(
@@ -192,8 +198,11 @@ const observedAt = '2026-09-25T12:00:00Z';
 const meta = { contractVersion: 1, requestId };
 const nativeFetch = window.fetch.bind(window);
 
-export const previewFetch: PortalFetchV1 = async (path, init) => {
-  init.signal?.throwIfAborted();
+type PreviewQueryV1 = AdminQueryV1 | AdminReadQueryV2;
+type PreviewScopeV1 = Exclude<PreviewQueryV1['scope'], { kind: 'shift' }>;
+
+/** The photo reads: one image, or the joint avatar read, from local or synthetic files. */
+async function previewPhotoFetchV1(path: string, init: RequestInit): Promise<Response | undefined> {
   if (path.startsWith('/api/student-photos/admin/image')) {
     const response = await nativeFetch(syntheticView ? syntheticPortraitWebp : path, init);
     return response.headers.get('content-type')?.split(';', 1)[0] === 'image/webp'
@@ -218,6 +227,11 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
       headers: { 'Content-Type': PHOTO_AVATAR_BATCH_TYPE_V1 },
     });
   }
+  return undefined;
+}
+
+/** The signed-in reader and the class search of the shell. */
+function previewPlatformFetchV1(path: string, init: RequestInit): Response | undefined {
   if (path === '/api/me')
     return opJsonV1({
       authenticated: true,
@@ -226,7 +240,11 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
       capabilities: ['platform.settings.read', 'platform.settings.write'],
     });
   if (path === '/api/gradebook/operational-workspace') {
-    const input = JSON.parse(scalarTextV1(init.body)) as { offset: number; limit: number; query: string };
+    const input = JSON.parse(scalarTextV1(init.body)) as {
+      offset: number;
+      limit: number;
+      query: string;
+    };
     const filtered = classes.filter((item) =>
       item.label.toLocaleLowerCase('pt-BR').includes(input.query.toLocaleLowerCase('pt-BR')),
     );
@@ -242,104 +260,143 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
       nextOffset: input.offset + input.limit < filtered.length ? input.offset + input.limit : null,
     });
   }
-  if (path === '/api/student-portal/admin/command') {
-    const command = JSON.parse(scalarTextV1(init.body)) as {
-      operation: string;
-      accountId?: string;
-      accountIds?: string[];
-      mode?: 'qr-only' | 'qr-name' | 'qr-name-class';
-      expectedVersion?: number;
-    };
-    if (command.operation === 'qr-batch' && command.accountIds && command.mode) {
-      // Production answered a 32-card batch in 0.37 s (measured 26/09/2026); keep that wait.
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      init.signal?.throwIfAborted();
-      const chosen = command.accountIds.map((id) =>
-        mock.accounts.find((item) => item.accountId === id),
-      );
-      if (chosen.every(Boolean))
-        return opJsonV1({
-          ...meta,
-          state: 'qr',
-          version: command.expectedVersion,
-          cards: chosen.map((item, index) => ({
-            accountId: item!.accountId,
-            // Each card needs its own credential; the app rejects repeated QR payloads.
-            qr: SYNTHETIC_QR_V1.replace('a'.repeat(43), String(index + 1).padStart(43, 'a')),
-            mode: command.mode,
-            ...(command.mode !== 'qr-only' ? { name: item!.name } : {}),
-            ...(command.mode === 'qr-name-class' ? { classLabel: item!.classLabel } : {}),
-          })),
-        });
-    }
-    if (command.operation === 'school-calendar-set') {
-      // Calendário escolar: saved as is (the contract already refused more than 200 school days).
-      const calendar = command as unknown as { expectedVersion: number; days: unknown[] };
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      if (calendar.expectedVersion !== previewCalendar.version)
-        return opJsonV1({ ...meta, state: 'conflict' }, 409);
-      previewCalendar = { version: previewCalendar.version + 1, days: calendar.days };
-      return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9970), version: previewCalendar.version });
-    }
-    if (command.operation === 'school-bells-set') {
-      const bells = command as unknown as { expectedVersion: number; bells: unknown };
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      if (bells.expectedVersion !== previewBells.version) return opJsonV1({ ...meta, state: 'conflict' }, 409);
-      previewBells = { version: previewBells.version + 1, bells: bells.bells };
-      return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9971), version: previewBells.version });
-    }
-    if (command.operation === 'settings-set' || command.operation === 'settings-inherit') {
-      const settings = command as unknown as {
-        operation: string;
-        scope: PolicyScopeV1;
-        value?: Partial<EffectiveSettingsV1['value']>;
-        keys?: (keyof EffectiveSettingsV1['value'])[];
-      };
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      if (settings.scope.kind === 'school') Object.assign(previewSchool, settings.value ?? {});
-      else {
-        const key = previewScopeKey(settings.scope);
-        const current = { ...(previewOverrides.get(key) ?? {}) };
-        if (settings.operation === 'settings-set') Object.assign(current, settings.value);
-        else for (const field of settings.keys ?? []) delete current[field];
-        previewOverrides.set(key, current);
-      }
-      previewSettingsVersion += 1;
-      return opJsonV1({
-        ...meta,
-        state: 'committed',
-        operationId: opIdV1(9960),
-        version: previewSettingsVersion,
-      });
-    }
-    if (command.operation === 'bulk-execute') {
-      // Each write answers like a production round trip, so the progress bar is visible.
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      init.signal?.throwIfAborted();
-      return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9950), version: 4 });
-    }
-    const account = mock.accounts.find((item) => item.accountId === command.accountId);
-    if (
-      command.operation === 'qr-reprint' &&
-      account?.firstAccess.qrIssued &&
-      command.expectedVersion === account.version
-    )
-      return opJsonV1({
-        ...meta,
-        state: 'qr',
-        version: account.version,
-        cards: [{ accountId: account.accountId, qr: SYNTHETIC_QR_V1, mode: 'qr-only' }],
-      });
-    return opJsonV1({ ...meta, state: 'forbidden' }, 403);
-  }
-  if (path !== '/api/student-portal/admin/query')
-    return opJsonV1({ ...meta, state: 'not-found' }, 404);
+  return undefined;
+}
 
-  const query = JSON.parse(scalarTextV1(init.body)) as AdminQueryV1 | AdminReadQueryV2;
-  const scope = query.scope;
-  if (query.operation === 'settings')
-    return opJsonV1({ ...meta, state: 'settings', settings: previewSettingsV1(scope) });
-  if (scope.kind === 'shift') return opJsonV1({ ...meta, state: 'not-found' }, 404);
+/** The admin commands: accepted, refused or simulated as the panel would see them. */
+type PreviewCommandV1 = {
+  operation: string;
+  accountId?: string;
+  accountIds?: string[];
+  mode?: 'qr-only' | 'qr-name' | 'qr-name-class';
+  expectedVersion?: number;
+};
+
+/** A batch of cards, answered after production's measured wait. */
+async function previewQrBatchV1(command: PreviewCommandV1, init: RequestInit) {
+  if (!command.accountIds || !command.mode) return undefined;
+  // Production answered a 32-card batch in 0.37 s (measured 26/09/2026); keep that wait.
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  init.signal?.throwIfAborted();
+  const chosen = command.accountIds.map((id) =>
+    mock.accounts.find((item) => item.accountId === id),
+  );
+  if (chosen.every(Boolean))
+    return opJsonV1({
+      ...meta,
+      state: 'qr',
+      version: command.expectedVersion,
+      cards: chosen.map((item, index) => ({
+        accountId: item!.accountId,
+        // Each card needs its own credential; the app rejects repeated QR payloads.
+        qr: SYNTHETIC_QR_V1.replace('a'.repeat(43), String(index + 1).padStart(43, 'a')),
+        mode: command.mode,
+        ...(command.mode !== 'qr-only' ? { name: item!.name } : {}),
+        ...(command.mode === 'qr-name-class' ? { classLabel: item!.classLabel } : {}),
+      })),
+    });
+  return undefined;
+}
+
+async function previewCalendarSetV1(command: PreviewCommandV1) {
+  // Calendário escolar: saved as is (the contract already refused more than 200 school days).
+  const calendar = command as unknown as { expectedVersion: number; days: unknown[] };
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  if (calendar.expectedVersion !== previewCalendar.version)
+    return opJsonV1({ ...meta, state: 'conflict' }, 409);
+  previewCalendar = { version: previewCalendar.version + 1, days: calendar.days };
+  return opJsonV1({
+    ...meta,
+    state: 'committed',
+    operationId: opIdV1(9970),
+    version: previewCalendar.version,
+  });
+}
+
+async function previewBellsSetV1(command: PreviewCommandV1) {
+  const bells = command as unknown as { expectedVersion: number; bells: unknown };
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  if (bells.expectedVersion !== previewBells.version)
+    return opJsonV1({ ...meta, state: 'conflict' }, 409);
+  previewBells = { version: previewBells.version + 1, bells: bells.bells };
+  return opJsonV1({
+    ...meta,
+    state: 'committed',
+    operationId: opIdV1(9971),
+    version: previewBells.version,
+  });
+}
+
+async function previewSettingsSetV1(command: PreviewCommandV1) {
+  const settings = command as unknown as {
+    operation: string;
+    scope: PolicyScopeV1;
+    value?: Partial<EffectiveSettingsV1['value']>;
+    keys?: (keyof EffectiveSettingsV1['value'])[];
+  };
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  if (settings.scope.kind === 'school') Object.assign(previewSchool, settings.value ?? {});
+  else {
+    const key = previewScopeKey(settings.scope);
+    const current = { ...(previewOverrides.get(key) ?? {}) };
+    if (settings.operation === 'settings-set') Object.assign(current, settings.value);
+    else for (const field of settings.keys ?? []) delete current[field];
+    previewOverrides.set(key, current);
+  }
+  previewSettingsVersion += 1;
+  return opJsonV1({
+    ...meta,
+    state: 'committed',
+    operationId: opIdV1(9960),
+    version: previewSettingsVersion,
+  });
+}
+
+async function previewBulkExecuteV1(init: RequestInit) {
+  // Each write answers like a production round trip, so the progress bar is visible.
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  init.signal?.throwIfAborted();
+  return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9950), version: 4 });
+}
+
+/** The admin commands: accepted, refused or simulated as the panel would see them. */
+async function previewCommandV1(init: RequestInit): Promise<Response> {
+  const command = JSON.parse(scalarTextV1(init.body)) as {
+    operation: string;
+    accountId?: string;
+    accountIds?: string[];
+    mode?: 'qr-only' | 'qr-name' | 'qr-name-class';
+    expectedVersion?: number;
+  };
+  if (command.operation === 'qr-batch') {
+    const batch = await previewQrBatchV1(command, init);
+    if (batch) return batch;
+  }
+  if (command.operation === 'school-calendar-set') return previewCalendarSetV1(command);
+  if (command.operation === 'school-bells-set') return previewBellsSetV1(command);
+  if (command.operation === 'settings-set' || command.operation === 'settings-inherit')
+    return previewSettingsSetV1(command);
+  if (command.operation === 'bulk-execute') return previewBulkExecuteV1(init);
+  const account = mock.accounts.find((item) => item.accountId === command.accountId);
+  if (
+    command.operation === 'qr-reprint' &&
+    account?.firstAccess.qrIssued &&
+    command.expectedVersion === account.version
+  )
+    return opJsonV1({
+      ...meta,
+      state: 'qr',
+      version: account.version,
+      cards: [{ accountId: account.accountId, qr: SYNTHETIC_QR_V1, mode: 'qr-only' }],
+    });
+  return opJsonV1({ ...meta, state: 'forbidden' }, 403);
+}
+
+/** Shifts, publication, birth years and the per-scope settings. */
+async function previewSettingsQueryV1(
+  query: PreviewQueryV1,
+  scope: PreviewScopeV1,
+): Promise<Response | undefined> {
   if (query.operation === 'shifts-read') {
     const shifts = [...new Set(classes.flatMap((item) => (item.shift ? [item.shift] : [])))];
     return opJsonV1({
@@ -391,6 +448,14 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
       items: [],
       nextCursor: null,
     });
+  return undefined;
+}
+
+/** Customizations, link closing, seals and the audit trail. */
+async function previewRecordsQueryV1(
+  query: PreviewQueryV1,
+  scope: PreviewScopeV1,
+): Promise<Response | undefined> {
   if (query.operation === 'customizations-read')
     return opJsonV1({
       ...meta,
@@ -473,12 +538,19 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
     });
   if (query.operation === 'seals-read') {
     // Synthetic Selos brilhantes (29/09/2026).
-    const members = scope.kind === 'account'
-      ? mock.accounts.filter((item) => item.accountId === scope.accountId)
-      : mock.accounts.filter((item) => scope.kind === 'class'
-        ? item.classId === scope.classId : query.accountIds?.includes(item.accountId));
+    const members =
+      scope.kind === 'account'
+        ? mock.accounts.filter((item) => item.accountId === scope.accountId)
+        : mock.accounts.filter((item) =>
+            scope.kind === 'class'
+              ? item.classId === scope.classId
+              : query.accountIds?.includes(item.accountId),
+          );
     return opJsonV1({
-      ...meta, contractVersion: 2, state: 'seals-read', observedAt,
+      ...meta,
+      contractVersion: 2,
+      state: 'seals-read',
+      observedAt,
       items: members.map((item, index) => ({ accountId: item.accountId, seals: (index * 3) % 7 })),
     });
   }
@@ -510,10 +582,25 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
     const device = { platform: 'android', browser: 'chrome' };
     const items = [
       event(0, 'login', { keepConnected: true, device }),
-      event(1, 'login-failed', { reason: 'wrong-password', step: 'password', failures: 2, blockAfter: 4, device }),
+      event(1, 'login-failed', {
+        reason: 'wrong-password',
+        step: 'password',
+        failures: 2,
+        blockAfter: 4,
+        device,
+      }),
       event(2, 'login-failed', { reason: 'card-replaced', step: 'card' }),
-      event(3, 'activated', { keepConnected: false, device: { platform: 'ios', browser: 'safari' } }),
-      event(4, 'login-failed', { reason: 'temporarily-blocked', step: 'pin', failures: 4, blockAfter: 4, blockedUntil: observedAt }),
+      event(3, 'activated', {
+        keepConnected: false,
+        device: { platform: 'ios', browser: 'safari' },
+      }),
+      event(4, 'login-failed', {
+        reason: 'temporarily-blocked',
+        step: 'pin',
+        failures: 4,
+        blockAfter: 4,
+        blockedUntil: observedAt,
+      }),
     ];
     if (query.operation === 'audit-detail')
       return opJsonV1({
@@ -526,6 +613,14 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
       });
     return opJsonV1({ ...meta, state: 'audit', items, nextCursor: null });
   }
+  return undefined;
+}
+
+/** Presence, link previews, the bulk preview and the account list. */
+async function previewAccountsQueryV1(
+  query: PreviewQueryV1,
+  scope: PreviewScopeV1,
+): Promise<Response | undefined> {
   if (query.operation === 'presence')
     return opJsonV1({
       ...meta,
@@ -588,6 +683,14 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
         query.page.limit,
       ),
     });
+  return undefined;
+}
+
+/** The school's calendar and bells, the population and the overview. */
+async function previewSchoolQueryV1(
+  query: PreviewQueryV1,
+  scope: PreviewScopeV1,
+): Promise<Response | undefined> {
   if (query.operation === 'school-calendar')
     return opJsonV1({
       ...meta,
@@ -642,6 +745,33 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
           validSessions: inScope(scope).some((account) => account.accountId === opIdV1(1)) ? 1 : 0,
         },
       });
+  }
+  return undefined;
+}
+
+const PREVIEW_QUERY_GROUPS_V1 = [
+  previewSettingsQueryV1,
+  previewRecordsQueryV1,
+  previewAccountsQueryV1,
+  previewSchoolQueryV1,
+];
+
+export const previewFetch: PortalFetchV1 = async (path, init) => {
+  init.signal?.throwIfAborted();
+  const direct = (await previewPhotoFetchV1(path, init)) ?? previewPlatformFetchV1(path, init);
+  if (direct) return direct;
+  if (path === '/api/student-portal/admin/command') return previewCommandV1(init);
+  if (path !== '/api/student-portal/admin/query')
+    return opJsonV1({ ...meta, state: 'not-found' }, 404);
+
+  const query = JSON.parse(scalarTextV1(init.body)) as AdminQueryV1 | AdminReadQueryV2;
+  const scope = query.scope;
+  if (query.operation === 'settings')
+    return opJsonV1({ ...meta, state: 'settings', settings: previewSettingsV1(scope) });
+  if (scope.kind === 'shift') return opJsonV1({ ...meta, state: 'not-found' }, 404);
+  for (const group of PREVIEW_QUERY_GROUPS_V1) {
+    const answer = await group(query, scope);
+    if (answer) return answer;
   }
   const response =
     query.contractVersion === 2 ? await mock.reader.query(query) : await mock.client.query(query);
