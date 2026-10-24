@@ -137,7 +137,8 @@ describe('year reset V1 HTTP and UI boundary', () => {
     expect(page).toContain('confirmation !== preview.confirmationPhrase');
     expect(page).toContain('<Checkbox');
     expect(page).not.toContain('<input');
-    expect(grid).toMatch(/row\.student\.status === null\s*\? 'Em curso'/u);
+    // A student without a Smecel status reads as "Em curso" (statusShort in the grid).
+    expect(grid).toMatch(/student\.status === null\) return 'Em curso'/u);
     expect(grid).not.toContain('Sem situação');
     expect(functions).toContain('handleYearResetRequestV1');
   });
