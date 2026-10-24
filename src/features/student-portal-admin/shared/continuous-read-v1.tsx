@@ -153,7 +153,7 @@ export function ContinuousEndV1({
   retry?: () => void;
 }>) {
   const active = useLiveRefreshScopeV1();
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLOutputElement>(null);
   const latest = useRef(loadMore);
   latest.current = loadMore;
   useEffect(() => {
@@ -189,8 +189,8 @@ export function ContinuousEndV1({
     status = <span>Role para carregar mais registros.</span>;
   }
   return (
-    <div ref={ref} className="pa-continuous-end" role="status">
+    <output ref={ref} className="block pa-continuous-end">
       {status}
-    </div>
+    </output>
   );
 }

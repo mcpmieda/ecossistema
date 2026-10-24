@@ -464,7 +464,7 @@ export function PageContent({
   usePreloadedSectionsV1(ROUTE_PAGES_V1);
   switch (route) {
     case 'painel-do-aluno':
-      return <Suspense fallback={<p role="status">Carregando Painel do Aluno…</p>}><StudentPortalAdminPage /></Suspense>;
+      return <Suspense fallback={<p><output className="contents">Carregando Painel do Aluno…</output></p>}><StudentPortalAdminPage /></Suspense>;
     case 'operacao':
       if (section === 'audit') return <AuditPage snapshot={snapshot} />;
       return <Suspense fallback={<output className="block">Carregando Saúde…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>;

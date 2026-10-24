@@ -196,10 +196,7 @@ export function AccessPlanCardV1({
         </div>
       </Card.Header>
       <Card.Content className="pa-access">
-        <div
-          className={'pa-access-status pa-access-status--' + (openNow ? 'open' : 'closed')}
-          role="status"
-        >
+        <output className={'pa-access-status pa-access-status--' + (openNow ? 'open' : 'closed')}>
           {openNow ? (
             <DoorOpen size={22} aria-hidden="true" />
           ) : (
@@ -241,7 +238,7 @@ export function AccessPlanCardV1({
               </Switch.Content>
             </Switch>
           ) : null}
-        </div>
+        </output>
         {canWrite && dirty ? (
           <p className="pa-settings-hint">
             Salve ou desfaça os agendamentos antes de usar a chave.

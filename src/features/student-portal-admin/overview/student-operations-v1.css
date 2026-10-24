@@ -526,8 +526,8 @@
   padding-inline: 0.25rem;
   animation: pa-rise 420ms cubic-bezier(0.2, 0.7, 0.2, 1) 60ms both;
 }
-.pa-flat > .card__content > p[role='status'],
-.pa-operations-card.pa-rise > .card__content > p[role='status'] {
+.pa-flat > .card__content > p:has(> output),
+.pa-operations-card.pa-rise > .card__content > p:has(> output) {
   color: var(--muted);
   font-size: 0.875rem;
   animation: pa-pulse 1.6s ease-in-out infinite;
@@ -536,8 +536,8 @@
   .pa-flat > .card__content > section,
   .pa-flat > .card__content > .pa-session-history,
   .pa-flat > .card__content > .pa-operations-actions,
-  .pa-flat > .card__content > p[role='status'],
-  .pa-operations-card.pa-rise > .card__content > p[role='status'] {
+  .pa-flat > .card__content > p:has(> output),
+  .pa-operations-card.pa-rise > .card__content > p:has(> output) {
     animation: none;
   }
 }

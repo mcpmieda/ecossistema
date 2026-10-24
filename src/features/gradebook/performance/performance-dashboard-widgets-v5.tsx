@@ -172,7 +172,7 @@ function ComponentBarsV5({ value, previous, selection, onSelectionChange, open }
         {selectedStudents.length > 0 ? <ul>{selectedStudents.map((student) => <li key={student.id}><button type="button" onClick={() => open(student.id, selectedColumn.offerId)}><small>{student.number}</small><span className="truncate">{student.name}</span></button></li>)}</ul> : <p>Nenhum estudante {bucketText} neste componente.</p>}
       </section></div>
     </section> : <>
-      <div className="performance-bars" role="group" aria-label="Barras por componente curricular">
+      <fieldset className="min-w-auto performance-bars" aria-label="Barras por componente curricular">
         {value.overview.columns.map((column, index) => {
           const offer = offers.get(column.offerId);
           const label = labels[index];
@@ -205,7 +205,7 @@ function ComponentBarsV5({ value, previous, selection, onSelectionChange, open }
             {column.incomplete + column.noShow + column.unscaled > 0 ? <span className="performance-bars__pending" title="Leituras ainda não classificadas">+{column.incomplete + column.noShow + column.unscaled}</span> : null}
           </div>;
         })}
-      </div>
+      </fieldset>
     </>}
   </Surface>;
 }

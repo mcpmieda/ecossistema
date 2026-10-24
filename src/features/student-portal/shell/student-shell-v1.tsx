@@ -293,7 +293,7 @@ export function StudentPortalMessageV1({
     return (
       <Card className="pa-empty-card">
         <Card.Content>
-          <p role="status">{message.title}</p>
+          <p><output className="contents">{message.title}</output></p>
         </Card.Content>
       </Card>
     );
@@ -315,7 +315,7 @@ export function StudentPortalMessageV1({
 
 function StudentPageSkeletonV1() {
   return (
-    <div className="pa-page-skeleton" role="status" aria-label="Carregando perfil e notas">
+    <output className="block pa-page-skeleton" aria-label="Carregando perfil e notas">
       <h2 className="pa-section-title">Perfil do aluno</h2>
       <Card className="pa-profile-card">
         <Card.Content className="pa-profile-content" aria-hidden="true">
@@ -339,7 +339,7 @@ function StudentPageSkeletonV1() {
           ))}
         </Card.Content>
       </Card>
-    </div>
+    </output>
   );
 }
 

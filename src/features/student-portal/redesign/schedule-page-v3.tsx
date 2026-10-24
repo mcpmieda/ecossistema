@@ -830,7 +830,7 @@ export function ScheduleWeekV3({
           )}
 
           {/* Phone: the day's lessons, one day at a time. */}
-          <div className="pa3-week-chips" role="group" aria-label="Dia da semana">
+          <fieldset className="min-w-auto pa3-week-chips" aria-label="Dia da semana">
             {DAYS.map((day) => (
               <ToggleButton
                 key={day.weekday}
@@ -855,7 +855,7 @@ export function ScheduleWeekV3({
                 ) : null}
               </ToggleButton>
             ))}
-          </div>
+          </fieldset>
 
           {classes.map((item) => (
             <Card key={item.label} className="pa3-card pa3-schedule-card">
@@ -872,10 +872,9 @@ export function ScheduleWeekV3({
 
               {/* Computer: the whole week side by side, today's column marked (a break may sit
                     after a different lesson each day, so each day is its own column). */}
-              <div
-                className="pa3-schedule-week"
+              <fieldset
+                className="min-w-auto pa3-schedule-week"
                 aria-label={`Horário da semana${classes.length > 1 ? ', ' + item.label : ''}`}
-                role="group"
               >
                 {DAYS.map((day) => {
                   const dayOff = offAt(day.weekday);
@@ -903,7 +902,7 @@ export function ScheduleWeekV3({
                     </Card>
                   );
                 })}
-              </div>
+              </fieldset>
             </Card>
           ))}
 

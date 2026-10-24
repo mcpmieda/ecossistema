@@ -551,7 +551,9 @@ describe('real shell, shared year and rendered performance journey', () => {
     await click(student.name);
     const pendingCall = mock.mock.calls.at(-1)!;
     const pendingSignal = pendingCall[1]?.signal;
-    expect(document.querySelector('[role="status"]')?.textContent).toContain('Carregando detalhe');
+    expect(
+      [...document.querySelectorAll('output')].some((item) => item.textContent?.includes('Carregando detalhe')),
+    ).toBe(true);
     await closeDetail();
     expect(pendingSignal?.aborted).toBe(true);
     await act(async () => { resolve(await original(...pendingCall)); });

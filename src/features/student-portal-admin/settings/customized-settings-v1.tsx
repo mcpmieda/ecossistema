@@ -100,7 +100,9 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: 
           }}
         />
         {read.state.state === 'loading' || read.state.state === 'idle' ? (
-          <p role="status">Consultando personalizações…</p>
+          <p>
+            <output className="contents">Consultando personalizações…</output>
+          </p>
         ) : null}
         {read.state.state === 'error' ? (
           <AccountsErrorV1

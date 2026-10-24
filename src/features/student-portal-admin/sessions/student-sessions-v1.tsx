@@ -220,7 +220,11 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
       </Card.Header>
       <Card.Content>
         <StudentPresenceV1 {...props} />
-        {read.state.state === 'loading' && <p role="status">Consultando sessões…</p>}
+        {read.state.state === 'loading' && (
+          <p>
+            <output className="contents">Consultando sessões…</output>
+          </p>
+        )}
         {read.state.state === 'error' && (
           <AccountsErrorV1
             error={read.state.error}
@@ -239,15 +243,23 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
           />
         )}
         {preparing && (
-          <div role="status">
+          <output className="block">
             Conferindo acessos…{' '}
             <Button variant="secondary" onPress={cancelReview}>
               Cancelar
             </Button>
-          </div>
+          </output>
         )}
-        {mutation.state === 'pending' && <p role="status">Encerrando sessões…</p>}
-        {mutation.state === 'committed' && <p role="status">Sessões encerradas.</p>}
+        {mutation.state === 'pending' && (
+          <p>
+            <output className="contents">Encerrando sessões…</output>
+          </p>
+        )}
+        {mutation.state === 'committed' && (
+          <p>
+            <output className="contents">Sessões encerradas.</output>
+          </p>
+        )}
         {mutation.state === 'expired' && (
           <p role="alert">
             O prazo de retomada terminou. Consulte o estado antes de uma nova decisão.
@@ -456,7 +468,11 @@ function SessionHistoryV1(
   const data = read.state.state === 'ready' ? read.state.data : null;
   return (
     <>
-      {read.state.state === 'loading' ? <p role="status">Carregando histórico…</p> : null}
+      {read.state.state === 'loading' ? (
+        <p>
+          <output className="contents">Carregando histórico…</output>
+        </p>
+      ) : null}
       {read.state.state === 'error' ? (
         <AccountsErrorV1
           error={read.state.error}

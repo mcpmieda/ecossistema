@@ -70,13 +70,19 @@ export function AvatarBackfillPanelV1({
         </Button>
       )}
       {summary && (
-        <p role="status">
-          {`${summary.done} de ${summary.total} alunos · ${summary.created} criadas · ${summary.present} já existiam · ${summary['no-portrait']} sem foto`}
-          {open > 0 ? ` · ${open} não concluídas` : ''}
+        <p>
+          <output className="contents">
+            {`${summary.done} de ${summary.total} alunos · ${summary.created} criadas · ${summary.present} já existiam · ${summary['no-portrait']} sem foto`}
+            {open > 0 ? ` · ${open} não concluídas` : ''}
+          </output>
         </p>
       )}
       {run.state === 'done' && open > 0 && (
-        <p role="status">Gere novamente para tentar as que não foram concluídas.</p>
+        <p>
+          <output className="contents">
+            Gere novamente para tentar as que não foram concluídas.
+          </output>
+        </p>
       )}
       {run.state === 'denied' && (
         <p role="alert">Sessão ou permissão indisponível. Entre novamente e gere outra vez.</p>

@@ -134,14 +134,14 @@ export function PortalCountdownV1({
   const left = Math.max(0, Math.ceil((target - now) / 1000));
   if (left === 0)
     return (
-      <div className="pa-countdown pa-countdown--done" role="status">
+      <output className="block pa-countdown pa-countdown--done">
         <b>{done}</b>
         <span>Atualize a página para ver.</span>
         <Button size="sm" onPress={() => window.location.reload()}>
           <RefreshCw size={16} aria-hidden="true" />
           Atualizar página
         </Button>
-      </div>
+      </output>
     );
   const units = [
     [Math.floor(left / 86400), 'dias'],

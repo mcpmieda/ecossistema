@@ -119,7 +119,11 @@ function ScopedPersonalizedPublicationV1(props: Props) {
         </div>
       ) : null}
       {context && !context.resolved ? (
-        <p role="status">Não foi possível resolver o padrão para este vínculo.</p>
+        <p>
+          <output className="contents">
+            Não foi possível resolver o padrão para este vínculo.
+          </output>
+        </p>
       ) : null}
       <StudentPublicationV1 {...props} />
       {reset && data && canWrite ? (

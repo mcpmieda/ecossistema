@@ -232,7 +232,8 @@ it.each([401, 503])(
       return session.promise;
     });
     render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} />);
-    expect(screen.getByText('Verificando acesso…').getAttribute('role')).toBe('status');
+    // A status (an <output>, role status by default) carries the waiting text.
+    expect(screen.getByText('Verificando acesso…').closest('output')).not.toBeNull();
     expect(screen.queryByRole('banner')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Perfil do aluno' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Minhas notas' })).toBeNull();
