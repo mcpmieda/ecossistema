@@ -79,7 +79,10 @@ export class PhotoWriteCoordinatorV1 {
         await this.ports.authorize(context);
         if(signal.aborted)return{state:'pending',requestId:command.requestId,stage:'commit'};
         try{receipt=await this.repository.commit(context,command.requestId,uploaded);}
-        catch(error){if(error instanceof PhotoWriteErrorV1)throw error;return{state:'pending',requestId:command.requestId,stage:'commit'};}
+        catch(error){
+          if(error instanceof PhotoWriteErrorV1)throw error;
+          return{state:'pending',requestId:command.requestId,stage:'commit'};
+        }
       }
       if(this.ports.publish){
         try{await this.ports.authorize(context);signal.throwIfAborted();await this.ports.publish(context,receipt,finalImages,signal);}

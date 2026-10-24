@@ -43,7 +43,11 @@ function snapshotCacheV1(key: object, env: RuntimeEnv) {
   if (!group) { group = new Map(); caches.set(key, group); }
   const name = `${env.TENANT_ID}|${env.OFFICIAL_ORIGIN}|${env.RUNTIME_ENVIRONMENT ?? 'production'}`;
   let cache = group.get(name);
-  if (!cache) { if (group.size >= 4) group.clear(); cache = createSystemHealthCacheV1(); group.set(name, cache); }
+  if (!cache) {
+    if (group.size >= 4) group.clear();
+    cache = createSystemHealthCacheV1();
+    group.set(name, cache);
+  }
   return cache;
 }
 async function boundedBodyV1(request: Request, paged: boolean): Promise<unknown> {

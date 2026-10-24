@@ -28,7 +28,11 @@ export async function portalHealthReviewRpcV1(env: PortalCompositionEnvV1, conte
   if (!group) { group = new Map(); caches.set(env.PORTAL_DB, group); }
   const key = `${env.PORTAL_ENVIRONMENT}|${env.PORTAL_ADMIN_TENANT_ID.toLowerCase()}`;
   let cache = group.get(key);
-  if (!cache) { if (group.size >= 4) group.clear(); cache = createHealthReviewCacheV1(); group.set(key, cache); }
+  if (!cache) {
+    if (group.size >= 4) group.clear();
+    cache = createHealthReviewCacheV1();
+    group.set(key, cache);
+  }
   try { return await cache(() => portalDatabaseV1(env, 'admin-query', readHealthReviewV1)); }
   catch { return emptyHealthReviewV1('unavailable'); }
 }
