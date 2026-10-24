@@ -66,7 +66,7 @@ function encode(bytes: Uint8Array, max: number): string {
   if (!(bytes instanceof Uint8Array) || bytes.length < 20 || bytes.length > max) throw new PhotoWriteErrorV1('invalid');
   let text = '';
   for (let offset = 0; offset < bytes.length; offset += 8192)
-    text += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+    text += String.fromCodePoint(...bytes.subarray(offset, offset + 8192));
   return btoa(text);
 }
 export function encodePhotoBytesV1(images: PhotoByteImagesV1): PhotoWireImagesV1 {
@@ -82,7 +82,7 @@ export function decodePhotoBytesV1(input: unknown): PhotoByteImagesV1 {
       if (encoded === null) continue;
       const text = atob(encoded), max = variant === 'portrait' ? 131072 : 65536;
       if (text.length < 20 || text.length > max || btoa(text) !== encoded) throw new PhotoWriteErrorV1('invalid');
-      result[variant] = Uint8Array.from(text, value => value.charCodeAt(0));
+      result[variant] = Uint8Array.from(text, value => value.codePointAt(0)!);
     }
     return result;
   } catch { clearPhotoBytesV1(result); throw new PhotoWriteErrorV1('invalid'); }

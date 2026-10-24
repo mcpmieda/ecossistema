@@ -31,7 +31,7 @@ const PANEL_KEYS_V1 = ['turma', 'turno', 'ficha', 'aluno'] as const;
 function fingerprintV1(value: string) {
   let hash = 5381;
   for (let index = 0; index < value.length; index += 1)
-    hash = ((hash << 5) + hash + value.charCodeAt(index)) | 0;
+    hash = ((hash << 5) + hash + value.charCodeAt(index)) | 0; // NOSONAR: UTF-16 code units on purpose, so the stored hash stays the same
   return (hash >>> 0).toString(36);
 }
 /**

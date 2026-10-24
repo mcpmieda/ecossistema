@@ -2,7 +2,7 @@ import { encodeBase64Url, encodeJson } from './base64url';
 
 function pemToBytes(pem: string): Uint8Array {
   const base64 = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/gu, '');
-  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+  return Uint8Array.from(atob(base64), (character) => character.codePointAt(0)!);
 }
 
 export async function createClientAssertion(input: {

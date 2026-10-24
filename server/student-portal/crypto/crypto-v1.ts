@@ -14,8 +14,8 @@ const credential = z.string().regex(/^[A-Za-z0-9_-]{32,128}$/u);
 
 const hex = (bytes: Uint8Array): string => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 const fromHex = (value: string): Uint8Array => Uint8Array.from(value.match(/../gu)!, (pair) => Number.parseInt(pair, 16));
-const base64url = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_');
-const fromSignature = (value: string): Uint8Array => Uint8Array.from(atob(value.replaceAll('-', '+').replaceAll('_', '/') + '='), (char) => char.charCodeAt(0));
+const base64url = (bytes: Uint8Array): string => btoa(String.fromCodePoint(...bytes)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_');
+const fromSignature = (value: string): Uint8Array => Uint8Array.from(atob(value.replaceAll('-', '+').replaceAll('_', '/') + '='), (char) => char.codePointAt(0)!);
 
 function keys(input: ReadonlyMap<number, Uint8Array>): ReadonlyMap<number, Uint8Array> {
   const result = new Map<number, Uint8Array>();

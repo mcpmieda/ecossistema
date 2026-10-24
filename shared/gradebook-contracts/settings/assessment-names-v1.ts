@@ -12,7 +12,7 @@ const name = z
   .max(80)
   .refine(
     (value) =>
-      !Array.from(value).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127),
+      !Array.from(value).some((char) => char.codePointAt(0)! < 32 || char.codePointAt(0)! === 127),
     'Invalid assessment label',
   );
 export const assessmentNamesSchemaV1 = z

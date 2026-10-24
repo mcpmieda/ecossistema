@@ -168,7 +168,7 @@ function reviewReference(value: unknown): CouncilReviewReferenceV2 {
   const serialized = JSON.stringify(value);
   let hash = 0x811c9dc5;
   for (let index = 0; index < serialized.length; index += 1) {
-    hash ^= serialized.charCodeAt(index);
+    hash ^= serialized.charCodeAt(index); // NOSONAR: UTF-16 code units on purpose, so the stored hash stays the same
     hash = Math.imul(hash, 0x01000193);
   }
   return `council-review:${(hash >>> 0).toString(16).padStart(8, '0')}` as CouncilReviewReferenceV2;

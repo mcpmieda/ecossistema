@@ -218,7 +218,7 @@ function strengthV1(
 function stableHashV1(text: string): number {
   let hash = 0x811c9dc5;
   for (let index = 0; index < text.length; index++) {
-    hash ^= text.charCodeAt(index);
+    hash ^= text.charCodeAt(index); // NOSONAR: UTF-16 code units on purpose, so the stored hash stays the same
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash >>> 0;

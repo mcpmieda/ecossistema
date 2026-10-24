@@ -222,7 +222,7 @@ function dataVersion(model: BulletinModelV1, tokens: readonly string[]): Bulleti
   const serialized = JSON.stringify({ model, tokens });
   let hash = 0x811c9dc5;
   for (let index = 0; index < serialized.length; index += 1) {
-    hash ^= serialized.charCodeAt(index);
+    hash ^= serialized.charCodeAt(index); // NOSONAR: UTF-16 code units on purpose, so the stored hash stays the same
     hash = Math.imul(hash, 0x01000193);
   }
   return `bulletin-data-v1:${(hash >>> 0).toString(16).padStart(8, '0')}:${tokens.length}` as BulletinDataVersionV1;

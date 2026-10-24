@@ -20,7 +20,7 @@ export function storedPortraitBytesV1(value: unknown, checksum: unknown): Uint8A
     || typeof checksum !== 'string' || !/^[a-f0-9]{64}$/u.test(checksum))
     throw new Error('student-photo-content-invalid');
   const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
-  const tag = (offset: number) => String.fromCharCode(...value.subarray(offset, offset + 4));
+  const tag = (offset: number) => String.fromCodePoint(...value.subarray(offset, offset + 4));
   if (tag(0) !== 'RIFF' || tag(8) !== 'WEBP' || view.getUint32(4, true) + 8 !== value.byteLength
     || !['VP8 ', 'VP8L', 'VP8X'].includes(tag(12))
     || createHash('sha256').update(value).digest('hex') !== checksum)

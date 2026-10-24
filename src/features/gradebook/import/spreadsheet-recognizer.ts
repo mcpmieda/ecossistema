@@ -238,7 +238,7 @@ function a1Coordinates(address: string): { readonly row: number; readonly column
   if (!match?.[1] || !match[2]) return null;
   let column = 0;
   for (const character of match[1].toUpperCase()) {
-    column = column * 26 + character.charCodeAt(0) - 64;
+    column = column * 26 + character.codePointAt(0)! - 64;
   }
   const row = Number(match[2]);
   return Number.isInteger(row) && row > 0 ? { row, column } : null;

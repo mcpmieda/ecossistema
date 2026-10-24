@@ -40,7 +40,7 @@ function preflight(bytes: Uint8Array, variant: WebpPhotoVariantV1, allowInputMet
     : width > 320 || height > 320 || width !== height) throw new WebpCodecErrorV1('dimensions');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (let offset = 12; offset < bytes.length;) {
-    const tag = String.fromCharCode(...bytes.subarray(offset, offset + 4));
+    const tag = String.fromCodePoint(...bytes.subarray(offset, offset + 4));
     if (!['VP8 ','VP8L','VP8X','ALPH'].includes(tag)
       && !(allowInputMetadata && ['ICCP','EXIF','XMP '].includes(tag))) throw new WebpCodecErrorV1('metadata');
     if (tag === 'VP8X' && (bytes[offset + 8]! & ~(allowInputMetadata ? 0x3c : 0x10)) !== 0)

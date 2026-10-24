@@ -490,12 +490,12 @@ body {
 .performance-kpi__button {
   display: flex;
   width: 100%;
-  min-height: 3.5rem;
+  min-height: 5.8rem;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.85rem;
   border: 0;
   background: transparent;
-  padding: 0.5rem 0.8rem;
+  padding: 1rem;
   color: inherit;
   text-align: left;
 }
@@ -525,9 +525,8 @@ button.performance-kpi__button:hover {
 }
 
 .performance-kpi__icon {
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-2xl);
+  width: 2.7rem;
+  height: 2.7rem;
 }
 
 .performance-kpi__icon--accent,
@@ -548,6 +547,12 @@ button.performance-kpi__button:hover {
   color: #b86d00;
 }
 
+.performance-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(19rem, 0.85fr);
+  align-items: stretch;
+  gap: 1rem;
+}
 
 .performance-dashboard-grid > .performance-widget {
   height: 100%;
@@ -557,21 +562,20 @@ button.performance-kpi__button:hover {
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
   border-radius: var(--radius-3xl);
-  padding: 0.75rem 0.9rem 0.85rem;
-  box-shadow: none;
+  padding: 1rem;
+  box-shadow: 0 24px 54px -48px color-mix(in oklab, var(--foreground) 26%, transparent);
 }
 
 .performance-widget__header {
   display: flex;
-  min-height: 2rem;
+  min-height: 2.6rem;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.7rem;
 }
 
 .performance-widget__icon {
-  width: 1.9rem;
-  height: 1.9rem;
-  border-radius: var(--radius-2xl);
+  width: 2.35rem;
+  height: 2.35rem;
 }
 
 .performance-legend {
@@ -595,95 +599,77 @@ button.performance-kpi__button:hover {
 .performance-bars {
   display: flex;
   min-width: 0;
-  gap: 0.25rem;
-  margin-top: 0.5rem;
-  overflow-x: visible;
-  padding: 1.35rem 0.1rem 0.1rem;
-  justify-content: flex-start;
-  padding-top: 2.4rem;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  overflow-x: auto;
+  padding: 1.75rem 0.2rem 0.25rem;
 }
 
 .performance-bars__column {
   display: grid;
-  min-width: 0;
-  flex: 1 1 0;
-  grid-template-columns: minmax(0, 1fr);
+  min-width: 3rem;
+  flex: 1 0 3rem;
+  grid-template-columns: 1fr auto;
   align-items: end;
   gap: 0.15rem;
   text-align: center;
-  max-width: 4.25rem;
 }
 
 .performance-bars__plot {
   display: flex;
-  height: 8.5rem;
+  height: 11rem;
   grid-column: 1 / -1;
   align-items: end;
   justify-content: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   border-bottom: 1px solid var(--separator);
   background: repeating-linear-gradient(
     to top,
     transparent 0,
-    transparent 33px,
-    color-mix(in oklab, var(--separator) 45%, transparent) 34px
+    transparent 43px,
+    color-mix(in oklab, var(--separator) 65%, transparent) 44px
   );
-  border-bottom-color: color-mix(in oklab, var(--separator) 80%, transparent);
 }
 
 .performance-bar {
   position: relative;
-  width: min(42%, 1.3rem);
+  width: min(42%, 1.45rem);
   min-height: 3px;
   border: 0;
-  border-radius: 999px 999px 0.3rem 0.3rem;
+  border-radius: 0.45rem 0.45rem 0.15rem 0.15rem;
   cursor: pointer;
-  transition: filter 140ms ease,
+  transition:
+    filter 140ms ease,
     transform 140ms var(--platform-ease);
-  transform-origin: bottom;
-  animation: performance-bar-rise 420ms var(--platform-ease) both,
-    performance-bar-breathe 7s ease-in-out infinite;
 }
 
 .performance-bar:hover {
   filter: saturate(1.12) brightness(0.98);
-  transform: none;
+  transform: translateY(-2px);
 }
 .performance-bar--above {
-  background: var(--performance-above);
+  background: linear-gradient(180deg, #3b91ff, var(--performance-above));
 }
 .performance-bar--below {
-  background: var(--performance-below);
+  background: linear-gradient(180deg, #ff7a82, var(--performance-below));
 }
 .performance-bar--selected {
   box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 24%, transparent);
 }
 .performance-bar > span {
   position: absolute;
-  top: auto;
+  top: -1.15rem;
   left: 50%;
   color: var(--foreground);
-  font-size: 0.62rem;
+  font-size: 0.65rem;
   font-weight: 650;
   transform: translateX(-50%);
-  animation: performance-fade-in 300ms ease 260ms both;
-  bottom: calc(100% + 0.2rem);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
 }
 .performance-bars__label {
   overflow: hidden;
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   font-weight: 650;
   text-overflow: ellipsis;
-  padding-top: 0.15rem;
-  line-height: 0.85rem;
-  white-space: nowrap;
-  letter-spacing: 0;
 }
 .performance-bars__pending {
   align-self: center;
@@ -692,8 +678,6 @@ button.performance-kpi__button:hover {
   padding: 0.05rem 0.25rem;
   color: #8c5a00;
   font-size: 0.58rem;
-  justify-self: center;
-  line-height: 1.2;
 }
 
 .performance-bars__detail {
@@ -730,7 +714,7 @@ button.performance-kpi__button:hover {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   border: 1px solid var(--separator);
   border-radius: var(--radius-2xl);
   background: var(--surface);
@@ -777,7 +761,7 @@ button.performance-kpi__button:hover {
 .performance-bars__student-group li > button {
   display: grid;
   width: 100%;
-  grid-template-columns: 1.1rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
   border: 0;
@@ -808,40 +792,43 @@ button.performance-kpi__button:hover {
   padding: 0.75rem;
 }
 
+.performance-panorama {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.85fr) minmax(11rem, 1.15fr);
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
 
 .performance-donut {
   display: grid;
-  width: 7.5rem;
+  width: min(100%, 13rem);
   aspect-ratio: 1;
   place-items: center;
   justify-self: center;
   border-radius: 50%;
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border) 54%, transparent);
   animation: performance-donut-reveal 520ms var(--platform-ease) both;
-  --performance-empty: color-mix(in oklab, var(--separator) 55%, transparent);
 }
 
 .performance-donut__center {
   display: grid;
-  width: 66%;
+  width: 68%;
   aspect-ratio: 1;
   place-content: center;
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--separator) 60%, transparent);
+  box-shadow: 0 10px 30px -24px var(--foreground);
   text-align: center;
 }
 
 .performance-donut__center strong {
-  font-size: 1.25rem;
-  letter-spacing: -0.04em;
-  line-height: 1.3rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-size: 1.8rem;
+  letter-spacing: -0.05em;
 }
 .performance-donut__center span {
   color: var(--muted);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
 }
 
 .performance-panorama__item,
@@ -858,34 +845,30 @@ button.performance-kpi__button:hover {
 }
 
 .performance-panorama__item {
-  grid-template-columns: auto auto auto;
-  justify-content: start;
-  gap: 0.55rem;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.6875rem;
-  border-radius: 0.55rem;
-  animation: performance-fade-in 320ms ease both;
-  border: 0;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.45rem;
+  font-size: 0.8rem;
 }
 .performance-panorama__item:hover,
 .performance-panorama__item[aria-pressed='true'] {
   border-color: var(--separator);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
-  border: 0;
+  background: var(--surface-secondary);
 }
 
 .performance-panorama__counts {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
 }
 
 .performance-ranking {
-  margin-top: 0.6rem;
+  margin-top: 1rem;
   overflow: hidden;
-  border-top: 0;
-  padding-top: 0.25rem;
+  border-top: 1px solid var(--separator);
+  padding-top: 0.8rem;
 }
 
 .performance-ranking > summary {
@@ -929,36 +912,35 @@ button.performance-kpi__button:hover {
 
 .performance-ranking > ol {
   overflow: hidden;
-  border: 0;
-  border-radius: 0.55rem;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-2xl);
 }
 
 .performance-ranking li + li {
-  border-top: 0;
+  border-top: 1px solid color-mix(in oklab, var(--separator) 70%, transparent);
 }
 
 .performance-ranking li > button {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.55rem;
-  padding: 0.3rem 0.5rem;
+  padding: 0.38rem 0.5rem;
   font-size: 0.7rem;
-  border: 0;
-  border-radius: 0;
 }
 
+.performance-ranking li > button:hover {
+  background: var(--surface-secondary);
+}
 
 .performance-ranking__position {
   display: grid;
-  width: 1.2rem;
+  width: 1.35rem;
   aspect-ratio: 1;
   place-items: center;
-  border-radius: 0;
-  background: transparent;
-  color: var(--muted);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  color: var(--accent);
   font-size: 0.62rem;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
 .performance-ranking > p,
@@ -1664,7 +1646,6 @@ button.performance-kpi__button:hover {
   gap: 0.25rem 1.25rem;
   min-height: var(--shell-top);
   padding: 0.35rem 1rem;
-  position: sticky;
 }
 .shell-brand {
   display: flex;
@@ -1686,7 +1667,11 @@ button.performance-kpi__button:hover {
   gap: 0.5rem;
   min-width: 0;
 }
-
+/* One row at every width. Below 1500px the areas need the room, so the brand keeps only its
+   mark, the profile only its avatar, and the search rests as an icon that opens on focus. */
+.shell-topbar {
+  position: sticky;
+}
 .shell-tools .platform-search-desktop {
   width: 15rem;
   max-width: none;
@@ -2007,8 +1992,13 @@ button.performance-kpi__button:hover {
   font-size: 0.75rem;
   line-height: 1.3;
 }
-
-
+.performance-period-tabs .tabs__list {
+  height: 2.1rem;
+}
+.performance-period-tabs .tabs__tab {
+  min-width: 3.4rem;
+  font-size: 0.8rem;
+}
 /* Classes: light chips with their label, joined to the header above. */
 .performance-workspace > .school-class-tabs {
   gap: 0;
@@ -2104,7 +2094,7 @@ button.performance-kpi__button:hover {
 }
 .performance-notes-bar__selects .select__trigger {
   width: auto;
-  min-width: 7.5rem;
+  min-width: 9rem;
   min-height: 2.25rem;
 }
 .performance-workspace .school-class-tabs[data-orientation='horizontal'] > .tabs__list-container,
@@ -2115,8 +2105,17 @@ button.performance-kpi__button:hover {
 .performance-workspace .performance-notes-bar > .tabs__list-container {
   flex: none;
 }
-
-
+/* Class indicators: one slim row. */
+.performance-kpi__button {
+  min-height: 3.5rem;
+  gap: 0.6rem;
+  padding: 0.5rem 0.8rem;
+}
+.performance-kpi__icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-2xl);
+}
 .performance-kpi__icon svg {
   width: 1rem;
   height: 1rem;
@@ -2154,7 +2153,6 @@ button.performance-kpi__button:hover {
   width: auto;
   flex: 0 0 auto;
   white-space: nowrap;
-  min-width: 0;
 }
 .performance-kpi .items-baseline {
   white-space: nowrap;
@@ -2162,65 +2160,124 @@ button.performance-kpi__button:hover {
 .performance-workspace.performance-workspace .school-class-tabs > .tabs__list-container {
   border-radius: 0;
 }
-
-
+.performance-notes-bar > .tabs__list-container .tabs__tab {
+  min-width: 0;
+}
+.performance-notes-bar__selects .select__trigger {
+  min-width: 7.5rem;
+}
 .performance-period-tabs .tabs__list {
   height: 2.25rem;
 }
 .performance-period-tabs .tabs__tab {
-  min-width: 3.4rem;
-  font-size: 0.8rem;
   height: 1.75rem;
 }
 
 /* Desempenho charts: fixed, compact proportions instead of stretching with the window. */
 .performance-dashboard-grid {
-  display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(15.5rem, 1fr);
-  align-items: stretch;
   gap: 0.75rem;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-.performance-bars__column:nth-child(2) .performance-bar {
-  animation-delay: 30ms, -1.06s;
+.performance-widget {
+  border-radius: var(--radius-3xl);
+  padding: 0.75rem 0.9rem 0.85rem;
+  box-shadow: none;
 }
-.performance-bars__column:nth-child(3) .performance-bar {
-  animation-delay: 60ms, -1.59s;
+.performance-widget__header {
+  min-height: 2rem;
+  gap: 0.55rem;
 }
-.performance-bars__column:nth-child(4) .performance-bar {
-  animation-delay: 90ms, -2.12s;
+.performance-widget__icon {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: var(--radius-2xl);
 }
-.performance-bars__column:nth-child(5) .performance-bar {
-  animation-delay: 120ms, -2.65s;
+.performance-bars {
+  justify-content: flex-start;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  padding: 1.35rem 0.1rem 0.1rem;
 }
-.performance-bars__column:nth-child(6) .performance-bar {
-  animation-delay: 150ms, -3.18s;
+.performance-bars__column {
+  min-width: 2.6rem;
+  max-width: 4.25rem;
+  flex: 1 1 2.6rem;
 }
-.performance-bars__column:nth-child(7) .performance-bar {
-  animation-delay: 180ms, -3.71s;
+.performance-bars__plot {
+  height: 7rem;
+  gap: 0.15rem;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent 27px,
+    color-mix(in oklab, var(--separator) 55%, transparent) 28px
+  );
 }
-.performance-bars__column:nth-child(8) .performance-bar {
-  animation-delay: 210ms, -0.04s;
+.performance-bar {
+  width: 0.8rem;
+  border-radius: 0.2rem 0.2rem 0 0;
+  transform-origin: bottom;
+  animation: performance-bar-rise 420ms var(--platform-ease) both;
 }
+.performance-bar--above {
+  background: var(--performance-above);
+}
+.performance-bar--below {
+  background: var(--performance-below);
+}
+.performance-bar:hover {
+  transform: none;
+}
+.performance-bar > span {
+  top: -1rem;
+  font-size: 0.62rem;
+  animation: performance-fade-in 300ms ease 260ms both;
+}
+.performance-bars__label {
+  padding-top: 0.2rem;
+  font-size: 0.65rem;
+  line-height: 0.85rem;
+}
+.performance-bars__column:nth-child(2) .performance-bar { animation-delay: 30ms; }
+.performance-bars__column:nth-child(3) .performance-bar { animation-delay: 60ms; }
+.performance-bars__column:nth-child(4) .performance-bar { animation-delay: 90ms; }
+.performance-bars__column:nth-child(5) .performance-bar { animation-delay: 120ms; }
+.performance-bars__column:nth-child(6) .performance-bar { animation-delay: 150ms; }
+.performance-bars__column:nth-child(7) .performance-bar { animation-delay: 180ms; }
+.performance-bars__column:nth-child(8) .performance-bar { animation-delay: 210ms; }
 .performance-bars__column:nth-child(n + 9) .performance-bar { animation-delay: 240ms; }
-
-
-
-
-
-
-
+.performance-panorama {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.9rem;
+  margin-top: 0.6rem;
+}
+.performance-donut {
+  width: 7rem;
+}
+.performance-donut__center {
+  width: 70%;
+  box-shadow: none;
+}
+.performance-donut__center strong {
+  font-size: 1.15rem;
+  line-height: 1.3rem;
+}
+.performance-donut__center span {
+  font-size: 0.65rem;
+}
+.performance-panorama__counts {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.1rem;
+}
+.performance-panorama__item {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  justify-content: stretch;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  animation: performance-fade-in 320ms ease both;
+}
 .performance-panorama__item:nth-child(2) { animation-delay: 70ms; }
 .performance-panorama__item:nth-child(3) { animation-delay: 140ms; }
 .performance-panorama__item > span {
@@ -2231,12 +2288,10 @@ button.performance-kpi__button:hover {
 }
 .performance-panorama__item > strong {
   font-variant-numeric: tabular-nums;
-  font-size: 1rem;
-  text-align: left;
-  min-width: 1.5rem;
-  font-weight: 700;
 }
-
+.performance-ranking {
+  margin-top: 0.6rem;
+}
 @keyframes performance-bar-rise {
   from {
     transform: scaleY(0);
@@ -2315,15 +2370,20 @@ button.performance-kpi__button:hover {
 .performance-panorama__item > .marquee-text-v1 {
   color: var(--muted);
 }
-
+.performance-panorama__item {
+  font-size: 0.6875rem;
+}
+.performance-panorama__item > strong {
+  font-size: 0.8rem;
+}
 
 /* Information panel of the analytics cards: whole words, the calculation set apart. */
 .analytics-hint {
-  width: 21rem;
+  width: 20rem;
   max-width: calc(100vw - 2rem);
   padding: 0.75rem 0.85rem;
-  font-size: 0.78rem;
-  line-height: 1.2rem;
+  font-size: 0.75rem;
+  line-height: 1.15rem;
   text-align: left;
   word-break: normal;
   overflow-wrap: normal;
@@ -2358,7 +2418,11 @@ button.performance-kpi__button:hover {
   color: var(--muted);
 }
 
-
+.analytics-hint {
+  width: 21rem;
+  font-size: 0.78rem;
+  line-height: 1.2rem;
+}
 .analytics-hint__calc > ol {
   display: grid;
   gap: 0.3rem;
@@ -2474,17 +2538,8 @@ button.performance-kpi__button:hover {
   --shell-top: 3.25rem;
   --shell-aside: 15rem;
   --shell-gap: 0.75rem;
-  background: radial-gradient(60rem 40rem at 8% -10%, rgb(129 140 248 / 0.14), transparent 60%),
-    radial-gradient(50rem 36rem at 100% 0%, rgb(45 212 191 / 0.14), transparent 62%),
-    radial-gradient(48rem 40rem at 70% 110%, rgb(56 189 248 / 0.12), transparent 60%),
-    linear-gradient(170deg, #f7f8fa 0%, #eaeff2 52%, #e0e7ec 100%);
+  background: linear-gradient(170deg, #f7f8f8 0%, #e8efed 48%, #dde5e8 100%);
   background-attachment: fixed;
-  --glass: rgb(255 255 255 / 0.62);
-  --glass-strong: rgb(255 255 255 / 0.78);
-  --glass-edge: rgb(255 255 255 / 0.85);
-  --glass-blur: saturate(180%) blur(20px);
-  --glass-lift: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 8px 24px -14px rgb(30 41 59 / 0.28);
-  timeline-scope: --sheet-scroll;
 }
 
 /* The top of the site. */
@@ -2525,12 +2580,6 @@ button.performance-kpi__button:hover {
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  clip-path: inset(50%);
 }
 .platform-shell--v2 .shell-brand__name > small {
   display: none;
@@ -2636,17 +2685,14 @@ button.performance-kpi__button:hover {
 }
 .shell-side__groups {
   display: grid;
-  gap: 1.6rem;
+  gap: 1.25rem;
   overflow-y: auto;
 }
 .shell-side__group-label {
   margin: 0 0 0.35rem 0.8rem;
-  color: color-mix(in oklab, var(--muted) 75%, transparent);
-  font-size: 0.66rem;
-  font-weight: 600;
-  margin-bottom: 0.45rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
 }
 .shell-side__areas {
   display: grid;
@@ -2662,10 +2708,9 @@ button.performance-kpi__button:hover {
   color: color-mix(in oklab, var(--foreground) 80%, transparent);
   font-size: 0.9rem;
   font-weight: 550;
-  transition: color 120ms ease,
+  transition:
+    color 120ms ease,
     background-color 120ms ease;
-  min-width: 0;
-  position: relative;
 }
 .shell-side__area:hover {
   color: var(--foreground);
@@ -3137,7 +3182,24 @@ button.performance-kpi__button:hover {
     padding-top: 0.625rem;
   }
 }
-
+/* Glass (owner request of 15/10/2026): the HeroUI frosted material (translucent surface over
+   backdrop-blur) in chosen places. The page carries soft colour for the glass to refract; the
+   head of the sheet stays put while the page slides under it; floating menus and the backdrops
+   of dialogs are frosted. Text always sits on at least 70% white, so contrast is unchanged. */
+.platform-shell--v2 {
+  --glass: rgb(255 255 255 / 0.62);
+  --glass-strong: rgb(255 255 255 / 0.78);
+  --glass-edge: rgb(255 255 255 / 0.85);
+  --glass-blur: saturate(180%) blur(20px);
+  --glass-lift: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 8px 24px -14px rgb(30 41 59 / 0.28);
+  background:
+    radial-gradient(60rem 40rem at 8% -10%, rgb(129 140 248 / 0.14), transparent 60%),
+    radial-gradient(50rem 36rem at 100% 0%, rgb(45 212 191 / 0.14), transparent 62%),
+    radial-gradient(48rem 40rem at 70% 110%, rgb(56 189 248 / 0.12), transparent 60%),
+    linear-gradient(170deg, #f7f8fa 0%, #eaeff2 52%, #e0e7ec 100%);
+  background-attachment: fixed;
+  timeline-scope: --sheet-scroll;
+}
 @supports (backdrop-filter: blur(1px)) {
   /* Top of the site: the search and the account are glass pills on the page. */
   .platform-shell--v2 .shell-tools .search-field__group {
@@ -3234,7 +3296,19 @@ button.performance-kpi__button:hover {
     backdrop-filter: saturate(180%) blur(28px);
   }
 }
-
+/* The top names only the open area, without "Centro de Administração" (owner request of
+   15/10/2026). On a computer the side column already carries the brand; on a phone the crest
+   alone sits in the middle of the top. */
+.platform-shell--v2 .shell-brand__name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 @media (min-width: 901px) {
   .platform-shell--v2 .shell-path > .shell-brand {
     display: none;
@@ -3297,8 +3371,17 @@ button.performance-kpi__button:hover {
 .shell-side__area[data-open='true'] > svg {
   color: var(--accent);
 }
-
-
+.shell-side__groups {
+  gap: 1.6rem;
+}
+.shell-side__group-label {
+  margin-bottom: 0.45rem;
+  color: color-mix(in oklab, var(--muted) 75%, transparent);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .shell-side__status {
   width: 0.5rem;
   height: 0.5rem;
@@ -3335,8 +3418,13 @@ button.performance-kpi__button:hover {
 .shell-side__areas {
   grid-template-columns: minmax(0, 1fr);
 }
-
-
+.shell-side__area {
+  min-width: 0;
+}
+/* The dot sits on the corner of the icon, so the name always fits. */
+.shell-side__area {
+  position: relative;
+}
 .shell-side__status,
 .platform-shell--v2[data-side='collapsed'] .shell-side__status {
   position: absolute;
@@ -3392,18 +3480,51 @@ button.performance-kpi__button:hover {
     box-shadow: 0 0 0 2px #fff;
   }
 }
-
-
-
-
-
+/* Situação por componente (owner request of 15/10/2026): more compact, one-line names, and, from
+   the second trimester on, the change since the trimester before over each number. */
+.performance-bars {
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  padding-top: 2.4rem;
+}
+.performance-bars__plot {
+  height: 8.5rem;
+  gap: 0.25rem;
+  border-bottom-color: color-mix(in oklab, var(--separator) 80%, transparent);
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent 33px,
+    color-mix(in oklab, var(--separator) 45%, transparent) 34px
+  );
+}
+.performance-bar {
+  width: min(40%, 1.3rem);
+  border-radius: 999px 999px 0.3rem 0.3rem;
+}
+.performance-bar > span {
+  top: auto;
+  bottom: calc(100% + 0.2rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.performance-bars__label {
+  padding-top: 0.15rem;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+}
 .performance-delta {
   display: inline-flex;
   align-items: center;
   gap: 0.05rem;
   padding: 0.05rem 0.2rem;
   border-radius: 999px;
-  font-size: 0.52rem;
+  font-size: 0.56rem;
   font-weight: 700;
 }
 .performance-delta--above {
@@ -3415,9 +3536,8 @@ button.performance-kpi__button:hover {
   color: var(--performance-below);
 }
 .performance-delta[data-change='none'] {
-  background: color-mix(in oklab, var(--muted) 14%, transparent);
+  background: transparent;
   color: var(--muted);
-  padding: 0.05rem 0.3rem;
 }
 /* Up or down with the number; a small square when nothing changed (owner request of 15/10/2026). */
 .performance-delta[data-change='none']::before {
@@ -3426,15 +3546,32 @@ button.performance-kpi__button:hover {
   height: 0.35rem;
   border-radius: 0.06rem;
   background: currentColor;
-  content: none;
+  content: '';
 }
-
-
-
-
-
-
-
+.performance-delta[data-change='none'] {
+  padding: 0.15rem;
+}
+/* Every component fits the width of the card, up to twelve, without a scrollbar. */
+.performance-bars {
+  overflow-x: visible;
+}
+.performance-bars__column {
+  min-width: 0;
+  flex: 1 1 0;
+}
+.performance-bar {
+  width: min(42%, 1.3rem);
+}
+.performance-bars__label {
+  font-size: 0.62rem;
+  letter-spacing: 0;
+}
+.performance-bar > span {
+  font-size: 0.62rem;
+}
+.performance-delta {
+  font-size: 0.52rem;
+}
 /* Up is blue, down is red, whatever bar it sits on (owner request of 15/10/2026). */
 .performance-delta[data-change='up'] {
   background: color-mix(in oklab, var(--performance-above) 14%, transparent);
@@ -3444,8 +3581,15 @@ button.performance-kpi__button:hover {
   background: color-mix(in oklab, var(--performance-below) 14%, transparent);
   color: var(--performance-below);
 }
-
-
+/* The same number as before is a pill like the others, grey, with "=" (owner request of 15/10/2026). */
+.performance-delta[data-change='none'] {
+  padding: 0.05rem 0.3rem;
+  background: color-mix(in oklab, var(--muted) 14%, transparent);
+  color: var(--muted);
+}
+.performance-delta[data-change='none']::before {
+  content: none;
+}
 /* A selected component takes the whole card: the back button, its name and the students below
    the minimum, with the list running to the bottom edge (owner request of 15/10/2026). */
 .performance-widget--detail {
@@ -3482,8 +3626,6 @@ button.performance-kpi__button:hover {
   padding: 0.3rem 1rem;
   font-size: 0.72rem;
   line-height: 1.2;
-  gap: 0.4rem;
-  padding-left: 0.35rem;
 }
 .performance-widget--detail .performance-bars__student-group > ul {
   scrollbar-width: thin;
@@ -3498,12 +3640,18 @@ button.performance-kpi__button:hover {
 .performance-widget--detail .performance-bars__student-group li > button:hover {
   background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
-
+/* The class number comes first, in a narrow column. */
+.performance-bars__student-group li > button {
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+}
 .performance-bars__student-group li > button > small {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-
+/* The list starts right under the head of the card. */
+.performance-bars__student-group {
+  grid-template-rows: minmax(0, 1fr);
+}
 .performance-bars__student-group > ul,
 .performance-bars__student-group > p {
   border-top: 0;
@@ -3549,8 +3697,14 @@ button.performance-kpi__button:hover {
 .performance-bars__detail-title[data-bucket='above'] > .chip {
   color: #1e3a8a;
 }
-
-
+/* Readings not classified yet sit under the name, so the names stay centred on their bars. */
+.performance-bars__column {
+  grid-template-columns: minmax(0, 1fr);
+}
+.performance-bars__pending {
+  justify-self: center;
+  line-height: 1.2;
+}
 /* Phone: twelve components do not fit legibly; the chart slides sideways, with no scrollbar. */
 @media (max-width: 640px) {
   .performance-bars {
@@ -3577,9 +3731,21 @@ button.performance-kpi__button:hover {
   gap: 1rem;
   margin-top: 0.75rem;
 }
-
-
-
+.performance-donut {
+  --performance-empty: color-mix(in oklab, var(--separator) 55%, transparent);
+  width: 7.5rem;
+  box-shadow: none;
+}
+.performance-donut__center {
+  width: 66%;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--separator) 60%, transparent);
+}
+.performance-donut__center strong {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
 .performance-panorama__headline {
   display: flex;
   min-width: 0;
@@ -3631,26 +3797,72 @@ button.performance-kpi__button:hover {
 @media (prefers-reduced-motion: reduce) {
   .performance-stack__part { animation: none; }
 }
-
-
+.performance-panorama__counts {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.performance-panorama__item {
+  grid-template-columns: auto minmax(0, 1fr) auto 1.75rem;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 0.55rem;
+}
 .performance-panorama__item:nth-child(even) {
   background: color-mix(in oklab, var(--foreground) 4%, transparent);
 }
-
-
-
-
-
+.performance-panorama__item:hover,
+.performance-panorama__item[aria-pressed='true'] {
+  border: 0;
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+.performance-panorama__item > strong {
+  text-align: right;
+}
+.performance-ranking {
+  border-top: 0;
+  padding-top: 0.25rem;
+}
+.performance-ranking > ol {
+  border: 0;
+  border-radius: 0.55rem;
+}
+.performance-ranking li + li {
+  border-top: 0;
+}
 .performance-ranking li:nth-child(even) > button {
   background: color-mix(in oklab, var(--foreground) 4%, transparent);
 }
-
+.performance-ranking li > button {
+  border: 0;
+  border-radius: 0;
+  padding: 0.3rem 0.5rem;
+}
 .performance-ranking li > button:hover {
   background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
-
-
-
+.performance-ranking__position {
+  width: 1.2rem;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+/* Only colours and numbers beside the pie (owner request of 15/10/2026); the meaning stays in the
+   hint and for assistive technology. */
+.performance-panorama__item {
+  grid-template-columns: auto auto auto;
+  justify-content: start;
+  gap: 0.55rem;
+  padding: 0.4rem 0.6rem;
+}
+.performance-panorama__item > strong {
+  min-width: 1.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: left;
+}
 .performance-panorama__item .performance-legend {
   width: 0.65rem;
   height: 0.65rem;
@@ -3659,7 +3871,7 @@ button.performance-kpi__button:hover {
    15/10/2026). */
 .performance-ranking__open {
   display: flex;
-  width: auto;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -3671,7 +3883,6 @@ button.performance-kpi__button:hover {
   color: inherit;
   cursor: pointer;
   text-align: left;
-  margin-left: auto;
 }
 .performance-ranking__open:hover {
   background: color-mix(in oklab, var(--accent) 8%, transparent);
@@ -3692,7 +3903,7 @@ button.performance-kpi__button:hover {
   font-size: 0.65rem;
 }
 .performance-bars__student-group--ranking li > button {
-  grid-template-columns: 1.1rem minmax(0, 1fr) auto;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
 }
 .performance-bars__student-group--ranking li > button > strong {
   font-size: 0.75rem;
@@ -3702,9 +3913,17 @@ button.performance-kpi__button:hover {
   color: var(--muted);
   font-size: 0.62rem;
 }
-
-
-
+/* The lists inside the cards start closer to the left edge (owner request of 15/10/2026). */
+.performance-widget--detail .performance-bars__student-group li > button {
+  gap: 0.4rem;
+  padding-left: 0.35rem;
+}
+.performance-bars__student-group li > button {
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+}
+.performance-bars__student-group--ranking li > button {
+  grid-template-columns: 1.1rem minmax(0, 1fr) auto;
+}
 /* A student with a component below the minimum is red across the whole row. */
 .performance-bars__student-group li > button.text-danger,
 .performance-bars__student-group li > button.text-danger > small {
@@ -3745,7 +3964,11 @@ button.performance-kpi__button:hover {
 .performance-medal--bronze {
   color: #b87333;
 }
-
+/* Only "Top 10" opens the ranking; the button sits at the right of the card. */
+.performance-ranking__open {
+  width: auto;
+  margin-left: auto;
+}
 /* Panorama: "Top 10" at the top right; the larger pie and its counts in the middle of the card
    (owner request of 15/10/2026). */
 .performance-widget--panorama {
@@ -3773,26 +3996,32 @@ button.performance-kpi__button:hover {
 .performance-widget--panorama .performance-donut__center span {
   font-size: 0.72rem;
 }
-
+/* The bars breathe gently, each at its own moment, after rising (owner request of 15/10/2026).
+   The independent scale property keeps the rise and the hover lift working. */
+.performance-bar {
+  animation:
+    performance-bar-rise 420ms var(--platform-ease) both,
+    performance-bar-breathe 7s ease-in-out infinite;
+}
 @keyframes performance-bar-breathe {
   0%, 100% { scale: 1 1; }
   50% { scale: 1 1.03; }
 }
 .performance-bars__column:nth-child(1) .performance-bar { animation-delay: 0ms, -0.53s; }
 .performance-bars__column:nth-child(1) .performance-bar--below { animation-delay: 0ms, -2.13s; }
-
+.performance-bars__column:nth-child(2) .performance-bar { animation-delay: 30ms, -1.06s; }
 .performance-bars__column:nth-child(2) .performance-bar--below { animation-delay: 30ms, -2.66s; }
-
+.performance-bars__column:nth-child(3) .performance-bar { animation-delay: 60ms, -1.59s; }
 .performance-bars__column:nth-child(3) .performance-bar--below { animation-delay: 60ms, -3.19s; }
-
+.performance-bars__column:nth-child(4) .performance-bar { animation-delay: 90ms, -2.12s; }
 .performance-bars__column:nth-child(4) .performance-bar--below { animation-delay: 90ms, -3.72s; }
-
+.performance-bars__column:nth-child(5) .performance-bar { animation-delay: 120ms, -2.65s; }
 .performance-bars__column:nth-child(5) .performance-bar--below { animation-delay: 120ms, -0.05s; }
-
+.performance-bars__column:nth-child(6) .performance-bar { animation-delay: 150ms, -3.18s; }
 .performance-bars__column:nth-child(6) .performance-bar--below { animation-delay: 150ms, -0.58s; }
-
+.performance-bars__column:nth-child(7) .performance-bar { animation-delay: 180ms, -3.71s; }
 .performance-bars__column:nth-child(7) .performance-bar--below { animation-delay: 180ms, -1.11s; }
-
+.performance-bars__column:nth-child(8) .performance-bar { animation-delay: 210ms, -0.04s; }
 .performance-bars__column:nth-child(8) .performance-bar--below { animation-delay: 210ms, -1.64s; }
 .performance-bars__column:nth-child(9) .performance-bar { animation-delay: 240ms, -0.57s; }
 .performance-bars__column:nth-child(9) .performance-bar--below { animation-delay: 240ms, -2.17s; }

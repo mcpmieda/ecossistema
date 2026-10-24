@@ -88,7 +88,6 @@
 /* #1101: keep the existing table models; sticky cells stay in their own scroll region. */
 .pa-admin-page .table__scroll-container {
   position: relative;
-  scroll-padding-top: 3rem;
 }
 .pa-admin-page .table__column {
   position: sticky;
@@ -96,7 +95,9 @@
   z-index: 2;
   background: var(--surface-secondary);
 }
-
+.pa-admin-page .table__scroll-container {
+  scroll-padding-top: 3rem;
+}
 .pa-admin-page .pa-policies {
   display: grid;
   min-width: 0;

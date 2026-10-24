@@ -344,7 +344,7 @@ function parseScope(value: string): PerformanceMatrixSourceRequestV1 | null {
 function encodeBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value);
   let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  for (const byte of bytes) binary += String.fromCodePoint(byte);
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
 }
 
@@ -354,7 +354,7 @@ function decodeBase64Url(value: string): string | null {
   const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
   try {
     const binary = atob(padded);
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const bytes = Uint8Array.from(binary, (character) => character.codePointAt(0)!);
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
     return null;
