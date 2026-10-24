@@ -111,21 +111,22 @@ export function PerformanceAnalysisPanelV3({
         open={open}
       />
       {value.lens !== 'result' && value.matrix.mode === 'recovery' ? (
-        <p role="status" className="text-xs text-muted">
-          Composição regular dos alunos em recuperação. A nota de REC está em Resultado.
+        <p className="text-xs text-muted">
+          <output className="contents">
+            Composição regular dos alunos em recuperação. A nota de REC está em Resultado.
+          </output>
         </p>
       ) : null}
       {selection?.kind === 'column' || selectionLabel ? (
-        <div
+        <output
           className={
             selection?.kind === 'column'
               ? 'sr-only'
               : 'flex min-h-9 flex-wrap items-center gap-2 text-sm'
           }
-          role="status"
         >
           {selectionNote}
-        </div>
+        </output>
       ) : null}
       {value.lens === 'result' ? (
         renderResult(ids)

@@ -864,7 +864,7 @@ function FrequencyMonthV3({
           ) : null}
         </ul>
         {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
-        <div className="pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`} role="group">
+        <fieldset className="min-w-auto pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`}>
           {WEEKDAYS_SHORT.map((day, index) => (
             <span key={index} className="pa3-weekday" aria-hidden="true">
               {day}
@@ -898,7 +898,7 @@ function FrequencyMonthV3({
               </button>
             );
           })}
-        </div>
+        </fieldset>
       </Card>
 
       {selected && selectedOff ? (

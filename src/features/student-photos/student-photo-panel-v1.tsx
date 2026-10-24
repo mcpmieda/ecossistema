@@ -211,8 +211,8 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       </div>
     </div>
     {busy ? <output aria-live="polite">Processando foto…</output> : null}
-    {message ? <p className="student-photo-panel__message" role="status">{message}</p> : null}
-    {editing ? <Suspense fallback={<p role="status">Abrindo editor…</p>}>
+    {message ? <p className="student-photo-panel__message"><output className="contents">{message}</output></p> : null}
+    {editing ? <Suspense fallback={<p><output className="contents">Abrindo editor…</output></p>}>
       {kind === 'avatar' ? <p>Este ajuste altera somente o avatar; a foto principal será preservada.</p> : null}
       <Editor ownerKey={subjectKey + ':' + kind} initialPhoto={initialPhoto} onCancel={() => { setEditing(false); setInitialPhoto(undefined); }} onPrepared={prepared} />
     </Suspense> : null}
@@ -220,7 +220,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       <Modal.Container size="sm"><Modal.Dialog aria-label="Remover foto do aluno">
         <Modal.Header><Modal.Heading>Remover foto?</Modal.Heading></Modal.Header>
         <Modal.Body><p>A foto principal e o avatar deixarão de aparecer no sistema. Os arquivos salvos no Portal serão excluídos permanentemente.</p>
-          {message ? <p role="status">{message}</p> : null}</Modal.Body>
+          {message ? <p><output className="contents">{message}</output></p> : null}</Modal.Body>
         <Modal.Footer><Button variant="secondary" isDisabled={busy} onPress={() => { setRemoving(false); discard(); }}>Cancelar</Button>
           <Button isDisabled={busy} onPress={remove}>{busy ? 'Removendo…' : 'Remover foto'}</Button></Modal.Footer>
       </Modal.Dialog></Modal.Container>

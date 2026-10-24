@@ -299,8 +299,10 @@ export function QrBatchToolsV1({
             </Button>
           </>
         ) : null}
-        <span role="status">
-          {wholeList ? `Lista inteira · ${chosen.length}` : `${chosen.length} selecionados`}
+        <span>
+          <output className="contents">
+            {wholeList ? `Lista inteira · ${chosen.length}` : `${chosen.length} selecionados`}
+          </output>
         </span>
         <Button
           size="sm"
@@ -321,10 +323,12 @@ export function QrBatchToolsV1({
         ) : null}
       </div>
       {working ? (
-        <p role="status">
-          {state.state === 'rendering'
-            ? `Gerando PDF: ${state.completed} de ${state.total}`
-            : `Preparando QR: ${state.completed} de ${state.count}`}
+        <p>
+          <output className="contents">
+            {state.state === 'rendering'
+              ? `Gerando PDF: ${state.completed} de ${state.total}`
+              : `Preparando QR: ${state.completed} de ${state.count}`}
+          </output>
         </p>
       ) : null}
       {state.state === 'ready' && state.downloadFailed ? (

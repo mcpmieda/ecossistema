@@ -5,14 +5,12 @@ import { Spinner } from '@heroui/react';
 export function StableReadStatusV1({ busy, children }: Readonly<{ busy: boolean; children: string }>) {
   return (
     <p
-      role="status"
-      aria-live="polite"
       aria-hidden={!busy}
       className="flex min-w-0 items-center gap-2 text-xs text-muted"
       style={{ visibility: busy ? 'visible' : 'hidden' }}
-    >
+    ><output className="contents" aria-live="polite">
       <span className="shrink-0" aria-hidden="true"><Spinner size="sm" /></span>
       <span>{children}</span>
-    </p>
+    </output></p>
   );
 }

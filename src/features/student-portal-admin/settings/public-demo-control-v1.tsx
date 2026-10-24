@@ -79,7 +79,9 @@ export function PublicDemoControlV1({ canWrite }: Readonly<{ canWrite: boolean }
       >
         {state?.enabled ? 'Desativar demonstração' : 'Ativar demonstração'}
       </Button>
-      <p role="status">{message}</p>
+      <p>
+        <output className="contents">{message}</output>
+      </p>
       {state?.enabled && (
         <a href={PUBLIC_DEMO_URL_V1} target="_blank" rel="noreferrer noopener">
           Abrir demonstração

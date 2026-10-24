@@ -164,10 +164,12 @@ export function StudentBulkV1({
                 ) : null}
                 {state.phase === 'review' ? (
                   <>
-                    <p className="pa-bulk-dialog__count" role="status">
-                      <strong>{targets}</strong>{' '}
-                      {targets === 1 ? 'aluno será afetado' : 'alunos serão afetados'}
-                      {skipped ? ` · ${skipped} não elegíveis ficam de fora` : ''}
+                    <p className="pa-bulk-dialog__count">
+                      <output className="contents">
+                        <strong>{targets}</strong>{' '}
+                        {targets === 1 ? 'aluno será afetado' : 'alunos serão afetados'}
+                        {skipped ? ` · ${skipped} não elegíveis ficam de fora` : ''}
+                      </output>
                     </p>
                     <p className="pa-bulk-dialog__consequence">{consequences[action]}</p>
                     {targets > 0 ? (
@@ -197,17 +199,25 @@ export function StudentBulkV1({
                         <ProgressBar.Fill />
                       </ProgressBar.Track>
                     </ProgressBar>
-                    <p role="status">
-                      {completed} concluídos · {failed} não realizados
-                      {unclear ? ` · ${unclear} sem confirmação` : ''}
-                      {skipped ? ` · ${skipped} não elegíveis` : ''}
+                    <p>
+                      <output className="contents">
+                        {completed} concluídos · {failed} não realizados
+                        {unclear ? ` · ${unclear} sem confirmação` : ''}
+                        {skipped ? ` · ${skipped} não elegíveis` : ''}
+                      </output>
                     </p>
                     {state.phase === 'paused' ? (
-                      <p role="status">Execução pausada. Os itens concluídos foram mantidos.</p>
+                      <p>
+                        <output className="contents">
+                          Execução pausada. Os itens concluídos foram mantidos.
+                        </output>
+                      </p>
                     ) : null}
                     {state.phase === 'unknown' ? (
-                      <p role="status">
-                        Resultado não confirmado. Confirme a mesma tentativa antes de continuar.
+                      <p>
+                        <output className="contents">
+                          Resultado não confirmado. Confirme a mesma tentativa antes de continuar.
+                        </output>
                       </p>
                     ) : null}
                     {problems.length ? (

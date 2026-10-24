@@ -217,7 +217,7 @@ export function RelationalCouncilPageV3() {
       <Chip size="sm" variant="soft" color="accent" className="ml-auto"><Chip.Label>{state.year} · decisão explícita</Chip.Label></Chip></header>
     <Surface className="council-filterbar"><div className="min-w-0 flex-1"><CouncilClassSelect value={state.classId} disabled={state.busy.classes || state.busy.command} classes={state.classes} onChange={(value) => void state.selectClass(value)}/></div>
       {state.failure && state.classId !== null ? <Button variant="secondary" isDisabled={state.busy.workspace || state.busy.command || protectDrafts} onPress={() => void state.loadWorkspace(state.classId!)}><RefreshCw size={16}/>Tentar novamente</Button> : null}</Surface>
-    <div className="min-h-10" aria-live="polite">{state.busy.classes || state.busy.workspace ? <p role="status" className="flex items-center gap-2 text-sm text-muted"><Spinner size="sm"/>Carregando a leitura segura do Conselho…</p> : null}
+    <div className="min-h-10" aria-live="polite">{state.busy.classes || state.busy.workspace ? <p className="flex items-center gap-2 text-sm text-muted"><output className="contents"><Spinner size="sm"/>Carregando a leitura segura do Conselho…</output></p> : null}
       {state.failure ? <Alert status="warning"><Alert.Indicator/><Alert.Content><Alert.Title>Operação não concluída</Alert.Title><Alert.Description>{FAILURE[state.failure]}</Alert.Description></Alert.Content></Alert> : null}
       <LiveReadNoticeV1 failed={state.stale}/>
       {message ? <p className="text-sm font-medium text-success">{message}</p> : null}</div>

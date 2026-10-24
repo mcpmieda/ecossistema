@@ -153,8 +153,8 @@ function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
       <Card.Content>
         {read.state.state === 'loading' && (
           <>
-            <p role="status" className="sr-only">
-              Consultando operação…
+            <p className="sr-only">
+              <output className="contents">Consultando operação…</output>
             </p>
             <div className="pa-overview-skeleton" aria-hidden="true">
               {Array.from({ length: 6 }, (_, index) => (

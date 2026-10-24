@@ -79,9 +79,9 @@ export function StudentSplashV1({ entered = false }: Readonly<{ entered?: boolea
               <Check size={40} strokeWidth={3} />
             </span>
             <p className="pa-entry-school">Tudo certo!</p>
-            <p className="pa-entry-sub" role="status">
+            <p className="pa-entry-sub"><output className="contents">
               Abrindo o seu boletim…
-            </p>
+            </output></p>
             <div className="pa-entry-skeleton" aria-hidden="true">
               <span />
               <span />
@@ -92,9 +92,9 @@ export function StudentSplashV1({ entered = false }: Readonly<{ entered?: boolea
         ) : (
           <>
             <CoverV1 splash />
-            <p className="pa-entry-sub" role="status">
+            <p className="pa-entry-sub"><output className="contents">
               Verificando acesso…
-            </p>
+            </output></p>
           </>
         )}
       </div>

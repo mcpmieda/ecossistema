@@ -250,7 +250,11 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
           </Button>
         </div>
         {invalid && <p role="alert">Confira a ordem das datas.</p>}
-        {read.state.state === 'loading' && <p role="status">Consultando auditoria…</p>}
+        {read.state.state === 'loading' && (
+          <p>
+            <output className="contents">Consultando auditoria…</output>
+          </p>
+        )}
         {read.state.state === 'error' && (
           <AccountsErrorV1
             error={read.state.error}
@@ -294,7 +298,9 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
                 </Modal.Header>
                 <Modal.Body>
                   {detail.state === 'loading' && (
-                    <p role="status">Consultando detalhe autorizado…</p>
+                    <p>
+                      <output className="contents">Consultando detalhe autorizado…</output>
+                    </p>
                   )}
                   {detail.state === 'error' && (
                     <AccountsErrorV1
@@ -304,9 +310,11 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
                     />
                   )}
                   {detail.state === 'expired' && (
-                    <p role="status">
-                      O detalhe foi descartado após cinco minutos. Feche e consulte novamente se
-                      necessário.
+                    <p>
+                      <output className="contents">
+                        O detalhe foi descartado após cinco minutos. Feche e consulte novamente se
+                        necessário.
+                      </output>
                     </p>
                   )}
                   {detail.state === 'ready' && (

@@ -149,7 +149,11 @@ export function LinkClosureV1({
         >
           Preparar prévia de encerramento
         </Button>
-        {load.state === 'loading' ? <p role="status">Preparando prévia atual de 2026</p> : null}
+        {load.state === 'loading' ? (
+          <p>
+            <output className="contents">Preparando prévia atual de 2026</output>
+          </p>
+        ) : null}
         {load.state === 'error' ? (
           <p role="alert" className="pa-settings-error">
             Não foi possível preparar a prévia. Verifique a sessão e tente novamente.
@@ -171,7 +175,9 @@ export function LinkClosureV1({
               </p>
             ) : null}
             {!expired && load.data.count === 0 ? (
-              <p role="status">Não há vínculos atuais para encerrar.</p>
+              <p>
+                <output className="contents">Não há vínculos atuais para encerrar.</output>
+              </p>
             ) : null}
             {!expired && load.data.count !== 0 ? (
               <>

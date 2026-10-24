@@ -234,7 +234,11 @@ export function IndividualQrV1(
     <Card className="pa-individual-qr" aria-label="QR atual do aluno">
       <Card.Content>
         {!canWrite ? (
-          <p role="status">Somente operadores autorizados podem consultar o QR.</p>
+          <p>
+            <output className="contents">
+              Somente operadores autorizados podem consultar o QR.
+            </output>
+          </p>
         ) : null}
         {read.state.state === 'error' ? (
           <AccountsErrorV1
@@ -244,15 +248,19 @@ export function IndividualQrV1(
           />
         ) : null}
         {canWrite && read.state.state === 'ready' && !read.state.data?.firstAccess.qrIssued ? (
-          <p role="status">
-            Nenhum QR emitido. Use a emissão pela turma; abrir esta ficha não cria nem troca
-            credenciais.
+          <p>
+            <output className="contents">
+              Nenhum QR emitido. Use a emissão pela turma; abrir esta ficha não cria nem troca
+              credenciais.
+            </output>
           </p>
         ) : null}
         {state.state === 'requesting' ||
         state.state === 'rendering' ||
         read.state.state === 'loading' ? (
-          <p role="status">Carregando QR atual…</p>
+          <p>
+            <output className="contents">Carregando QR atual…</output>
+          </p>
         ) : null}
         {imageUrl ? (
           <div className="pa-individual-qr-variants">
@@ -289,7 +297,11 @@ export function IndividualQrV1(
             </div>
             <div className="pa-individual-qr-variant">
               <h4>Cartão completo</h4>
-              {cardState === 'rendering' && <p role="status">Preparando cartão…</p>}
+              {cardState === 'rendering' && (
+                <p>
+                  <output className="contents">Preparando cartão…</output>
+                </p>
+              )}
               {cardState === 'error' && (
                 <div role="alert">
                   <p>Não foi possível preparar o cartão.</p>
@@ -307,7 +319,11 @@ export function IndividualQrV1(
                     width={856}
                     height={540}
                   />
-                  {cardNoPhoto && <p role="status">Cartão sem foto cadastrada.</p>}
+                  {cardNoPhoto && (
+                    <p>
+                      <output className="contents">Cartão sem foto cadastrada.</output>
+                    </p>
+                  )}
                   <div className="pa-credentials-actions">
                     <Button onPress={downloadCard}>Baixar cartão</Button>
                     <Button
@@ -323,7 +339,11 @@ export function IndividualQrV1(
                   </div>
                 </>
               )}
-              {cardCopy === 'copied' && <p role="status">Cartão copiado.</p>}
+              {cardCopy === 'copied' && (
+                <p>
+                  <output className="contents">Cartão copiado.</output>
+                </p>
+              )}
               {cardCopy === 'download-required' && (
                 <p role="alert">Cópia indisponível neste navegador. Use Baixar cartão.</p>
               )}
@@ -334,7 +354,9 @@ export function IndividualQrV1(
           </div>
         ) : null}
         {state.state === 'ready' && state.copy === 'copied' ? (
-          <p role="status">Imagem copiada.</p>
+          <p>
+            <output className="contents">Imagem copiada.</output>
+          </p>
         ) : null}
         {state.state === 'ready' && state.copy === 'download-required' ? (
           <p role="alert">Cópia indisponível neste navegador. Use Baixar QR.</p>

@@ -504,14 +504,14 @@ export function RelationalPerformancePageV2({
                     />
                   ) : null}
                   {!analytics.data && analytics.busy ? (
-                    <div role="status" aria-label="Carregando indicadores" className="grid gap-4">
+                    <output aria-label="Carregando indicadores" className="grid gap-4">
                       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                         {[1, 2, 3, 4].map((id) => (
                           <Skeleton key={id} className="h-32 rounded-2xl" />
                         ))}
                       </div>
                       <Skeleton className="h-72 rounded-2xl" />
-                    </div>
+                    </output>
                   ) : null}
                   {!analytics.data && !analytics.busy ? (
                     <div className="grid min-h-64 place-items-center text-center">
@@ -579,13 +579,19 @@ export function RelationalPerformancePageV2({
                   </Drawer.Header>
                 )}
                 <Drawer.Body>
-                  {state.busy.detail ? <p role="status">Carregando detalhe…</p> : null}
+                  {state.busy.detail ? (
+                    <p>
+                      <output className="contents">Carregando detalhe…</output>
+                    </p>
+                  ) : null}
                   {state.detailFailure ? <p role="alert">{failures[state.detailFailure]}</p> : null}
                 </Drawer.Body>
               </>
             )}
             {detail && state.detailFailure ? (
-              <p role="status">{failures[state.detailFailure]}</p>
+              <p>
+                <output className="contents">{failures[state.detailFailure]}</output>
+              </p>
             ) : null}
             <Drawer.Footer>
               <Button variant="secondary" onPress={close}>

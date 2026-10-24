@@ -196,7 +196,7 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
               }}
               options={ACCOUNT_ORDERS_V1}
             />
-            <div className="pa-account-filter-row" role="group" aria-label="Filtros">
+            <fieldset className="min-w-auto pa-account-filter-row" aria-label="Filtros">
               <span className="pa-account-rail" aria-hidden>
                 Filtros
               </span>
@@ -216,7 +216,7 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
                 }}
                 options={ACCOUNT_BLOCK_OPTIONS_V1}
               />
-            </div>
+            </fieldset>
           </div>
           {classSelected && <div ref={setQrMount} className="pa-account-qr-mount" />}
           {classSelected && <div ref={setBulkMount} className="pa-account-bulk-mount" />}
@@ -633,7 +633,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
       <Card className="pa-account-list-card">
         <Card.Content>
           <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>
-            <p role="status">{current ? listCount : 'Alunos'}</p>
+            <p>
+              <output className="contents">{current ? listCount : 'Alunos'}</output>
+            </p>
             <LiveReadNoticeV1
               failed={Boolean(read.refreshError || (props.order === 'seals' && sealError))}
             />
@@ -649,7 +651,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
             </Suspense>
           ) : null}
           {(read.state.state === 'idle' || read.state.state === 'loading') && (
-            <p role="status">Consultando contas…</p>
+            <p>
+              <output className="contents">Consultando contas…</output>
+            </p>
           )}
           {(authorizationError || read.state.state === 'error') && (
             <AccountsErrorV1
@@ -664,7 +668,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
             />
           )}
           {current && visibleItems.length === 0 && !current.nextCursor && (
-            <p role="status">Nenhuma conta encontrada neste filtro.</p>
+            <p>
+              <output className="contents">Nenhuma conta encontrada neste filtro.</output>
+            </p>
           )}
           {current && visibleItems.length > 0 && (
             // Rows are kept per account; a class adds the selection column, so its table is another.
