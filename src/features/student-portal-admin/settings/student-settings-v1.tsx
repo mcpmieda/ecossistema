@@ -175,6 +175,17 @@ function FieldCardV1({
   }, [dirty, field, onDirtyChange]);
   const owns = ownsSettingV1(settings, field);
   const boolean = typeof sourceDraft === 'boolean';
+  // A yes/no option as a menu: on a class or shift, or the orientation type on the school.
+  const asSelect =
+    canWrite &&
+    boolean &&
+    compact &&
+    (settings.scope.kind !== 'school' || field === 'termClosingConclusive');
+  const [onLabel, offLabel] =
+    field === 'termClosingConclusive'
+      ? ['Trimestre encerrado', 'Trimestre em andamento']
+      : ['Ativado', 'Desativado'];
+  const defaultLabel = sourceDraft ? onLabel : offLabel;
   function prepare() {
     try {
       const value = parseSettingsDraftV1(field, draft);
@@ -208,10 +219,7 @@ function FieldCardV1({
         </div>
       </Card.Header>
       <Card.Content>
-        {canWrite &&
-        boolean &&
-        compact &&
-        (settings.scope.kind !== 'school' || field === 'termClosingConclusive') ? (
+        {asSelect ? (
           <Select
             selectedKey={
               !owns && settings.scope.kind !== 'school' ? 'inherit' : String(sourceDraft)
@@ -236,32 +244,23 @@ function FieldCardV1({
               <ListBox>
                 {settings.scope.kind !== 'school' ? (
                   <ListBox.Item id="inherit" textValue="Usar padrão">
-                    {!owns
-                      ? `Padrão · ${field === 'termClosingConclusive' ? (sourceDraft ? 'Trimestre encerrado' : 'Trimestre em andamento') : sourceDraft ? 'Ativado' : 'Desativado'}`
-                      : 'Usar padrão'}
+                    {owns ? 'Usar padrão' : `Padrão · ${defaultLabel}`}
                     <ListBox.ItemIndicator />
                   </ListBox.Item>
                 ) : null}
-                <ListBox.Item
-                  id="true"
-                  textValue={field === 'termClosingConclusive' ? 'Trimestre encerrado' : 'Ativado'}
-                >
-                  {field === 'termClosingConclusive' ? 'Trimestre encerrado' : 'Ativado'}
+                <ListBox.Item id="true" textValue={onLabel}>
+                  {onLabel}
                   <ListBox.ItemIndicator />
                 </ListBox.Item>
-                <ListBox.Item
-                  id="false"
-                  textValue={
-                    field === 'termClosingConclusive' ? 'Trimestre em andamento' : 'Desativado'
-                  }
-                >
-                  {field === 'termClosingConclusive' ? 'Trimestre em andamento' : 'Desativado'}
+                <ListBox.Item id="false" textValue={offLabel}>
+                  {offLabel}
                   <ListBox.ItemIndicator />
                 </ListBox.Item>
               </ListBox>
             </Select.Popover>
           </Select>
-        ) : canWrite ? (
+        ) : null}
+        {canWrite && !asSelect ? (
           <SettingsEditorV1
             field={field}
             value={boolean ? sourceDraft : draft}
@@ -276,9 +275,8 @@ function FieldCardV1({
               setError(null);
             }}
           />
-        ) : (
-          <SettingsValueSummaryV1 field={field} value={settings.value[field]} />
-        )}
+        ) : null}
+        {canWrite ? null : <SettingsValueSummaryV1 field={field} value={settings.value[field]} />}
         {error ? (
           <p className="pa-settings-error" role="alert">
             {error}
@@ -334,6 +332,42 @@ function ReviewDialogV1({
     !review.inherit && review.field === 'calendar' && review.value.calendar
       ? changedPastDatesV1(settings.value.calendar, review.value.calendar, Date.now())
       : [];
+  let title: ReactNode =
+    review.field === 'accessEnabled' ? 'Entrada no Portal' : SETTINGS_LABELS_V1[review.field];
+  if (!review.inherit && review.presentation) title = review.presentation.title;
+  let change: ReactNode;
+  if (review.inherit) {
+    change = (
+      <p>
+        {review.field === 'accessEnabled'
+          ? 'A entrada no Portal e os agendamentos voltarão a seguir o padrão aplicável.'
+          : 'Esta opção voltará a seguir o padrão aplicável.'}
+      </p>
+    );
+  } else if (review.presentation) {
+    change = review.presentation.body;
+  } else if (review.field === 'accessEnabled') {
+    change = (
+      <>
+        <p>Como vai ficar:</p>
+        <AccessPlanSummaryV1
+          plan={{
+            enabled: review.value.accessEnabled ?? false,
+            schedule: review.value.accessSchedule ?? [],
+          }}
+          now={Date.now()}
+          wasOpen={accessOpenAtV1(accessPlanOfSettingsV1(settings).plan, Date.now())}
+        />
+      </>
+    );
+  } else {
+    change = (
+      <>
+        <p>Novo valor:</p>
+        <SettingsValueSummaryV1 field={review.field} value={next!} />
+      </>
+    );
+  }
   return (
     <Modal.Backdrop
       isOpen
@@ -350,41 +384,10 @@ function ReviewDialogV1({
           </Modal.Header>
           <Modal.Body className="pa-settings-review">
             <p>
-              <strong>
-                {!review.inherit && review.presentation
-                  ? review.presentation.title
-                  : review.field === 'accessEnabled'
-                    ? 'Entrada no Portal'
-                    : SETTINGS_LABELS_V1[review.field]}
-              </strong>{' '}
+              <strong>{title}</strong>{' '}
               em {scopeLabel}.
             </p>
-            {review.inherit ? (
-              <p>
-                {review.field === 'accessEnabled'
-                  ? 'A entrada no Portal e os agendamentos voltarão a seguir o padrão aplicável.'
-                  : 'Esta opção voltará a seguir o padrão aplicável.'}
-              </p>
-            ) : review.presentation ? (
-              review.presentation.body
-            ) : review.field === 'accessEnabled' ? (
-              <>
-                <p>Como vai ficar:</p>
-                <AccessPlanSummaryV1
-                  plan={{
-                    enabled: review.value.accessEnabled ?? false,
-                    schedule: review.value.accessSchedule ?? [],
-                  }}
-                  now={Date.now()}
-                  wasOpen={accessOpenAtV1(accessPlanOfSettingsV1(settings).plan, Date.now())}
-                />
-              </>
-            ) : (
-              <>
-                <p>Novo valor:</p>
-                <SettingsValueSummaryV1 field={review.field} value={next!} />
-              </>
-            )}
+            {change}
             <p>Esta alteração pode mudar imediatamente o acesso e as notas visíveis.</p>
             {past.length ? (
               <div className="pa-settings-warning">
@@ -506,19 +509,22 @@ function SettingsReadyV1({
   const accessDisabled =
     fieldDisabled || controlledByShift('accessEnabled') || controlledByShift('accessSchedule');
   const gradesDisabled = fieldDisabled || controlledByShift('calendar');
-  const renderField = (field: SettingsFieldV1, locked = false) =>
-    field === 'accessSchedule' ? null : field === 'accessEnabled' ? (
-      // The switch and its schedules are one unit, edited on their own card.
-      <AccessPlanCardV1
-        key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
-        settings={data}
-        canWrite={canWrite}
-        disabled={accessDisabled}
-        sourceLabel={sourceLabel(data.sources[field])}
-        review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
-        onDirtyChange={onDirtyChange}
-      />
-    ) : (
+  const renderField = (field: SettingsFieldV1, locked = false) => {
+    if (field === 'accessSchedule') return null;
+    // The switch and its schedules are one unit, edited on their own card.
+    if (field === 'accessEnabled')
+      return (
+        <AccessPlanCardV1
+          key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
+          settings={data}
+          canWrite={canWrite}
+          disabled={accessDisabled}
+          sourceLabel={sourceLabel(data.sources[field])}
+          review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
+          onDirtyChange={onDirtyChange}
+        />
+      );
+    return (
       <FieldCardV1
         key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
         field={field}
@@ -531,6 +537,48 @@ function SettingsReadyV1({
         onDirtyChange={onDirtyChange}
       />
     );
+  };
+  // A shift edits each trimester here; a class or the school reads them with the publication.
+  const gradeCards = (): ReactNode => {
+    if (fixedScope.kind === 'shift')
+      return PERIODS_V1.map((period) => (
+        <Card key={period} className="pa-settings-card pa-grade-card">
+          <Card.Header>
+            <h3>{GRADE_LABELS_V1[period]}</h3>
+          </Card.Header>
+          <Card.Content>
+            <GradeShowV1
+              key={`${discardVersion}:${period}:${fieldVersions['grades:' + period] ?? 0}`}
+              settings={data}
+              gradeKey={period}
+              canWrite={canWrite}
+              disabled={gradesDisabled}
+              review={(intent) => onReview({ ...intent, expectedVersion: data.version })}
+              onDirtyChange={onDirtyChange}
+            />
+          </Card.Content>
+        </Card>
+      ));
+    if (typeof publication !== 'function') return publication;
+    return publication({
+      periodStatus: (item) => (
+        <GradeStatusChipV1 settings={data} period={item.period} state={item.state} />
+      ),
+      periodExtra: (item) => (
+        <GradeShowV1
+          key={`${discardVersion}:${item.period}:${fieldVersions['grades:' + item.period] ?? 0}`}
+          settings={data}
+          gradeKey={item.period}
+          canWrite={canWrite}
+          disabled={gradesDisabled}
+          review={(intent: GradeReviewIntentV1) =>
+            onReview({ ...intent, expectedVersion: data.version })
+          }
+          onDirtyChange={onDirtyChange}
+        />
+      ),
+    });
+  };
   const customizations =
     reader &&
     onOpenCustomization &&
@@ -591,51 +639,7 @@ function SettingsReadyV1({
                   onReview({ field: 'calendar', inherit: true, expectedVersion: data.version })
                 }
               />
-              {fixedScope.kind === 'shift'
-                ? PERIODS_V1.map((period) => (
-                    <Card key={period} className="pa-settings-card pa-grade-card">
-                      <Card.Header>
-                        <h3>{GRADE_LABELS_V1[period]}</h3>
-                      </Card.Header>
-                      <Card.Content>
-                        <GradeShowV1
-                          key={`${discardVersion}:${period}:${fieldVersions['grades:' + period] ?? 0}`}
-                          settings={data}
-                          gradeKey={period}
-                          canWrite={canWrite}
-                          disabled={gradesDisabled}
-                          review={(intent) =>
-                            onReview({ ...intent, expectedVersion: data.version })
-                          }
-                          onDirtyChange={onDirtyChange}
-                        />
-                      </Card.Content>
-                    </Card>
-                  ))
-                : typeof publication === 'function'
-                  ? publication({
-                      periodStatus: (item) => (
-                        <GradeStatusChipV1
-                          settings={data}
-                          period={item.period}
-                          state={item.state}
-                        />
-                      ),
-                      periodExtra: (item) => (
-                        <GradeShowV1
-                          key={`${discardVersion}:${item.period}:${fieldVersions['grades:' + item.period] ?? 0}`}
-                          settings={data}
-                          gradeKey={item.period}
-                          canWrite={canWrite}
-                          disabled={gradesDisabled}
-                          review={(intent: GradeReviewIntentV1) =>
-                            onReview({ ...intent, expectedVersion: data.version })
-                          }
-                          onDirtyChange={onDirtyChange}
-                        />
-                      ),
-                    })
-                  : publication}
+              {gradeCards()}
               <FinalResultCardV1
                 key={`${discardVersion}:final:${fieldVersions['grades:final'] ?? 0}`}
                 settings={data}
@@ -653,7 +657,8 @@ function SettingsReadyV1({
           }
           disabled={busy || review !== null}
         />
-      ) : area !== 'general' ? (
+      ) : null}
+      {area !== 'general' && area !== 'policies' ? (
         <div className="pa-settings-fields">
           {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map((name) => renderField(name))}
         </div>
