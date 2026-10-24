@@ -102,6 +102,26 @@ const CLASSIFICATION: Record<
   'failed-repeat': 'Reprovado (R/R)',
 };
 
+type ClassificationV2 = keyof typeof CLASSIFICATION;
+/** The annual result's colour. As before: "not-approved" contains "approved", so it is green too. */
+function classificationColor(classification: ClassificationV2) {
+  if (classification.includes('approved')) return 'success';
+  if (
+    classification === 'not-approved' ||
+    classification === 'failed-no-show' ||
+    classification === 'failed-repeat'
+  )
+    return 'danger';
+  return 'default';
+}
+
+/** What is loading while the page waits. */
+function busyText(busy: Busy) {
+  if (busy === 'catalog') return 'Carregando turmas…';
+  if (busy === 'students') return 'Carregando alunos…';
+  return 'Concluindo operação…';
+}
+
 function grade(value: number | null): string {
   return value === null
     ? '—'
@@ -424,15 +444,7 @@ function BulletinArtifact({ artifact }: { readonly artifact: Artifact }) {
                                   <Chip
                                     size="sm"
                                     variant="soft"
-                                    color={
-                                      subject.annual.classification.includes('approved')
-                                        ? 'success'
-                                        : subject.annual.classification === 'not-approved' ||
-                                            subject.annual.classification === 'failed-no-show' ||
-                                            subject.annual.classification === 'failed-repeat'
-                                          ? 'danger'
-                                          : 'default'
-                                    }
+                                    color={classificationColor(subject.annual.classification)}
                                   >
                                     <Chip.Label>
                                       {CLASSIFICATION[subject.annual.classification]}
@@ -946,11 +958,7 @@ export function RelationalBulletinPageV2() {
         {busy ? (
           <p role="status" className="flex items-center gap-2 text-sm text-muted">
             <Spinner size="sm" />
-            {busy === 'catalog'
-              ? 'Carregando turmas…'
-              : busy === 'students'
-                ? 'Carregando alunos…'
-                : 'Concluindo operação…'}
+            {busyText(busy)}
           </p>
         ) : null}
         {failure ? (
@@ -1054,7 +1062,8 @@ export function RelationalBulletinPageV2() {
             ) : null}
           </Card.Footer>
         </Card>
-      ) : classId === null && busy !== 'catalog' ? (
+      ) : null}
+      {!students && classId === null && busy !== 'catalog' ? (
         <Surface className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-separator bg-surface-secondary/40 p-8 text-center">
           <div>
             <FileText className="mx-auto mb-3 text-accent" />
@@ -1121,12 +1130,13 @@ export function RelationalBulletinPageV2() {
           <FileClock className="text-accent" />
         </Card.Header>
         <Card.Content className="grid gap-2">
-          {busy === 'history' ? (
-            <Spinner size="sm" />
-          ) : history.length === 0 ? (
+          {busy === 'history' ? <Spinner size="sm" /> : null}
+          {busy !== 'history' && history.length === 0 ? (
             <p className="text-sm text-muted">Nenhum snapshot carregado para este recorte.</p>
-          ) : (
-            history.map((item) => (
+          ) : null}
+          {busy === 'history'
+            ? null
+            : history.map((item) => (
               <div
                 key={`${item.snapshotId}:${item.snapshotVersion}`}
                 className="flex flex-col gap-3 rounded-2xl border border-separator p-4 sm:flex-row sm:items-center"
@@ -1151,8 +1161,7 @@ export function RelationalBulletinPageV2() {
                   Reimprimir versão
                 </Button>
               </div>
-            ))
-          )}
+            ))}
         </Card.Content>
       </Card>
     </section>

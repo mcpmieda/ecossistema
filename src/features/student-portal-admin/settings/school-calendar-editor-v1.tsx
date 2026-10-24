@@ -57,6 +57,13 @@ const KIND_LABELS: Record<SchoolDayKindV1, string> = {
 const DESCRIBED = new Set<SchoolDayKindV1>(['evento-letivo', 'feriado', 'recesso', 'evento']);
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+const COUNT_COLOR = { done: 'success', over: 'danger', short: 'warning' } as const;
+/** Under the school-day count: ready, how many too many, or how many still missing. */
+function countNote(tone: keyof typeof COUNT_COLOR, count: number) {
+  if (tone === 'done') return 'Pronto: 200 dias letivos.';
+  if (tone === 'over') return `${count - SCHOOL_DAYS_REQUIRED_V1} a mais. Desmarque para salvar.`;
+  return `Faltam ${SCHOOL_DAYS_REQUIRED_V1 - count} para 200.`;
+}
 const pad = (value: number) => String(value).padStart(2, '0');
 const dayLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith("2026") ? "" : `/${date.slice(0, 4)}`}`;
 
@@ -321,12 +328,14 @@ export function SchoolCalendarEditorV1({
     ).length;
     // Before the year, only the enrollment can be marked, and only while it is the one chosen.
     const before = year !== 2026;
+    let monthNote = 'só matrículas';
+    if (!before) monthNote = schoolDays ? `${schoolDays} letivos` : 'sem aula';
     return (
       <Card key={prefix} variant="secondary" className={'pa-school-month' + (before ? ' pa-school-month--before' : '')}>
         <div className="pa-school-month__head">
           <b>{name}</b>
-          <Chip size="sm" variant="soft" color={before ? 'default' : schoolDays ? 'success' : 'default'}>
-            {before ? 'só matrículas' : schoolDays ? `${schoolDays} letivos` : 'sem aula'}
+          <Chip size="sm" variant="soft" color={!before && schoolDays ? 'success' : 'default'}>
+            {monthNote}
           </Chip>
         </div>
         <div className="pa-school-month__grid">
@@ -419,7 +428,7 @@ export function SchoolCalendarEditorV1({
           aria-label="Dias letivos marcados"
           value={Math.min(count, SCHOOL_DAYS_REQUIRED_V1)}
           maxValue={SCHOOL_DAYS_REQUIRED_V1}
-          color={tone === 'done' ? 'success' : tone === 'over' ? 'danger' : 'warning'}
+          color={COUNT_COLOR[tone]}
         >
           <Label>
             <strong>{count}</strong> / {SCHOOL_DAYS_REQUIRED_V1} dias letivos
@@ -428,11 +437,7 @@ export function SchoolCalendarEditorV1({
             <ProgressBar.Fill />
           </ProgressBar.Track>
           <span className={`pa-school-calendar__count-note pa-school-calendar__count-note--${tone}`} role="status">
-            {tone === 'done'
-              ? 'Pronto: 200 dias letivos.'
-              : tone === 'over'
-                ? `${count - SCHOOL_DAYS_REQUIRED_V1} a mais. Desmarque para salvar.`
-                : `Faltam ${SCHOOL_DAYS_REQUIRED_V1 - count} para 200.`}
+            {countNote(tone, count)}
           </span>
         </ProgressBar>
       </Card.Header>

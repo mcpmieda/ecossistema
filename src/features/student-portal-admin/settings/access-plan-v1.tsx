@@ -14,7 +14,7 @@ import {
   type AccessEventV1,
   type AccessPlanV1,
 } from '../../../../shared/student-portal-contracts/access-schedule-v1';
-import { ownsSettingV1, settingsScopeKeyV1 } from './settings-values-v1';
+import { ownsSettingV1, scopeSubjectV1, settingsScopeKeyV1 } from './settings-values-v1';
 import {
   ScheduleEditorV1,
   parseScheduleRowsV1,
@@ -175,6 +175,13 @@ export function AccessPlanCardV1({
     }
   };
 
+  let origin = 'Definido aqui';
+  if (!owns)
+    origin =
+      settings.sources.accessEnabled.kind === 'school'
+        ? 'Padrão da escola'
+        : 'Padrão de ' + sourceLabel;
+  const steadyText = openNow ? 'Fica aberto até alguém fechar.' : 'Fica fechado até alguém abrir.';
   return (
     <Card className="pa-settings-card pa-settings-card--access">
       <Card.Header>
@@ -183,11 +190,7 @@ export function AccessPlanCardV1({
           <h3 className={school ? 'sr-only' : undefined}>Entrada no Portal</h3>
           {!school ? (
             <Chip size="sm" variant="soft">
-              {owns
-                ? 'Definido aqui'
-                : settings.sources.accessEnabled.kind === 'school'
-                  ? 'Padrão da escola'
-                  : 'Padrão de ' + sourceLabel}
+              {origin}
             </Chip>
           ) : null}
         </div>
@@ -205,21 +208,17 @@ export function AccessPlanCardV1({
           <div>
             <p className="pa-access-status-title">
               {openNow ? 'O Portal está aberto agora' : 'O Portal está fechado agora'}
-              {school
-                ? ''
-                : ` para ${settings.scope.kind === 'class' ? 'esta turma' : settings.scope.kind === 'shift' ? 'este turno' : 'este aluno'}`}
+              {school ? '' : ` para ${scopeSubjectV1(settings.scope.kind).toLowerCase()}`}
             </p>
             <p className="pa-access-status-next">
-              {nextChange !== null ? (
+              {nextChange === null ? (
+                steadyText
+              ) : (
                 <>
                   <CalendarClock size={14} aria-hidden="true" />
                   {openNow ? 'Fecha' : 'Abre'} sozinho em{' '}
                   {accessWhenV1(new Date(nextChange).toISOString())}
                 </>
-              ) : openNow ? (
-                'Fica aberto até alguém fechar.'
-              ) : (
-                'Fica fechado até alguém abrir.'
               )}
             </p>
           </div>
@@ -338,13 +337,8 @@ export function AccessPlanCardV1({
               </li>
             ) : (
               <li>
-                A escola prevalece:{' '}
-                {settings.scope.kind === 'class'
-                  ? 'esta turma'
-                  : settings.scope.kind === 'shift'
-                    ? 'este turno'
-                    : 'este aluno'}{' '}
-                só entra enquanto a escola também estiver aberta.
+                A escola prevalece: {scopeSubjectV1(settings.scope.kind).toLowerCase()} só entra
+                enquanto a escola também estiver aberta.
               </li>
             )}
             <li>Horários de Brasília.</li>
