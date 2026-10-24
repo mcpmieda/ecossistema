@@ -3,7 +3,7 @@
 Later declarations win (as in the cascade) and are moved up to the first rule's place; the later
 rule (and its comment) disappears. Reports any rule between the two with the same selector
 specificity that sets one of the moved properties and shares a class with it: those would change.
-Usage: python cssmerge.py [--write]
+Usage: python scripts/sonar/css-merge-duplicates.py <file.css> [--write]   (then validate with lightningcss)
 """
 import re
 import sys
@@ -99,6 +99,34 @@ def disjoint(a, b):
     return False
 
 
+LONGHANDS = {
+    'padding': r'padding-(top|right|bottom|left|inline|block)(-start|-end)?',
+    'margin': r'margin-(top|right|bottom|left|inline|block)(-start|-end)?',
+    'border': r'border-((top|right|bottom|left)(-(width|style|color))?|width|style|color)',
+    'border-top': r'border-top-(width|style|color)',
+    'border-bottom': r'border-bottom-(width|style|color)',
+    'border-left': r'border-left-(width|style|color)',
+    'border-right': r'border-right-(width|style|color)',
+    'background': r'background-(color|image|position|size|repeat|attachment|origin|clip)',
+    'font': r'font-(style|variant|weight|stretch|size|family)|line-height',
+    'gap': r'(row|column)-gap',
+    'outline': r'outline-(width|style|color)',
+    'overflow': r'overflow-(x|y)',
+    'flex': r'flex-(grow|shrink|basis)',
+    'inset': r'top|right|bottom|left',
+    'animation': r'animation-[a-z-]+',
+    'transition': r'transition-[a-z-]+',
+    'text-decoration': r'text-decoration-(line|style|color|thickness)',
+    'list-style': r'list-style-(type|position|image)',
+    'border-radius': r'border-(top|bottom)-(left|right)-radius',
+}
+
+
+def dead(prop, later):
+    """A longhand followed, in the same rule, by a shorthand that resets it (Sonar S4657)."""
+    return any(short in LONGHANDS and re.fullmatch(LONGHANDS[short], prop) for short in later)
+
+
 def process(src, depth=0):
     items = blocks(src)
     if depth < 3:
@@ -126,13 +154,14 @@ def process(src, depth=0):
         if len(indexes) < 2:
             continue
         first = indexes[0]
-        result = {}
-        order = []
-        for index in indexes:
-            for prop, value in decls(items[index][3]):
-                if prop not in result:
-                    order.append(prop)
-                result[prop] = value
+        # Every declaration of the group in source order; the merged rule keeps each property at
+        # the place of its LAST declaration (the one that wins), so shorthand/longhand order holds.
+        seq = [(prop, value) for index in indexes for prop, value in decls(items[index][3])]
+        last = {prop: k for k, (prop, _) in enumerate(seq)}
+        result = {prop: value for prop, value in seq}
+        order = sorted(last, key=last.get)
+        order = [prop for k, prop in enumerate(order)
+                 if not (dead(prop, [o for o in order[k + 1:] if '!important' not in result[o]]) and '!important' not in result[prop])]
         classes = set(re.findall(r'\.[\w-]+', sel))
 
         def conflicts(moved):
