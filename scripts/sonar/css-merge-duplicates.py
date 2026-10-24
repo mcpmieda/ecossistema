@@ -48,6 +48,8 @@ def blocks(text):
 
 def decls(body):
     items = []
+    # Comments first: one may contain ';' (it would split a declaration in two).
+    body = re.sub(r'/\*.*?\*/', '', body, flags=re.S)
     for part in body.split(';'):
         part = part.strip()
         if not part or part.startswith('/*'):
