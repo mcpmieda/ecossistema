@@ -1,7 +1,8 @@
+import { trimEndCharsV1 } from '../../shared/trim-chars-v1';
 export function encodeBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCodePoint(byte);
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+  return trimEndCharsV1(btoa(binary).replaceAll('+', '-').replaceAll('/', '_'), '=');
 }
 
 export function decodeBase64Url(value: string): Uint8Array {

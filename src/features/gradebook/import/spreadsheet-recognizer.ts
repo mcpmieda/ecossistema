@@ -191,14 +191,30 @@ export function fileExtension(name: string): string {
   return name.split('.').pop()?.trim().toLowerCase() ?? '';
 }
 
+const isSpace = (character: string) => /\s/u.test(character);
+
+/**
+ * The text without a year at its end and the separators before it ("MARIA - 2026" → "MARIA"),
+ * read from the end in place of /\s*[-–—_:]*\s*20\d{2}\s*$/u (Sonar S8786); same result.
+ */
+export function withoutTrailingYearV1(text: string): string {
+  let end = text.length;
+  while (end > 0 && isSpace(text[end - 1]!)) end -= 1;
+  if (end < 4 || !/^20\d{2}$/u.test(text.slice(end - 4, end))) return text;
+  end -= 4;
+  while (end > 0 && isSpace(text[end - 1]!)) end -= 1;
+  while (end > 0 && '-–—_:'.includes(text[end - 1]!)) end -= 1;
+  while (end > 0 && isSpace(text[end - 1]!)) end -= 1;
+  return text.slice(0, end);
+}
+
 export function teacherNameFromFileName(name: string): string | null {
   const withoutExtension = name.replace(/\.[^.]+$/u, '');
   const withoutPrefix = withoutExtension.replace(
     /^(?:BANCO\s+DE\s+NOTAS|CONTROLE\s+DE\s+NOTAS|NOTAS)\s*[-–—_:]*\s*/iu,
     '',
   );
-  const candidate = withoutPrefix
-    .replace(/\s*[-–—_:]*\s*20\d{2}\s*$/u, '')
+  const candidate = withoutTrailingYearV1(withoutPrefix)
     .replaceAll(/\s+/gu, ' ')
     .trim();
   return candidate.length > 0 ? candidate : null;

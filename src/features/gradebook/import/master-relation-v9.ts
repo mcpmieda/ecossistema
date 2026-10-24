@@ -1,5 +1,6 @@
 import type { GradebookRelationClassV9, GradebookRelationStudentV9 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type { Workbook, Worksheet } from './spreadsheet-recognizer';
+import { trimEndCharsV1 } from '../../../../shared/trim-chars-v1';
 
 export interface MasterRelationRecognitionV9 {
   readonly ano: number;
@@ -60,16 +61,18 @@ function columnName(oneBased: number): string {
 }
 
 export function parseRelationStatusV9(raw: string): readonly [GradebookRelationStudentV9[2], string?] {
-  const status = normalize(raw).replace(/[.]+$/u, '').trim();
+  const status = trimEndCharsV1(normalize(raw), '.').trim();
   if (!status || status === 'NOVATO') return [0];
   if (status === 'ESPECIAL') return [1];
   if (status === 'ASSISTIDO') return [2];
   if (status === 'DESISTENTE') return [3];
   if (status === 'TRANSFERIDO') return [4];
   if (status === 'FALECIDO') return [5];
-  const foi = status.match(/^FOI\s+PARA(?:\s+O)?\s+(.+)$/u);
-  if (foi?.[1]) return [6, foi[1].trim().toUpperCase()];
-  const estava = status.match(/^ESTAVA\s+NO\s+(.+)$/u);
+  // "FOI PARA O 6º ANO" and "FOI PARA 6º ANO"; a destination named just "O" stays "O".
+  const foi = /^FOI\s+PARA\s+(\S.*)$/u.exec(status);
+  const destination = foi?.[1] ? (/^O\s+(\S.*)$/u.exec(foi[1])?.[1] ?? foi[1]) : undefined;
+  if (destination) return [6, destination.trim().toUpperCase()];
+  const estava = /^ESTAVA\s+NO\s+(\S.*)$/u.exec(status);
   if (estava?.[1]) return [7, estava[1].trim().toUpperCase()];
   throw new Error(`Situação da Relação não reconhecida: ${raw.trim()}`);
 }

@@ -2,6 +2,7 @@ import type { GradebookPostgresWritePortV1 } from './postgres-database-v1';
 import { postgresJsonTextV1 } from './postgres-values-v1';
 import { jsonRecordChunksV1, serializeJsonRecordV1 } from './json-record-chunks-v1';
 import type { RelationalClosingStateV9 } from '../../application/import/import-relational-closing-v9';
+import { trimCharsV1 } from '../../../../shared/trim-chars-v1';
 
 export const IMPORT_OFFER_READ_BLOCK_SIZE_V11 = 32;
 type Row = Record<string, unknown>;
@@ -176,7 +177,7 @@ export async function resolveRelationalImportCatalogV11(
   // Other boundary whitespace therefore requires its original source-order
   // resolver for every subject; mixing preloaded creates would change conflicts.
   const needsSequentialWhitespace = sources.some(
-    (source) => source.name.trim() !== source.name.replace(/^ +| +$/gu, ''),
+    (source) => source.name.trim() !== trimCharsV1(source.name, ' '),
   );
   if (needsSequentialWhitespace) {
     for (const source of [...sources].sort((a, b) => a.sourceIndex - b.sourceIndex)) {

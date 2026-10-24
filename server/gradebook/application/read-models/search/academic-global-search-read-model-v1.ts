@@ -22,6 +22,7 @@ import type {
   AcademicPersistenceContextV1,
   VersionedRecordV1,
 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import { trimEndCharsV1 } from '../../../../../shared/trim-chars-v1';
 
 const DEFAULT_REPOSITORY_PAGE_SIZE = 100;
 const MAXIMUM_REPOSITORY_PAGE_SIZE = 100;
@@ -199,7 +200,7 @@ function encodeBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value);
   let binary = '';
   for (const byte of bytes) binary += String.fromCodePoint(byte);
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+  return trimEndCharsV1(btoa(binary).replaceAll('+', '-').replaceAll('/', '_'), '=');
 }
 
 function decodeBase64Url(value: string): string | null {
