@@ -225,7 +225,11 @@ function AccountScopeV1({
           onReload={read.reload}
         />
       )}
-      {read.state.state === 'loading' && <p role="status">Consultando alunos…</p>}
+      {read.state.state === 'loading' && (
+        <p>
+          <output className="contents">Consultando alunos…</output>
+        </p>
+      )}
       {read.state.state === 'ready' && rows.length === 0 && <p>Nenhum aluno encontrado.</p>}
     </div>
   );

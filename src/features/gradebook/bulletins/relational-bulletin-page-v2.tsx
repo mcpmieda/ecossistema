@@ -956,10 +956,10 @@ export function RelationalBulletinPageV2() {
       </div>
       <div className="min-h-10" aria-live="polite">
         {busy ? (
-          <p role="status" className="flex items-center gap-2 text-sm text-muted">
+          <p className="flex items-center gap-2 text-sm text-muted"><output className="contents">
             <Spinner size="sm" />
             {busyText(busy)}
-          </p>
+          </output></p>
         ) : null}
         {failure ? (
           <Alert status="danger">
@@ -980,9 +980,9 @@ export function RelationalBulletinPageV2() {
           </Alert>
         ) : null}
         {notice ? (
-          <p role="status" className="text-sm text-muted">
+          <p className="text-sm text-muted"><output className="contents">
             {notice}
-          </p>
+          </output></p>
         ) : null}
         <LiveReadNoticeV1 failed={stale} />
       </div>
@@ -1109,9 +1109,9 @@ export function RelationalBulletinPageV2() {
                   Imprimir PDF oficial
                 </Button>
                 {pdfNotice ? (
-                  <span className="text-xs text-muted" role="status">
+                  <span className="text-xs text-muted"><output className="contents">
                     {pdfNotice}
-                  </span>
+                  </output></span>
                 ) : null}
               </Card.Footer>
             </Card>

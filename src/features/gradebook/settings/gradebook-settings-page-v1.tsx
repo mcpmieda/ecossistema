@@ -273,8 +273,10 @@ export function GradebookSettingsPageV1({ isActive = true }: { isActive?: boolea
           ) : null}
 
           {busy === 'execute' ? (
-            <p className="flex items-center gap-2 text-sm" role="status" aria-live="polite">
-              <Spinner size="sm" /> Executando transação protegida…
+            <p className="flex items-center gap-2 text-sm">
+              <output className="contents" aria-live="polite">
+                <Spinner size="sm" /> Executando transação protegida…
+              </output>
             </p>
           ) : null}
           {message ? (

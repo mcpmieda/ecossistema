@@ -331,9 +331,9 @@ function Finding({ value, treatments, treatmentState, busy, feedback, onRecord, 
           </div>
         )}
         {feedback && (
-          <p className="mt-3 text-xs text-muted" role="status" aria-live="polite">
+          <p className="mt-3 text-xs text-muted"><output className="contents" aria-live="polite">
             {feedback}
-          </p>
+          </output></p>
         )}
       </Surface>
     </li>
@@ -377,10 +377,10 @@ function TreatmentHistory({ year, state, values, nextCursor, onLoad }: Treatment
           </p>
         )}
         {state === 'loading' && values.length === 0 && (
-          <div className="flex items-center gap-2 text-sm text-muted" role="status">
+          <output className="flex items-center gap-2 text-sm text-muted">
             <Spinner size="sm" />
             Consultando registros…
-          </div>
+          </output>
         )}
         {state === 'empty' && (
           <p className="text-sm text-muted">Nenhuma ação humana foi registrada em {year ?? 'este ano'}.</p>
@@ -769,12 +769,11 @@ export function RelationalCurrentAuditPageV2() {
       </Alert>
 
       {state === 'loading' && (
-        <div
+        <output
           className="flex min-h-32 items-center justify-center gap-2 text-sm text-muted"
-          role="status"
         >
           <Spinner size="sm" /> Consultando achados atuais…
-        </div>
+        </output>
       )}
       {(state === 'empty' || state === 'not-authorized' || state === 'unavailable') && (
         <StateAlert state={state} year={year} />
@@ -815,9 +814,9 @@ export function RelationalCurrentAuditPageV2() {
           </div>
 
           {treatmentState === 'loading' && (
-            <p className="text-xs text-muted" role="status">
+            <p className="text-xs text-muted"><output className="contents">
               Carregando o tratamento humano dos achados visíveis…
-            </p>
+            </output></p>
           )}
           {treatmentState === 'unavailable' && (
             <Alert status="warning">

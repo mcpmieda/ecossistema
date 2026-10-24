@@ -65,7 +65,7 @@ export function AccountClosingPreviewV1({
     return () => controller.abort();
   }, [reader, scope]);
 
-  if (state.state === 'loading') return <p role="status">Carregando prévia do fechamento…</p>;
+  if (state.state === 'loading') return <p><output className="contents">Carregando prévia do fechamento…</output></p>;
   if (state.state === 'error') return <p role="alert">{state.message}</p>;
   const preview = state.value;
   if (!preview.available)
@@ -82,11 +82,11 @@ export function AccountClosingPreviewV1({
   const names = new Map(preview.subjects.map((subject) => [subject.subjectId, subject.label]));
   return (
     <div className="grid gap-3">
-      <p role="status">
+      <p><output className="contents">
         {preview.visibleToStudent
           ? 'O aluno já vê este fechamento no Portal.'
           : 'Prévia: o aluno ainda não vê este fechamento (política "Fechamento do trimestre" desligada ou acesso fechado).'}
-      </p>
+      </output></p>
       {preview.summary ? (
         <section aria-label="Resumo no Boletim">
           <h4 className="font-semibold">Resumo no Boletim · {termClosingLabelV1(preview.summary.period, preview.summary.mode)}</h4>

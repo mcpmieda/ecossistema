@@ -172,7 +172,7 @@ function PortalMenuPagesV3({
   // The content sliding out, until its move ends.
   const [leaving, setLeaving] = useState<PageV3 | null>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const panels = useRef<Partial<Record<PageV3, HTMLDivElement | null>>>({});
+  const panels = useRef<Partial<Record<PageV3, HTMLElement | null>>>({});
   const entering = useRef<SlideV3 | null>(null);
   const highlight = useNavHighlightV3(page);
   const [frequencyTone, setFrequencyTone] = useState<FrequencyToneV3>(null);
@@ -272,20 +272,19 @@ function PortalMenuPagesV3({
         <StudentPortalShellV1 {...shell} hero={hero}>
           <div ref={stage} className="pa3-stage">
             {pages.map(({ id, label }) => (
-              <div
+              <section
                 key={id}
                 ref={(element) => {
                   panels.current[id] = element;
                 }}
                 id={`pa3-panel-${id}`}
-                role="region"
                 aria-label={label}
                 tabIndex={-1}
                 inert={page !== id}
                 className={`pa3-panel pa3-panel--${id}` + stateOf(id)}
               >
                 <PortalPageActiveV3.Provider value={page === id}>{contentOf[id]}</PortalPageActiveV3.Provider>
-              </div>
+              </section>
             ))}
           </div>
         </StudentPortalShellV1>

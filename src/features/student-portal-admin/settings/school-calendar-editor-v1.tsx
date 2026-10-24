@@ -437,9 +437,9 @@ export function SchoolCalendarEditorV1({
           <ProgressBar.Track>
             <ProgressBar.Fill />
           </ProgressBar.Track>
-          <span className={`pa-school-calendar__count-note pa-school-calendar__count-note--${tone}`} role="status">
+          <span className={`pa-school-calendar__count-note pa-school-calendar__count-note--${tone}`}><output className="contents">
             {countNote(tone, count)}
-          </span>
+          </output></span>
         </ProgressBar>
       </Card.Header>
 

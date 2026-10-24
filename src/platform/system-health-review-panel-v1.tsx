@@ -25,7 +25,7 @@ function ReviewContent({ data }: Readonly<{ data: HealthReviewV1 }>) {
       {records.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-xl font-semibold">{value}</dd></div>)}
     </dl>
     <div>
-      <div role="list" aria-label="Faixas horárias de coleta" className="grid grid-cols-12 gap-1 sm:grid-cols-[repeat(24,minmax(0,1fr))]">
+      <ul aria-label="Faixas horárias de coleta" className="grid grid-cols-12 gap-1 sm:grid-cols-[repeat(24,minmax(0,1fr))]">
         {data.hours.map((h) => {
           let status: 'Com intervenção' | 'Com atenção' | 'Sem registro' | 'Cobertura parcial' | 'Sem atenção nos sinais';
           if (h.critical) {
@@ -50,9 +50,9 @@ function ReviewContent({ data }: Readonly<{ data: HealthReviewV1 }>) {
             color = 'bg-default';
           }
           const label = `${new Date(h.startAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}: ${status}; ${h.samples} de 12 coletas`;
-          return <span key={h.startAt} role="listitem" aria-label={label} title={label} className={`h-5 rounded-sm ${color}`} />;
+          return <li key={h.startAt} aria-label={label} title={label} className={`h-5 rounded-sm ${color}`} />;
         })}
-      </div>
+      </ul>
       <p className="mt-2 text-xs text-muted">24 faixas de coleta · cinza: sem confirmação completa · cores não representam disponibilidade</p>
     </div>
     <p className="text-sm">Recusas / sem sessão: <strong>{count(total.refused)}</strong> · Respostas ≥ 3 s: <strong>{count(total.slow)}</strong> · Relatos de navegador: <strong>{count(total.browser)}</strong></p>

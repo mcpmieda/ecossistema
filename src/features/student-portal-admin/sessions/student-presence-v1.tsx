@@ -79,7 +79,11 @@ function PresenceBodyV1({ client, scope, onAuthorizationLost }: Readonly<Props>)
             {operationDateV1(state.data.observedAt)}
           </time>
         )}
-        {state.state === 'error' && <p role="status">Não foi possível consultar as conexões.</p>}
+        {state.state === 'error' && (
+          <p>
+            <output className="contents">Não foi possível consultar as conexões.</output>
+          </p>
+        )}
       </div>
       <Button
         size="sm"

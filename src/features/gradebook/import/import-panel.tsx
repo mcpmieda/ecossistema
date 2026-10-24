@@ -287,8 +287,10 @@ export function TimingDiagnostics({
           ? ` · ${summary.omittedResumes} retomadas intermediárias omitidas`
           : ''}
       </p>
-      <p role="status" aria-live="polite" className="mt-2 text-sm">
-        {copyStatusText(copyStatus, manualText)}
+      <p className="mt-2 text-sm">
+        <output className="contents" aria-live="polite">
+          {copyStatusText(copyStatus, manualText)}
+        </output>
       </p>
       {manualText !== null && (
         <label className="mt-2 block text-sm">

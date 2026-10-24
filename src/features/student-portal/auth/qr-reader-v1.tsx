@@ -120,7 +120,7 @@ function CameraBlockedV1({ onRetry }: Readonly<{ onRetry: () => void }>) {
       <div className="pa-camera-blocked-how">
         <div className="pa-camera-blocked-how-top">
           <strong>Liberar a câmera</strong>
-          <span className="pa-camera-blocked-platforms" role="group" aria-label="Tipo de celular">
+          <fieldset className="min-w-auto pa-camera-blocked-platforms" aria-label="Tipo de celular">
             {(['android', 'iphone'] as const).map((item) => (
               <button
                 key={item}
@@ -131,7 +131,7 @@ function CameraBlockedV1({ onRetry }: Readonly<{ onRetry: () => void }>) {
                 {item === 'android' ? 'Android' : 'iPhone'}
               </button>
             ))}
-          </span>
+          </fieldset>
         </div>
         <ol className="pa-camera-blocked-steps">
           {platform === 'android' ? (
@@ -393,13 +393,17 @@ export function StudentQrReaderV1({
         hidden={state !== 'camera' && state !== 'opening'}
       />
       {state === 'camera' && showDistanceTip ? (
-        <p className="card__description" role="status">
-          Se ficar borrado, afaste um pouco o cartão.
+        <p className="card__description">
+          <output className="contents">Se ficar borrado, afaste um pouco o cartão.</output>
         </p>
       ) : null}
       {message ? <p role="alert">{message}</p> : null}
       {state === 'opening' || state === 'image' ? (
-        <p role="status">{state === 'image' ? 'Lendo imagem…' : 'Abrindo câmera…'}</p>
+        <p>
+          <output className="contents">
+            {state === 'image' ? 'Lendo imagem…' : 'Abrindo câmera…'}
+          </output>
+        </p>
       ) : null}
       <div className="pa-auth-actions">
         {state === 'idle' && !blocked ? (

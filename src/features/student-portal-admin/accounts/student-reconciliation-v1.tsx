@@ -456,8 +456,10 @@ export function StudentReconciliationV1({
     return (
       <>
         {pendingOnly && context && !error ? (
-          <p role="status" className="text-sm text-muted">
-            {items.length} {items.length === 1 ? 'pendência carregada' : 'pendências carregadas'}
+          <p className="text-sm text-muted">
+            <output className="contents">
+              {items.length} {items.length === 1 ? 'pendência carregada' : 'pendências carregadas'}
+            </output>
           </p>
         ) : null}
         <ReconciliationListV1

@@ -53,7 +53,7 @@
 .pa-account-qr-panel .pa-credentials-actions button {
   padding-inline: 0.25rem;
 }
-.pa-account-qr-panel .pa-credentials-actions [role='status'] {
+.pa-account-qr-panel .pa-credentials-actions :has(> output) {
   color: var(--muted);
   font-size: 0.8rem;
 }

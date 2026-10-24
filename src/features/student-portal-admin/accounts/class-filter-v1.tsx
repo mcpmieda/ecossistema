@@ -65,8 +65,8 @@ function LocalClassTabsV1({
         />
       ) : null}
       {read.state.state === 'loading' || read.state.state === 'idle' ? (
-        <span role="status" className="text-xs text-muted">
-          Carregando turmas…
+        <span className="text-xs text-muted">
+          <output className="contents">Carregando turmas…</output>
         </span>
       ) : null}
     </div>

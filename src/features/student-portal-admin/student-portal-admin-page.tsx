@@ -198,7 +198,12 @@ export function StudentPortalAdminPage({
   useEffect(() => {
     if (unauthenticated) onLogin();
   }, [unauthenticated, onLogin]);
-  if (unauthenticated) return <p role="status">Abrindo entrada institucional…</p>;
+  if (unauthenticated)
+    return (
+      <p>
+        <output className="contents">Abrindo entrada institucional…</output>
+      </p>
+    );
   if (auth.state.state !== 'ready')
     return (
       <section className="pa-admin-page">
@@ -208,7 +213,9 @@ export function StudentPortalAdminPage({
             : 'Painel do Aluno'}
         </h1>
         {auth.state.state === 'checking' ? (
-          <p role="status">Verificando sessão administrativa…</p>
+          <p>
+            <output className="contents">Verificando sessão administrativa…</output>
+          </p>
         ) : (
           <Alert status="warning">
             <Alert.Content>
@@ -485,8 +492,8 @@ function PortalWorkspace({
       {section === 'sessions' || section === 'settings' ? (
         <>
           {!common.canWrite && (
-            <p role="status" className="text-xs text-muted">
-              Somente leitura
+            <p className="text-xs text-muted">
+              <output className="contents">Somente leitura</output>
             </p>
           )}
           <Suspense fallback={sectionFallback}>
@@ -535,8 +542,8 @@ function PortalWorkspace({
             />
           ) : null}
           {!common.canWrite && (
-            <p role="status" className="text-xs text-muted">
-              Somente leitura
+            <p className="text-xs text-muted">
+              <output className="contents">Somente leitura</output>
             </p>
           )}
           {sectionScope && (

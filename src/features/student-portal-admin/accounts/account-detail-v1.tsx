@@ -249,7 +249,7 @@ function AccountDetailBodyV1({
       </Card.Header>
       <Card.Content>
         {mutation.state === 'committed' && (
-          <div role="status" className="pa-account-notice">
+          <output className="block pa-account-notice">
             <p>Alteração salva.</p>
             {mutation.operation === 'account-reset' && (
               <p>
@@ -270,7 +270,7 @@ function AccountDetailBodyV1({
                 necessário regenerar novamente.
               </p>
             )}
-          </div>
+          </output>
         )}
         {failed && (
           <div role="alert" className="pa-account-notice">
@@ -293,8 +293,8 @@ function AccountDetailBodyV1({
             </Button>
           </div>
         )}
-        {pending && <p role="status">Salvando…</p>}
-        {waiting && !shown && <p role="status">Carregando aluno…</p>}
+        {pending && <p><output className="contents">Salvando…</output></p>}
+        {waiting && !shown && <p><output className="contents">Carregando aluno…</output></p>}
         {!protectedFailure && read.state.state === 'error' && (
           <AccountsErrorV1
             error={read.state.error}
@@ -303,9 +303,9 @@ function AccountDetailBodyV1({
           />
         )}
         {!protectedFailure && read.state.state === 'ready' && !account && (
-          <p role="status">
+          <p><output className="contents">
             Conta não encontrada neste escopo. Nenhuma conta foi criada ou associada pelo nome.
-          </p>
+          </output></p>
         )}
         {shown && (
           <>
