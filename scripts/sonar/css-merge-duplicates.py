@@ -3,7 +3,7 @@
 Later declarations win (as in the cascade) and are moved up to the first rule's place; the later
 rule (and its comment) disappears. Reports any rule between the two with the same selector
 specificity that sets one of the moved properties and shares a class with it: those would change.
-Usage: python scripts/sonar/css-merge-duplicates.py <file.css> [--write]   (then validate with lightningcss)
+Usage: python scripts/sonar/css-merge-duplicates.py <file.css> [--write]   (then validate with lightningcss and compare computed styles in the browser)
 """
 import re
 import sys
@@ -76,9 +76,7 @@ def disjoint(a, b):
     ta, tb = re.match(r'^[a-z][\w-]*', la), re.match(r'^[a-z][\w-]*', lb)
     if ta and tb and ta.group(0) != tb.group(0):
         return True
-    ca, cb = set(re.findall(r'\.[\w-]+', la)), set(re.findall(r'\.[\w-]+', lb))
-    if ca and cb and not (ca & cb):
-        return True
+    # Different classes do NOT prove different elements (.card and .card--positive share one).
     na, nb = re.findall(r':nth-child\(([^)]*)\)', a), re.findall(r':nth-child\(([^)]*)\)', b)
     if na and nb and len(na) == len(nb) and na != nb and all(re.fullmatch(r'\d+', x) for x in na + nb):
         return True
@@ -175,10 +173,8 @@ def process(src, depth=0):
                 for osel, obody in inner:
                     if osel.startswith('@') or spec(osel) > spec(sel) or disjoint(sel, osel):
                         continue
-                    if not (classes & set(re.findall(r'\.[\w-]+', osel))):
-                        continue
                     props = {prop for prop, _ in decls(obody)} & moved
-                    if props and (spec(osel) == spec(sel) or other[2].startswith('@')):
+                    if props and spec(osel) == spec(sel):
                         found.append(f'{sel}  <->  {osel}: {sorted(props)}')
             return found
 

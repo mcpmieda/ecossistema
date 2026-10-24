@@ -266,6 +266,7 @@
   align-self: center;
   max-width: 48rem;
   padding: 2rem 0 2.1rem;
+  animation: pa-hero-rise 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .pa-hero-greeting {
   margin: 0 0 0.2rem;
@@ -680,10 +681,11 @@
     font-size: 0.74rem;
   }
   .pa-hero-body {
-    grid-template-columns: minmax(0, 1.02fr) minmax(18rem, 0.98fr);
-    gap: 1.25rem;
-    min-height: 13.25rem;
-  }
+  grid-template-columns: minmax(0, 1.02fr) minmax(18rem, 0.98fr);
+  gap: 1.25rem;
+  min-height: 13.25rem;
+  position: relative;
+}
   /* Mobile proportions scaled up (~1.6×): top-anchored copy, details keep pace with the name. */
   .pa-hero-copy {
     align-self: start;
@@ -712,9 +714,7 @@
     width: 20px;
     height: 20px;
   }
-  .pa-hero-body {
-    position: relative;
-  }
+  
   /* Same composition as mobile: portrait sinks below the content sheet. */
   .pa-hero-portrait {
     position: absolute;
@@ -756,10 +756,11 @@
     font-size: 0.78rem;
   }
   .pa-hero-body {
-    grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.92fr);
-    gap: 2rem;
-    min-height: 14.7rem;
-  }
+  grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.92fr);
+  gap: 2rem;
+  min-height: 14.7rem;
+  position: relative;
+}
   .pa-hero-copy {
     align-self: start;
     max-width: 36rem;
@@ -786,9 +787,7 @@
     width: 21px;
     height: 21px;
   }
-  .pa-hero-body {
-    position: relative;
-  }
+  
   .pa-hero-portrait {
     position: absolute;
     right: calc(18% - 10rem);
@@ -805,10 +804,7 @@
     border-radius: 2.6rem 2.6rem 0 0;
   }
 }
-/* Hero entrance, once per mount: the copy rises, then the portrait settles onto the glass. */
-.pa-hero-copy {
-  animation: pa-hero-rise 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
+
 @keyframes pa-hero-rise {
   from {
     opacity: 0;
