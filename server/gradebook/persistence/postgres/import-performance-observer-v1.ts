@@ -80,7 +80,7 @@ function marker(query: string): ImportSqlMarkerV1 | null {
 function category(query: string): SqlCategoryV1 {
   const known = marker(query);
   if (known) return known.startsWith('read-set-') || known.endsWith('-read') ? 'read' : 'write';
-  const sql = query.trim().replace(/\s+/gu, ' ').toLowerCase();
+  const sql = query.trim().replaceAll(/\s+/gu, ' ').toLowerCase();
   if (
     /^select (?:pg_advisory_xact_lock(?:_shared)?|student_portal\.ensure_year_coordination_v1)\(/u.test(
       sql,
@@ -100,7 +100,7 @@ function category(query: string): SqlCategoryV1 {
   )
     return 'write';
   if (
-    /^select /u.test(sql) &&
+    sql.startsWith('select ') &&
     !/\b(?:student_portal\.[a-z_]+\(|pg_[a-z_]+\()/u.test(sql) &&
     /\bfrom gradebook\.(?:ano_letivo|turma|aluno|vinculo|professor|disciplina|oferta|instrumento|nota|fechamento|conselho_decisao|conselho_votacao)\b/u.test(
       sql,
@@ -132,7 +132,7 @@ function directMutation(
   if (entry) return { category: entry[0], action: entry[1] };
   if (!/^\s*(?:insert|update|delete)\b/iu.test(query)) return null;
   const match = /^(insert into|update|delete from) gradebook\.([a-z_]+)\b/u.exec(
-    query.trim().replace(/\s+/gu, ' ').toLowerCase(),
+    query.trim().replaceAll(/\s+/gu, ' ').toLowerCase(),
   );
   if (!match) return null;
   const table = match[2]!;

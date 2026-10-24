@@ -152,7 +152,7 @@ export async function servePhotoRuntimeV1(request: Request, env: RuntimeEnv, cod
     return json({ version: 1, state: 'catalog', traceId, canWrite, catalog });
   } catch (error) {
     if (image && error instanceof Error) {
-      const reason = /^student-photo-storage-[a-z-]+(?:-[0-9]{3})?$/u.test(error.message)
+      const reason = /^student-photo-storage-[a-z-]+(?:-\d{3})?$/u.test(error.message)
         ? error.message : error.name;
       console.error('student-photo-image-unavailable', reason);
     }

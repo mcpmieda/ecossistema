@@ -1,11 +1,9 @@
-import type {
-  GradebookImportPersistenceIssueV2,
-  GradebookImportPersistenceRequestInspectionV2,
-  GradebookImportPersistenceRequestRejectionV2,
-  GradebookImportPersistenceRequestV2,
-  GradebookImportPersistenceSummaryV2,
-} from './import-persistence-transport-v2';
 import {
+  type GradebookImportPersistenceIssueV2,
+  type GradebookImportPersistenceRequestInspectionV2,
+  type GradebookImportPersistenceRequestRejectionV2,
+  type GradebookImportPersistenceRequestV2,
+  type GradebookImportPersistenceSummaryV2,
   GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V2,
   GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V2,
   GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V2,
@@ -15,6 +13,7 @@ import {
   inspectGradebookImportPersistenceRequestV2,
   isGradebookImportPersistenceResponseV2,
 } from './import-persistence-transport-v2';
+
 import type {
   GradebookImportRecoverySheetObservationV1,
   GradebookImportRecoveryStudentObservationV1,

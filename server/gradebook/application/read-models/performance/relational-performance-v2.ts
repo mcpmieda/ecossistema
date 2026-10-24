@@ -26,14 +26,13 @@ import type {
   SimplifiedAcademicTermV1,
   SimplifiedRecoveryValueV1,
 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
-import type {
-  GradebookPostgresWritePortV1,
-  GradebookPostgresScalarV1,
+import {
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresScalarV1,
+  type GradebookPostgresReadPortV1,
+  type GradebookPostgresTransactionV1
 } from '../../../persistence/postgres/postgres-database-v1';
-import type {
-  GradebookPostgresReadPortV1,
-  GradebookPostgresTransactionV1,
-} from '../../../persistence/postgres/postgres-database-v1';
+
 import {
   projectPerformanceFactsV2,
   performanceCellV2,

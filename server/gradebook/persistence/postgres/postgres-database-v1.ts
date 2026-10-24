@@ -91,7 +91,7 @@ function failureDiagnostic(query: string, cause: unknown): GradebookPostgresFail
   const message = errorMessage(cause);
   const operation = /^\s*([A-Za-z]+)/u.exec(query)?.[1]?.toUpperCase() ?? 'UNKNOWN';
   const relation =
-    /\b(?:FROM|INTO|TABLE|UPDATE)\s+(?:gradebook\.)?([A-Za-z_][A-Za-z0-9_]*)/iu.exec(query)?.[1] ??
+    /\b(?:FROM|INTO|TABLE|UPDATE)\s+(?:gradebook\.)?([A-Z_][A-Z0-9_]*)/iu.exec(query)?.[1] ??
     null;
   const code =
     cause !== null && typeof cause === 'object' && 'code' in cause ? cause.code : undefined;
@@ -254,7 +254,7 @@ export async function createGradebookPostgresDatabaseV1(
     connection: {
       application_name: 'ecossistema-escola-gradebook',
       statement_timeout: options.statementTimeoutMilliseconds ?? 30_000,
-      lock_timeout: options.lockTimeoutMilliseconds ?? 5_000,
+      lock_timeout: options.lockTimeoutMilliseconds ?? 5000,
       idle_in_transaction_session_timeout: options.idleInTransactionTimeoutMilliseconds ?? 30_000,
     },
   });

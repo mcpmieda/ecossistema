@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Label, Switch } from '@heroui/react';
 import { Award, CalendarClock, Eye, EyeOff, Info } from 'lucide-react';
-import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
+import {
+  type EffectiveSettingsV1,
+  type settingsOverrideV1,
+} from '../../../../shared/student-portal-contracts/policy-v1';
 import {
   accessOpenAtV1,
   anticipateAccessV1,
@@ -28,7 +31,6 @@ import {
   scheduleWhenV1,
   useScheduleClockV1,
 } from './schedule-editor-v1';
-import type { settingsOverrideV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 
 type OverrideV1 = ReturnType<typeof settingsOverrideV1.parse>;
 export type GradeReviewIntentV1 = {

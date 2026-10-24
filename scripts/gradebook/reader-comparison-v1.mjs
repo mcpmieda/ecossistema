@@ -127,7 +127,7 @@ function largerGradeSheet(template, classCode) {
   const sheet = structuredClone(template);
   const rowCells = Object.entries(sheet).filter(([address]) => /^[A-Z]+5$/u.test(address));
   for (const key of Object.keys(sheet)) {
-    const address = /^[A-Z]+([0-9]+)$/u.exec(key);
+    const address = /^[A-Z]+(\d+)$/u.exec(key);
     if (address && Number(address[1]) >= 5) delete sheet[key];
   }
   for (let row = 5; row <= 16; row += 1) {

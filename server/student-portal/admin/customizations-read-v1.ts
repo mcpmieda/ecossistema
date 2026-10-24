@@ -44,7 +44,7 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   const publicationVersion = versionV1.parse(Number(meta.version));
   const epoch = versionV1.parse(Number(meta.epoch));
   const generation = z.string().regex(/^[a-f0-9]{32}$/u).parse(meta.generation);
-  const headRevision = z.string().regex(/^[1-9][0-9]{0,19}$/u).parse(meta.revision);
+  const headRevision = z.string().regex(/^[1-9]\d{0,19}$/u).parse(meta.revision);
   const args: unknown[] = [generation, headRevision, epoch, publicationVersion];
   const bind = (value: unknown) => { args.push(value); return `$${args.length}`; };
   const defaults = bind(JSON.stringify(schoolDefaults));

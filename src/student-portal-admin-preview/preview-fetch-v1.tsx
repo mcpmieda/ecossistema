@@ -29,7 +29,7 @@ const previewSchool = (() => {
       ...base.calendar,
       yearStartsAt: '2026-02-23T03:00:00Z',
       yearEndsAt: '2026-12-18T21:00:00Z',
-      accessStartsAt: new Date(Date.now() + 2 * 3600_000).toISOString().replace(/\.\d{3}Z$/u, 'Z'),
+      accessStartsAt: new Date(Date.now() + 2 * 3_600_000).toISOString().replace(/\.\d{3}Z$/u, 'Z'),
     },
   } as EffectiveSettingsV1['value'];
 })();

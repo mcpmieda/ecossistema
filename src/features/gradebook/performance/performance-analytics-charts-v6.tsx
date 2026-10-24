@@ -152,7 +152,7 @@ export function AnalyticsTimelineV6({
       continue;
     }
     if (!segments.length) segments.push([]);
-    segments[segments.length - 1]!.push({ index, value: value.mean });
+    segments.at(-1)!.push({ index, value: value.mean });
   }
   return (
     <AnalyticsPanelV6
@@ -190,7 +190,7 @@ export function AnalyticsTimelineV6({
         {segments.filter((segment) => segment.length > 1).map((segment) => {
           const path = segment.map((point, index) => `${index ? 'L' : 'M'} ${x(point.index)} ${y(point.value)}`).join(' ');
           return <g key={segment[0]!.index}>
-            <path d={`${path} L ${x(segment[segment.length - 1]!.index)} 186 L ${x(segment[0]!.index)} 186 Z`} fill={`url(#${gradient})`} />
+            <path d={`${path} L ${x(segment.at(-1)!.index)} 186 L ${x(segment[0]!.index)} 186 Z`} fill={`url(#${gradient})`} />
             <path className="analytics-line" pathLength={1} d={path} stroke="var(--accent)" strokeWidth="3" fill="none" strokeLinejoin="round" />
           </g>;
         })}

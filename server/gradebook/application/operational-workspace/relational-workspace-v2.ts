@@ -15,8 +15,8 @@ import {
   type WorkspaceYearV2,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
-import type { GradebookPostgresWritePortV1, GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresWritePortV1, type GradebookPostgresScalarV1, type GradebookPostgresReadPortV1, type GradebookPostgresTransactionV1  } from '../../persistence/postgres/postgres-database-v1';
+
 
 type Row = Record<string, unknown>;
 type Database = GradebookPostgresWritePortV1 & {

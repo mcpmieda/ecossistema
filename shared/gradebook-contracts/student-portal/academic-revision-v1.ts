@@ -7,7 +7,7 @@ export const portalAcademicLinkSchemaV1 = z
   })
   .strict();
 // Durable generation + counter: never reset/reuse a version after reset or restore.
-export const academicVersionSchemaV1 = z.string().regex(/^[a-f0-9]{32}:[1-9][0-9]{0,19}$/u);
+export const academicVersionSchemaV1 = z.string().regex(/^[a-f0-9]{32}:[1-9]\d{0,19}$/u);
 export const academicRevisionSchemaV1 = z
   .object({
     contractVersion: z.literal(1),

@@ -8,7 +8,7 @@ import { adaptWorksheetConsumersV1 } from '../../tests/gradebook/fixtures/reader
 
 const root = process.cwd();
 const gitExecutable =
-  process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
+  process.platform === 'win32' ? String.raw`C:\Program Files\Git\cmd\git.exe` : '/usr/bin/git';
 const baseline =
   process.argv.find((value) => value.startsWith('--baseline='))?.slice(11) ??
   '9f95387a4588653a2631288f929d94b4350bb5d6';

@@ -8,11 +8,12 @@ import {
   type RelationalBulletinHistoryItemV2,
   type RelationalBulletinSnapshotV2,
 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
-import type { GradebookPostgresWritePortV1 } from './postgres-database-v1';
-import type {
-  GradebookPostgresReadPortV1,
-  GradebookPostgresTransactionV1,
+import {
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresReadPortV1,
+  type GradebookPostgresTransactionV1,
 } from './postgres-database-v1';
+
 import { createGradebookPostgresParametersV1 } from './postgres-parameters-v1';
 import { postgresJsonTextV1 } from './postgres-values-v1';
 
@@ -75,7 +76,7 @@ export function createRelationalBulletinSnapshotRepositoryV2(
 ): RelationalBulletinSnapshotRepositoryV2 {
   const transactional = database as TransactionDatabaseV2;
   if (typeof transactional.transaction !== 'function') {
-    throw new Error('relational-bulletin-postgres-required');
+    throw new TypeError('relational-bulletin-postgres-required');
   }
 
   return {

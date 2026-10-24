@@ -390,7 +390,7 @@ export function useTodayV3() {
   const [today, setToday] = useState(schoolDateOnDeviceV3);
   useEffect(() => {
     const check = () => setToday(schoolDateOnDeviceV3());
-    const untilMidnight = () => DAY_MS - ((Date.now() + SCHOOL_UTC_OFFSET_MS) % DAY_MS) + 1_000;
+    const untilMidnight = () => DAY_MS - ((Date.now() + SCHOOL_UTC_OFFSET_MS) % DAY_MS) + 1000;
     let timer = window.setTimeout(function tick() {
       check();
       timer = window.setTimeout(tick, untilMidnight());

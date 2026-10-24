@@ -47,3 +47,12 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
 ## Registro
 
 - 23/10/2026: #1323 zerou os bugs (ordenações, comparações exatas marcadas, exclusões de migrations).
+- 23/10/2026: #1325 vulnerabilidade do CI e regras Oracle (etapas 1 e 2).
+- 23/10/2026: etapa 3, parte automática (ramo `chore/sonar-mecanicas`): ESLint com `unicorn`,
+  `import-x` e `regexp` instalados FORA do repositório (pasta temporária, `npm i eslint@9
+  eslint-plugin-unicorn@60 eslint-plugin-import-x@4 eslint-plugin-regexp@2 @typescript-eslint/parser@8
+  @typescript-eslint/eslint-plugin@8`) e `--fix` só nos arquivos apontados. Cuidados aprendidos:
+  NÃO usar `unicorn/prefer-math-min-max` (trocou comparação de textos por `Math.max`), nem
+  `findLast` em TypeScript (a lib do projeto é ES2022), nem `.includes` em guardas de tipo
+  (`x is T`); um teste confere o texto `bucket === 'below'` em `performance-dashboard-v5.ts`.
+  Ficaram para mão: ~33 optional chain, S7758 codePointAt, S4043, S3735 void, S2681 e as raras.

@@ -13,11 +13,11 @@ import {
   type YearResetCountsV1,
   type YearResetResponseV1,
 } from '../../../../shared/gradebook-contracts/settings/year-reset-contract-v1';
-import type {
-  GradebookPostgresWritePortV1,
-  GradebookPostgresScalarV1,
+import {
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresScalarV1, type GradebookPostgresTransactionV1 
 } from '../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+
 import { inOrderV1 } from '../../../../shared/in-order-v1';
 import { frequencyYearCountsV2, resetFrequencyYearV2 } from '../../../attendance/service-v2';
 

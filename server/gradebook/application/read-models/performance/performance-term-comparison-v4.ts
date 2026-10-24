@@ -1,4 +1,4 @@
-import { performanceResultCountsV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+import { performanceResultCountsV2, performanceResponseSchemaV2, type PerformanceMatrixV2  } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   performanceTermComparisonRequestSchemaV4, performanceTermComparisonResponseSchemaV4,
   performanceTermComparisonMatchesV4, termComparisonAnalysisRequestV3,
@@ -6,15 +6,15 @@ import {
   type PerformanceTermComparisonResponseV4,
   type PerformanceTermComparisonValueV4,
 } from '../../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
-import { performanceResponseSchemaV2, type PerformanceMatrixV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+
 import { performanceAnalysisRequestSchemaV3, type AnalysisReadingV3 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import {
   performanceCellV2,
   performanceRecoveryCellIsRelevantV2,
   type PerformanceProjectionV2,
 } from '../../results/relational-performance-facts-v2';
-import type { GradebookPostgresWritePortV1 } from '../../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresTransactionV1 } from '../../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../../persistence/postgres/postgres-database-v1';
+
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
 

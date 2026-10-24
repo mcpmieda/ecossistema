@@ -4,11 +4,12 @@ import {
   serializeJsonRecordV1,
   type SerializedJsonRecordV1,
 } from './json-record-chunks-v1';
-import type { GradebookPostgresScalarV1 } from './postgres-database-v1';
-import type {
-  GradebookPostgresExecutionV1,
-  GradebookPostgresWritePortV1,
+import {
+  type GradebookPostgresScalarV1,
+  type GradebookPostgresExecutionV1,
+  type GradebookPostgresWritePortV1,
 } from './postgres-database-v1';
+
 import { postgresJsonTextV1, type GradebookPostgresValueV1 } from './postgres-values-v1';
 import {
   importPerformanceNowV1,
@@ -109,12 +110,12 @@ function transactionDatabase(database: GradebookPostgresWritePortV1): Transactio
 }
 
 function compactSql(query: string): string {
-  return query.trim().replace(/\s+/gu, ' ').toLowerCase();
+  return query.trim().replaceAll(/\s+/gu, ' ').toLowerCase();
 }
 
 function integer(value: GradebookPostgresValueV1, label: string): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
-    throw new Error(`gradebook-import-buffer-invalid-${label}`);
+    throw new TypeError(`gradebook-import-buffer-invalid-${label}`);
   }
   return value;
 }

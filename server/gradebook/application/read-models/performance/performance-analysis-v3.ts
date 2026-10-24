@@ -1,4 +1,4 @@
-import { performanceResultCountsV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+import { performanceResultCountsV2, type PerformanceMatrixV2  } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   analysisMatrixRequestV2,
   performanceAnalysisRequestSchemaV3,
@@ -10,10 +10,10 @@ import {
   type PerformanceAnalysisV3,
   type AnalysisReadingV3,
 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
-import type { PerformanceMatrixV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+
 import { SIMPLIFIED_TERM_MAXIMUM_MILLI_V1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
-import type { GradebookPostgresWritePortV1 } from '../../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresTransactionV1 } from '../../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../../persistence/postgres/postgres-database-v1';
+
 import {
   performanceRecoveryCellIsRelevantV2,
   type PerformanceProjectionV2,
@@ -65,7 +65,7 @@ function dimension(
   const maxima = quantitative
     ? outcomes.map((value) => value!.quantitativeMaximumMilli)
     : factsByTerm.flat().map((fact) => fact.maximumMilli);
-  const maximumMilli = maxima.some((value) => value === null) ? null : sum(maxima as number[]);
+  const maximumMilli = maxima.includes(null) ? null : sum(maxima as number[]);
   return {
     state,
     recordedMilli: null,

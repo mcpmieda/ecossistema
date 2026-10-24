@@ -52,7 +52,7 @@ export function isSnapshotSourceEvidenceV5(value: unknown): value is SnapshotSou
     return false;
   if (
     !/^[a-f0-9]{64}$/iu.test(provenance.fileSha256 as string) ||
-    !/^[A-Z]+[1-9][0-9]*$/iu.test(provenance.cellAddress as string)
+    !/^[A-Z]+[1-9]\d*$/iu.test(provenance.cellAddress as string)
   )
     return false;
   if (item.classification === 'snapshot-unavailable') return item.rawValue === null;

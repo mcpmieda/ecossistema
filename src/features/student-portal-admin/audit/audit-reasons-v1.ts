@@ -91,8 +91,7 @@ export function auditDetailRowsV1(
   if (!detail) return [];
   const rows: { label: string; value: string }[] = [];
   if (detail.reason) {
-    rows.push({ label: 'Motivo', value: AUDIT_REASON_LABELS_V1[detail.reason].label });
-    rows.push({ label: 'Como orientar', value: AUDIT_REASON_LABELS_V1[detail.reason].help });
+    rows.push({ label: 'Motivo', value: AUDIT_REASON_LABELS_V1[detail.reason].label }, { label: 'Como orientar', value: AUDIT_REASON_LABELS_V1[detail.reason].help });
   }
   if (detail.step) rows.push({ label: 'Etapa', value: STEP_LABELS_V1[detail.step] });
   if (detail.failures !== undefined && detail.blockAfter !== undefined)

@@ -86,7 +86,7 @@ export function createAuditDetailV1(
       }
       const deadline = Math.min(
         detail.ipExpiresAt ? Date.parse(detail.ipExpiresAt) : 0,
-        Date.parse(detail.event.at) + 90 * 86400_000,
+        Date.parse(detail.event.at) + 90 * 86_400_000,
       );
       const allowed = detail.ip !== null && deadline > serverNow;
       const safe: DetailV1 = {

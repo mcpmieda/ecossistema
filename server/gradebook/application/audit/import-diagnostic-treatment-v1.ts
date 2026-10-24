@@ -1,5 +1,7 @@
 import { lockResetWriterV1, recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
-import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresTransactionV1,
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
 import { createGradebookPostgresParametersV1 } from '../../persistence/postgres/postgres-parameters-v1';
 import {
   IMPORT_DIAGNOSTIC_TREATMENT_ACTION_LABELS_V1,
@@ -12,10 +14,7 @@ import {
   type ImportDiagnosticTreatmentRequestV1,
   type ImportDiagnosticTreatmentResponseV1,
 } from '../../../../shared/gradebook-contracts/audit/import-diagnostic-treatment-v1';
-import type {
-  GradebookPostgresWritePortV1,
-  GradebookPostgresScalarV1,
-} from '../../persistence/postgres/postgres-database-v1';
+
 
 type Row = Record<string, unknown>;
 type TransactionalDatabase = GradebookPostgresWritePortV1 & {

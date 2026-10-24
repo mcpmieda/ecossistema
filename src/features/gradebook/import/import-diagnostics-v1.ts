@@ -1,11 +1,11 @@
-import type {
-  GradebookImportDiagnosticAuditItemV1,
-  GradebookImportDiagnosticCodeV1,
-  GradebookImportDiagnosticFieldKindV1,
-  GradebookImportDiagnosticSeverityV1,
-  GradebookImportDiagnosticsAuditRequestV1,
+import {
+  type GradebookImportDiagnosticAuditItemV1,
+  type GradebookImportDiagnosticCodeV1,
+  type GradebookImportDiagnosticFieldKindV1,
+  type GradebookImportDiagnosticSeverityV1,
+  type GradebookImportDiagnosticsAuditRequestV1, GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1 
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
-import { GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+
 import { SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
 import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { BatchSuccess } from './import-batch';

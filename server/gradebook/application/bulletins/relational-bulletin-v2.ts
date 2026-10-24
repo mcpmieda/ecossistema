@@ -26,12 +26,11 @@ import {
 import type { SimplifiedAcademicTermV1 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../persistence/postgres/active-instrument-predicate-v1';
 import type { RelationalBulletinSnapshotRepositoryV2 } from '../../persistence/postgres/relational-bulletin-snapshot-v2';
-import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresReadPortV1, type GradebookPostgresTransactionV1,
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
 import { createGradebookPostgresParametersV1 } from '../../persistence/postgres/postgres-parameters-v1';
-import type {
-  GradebookPostgresWritePortV1,
-  GradebookPostgresScalarV1,
-} from '../../persistence/postgres/postgres-database-v1';
+
 import {
   createRelationalAcademicProjectionServiceV1,
   RELATIONAL_PROJECTION_BATCH_LIMIT_V1,
@@ -534,7 +533,7 @@ export function createRelationalBulletinServiceV2(
   const createSnapshotId = dependencies.createSnapshotId ?? (() => crypto.randomUUID());
   const database = dependencies.database as TransactionDatabaseV2;
   if (typeof database.transaction !== 'function') {
-    throw new Error('relational-bulletin-postgres-required');
+    throw new TypeError('relational-bulletin-postgres-required');
   }
 
   async function materialize(

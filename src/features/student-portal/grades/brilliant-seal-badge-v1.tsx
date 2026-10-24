@@ -22,7 +22,7 @@ const STAR_POINTS = Array.from({ length: 10 }, (_, index) => {
 }).join(' ');
 
 export function BrilliantSealBadgeV1({ label = 'Selo Brilhante' }: { label?: string }) {
-  const id = useId().replace(/:/gu, '');
+  const id = useId().replaceAll(':', '');
   const gold = `${id}-gold`;
   const face = `${id}-face`;
   const edge = `${id}-edge`;

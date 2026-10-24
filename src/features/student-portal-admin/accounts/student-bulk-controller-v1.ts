@@ -111,8 +111,7 @@ export function createStudentBulkControllerV1(
       } while (cursor);
       if (!first || all.length !== first.totalCount)
         throw new PortalClientErrorV1('invalid-response');
-      const chosen =
-        selected && selected.size ? all.filter(({ item }) => selected.has(item.accountId)) : all;
+      const chosen = selected?.size ? all.filter(({ item }) => selected.has(item.accountId)) : all;
       prepared = chosen.flatMap(({ item, proof }, index) =>
         item.ineligibility
           ? []

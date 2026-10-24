@@ -101,7 +101,7 @@ function verifier(value: unknown, field: string): VerifierV1 | null {
   const normalizedParameters: Record<string, number> = {};
   for (const [key, parameter] of Object.entries(parameters as Record<string, unknown>)) {
     if (typeof parameter !== 'number' || !Number.isFinite(parameter)) {
-      throw new Error(`student-portal-invalid-${field}-parameter`);
+      throw new TypeError(`student-portal-invalid-${field}-parameter`);
     }
     normalizedParameters[key] = parameter;
   }

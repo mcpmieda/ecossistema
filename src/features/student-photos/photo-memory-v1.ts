@@ -51,7 +51,7 @@ function entryV1(url: string) {
   return entry;
 }
 function notifyV1(entry: PhotoMemoryEntryV1) {
-  for (const listener of [...entry.listeners]) listener();
+  for (const listener of entry.listeners) listener();
 }
 function releaseSrcV1(entry: PhotoMemoryEntryV1) {
   if (entry.src) URL.revokeObjectURL(entry.src);

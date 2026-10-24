@@ -67,7 +67,7 @@ export function createQrPrintV1() {
       });
     },
     clear() {
-      for (const cancel of [...active]) cancel();
+      for (const cancel of active) cancel();
     },
   };
 }

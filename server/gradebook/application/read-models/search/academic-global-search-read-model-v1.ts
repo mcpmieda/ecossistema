@@ -90,7 +90,7 @@ function nonDisclosure(
 function normalizeSearchText(value: string): string {
   return value
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
+    .replaceAll(/\p{Diacritic}/gu, '')
     .toLocaleLowerCase('pt-BR');
 }
 
@@ -199,12 +199,12 @@ function encodeBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value);
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '');
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
 }
 
 function decodeBase64Url(value: string): string | null {
   if (!/^[A-Za-z0-9_-]+$/u.test(value)) return null;
-  const base64 = value.replace(/-/gu, '+').replace(/_/gu, '/');
+  const base64 = value.replaceAll('-', '+').replaceAll('_', '/');
   const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
 
   try {
@@ -295,7 +295,7 @@ export function createAcademicGlobalSearchReadModelV1(
       const pages = await Promise.all(
         kinds.map((kind) => listSearchableKind(repository, context, kind, internalPageSize)),
       );
-      if (pages.some((page) => page === null)) return nonDisclosure('insufficient-data');
+      if (pages.includes(null)) return nonDisclosure('insufficient-data');
 
       const results = pages
         .flatMap((page) => page ?? [])
@@ -317,7 +317,7 @@ export function createAcademicGlobalSearchReadModelV1(
       );
       if (items === null) return nonDisclosure('no-results');
 
-      const lastItem = items[items.length - 1];
+      const lastItem = items.at(-1);
       const page: GlobalSearchResultsPageV1 = {
         contractVersion: GLOBAL_SEARCH_CONTRACT_VERSION_V1,
         outcome: 'results',

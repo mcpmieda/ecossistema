@@ -167,7 +167,7 @@ export async function qrBatchV1(
       requestDigest: digest,
       operationId: crypto.randomUUID(),
       version,
-      expiresAt: new Date(now.getTime() + 86400_000).toISOString(),
+      expiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
     });
     return { cards, version };
   });
@@ -201,7 +201,7 @@ export async function closeLinksIdempotentlyV1(
       requestDigest: digest,
       operationId,
       version: result.version,
-      expiresAt: new Date(now.getTime() + 86400_000).toISOString(),
+      expiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
     });
     return { operationId, version: result.version };
   });
