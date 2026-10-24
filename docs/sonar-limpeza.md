@@ -31,7 +31,7 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
    S2681, S7778, S7763, S7755, S7765, S7786, S7773, S7780, S7747, S6557, S6749, S7750, S7766,
    S4782, S6594, S6564, S4323, S7718 e as demais de 1–6 ocorrências.
 4. [x] `typescript:S6759` (152): props de componentes como `Readonly<…>`.
-5. [ ] CSS: `css:S4666` (143) seletores duplicados (juntar blocos), `css:S9423` (24) `!important`,
+5. [~] (S4666 feito) CSS: `css:S4666` (143) seletores duplicados (juntar blocos), `css:S9423` (24) `!important`,
    `css:S9440` (10) reduced-motion, `css:S7924` (10) contraste.
 6. [ ] `typescript:S7503` (46) async sem await; `typescript:S6551` (33) stringificação de objeto.
 7. [ ] `typescript:S6819` (82) role="group" → `<fieldset>`/elementos nativos (cuidado com estilo e
@@ -57,3 +57,4 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
   (`x is T`); um teste confere o texto `bucket === 'below'` em `performance-dashboard-v5.ts`.
   Ficaram para mão: ~33 optional chain, S7758 codePointAt, S4043, S3735 void, S2681 e as raras.
 - 23/10/2026: #1326 etapa 3 automática; etapa 4 (`Readonly` nas props) com script de AST do TypeScript.
+- 24/10/2026: #1327 etapa 4. Etapa 5, S4666: seletores repetidos juntados com `cssmerge3.py` (junta na 1ª ocorrência, ou na última quando uma regra no meio, inclusive em `@media`, mudaria o resultado; também dentro de cada `@media`). Conferido no navegador: estilos calculados idênticos nas 6 abas do Desempenho e nas 6 do Painel do Aluno. Faltam S9423, S9440, S7924, S7925.
