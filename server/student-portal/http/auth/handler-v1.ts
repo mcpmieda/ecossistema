@@ -52,6 +52,69 @@ async function readBody(request: Request): Promise<unknown> {
   catch { throw new Error('invalid-request'); }
 }
 
+type FailV1 = (state: FailureV1['state']) => Response;
+type RequestIdV1 = ReturnType<typeof crypto.randomUUID>;
+
+/** The session read: at most one well-formed expected account, and the session cookie. */
+async function serveSessionReadV1(
+  request: Request,
+  sessions: Pick<SessionServiceV1, 'read'>,
+  { requestId, acceptAccessClosed, fail }: { requestId: RequestIdV1; acceptAccessClosed: boolean; fail: FailV1 },
+) {
+  const search = new URL(request.url).searchParams;
+  if (search.getAll('accountId').length > 1) return fail('invalid-request');
+  const expected = search.get('accountId');
+  if (expected !== null && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(expected)) return fail('invalid-request');
+  const token = sessionCookieTokenV1(request);
+  if (!token) return fail('unauthenticated');
+  const result = await sessions.read(token, requestId, expected ?? undefined, acceptAccessClosed);
+  if (result?.state === 'access-closed') return acceptAccessClosed ? portalJsonV1(result, 403) : fail('unauthenticated');
+  return result ? portalJsonV1(result, 200) : fail('unauthenticated');
+}
+
+/** Logout: revokes the session it names, and always clears the cookie. */
+async function serveLogoutV1(
+  request: Request,
+  sessions: Pick<SessionServiceV1, 'logout'>,
+  input: unknown,
+  requestId: RequestIdV1,
+) {
+  logoutRequestV1.parse(input);
+  const token = sessionCookieTokenV1(request);
+  // No plausible token means there is nothing to revoke; keep logout idempotent and clear it.
+  if (token) await sessions.logout(token, requestId);
+  const response = portalJsonV1(logoutResponseV1.parse({ contractVersion: 1, requestId, state: 'logged-out' }), 200);
+  response.headers.set('Set-Cookie', `${COOKIE}${FLAGS}; Max-Age=0`);
+  return response;
+}
+
+/** A sign-in step's answer: the session cookie when it ends signed in, a failure with its status. */
+function authResponseV1(
+  result: Awaited<ReturnType<AuthServiceV1['challenge' | 'activate' | 'login']>>,
+  acceptAccessClosed: boolean,
+  fail: FailV1,
+) {
+  if ('token' in result) {
+    const response = portalJsonV1(result.body, 200);
+    response.headers.set('Set-Cookie', cookie(result.token, result.body.expiresAt, result.body.persistent));
+    return response;
+  }
+  if (result.state === 'access-closed' && !acceptAccessClosed) return fail('unauthenticated');
+  if (result.state in ERROR_HTTP_V1) {
+    const response = portalJsonV1(result, ERROR_HTTP_V1[result.state as FailureV1['state']]);
+    if ('retryAfterSeconds' in result && result.retryAfterSeconds) response.headers.set('Retry-After', String(result.retryAfterSeconds));
+    return response;
+  }
+  return portalJsonV1(result, 200);
+}
+
+function authFailureV1(error: unknown, requestId: RequestIdV1, fail: FailV1) {
+  if (error instanceof PortalRateLimitErrorV1) return portalRateLimitResponseV1(error, requestId);
+  if (error instanceof ZodError || (error instanceof Error && error.message === 'invalid-request')) return fail('invalid-request');
+  if (error instanceof Error && error.message === 'body-too-large') return fail('body-too-large');
+  return fail('unavailable'); // Never serialize provider errors, SQL, inputs or credentials.
+}
+
 /** Standalone handler for #715 composition. No entrypoint or production gate is changed here. */
 export async function servePortalAuthV1(request: Request, environment: string, origin: string,
   auth: Pick<AuthServiceV1, 'challenge' | 'activate' | 'login'>, sessions: Pick<SessionServiceV1, 'read' | 'logout'>): Promise<Response> {
@@ -63,45 +126,12 @@ export async function servePortalAuthV1(request: Request, environment: string, o
   if (request.method !== (route === 'session' ? 'GET' : 'POST')) return fail('invalid-request');
   const acceptAccessClosed = request.headers.get(ACCESS_CLOSED_ACCEPT_HEADER_V1) === 'v1';
   try {
-    if (route === 'session') {
-      const search = new URL(request.url).searchParams;
-      if (search.getAll('accountId').length > 1) return fail('invalid-request');
-      const expected = search.get('accountId');
-      if (expected !== null && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(expected)) return fail('invalid-request');
-      const token = sessionCookieTokenV1(request);
-      if (!token) return fail('unauthenticated');
-      const result = await sessions.read(token, requestId, expected ?? undefined, acceptAccessClosed);
-      if (result?.state === 'access-closed') return acceptAccessClosed ? portalJsonV1(result, 403) : fail('unauthenticated');
-      return result ? portalJsonV1(result, 200) : fail('unauthenticated');
-    }
+    if (route === 'session') return await serveSessionReadV1(request, sessions, { requestId, acceptAccessClosed, fail });
     if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return fail('invalid-request');
     const input = await readBody(request);
-    if (route === 'logout') {
-      logoutRequestV1.parse(input);
-      const token = sessionCookieTokenV1(request);
-      // No plausible token means there is nothing to revoke; keep logout idempotent and clear it.
-      if (token) await sessions.logout(token, requestId);
-      const response = portalJsonV1(logoutResponseV1.parse({ contractVersion: 1, requestId, state: 'logged-out' }), 200);
-      response.headers.set('Set-Cookie', `${COOKIE}${FLAGS}; Max-Age=0`);
-      return response;
-    }
-    const result = await auth[route](input, requestId);
-    if ('token' in result) {
-      const response = portalJsonV1(result.body, 200);
-      response.headers.set('Set-Cookie', cookie(result.token, result.body.expiresAt, result.body.persistent));
-      return response;
-    }
-    if (result.state === 'access-closed' && !acceptAccessClosed) return fail('unauthenticated');
-    if (result.state in ERROR_HTTP_V1) {
-      const response = portalJsonV1(result, ERROR_HTTP_V1[result.state as FailureV1['state']]);
-      if ('retryAfterSeconds' in result && result.retryAfterSeconds) response.headers.set('Retry-After', String(result.retryAfterSeconds));
-      return response;
-    }
-    return portalJsonV1(result, 200);
+    if (route === 'logout') return await serveLogoutV1(request, sessions, input, requestId);
+    return authResponseV1(await auth[route](input, requestId), acceptAccessClosed, fail);
   } catch (error) {
-    if (error instanceof PortalRateLimitErrorV1) return portalRateLimitResponseV1(error, requestId);
-    if (error instanceof ZodError || (error instanceof Error && error.message === 'invalid-request')) return fail('invalid-request');
-    if (error instanceof Error && error.message === 'body-too-large') return fail('body-too-large');
-    return fail('unavailable'); // Never serialize provider errors, SQL, inputs or credentials.
+    return authFailureV1(error, requestId, fail);
   }
 }
