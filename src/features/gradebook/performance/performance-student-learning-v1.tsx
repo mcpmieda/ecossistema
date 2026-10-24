@@ -101,7 +101,7 @@ export function PerformanceStudentLearningV1({
   if (!student) return null;
   const evidence = value.learning?.students.find((item) => item.studentId === studentId);
   const dimensions = evidence?.dimensions;
-  const offers = new Map(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
+  const offers = new Map<number, string>(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
   const complete = student.cells.filter(
     (cell) => performanceResultCountsV2(cell.result.state) && cell.percent !== null,
   );

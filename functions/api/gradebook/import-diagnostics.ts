@@ -20,6 +20,7 @@ import {
   type GradebookImportDiagnosticsAuditWriteResponseV1,
 } from '../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import { enforceOfficialOrigin, enforceWriteOrigin, HttpError, withSecurityHeaders } from '../../../server/http/security';
+import { scalarTextV1 } from '../../../shared/scalar-text-v1';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 type Row = Record<string, unknown>;
@@ -42,7 +43,7 @@ function asInteger(value: unknown): number {
   return number;
 }
 function nullableString(value: unknown): string | null {
-  return value === null || value === undefined ? null : String(value);
+  return value === null || value === undefined ? null : scalarTextV1(value);
 }
 function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
   return {
@@ -51,17 +52,17 @@ function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
     severity: String(row.nivel) as GradebookImportDiagnosticsAuditRecordV1['severity'],
     code: String(row.codigo) as GradebookImportDiagnosticsAuditRecordV1['code'],
     message: messageFor(String(row.codigo)), recommendedAction: actionFor(String(row.codigo)),
-    ...(row.turma_codigo === null ? {} : { classCode: String(row.turma_codigo) }),
-    ...(row.disciplina === null ? {} : { subject: String(row.disciplina) }),
-    ...(row.periodo === null ? {} : { period: String(row.periodo) }),
+    ...(row.turma_codigo === null ? {} : { classCode: scalarTextV1(row.turma_codigo) }),
+    ...(row.disciplina === null ? {} : { subject: scalarTextV1(row.disciplina) }),
+    ...(row.periodo === null ? {} : { period: scalarTextV1(row.periodo) }),
     ...(row.aluno_numero === null ? {} : { studentNumber: asInteger(row.aluno_numero) }),
     studentName: nullableString(row.aluno_nome),
     fieldKind: String(row.campo) as GradebookImportDiagnosticsAuditRecordV1['fieldKind'],
-    ...(row.rotulo === null ? {} : { fieldLabel: String(row.rotulo) }),
-    ...(row.valor_encontrado === null ? {} : { foundValue: String(row.valor_encontrado) }),
-    ...(row.causa === null ? {} : { cause: String(row.causa) }),
-    ...(row.guia === null ? {} : { sheetName: String(row.guia) }),
-    ...(row.celula === null ? {} : { cellAddress: String(row.celula) }),
+    ...(row.rotulo === null ? {} : { fieldLabel: scalarTextV1(row.rotulo) }),
+    ...(row.valor_encontrado === null ? {} : { foundValue: scalarTextV1(row.valor_encontrado) }),
+    ...(row.causa === null ? {} : { cause: scalarTextV1(row.causa) }),
+    ...(row.guia === null ? {} : { sheetName: scalarTextV1(row.guia) }),
+    ...(row.celula === null ? {} : { cellAddress: scalarTextV1(row.celula) }),
     firstObservedAt: new Date(String(row.primeiro_em)).toISOString(),
     lastObservedAt: new Date(String(row.ultimo_em)).toISOString(),
     observations: asInteger(row.ocorrencias),
