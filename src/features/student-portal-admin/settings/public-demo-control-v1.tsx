@@ -23,7 +23,7 @@ async function request(path: string, body: unknown, signal?: AbortSignal) {
   return { status: response.status, value: (await response.json()) as unknown };
 }
 
-export function PublicDemoControlV1({ canWrite }: { canWrite: boolean }) {
+export function PublicDemoControlV1({ canWrite }: Readonly<{ canWrite: boolean }>) {
   const [state, setState] = useState<PublicDemoStateV1 | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Consultando estado…');

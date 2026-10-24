@@ -2,7 +2,7 @@ import { Spinner } from '@heroui/react';
 
 /** Visibility preserves the exact wrapped text/spinner footprint during background reads.
  * Keep this mounted beside the data; never conditionally insert the status row itself. */
-export function StableReadStatusV1({ busy, children }: { busy: boolean; children: string }) {
+export function StableReadStatusV1({ busy, children }: Readonly<{ busy: boolean; children: string }>) {
   return (
     <p
       role="status"

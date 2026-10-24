@@ -91,7 +91,7 @@ function minimumIsSixtyPercentV1(subjects: readonly SubjectV1[], period: PeriodI
     return reaches === final.meetsMinimum;
   });
 }
-function TermValueV1({ subjects, period }: { subjects: readonly SubjectV1[]; period: PeriodIdV1 }) {
+function TermValueV1({ subjects, period }: Readonly<{ subjects: readonly SubjectV1[]; period: PeriodIdV1 }>) {
   const value = termValueV1(subjects, period);
   if (value === null) return null;
   // "vale 30 · 18 passa" (owner request 20/10/2026): what the trimester is worth and the
@@ -266,13 +266,13 @@ function TrendLineV1({
   current,
   previous,
   drop,
-}: {
+}: Readonly<{
   trend: TrendV1;
   reference: PeriodIdV1;
   current: boolean | null;
   previous: boolean | null;
   drop: number;
-}) {
+}>) {
   const Icon = trend === 'higher' ? TrendingUp : trend === 'lower' ? TrendingDown : MoveRight;
   const text = trendTextV1(trend, reference, current, previous, drop);
   const line = useFitLineV1<HTMLSpanElement>(text, 10);
@@ -338,7 +338,7 @@ function subjectIconOfV1(label: string): { Icon: typeof BookOpenCheck; motion: S
 }
 
 /** `animated` plays the subject's own motion once on mount (the discipline view remounts per subject). */
-function SubjectIconV1({ label, size = 18, animated = false }: { label: string; size?: number; animated?: boolean }) {
+function SubjectIconV1({ label, size = 18, animated = false }: Readonly<{ label: string; size?: number; animated?: boolean }>) {
   const { Icon, motion } = subjectIconOfV1(label);
   return (
     <span
@@ -357,13 +357,13 @@ function SummaryV1({
   selected,
   onSelect,
   onOpenSubject,
-}: {
+}: Readonly<{
   data: SelfResponseV1;
   profile: ReactNode;
   selected: SummaryKeyV1 | undefined;
   onSelect: (key: SummaryKeyV1) => void;
   onOpenSubject: (subjectId: number, period?: PeriodIdV1) => void;
-}) {
+}>) {
   const subjects = useMemo(() => [...data.subjects].sort((a, b) => a.order - b.order), [data.subjects]);
   // Only periods present in the payload get a tab: the server already dropped what the admin
   // has not released. Recoveries share one tab, shown only when any REC was released.
@@ -537,11 +537,11 @@ function BulletinListV1({
   subjects,
   period: active,
   onOpenSubject,
-}: {
+}: Readonly<{
   subjects: readonly SubjectV1[];
   period: SummaryKeyV1;
   onOpenSubject: (subjectId: number, period?: PeriodIdV1) => void;
-}) {
+}>) {
   const recoveryPeriodsOf = (subject: SubjectV1) =>
     subject.periods.filter((period) => RECOVERY_PERIODS_V1.includes(period.period));
   const published = subjects.filter((subject) =>
@@ -641,7 +641,7 @@ type PartialV1 = NonNullable<PeriodV1['partials']>[number];
  * text really overflows at the current width (measured, not guessed from its length), so a wide
  * screen that fits the whole description shows no toggle. Nothing is ever permanently hidden.
  */
-function PartialLabelV1({ label, feedback }: { label: string; feedback?: ReactNode }) {
+function PartialLabelV1({ label, feedback }: Readonly<{ label: string; feedback?: ReactNode }>) {
   const text = useRef<HTMLSpanElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -713,7 +713,7 @@ function partialBandV1(partial: PartialV1): PartialBandV1 | null {
  * `calm`: the trimester mark is below the minimum, so an Excelente stays still — the celebration
  * is kept for a trimester that went well (owner decision 2026-09-27). Brilhante always shines.
  */
-function PartialFeedbackV1({ partial, calm, sealed = false }: { partial: PartialV1; calm: boolean; sealed?: boolean }) {
+function PartialFeedbackV1({ partial, calm, sealed = false }: Readonly<{ partial: PartialV1; calm: boolean; sealed?: boolean }>) {
   const band = partialBandV1(partial);
   if (!band) return null;
   // An assessment that earned a seal reads "selo Brilhante"; a Brilhante that did not (a red
@@ -748,7 +748,7 @@ function PartialFeedbackV1({ partial, calm, sealed = false }: { partial: Partial
  * the mark with a notch at the minimum and the share of the points, so even the 1º trimestre,
  * which has no trend line, says at a glance how far above or below the minimum it is.
  */
-function StatusEmblemV1({ band }: { band: PartialBandV1 | null }) {
+function StatusEmblemV1({ band }: Readonly<{ band: PartialBandV1 | null }>) {
   if (band === 'brilliant')
     return <Star className="pa-brilliant-star" size={16} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />;
   if (band === 'excellent') return <Sparkles className="pa-status-emblem" size={17} strokeWidth={2.3} aria-hidden="true" />;
@@ -759,7 +759,7 @@ function StatusEmblemV1({ band }: { band: PartialBandV1 | null }) {
 }
 /** The minimum line of the meter: 60% (the server's meetsMinimum decides the colours). */
 const METER_MINIMUM_PERCENT_V1 = 60;
-function ScoreMeterV1({ mark }: { mark: ScoreMarkV1 }) {
+function ScoreMeterV1({ mark }: Readonly<{ mark: ScoreMarkV1 }>) {
   if (!mark.maximum || mark.meetsMinimum === null) return null;
   // Floor, never round: 59,8% must not read as the minimum's 60%.
   const percent = Math.max(0, Math.min(100, Math.floor((mark.value / mark.maximum) * 100)));
@@ -1119,13 +1119,13 @@ function SubjectHeaderV1({
   subjects,
   onSubjectChange,
   onBack,
-}: {
+}: Readonly<{
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
   period?: PeriodIdV1;
   onSubjectChange: (id: number) => void;
   onBack: () => void;
-}) {
+}>) {
   // Keep the chosen discipline in view inside the bar (inline only, so the page itself never
   // scrolls). On mount the panel is still being revealed and HeroUI's scroll shadow measures after
   // paint, so the first reveal waits a frame and retries after the slide-in; later ones glide.
@@ -1218,7 +1218,7 @@ function SubjectV1View({
   sealed,
   assessmentSealed,
   preview = false,
-}: {
+}: Readonly<{
   subject: SubjectV1;
   /** The neighbour drawn beside a drag: nothing in it may record that it was seen. */
   preview?: boolean;
@@ -1231,7 +1231,7 @@ function SubjectV1View({
   onSelect: (period: PeriodIdV1) => void;
   accountId: string;
   academicState: SelfResponseV1['profile']['academicState'];
-}) {
+}>) {
   const active = shownPeriodV1(subject, selected);
   const available = subjectPeriodsV1(subject);
   // Direction follows tab order (3º → 1º slides back); null until the first switch, since the
@@ -1485,10 +1485,10 @@ function readWorkspaceEntryV1(state: unknown): WorkspaceEntryV1 | null {
 export function StudentPortalWorkspaceV1({
   data,
   profile,
-}: {
+}: Readonly<{
   data: SelfResponseV1;
   profile: ReactNode;
-}) {
+}>) {
   const subjects = useMemo(() => [...data.subjects].sort((a, b) => a.order - b.order), [data.subjects]);
   const firstSubjectId = subjects[0]?.subjectId ?? 0;
   // Everything the student chose lives here and in the history entry, so it survives moving

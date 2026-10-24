@@ -34,13 +34,13 @@ function LocalClassTabsV1({
   onChange,
   disabled = false,
   allLabel = 'Todas as turmas',
-}: {
+}: Readonly<{
   catalog: PortalClassCatalogV2;
   disabled?: boolean;
   allLabel?: string;
   selected: { id: number; label: string } | null;
   onChange: (item: { id: number; label: string } | null) => void;
-}) {
+}>) {
   const load = useCallback((signal: AbortSignal) => readClassOptionsV1(catalog, signal), [catalog]);
   const read = useAccountsReadV1(load);
   const data = read.state.state === 'ready' ? read.state.data : [];

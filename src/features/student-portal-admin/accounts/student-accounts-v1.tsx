@@ -80,7 +80,7 @@ export interface StudentAccountsPropsV1 extends Pick<
 const SCHOOL_V1: ScopeV1 = { kind: 'school', academicYear: 2026 };
 /** A class is a view of the school collection: changing class keeps what was already read. */
 const readScopeV1 = (scope: ScopeV1) => (scope.kind === 'account' ? scope : SCHOOL_V1);
-export function StudentAccountsV1(props: StudentAccountsPropsV1) {
+export function StudentAccountsV1(props: Readonly<StudentAccountsPropsV1>) {
   const authority = `${props.identityKey}:${props.canWrite}`;
   const [restorationAuthority, setRestorationAuthority] = useState<string | null>(authority);
   // Retire restoration before a new authority can mount a reader for the previous record.
@@ -250,7 +250,7 @@ function orderAccountsV1<
       (seals.get(right.accountId) ?? -1) - (seals.get(left.accountId) ?? -1) || byName(left, right),
   );
 }
-function SealCountV1({ count }: { count: number | null | undefined }) {
+function SealCountV1({ count }: Readonly<{ count: number | null | undefined }>) {
   if (count === undefined || count === null) return null;
   return (
     <span className="pa-seal-count" aria-label={sealLabelV1(count)}>

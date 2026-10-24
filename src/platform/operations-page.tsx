@@ -22,7 +22,7 @@ type OperationalSignal = {
   status: SignalStatus;
 };
 
-function SignalChip({ status }: { status: SignalStatus }) {
+function SignalChip({ status }: Readonly<{ status: SignalStatus }>) {
   if (status === 'attention') {
     return (
       <Chip color="danger" variant="soft" size="sm">
@@ -44,7 +44,7 @@ function SignalChip({ status }: { status: SignalStatus }) {
   );
 }
 
-export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
+export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapshotContract }>) {
   const operational = snapshot.operational;
 
   if (!operational) {

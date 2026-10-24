@@ -51,7 +51,7 @@ const stats = [
   ],
 ] as const;
 /** Only existing server counts. No synthetic trends, prediction or overlapping pie slices. */
-export function OverviewDashboardV1({ counts }: { counts: Counts }) {
+export function OverviewDashboardV1({ counts }: Readonly<{ counts: Counts }>) {
   return (
     <div className="pa-dashboard">
       <dl className="pa-dashboard-stats">

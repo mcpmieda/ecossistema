@@ -20,7 +20,7 @@ const LEVEL_LABEL_V1: Record<TermClosingV1['level'], string> = {
 };
 
 /** Exact message and variant for support: the school can say precisely what the student read. */
-function MessageLineV1({ message, closing }: { message?: TermClosingMessageV1; closing: TermClosingV1 }) {
+function MessageLineV1({ message, closing }: Readonly<{ message?: TermClosingMessageV1; closing: TermClosingV1 }>) {
   if (!message) return null;
   return (
     <li>
@@ -39,10 +39,10 @@ function MessageLineV1({ message, closing }: { message?: TermClosingMessageV1; c
 export function AccountClosingPreviewV1({
   reader,
   scope,
-}: {
+}: Readonly<{
   reader: PortalAdminReadClientV2;
   scope: Extract<ScopeV1, { kind: 'account' }>;
-}) {
+}>) {
   const [state, setState] = useState<StateV1>({ state: 'loading' });
   useEffect(() => {
     const controller = new AbortController();

@@ -46,7 +46,7 @@ const eventLabels: Record<NonNullable<AdminQueryV1['event']>, string> = {
 };
 const resultLabels = { success: 'Concluído', denied: 'Negado', failed: 'Falhou' } as const;
 type FiltersV1 = Pick<AdminQueryV1, 'from' | 'until' | 'event' | 'result'>;
-export function StudentAuditV1(props: OperationsPropsV1) {
+export function StudentAuditV1(props: Readonly<OperationsPropsV1>) {
   return (
     <OperationsScopeV1 {...props}>
       {(scope, label, onAuthorizationLost) => (
@@ -61,7 +61,7 @@ export function StudentAuditV1(props: OperationsPropsV1) {
     </OperationsScopeV1>
   );
 }
-function AuditBodyV1(props: OperationsPropsV1) {
+function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
   const parentScope = props.scope;
   const [from, setFrom] = useState(''),
     [until, setUntil] = useState('');

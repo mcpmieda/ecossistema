@@ -7,10 +7,10 @@ import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contra
 export function PerformanceTeacherExportV6({
   value,
   teacherId,
-}: {
+}: Readonly<{
   value: PerformanceAnalyticsV6;
   teacherId: number;
-}) {
+}>) {
   const [busy, setBusy] = useState(false),
     [failed, setFailed] = useState(false);
   async function download(detailed: boolean) {

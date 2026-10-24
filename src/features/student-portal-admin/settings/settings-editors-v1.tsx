@@ -37,12 +37,12 @@ export function SettingsCheckboxV1({
   selected,
   disabled,
   onChange,
-}: {
+}: Readonly<{
   label: string;
   selected: boolean;
   disabled?: boolean;
   onChange: (selected: boolean) => void;
-}) {
+}>) {
   return (
     <Checkbox isSelected={selected} isDisabled={disabled} onChange={onChange}>
       <Checkbox.Content>
@@ -59,12 +59,12 @@ function PeriodsEditorV1({
   onChange,
   disabled,
   label,
-}: {
+}: Readonly<{
   value: CalendarPeriodV1[];
   onChange: (periods: CalendarPeriodV1[]) => void;
   disabled: boolean;
   label: string;
-}) {
+}>) {
   return (
     <fieldset className="pa-settings-periods">
       <legend>{label}</legend>
@@ -97,12 +97,12 @@ export function DateInputV1({
   value,
   onChange,
   disabled,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   onChange: (value: string) => void;
   disabled: boolean;
-}) {
+}>) {
   const [isOpen, setOpen] = useState(false);
   const placeholder = useMemo(() => {
     const date = today('America/Sao_Paulo');
@@ -234,12 +234,12 @@ export function CalendarEditorV1({
   disabled,
   onChange,
   compact = false,
-}: {
+}: Readonly<{
   value: CalendarDraftV1;
   disabled: boolean;
   onChange: (value: CalendarDraftV1) => void;
   compact?: boolean;
-}) {
+}>) {
   const Wrapper = compact ? Accordion : 'div';
   return (
     <div className="pa-settings-calendar">
@@ -286,13 +286,13 @@ export function SettingsEditorV1({
   disabled,
   onChange,
   compact = false,
-}: {
+}: Readonly<{
   field: SettingsFieldV1;
   value: SettingsDraftV1;
   disabled: boolean;
   onChange: (value: SettingsDraftV1) => void;
   compact?: boolean;
-}) {
+}>) {
   if (field === 'calendar')
     return (
       <CalendarEditorV1
@@ -380,10 +380,10 @@ const dateLabel = (value: string | null) =>
 export function SettingsValueSummaryV1({
   field,
   value,
-}: {
+}: Readonly<{
   field: SettingsFieldV1;
   value: EffectiveSettingsV1['value'][SettingsFieldV1];
-}) {
+}>) {
   if (field === 'allowedPeriods')
     return (
       <p>

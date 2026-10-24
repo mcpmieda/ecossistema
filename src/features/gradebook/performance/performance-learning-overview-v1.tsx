@@ -20,25 +20,25 @@ const LABELS: Record<Filter, string> = {
   pending: 'Ainda sem conclusão', 'below-up': 'Abaixo, mas melhorando',
   'below-down': 'Abaixo e com queda', 'above-down': 'Na referência, mas com queda', recovery: 'Melhoraram com a paralela',
 };
-function Panel({ title, hint, children, footer }: {
+function Panel({ title, hint, children, footer }: Readonly<{
   title: string; hint: ReactNode; children: ReactNode; footer?: ReactNode;
-}) {
+}>) {
   return <AnalyticsPanelV6 title={title} action={<AnalyticsHintV6 label={`Sobre ${title}`}>{hint}</AnalyticsHintV6>} footer={footer}>{children}</AnalyticsPanelV6>;
 }
-function MetricBar({ label, caption, value, tone }: { label: string; caption: string; value: number | null; tone: string }) {
+function MetricBar({ label, caption, value, tone }: Readonly<{ label: string; caption: string; value: number | null; tone: string }>) {
   return <div className={`learning-dimension learning-tone--${tone}`}>
     <div className="learning-inline"><div><strong>{label}</strong><span className="learning-muted">{caption}</span></div><b>{percent(value)}</b></div>
     {value !== null ? <Meter aria-label={label} value={value} maxValue={Math.max(100, value)}><Meter.Track><Meter.Fill /></Meter.Track></Meter> : <span className="learning-muted">Sem notas suficientes para comparar.</span>}
   </div>;
 }
 
-export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, onPeriod, onNotes }: {
+export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, onPeriod, onNotes }: Readonly<{
   value: PerformanceAnalyticsV6;
   onStudent: (id: number, offerId?: number) => void;
   onComponent: (offerId: number) => void;
   onPeriod: (term: 1 | 2 | 3) => void;
   onNotes: (offerId: number) => void;
-}) {
+}>) {
   const [filter, setFilter] = useState<Filter>('attention');
   const [search, setSearch] = useState('');
   const listHeading = useRef<HTMLHeadingElement>(null);

@@ -40,7 +40,7 @@ const valueLabel = (value: unknown) =>
         ? value.map((period) => customizationPeriodV1(String(period))).join(', ') ||
           'Nenhum período'
         : 'Personalizado';
-function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: Props) {
+function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: Readonly<Props>) {
   const key = settingsScopeKeyV1(scope);
   const [search, setSearch] = useState('');
   const nameSearch = useDebouncedSearchV1(search);
@@ -261,7 +261,7 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: 
     </Card>
   );
 }
-export function CustomizedSettingsV1(props: Props) {
+export function CustomizedSettingsV1(props: Readonly<Props>) {
   return (
     <CustomizedSettingsScopeV1
       key={settingsScopeKeyV1(props.scope) + ':' + props.canWrite}

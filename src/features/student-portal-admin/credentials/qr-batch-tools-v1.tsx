@@ -26,7 +26,7 @@ export function QrBatchToolsV1({
   onCommitted,
   onAuthorizationLost,
   renderArtifact,
-}: {
+}: Readonly<{
   client: PortalAdminClientV1;
   accounts: AdminAccountReadV2[];
   selected: Set<string>;
@@ -42,7 +42,7 @@ export function QrBatchToolsV1({
   onCommitted: () => void;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
   renderArtifact?: QrRendererV1;
-}) {
+}>) {
   const [state, setState] = useState<QrOperationStateV1>({ state: 'idle' });
   const [layout, setLayout] = useState<QrBatchLayoutV1>('card');
   const [mode, setMode] = useState<PrintModeV1>('qr-name-class');

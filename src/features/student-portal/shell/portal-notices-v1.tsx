@@ -92,7 +92,7 @@ const countV1 = (value: number, unit: string) => `${value} ${unit}${value === 1 
  * Split-flap card: the old number's top half folds down onto the new number's bottom half.
  * Keyed by value so each change replays the flip; reduced motion shows the number at once.
  */
-function FlipCardV1({ value }: { value: string }) {
+function FlipCardV1({ value }: Readonly<{ value: string }>) {
   // The value on screen before this render (updated after commit, so safe under StrictMode).
   const shown = useRef(value);
   const previous = shown.current;
@@ -122,13 +122,13 @@ export function PortalCountdownV1({
   title,
   done,
   when,
-}: {
+}: Readonly<{
   at: string;
   title: string;
   done: string;
   /** What follows the title instead of "dd/mm às hh:mm" (the school year's end says only the day). */
   when?: string;
-}) {
+}>) {
   const target = Date.parse(at);
   const now = useNowV1(target);
   const left = Math.max(0, Math.ceil((target - now) / 1000));
@@ -175,7 +175,7 @@ export function PortalCountdownV1({
  * The same split-flap clock, short (owner decision 23/10/2026: "Intervalo em", "Saída em" on the
  * Horário): minutes and seconds, hours only when there is at least one. The caller counts.
  */
-export function PortalTimerV1({ seconds, label }: { seconds: number; label: string }) {
+export function PortalTimerV1({ seconds, label }: Readonly<{ seconds: number; label: string }>) {
   const left = Math.max(0, Math.floor(seconds));
   const days = Math.floor(left / 86400);
   const hours = Math.floor((left % 86400) / 3600);
@@ -204,7 +204,7 @@ export function PortalTimerV1({ seconds, label }: { seconds: number; label: stri
 }
 
 /** Login page while access is closed: no sign-in, only when it opens or when grades come out. */
-export function PortalClosedNoticeV1({ notices }: { notices: PortalNoticesV1 }) {
+export function PortalClosedNoticeV1({ notices }: Readonly<{ notices: PortalNoticesV1 }>) {
   return (
     <Card className="pa-auth-card pa-closed-card">
       <Card.Header className="pa-auth-header">
@@ -250,10 +250,10 @@ function dismissedV1(key: string) {
 export function PortalSignedInNoticesV1({
   notices,
   hasGrades,
-}: {
+}: Readonly<{
   notices: PortalNoticesV1;
   hasGrades: boolean;
-}) {
+}>) {
   const ended = notices.disclosureEnded;
   const scopedKey = usePortalPreferenceKeyV1(ended ? storageKeyV1(ended) : '');
   const key = ended ? scopedKey : null;

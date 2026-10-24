@@ -122,12 +122,12 @@ export function SchoolCalendarEditorV1({
   client,
   canWrite,
   onSaved,
-}: {
+}: Readonly<{
   client: PortalAdminClientV1;
   canWrite: boolean;
   /** The main dates were saved in the school's policy: the settings on screen read it again. */
   onSaved?: () => void;
-}) {
+}>) {
   const [saved, setSaved] = useState<{ version: number; days: Map<string, DayV1> } | null>(null);
   const [draft, setDraft] = useState<Map<string, DayV1> | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');

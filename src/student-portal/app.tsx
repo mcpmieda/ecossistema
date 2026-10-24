@@ -45,12 +45,12 @@ export function StudentPortalApp({
   client = defaultClient,
   portraitClient,
   statusClient = defaultStatusClient,
-}: {
+}: Readonly<{
   entry?: StudentEntryV1;
   client?: PortalSelfClientV1;
   portraitClient?: PortraitClientV1;
   statusClient?: PortalStatusClientV1;
-}) {
+}>) {
   const [initialQr, setInitialQr] = useState(entry.qr);
   const [invalidQr, setInvalidQr] = useState(entry.invalidQr);
   const [access, setAccess] = useState(entry.route === 'access');

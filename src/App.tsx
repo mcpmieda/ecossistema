@@ -70,7 +70,7 @@ function SessionCheckExperience() {
     <div className="grid justify-items-center gap-4 text-muted"><BrandMark pulse /><Spinner size="sm" color="accent" /></div>
   </main>;
 }
-function LoginExperience({ loading }: { loading: boolean }) {
+function LoginExperience({ loading }: Readonly<{ loading: boolean }>) {
   return (
     <main className="platform-shell grid min-h-svh place-items-center px-4 py-6 sm:px-6 lg:px-8">
       <Surface className="login-stage grid w-full max-w-5xl overflow-hidden rounded-3xl border border-border/70 lg:grid-cols-[1.08fr_.92fr]">
@@ -117,7 +117,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
     </main>
   );
 }
-function AuthErrorExperience({ correlationId }: AuthFailure) {
+function AuthErrorExperience({ correlationId }: Readonly<AuthFailure>) {
   return <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
     <Surface variant="default" className="platform-card-surface w-full max-w-xl rounded-3xl p-6 sm:p-8">
       <Chip color="danger" variant="soft" size="sm">Entrada não concluída</Chip>
@@ -130,7 +130,7 @@ function AuthErrorExperience({ correlationId }: AuthFailure) {
     </Surface>
   </main>;
 }
-function RestrictedExperience({ name }: { name?: string }) {
+function RestrictedExperience({ name }: Readonly<{ name?: string }>) {
   return <main className="platform-shell grid min-h-svh place-items-center p-4">
     <Surface variant="default" className="platform-card-surface w-full max-w-2xl rounded-3xl p-6 sm:p-8">
       <Chip color="warning" variant="soft" size="sm">Acesso restrito</Chip>
@@ -142,7 +142,7 @@ function RestrictedExperience({ name }: { name?: string }) {
     </Surface>
   </main>;
 }
-function AdminShell({ identity }: { identity: Identity }) {
+function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
   const route = usePlatformRoute();
   const { loadState, reload } = usePlatformDataV2();
   const logoutFormRef = useRef<HTMLFormElement>(null);

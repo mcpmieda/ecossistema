@@ -124,10 +124,10 @@ export const PORTAL_ADMIN_AUTO_REFRESH_V1 = false;
 export function StudentPortalAdminPage({
   fetcher,
   onLogin = enterInstitutionalLogin,
-}: {
+}: Readonly<{
   fetcher?: PortalFetchV1;
   onLogin?: () => void;
-}) {
+}>) {
   const auth = usePortalAdminIdentityV1(fetcher);
   const unauthenticated =
     auth.state.state === 'error' && auth.state.error.state === 'unauthenticated';
@@ -197,11 +197,11 @@ function PortalWorkspace({
   identity,
   onLost,
   fetcher,
-}: {
+}: Readonly<{
   identity: PortalAdminIdentityV1;
   onLost: (error: PortalClientErrorV1) => void;
   fetcher?: PortalFetchV1;
-}) {
+}>) {
   const [section, setSection] = useState(() => portalSectionFromHash(window.location.hash));
   usePreloadedSectionsV1(PANEL_SECTIONS_V1);
   useAdministrativeLiveV1({

@@ -143,13 +143,13 @@ export function ContinuousEndV1({
   failed,
   loadMore,
   retry,
-}: {
+}: Readonly<{
   more: boolean;
   busy: boolean;
   failed?: boolean;
   loadMore: () => void;
   retry?: () => void;
-}) {
+}>) {
   const active = useLiveRefreshScopeV1();
   const ref = useRef<HTMLDivElement>(null);
   const latest = useRef(loadMore);

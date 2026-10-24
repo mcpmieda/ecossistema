@@ -7,11 +7,11 @@ export function EmptyState({
   icon: Icon = Boxes,
   title,
   description,
-}: {
+}: Readonly<{
   icon?: LucideIcon;
   title: string;
   description: string;
-}) {
+}>) {
   return (
     <Surface
       variant="transparent"
@@ -34,13 +34,13 @@ export function PageHeader({
   title,
   description,
   titleInBar = false,
-}: {
+}: Readonly<{
   eyebrow: string;
   title: string;
   description: string;
   /** The top bar already shows this title: it stays for assistive technology only. */
   titleInBar?: boolean;
-}) {
+}>) {
   return (
     <Surface variant="default" className="platform-page-header">
       <div className="platform-page-header__content">

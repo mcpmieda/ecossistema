@@ -18,7 +18,7 @@ type Props = Pick<
   'client' | 'scope' | 'identityKey' | 'canWrite' | 'onAuthorizationLost'
 >;
 type Presence = Extract<AdminResponseV1, { state: 'presence' }>;
-export function StudentPresenceV1(props: Props) {
+export function StudentPresenceV1(props: Readonly<Props>) {
   return (
     <PresenceBodyV1
       key={props.identityKey + settingsScopeKeyV1(props.scope) + props.canWrite}
@@ -26,7 +26,7 @@ export function StudentPresenceV1(props: Props) {
     />
   );
 }
-function PresenceBodyV1({ client, scope, onAuthorizationLost }: Props) {
+function PresenceBodyV1({ client, scope, onAuthorizationLost }: Readonly<Props>) {
   const [state, setState] = useState<PortalLoadStateV1<Presence>>({ state: 'idle' });
   const denied = useRef(false);
   const callback = useRef(onAuthorizationLost);

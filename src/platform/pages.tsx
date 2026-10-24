@@ -47,7 +47,7 @@ if (typeof window !== 'undefined') {
 }
 import { EmptyState, formatDate, PageHeader, shortCorrelation } from './presentation';
 
-function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
+function AuditPage({ snapshot }: Readonly<{ snapshot: PlatformSnapshotContract }>) {
   return (
     <>
       <PageHeader
@@ -454,13 +454,13 @@ export function PageContent({
   section,
   snapshot,
   auxiliary = 'ready',
-}: {
+}: Readonly<{
   route: PlatformRoute;
   /** The section of the open service; Auditoria is a section of Saúde do Sistema. */
   section?: string;
   snapshot: PlatformSnapshotV2;
   auxiliary?: PlatformAuxiliaryStateV2;
-}) {
+}>) {
   usePreloadedSectionsV1(ROUTE_PAGES_V1);
   switch (route) {
     case 'painel-do-aluno':

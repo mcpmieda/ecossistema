@@ -194,13 +194,13 @@ export function ShellSidebarV3({
   modules,
   loading,
   brand,
-}: {
+}: Readonly<{
   route: PlatformRoute;
   section: string;
   modules: CoreModuleContract[];
   loading: boolean;
   brand: ReactNode;
-}) {
+}>) {
   const areas = mainNavigationAreasV1(modules, route, section);
   const groups = [
     { label: 'Menu principal', areas: areas.filter((area) => !SYSTEM_ROUTES_V1.has(area.route)) },

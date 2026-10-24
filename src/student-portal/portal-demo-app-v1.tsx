@@ -888,10 +888,10 @@ const rowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '4px 1
 function AdminSimulatorPanelV1({
   value,
   onChange,
-}: {
+}: Readonly<{
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
-}) {
+}>) {
   const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'showFrequency' | 'showSchedule' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject' | 'correctedRed') => (
     <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
   );

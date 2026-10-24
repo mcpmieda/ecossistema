@@ -7,7 +7,7 @@ import './student-entry-layout-v1.css';
 // The school year matches the calendar year in the Portal's region.
 const academicYearV1 = () => new Date().getFullYear();
 
-function CoverV1({ splash = false }: { splash?: boolean }) {
+function CoverV1({ splash = false }: Readonly<{ splash?: boolean }>) {
   return (
     <>
       <SchoolMarkV1 size={splash ? 104 : 84} pulse={splash} shine={!splash} className="pa-entry-crest" />
@@ -19,7 +19,7 @@ function CoverV1({ splash = false }: { splash?: boolean }) {
 }
 
 /** The school's front door: blue cover with the crest, and a white sheet with the sign-in. */
-export function StudentEntryLayoutV1({ children, busy = false }: { children: ReactNode; busy?: boolean }) {
+export function StudentEntryLayoutV1({ children, busy = false }: Readonly<{ children: ReactNode; busy?: boolean }>) {
   const contentId = useId();
   const content = useRef<HTMLElement>(null);
   return (
@@ -65,7 +65,7 @@ export function StudentEntryLayoutV1({ children, busy = false }: { children: Rea
  * Opening screen while the session is checked, like an app launch: the crest pulses on the blue
  * cover. Right after a sign-in it confirms it and sketches the marks list that is on its way.
  */
-export function StudentSplashV1({ entered = false }: { entered?: boolean }) {
+export function StudentSplashV1({ entered = false }: Readonly<{ entered?: boolean }>) {
   return (
     <main
       className={'pa-access-check pa-entry pa-entry--splash' + (entered ? ' pa-entry--entered' : '')}

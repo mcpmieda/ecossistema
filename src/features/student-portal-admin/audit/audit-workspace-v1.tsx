@@ -3,7 +3,7 @@ import { Tabs } from '@heroui/react';
 import { StudentAuditV1 } from './student-audit-v1';
 import { PersonalizedPublicationV1 } from '../publication/personalized-publication-v1';
 import type { OperationsPropsV1 } from '../overview/operations-values-v1';
-export function AuditWorkspaceV1(props: OperationsPropsV1) {
+export function AuditWorkspaceV1(props: Readonly<OperationsPropsV1>) {
   const [area, setArea] = useState('publications');
   return (
     <section aria-label="Publicações e auditoria" className="grid min-w-0 gap-3">

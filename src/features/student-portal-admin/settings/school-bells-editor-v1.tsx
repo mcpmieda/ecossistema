@@ -47,7 +47,7 @@ const later = (time: string, minutes: number) => {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 };
 
-export function SchoolBellsEditorV1({ client, canWrite }: { client: PortalAdminClientV1; canWrite: boolean }) {
+export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: PortalAdminClientV1; canWrite: boolean }>) {
   const [saved, setSaved] = useState<{ version: number; bells: SchoolBellsDaysV1 } | null>(null);
   const [draft, setDraft] = useState<SchoolBellsDaysV1 | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');

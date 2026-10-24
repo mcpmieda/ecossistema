@@ -29,7 +29,7 @@ export interface StudentBirthYearsPropsV1 {
 }
 
 /** Read-only transitional projection: the server selects canonical report birth or permitted legacy. */
-export function StudentBirthYearsV1(props: StudentBirthYearsPropsV1) {
+export function StudentBirthYearsV1(props: Readonly<StudentBirthYearsPropsV1>) {
   return (
     <BirthReadScopeV1
       key={`${props.identityKey}:${settingsScopeKeyV1(props.scope)}:${props.canWrite}`}

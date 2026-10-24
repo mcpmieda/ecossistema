@@ -4,10 +4,10 @@ import { useEffect, useRef, type ReactNode } from 'react';
 export function MarqueeTextV1({
   children,
   className = '',
-}: {
+}: Readonly<{
   children: ReactNode;
   className?: string;
-}) {
+}>) {
   const box = useRef<HTMLSpanElement | null>(null);
   useEffect(() => {
     const element = box.current;

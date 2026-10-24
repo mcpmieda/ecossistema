@@ -17,7 +17,7 @@ const messages = {
   conflict: 'Os nomes foram alterados em outra sessão.',
   unavailable: 'Não foi possível salvar. O que você digitou foi mantido.',
 };
-export function AssessmentNamesV1({ isActive = true }: { isActive?: boolean }) {
+export function AssessmentNamesV1({ isActive = true }: Readonly<{ isActive?: boolean }>) {
   const scope = useGradebookYear();
   if (!scope?.year) return null;
   return (
@@ -33,11 +33,11 @@ function NamesEditorV1({
   year,
   isActive,
   onAuthorizationLost,
-}: {
+}: Readonly<{
   year: number;
   isActive: boolean;
   onAuthorizationLost: () => void;
-}) {
+}>) {
   const [state, setState] = useState(emptyAssessmentNamesEditorV1);
   useDraftNavigationGuardV1(state.dirty || state.phase === 'saving');
   const editor = useRef<ReturnType<typeof createAssessmentNamesEditorV1> | null>(null);

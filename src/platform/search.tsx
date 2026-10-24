@@ -9,11 +9,11 @@ function SearchResults({
   items,
   query,
   onNavigate,
-}: {
+}: Readonly<{
   items: PlatformSearchItem[];
   query: string;
   onNavigate: (href: string) => void;
-}) {
+}>) {
   if (!query.trim()) return null;
 
   if (items.length === 0) {
@@ -75,14 +75,14 @@ function InlineSearchField({
   isDisabled,
   onFocus,
   showShortcut = false,
-}: {
+}: Readonly<{
   inputRef: React.RefObject<HTMLInputElement | null>;
   query: string;
   setQuery: (value: string) => void;
   isDisabled: boolean;
   onFocus: () => void;
   showShortcut?: boolean;
-}) {
+}>) {
   return (
     <SearchField
       name="platform-search"
@@ -107,7 +107,9 @@ function InlineSearchField({
   );
 }
 
-export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContract | null }) {
+export function PlatformSearch({
+  snapshot,
+}: Readonly<{ snapshot: PlatformSnapshotContract | null }>) {
   const [query, setQuery] = useState('');
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);

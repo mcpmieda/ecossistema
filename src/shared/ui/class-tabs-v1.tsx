@@ -11,7 +11,7 @@ export function ClassTabsV1({
   allLabel,
   label = 'Turmas',
   disabled = false,
-}: {
+}: Readonly<{
   items: readonly { id: number; label: string }[];
   selectedId: number | null;
   onChange: (id: number | null) => void;
@@ -19,7 +19,7 @@ export function ClassTabsV1({
   allLabel?: string;
   label?: string;
   disabled?: boolean;
-}) {
+}>) {
   const selected = selectedId === null ? 'all' : String(selectedId);
   return (
     <Tabs

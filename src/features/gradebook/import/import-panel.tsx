@@ -18,7 +18,7 @@ import { RelationMovementReviewV9 } from './relation-movement-review-v9';
 import { FrequencyPanelV2 } from './frequency-panel-v2';
 import type { FrequencyAdminClientV2 } from './frequency-client-v2';
 
-function FileHash({ sha256 }: { sha256: string }) {
+function FileHash({ sha256 }: Readonly<{ sha256: string }>) {
   return (
     <details className="mt-2 text-xs text-muted">
       <summary className="cursor-pointer">
@@ -111,7 +111,7 @@ function persistenceDescription(
   return `${response.summary.committedWrites.total} gravação(ões) confirmadas no lote atômico, incluindo registros técnicos de auditoria.${issue}`;
 }
 
-function PersistenceResult({ state }: { state: ImportPersistenceStateV9 | undefined }) {
+function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9 | undefined }>) {
   if (!state) return null;
   if (state.state === 'auth-required') {
     return (
@@ -194,11 +194,11 @@ export function TimingDiagnostics({
   visible,
   summary,
   getReport,
-}: {
+}: Readonly<{
   visible: boolean;
   summary: ImportTimingSummaryV1;
   getReport: () => string;
-}) {
+}>) {
   const mounted = useRef(true);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle');
   const [manualText, setManualText] = useState<string | null>(null);

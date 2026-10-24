@@ -28,7 +28,7 @@ function formatTimestamp(value: string | null): string {
   }).format(new Date(value));
 }
 
-export function WorkbookInspector({ result }: { result: BatchSuccess }) {
+export function WorkbookInspector({ result }: Readonly<{ result: BatchSuccess }>) {
   const { manifest, summary: workbook } = result;
   const operationalClasses = countWorkbookOperationalClassesV1(workbook);
   const totalStudents = workbook.classes.reduce((sum, classroom) => sum + classroom.students, 0);

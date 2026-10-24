@@ -95,7 +95,7 @@ function AccessCardV1() {
  * A denied camera cannot be asked for again by the page: only the browser's site settings can
  * lift it. Explain how for the student's phone and make the gallery the main way in meanwhile.
  */
-function CameraBlockedV1({ onRetry }: { onRetry: () => void }) {
+function CameraBlockedV1({ onRetry }: Readonly<{ onRetry: () => void }>) {
   const [platform, setPlatform] = useState<PlatformV1>(platformOfV1);
   return (
     <div className="pa-camera-blocked" role="alert">
@@ -175,10 +175,10 @@ function CameraBlockedV1({ onRetry }: { onRetry: () => void }) {
 export function StudentQrReaderV1({
   onQr,
   decode,
-}: {
+}: Readonly<{
   onQr: (qr: string) => void;
   decode?: QrFrameDecoderV1;
-}) {
+}>) {
   const video = useRef<HTMLVideoElement>(null),
     input = useRef<HTMLInputElement>(null);
   const lease = useRef<ReturnType<typeof createCameraLeaseV1> | null>(null);

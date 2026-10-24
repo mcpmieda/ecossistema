@@ -56,7 +56,7 @@ function schoolTimeV3() {
   const [hour, minute] = SCHOOL_HOUR_V3.format(new Date(portalNowV1())).split(':').map(Number) as [number, number];
   return { hour, minute };
 }
-function LiveClockIconV3({ size }: { size: number }) {
+function LiveClockIconV3({ size }: Readonly<{ size: number }>) {
   const [time, setTime] = useState(schoolTimeV3);
   useEffect(() => {
     const timer = window.setInterval(() => setTime(schoolTimeV3()), 15_000);
@@ -153,12 +153,12 @@ function PortalMenuPagesV3({
   pages,
   contentOf,
   shell,
-}: {
+}: Readonly<{
   hero: ReactNode;
   pages: typeof PAGES;
   contentOf: Record<PageV3, ReactNode>;
   shell: Omit<StudentShellPropsV1, 'children' | 'hero' | 'busy'>;
-}) {
+}>) {
   const [page, setPage] = useState<PageV3>(() =>
     typeof window === 'undefined' ? 'grades' : pageOfState(window.history.state, pages),
   );
