@@ -29,7 +29,7 @@ it.each([250, 1200])('keeps the same text footprint and following content at wid
     expect(row.getAttribute('aria-hidden')).toBe(String(!busy));
     expect(document.activeElement).toBe(input);
     expect(row.nextElementSibling).toBe(input);
-    expect(screen.queryByRole('status')).toBe(busy ? row : null);
+    expect(screen.queryByRole('status')?.closest('p') ?? null).toBe(busy ? row : null);
   }
   // JSDOM proves stable DOM/CSS visibility, not browser geometry or cumulative layout shift.
 });
