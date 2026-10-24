@@ -74,7 +74,7 @@ const slotLabels = {
   audit: 'Auditoria',
   settings: 'Políticas',
 } as const;
-export function AccountDetailV1(props: AccountDetailPropsV1) {
+export function AccountDetailV1(props: Readonly<AccountDetailPropsV1>) {
   return (
     <Drawer.Backdrop
       isOpen
@@ -118,7 +118,7 @@ function AccountDetailBodyV1({
   describeScope,
   initialSlot,
   known,
-}: AccountDetailPropsV1) {
+}: Readonly<AccountDetailPropsV1>) {
   const ownScope = useMemo(
     () => ({ kind: 'account' as const, academicYear: 2026 as const, accountId }),
     [accountId],
@@ -501,7 +501,7 @@ function AccountDetailBodyV1({
 }
 
 /** Beside the profile: the Selos brilhantes the student sees on the Portal (29/09/2026). */
-function RecordSealsV1({ reader, accountId }: { reader: AccountDetailPropsV1['reader']; accountId: string }) {
+function RecordSealsV1({ reader, accountId }: Readonly<{ reader: AccountDetailPropsV1['reader']; accountId: string }>) {
   const seals = useSealCountsV1(reader, { accountId });
   const count = seals.state === 'ready' ? seals.counts.get(accountId) : undefined;
   if (count === undefined || count === null) return null;

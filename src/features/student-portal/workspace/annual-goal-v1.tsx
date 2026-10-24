@@ -66,7 +66,7 @@ const percentOfYear = (value: number) => `${value / 1000}%`;
 // A label centred on a point of the track, kept inside it near the ends.
 const labelAt = (milli: number) => `${Math.min(92, Math.max(8, milli / 1000))}%`;
 
-export function AnnualGoalCardV1({ goal, subjectLabel }: { goal: AnnualGoalV1; subjectLabel: string }) {
+export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: AnnualGoalV1; subjectLabel: string }>) {
   const needed = goal.state === 'reached' ? 0 : Math.min(goal.neededMilli, TERM_MAXIMUM_MILLI_V1.T3);
   const Icon = goal.state === 'reached' ? PartyPopper : goal.state === 'reachable' ? Target : Flag;
   return (

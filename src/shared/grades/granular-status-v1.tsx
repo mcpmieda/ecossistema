@@ -1,7 +1,10 @@
 import { Chip } from '@heroui/react/chip';
 
 /** Presentation only. Missing evidence must not be passed as notDone. */
-export function GranularStatusV1({ notDone, zero }: { notDone?: boolean; zero: boolean }) {
+export function GranularStatusV1({
+  notDone,
+  zero,
+}: Readonly<{ notDone?: boolean; zero: boolean }>) {
   if (!notDone && !zero) return null;
   return (
     <Chip size="sm" color={notDone ? 'warning' : 'danger'} variant="soft">

@@ -76,7 +76,7 @@ export function PolicyLayoutV1({
   schoolCalendar,
   schoolBells,
   calendarEditable = false,
-}: {
+}: Readonly<{
   /** locked: shown read-only (the Calendário tab outside its edit mode). */
   field: (name: SettingsFieldV1, locked?: boolean) => ReactNode;
   /** The Notas tab: periods (publication and agenda), Resultado anual and options. */
@@ -91,7 +91,7 @@ export function PolicyLayoutV1({
   schoolBells?: (editing: boolean) => ReactNode;
   /** The person may change the Calendário tab: it shows "Editar" (owner request 23/10/2026). */
   calendarEditable?: boolean;
-}) {
+}>) {
   const [selected, setSelected] = useState<string>('access');
   const [publicationVisited, setPublicationVisited] = useState(false);
   const [customizationsVisited, setCustomizationsVisited] = useState(false);

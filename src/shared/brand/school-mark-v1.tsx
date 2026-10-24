@@ -17,12 +17,12 @@ export function SchoolMarkV1({
   shine = true,
   pulse = false,
   className,
-}: {
+}: Readonly<{
   size?: number;
   shine?: boolean;
   pulse?: boolean;
   className?: string;
-}) {
+}>) {
   return (
     <span
       className={[

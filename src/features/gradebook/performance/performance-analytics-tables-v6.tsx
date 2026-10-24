@@ -43,11 +43,11 @@ export function AnalyticsStudentsTableV6({
   title = 'Alunos',
   items,
   onSelect,
-}: {
+}: Readonly<{
   title?: string;
   items: readonly StudentItem[];
   onSelect: (id: number) => void;
-}) {
+}>) {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{
     column: string | number;
@@ -168,12 +168,12 @@ export function AnalyticsHeatmapV6({
   onStudent,
   onComponent,
   onCell,
-}: {
+}: Readonly<{
   value: PerformanceAnalyticsV6;
   onStudent: (id: number) => void;
   onComponent: (id: number) => void;
   onCell: (studentId: number, offerId: number) => void;
-}) {
+}>) {
   return (
     <AnalyticsPanelV6
       title="Mapa da turma"
@@ -267,11 +267,11 @@ export function AnalyticsStudentComponentsV6({
   value,
   studentId,
   onCell,
-}: {
+}: Readonly<{
   value: PerformanceAnalyticsV6;
   studentId: number;
   onCell: (studentId: number, offerId: number) => void;
-}) {
+}>) {
   const student = value.students.find((item) => item.student.id === studentId);
   const offers = new Map(value.components.map((item) => [item.offer.id, item.offer]));
   return (
@@ -337,10 +337,10 @@ export function AnalyticsStudentComponentsV6({
 export function AnalyticsInstrumentsV6({
   component,
   onNotes,
-}: {
+}: Readonly<{
   component: PerformanceAnalyticsV6['components'][number];
   onNotes: (offerId: number) => void;
-}) {
+}>) {
   const maximum = Math.max(100, ...component.instruments.map((item) => item.stats.mean ?? 0));
   return (
     <AnalyticsPanelV6

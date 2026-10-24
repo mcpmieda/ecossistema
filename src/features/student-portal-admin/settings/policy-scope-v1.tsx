@@ -6,12 +6,12 @@ export function PolicyScopeV1({
   scope,
   label,
   note,
-}: {
+}: Readonly<{
   scope: PolicyScopeValueV1;
   label?: string;
   /** A short warning about shift rules (owner decision 28/09/2026). */
   note?: ReactNode;
-}) {
+}>) {
   const Icon =
     scope.kind === 'school'
       ? Building2

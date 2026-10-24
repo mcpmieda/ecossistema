@@ -26,11 +26,11 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
    codec (`student-photo-codec-provenance-mismatch`) era o `main` andando durante o CI, não isso.
 2. [x] `plsql:S1192` (92) e `plsql:S1138` (2): só em migrations aplicadas (imutáveis) → ignorar
    essas regras em `migrations/**` no `.sonarcloud.properties`.
-3. [ ] Regras mecânicas pequenas (≤ 46 cada): S3863 imports repetidos, S6582 optional chain, S7758
+3. [~] (parte automática na #1326) Regras mecânicas pequenas (≤ 46 cada): S3863 imports repetidos, S6582 optional chain, S7758
    codePointAt, S7781 replaceAll, S6353 `\d`, S4043 toSorted, S3735 void, S7749 separador numérico,
    S2681, S7778, S7763, S7755, S7765, S7786, S7773, S7780, S7747, S6557, S6749, S7750, S7766,
    S4782, S6594, S6564, S4323, S7718 e as demais de 1–6 ocorrências.
-4. [ ] `typescript:S6759` (152): props de componentes como `Readonly<…>`.
+4. [x] `typescript:S6759` (152): props de componentes como `Readonly<…>`.
 5. [ ] CSS: `css:S4666` (143) seletores duplicados (juntar blocos), `css:S9423` (24) `!important`,
    `css:S9440` (10) reduced-motion, `css:S7924` (10) contraste.
 6. [ ] `typescript:S7503` (46) async sem await; `typescript:S6551` (33) stringificação de objeto.
@@ -56,3 +56,4 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
   `findLast` em TypeScript (a lib do projeto é ES2022), nem `.includes` em guardas de tipo
   (`x is T`); um teste confere o texto `bucket === 'below'` em `performance-dashboard-v5.ts`.
   Ficaram para mão: ~33 optional chain, S7758 codePointAt, S4043, S3735 void, S2681 e as raras.
+- 23/10/2026: #1326 etapa 3 automática; etapa 4 (`Readonly` nas props) com script de AST do TypeScript.

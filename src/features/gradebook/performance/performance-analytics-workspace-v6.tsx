@@ -44,13 +44,13 @@ export const PERFORMANCE_PERSPECTIVES_V6: readonly {
 ];
 
 type EntitySelectId = 'student' | 'component' | 'teacher';
-function EntitySelect({ id, label, value, items, onChange }: {
+function EntitySelect({ id, label, value, items, onChange }: Readonly<{
   id: EntitySelectId;
   label: string;
   value: number | undefined;
   items: readonly { id: number; label: string }[];
   onChange: (id: number) => void;
-}) {
+}>) {
   const [isOpen, setIsOpen] = useState(false);
   const root = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
@@ -114,7 +114,7 @@ function EntitySelect({ id, label, value, items, onChange }: {
   );
 }
 
-export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelection, onNavigate, onPeriod, onCell, onNotes }: {
+export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelection, onNavigate, onPeriod, onCell, onNotes }: Readonly<{
   value: PerformanceAnalyticsV6;
   tab: Exclude<PerformancePerspectiveV6, 'notes'>;
   selection: PerformanceSelectionV6;
@@ -123,7 +123,7 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
   onPeriod: (period: 1 | 2 | 3) => void;
   onCell: (studentId: number, offerId?: number) => void;
   onNotes: (offerId: number) => void;
-}) {
+}>) {
   const student = value.students.find((item) => item.student.id === selection.studentId) ?? value.students[0];
   const component = value.components.find((item) => item.offer.id === selection.offerId) ?? value.components[0];
   const teacher = value.teachers.find((item) => item.id === selection.teacherId) ?? value.teachers[0];

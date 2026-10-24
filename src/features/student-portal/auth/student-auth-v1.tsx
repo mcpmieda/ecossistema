@@ -201,7 +201,7 @@ function noticeOfV1(
 
 const NOTICE_ICONS_V1 = { wrong: CircleX, wait: TimerReset, down: CloudOff, net: WifiOff, info: Info };
 
-function AuthNoticeV1({ message, step }: { message: string; step: StudentAuthStateV1['step'] }) {
+function AuthNoticeV1({ message, step }: Readonly<{ message: string; step: StudentAuthStateV1['step'] }>) {
   const notice = noticeOfV1(message, step);
   const Icon = NOTICE_ICONS_V1[notice.tone];
   return (
@@ -218,7 +218,7 @@ function AuthNoticeV1({ message, step }: { message: string; step: StudentAuthSta
 }
 
 /** Seconds until the server accepts another try, with a ring that empties as time passes. */
-function RetryCountdownV1({ retryAt }: { retryAt: number }) {
+function RetryCountdownV1({ retryAt }: Readonly<{ retryAt: number }>) {
   const [now, setNow] = useState(Date.now);
   const [total] = useState(() => Math.max(1, Math.ceil((retryAt - Date.now()) / 1000)));
   useEffect(() => {
@@ -269,11 +269,11 @@ function KeepConnectedV1({
   value,
   onChange,
   disabled,
-}: {
+}: Readonly<{
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
-}) {
+}>) {
   const hint = useId();
   return (
     <div className="pa-keep-connected">

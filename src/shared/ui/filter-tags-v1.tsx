@@ -17,7 +17,7 @@ export function FilterTagsV1({
   single = false,
   inline = false,
   className = '',
-}: {
+}: Readonly<{
   label: string;
   selected: ReadonlySet<string>;
   options: readonly FilterTagOptionV1[];
@@ -26,7 +26,7 @@ export function FilterTagsV1({
   /** Label beside the tags instead of above them. */
   inline?: boolean;
   className?: string;
-}) {
+}>) {
   return (
     <TagGroup
       selectionMode={single ? 'single' : 'multiple'}

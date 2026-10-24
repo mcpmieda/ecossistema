@@ -12,10 +12,10 @@ import { settingsScopeLabelV1 } from './settings-values-v1';
 function ShiftNoticeV1({
   reader,
   shift,
-}: {
+}: Readonly<{
   reader: PortalAdminReadClientV2;
   shift: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO';
-}) {
+}>) {
   const load = useCallback(
     async (signal: AbortSignal) => {
       const result = await reader.query(

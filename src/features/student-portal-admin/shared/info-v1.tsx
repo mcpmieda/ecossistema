@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Tooltip } from '@heroui/react/tooltip';
 import { Info } from 'lucide-react';
 
-export function InfoV1({ label, children }: { label: string; children: ReactNode }) {
+export function InfoV1({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <Tooltip delay={120} closeDelay={0}>
       <Tooltip.Trigger aria-label={label} tabIndex={0} className="pa-info">

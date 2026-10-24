@@ -199,11 +199,11 @@ function DaySliderV3({
   shown,
   onChange,
   panel,
-}: {
+}: Readonly<{
   shown: WeekdayV3;
   onChange: (weekday: WeekdayV3) => void;
   panel: (weekday: WeekdayV3, current: boolean) => ReactNode;
-}) {
+}>) {
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; axis: 'x' | 'y' | null; dx: number } | null>(null);
   const [offset, setOffset] = useState(0);
@@ -289,11 +289,11 @@ export function SchedulePageV3({
   client,
   onLogin,
   onAuthenticationLost,
-}: {
+}: Readonly<{
   client: StudentScheduleClientV1;
   onLogin?: () => void;
   onAuthenticationLost?: () => void;
-}) {
+}>) {
   const read = useCallback(
     async (signal: AbortSignal) => {
       const value = await client.read(signal);
@@ -355,7 +355,7 @@ export function SchedulePageV3({
  * The break's mug (owner request 23/10/2026): its steam rises while the break is going on. The cup
  * is lucide's "coffee"; the three wisps of steam are drawn wavy so they can drift up and fade.
  */
-function MugV3({ steaming }: { steaming: boolean }) {
+function MugV3({ steaming }: Readonly<{ steaming: boolean }>) {
   return (
     <svg
       width="20"
@@ -382,12 +382,12 @@ function DayListV3({
   rows,
   now,
   label,
-}: {
+}: Readonly<{
   rows: readonly RowV3[];
   /** Seconds since the school's midnight when this day is today, else null. */
   now: number | null;
   label: string;
-}) {
+}>) {
   const minute = now === null ? null : now / 60;
   const isNow = (item: { start: string; end: string } | null) =>
     !!item &&
@@ -501,7 +501,7 @@ function DayListV3({
 }
 
 /** Why a date has no school, as the ADM calendar says ("Feriado · Finados"). */
-function DayOffV3({ day, today }: { day: SchoolDayOffV1; today: boolean }) {
+function DayOffV3({ day, today }: Readonly<{ day: SchoolDayOffV1; today: boolean }>) {
   return (
     <Alert status="default" className="pa3-schedule-off" role="note">
       <Alert.Indicator>
@@ -566,7 +566,7 @@ function NowCardV3({
   daysOff,
   seconds,
   named,
-}: {
+}: Readonly<{
   item: ScheduleClassV3;
   today: string;
   /** Today is a weekday with school (not a weekend, not a day off of the ADM calendar). */
@@ -574,7 +574,7 @@ function NowCardV3({
   daysOff: readonly SchoolDayOffV1[];
   seconds: number;
   named: boolean;
-}) {
+}>) {
   const weekday = weekdayOf(today) as WeekdayV3;
   const bells = schoolToday ? (item.bells?.[weekday] ?? []) : [];
   // Only the day's own lessons: a position past its last lesson is not "next".
@@ -715,14 +715,14 @@ export function ScheduleWeekV3({
   daysOff = [],
   status,
   ticking = true,
-}: {
+}: Readonly<{
   classes: readonly ScheduleClassV3[] | null;
   /** The weekdays without school the ADM calendar names, with their description. */
   daysOff?: readonly SchoolDayOffV1[];
   status?: ReactNode;
   /** The page is on screen: "Agora" counts every second (nothing while hidden). */
   ticking?: boolean;
-}) {
+}>) {
   const hasBells = !!classes?.some((item) => item.bells);
   const clock = useSchoolClockV3(ticking && hasBells);
   const today = clock.date;

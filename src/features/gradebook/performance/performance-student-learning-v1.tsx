@@ -21,13 +21,13 @@ function Metric({
   caption,
   hint,
   icon: Icon,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   caption: string;
   hint: string;
   icon: typeof BookOpen;
-}) {
+}>) {
   return (
     <Card className="min-w-0 border-t-2 border-t-accent/50">
       <Card.Header className="flex-row items-center gap-2">
@@ -51,11 +51,11 @@ function Dimension({
   label,
   caption,
   value,
-}: {
+}: Readonly<{
   label: string;
   caption: string;
   value: number | null;
-}) {
+}>) {
   return (
     <div className="grid gap-2">
       <div className="flex items-start justify-between gap-3">
@@ -91,12 +91,12 @@ export function PerformanceStudentLearningV1({
   studentId,
   onPeriod,
   onCell,
-}: {
+}: Readonly<{
   value: PerformanceAnalyticsV6;
   studentId: number;
   onPeriod: (period: 1 | 2 | 3) => void;
   onCell: (studentId: number, offerId?: number) => void;
-}) {
+}>) {
   const student = value.students.find((item) => item.student.id === studentId);
   if (!student) return null;
   const evidence = value.learning?.students.find((item) => item.studentId === studentId);

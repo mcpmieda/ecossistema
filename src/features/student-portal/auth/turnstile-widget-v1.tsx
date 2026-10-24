@@ -89,11 +89,11 @@ export function StudentRiskWidgetV1({
   sitekey,
   onToken,
   mount = mountTurnstileV1,
-}: {
+}: Readonly<{
   sitekey: string;
   onToken: (token: string | null) => void;
   mount?: RiskMountV1;
-}) {
+}>) {
   const container = useRef<HTMLDivElement>(null);
   const callback = useRef(onToken);
   callback.current = onToken;

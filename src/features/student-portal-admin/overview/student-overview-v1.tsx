@@ -18,7 +18,7 @@ const healthLabels = {
   attention: 'Atenção',
   intervention: 'Intervenção necessária',
 } as const;
-export function StudentOverviewV1(props: OperationsPropsV1) {
+export function StudentOverviewV1(props: Readonly<OperationsPropsV1>) {
   return (
     <OperationsScopeV1 {...props}>
       {(scope, label, onAuthorizationLost) => (
@@ -33,7 +33,7 @@ export function StudentOverviewV1(props: OperationsPropsV1) {
     </OperationsScopeV1>
   );
 }
-function OverviewBodyV1(props: OperationsPropsV1) {
+function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
   const [populationReview, setPopulationReview] = useState(false);
   const [populationBusy, setPopulationBusy] = useState(false);
   const [populationError, setPopulationError] = useState<PortalClientErrorV1 | null>(null);

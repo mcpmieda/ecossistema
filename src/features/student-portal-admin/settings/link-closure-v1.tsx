@@ -24,12 +24,12 @@ export function LinkClosureV1({
   disabled,
   onClosed,
   onBusyChange,
-}: {
+}: Readonly<{
   client: PortalAdminClientV1;
   disabled: boolean;
   onClosed: () => void;
   onBusyChange: (busy: boolean) => void;
-}) {
+}>) {
   const proof = useRef<PreviewResponseV1 | null>(null);
   const [load, setLoad] = useState<PortalLoadStateV1<PreviewV1>>({ state: 'idle' });
   const [mutation, setMutation] = useState<SettingsMutationStateV1>({ state: 'idle' });

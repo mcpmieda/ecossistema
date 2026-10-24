@@ -4,7 +4,7 @@ import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-
 import { StudentAvatarV1 } from '../shared/student-avatar-v1';
 import { accountStateLabelV1 } from './accounts-values-v1';
 
-export function AccountIdentityV1({ account, detail = false }: { account: AdminAccountReadV2; detail?: boolean }) {
+export function AccountIdentityV1({ account, detail = false }: Readonly<{ account: AdminAccountReadV2; detail?: boolean }>) {
   const name = account.name || 'Nome indisponível';
   return (
     <div className={detail ? 'pa-account-identity pa-account-identity--detail' : 'pa-account-identity'}>
@@ -16,7 +16,7 @@ export function AccountIdentityV1({ account, detail = false }: { account: AdminA
     </div>
   );
 }
-export function AccountStatusV1({ account }: { account: AdminAccountReadV2 }) {
+export function AccountStatusV1({ account }: Readonly<{ account: AdminAccountReadV2 }>) {
   return (
     <div className="pa-account-tags">
       <Chip
@@ -38,11 +38,11 @@ export function AccountsErrorV1({
   error,
   onReload,
   canReload = true,
-}: {
+}: Readonly<{
   error: PortalClientErrorV1;
   onReload: () => void;
   canReload?: boolean;
-}) {
+}>) {
   const message =
     error.state === 'unauthenticated'
       ? 'Sessão administrativa expirada. Entre novamente.'

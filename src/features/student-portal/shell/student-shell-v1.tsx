@@ -48,7 +48,7 @@ export function StudentPortalShellV1({
   loggingOut = false,
   busy = false,
   hero,
-}: StudentShellPropsV1) {
+}: Readonly<StudentShellPropsV1>) {
   const contentId = useId();
   const content = useRef<HTMLElement>(null);
   return (
@@ -117,7 +117,7 @@ function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
  * and without shine (owner request 29/09/2026). "Brilhante" is the name of the seal's level, so it
  * stays capitalized and invariable (owner decision 20/10/2026).
  */
-function SealCountV1({ count }: { count: number }) {
+function SealCountV1({ count }: Readonly<{ count: number }>) {
   const empty = count <= 0;
   return (
     <span className={empty ? 'pa-seal-count pa-seal-count--empty' : 'pa-seal-count'}>
@@ -138,7 +138,7 @@ export function StudentProfileV1({
   loggingOut = false,
   portraitSrc,
   seals = 0,
-}: {
+}: Readonly<{
   profile: SelfResponseV1['profile'];
   schoolName?: string;
   logo?: ReactNode;
@@ -151,7 +151,7 @@ export function StudentProfileV1({
   portraitSrc?: string;
   /** Selos brilhantes collected this year (see grades/brilliant-seal-v1.ts). */
   seals?: number;
-}) {
+}>) {
   const heading = useId();
   const [failedSrc, setFailedSrc] = useState<string>();
   const photo = portraitSrc && portraitSrc !== failedSrc ? portraitSrc : undefined;
@@ -278,10 +278,10 @@ const messages = {
 export function StudentPortalMessageV1({
   kind,
   onAction,
-}: {
+}: Readonly<{
   kind: StudentMessageKindV1;
   onAction?: () => void;
-}) {
+}>) {
   const message = messages[kind];
   if (kind === 'empty')
     return (
@@ -368,7 +368,7 @@ export function StudentPortalPageV1({
   frequencyClient = defaultFrequencyClient,
   scheduleClient = defaultScheduleClient,
   ...shell
-}: StudentPagePropsV1) {
+}: Readonly<StudentPagePropsV1>) {
   const gradesHeading = useId();
   const hero =
     load.state === 'ready' ? (

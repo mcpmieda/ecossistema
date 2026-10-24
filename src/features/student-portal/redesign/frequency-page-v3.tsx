@@ -220,7 +220,7 @@ function spreadLabels<T extends { y: number }>(labels: T[]) {
     label.y = Math.max(label.y, index ? labels[index - 1]!.y + RING_LABEL_GAP_V3 : top);
   return labels;
 }
-function DayRingV3({ totals, label }: { totals: RingTotalsV3; label: string }) {
+function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: string }>) {
   const counts = { clear: totals.clear, full: totals.full, partial: totals.partial, justified: totals.justified };
   // Absences first, then the frequented days. The ring is turned so the absences sit centred on
   // the left and the frequented days on the right (owner request 21/10/2026): every arc then
@@ -425,13 +425,13 @@ function FrequencyStatusV3({
   onLogin,
   onRetry,
   month,
-}: {
+}: Readonly<{
   error: string | null;
   onLogin?: () => void;
   onRetry: () => void;
   /** The month and its arrows, so a month that is slow to come never traps the reader. */
   month?: ReactNode;
-}) {
+}>) {
   if (!error)
     return (
       <Card className="pa3-card pa3-status">
@@ -465,7 +465,7 @@ function FrequencyStatusV3({
   );
 }
 
-export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthenticationLost }: FrequencyPageV3Props) {
+export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthenticationLost }: Readonly<FrequencyPageV3Props>) {
   // The whole school year so far, read once with the sign-in (owner request 22/10/2026: changing
   // months must never blink nor wait): every month, the school's today, the year's counts.
   const read = useCallback(
@@ -540,7 +540,7 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
 }
 
 /** The sentence for the family: a warning in amber, a good news in green. */
-function FrequencyCommentV3({ comment }: { comment: NonNullable<FrequencyYearSummaryV2['comment']> }) {
+function FrequencyCommentV3({ comment }: Readonly<{ comment: NonNullable<FrequencyYearSummaryV2['comment']> }>) {
   const Icon = comment.tone === 'alert' ? TriangleAlert : PartyPopper;
   return (
     <Alert
@@ -563,7 +563,7 @@ function FrequencyCommentV3({ comment }: { comment: NonNullable<FrequencyYearSum
  * the portal's opening countdown. It runs to the end of the last school day of the calendar marked
  * in the ADM, and says how many school days are left. Nothing while no calendar is marked.
  */
-function SchoolYearCountdownV3({ schoolYear }: { schoolYear: NonNullable<FrequencyYearSummaryV2['schoolYear']> | null }) {
+function SchoolYearCountdownV3({ schoolYear }: Readonly<{ schoolYear: NonNullable<FrequencyYearSummaryV2['schoolYear']> | null }>) {
   if (!schoolYear?.lastDay) return null;
   const [year, month, day] = schoolYear.lastDay.split('-');
   return (
@@ -607,12 +607,12 @@ function MonthHeadV3({
   canBack,
   canForward,
   go,
-}: {
+}: Readonly<{
   month: string;
   canBack: boolean;
   canForward: boolean;
   go: (step: number) => void;
-}) {
+}>) {
   return (
     <Card.Header className="pa3-card-head">
       <Card.Title aria-live="polite">{monthLabel(month)}</Card.Title>
@@ -642,7 +642,7 @@ function FrequencyMonthV3({
   daysOff = [],
   bells = null,
   grid = [],
-}: {
+}: Readonly<{
   data: FrequencySummaryV2;
   /** The ring: the whole year so far. */
   totals: RingTotalsV3;
@@ -659,7 +659,7 @@ function FrequencyMonthV3({
   /** Each lesson's time by shift and weekday (ADM) and the week's subjects, for an absence. */
   bells?: FrequencyYearSummaryV2['bells'];
   grid?: FrequencyYearSummaryV2['grid'];
-}) {
+}>) {
   const offByDate = useMemo(() => new Map(daysOff.map((day) => [day.date, day])), [daysOff]);
   /**
    * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula

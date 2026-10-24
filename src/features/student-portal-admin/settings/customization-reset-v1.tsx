@@ -6,14 +6,14 @@ import type { CustomizationResetChoiceV1 } from './customization-values-v1';
 
 /** Review one captured difference. Retries retain identical command bytes and CAS; never
  * silently rebase an open confirmation on a background refresh. */
-export function CustomizationResetV1({ client, label, choices, canWrite, onClose, onCommitted }: {
+export function CustomizationResetV1({ client, label, choices, canWrite, onClose, onCommitted }: Readonly<{
   client: PortalAdminClientV1;
   label: string;
   choices: readonly CustomizationResetChoiceV1[];
   canWrite: boolean;
   onClose: () => void;
   onCommitted: () => void;
-}) {
+}>) {
   const [selected, setSelected] = useState(choices.length === 1 ? choices[0]!.id : '');
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<PortalClientErrorV1 | null>(null);

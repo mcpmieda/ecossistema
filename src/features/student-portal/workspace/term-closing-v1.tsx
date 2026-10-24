@@ -60,13 +60,13 @@ export function TermClosingCardV1({
   subjectId,
   accountId,
   preview = false,
-}: {
+}: Readonly<{
   closing: TermClosingV1;
   subjectId: number;
   accountId: string;
   /** Drawn only as the neighbour beside a drag: the student has not opened it, so not "seen". */
   preview?: boolean;
-}) {
+}>) {
   const isNew = useTermClosingNewV1(`${accountId}|${subjectId}|${closing.period}|${closing.mode}`, !preview);
   const label = termClosingLabelV1(closing.period, closing.mode);
   const text = (message: TermClosingV1['conclusion'] | undefined) =>
@@ -139,11 +139,11 @@ export function TermClosingSummaryCardV1({
   summary,
   subjects,
   accountId,
-}: {
+}: Readonly<{
   summary: TermClosingSummaryV1;
   subjects: readonly SelfResponseV1['subjects'][number][];
   accountId: string;
-}) {
+}>) {
   const isNew = useTermClosingNewV1(`${accountId}|summary|${summary.period}|${summary.mode}`);
   const label = termClosingLabelV1(summary.period, summary.mode);
   const names = summary.attentionSubjectIds

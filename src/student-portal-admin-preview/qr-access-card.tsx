@@ -48,7 +48,7 @@ export function QrAccessCard({
   symbolRows,
   mode = 'qr-name-class',
   instruction = '',
-}: QrAccessCardProps) {
+}: Readonly<QrAccessCardProps>) {
   const footerRows = Math.min(4, symbolRows - 1);
   const headerSize = sizeForRows(132, symbolRows, symbolSpacing);
   const footerSize = sizeForRows(84, footerRows, symbolSpacing);

@@ -43,14 +43,14 @@ export function DurationEditorV1({
   max,
   disabled,
   onChange,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   min: number;
   max: number;
   disabled: boolean;
   onChange: (seconds: string) => void;
-}) {
+}>) {
   const presets = [
     30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 43200, 86400, 259200, 604800,
     1209600, 2592000, 7776000, 31536000,

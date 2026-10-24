@@ -31,7 +31,7 @@ const labels = {
   revoked: 'Encerrada',
   unavailable: 'Sem acesso',
 } as const;
-export function StudentSessionsV1(props: OperationsPropsV1) {
+export function StudentSessionsV1(props: Readonly<OperationsPropsV1>) {
   return (
     <OperationsScopeV1 {...props}>
       {(scope, label, onAuthorizationLost) => (
@@ -46,7 +46,7 @@ export function StudentSessionsV1(props: OperationsPropsV1) {
     </OperationsScopeV1>
   );
 }
-function SessionsBodyV1(props: OperationsPropsV1) {
+function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
   const parentScope = props.scope;
   const [revision, setRevision] = useState(0);
   const [mutation, setMutation] = useState<SessionMutationStateV1>({ state: 'idle' });
@@ -486,7 +486,7 @@ function SessionFeedV1({
   scope,
   onAction,
   end,
-}: {
+}: Readonly<{
   title: string;
   data: SessionsPageV2;
   busy: boolean;
@@ -494,7 +494,7 @@ function SessionFeedV1({
   scope: ScopeV1;
   onAction: (row: SessionRowV2, individual: boolean) => void;
   end: React.ReactNode;
-}) {
+}>) {
   const active = data.sessionView === 'active';
   return (
     <section className="pa-session-feed" aria-label={title}>

@@ -46,14 +46,14 @@ export function StudentBulkV1({
   canWrite,
   selected,
   onAuthorizationLost,
-}: {
+}: Readonly<{
   client: PortalAdminClientV1;
   scope: BulkPreviewQueryV1['scope'];
   scopeLabel: string;
   canWrite: boolean;
   selected?: ReadonlySet<string>;
   onAuthorizationLost: (error: PortalClientErrorV1) => void;
-}) {
+}>) {
   const [action, setAction] = useState<BulkPreviewQueryV1['action']>('qr-regenerate');
   const [state, setState] = useState<BulkStateV1>({ phase: 'idle', items: [], total: 0 });
   const [confirmation, setConfirmation] = useState('');

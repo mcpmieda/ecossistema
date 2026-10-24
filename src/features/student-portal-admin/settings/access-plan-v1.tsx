@@ -80,13 +80,13 @@ export function AccessPlanSummaryV1({
   now,
   wasOpen,
   words = ACCESS_WORDS_V1,
-}: {
+}: Readonly<{
   plan: AccessPlanV1;
   now: number;
   /** The state before this change, to say what happens to students right away. */
   wasOpen?: boolean;
   words?: PlanWordsV1;
-}) {
+}>) {
   const open = accessOpenAtV1(plan, now);
   const upcoming = plan.schedule.filter((event) => Date.parse(event.at) > now);
   return (

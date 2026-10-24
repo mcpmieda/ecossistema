@@ -14,12 +14,12 @@ export function AnalyticsPanelV6({
   children,
   action,
   footer,
-}: {
+}: Readonly<{
   title: string;
   children: ReactNode;
   action?: ReactNode;
   footer?: ReactNode;
-}) {
+}>) {
   return (
     <Card className="min-w-0">
       <Card.Header className="flex-row items-center justify-between gap-3">
@@ -31,7 +31,7 @@ export function AnalyticsPanelV6({
     </Card>
   );
 }
-export function AnalyticsHintV6({ label, children }: { label: string; children: ReactNode }) {
+export function AnalyticsHintV6({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <Tooltip delay={150}>
       <Tooltip.Trigger
@@ -51,12 +51,12 @@ export function AnalyticsHintBodyV6({
   steps,
   result,
   note,
-}: {
+}: Readonly<{
   what: ReactNode;
   steps?: readonly ReactNode[];
   result?: ReactNode;
   note?: ReactNode;
-}) {
+}>) {
   return (
     <div className="analytics-hint__body">
       <p>{what}</p>
@@ -78,10 +78,10 @@ export function AnalyticsHintBodyV6({
 export function AnalyticsKpisV6({
   summary,
   individual = false,
-}: {
+}: Readonly<{
   summary: PerformanceAnalyticsSummaryV6;
   individual?: boolean;
-}) {
+}>) {
   const values = [
     {
       label: 'Aproveitamento',
@@ -135,11 +135,11 @@ export function AnalyticsTimelineV6({
   summary,
   onPeriod,
   schoolLanguage = false,
-}: {
+}: Readonly<{
   summary: PerformanceAnalyticsSummaryV6;
   onPeriod: (term: 1 | 2 | 3) => void;
   schoolLanguage?: boolean;
-}) {
+}>) {
   const gradient = useId().replaceAll(':', '');
   const values = summary.timeline;
   const ceiling = Math.max(100, ...values.map((item) => item.mean ?? 0));
@@ -215,7 +215,7 @@ export function AnalyticsTimelineV6({
     </AnalyticsPanelV6>
   );
 }
-export function AnalyticsDistributionV6({ summary }: { summary: PerformanceAnalyticsSummaryV6 }) {
+export function AnalyticsDistributionV6({ summary }: Readonly<{ summary: PerformanceAnalyticsSummaryV6 }>) {
   const maximum = Math.max(1, ...summary.distribution.map((bin) => bin.count));
   return (
     <AnalyticsPanelV6 title="Distribuição" footer={<><span>{summary.result.n} resultados considerados</span><span className="ml-auto">Mín. {percent(summary.result.min)} · Máx. {percent(summary.result.max)}</span></>}>
@@ -236,7 +236,7 @@ export function AnalyticsDistributionV6({ summary }: { summary: PerformanceAnaly
     </AnalyticsPanelV6>
   );
 }
-export function AnalyticsCompositionV6({ summary }: { summary: PerformanceAnalyticsSummaryV6 }) {
+export function AnalyticsCompositionV6({ summary }: Readonly<{ summary: PerformanceAnalyticsSummaryV6 }>) {
   const share = summary.composition.quantitativeShare;
   const circumference = 2 * Math.PI * 60;
   return (
@@ -257,14 +257,14 @@ export function AnalyticsCompositionV6({ summary }: { summary: PerformanceAnalyt
     </AnalyticsPanelV6>
   );
 }
-export function AnalyticsBarsV6({ items, onSelect }: {
+export function AnalyticsBarsV6({ items, onSelect }: Readonly<{
   items: readonly { id: number; label: string; value: number | null; below?: boolean; secondary?: string }[];
   onSelect: (id: number) => void;
-}) {
+}>) {
   const maximum = Math.max(100, ...items.map((item) => item.value ?? 0));
   return <div className="grid gap-4">{items.map((item) => <div key={item.id} className="grid gap-1"><div className="flex items-center justify-between gap-3"><Button size="sm" variant="ghost" className="h-auto min-w-0 justify-start px-0 py-1 text-left" onPress={() => onSelect(item.id)}><span className="truncate">{item.label}</span></Button><strong className="shrink-0 text-base tabular-nums">{percent(item.value)}</strong></div><Meter aria-label={`${item.label}: aproveitamento`} value={item.value ?? 0} maxValue={maximum} color={item.below ? 'danger' : 'accent'}><Meter.Track><Meter.Fill /></Meter.Track></Meter>{item.secondary ? <span className="text-[11px] text-muted">{item.secondary}</span> : null}</div>)}</div>;
 }
-export function AnalyticsRecoveryV6({ summary }: { summary: PerformanceAnalyticsSummaryV6 }) {
+export function AnalyticsRecoveryV6({ summary }: Readonly<{ summary: PerformanceAnalyticsSummaryV6 }>) {
   const recovery = summary.recovery;
   const items = [
     ['REC aplicável', String(recovery.applicable)], ['REC lançada', String(recovery.recorded)],
@@ -276,11 +276,11 @@ export function AnalyticsRecoveryV6({ summary }: { summary: PerformanceAnalytics
 export function AnalyticsCoverageV6({
   summary,
   partial,
-}: {
+}: Readonly<{
   summary: PerformanceAnalyticsSummaryV6;
   /** Results with a blank instrument, counted from the cells of this scope. */
   partial: number;
-}) {
+}>) {
   return <AnalyticsPanelV6 title="Qualidade da leitura" footer={<><span>Referências da fonte: {summary.source.recorded}</span><span className="ml-auto">Divergências: {summary.source.different}/{summary.source.comparable}</span></>}><Meter value={summary.coverage.percent ?? 0} aria-label="Cobertura dos instrumentos" color="accent"><Label>Notas lançadas</Label><Meter.Output>{percent(summary.coverage.percent)}</Meter.Output><Meter.Track><Meter.Fill /></Meter.Track></Meter><dl className="mt-5 grid grid-cols-3 gap-3">{[
     ['Resultados considerados', summary.complete], ['Desses, com instrumento em branco', partial], ['Sem nota', summary.missing],
     ['Indisponíveis', summary.unavailable], ['Zeros registrados', summary.coverage.zeros], ['Lançamentos ausentes', summary.coverage.missing],
