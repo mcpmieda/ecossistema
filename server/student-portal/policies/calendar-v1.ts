@@ -160,6 +160,17 @@ function periodStartV1(calendar: CalendarV1, period: PeriodV1): string | null {
   return calendar.recoveriesStartAt;
 }
 
+type DatedDisclosureV1 = Exclude<PolicyValueV1['calendar']['disclosure'], { mode: 'agenda' }>;
+
+/** A period's "Liberar" and "Ocultar" instants: the single dates, or the period's own. */
+function disclosureDatesV1(disclosure: DatedDisclosureV1, period: PeriodV1) {
+  const single = disclosure.mode === 'single';
+  return {
+    at: timestamp(single ? disclosure.at : disclosure.at[period]),
+    until: timestamp((single ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null),
+  };
+}
+
 /** Joint publication window: inclusive start, exclusive end; never grants academic authority. */
 export function publicationWindowV1(
   input: PolicyValueV1,
@@ -179,10 +190,7 @@ export function publicationWindowV1(
     if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return null;
     const periodStart = timestamp(periodStartV1(calendar, period));
     if (periodStart === null) return null;
-    const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);
-    const until = timestamp(
-      (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null,
-    );
+    const { at, until } = disclosureDatesV1(disclosure, period);
     start = Math.max(start, periodStart, at ?? periodStart);
     if (until !== null) end = Math.min(end, until);
   }
@@ -208,10 +216,7 @@ export function periodDisclosureV1(
   if (!value.allowedPeriods.includes(period)) return 'disabled';
   const start = timestamp(periodStartV1(calendar, period));
   if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return 'disabled';
-  const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);
-  const end = timestamp(
-    (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null,
-  );
+  const { at, until: end } = disclosureDatesV1(disclosure, period);
   if (!disclosureShownAtV1(at, end, now.getTime()))
     return at !== null && at > now.getTime() ? 'not-yet' : 'disabled';
   if (start === null) return 'unavailable';
@@ -234,6 +239,59 @@ function disclosureShownAtV1(at: number | null, end: number | null, time: number
   return accessOpenAtV1({ enabled: true, schedule }, time);
 }
 
+/** The earliest grade release still ahead and the latest disclosure end already past. */
+type DisclosureNoticeV1 = { release: number | null; ended: { period: PeriodV1 | null; at: number } | null };
+
+function earlierReleaseV1(notice: DisclosureNoticeV1, opens: number) {
+  if (notice.release === null || opens < notice.release) notice.release = opens;
+}
+
+function laterEndV1(notice: DisclosureNoticeV1, period: PeriodV1 | null, at: number) {
+  if (notice.ended === null || at > notice.ended.at) notice.ended = { period, at };
+}
+
+/** A period on the Notas agenda: its next "Liberar", or the scheduled "Ocultar" that hid it. */
+function agendaNoticeV1(notice: DisclosureNoticeV1, plan: AccessPlanV1, period: PeriodV1, current: number) {
+  if (accessOpenAtV1(plan, current)) return;
+  const opens = nextAccessChangeV1(plan, current, true);
+  if (opens !== null) {
+    earlierReleaseV1(notice, opens);
+    return;
+  }
+  // Hidden for good: announce it only when a scheduled Ocultar did it.
+  const hidden = [...plan.schedule].reverse().find((event) => Date.parse(event.at) <= current);
+  if (hidden?.action === 'close') laterEndV1(notice, period, Date.parse(hidden.at));
+}
+
+/** A period released on a date (one for all, or one each): its release ahead, or its end already past. */
+function datedNoticeV1(
+  notice: DisclosureNoticeV1,
+  {
+    value,
+    disclosure,
+    period,
+    current,
+  }: {
+    value: PolicyValueV1;
+    disclosure: DatedDisclosureV1;
+    period: PeriodV1;
+    current: number;
+  },
+) {
+  if (!value.allowedPeriods.includes(period)) return;
+  if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return;
+  const { at, until } = disclosureDatesV1(disclosure, period);
+  // A later "Liberar" shows the grades again: count down to it instead of announcing an end.
+  if (until !== null && until <= current && !(at !== null && at > until)) {
+    laterEndV1(notice, disclosure.mode === 'single' ? null : period, until);
+    return;
+  }
+  const periodStart = timestamp(periodStartV1(value.calendar, period));
+  if (at === null || periodStart === null) return;
+  const opens = Math.max(periodStart, at);
+  if (opens > current) earlierReleaseV1(notice, opens);
+}
+
 /** Notices for the Portal pages: access state, the next configured grade release and the latest
  * disclosure end already past. A countdown needs an explicit "Liberar notas em" date; a period that
  * simply starts later has no announced release.
@@ -250,43 +308,12 @@ export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): Porta
   const scheduledOpening = plan && !open ? nextAccessChangeV1(plan, current, true) : null;
   const opensLater = plan ? open || scheduledOpening !== null : value.accessEnabled;
   const disclosure = calendar.disclosure;
-  let release: number | null = null;
-  let ended: { period: PeriodV1 | null; at: number } | null = null;
+  const notice: DisclosureNoticeV1 = { release: null, ended: null };
   for (const period of periodV1.options) {
-    if (disclosure.mode === 'agenda') {
-      const plan = disclosure.periods[period];
-      if (accessOpenAtV1(plan, current)) continue;
-      const opens = nextAccessChangeV1(plan, current, true);
-      if (opens !== null) {
-        if (release === null || opens < release) release = opens;
-        continue;
-      }
-      // Hidden for good: announce it only when a scheduled Ocultar did it.
-      const hidden = [...plan.schedule].reverse().find((event) => Date.parse(event.at) <= current);
-      if (hidden?.action === 'close' && (ended === null || Date.parse(hidden.at) > ended.at))
-        ended = { period, at: Date.parse(hidden.at) };
-      continue;
-    }
-    if (!value.allowedPeriods.includes(period)) continue;
-    if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) continue;
-    const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);
-    const until = timestamp(
-      (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null,
-    );
-    if (until !== null && until <= current) {
-      // A later "Liberar" shows the grades again: count down to it instead of announcing an end.
-      const releasedAgain = at !== null && at > until;
-      if (!releasedAgain) {
-        if (ended === null || until > ended.at)
-          ended = { period: disclosure.mode === 'single' ? null : period, at: until };
-        continue;
-      }
-    }
-    const periodStart = timestamp(periodStartV1(calendar, period));
-    if (at === null || periodStart === null) continue;
-    const opens = Math.max(periodStart, at);
-    if (opens > current && (release === null || opens < release)) release = opens;
+    if (disclosure.mode === 'agenda') agendaNoticeV1(notice, disclosure.periods[period], period, current);
+    else datedNoticeV1(notice, { value, disclosure, period, current });
   }
+  const { release, ended } = notice;
   const iso = (time: number | null) => (time === null ? null : new Date(time).toISOString());
   // With schedules, the next scheduled opening; without them, the Calendário's start while still ahead.
   let opensAt: number | null = null;
