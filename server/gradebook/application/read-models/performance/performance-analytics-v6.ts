@@ -110,21 +110,11 @@ function recoveryState(
   }
   return 'unknown';
 }
-function summarize(
-  pairs: readonly Pair[],
-  period: PerformancePeriodV2,
-  studentIds: readonly number[],
-): PerformanceAnalyticsSummaryV6 {
-  const selectedTerms = period === 'annual' ? TERMS : [period];
-  const results = pairs.filter((pair) => performanceResultCountsV2(pair.cell.result.state));
-  const below = pairs.filter(
-    (pair) =>
-      performanceResultCountsV2(pair.cell.result.state) && pair.cell.result.level === 'below',
-  );
+/** Students with at least one result, every one of them at or above the minimum. */
+function studentsAtOrAboveV6(pairs: readonly Pair[], studentIds: readonly number[]) {
   const byStudent = new Map(studentIds.map((id) => [id, [] as Pair[]]));
   for (const pair of pairs) byStudent.get(pair.studentId)?.push(pair);
-  const studentsBelow = new Set(below.map((pair) => pair.studentId)).size;
-  const studentsAtOrAbove = [...byStudent.values()].filter(
+  return [...byStudent.values()].filter(
     (items) =>
       items.length &&
       items.every(
@@ -133,10 +123,10 @@ function summarize(
           pair.cell.result.level === 'at-or-above',
       ),
   ).length;
-  const facts = pairs.flatMap((pair) =>
-    pair.projection.facts.filter((fact) => selectedTerms.includes(fact.term) &&
-      (fact.slot !== 3 || pair.projection.terms[fact.term - 1]?.coverage.requiredSlots.includes(3))),
-  );
+}
+
+/** The pairs with both dimensions, and their points; sums beyond safe integers are refused. */
+function dimensionTotalsV6(pairs: readonly Pair[]) {
   const pairedDimensions = pairs.filter(
     ({ cell }) => cell.quantitative.percent !== null && cell.qualitative.percent !== null,
   );
@@ -154,8 +144,48 @@ function summarize(
     !Number.isSafeInteger(quantTotal + qualTotal)
   )
     throw new Error('analytics-overflow');
-  const changes = pairs.filter((pair) => pair.direction !== null);
-  const recovery = {
+  return { pairedDimensions, quantTotal, qualTotal };
+}
+
+type Term = (typeof TERMS)[number];
+type RecoveryTallyV6 = {
+  applicable: number;
+  recorded: number;
+  pending: number;
+  noShow: number;
+  repeatFailure: number;
+  unknown: number;
+  changed: number;
+  meanGainMilli: number | null;
+};
+type RecoveryTermV6 = NonNullable<Pair['projection']['recovery']>['recoveryTerms'][Term];
+
+/** One term's REC: applicable or not, and when recorded on a complete term, what it changed. */
+function tallyRecoveryTermV6(
+  recovery: RecoveryTallyV6,
+  gains: number[],
+  r: RecoveryTermV6 | undefined,
+  original: Pair['projection']['terms'][number] | undefined,
+) {
+  if (r?.source === 'RR') recovery.repeatFailure++;
+  if (r?.applicable == null) recovery.unknown++;
+  if (r?.applicable !== true) return;
+  recovery.applicable++;
+  if (r.source === 'NC') recovery.noShow++;
+  else if (r.source === null) recovery.pending++;
+  else if (typeof r.source === 'number') {
+    recovery.recorded++;
+    if (original?.coverage.complete && r.replacementMilli !== null) {
+      const gain = r.replacementMilli - original.roundedMilli;
+      gains.push(gain);
+      if (gain !== 0) recovery.changed++;
+    }
+  }
+}
+
+/** Recovery and parallel exam counts over the selected terms of every reading. */
+function recoveryTallyV6(pairs: readonly Pair[], selectedTerms: readonly Term[]) {
+  const recovery: RecoveryTallyV6 = {
     applicable: 0,
     recorded: 0,
     pending: 0,
@@ -163,7 +193,7 @@ function summarize(
     repeatFailure: 0,
     unknown: 0,
     changed: 0,
-    meanGainMilli: null as number | null,
+    meanGainMilli: null,
   };
   const gains: number[] = [],
     parallelGains: number[] = [];
@@ -171,24 +201,8 @@ function summarize(
     parallelApplied = 0;
   for (const pair of pairs) {
     for (const t of selectedTerms) {
-      const r = pair.projection.recovery?.recoveryTerms[t];
-      if (r?.source === 'RR') recovery.repeatFailure++;
-      if (r?.applicable == null) recovery.unknown++;
-      if (r?.applicable === true) {
-        recovery.applicable++;
-        if (r.source === 'NC') recovery.noShow++;
-        else if (r.source === null) recovery.pending++;
-        else if (typeof r.source === 'number') {
-          recovery.recorded++;
-          const original = pair.projection.terms[t - 1];
-          if (original?.coverage.complete && r.replacementMilli !== null) {
-            const gain = r.replacementMilli - original.roundedMilli;
-            gains.push(gain);
-            if (gain !== 0) recovery.changed++;
-          }
-        }
-      }
       const outcome = pair.projection.terms[t - 1];
+      tallyRecoveryTermV6(recovery, gains, pair.projection.recovery?.recoveryTerms[t], outcome);
       if (outcome?.parallelApplicable === true) parallelApplicable++;
       if (outcome && outcome.quantitativeConsideredMilli > outcome.quantitativeOriginalMilli) {
         parallelApplied++;
@@ -197,13 +211,42 @@ function summarize(
     }
   }
   recovery.meanGainMilli = mean(gains);
-  const percentages = numeric(results.map((pair) => pair.cell.percent));
+  return { recovery, parallelApplicable, parallelApplied, parallelGains };
+}
+
+/** Results in bands of 20 percentage points, with one band above 100%. */
+function percentBinsV6(percentages: readonly number[]) {
   const bins = ['0–<20%', '20–<40%', '40–<60%', '60–<80%', '80–100%', '>100%'].map((label) => ({
     label,
     count: 0,
   }));
   for (const percent of percentages)
     bins[percent > 100 ? 5 : Math.min(4, Math.floor(percent / 20))]!.count++;
+  return bins;
+}
+
+function summarize(
+  pairs: readonly Pair[],
+  period: PerformancePeriodV2,
+  studentIds: readonly number[],
+): PerformanceAnalyticsSummaryV6 {
+  const selectedTerms = period === 'annual' ? TERMS : [period];
+  const results = pairs.filter((pair) => performanceResultCountsV2(pair.cell.result.state));
+  const below = pairs.filter(
+    (pair) =>
+      performanceResultCountsV2(pair.cell.result.state) && pair.cell.result.level === 'below',
+  );
+  const studentsBelow = new Set(below.map((pair) => pair.studentId)).size;
+  const studentsAtOrAbove = studentsAtOrAboveV6(pairs, studentIds);
+  const facts = pairs.flatMap((pair) =>
+    pair.projection.facts.filter((fact) => selectedTerms.includes(fact.term) &&
+      (fact.slot !== 3 || pair.projection.terms[fact.term - 1]?.coverage.requiredSlots.includes(3))),
+  );
+  const { pairedDimensions, quantTotal, qualTotal } = dimensionTotalsV6(pairs);
+  const changes = pairs.filter((pair) => pair.direction !== null);
+  const { recovery, parallelApplicable, parallelApplied, parallelGains } = recoveryTallyV6(pairs, selectedTerms);
+  const percentages = numeric(results.map((pair) => pair.cell.percent));
+  const bins = percentBinsV6(percentages);
   const sourceComparable = pairs.filter(
     (pair) => pair.cell.result.sourceComparison !== 'unavailable',
   );
