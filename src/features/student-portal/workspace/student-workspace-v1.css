@@ -250,7 +250,6 @@
   --pa-score-maximum: #3b4f7d;
   --pa-score-status-surface: #fff;
   --pa-score-status-border: #bcd4ff;
-  the mark block stays a step above the fill. */
   --pa-head-fill: #eaf3fc;
   --pa-head-line: #cfe2f6;
   --pa-head-surface: #d8e9f9;
@@ -309,14 +308,12 @@
 
 .pa-partials-list > li {
   display: grid;
-  align-items: center;
+  align-items: start;
   justify-content: space-between;
   gap: 0.65rem;
   padding: 0.65rem 0;
   border-bottom: 1px solid #edf1f7;
   grid-template-columns: minmax(0, 1fr) max-content;
-  the chip hangs under the description. */
-  align-items: start;
   border: 0;
   border-radius: 0;
   background: transparent;
