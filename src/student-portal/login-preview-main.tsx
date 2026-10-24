@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { StrictMode, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentAuthenticationV1 } from '../features/student-portal/auth/student-auth-v1';
 import type { RiskMountV1 } from '../features/student-portal/auth/turnstile-widget-v1';
@@ -292,6 +292,43 @@ function LoginPreviewV1() {
     setIndex(target);
     setRun((value) => value + 1);
   };
+  let body: ReactNode;
+  if (screen.closed) {
+    body = (
+      <StudentEntryLayoutV1>
+        <PortalClosedNoticeV1
+          key={`${index}-${run}`}
+          notices={{
+            access: 'closed',
+            accessOpensAt:
+              screen.closed === 'opening' ? new Date(Date.now() + 3 * 86_400_000).toISOString() : null,
+            gradesReleaseAt:
+              screen.closed === 'grades'
+                ? new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60 + 9) * 1000).toISOString()
+                : null,
+            disclosureEnded: null,
+          }}
+        />
+      </StudentEntryLayoutV1>
+    );
+  } else if (screen.splash) {
+    body = <StudentSplashV1 entered={screen.splash === 'entered'} />;
+  } else if (authenticated) {
+    body = <StudentSplashV1 entered />;
+  } else {
+    body = (
+      <StudentEntryLayoutV1>
+        <StudentAuthenticationV1
+          key={`${index}-${run}`}
+          client={client}
+          initialQr={screen.qr ?? null}
+          onAuthenticated={() => setAuthenticated(true)}
+          sitekey="preview"
+          riskMount={previewRiskMountV1}
+        />
+      </StudentEntryLayoutV1>
+    );
+  }
   return (
     <>
       <details open style={panelStyle}>
@@ -320,38 +357,7 @@ function LoginPreviewV1() {
           <span style={{ opacity: 0.75 }}>Ano: 2012 · Senha: 123456</span>
         </div>
       </details>
-      {screen.closed ? (
-        <StudentEntryLayoutV1>
-          <PortalClosedNoticeV1
-            key={`${index}-${run}`}
-            notices={{
-              access: 'closed',
-              accessOpensAt:
-                screen.closed === 'opening' ? new Date(Date.now() + 3 * 86_400_000).toISOString() : null,
-              gradesReleaseAt:
-                screen.closed === 'grades'
-                  ? new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60 + 9) * 1000).toISOString()
-                  : null,
-              disclosureEnded: null,
-            }}
-          />
-        </StudentEntryLayoutV1>
-      ) : screen.splash ? (
-        <StudentSplashV1 entered={screen.splash === 'entered'} />
-      ) : authenticated ? (
-        <StudentSplashV1 entered />
-      ) : (
-        <StudentEntryLayoutV1>
-          <StudentAuthenticationV1
-            key={`${index}-${run}`}
-            client={client}
-            initialQr={screen.qr ?? null}
-            onAuthenticated={() => setAuthenticated(true)}
-            sitekey="preview"
-            riskMount={previewRiskMountV1}
-          />
-        </StudentEntryLayoutV1>
-      )}
+      {body}
     </>
   );
 }

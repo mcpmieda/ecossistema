@@ -18,6 +18,11 @@ const healthLabels = {
   attention: 'Atenção',
   intervention: 'Intervenção necessária',
 } as const;
+function healthColor(health: string) {
+  if (health === 'normal') return 'success';
+  return health === 'attention' ? 'warning' : 'danger';
+}
+
 export function StudentOverviewV1(props: Readonly<OperationsPropsV1>) {
   return (
     <OperationsScopeV1 {...props}>
@@ -173,16 +178,7 @@ function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
                 <div className="pa-overview-health">
                   <h3>Funcionamento</h3>
                   {data.health ? (
-                    <Chip
-                      variant="soft"
-                      color={
-                        data.health === 'normal'
-                          ? 'success'
-                          : data.health === 'attention'
-                            ? 'warning'
-                            : 'danger'
-                      }
-                    >
+                    <Chip variant="soft" color={healthColor(data.health)}>
                       <span className="pa-overview-pulse" aria-hidden="true" />
                       {healthLabels[data.health]}
                     </Chip>

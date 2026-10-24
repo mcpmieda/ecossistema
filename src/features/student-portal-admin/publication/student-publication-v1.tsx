@@ -43,6 +43,18 @@ const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
 });
 const dateLabel = (date: string | null) =>
   date === null ? 'Não definida' : dateFormatter.format(new Date(date));
+type RestrictionV1 = ReturnType<typeof publicationRestrictionV1>;
+/** "Liberar a partir de": the date, or why there is none. */
+function releaseText(restriction: RestrictionV1, disclosure: string | null) {
+  if (restriction === 'outside-single-schedule') return 'Fora da divulgação única';
+  return disclosure ? dateLabel(disclosure) : 'Sem data definida';
+}
+/** "Regra de exibição": hidden by the policy, left out of the calendar, or included. */
+function ruleText(restriction: RestrictionV1) {
+  if (restriction === 'period-disabled') return 'Oculto pela política';
+  return restriction === 'outside-single-schedule' ? 'Excluído do calendário' : 'Incluído';
+}
+
 function revisionLabel(revision: string | null) {
   if (revision === null) return 'Nenhuma';
   return revision.startsWith('mixed:') ? 'Mais de uma versão' : revision;
@@ -213,21 +225,13 @@ function PublicationPeriodV1({
           <div>
             <dt>Liberar a partir de</dt>
             <dd>
-              {restriction === 'outside-single-schedule'
-                ? 'Fora da divulgação única'
-                : disclosure
-                  ? dateLabel(disclosure)
-                  : 'Sem data definida'}
+              {releaseText(restriction, disclosure)}
             </dd>
           </div>
           <div>
             <dt>Regra de exibição</dt>
             <dd>
-              {restriction === 'period-disabled'
-                ? 'Oculto pela política'
-                : restriction === 'outside-single-schedule'
-                  ? 'Excluído do calendário'
-                  : 'Incluído'}
+              {ruleText(restriction)}
             </dd>
           </div>
         </dl>
@@ -758,14 +762,13 @@ function PublicationScopeV1({
       <header className="pa-publication-heading">
         <div>
           <h2>{periodExtra ? 'Trimestres e recuperações' : 'Notas publicadas'}</h2>
-          {!embedded ? (
-            <p>{label}</p>
-          ) : periodExtra ? null : (
+          {embedded ? null : <p>{label}</p>}
+          {embedded && !periodExtra ? (
             <p>
               Publicar disponibiliza uma versão das notas. A exibição respeita as políticas e o
               calendário.
             </p>
-          )}
+          ) : null}
         </div>
         <LiveReadNoticeV1 failed={view.load.state === 'ready' && Boolean(view.load.refreshError)} />
       </header>

@@ -297,6 +297,18 @@ function TrendLineV1({
   );
 }
 
+/** A sliding view's class: none while still, the slide while it moves, otherwise `entering`. */
+function slideClassV1(motion: SlideV1 | 'still' | null, entering: string) {
+  if (motion === 'still') return undefined;
+  return motion ? 'pa-slide-in pa-slide-in--' + motion : entering;
+}
+
+/** A partial mark's status colour: not done, or zero; nothing for a mark above zero. */
+function partialStatusClassV1(notDone: boolean | undefined, zero: boolean) {
+  if (notDone) return 'pa-partial-status pa-partial-status--not-done';
+  return zero ? 'pa-partial-status pa-partial-status--zero' : undefined;
+}
+
 type SubjectMotionV1 =
   | 'press'
   | 'page'
@@ -388,6 +400,8 @@ function SummaryV1({
     ...(hasRecovery ? (['REC'] as const) : []),
   ];
   const active = selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
+  const activeName =
+    active === 'REC' ? 'Recuperação' : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active]);
   // Null until the first switch, so the list does not animate twice on mount; 'still' after a
   // drag, which already moved the new list into place.
   const [listMotion, setListMotion] = useState<SlideV1 | 'still' | null>(null);
@@ -494,7 +508,7 @@ function SummaryV1({
           <span>Disciplinas</span>
           <span>
             {available.length === 1
-              ? `Notas · ${active === 'REC' ? 'Recuperação' : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active])}`
+              ? `Notas · ${activeName}`
               : 'Notas'}
           </span>
         </div>
@@ -513,13 +527,7 @@ function SummaryV1({
         <div
           key={active}
           data-slide-live=""
-          className={
-            listMotion === 'still'
-              ? undefined
-              : listMotion
-                ? 'pa-slide-in pa-slide-in--' + listMotion
-                : 'pa-list-enter'
-          }
+          className={slideClassV1(listMotion, 'pa-list-enter')}
         >
         <BulletinListV1 subjects={subjects} period={active} onOpenSubject={onOpenSubject} />
         </div>
@@ -746,7 +754,8 @@ function PartialFeedbackV1({ partial, calm, sealed = false }: Readonly<{ partial
     >
       {band === 'brilliant' ? (
         <Star className="pa-brilliant-star" size={11} strokeWidth={2.4} fill="currentColor" aria-hidden="true" />
-      ) : band === 'excellent' ? (
+      ) : null}
+      {band === 'excellent' ? (
         <Sparkles className="pa-excellent-star" size={11} strokeWidth={2.4} aria-hidden="true" />
       ) : null}
       {label}
@@ -975,7 +984,8 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
       const lifted = Array.from(event.changedTouches).find((item) => item.identifier === drag.id);
       if (lifted) {
         const rawDx = lifted.clientX - drag.x;
-        drag.dx = canStep(rawDx < 0 ? 1 : -1) ? rawDx : rawDx * 0.25;
+        const step = rawDx < 0 ? 1 : -1;
+        drag.dx = canStep(step) ? rawDx : rawDx * 0.25;
         drag.samples = [...drag.samples.slice(-5), { x: lifted.clientX, at: event.timeStamp }];
         place(drag.dx);
       }
@@ -1426,13 +1436,7 @@ function SubjectV1View({
                             }
                           />
                           <strong
-                            className={
-                              partial.notDone
-                                ? 'pa-partial-status pa-partial-status--not-done'
-                                : zero
-                                  ? 'pa-partial-status pa-partial-status--zero'
-                                  : undefined
-                            }
+                            className={partialStatusClassV1(partial.notDone, zero)}
                           >
                             {partial.notDone || zero ? (
                               <GranularStatusV1 notDone={partial.notDone} zero={zero} />
@@ -1665,13 +1669,7 @@ export function StudentPortalWorkspaceV1({
         <div
           key={'summary-' + area}
           data-area-live=""
-          className={
-            areaSlide === 'still'
-              ? undefined
-              : areaSlide
-                ? 'pa-slide-in pa-slide-in--' + areaSlide
-                : 'pa-tab-motion pa-tab-motion--' + motionDirection
-          }
+          className={slideClassV1(areaSlide, 'pa-tab-motion pa-tab-motion--' + motionDirection)}
         >
           <SummaryV1
             data={data}
@@ -1687,14 +1685,12 @@ export function StudentPortalWorkspaceV1({
         {selectedSubject ? (
           <div
             data-area-live=""
-            className={
-              'pa-workspace-view pa-swipe-area' +
-              (areaSlide === 'still'
-                ? ''
-                : areaSlide
-                  ? ' pa-slide-in pa-slide-in--' + areaSlide
-                  : ' pa-tab-motion pa-tab-motion--' + motionDirection)
-            }
+            className={[
+              'pa-workspace-view pa-swipe-area',
+              slideClassV1(areaSlide, 'pa-tab-motion pa-tab-motion--' + motionDirection),
+            ]
+              .filter(Boolean)
+              .join(' ')}
             {...subjectDrag.handlers}
           >
             <SubjectHeaderV1

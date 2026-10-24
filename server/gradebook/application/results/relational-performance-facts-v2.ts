@@ -106,17 +106,17 @@ export function performanceCellV2(
       ? (recovery?.warnings.filter((value) => period === 'annual' || value.term === period) ?? [])
       : []),
   ];
+  // The source's own result to compare with: U for the annual recovery, AM for a regular term.
+  let sourceReferenceMilli = null;
+  if (period === 'annual') {
+    if (mode === 'recovery') sourceReferenceMilli = projection.closing.u;
+  } else if (mode === 'regular') {
+    sourceReferenceMilli = projection.closing.am[period - 1]!;
+  }
   const base = {
     offerId: projection.offerId,
     maximumMilli,
-    sourceReferenceMilli:
-      period === 'annual'
-        ? mode === 'recovery'
-          ? projection.closing.u
-          : null
-        : mode === 'regular'
-          ? projection.closing.am[period - 1]!
-          : null,
+    sourceReferenceMilli,
     recoveryApplicable: applicable,
     warningCodes: [...new Set(warnings.map((value) => value.code))],
   };
@@ -165,6 +165,12 @@ export function performanceCellV2(
           minimumApprovalMilli: projection.minimumApprovalMilli,
         })
       : null;
+  let level: 'below' | 'not-classified' | 'at-or-above' = 'below';
+  if (state !== 'repeat-failure' && meetsMinimum === null) level = 'not-classified';
+  else if (state !== 'repeat-failure' && meetsMinimum) level = 'at-or-above';
+  let sourceComparison: 'unavailable' | 'match' | 'mismatch' = 'unavailable';
+  if (performanceResultCountsV2(state) && base.sourceReferenceMilli !== null && valueMilli !== null)
+    sourceComparison = valueMilli === base.sourceReferenceMilli ? 'match' : 'mismatch';
   return {
     ...base,
     state,
@@ -174,19 +180,7 @@ export function performanceCellV2(
       : {}),
     // This is a read-only proportional classification using the configured annual threshold.
     // It is not the separate central rule that determines REC eligibility.
-    level:
-      state === 'repeat-failure'
-        ? 'below'
-        : meetsMinimum === null
-          ? 'not-classified'
-          : meetsMinimum
-            ? 'at-or-above'
-            : 'below',
-    sourceComparison:
-      !performanceResultCountsV2(state) || base.sourceReferenceMilli === null || valueMilli === null
-        ? 'unavailable'
-        : valueMilli === base.sourceReferenceMilli
-          ? 'match'
-          : 'mismatch',
+    level,
+    sourceComparison,
   };
 }

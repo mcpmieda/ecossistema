@@ -5,6 +5,12 @@ import {
   type PortalAcademicLinkV1,
 } from './academic-revision-v1';
 
+/** No single current enrollment is unresolved; Smecel statuses 3, 4 and 5 are an exit. */
+function eligibilityStateOfV1(status: number | null | undefined, unresolved: boolean) {
+  if (unresolved) return 'unresolved';
+  return [3, 4, 5].includes(status ?? 0) ? 'exit' : 'eligible';
+}
+
 export const enrollmentStatusSchemaV1 = z.union([
   z.null(),
   z.literal(1),
@@ -75,12 +81,7 @@ export function resolveEligibilityV1(
     link,
     dataVersion,
     current,
-    state:
-      current === null
-        ? 'unresolved'
-        : [3, 4, 5].includes(current.status ?? 0)
-          ? 'exit'
-          : 'eligible',
+    state: eligibilityStateOfV1(current?.status, current === null),
   });
 }
 

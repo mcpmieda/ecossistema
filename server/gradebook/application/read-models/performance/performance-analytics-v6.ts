@@ -29,6 +29,17 @@ const mean = (values: readonly number[]): number | null =>
   values.length ? values.reduce((sum, value) => sum + value / values.length, 0) : null;
 const ratio = (value: number | null, maximum: number | null) =>
   value !== null && maximum !== null && maximum > 0 ? (value / maximum) * 100 : null;
+/** The trimester before (T2 → T1, T3 → T2); none for T1 or the year. */
+function previousTermV6(period: unknown) {
+  if (period === 2) return 1;
+  return period === 3 ? 2 : null;
+}
+
+function signOfV6(comparison: bigint) {
+  if (comparison > 0n) return 1;
+  return comparison < 0n ? -1 : 0;
+}
+
 /** Descriptive statistics only; no academic result is created here. Population deviation, not sample deviation. */
 export function analyticsStatsV6(values: readonly number[]): PerformanceAnalyticsStatsV6 {
   const sorted = [...values].sort((a, b) => a - b),
@@ -237,7 +248,7 @@ function summarize(
       meanGainMilli: mean(parallelGains),
     },
     movement: {
-      reference: period === 2 ? 1 : period === 3 ? 2 : null,
+      reference: previousTermV6(period),
       n: changes.length,
       increased: changes.filter((pair) => pair.direction === 1).length,
       decreased: changes.filter((pair) => pair.direction === -1).length,
@@ -374,7 +385,7 @@ export function buildPerformanceAnalyticsV6(
         studentId: row.student.id,
         projection,
         timeline,
-        direction: comparison === null ? null : comparison > 0n ? 1 : comparison < 0n ? -1 : 0,
+        direction: comparison === null ? null : signOfV6(comparison),
         cell: {
           offerId: result.offerId,
           result,

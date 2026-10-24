@@ -10,6 +10,12 @@ import { accessEndV1, sessionExpiryV1 } from '../policies/calendar-v1';
 import { readPortalSnapshotV2 } from './read-snapshot-v2';
 import { accessContextV1, accountScopeV1, authAuditV1, authInstantV1, authNowV1, authTransactionV1, accountTransactionV1, type AccessContextV1 } from './transaction-v1';
 
+/** The query's one parameter: the account or the class; the whole school has none. */
+function scopeParametersV1(scope: { kind: string; accountId?: unknown; classId?: unknown }) {
+  if (scope.kind === 'account') return [scope.accountId];
+  return scope.kind === 'class' ? [scope.classId] : [];
+}
+
 /** Only internal callers see the token. HTTP emits it exclusively as Set-Cookie after commit. */
 export async function createSessionV1(store: PortalTransactionV1, context: AccessContextV1,
   cryptoPort: CryptoPortV1, persistent: boolean, requestId: string) {
@@ -49,7 +55,7 @@ export class SessionServiceV1 {
     }
     const rows = await tx.unsafe(`SELECT a.id,a.version::text FROM student_portal.account a
       WHERE a.academic_year=2026 AND ${predicate} ORDER BY a.id`,
-    scope.kind === 'account' ? [scope.accountId] : scope.kind === 'class' ? [scope.classId] : []);
+    scopeParametersV1(scope));
     const accounts = rows.map((row) => ({ id: z.uuid().parse(row.id), version: versionV1.parse(Number(row.version)) }));
     if (scope.kind === 'account') return { accounts, version: accounts[0]?.version ?? 0 };
     const revision = await tx.unsafe(`SELECT (r.academic_counter+r.portal_link_counter+

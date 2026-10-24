@@ -23,6 +23,12 @@ const REPORT_LIMITATIONS = [
   'No real files, database, authentication, remote academic concurrency or production requests.',
 ];
 
+/** How a worker's answer ended: a read error, a canonical error, or a request. */
+function outcomeOf(value) {
+  if (value.readError) return 'read-error';
+  return value.canonicalError ? 'canonical-error' : 'request';
+}
+
 /** Same H corpus/codecs, with the real sparse product reader and emitted worker. */
 async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, reportLimitations) {
   if (xlsx.version !== '0.20.3') throw new Error('library-version');
@@ -164,7 +170,7 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
         if (variant === 'W0') reference[index] = value;
         else equalValue(reference[index], value, 'worker-equivalence');
         equivalent.find((item) => item.ordinal === index && item.stage === 'complete').outcome =
-          value.readError ? 'read-error' : value.canonicalError ? 'canonical-error' : 'request';
+          outcomeOf(value);
       }
       if (fallbackCount > 0) throw new Error('worker-fallback');
     } finally {

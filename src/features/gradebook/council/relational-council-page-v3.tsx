@@ -15,7 +15,7 @@ import {
   Users,
   Vote,
 } from 'lucide-react';
-import { RELATIONAL_COUNCIL_DECISIONS_V3, type RelationalCouncilFailureV3, type RelationalCouncilStudentV3 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
+import { RELATIONAL_COUNCIL_DECISIONS_V3, type RelationalCouncilFailureV3, type RelationalCouncilStudentV3, type RelationalCouncilWorkspaceV3 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { gradeText } from '../performance/performance-display-v2';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useRelationalCouncilV3 } from './use-relational-council-v3';
@@ -39,6 +39,17 @@ const RESULT_LABEL: Record<RelationalCouncilStudentV3['components'][number]['res
   'in-progress': 'Em curso', 'approved-direct': 'Aprovado direto', 'recovery-pending': 'Recuperação pendente',
   'approved-after-recovery': 'Aprovado pela recuperação', 'not-approved': 'Não aprovado',
   'failed-no-show': 'N/C', 'failed-repeat': 'Reprovado (R/R)', unavailable: 'Indisponível',
+};
+const RESULT_COLOR: Record<RelationalCouncilStudentV3['components'][number]['result'], 'danger' | 'success' | 'default'> = {
+  'in-progress': 'default', 'approved-direct': 'success', 'recovery-pending': 'default',
+  'approved-after-recovery': 'success', 'not-approved': 'danger',
+  'failed-no-show': 'danger', 'failed-repeat': 'danger', unavailable: 'default',
+};
+type SessionStateV3 = RelationalCouncilWorkspaceV3['session']['state'];
+const SESSION_COLOR: Record<SessionStateV3, 'success' | 'warning' | 'default'> = { open: 'success', closed: 'warning', 'not-opened': 'default' };
+const SESSION_LABEL: Record<SessionStateV3, string> = { open: 'Sessão aberta', closed: 'Sessão fechada', 'not-opened': 'Ainda não iniciada' };
+const SESSION_DONE: Record<'open' | 'close' | 'reopen', string> = {
+  open: 'Reunião aberta.', reopen: 'Reunião reaberta; o snapshot anterior foi preservado.', close: 'Reunião fechada com novo snapshot imutável.',
 };
 const TIMELINE_LABEL = {
   opened: 'Reunião aberta', 'decision-recorded': 'Decisão registrada', 'vote-recorded': 'Contagem registrada',
@@ -87,7 +98,10 @@ function Grade({ value, state }: { readonly value: number | null; readonly state
   } else {
     label = gradeText(value);
   }
-  return <span className={`font-semibold tabular-nums ${state === 'no-show' || state === 'repeat-failure' ? 'text-danger' : value === null ? 'text-muted' : ''}`}>{label}</span>;
+  let tone = '';
+  if (state === 'no-show' || state === 'repeat-failure') tone = 'text-danger';
+  else if (value === null) tone = 'text-muted';
+  return <span className={`font-semibold tabular-nums ${tone}`}>{label}</span>;
 }
 
 function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirtyChange }: {
@@ -128,7 +142,7 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
             <Table.Cell><span className="font-medium">{component.subject.abbreviation ?? component.subject.label}</span><span className="ml-2 text-xs text-muted">{component.subject.label}</span></Table.Cell>
             {component.terms.map((term, index) => <Table.Cell key={index}><Grade value={term.valueMilli} state={term.state}/></Table.Cell>)}
             <Table.Cell><Grade value={component.recovery.valueMilli} state={component.recovery.state}/></Table.Cell>
-            <Table.Cell><Chip size="sm" variant="soft" color={component.result === 'not-approved' || component.result === 'failed-no-show' || component.result === 'failed-repeat' ? 'danger' : component.result.startsWith('approved') ? 'success' : 'default'}><Chip.Label>{RESULT_LABEL[component.result]}</Chip.Label></Chip></Table.Cell>
+            <Table.Cell><Chip size="sm" variant="soft" color={RESULT_COLOR[component.result]}><Chip.Label>{RESULT_LABEL[component.result]}</Chip.Label></Chip></Table.Cell>
           </Table.Row>}</Table.Body>
         </Table.Content></Table.ScrollContainer></Table>
       </Card.Content>
@@ -193,7 +207,7 @@ export function RelationalCouncilPageV3() {
       ? await state.command({ operation, reviewReference: workspace.session.reviewReference, justification: sessionReason.trim() })
       : await state.command({ operation, justification: sessionReason.trim() });
     if (response?.state === 'ready') {
-      setMessage(operation === 'open' ? 'Reunião aberta.' : operation === 'reopen' ? 'Reunião reaberta; o snapshot anterior foi preservado.' : 'Reunião fechada com novo snapshot imutável.');
+      setMessage(SESSION_DONE[operation]);
       setSessionReason(''); setConfirmClose(false);
     }
   }
@@ -211,7 +225,7 @@ export function RelationalCouncilPageV3() {
     {workspace ? <>
       <div className="council-kpi-group" aria-label="Resumo do Conselho"><Metric icon={<Users size={19}/>} label="alunos" value={workspace.summary.total}/><Metric icon={<Scale size={19}/>} label="elegíveis" value={workspace.summary.eligible}/><Metric icon={<Clock3 size={19}/>} label="a deliberar" value={workspace.summary.pending} tone="warning"/><Metric icon={<CheckCircle2 size={19}/>} label="decididos" value={workspace.summary.decided} tone="success"/></div>
       <Card><Card.Header className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><Card.Title>Sessão da turma {workspace.classGroup.label}</Card.Title><Card.Description>Versão institucional {workspace.session.version} · {workspace.session.snapshotCount} fechamento(s) preservado(s)</Card.Description></div>
-        <Chip className="sm:ml-auto" color={workspace.session.state === 'open' ? 'success' : workspace.session.state === 'closed' ? 'warning' : 'default'} variant="soft"><Chip.Label>{workspace.session.state === 'open' ? 'Sessão aberta' : workspace.session.state === 'closed' ? 'Sessão fechada' : 'Ainda não iniciada'}</Chip.Label></Chip></Card.Header>
+        <Chip className="sm:ml-auto" color={SESSION_COLOR[workspace.session.state]} variant="soft"><Chip.Label>{SESSION_LABEL[workspace.session.state]}</Chip.Label></Chip></Card.Header>
         <Card.Content className="grid gap-3 border-t border-separator pt-4"><div><Label htmlFor="council-session-reason" className="mb-1.5 block text-xs font-medium text-muted">Justificativa da ação na sessão</Label><textarea id="council-session-reason" className="council-textarea" rows={2} value={sessionReason} onChange={(event) => setSessionReason(event.currentTarget.value)} disabled={state.busy.command}/></div>
           <div className="flex flex-wrap gap-2">{workspace.session.state === 'not-opened' ? <Button variant="primary" isDisabled={sessionReason.trim().length < 3 || state.busy.command} onPress={() => void sessionCommand('open')}><CircleDot size={17}/>Abrir reunião</Button> : null}
             {workspace.session.state === 'closed' ? <Button variant="primary" isDisabled={sessionReason.trim().length < 3 || state.busy.command} onPress={() => void sessionCommand('reopen')}><RotateCcw size={17}/>Reabrir com justificativa</Button> : null}

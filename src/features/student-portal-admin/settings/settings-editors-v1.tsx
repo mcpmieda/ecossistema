@@ -32,6 +32,12 @@ import { InfoV1 } from '../shared/info-v1';
 import { DurationEditorV1, durationLabelV1, RISK_HELP_V1 } from './security-duration-v1';
 import { RISK_LABELS_V1, type RiskDraftV1, type SettingsDraftV1 } from './settings-draft-v1';
 
+/** A yes/no option in words: the orientation type says what it means, the others on or off. */
+function booleanText(field: SettingsFieldV1, value: unknown) {
+  if (field === 'termClosingConclusive') return value ? 'Trimestre encerrado' : 'Trimestre em andamento';
+  return value ? 'Ativado' : 'Desativado';
+}
+
 export function SettingsCheckboxV1({
   label,
   selected,
@@ -483,13 +489,7 @@ export function SettingsValueSummaryV1({
   }
   return (
     <p>
-      {field === 'termClosingConclusive'
-        ? value
-          ? 'Trimestre encerrado'
-          : 'Trimestre em andamento'
-        : value
-          ? 'Ativado'
-          : 'Desativado'}
+      {booleanText(field, value)}
     </p>
   );
 }

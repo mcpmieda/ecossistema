@@ -141,41 +141,13 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: 
                           <StudentAvatarV1 id={row.id} />
                           <span className="pa-custom-owner">
                             <strong>{row.label}</strong>
-                            <small>
-                              {row.scope.kind === 'class'
-                                ? 'Turma'
-                                : row.scope.kind === 'shift'
-                                  ? 'Turno'
-                                  : row.classLabel}
-                            </small>
+                            <small>{ownerNoteV1(row)}</small>
                           </span>
                         </Button>
                       </Table.Cell>
                       <Table.Cell>
-                        <Chip
-                          size="sm"
-                          variant="soft"
-                          color={
-                            row.blocked
-                              ? 'danger'
-                              : row.accountState === 'active'
-                                ? 'success'
-                                : 'accent'
-                          }
-                        >
-                          <Chip.Label>
-                            {row.blocked
-                              ? 'Bloqueado'
-                              : row.scope.kind === 'class'
-                                ? 'Turma'
-                                : row.scope.kind === 'shift'
-                                  ? 'Turno'
-                                  : row.accountState === 'active'
-                                    ? 'Ativa'
-                                    : row.accountState === 'reset-required'
-                                      ? 'Redefinição pendente'
-                                      : 'Primeiro acesso'}
-                          </Chip.Label>
+                        <Chip size="sm" variant="soft" color={rowColorV1(row)}>
+                          <Chip.Label>{rowStateV1(row)}</Chip.Label>
                         </Chip>
                       </Table.Cell>
                       <Table.Cell>
@@ -267,6 +239,27 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: 
     </Card>
   );
 }
+/** Under the name: "Turma", "Turno", or the student's class. */
+function ownerNoteV1(row: CustomizationRowV1) {
+  if (row.scope.kind === 'class') return 'Turma';
+  if (row.scope.kind === 'shift') return 'Turno';
+  return row.classLabel;
+}
+
+function rowColorV1(row: CustomizationRowV1) {
+  if (row.blocked) return 'danger';
+  return row.accountState === 'active' ? 'success' : 'accent';
+}
+
+/** The state chip: blocked, a class or shift, or the student's account. */
+function rowStateV1(row: CustomizationRowV1) {
+  if (row.blocked) return 'Bloqueado';
+  if (row.scope.kind === 'class') return 'Turma';
+  if (row.scope.kind === 'shift') return 'Turno';
+  if (row.accountState === 'active') return 'Ativa';
+  return row.accountState === 'reset-required' ? 'Redefinição pendente' : 'Primeiro acesso';
+}
+
 export function CustomizedSettingsV1(props: Readonly<Props>) {
   return (
     <CustomizedSettingsScopeV1

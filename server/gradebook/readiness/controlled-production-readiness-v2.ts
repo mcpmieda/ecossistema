@@ -1,5 +1,10 @@
 import type { AuthorityModeV1 } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 
+function readinessStatusOf(scopeViolations: number, missingEvidence: number) {
+  if (scopeViolations > 0) return 'scope-violation';
+  return missingEvidence > 0 ? 'incomplete' : GRADEBOOK_CONTROLLED_PRODUCTION_STATUS_V2;
+}
+
 export const GRADEBOOK_CONTROLLED_PRODUCTION_READINESS_VERSION_V2 = 2 as const;
 
 export const GRADEBOOK_CONTROLLED_PRODUCTION_STATUS_V2 =
@@ -127,12 +132,7 @@ export function evaluateGradebookControlledProductionReadinessV2(
 
   return Object.freeze({
     version: GRADEBOOK_CONTROLLED_PRODUCTION_READINESS_VERSION_V2,
-    status:
-      scopeViolations.length > 0
-        ? 'scope-violation'
-        : missingEvidence.length > 0
-          ? 'incomplete'
-          : GRADEBOOK_CONTROLLED_PRODUCTION_STATUS_V2,
+    status: readinessStatusOf(scopeViolations.length, missingEvidence.length),
     missingEvidence: Object.freeze(missingEvidence),
     scopeViolations: Object.freeze(scopeViolations),
     hardStops: GRADEBOOK_POST_WAVE_23_HARD_STOPS_V2,

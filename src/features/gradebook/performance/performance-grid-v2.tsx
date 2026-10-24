@@ -51,6 +51,12 @@ export const PerformanceGridYearV2 = createContext<number | null>(null);
 const FIXED_COLUMNS = 3;
 const byName = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
 
+/** The status chip's text: in progress, the transfer's own label, or the short status. */
+function statusShort(student: PerformanceRowV2['student']) {
+  if (student.status === null) return 'Em curso';
+  return student.status === 7 ? student.statusLabel : STATUS_SHORT[student.status];
+}
+
 /** Shared table anatomy keeps all four lenses compact and keyboard-resizable. */
 export function PerformanceGridV2({
   columns,
@@ -225,6 +231,27 @@ export function PerformanceGridV2({
             <Table.Header columns={headers}>
               {(header) => {
                 const column = columns.find((item) => `value-${item.key}` === header.id);
+                // A component's column opens its assessments when the page offers that.
+                let title: ReactNode = header.label;
+                if (column)
+                  title = focusOffer ? (
+                    <button
+                      type="button"
+                      title={column.title}
+                      aria-label={`Ver avaliações de ${column.title}`}
+                      onClick={() => focusOffer(column.offerId)}
+                      className="w-full whitespace-normal break-words text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                    >
+                      {column.label}
+                    </button>
+                  ) : (
+                    <span
+                      title={column.title}
+                      className="block w-full whitespace-normal break-words text-center font-semibold"
+                    >
+                      {column.label}
+                    </span>
+                  );
                 return (
                   <Table.Column
                     id={header.id}
@@ -233,28 +260,7 @@ export function PerformanceGridV2({
                     minWidth={header.width}
                     className="performance-grid__head px-2 py-1"
                   >
-                    {column ? (
-                      focusOffer ? (
-                        <button
-                          type="button"
-                          title={column.title}
-                          aria-label={`Ver avaliações de ${column.title}`}
-                          onClick={() => focusOffer(column.offerId)}
-                          className="w-full whitespace-normal break-words text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                        >
-                          {column.label}
-                        </button>
-                      ) : (
-                        <span
-                          title={column.title}
-                          className="block w-full whitespace-normal break-words text-center font-semibold"
-                        >
-                          {column.label}
-                        </span>
-                      )
-                    ) : (
-                      header.label
-                    )}
+                    {title}
                   </Table.Column>
                 );
               }}
@@ -264,64 +270,68 @@ export function PerformanceGridV2({
                 <Table.Row id={row.id} columns={headers} className="performance-grid__row">
                   {(header) => {
                     const index = headers.indexOf(header) - FIXED_COLUMNS;
-                    return (
-                      <Table.Cell className="performance-grid__cell px-2 py-0.5">
-                        {header.id === 'number' ? (
-                          <span className="tabular-nums">{row.position}</span>
-                        ) : header.id === 'status' ? (
-                          <Chip
-                            size="sm"
-                            variant="soft"
-                            title={row.student.statusLabel}
-                            aria-label={row.student.statusLabel}
-                            className={`performance-status-chip performance-status-chip--${row.student.status === null ? 'regular' : STATUS_TONE[row.student.status]}`}
-                          >
-                            <Chip.Label className="whitespace-nowrap">
-                              {row.student.status === null
-                                ? 'Em curso'
-                                : row.student.status === 7
-                                  ? row.student.statusLabel
-                                  : STATUS_SHORT[row.student.status]}
-                            </Chip.Label>
-                          </Chip>
-                        ) : header.id === 'student' ? (
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            {academicYear === null ? null : (
-                              // 20px inside a 24px row: the photo never makes the line taller.
-                              <LinkedStudentPhotoAvatarV1
-                                decorative
-                                size="sm"
-                                className="pa-student-avatar size-5 shrink-0"
-                                fallbackTone={row.student.id % 6}
-                                subject={{
-                                  source: 'gradebook',
-                                  academicYear,
-                                  studentIds: [row.student.id],
-                                }}
-                              />
-                            )}
-                            <Button
+                    let content: ReactNode;
+                    if (header.id === 'number') {
+                      content = <span className="tabular-nums">{row.position}</span>;
+                    } else if (header.id === 'status') {
+                      content = (
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          title={row.student.statusLabel}
+                          aria-label={row.student.statusLabel}
+                          className={`performance-status-chip performance-status-chip--${row.student.status === null ? 'regular' : STATUS_TONE[row.student.status]}`}
+                        >
+                          <Chip.Label className="whitespace-nowrap">
+                            {statusShort(row.student)}
+                          </Chip.Label>
+                        </Chip>
+                      );
+                    } else if (header.id === 'student') {
+                      content = (
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          {academicYear === null ? null : (
+                            // 20px inside a 24px row: the photo never makes the line taller.
+                            <LinkedStudentPhotoAvatarV1
+                              decorative
                               size="sm"
-                              variant="ghost"
-                              className="min-h-6 h-auto min-w-0 flex-1 justify-start whitespace-normal break-words px-0 py-0 text-left text-xs leading-4"
-                              onPress={() => open(row.student.id)}
-                            >
-                              {row.student.name}
-                            </Button>
-                          </span>
-                        ) : header.id === 'annual' ? (
-                          <span className="text-xs">{row.annual ?? '—'}</span>
-                        ) : (
+                              className="pa-student-avatar size-5 shrink-0"
+                              fallbackTone={row.student.id % 6}
+                              subject={{
+                                source: 'gradebook',
+                                academicYear,
+                                studentIds: [row.student.id],
+                              }}
+                            />
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="min-h-6 h-auto w-full min-w-0 px-0 py-0 text-xs"
-                            aria-label={`${row.student.name}, ${columns[index]!.title}`}
-                            onPress={() => open(row.student.id, columns[index]!.offerId)}
+                            className="min-h-6 h-auto min-w-0 flex-1 justify-start whitespace-normal break-words px-0 py-0 text-left text-xs leading-4"
+                            onPress={() => open(row.student.id)}
                           >
-                            {row.values[index]}
+                            {row.student.name}
                           </Button>
-                        )}
+                        </span>
+                      );
+                    } else if (header.id === 'annual') {
+                      content = <span className="text-xs">{row.annual ?? '—'}</span>;
+                    } else {
+                      content = (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="min-h-6 h-auto w-full min-w-0 px-0 py-0 text-xs"
+                          aria-label={`${row.student.name}, ${columns[index]!.title}`}
+                          onPress={() => open(row.student.id, columns[index]!.offerId)}
+                        >
+                          {row.values[index]}
+                        </Button>
+                      );
+                    }
+                    return (
+                      <Table.Cell className="performance-grid__cell px-2 py-0.5">
+                        {content}
                       </Table.Cell>
                     );
                   }}

@@ -26,6 +26,13 @@ export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   risk: 'Segurança do acesso',
   calendar: 'Datas',
 };
+/** A scope as the screens name it: "Toda a escola", "Esta turma", "Este turno", "Este aluno". */
+export function scopeSubjectV1(kind: PolicyScopeV1['kind']) {
+  if (kind === 'school') return 'Toda a escola';
+  if (kind === 'class') return 'Esta turma';
+  if (kind === 'shift') return 'Este turno';
+  return 'Este aluno';
+}
 export const PERIODS_V1 = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const;
 export const CALENDAR_LABELS_V1 = {
   accessStartsAt: 'Permitir acesso a partir de',

@@ -44,9 +44,13 @@ export function portalSectionFromHash(hash: string): StudentPortalSection {
   if (selected === 'publication') return 'audit';
   return studentPortalSections.find((section) => section.id === selected)?.id ?? 'overview';
 }
-export const studentPortalHref = (section: StudentPortalSection) =>
-  '#/painel-do-aluno?area=' +
-  (section === 'birth' ? 'credentials' : section === 'publication' ? 'audit' : section);
+/** Birth dates live in the credentials area and the publication history in the audit. */
+export const studentPortalHref = (section: StudentPortalSection) => {
+  let area: string = section;
+  if (section === 'birth') area = 'credentials';
+  else if (section === 'publication') area = 'audit';
+  return '#/painel-do-aluno?area=' + area;
+};
 export function withStudentPortalModule(
   modules: CoreModuleContract[],
   capabilities: readonly PlatformCapability[],

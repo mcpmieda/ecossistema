@@ -141,6 +141,18 @@ export function classifyAdminOperationV1(
   return routes[path]?.operation ?? 'write';
 }
 
+function photoFailureStateV1(status: number) {
+  if (status === 401) return 'unauthenticated';
+  if (status === 403) return 'forbidden';
+  return status < 429 ? 'invalid' : 'unavailable';
+}
+
+function plainFailureTextV1(status: number) {
+  if (status === 429) return 'Muitas solicitações. Tente novamente em 60 segundos.';
+  if (status >= 500) return 'Service unavailable';
+  return status === 401 ? 'Unauthorized' : 'Invalid request';
+}
+
 function failureBody(path: string, payload: PayloadV1, status: number) {
   let state: 'not-authorized' | 'unavailable' | 'invalid-request';
   if (status === 401 || status === 403) {
@@ -175,27 +187,13 @@ function failureBody(path: string, payload: PayloadV1, status: number) {
   if (path.startsWith('/api/student-photos/'))
     return {
       version: 1,
-      state:
-        status === 401
-          ? 'unauthenticated'
-          : status === 403
-            ? 'forbidden'
-            : status < 429
-              ? 'invalid'
-              : 'unavailable',
+      state: photoFailureStateV1(status),
       traceId: crypto.randomUUID(),
     };
   if (path.startsWith('/api/platform/system-health'))
     return { state: status === 401 ? 'unauthenticated' : state };
   return {
-    error:
-      status === 429
-        ? 'Muitas solicitações. Tente novamente em 60 segundos.'
-        : status >= 500
-          ? 'Service unavailable'
-          : status === 401
-            ? 'Unauthorized'
-            : 'Invalid request',
+    error: plainFailureTextV1(status),
     correlationId: crypto.randomUUID(),
   };
 }

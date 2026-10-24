@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@heroui/react/button';
 import { CameraOff, ImageIcon, SlidersHorizontal } from 'lucide-react';
 import { SCHOOL_LOGO_SRC_V1 } from '../../../shared/brand/school-mark-v1';
@@ -367,19 +367,23 @@ export function StudentQrReaderV1({
       }
     }
   };
+  let opening: ReactNode = null;
+  if (blocked) {
+    opening = <CameraBlockedV1 onRetry={() => void camera('environment')} />;
+  } else if (state === 'idle') {
+    opening = (
+      <>
+        <AccessCardV1 />
+        <p className="card__description">
+          Use o QR do seu cartão de acesso. É só apontar a câmera ou selecionar uma foto dele na
+          galeria.
+        </p>
+      </>
+    );
+  }
   return (
     <div className="pa-qr-reader" data-blocked={blocked || undefined}>
-      {blocked ? (
-        <CameraBlockedV1 onRetry={() => void camera('environment')} />
-      ) : state === 'idle' ? (
-        <>
-          <AccessCardV1 />
-          <p className="card__description">
-            Use o QR do seu cartão de acesso. É só apontar a câmera ou selecionar uma foto dele na
-            galeria.
-          </p>
-        </>
-      ) : null}
+      {opening}
       <video
         ref={video}
         muted

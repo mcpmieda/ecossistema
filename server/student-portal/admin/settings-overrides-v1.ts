@@ -63,6 +63,14 @@ export async function readSettingsOverridesV1(
     args,
   );
   const selected = rows.slice(0, query.page.limit);
+  // The override's own scope: a class, a shift (from its key) or a student account.
+  const scopeOf = (row: (typeof selected)[number]) => {
+    const academicYear = query.scope.academicYear;
+    if (row.scope_kind === 'class') return { kind: 'class', academicYear, classId: row.class_id };
+    if (row.scope_kind === 'shift')
+      return { kind: 'shift', academicYear, shift: String(row.scope_key).split(':')[2] };
+    return { kind: 'account', academicYear, accountId: row.account_id };
+  };
   return adminReadResponseV2.parse({
     contractVersion: 2,
     state: 'settings-overrides',
@@ -71,12 +79,7 @@ export async function readSettingsOverridesV1(
     scope: query.scope,
     items: selected.map((row) => ({
       id: row.scope_key,
-      scope:
-        row.scope_kind === 'class'
-          ? { kind: 'class', academicYear: query.scope.academicYear, classId: row.class_id }
-          : row.scope_kind === 'shift'
-            ? { kind: 'shift', academicYear: query.scope.academicYear, shift: String(row.scope_key).split(':')[2] }
-            : { kind: 'account', academicYear: query.scope.academicYear, accountId: row.account_id },
+      scope: scopeOf(row),
       label: row.label,
       classLabel: row.class_label,
       value: row.value,

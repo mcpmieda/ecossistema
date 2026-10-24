@@ -27,6 +27,23 @@ const STATE: Record<AnalysisReadingV3['state'], string> = {
   'repeat-failure': 'R/R',
 };
 
+const BUCKET_TONE: Partial<Record<string, string>> = { below: 'text-danger', above: 'text-accent' };
+
+/** A cell: "não fez" or zero on an assessment, N/C for a no-show, otherwise the grade. */
+function readingContent(
+  reading: {
+    notDone?: boolean;
+    recordedMilli?: number | null;
+    state: string;
+    valueMilli: number | null;
+  },
+  assessments: boolean,
+): ReactNode {
+  if (assessments && (reading.notDone || reading.recordedMilli === 0))
+    return <GranularStatusV1 notDone={reading.notDone} zero={reading.recordedMilli === 0} />;
+  return reading.state === 'no-show' ? 'N/C' : gradeText(reading.valueMilli);
+}
+
 export function PerformanceAnalysisPanelV3({
   value,
   dashboard,
@@ -66,6 +83,24 @@ export function PerformanceAnalysisPanelV3({
           pending: 'ainda sem classificação integral',
         }[selection.group]
       : null;
+  let selectionNote: ReactNode = null;
+  if (selection?.kind === 'column') {
+    selectionNote = (
+      <>
+        Detalhe de <strong>{column?.label ?? 'componente'}</strong> aberto no card; a matriz
+        permanece completa.
+      </>
+    );
+  } else if (selectionLabel) {
+    selectionNote = (
+      <>
+        Investigando: <strong>{selectionLabel}</strong> · {rows.length} estudante(s)
+        <Button size="sm" variant="ghost" onPress={() => setSelection(null)}>
+          Limpar filtro
+        </Button>
+      </>
+    );
+  }
   return (
     <>
       <PerformanceDashboardWidgetsV5
@@ -89,19 +124,7 @@ export function PerformanceAnalysisPanelV3({
           }
           role="status"
         >
-          {selection?.kind === 'column' ? (
-            <>
-              Detalhe de <strong>{column?.label ?? 'componente'}</strong> aberto no card; a matriz
-              permanece completa.
-            </>
-          ) : selectionLabel ? (
-            <>
-              Investigando: <strong>{selectionLabel}</strong> · {rows.length} estudante(s)
-              <Button size="sm" variant="ghost" onPress={() => setSelection(null)}>
-                Limpar filtro
-              </Button>
-            </>
-          ) : null}
+          {selectionNote}
         </div>
       ) : null}
       {value.lens === 'result' ? (
@@ -123,20 +146,8 @@ export function PerformanceAnalysisPanelV3({
             below: row.values.map((reading) => reading.bucket === 'below'),
             values: row.values.map((reading) => (
               <span key={reading.key} className="inline-flex flex-col items-center gap-0.5">
-                <span
-                  className={`font-semibold tabular-nums ${reading.bucket === 'below' ? 'text-danger' : reading.bucket === 'above' ? 'text-accent' : ''}`}
-                >
-                  {value.lens === 'assessments' &&
-                  (reading.notDone || reading.recordedMilli === 0) ? (
-                    <GranularStatusV1
-                      notDone={reading.notDone}
-                      zero={reading.recordedMilli === 0}
-                    />
-                  ) : reading.state === 'no-show' ? (
-                    'N/C'
-                  ) : (
-                    gradeText(reading.valueMilli)
-                  )}
+                <span className={`font-semibold tabular-nums ${BUCKET_TONE[reading.bucket] ?? ''}`}>
+                  {readingContent(reading, value.lens === 'assessments')}
                 </span>
                 {STATE[reading.state] &&
                 !(

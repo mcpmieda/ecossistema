@@ -50,9 +50,15 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   const defaults = bind(JSON.stringify(schoolDefaults));
   const targetKey = query.scope.kind === 'school' ? null : scopedKeyV2(query.scope);
   const contextKey = bind(targetKey);
-  const contextOwner = query.scope.kind === 'school' ? '' : `UNION SELECT ${contextKey}::text,
-    ${bind(query.scope.kind)}::text,${bind(query.scope.kind === 'class' ? query.scope.classId : null)}::integer,
-    ${bind(query.scope.kind === 'account' ? query.scope.accountId : null)}::uuid`;
+  // The parameters are bound in the same order as before: kind, class, account.
+  let contextOwner = '';
+  if (query.scope.kind !== 'school') {
+    const classId = query.scope.kind === 'class' ? query.scope.classId : null;
+    const accountId = query.scope.kind === 'account' ? query.scope.accountId : null;
+    contextOwner = `UNION SELECT ${contextKey}::text,
+    ${bind(query.scope.kind)}::text,${bind(classId)}::integer,
+    ${bind(accountId)}::uuid`;
+  }
   const where = ['s.resolved', "(s.value IS NOT NULL OR s.blocked OR jsonb_array_length(s.publications)>0)"];
   if (query.scope.kind === 'class') where.push(`s.class_id=${bind(query.scope.classId)}`);
   if (query.scope.kind === 'account') where.push(`s.scope_key=${contextKey}`);

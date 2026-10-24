@@ -18,6 +18,18 @@ type StudentItem = {
   partial: number;
   deltaPP: number | null;
 };
+/** Amber while partial; then red below, blue at or above the minimum. */
+function resultColor(result: { state: string; level: string | null }) {
+  if (result.state === 'partial') return 'warning';
+  if (result.level === 'below') return 'danger';
+  return result.level === 'at-or-above' ? 'accent' : 'default';
+}
+
+function partialOrBelowColor(result: { state: string; level: string | null }) {
+  if (result.state === 'partial') return 'warning';
+  return result.level === 'below' ? 'danger' : 'default';
+}
+
 export function analyticsStudentItemsV6(
   value: PerformanceAnalyticsV6,
   teacherId?: number,
@@ -237,19 +249,7 @@ export function AnalyticsHeatmapV6({
                         onPress={() => onCell(item.student.id, cell.offerId)}
                         aria-label={`${item.student.name}, ${value.components.find((component) => component.offer.id === cell.offerId)?.offer.subject.label}: ${percent(cell.percent)}${cell.result.state === 'partial' ? ', parcial' : ''}`}
                       >
-                        <Chip
-                          size="sm"
-                          variant="soft"
-                          color={
-                            cell.result.state === 'partial'
-                              ? 'warning'
-                              : cell.result.level === 'below'
-                                ? 'danger'
-                                : cell.result.level === 'at-or-above'
-                                  ? 'accent'
-                                  : 'default'
-                          }
-                        >
+                        <Chip size="sm" variant="soft" color={resultColor(cell.result)}>
                           {percent(cell.percent)}
                           {cell.result.state === 'partial' ? '*' : ''}
                         </Chip>
@@ -309,17 +309,7 @@ export function AnalyticsStudentComponentsV6({
                     {cell.result.state === 'partial' ? '*' : ''}
                   </Table.Cell>
                   <Table.Cell>
-                    <Chip
-                      size="sm"
-                      variant="soft"
-                      color={
-                        cell.result.state === 'partial'
-                          ? 'warning'
-                          : cell.result.level === 'below'
-                            ? 'danger'
-                            : 'default'
-                      }
-                    >
+                    <Chip size="sm" variant="soft" color={partialOrBelowColor(cell.result)}>
                       {percent(cell.percent)}
                     </Chip>
                   </Table.Cell>

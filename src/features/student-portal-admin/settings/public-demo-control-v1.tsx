@@ -23,6 +23,8 @@ async function request(path: string, body: unknown, signal?: AbortSignal) {
   return { status: response.status, value: (await response.json()) as unknown };
 }
 
+const enabledText = (enabled: boolean) => (enabled ? 'Ativada' : 'Desativada');
+
 export function PublicDemoControlV1({ canWrite }: Readonly<{ canWrite: boolean }>) {
   const [state, setState] = useState<PublicDemoStateV1 | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,9 +71,7 @@ export function PublicDemoControlV1({ canWrite }: Readonly<{ canWrite: boolean }
   return (
     <section className="pa-public-demo" aria-label="Demonstração pública">
       <h2>Demonstração pública</h2>
-      <p>
-        Estado confirmado: {state ? (state.enabled ? 'Ativada' : 'Desativada') : 'Indisponível'}
-      </p>
+      <p>Estado confirmado: {state ? enabledText(state.enabled) : 'Indisponível'}</p>
       <Button
         variant="secondary"
         isDisabled={!canWrite || !state || busy}

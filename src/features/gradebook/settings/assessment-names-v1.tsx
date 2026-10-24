@@ -17,6 +17,12 @@ const messages = {
   conflict: 'Os nomes foram alterados em outra sessão.',
   unavailable: 'Não foi possível salvar. O que você digitou foi mantido.',
 };
+/** Red on a failure, amber while there is something to save, green when saved. */
+function statusColor(state: { failure: unknown; dirty: boolean; phase: string }) {
+  if (state.failure) return 'danger';
+  return state.dirty || state.phase === 'saving' ? 'warning' : 'success';
+}
+
 export function AssessmentNamesV1({ isActive = true }: Readonly<{ isActive?: boolean }>) {
   const scope = useGradebookYear();
   if (!scope?.year) return null;
@@ -94,29 +100,15 @@ function NamesEditorV1({
           </Tooltip>
         </div>
         {state.base ? (
-          <Chip
-            size="sm"
-            color={
-              state.failure
-                ? 'danger'
-                : state.dirty || state.phase === 'saving'
-                  ? 'warning'
-                  : 'success'
-            }
-            variant="soft"
-          >
+          <Chip size="sm" color={statusColor(state)} variant="soft">
             <Chip.Label aria-live="polite">{label}</Chip.Label>
           </Chip>
         ) : null}
       </Card.Header>
       <Card.Content>
-        {!state.base ? (
-          state.failure ? (
-            <p role="alert">{messages[state.failure]}</p>
-          ) : (
-            <Skeleton className="h-28 rounded-xl" />
-          )
-        ) : (
+        {!state.base && state.failure ? <p role="alert">{messages[state.failure]}</p> : null}
+        {!state.base && !state.failure ? <Skeleton className="h-28 rounded-xl" /> : null}
+        {state.base ? (
           <div className="grid gap-4 md:grid-cols-3">
             {([1, 2, 3] as const).map((term) => (
               <fieldset className="min-w-0" key={term}>
@@ -154,7 +146,7 @@ function NamesEditorV1({
               </fieldset>
             ))}
           </div>
-        )}
+        ) : null}
         {state.failure ? (
           <div role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             {state.base ? <span className="text-danger">{messages[state.failure]}</span> : null}

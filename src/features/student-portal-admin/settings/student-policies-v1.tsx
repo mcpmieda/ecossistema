@@ -41,11 +41,13 @@ function ShiftNoticeV1({
   const suspended =
     data?.classes.filter((item) => item.ownFields.some((field) => data.ownFields.includes(field)))
       .length ?? 0;
+  const suspendedText =
+    suspended === 1 ? 'turma tem regras suspensas' : 'turmas têm regras suspensas';
   return (
     <>
       <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
       {suspended > 0
-        ? `${suspended} ${suspended === 1 ? 'turma tem regras suspensas' : 'turmas têm regras suspensas'} pelo turno. `
+        ? `${suspended} ${suspendedText} pelo turno. `
         : 'As regras do turno prevalecem sobre as turmas. '}
       Personalizações de alunos continuam valendo.
     </>

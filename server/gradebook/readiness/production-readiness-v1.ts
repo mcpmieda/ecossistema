@@ -1,5 +1,10 @@
 import type { AuthorityModeV1 } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 
+function readinessStatusOf(scopeViolations: number, missingEvidence: number) {
+  if (scopeViolations > 0) return 'scope-violation';
+  return missingEvidence > 0 ? 'incomplete' : 'prepared-for-manual-authorization';
+}
+
 export const GRADEBOOK_READINESS_PREPARATION_EVIDENCE_V1 = [
   'final-sha-verify',
   'synthetic-critical-flow-rehearsal',
@@ -149,12 +154,7 @@ export function evaluateGradebookProductionReadinessPreparationV1(
   }
 
   return Object.freeze({
-    status:
-      scopeViolations.length > 0
-        ? 'scope-violation'
-        : missingEvidence.length > 0
-          ? 'incomplete'
-          : 'prepared-for-manual-authorization',
+    status: readinessStatusOf(scopeViolations.length, missingEvidence.length),
     missingEvidence: Object.freeze(missingEvidence),
     scopeViolations: Object.freeze(scopeViolations),
     hardStops: GRADEBOOK_PRODUCTION_HARD_STOPS_V1,

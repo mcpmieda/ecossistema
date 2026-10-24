@@ -14,7 +14,7 @@ import {
   type AccessPlanV1,
 } from '../../../../shared/student-portal-contracts/access-schedule-v1';
 import { AccessPlanSummaryV1, type PlanWordsV1 } from './access-plan-v1';
-import { ownsSettingV1 } from './settings-values-v1';
+import { ownsSettingV1, scopeSubjectV1 } from './settings-values-v1';
 import {
   calendarWithGradePlanV1,
   gradeOfV1,
@@ -151,11 +151,7 @@ export function GradeShowV1({
             />
             {settings.scope.kind !== 'school' && !ownsSettingV1(settings, 'calendar') ? (
               <p className="pa-access-consequence">
-                {settings.scope.kind === 'class'
-                  ? 'Esta turma'
-                  : settings.scope.kind === 'shift'
-                    ? 'Este turno'
-                    : 'Este aluno'}{' '}
+                {scopeSubjectV1(settings.scope.kind)}{' '}
                 passa a ter datas próprias: as mudanças que a escola fizer no Calendário e nas Notas
                 deixam de valer aqui até alguém usar “Usar padrão”.
               </p>
@@ -173,21 +169,24 @@ export function GradeShowV1({
       setError(problem instanceof Error ? problem.message : 'Confira os agendamentos.');
     }
   };
+  const steadyText = openNow ? 'Fica visível até alguém ocultar.' : 'Fica oculto até alguém mostrar.';
+  let notice: string | null = null;
+  if (canWrite && dirty) notice = 'Salve ou desfaça os agendamentos antes de usar a chave.';
+  else if (fromCalendar && saved.schedule.length)
+    notice = 'Vieram das datas do Calendário. Ao salvar, passam a valer daqui.';
   return (
     <div className="pa-grade-show">
       <div className="pa-grade-show-now">
         <div>
           <p className="pa-grade-show-state">{openNow ? 'Mostrando agora' : 'Oculto agora'}</p>
           <p className="pa-access-status-next">
-            {nextChange !== null ? (
+            {nextChange === null ? (
+              steadyText
+            ) : (
               <>
                 <CalendarClock size={14} aria-hidden="true" />
                 {openNow ? 'Oculta' : 'Mostra'} sozinho em {scheduleWhenV1(nextChange)}
               </>
-            ) : openNow ? (
-              'Fica visível até alguém ocultar.'
-            ) : (
-              'Fica oculto até alguém mostrar.'
             )}
           </p>
         </div>
@@ -223,17 +222,7 @@ export function GradeShowV1({
         disabled={disabled}
         error={error}
         empty="Nenhum agendamento."
-        notice={
-          canWrite && dirty ? (
-            <p className="pa-settings-hint">
-              Salve ou desfaça os agendamentos antes de usar a chave.
-            </p>
-          ) : fromCalendar && saved.schedule.length ? (
-            <p className="pa-settings-hint">
-              Vieram das datas do Calendário. Ao salvar, passam a valer daqui.
-            </p>
-          ) : null
-        }
+        notice={notice ? <p className="pa-settings-hint">{notice}</p> : null}
         actions={
           dirty ? (
             <Button
@@ -305,31 +294,27 @@ export function GradesScopeNoteV1({
   onInherit: () => void;
 }>) {
   if (settings.scope.kind === 'school') return null;
-  let level: 'Esta turma' | 'Este turno' | 'Este aluno';
-  if (settings.scope.kind === 'class') {
-    level = 'Esta turma';
-  } else if (settings.scope.kind === 'shift') {
-    level = 'Este turno';
-  } else {
-    level = 'Este aluno';
-  }
+  const level = scopeSubjectV1(settings.scope.kind);
   const owns = ownsSettingV1(settings, 'calendar');
+  const fromSchool = settings.sources.calendar.kind === 'school';
+  let origin = 'Datas próprias';
+  if (!owns) origin = fromSchool ? 'Padrão da escola' : 'Padrão de ' + sourceLabel;
+  let explanation: string;
+  if (owns) {
+    explanation = `${level} tem datas próprias: mudanças da escola no Calendário e nas Notas não valem aqui.`;
+  } else if (settings.scope.kind === 'class' && settings.sources.calendar.kind === 'shift') {
+    explanation = `${level} segue as datas de ${sourceLabel}.`;
+  } else {
+    const source = fromSchool ? 'da escola' : 'de ' + sourceLabel;
+    const pronoun = level === 'Esta turma' ? 'ela' : 'ele';
+    explanation = `${level} segue as datas ${source}. Salvar um agendamento aqui cria datas próprias para ${pronoun}.`;
+  }
   return (
     <div className="pa-grades-scope" role="note">
       <Chip size="sm" variant="soft" color={owns ? 'warning' : 'default'}>
-        {owns
-          ? 'Datas próprias'
-          : settings.sources.calendar.kind === 'school'
-            ? 'Padrão da escola'
-            : 'Padrão de ' + sourceLabel}
+        {origin}
       </Chip>
-      <p>
-        {owns
-          ? `${level} tem datas próprias: mudanças da escola no Calendário e nas Notas não valem aqui.`
-          : settings.scope.kind === 'class' && settings.sources.calendar.kind === 'shift'
-            ? `${level} segue as datas de ${sourceLabel}.`
-            : `${level} segue as datas ${settings.sources.calendar.kind === 'school' ? 'da escola' : 'de ' + sourceLabel}. Salvar um agendamento aqui cria datas próprias para ${level === 'Esta turma' ? 'ela' : 'ele'}.`}
-      </p>
+      <p>{explanation}</p>
       {owns && canWrite ? (
         <Button
           size="sm"

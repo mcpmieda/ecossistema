@@ -52,7 +52,8 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         // countdown runs to its last one. No calendar yet: the diary as it is, no countdown.
         const calendar=await tx.unsafe('SELECT days_json FROM student_portal.school_calendar_v1 WHERE academic_year=2026',[]);
         const calendarDays=calendar?.[0]?.days_json;
-        const marked=calendarDays==null?null:schoolCalendarDaysV1.parse(typeof calendarDays==="string"?JSON.parse(calendarDays):calendarDays);
+        const storedDays=typeof calendarDays==="string"?JSON.parse(calendarDays):calendarDays;
+        const marked=calendarDays==null?null:schoolCalendarDaysV1.parse(storedDays);
         const schoolDays=marked?new Set(schoolDaysOfV1(marked)):undefined;
         if(!asYear)return portalFrequencySummaryV2(read,month!,schoolDays);
         const schoolYear=marked?schoolYearProgressOfV1(marked,read.today):null;

@@ -53,13 +53,13 @@ const term = (period: 'T1' | 'T2', final: number, partials: PartialV1[]) => ({
   partials,
 });
 const ongoingT3 = (partials: PartialV1[]) => ({ period: 'T3' as const, final: absent, partials });
-const recovery = (period: 'REC1' | 'REC2', value?: number) => ({
-  period,
-  final:
-    value === undefined
-      ? { kind: 'recovery-pending' as const }
-      : score(value, TERM_MAXIMUM[period === 'REC1' ? 'T1' : 'T2']),
-});
+const recovery = (period: 'REC1' | 'REC2', value?: number) => {
+  const term = period === 'REC1' ? 'T1' : 'T2';
+  return {
+    period,
+    final: value === undefined ? { kind: 'recovery-pending' as const } : score(value, TERM_MAXIMUM[term]),
+  };
+};
 
 const previewData = selfResponseV1.parse({
   contractVersion: 1,
@@ -246,15 +246,15 @@ const realSubject = (
   order: number,
   activities: readonly RealActivityV1[],
 ) => {
+  const markOf = (value: number | null, maximum: number | null) => {
+    if (value === null) return absent;
+    if (maximum === null) return { kind: 'score' as const, value, maximum: null, meetsMinimum: null };
+    return score(value, maximum);
+  };
   const partials = activities.map(([activity, maximum, value]) => ({
     assessmentId: ++nextAssessmentId,
     label: activity,
-    mark:
-      value === null
-        ? absent
-        : maximum === null
-          ? { kind: 'score' as const, value, maximum: null, meetsMinimum: null }
-          : score(value, maximum),
+    mark: markOf(value, maximum),
     // A blank activity is an observed "não fez" (D1); a pending parallel exam is not.
     ...(value === null && activity !== PARALLEL_LABEL ? { notDone: true as const } : {}),
     ...(activity === PARALLEL_LABEL ? { parallel: true as const } : {}),
@@ -429,9 +429,10 @@ const recoveryTerm = (period: 'T1' | 'T2' | 'T3', final: number) => {
     ],
   };
 };
+const RECOVERED_TERM = { REC1: 'T1', REC2: 'T2', REC3: 'T3' } as const;
 const recoveryScore = (period: 'REC1' | 'REC2' | 'REC3', value: number) => ({
   period,
-  final: score(value, TERM_MAXIMUM[period === 'REC1' ? 'T1' : period === 'REC2' ? 'T2' : 'T3']),
+  final: score(value, TERM_MAXIMUM[RECOVERED_TERM[period]]),
 });
 const RECOVERY_CASES_V1: readonly [label: string, t1: number, t2: number, t3: number][] = [
   ['MATEMÁTICA', 12, 14.5, 18],
@@ -798,6 +799,15 @@ const coarseResultV1 = (situation: AdminSimulationV1['situation']): SelfResponse
   return 'failed';
 };
 
+/** The demo data the simulator's "Dados" choice reads. */
+function datasetOfV1(admin: AdminSimulationV1) {
+  if (admin.dataset === 'real') return withRealCorrectionV1(realPreviewData, admin.correctedRed);
+  if (admin.dataset === 'trend') return trendPreviewData();
+  if (admin.dataset === 'recovery') return recoveryPreviewData();
+  if (admin.dataset === 'showcase') return showcasePreviewData(admin.thirdTerm);
+  return previewData;
+}
+
 function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfResponseV1 {
   const final = admin.finalDisclosed && admin.accessEnabled;
   const recoveryDisclosed = admin.accessEnabled && admin.periods.includes('T3');
@@ -805,9 +815,10 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     value !== undefined && (final || (recoveryDisclosed && value === early));
   const assisted = admin.academicState === 'assisted';
   const situation = admin.situation === 'none' || assisted ? undefined : admin.situation;
+  const shownSubjects = admin.singleSubject ? 1 : undefined;
   const subjects = admin.accessEnabled
     ? data.subjects
-        .slice(0, admin.singleSubject ? 1 : undefined)
+        .slice(0, shownSubjects)
         .map((subject) => {
           const subjectSituation = subjectSituationFor(admin.situation, subject.label);
           let outcome;
@@ -871,6 +882,8 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
       attentionSubjectIds: attention.map((subject) => subject.subjectId),
     };
   });
+  let result: SelfResponseV1['profile']['result'] = 'not-applicable';
+  if (!assisted) result = final ? coarseResultV1(admin.situation) : 'in-progress';
   return selfResponseV1.parse({
     ...data,
     state: withClosings.length > 0 ? 'ready' : 'no-publication',
@@ -882,7 +895,7 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
       name: admin.studentName,
       ...(admin.studentName === 'ALUNO ARTIFICIAL' ? { classLabel: 'TURMA ARTIFICIAL' } : {}),
       academicState: admin.academicState,
-      result: assisted ? 'not-applicable' : final ? coarseResultV1(admin.situation) : 'in-progress',
+      result,
       ...(visible(situation, 'in-recovery') ? { annualSituation: situation } : {}),
     },
     subjects: withClosings,
@@ -1087,15 +1100,7 @@ export function PortalDemoAppV1() {
   const data = useMemo(
     () =>
       simulateAdminV1(
-        admin.dataset === 'real'
-          ? withRealCorrectionV1(realPreviewData, admin.correctedRed)
-          : admin.dataset === 'trend'
-            ? trendPreviewData()
-            : admin.dataset === 'recovery'
-              ? recoveryPreviewData()
-            : admin.dataset === 'showcase'
-              ? showcasePreviewData(admin.thirdTerm)
-            : previewData,
+        datasetOfV1(admin),
         admin.notice === 'countdown' ? { ...admin, periods: [] } : admin,
       ),
     [admin],

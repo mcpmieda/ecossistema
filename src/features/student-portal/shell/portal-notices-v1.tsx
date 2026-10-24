@@ -205,6 +205,20 @@ export function PortalTimerV1({ seconds, label }: Readonly<{ seconds: number; la
 
 /** Login page while access is closed: no sign-in, only when it opens or when grades come out. */
 export function PortalClosedNoticeV1({ notices }: Readonly<{ notices: PortalNoticesV1 }>) {
+  // Grades first: their release is what the family waits for; otherwise when the Portal opens.
+  let countdown: { at: string; title: string; done: string } | null = null;
+  if (notices.gradesReleaseAt)
+    countdown = {
+      at: notices.gradesReleaseAt,
+      title: 'Notas liberadas em',
+      done: 'As notas foram liberadas!',
+    };
+  else if (notices.accessOpensAt)
+    countdown = {
+      at: notices.accessOpensAt,
+      title: 'O Portal abre em',
+      done: 'O Portal já abriu!',
+    };
   return (
     <Card className="pa-auth-card pa-closed-card">
       <Card.Header className="pa-auth-header">
@@ -216,21 +230,7 @@ export function PortalClosedNoticeV1({ notices }: Readonly<{ notices: PortalNoti
           O acesso às notas ainda não foi liberado pela escola. Não é preciso ler o cartão agora.
         </Card.Description>
       </Card.Header>
-      <Card.Content>
-        {notices.gradesReleaseAt ? (
-          <PortalCountdownV1
-            at={notices.gradesReleaseAt}
-            title="Notas liberadas em"
-            done="As notas foram liberadas!"
-          />
-        ) : notices.accessOpensAt ? (
-          <PortalCountdownV1
-            at={notices.accessOpensAt}
-            title="O Portal abre em"
-            done="O Portal já abriu!"
-          />
-        ) : null}
-      </Card.Content>
+      <Card.Content>{countdown ? <PortalCountdownV1 {...countdown} /> : null}</Card.Content>
     </Card>
   );
 }

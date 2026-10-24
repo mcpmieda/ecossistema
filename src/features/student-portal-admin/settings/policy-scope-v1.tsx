@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Building2, Clock3, GraduationCap, UserRound } from 'lucide-react';
 import { Chip } from '@heroui/react';
 import type { PolicyScopeV1 as PolicyScopeValueV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import { scopeSubjectV1 } from './settings-values-v1';
 export function PolicyScopeV1({
   scope,
   label,
@@ -30,13 +31,7 @@ export function PolicyScopeV1({
     >
       <Chip size="sm" variant="soft">
         <Icon size={15} aria-hidden />
-        {scope.kind === 'school'
-          ? 'Toda a escola'
-          : scope.kind === 'class'
-            ? 'Esta turma'
-            : scope.kind === 'shift'
-              ? 'Este turno'
-              : 'Este aluno'}
+        {scopeSubjectV1(scope.kind)}
       </Chip>
       {scope.kind !== 'school' && label ? <strong>{label}</strong> : null}
       <span>
