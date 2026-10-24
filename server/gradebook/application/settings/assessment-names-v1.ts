@@ -5,8 +5,8 @@ import {
   sameAssessmentNamesV1,
   type AssessmentNamesResponseV1,
 } from '../../../../shared/gradebook-contracts/settings/assessment-names-v1';
-import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../persistence/postgres/postgres-database-v1';
+
 import { postgresJsonTextV1 } from '../../persistence/postgres/postgres-values-v1';
 import {
   lockResetWriterV1,

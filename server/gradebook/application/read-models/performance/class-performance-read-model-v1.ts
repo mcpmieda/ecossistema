@@ -345,12 +345,12 @@ function encodeBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value);
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '');
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
 }
 
 function decodeBase64Url(value: string): string | null {
   if (!/^[A-Za-z0-9_-]+$/u.test(value)) return null;
-  const base64 = value.replace(/-/gu, '+').replace(/_/gu, '/');
+  const base64 = value.replaceAll('-', '+').replaceAll('_', '/');
   const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
   try {
     const binary = atob(padded);
@@ -1156,8 +1156,8 @@ export function createClassPerformanceReadModelV1(
       const rowStart = pageStart(rowKeys, request.rows.cursor, 'rows', scope);
       const selectedColumns = columnKeys.slice(columnStart, columnStart + request.columns.limit);
       const selectedRows = rowKeys.slice(rowStart, rowStart + request.rows.limit);
-      const lastColumn = selectedColumns[selectedColumns.length - 1];
-      const lastRow = selectedRows[selectedRows.length - 1];
+      const lastColumn = selectedColumns.at(-1);
+      const lastRow = selectedRows.at(-1);
 
       const model: ClassPerformanceReadModelV1 = {
         contractVersion: CLASS_PERFORMANCE_CONTRACT_VERSION_V1,

@@ -95,7 +95,7 @@ export function createLocalBulletinSnapshotRepositoryV1(): BulletinSnapshotRepos
       }
 
       const snapshots = bySeries.get(seriesKey) ?? [];
-      const latest = snapshots[snapshots.length - 1] ?? null;
+      const latest = snapshots.at(-1) ?? null;
       const currentVersion = latest?.snapshotVersion ?? 0;
       if (
         currentVersion !== expectedPreviousVersion ||

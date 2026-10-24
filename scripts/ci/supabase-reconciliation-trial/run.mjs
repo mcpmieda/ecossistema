@@ -89,7 +89,7 @@ COMMIT;`, fail);
   assert.notEqual(denied.status, 0);
   assert.match(denied.stderr, /permission denied/);
   // Temporary synthetic grant tests effective default-deny RLS, then is rolled back.
-  assert.equal(execute('BEGIN; GRANT USAGE ON SCHEMA trial_private TO synthetic_trial_reader; GRANT SELECT ON trial_private.cache_probe TO synthetic_trial_reader; SET LOCAL ROLE synthetic_trial_reader; SELECT count(*) FROM trial_private.cache_probe; ROLLBACK;').split('\n').filter(line => /^[0-9]+$/.test(line)).at(-1), '0');
+  assert.equal(execute('BEGIN; GRANT USAGE ON SCHEMA trial_private TO synthetic_trial_reader; GRANT SELECT ON trial_private.cache_probe TO synthetic_trial_reader; SET LOCAL ROLE synthetic_trial_reader; SELECT count(*) FROM trial_private.cache_probe; ROLLBACK;').split('\n').findLast(line => /^\d+$/.test(line)), '0');
   assert.equal(catalog(), appliedCatalog);
   assert.deepEqual(ledger(), [...pairs, [version, 'synthetic_additive_cache']]);
   const report = { postgresVersion: '17.6', candidateSha256: expectedHash, head: process.env.TRIAL_HEAD_SHA || null, cases: ['single committed application','repeat rejected','altered hash rejected','live ledger drift rejected','live RLS drift rejected','real SQL failure rolls back DDL and ledger','54 original pairs preserved plus exactly one delta','owner/RLS/PUBLIC ACL verified','effective role access denied','temporary SELECT grant still subject to default-deny RLS'], scope: 'synthetic disposable PostgreSQL; not Supabase external integration', passed: true };

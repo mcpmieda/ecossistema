@@ -43,8 +43,8 @@ import {
   type ImportInstrumentStateV11,
   type ImportOfferReadStateV11,
 } from '../../persistence/postgres/relational-import-read-set-v11';
-import type { GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresScalarV1, type GradebookPostgresWritePortV1  } from '../../persistence/postgres/postgres-database-v1';
+
 
 interface TransactionDatabaseV9 extends GradebookPostgresWritePortV1 {
   transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;

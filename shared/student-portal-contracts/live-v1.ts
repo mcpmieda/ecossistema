@@ -4,7 +4,7 @@ import { instantV1, portalIdV1, revisionV1 } from './core-v1';
 
 export const liveAudienceV1 = z.enum(['admin', 'student']);
 export const liveDomainV1 = z.enum(['gradebook', 'portal']);
-export const liveCursorV1 = z.string().regex(/^[0-9]{20}$/u);
+export const liveCursorV1 = z.string().regex(/^\d{20}$/u);
 
 export const liveResumeV1 = z
   .object({

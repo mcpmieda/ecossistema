@@ -21,11 +21,12 @@ import {
   type SealCountsCacheV1,
 } from './brilliant-seals-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
-import type {
-  AdminAccountReadV2,
-  AdminReadQueryV2,
+import {
+  type AdminAccountReadV2,
+  type AdminReadQueryV2,
+  ADMIN_ACCOUNTS_PAGE_SIZE_V2,
 } from '../../../../shared/student-portal-contracts/admin-read-v2';
-import { ADMIN_ACCOUNTS_PAGE_SIZE_V2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
+
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
@@ -36,7 +37,12 @@ import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v
 import { ClassFilterV1 } from './class-filter-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
-import { accountCredentialPreparableV1 } from './accounts-values-v1';
+import {
+  accountCredentialPreparableV1,
+  firstAccessLabelV1,
+  accountPageMatchesV1,
+  lastAuthenticationLabelV1,
+} from './accounts-values-v1';
 import { QrBatchToolsV1 } from '../credentials/qr-batch-tools-v1';
 import { primePhotoMemoryV1 } from '../../student-photos/photo-memory-v1';
 import { studentAvatarPhotoV1 } from '../shared/student-avatar-v1';
@@ -49,11 +55,7 @@ import {
   writePanelFirstRowsV1,
   writePanelHashParamsV1,
 } from '../shared/panel-hash-v1';
-import {
-  firstAccessLabelV1,
-  accountPageMatchesV1,
-  lastAuthenticationLabelV1,
-} from './accounts-values-v1';
+
 import {
   AccountFilterTagsV1,
   ACCOUNT_STATE_OPTIONS_V1,
@@ -300,7 +302,7 @@ const AvatarBackfillPanelV1 = lazy(() =>
 const foldNameV1 = (value: string) =>
   value
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
+    .replaceAll(/\p{Diacritic}/gu, '')
     .toLocaleLowerCase('pt-BR');
 /** The accounts a view shows, before ordering: one rule for the list and for what it asks ahead. */
 function narrowAccountsV1<T extends AdminAccountReadV2>(

@@ -192,7 +192,7 @@ export function teacherNameFromFileName(name: string): string | null {
   );
   const candidate = withoutPrefix
     .replace(/\s*[-–—_:]*\s*20\d{2}\s*$/u, '')
-    .replace(/\s+/gu, ' ')
+    .replaceAll(/\s+/gu, ' ')
     .trim();
   return candidate.length > 0 ? candidate : null;
 }
@@ -200,7 +200,7 @@ export function teacherNameFromFileName(name: string): string | null {
 function normalizeText(value: string): string {
   return value
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/gu, '')
+    .replaceAll(/[\u0300-\u036f]/gu, '')
     .trim()
     .toUpperCase();
 }

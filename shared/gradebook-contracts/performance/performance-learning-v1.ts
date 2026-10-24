@@ -101,8 +101,8 @@ const participationPattern = new RegExp(`^(?:${participationName}|${ordinal}\\s*
  * Keep the grammar anchored: "parte", "partido" and compound activity names are not participation.
  * Apply this only to qualitative slots. Unknown descriptions remain ordinary qualitative work. */
 export function isParticipationLabelV1(label: string): boolean {
-  const normalized = label.replace(/[ºª°]/gu, '').normalize('NFD')
-    .replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR')
-    .replace(/[._():-]/gu, ' ').replace(/\s+/gu, ' ').trim();
+  const normalized = label.replaceAll(/[ºª°]/gu, '').normalize('NFD')
+    .replaceAll(/\p{M}/gu, '').toLocaleLowerCase('pt-BR')
+    .replaceAll(/[._():-]/gu, ' ').replaceAll(/\s+/gu, ' ').trim();
   return participationPattern.test(normalized);
 }

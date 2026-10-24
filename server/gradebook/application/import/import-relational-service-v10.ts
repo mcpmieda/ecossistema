@@ -6,8 +6,8 @@ import type {
   GradebookImportTermV9,
   GradebookNotesImportRequestV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresReadPortV1 } from '../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresWritePortV1, type GradebookPostgresReadPortV1  } from '../../persistence/postgres/postgres-database-v1';
+
 import { createGradebookRelationalImportServiceV9 } from './import-relational-service-v9';
 
 interface TransactionDatabaseV10 extends GradebookPostgresWritePortV1 {

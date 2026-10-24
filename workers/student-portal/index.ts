@@ -15,11 +15,11 @@ import { portalHealthReviewRpcV1 } from '../../server/student-portal/composition
 import { portalScheduledV1 } from '../../server/student-portal/composition/scheduled-v1';
 import type { PortalCompositionEnvV1 } from '../../server/student-portal/composition/config-v1';
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
-import { PortalLiveUpdatesV1 } from '../../server/student-portal/live/live-updates-v1';
+
 import { connectPortalLiveV1 } from '../../server/student-portal/live/live-connect-v1';
 import { allowPortalLiveDrainV1 } from '../../server/student-portal/composition/live-drain-v1';
 import { dispatchPortalLiveEventsV1 } from '../../server/student-portal/live/live-outbox-v1';
-export { PortalLiveUpdatesV1 };
+
 const selfMayEnqueueLiveV1 = (request: Request, response: Response): boolean => {
   if (request.method !== 'POST' || response.status !== 200) return false;
   const path = new URL(request.url).pathname;
@@ -94,3 +94,5 @@ export default {
       portalHistoryScheduledV1(env, controller.scheduledTime), portalSignalsScheduledV1(env, controller.scheduledTime)]);
   },
 } satisfies ExportedHandler<PortalWorkerEnv & PortalCompositionEnvV1>;
+
+export {PortalLiveUpdatesV1} from '../../server/student-portal/live/live-updates-v1';

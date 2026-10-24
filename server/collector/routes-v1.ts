@@ -5,8 +5,8 @@ import {seal,unseal} from '../auth/sealed';
 import {readCookie,secureCookie,clearCookie} from '../auth/cookies';
 import {encodeBase64Url} from '../auth/base64url';
 import {readBoundedJson,readBoundedBytes,enforceWriteOrigin} from '../http/security';
-import {createCollectorRuntimeV1,type CollectorRuntimeDependenciesV1} from './runtime-v1';
-import {createCollectorWithdrawalStoreV1} from './runtime-v1';
+import {createCollectorRuntimeV1,type CollectorRuntimeDependenciesV1,createCollectorWithdrawalStoreV1} from './runtime-v1';
+
 import {requireAuth} from '../auth/session';
 import {handleCollectorAccessRequestV1} from './http-v1';
 import {handleCollectorFrequencyRequestV2} from './frequency-http-v2';
@@ -22,7 +22,7 @@ const authSchema=z.object({state:z.string().regex(/^collector\.[A-Za-z0-9_-]{43}
   verifier:z.string().regex(/^[A-Za-z0-9_-]{64}$/u),exp:z.number().int().positive(),startedAt:z.number().int().positive(),pairingId:uuid}).strict();
 const withdrawalSchema=z.object({purpose:z.literal('collector-withdraw'),device:uuid,actor:uuid,tenant:uuid,thumb:secret,csrf:secret,exp:z.number().int().positive()}).strict();
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','Pragma':'no-cache'}});
-const escaped=(text:string)=>text.replace(/[&<>"']/gu,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!));
+const escaped=(text:string)=>text.replaceAll(/[&<>"']/gu,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!));
 function page(title:string,body:string,status=200,headers:HeadersInit={},refreshUrl?:string):Response{
   const responseHeaders=new Headers(headers);
   responseHeaders.set('Content-Type','text/html; charset=utf-8');
@@ -159,7 +159,7 @@ async function pairingRequest(request:Request,url:URL,env:RuntimeEnv,runtime:Col
     // global database budget enforces a ceiling even if this one is spoofed.
     const edgeAddress=request.headers.get('CF-Connecting-IP')??'';
     const source=/^[0-9a-fA-F:.]{3,48}$/u.test(edgeAddress)?edgeAddress.toLowerCase():'unknown';
-    const scope='client:'+await collectorOpaqueHashV1(env.SESSION_SECRET+'\\0'+source);
+    const scope='client:'+await collectorOpaqueHashV1(env.SESSION_SECRET+String.raw`\0`+source);
     // Malformed/unsigned requests must not consume the scarce school-wide
     // pairing quota. A self-signed valid key is still untrusted, hence DB caps.
     const proof=await verifyCollectorPairingV1(value,runtime.oauth.now());

@@ -1,7 +1,7 @@
 import { adminCommandOperationV1, limitAdminOperationV1 } from './admin-rate-limit-v1';
 import { portalLiveStubV1 } from '../live/live-connect-v1';
-import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
-import { adminCommandV1, trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { adminResponseV1, adminCommandV1, trustedAdminContextV1  } from '../../../shared/student-portal-contracts/admin-v1';
+
 import { adminQueryRequestV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import { PortalAdminApiV1 } from '../admin/api-v1';
 import { withAuditSqlV1 } from '../observability/audit-context-v1';

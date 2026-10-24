@@ -304,7 +304,7 @@ type SubjectMotionV1 =
 function subjectIconOfV1(label: string): { Icon: typeof BookOpenCheck; motion: SubjectMotionV1 } {
   const normalized = label
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/gu, '')
+    .replaceAll(/[\u0300-\u036f]/gu, '')
     .toLocaleLowerCase('pt-BR');
 
   if (normalized.includes('matematica')) return { Icon: Calculator, motion: 'press' };
@@ -1012,8 +1012,8 @@ function useSlideStageV1(liveSelector = ':scope > [data-slide-live]') {
     clearTimeout(Number(frame.dataset.slideTimer));
     frame.dataset.slideTimer = String(setTimeout(() => frame.classList.remove('is-sliding'), 450));
     const ghost = live.cloneNode(true) as HTMLElement;
-    ghost.removeAttribute('data-slide-live');
-    ghost.removeAttribute('data-area-live');
+    delete ghost.dataset.slideLive;
+    delete ghost.dataset.areaLive;
     ghost.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
     ghost.setAttribute('inert', '');
     // A still frame of what was on screen: no entrance motion of its own replays while it leaves.
@@ -1070,7 +1070,7 @@ function useFitLineV1<T extends HTMLElement>(key: string, minPx: number) {
       const available = room.clientWidth;
       const needed = element.scrollWidth;
       if (!available || !needed || needed <= available) return;
-      const size = (parseFloat(getComputedStyle(element).fontSize) * available) / needed;
+      const size = (Number.parseFloat(getComputedStyle(element).fontSize) * available) / needed;
       // Too small to read on one line: keep the normal size and let it wrap instead.
       if (size >= minPx) element.style.fontSize = `${size}px`;
       else element.style.whiteSpace = 'normal';
@@ -1096,7 +1096,7 @@ function useCaptionFitV1(key: string) {
     const target = figure.getBoundingClientRect().width;
     const natural = caption.scrollWidth;
     if (!target || !natural) return;
-    const base = parseFloat(getComputedStyle(caption).fontSize);
+    const base = Number.parseFloat(getComputedStyle(caption).fontSize);
     caption.style.fontSize = `${Math.min(15, Math.max(9, (base * target) / natural))}px`;
   }, [key]);
   return block;

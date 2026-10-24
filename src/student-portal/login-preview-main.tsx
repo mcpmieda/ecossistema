@@ -121,7 +121,7 @@ const failure = (state: string, retryAfterSeconds?: number) =>
 const session = () =>
   reply(200, {
     state: 'authenticated',
-    expiresAt: new Date(Date.now() + 8 * 3600_000).toISOString(),
+    expiresAt: new Date(Date.now() + 8 * 3_600_000).toISOString(),
     persistent: true,
   });
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -326,7 +326,7 @@ function LoginPreviewV1() {
             notices={{
               access: 'closed',
               accessOpensAt:
-                screen.closed === 'opening' ? new Date(Date.now() + 3 * 86400_000).toISOString() : null,
+                screen.closed === 'opening' ? new Date(Date.now() + 3 * 86_400_000).toISOString() : null,
               gradesReleaseAt:
                 screen.closed === 'grades'
                   ? new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60 + 9) * 1000).toISOString()

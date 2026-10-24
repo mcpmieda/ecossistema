@@ -43,11 +43,11 @@ function sanitize(value: string, fallback: string): string {
     return codePoint <= 0x1f || codePoint === 0x7f ? ' ' : character;
   })
     .join('')
-    .replace(/[\\/<>:"|?*]/gu, '-')
-    .replace(/\s+/gu, ' ')
-    .replace(/\.{2,}/gu, '.')
+    .replaceAll(/[\\/<>:"|?*]/gu, '-')
+    .replaceAll(/\s+/gu, ' ')
+    .replaceAll(/\.{2,}/gu, '.')
     .trim()
-    .replace(/^[. -]+|[. -]+$/gu, '');
+    .replaceAll(/^[. -]+|[. -]+$/gu, '');
   return (
     Array.from(normalized || fallback)
       .slice(0, 72)
@@ -75,7 +75,7 @@ async function generate(
   try {
     renderer = await importer();
     if (typeof renderer.renderRelationalBulletinPdfV2 !== 'function') {
-      throw new Error('invalid-renderer-module');
+      throw new TypeError('invalid-renderer-module');
     }
   } catch (cause) {
     throw new RelationalBulletinPdfActionErrorV2(
@@ -141,7 +141,7 @@ export async function runRelationalBulletinPdfActionV2(
       );
     } finally {
       anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     }
     return { filename, pageCount: artifact.pageCount, byteLength: artifact.byteLength };
   }
@@ -209,7 +209,7 @@ export async function runRelationalBulletinPdfActionV2(
     window.setTimeout(() => {
       frame.remove();
       URL.revokeObjectURL(objectUrl);
-    }, 1_000);
+    }, 1000);
   }
   return { filename, pageCount: artifact.pageCount, byteLength: artifact.byteLength };
 }

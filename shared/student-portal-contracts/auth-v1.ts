@@ -1,15 +1,15 @@
 import { z } from 'zod';
 import { instantV1, opaqueV1, portalIdV1, PORTAL_ORIGIN_V1 } from './core-v1';
 
-export const pinV1 = z.string().regex(/^[0-9]{4}$/u);
-export const passwordV1 = z.string().regex(/^[0-9]{6}$/u);
+export const pinV1 = z.string().regex(/^\d{4}$/u);
+export const passwordV1 = z.string().regex(/^\d{6}$/u);
 /**
  * Easy-to-guess passwords are refused when one is created (owner decision 28/09/2026): all digits
  * equal (111111), a straight run up or down (123456, 654321) or a repeated pair or trio (121212,
  * 123123, 112233). Signing in is never checked, so passwords created before keep working.
  */
 export function isWeakPasswordV1(password: string): boolean {
-  if (!/^[0-9]{6}$/u.test(password)) return false;
+  if (!/^\d{6}$/u.test(password)) return false;
   const digits = [...password].map(Number);
   const steps = digits.slice(1).map((digit, index) => digit - digits[index]!);
   if (steps.every((step) => step === 0)) return true;
@@ -25,7 +25,7 @@ export const qrUrlV1 = z.string().max(2048).refine((value) => {
   try {
     const url = new URL(value);
     return url.origin === PORTAL_ORIGIN_V1 && url.pathname === '/access' && !url.username && !url.password &&
-      !url.search && /^#v1\.[A-Za-z0-9_-]{32,128}\.[1-9][0-9]{0,5}\.[A-Za-z0-9_-]{43}$/u.test(url.hash);
+      !url.search && /^#v1\.[A-Za-z0-9_-]{32,128}\.[1-9]\d{0,5}\.[A-Za-z0-9_-]{43}$/u.test(url.hash);
   } catch { return false; }
 }, 'Expected a Portal V1 credential URL');
 const input = { contractVersion: z.literal(1) };

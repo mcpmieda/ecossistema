@@ -42,7 +42,7 @@ export async function inheritPublicationV1(sql: StudentPortalPostgresSqlV1, acto
         accountId: scope.kind === 'account' ? scope.accountId : null, scope,
         kind: 'settings-changed', result: 'success', requestId: command.idempotencyKey, version, maskedIp: null });
       await store.saveIdempotency({ key: command.idempotencyKey, actorId: receiptActor, requestDigest: digest,
-        operationId, version, expiresAt: new Date(now.getTime() + 86400_000).toISOString() });
+        operationId, version, expiresAt: new Date(now.getTime() + 86_400_000).toISOString() });
       return { operationId, version };
     });
   });

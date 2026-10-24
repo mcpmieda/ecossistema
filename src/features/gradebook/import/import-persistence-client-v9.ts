@@ -89,7 +89,7 @@ export async function persistGradebookCanonicalImportV9(
       throw new Error('Gravação sem confirmação válida.');
     }
     const raw = response.headers.get('X-Gradebook-Server-Ms');
-    const parsed = raw === null || raw.trim() === '' ? NaN : Number(raw);
+    const parsed = raw === null || raw.trim() === '' ? Number.NaN : Number(raw);
     outcome = value.state;
     try {
       commitDiagnostics = parseImportCommitDiagnosticsHeaderV1(

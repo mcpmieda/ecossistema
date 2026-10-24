@@ -3,8 +3,8 @@ import {
   isGradebookImportDiagnosticsAuditRequestV1,
   type GradebookImportDiagnosticsAuditRequestV1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
-import type { GradebookPostgresWritePortV1 } from '../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../persistence/postgres/postgres-database-v1';
+
 import { postgresJsonTextV1 } from '../../persistence/postgres/postgres-values-v1';
 
 type TransactionDatabase = GradebookPostgresWritePortV1 & {

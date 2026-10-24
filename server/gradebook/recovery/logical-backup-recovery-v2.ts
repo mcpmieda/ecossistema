@@ -188,7 +188,7 @@ function parseCsvCellV2(csv: string): string {
   if (cell.length < 2 || cell[0] !== '"' || cell.at(-1) !== '"') {
     fail('recovery-backup-cell-invalid');
   }
-  return cell.slice(1, -1).replace(/""/gu, '"');
+  return cell.slice(1, -1).replaceAll('""', '"');
 }
 
 function parseCatalogV2(value: unknown): BackupCatalogV2 {
@@ -312,7 +312,7 @@ export async function applyRecoverySchemaV2(sql: RecoveryQueryV2, repositoryRoot
     try {
       await sql.unsafe(migration);
     } catch (cause) {
-      fail(`recovery-schema-${file.replace(/\.sql$/u, '').replace(/_/gu, '-')}-failed${sqlStateSuffix(cause)}`);
+      fail(`recovery-schema-${file.replace(/\.sql$/u, '').replaceAll('_', '-')}-failed${sqlStateSuffix(cause)}`);
     }
   }
 }
@@ -335,8 +335,8 @@ async function insertRowsV2(sql: RecoveryQueryV2, table: LogicalBackupTableV2, t
   const columns = await tableColumnsV2(sql, table);
   validateRowColumnsV2(tableRows, columns);
   const identifier = `gradebook.${quotedIdentifier(table)}`;
-  for (let offset = 0; offset < tableRows.length; offset += 1_000) {
-    const chunk = tableRows.slice(offset, offset + 1_000);
+  for (let offset = 0; offset < tableRows.length; offset += 1000) {
+    const chunk = tableRows.slice(offset, offset + 1000);
     await sql.unsafe(`INSERT INTO ${identifier} SELECT * FROM json_populate_recordset(NULL::${identifier}, $1::json)`, [chunk]);
   }
 }
@@ -382,7 +382,7 @@ export async function restoreLogicalBackupV2(sql: RecoveryDatabaseV2, backup: Lo
         }
       } catch (cause) {
         if (cause instanceof LogicalBackupRecoveryErrorV2) throw cause;
-        fail(`recovery-restore-${table.replace(/_/gu, '-')}-failed${sqlStateSuffix(cause)}`);
+        fail(`recovery-restore-${table.replaceAll('_', '-')}-failed${sqlStateSuffix(cause)}`);
       }
     }
     try {

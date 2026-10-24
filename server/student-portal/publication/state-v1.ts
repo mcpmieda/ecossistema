@@ -59,7 +59,7 @@ export function jobPublicationVersionV1(mask: number, rows: readonly Publication
   return `job:${mask}:${PERIODS_V1.map((period) => rows.find((row) => row.period === period)?.version ?? 0).join(':')}`;
 }
 export function jobMaskV1(value: string): number {
-  if (!/^job:(?:[0-9]|[1-5][0-9]|6[0-3])(?::[0-9]+){6}$/u.test(value)) throw new Error('student-portal-publication-job-invalid');
+  if (!/^job:(?:\d|[1-5]\d|6[0-3])(?::\d+){6}$/u.test(value)) throw new Error('student-portal-publication-job-invalid');
   return Number(value.split(':')[1]);
 }
 export async function jobPolicyVersionV1(tx: StudentPortalPostgresQueryV1, accountId: string): Promise<string> {

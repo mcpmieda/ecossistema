@@ -87,7 +87,7 @@ export class SessionServiceV1 {
       const version = (await this.revocationScope(tx, scope)).version;
       const operationId = crypto.randomUUID();
       await store.saveIdempotency({ key: command.idempotencyKey, actorId: receiptActor, requestDigest: digest,
-        operationId, version, expiresAt: new Date(now.getTime() + 86400_000).toISOString() });
+        operationId, version, expiresAt: new Date(now.getTime() + 86_400_000).toISOString() });
       return { operationId, version };
     });
   }

@@ -3,11 +3,11 @@ import { isPublicProviderHealthV1, PUBLIC_PROVIDERS_V1, type PublicProviderHealt
   type PublicProviderPointV1 } from '../../shared/public-provider-health-v1';
 const URLS = { cloudflare: 'https://www.cloudflarestatus.com/api/v2/status.json',
   supabase: 'https://status.supabase.com/api/v2/status.json' } as const;
-const INDICATORS = ['none', 'minor', 'major', 'critical'];
+const INDICATORS = new Set(['none', 'minor', 'major', 'critical']);
 function parse(value: unknown, provider: PublicProviderPointV1['provider'], now: number): PublicProviderPointV1 | null {
   if (!value || typeof value !== 'object') return null;
   const v = value as { page?: { url?: unknown; updated_at?: unknown }; status?: { indicator?: unknown } };
-  if (typeof v.status?.indicator !== 'string' || !INDICATORS.includes(v.status.indicator)
+  if (typeof v.status?.indicator !== 'string' || !INDICATORS.has(v.status.indicator)
     || typeof v.page?.updated_at !== 'string' || v.page.updated_at.length > 40
     || !Number.isFinite(Date.parse(v.page.updated_at)) || Date.parse(v.page.updated_at) > now + 5000) return null;
   // Never follow any URL or serialize descriptions/incident text supplied by the provider.

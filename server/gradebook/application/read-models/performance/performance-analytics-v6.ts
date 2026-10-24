@@ -1,4 +1,6 @@
-import { performanceResultCountsV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+import { performanceResultCountsV2,
+  type PerformanceMatrixV2,
+  type PerformancePeriodV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   performanceAnalyticsRequestSchemaV6,
   performanceAnalyticsResponseSchemaV6,
@@ -8,18 +10,15 @@ import {
   type PerformanceAnalyticsSummaryV6,
   type PerformanceAnalyticsStatsV6,
 } from '../../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
-import type {
-  PerformanceMatrixV2,
-  PerformancePeriodV2,
-} from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+
 import type { AnalysisReadingV3 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { SIMPLIFIED_TERM_MAXIMUM_MILLI_V1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import {
   performanceCellV2,
   type PerformanceProjectionV2,
 } from '../../results/relational-performance-facts-v2';
-import type { GradebookPostgresWritePortV1 } from '../../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresTransactionV1 } from '../../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../../persistence/postgres/postgres-database-v1';
+
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
 import { buildPerformanceLearningV1 } from './performance-learning-v1';

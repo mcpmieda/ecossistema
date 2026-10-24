@@ -56,7 +56,7 @@ export function createQrDownloadsV1() {
       }
     },
     clear() {
-      for (const url of [...urls.keys()]) revoke(url);
+      for (const url of urls.keys()) revoke(url);
     },
   };
 }

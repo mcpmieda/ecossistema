@@ -1,12 +1,10 @@
-import type {
-  GradebookImportPersistenceRequestInspectionV4,
-  GradebookImportPersistenceRequestRejectionV4,
-  GradebookImportPersistenceRequestV4,
-  GradebookImportPersistenceResponseV4,
-  GradebookImportRecoverySheetObservationV4,
-  GradebookImportTermSheetObservationV4,
-} from './import-persistence-transport-v4';
 import {
+  type GradebookImportPersistenceRequestInspectionV4,
+  type GradebookImportPersistenceRequestRejectionV4,
+  type GradebookImportPersistenceRequestV4,
+  type GradebookImportPersistenceResponseV4,
+  type GradebookImportRecoverySheetObservationV4,
+  type GradebookImportTermSheetObservationV4,
   GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V4,
   GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V4,
   GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V4,
@@ -15,6 +13,7 @@ import {
   inspectGradebookImportPersistenceRequestV4,
   isGradebookImportPersistenceResponseV4,
 } from './import-persistence-transport-v4';
+
 import { SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2 } from '../source/source-contract-v2';
 
 /**

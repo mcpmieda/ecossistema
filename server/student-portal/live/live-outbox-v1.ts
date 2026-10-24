@@ -11,7 +11,7 @@ import { portalLiveStubV1 } from './live-connect-v1';
 const rowV1 = z
   .object({
     security_relevant: z.boolean(),
-    id: z.string().regex(/^[1-9][0-9]*$/u),
+    id: z.string().regex(/^[1-9]\d*$/u),
     audience: z.enum(['admin', 'student']),
     domain: z.enum(['gradebook', 'portal']),
     version: z.string(),

@@ -32,7 +32,7 @@ export function createSessionMutationV1(
   };
   async function run() {
     if (!canWrite || active || !prepared || now() < retryAt) return;
-    if (now() - started >= 23 * 3600_000) {
+    if (now() - started >= 23 * 3_600_000) {
       clear();
       publish({ state: 'expired' });
       return;

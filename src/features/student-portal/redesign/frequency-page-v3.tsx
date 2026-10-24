@@ -390,7 +390,7 @@ export function useTodayV3() {
   const [today, setToday] = useState(schoolDateOnDeviceV3);
   useEffect(() => {
     const check = () => setToday(schoolDateOnDeviceV3());
-    const untilMidnight = () => DAY_MS - ((Date.now() + SCHOOL_UTC_OFFSET_MS) % DAY_MS) + 1_000;
+    const untilMidnight = () => DAY_MS - ((Date.now() + SCHOOL_UTC_OFFSET_MS) % DAY_MS) + 1000;
     let timer = window.setTimeout(function tick() {
       check();
       timer = window.setTimeout(tick, untilMidnight());
@@ -488,7 +488,7 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
   const lastMonth = lastMonthOf(academicYear);
   // The current month, kept inside the school year: from January the page stays on December.
   const todayMonth = today.slice(0, 7);
-  const current = todayMonth > lastMonth ? lastMonth : todayMonth < firstMonth ? firstMonth : todayMonth;
+  const current = todayMonth > lastMonth ? lastMonth : Math.max(todayMonth, firstMonth);
   // null: the current month, which follows the calendar (a new month on the 1st); a month the
   // parent picked stays until they leave the page.
   const [chosenMonth, setChosenMonth] = useState<string | null>(null);

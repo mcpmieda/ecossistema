@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { QrCardSchoolV1 } from './qr-access-card';
+import { QrCardSchoolV1, QrAccessCard } from './qr-access-card';
 import { createRoot, type Root } from 'react-dom/client';
 import { qrSvgV1 } from '../features/student-portal-admin/credentials/qr-artifacts-v1';
 import { SYNTHETIC_QR_V1 } from '../../shared/student-portal-contracts/fixtures-v1';
 import emblem from '../features/student-portal-admin/credentials/assets/school-emblem-outline.png';
 import portrait from './assets/synthetic-student-portrait.png';
-import { QrAccessCard } from './qr-access-card';
+
 import './qr-card-preview.css';
 
 const qrImage = `data:image/svg+xml,${encodeURIComponent(qrSvgV1(SYNTHETIC_QR_V1))}`;

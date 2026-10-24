@@ -194,7 +194,7 @@ export function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
     const count = frequencyCountV2({ marks, conflicts: 0, days }, today);
     const reliable = days.length > 0 && count.reliable;
     // As the server: the time a mark last changed, and nothing for a month without marks.
-    const lastMarked = marks.filter((mark) => mark.date < today).at(-1)?.date;
+    const lastMarked = marks.findLast((mark) => mark.date < today)?.date;
     return {
       contractVersion: 2 as const,
       state: 'ready' as const,

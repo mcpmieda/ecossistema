@@ -9,9 +9,9 @@ export interface MasterRelationRecognitionV9 {
 function normalize(value: string): string {
   return value
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/gu, '')
+    .replaceAll(/[\u0300-\u036f]/gu, '')
     .trim()
-    .replace(/\s+/gu, ' ')
+    .replaceAll(/\s+/gu, ' ')
     .toUpperCase();
 }
 

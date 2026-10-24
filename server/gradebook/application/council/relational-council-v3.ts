@@ -14,8 +14,8 @@ import {
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { performanceCellV2, type PerformanceProjectionV2 } from '../results/relational-performance-facts-v2';
 import { readRelationalPerformanceV2 } from '../read-models/performance/relational-performance-v2';
-import type { GradebookPostgresWritePortV1, GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
-import type { GradebookPostgresTransactionV1 } from '../../persistence/postgres/postgres-database-v1';
+import { type GradebookPostgresWritePortV1, type GradebookPostgresScalarV1, type GradebookPostgresTransactionV1  } from '../../persistence/postgres/postgres-database-v1';
+
 
 type Row = Record<string, unknown>;
 type Database = GradebookPostgresWritePortV1 & {

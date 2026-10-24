@@ -48,9 +48,9 @@ type SummaryWithRelationV9 = WorkbookSummary & {
 function normalize(value: string): string {
   return value
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/gu, '')
+    .replaceAll(/[\u0300-\u036f]/gu, '')
     .trim()
-    .replace(/\s+/gu, ' ')
+    .replaceAll(/\s+/gu, ' ')
     .toUpperCase();
 }
 
@@ -364,7 +364,7 @@ function term(
 
 function sameNumbers(terms: readonly GradebookImportTermV9[]): boolean {
   const signature = (value: GradebookImportTermV9) =>
-    [...value.alunos.map((row) => row[0])].sort((a, b) => a - b).join(',');
+    value.alunos.map((row) => row[0]).sort((a, b) => a - b).join(',');
   return terms.every((value) => signature(value) === signature(terms[0]!));
 }
 

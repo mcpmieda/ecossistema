@@ -15,7 +15,7 @@ export const trustedAdminContextV1 = z.object({
   clientIp: z.union([z.ipv4(), z.ipv6()]).nullable().optional(),
 }).strict();
 
-export const birthYearV1 = z.string().regex(/^[0-9]{4}$/u).refine((s) => Number(s) >= 1900 && Number(s) <= 2026, 'Birth year outside V1 range');
+export const birthYearV1 = z.string().regex(/^\d{4}$/u).refine((s) => Number(s) >= 1900 && Number(s) <= 2026, 'Birth year outside V1 range');
 export const birthWriteV1 = z.discriminatedUnion('action', [
   z.object({ action: z.literal('set'), accountId: portalIdV1, expectedVersion: versionV1, year: birthYearV1, confirmation: z.enum(['confirmed', 'unconfirmed-test']) }).strict(),
   z.object({ action: z.literal('clear'), accountId: portalIdV1, expectedVersion: versionV1 }).strict(),
