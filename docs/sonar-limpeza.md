@@ -21,10 +21,9 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
 
 ## Etapas (marcar ao concluir, com o número da PR)
 
-1. [ ] Vulnerabilidade `githubactions:S6505`: `npm ci` sem `--ignore-scripts` em
-   `validate-pull-request.yml`. Com `--ignore-scripts` a prova do codec de fotos falhou
-   (`student-photo-codec-provenance-mismatch`): investigar o que o codec precisa dos scripts de
-   instalação antes de mudar. O teste FINAL-1 tem um lacre (hash) desse arquivo.
+1. [x] Vulnerabilidade `githubactions:S6505`: `npm ci --ignore-scripts` em
+   `validate-pull-request.yml` (lacre atualizado no teste FINAL-1). A falha anterior da prova do
+   codec (`student-photo-codec-provenance-mismatch`) era o `main` andando durante o CI, não isso.
 2. [x] `plsql:S1192` (92) e `plsql:S1138` (2): só em migrations aplicadas (imutáveis) → ignorar
    essas regras em `migrations/**` no `.sonarcloud.properties`.
 3. [ ] Regras mecânicas pequenas (≤ 46 cada): S3863 imports repetidos, S6582 optional chain, S7758
