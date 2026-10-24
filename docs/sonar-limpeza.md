@@ -40,7 +40,9 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
    importa; onde a ordem importa (transações, lotes sequenciais) justificar com `// NOSONAR` e motivo.
 9. [ ] `typescript:S4624` (24) templates aninhados; `typescript:S8786` (11) regex com backtracking;
    `typescript:S6478` (12) componentes definidos dentro de componentes; S107 muitos parâmetros.
-10. [ ] `typescript:S3358` (424) ternários aninhados → `if`/funções auxiliares/mapas.
+10. [~] `typescript:S3358` (424) ternários aninhados → `if`/funções auxiliares/mapas. Parte automática
+    (return, arrow, const: 133 trechos) no ramo `chore/sonar-ternarios`; parte manual (JSX, propriedades,
+    argumentos: 156 trechos em 78 arquivos) no ramo `chore/sonar-ternarios-manual`.
 11. [ ] `typescript:S3776` + `javascript:S3776` (192) complexidade cognitiva → extrair funções.
     Maior risco: fazer arquivo por arquivo, com os testes da área.
 
@@ -61,3 +63,4 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
 - 24/10/2026: etapas 6 e 8 (ramo `chore/sonar-async`): S6551 com `shared/scalar-text-v1.ts` (igual a `String()` exceto objeto puro, com teste); S7503 e S9382 revisados e marcados como não aplicáveis no `.sonarcloud.properties`, com o motivo (portas assíncronas; sequência proposital). Ferramentas guardadas em `scripts/sonar/` (`css-merge-duplicates.py`, `readonly-props.mjs`). ATENÇÃO: a 1ª versão do juntador de CSS quebrava comentários com `;` e o build falhou (#1328); corrigido e validado com lightningcss.
 - 24/10/2026 (madrugada): S2681 (9) reescritos em linhas separadas; S7758: conversões de bytes trocadas por `codePointAt`/`fromCodePoint` (mesmo resultado de 0 a 255) e hashes de texto mantidos com NOSONAR (trocar mudaria hashes guardados). EM TESTE quando salvo.
 - #1328 FECHADA sem merge. O CSS (etapa 5, S4666) precisa ser REFEITO numa PR nova a partir do main com a ferramenta corrigida (`scripts/sonar/css-merge-duplicates.py` + ordem pela última declaração + remoção de longas mortas, versão em `cssmerge3.py` desta sessão) e validada com lightningcss e no navegador; o Sonar apontou 3 S4657 na versão atual.
+- 24/10/2026: #1330 (CSS S4666, versão segura) com merge. Etapa 10: `scripts/sonar/ternary-to-if.mjs` (AST do TypeScript) reescreve ternários aninhados em `return`, corpo de arrow e `const`. Cuidados: `return` que é o corpo de um `if` sem chaves ganha chaves (a 1ª versão mudava o comportamento em `server/platform/snapshot.ts`); `const` sem tipo ganha a união dos literais (senão `let` alarga 'a' para string). Lista dos trechos que sobram: varredura de AST por ternário dentro de ternário fora dessas posições.
