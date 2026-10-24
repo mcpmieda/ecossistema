@@ -33,10 +33,10 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
 4. [x] `typescript:S6759` (152): props de componentes como `Readonly<…>`.
 5. [~] (S4666 feito) CSS: `css:S4666` (143) seletores duplicados (juntar blocos), `css:S9423` (24) `!important`,
    `css:S9440` (10) reduced-motion, `css:S7924` (10) contraste.
-6. [ ] `typescript:S7503` (46) async sem await; `typescript:S6551` (33) stringificação de objeto.
+6. [x] `typescript:S7503` (46) async sem await; `typescript:S6551` (33) stringificação de objeto.
 7. [ ] `typescript:S6819` (82) role="group" → `<fieldset>`/elementos nativos (cuidado com estilo e
    testes que buscam `getByRole('group')`).
-8. [ ] `typescript:S9382` + `javascript:S9382` (170) await em laço: paralelizar só onde a ordem não
+8. [x] `typescript:S9382` + `javascript:S9382` (170) await em laço: paralelizar só onde a ordem não
    importa; onde a ordem importa (transações, lotes sequenciais) justificar com `// NOSONAR` e motivo.
 9. [ ] `typescript:S4624` (24) templates aninhados; `typescript:S8786` (11) regex com backtracking;
    `typescript:S6478` (12) componentes definidos dentro de componentes; S107 muitos parâmetros.
@@ -58,3 +58,4 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
   Ficaram para mão: ~33 optional chain, S7758 codePointAt, S4043, S3735 void, S2681 e as raras.
 - 23/10/2026: #1326 etapa 3 automática; etapa 4 (`Readonly` nas props) com script de AST do TypeScript.
 - 24/10/2026: #1327 etapa 4. Etapa 5, S4666: seletores repetidos juntados com `cssmerge3.py` (junta na 1ª ocorrência, ou na última quando uma regra no meio, inclusive em `@media`, mudaria o resultado; também dentro de cada `@media`). Conferido no navegador: estilos calculados idênticos nas 6 abas do Desempenho e nas 6 do Painel do Aluno. Faltam S9423, S9440, S7924, S7925.
+- 24/10/2026: etapas 6 e 8 (ramo `chore/sonar-async`): S6551 com `shared/scalar-text-v1.ts` (igual a `String()` exceto objeto puro, com teste); S7503 e S9382 revisados e marcados como não aplicáveis no `.sonarcloud.properties`, com o motivo (portas assíncronas; sequência proposital). Ferramentas guardadas em `scripts/sonar/` (`css-merge-duplicates.py`, `readonly-props.mjs`). ATENÇÃO: a 1ª versão do juntador de CSS quebrava comentários com `;` e o build falhou (#1328); corrigido e validado com lightningcss.
