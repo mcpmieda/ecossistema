@@ -7,14 +7,18 @@ import {
 } from '../../../shared/student-portal-contracts/access-schedule-v1';
 import type { PolicyValueV1 } from './calendar-v1';
 
-const scopeKeyV1 = (scope: PolicyScopeV1) =>
-  scope.kind === 'school'
-    ? 'school'
-    : scope.kind === 'class'
-      ? `class:${scope.classId}`
-      : scope.kind === 'shift'
-        ? `shift:${scope.shift}`
-        : `account:${scope.accountId.toLowerCase()}`;
+const scopeKeyV1 = (scope: PolicyScopeV1) => {
+  if (scope.kind === 'school') {
+    return 'school';
+  }
+  if (scope.kind === 'class') {
+    return `class:${scope.classId}`;
+  }
+  if (scope.kind === 'shift') {
+    return `shift:${scope.shift}`;
+  }
+  return `account:${scope.accountId.toLowerCase()}`;
+};
 
 /** The level's own plan, or null for a level still on the Calendário access window. */
 function scheduledPlanV1(value: PolicyValueV1): AccessPlanV1 | null {

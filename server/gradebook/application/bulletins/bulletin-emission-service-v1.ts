@@ -318,12 +318,14 @@ export function createBulletinEmissionServiceV1(
         !authorizationAllowed(context) ||
         !validEmissionContext(context)
       ) {
-        const reason =
-          readiness !== 'ready'
-            ? requestFailure(readiness).reasons[0]
-            : !authorizationAllowed(context)
-              ? BULLETIN_EMISSION_REASONS_V1.notAuthorized
-              : BULLETIN_EMISSION_REASONS_V1.invalidServerContext;
+        let reason;
+        if (readiness !== 'ready') {
+          reason = requestFailure(readiness).reasons[0];
+        } else if (!authorizationAllowed(context)) {
+          reason = BULLETIN_EMISSION_REASONS_V1.notAuthorized;
+        } else {
+          reason = BULLETIN_EMISSION_REASONS_V1.invalidServerContext;
+        }
         request.items.forEach((_, requestIndex) => {
           blockedItems.push({ requestIndex, emission: blocked(reason) });
         });

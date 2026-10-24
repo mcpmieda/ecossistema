@@ -286,11 +286,14 @@ function auditDrift(
       add('operations', 'critical', 'unexpected-application-permission');
   }
 
-  const status = findings.some((finding) => finding.severity === 'critical')
-    ? 'critical'
-    : findings.some((finding) => finding.severity === 'warning')
-      ? 'warning'
-      : 'ok';
+  let status: 'critical' | 'warning' | 'ok';
+  if (findings.some((finding) => finding.severity === 'critical')) {
+    status = 'critical';
+  } else if (findings.some((finding) => finding.severity === 'warning')) {
+    status = 'warning';
+  } else {
+    status = 'ok';
+  }
   return { status, findings };
 }
 

@@ -61,14 +61,16 @@ export async function handlePublicDemoRequestV1(
       .parse(await healthDeadlineV1(() => binding.setEnabled(authority, parsed.data), 5000));
     return reply(result, result.ok ? 200 : 409);
   } catch (error) {
-    const status =
-      error instanceof AuthenticationError
-        ? 401
-        : error instanceof AuthorizationError
-          ? 403
-          : error instanceof HttpError
-            ? error.status
-            : 503;
+    let status;
+    if (error instanceof AuthenticationError) {
+      status = 401;
+    } else if (error instanceof AuthorizationError) {
+      status = 403;
+    } else if (error instanceof HttpError) {
+      status = error.status;
+    } else {
+      status = 503;
+    }
     return reply({ error: status === 503 ? 'demo-unavailable' : 'demo-request-rejected' }, status);
   }
 }

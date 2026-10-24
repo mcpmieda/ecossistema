@@ -305,13 +305,16 @@ export async function readRelationalPerformanceV2(
     // The V6 label budget is 500 characters. Do not truncate a compound description into a
     // participation alias: oversized labels keep their original source and use a generic label.
     const factsQuery = parameters();
-    const description = specificOffer
-      ? 'i.descricao'
-      : options.descriptionOfferId !== undefined
-        ? `CASE WHEN o.id=${factsQuery.param(options.descriptionOfferId)} THEN i.descricao ELSE NULL::text END`
-        : options.includeInstrumentDescriptions === true
-          ? 'CASE WHEN char_length(i.descricao) <= 500 THEN i.descricao ELSE NULL::text END'
-          : 'NULL::text';
+    let description;
+    if (specificOffer) {
+      description = 'i.descricao';
+    } else if (options.descriptionOfferId !== undefined) {
+      description = `CASE WHEN o.id=${factsQuery.param(options.descriptionOfferId)} THEN i.descricao ELSE NULL::text END`;
+    } else if (options.includeInstrumentDescriptions === true) {
+      description = 'CASE WHEN char_length(i.descricao) <= 500 THEN i.descricao ELSE NULL::text END';
+    } else {
+      description = 'NULL::text';
+    }
     // One query for the entire bounded scope. A detail restricts SQL, not just its response.
     const factsYear = factsQuery.param(request.year);
     const factsClass = factsQuery.param(request.classId);

@@ -97,17 +97,20 @@ function failureDiagnostic(query: string, cause: unknown): GradebookPostgresFail
   const code =
     cause !== null && typeof cause === 'object' && 'code' in cause ? cause.code : undefined;
   const sqlState = typeof code === 'string' && /^[0-9A-Z]{5}$/u.test(code) ? code : undefined;
-  const category = /search_path|startup parameter/iu.test(message)
-    ? 'connection-parameter'
-    : /jsonb.*text|text.*jsonb|type jsonb/iu.test(message)
-      ? 'jsonb-cast'
-      : /permission denied|insufficient privilege/iu.test(message)
-        ? 'permission'
-        : /relation .* does not exist/iu.test(message)
-          ? 'relation-missing'
-          : /timeout|timed out|57014/iu.test(message)
-            ? 'timeout'
-            : 'unknown';
+  let category: 'connection-parameter' | 'jsonb-cast' | 'permission' | 'relation-missing' | 'timeout' | 'unknown';
+  if (/search_path|startup parameter/iu.test(message)) {
+    category = 'connection-parameter';
+  } else if (/jsonb.*text|text.*jsonb|type jsonb/iu.test(message)) {
+    category = 'jsonb-cast';
+  } else if (/permission denied|insufficient privilege/iu.test(message)) {
+    category = 'permission';
+  } else if (/relation .* does not exist/iu.test(message)) {
+    category = 'relation-missing';
+  } else if (/timeout|timed out|57014/iu.test(message)) {
+    category = 'timeout';
+  } else {
+    category = 'unknown';
+  }
   return {
     operation,
     relation,
@@ -191,10 +194,15 @@ class GradebookPostgresFacadeV1 implements GradebookPostgresWritePortV1 {
     text: string,
     values: readonly GradebookPostgresValueV1[],
   ): Promise<GradebookPostgresExecutionV1<Row>> {
-    const parameters = values.map((value) =>
-      value !== null && typeof value === 'object'
-        ? (this.sql.typed ? this.sql.typed(value.jsonText, POSTGRES_TEXT_OID_V1) : value.jsonText)
-        : value,
+    const parameters = values.map((value) => {
+      if (value !== null && typeof value === 'object') {
+        if (this.sql.typed) {
+          return this.sql.typed(value.jsonText, POSTGRES_TEXT_OID_V1);
+        }
+        return value.jsonText;
+      }
+      return value;
+    },
     );
     let result: PostgresQueryResultV1;
     try {

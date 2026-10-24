@@ -79,17 +79,25 @@ export function publicationObservationV1(
         item.publishedRevision === null
       : (item?.state === 'published' || item?.state === 'update-pending') &&
         item.publishedRevision === command.targetDataVersion;
-  return !observed ? 'waiting' : scope.kind === 'account' ? 'confirmed' : 'reported';
+  if (!observed) {
+    return 'waiting';
+  }
+  if (scope.kind === 'account') {
+    return 'confirmed';
+  }
+  return 'reported';
 }
 export function disclosureAtV1(settings: EffectiveSettingsV1, period: PublicationItemV1['period']) {
   const disclosure = settings.value.calendar.disclosure;
   // Aba Notas agendas have no single "Liberar a partir de" date.
   if (disclosure.mode === 'agenda') return null;
-  return disclosure.mode === 'single'
-    ? disclosure.periods.includes(period)
-      ? disclosure.at
-      : null
-    : disclosure.at[period];
+  if (disclosure.mode === 'single') {
+    if (disclosure.periods.includes(period)) {
+      return disclosure.at;
+    }
+    return null;
+  }
+  return disclosure.at[period];
 }
 /** Describes configured exclusions only; eligibility and access remain server decisions. */
 export function publicationRestrictionV1(

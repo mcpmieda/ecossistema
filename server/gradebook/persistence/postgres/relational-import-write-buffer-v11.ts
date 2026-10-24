@@ -173,12 +173,14 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       return this.underlying.executeNative<ResultRow>(query, values);
     }
     const record = serializeJsonRecordV1(mutation.row);
-    const key =
-      mutation.category === 'closingHistory'
-        ? null
-        : 'instrumento_id' in mutation.row
-          ? `note:${mutation.row.instrumento_id}:${mutation.row.aluno_id}`
-          : `closing:${mutation.row.oferta_id}:${mutation.row.aluno_id}`;
+    let key;
+    if (mutation.category === 'closingHistory') {
+      key = null;
+    } else if ('instrumento_id' in mutation.row) {
+      key = `note:${mutation.row.instrumento_id}:${mutation.row.aluno_id}`;
+    } else {
+      key = `closing:${mutation.row.oferta_id}:${mutation.row.aluno_id}`;
+    }
     if (key !== null && this.pendingKeys.has(key)) await this.flush('dependency-boundary');
     let addedBytes = record.jsonBytes + (this.pending[mutation.category].length > 0 ? 1 : 2);
     if (this.pendingRows + 1 > IMPORT_PENDING_LIMITS_V1.maximumRows) {

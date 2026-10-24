@@ -51,7 +51,14 @@ async function rows<Row extends SqlRowV1>(
 }
 
 function integer(value: unknown, field: string): number {
-  const parsed = typeof value === 'bigint' ? Number(value) : typeof value === 'string' ? Number(value) : value;
+  let parsed;
+  if (typeof value === 'bigint') {
+    parsed = Number(value);
+  } else if (typeof value === 'string') {
+    parsed = Number(value);
+  } else {
+    parsed = value;
+  }
   if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed)) throw new Error(`student-portal-invalid-${field}`);
   return parsed;
 }

@@ -145,9 +145,22 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
     const routed = await withOfficialGradebookDatabaseV1(env,(executionEnv) => handle((context as Context).request,executionEnv,gradebookAfterCommitV1(env, (work) => context.waitUntil(work))));
     return withSecurityHeaders(routed ?? response({version:1,state:'unavailable'},503),true);
   } catch (error) {
-    const status = error instanceof InvalidImportDiagnosticsSnapshotV1 ? 400 :
-      error instanceof HttpError || error instanceof AuthenticationError || error instanceof AuthorizationError ? error.status : 500;
-    const state: DiagnosticsErrorState = status === 401 || status === 403 ? 'not-authorized' : status < 500 ? 'invalid-request' : 'unavailable';
+    let status;
+    if (error instanceof InvalidImportDiagnosticsSnapshotV1) {
+      status = 400;
+    } else if (error instanceof HttpError || error instanceof AuthenticationError || error instanceof AuthorizationError) {
+      status = error.status;
+    } else {
+      status = 500;
+    }
+    let state: DiagnosticsErrorState;
+    if (status === 401 || status === 403) {
+      state = 'not-authorized';
+    } else if (status < 500) {
+      state = 'invalid-request';
+    } else {
+      state = 'unavailable';
+    }
     if (status >= 500) console.error(JSON.stringify({message:'gradebook_import_diagnostics_failed'}));
     return withSecurityHeaders(response({version:1,state},status),true);
   }

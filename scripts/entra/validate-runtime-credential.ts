@@ -242,16 +242,18 @@ async function main(): Promise<void> {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error: unknown) => {
-    const safe =
-      error instanceof ExactRuntimeCredentialError
-        ? {
+    let safe;
+    if (error instanceof ExactRuntimeCredentialError) {
+      safe = {
             status: 'error',
             httpStatus: error.httpStatus,
             aadstsCode: error.aadstsCode,
-          }
-        : error instanceof ExactRuntimeLocalError
-          ? { status: 'error', kind: error.kind }
-          : { status: 'error', kind: 'local' };
+          };
+    } else if (error instanceof ExactRuntimeLocalError) {
+      safe = { status: 'error', kind: error.kind };
+    } else {
+      safe = { status: 'error', kind: 'local' };
+    }
     process.stdout.write(`${JSON.stringify(safe)}\n`);
     process.exitCode = 1;
   });

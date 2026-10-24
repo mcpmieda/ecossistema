@@ -760,21 +760,43 @@ function subjectSituationFor(
     case 'failed-after-recovery':
       return recovered || key === 'historia' ? 'not-approved' : 'approved-direct';
     case 'failed-no-show':
-      return key === 'geografia' ? 'failed-no-show' : recovered ? 'approved-after-recovery' : 'approved-direct';
+      if (key === 'geografia') {
+        return 'failed-no-show';
+      }
+      if (recovered) {
+        return 'approved-after-recovery';
+      }
+      return 'approved-direct';
     case 'failed-repeat':
-      return key === 'geografia' ? 'failed-repeat' : recovered ? 'approved-after-recovery' : 'approved-direct';
+      if (key === 'geografia') {
+        return 'failed-repeat';
+      }
+      if (recovered) {
+        return 'approved-after-recovery';
+      }
+      return 'approved-direct';
     default: // Council cases: one subject failed within the Council limit.
-      return key === 'geografia' ? 'not-approved' : recovered ? 'approved-after-recovery' : 'approved-direct';
+      if (key === 'geografia') {
+        return 'not-approved';
+      }
+      if (recovered) {
+        return 'approved-after-recovery';
+      }
+      return 'approved-direct';
   }
 }
-const coarseResultV1 = (situation: AdminSimulationV1['situation']): SelfResponseV1['profile']['result'] =>
-  situation === 'none' || situation === 'in-recovery'
-    ? 'in-progress'
-    : situation === 'failed-by-absence'
-      ? 'failed-attendance'
-      : situation.startsWith('approved')
-        ? 'approved'
-        : 'failed';
+const coarseResultV1 = (situation: AdminSimulationV1['situation']): SelfResponseV1['profile']['result'] => {
+  if (situation === 'none' || situation === 'in-recovery') {
+    return 'in-progress';
+  }
+  if (situation === 'failed-by-absence') {
+    return 'failed-attendance';
+  }
+  if (situation.startsWith('approved')) {
+    return 'approved';
+  }
+  return 'failed';
+};
 
 function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfResponseV1 {
   const final = admin.finalDisclosed && admin.accessEnabled;
@@ -788,12 +810,14 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
         .slice(0, admin.singleSubject ? 1 : undefined)
         .map((subject) => {
           const subjectSituation = subjectSituationFor(admin.situation, subject.label);
-          const outcome =
-            subjectSituation === 'approved-direct' || subjectSituation === 'approved-after-recovery'
-              ? ('approved' as const)
-              : subjectSituation && subjectSituation !== 'recovery-pending'
-                ? ('failed' as const)
-                : undefined;
+          let outcome;
+          if (subjectSituation === 'approved-direct' || subjectSituation === 'approved-after-recovery') {
+            outcome = 'approved' as const;
+          } else if (subjectSituation && subjectSituation !== 'recovery-pending') {
+            outcome = 'failed' as const;
+          } else {
+            outcome = undefined;
+          }
           return {
             subjectId: subject.subjectId,
             label: subject.label,

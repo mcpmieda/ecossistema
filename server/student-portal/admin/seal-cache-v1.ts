@@ -129,8 +129,14 @@ export async function readSealCacheV1(
     const row = stored.get(context.account.id);
     const instant = (input: unknown) => {
       if (input === null) return null;
-      const value =
-        input instanceof Date ? input : typeof input === 'string' ? new Date(input) : null;
+      let value;
+      if (input instanceof Date) {
+        value = input;
+      } else if (typeof input === 'string') {
+        value = new Date(input);
+      } else {
+        value = null;
+      }
       return value && Number.isFinite(value.getTime()) ? value.toISOString() : undefined;
     };
     const saved = row

@@ -109,7 +109,13 @@ export function StudentPortalShellV1({
  */
 function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
   const length = Array.from(name.trim()).length;
-  return length > 34 ? 'xlong' : length > 22 ? 'long' : 'regular';
+  if (length > 34) {
+    return 'xlong';
+  }
+  if (length > 22) {
+    return 'long';
+  }
+  return 'regular';
 }
 
 /**

@@ -143,7 +143,15 @@ const ready = z
         partial: row.cells.some((cell) => cell.state === 'partial'),
         number: row.student.number,
       }))
-      .sort((left, right) => left.total === right.total ? left.number - right.number || left.studentId - right.studentId : left.total > right.total ? -1 : 1)
+      .sort((left, right) => {
+        if (left.total === right.total) {
+          return left.number - right.number || left.studentId - right.studentId;
+        }
+        if (left.total > right.total) {
+          return -1;
+        }
+        return 1;
+      })
       .slice(0, 10);
     if (
       expectedRanking.some((entry) => entry.total > BigInt(Number.MAX_SAFE_INTEGER)) ||

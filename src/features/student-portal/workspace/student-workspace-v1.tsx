@@ -222,7 +222,13 @@ function trendV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): Tr
   const milli = (value: number) => BigInt(Math.round(value * 1000));
   const left = milli(current.value) * milli(reference.maximum);
   const right = milli(reference.value) * milli(current.maximum);
-  return left > right ? 'higher' : left < right ? 'lower' : 'equal';
+  if (left > right) {
+    return 'higher';
+  }
+  if (left < right) {
+    return 'lower';
+  }
+  return 'equal';
 }
 
 /**
@@ -273,7 +279,14 @@ function TrendLineV1({
   previous: boolean | null;
   drop: number;
 }>) {
-  const Icon = trend === 'higher' ? TrendingUp : trend === 'lower' ? TrendingDown : MoveRight;
+  let Icon;
+  if (trend === 'higher') {
+    Icon = TrendingUp;
+  } else if (trend === 'lower') {
+    Icon = TrendingDown;
+  } else {
+    Icon = MoveRight;
+  }
   const text = trendTextV1(trend, reference, current, previous, drop);
   const line = useFitLineV1<HTMLSpanElement>(text, 10);
   return (
@@ -398,11 +411,14 @@ function SummaryV1({
   const peekPeriod = periodDrag.peek === null ? undefined : neighbourPeriod(periodDrag.peek);
   const situation =
     data.profile.annualSituation === 'awaiting-council' ? 'in-recovery' : data.profile.annualSituation;
-  const finalResult = situation
-    ? ANNUAL_SITUATION_LABELS_V1[situation]
-    : data.profile.result in finalResultLabelsV1
-      ? finalResultLabelsV1[data.profile.result as keyof typeof finalResultLabelsV1]
-      : null;
+  let finalResult;
+  if (situation) {
+    finalResult = ANNUAL_SITUATION_LABELS_V1[situation];
+  } else if (data.profile.result in finalResultLabelsV1) {
+    finalResult = finalResultLabelsV1[data.profile.result as keyof typeof finalResultLabelsV1];
+  } else {
+    finalResult = null;
+  }
   const inRecovery = subjects.filter((subject) => subject.annualSituation === 'recovery-pending');
   // Each trimester tab shows its own summary, never another trimester's.
   const activeSummary =

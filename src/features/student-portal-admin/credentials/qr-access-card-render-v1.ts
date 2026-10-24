@@ -189,7 +189,14 @@ function wrappedName(context: CanvasRenderingContext2D, name: string, size: numb
 }
 
 function paintIdentity(context: CanvasRenderingContext2D, name: string, classLabel: string) {
-  let size = name.length > 42 ? 24 : name.length > 25 ? 29 : 32;
+  let size: 24 | 29 | 32;
+  if (name.length > 42) {
+    size = 24;
+  } else if (name.length > 25) {
+    size = 29;
+  } else {
+    size = 32;
+  }
   let lines = wrappedName(context, name, size);
   while (lines.length > 5 && size > 16) lines = wrappedName(context, name, --size);
   if (lines.length > 5) {

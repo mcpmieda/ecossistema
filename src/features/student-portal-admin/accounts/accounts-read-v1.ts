@@ -24,12 +24,14 @@ export function useAccountsReadV1<T>(
   const reader = useMemo(
     () =>
       createLatestPortalRequestV1<T>((next) => {
-        const error =
-          next.state === 'error'
-            ? next.error
-            : next.state === 'ready'
-              ? next.refreshError
-              : undefined;
+        let error;
+        if (next.state === 'error') {
+          error = next.error;
+        } else if (next.state === 'ready') {
+          error = next.refreshError;
+        } else {
+          error = undefined;
+        }
         deadline.current = error
           ? Date.now() + Math.max(5, error.retryAfterSeconds ?? 0) * 1000
           : 0;
@@ -42,12 +44,14 @@ export function useAccountsReadV1<T>(
     void reader.run(load);
     return () => reader.clear();
   }, [reader, load]);
-  const error =
-    state.state === 'error'
-      ? state.error
-      : state.state === 'ready'
-        ? state.refreshError
-        : undefined;
+  let error;
+  if (state.state === 'error') {
+    error = state.error;
+  } else if (state.state === 'ready') {
+    error = state.refreshError;
+  } else {
+    error = undefined;
+  }
   useEffect(() => {
     if (!error) return;
     setClock(Date.now());

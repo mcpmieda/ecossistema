@@ -164,11 +164,20 @@ export function createCouncilWorkspaceRequestHandlerV1(): (request: Request, env
         ).execute(parsed.data);
         if (response.state === 'ready' && ['open', 'decision', 'vote', 'close', 'reopen'].includes(response.operation))
           afterCommit?.(session);
-        const status = response.state === 'ready' ? 200
-          : response.state === 'not-found' ? 404
-            : response.state === 'invalid-request' ? 400
-              : response.state === 'scope-too-large' || response.state === 'closure-blocked' || response.state === 'student-not-eligible' ? 422
-                : response.state === 'unavailable' ? 503 : 409;
+        let status: 200 | 404 | 400 | 422 | 503 | 409;
+        if (response.state === 'ready') {
+          status = 200;
+        } else if (response.state === 'not-found') {
+          status = 404;
+        } else if (response.state === 'invalid-request') {
+          status = 400;
+        } else if (response.state === 'scope-too-large' || response.state === 'closure-blocked' || response.state === 'student-not-eligible') {
+          status = 422;
+        } else if (response.state === 'unavailable') {
+          status = 503;
+        } else {
+          status = 409;
+        }
         return noStoreJson(response, status);
       } catch {
         return noStoreJson({ contractVersion: 3, state: 'unavailable' }, 503);

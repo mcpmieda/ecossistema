@@ -66,7 +66,15 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
       guia: item.sheetName ?? null,
       celula: item.cellAddress ?? null,
     }))
-    .sort((a, b) => (a.chave < b.chave ? -1 : a.chave > b.chave ? 1 : 0));
+    .sort((a, b) => {
+      if (a.chave < b.chave) {
+        return -1;
+      }
+      if (a.chave > b.chave) {
+        return 1;
+      }
+      return 0;
+    });
   const serialized = JSON.stringify(rows);
   // Keep source identity and content in distinct advisory-lock namespaces.
   const sourceKey = `gradebook-import-diagnostics-source:${JSON.stringify([academicYear, fileName])}`;

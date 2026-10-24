@@ -383,14 +383,16 @@ function inspectQualitativeDefinitionMaximum(
 
     const found =
       'rawValue' in configuration ? displayValue(configuration.rawValue) : undefined;
-    const cause =
-      configuration.state === 'ambiguous-empty'
-        ? 'A atividade ainda possui nome ou lançamento, mas a célula de máximo está vazia.'
-        : configuration.state === 'ambiguous-marker'
-          ? 'A célula de máximo contém o marcador * em vez de um número positivo.'
-          : configuration.state === 'unrecognized'
-            ? 'A célula de máximo contém um valor que não pôde ser interpretado como número.'
-            : 'O máximo informado não é um número positivo.';
+    let cause: 'A atividade ainda possui nome ou lançamento, mas a célula de máximo está vazia.' | 'A célula de máximo contém o marcador * em vez de um número positivo.' | 'A célula de máximo contém um valor que não pôde ser interpretado como número.' | 'O máximo informado não é um número positivo.';
+    if (configuration.state === 'ambiguous-empty') {
+      cause = 'A atividade ainda possui nome ou lançamento, mas a célula de máximo está vazia.';
+    } else if (configuration.state === 'ambiguous-marker') {
+      cause = 'A célula de máximo contém o marcador * em vez de um número positivo.';
+    } else if (configuration.state === 'unrecognized') {
+      cause = 'A célula de máximo contém um valor que não pôde ser interpretado como número.';
+    } else {
+      cause = 'O máximo informado não é um número positivo.';
+    }
     result.push(
       diagnostic({
         ...base,

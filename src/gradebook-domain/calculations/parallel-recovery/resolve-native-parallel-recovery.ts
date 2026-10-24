@@ -328,12 +328,16 @@ export function resolveNativeParallelRecovery(
     quantitativeConsidered = input.quantitativeOriginal;
   }
 
-  const gain =
-    originalResolved && parallelResolved
-      ? applicability.state === 'applicable'
-        ? Math.max(0, parallelValue - originalValue)
-        : 0
-      : null;
+  let gain;
+  if (originalResolved && parallelResolved) {
+    if (applicability.state === 'applicable') {
+      gain = Math.max(0, parallelValue - originalValue);
+    } else {
+      gain = 0;
+    }
+  } else {
+    gain = null;
+  }
 
   return {
     profileVersion: profile.version,

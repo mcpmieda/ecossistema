@@ -285,7 +285,14 @@ async function rows(sql: RecoveryQueryV2, query: string, parameters: readonly un
 
 function integerColumn(row: SqlRowV2, name: string): number {
   const value = row[name];
-  const normalized = typeof value === 'bigint' ? Number(value) : typeof value === 'string' ? Number(value) : value;
+  let normalized;
+  if (typeof value === 'bigint') {
+    normalized = Number(value);
+  } else if (typeof value === 'string') {
+    normalized = Number(value);
+  } else {
+    normalized = value;
+  }
   if (!safeInteger(normalized)) fail('recovery-validation-row-invalid');
   return normalized;
 }

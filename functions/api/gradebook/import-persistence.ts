@@ -194,16 +194,18 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
       error instanceof AuthorizationError
         ? error.status
         : 500;
-    const value: GradebookImportPersistenceResponseV9 =
-      status === 401 || status === 403
-        ? { transportVersion: 9, state: 'not-authorized' }
-        : status < 500
-          ? {
-              transportVersion: 9,
-              state: 'invalid-request',
-              reason: error instanceof Error ? error.message : 'Pedido inválido.',
-            }
-          : { transportVersion: 9, state: 'unavailable' };
+    let value: GradebookImportPersistenceResponseV9;
+    if (status === 401 || status === 403) {
+      value = { transportVersion: 9, state: 'not-authorized' };
+    } else if (status < 500) {
+      value = {
+        transportVersion: 9,
+        state: 'invalid-request',
+        reason: error instanceof Error ? error.message : 'Pedido inválido.',
+      };
+    } else {
+      value = { transportVersion: 9, state: 'unavailable' };
+    }
     if (status >= 500)
       console.error(JSON.stringify({ message: 'gradebook_relational_import_failed' }));
     return withSecurityHeaders(

@@ -68,7 +68,14 @@ const labelAt = (milli: number) => `${Math.min(92, Math.max(8, milli / 1000))}%`
 
 export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: AnnualGoalV1; subjectLabel: string }>) {
   const needed = goal.state === 'reached' ? 0 : Math.min(goal.neededMilli, TERM_MAXIMUM_MILLI_V1.T3);
-  const Icon = goal.state === 'reached' ? PartyPopper : goal.state === 'reachable' ? Target : Flag;
+  let Icon;
+  if (goal.state === 'reached') {
+    Icon = PartyPopper;
+  } else if (goal.state === 'reachable') {
+    Icon = Target;
+  } else {
+    Icon = Flag;
+  }
   return (
     <section className={'pa-annual-goal pa-annual-goal--' + goal.state} aria-labelledby="pa-annual-goal-title">
       <header className="pa-annual-goal-header">

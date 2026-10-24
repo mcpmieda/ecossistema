@@ -29,12 +29,25 @@ const idTokenFields=new Set(['alg','kid','keys','aud','iss','tid','oid','exp','n
 function reportIdTokenFailure(error:unknown):void {
   // Values and exception text can contain a complete token or directory identity.
   // Publish only source-owned categories and whitelisted schema field names.
-  const reason=error instanceof z.ZodError?'invalid-contract'
-    :error instanceof Error?idTokenFailureReasons.get(error.message)??'unclassified':'unclassified';
+  let reason;
+  if (error instanceof z.ZodError) {
+    reason = 'invalid-contract';
+  } else if (error instanceof Error) {
+    reason = idTokenFailureReasons.get(error.message)??'unclassified';
+  } else {
+    reason = 'unclassified';
+  }
   const fields=error instanceof z.ZodError?[...new Set(error.issues.flatMap(issue=>{
     const name=issue.path[0];return typeof name==='string'&&idTokenFields.has(name)?[name]:[];
   }))]:[];
-  const kind=error instanceof TypeError?'type-error':error instanceof z.ZodError?'schema-error':'validation-error';
+  let kind: 'type-error' | 'schema-error' | 'validation-error';
+  if (error instanceof TypeError) {
+    kind = 'type-error';
+  } else if (error instanceof z.ZodError) {
+    kind = 'schema-error';
+  } else {
+    kind = 'validation-error';
+  }
   // Clock offsets in seconds only (no claim values): separates server clock
   // skew from tokens that the provider already issued with a past expiry.
   const offsets=error instanceof IdTokenLifetimeError?{offsets:error.offsets}:{};

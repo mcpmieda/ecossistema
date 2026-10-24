@@ -369,7 +369,14 @@ function monthOfReadV2(read: PortalFrequencyYearReadV2, key: string): FrequencyS
 }
 /** January to the school's current month (December once the year is over; none before it). */
 function monthsSoFarV2(today: string): string[] {
-  const current = today.startsWith('2026-') ? today.slice(0, 7) : today < '2026' ? null : '2026-12';
+  let current;
+  if (today.startsWith('2026-')) {
+    current = today.slice(0, 7);
+  } else if (today < '2026') {
+    current = null;
+  } else {
+    current = '2026-12';
+  }
   if (current === null) return [];
   return Array.from({ length: 12 }, (_, index) => `2026-${String(index + 1).padStart(2, '0')}`).filter(
     (key) => key <= current,

@@ -367,12 +367,14 @@ function readRecoveryApplicability(
       : { classification: 'missing-field' };
   }
 
-  const rawValue =
-    cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v)
-      ? (cell.v as SourceCellRawValueV1)
-      : typeof cell.w === 'string' && cell.w.trim()
-        ? cell.w
-        : null;
+  let rawValue;
+  if (cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v)) {
+    rawValue = cell.v as SourceCellRawValueV1;
+  } else if (typeof cell.w === 'string' && cell.w.trim()) {
+    rawValue = cell.w;
+  } else {
+    rawValue = null;
+  }
   if (cell.f) {
     return {
       classification: 'formula',

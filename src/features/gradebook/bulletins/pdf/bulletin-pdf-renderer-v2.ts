@@ -39,7 +39,13 @@ function period(snapshot: RelationalBulletinSnapshotV2): string {
 }
 
 function comparison(value: 'match' | 'mismatch' | 'unavailable'): string {
-  return value === 'match' ? 'CONFERE' : value === 'mismatch' ? 'DIVERGE' : 'SEM COMPARAÇÃO';
+  if (value === 'match') {
+    return 'CONFERE';
+  }
+  if (value === 'mismatch') {
+    return 'DIVERGE';
+  }
+  return 'SEM COMPARAÇÃO';
 }
 
 function classification(

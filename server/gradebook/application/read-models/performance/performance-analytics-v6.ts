@@ -82,17 +82,22 @@ function recoveryState(
   period: PerformancePeriodV2,
 ): Cell['recoveryState'] {
   const cell = performanceCellV2(projection, period, 'recovery');
-  return cell.state === 'complete'
-    ? 'complete'
-    : cell.state === 'recovery-pending'
-      ? 'pending'
-      : cell.state === 'no-show'
-        ? 'no-show'
-        : cell.state === 'repeat-failure'
-          ? 'repeat-failure'
-          : cell.state === 'not-applicable'
-            ? 'not-applicable'
-            : 'unknown';
+  if (cell.state === 'complete') {
+    return 'complete';
+  }
+  if (cell.state === 'recovery-pending') {
+    return 'pending';
+  }
+  if (cell.state === 'no-show') {
+    return 'no-show';
+  }
+  if (cell.state === 'repeat-failure') {
+    return 'repeat-failure';
+  }
+  if (cell.state === 'not-applicable') {
+    return 'not-applicable';
+  }
+  return 'unknown';
 }
 function summarize(
   pairs: readonly Pair[],

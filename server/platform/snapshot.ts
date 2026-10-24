@@ -101,8 +101,15 @@ function platformSourceFailureKindV2(error: unknown): 'graph-response' | 'creden
   | 'token-transport' | 'token-contract' | 'timeout' | 'aborted' | 'contract' | 'runtime' {
   if (error instanceof GraphError) return 'graph-response';
   if (error instanceof TechnicalCredentialError) return 'credential-configuration';
-  if (error instanceof GraphTokenError) return error.stage === 'assertion' ? 'token-assertion'
-    : error.stage === 'transport' ? 'token-transport' : 'token-contract';
+  if (error instanceof GraphTokenError) {
+    if (error.stage === 'assertion') {
+      return 'token-assertion';
+    }
+    if (error.stage === 'transport') {
+      return 'token-transport';
+    }
+    return 'token-contract';
+  }
   if (error instanceof DOMException && error.name === 'TimeoutError') return 'timeout';
   if (error instanceof DOMException && error.name === 'AbortError') return 'aborted';
   if (error instanceof z.ZodError) return 'contract';

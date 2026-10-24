@@ -75,13 +75,16 @@ export function assessmentLabelV1(
   const key = `${term}:${slot}` as keyof AssessmentNamesV1;
   if ((slot === 1 || slot === 2) && names[key]) return names[key]!;
   if (sourceLabel?.trim()) return sourceLabel.trim();
-  return slot === 1
-    ? 'Avaliação 1'
-    : slot === 2
-      ? 'Avaliação 2'
-      : slot === 3
-        ? 'Prova paralela'
-        : `Atividade ${slot - 10}`;
+  if (slot === 1) {
+    return 'Avaliação 1';
+  }
+  if (slot === 2) {
+    return 'Avaliação 2';
+  }
+  if (slot === 3) {
+    return 'Prova paralela';
+  }
+  return `Atividade ${slot - 10}`;
 }
 
 export function sameAssessmentNamesV1(left: AssessmentNamesV1, right: AssessmentNamesV1): boolean {

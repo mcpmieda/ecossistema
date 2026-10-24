@@ -77,7 +77,16 @@ function QueueCard({ student, selected, onSelect }: { readonly student: Relation
 }
 
 function Grade({ value, state }: { readonly value: number | null; readonly state: string }) {
-  const label = state === 'no-show' ? 'N/C' : state === 'repeat-failure' ? 'R/R' : state === 'recovery-pending' ? 'REC' : gradeText(value);
+  let label;
+  if (state === 'no-show') {
+    label = 'N/C';
+  } else if (state === 'repeat-failure') {
+    label = 'R/R';
+  } else if (state === 'recovery-pending') {
+    label = 'REC';
+  } else {
+    label = gradeText(value);
+  }
   return <span className={`font-semibold tabular-nums ${state === 'no-show' || state === 'repeat-failure' ? 'text-danger' : value === null ? 'text-muted' : ''}`}>{label}</span>;
 }
 

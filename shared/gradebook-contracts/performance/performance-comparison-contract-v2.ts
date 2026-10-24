@@ -270,12 +270,14 @@ export function comparePerformancePercentagesV2(input: {
     };
   }
 
-  const relation: PerformanceProportionalRelationV2 =
-    current.value === reference.value
-      ? 'proportionally-equal'
-      : current.value > reference.value
-        ? 'proportionally-higher'
-        : 'proportionally-lower';
+  let relation: PerformanceProportionalRelationV2;
+  if (current.value === reference.value) {
+    relation = 'proportionally-equal';
+  } else if (current.value > reference.value) {
+    relation = 'proportionally-higher';
+  } else {
+    relation = 'proportionally-lower';
+  }
 
   return {
     ...base,

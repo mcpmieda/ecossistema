@@ -82,11 +82,14 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
   const weakActivities = qualitativeRatio !== null && qualitativeRatio < minimumRatio;
 
   const below = totalRatio < minimumRatio;
-  const level: TermClosingV1['level'] = below
-    ? 'attention'
-    : totalRatio < minimumRatio + POINT_BAND_MARGIN || notDone || weakAssessments || weakActivities
-      ? 'point'
-      : 'good';
+  let level: TermClosingV1['level'];
+  if (below) {
+    level = 'attention';
+  } else if (totalRatio < minimumRatio + POINT_BAND_MARGIN || notDone || weakAssessments || weakActivities) {
+    level = 'point';
+  } else {
+    level = 'good';
+  }
 
   if (term === 3 && input.recoveryPending)
     return {
@@ -136,12 +139,14 @@ export function evaluateTermProgressV1(input: TermClosingInputV1): TermClosingEv
   const parallelDone = input.instruments.some((item) => item.slot === 3 && item.value !== null);
   const weakAssessments = assessmentRatio < minimumRatio;
   const weakActivities = qualitativeRatio !== null && qualitativeRatio < minimumRatio;
-  const level: TermClosingV1['level'] =
-    totalRatio < minimumRatio
-      ? 'attention'
-      : totalRatio < minimumRatio + POINT_BAND_MARGIN || notDone || weakAssessments || weakActivities
-        ? 'point'
-        : 'good';
+  let level: TermClosingV1['level'];
+  if (totalRatio < minimumRatio) {
+    level = 'attention';
+  } else if (totalRatio < minimumRatio + POINT_BAND_MARGIN || notDone || weakAssessments || weakActivities) {
+    level = 'point';
+  } else {
+    level = 'good';
+  }
   if (level === 'good') return { period, mode: 'progress', level, conclusion: 'progress.line.good' };
   const weight = weightV1(notDoneCount, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
   const { strength } = strengthV1(
@@ -299,12 +304,14 @@ export function termClosingSummaryV1(
   const attentionSubjectIds = inPeriod
     .filter((item) => item.closing.level === 'attention')
     .map((item) => item.subjectId);
-  const base =
-    attentionSubjectIds.length === 0
-      ? 'summary.all-good'
-      : attentionSubjectIds.length <= 2
-        ? 'summary.few-attention'
-        : 'summary.many-attention';
+  let base: 'summary.all-good' | 'summary.few-attention' | 'summary.many-attention';
+  if (attentionSubjectIds.length === 0) {
+    base = 'summary.all-good';
+  } else if (attentionSubjectIds.length <= 2) {
+    base = 'summary.few-attention';
+  } else {
+    base = 'summary.many-attention';
+  }
   const code = (mode === 'progress' ? `progress.${base}` : base) as TermClosingCodeV1;
   return {
     period,

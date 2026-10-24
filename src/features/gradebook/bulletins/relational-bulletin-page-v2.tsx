@@ -63,8 +63,14 @@ function readStoredViewV2() {
   const stored = readSessionRecordV1(VIEW_KEY_V2);
   if (!stored) return null;
   const term = ([1, 2, 3] as const).find((item) => item === stored.term);
-  const period: RelationalBulletinPeriodV2 | null =
-    stored.term === 'annual' ? { kind: 'annual' } : term ? { kind: 'term', term } : null;
+  let period: RelationalBulletinPeriodV2 | null;
+  if (stored.term === 'annual') {
+    period = { kind: 'annual' };
+  } else if (term) {
+    period = { kind: 'term', term };
+  } else {
+    period = null;
+  }
   const detail = (['summary', 'detailed'] as const).find((item) => item === stored.detail);
   if (!period || !detail) return null;
   return { year: storedIdV1(stored.year), classId: storedIdV1(stored.classId), period, detail };
@@ -122,8 +128,22 @@ function readinessLabel(reason: string): string {
   return reason;
 }
 function ComparisonChip({ value }: { readonly value: 'match' | 'mismatch' | 'unavailable' }) {
-  const label = value === 'match' ? 'Confere' : value === 'mismatch' ? 'Diverge' : 'Sem comparação';
-  const color = value === 'match' ? 'success' : value === 'mismatch' ? 'danger' : 'default';
+  let label: 'Confere' | 'Diverge' | 'Sem comparação';
+  if (value === 'match') {
+    label = 'Confere';
+  } else if (value === 'mismatch') {
+    label = 'Diverge';
+  } else {
+    label = 'Sem comparação';
+  }
+  let color: 'success' | 'danger' | 'default';
+  if (value === 'match') {
+    color = 'success';
+  } else if (value === 'mismatch') {
+    color = 'danger';
+  } else {
+    color = 'default';
+  }
   return (
     <Chip size="sm" variant="soft" color={color}>
       <Chip.Label>{label}</Chip.Label>

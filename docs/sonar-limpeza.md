@@ -40,7 +40,9 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
    importa; onde a ordem importa (transações, lotes sequenciais) justificar com `// NOSONAR` e motivo.
 9. [ ] `typescript:S4624` (24) templates aninhados; `typescript:S8786` (11) regex com backtracking;
    `typescript:S6478` (12) componentes definidos dentro de componentes; S107 muitos parâmetros.
-10. [ ] `typescript:S3358` (424) ternários aninhados → `if`/funções auxiliares/mapas.
+10. [~] `typescript:S3358` (424) ternários aninhados → `if`/funções auxiliares/mapas. Parte automática
+    (return, arrow, const: 133 trechos) no ramo `chore/sonar-ternarios`; parte manual (JSX, propriedades,
+    argumentos: 156 trechos em 78 arquivos) no ramo `chore/sonar-ternarios-manual`.
 11. [ ] `typescript:S3776` + `javascript:S3776` (192) complexidade cognitiva → extrair funções.
     Maior risco: fazer arquivo por arquivo, com os testes da área.
 
@@ -64,3 +66,4 @@ as PRs abertas com `gh pr list --search "sonar"` e segue da primeira etapa não 
 - 24/10/2026: etapa 5 (S4666) refeita no ramo `chore/sonar-css-v2`. A ferramenta tinha 3 premissas erradas, corrigidas: (1) comentário com `;` quebrava declarações; (2) a ordem final deve ser a da ÚLTIMA declaração de cada propriedade (curta × longa) e longas mortas saem (S4657); (3) classes diferentes NÃO provam elementos diferentes (`.pa-score-card` e `.pa-score-card--positive` estão no mesmo cartão): agora qualquer regra no meio com a mesma especificidade conta, salvo tag, `nth-child` ou valor de atributo diferentes. Resultado: 58 grupos juntados com segurança; **57 grupos ficaram de lado (PULADO)** para revisão manual, um a um, com comparação no navegador.
 - Conferência no navegador (estilos calculados de todos os elementos, CSS original × novo, na mesma página): Desempenho 6 abas, Painel do Aluno 6 abas + detalhe do aluno, login 23 telas, boletim do portal 5 abas. Tudo idêntico, exceto ruídos conhecidos que já aparecem sem mudança (indicador das abas, margem que alterna com a barra de rolagem, contagem regressiva das telas 9/12 do login).
 - Achado fora do Sonar (já existia antes desta noite, conferido no código do redesenho): no Desempenho, ao recarregar a página com uma turma já escolhida, a turma volta selecionada mas os dados não são pedidos (fica "carregando" até clicar em outra turma). Avisar o dono.
+- 24/10/2026: #1330 (CSS S4666, versão segura) com merge. Etapa 10: `scripts/sonar/ternary-to-if.mjs` (AST do TypeScript) reescreve ternários aninhados em `return`, corpo de arrow e `const`. Cuidados: `return` que é o corpo de um `if` sem chaves ganha chaves (a 1ª versão mudava o comportamento em `server/platform/snapshot.ts`); `const` sem tipo ganha a união dos literais (senão `let` alarga 'a' para string). Lista dos trechos que sobram: varredura de AST por ternário dentro de ternário fora dessas posições.

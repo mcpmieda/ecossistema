@@ -369,11 +369,13 @@ export class AcademicStudentReaderPostgresV1
         const closure = offer.closure;
         if (closure === null) return null;
         const bit = 1 << (term - 1);
-        return (closure.rr & bit) !== 0
-          ? ('RR' as const)
-          : (closure.nc & bit) !== 0
-            ? ('NC' as const)
-            : closure[`rec${term}`];
+        if ((closure.rr & bit) !== 0) {
+          return 'RR' as const;
+        }
+        if ((closure.nc & bit) !== 0) {
+          return 'NC' as const;
+        }
+        return closure[`rec${term}`];
       };
       const recovery = resolveSimplifiedComponentRecoveryV1({
         terms: officialTerms,
@@ -428,14 +430,16 @@ export class AcademicStudentReaderPostgresV1
         });
       }
       const classification = recovery.classification;
-      const officialOutcome =
-        status === 2
-          ? undefined
-          : classification === 'approved-direct' || classification === 'approved-after-recovery'
-            ? ('approved' as const)
-            : ['not-approved', 'failed-no-show', 'failed-repeat'].includes(classification)
-              ? ('failed' as const)
-              : undefined;
+      let officialOutcome;
+      if (status === 2) {
+        officialOutcome = undefined;
+      } else if (classification === 'approved-direct' || classification === 'approved-after-recovery') {
+        officialOutcome = 'approved' as const;
+      } else if (['not-approved', 'failed-no-show', 'failed-repeat'].includes(classification)) {
+        officialOutcome = 'failed' as const;
+      } else {
+        officialOutcome = undefined;
+      }
       const situation = subjectSituationV1(status, classification);
       // Fechamento do trimestre (#1132): codes from the same official term outcomes and facts.
       // Both readings are cheap; Self picks one by the `termClosingConclusive` policy.
@@ -490,20 +494,22 @@ export class AcademicStudentReaderPostgresV1
     });
     const hasRepeat = projections.some((item) => item.recovery.classification === 'failed-repeat');
     const formal = (status === null || status === 7) && !hasRepeat ? decision : null;
-    const result =
-      status === 2
-        ? 'not-applicable'
-        : formal === 1
-          ? 'approved'
-          : formal === 2
-            ? 'failed'
-            : formal === 3
-              ? 'failed-attendance'
-              : annual.visibleResult?.startsWith('APROVADO')
-                ? 'approved'
-                : annual.visibleResult?.startsWith('REPROVADO')
-                  ? 'failed'
-                  : 'in-progress';
+    let result: 'not-applicable' | 'approved' | 'failed' | 'failed-attendance' | 'in-progress';
+    if (status === 2) {
+      result = 'not-applicable';
+    } else if (formal === 1) {
+      result = 'approved';
+    } else if (formal === 2) {
+      result = 'failed';
+    } else if (formal === 3) {
+      result = 'failed-attendance';
+    } else if (annual.visibleResult?.startsWith('APROVADO')) {
+      result = 'approved';
+    } else if (annual.visibleResult?.startsWith('REPROVADO')) {
+      result = 'failed';
+    } else {
+      result = 'in-progress';
+    }
     const annualSituation = annualSituationV1({ status, formalDecision: formal, annual });
     const student = academicStudentSchemaV1.parse({
       contractVersion: 1,

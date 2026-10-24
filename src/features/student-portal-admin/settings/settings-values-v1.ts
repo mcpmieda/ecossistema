@@ -44,22 +44,28 @@ export const CALENDAR_LABELS_V1 = {
 } as const;
 export function settingsScopeKeyV1(input: PolicyScopeV1): string {
   const scope = policyScopeV1.parse(input);
-  return scope.kind === 'school'
-    ? 'school:2026'
-    : scope.kind === 'class'
-      ? `class:2026:${scope.classId}`
-      : scope.kind === 'shift'
-        ? `shift:2026:${scope.shift}`
-        : `account:2026:${scope.accountId.toLowerCase()}`;
+  if (scope.kind === 'school') {
+    return 'school:2026';
+  }
+  if (scope.kind === 'class') {
+    return `class:2026:${scope.classId}`;
+  }
+  if (scope.kind === 'shift') {
+    return `shift:2026:${scope.shift}`;
+  }
+  return `account:2026:${scope.accountId.toLowerCase()}`;
 }
 export function settingsScopeLabelV1(scope: PolicyScopeV1): string {
-  return scope.kind === 'school'
-    ? 'Escola · 2026'
-    : scope.kind === 'class'
-      ? `Turma ${scope.classId} · 2026`
-      : scope.kind === 'shift'
-        ? `Turno ${SHIFT_LABELS_V1[scope.shift]} · 2026`
-        : 'Aluno · 2026';
+  if (scope.kind === 'school') {
+    return 'Escola · 2026';
+  }
+  if (scope.kind === 'class') {
+    return `Turma ${scope.classId} · 2026`;
+  }
+  if (scope.kind === 'shift') {
+    return `Turno ${SHIFT_LABELS_V1[scope.shift]} · 2026`;
+  }
+  return 'Aluno · 2026';
 }
 export function ownsSettingV1(settings: EffectiveSettingsV1, field: SettingsFieldV1) {
   return settingsScopeKeyV1(settings.sources[field]) === settingsScopeKeyV1(settings.scope);

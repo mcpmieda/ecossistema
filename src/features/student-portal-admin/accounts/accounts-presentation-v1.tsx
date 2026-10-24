@@ -43,18 +43,20 @@ export function AccountsErrorV1({
   onReload: () => void;
   canReload?: boolean;
 }>) {
-  const message =
-    error.state === 'unauthenticated'
-      ? 'Sessão administrativa expirada. Entre novamente.'
-      : error.state === 'forbidden'
-        ? 'Sem permissão para esta consulta.'
-        : error.state === 'conflict'
-          ? 'Os dados mudaram. Recarregue antes de continuar.'
-          : error.state === 'invalid-request'
-            ? 'A consulta ou a página expirou. Volte à primeira página ou recarregue.'
-            : error.state === 'rate-limited'
-              ? 'Limite temporário. Aguarde para consultar novamente.'
-              : 'Consulta indisponível. Tente novamente.';
+  let message: 'Sessão administrativa expirada. Entre novamente.' | 'Sem permissão para esta consulta.' | 'Os dados mudaram. Recarregue antes de continuar.' | 'A consulta ou a página expirou. Volte à primeira página ou recarregue.' | 'Limite temporário. Aguarde para consultar novamente.' | 'Consulta indisponível. Tente novamente.';
+  if (error.state === 'unauthenticated') {
+    message = 'Sessão administrativa expirada. Entre novamente.';
+  } else if (error.state === 'forbidden') {
+    message = 'Sem permissão para esta consulta.';
+  } else if (error.state === 'conflict') {
+    message = 'Os dados mudaram. Recarregue antes de continuar.';
+  } else if (error.state === 'invalid-request') {
+    message = 'A consulta ou a página expirou. Volte à primeira página ou recarregue.';
+  } else if (error.state === 'rate-limited') {
+    message = 'Limite temporário. Aguarde para consultar novamente.';
+  } else {
+    message = 'Consulta indisponível. Tente novamente.';
+  }
   return (
     <div role="alert" className="pa-account-notice">
       <p>{message}</p>

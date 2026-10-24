@@ -56,7 +56,14 @@ export function QrAccessCard({
   const footerColumns = columnsForWidth(856, symbolSpacing, footerSize);
   const headerEmblems = Array.from({ length: headerColumns * symbolRows }, (_, index) => index);
   const footerEmblems = Array.from({ length: footerColumns * footerRows }, (_, index) => index);
-  const nameSize = name.length > 42 ? 'xlong' : name.length > 25 ? 'long' : 'regular';
+  let nameSize: 'xlong' | 'long' | 'regular';
+  if (name.length > 42) {
+    nameSize = 'xlong';
+  } else if (name.length > 25) {
+    nameSize = 'long';
+  } else {
+    nameSize = 'regular';
+  }
   const qrImage = `data:image/svg+xml,${encodeURIComponent(qrSvgV1(qr))}`;
 
   return (

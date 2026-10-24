@@ -396,9 +396,15 @@ function DayListV3({
     minute < bellMinutesV1(item.end);
   // Already over, while today's lessons go on: faded, still readable. Once the day is over, nothing
   // is faded (owner request 23/10/2026: the day is checked after the lessons too).
-  const ends = rows.flatMap((row) =>
-    row.kind !== 'aula' ? [row.end] : row.time ? [row.time.end] : [],
-  );
+  const ends = rows.flatMap((row) => {
+    if (row.kind !== 'aula') {
+      return [row.end];
+    }
+    if (row.time) {
+      return [row.time.end];
+    }
+    return [];
+  });
   const dayOver =
     minute !== null && ends.length > 0 && ends.every((end) => minute >= bellMinutesV1(end));
   const isDone = (item: { start: string; end: string } | null) =>
@@ -548,12 +554,15 @@ function nextSchoolDayOf(item: ScheduleClassV3, today: string, daysOff: readonly
   return null;
 }
 
-const itemName = (item: BellItemV1, subject: string | null) =>
-  item.kind === 'intervalo'
-    ? 'Intervalo'
-    : item.kind === 'parada'
-      ? 'Parada'
-      : `${item.slot}ª aula${subject ? ` · ${subject}` : ''}`;
+const itemName = (item: BellItemV1, subject: string | null) => {
+  if (item.kind === 'intervalo') {
+    return 'Intervalo';
+  }
+  if (item.kind === 'parada') {
+    return 'Parada';
+  }
+  return `${item.slot}ª aula${subject ? ` · ${subject}` : ''}`;
+};
 /**
  * Today, now (owner decision 23/10/2026): the lesson going on and a short clock to what comes next
  * ("Intervalo em", "Saída em"), then what follows. Before the day starts (with the parada, when
@@ -581,13 +590,15 @@ function NowCardV3({
   const shown = schoolToday ? rowsOf(item, weekday) : [];
   const lastSlot = Math.max(0, ...shown.flatMap((row) => (row.kind === 'aula' ? [row.slot] : [])));
   // The day's own items: its lessons, the break and the paradas around them (rowsOf's order).
-  const day = shown.flatMap((row): BellItemV1[] =>
-    row.kind === 'aula'
-      ? row.time
-        ? [{ kind: 'aula', slot: row.slot, start: row.time.start, end: row.time.end }]
-        : []
-      : [{ kind: row.kind, start: row.start, end: row.end }],
-  );
+  const day = shown.flatMap((row): BellItemV1[] => {
+    if (row.kind === 'aula') {
+      if (row.time) {
+        return [{ kind: 'aula', slot: row.slot, start: row.time.start, end: row.time.end }];
+      }
+      return [];
+    }
+    return [{ kind: row.kind, start: row.start, end: row.end }];
+  });
   const moment =
     lastSlot && bells.length ? bellMomentV1(day, seconds / 60) : ({ state: 'over' } as const);
   if (moment.state === 'over') {

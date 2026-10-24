@@ -99,12 +99,14 @@ export function IndividualQrV1(
     return () => window.removeEventListener(PHOTO_CHANGED_EVENT_V1, changed);
   }, [photoSubject]);
   useEffect(() => {
-    const failure =
-      read.state.state === 'error'
-        ? read.state.error
-        : read.state.state === 'ready'
-          ? read.state.refreshError
-          : undefined;
+    let failure;
+    if (read.state.state === 'error') {
+      failure = read.state.error;
+    } else if (read.state.state === 'ready') {
+      failure = read.state.refreshError;
+    } else {
+      failure = undefined;
+    }
     if (failure && ['unauthenticated', 'forbidden'].includes(failure.state)) {
       operation.clear();
       printer.clear();

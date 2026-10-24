@@ -68,7 +68,13 @@ export const BELLS_VALID_FROM_V1 = '2026-06-22';
 /** The shift a class's label names (Smecel labels end in "- MATUTINO", "- VESPERTINO (…)"). */
 export function bellShiftOfLabelV1(label: string): BellShiftV1 | null {
   const found = [...label.toUpperCase().matchAll(/MATUTINO|VESPERTINO/gu)].at(-1)?.[0];
-  return found === 'MATUTINO' ? 'matutino' : found === 'VESPERTINO' ? 'vespertino' : null;
+  if (found === 'MATUTINO') {
+    return 'matutino';
+  }
+  if (found === 'VESPERTINO') {
+    return 'vespertino';
+  }
+  return null;
 }
 
 const lessons = (times: readonly [string, string][], breakAfter: number, breakTimes: [string, string]): BellDayV1 =>

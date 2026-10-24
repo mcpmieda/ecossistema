@@ -194,7 +194,15 @@ export function RelationalPerformancePageV2({
   const [openSelect, setOpenSelect] = useState<PerformanceSelectId | null>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
   const changeOpenSelect = useCallback((id: PerformanceSelectId, isOpen: boolean) => {
-    setOpenSelect((current) => (isOpen ? id : current === id ? null : current));
+    setOpenSelect((current) => {
+      if (isOpen) {
+        return id;
+      }
+      if (current === id) {
+        return null;
+      }
+      return current;
+    });
   }, []);
   // The student whose detail was asked for: the name already on screen heads the drawer at once.
   const [openingId, setOpeningId] = useState<number | null>(null);

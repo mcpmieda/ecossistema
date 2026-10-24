@@ -32,23 +32,25 @@ export async function readSealsV1(
   const selectedIds = 'accountIds' in query ? query.accountIds : undefined;
   if (query.scope.kind === 'school' && selectedIds === undefined)
     throw new Error('student-portal-seals-invalid-request');
-  const rows =
-    query.scope.kind === 'school'
-      ? z
-          .array(z.uuid())
-          .min(1)
-          .max(400)
-          .transform((ids) => ids.map((id) => id.toLowerCase()))
-          .refine((ids) => new Set(ids).size === ids.length)
-          .parse(selectedIds)
-          .map((id) => ({ id: id.toLowerCase() }))
-      : query.scope.kind === 'account'
-        ? [{ id: query.scope.accountId.toLowerCase() }]
-        : await tx.unsafe(
-            `SELECT a.id ${ACCOUNT_JOIN_V1} WHERE a.academic_year=2026 AND a.closed_at IS NULL
+  let rows;
+  if (query.scope.kind === 'school') {
+    rows = z
+      .array(z.uuid())
+      .min(1)
+      .max(400)
+      .transform((ids) => ids.map((id) => id.toLowerCase()))
+      .refine((ids) => new Set(ids).size === ids.length)
+      .parse(selectedIds)
+      .map((id) => ({ id: id.toLowerCase() }));
+  } else if (query.scope.kind === 'account') {
+    rows = [{ id: query.scope.accountId.toLowerCase() }];
+  } else {
+    rows = await tx.unsafe(
+      `SELECT a.id ${ACCOUNT_JOIN_V1} WHERE a.academic_year=2026 AND a.closed_at IS NULL
             AND ${ENROLLED_ACCOUNT_SQL_V1} AND b.class_id=$1 ORDER BY a.id LIMIT 201`,
-            [query.scope.classId],
-          );
+      [query.scope.classId],
+    );
+  }
   if (rows.length > (query.scope.kind === 'school' ? 400 : 200))
     throw new Error('student-portal-admin-scope-unavailable');
   const sql: StudentPortalPostgresSqlV1 = {

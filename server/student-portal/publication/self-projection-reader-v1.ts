@@ -100,12 +100,14 @@ export function publicationContextFromRowsV1(
   const accountId = context.account.id;
   const row = rows[0];
   if (rows.length !== 1 || !row || row.observed_class !== context.policy.classId) return null;
-  const academicState =
-    row.status === 2
-      ? ('assisted' as const)
-      : row.status === 1
-        ? ('special' as const)
-        : ('regular' as const);
+  let academicState;
+  if (row.status === 2) {
+    academicState = 'assisted' as const;
+  } else if (row.status === 1) {
+    academicState = 'special' as const;
+  } else {
+    academicState = 'regular' as const;
+  }
   const profile = {
     accountId,
     link: context.account.link!,

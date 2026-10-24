@@ -96,12 +96,14 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     setFailure(null);
     setYears(response.years);
     const current = yearRef.current ?? chosenYearV1;
-    const next =
-      preferredYear !== undefined && response.years.some((item) => item.year === preferredYear)
-        ? preferredYear
-        : current !== null && response.years.some((item) => item.year === current)
-          ? current
-          : (response.years[0]?.year ?? null);
+    let next;
+    if (preferredYear !== undefined && response.years.some((item) => item.year === preferredYear)) {
+      next = preferredYear;
+    } else if (current !== null && response.years.some((item) => item.year === current)) {
+      next = current;
+    } else {
+      next = response.years[0]?.year ?? null;
+    }
     applyYear(next);
     setLoading(false);
   }, [applyYear, forgetAuthorization]);

@@ -102,12 +102,15 @@ export function accountCommandV1(
 export function accountPageMatchesV1(page: AccountsReadPageV2, scope: ScopeV1) {
   if (
     new Set(page.items.map((item) => item.accountId)).size !== page.items.length ||
-    page.items.some((item) =>
-      scope.kind === 'account'
-        ? item.accountId !== scope.accountId
-        : scope.kind === 'class'
-          ? item.classId !== scope.classId
-          : false,
+    page.items.some((item) => {
+      if (scope.kind === 'account') {
+        return item.accountId !== scope.accountId;
+      }
+      if (scope.kind === 'class') {
+        return item.classId !== scope.classId;
+      }
+      return false;
+    },
     )
   )
     throw new PortalClientErrorV1('invalid-response');
@@ -127,11 +130,14 @@ export function accountAccessOriginV1(
 ) {
   if (source === null) return 'Origem não resolvida';
   if (describeScope) return describeScope(source);
-  return source.kind === 'school'
-    ? 'Escola · 2026'
-    : source.kind === 'class'
-      ? 'Turma'
-      : source.kind === 'shift'
-        ? `Turno ${SHIFT_LABELS_V1[source.shift]}`
-        : 'Individual';
+  if (source.kind === 'school') {
+    return 'Escola · 2026';
+  }
+  if (source.kind === 'class') {
+    return 'Turma';
+  }
+  if (source.kind === 'shift') {
+    return `Turno ${SHIFT_LABELS_V1[source.shift]}`;
+  }
+  return 'Individual';
 }

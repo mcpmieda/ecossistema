@@ -142,12 +142,14 @@ export function classifyAdminOperationV1(
 }
 
 function failureBody(path: string, payload: PayloadV1, status: number) {
-  const state =
-    status === 401 || status === 403
-      ? 'not-authorized'
-      : status === 429 || status >= 500
-        ? 'unavailable'
-        : 'invalid-request';
+  let state: 'not-authorized' | 'unavailable' | 'invalid-request';
+  if (status === 401 || status === 403) {
+    state = 'not-authorized';
+  } else if (status === 429 || status >= 500) {
+    state = 'unavailable';
+  } else {
+    state = 'invalid-request';
+  }
   if (path === RECONCILIATION_ROUTE_V1) return { contractVersion: 1, state };
   if (path === '/api/gradebook/import-persistence') return { transportVersion: 9, state };
   if (path === '/api/gradebook/import-diagnostics') return { version: 1, state };

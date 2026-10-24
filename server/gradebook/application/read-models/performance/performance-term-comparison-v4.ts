@@ -68,9 +68,20 @@ export function buildPerformanceTermComparisonV4(matrix: PerformanceMatrixV2,
 }
 
 function unavailable(current: AnalysisReadingV3, reference: AnalysisReadingV3): PerformanceTermComparisonValueV4 {
-  const reason = current.bucket === 'excluded' ? 'current-excluded' : reference.bucket === 'excluded' ? 'reference-excluded' :
-    !performanceResultCountsV2(current.state) ? 'current-incomplete' : !performanceResultCountsV2(reference.state) ? 'reference-incomplete' :
-    current.maximumMilli === null || current.maximumMilli <= 0 ? 'current-no-positive-maximum' : 'reference-no-positive-maximum';
+  let reason: 'current-excluded' | 'reference-excluded' | 'current-incomplete' | 'reference-incomplete' | 'current-no-positive-maximum' | 'reference-no-positive-maximum';
+  if (current.bucket === 'excluded') {
+    reason = 'current-excluded';
+  } else if (reference.bucket === 'excluded') {
+    reason = 'reference-excluded';
+  } else if (!performanceResultCountsV2(current.state)) {
+    reason = 'current-incomplete';
+  } else if (!performanceResultCountsV2(reference.state)) {
+    reason = 'reference-incomplete';
+  } else if (current.maximumMilli === null || current.maximumMilli <= 0) {
+    reason = 'current-no-positive-maximum';
+  } else {
+    reason = 'reference-no-positive-maximum';
+  }
   return { key: current.key, state: 'unavailable', currentPercent: current.percent, referencePercent: reference.percent,
     deltaPercentagePoints: null, relation: null, reason };
 }
@@ -81,7 +92,14 @@ function compare(current: AnalysisReadingV3, reference: AnalysisReadingV3): Perf
       current.maximumMilli <= 0 || reference.maximumMilli <= 0 || current.percent === null || reference.percent === null) return unavailable(current, reference);
   const left = BigInt(current.valueMilli) * BigInt(reference.maximumMilli);
   const right = BigInt(reference.valueMilli) * BigInt(current.maximumMilli);
-  const relation = left === right ? 'equal' : left > right ? 'higher' : 'lower';
+  let relation: 'equal' | 'higher' | 'lower';
+  if (left === right) {
+    relation = 'equal';
+  } else if (left > right) {
+    relation = 'higher';
+  } else {
+    relation = 'lower';
+  }
   return { key: current.key, state: 'comparable', currentPercent: current.percent, referencePercent: reference.percent,
     deltaPercentagePoints: relation === 'equal' ? 0 : current.percent - reference.percent, relation, reason: null };
 }

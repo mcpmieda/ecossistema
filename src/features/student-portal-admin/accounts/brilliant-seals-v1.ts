@@ -168,14 +168,16 @@ export function useSealCountsV1(
   target: { accountId: string } | { classIds: readonly number[] } | { accountIds: readonly string[] } | null,
   options: { active?: boolean; revision?: string | number; cache?: SealCountsCacheV1 } = {},
 ): SealReadStateV1 {
-  const key =
-    target === null
-      ? null
-      : 'accountId' in target
-        ? 'account:' + target.accountId
-        : 'accountIds' in target
-          ? 'accounts:' + [...new Set(target.accountIds)].join(',')
-          : 'classes:' + [...new Set(target.classIds)].sort((a, b) => a - b).join(',');
+  let key;
+  if (target === null) {
+    key = null;
+  } else if ('accountId' in target) {
+    key = 'account:' + target.accountId;
+  } else if ('accountIds' in target) {
+    key = 'accounts:' + [...new Set(target.accountIds)].join(',');
+  } else {
+    key = 'classes:' + [...new Set(target.classIds)].sort((a, b) => a - b).join(',');
+  }
   // Owned by the mounted list/record, never persisted or shared between administrators.
   const cache = useSealCountsCacheV1(reader, options.cache);
   const revision = options.revision;
@@ -191,9 +193,13 @@ export function useSealCountsV1(
         cache.revision = revision;
       }
       signal.throwIfAborted();
-      const scopes: SealTargetV1[] = key.startsWith('account:')
-        ? [{ kind: 'account', academicYear: 2026, accountId: key.slice(8) }]
-        : key.startsWith('accounts:') ? accountBatchesV1(key.slice(9)) : key
+      let scopes: SealTargetV1[];
+      if (key.startsWith('account:')) {
+        scopes = [{ kind: 'account', academicYear: 2026, accountId: key.slice(8) }];
+      } else if (key.startsWith('accounts:')) {
+        scopes = accountBatchesV1(key.slice(9));
+      } else {
+        scopes = key
             .slice(8)
             .split(',')
             .filter(Boolean)
@@ -202,6 +208,7 @@ export function useSealCountsV1(
               academicYear: 2026,
               classId: Number(id),
             }));
+      }
       const counts = new Map<string, number | null>();
       cache.retainPending(active ? scopes : []);
       if (!active) {

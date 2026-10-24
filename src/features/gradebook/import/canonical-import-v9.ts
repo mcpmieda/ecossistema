@@ -92,12 +92,14 @@ function cellFromSnapshot(
   if (raw === null || (typeof raw === 'string' && raw.trim() === '')) return null;
   if (typeof raw === 'boolean')
     throw new Error(`Texto/valor inválido em ${sheet.name}!${address}.`);
-  const numeric =
-    typeof raw === 'number'
-      ? raw
-      : typeof raw === 'string' && /^[+-]?\d+(?:[.,]\d+)?$/u.test(raw.trim())
-        ? Number(raw.trim().replace(',', '.'))
-        : null;
+  let numeric;
+  if (typeof raw === 'number') {
+    numeric = raw;
+  } else if (typeof raw === 'string' && /^[+-]?\d+(?:[.,]\d+)?$/u.test(raw.trim())) {
+    numeric = Number(raw.trim().replace(',', '.'));
+  } else {
+    numeric = null;
+  }
   if (numeric === null || !Number.isFinite(numeric)) {
     throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
   }
