@@ -449,16 +449,21 @@ async function advancePolicyEpochV1(tx: StudentPortalPostgresQueryV1, nextEpoch:
   );
 }
 
+/** One settings change to record: who, where, the command and its receipt, and the new version. */
+type PolicyMutationV1 = {
+  actor: string;
+  scope: PolicyScopeV1;
+  command: SettingsCommandV1;
+  receiptActor: string;
+  requestDigest: string;
+  now: Date;
+  version: number;
+  changed: boolean;
+};
+
 async function savePolicyMutationV1(
   persistence: PortalTransactionV1,
-  actor: string,
-  scope: PolicyScopeV1,
-  command: SettingsCommandV1,
-  receiptActor: string,
-  requestDigest: string,
-  now: Date,
-  version: number,
-  changed: boolean,
+  { actor, scope, command, receiptActor, requestDigest, now, version, changed }: PolicyMutationV1,
 ) {
   const operationId = crypto.randomUUID();
   if (changed)
@@ -608,17 +613,16 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
       if (changed) await advancePolicyEpochV1(tx, nextEpoch);
 
       const after = await this.readSnapshotInTransaction(tx, scope);
-      return savePolicyMutationV1(
-        persistence,
+      return savePolicyMutationV1(persistence, {
         actor,
         scope,
         command,
         receiptActor,
         requestDigest,
         now,
-        after.settings.version,
+        version: after.settings.version,
         changed,
-      );
+      });
     });
   }
 }

@@ -43,9 +43,11 @@ export async function accessContextV1(sql: StudentPortalPostgresSqlV1, tx: Stude
   return { account, policy, eligibility, now, accessOpen };
 }
 export type AccessContextV1 = NonNullable<Awaited<ReturnType<typeof accessContextV1>>>;
+/** Who acted (the student by default), how it ended and its detail. */
+type AuditOptionsV1 = { actorId?: string; result?: 'success' | 'denied'; detail?: AuditDetailV1 };
 export async function authAuditV1(store: PortalTransactionV1, account: AccountRecordV1,
-  kind: z.infer<typeof auditEventV1>['kind'], now: Date, requestId: string, actorId = account.id,
-  result: 'success' | 'denied' = 'success', detail?: AuditDetailV1) {
+  kind: z.infer<typeof auditEventV1>['kind'], now: Date, requestId: string,
+  { actorId = account.id, result = 'success', detail }: AuditOptionsV1 = {}) {
   await store.appendAudit({ eventId: crypto.randomUUID(), at: now.toISOString(), actorId, accountId: account.id,
     scope: accountScopeV1(account.id), kind, result, requestId, version: account.version, maskedIp: null,
     ...(detail && Object.keys(detail).length ? { detail } : {}) });

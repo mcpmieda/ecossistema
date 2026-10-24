@@ -128,17 +128,22 @@ function operationFlagsV1(
   return { newQr, resetPassword, securityChanged };
 }
 
+/** What a repeated request is checked against: the same command, by the same actor, now. */
+type ReplayRequestV1 = {
+  command: QrCommandV1;
+  operation: Operation;
+  account: AccountRecordV1;
+  receiptActor: string;
+  digest: string;
+  now: Date;
+  url: (credentialId: string, keyVersion: number) => Promise<string>;
+  receiptOnly?: boolean;
+};
+
 async function replayReceiptV1(
   tx: StudentPortalPostgresQueryV1,
   store: PortalTransactionV1,
-  command: QrCommandV1,
-  operation: Operation,
-  account: AccountRecordV1,
-  receiptActor: string,
-  digest: string,
-  now: Date,
-  url: (credentialId: string, keyVersion: number) => Promise<string>,
-  receiptOnly = false,
+  { command, operation, account, receiptActor, digest, now, url, receiptOnly = false }: ReplayRequestV1,
 ): Promise<QrResultV1 | null> {
   const receipt = await store.readIdempotency(command.idempotencyKey, receiptActor);
   if (!receipt) return null;
@@ -164,16 +169,21 @@ async function replayReceiptV1(
   };
 }
 
+/** The card an operation hands out: a new credential when it issues one, else the active one. */
+type QrIssueV1 = {
+  url: (credentialId: string, keyVersion: number) => Promise<string>;
+  keyVersion: number;
+  accountId: string;
+  operation: Operation;
+  active: CredentialRecordV1 | null;
+  newQr: boolean;
+  now: Date;
+};
+
 async function qrForOperationV1(
   tx: StudentPortalPostgresQueryV1,
   cryptoPort: CryptoPortV1,
-  url: (credentialId: string, keyVersion: number) => Promise<string>,
-  keyVersion: number,
-  accountId: string,
-  operation: Operation,
-  active: CredentialRecordV1 | null,
-  newQr: boolean,
-  now: Date,
+  { url, keyVersion, accountId, operation, active, newQr, now }: QrIssueV1,
 ) {
   if (newQr) {
     const credentialId = cryptoPort.randomToken(32);
@@ -304,18 +314,16 @@ export class QrServiceV1 {
       if (!account || (!guard && (!account.link || account.closedAt !== null)))
         throw new Error('student-portal-qr-forbidden');
 
-      const replay = await replayReceiptV1(
-        tx,
-        store,
+      const replay = await replayReceiptV1(tx, store, {
         command,
         operation,
         account,
         receiptActor,
         digest,
         now,
-        (credentialId, version) => this.url(credentialId, version),
-        guard !== undefined,
-      );
+        url: (credentialId, version) => this.url(credentialId, version),
+        receiptOnly: guard !== undefined,
+      });
       if (replay) return replay;
       if (!account.link || account.closedAt !== null)
         throw new Error('student-portal-qr-forbidden');
@@ -347,23 +355,21 @@ export class QrServiceV1 {
       assertCredentialOperationV1(operation, credential, active);
 
       const { newQr, resetPassword, securityChanged } = operationFlagsV1(command, account, active);
-      const qr = await qrForOperationV1(
-        tx,
-        this.cryptoPort,
-        (credentialId, version) => this.url(credentialId, version),
-        this.keyVersion,
+      const qr = await qrForOperationV1(tx, this.cryptoPort, {
+        url: (credentialId, version) => this.url(credentialId, version),
+        keyVersion: this.keyVersion,
         accountId,
         operation,
         active,
         newQr,
         now,
-      );
+      });
       await clearPasswordV1(tx, accountId, resetPassword);
 
       const changed = newQr || securityChanged;
       const next = nextAccountV1(command, account, changed, securityChanged);
       await applySecurityChangeV1(tx, store, account, next, changed, securityChanged, now);
-      await authAuditV1(store, next, auditKindV1(command), now, command.idempotencyKey, actor);
+      await authAuditV1(store, next, auditKindV1(command), now, command.idempotencyKey, { actorId: actor });
       const operationId = await saveReceiptV1(
         store,
         command,

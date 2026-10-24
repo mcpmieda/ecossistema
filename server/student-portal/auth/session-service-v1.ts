@@ -98,7 +98,7 @@ export class SessionServiceV1 {
         if (changed === 0) continue;
         const next = { ...account, version: account.version + 1 };
         if (!await store.compareAndSetAccount(next, account.version)) throw new Error('student-portal-session-version-conflict');
-        await authAuditV1(store, next, 'session-revoked', now, command.idempotencyKey, actor);
+        await authAuditV1(store, next, 'session-revoked', now, command.idempotencyKey, { actorId: actor });
       }
       const version = (await this.revocationScope(tx, scope)).version;
       const operationId = crypto.randomUUID();

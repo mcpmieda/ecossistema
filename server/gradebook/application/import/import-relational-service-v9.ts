@@ -786,15 +786,20 @@ async function reconcileInstrumentNotesV9(
   }
 }
 
+/** One offer of the spreadsheet, resolved: its class, its offer id, the class's numbers and what is stored. */
+type OfferTargetV9 = {
+  offer: GradebookImportOfferV9;
+  turmaId: number;
+  ofertaId: number;
+  bindings: ReadonlyMap<string, number>;
+  readState: ImportOfferReadStateV11;
+};
+
 async function processOffer(
   database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
   request: GradebookNotesImportRequestV9,
-  offer: GradebookImportOfferV9,
-  turmaId: number,
-  ofertaId: number,
-  bindings: ReadonlyMap<string, number>,
-  readState: ImportOfferReadStateV11,
+  { offer, turmaId, ofertaId, bindings, readState }: OfferTargetV9,
 ): Promise<void> {
   const { instruments: existingInstruments, notes, observedInstruments, closing } = readState;
   // A repeated SQL identity can occur under collation differences. Refresh only at the
@@ -1027,16 +1032,13 @@ async function persistNotes(
     for (const { sourceIndex, offer, turmaId } of block) {
       const resolved = catalog.offers.get(sourceIndex)!;
       const before = state.academicWrites;
-      await processOffer(
-        database,
-        state,
-        request,
+      await processOffer(database, state, request, {
         offer,
         turmaId,
-        resolved.ofertaId,
+        ofertaId: resolved.ofertaId,
         bindings,
-        readSet.get(resolved.ofertaId)!,
-      );
+        readState: readSet.get(resolved.ofertaId)!,
+      });
       // Metadata changes can affect every student in the source class, including
       // observations outside the supplied student slice. Keep the Portal scope conservative.
       if (resolved.catalogChanged || state.academicWrites > before) {
