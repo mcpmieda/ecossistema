@@ -85,6 +85,21 @@ function remoteSchemaIsConfirmed(input: GradebookControlledProductionReadinessIn
   );
 }
 
+/** The scope rules a closed wave must still keep, in their reporting order. */
+function stateViolationsV2(
+  input: GradebookControlledProductionReadinessInputV2,
+  negativeCount: boolean,
+): GradebookControlledProductionScopeViolationV2[] {
+  const scopeViolations: GradebookControlledProductionScopeViolationV2[] = [];
+  if (negativeCount) scopeViolations.push('invalid-negative-count');
+  if (input.authorityMode !== 'imported-source') scopeViolations.push('authority-mode-changed');
+  if (input.productionAcademicRuntimeEnabled) scopeViolations.push('production-gate-left-open');
+  if (input.realPilotExecuted) scopeViolations.push('real-pilot-already-executed');
+  if (input.nativeAuthorityEnabled) scopeViolations.push('native-authority-enabled');
+  if (input.syntheticResidueCount > 0) scopeViolations.push('synthetic-residue-present');
+  return scopeViolations;
+}
+
 /**
  * Represents the authorized Wave 23 closure without rewriting the historical V1 preparation model.
  * It is pure state evaluation: no network, Cloudflare, migration, smoke, pilot or authority action.
@@ -92,16 +107,10 @@ function remoteSchemaIsConfirmed(input: GradebookControlledProductionReadinessIn
 export function evaluateGradebookControlledProductionReadinessV2(
   input: GradebookControlledProductionReadinessInputV2,
 ): GradebookControlledProductionReadinessResultV2 {
-  const scopeViolations: GradebookControlledProductionScopeViolationV2[] = [];
   const missingEvidence: GradebookControlledProductionEvidenceIdV2[] = [];
 
   const negativeCount = hasNegativeCount(input);
-  if (negativeCount) scopeViolations.push('invalid-negative-count');
-  if (input.authorityMode !== 'imported-source') scopeViolations.push('authority-mode-changed');
-  if (input.productionAcademicRuntimeEnabled) scopeViolations.push('production-gate-left-open');
-  if (input.realPilotExecuted) scopeViolations.push('real-pilot-already-executed');
-  if (input.nativeAuthorityEnabled) scopeViolations.push('native-authority-enabled');
-  if (input.syntheticResidueCount > 0) scopeViolations.push('synthetic-residue-present');
+  const scopeViolations = stateViolationsV2(input, negativeCount);
 
   if (!input.productionD1ResourcePresent) missingEvidence.push('production-resource-confirmed');
   if (!input.productionD1BindingPresent) missingEvidence.push('production-binding-confirmed');
