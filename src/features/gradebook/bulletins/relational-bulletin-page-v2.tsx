@@ -497,6 +497,166 @@ function BulletinArtifact({ artifact }: { readonly artifact: Artifact }) {
   );
 }
 
+/** What the page is reading, the last failure with its reasons, a notice and a stale live read. */
+function BulletinStatusV2({
+  busy,
+  failure,
+  failureReasons,
+  notice,
+  stale,
+}: Readonly<{
+  busy: Busy;
+  failure: RelationalBulletinFailureV2 | null;
+  failureReasons: readonly string[];
+  notice: string;
+  stale: boolean;
+}>) {
+  return (
+    <div className="min-h-10" aria-live="polite">
+      {busy ? (
+        <p className="flex items-center gap-2 text-sm text-muted"><output className="contents">
+          <Spinner size="sm" />
+          {busyText(busy)}
+        </output></p>
+      ) : null}
+      {failure ? (
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Operação não concluída</Alert.Title>
+            <Alert.Description>
+              {FAILURE[failure]}
+              {failureReasons.length > 0 ? (
+                <ul className="mt-1 list-disc pl-4">
+                  {failureReasons.map((reason) => (
+                    <li key={reason}>{readinessLabel(reason)}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      ) : null}
+      {notice ? (
+        <p className="text-sm text-muted"><output className="contents">
+          {notice}
+        </output></p>
+      ) : null}
+      <LiveReadNoticeV1 failed={stale} />
+    </div>
+  );
+}
+
+/** Download or print the official PDF of the emitted snapshot. */
+function OfficialPdfCardV2({
+  pdfState,
+  pdfNotice,
+  onDownload,
+  onPrint,
+}: Readonly<{
+  pdfState: PdfState;
+  pdfNotice: string;
+  onDownload: () => void;
+  onPrint: () => void;
+}>) {
+  return (
+    <Card>
+      <Card.Header>
+        <div>
+          <Card.Title>Documento oficial deste snapshot</Card.Title>
+          <Card.Description>
+            O PDF usa somente a versão emitida acima e é gerado localmente, um documento por
+            vez.
+          </Card.Description>
+        </div>
+      </Card.Header>
+      <Card.Footer className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="primary"
+          isDisabled={pdfState !== null}
+          onPress={onDownload}
+        >
+          {pdfState === 'download' ? <Spinner size="sm" /> : <Download size={17} />}
+          Baixar PDF oficial
+        </Button>
+        <Button
+          variant="secondary"
+          isDisabled={pdfState !== null}
+          onPress={onPrint}
+        >
+          {pdfState === 'print' ? <Spinner size="sm" /> : <Printer size={17} />}
+          Imprimir PDF oficial
+        </Button>
+        {pdfNotice ? (
+          <span className="text-xs text-muted"><output className="contents">
+            {pdfNotice}
+          </output></span>
+        ) : null}
+      </Card.Footer>
+    </Card>
+  );
+}
+
+/** The emitted snapshots of the current selection, each reprinted from its preserved version. */
+function BulletinHistoryCardV2({
+  busy,
+  history,
+  onReprint,
+}: Readonly<{
+  busy: Busy;
+  history: readonly RelationalBulletinHistoryItemV2[];
+  onReprint: (item: RelationalBulletinHistoryItemV2) => void;
+}>) {
+  return (
+    <Card>
+      <Card.Header>
+        <div>
+          <Card.Title>Histórico de emissões</Card.Title>
+          <Card.Description>
+            Reimpressão lê somente a versão preservada; alterações atuais não mudam o documento
+            anterior.
+          </Card.Description>
+        </div>
+        <FileClock className="text-accent" />
+      </Card.Header>
+      <Card.Content className="grid gap-2">
+        {busy === 'history' ? <Spinner size="sm" /> : null}
+        {busy !== 'history' && history.length === 0 ? (
+          <p className="text-sm text-muted">Nenhum snapshot carregado para este recorte.</p>
+        ) : null}
+        {busy === 'history'
+          ? null
+          : history.map((item) => (
+            <div
+              key={`${item.snapshotId}:${item.snapshotVersion}`}
+              className="flex flex-col gap-3 rounded-2xl border border-separator p-4 sm:flex-row sm:items-center"
+            >
+              <div className="min-w-0">
+                <strong className="block truncate text-sm">
+                  {item.studentName} · {periodLabel(item.period)}
+                </strong>
+                <span className="text-xs text-muted">
+                  {new Date(item.emittedAt).toLocaleString('pt-BR')} · versão{' '}
+                  {item.snapshotVersion} · {item.detail === 'detailed' ? 'detalhado' : 'resumo'}
+                </span>
+              </div>
+              <Button
+                className="sm:ml-auto"
+                size="sm"
+                variant="secondary"
+                isDisabled={busy !== null}
+                onPress={() => onReprint(item)}
+              >
+                <History size={15} />
+                Reimprimir versão
+              </Button>
+            </div>
+          ))}
+      </Card.Content>
+    </Card>
+  );
+}
+
 export function RelationalBulletinPageV2() {
   const sharedYear = useGradebookYear();
   const year = sharedYear?.year ?? null;
@@ -721,6 +881,55 @@ export function RelationalBulletinPageV2() {
     return response?.state === 'ready' && response.operation === 'history';
   };
 
+  /** A refused catalog: without authorization everything read is dropped; otherwise it is stale. */
+  const catalogRefused = (notAuthorized: boolean) => {
+    if (notAuthorized) {
+      setCatalog(null);
+      setStudents(null);
+      setClassId(null);
+      setSelectedIds([]);
+      setPreviewStudentId(null);
+      setArtifact(null);
+      setHistory([]);
+      setFailure('not-authorized');
+    } else setStale(true);
+    return false;
+  };
+
+  /** A refresh that failed: a lost authorization drops what was read; anything else is stale. */
+  const refreshFailed = (cause: unknown) => {
+    if (cause instanceof RelationalBulletinClientErrorV2 && cause.code === 'not-authorized') {
+      setCatalog(null);
+      setStudents(null);
+      setArtifact(null);
+      setHistory([]);
+      setFailure(cause.code);
+    } else setStale(true);
+    return false;
+  };
+
+  /** The open preview follows the refreshed list: it closes with its student, or is read again. */
+  const refreshPreview = async (ticket: number, valid: ReadonlySet<number>) => {
+    if (previewStudentId !== null && !valid.has(previewStudentId)) {
+      setPreviewStudentId(null);
+      if (artifact?.mode === 'preview') setArtifact(null);
+      return true;
+    }
+    if (artifact?.mode !== 'preview' || previewStudentId === null) return true;
+    const latestPreview = await requestRelationalBulletinV2({
+      contractVersion: 2,
+      operation: 'preview',
+      selection: selection(previewStudentId),
+    });
+    if (ticket !== sequence.current) return undefined;
+    if (latestPreview.state === 'ready' && latestPreview.operation === 'preview') {
+      setArtifact({ mode: 'preview', model: latestPreview.model });
+      return true;
+    }
+    setStale(true);
+    return false;
+  };
+
   const refresh = async () => {
     if (year === null || busy !== null) return;
     const ticket = ++sequence.current;
@@ -731,19 +940,8 @@ export function RelationalBulletinPageV2() {
         year,
       });
       if (ticket !== sequence.current) return;
-      if (latestCatalog.state !== 'ready' || latestCatalog.operation !== 'catalog') {
-        if (latestCatalog.state === 'not-authorized') {
-          setCatalog(null);
-          setStudents(null);
-          setClassId(null);
-          setSelectedIds([]);
-          setPreviewStudentId(null);
-          setArtifact(null);
-          setHistory([]);
-          setFailure('not-authorized');
-        } else setStale(true);
-        return false;
-      }
+      if (latestCatalog.state !== 'ready' || latestCatalog.operation !== 'catalog')
+        return catalogRefused(latestCatalog.state === 'not-authorized');
       setCatalog(latestCatalog);
       if (classId === null) {
         setStale(false);
@@ -773,36 +971,14 @@ export function RelationalBulletinPageV2() {
       const valid = new Set(latestStudents.students.map((student) => student.id));
       setStudents(latestStudents);
       setSelectedIds((current) => current.filter((id) => valid.has(id)));
-      if (previewStudentId !== null && !valid.has(previewStudentId)) {
-        setPreviewStudentId(null);
-        if (artifact?.mode === 'preview') setArtifact(null);
-      } else if (artifact?.mode === 'preview' && previewStudentId !== null) {
-        const latestPreview = await requestRelationalBulletinV2({
-          contractVersion: 2,
-          operation: 'preview',
-          selection: selection(previewStudentId),
-        });
-        if (ticket !== sequence.current) return;
-        if (latestPreview.state === 'ready' && latestPreview.operation === 'preview')
-          setArtifact({ mode: 'preview', model: latestPreview.model });
-        else {
-          setStale(true);
-          return false;
-        }
-      }
+      const previewed = await refreshPreview(ticket, valid);
+      if (previewed !== true) return previewed;
       if (historyRead && await loadHistory(classId, true) === false) return false;
       if (ticket === sequence.current) setStale(false);
       return true;
     } catch (cause) {
       if (ticket !== sequence.current) return;
-      if (cause instanceof RelationalBulletinClientErrorV2 && cause.code === 'not-authorized') {
-        setCatalog(null);
-        setStudents(null);
-        setArtifact(null);
-        setHistory([]);
-        setFailure(cause.code);
-      } else setStale(true);
-      return false;
+      return refreshFailed(cause);
     }
   };
   useLiveRefreshV1(refresh, {
@@ -954,38 +1130,13 @@ export function RelationalBulletinPageV2() {
           Gerar prévia
         </Button>
       </div>
-      <div className="min-h-10" aria-live="polite">
-        {busy ? (
-          <p className="flex items-center gap-2 text-sm text-muted"><output className="contents">
-            <Spinner size="sm" />
-            {busyText(busy)}
-          </output></p>
-        ) : null}
-        {failure ? (
-          <Alert status="danger">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>Operação não concluída</Alert.Title>
-              <Alert.Description>
-                {FAILURE[failure]}
-                {failureReasons.length > 0 ? (
-                  <ul className="mt-1 list-disc pl-4">
-                    {failureReasons.map((reason) => (
-                      <li key={reason}>{readinessLabel(reason)}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
-        ) : null}
-        {notice ? (
-          <p className="text-sm text-muted"><output className="contents">
-            {notice}
-          </output></p>
-        ) : null}
-        <LiveReadNoticeV1 failed={stale} />
-      </div>
+      <BulletinStatusV2
+        busy={busy}
+        failure={failure}
+        failureReasons={failureReasons}
+        notice={notice}
+        stale={stale}
+      />
       {students ? (
         <Card>
           <Card.Header>
@@ -1081,89 +1232,16 @@ export function RelationalBulletinPageV2() {
           </h3>
           <BulletinArtifact artifact={artifact} />
           {artifact.mode !== 'preview' ? (
-            <Card>
-              <Card.Header>
-                <div>
-                  <Card.Title>Documento oficial deste snapshot</Card.Title>
-                  <Card.Description>
-                    O PDF usa somente a versão emitida acima e é gerado localmente, um documento por
-                    vez.
-                  </Card.Description>
-                </div>
-              </Card.Header>
-              <Card.Footer className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="primary"
-                  isDisabled={pdfState !== null}
-                  onPress={() => void runPdf('download')}
-                >
-                  {pdfState === 'download' ? <Spinner size="sm" /> : <Download size={17} />}
-                  Baixar PDF oficial
-                </Button>
-                <Button
-                  variant="secondary"
-                  isDisabled={pdfState !== null}
-                  onPress={() => void runPdf('print')}
-                >
-                  {pdfState === 'print' ? <Spinner size="sm" /> : <Printer size={17} />}
-                  Imprimir PDF oficial
-                </Button>
-                {pdfNotice ? (
-                  <span className="text-xs text-muted"><output className="contents">
-                    {pdfNotice}
-                  </output></span>
-                ) : null}
-              </Card.Footer>
-            </Card>
+            <OfficialPdfCardV2
+              pdfState={pdfState}
+              pdfNotice={pdfNotice}
+              onDownload={() => void runPdf('download')}
+              onPrint={() => void runPdf('print')}
+            />
           ) : null}
         </div>
       ) : null}
-      <Card>
-        <Card.Header>
-          <div>
-            <Card.Title>Histórico de emissões</Card.Title>
-            <Card.Description>
-              Reimpressão lê somente a versão preservada; alterações atuais não mudam o documento
-              anterior.
-            </Card.Description>
-          </div>
-          <FileClock className="text-accent" />
-        </Card.Header>
-        <Card.Content className="grid gap-2">
-          {busy === 'history' ? <Spinner size="sm" /> : null}
-          {busy !== 'history' && history.length === 0 ? (
-            <p className="text-sm text-muted">Nenhum snapshot carregado para este recorte.</p>
-          ) : null}
-          {busy === 'history'
-            ? null
-            : history.map((item) => (
-              <div
-                key={`${item.snapshotId}:${item.snapshotVersion}`}
-                className="flex flex-col gap-3 rounded-2xl border border-separator p-4 sm:flex-row sm:items-center"
-              >
-                <div className="min-w-0">
-                  <strong className="block truncate text-sm">
-                    {item.studentName} · {periodLabel(item.period)}
-                  </strong>
-                  <span className="text-xs text-muted">
-                    {new Date(item.emittedAt).toLocaleString('pt-BR')} · versão{' '}
-                    {item.snapshotVersion} · {item.detail === 'detailed' ? 'detalhado' : 'resumo'}
-                  </span>
-                </div>
-                <Button
-                  className="sm:ml-auto"
-                  size="sm"
-                  variant="secondary"
-                  isDisabled={busy !== null}
-                  onPress={() => void reprint(item)}
-                >
-                  <History size={15} />
-                  Reimprimir versão
-                </Button>
-              </div>
-            ))}
-        </Card.Content>
-      </Card>
+      <BulletinHistoryCardV2 busy={busy} history={history} onReprint={(item) => void reprint(item)} />
     </section>
   );
 }
