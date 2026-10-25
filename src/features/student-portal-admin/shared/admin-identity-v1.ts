@@ -22,6 +22,14 @@ type IdentityStateV1 =
 const defaultFetch: PortalFetchV1 = (path, init) => fetch(path, init);
 
 /** Same Entra session and capabilities as the Center; this is a fresh read, never a new role system. */
+/** No session is 401, no access 403; anything else not OK or cacheable is unavailable. */
+function checkIdentityResponseV1(response: Response) {
+  if (response.status === 401) throw new PortalClientErrorV1('unauthenticated', 401);
+  if (response.status === 403) throw new PortalClientErrorV1('forbidden', 403);
+  if (!response.ok || !hasPortalNoStoreV1(response.headers))
+    throw new PortalClientErrorV1('unavailable');
+}
+
 export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) {
   const [state, setState] = useState<IdentityStateV1>({ state: 'checking' });
   const active = useRef<AbortController | null>(null);
@@ -68,10 +76,7 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
           headers: { Accept: 'application/json' },
         });
         controller.signal.throwIfAborted();
-        if (response.status === 401) throw new PortalClientErrorV1('unauthenticated', 401);
-        if (response.status === 403) throw new PortalClientErrorV1('forbidden', 403);
-        if (!response.ok || !hasPortalNoStoreV1(response.headers))
-          throw new PortalClientErrorV1('unavailable');
+        checkIdentityResponseV1(response);
         const identity = identitySchema.parse(await response.json());
         controller.signal.throwIfAborted();
         if (generation.current !== current) return;
