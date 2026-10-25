@@ -37,6 +37,21 @@ function messageFor(error: unknown) {
   return 'Não foi possível confirmar a operação. A foto anterior não será substituída sem confirmação do servidor.';
 }
 
+/** Removing a photo asks first; closing it while nothing runs cancels. */
+function RemovePhotoModalV1({ busy, message, onCancel, onRemove }: Readonly<{
+  busy: boolean; message: string; onCancel: () => void; onRemove: () => void;
+}>) {
+  return <Modal.Backdrop isOpen isDismissable={false} onOpenChange={open => { if (!open && !busy) onCancel(); }}>
+    <Modal.Container size="sm"><Modal.Dialog aria-label="Remover foto do aluno">
+      <Modal.Header><Modal.Heading>Remover foto?</Modal.Heading></Modal.Header>
+      <Modal.Body><p>A foto principal e o avatar deixarão de aparecer no sistema. Os arquivos salvos no Portal serão excluídos permanentemente.</p>
+        {message ? <p><output className="contents">{message}</output></p> : null}</Modal.Body>
+      <Modal.Footer><Button variant="secondary" isDisabled={busy} onPress={onCancel}>Cancelar</Button>
+        <Button isDisabled={busy} onPress={onRemove}>{busy ? 'Removendo…' : 'Remover foto'}</Button></Modal.Footer>
+    </Modal.Dialog></Modal.Container>
+  </Modal.Backdrop>;
+}
+
 /** Shared controls for real administrative sheets; changing student discards the entire local draft. */
 export function StudentPhotoPanelV1(props: Readonly<StudentPhotoPanelPropsV1>) {
   return <PhotoPanelSessionV1 key={photoSubjectKeyV1(props.subject) + ":" + (props.canWrite !== false)} {...props} />;
@@ -216,14 +231,6 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       {kind === 'avatar' ? <p>Este ajuste altera somente o avatar; a foto principal será preservada.</p> : null}
       <Editor ownerKey={subjectKey + ':' + kind} initialPhoto={initialPhoto} onCancel={() => { setEditing(false); setInitialPhoto(undefined); }} onPrepared={prepared} />
     </Suspense> : null}
-    {removing ? <Modal.Backdrop isOpen isDismissable={false} onOpenChange={open => { if (!open && !busy) { setRemoving(false); discard(); } }}>
-      <Modal.Container size="sm"><Modal.Dialog aria-label="Remover foto do aluno">
-        <Modal.Header><Modal.Heading>Remover foto?</Modal.Heading></Modal.Header>
-        <Modal.Body><p>A foto principal e o avatar deixarão de aparecer no sistema. Os arquivos salvos no Portal serão excluídos permanentemente.</p>
-          {message ? <p><output className="contents">{message}</output></p> : null}</Modal.Body>
-        <Modal.Footer><Button variant="secondary" isDisabled={busy} onPress={() => { setRemoving(false); discard(); }}>Cancelar</Button>
-          <Button isDisabled={busy} onPress={remove}>{busy ? 'Removendo…' : 'Remover foto'}</Button></Modal.Footer>
-      </Modal.Dialog></Modal.Container>
-    </Modal.Backdrop> : null}
+    {removing ? <RemovePhotoModalV1 busy={busy} message={message} onCancel={() => { setRemoving(false); discard(); }} onRemove={remove} /> : null}
   </section>;
 }
