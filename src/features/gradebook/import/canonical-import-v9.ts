@@ -169,7 +169,7 @@ function maximum(definition: SourceAssessmentDefinitionV2 | undefined): number |
 }
 
 function description(definition: SourceAssessmentDefinitionV2 | undefined): string | undefined {
-  if (!definition || definition.kind !== 'qualitative-activity') return undefined;
+  if (definition?.kind !== 'qualitative-activity') return undefined;
   return definition.name.state === 'text' && definition.name.rawValue.trim().length > 0
     ? definition.name.rawValue.trim()
     : undefined;

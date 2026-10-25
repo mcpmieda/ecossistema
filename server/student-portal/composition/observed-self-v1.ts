@@ -50,7 +50,7 @@ export async function serveObservedPortalSelfV1(request: Request, env: PortalCom
   if (path === FRONTEND_DIAGNOSTIC_ROUTE_V1) return serveStudentDiagnosticV1(request, env);
   const route = routes.get(path), started = Date.now();
   const response = await serve(request, env);
-  if (route && request.method === route.method && env.PORTAL_ENVIRONMENT === 'production'
+  if (request.method === route?.method && env.PORTAL_ENVIRONMENT === 'production'
     && env.PORTAL_LIVE && portalRequestOriginAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN)) {
     const signal: PortalSignalInputV1 = { source: route.source, outcome: statusOutcome(response.status),
       elapsedMs: Math.min(60_000, Math.max(0, Date.now() - started)) };

@@ -856,7 +856,8 @@ function cloneAssessmentsProjection(
       value: cloneComparedGrade(item.value),
     };
   });
-  return { items: items.sort(compareAssessmentValues) };
+  items.sort(compareAssessmentValues);
+  return { items };
 }
 
 function signalDetailRef(detail: unknown, detailRef: PerformanceCellDetailRefV1) {

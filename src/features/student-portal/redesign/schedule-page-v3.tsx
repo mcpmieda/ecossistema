@@ -256,7 +256,7 @@ function DaySliderV3({
   const onTouchEnd = () => {
     const current = drag.current;
     drag.current = null;
-    if (!current || current.axis !== 'x') return;
+    if (current?.axis !== 'x') return;
     const width = box.current?.offsetWidth ?? 1;
     let step: -1 | 0 | 1 = 0;
     if (current.dx < -width / 5) step = 1;

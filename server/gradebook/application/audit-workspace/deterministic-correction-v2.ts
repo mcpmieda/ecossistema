@@ -445,8 +445,7 @@ function targetItem(input: {
   const unchanged = input.plan.items.filter((item) => item.state === 'unchanged');
   if (
     input.plan.files.length !== 1 ||
-    !file ||
-    file.importFileId !== input.record.recipe.importFileId ||
+    file?.importFileId !== input.record.recipe.importFileId ||
     file.contentIdentity.state !== 'known-identical' ||
     input.plan.counts.new !== 0 ||
     input.plan.counts['missing-from-new-source'] !== 0 ||
@@ -457,8 +456,7 @@ function targetItem(input: {
   }
   const item = writable[0] ?? unchanged[0];
   if (
-    !item ||
-    item.importFileId !== input.record.recipe.importFileId ||
+    item?.importFileId !== input.record.recipe.importFileId ||
     item.stableKey !== input.record.recipe.targetStableKey
   ) {
     return null;
@@ -581,7 +579,7 @@ export function createDeterministicCorrectionWorkspaceV2(
           kind: 'reconciliation',
           id: input.reconciliationId,
         });
-        if (reconciliation === null || reconciliation.value.kind !== 'reconciliation') {
+        if (reconciliation?.value.kind !== 'reconciliation') {
           return { outcome: 'not-found' };
         }
         const written = await dependencies.store.append(

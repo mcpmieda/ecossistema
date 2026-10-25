@@ -285,8 +285,7 @@ export function createBulletinEmissionServiceV1(
         request.snapshotVersion,
       );
       if (
-        historical === null ||
-        historical.snapshotId !== request.snapshotId ||
+        historical?.snapshotId !== request.snapshotId ||
         historical.snapshotVersion !== request.snapshotVersion
       ) {
         return {

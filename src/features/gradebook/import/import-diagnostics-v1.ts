@@ -241,7 +241,7 @@ function inspectCell(input: {
 function maximumMilli(sheet: GradeSheetRecognition, sourceSlot: string): number | null {
   const definition = sheet.assessmentDefinitions.find((value) => value.sourceSlot === sourceSlot);
   const configuration = definition?.maximumConfiguration;
-  if (!configuration || configuration.state !== 'numeric' || configuration.rawValue <= 0)
+  if (configuration?.state !== 'numeric' || configuration.rawValue <= 0)
     return null;
   return Math.round(configuration.rawValue * 1000);
 }

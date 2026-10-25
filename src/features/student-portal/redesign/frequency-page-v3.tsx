@@ -842,7 +842,7 @@ function FrequencyMonthV3({
       .sort((a, b) => Number(a > b) - Number(a < b))
       .reverse()
       .find((date) => date <= today && isPickable(stateOf(date))) ?? null;
-  const selected = picked && picked.startsWith(month) ? picked : firstPick;
+  const selected = picked?.startsWith(month) ? picked : firstPick;
   const selectedLessons = selected ? (lessonsAt(selected) ?? []) : [];
   const selectedDay = selected ? dayAt(selected) : null;
   const selectedOff = selected && !selectedDay ? (offByDate.get(selected) ?? null) : null;

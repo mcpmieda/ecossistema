@@ -359,7 +359,7 @@ function formalDecisionState(
   );
   if (recorded.length === 0) return { state: 'none' };
   if (
-    records.some((record) => record === null || record.finalDecision.status !== 'recorded') ||
+    records.some((record) => record?.finalDecision.status !== 'recorded') ||
     new Set(recorded.map((record) => decisionToken(record.finalDecision))).size !== 1
   ) {
     return { state: 'inconsistent' };

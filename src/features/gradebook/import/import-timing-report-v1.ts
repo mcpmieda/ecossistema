@@ -304,7 +304,7 @@ export class ImportTimingReportV1 {
 
   record(runOrdinal: number, value: unknown, sourceFileIndex?: number): ImportTimingEventV1 | null {
     const run = this.current(runOrdinal);
-    if (run === null || run.status !== 'in-progress') return null;
+    if (run?.status !== 'in-progress') return null;
     const event = sanitizeImportTimingEventV1(value);
     if (sourceFileIndex !== undefined)
       event.sourceFileIndex = position(sourceFileIndex) ? sourceFileIndex : null;

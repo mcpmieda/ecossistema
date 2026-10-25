@@ -47,7 +47,7 @@ export function usePortalNoticesV1(read: PortalStatusClientV1, key: string | nul
     );
     return () => controller.abort();
   }, [read, key]);
-  return notices && notices.key === key ? notices : null;
+  return notices?.key === key ? notices : null;
 }
 
 const periodNames = {

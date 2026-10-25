@@ -112,7 +112,7 @@ function CustomizedSettingsScopeV1({ reader, client, canWrite, scope, onOpen }: 
           />
         ) : null}
         <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
-        {data && data.items.length === 0 && !data.nextCursor ? (
+        {data?.items.length === 0 && !data.nextCursor ? (
           <p className="text-sm text-muted">
             {nameSearch
               ? 'Nenhuma personalização corresponde à busca.'

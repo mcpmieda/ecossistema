@@ -817,15 +817,18 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
   }
 
   return [...grouped.values()]
-    .map((group) => ({
-      name: group.displayName,
-      students: group.students.size,
-      declaredStudents: group.declared.length > 0 ? Math.max(...group.declared) : null,
-      disciplines: [...group.disciplines].sort((a, b) => a.localeCompare(b, 'pt-BR')),
-      trimesters: [...group.trimesters].sort(comparePtBrNumericLabelsV1),
-      recovery: group.recovery,
-      sheets: group.sheets.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
-    }))
+    .map((group) => {
+      group.sheets.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      return {
+        name: group.displayName,
+        students: group.students.size,
+        declaredStudents: group.declared.length > 0 ? Math.max(...group.declared) : null,
+        disciplines: [...group.disciplines].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+        trimesters: [...group.trimesters].sort(comparePtBrNumericLabelsV1),
+        recovery: group.recovery,
+        sheets: group.sheets,
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }));
 }
 

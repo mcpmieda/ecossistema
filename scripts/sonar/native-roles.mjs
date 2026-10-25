@@ -93,7 +93,8 @@ for (const file of files) {
   if (skipped.length) console.log(`  ${file}: ${skipped.join('; ')}`);
   if (!edits.length) continue;
   let out = text;
-  for (const [s, e, r] of edits.sort((a, b) => b[0] - a[0] || b[1] - a[1])) out = out.slice(0, s) + r + out.slice(e);
+  edits.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+  for (const [s, e, r] of edits) out = out.slice(0, s) + r + out.slice(e);
   console.log(`${edits.length} ${file}`);
   if (write) writeFileSync(file, out);
 }
