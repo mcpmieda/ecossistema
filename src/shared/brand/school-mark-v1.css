@@ -91,4 +91,8 @@
   .school-mark--pulse {
     animation: none;
   }
+  .school-mark--shine:hover::after,
+  :hover > .school-mark--shine::after {
+    animation: none;
+  }
 }

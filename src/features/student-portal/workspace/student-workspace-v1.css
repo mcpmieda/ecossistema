@@ -2279,3 +2279,27 @@
     padding-inline: 0;
   }
 }
+
+/* The same motions, by the exact selectors that start them: a reduced-motion rule with a less
+   specific selector would lose to them. */
+@media (prefers-reduced-motion: reduce) {
+  .pa-subject-icon--animated > svg,
+  .pa-subject-icon--animated[data-motion='balance'] > svg,
+  .pa-subject-icon--animated[data-motion='beat'] > svg,
+  .pa-subject-icon--animated[data-motion='bounce'] > svg,
+  .pa-subject-icon--animated[data-motion='chat'] > svg,
+  .pa-subject-icon--animated[data-motion='glow'] > svg,
+  .pa-subject-icon--animated[data-motion='lift'] > svg,
+  .pa-subject-icon--animated[data-motion='orbit'] > svg,
+  .pa-subject-icon--animated[data-motion='page'] > svg,
+  .pa-subject-icon--animated[data-motion='pop'] > svg,
+  .pa-subject-icon--animated[data-motion='press'] > svg,
+  .pa-subject-icon--animated[data-motion='rise'] > svg,
+  .pa-subject-icon--animated[data-motion='shake'] > svg,
+  .pa-subject-icon--animated[data-motion='spin'] > svg,
+  .pa-subject-icon--animated[data-motion='swirl'] > svg,
+  .pa-subject-icon--animated[data-motion='write'] > svg,
+  .pa-partials-list .pa-partial-feedback--brilliant {
+    animation: none;
+  }
+}

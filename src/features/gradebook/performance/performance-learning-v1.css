@@ -178,6 +178,12 @@
   .learning-row--evidence > :last-child { grid-column: auto; }
   .learning-component-scroll > div { display: grid; grid-template-columns: minmax(0, 1fr); }
 }
+/* No entrance or growth motion for those who asked the system for less motion. */
 @media (prefers-reduced-motion: reduce) {
-  .learning-overview .analytics-line { stroke-dasharray: none; }
+  .learning-overview .analytics-line { stroke-dasharray: none; animation: none; }
+  .learning-enter,
+  .learning-overview .meter__fill,
+  .learning-overview .analytics-timeline circle,
+  .learning-overview .analytics-timeline text,
+  .learning-kpi { animation: none; }
 }

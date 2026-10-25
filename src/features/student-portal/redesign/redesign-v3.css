@@ -1222,3 +1222,9 @@
 .pa3-schedule-row.pa3-schedule-parada .pa3-schedule-slot {
   border-right: 0;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .pa3-guide-label {
+    animation: none;
+  }
+}
