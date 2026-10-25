@@ -21,6 +21,11 @@ import {
 
 const reply = (value: unknown, status = 200) =>
   withSecurityHeaders(Response.json(value, { status }), true);
+function demoFailureStatusV1(error: unknown): number {
+  if (error instanceof AuthenticationError) return 401;
+  if (error instanceof AuthorizationError) return 403;
+  return error instanceof HttpError ? error.status : 503;
+}
 export async function handlePublicDemoRequestV1(
   request: Request,
   env: RuntimeEnv,
@@ -61,16 +66,7 @@ export async function handlePublicDemoRequestV1(
       .parse(await healthDeadlineV1(() => binding.setEnabled(authority, parsed.data), 5000));
     return reply(result, result.ok ? 200 : 409);
   } catch (error) {
-    let status;
-    if (error instanceof AuthenticationError) {
-      status = 401;
-    } else if (error instanceof AuthorizationError) {
-      status = 403;
-    } else if (error instanceof HttpError) {
-      status = error.status;
-    } else {
-      status = 503;
-    }
+    const status = demoFailureStatusV1(error);
     return reply({ error: status === 503 ? 'demo-unavailable' : 'demo-request-rejected' }, status);
   }
 }
