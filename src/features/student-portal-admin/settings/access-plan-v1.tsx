@@ -115,6 +115,122 @@ export function AccessPlanSummaryV1({
   );
 }
 
+/** Who sets this level's access: here, the school, or the class or shift above. */
+function accessOriginV1(owns: boolean, settings: EffectiveSettingsV1, sourceLabel: string) {
+  if (owns) return 'Definido aqui';
+  return settings.sources.accessEnabled.kind === 'school'
+    ? 'Padrão da escola'
+    : 'Padrão de ' + sourceLabel;
+}
+
+/** The Portal open or closed now, when it changes by itself, and the switch. */
+function AccessStatusV1({
+  openNow,
+  school,
+  scopeKind,
+  nextChange,
+  canWrite,
+  disabled,
+  onToggle,
+}: Readonly<{
+  openNow: boolean;
+  school: boolean;
+  scopeKind: EffectiveSettingsV1['scope']['kind'];
+  nextChange: number | null;
+  canWrite: boolean;
+  disabled: boolean;
+  onToggle: (open: boolean) => void;
+}>) {
+  const steadyText = openNow ? 'Fica aberto até alguém fechar.' : 'Fica fechado até alguém abrir.';
+  return (
+    <output className={'pa-access-status pa-access-status--' + (openNow ? 'open' : 'closed')}>
+      {openNow ? (
+        <DoorOpen size={22} aria-hidden="true" />
+      ) : (
+        <DoorClosed size={22} aria-hidden="true" />
+      )}
+      <div>
+        <p className="pa-access-status-title">
+          {openNow ? 'O Portal está aberto agora' : 'O Portal está fechado agora'}
+          {school ? '' : ` para ${scopeSubjectV1(scopeKind).toLowerCase()}`}
+        </p>
+        <p className="pa-access-status-next">
+          {nextChange === null ? (
+            steadyText
+          ) : (
+            <>
+              <CalendarClock size={14} aria-hidden="true" />
+              {openNow ? 'Fecha' : 'Abre'} sozinho em{' '}
+              {accessWhenV1(new Date(nextChange).toISOString())}
+            </>
+          )}
+        </p>
+      </div>
+      {canWrite ? (
+        <Switch
+          className="pa-access-switch"
+          aria-label="Portal aberto agora"
+          isSelected={openNow}
+          isDisabled={disabled}
+          onChange={onToggle}
+        >
+          <Switch.Content>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Label>{openNow ? 'Aberto' : 'Fechado'}</Label>
+          </Switch.Content>
+        </Switch>
+      ) : null}
+    </output>
+  );
+}
+
+/** Save (or customize) the schedule while there is something to save, and go back to the default. */
+function AccessScheduleActionsV1({
+  owns,
+  school,
+  showSave,
+  disabled,
+  onSave,
+  onInherit,
+}: Readonly<{
+  owns: boolean;
+  school: boolean;
+  showSave: boolean;
+  disabled: boolean;
+  onSave: () => void;
+  onInherit: () => void;
+}>) {
+  return (
+    <>
+      {/* Saving shows only while there is something to save. */}
+      {showSave ? (
+        <Button
+          size="sm"
+          variant={owns ? 'primary' : 'secondary'}
+          isDisabled={disabled}
+          aria-label={owns ? 'Salvar agendamentos' : 'Personalizar Entrada no Portal'}
+          onPress={onSave}
+        >
+          {owns ? 'Salvar agendamentos' : 'Personalizar'}
+        </Button>
+      ) : null}
+      {!school && owns ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          isDisabled={disabled}
+          aria-label="Usar padrão de Entrada no Portal"
+          onPress={onInherit}
+        >
+          Usar padrão
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * Entrada no Portal: the switch (state now) and its scheduled Abrir/Fechar, edited and saved
  * together as one unit for this level.
@@ -175,13 +291,7 @@ export function AccessPlanCardV1({
     }
   };
 
-  let origin = 'Definido aqui';
-  if (!owns)
-    origin =
-      settings.sources.accessEnabled.kind === 'school'
-        ? 'Padrão da escola'
-        : 'Padrão de ' + sourceLabel;
-  const steadyText = openNow ? 'Fica aberto até alguém fechar.' : 'Fica fechado até alguém abrir.';
+  const origin = accessOriginV1(owns, settings, sourceLabel);
   return (
     <Card className="pa-settings-card pa-settings-card--access">
       <Card.Header>
@@ -196,49 +306,18 @@ export function AccessPlanCardV1({
         </div>
       </Card.Header>
       <Card.Content className="pa-access">
-        <output className={'pa-access-status pa-access-status--' + (openNow ? 'open' : 'closed')}>
-          {openNow ? (
-            <DoorOpen size={22} aria-hidden="true" />
-          ) : (
-            <DoorClosed size={22} aria-hidden="true" />
-          )}
-          <div>
-            <p className="pa-access-status-title">
-              {openNow ? 'O Portal está aberto agora' : 'O Portal está fechado agora'}
-              {school ? '' : ` para ${scopeSubjectV1(settings.scope.kind).toLowerCase()}`}
-            </p>
-            <p className="pa-access-status-next">
-              {nextChange === null ? (
-                steadyText
-              ) : (
-                <>
-                  <CalendarClock size={14} aria-hidden="true" />
-                  {openNow ? 'Fecha' : 'Abre'} sozinho em{' '}
-                  {accessWhenV1(new Date(nextChange).toISOString())}
-                </>
-              )}
-            </p>
-          </div>
-          {canWrite ? (
-            <Switch
-              className="pa-access-switch"
-              aria-label="Portal aberto agora"
-              isSelected={openNow}
-              isDisabled={disabled || dirty}
-              onChange={(value) => {
-                const anticipated = anticipateAccessV1(plan, Date.now(), value);
-                submit(anticipated.enabled, [...anticipated.schedule]);
-              }}
-            >
-              <Switch.Content>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <Label>{openNow ? 'Aberto' : 'Fechado'}</Label>
-              </Switch.Content>
-            </Switch>
-          ) : null}
-        </output>
+        <AccessStatusV1
+          openNow={openNow}
+          school={school}
+          scopeKind={settings.scope.kind}
+          nextChange={nextChange}
+          canWrite={canWrite}
+          disabled={disabled || dirty}
+          onToggle={(value) => {
+            const anticipated = anticipateAccessV1(plan, Date.now(), value);
+            submit(anticipated.enabled, [...anticipated.schedule]);
+          }}
+        />
         {canWrite && dirty ? (
           <p className="pa-settings-hint">
             Salve ou desfaça os agendamentos antes de usar a chave.
@@ -275,31 +354,14 @@ export function AccessPlanCardV1({
               ) : null
             }
             actions={
-              <>
-                {/* Saving shows only while there is something to save. */}
-                {!owns || dirty || (fromCalendar && saved.schedule.length > 0) ? (
-                  <Button
-                    size="sm"
-                    variant={owns ? 'primary' : 'secondary'}
-                    isDisabled={disabled}
-                    aria-label={owns ? 'Salvar agendamentos' : 'Personalizar Entrada no Portal'}
-                    onPress={saveSchedule}
-                  >
-                    {owns ? 'Salvar agendamentos' : 'Personalizar'}
-                  </Button>
-                ) : null}
-                {!school && owns ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    isDisabled={disabled}
-                    aria-label="Usar padrão de Entrada no Portal"
-                    onPress={() => review({ field: 'accessEnabled', inherit: true })}
-                  >
-                    Usar padrão
-                  </Button>
-                ) : null}
-              </>
+              <AccessScheduleActionsV1
+                owns={owns}
+                school={school}
+                showSave={!owns || dirty || (fromCalendar && saved.schedule.length > 0)}
+                disabled={disabled}
+                onSave={saveSchedule}
+                onInherit={() => review({ field: 'accessEnabled', inherit: true })}
+              />
             }
           />
         </section>
