@@ -19,6 +19,17 @@ const normalizedOption = (alias: string) => `CASE WHEN ${alias}.field_key='calen
   THEN ${alias}.value_json||jsonb_build_object('t2StartsAt',COALESCE(${alias}.value_json->'t2StartsAt','null'::jsonb),
     't3StartsAt',COALESCE(${alias}.value_json->'t3StartsAt','null'::jsonb)) ELSE ${alias}.value_json END`;
 
+/** The class or account being read, as one more owner row; the school has none. The parameters
+ * are bound in the same order as before: kind, class, account. */
+function contextOwnerSqlV1(scope: AdminReadQueryV2['scope'], contextKey: string, bind: (value: unknown) => string) {
+  if (scope.kind === 'school') return '';
+  const classId = scope.kind === 'class' ? scope.classId : null;
+  const accountId = scope.kind === 'account' ? scope.accountId : null;
+  return `UNION SELECT ${contextKey}::text,
+    ${bind(scope.kind)}::text,${bind(classId)}::integer,
+    ${bind(accountId)}::uuid`;
+}
+
 /** Two read statements in the dispatcher's repeatable-read transaction, independent of
  * population size. Filter actual differences BEFORE pagination; do not load each student's
  * publication endpoint, infer origin from legacy snapshots, or query marks here. */
@@ -53,15 +64,7 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   const defaults = bind(JSON.stringify(schoolDefaults));
   const targetKey = query.scope.kind === 'school' ? null : scopedKeyV2(query.scope);
   const contextKey = bind(targetKey);
-  // The parameters are bound in the same order as before: kind, class, account.
-  let contextOwner = '';
-  if (query.scope.kind !== 'school') {
-    const classId = query.scope.kind === 'class' ? query.scope.classId : null;
-    const accountId = query.scope.kind === 'account' ? query.scope.accountId : null;
-    contextOwner = `UNION SELECT ${contextKey}::text,
-    ${bind(query.scope.kind)}::text,${bind(classId)}::integer,
-    ${bind(accountId)}::uuid`;
-  }
+  const contextOwner = contextOwnerSqlV1(query.scope, contextKey, bind);
   const where = ['s.resolved', "(s.value IS NOT NULL OR s.blocked OR jsonb_array_length(s.publications)>0)"];
   if (query.scope.kind === 'class') where.push(`s.class_id=${bind(query.scope.classId)}`);
   if (query.scope.kind === 'account') where.push(`s.scope_key=${contextKey}`);
