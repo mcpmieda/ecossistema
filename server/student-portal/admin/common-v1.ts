@@ -15,6 +15,19 @@ export async function accountsScopeVersionV1(tx: StudentPortalPostgresQueryV1): 
   if (rows.length !== 1) throw new Error('student-portal-admin-unavailable');
   return versionV1.parse(Number(rows[0]!.version));
 }
+/** A bounded description of why an admin read failed, for the logs: the error kind, its SQLSTATE,
+ * a portal error message or the schema paths that did not match. Never a value from the data. */
+export function adminFailureDetailV1(error: unknown) {
+  if (error instanceof z.ZodError)
+    return { kind: 'schema', issues: error.issues.slice(0, 5).map((issue) => `${issue.path.join('.').slice(0, 120)}:${issue.code}`) };
+  const code = error !== null && typeof error === 'object' && 'code' in error ? String(error.code).slice(0, 8) : undefined;
+  const portal = error instanceof Error && error.message.startsWith('student-portal-') ? error.message.slice(0, 80) : undefined;
+  return {
+    kind: error instanceof Error ? error.name.slice(0, 40) : typeof error,
+    ...(code ? { code } : {}),
+    ...(portal ? { message: portal } : {}),
+  };
+}
 export function adminFailureStateV1(error: unknown): FailureV1['state'] {
   if (!(error instanceof Error) || !error.message.startsWith('student-portal-')) return 'unavailable';
   if (error.message.endsWith('-conflict') || error.message.endsWith('-not-published') || error.message.endsWith('-regeneration-required')) return 'conflict';
