@@ -100,7 +100,8 @@ for (const file of files) {
   visit(source);
   if (!edits.length) continue;
   let out = text;
-  for (const [start, end, replacement] of edits.sort((a, b) => b[0] - a[0])) out = out.slice(0, start) + replacement + out.slice(end);
+  edits.sort((a, b) => b[0] - a[0]);
+  for (const [start, end, replacement] of edits) out = out.slice(0, start) + replacement + out.slice(end);
   console.log(`${edits.length} ${file}`);
   if (write) writeFileSync(file, out);
 }

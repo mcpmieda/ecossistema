@@ -127,10 +127,10 @@ export class SessionServiceV1 {
       if (expectedAccountId !== undefined && accountId !== expectedAccountId.toLowerCase()) return null;
       if (!this.snapshotReads) await store.lockAccounts([accountId]);
       const context = await accessContextV1(this.sql, tx, store, accountId, includeClosed);
-      if (!context || context.account.state !== 'active') return null;
+      if (context?.account.state !== 'active') return null;
       const row = this.snapshotReads ? located[0] : (await tx.unsafe(`SELECT id,security_version::text,expires_at,revoked_at,persistent,created_at
         FROM student_portal.session WHERE token_hash=$1 AND account_id=$2::uuid FOR UPDATE`, [hash, accountId]))[0];
-      if (!row || row.revoked_at !== null || Number(row.security_version) !== context.account.securityVersion) return null;
+      if (row?.revoked_at !== null || Number(row.security_version) !== context.account.securityVersion) return null;
       const persistent = z.boolean().parse(row.persistent);
       const ttl = persistent ? context.policy.enforcedValue.risk.persistentSeconds : context.policy.enforcedValue.risk.shortSeconds;
       const tokenEnd = Math.min(authInstantV1(row.expires_at).getTime(), authInstantV1(row.created_at).getTime() + ttl * 1000);

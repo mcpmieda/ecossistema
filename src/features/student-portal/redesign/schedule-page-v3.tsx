@@ -117,7 +117,7 @@ const shortDate = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
 /** A long name may break after a "/" ("ATIVIDADE DE VIDA DIÁRIA / PRÁTICA"), never mid-word. */
 const subjectText = (subject: string) =>
   subject.split('/').map((part, index) => (
-    <Fragment key={index}>
+    <Fragment key={index /* NOSONAR the parts of one fixed name */}>
       {index ? (
         <>
           /<wbr />
@@ -256,7 +256,7 @@ function DaySliderV3({
   const onTouchEnd = () => {
     const current = drag.current;
     drag.current = null;
-    if (!current || current.axis !== 'x') return;
+    if (current?.axis !== 'x') return;
     const width = box.current?.offsetWidth ?? 1;
     let step: -1 | 0 | 1 = 0;
     if (current.dx < -width / 5) step = 1;

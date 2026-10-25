@@ -285,7 +285,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
 
   async compareAndSetAccount(record: AccountRecordV1, expectedVersion: number): Promise<boolean> {
     const current = await this.findAccount(record.id);
-    if (!current || current.version !== expectedVersion || !sameLink(current.link, record.link)) return false;
+    if (current?.version !== expectedVersion || !sameLink(current.link, record.link)) return false;
     const result = await rows(
       this.sql,
       `UPDATE student_portal.account

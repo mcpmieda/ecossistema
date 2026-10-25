@@ -725,8 +725,8 @@ function FrequencyMonthV3({
   /** The days without school the ADM calendar names (owner decision 23/10/2026: say why). */
   daysOff?: readonly SchoolDayOffV1[];
   /** Each lesson's time by shift and weekday (ADM) and the week's subjects, for an absence. */
-  bells?: FrequencyYearSummaryV2['bells'];
-  grid?: FrequencyYearSummaryV2['grid'];
+  bells?: Exclude<FrequencyYearSummaryV2['bells'], undefined>;
+  grid?: Exclude<FrequencyYearSummaryV2['grid'], undefined>;
 }>) {
   const offByDate = useMemo(() => new Map(daysOff.map((day) => [day.date, day])), [daysOff]);
   /**
@@ -842,7 +842,7 @@ function FrequencyMonthV3({
       .sort((a, b) => Number(a > b) - Number(a < b))
       .reverse()
       .find((date) => date <= today && isPickable(stateOf(date))) ?? null;
-  const selected = picked && picked.startsWith(month) ? picked : firstPick;
+  const selected = picked?.startsWith(month) ? picked : firstPick;
   const selectedLessons = selected ? (lessonsAt(selected) ?? []) : [];
   const selectedDay = selected ? dayAt(selected) : null;
   const selectedOff = selected && !selectedDay ? (offByDate.get(selected) ?? null) : null;

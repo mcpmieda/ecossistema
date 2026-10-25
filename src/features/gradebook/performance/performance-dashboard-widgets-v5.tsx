@@ -171,7 +171,7 @@ function ComponentBarsV5({ value, previous, selection, onSelectionChange, open }
       <div className="performance-bars__student-groups"><section className={`performance-bars__student-group performance-bars__student-group--${selectedBucket}`} aria-label={`${selectedStudents.length} estudante(s) ${bucketText}`}>
         {selectedStudents.length > 0 ? <ul>{selectedStudents.map((student) => <li key={student.id}><button type="button" onClick={() => open(student.id, selectedColumn.offerId)}><small>{student.number}</small><span className="truncate">{student.name}</span></button></li>)}</ul> : <p>Nenhum estudante {bucketText} neste componente.</p>}
       </section></div>
-    </section> : <>
+    </section> : (
       <fieldset className="min-w-auto performance-bars" aria-label="Barras por componente curricular">
         {value.overview.columns.map((column, index) => {
           const offer = offers.get(column.offerId);
@@ -206,7 +206,7 @@ function ComponentBarsV5({ value, previous, selection, onSelectionChange, open }
           </div>;
         })}
       </fieldset>
-    </>}
+    )}
   </Surface>;
 }
 

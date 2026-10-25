@@ -241,7 +241,9 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error: unknown) => {
+  try {
+    await main();
+  } catch (error: unknown) {
     let safe;
     if (error instanceof ExactRuntimeCredentialError) {
       safe = {
@@ -256,5 +258,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     }
     process.stdout.write(`${JSON.stringify(safe)}\n`);
     process.exitCode = 1;
-  });
+  }
 }

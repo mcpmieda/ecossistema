@@ -87,24 +87,14 @@ describe('current relational schema reconstructed from the production catalog', 
     expect((await pg.query('SELECT valor FROM gradebook.nota')).rows).toEqual([{valor:0}]);
   });
 
-  it('rejects a negative grade', async () => {
+  it.each([
+    ['a negative grade', 'INSERT INTO gradebook.nota VALUES (1,1,-1)', '23514'],
+    ['a grade for a student without membership in the offer class', 'INSERT INTO gradebook.nota VALUES (1,2,5000)', 'P0001'],
+    ['a closing for a student without membership in the offer class', 'INSERT INTO gradebook.fechamento (oferta_id,aluno_id) VALUES (1,2)', 'P0001'],
+    ['simultaneous numeric recovery and N/C', 'INSERT INTO gradebook.fechamento (oferta_id,aluno_id,rec1,rec_nc_mask) VALUES (1,1,1000,1)', '23514'],
+  ])('rejects %s', async (_case, statement, code) => {
     await seed();
-    await expect(pg.exec('INSERT INTO gradebook.nota VALUES (1,1,-1)')).rejects.toMatchObject({code:'23514'});
-  });
-
-  it('rejects a grade for a student without membership in the offer class', async () => {
-    await seed();
-    await expect(pg.exec('INSERT INTO gradebook.nota VALUES (1,2,5000)')).rejects.toMatchObject({code:'P0001'});
-  });
-
-  it('rejects a closing for a student without membership in the offer class', async () => {
-    await seed();
-    await expect(pg.exec('INSERT INTO gradebook.fechamento (oferta_id,aluno_id) VALUES (1,2)')).rejects.toMatchObject({code:'P0001'});
-  });
-
-  it('rejects simultaneous numeric recovery and N/C', async () => {
-    await seed();
-    await expect(pg.exec('INSERT INTO gradebook.fechamento (oferta_id,aluno_id,rec1,rec_nc_mask) VALUES (1,1,1000,1)')).rejects.toMatchObject({code:'23514'});
+    await expect(pg.exec(statement)).rejects.toMatchObject({code});
   });
 
   it('rejects a second current binding for the same student', async () => {

@@ -153,9 +153,8 @@ function NamesEditorV1({
                 size="sm"
                 variant="secondary"
                 onPress={() => {
-                  void (state.failure === 'conflict' || !state.base
-                    ? editor.current?.reload()
-                    : editor.current?.save());
+                  if (state.failure === 'conflict' || !state.base) void editor.current?.reload();
+                  else void editor.current?.save();
                 }}
               >
                 {state.failure === 'conflict' ? 'Usar versão salva' : 'Tentar novamente'}

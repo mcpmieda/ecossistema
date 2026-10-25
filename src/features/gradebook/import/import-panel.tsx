@@ -294,7 +294,7 @@ export function TimingDiagnostics({
       </p>
       {manualText !== null && (
         <label className="mt-2 block text-sm">
-          Diagnóstico para cópia manual
+          {'Diagnóstico para cópia manual'}
           <textarea
             readOnly
             value={manualText}

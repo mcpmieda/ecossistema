@@ -251,7 +251,7 @@ function definitionRawValueAt(sheet: Worksheet, address: string): SourceCellRawV
 }
 
 function a1Coordinates(address: string): { readonly row: number; readonly column: number } | null {
-  const match = address.trim().match(/^\$?([A-Z]+)\$?(\d+)$/iu);
+  const match = /^\$?([A-Z]+)\$?(\d+)$/iu.exec(address.trim());
   if (!match?.[1] || !match[2]) return null;
   let column = 0;
   for (const character of match[1].toUpperCase()) {
@@ -471,7 +471,7 @@ function parseGradeSheetName(name: string): {
   stage: GradeStage;
   disciplineIndex: string;
 } | null {
-  const match = name.trim().match(/^(.*?)(VG|1[º°]|2[º°]|3[º°]|REC)\s*(D\d+)?$/iu);
+  const match = /^(.*?)(VG|1[º°]|2[º°]|3[º°]|REC)\s*(D\d+)?$/iu.exec(name.trim());
   if (!match) return null;
   const className = match[1]?.trim();
   const stageToken = match[2];
@@ -817,15 +817,18 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
   }
 
   return [...grouped.values()]
-    .map((group) => ({
-      name: group.displayName,
-      students: group.students.size,
-      declaredStudents: group.declared.length > 0 ? Math.max(...group.declared) : null,
-      disciplines: [...group.disciplines].sort((a, b) => a.localeCompare(b, 'pt-BR')),
-      trimesters: [...group.trimesters].sort(comparePtBrNumericLabelsV1),
-      recovery: group.recovery,
-      sheets: group.sheets.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
-    }))
+    .map((group) => {
+      group.sheets.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      return {
+        name: group.displayName,
+        students: group.students.size,
+        declaredStudents: group.declared.length > 0 ? Math.max(...group.declared) : null,
+        disciplines: [...group.disciplines].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+        trimesters: [...group.trimesters].sort(comparePtBrNumericLabelsV1),
+        recovery: group.recovery,
+        sheets: group.sheets,
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }));
 }
 

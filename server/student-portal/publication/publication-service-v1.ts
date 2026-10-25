@@ -30,7 +30,10 @@ export class PublicationServiceV1 {
         // One revision is named; several are summarized by a digest of the sorted list.
         let publishedRevision: string | null = null;
         if (revisions.length === 1) publishedRevision = scalarTextV1(revisions[0]);
-        else if (revisions.length > 1) publishedRevision = `mixed:${publicationDigestV1(revisions.sort((left, right) => scalarTextV1(left).localeCompare(scalarTextV1(right))))}`;
+        else if (revisions.length > 1) {
+          revisions.sort((left, right) => scalarTextV1(left).localeCompare(scalarTextV1(right)));
+          publishedRevision = `mixed:${publicationDigestV1(revisions)}`;
+        }
         return { period, state,
         availableRevision: selected.some((row) => row.available_revision !== null) ? currentRevision : null,
         publishedRevision,

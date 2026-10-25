@@ -78,7 +78,7 @@ function text(value: unknown, max = 500): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= max && !value.includes('\0');
 }
 function kind(value: unknown): value is WorkspaceKindV2 {
-  return WORKSPACE_KINDS_V2.some((item) => item === value);
+  return (WORKSPACE_KINDS_V2 as readonly unknown[]).includes(value);
 }
 function keys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
   return Object.keys(value).every((key) => allowed.includes(key));

@@ -71,13 +71,13 @@ function compareHistory(left: BulletinSnapshotV1, right: BulletinSnapshotV1): nu
  * the caller is retained, mutated or frozen through aliasing. It provisions no remote persistence
  * and deliberately does not promise durability across worker restarts or isolates.
  */
+function historicalKey(snapshotId: BulletinSnapshotIdV1, snapshotVersion: number): string {
+  return `${snapshotId}\u0000${snapshotVersion}`;
+}
+
 export function createLocalBulletinSnapshotRepositoryV1(): BulletinSnapshotRepositoryV1 {
   const bySeries = new Map<BulletinSnapshotSeriesKeyV1, BulletinSnapshotV1[]>();
   const byHistoricalIdentity = new Map<string, BulletinSnapshotV1>();
-
-  function historicalKey(snapshotId: BulletinSnapshotIdV1, snapshotVersion: number): string {
-    return `${snapshotId}\u0000${snapshotVersion}`;
-  }
 
   return {
     async getLatest(seriesKey) {

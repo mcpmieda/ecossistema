@@ -56,14 +56,16 @@ function ScopeBodyV1({
     onAuthorizationLost: NonNullable<OperationsPropsV1['onAuthorizationLost']>,
   ) => ReactNode;
 }) {
-  const [selectedClass, setClass] = useState<{ id: number; label: string } | null>(null);
-  const [selectedAccount, setAccount] = useState<{ id: string; label: string } | null>(null);
+  const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<{ id: string; label: string } | null>(
+    null,
+  );
   const [denied, setDenied] = useState<PortalClientErrorV1 | null>(null);
   const [paused, setPaused] = useState(false);
   const report = useCallback(
     (error: PortalClientErrorV1) => {
-      setAccount(null);
-      setClass(null);
+      setSelectedAccount(null);
+      setSelectedClass(null);
       setDenied(error);
       props.onAuthorizationLost?.(error);
     },
@@ -84,8 +86,8 @@ function ScopeBodyV1({
   );
   useEffect(() => {
     const clear = () => {
-      setAccount(null);
-      setClass(null);
+      setSelectedAccount(null);
+      setSelectedClass(null);
       setPaused(true);
     };
     const resume = () => setPaused(false);
@@ -120,8 +122,8 @@ function ScopeBodyV1({
             selected={selectedClass}
             onChange={(value) => {
               if (!allowDraftNavigationV1()) return;
-              setClass(value);
-              setAccount(null);
+              setSelectedClass(value);
+              setSelectedAccount(null);
             }}
           />
         )}
@@ -132,7 +134,7 @@ function ScopeBodyV1({
             onAuthorizationLost={report}
             scope={scope}
             selected={selectedAccount}
-            onChange={setAccount}
+            onChange={setSelectedAccount}
           />
         )}
       </div>

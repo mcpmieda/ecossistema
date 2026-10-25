@@ -586,7 +586,7 @@ function compareCodeUnitsAscending(left: string, right: string): number {
 }
 
 function compareCodeUnitsDescending(left: string, right: string): number {
-  return compareCodeUnitsAscending(right, left);
+  return compareCodeUnitsAscending(right, left); // NOSONAR swapped on purpose: descending
 }
 
 function collectionForItem(item: AuditWorkspaceListItemV1): AuditWorkspaceCollectionV1 {
@@ -671,9 +671,7 @@ export function isAuditWorkspaceDetailConsistentV1(detail: AuditWorkspaceDetailV
   if (!positiveInteger(detail.version) || !nonEmptyString(detail.recordedAt)) return false;
   switch (detail.kind) {
     case 'import-batch':
-      return detail.reference.id === detail.record.id;
     case 'audit-occurrence':
-      return detail.reference.id === detail.record.id;
     case 'reconciliation':
       return detail.reference.id === detail.record.id;
   }

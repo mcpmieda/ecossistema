@@ -72,7 +72,7 @@ function canvasBlob(canvas: PhotoCanvasV1, quality: number, signal: AbortSignal)
       canvas.toBlob(blob => {
         signal.removeEventListener('abort', abort);
         if (signal.aborted) { abort(); return; }
-        if (!blob || blob.type !== 'image/webp') reject(new PhotoPreparationErrorV1('encode'));
+        if (blob?.type !== 'image/webp') reject(new PhotoPreparationErrorV1('encode'));
         else resolve(blob);
       }, 'image/webp', quality);
     } catch { signal.removeEventListener('abort', abort); reject(new PhotoPreparationErrorV1('encode')); }

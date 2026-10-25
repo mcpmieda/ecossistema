@@ -52,7 +52,7 @@ export interface AssessmentDefinitionMaterializationV3 extends Omit<
   readonly unconfiguredDefinitions: readonly UnconfiguredAssessmentDefinitionV3[];
 }
 
-function noteForSlot(student: StudentRecognition, slot: SourceAssessmentSlotV2): unknown | null {
+function noteForSlot(student: StudentRecognition, slot: SourceAssessmentSlotV2): unknown {
   const quantitativeIndex = SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2.findIndex(
     (candidate) => candidate.sourceSlot === slot,
   );
@@ -145,6 +145,8 @@ export async function materializeAssessmentDefinitionsV3(
     throw new TypeError('assessment-materialization-v3-configured-definition-blocked');
   }
 
+  blockedDefinitions.sort((left, right) => left.stableKey.localeCompare(right.stableKey));
+  unconfiguredDefinitions.sort((left, right) => left.stableKey.localeCompare(right.stableKey));
   return {
     components: materialized.components.map((component) => ({
       ...component,
@@ -152,11 +154,7 @@ export async function materializeAssessmentDefinitionsV3(
         originals.get(component.sourceDefinition.sourceSlot) ?? component.sourceDefinition,
     })),
     gradeEntries: materialized.gradeEntries,
-    blockedDefinitions: blockedDefinitions.sort((left, right) =>
-      left.stableKey.localeCompare(right.stableKey),
-    ),
-    unconfiguredDefinitions: unconfiguredDefinitions.sort((left, right) =>
-      left.stableKey.localeCompare(right.stableKey),
-    ),
+    blockedDefinitions,
+    unconfiguredDefinitions,
   };
 }

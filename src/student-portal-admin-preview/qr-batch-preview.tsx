@@ -73,7 +73,7 @@ function QrBatchPreview() {
               checked={selection === 'selected'}
               onChange={() => setSelection('selected')}
             />
-            Selecionados · 3 cartões
+            {'Selecionados · 3 cartões'}
           </label>
         </fieldset>
         <fieldset>
@@ -97,7 +97,7 @@ function QrBatchPreview() {
               checked={withInstruction}
               onChange={(event) => setWithInstruction(event.target.checked)}
             />
-            Adicionar instrução ao cartão
+            {'Adicionar instrução ao cartão'}
           </label>
           {withInstruction && (
             <input
@@ -111,7 +111,10 @@ function QrBatchPreview() {
       </section>
       <section className="qr-batch-preview__paper" aria-label="Prévia do PDF em lote">
         {pages.map((page, pageIndex) => (
-          <div className="qr-batch-preview__sheet" key={pageIndex}>
+          <div
+            className="qr-batch-preview__sheet"
+            key={pageIndex /* NOSONAR fixed preview pages */}
+          >
             {page.map((card) => (
               <div className="qr-batch-preview__card" key={card.id}>
                 <QrAccessCard

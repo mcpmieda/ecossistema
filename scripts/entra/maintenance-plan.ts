@@ -332,12 +332,14 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error: unknown) => {
+  try {
+    await main();
+  } catch (error: unknown) {
     const safe =
       error instanceof EntraMaintenancePlanError
         ? error.message
         : 'Entra maintenance dry-run failed unexpectedly';
     console.error(safe);
     process.exitCode = 1;
-  });
+  }
 }

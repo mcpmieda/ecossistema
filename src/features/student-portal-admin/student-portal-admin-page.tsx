@@ -5,7 +5,16 @@ import { PortalScopeTabsV1 } from './settings/policy-scope-tabs-v1';
 import { readClassOptionsV1 } from './accounts/class-filter-v1';
 import { useAccountsReadV1 } from './accounts/accounts-read-v1';
 import { AccountsErrorV1 } from './accounts/accounts-presentation-v1';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ContextType,
+  type ReactNode,
+} from 'react';
 import { Alert, Button, Tabs } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
 import type { PolicyScopeV1, ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
@@ -333,21 +342,19 @@ function sectionContentV1({
     case 'publication':
     case 'policies':
       return (
-        <>
-          <StudentPoliciesV1
-            client={common.client}
-            reader={common.reader}
-            scope={
-              selectedShift
-                ? { kind: 'shift', academicYear: 2026, shift: selectedShift }
-                : (sectionScope?.scope ?? common.scope)
-            }
-            scopeLabel={selectedShift ? undefined : (sectionScope?.label ?? common.scopeLabel)}
-            onCommitted={customizationChanged}
-            canWrite={common.canWrite}
-            onOpenCustomization={onOpenCustomization}
-          />
-        </>
+        <StudentPoliciesV1
+          client={common.client}
+          reader={common.reader}
+          scope={
+            selectedShift
+              ? { kind: 'shift', academicYear: 2026, shift: selectedShift }
+              : (sectionScope?.scope ?? common.scope)
+          }
+          scopeLabel={selectedShift ? undefined : (sectionScope?.label ?? common.scopeLabel)}
+          onCommitted={customizationChanged}
+          canWrite={common.canWrite}
+          onOpenCustomization={onOpenCustomization}
+        />
       );
     case 'settings':
       return (
@@ -500,6 +507,16 @@ function PortalWorkspace({
     customizationChanged();
   };
   const slots = useMemo(() => accountSlotsV1(common), [common]);
+  const openAccount = useMemo<ContextType<typeof AccountOpenContextV1>>(
+    () =>
+      section === 'reconciliation'
+        ? null
+        : (id, parentScope = common.scope) => {
+            setCustomizationTarget(null);
+            setOpenedAccount({ id, parentScope });
+          },
+    [section, common.scope],
+  );
   const reprint = useCallback((context: AccountSlotContextV1) => {
     setCustomizationTarget(null);
     setTarget(context);
@@ -598,16 +615,7 @@ function PortalWorkspace({
     </>
   );
   return (
-    <AccountOpenContextV1.Provider
-      value={
-        section === 'reconciliation'
-          ? null
-          : (id, parentScope = common.scope) => {
-              setCustomizationTarget(null);
-              setOpenedAccount({ id, parentScope });
-            }
-      }
-    >
+    <AccountOpenContextV1.Provider value={openAccount}>
       <PanelScopeContextV1.Provider value={panelScope}>
         <section className="pa-admin-page">
           <header className="pa-admin-header">

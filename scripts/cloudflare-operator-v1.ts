@@ -136,7 +136,7 @@ async function restProbeV1(
       return state;
     }
     const body = await readJsonV1(response);
-    if (body && body.success === false) return 'inconclusive';
+    if (body?.success === false) return 'inconclusive';
     return 'accessible';
   } catch {
     return 'unavailable';

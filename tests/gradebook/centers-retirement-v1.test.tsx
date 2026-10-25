@@ -74,7 +74,7 @@ describe('retirada da superfície Centrais', () => {
     expect(screen.queryByRole('tab', { name: 'Centrais' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Relatórios' })).toBeNull();
     expect(window.location.hash).toBe('#/banco-de-notas');
-    expect(window.history.length).toBe(historyLength);
+    expect(window.history).toHaveLength(historyLength);
   });
 
   it.each(['operational', 'reports'])(

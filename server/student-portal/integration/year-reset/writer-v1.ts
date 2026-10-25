@@ -2,6 +2,9 @@ import type { GradebookPostgresWritePortV1 } from '../../../gradebook/persistenc
 import { postgresJsonTextV1 } from '../../../gradebook/persistence/postgres/postgres-values-v1';
 import { lockYearResetV1 } from './proof-v1';
 
+type AcademicChangeV1 = { changed: boolean; studentIds?: readonly number[] };
+const NO_ACADEMIC_CHANGE_V1: AcademicChangeV1 = Object.freeze({ changed: false });
+
 export async function lockResetWriterV1(
   transaction: GradebookPostgresWritePortV1,
   year: number,
@@ -23,7 +26,7 @@ export async function recordResetWriteV1(
     | 'marks'
     | 'council'
     | 'academic-policy',
-  academic: { changed: boolean; studentIds?: readonly number[] } = { changed: false },
+  academic: AcademicChangeV1 = NO_ACADEMIC_CHANGE_V1,
 ): Promise<void> {
   const studentIds = [...new Set(academic.studentIds ?? [])].sort((a, b) => a - b);
   if (studentIds.some((id) => !Number.isSafeInteger(id) || id <= 0))
@@ -63,7 +66,7 @@ export async function recordImportResetWriteV1(
   transaction: GradebookPostgresWritePortV1,
   year: number,
   cause: 'relation' | 'marks',
-  academic: { changed: boolean; studentIds?: readonly number[] } = { changed: false },
+  academic: AcademicChangeV1 = NO_ACADEMIC_CHANGE_V1,
 ): Promise<void> {
   const buffered = transaction as GradebookPostgresWritePortV1 & {
     afterImportFlush?: (

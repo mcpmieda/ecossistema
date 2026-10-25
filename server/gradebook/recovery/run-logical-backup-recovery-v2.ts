@@ -54,5 +54,5 @@ async function run(): Promise<void> {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  void run();
+  await run();
 }

@@ -186,13 +186,14 @@ export async function verifyIdToken(
   if (claims.tid !== env.TENANT_ID || claims.iss !== issuer || claims.aud !== env.WEB_CLIENT_ID)
     throw new Error('Invalid token authority');
   if (claims.nonce !== expectedNonce) throw new Error('Invalid token nonce');
-  const offsets = () => ({
-    exp: claims.exp - now,
-    nbf: claims.nbf === undefined ? null : claims.nbf - now,
-    iat: ((iat) => (iat === undefined ? null : iat - now))(
-      timeOffsetSchema.parse(decodeJson(parts[1]!)).iat,
-    ),
-  });
+  const offsets = () => {
+    const iat = timeOffsetSchema.parse(decodeJson(parts[1]!)).iat;
+    return {
+      exp: claims.exp - now,
+      nbf: claims.nbf === undefined ? null : claims.nbf - now,
+      iat: iat === undefined ? null : iat - now,
+    };
+  };
   if (claims.exp <= now) throw new IdTokenLifetimeError('Expired ID token', offsets());
   if (claims.nbf !== undefined && claims.nbf > now + 60)
     throw new IdTokenLifetimeError('ID token not yet valid', offsets());

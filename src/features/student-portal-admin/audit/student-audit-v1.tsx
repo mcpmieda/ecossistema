@@ -382,8 +382,7 @@ function actorLabelV1(event: {
   accountId: string | null;
   entities?: { actorName: string | null };
 }) {
-  if (event.accountId && event.actorId.toLowerCase() === event.accountId.toLowerCase())
-    return 'Próprio aluno';
+  if (event.actorId.toLowerCase() === event.accountId?.toLowerCase()) return 'Próprio aluno';
   return event.entities?.actorName ?? 'Não registrado';
 }
 

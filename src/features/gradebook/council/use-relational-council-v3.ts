@@ -65,7 +65,7 @@ export function useRelationalCouncilV3() {
   function restoreStoredClass(list: readonly CouncilClass[], currentYear: number) {
     const stored = restoreClass.current;
     restoreClass.current = null;
-    if (stored && stored.year === currentYear && selectedClass.current === null && list.some((item) => item.id === stored.classId)) {
+    if (stored?.year === currentYear && selectedClass.current === null && list.some((item) => item.id === stored.classId)) {
       selectedClass.current = stored.classId; setClassId(stored.classId);
       void loadWorkspace(stored.classId!);
     }

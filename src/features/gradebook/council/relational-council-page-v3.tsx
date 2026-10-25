@@ -48,7 +48,8 @@ const RESULT_COLOR: Record<RelationalCouncilStudentV3['components'][number]['res
 type SessionStateV3 = RelationalCouncilWorkspaceV3['session']['state'];
 const SESSION_COLOR: Record<SessionStateV3, 'success' | 'warning' | 'default'> = { open: 'success', closed: 'warning', 'not-opened': 'default' };
 const SESSION_LABEL: Record<SessionStateV3, string> = { open: 'Sessão aberta', closed: 'Sessão fechada', 'not-opened': 'Ainda não iniciada' };
-const SESSION_DONE: Record<'open' | 'close' | 'reopen', string> = {
+type SessionActionV3 = 'open' | 'close' | 'reopen';
+const SESSION_DONE: Record<SessionActionV3, string> = {
   open: 'Reunião aberta.', reopen: 'Reunião reaberta; o snapshot anterior foi preservado.', close: 'Reunião fechada com novo snapshot imutável.',
 };
 const TIMELINE_LABEL = {
@@ -150,7 +151,7 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
           <Table.Header><Table.Column id="subject" isRowHeader>Componente</Table.Column><Table.Column id="t1">1º tri.</Table.Column><Table.Column id="t2">2º tri.</Table.Column><Table.Column id="t3">3º tri.</Table.Column><Table.Column id="rec">REC</Table.Column><Table.Column id="result">Resultado</Table.Column></Table.Header>
           <Table.Body items={student.components} renderEmptyState={() => 'Nenhum componente disponível.'}>{(component) => <Table.Row id={component.offerId}>
             <Table.Cell><span className="font-medium">{component.subject.abbreviation ?? component.subject.label}</span><span className="ml-2 text-xs text-muted">{component.subject.label}</span></Table.Cell>
-            {component.terms.map((term, index) => <Table.Cell key={index}><Grade value={term.valueMilli} state={term.state}/></Table.Cell>)}
+            {component.terms.map((term, index) => <Table.Cell key={index /* NOSONAR fixed T1-T3 tuple */}><Grade value={term.valueMilli} state={term.state}/></Table.Cell>)}
             <Table.Cell><Grade value={component.recovery.valueMilli} state={component.recovery.state}/></Table.Cell>
             <Table.Cell><Chip size="sm" variant="soft" color={RESULT_COLOR[component.result]}><Chip.Label>{RESULT_LABEL[component.result]}</Chip.Label></Chip></Table.Cell>
           </Table.Row>}</Table.Body>
@@ -211,7 +212,7 @@ function CouncilSessionCardV3({ workspace, reason, onReason, confirmClose, onCon
   confirmClose: boolean;
   onConfirmClose: (confirm: boolean) => void;
   busy: boolean;
-  onSessionCommand: (operation: 'open' | 'close' | 'reopen') => void;
+  onSessionCommand: (operation: SessionActionV3) => void;
 }>) {
   return <Card><Card.Header className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><Card.Title>Sessão da turma {workspace.classGroup.label}</Card.Title><Card.Description>Versão institucional {workspace.session.version} · {workspace.session.snapshotCount} fechamento(s) preservado(s)</Card.Description></div>
         <Chip className="sm:ml-auto" color={SESSION_COLOR[workspace.session.state]} variant="soft"><Chip.Label>{SESSION_LABEL[workspace.session.state]}</Chip.Label></Chip></Card.Header>
@@ -252,7 +253,7 @@ export function RelationalCouncilPageV3() {
     setConfirmClose(false); setSessionReason(''); setStudentDirty(false);
   }, [workspace?.classGroup.id]);
 
-  async function sessionCommand(operation: 'open' | 'close' | 'reopen') {
+  async function sessionCommand(operation: SessionActionV3) {
     if (!workspace || sessionReason.trim().length < 3) return;
     const response = operation === 'close'
       ? await state.command({ operation, reviewReference: workspace.session.reviewReference, justification: sessionReason.trim() })

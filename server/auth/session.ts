@@ -74,7 +74,7 @@ export async function readSession(request: Request, env: RuntimeEnv): Promise<Se
   if (!token || token.length > 4096 || !/^[A-Za-z0-9_-]+$/u.test(token)) return null;
   const scope = requestSessionScope.getStore();
   let cached = scope?.verification ?? verifiedSessions.get(request);
-  if (!cached || cached.secret !== env.SESSION_SECRET || cached.token !== token) {
+  if (cached?.secret !== env.SESSION_SECRET || cached.token !== token) {
     cached = {
       secret: env.SESSION_SECRET,
       token,

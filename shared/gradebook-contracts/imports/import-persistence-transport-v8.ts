@@ -53,7 +53,6 @@ export function snapshotRequestAsV6(
   request: GradebookImportPersistenceRequestV8,
 ): GradebookImportPersistenceRequestV6 {
   const { valuePolicy: _policy, ...base } = request;
-  void _policy;
   const cells = (input: GradebookSnapshotCellsV8) =>
     Object.fromEntries(
       Object.entries(input).map(([key, value]) => [

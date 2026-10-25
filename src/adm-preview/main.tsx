@@ -93,7 +93,9 @@ class SilentSocket extends EventTarget {
   constructor(readonly url: string | URL) {
     super();
   }
-  send() {}
+  send() {
+    // The preview socket never sends anything.
+  }
   close() {
     this.readyState = 3;
   }

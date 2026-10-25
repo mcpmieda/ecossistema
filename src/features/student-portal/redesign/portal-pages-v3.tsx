@@ -22,7 +22,6 @@ export type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule';
  */
 const PortalPageActiveV3 = createContext(true);
 export const usePortalPageActiveV3 = () => useContext(PortalPageActiveV3);
-type PageV3 = PortalPageIdV3;
 
 /**
  * The Frequência item of the menu says how it is going (owner decision 23/10/2026): a red calendar
@@ -37,13 +36,13 @@ export function useReportFrequencyToneV3(tone: FrequencyToneV3) {
 }
 
 /** A menu item's icon: the red calendar while Frequência warns, the live clock for Horário. */
-function NavIconV3({ id, Icon, alert }: Readonly<{ id: PageV3; Icon: typeof NotebookPen; alert: boolean }>) {
+function NavIconV3({ id, Icon, alert }: Readonly<{ id: PortalPageIdV3; Icon: typeof NotebookPen; alert: boolean }>) {
   if (alert) return <CalendarX2 size={22} aria-hidden="true" />;
   if (id === 'schedule') return <LiveClockIconV3 size={22} />;
   return <Icon size={22} aria-hidden="true" />;
 }
 
-const PAGES: readonly { id: PageV3; label: string; Icon: typeof NotebookPen }[] = [
+const PAGES: readonly { id: PortalPageIdV3; label: string; Icon: typeof NotebookPen }[] = [
   { id: 'grades', label: 'Notas', Icon: NotebookPen },
   { id: 'frequency', label: 'Frequência', Icon: CalendarCheck2 },
   { id: 'schedule', label: 'Horário', Icon: Clock },
@@ -102,7 +101,7 @@ const reducedMotionV3 = () =>
   globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /** The menu's highlight: one pill that glides under the chosen icon. */
-function useNavHighlightV3(page: PageV3) {
+function useNavHighlightV3(page: PortalPageIdV3) {
   const nav = useRef<HTMLElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
@@ -132,7 +131,7 @@ function useNavHighlightV3(page: PageV3) {
  * Back inside Notas never changes the page hidden behind Frequência.
  */
 const PAGE_HISTORY_KEY_V3 = 'pa3Page';
-const pageOfState = (state: unknown, pages: readonly { id: PageV3 }[]): PageV3 => {
+const pageOfState = (state: unknown, pages: readonly { id: PortalPageIdV3 }[]): PortalPageIdV3 => {
   const saved = state && typeof state === 'object' ? (state as Record<string, unknown>)[PAGE_HISTORY_KEY_V3] : null;
   return pages.find((item) => item.id === saved)?.id ?? 'grades';
 };
@@ -149,7 +148,7 @@ export type PortalPagesPropsV3 = Omit<StudentShellPropsV1, 'children' | 'hero' |
 };
 
 export function PortalPagesV3({ hero, grades, frequency, schedule, ...shell }: PortalPagesPropsV3) {
-  const contentOf: Record<PageV3, ReactNode> = { grades, frequency, schedule };
+  const contentOf: Record<PortalPageIdV3, ReactNode> = { grades, frequency, schedule };
   const pages = PAGES.filter((item) => item.id === 'grades' || contentOf[item.id] != null);
   // Notas alone (owner decision 23/10/2026: both keys off): the bottom bar stays, with Notas only.
   return <PortalMenuPagesV3 hero={hero} pages={pages} contentOf={contentOf} shell={shell} />;
@@ -163,26 +162,26 @@ function PortalMenuPagesV3({
 }: Readonly<{
   hero: ReactNode;
   pages: typeof PAGES;
-  contentOf: Record<PageV3, ReactNode>;
+  contentOf: Record<PortalPageIdV3, ReactNode>;
   shell: Omit<StudentShellPropsV1, 'children' | 'hero' | 'busy'>;
 }>) {
-  const [page, setPage] = useState<PageV3>(() =>
+  const [page, setPage] = useState<PortalPageIdV3>(() =>
     typeof window === 'undefined' ? 'grades' : pageOfState(window.history.state, pages),
   );
   // The content sliding out, until its move ends.
-  const [leaving, setLeaving] = useState<PageV3 | null>(null);
+  const [leaving, setLeaving] = useState<PortalPageIdV3 | null>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const panels = useRef<Partial<Record<PageV3, HTMLElement | null>>>({});
+  const panels = useRef<Partial<Record<PortalPageIdV3, HTMLElement | null>>>({});
   const entering = useRef<SlideV3 | null>(null);
   const highlight = useNavHighlightV3(page);
   const [frequencyTone, setFrequencyTone] = useState<FrequencyToneV3>(null);
-  const elementOf = (id: PageV3) => panels.current[id] ?? null;
+  const elementOf = (id: PortalPageIdV3) => panels.current[id] ?? null;
   // Set by a switch the reader asked for (menu or Back), never by the first render.
   const switched = useRef(false);
   // A Back or Forward that came during the slide: the browser has already moved in its history, so
   // it cannot be dropped like a second tap on the menu; it is applied when the slide ends.
-  const pending = useRef<PageV3 | null>(null);
-  const show = (next: PageV3) => {
+  const pending = useRef<PortalPageIdV3 | null>(null);
+  const show = (next: PortalPageIdV3) => {
     if (next === page) pending.current = null;
     if (next === page || leaving) return;
     pending.current = null;
@@ -196,7 +195,7 @@ function PortalMenuPagesV3({
     if (animated) setLeaving(page);
     setPage(next);
   };
-  const choose = (next: PageV3) => {
+  const choose = (next: PortalPageIdV3) => {
     if (next === page || leaving) return;
     const state = window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
     window.history.pushState({ ...state, [PAGE_HISTORY_KEY_V3]: next }, '');
@@ -255,7 +254,7 @@ function PortalMenuPagesV3({
   // re-renders only the wrappers and the move starts at the next frame. Notas (the portal's
   // workspace, its floating Boletim/Disciplina switch hidden: the menu replaces it) stays mounted,
   // so coming back keeps the trimester and the discipline.
-  const stateOf = (id: PageV3) => {
+  const stateOf = (id: PortalPageIdV3) => {
     if (id === page) {
       return '';
     }

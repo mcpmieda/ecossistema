@@ -15,6 +15,9 @@ export default [
       sourceType: 'module',
       globals: { ...globals.node, ...globals.browser },
     },
+    rules: {
+      'no-unused-vars': ['error', { ignoreRestSiblings: true }],
+    },
   },
   {
     files: ['**/*.ts', '**/*.tsx'],
@@ -33,7 +36,10 @@ export default [
       'no-undef': 'off',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
     },
   },
   {
