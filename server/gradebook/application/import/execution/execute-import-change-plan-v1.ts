@@ -613,6 +613,39 @@ function validateAssociationWrite(input: {
   }
 }
 
+/** A blocked item names its stream and stable key together, and the key matches the stream. */
+function validateBlockedItemV1(
+  input: { file: ImportFileChangePlanV1; issues: ImportChangePlanValidationIssueV1[] },
+  item: Extract<ImportChangePlanItemV1, { state: 'blocked' }>,
+): void {
+  const hasStableKey = item.stableKey !== undefined;
+  const hasStream = item.stream !== undefined;
+  if (hasStableKey !== hasStream) {
+    input.issues.push(
+      validationIssue({
+        code: 'blocked-item-reference-incomplete',
+        scope: 'item',
+        message: 'Um item bloqueado deve informar stream e chave estável juntos.',
+        importFileId: input.file.importFileId,
+        stableKey: item.stableKey,
+      }),
+    );
+  } else if (item.stream && item.stableKey) {
+    const expectedStableKey = academicRecordStreamKeyV1(item.stream);
+    if (expectedStableKey !== item.stableKey) {
+      input.issues.push(
+        validationIssue({
+          code: 'blocked-item-stable-key-mismatch',
+          scope: 'item',
+          message: 'A chave estável do item bloqueado não corresponde ao stream.',
+          importFileId: input.file.importFileId,
+          stableKey: item.stableKey,
+        }),
+      );
+    }
+  }
+}
+
 function validateItem(input: {
   plan: ImportChangePlanV1;
   file: ImportFileChangePlanV1;
@@ -724,46 +757,24 @@ function validateItem(input: {
         );
       }
       break;
-    case 'blocked': {
-      const hasStableKey = input.item.stableKey !== undefined;
-      const hasStream = input.item.stream !== undefined;
-      if (hasStableKey !== hasStream) {
-        input.issues.push(
-          validationIssue({
-            code: 'blocked-item-reference-incomplete',
-            scope: 'item',
-            message: 'Um item bloqueado deve informar stream e chave estável juntos.',
-            importFileId: input.file.importFileId,
-            stableKey: input.item.stableKey,
-          }),
-        );
-      } else if (input.item.stream && input.item.stableKey) {
-        const expectedStableKey = academicRecordStreamKeyV1(input.item.stream);
-        if (expectedStableKey !== input.item.stableKey) {
-          input.issues.push(
-            validationIssue({
-              code: 'blocked-item-stable-key-mismatch',
-              scope: 'item',
-              message: 'A chave estável do item bloqueado não corresponde ao stream.',
-              importFileId: input.file.importFileId,
-              stableKey: input.item.stableKey,
-            }),
-          );
-        }
-      }
+    case 'blocked':
+      validateBlockedItemV1(input, input.item);
       break;
-    }
   }
 }
 
-function validateFile(input: {
+type FileValidationInputV1 = {
   plan: ImportChangePlanV1;
   file: ImportFileChangePlanV1;
   issues: ImportChangePlanValidationIssueV1[];
   readyWriteKeys: Set<string>;
   readyAssociationKeys: Set<string>;
   readySourceManifestIds: Set<SourceFileManifestId>;
-}): void {
+};
+type FileWritesV1 = ReturnType<typeof expectedFileWrites>;
+
+/** The file's counts and version estimate must match its planned items. */
+function validateFileCountsV1(input: FileValidationInputV1, expectedWrites: FileWritesV1): void {
   const derivedCounts = countItems(input.file.items);
   if (!sameChangeCounts(input.file.counts, derivedCounts)) {
     input.issues.push(
@@ -776,7 +787,6 @@ function validateFile(input: {
     );
   }
 
-  const expectedWrites = expectedFileWrites(input.file);
   if (
     input.file.estimatedWrites.sourceFileVersions !== expectedWrites.sourceFileVersions ||
     input.file.estimatedWrites.academicRecordVersions !== expectedWrites.academicRecordVersions ||
@@ -793,7 +803,10 @@ function validateFile(input: {
       }),
     );
   }
+}
 
+/** Each item, and one item per academic stream. */
+function validateFileItemsV1(input: FileValidationInputV1): void {
   const itemKeys = new Set<string>();
   for (const item of input.file.items) {
     validateItem({
@@ -817,7 +830,10 @@ function validateFile(input: {
       itemKeys.add(item.stableKey);
     }
   }
+}
 
+/** The source file's append: a valid expectation, this file's manifest, metadata and relation. */
+function validateSourceWriteV1(input: FileValidationInputV1): void {
   if (input.file.sourceFileWrite.kind === 'append-version') {
     const sourceWrite = input.file.sourceFileWrite;
     if (!isVersionExpectation(sourceWrite.expectedVersion)) {
@@ -867,7 +883,79 @@ function validateFile(input: {
       );
     }
   }
+}
 
+/** A file ready for promotion: promotable, and no stream, association or manifest written twice. */
+function validateReadyFileV1(input: FileValidationInputV1, expectedWrites: FileWritesV1): void {
+  if (
+    input.file.batchFileStatus !== 'approved' ||
+    input.file.logicalSource.state !== 'confirmed' ||
+    input.file.sourceFileManifestId === null ||
+    expectedWrites.totalVersionWrites <= 0 ||
+    input.file.items.some(
+      (item) => item.state === 'missing-from-new-source' || item.state === 'blocked',
+    )
+  ) {
+    input.issues.push(
+      validationIssue({
+        code: 'ready-file-not-promotable',
+        scope: 'file',
+        message: 'O arquivo marcado como pronto contém estado incompatível com promoção.',
+        importFileId: input.file.importFileId,
+      }),
+    );
+  }
+  for (const item of input.file.items) {
+    if (item.state !== 'new' && item.state !== 'changed') continue;
+    if (input.readyWriteKeys.has(item.stableKey)) {
+      input.issues.push(
+        validationIssue({
+          code: 'duplicate-promotion-stream',
+          scope: 'item',
+          message: 'A promoção contém mais de um append para o mesmo stream acadêmico.',
+          importFileId: input.file.importFileId,
+          stableKey: item.stableKey,
+        }),
+      );
+    }
+    input.readyWriteKeys.add(item.stableKey);
+
+    const associationKey = `${item.associationWrite.stream.logicalSourceId}:${item.stableKey}`;
+    if (input.readyAssociationKeys.has(associationKey)) {
+      input.issues.push(
+        validationIssue({
+          code: 'duplicate-promotion-association',
+          scope: 'item',
+          message:
+            'A promoção contém mais de um append para a mesma associação fonte lógica ↔ stream.',
+          importFileId: input.file.importFileId,
+          stableKey: item.stableKey,
+        }),
+      );
+    }
+    input.readyAssociationKeys.add(associationKey);
+  }
+  if (input.file.sourceFileWrite.kind === 'append-version') {
+    const manifestId = input.file.sourceFileWrite.value.manifest.id;
+    if (input.readySourceManifestIds.has(manifestId)) {
+      input.issues.push(
+        validationIssue({
+          code: 'duplicate-promotion-source-manifest',
+          scope: 'file',
+          message: 'A promoção contém mais de um append para o mesmo manifesto.',
+          importFileId: input.file.importFileId,
+        }),
+      );
+    }
+    input.readySourceManifestIds.add(manifestId);
+  }
+}
+
+function validateFile(input: FileValidationInputV1): void {
+  const expectedWrites = expectedFileWrites(input.file);
+  validateFileCountsV1(input, expectedWrites);
+  validateFileItemsV1(input);
+  validateSourceWriteV1(input);
   switch (input.file.status) {
     case 'unchanged':
       if (
@@ -886,68 +974,7 @@ function validateFile(input: {
       }
       break;
     case 'ready-for-promotion':
-      if (
-        input.file.batchFileStatus !== 'approved' ||
-        input.file.logicalSource.state !== 'confirmed' ||
-        input.file.sourceFileManifestId === null ||
-        expectedWrites.totalVersionWrites <= 0 ||
-        input.file.items.some(
-          (item) => item.state === 'missing-from-new-source' || item.state === 'blocked',
-        )
-      ) {
-        input.issues.push(
-          validationIssue({
-            code: 'ready-file-not-promotable',
-            scope: 'file',
-            message: 'O arquivo marcado como pronto contém estado incompatível com promoção.',
-            importFileId: input.file.importFileId,
-          }),
-        );
-      }
-      for (const item of input.file.items) {
-        if (item.state !== 'new' && item.state !== 'changed') continue;
-        if (input.readyWriteKeys.has(item.stableKey)) {
-          input.issues.push(
-            validationIssue({
-              code: 'duplicate-promotion-stream',
-              scope: 'item',
-              message: 'A promoção contém mais de um append para o mesmo stream acadêmico.',
-              importFileId: input.file.importFileId,
-              stableKey: item.stableKey,
-            }),
-          );
-        }
-        input.readyWriteKeys.add(item.stableKey);
-
-        const associationKey = `${item.associationWrite.stream.logicalSourceId}:${item.stableKey}`;
-        if (input.readyAssociationKeys.has(associationKey)) {
-          input.issues.push(
-            validationIssue({
-              code: 'duplicate-promotion-association',
-              scope: 'item',
-              message:
-                'A promoção contém mais de um append para a mesma associação fonte lógica ↔ stream.',
-              importFileId: input.file.importFileId,
-              stableKey: item.stableKey,
-            }),
-          );
-        }
-        input.readyAssociationKeys.add(associationKey);
-      }
-      if (input.file.sourceFileWrite.kind === 'append-version') {
-        const manifestId = input.file.sourceFileWrite.value.manifest.id;
-        if (input.readySourceManifestIds.has(manifestId)) {
-          input.issues.push(
-            validationIssue({
-              code: 'duplicate-promotion-source-manifest',
-              scope: 'file',
-              message: 'A promoção contém mais de um append para o mesmo manifesto.',
-              importFileId: input.file.importFileId,
-            }),
-          );
-        }
-        input.readySourceManifestIds.add(manifestId);
-      }
+      validateReadyFileV1(input, expectedWrites);
       break;
     case 'review-required':
       break;

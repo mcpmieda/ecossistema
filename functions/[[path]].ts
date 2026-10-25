@@ -198,11 +198,217 @@ async function routeOfficialGradebookRequestV1(
   return null;
 }
 
-async function route(context: Context, correlationId: string): Promise<Response> {
-  const env = validateEnv(context.env);
-  const request = context.request;
-  const url = new URL(request.url);
-  enforceOfficialOrigin(request, env);
+type ValidEnvV1 = ReturnType<typeof validateEnv>;
+
+/** Starts the Microsoft sign-in: a new transaction kept (with the recent ones) in a sealed cookie. */
+async function serveAuthLoginV1(request: Request, env: ValidEnvV1): Promise<Response> {
+  method(request, ['GET']);
+  const transaction = await newAuthTransaction();
+  const existing = await readAuthTransactions(request, env.SESSION_SECRET);
+  const cookie = await seal(
+    {
+      transactions: [
+        ...existing.filter((item) => item.exp > Math.floor(Date.now() / 1000)),
+        {
+          state: transaction.state,
+          nonce: transaction.nonce,
+          verifier: transaction.verifier,
+          exp: transaction.exp,
+        },
+      ].slice(-MAX_AUTH_TRANSACTIONS),
+    } satisfies AuthTransactionEnvelope,
+    env.SESSION_SECRET,
+  );
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: authorizationUrl(env, transaction),
+      'Set-Cookie': secureCookie(AUTH_COOKIE, cookie, { maxAge: 600 }),
+    },
+  });
+}
+
+/** The sign-in callback: the transaction, the code exchange, the ID token and the institutional role. */
+async function serveAuthCallbackV1(request: Request, env: ValidEnvV1, url: URL, correlationId: string): Promise<Response> {
+  method(request, ['GET']);
+  const transactions = await readAuthTransactions(request, env.SESSION_SECRET);
+  const error = url.searchParams.get('error');
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  const now = Math.floor(Date.now() / 1000);
+  const transaction = state ? transactions.find((item) => item.state === state) : undefined;
+  const remainingTransactions = transactions.filter(
+    (item) => item.state !== state && item.exp > now,
+  );
+  const remainingAuthCookie = await temporaryAuthCookie(
+    remainingTransactions,
+    env.SESSION_SECRET,
+  );
+
+  if (error) {
+    return authFailureResponse({
+      env,
+      correlationId,
+      category: 'provider_rejected',
+      stage: 'authorization_callback',
+      status: 401,
+      cause: 'identity_provider_returned_error',
+      authCookie: remainingAuthCookie,
+    });
+  }
+  if (!code || !state || !transaction || transaction.exp <= now || state !== transaction.state) {
+    return authFailureResponse({
+      env,
+      correlationId,
+      category: 'invalid_transaction',
+      stage: 'transaction_validation',
+      status: 401,
+      cause: 'missing_expired_or_mismatched_transaction',
+      authCookie: remainingAuthCookie,
+    });
+  }
+
+  let tokens: Awaited<ReturnType<typeof exchangeCode>>;
+  try {
+    tokens = await exchangeCode(env, code, transaction.verifier);
+  } catch {
+    return authFailureResponse({
+      env,
+      correlationId,
+      category: 'token_exchange_failed',
+      stage: 'token_exchange',
+      status: 502,
+      cause: 'identity_provider_exchange_rejected',
+      authCookie: remainingAuthCookie,
+    });
+  }
+
+  let claims: Awaited<ReturnType<typeof verifyIdToken>>;
+  try {
+    claims = await verifyIdToken(tokens.id_token, env, transaction.nonce);
+  } catch {
+    return authFailureResponse({
+      env,
+      correlationId,
+      category: 'token_validation_failed',
+      stage: 'id_token_validation',
+      status: 401,
+      cause: 'id_token_failed_validation',
+      authCookie: remainingAuthCookie,
+    });
+  }
+
+  const mappedRoles = rolesForGroups(claims.groups, env);
+  if (mappedRoles.length === 0) {
+    return authFailureResponse({
+      env,
+      correlationId,
+      category: 'institutional_role_missing',
+      stage: 'role_resolution',
+      status: 403,
+      cause: 'no_recognized_institutional_role',
+      authCookie: remainingAuthCookie,
+    });
+  }
+
+  const authenticatedAt = Math.floor(Date.now() / 1000);
+  const durationHours = await readSessionDurationPreference(
+    request,
+    env,
+    claims.oid,
+    authenticatedAt,
+  );
+  const applicationSession = createApplicationSession(
+    {
+      oid: claims.oid,
+      name: claims.name,
+      username: claims.preferred_username,
+      roles: mappedRoles,
+    },
+    durationHours,
+    authenticatedAt,
+  );
+  const session = await seal(applicationSession, env.SESSION_SECRET);
+  const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
+  headers.append(
+    'Set-Cookie',
+    secureCookie(SESSION_COOKIE, session, { maxAge: durationHours * 60 * 60 }),
+  );
+  headers.append('Set-Cookie', remainingAuthCookie);
+  return new Response(null, { status: 302, headers });
+}
+
+async function serveAuthLogoutV1(request: Request, env: ValidEnvV1): Promise<Response> {
+  method(request, ['POST']);
+  enforceWriteOrigin(request, env);
+  const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
+  headers.append('Set-Cookie', clearCookie(SESSION_COOKIE));
+  headers.append('Set-Cookie', clearCookie(AUTH_COOKIE));
+  return new Response(null, { status: 303, headers });
+}
+
+async function serveMeV1(request: Request, env: ValidEnvV1): Promise<Response> {
+  method(request, ['GET']);
+  const session = await requireAuth(request, env);
+  return json({
+    authenticated: true,
+    identityKey: session.oid + ':' + (session.authenticatedAt ?? session.exp),
+    expiresAt: new Date(session.exp * 1000).toISOString(),
+    name: session.name,
+    roles: session.roles,
+    capabilities: capabilitiesForRoles(session.roles),
+  });
+}
+
+/** The administrative session length: read it, or change it (the session is sealed again). */
+async function serveSessionSettingsV1(request: Request, env: ValidEnvV1, correlationId: string): Promise<Response> {
+  method(request, ['GET', 'POST']);
+  const currentSession = await requireAuth(request, env);
+  const capabilities = capabilitiesForRoles(currentSession.roles);
+
+  if (request.method === 'GET') {
+    requireCapability(capabilities, 'platform.settings.read');
+    return json(sessionPolicyPayload(currentSession));
+  }
+
+  enforceWriteOrigin(request, env);
+  requireCapability(capabilities, 'platform.settings.write');
+  const input = (await request.json().catch(() => null)) as { durationHours?: unknown } | null;
+  if (!isSessionDurationHours(input?.durationHours)) {
+    throw new HttpError(400, 'Invalid session duration');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const updatedSession = reconfigureApplicationSession(currentSession, input.durationHours, now);
+  if (!updatedSession) throw new HttpError(409, 'Reauthentication required');
+
+  const sessionToken = await seal(updatedSession, env.SESSION_SECRET);
+  const headers = new Headers();
+  headers.append(
+    'Set-Cookie',
+    secureCookie(SESSION_COOKIE, sessionToken, { maxAge: updatedSession.exp - now }),
+  );
+  headers.append(
+    'Set-Cookie',
+    await createSessionDurationPreferenceCookie(
+      env,
+      currentSession.oid,
+      input.durationHours,
+      now,
+    ),
+  );
+  console.info(
+    JSON.stringify({
+      message: 'administrative_session_duration_updated',
+      durationHours: input.durationHours,
+      correlationId,
+    }),
+  );
+  return Response.json(sessionPolicyPayload(updatedSession, now), { headers });
+}
+
+/** Collector, frequency, health, public demo and the Painel do Aluno's admin service. */
+async function routeServicesV1(request: Request, env: ValidEnvV1, url: URL): Promise<Response | null> {
   const collectorResponse = await handleCollectorRequestV1(request, env);
   if (collectorResponse) return collectorResponse;
   const frequencyResponse = await handleFrequencyAdminRequestV2(request, env);
@@ -224,211 +430,21 @@ async function route(context: Context, correlationId: string): Promise<Response>
     method(request, ['GET']);
     return json({ status: 'ok', service: 'ecossistema-escola', version: '1.0.0' });
   }
+  return null;
+}
 
-  if (url.pathname === '/auth/login') {
-    method(request, ['GET']);
-    const transaction = await newAuthTransaction();
-    const existing = await readAuthTransactions(request, env.SESSION_SECRET);
-    const cookie = await seal(
-      {
-        transactions: [
-          ...existing.filter((item) => item.exp > Math.floor(Date.now() / 1000)),
-          {
-            state: transaction.state,
-            nonce: transaction.nonce,
-            verifier: transaction.verifier,
-            exp: transaction.exp,
-          },
-        ].slice(-MAX_AUTH_TRANSACTIONS),
-      } satisfies AuthTransactionEnvelope,
-      env.SESSION_SECRET,
-    );
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: authorizationUrl(env, transaction),
-        'Set-Cookie': secureCookie(AUTH_COOKIE, cookie, { maxAge: 600 }),
-      },
-    });
-  }
+/** Sign-in, sign-out, the reader and the session length. */
+async function routeSessionV1(request: Request, env: ValidEnvV1, url: URL, correlationId: string): Promise<Response | null> {
+  if (url.pathname === '/auth/login') return serveAuthLoginV1(request, env);
+  if (url.pathname === '/auth/callback') return serveAuthCallbackV1(request, env, url, correlationId);
+  if (url.pathname === '/auth/logout') return serveAuthLogoutV1(request, env);
+  if (url.pathname === '/api/me') return serveMeV1(request, env);
+  if (url.pathname === '/api/platform/settings/session') return serveSessionSettingsV1(request, env, correlationId);
+  return null;
+}
 
-  if (url.pathname === '/auth/callback') {
-    method(request, ['GET']);
-    const transactions = await readAuthTransactions(request, env.SESSION_SECRET);
-    const error = url.searchParams.get('error');
-    const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state');
-    const now = Math.floor(Date.now() / 1000);
-    const transaction = state ? transactions.find((item) => item.state === state) : undefined;
-    const remainingTransactions = transactions.filter(
-      (item) => item.state !== state && item.exp > now,
-    );
-    const remainingAuthCookie = await temporaryAuthCookie(
-      remainingTransactions,
-      env.SESSION_SECRET,
-    );
-
-    if (error) {
-      return authFailureResponse({
-        env,
-        correlationId,
-        category: 'provider_rejected',
-        stage: 'authorization_callback',
-        status: 401,
-        cause: 'identity_provider_returned_error',
-        authCookie: remainingAuthCookie,
-      });
-    }
-    if (!code || !state || !transaction || transaction.exp <= now || state !== transaction.state) {
-      return authFailureResponse({
-        env,
-        correlationId,
-        category: 'invalid_transaction',
-        stage: 'transaction_validation',
-        status: 401,
-        cause: 'missing_expired_or_mismatched_transaction',
-        authCookie: remainingAuthCookie,
-      });
-    }
-
-    let tokens: Awaited<ReturnType<typeof exchangeCode>>;
-    try {
-      tokens = await exchangeCode(env, code, transaction.verifier);
-    } catch {
-      return authFailureResponse({
-        env,
-        correlationId,
-        category: 'token_exchange_failed',
-        stage: 'token_exchange',
-        status: 502,
-        cause: 'identity_provider_exchange_rejected',
-        authCookie: remainingAuthCookie,
-      });
-    }
-
-    let claims: Awaited<ReturnType<typeof verifyIdToken>>;
-    try {
-      claims = await verifyIdToken(tokens.id_token, env, transaction.nonce);
-    } catch {
-      return authFailureResponse({
-        env,
-        correlationId,
-        category: 'token_validation_failed',
-        stage: 'id_token_validation',
-        status: 401,
-        cause: 'id_token_failed_validation',
-        authCookie: remainingAuthCookie,
-      });
-    }
-
-    const mappedRoles = rolesForGroups(claims.groups, env);
-    if (mappedRoles.length === 0) {
-      return authFailureResponse({
-        env,
-        correlationId,
-        category: 'institutional_role_missing',
-        stage: 'role_resolution',
-        status: 403,
-        cause: 'no_recognized_institutional_role',
-        authCookie: remainingAuthCookie,
-      });
-    }
-
-    const authenticatedAt = Math.floor(Date.now() / 1000);
-    const durationHours = await readSessionDurationPreference(
-      request,
-      env,
-      claims.oid,
-      authenticatedAt,
-    );
-    const applicationSession = createApplicationSession(
-      {
-        oid: claims.oid,
-        name: claims.name,
-        username: claims.preferred_username,
-        roles: mappedRoles,
-      },
-      durationHours,
-      authenticatedAt,
-    );
-    const session = await seal(applicationSession, env.SESSION_SECRET);
-    const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
-    headers.append(
-      'Set-Cookie',
-      secureCookie(SESSION_COOKIE, session, { maxAge: durationHours * 60 * 60 }),
-    );
-    headers.append('Set-Cookie', remainingAuthCookie);
-    return new Response(null, { status: 302, headers });
-  }
-
-  if (url.pathname === '/auth/logout') {
-    method(request, ['POST']);
-    enforceWriteOrigin(request, env);
-    const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
-    headers.append('Set-Cookie', clearCookie(SESSION_COOKIE));
-    headers.append('Set-Cookie', clearCookie(AUTH_COOKIE));
-    return new Response(null, { status: 303, headers });
-  }
-
-  if (url.pathname === '/api/me') {
-    method(request, ['GET']);
-    const session = await requireAuth(request, env);
-    return json({
-      authenticated: true,
-      identityKey: session.oid + ':' + (session.authenticatedAt ?? session.exp),
-      expiresAt: new Date(session.exp * 1000).toISOString(),
-      name: session.name,
-      roles: session.roles,
-      capabilities: capabilitiesForRoles(session.roles),
-    });
-  }
-
-  if (url.pathname === '/api/platform/settings/session') {
-    method(request, ['GET', 'POST']);
-    const currentSession = await requireAuth(request, env);
-    const capabilities = capabilitiesForRoles(currentSession.roles);
-
-    if (request.method === 'GET') {
-      requireCapability(capabilities, 'platform.settings.read');
-      return json(sessionPolicyPayload(currentSession));
-    }
-
-    enforceWriteOrigin(request, env);
-    requireCapability(capabilities, 'platform.settings.write');
-    const input = (await request.json().catch(() => null)) as { durationHours?: unknown } | null;
-    if (!isSessionDurationHours(input?.durationHours)) {
-      throw new HttpError(400, 'Invalid session duration');
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const updatedSession = reconfigureApplicationSession(currentSession, input.durationHours, now);
-    if (!updatedSession) throw new HttpError(409, 'Reauthentication required');
-
-    const sessionToken = await seal(updatedSession, env.SESSION_SECRET);
-    const headers = new Headers();
-    headers.append(
-      'Set-Cookie',
-      secureCookie(SESSION_COOKIE, sessionToken, { maxAge: updatedSession.exp - now }),
-    );
-    headers.append(
-      'Set-Cookie',
-      await createSessionDurationPreferenceCookie(
-        env,
-        currentSession.oid,
-        input.durationHours,
-        now,
-      ),
-    );
-    console.info(
-      JSON.stringify({
-        message: 'administrative_session_duration_updated',
-        durationHours: input.durationHours,
-        correlationId,
-      }),
-    );
-    return Response.json(sessionPolicyPayload(updatedSession, now), { headers });
-  }
-
+/** The Banco de Notas: persistence admin, retired reports, reconciliation and the gradebook API. */
+async function routeGradebookV1(context: Context, request: Request, env: ValidEnvV1, url: URL): Promise<Response | null> {
   const gradebookPersistenceAdminResponse = await handleGradebookPersistenceAdminRequestV1(request, env);
   if (gradebookPersistenceAdminResponse) return gradebookPersistenceAdminResponse;
 
@@ -446,7 +462,11 @@ async function route(context: Context, correlationId: string): Promise<Response>
     );
     if (gradebookResponse) return gradebookResponse;
   }
+  return null;
+}
 
+/** The platform's own reads: SharePoint health and the snapshot. */
+async function routePlatformReadsV1(request: Request, env: ValidEnvV1, url: URL): Promise<Response | null> {
   if (url.pathname === '/api/sharepoint/health') {
     method(request, ['GET']);
     const session = await requireAuth(request, env);
@@ -462,7 +482,20 @@ async function route(context: Context, correlationId: string): Promise<Response>
     requireCapability(capabilities, 'platform.snapshot.read');
     return json(await getPlatformSnapshot(env, capabilities));
   }
+  return null;
+}
 
+async function route(context: Context, correlationId: string): Promise<Response> {
+  const env = validateEnv(context.env);
+  const request = context.request;
+  const url = new URL(request.url);
+  enforceOfficialOrigin(request, env);
+  const response =
+    (await routeServicesV1(request, env, url)) ??
+    (await routeSessionV1(request, env, url, correlationId)) ??
+    (await routeGradebookV1(context, request, env, url)) ??
+    (await routePlatformReadsV1(request, env, url));
+  if (response) return response;
   throw new HttpError(404, 'Not found');
 }
 
