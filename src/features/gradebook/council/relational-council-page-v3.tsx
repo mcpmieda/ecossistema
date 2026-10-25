@@ -104,6 +104,18 @@ function Grade({ value, state }: { readonly value: number | null; readonly state
   return <span className={`font-semibold tabular-nums ${tone}`}>{label}</span>;
 }
 
+/** A recorded vote count as the field shows it; empty when no count was recorded. */
+const voteCountTextV3 = (student: RelationalCouncilStudentV3, side: 'favoraveis' | 'contrarios') =>
+  student.vote ? String(student.vote[side]) : '';
+
+/** Both counts as whole numbers, and who was present (their sum) once both are given. */
+function voteNumbersV3(favoraveis: string, contrarios: string) {
+  const favorableNumber = /^\d+$/u.test(favoraveis) ? Number(favoraveis) : null;
+  const contraryNumber = /^\d+$/u.test(contrarios) ? Number(contrarios) : null;
+  const present = favorableNumber !== null && contraryNumber !== null ? favorableNumber + contraryNumber : null;
+  return { favorableNumber, contraryNumber, present };
+}
+
 function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirtyChange }: {
   readonly student: RelationalCouncilStudentV3;
   readonly sessionOpen: boolean;
@@ -114,18 +126,16 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
 }) {
   const [decision, setDecision] = useState(String(student.decision?.code ?? 1));
   const [decisionReason, setDecisionReason] = useState(student.decision?.justification ?? '');
-  const [favoraveis, setFavoraveis] = useState(student.vote ? String(student.vote.favoraveis) : '');
-  const [contrarios, setContrarios] = useState(student.vote ? String(student.vote.contrarios) : '');
+  const [favoraveis, setFavoraveis] = useState(voteCountTextV3(student, 'favoraveis'));
+  const [contrarios, setContrarios] = useState(voteCountTextV3(student, 'contrarios'));
   const [voteReason, setVoteReason] = useState(student.vote?.justification ?? '');
   useEffect(() => {
     setDecision(String(student.decision?.code ?? 1)); setDecisionReason(student.decision?.justification ?? '');
-    setFavoraveis(student.vote ? String(student.vote.favoraveis) : ''); setContrarios(student.vote ? String(student.vote.contrarios) : '');
+    setFavoraveis(voteCountTextV3(student, 'favoraveis')); setContrarios(voteCountTextV3(student, 'contrarios'));
     setVoteReason(student.vote?.justification ?? '');
     onDirtyChange(false);
   }, [student.id, student.decision, student.vote, onDirtyChange]);
-  const favorableNumber = /^\d+$/u.test(favoraveis) ? Number(favoraveis) : null;
-  const contraryNumber = /^\d+$/u.test(contrarios) ? Number(contrarios) : null;
-  const present = favorableNumber !== null && contraryNumber !== null ? favorableNumber + contraryNumber : null;
+  const { favorableNumber, contraryNumber, present } = voteNumbersV3(favoraveis, contrarios);
   return <div className="grid min-w-0 gap-4">
     <Card className="overflow-hidden">
       <Card.Header className="flex flex-col items-start gap-3 border-b border-separator sm:flex-row sm:items-center">
@@ -180,6 +190,47 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
   </div>;
 }
 
+/** The reads in progress, the last failure, a stale live read and the last confirmation. */
+function CouncilStatusV3({ busy, failure, stale, message }: Readonly<{
+  busy: { classes: boolean; workspace: boolean };
+  failure: RelationalCouncilFailureV3 | null;
+  stale: boolean;
+  message: string;
+}>) {
+  return <div className="min-h-10" aria-live="polite">{busy.classes || busy.workspace ? <p className="flex items-center gap-2 text-sm text-muted"><output className="contents"><Spinner size="sm"/>Carregando a leitura segura do Conselho…</output></p> : null}
+      {failure ? <Alert status="warning"><Alert.Indicator/><Alert.Content><Alert.Title>Operação não concluída</Alert.Title><Alert.Description>{FAILURE[failure]}</Alert.Description></Alert.Content></Alert> : null}
+      <LiveReadNoticeV1 failed={stale}/>
+      {message ? <p className="text-sm font-medium text-success">{message}</p> : null}</div>;
+}
+
+/** The class session: its state, the justification, and open, reopen or a confirmed close. */
+function CouncilSessionCardV3({ workspace, reason, onReason, confirmClose, onConfirmClose, busy, onSessionCommand }: Readonly<{
+  workspace: RelationalCouncilWorkspaceV3;
+  reason: string;
+  onReason: (reason: string) => void;
+  confirmClose: boolean;
+  onConfirmClose: (confirm: boolean) => void;
+  busy: boolean;
+  onSessionCommand: (operation: 'open' | 'close' | 'reopen') => void;
+}>) {
+  return <Card><Card.Header className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><Card.Title>Sessão da turma {workspace.classGroup.label}</Card.Title><Card.Description>Versão institucional {workspace.session.version} · {workspace.session.snapshotCount} fechamento(s) preservado(s)</Card.Description></div>
+        <Chip className="sm:ml-auto" color={SESSION_COLOR[workspace.session.state]} variant="soft"><Chip.Label>{SESSION_LABEL[workspace.session.state]}</Chip.Label></Chip></Card.Header>
+        <Card.Content className="grid gap-3 border-t border-separator pt-4"><div><Label htmlFor="council-session-reason" className="mb-1.5 block text-xs font-medium text-muted">Justificativa da ação na sessão</Label><textarea id="council-session-reason" className="council-textarea" rows={2} value={reason} onChange={(event) => onReason(event.currentTarget.value)} disabled={busy}/></div>
+          <div className="flex flex-wrap gap-2">{workspace.session.state === 'not-opened' ? <Button variant="primary" isDisabled={reason.trim().length < 3 || busy} onPress={() => onSessionCommand('open')}><CircleDot size={17}/>Abrir reunião</Button> : null}
+            {workspace.session.state === 'closed' ? <Button variant="primary" isDisabled={reason.trim().length < 3 || busy} onPress={() => onSessionCommand('reopen')}><RotateCcw size={17}/>Reabrir com justificativa</Button> : null}
+            {workspace.session.state === 'open' && !confirmClose ? <Button variant="secondary" isDisabled={workspace.summary.pending > 0 || reason.trim().length < 3 || busy} onPress={() => onConfirmClose(true)}><LockKeyhole size={17}/>Revisar fechamento</Button> : null}
+          </div>
+          {workspace.session.state === 'open' && workspace.summary.pending > 0 ? <p className="text-xs text-warning">Faltam {workspace.summary.pending} decisão(ões) explícita(s) antes do fechamento.</p> : null}
+          {confirmClose ? <Alert status="warning"><Alert.Indicator/><Alert.Content><Alert.Title>Confirmar fechamento institucional?</Alert.Title><Alert.Description>As edições serão bloqueadas e um novo snapshot imutável será criado. A correção posterior exige reabertura justificada.</Alert.Description><div className="mt-3 flex gap-2"><Button variant="primary" isDisabled={busy} onPress={() => onSessionCommand('close')}><Archive size={16}/>Fechar e preservar snapshot</Button><Button variant="ghost" onPress={() => onConfirmClose(false)}>Cancelar</Button></div></Alert.Content></Alert> : null}
+        </Card.Content></Card>;
+}
+
+/** The timeline of human actions and the preserved closures. */
+function CouncilHistoryV3({ workspace }: Readonly<{ workspace: RelationalCouncilWorkspaceV3 }>) {
+  return <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,.8fr)]"><Card><Card.Header><div className="flex items-center gap-2"><History size={18}/><Card.Title>Linha do tempo</Card.Title></div><Card.Description>Histórico de ações humanas, sem participantes nominais da votação.</Card.Description></Card.Header><Card.Content>{workspace.timeline.length ? <ol className="council-timeline">{workspace.timeline.map((event, index) => <li key={event.id}><span className="council-timeline__rail"><span className="council-timeline__marker"/>{index < workspace.timeline.length - 1 ? <span className="council-timeline__connector"/> : null}</span><article><div className="flex flex-wrap items-center gap-2"><strong>{TIMELINE_LABEL[event.action]}</strong><Chip size="sm" variant="soft"><Chip.Label>v{event.version}</Chip.Label></Chip></div>{event.studentLabel ? <p className="text-sm">{event.studentLabel}</p> : null}<p className="text-sm text-muted">{event.justification}</p><time className="text-xs text-muted" dateTime={event.occurredAt}>{new Date(event.occurredAt).toLocaleString('pt-BR')}</time></article></li>)}</ol> : <p className="text-sm text-muted">A linha do tempo começará quando a reunião for aberta.</p>}</Card.Content></Card>
+        <Card><Card.Header><Card.Title>Fechamentos preservados</Card.Title><Card.Description>Cada reabertura mantém os snapshots anteriores.</Card.Description></Card.Header><Card.Content>{workspace.closures.length ? <ul className="grid gap-2">{workspace.closures.map((closure) => <li key={closure.id} className="rounded-xl border border-separator p-3"><div className="flex items-center gap-2"><Archive size={16}/><strong>Fechamento {closure.sequence}</strong><Chip size="sm" variant="soft" className="ml-auto"><Chip.Label>v{closure.version}</Chip.Label></Chip></div><p className="mt-2 text-xs text-muted">{closure.summary.approved} aprovado(s) · {closure.summary.rejected} reprovado(s) · {closure.summary.absence} por falta</p><time className="mt-1 block text-xs text-muted" dateTime={closure.closedAt}>{new Date(closure.closedAt).toLocaleString('pt-BR')}</time></li>)}</ul> : <p className="text-sm text-muted">Nenhum fechamento realizado.</p>}</Card.Content></Card></div>;
+}
+
 export function RelationalCouncilPageV3() {
   const state = useRelationalCouncilV3();
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
@@ -217,29 +268,16 @@ export function RelationalCouncilPageV3() {
       <Chip size="sm" variant="soft" color="accent" className="ml-auto"><Chip.Label>{state.year} · decisão explícita</Chip.Label></Chip></header>
     <Surface className="council-filterbar"><div className="min-w-0 flex-1"><CouncilClassSelect value={state.classId} disabled={state.busy.classes || state.busy.command} classes={state.classes} onChange={(value) => void state.selectClass(value)}/></div>
       {state.failure && state.classId !== null ? <Button variant="secondary" isDisabled={state.busy.workspace || state.busy.command || protectDrafts} onPress={() => void state.loadWorkspace(state.classId!)}><RefreshCw size={16}/>Tentar novamente</Button> : null}</Surface>
-    <div className="min-h-10" aria-live="polite">{state.busy.classes || state.busy.workspace ? <p className="flex items-center gap-2 text-sm text-muted"><output className="contents"><Spinner size="sm"/>Carregando a leitura segura do Conselho…</output></p> : null}
-      {state.failure ? <Alert status="warning"><Alert.Indicator/><Alert.Content><Alert.Title>Operação não concluída</Alert.Title><Alert.Description>{FAILURE[state.failure]}</Alert.Description></Alert.Content></Alert> : null}
-      <LiveReadNoticeV1 failed={state.stale}/>
-      {message ? <p className="text-sm font-medium text-success">{message}</p> : null}</div>
+    <CouncilStatusV3 busy={state.busy} failure={state.failure} stale={state.stale} message={message}/>
     {!workspace && !state.busy.workspace ? <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-separator bg-surface-secondary/40 p-8 text-center"><div><Scale className="mx-auto mb-3 text-muted"/><strong className="text-sm">Escolha uma turma para abrir a pauta</strong><p className="mt-1 text-xs text-muted">A fila, os resultados e o histórico serão carregados no mesmo snapshot.</p></div></div> : null}
     {workspace ? <>
       <div className="council-kpi-group" aria-label="Resumo do Conselho"><Metric icon={<Users size={19}/>} label="alunos" value={workspace.summary.total}/><Metric icon={<Scale size={19}/>} label="elegíveis" value={workspace.summary.eligible}/><Metric icon={<Clock3 size={19}/>} label="a deliberar" value={workspace.summary.pending} tone="warning"/><Metric icon={<CheckCircle2 size={19}/>} label="decididos" value={workspace.summary.decided} tone="success"/></div>
-      <Card><Card.Header className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><Card.Title>Sessão da turma {workspace.classGroup.label}</Card.Title><Card.Description>Versão institucional {workspace.session.version} · {workspace.session.snapshotCount} fechamento(s) preservado(s)</Card.Description></div>
-        <Chip className="sm:ml-auto" color={SESSION_COLOR[workspace.session.state]} variant="soft"><Chip.Label>{SESSION_LABEL[workspace.session.state]}</Chip.Label></Chip></Card.Header>
-        <Card.Content className="grid gap-3 border-t border-separator pt-4"><div><Label htmlFor="council-session-reason" className="mb-1.5 block text-xs font-medium text-muted">Justificativa da ação na sessão</Label><textarea id="council-session-reason" className="council-textarea" rows={2} value={sessionReason} onChange={(event) => setSessionReason(event.currentTarget.value)} disabled={state.busy.command}/></div>
-          <div className="flex flex-wrap gap-2">{workspace.session.state === 'not-opened' ? <Button variant="primary" isDisabled={sessionReason.trim().length < 3 || state.busy.command} onPress={() => void sessionCommand('open')}><CircleDot size={17}/>Abrir reunião</Button> : null}
-            {workspace.session.state === 'closed' ? <Button variant="primary" isDisabled={sessionReason.trim().length < 3 || state.busy.command} onPress={() => void sessionCommand('reopen')}><RotateCcw size={17}/>Reabrir com justificativa</Button> : null}
-            {workspace.session.state === 'open' && !confirmClose ? <Button variant="secondary" isDisabled={workspace.summary.pending > 0 || sessionReason.trim().length < 3 || state.busy.command} onPress={() => setConfirmClose(true)}><LockKeyhole size={17}/>Revisar fechamento</Button> : null}
-          </div>
-          {workspace.session.state === 'open' && workspace.summary.pending > 0 ? <p className="text-xs text-warning">Faltam {workspace.summary.pending} decisão(ões) explícita(s) antes do fechamento.</p> : null}
-          {confirmClose ? <Alert status="warning"><Alert.Indicator/><Alert.Content><Alert.Title>Confirmar fechamento institucional?</Alert.Title><Alert.Description>As edições serão bloqueadas e um novo snapshot imutável será criado. A correção posterior exige reabertura justificada.</Alert.Description><div className="mt-3 flex gap-2"><Button variant="primary" isDisabled={state.busy.command} onPress={() => void sessionCommand('close')}><Archive size={16}/>Fechar e preservar snapshot</Button><Button variant="ghost" onPress={() => setConfirmClose(false)}>Cancelar</Button></div></Alert.Content></Alert> : null}
-        </Card.Content></Card>
+      <CouncilSessionCardV3 workspace={workspace} reason={sessionReason} onReason={setSessionReason} confirmClose={confirmClose} onConfirmClose={setConfirmClose} busy={state.busy.command} onSessionCommand={(operation) => void sessionCommand(operation)}/>
       {eligible.length ? <div className="council-layout"><aside className="min-w-0"><div className="council-board" aria-label="Fluxo dos alunos elegíveis"><section className="council-board__column"><header><span className="size-2 rounded-full bg-warning"/><strong>A deliberar</strong><span>{pending.length}</span></header><div className="council-board__cards">{pending.map((student) => <QueueCard key={student.id} student={student} selected={selected?.id === student.id} onSelect={() => setSelectedStudentId(student.id)}/>)}{!pending.length ? <p className="council-board__empty"><Check size={16}/>Fila concluída</p> : null}</div></section>
           <section className="council-board__column"><header><span className="size-2 rounded-full bg-success"/><strong>Decididos</strong><span>{decided.length}</span></header><div className="council-board__cards">{decided.map((student) => <QueueCard key={student.id} student={student} selected={selected?.id === student.id} onSelect={() => setSelectedStudentId(student.id)}/>)}</div></section></div></aside>
           <main className="min-w-0">{selected ? <StudentPanel key={selected.id} student={selected} sessionOpen={workspace.session.state === 'open'} busy={state.busy.command} onCommand={state.command} onMessage={setMessage} onDirtyChange={setStudentDirty}/> : null}</main></div> : <Alert status="default"><Alert.Content><Alert.Title>Nenhum aluno elegível nesta turma</Alert.Title><Alert.Description>Os motivos calculados permanecem disponíveis abaixo; nenhuma decisão foi inventada.</Alert.Description></Alert.Content></Alert>}
       {notEligible.length ? <details className="rounded-2xl border border-separator bg-surface p-4"><summary className="flex cursor-pointer list-none items-center gap-2 font-medium"><Users size={17}/>Não elegíveis <Chip size="sm" variant="soft"><Chip.Label>{notEligible.length}</Chip.Label></Chip><span className="ml-auto text-xs text-muted">Ver motivos</span></summary><ul className="mt-3 grid gap-2">{notEligible.map((student) => <li key={student.id} className="flex flex-col gap-1 rounded-xl bg-surface-secondary p-3 sm:flex-row sm:items-center"><span className="font-medium">Nº {student.number} · {student.name}</span><span className="text-xs text-muted sm:ml-auto">{student.eligibility.label}</span></li>)}</ul></details> : null}
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,.8fr)]"><Card><Card.Header><div className="flex items-center gap-2"><History size={18}/><Card.Title>Linha do tempo</Card.Title></div><Card.Description>Histórico de ações humanas, sem participantes nominais da votação.</Card.Description></Card.Header><Card.Content>{workspace.timeline.length ? <ol className="council-timeline">{workspace.timeline.map((event, index) => <li key={event.id}><span className="council-timeline__rail"><span className="council-timeline__marker"/>{index < workspace.timeline.length - 1 ? <span className="council-timeline__connector"/> : null}</span><article><div className="flex flex-wrap items-center gap-2"><strong>{TIMELINE_LABEL[event.action]}</strong><Chip size="sm" variant="soft"><Chip.Label>v{event.version}</Chip.Label></Chip></div>{event.studentLabel ? <p className="text-sm">{event.studentLabel}</p> : null}<p className="text-sm text-muted">{event.justification}</p><time className="text-xs text-muted" dateTime={event.occurredAt}>{new Date(event.occurredAt).toLocaleString('pt-BR')}</time></article></li>)}</ol> : <p className="text-sm text-muted">A linha do tempo começará quando a reunião for aberta.</p>}</Card.Content></Card>
-        <Card><Card.Header><Card.Title>Fechamentos preservados</Card.Title><Card.Description>Cada reabertura mantém os snapshots anteriores.</Card.Description></Card.Header><Card.Content>{workspace.closures.length ? <ul className="grid gap-2">{workspace.closures.map((closure) => <li key={closure.id} className="rounded-xl border border-separator p-3"><div className="flex items-center gap-2"><Archive size={16}/><strong>Fechamento {closure.sequence}</strong><Chip size="sm" variant="soft" className="ml-auto"><Chip.Label>v{closure.version}</Chip.Label></Chip></div><p className="mt-2 text-xs text-muted">{closure.summary.approved} aprovado(s) · {closure.summary.rejected} reprovado(s) · {closure.summary.absence} por falta</p><time className="mt-1 block text-xs text-muted" dateTime={closure.closedAt}>{new Date(closure.closedAt).toLocaleString('pt-BR')}</time></li>)}</ul> : <p className="text-sm text-muted">Nenhum fechamento realizado.</p>}</Card.Content></Card></div>
+      <CouncilHistoryV3 workspace={workspace}/>
     </> : null}
   </section>;
 }
