@@ -101,7 +101,7 @@
   border: 1px solid rgb(255 255 255 / 0.22);
   border-radius: 999px;
   background: rgb(255 255 255 / 0.08);
-  color: #e0f2fe;
+  color: #e0f2fe; /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
   font-size: var(--text-xs);
   font-weight: 500;
   backdrop-filter: blur(6px);

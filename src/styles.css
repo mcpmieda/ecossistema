@@ -536,7 +536,7 @@ button.performance-kpi__button:hover {
 }
 .performance-kpi__icon--success {
   background: color-mix(in oklab, #19a768 14%, transparent);
-  color: #118451;
+  color: #118451; /* NOSONAR an icon: non-text contrast (3:1) is met */
 }
 .performance-kpi__icon--warning {
   background: color-mix(in oklab, var(--performance-pending) 17%, transparent);

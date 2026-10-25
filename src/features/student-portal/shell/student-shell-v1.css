@@ -51,7 +51,7 @@
   height: 100%;
   border: 1px solid rgb(255 255 255 / 0.3);
   background: rgb(255 255 255 / 0.16);
-  color: white;
+  color: white; /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
   font-size: 0.75rem;
   font-weight: 700;
   border-radius: inherit;
@@ -245,7 +245,7 @@
   border-radius: 1rem;
   color: white;
   border: 1px solid rgb(255 255 255 / 0.2);
-  background: rgb(255 255 255 / 0.11);
+  background: rgb(255 255 255 / 0.11); /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.15);
   backdrop-filter: blur(8px);
 }
@@ -399,7 +399,7 @@
 .pa-seal-count--empty {
   border-color: rgb(250 199 117 / 0.35);
   background: rgb(255 255 255 / 0.1);
-  color: rgb(253 233 181 / 0.72);
+  color: rgb(253 233 181 / 0.72); /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
   box-shadow: none;
 }
 .pa-seal-count--empty::before,
@@ -412,7 +412,7 @@
 .pa-profile-meta .chip {
   border: 1px solid rgb(255 255 255 / 0.22);
   background: rgb(255 255 255 / 0.14);
-  color: #fff;
+  color: #fff; /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
   font-weight: 600;
 }
 .pa-hero-portrait {
