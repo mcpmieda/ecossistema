@@ -130,6 +130,61 @@ function occurrenceAfterTransition(
 export function createAuditWorkspaceV1(
   dependencies: AuditWorkspaceDependenciesV1,
 ): AuditWorkspaceV1 {
+  /** An import batch: its files under review, its open audit items and, when a plan exists for it,
+   * whether any file can be promoted. */
+  async function importBatchDetail(
+    academicYearId: AuditWorkspaceDetailRequestV1['academicYearId'],
+    reference: Extract<AuditWorkspaceDetailRequestV1['reference'], { kind: 'import-batch' }>,
+    context: { academicYearId: AuditWorkspaceDetailRequestV1['academicYearId'] },
+  ): Promise<AuditWorkspaceDetailResponseV1> {
+    const batch = await dependencies.imports.getImportBatch(context, reference.id);
+    if (batch === null) return detailNonDisclosure('not-found');
+    const occurrenceIds = await dependencies.source.listPendingOccurrenceIdsForImportBatch(
+      context,
+      reference.id,
+    );
+    const filePending = batch.value.files
+      .filter((file) => file.status === 'review-required')
+      .map((file) => ({
+        kind: 'import-file-review' as const,
+        importBatchId: batch.value.id,
+        importFileId: file.id,
+      }));
+    const auditPending = occurrenceIds.map((id) => ({
+      kind: 'audit-occurrence' as const,
+      id,
+    }));
+
+    let eligible: boolean | null = null;
+    if (dependencies.existingPlans !== undefined) {
+      const plan = await dependencies.existingPlans.getExistingImportChangePlan(
+        academicYearId,
+        reference.id,
+      );
+      if (plan !== null) {
+        if (plan.academicYearId !== academicYearId || plan.importBatchId !== reference.id) {
+          return detailNonDisclosure('insufficient-data');
+        }
+        eligible = plan.promotionRequest.approvedImportFileIds.length > 0;
+      }
+    }
+
+    return {
+      contractVersion: AUDIT_WORKSPACE_CONTRACT_VERSION_V1,
+      outcome: 'detail',
+      academicYearId: academicYearId,
+      detail: {
+        kind: 'import-batch',
+        reference: reference,
+        record: batch.value,
+        version: batch.version,
+        recordedAt: batch.recordedAt,
+        pendingItems: [...filePending, ...auditPending],
+        promotionEligibility: promotionEligibility(eligible),
+      },
+    };
+  }
+
   return {
     authorizationPolicy: AUDIT_WORKSPACE_AUTHORIZATION_POLICY_V1,
 
@@ -167,57 +222,8 @@ export function createAuditWorkspaceV1(
 
       try {
         switch (request.reference.kind) {
-          case 'import-batch': {
-            const batch = await dependencies.imports.getImportBatch(context, request.reference.id);
-            if (batch === null) return detailNonDisclosure('not-found');
-            const occurrenceIds = await dependencies.source.listPendingOccurrenceIdsForImportBatch(
-              context,
-              request.reference.id,
-            );
-            const filePending = batch.value.files
-              .filter((file) => file.status === 'review-required')
-              .map((file) => ({
-                kind: 'import-file-review' as const,
-                importBatchId: batch.value.id,
-                importFileId: file.id,
-              }));
-            const auditPending = occurrenceIds.map((id) => ({
-              kind: 'audit-occurrence' as const,
-              id,
-            }));
-
-            let eligible: boolean | null = null;
-            if (dependencies.existingPlans !== undefined) {
-              const plan = await dependencies.existingPlans.getExistingImportChangePlan(
-                request.academicYearId,
-                request.reference.id,
-              );
-              if (plan !== null) {
-                if (
-                  plan.academicYearId !== request.academicYearId ||
-                  plan.importBatchId !== request.reference.id
-                ) {
-                  return detailNonDisclosure('insufficient-data');
-                }
-                eligible = plan.promotionRequest.approvedImportFileIds.length > 0;
-              }
-            }
-
-            return {
-              contractVersion: AUDIT_WORKSPACE_CONTRACT_VERSION_V1,
-              outcome: 'detail',
-              academicYearId: request.academicYearId,
-              detail: {
-                kind: 'import-batch',
-                reference: request.reference,
-                record: batch.value,
-                version: batch.version,
-                recordedAt: batch.recordedAt,
-                pendingItems: [...filePending, ...auditPending],
-                promotionEligibility: promotionEligibility(eligible),
-              },
-            };
-          }
+          case 'import-batch':
+            return await importBatchDetail(request.academicYearId, request.reference, context);
           case 'audit-occurrence': {
             const result = await dependencies.audit.getCurrent(context, {
               kind: 'occurrence',
