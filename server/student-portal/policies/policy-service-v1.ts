@@ -371,6 +371,25 @@ function storedMatchesV1(
   );
 }
 
+function commandValueV1(command: SettingsSetCommandV1, field: (typeof FIELDS)[number]) {
+  return field === 'calendar' ? normalizeCalendarV1(command.value.calendar) : command.value[field];
+}
+
+/** No schedule is kept as no row, so levels without one never need migration 0021. Removing a
+ * schedule takes effect at once and must be acknowledged. */
+async function clearScheduleV1(
+  tx: StudentPortalPostgresQueryV1,
+  scope: PolicyScopeV1,
+  previous: Record<string, unknown> | undefined,
+  command: SettingsSetCommandV1,
+) {
+  if (!previous) return false;
+  if (!command.acknowledgeImmediateEffect)
+    throw new Error('student-portal-policy-immediate-confirmation-required');
+  await tx.unsafe('DELETE FROM student_portal.setting WHERE scope_key=$1 AND field_key=$2', [key(scope), 'accessSchedule']);
+  return true;
+}
+
 async function applySettingsSetV1(
   tx: StudentPortalPostgresQueryV1,
   scope: PolicyScopeV1,
@@ -383,16 +402,10 @@ async function applySettingsSetV1(
   let changed = false;
   for (const field of FIELDS) {
     if (!(field in command.value)) continue;
-    const value =
-      field === 'calendar' ? normalizeCalendarV1(command.value.calendar) : command.value[field];
+    const value = commandValueV1(command, field);
     const previous = stored.find((row) => row.field_key === field);
     if (field === 'accessSchedule' && value === null) {
-      // No schedule is kept as no row, so levels without one never need migration 0021.
-      if (!previous) continue;
-      if (!command.acknowledgeImmediateEffect)
-        throw new Error('student-portal-policy-immediate-confirmation-required');
-      await tx.unsafe('DELETE FROM student_portal.setting WHERE scope_key=$1 AND field_key=$2', [key(scope), field]);
-      changed = true;
+      if (await clearScheduleV1(tx, scope, previous, command)) changed = true;
       continue;
     }
     if (storedMatchesV1(previous, value, scope)) continue;
