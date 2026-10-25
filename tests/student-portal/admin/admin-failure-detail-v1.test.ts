@@ -11,7 +11,9 @@ describe('adminFailureDetailV1', () => {
     expect(JSON.stringify(detail)).not.toContain('PERICLES');
   });
   test('a database error keeps its SQLSTATE, not its message', () => {
-    const error = Object.assign(new Error('column "secret value" does not exist'), { code: '42703' });
+    const error = Object.assign(new Error('column "secret value" does not exist'), {
+      code: '42703',
+    });
     expect(adminFailureDetailV1(error)).toEqual({ kind: 'Error', code: '42703' });
   });
   test('a portal error keeps its fixed message', () => {
