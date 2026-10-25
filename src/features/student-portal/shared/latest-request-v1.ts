@@ -5,6 +5,21 @@ export type PortalLoadStateV1<T> =
   | { state: 'ready'; data: T; refreshing?: boolean; refreshError?: PortalClientErrorV1 }
   | { state: 'error'; error: PortalClientErrorV1 };
 
+/** A background failure keeps content verified in the last minute; denial, conflict and malformed
+ * data are never hidden behind old content. */
+function failedStateV1<T>(
+  error: unknown,
+  previous: { data: T } | null,
+  verifiedAt: number,
+): PortalLoadStateV1<T> {
+  const failure =
+    error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('network-error');
+  const transient = ['network-error', 'unavailable', 'rate-limited'].includes(failure.state);
+  if (previous && transient && Date.now() - verifiedAt <= 60_000)
+    return { state: 'ready', data: previous.data, refreshing: false, refreshError: failure };
+  return { state: 'error', error: failure };
+}
+
 /** A scope switch clears protected data immediately, even when a fetch ignores abort.
  * Background refresh is explicit and local to the same reader/context, never persistent cache.
  */
@@ -50,13 +65,7 @@ export function createLatestPortalRequestV1<T>(publish: (state: PortalLoadStateV
         }
       } catch (error) {
         if (current !== generation || controller.signal.aborted) return;
-        const failure =
-          error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('network-error');
-        // Denial, conflict and malformed data are never hidden behind old content.
-        const transient = ['network-error', 'unavailable', 'rate-limited'].includes(failure.state);
-        if (previous && transient && Date.now() - verifiedAt <= 60_000)
-          emit({ state: 'ready', data: previous.data, refreshing: false, refreshError: failure });
-        else emit({ state: 'error', error: failure });
+        emit(failedStateV1(error, previous, verifiedAt));
         return false;
       } finally {
         if (current === generation) active = undefined;
