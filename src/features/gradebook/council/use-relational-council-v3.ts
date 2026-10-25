@@ -22,6 +22,8 @@ type CommandInput = Command extends infer Value
   : never;
 const PAGE_SIZE = 100;
 
+const abortedV3 = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
+
 export function useRelationalCouncilV3() {
   const sharedYear = useGradebookYear();
   const year = sharedYear?.year ?? null;
@@ -47,6 +49,33 @@ export function useRelationalCouncilV3() {
     setFailure('not-authorized'); setBusy({ classes: false, workspace: false, command: false });
   }, [clearAuthorization]);
 
+  /** A background read only marks the screen stale; a read the user asked for shows the failure. */
+  function readFailed(background: boolean, state: RelationalCouncilFailureV3 | 'ready') {
+    if (background) setStale(true);
+    else setFailure(state === 'ready' ? 'unavailable' : state);
+    return false;
+  }
+  /** A selected class that left the list is dropped with its workspace. */
+  function keepSelectedClass(list: readonly CouncilClass[]) {
+    if (selectedClass.current !== null && !list.some((item) => item.id === selectedClass.current)) {
+      selectedClass.current = null; setClassId(null); setWorkspace(null);
+    }
+  }
+  /** The class saved for this year reopens once, if nothing was chosen meanwhile and it still exists. */
+  function restoreStoredClass(list: readonly CouncilClass[], currentYear: number) {
+    const stored = restoreClass.current;
+    restoreClass.current = null;
+    if (stored && stored.year === currentYear && selectedClass.current === null && list.some((item) => item.id === stored.classId)) {
+      selectedClass.current = stored.classId; setClassId(stored.classId);
+      void loadWorkspace(stored.classId!);
+    }
+  }
+
+  /** A read the user asked for shows its progress and clears the last failure. */
+  function beginWorkspaceRead(background: boolean) {
+    if (!background) { setBusy((current) => ({ ...current, workspace: true })); setFailure(null); }
+  }
+
   const loadClasses = useCallback(async (background = false) => {
     if (year === null) return;
     classesController.current?.abort();
@@ -56,27 +85,14 @@ export function useRelationalCouncilV3() {
       const response = await requestRelationalCouncilV3({ contractVersion: 3, operation: 'classes', year, offset: 0, limit: PAGE_SIZE }, controller.signal);
       if (controller.signal.aborted) return;
       if (response.state === 'not-authorized') { loseAccess(); return false; }
-      if (response.state !== 'ready' || response.operation !== 'classes') {
-        if (background) setStale(true); else setFailure(response.state === 'ready' ? 'unavailable' : response.state);
-        return false;
-      }
+      if (response.state !== 'ready' || response.operation !== 'classes') return readFailed(background, response.state);
       setClasses(response.classes);
-      if (selectedClass.current !== null && !response.classes.some((item) => item.id === selectedClass.current)) {
-        selectedClass.current = null; setClassId(null); setWorkspace(null);
-      }
+      keepSelectedClass(response.classes);
       setStale(false);
-      const stored = restoreClass.current;
-      restoreClass.current = null;
-      if (stored && stored.year === year && selectedClass.current === null && response.classes.some((item) => item.id === stored.classId)) {
-        selectedClass.current = stored.classId; setClassId(stored.classId);
-        void loadWorkspace(stored.classId!);
-      }
+      restoreStoredClass(response.classes, year);
       return true;
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        if (background) setStale(true); else setFailure('unavailable');
-        return false;
-      }
+      if (!abortedV3(error)) return readFailed(background, 'unavailable');
     } finally {
       if (!background && !controller.signal.aborted) setBusy((current) => ({ ...current, classes: false }));
     }
@@ -87,25 +103,21 @@ export function useRelationalCouncilV3() {
     workspaceController.current?.abort();
     const controller = new AbortController(); workspaceController.current = controller;
     const ticket = ++sequence.current;
-    if (!background) { setBusy((current) => ({ ...current, workspace: true })); setFailure(null); }
+    beginWorkspaceRead(background);
     try {
       const response = await requestRelationalCouncilV3({ contractVersion: 3, operation: 'workspace', year, classId: target }, controller.signal);
       if (controller.signal.aborted || ticket !== sequence.current) return;
       if (response.state === 'not-authorized') { loseAccess(); return false; }
       if (response.state !== 'ready' || response.operation === 'classes') {
-        if (background) setStale(true);
-        else { setFailure(response.state === 'ready' ? 'unavailable' : response.state); setWorkspace(null); }
-        return false;
+        if (!background) setWorkspace(null);
+        return readFailed(background, response.state);
       }
       if (background && draftProtected.current) return;
       setWorkspace(response.workspace);
       setStale(false);
       return true;
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError') && ticket === sequence.current) {
-        if (background) setStale(true); else setFailure('unavailable');
-        return false;
-      }
+      if (!abortedV3(error) && ticket === sequence.current) return readFailed(background, 'unavailable');
     } finally {
       if (!background && !controller.signal.aborted && ticket === sequence.current) setBusy((current) => ({ ...current, workspace: false }));
     }
