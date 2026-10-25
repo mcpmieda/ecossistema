@@ -356,48 +356,48 @@ function isRecoveryValuesV4(value: unknown): value is GradebookImportRecoveryVal
   );
 }
 
+/** The sheet's students with every V4 cell observation read as a V3 historical note; null when a
+ * student does not have the expected shape. */
+function historicalStudentsV4(kind: 'term' | 'recovery', sheetStudents: readonly unknown[]): unknown[] | null {
+  const students: unknown[] = [];
+  for (const student of sheetStudents) {
+    if (kind === 'term') {
+      if (!isRecord(student)) return null;
+      const aggregates = student.aggregates;
+      if (!isTermAggregatesV4(aggregates)) return null;
+      students.push({
+        ...student,
+        aggregates: Object.fromEntries(
+          TERM_AGGREGATE_KEYS_V4.map((key) => [key, observationAsHistoricalNote(aggregates[key])]),
+        ),
+      });
+      continue;
+    }
+    if (!isRecord(student) || !isRecoveryValuesV4(student.recovery)) return null;
+    const recovery = student.recovery;
+    students.push({
+      ...student,
+      recovery: {
+        ...Object.fromEntries(
+          RECOVERY_DIRECT_KEYS_V4.map((key) => [key, observationAsHistoricalNote(recovery[key])]),
+        ),
+        applicabilityTrimester1: recovery.applicabilityTrimester1,
+        applicabilityTrimester2: recovery.applicabilityTrimester2,
+        applicabilityTrimester3: recovery.applicabilityTrimester3,
+      },
+    });
+  }
+  return students;
+}
+
 function asInspectionOnlyV3(value: Record<string, unknown>): Record<string, unknown> | null {
   if (!Array.isArray(value.sheets)) return null;
   const sheets: unknown[] = [];
   for (const sheet of value.sheets) {
     if (!isRecord(sheet) || !Array.isArray(sheet.students)) return null;
-    if (sheet.kind === 'term') {
-      const students: unknown[] = [];
-      for (const student of sheet.students) {
-        if (!isRecord(student)) return null;
-        const aggregates = student.aggregates;
-        if (!isTermAggregatesV4(aggregates)) return null;
-        students.push({
-          ...student,
-          aggregates: Object.fromEntries(
-            TERM_AGGREGATE_KEYS_V4.map((key) => [key, observationAsHistoricalNote(aggregates[key])]),
-          ),
-        });
-      }
-      sheets.push({ ...sheet, students });
-      continue;
-    }
-    if (sheet.kind === 'recovery') {
-      const students: unknown[] = [];
-      for (const student of sheet.students) {
-        if (!isRecord(student) || !isRecoveryValuesV4(student.recovery)) return null;
-        const recovery = student.recovery;
-        students.push({
-          ...student,
-          recovery: {
-            ...Object.fromEntries(
-              RECOVERY_DIRECT_KEYS_V4.map((key) => [key, observationAsHistoricalNote(recovery[key])]),
-            ),
-            applicabilityTrimester1: recovery.applicabilityTrimester1,
-            applicabilityTrimester2: recovery.applicabilityTrimester2,
-            applicabilityTrimester3: recovery.applicabilityTrimester3,
-          },
-        });
-      }
-      sheets.push({ ...sheet, students });
-      continue;
-    }
-    return null;
+    const students = sheet.kind === 'term' || sheet.kind === 'recovery' ? historicalStudentsV4(sheet.kind, sheet.students) : null;
+    if (students === null) return null;
+    sheets.push({ ...sheet, students });
   }
   return { ...value, transportVersion: 3, sheets };
 }
