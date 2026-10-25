@@ -223,6 +223,25 @@ function qualitativeValueEvidence(
   return { observed, unavailable };
 }
 
+function markUnavailableV9<T>(unavailable: boolean, slots: T[], slot: T) {
+  if (unavailable) slots.push(slot);
+}
+
+/** An erased qualitative column: empty maximum, and no name or value, read or unreadable. */
+function columnErasedV9(
+  maximumState: string,
+  nameState: { present: boolean; unavailable: boolean },
+  values: { observed: boolean; unavailable: boolean },
+) {
+  return (
+    maximumState === 'ambiguous-empty' &&
+    !nameState.present &&
+    !nameState.unavailable &&
+    !values.observed &&
+    !values.unavailable
+  );
+}
+
 function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV1 {
   const bySource = new Map(
     sheet.assessmentDefinitions.map((definition) => [definition.sourceSlot, definition]),
@@ -251,16 +270,11 @@ function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV
     const nameState = qualitativeNameState(qualitative);
     const values = qualitativeValueEvidence(sheet, source.studentValueColumn);
 
-    if (maximumUnavailable) unavailableMaximumSlots.push(slot);
-    if (nameState.unavailable) unavailableDescriptionSlots.push(slot);
-    if (values.unavailable) unavailableValueSlots.push(slot);
+    markUnavailableV9(maximumUnavailable, unavailableMaximumSlots, slot);
+    markUnavailableV9(nameState.unavailable, unavailableDescriptionSlots, slot);
+    markUnavailableV9(values.unavailable, unavailableValueSlots, slot);
 
-    const deleted =
-      maximumState === 'ambiguous-empty' &&
-      !nameState.present &&
-      !nameState.unavailable &&
-      !values.observed &&
-      !values.unavailable;
+    const deleted = columnErasedV9(maximumState, nameState, values);
 
     // A truly erased qualitative column never enters the canonical payload.
     if (deleted) continue;
@@ -531,23 +545,18 @@ export function createGradebookCanonicalImportRequestV9(
   return request;
 }
 
+const unavailableCellV9 = (value: unknown) => Array.isArray(value) && value[0] === 'u';
+const countUnavailableV9 = (values: readonly unknown[]) => values.filter(unavailableCellV9).length;
+
+/** Cells the file could not read (marked 'u'): term values and AM, then REC and U. */
 export function unavailableCellsV9(request: GradebookImportPersistenceRequestV9): number {
   if (request.operation === 'persist-relacao') return 0;
   let total = 0;
-  const unavailable = (value: unknown) => Array.isArray(value) && value[0] === 'u';
   for (const oferta of request.ofertas) {
-    for (const term of oferta.trimestres) {
-      for (const [, values, am] of term.alunos) {
-        total += values.filter(unavailable).length;
-        if (unavailable(am)) total++;
-      }
-    }
-    for (const [, rec1, rec2, rec3, u] of oferta.recuperacao ?? []) {
-      if (unavailable(rec1)) total++;
-      if (unavailable(rec2)) total++;
-      if (unavailable(rec3)) total++;
-      if (unavailable(u)) total++;
-    }
+    for (const term of oferta.trimestres)
+      for (const [, values, am] of term.alunos) total += countUnavailableV9([...values, am]);
+    for (const [, rec1, rec2, rec3, u] of oferta.recuperacao ?? [])
+      total += countUnavailableV9([rec1, rec2, rec3, u]);
   }
   return total;
 }
