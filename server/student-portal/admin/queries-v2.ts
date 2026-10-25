@@ -50,6 +50,15 @@ export async function readAdminV2(
   if (query.operation === 'seals-read') return readSealsV1(tx, query, requestId, now, pendingSealWrites);
   if (query.operation === 'sessions-read')
     return readSessionsV2(tx, query, actor, requestId, now, cursor);
+  return readAccountsV2(tx, query, { actor, requestId, now, cursor });
+}
+
+/** The account list or the overview: one bounded account batch, sessions counted together. */
+async function readAccountsV2(
+  tx: StudentPortalPostgresQueryV1,
+  query: AdminReadQueryV2,
+  { actor, requestId, now, cursor }: { actor: string; requestId: string; now: Date; cursor: AdminCursorV1 },
+) {
   const after = await cursor.read(query, actor, now);
   if (after?.at) throw new Error('student-portal-cursor-invalid-request');
   const alphabetical = query.operation === 'accounts-read';
@@ -60,24 +69,9 @@ export async function readAdminV2(
     values.push(value);
     return `$${values.length}`;
   };
-  // A single record opens even after the student left (audit links, 29/09/2026); lists and totals
-  // keep showing only enrolled students.
-  const where = ['a.academic_year=2026'];
-  if (query.scope.kind !== 'account' || query.operation !== 'accounts-read') where.push(ENROLLED_ACCOUNT_SQL_V1);
-  if (query.scope.kind === 'account') where.push(`a.id=${bind(query.scope.accountId)}::uuid`);
-  if (query.scope.kind === 'class') where.push(`b.class_id=${bind(query.scope.classId)}`);
-  if (query.accountState !== undefined) where.push(`a.auth_state=${bind(query.accountState)}`);
-  if (query.blocked !== undefined) where.push(`a.blocked=${bind(query.blocked)}`);
-  if (query.nameSearch !== undefined)
-    where.push(`position(lower(${bind(query.nameSearch)}) in lower(COALESCE(s.name,'')))>0`);
   const nameOrder = studentNameOrderSqlV1("COALESCE(s.name,'')");
-  if (after) {
-    if (alphabetical) {
-      const afterName = studentNameOrderSqlV1(bind(after.name) + '::text');
-      const afterId = bind(after.id) + '::uuid';
-      where.push(`(${nameOrder},a.id)>(${afterName},${afterId})`);
-    } else where.push(`a.id>${bind(after.id)}::uuid`);
-  }
+  const where = accountWhereV2(query, bind);
+  if (after) where.push(afterWhereV2(after, alphabetical, nameOrder, bind));
   const clock = bind(now.toISOString());
   const limit = query.operation === 'overview' ? ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 : query.page.limit;
   const orderBy = alphabetical ? nameOrder + ',a.id' : 'a.id';
@@ -102,14 +96,64 @@ export async function readAdminV2(
   if (query.operation === 'overview' && rows.length > limit)
     throw new Error('student-portal-admin-scope-unavailable');
   const selected = rows.slice(0, limit);
-  const sessionPolicies: {
-    id: string;
-    security: number;
-    end: string;
-    persistent: number;
-    short: number;
-  }[] = [];
-  const items: z.infer<typeof adminAccountReadV2>[] = [];
+  const { items, sessionPolicies } = await accountItemsV2(selected, now);
+  if (sessionPolicies.length > 0) await countValidSessionsV2(tx, items, sessionPolicies, now);
+  const base = {
+    contractVersion: 2,
+    requestId,
+    observedAt: now.toISOString(),
+    scopeVersion,
+  };
+  if (query.operation === 'accounts-read')
+    return adminReadResponseV2.parse({
+      ...base,
+      state: 'accounts-read',
+      items,
+      nextCursor:
+        rows.length > limit ? await cursor.next(query, actor, now, items.at(-1)!.accountId, undefined,
+          String(selected.at(-1)!.name)) : null,
+      lastAuthenticationWindowMonths: 12,
+    });
+  return overviewResponseV2(base, items, health!.status);
+}
+
+type SessionPolicyV2 = { id: string; security: number; end: string; persistent: number; short: number };
+type AdminAccountItemV2 = z.infer<typeof adminAccountReadV2>;
+
+/** The filters of the read; a single record opens even after the student left (audit links,
+ * 29/09/2026), while lists and totals keep showing only enrolled students. */
+function accountWhereV2(
+  query: AdminReadQueryV2,
+  bind: (value: unknown) => string,
+) {
+  const where = ['a.academic_year=2026'];
+  if (query.scope.kind !== 'account' || query.operation !== 'accounts-read') where.push(ENROLLED_ACCOUNT_SQL_V1);
+  if (query.scope.kind === 'account') where.push(`a.id=${bind(query.scope.accountId)}::uuid`);
+  if (query.scope.kind === 'class') where.push(`b.class_id=${bind(query.scope.classId)}`);
+  if (query.accountState !== undefined) where.push(`a.auth_state=${bind(query.accountState)}`);
+  if (query.blocked !== undefined) where.push(`a.blocked=${bind(query.blocked)}`);
+  if (query.nameSearch !== undefined)
+    where.push(`position(lower(${bind(query.nameSearch)}) in lower(COALESCE(s.name,'')))>0`);
+  return where;
+}
+
+/** The page's start: after a name and id (alphabetical list) or after an id. */
+function afterWhereV2(
+  after: { id: string; name?: string },
+  alphabetical: boolean,
+  nameOrder: string,
+  bind: (value: unknown) => string,
+) {
+  if (!alphabetical) return `a.id>${bind(after.id)}::uuid`;
+  const afterName = studentNameOrderSqlV1(bind(after.name) + '::text');
+  const afterId = bind(after.id) + '::uuid';
+  return `(${nameOrder},a.id)>(${afterName},${afterId})`;
+}
+
+/** Each account as the ADM reads it, and the session rules of those that may be signed in now. */
+async function accountItemsV2(selected: readonly Readonly<Record<string, unknown>>[], now: Date) {
+  const sessionPolicies: SessionPolicyV2[] = [];
+  const items: AdminAccountItemV2[] = [];
   // Classmates share the same stored rules: resolve them once for this read.
   const policies = createPolicyResolutionMemoV1();
   for (const row of selected) {
@@ -127,37 +171,36 @@ export async function readAdminV2(
       });
     }
   }
-  if (sessionPolicies.length > 0) {
-    const sessions = await tx.unsafe(
-      `SELECT s.account_id,count(*)::integer AS count
-      FROM jsonb_to_recordset($1::text::jsonb) AS p(id uuid,security bigint,"end" timestamptz,persistent integer,short integer)
-      JOIN student_portal.session s ON s.account_id=p.id
-      WHERE s.revoked_at IS NULL AND s.security_version=p.security AND s.created_at<=$2::timestamptz
-        AND LEAST(s.expires_at,p."end",s.created_at+make_interval(secs=>CASE WHEN s.persistent THEN p.persistent ELSE p.short END))>$2::timestamptz
-      GROUP BY s.account_id`,
-      [JSON.stringify(sessionPolicies), now.toISOString()],
-    );
-    const counts = new Map(
-      sessions.map((row) => [sessionAccountV2.parse(row.account_id), sessionCountV2.parse(row.count)]),
-    );
-    for (const item of items) item.validSessionCount = counts.get(item.accountId) ?? 0;
-  }
-  const base = {
-    contractVersion: 2,
-    requestId,
-    observedAt: now.toISOString(),
-    scopeVersion,
-  };
-  if (query.operation === 'accounts-read')
-    return adminReadResponseV2.parse({
-      ...base,
-      state: 'accounts-read',
-      items,
-      nextCursor:
-        rows.length > limit ? await cursor.next(query, actor, now, items.at(-1)!.accountId, undefined,
-          String(selected.at(-1)!.name)) : null,
-      lastAuthenticationWindowMonths: 12,
-    });
+  return { items, sessionPolicies };
+}
+
+/** The still valid sessions of each account, in one aggregate. */
+async function countValidSessionsV2(
+  tx: StudentPortalPostgresQueryV1,
+  items: AdminAccountItemV2[],
+  sessionPolicies: readonly SessionPolicyV2[],
+  now: Date,
+) {
+  const sessions = await tx.unsafe(
+    `SELECT s.account_id,count(*)::integer AS count
+    FROM jsonb_to_recordset($1::text::jsonb) AS p(id uuid,security bigint,"end" timestamptz,persistent integer,short integer)
+    JOIN student_portal.session s ON s.account_id=p.id
+    WHERE s.revoked_at IS NULL AND s.security_version=p.security AND s.created_at<=$2::timestamptz
+      AND LEAST(s.expires_at,p."end",s.created_at+make_interval(secs=>CASE WHEN s.persistent THEN p.persistent ELSE p.short END))>$2::timestamptz
+    GROUP BY s.account_id`,
+    [JSON.stringify(sessionPolicies), now.toISOString()],
+  );
+  const counts = new Map(
+    sessions.map((row) => [sessionAccountV2.parse(row.account_id), sessionCountV2.parse(row.count)]),
+  );
+  for (const item of items) item.validSessionCount = counts.get(item.accountId) ?? 0;
+}
+
+function overviewResponseV2(
+  base: { contractVersion: number; requestId: string; observedAt: string; scopeVersion: unknown },
+  items: readonly AdminAccountItemV2[],
+  health: unknown,
+) {
   const count = (predicate: (item: (typeof items)[number]) => boolean) =>
     items.filter(predicate).length;
   return adminReadResponseV2.parse({
@@ -175,6 +218,6 @@ export async function readAdminV2(
       accessPermitted: count((item) => item.access.accessPermitted),
       validSessions: items.reduce((total, item) => total + item.validSessionCount, 0),
     },
-    health: health!.status,
+    health,
   });
 }
