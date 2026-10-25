@@ -23,15 +23,15 @@ const REPORT_LIMITATIONS = [
   'No real files, database, authentication, remote academic concurrency or production requests.',
 ];
 
-/** How a worker's answer ended: a read error, a canonical error, or a request. */
-function outcomeOf(value) {
-  if (value.readError) return 'read-error';
-  return value.canonicalError ? 'canonical-error' : 'request';
-}
-
 /** Same H corpus/codecs, with the real sparse product reader and emitted worker. */
 async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, reportLimitations) {
   if (xlsx.version !== '0.20.3') throw new Error('library-version');
+  // Everything this function uses is declared inside it: the runner embeds it as text.
+  /** How a worker's answer ended: a read error, a canonical error, or a request. */
+  function outcomeOf(value) {
+    if (value.readError) return 'read-error';
+    return value.canonicalError ? 'canonical-error' : 'request';
+  }
   const now = () => new Date('2026-10-02T12:00:00.000Z');
   const variants = ['W0', 'W1', 'W2'];
   let generation = 0;
@@ -103,7 +103,8 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
       roundTripMs: performance.now() - started,
     };
   }
-  for (const source of corpus) {
+  /** Each corpus workbook in each format, or the codec gap that prevents it. */
+  async function prepareFixtures(source) {
     for (const format of ['xlsx', 'xlsb', 'xls']) {
       const fixture = writeFixture(xlsx, source, format);
       if (fixture.gap) {
@@ -140,9 +141,11 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
       });
     }
   }
+  for (const source of corpus) await prepareFixtures(source);
   // One bounded product client per preflight mode; timed rounds create fresh clients.
   const reference = [];
-  for (const variant of variants) {
+  /** One preflight mode: every entry read again and compared with W0's output. */
+  async function checkEquivalence(variant) {
     onProgress(`equivalence/${variant}`);
     let fallbackCount = 0;
     const client = makeClient(
@@ -177,6 +180,7 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
       client?.close();
     }
   }
+  for (const variant of variants) await checkEquivalence(variant);
   const teachers = entries.filter((item) => item.id.startsWith('benchmark-9offers'));
   const relations = entries.filter((item) => item.id === 'relation');
   const scenarios = [
@@ -249,6 +253,21 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
       };
     };
   }
+  /** The canonical form of a measured read, without its timings. */
+  function canonicalOutput(batch, output) {
+    if (batch) {
+      if (batch.failures.length !== 0) throw new Error('measured-read-failure');
+      return batch.successes.map((result) =>
+        canonical({ summary: result.summary, manifest: result.manifest, readError: undefined }),
+      );
+    }
+    return output.map((result) => {
+      const { timing, roundTripMs, ...value } = canonical(result);
+      void timing;
+      void roundTripMs;
+      return value;
+    });
+  }
   async function measureScenario(scenario, cut, round, variant) {
     const stopProbe = uiProbe();
     const startedAt = performance.now();
@@ -273,6 +292,44 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
         fallbackCount++;
       },
     );
+    /** Prepared bytes read with the product's capacity and byte budget, without File or hash. */
+    async function readFixedBytes(localStartedAt) {
+      const outcomes = [];
+      const active = new Map();
+      let nextIndex = 0;
+      const capacity = client?.concurrency ?? 1;
+      inputByteBudget = client?.inputByteBudget ?? null;
+      while (nextIndex < scenario.items.length || active.size > 0) {
+        const bytes = [...active.values()].reduce((sum, value) => sum + value, 0);
+        const next = scenario.items[nextIndex];
+        if (
+          next &&
+          active.size < capacity &&
+          (active.size === 0 ||
+            inputByteBudget === null ||
+            bytes + next.data.byteLength <= inputByteBudget)
+        ) {
+          const index = nextIndex++;
+          const queueMs = performance.now() - localStartedAt;
+          const task = readEntry(next, index, client)
+            .then((result) => {
+              outcomes[index] = result;
+              perFile[index] = {
+                ...result,
+                roundTripMs: client ? result.roundTripMs : null,
+                queueMs: client ? queueMs : null,
+                fileReadMs: null,
+                manifestMs: null,
+              };
+            })
+            .finally(() => active.delete(task));
+          active.set(task, next.data.byteLength);
+          maximumActiveLocalInputs = Math.max(maximumActiveLocalInputs, active.size);
+          maximumActiveInputBytes = Math.max(maximumActiveInputBytes, bytes + next.data.byteLength);
+        } else await Promise.race(active.keys());
+      }
+      return outcomes;
+    }
     try {
       await client?.initialize();
       const localStartedAt = performance.now();
@@ -314,60 +371,10 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
               }),
           },
         );
-      } else {
-        const outcomes = [];
-        const active = new Map();
-        let nextIndex = 0;
-        const capacity = client?.concurrency ?? 1;
-        inputByteBudget = client?.inputByteBudget ?? null;
-        while (nextIndex < scenario.items.length || active.size > 0) {
-          const bytes = [...active.values()].reduce((sum, value) => sum + value, 0);
-          const next = scenario.items[nextIndex];
-          if (
-            next &&
-            active.size < capacity &&
-            (active.size === 0 ||
-              inputByteBudget === null ||
-              bytes + next.data.byteLength <= inputByteBudget)
-          ) {
-            const index = nextIndex++;
-            const queueMs = performance.now() - localStartedAt;
-            const task = readEntry(next, index, client)
-              .then((result) => {
-                outcomes[index] = result;
-                perFile[index] = {
-                  ...result,
-                  roundTripMs: client ? result.roundTripMs : null,
-                  queueMs: client ? queueMs : null,
-                  fileReadMs: null,
-                  manifestMs: null,
-                };
-              })
-              .finally(() => active.delete(task));
-            active.set(task, next.data.byteLength);
-            maximumActiveLocalInputs = Math.max(maximumActiveLocalInputs, active.size);
-            maximumActiveInputBytes = Math.max(
-              maximumActiveInputBytes,
-              bytes + next.data.byteLength,
-            );
-          } else await Promise.race(active.keys());
-        }
-        output = outcomes;
-      }
+      } else output = await readFixedBytes(localStartedAt);
       const localReadMs = performance.now() - localStartedAt;
       const canonicalStartedAt = performance.now();
-      if (batch) {
-        if (batch.failures.length !== 0) throw new Error('measured-read-failure');
-        output = batch.successes.map((result) =>
-          canonical({ summary: result.summary, manifest: result.manifest, readError: undefined }),
-        );
-      } else
-        output = output.map((result) => {
-          const { timing, roundTripMs, ...value } = canonical(result);
-          void timing;
-          void roundTripMs;
-          return value;
-        });
+      output = canonicalOutput(batch, output);
       const canonicalMs = performance.now() - canonicalStartedAt;
       if (output.some((item) => item.readError || item.canonicalError))
         throw new Error('measured-canonical-failure');
@@ -432,42 +439,45 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
     }
   }
   // 3 scenarios × 2 cost cuts × 6 rounds × 3 modes = 108 timed samples.
-  for (const scenario of scenarios)
-    for (const cut of ['fixed-bytes', 'file-and-hash'])
-      for (let round = 0; round <= 5; round++) {
-        const order = round % 2 === 0 ? variants : [...variants].reverse();
-        for (const variant of order) {
-          onProgress(`${scenario.scenario}/${cut}/${round}/${variant}`);
-          samples.push(await measureScenario(scenario, cut, round, variant));
-          await new Promise((resolve) => setTimeout(resolve, 0));
-        }
+  /** Six rounds of one scenario and cut, alternating the order of the modes. */
+  async function runRounds(scenario, cut) {
+    for (let round = 0; round <= 5; round++) {
+      const order = round % 2 === 0 ? variants : [...variants].reverse();
+      for (const variant of order) {
+        onProgress(`${scenario.scenario}/${cut}/${round}/${variant}`);
+        samples.push(await measureScenario(scenario, cut, round, variant));
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
+    }
+  }
+  for (const scenario of scenarios)
+    for (const cut of ['fixed-bytes', 'file-and-hash']) await runRounds(scenario, cut);
   const statistics = [];
   const median = (values) =>
     [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
+  /** The warm rounds of one scenario, cut and mode: duration and responsiveness. */
+  function summarize(scenario, cut, variant) {
+    const warm = samples.filter(
+      (sample) =>
+        sample.scenario === scenario.scenario &&
+        sample.cut === cut &&
+        sample.variant === variant &&
+        sample.phase === 'warm',
+    );
+    statistics.push({
+      scenario: scenario.scenario,
+      cut,
+      variant,
+      minMs: Math.min(...warm.map((sample) => sample.elapsedMs)),
+      medianMs: median(warm.map((sample) => sample.elapsedMs)),
+      maxMs: Math.max(...warm.map((sample) => sample.elapsedMs)),
+      medianIntervalDelayMs: median(warm.map((sample) => sample.maximumIntervalDelayMs)),
+      medianAnimationFrameGapMs: median(warm.map((sample) => sample.maximumAnimationFrameGapMs)),
+    });
+  }
   for (const scenario of scenarios)
     for (const cut of ['fixed-bytes', 'file-and-hash'])
-      for (const variant of variants) {
-        const warm = samples.filter(
-          (sample) =>
-            sample.scenario === scenario.scenario &&
-            sample.cut === cut &&
-            sample.variant === variant &&
-            sample.phase === 'warm',
-        );
-        statistics.push({
-          scenario: scenario.scenario,
-          cut,
-          variant,
-          minMs: Math.min(...warm.map((sample) => sample.elapsedMs)),
-          medianMs: median(warm.map((sample) => sample.elapsedMs)),
-          maxMs: Math.max(...warm.map((sample) => sample.elapsedMs)),
-          medianIntervalDelayMs: median(warm.map((sample) => sample.maximumIntervalDelayMs)),
-          medianAnimationFrameGapMs: median(
-            warm.map((sample) => sample.maximumAnimationFrameGapMs),
-          ),
-        });
-      }
+      for (const variant of variants) summarize(scenario, cut, variant);
   return {
     reportVersion: 1,
     libraryVersion: xlsx.version,
@@ -606,25 +616,169 @@ const runner = (
 await writeFile(join(cache, 'worker-model.js'), model);
 await writeFile(join(cache, 'worker-run.js'), runner);
 const html = `<!doctype html><meta charset="utf-8"><title>Adendo I — workers locais</title><h1>Leitura esparsa W0/W1/W2</h1><button id="run">Executar comparador</button><p id="progress">Pronto. Execute somente na janela isolada de medição.</p><pre id="report"></pre><script src="/sheetjs.js" integrity="${integrity}"></script><script type="module" src="/run.js"></script>`;
+/** An object with exactly the expected keys. */
+function fields(value, expected) {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).length !== expected.length ||
+    !expected.every((key) => Object.hasOwn(value, key))
+  )
+    throw new Error('Invalid technical fields');
+}
+
+/** A non-negative finite number, or null. */
+function metric(value) {
+  if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0))
+    throw new Error('Invalid metric');
+}
+
+function oneOf(value, allowed) {
+  if (!allowed.includes(value)) throw new Error('Invalid enum');
+}
+
+/** Sheet, range, cell and formula counts of a workbook description, or null. */
+function dimensions(value) {
+  if (value === null) return;
+  fields(value, ['sheets', 'ranges', 'cells', 'formulas']);
+  for (const key of ['sheets', 'cells', 'formulas']) metric(value[key]);
+  if (
+    !Array.isArray(value.ranges) ||
+    value.ranges.some(
+      (range) =>
+        range !== null &&
+        (typeof range !== 'string' || !/^[A-Z]+[1-9]\d*(?::[A-Z]+[1-9]\d*)?$/u.test(range)),
+    )
+  )
+    throw new Error('Invalid dimensions');
+}
+
+function modes(item) {
+  oneOf(item.scenario, ['single-xlsb', 'batch-18', 'batch-50']);
+  oneOf(item.cut, ['fixed-bytes', 'file-and-hash']);
+  oneOf(item.variant, ['W0', 'W1', 'W2']);
+}
+
+function validateEnvironment(environment) {
+  fields(environment, ['userAgent', 'hardwareConcurrency', 'deviceMemoryGiB']);
+  if (
+    typeof environment.userAgent !== 'string' ||
+    environment.userAgent.length > 256 ||
+    /[^\x20-\x7e]/u.test(environment.userAgent)
+  )
+    throw new Error('Invalid environment');
+  metric(environment.hardwareConcurrency);
+  metric(environment.deviceMemoryGiB);
+}
+
+function validateProtocol(protocol) {
+  fields(protocol, [
+    'timedSamples',
+    'warmPairedRounds',
+    'firstTimedRoundAfterPreflight',
+    'libraryUiPreloadedForFixtureGeneration',
+    'freshWorkersPerRound',
+    'sparseReaderUnchanged',
+    'responsiveness',
+    'heapCoverage',
+    'fixedBytes',
+    'fullFile',
+  ]);
+  if (
+    protocol.timedSamples !== 108 ||
+    protocol.warmPairedRounds !== 5 ||
+    [
+      'firstTimedRoundAfterPreflight',
+      'libraryUiPreloadedForFixtureGeneration',
+      'freshWorkersPerRound',
+      'sparseReaderUnchanged',
+    ].some((key) => protocol[key] !== true)
+  )
+    throw new Error('Invalid protocol');
+  oneOf(protocol.responsiveness, ['interval16ms-and-rAF-gaps-in-parent-with-final-tail']);
+  oneOf(protocol.heapCoverage, ['main-context-observable-only-workers-unavailable']);
+  oneOf(protocol.fixedBytes, [
+    'prepared-manifest-and-bytes; per-active-worker-transfer-copy-included; no-File/hash/yield',
+  ]);
+  oneOf(protocol.fullFile, [
+    'real-importWorkbookBatch-File-arrayBuffer-hash-yield-with-localExecutor',
+  ]);
+}
+
+function validateEquivalenceItem(item) {
+  fields(item, [
+    'ordinal',
+    'format',
+    'equivalent',
+    'stage',
+    'bytes',
+    'source',
+    'parsed',
+    'outcome',
+  ]);
+  metric(item.ordinal);
+  metric(item.bytes);
+  dimensions(item.source);
+  dimensions(item.parsed);
+  oneOf(item.format, ['xlsx', 'xlsb', 'xls']);
+  oneOf(item.equivalent, [true, null]);
+  oneOf(item.stage, ['complete', 'codec-generation']);
+  oneOf(item.outcome, ['unavailable', 'read-error', 'canonical-error', 'request']);
+}
+
+const SAMPLE_FIELDS = [
+  'scenario',
+  'cut',
+  'variant',
+  'round',
+  'phase',
+  'files',
+  'inputBytes',
+  'elapsedMs',
+  'initializationMs',
+  'workerLibraryEvaluationSumMs',
+  'localReadMs',
+  'canonicalMs',
+  'xlsxReadSumMs',
+  'workbookReadSumMs',
+  'masterRelationRecognitionSumMs',
+  'recognizeWorkbookSumMs',
+  'workerRoundTripSumMs',
+  'workerRoundTripOverheadSumMs',
+  'maximumQueueMs',
+  'fileReadSumMs',
+  'manifestSumMs',
+  'activeWorkers',
+  'maximumActiveLocalInputs',
+  'maximumActiveInputBytes',
+  'inputByteBudget',
+  'fallbackCount',
+  'intervalMs',
+  'intervalTicks',
+  'animationFrames',
+  'maximumIntervalDelayMs',
+  'maximumAnimationFrameGapMs',
+  'mainHeapStartBytes',
+  'mainHeapSampledPeakBytes',
+  'mainHeapEndBytes',
+  'workerHeapBytes',
+];
+
+/** One timed sample: its fields, a known mode and round, and no repeated combination. */
+function validateSample(item, combinations) {
+  fields(item, SAMPLE_FIELDS);
+  modes(item);
+  oneOf(item.phase, ['first-timed-after-preflight', 'warm']);
+  oneOf(item.round, [0, 1, 2, 3, 4, 5]);
+  for (const key of SAMPLE_FIELDS.slice(5)) metric(item[key]);
+  const key = `${item.scenario}/${item.cut}/${item.variant}/${item.round}`;
+  if (combinations.has(key)) throw new Error('Duplicate sample');
+  combinations.add(key);
+}
+
 // Only the predefined technical report may reach disk. No workbook/source payloads.
 function validateTechnicalReport(report) {
-  const fields = (value, expected) => {
-    if (
-      value === null ||
-      typeof value !== 'object' ||
-      Array.isArray(value) ||
-      Object.keys(value).length !== expected.length ||
-      !expected.every((key) => Object.hasOwn(value, key))
-    )
-      throw new Error('Invalid technical fields');
-  };
-  const metric = (value) => {
-    if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0))
-      throw new Error('Invalid metric');
-  };
-  const oneOf = (value, allowed) => {
-    if (!allowed.includes(value)) throw new Error('Invalid enum');
-  };
   const expectedKeys = [
     ...Object.keys(metadata),
     'reportVersion',
@@ -655,46 +809,8 @@ function validateTechnicalReport(report) {
     !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/u.test(report.recordedAt)
   )
     throw new Error('Invalid recording time');
-  fields(report.environment, ['userAgent', 'hardwareConcurrency', 'deviceMemoryGiB']);
-  if (
-    typeof report.environment.userAgent !== 'string' ||
-    report.environment.userAgent.length > 256 ||
-    /[^\x20-\x7e]/u.test(report.environment.userAgent)
-  )
-    throw new Error('Invalid environment');
-  metric(report.environment.hardwareConcurrency);
-  metric(report.environment.deviceMemoryGiB);
-  fields(report.protocol, [
-    'timedSamples',
-    'warmPairedRounds',
-    'firstTimedRoundAfterPreflight',
-    'libraryUiPreloadedForFixtureGeneration',
-    'freshWorkersPerRound',
-    'sparseReaderUnchanged',
-    'responsiveness',
-    'heapCoverage',
-    'fixedBytes',
-    'fullFile',
-  ]);
-  if (
-    report.protocol.timedSamples !== 108 ||
-    report.protocol.warmPairedRounds !== 5 ||
-    [
-      'firstTimedRoundAfterPreflight',
-      'libraryUiPreloadedForFixtureGeneration',
-      'freshWorkersPerRound',
-      'sparseReaderUnchanged',
-    ].some((key) => report.protocol[key] !== true)
-  )
-    throw new Error('Invalid protocol');
-  oneOf(report.protocol.responsiveness, ['interval16ms-and-rAF-gaps-in-parent-with-final-tail']);
-  oneOf(report.protocol.heapCoverage, ['main-context-observable-only-workers-unavailable']);
-  oneOf(report.protocol.fixedBytes, [
-    'prepared-manifest-and-bytes; per-active-worker-transfer-copy-included; no-File/hash/yield',
-  ]);
-  oneOf(report.protocol.fullFile, [
-    'real-importWorkbookBatch-File-arrayBuffer-hash-yield-with-localExecutor',
-  ]);
+  validateEnvironment(report.environment);
+  validateProtocol(report.protocol);
   if (!Array.isArray(report.initializations) || report.initializations.length !== 2)
     throw new Error('Invalid initializations');
   for (const item of report.initializations) {
@@ -703,93 +819,9 @@ function validateTechnicalReport(report) {
     oneOf(item.phase, ['first-worker-load', 'warm-worker-resource-cache']);
     for (const key of ['parentMs', 'libraryEvaluationSumMs', 'workers']) metric(item[key]);
   }
-  const dimensions = (value) => {
-    if (value === null) return;
-    fields(value, ['sheets', 'ranges', 'cells', 'formulas']);
-    for (const key of ['sheets', 'cells', 'formulas']) metric(value[key]);
-    if (
-      !Array.isArray(value.ranges) ||
-      value.ranges.some(
-        (range) =>
-          range !== null &&
-          (typeof range !== 'string' || !/^[A-Z]+[1-9]\d*(?::[A-Z]+[1-9]\d*)?$/u.test(range)),
-      )
-    )
-      throw new Error('Invalid dimensions');
-  };
-  for (const item of report.equivalence) {
-    fields(item, [
-      'ordinal',
-      'format',
-      'equivalent',
-      'stage',
-      'bytes',
-      'source',
-      'parsed',
-      'outcome',
-    ]);
-    metric(item.ordinal);
-    metric(item.bytes);
-    dimensions(item.source);
-    dimensions(item.parsed);
-    oneOf(item.format, ['xlsx', 'xlsb', 'xls']);
-    oneOf(item.equivalent, [true, null]);
-    oneOf(item.stage, ['complete', 'codec-generation']);
-    oneOf(item.outcome, ['unavailable', 'read-error', 'canonical-error', 'request']);
-  }
-  const sampleFields = [
-    'scenario',
-    'cut',
-    'variant',
-    'round',
-    'phase',
-    'files',
-    'inputBytes',
-    'elapsedMs',
-    'initializationMs',
-    'workerLibraryEvaluationSumMs',
-    'localReadMs',
-    'canonicalMs',
-    'xlsxReadSumMs',
-    'workbookReadSumMs',
-    'masterRelationRecognitionSumMs',
-    'recognizeWorkbookSumMs',
-    'workerRoundTripSumMs',
-    'workerRoundTripOverheadSumMs',
-    'maximumQueueMs',
-    'fileReadSumMs',
-    'manifestSumMs',
-    'activeWorkers',
-    'maximumActiveLocalInputs',
-    'maximumActiveInputBytes',
-    'inputByteBudget',
-    'fallbackCount',
-    'intervalMs',
-    'intervalTicks',
-    'animationFrames',
-    'maximumIntervalDelayMs',
-    'maximumAnimationFrameGapMs',
-    'mainHeapStartBytes',
-    'mainHeapSampledPeakBytes',
-    'mainHeapEndBytes',
-    'workerHeapBytes',
-  ];
+  for (const item of report.equivalence) validateEquivalenceItem(item);
   const combinations = new Set();
-  const modes = (item) => {
-    oneOf(item.scenario, ['single-xlsb', 'batch-18', 'batch-50']);
-    oneOf(item.cut, ['fixed-bytes', 'file-and-hash']);
-    oneOf(item.variant, ['W0', 'W1', 'W2']);
-  };
-  for (const item of report.samples) {
-    fields(item, sampleFields);
-    modes(item);
-    oneOf(item.phase, ['first-timed-after-preflight', 'warm']);
-    oneOf(item.round, [0, 1, 2, 3, 4, 5]);
-    for (const key of sampleFields.slice(5)) metric(item[key]);
-    const key = `${item.scenario}/${item.cut}/${item.variant}/${item.round}`;
-    if (combinations.has(key)) throw new Error('Duplicate sample');
-    combinations.add(key);
-  }
+  for (const item of report.samples) validateSample(item, combinations);
   if (report.statistics.length !== 18) throw new Error('Invalid statistics');
   const statisticsFields = [
     'scenario',
@@ -811,45 +843,50 @@ function validateTechnicalReport(report) {
 if (process.argv.includes('--check-only'))
   console.log('Worker comparator compiled; no measurements executed.');
 else {
-  const server = createServer(async (request, response) => {
-    const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
-    if (path === '/report' && request.method === 'POST') {
-      try {
-        let body = '';
-        for await (const chunk of request) {
-          body += chunk;
-          if (Buffer.byteLength(body) > 2_000_000) throw new Error('Report bound exceeded');
-        }
-        const report = validateTechnicalReport(JSON.parse(body));
-        const reportPath = join(cache, 'worker-browser-report.json');
-        await writeFile(reportPath, JSON.stringify(report, null, 2));
-        console.log(
-          JSON.stringify({
-            path: reportPath,
-            samples: report.samples.length,
-            equivalent: report.equivalence.filter((item) => item.equivalent === true).length,
-            gaps: report.equivalence.filter((item) => item.equivalent === null).length,
-          }),
-        );
-        response.writeHead(200, securityHeaders).end('saved');
-      } catch {
-        response.writeHead(400, securityHeaders).end('invalid technical report');
+  /** Saves only a report that passes the technical validation. */
+  async function saveReport(request, response) {
+    try {
+      let body = '';
+      for await (const chunk of request) {
+        body += chunk;
+        if (Buffer.byteLength(body) > 2_000_000) throw new Error('Report bound exceeded');
       }
-      return;
+      const report = validateTechnicalReport(JSON.parse(body));
+      const reportPath = join(cache, 'worker-browser-report.json');
+      await writeFile(reportPath, JSON.stringify(report, null, 2));
+      console.log(
+        JSON.stringify({
+          path: reportPath,
+          samples: report.samples.length,
+          equivalent: report.equivalence.filter((item) => item.equivalent === true).length,
+          gaps: report.equivalence.filter((item) => item.equivalent === null).length,
+        }),
+      );
+      response.writeHead(200, securityHeaders).end('saved');
+    } catch {
+      response.writeHead(400, securityHeaders).end('invalid technical report');
     }
-    let content;
-    if (path === '/') content = html;
-    else if (path === '/sheetjs.js' || path === '/vendor/sheetjs/0.20.3/xlsx.full.min.js')
-      content = library;
-    else if (path === '/model.js') content = model;
-    else if (path === '/run.js') content = runner;
-    else if (/^\/assets\/[A-Za-z0-9._-]+\.js$/u.test(path)) {
+  }
+  /** The page, the library, the bundles and the fixed build assets; nothing else. */
+  async function staticContent(path) {
+    if (path === '/') return html;
+    if (path === '/sheetjs.js' || path === '/vendor/sheetjs/0.20.3/xlsx.full.min.js')
+      return library;
+    if (path === '/model.js') return model;
+    if (path === '/run.js') return runner;
+    if (/^\/assets\/[A-Za-z0-9._-]+\.js$/u.test(path)) {
       try {
-        content = await readFile(join(assets, path.slice('/assets/'.length)));
+        return await readFile(join(assets, path.slice('/assets/'.length)));
       } catch {
         /* Fixed build asset absent. */
       }
     }
+    return undefined;
+  }
+  const server = createServer(async (request, response) => {
+    const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+    if (path === '/report' && request.method === 'POST') return saveReport(request, response);
+    const content = await staticContent(path);
     response.writeHead(content === undefined ? 404 : 200, {
       ...securityHeaders,
       'Content-Type': path === '/' ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8',
