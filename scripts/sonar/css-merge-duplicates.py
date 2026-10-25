@@ -10,6 +10,13 @@ import sys
 
 PATH = sys.argv[1]
 src = open(PATH, encoding='utf-8').read()
+# Optional: a JSON list of [selector, selector] pairs measured in the browser as never matching the
+# same element (no element matched both across the preview pages and states that were visited).
+MEASURED = set()
+if '--disjoint' in sys.argv:
+    import json
+    with open(sys.argv[sys.argv.index('--disjoint') + 1], encoding='utf-8') as handle:
+        MEASURED = {frozenset(pair) for pair in json.load(handle)}
 
 
 def blocks(text):
@@ -72,6 +79,8 @@ def last(sel):
 
 def disjoint(a, b):
     """True when the two selectors can never match the same element (heuristic, conservative)."""
+    if frozenset((a, b)) in MEASURED:
+        return True
     la, lb = last(a), last(b)
     ta, tb = re.match(r'^[a-z][\w-]*', la), re.match(r'^[a-z][\w-]*', lb)
     if ta and tb and ta.group(0) != tb.group(0):

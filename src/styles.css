@@ -827,8 +827,8 @@ button.performance-kpi__button:hover {
 }
 .performance-panorama__item:hover,
 .performance-panorama__item[aria-pressed='true'] {
-  border-color: var(--separator);
-  background: var(--surface-secondary);
+  border: 0;
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
 }
 
 .performance-panorama__counts {
@@ -1966,6 +1966,7 @@ button.performance-kpi__button:hover {
 .performance-period-tabs .tabs__tab {
   min-width: 3.4rem;
   font-size: 0.8rem;
+  height: 1.75rem;
 }
 /* Classes: light chips with their label, joined to the header above. */
 .performance-workspace > .school-class-tabs {
@@ -2133,9 +2134,6 @@ button.performance-kpi__button:hover {
 
 .performance-period-tabs .tabs__list {
   height: 2.25rem;
-}
-.performance-period-tabs .tabs__tab {
-  height: 1.75rem;
 }
 
 /* Desempenho charts: fixed, compact proportions instead of stretching with the window. */
@@ -2547,11 +2545,17 @@ button.performance-kpi__button:hover {
 }
 .platform-shell--v2 .shell-brand__name {
   display: block;
-  overflow: hidden;
   color: var(--muted);
   font-size: inherit;
   font-weight: 500;
   text-overflow: ellipsis;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 .platform-shell--v2 .shell-brand__name > small {
@@ -2658,8 +2662,8 @@ button.performance-kpi__button:hover {
 }
 .shell-side__groups {
   display: grid;
-  gap: 1.25rem;
   overflow-y: auto;
+  gap: 1.6rem;
 }
 
 .shell-side__areas {
@@ -3264,19 +3268,7 @@ button.performance-kpi__button:hover {
     backdrop-filter: saturate(180%) blur(28px);
   }
 }
-/* The top names only the open area, without "Centro de Administração" (owner request of
-   15/10/2026). On a computer the side column already carries the brand; on a phone the crest
-   alone sits in the middle of the top. */
-.platform-shell--v2 .shell-brand__name {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
+
 @media (min-width: 901px) {
   .platform-shell--v2 .shell-path > .shell-brand {
     display: none;
@@ -3339,9 +3331,7 @@ button.performance-kpi__button:hover {
 .shell-side__area[data-open='true'] > svg {
   color: var(--accent);
 }
-.shell-side__groups {
-  gap: 1.6rem;
-}
+
 .shell-side__group-label {
   margin: 0 0 0.35rem 0.8rem;
   margin-bottom: 0.45rem;
@@ -3772,11 +3762,7 @@ button.performance-kpi__button:hover {
 .performance-panorama__item:nth-child(even) {
   background: color-mix(in oklab, var(--foreground) 4%, transparent);
 }
-.performance-panorama__item:hover,
-.performance-panorama__item[aria-pressed='true'] {
-  border: 0;
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
-}
+
 .performance-panorama__item > strong {
   text-align: right;
 }
