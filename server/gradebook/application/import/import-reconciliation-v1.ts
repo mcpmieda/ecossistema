@@ -1016,6 +1016,157 @@ async function planConfirmedDeterministicReprocess(input: {
   };
 }
 
+type ApprovedFileInputV1 = Parameters<typeof planApprovedFile>[0];
+type ApprovedManifestV1 = NonNullable<ImportBatchFileResultV1['manifest']>;
+type KnownSourceFileV1 = NonNullable<
+  Awaited<ReturnType<ImportReconciliationRepositoriesV1['imports']['findSourceFileByHash']>>
+>;
+type IncomingRecordsV1 = ReturnType<typeof validateIncomingRecords>;
+
+/** Content already preserved: review an unconfirmed source, reprocess or recompare when asked,
+ * otherwise a no-op (or a renamed observation). */
+async function planKnownContentV1(
+  input: ApprovedFileInputV1,
+  manifest: ApprovedManifestV1,
+  knownContent: KnownSourceFileV1,
+  recordsByKey: IncomingRecordsV1,
+): Promise<ImportFileChangePlanV1> {
+  const knownLogicalSource = knownContent.value.logicalSource;
+  const contentIdentity: ImportContentIdentityV1 = {
+    state: 'known-identical',
+    knownManifestId: knownContent.value.manifest.id,
+    knownManifestVersion: knownContent.version,
+    observedFileNameChanged: knownContent.value.manifest.fileName !== manifest.fileName,
+  };
+
+  if (knownLogicalSource.state !== 'confirmed') {
+    const sourceReason = reason(
+      'identical-content-with-unconfirmed-logical-source',
+      'O conteúdo já é conhecido, mas sua fonte lógica não está confirmada; nenhuma associação ou escrita foi planejada.',
+    );
+    return blockedFilePlan({
+      batchFile: input.batchFile,
+      logicalSource: knownLogicalSource,
+      diagnostics: input.diagnostics,
+      blockedReason: sourceReason,
+      contentIdentity,
+      status: 'review-required',
+    });
+  }
+
+  if (input.deterministicReprocess) {
+    if (
+      input.fileInput.logicalSource.state !== 'confirmed' ||
+      input.fileInput.logicalSource.logicalSourceId !== knownLogicalSource.logicalSourceId
+    ) {
+      throw new FilePlanningBlockedError(
+        reason(
+          'deterministic-reprocess-logical-source-mismatch',
+          'A fonte lógica confirmada não corresponde à evidência oficial já conhecida.',
+        ),
+      );
+    }
+    return planConfirmedDeterministicReprocess({
+      context: input.context,
+      batchFile: { ...input.batchFile, manifest },
+      logicalSource: knownLogicalSource,
+      diagnostics: input.diagnostics,
+      contentIdentity,
+      recordsByKey,
+      deterministicReprocess: input.deterministicReprocess,
+      repositories: input.repositories,
+    });
+  }
+
+  if (input.recompareKnownContent) {
+    if (
+      input.fileInput.logicalSource.state !== 'confirmed' ||
+      input.fileInput.logicalSource.logicalSourceId !== knownLogicalSource.logicalSourceId
+    ) {
+      throw new FilePlanningBlockedError(
+        reason(
+          'deterministic-reprocess-logical-source-mismatch',
+          'A fonte confirmada não corresponde ao conteúdo conhecido.',
+        ),
+      );
+    }
+    const rechecked = await planConfirmedNewContent({
+      context: input.context,
+      batchFile: { ...input.batchFile, manifest },
+      fileInput: input.fileInput,
+      logicalSource: knownLogicalSource,
+      diagnostics: input.diagnostics,
+      recordsByKey,
+      repositories: input.repositories,
+    });
+    return { ...rechecked, contentIdentity };
+  }
+
+  return identicalContentPlanV1(input, manifest, knownLogicalSource, contentIdentity, recordsByKey);
+}
+
+/** The same SHA-256 as a preserved file: every record unchanged; a new name only versions the source. */
+async function identicalContentPlanV1(
+  input: ApprovedFileInputV1,
+  manifest: ApprovedManifestV1,
+  knownLogicalSource: Extract<KnownSourceFileV1['value']['logicalSource'], { state: 'confirmed' }>,
+  contentIdentity: ImportContentIdentityV1 & { observedFileNameChanged: boolean },
+  recordsByKey: IncomingRecordsV1,
+): Promise<ImportFileChangePlanV1> {
+  const renamed = contentIdentity.observedFileNameChanged;
+  const sourceFileWrite = renamed
+    ? await sourceFileWriteFor(
+        input.context,
+        manifest,
+        knownLogicalSource,
+        reason(
+          'renamed-identical-content-observation',
+          'O mesmo conteúdo foi observado com outro nome; somente a versão de metadados da fonte foi planejada.',
+        ),
+        input.repositories,
+      )
+    : ({ kind: 'none' } as const);
+  const itemReason = reason(
+    'identical-content',
+    'O SHA-256 já é conhecido; nenhuma consulta ou versão acadêmica ou de associação é necessária.',
+  );
+  const items = [...recordsByKey.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map<ImportChangePlanItemV1>(([stableKey, incoming]) => ({
+      state: 'unchanged',
+      importFileId: input.batchFile.id,
+      stableKey,
+      stream: incoming.stream,
+      incomingRecord: incoming.record,
+      currentVersion: null,
+      reason: itemReason,
+    }));
+  const counts = countsFor(items);
+  const fileReason = reason(
+    renamed ? 'identical-content-renamed' : 'identical-content-no-op',
+    renamed
+      ? 'O arquivo foi renomeado, sem duplicação de registros ou associações acadêmicas.'
+      : 'O conteúdo e o nome já são conhecidos; o planejamento é um no-op.',
+  );
+
+  return {
+    importFileId: input.batchFile.id,
+    sourceFileManifestId: manifest.id,
+    fileName: input.batchFile.sourceFile.fileName,
+    sha256: manifest.sha256,
+    batchFileStatus: input.batchFile.status,
+    logicalSource: knownLogicalSource,
+    contentIdentity,
+    status: renamed ? 'ready-for-promotion' : 'unchanged',
+    diagnostics: input.diagnostics,
+    reasons: [fileReason],
+    items,
+    counts,
+    sourceFileWrite,
+    estimatedWrites: estimateFileWrites(sourceFileWrite, counts, items),
+  };
+}
+
 async function planApprovedFile(input: {
   context: AcademicPersistenceContextV1;
   batchFile: ImportBatchFileResultV1;
@@ -1038,131 +1189,7 @@ async function planApprovedFile(input: {
     manifest.sha256,
   );
 
-  if (knownContent) {
-    const knownLogicalSource = knownContent.value.logicalSource;
-    const contentIdentity: ImportContentIdentityV1 = {
-      state: 'known-identical',
-      knownManifestId: knownContent.value.manifest.id,
-      knownManifestVersion: knownContent.version,
-      observedFileNameChanged: knownContent.value.manifest.fileName !== manifest.fileName,
-    };
-
-    if (knownLogicalSource.state !== 'confirmed') {
-      const sourceReason = reason(
-        'identical-content-with-unconfirmed-logical-source',
-        'O conteúdo já é conhecido, mas sua fonte lógica não está confirmada; nenhuma associação ou escrita foi planejada.',
-      );
-      return blockedFilePlan({
-        batchFile: input.batchFile,
-        logicalSource: knownLogicalSource,
-        diagnostics: input.diagnostics,
-        blockedReason: sourceReason,
-        contentIdentity,
-        status: 'review-required',
-      });
-    }
-
-    if (input.deterministicReprocess) {
-      if (
-        input.fileInput.logicalSource.state !== 'confirmed' ||
-        input.fileInput.logicalSource.logicalSourceId !== knownLogicalSource.logicalSourceId
-      ) {
-        throw new FilePlanningBlockedError(
-          reason(
-            'deterministic-reprocess-logical-source-mismatch',
-            'A fonte lógica confirmada não corresponde à evidência oficial já conhecida.',
-          ),
-        );
-      }
-      return planConfirmedDeterministicReprocess({
-        context: input.context,
-        batchFile: { ...input.batchFile, manifest },
-        logicalSource: knownLogicalSource,
-        diagnostics: input.diagnostics,
-        contentIdentity,
-        recordsByKey,
-        deterministicReprocess: input.deterministicReprocess,
-        repositories: input.repositories,
-      });
-    }
-
-    if (input.recompareKnownContent) {
-      if (
-        input.fileInput.logicalSource.state !== 'confirmed' ||
-        input.fileInput.logicalSource.logicalSourceId !== knownLogicalSource.logicalSourceId
-      ) {
-        throw new FilePlanningBlockedError(
-          reason(
-            'deterministic-reprocess-logical-source-mismatch',
-            'A fonte confirmada não corresponde ao conteúdo conhecido.',
-          ),
-        );
-      }
-      const rechecked = await planConfirmedNewContent({
-        context: input.context,
-        batchFile: { ...input.batchFile, manifest },
-        fileInput: input.fileInput,
-        logicalSource: knownLogicalSource,
-        diagnostics: input.diagnostics,
-        recordsByKey,
-        repositories: input.repositories,
-      });
-      return { ...rechecked, contentIdentity };
-    }
-
-    const renamed = contentIdentity.observedFileNameChanged;
-    const sourceFileWrite = renamed
-      ? await sourceFileWriteFor(
-          input.context,
-          manifest,
-          knownLogicalSource,
-          reason(
-            'renamed-identical-content-observation',
-            'O mesmo conteúdo foi observado com outro nome; somente a versão de metadados da fonte foi planejada.',
-          ),
-          input.repositories,
-        )
-      : ({ kind: 'none' } as const);
-    const itemReason = reason(
-      'identical-content',
-      'O SHA-256 já é conhecido; nenhuma consulta ou versão acadêmica ou de associação é necessária.',
-    );
-    const items = [...recordsByKey.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map<ImportChangePlanItemV1>(([stableKey, incoming]) => ({
-        state: 'unchanged',
-        importFileId: input.batchFile.id,
-        stableKey,
-        stream: incoming.stream,
-        incomingRecord: incoming.record,
-        currentVersion: null,
-        reason: itemReason,
-      }));
-    const counts = countsFor(items);
-    const fileReason = reason(
-      renamed ? 'identical-content-renamed' : 'identical-content-no-op',
-      renamed
-        ? 'O arquivo foi renomeado, sem duplicação de registros ou associações acadêmicas.'
-        : 'O conteúdo e o nome já são conhecidos; o planejamento é um no-op.',
-    );
-
-    return {
-      importFileId: input.batchFile.id,
-      sourceFileManifestId: manifest.id,
-      fileName: input.batchFile.sourceFile.fileName,
-      sha256: manifest.sha256,
-      batchFileStatus: input.batchFile.status,
-      logicalSource: knownLogicalSource,
-      contentIdentity,
-      status: renamed ? 'ready-for-promotion' : 'unchanged',
-      diagnostics: input.diagnostics,
-      reasons: [fileReason],
-      items,
-      counts,
-      sourceFileWrite,
-      estimatedWrites: estimateFileWrites(sourceFileWrite, counts, items),
-    };
-  }
+  if (knownContent) return planKnownContentV1(input, manifest, knownContent, recordsByKey);
 
   if (input.deterministicReprocess) {
     throw new FilePlanningBlockedError(
@@ -1250,6 +1277,67 @@ function aggregateWriteEstimate(
   };
 }
 
+/** A file that cannot be planned: a repeated input, not approved, a blocking diagnostic, or no
+ * recognized records. Null: it goes on to planning. */
+function refusedBeforePlanningV1(
+  batchFile: ImportBatchFileResultV1,
+  diagnostics: readonly ImportFileDiagnosticV1[],
+  fileInput: ImportReconciliationFileInputV1 | undefined,
+  duplicate: boolean,
+): ImportFileChangePlanV1 | null {
+  const fallbackLogicalSource = fileInput?.logicalSource ?? ({ state: 'unmatched' } as const);
+  if (duplicate) {
+    return blockedFilePlan({
+      batchFile,
+      logicalSource: fallbackLogicalSource,
+      diagnostics,
+      blockedReason: reason(
+        'duplicate-file-input',
+        'O lote forneceu mais de uma entrada de reconciliação para o mesmo arquivo.',
+      ),
+    });
+  }
+
+  if (batchFile.status !== 'approved') {
+    return blockedFilePlan({
+      batchFile,
+      logicalSource: fallbackLogicalSource,
+      diagnostics,
+      blockedReason: reason(
+        `file-status-${batchFile.status}`,
+        'Somente arquivos aprovados podem entrar no plano de promoção.',
+        diagnostics.map((diagnostic) => diagnostic.id),
+      ),
+    });
+  }
+
+  if (hasBlockingDiagnostics(diagnostics)) {
+    return blockedFilePlan({
+      batchFile,
+      logicalSource: fallbackLogicalSource,
+      diagnostics,
+      blockedReason: reason(
+        'file-has-blocking-diagnostics',
+        'O arquivo possui diagnóstico bloqueante ou crítico e não pode ser promovido.',
+        diagnostics.map((diagnostic) => diagnostic.id),
+      ),
+    });
+  }
+
+  if (!fileInput) {
+    return blockedFilePlan({
+      batchFile,
+      logicalSource: fallbackLogicalSource,
+      diagnostics,
+      blockedReason: reason(
+        'missing-file-reconciliation-input',
+        'O arquivo aprovado não possui registros reconhecidos para planejamento.',
+      ),
+    });
+  }
+  return null;
+}
+
 export async function planImportReconciliation(
   input: ImportReconciliationInputV1,
   repositories: ImportReconciliationRepositoriesV1,
@@ -1277,67 +1365,14 @@ export async function planImportReconciliation(
   for (const batchFile of orderedBatchFiles) {
     const diagnostics = sortDiagnostics(input.batch.diagnostics, batchFile.id);
     const fileInput = indexedInput.byId.get(batchFile.id);
-    const fallbackLogicalSource = fileInput?.logicalSource ?? ({ state: 'unmatched' } as const);
-
-    if (indexedInput.duplicates.has(batchFile.id)) {
-      files.push(
-        blockedFilePlan({
-          batchFile,
-          logicalSource: fallbackLogicalSource,
-          diagnostics,
-          blockedReason: reason(
-            'duplicate-file-input',
-            'O lote forneceu mais de uma entrada de reconciliação para o mesmo arquivo.',
-          ),
-        }),
-      );
-      continue;
-    }
-
-    if (batchFile.status !== 'approved') {
-      files.push(
-        blockedFilePlan({
-          batchFile,
-          logicalSource: fallbackLogicalSource,
-          diagnostics,
-          blockedReason: reason(
-            `file-status-${batchFile.status}`,
-            'Somente arquivos aprovados podem entrar no plano de promoção.',
-            diagnostics.map((diagnostic) => diagnostic.id),
-          ),
-        }),
-      );
-      continue;
-    }
-
-    if (hasBlockingDiagnostics(diagnostics)) {
-      files.push(
-        blockedFilePlan({
-          batchFile,
-          logicalSource: fallbackLogicalSource,
-          diagnostics,
-          blockedReason: reason(
-            'file-has-blocking-diagnostics',
-            'O arquivo possui diagnóstico bloqueante ou crítico e não pode ser promovido.',
-            diagnostics.map((diagnostic) => diagnostic.id),
-          ),
-        }),
-      );
-      continue;
-    }
-
-    if (!fileInput) {
-      files.push(
-        blockedFilePlan({
-          batchFile,
-          logicalSource: fallbackLogicalSource,
-          diagnostics,
-          blockedReason: reason(
-            'missing-file-reconciliation-input',
-            'O arquivo aprovado não possui registros reconhecidos para planejamento.',
-          ),
-        }),
-      );
+    const refused = refusedBeforePlanningV1(
+      batchFile,
+      diagnostics,
+      fileInput,
+      indexedInput.duplicates.has(batchFile.id),
+    );
+    if (refused || !fileInput) {
+      files.push(refused!);
       continue;
     }
 
