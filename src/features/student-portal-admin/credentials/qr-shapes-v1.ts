@@ -8,6 +8,24 @@ export type QrShapeV1 = {
   dark: boolean;
 };
 type Matrix = { size: number; get: (row: number, column: number) => number };
+/** A lone module corner is rounded only where neither neighbour on that corner is dark. */
+function moduleRadiiV1(
+  up: boolean,
+  right: boolean,
+  down: boolean,
+  left: boolean,
+): QrShapeV1['radii'] {
+  return [
+    !up && !left ? 0.42 : 0,
+    !up && !right ? 0.42 : 0,
+    !down && !right ? 0.42 : 0,
+    !down && !left ? 0.42 : 0,
+  ];
+}
+/** The three 7x7 finder patterns are drawn as nested squares, not as modules. */
+function inFinderV1(finders: readonly (readonly [number, number])[], x: number, y: number) {
+  return finders.some(([left, top]) => x >= left && x < left + 7 && y >= top && y < top + 7);
+}
 export function qrShapesV1(matrix: Matrix, quiet = 4): QrShapeV1[] {
   const shapes: QrShapeV1[] = [];
   const finders = [
@@ -19,26 +37,13 @@ export function qrShapesV1(matrix: Matrix, quiet = 4): QrShapeV1[] {
     x >= 0 && y >= 0 && x < matrix.size && y < matrix.size && Boolean(matrix.get(y, x));
   for (let y = 0; y < matrix.size; y++)
     for (let x = 0; x < matrix.size; x++) {
-      if (
-        !dark(x, y) ||
-        finders.some(([left, top]) => x >= left && x < left + 7 && y >= top && y < top + 7)
-      )
-        continue;
-      const up = dark(x, y - 1),
-        right = dark(x + 1, y),
-        down = dark(x, y + 1),
-        left = dark(x - 1, y);
+      if (!dark(x, y) || inFinderV1(finders, x, y)) continue;
       shapes.push({
         x: x + quiet,
         y: y + quiet,
         width: 1,
         height: 1,
-        radii: [
-          !up && !left ? 0.42 : 0,
-          !up && !right ? 0.42 : 0,
-          !down && !right ? 0.42 : 0,
-          !down && !left ? 0.42 : 0,
-        ],
+        radii: moduleRadiiV1(dark(x, y - 1), dark(x + 1, y), dark(x, y + 1), dark(x - 1, y)),
         dark: true,
       });
     }
