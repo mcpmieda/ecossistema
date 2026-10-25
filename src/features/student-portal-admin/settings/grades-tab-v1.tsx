@@ -180,8 +180,8 @@ export function GradeShowV1({
       const schedule: AccessEventV1[] = parseScheduleRowsV1(rows, Date.now());
       setError(null);
       submit({ enabled: accessOpenAtV1(plan, Date.now()), schedule });
-    } catch (problem) {
-      setError(problem instanceof Error ? problem.message : 'Confira os agendamentos.');
+    } catch (error_) {
+      setError(error_ instanceof Error ? error_.message : 'Confira os agendamentos.');
     }
   };
   const steadyText = openNow ? 'Fica visível até alguém ocultar.' : 'Fica oculto até alguém mostrar.';

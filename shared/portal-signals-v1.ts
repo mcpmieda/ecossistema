@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { HEALTH_HISTORY_INTERVAL_MS_V1, HEALTH_HISTORY_RETENTION_MS_V1, isHistoryBeforeV1 } from './system-health-history-v1';
+import { HEALTH_HISTORY_RETENTION_MS_V1, isHistoryBeforeV1 } from './system-health-history-v1';
 
-export const SIGNAL_INTERVAL_MS_V1 = HEALTH_HISTORY_INTERVAL_MS_V1;
+export { HEALTH_HISTORY_INTERVAL_MS_V1 as SIGNAL_INTERVAL_MS_V1 } from './system-health-history-v1';
 export const SIGNAL_BUFFER_MS_V1 = 20 * 60_000;
 export const SIGNAL_PAGE_WINDOWS_V1 = 12;
 export const SIGNAL_BODY_BYTES_V1 = 98_304;

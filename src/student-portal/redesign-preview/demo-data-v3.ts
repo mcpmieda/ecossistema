@@ -195,7 +195,8 @@ export function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
     const count = frequencyCountV2({ marks, conflicts: 0, days }, today);
     const reliable = days.length > 0 && count.reliable;
     // As the server: the time a mark last changed, and nothing for a month without marks.
-    const lastMarked = marks.filter((mark) => mark.date < today).at(-1)?.date;
+    // findLast needs lib ES2023; the project targets ES2022.
+    const lastMarked = marks.filter((mark) => mark.date < today).at(-1)?.date; // NOSONAR
     let coverage: 'reliable' | 'incomplete' | 'unavailable' = 'unavailable';
     if (reliable) coverage = 'reliable';
     else if (marks.length) coverage = 'incomplete';

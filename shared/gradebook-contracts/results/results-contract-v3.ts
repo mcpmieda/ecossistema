@@ -1,7 +1,6 @@
 import type { AcademicYearId, TeachingAssignmentId } from '../entities';
 import {
   RESULTS_CONTRACT_V2,
-  assessmentComponentSourceStableKeyV2,
   type AssessmentComponentSourceIdentityV2,
   type AssessmentComponentSourceStableKeyV2,
   type AssessmentComponentTypeV2,
@@ -34,7 +33,7 @@ export interface AssessmentComponentV3 {
 export type AssessmentComponentSourceIdentityV3 = AssessmentComponentSourceIdentityV2;
 export type AssessmentComponentSourceStableKeyV3 = AssessmentComponentSourceStableKeyV2;
 
-export const assessmentComponentSourceStableKeyV3 = assessmentComponentSourceStableKeyV2;
+export { assessmentComponentSourceStableKeyV2 as assessmentComponentSourceStableKeyV3 } from './results-contract-v2';
 
 export const RESULTS_CONTRACT_V3 = {
   version: RESULTS_CONTRACT_VERSION_V3,

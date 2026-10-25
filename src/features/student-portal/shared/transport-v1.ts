@@ -129,7 +129,7 @@ export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) 
     let value: unknown;
     try {
       if (!response.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))
-        throw new Error();
+        throw new Error('student-portal-response-not-json');
       value = await response.json();
     } catch {
       signal?.throwIfAborted();

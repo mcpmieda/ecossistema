@@ -12,10 +12,11 @@ export function lazyGradebookDatabaseV1(
   let closed = false;
   const open = () => {
     if (closed) return Promise.reject(new Error('gradebook-request-database-closed'));
-    return pending ??= Promise.resolve().then(create).then((database) => {
+    pending ??= Promise.resolve().then(create).then((database) => {
       current = database;
       return database;
     });
+    return pending;
   };
   return {
     query: async <Row extends Record<string, unknown>>(

@@ -428,7 +428,7 @@ export function createImportPerformanceObserverV1() {
       metrics.maximumGroupBytes = Math.max(metrics.maximumGroupBytes, bytes);
     },
     groupFinished(success: boolean) {
-      if (success) metrics.groupedStatementsCompleted++;
+      if (success) metrics.groupedStatementsCompleted++; // NOSONAR the observer port reports one outcome per group
       else metrics.groupedStatementsFailed++;
     },
     finalizerElapsed(started: number) {

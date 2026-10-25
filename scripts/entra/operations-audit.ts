@@ -647,12 +647,14 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error: unknown) => {
+  try {
+    await main();
+  } catch (error: unknown) {
     const safe =
       error instanceof EntraOperationsAuditError
         ? error.message
         : 'Entra operations audit failed unexpectedly';
     console.error(safe);
     process.exitCode = 1;
-  });
+  }
 }

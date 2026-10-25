@@ -185,7 +185,7 @@ function parseCsvCellV2(csv: string): string {
     fail('recovery-backup-header-invalid');
   }
   const cell = normalized.slice(firstBreak + 1).trim();
-  if (cell.length < 2 || cell[0] !== '"' || cell.at(-1) !== '"') {
+  if (cell.length < 2 || !cell.startsWith('"') || !cell.endsWith('"')) {
     fail('recovery-backup-cell-invalid');
   }
   return cell.slice(1, -1).replaceAll('""', '"');

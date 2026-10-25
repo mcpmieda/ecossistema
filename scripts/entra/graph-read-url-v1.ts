@@ -4,7 +4,7 @@ const READ_PATHS = [
   /^\/servicePrincipals$/u,
   new RegExp(`^/applications/${GUID}$`, 'iu'),
   new RegExp(`^/servicePrincipals/${GUID}/(?:appRoleAssignments|ownedObjects)$`, 'iu'),
-  new RegExp(`^/sites/eduieda\\.sharepoint\\.com%2C${GUID}%2C${GUID}(?:/lists)?$`, 'iu'),
+  new RegExp(String.raw`^/sites/eduieda\.sharepoint\.com%2C${GUID}%2C${GUID}(?:/lists)?$`, 'iu'),
 ];
 
 /** Restrict operational reads before a bearer token can reach the network.

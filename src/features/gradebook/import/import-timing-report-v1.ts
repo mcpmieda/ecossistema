@@ -227,7 +227,11 @@ function attachFileEventV1(file: ImportTimingFileV1, event: ImportTimingEventV1,
 }
 
 /** A batch that ended waiting for the user (authorization, confirmation, review) is paused. */
-const PAUSED_OUTCOMES_V1 = ['auth-required', 'confirmation-required', 'review-required'];
+const PAUSED_OUTCOMES_V1: ReadonlySet<string> = new Set([
+  'auth-required',
+  'confirmation-required',
+  'review-required',
+]);
 
 export class ImportTimingReportV1 {
   private initial: TimingRun | null = null;
@@ -328,7 +332,7 @@ export class ImportTimingReportV1 {
     run.recentEvents.push(event);
     if (event.stage === 'batch-complete') {
       run.final = event;
-      run.status = PAUSED_OUTCOMES_V1.includes(String(event.outcome)) ? 'paused' : 'finished';
+      run.status = PAUSED_OUTCOMES_V1.has(String(event.outcome)) ? 'paused' : 'finished';
     }
     return event;
   }

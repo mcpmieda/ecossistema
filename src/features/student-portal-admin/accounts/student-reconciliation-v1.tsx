@@ -735,7 +735,7 @@ function ReconciliationDetailV1({
         <div
           ref={focusVisibleV1}
           tabIndex={-1}
-          role="alertdialog"
+          role="alertdialog" // NOSONAR a dialog closes with Escape
           aria-modal="false"
           aria-labelledby="reconciliation-confirm-title"
           className="space-y-3 rounded-xl border border-default p-4"

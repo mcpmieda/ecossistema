@@ -117,7 +117,7 @@ const shortDate = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
 /** A long name may break after a "/" ("ATIVIDADE DE VIDA DIÁRIA / PRÁTICA"), never mid-word. */
 const subjectText = (subject: string) =>
   subject.split('/').map((part, index) => (
-    <Fragment key={index}>
+    <Fragment key={index /* NOSONAR the parts of one fixed name */}>
       {index ? (
         <>
           /<wbr />

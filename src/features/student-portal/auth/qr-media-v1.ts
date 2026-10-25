@@ -25,7 +25,7 @@ function decodeWithWorkerV1(
   return new Promise((resolve, reject) => {
     signal.throwIfAborted();
     let settled = false;
-    const finish = (codes?: string[], error?: unknown) => {
+    const finish = (codes?: string[], error?: Error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);

@@ -52,7 +52,7 @@ export interface AssessmentDefinitionMaterializationV3 extends Omit<
   readonly unconfiguredDefinitions: readonly UnconfiguredAssessmentDefinitionV3[];
 }
 
-function noteForSlot(student: StudentRecognition, slot: SourceAssessmentSlotV2): unknown | null {
+function noteForSlot(student: StudentRecognition, slot: SourceAssessmentSlotV2): unknown {
   const quantitativeIndex = SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2.findIndex(
     (candidate) => candidate.sourceSlot === slot,
   );

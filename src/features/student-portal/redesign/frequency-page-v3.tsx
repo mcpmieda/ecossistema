@@ -725,8 +725,8 @@ function FrequencyMonthV3({
   /** The days without school the ADM calendar names (owner decision 23/10/2026: say why). */
   daysOff?: readonly SchoolDayOffV1[];
   /** Each lesson's time by shift and weekday (ADM) and the week's subjects, for an absence. */
-  bells?: FrequencyYearSummaryV2['bells'];
-  grid?: FrequencyYearSummaryV2['grid'];
+  bells?: Exclude<FrequencyYearSummaryV2['bells'], undefined>;
+  grid?: Exclude<FrequencyYearSummaryV2['grid'], undefined>;
 }>) {
   const offByDate = useMemo(() => new Map(daysOff.map((day) => [day.date, day])), [daysOff]);
   /**

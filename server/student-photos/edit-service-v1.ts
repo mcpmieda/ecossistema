@@ -21,7 +21,7 @@ export interface PhotoEditServiceOptionsV1 {
   guard: Pick<PhotoWriteGuardV1, 'assertInitialized' | 'assertTransfer'>;
   authorize(context: PhotoWriteContextV1): Promise<void>;
   storage(authorize: (action: PhotoStorageActionV1) => Promise<void>): Pick<PhotoWritePortsV1, 'upload' | 'remove'>;
-  publish?: PhotoWritePortsV1['publish'];
+  publish?: NonNullable<PhotoWritePortsV1['publish']>;
 }
 const variants = ['portrait', 'avatar'] as const;
 const empty = (): PhotoWriteInputV1 => ({ portrait: null, avatar: null });

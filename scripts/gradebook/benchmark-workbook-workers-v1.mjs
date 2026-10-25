@@ -28,7 +28,8 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
   if (xlsx.version !== '0.20.3') throw new Error('library-version');
   // Everything this function uses is declared inside it: the runner embeds it as text.
   /** How a worker's answer ended: a read error, a canonical error, or a request. */
-  function outcomeOf(value) {
+  // Must stay inside: this function is serialized with toString() and run elsewhere.
+  function outcomeOf(value /* NOSONAR stays in the serialized function */) {
     if (value.readError) return 'read-error';
     return value.canonicalError ? 'canonical-error' : 'request';
   }
@@ -201,7 +202,8 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
     values.some((value) => value === null || value === undefined)
       ? null
       : values.reduce((sum, value) => sum + value, 0);
-  function uiProbe() {
+  // Must stay inside: this function is serialized with toString() and run in the page.
+  function uiProbe(/* NOSONAR stays in the serialized function */) {
     const interval = 16;
     let previousTick = performance.now();
     let previousFrame = previousTick;

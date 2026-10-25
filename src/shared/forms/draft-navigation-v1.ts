@@ -34,7 +34,7 @@ export function useDraftNavigationGuardV1(blocked: boolean): void {
     const prevent = (event: Event) => event.preventDefault();
     const unload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = '';
+      event.returnValue = ''; // NOSONAR older browsers still need it to show the prompt
     };
     const link = (event: MouseEvent) => {
       const anchor =

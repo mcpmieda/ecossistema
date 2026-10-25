@@ -140,9 +140,8 @@ export function DateInputV1({
         <DateField.Group>
           <DateField.Input
             onClick={(event) => {
-              const type = (event.target as HTMLElement)
-                .closest('[data-type]')
-                ?.getAttribute('data-type');
+              const type = (event.target as HTMLElement).closest<HTMLElement>('[data-type]')?.dataset
+                .type;
               if (!disabled && (!type || ['day', 'month', 'year', 'literal'].includes(type)))
                 setOpen(true);
             }}

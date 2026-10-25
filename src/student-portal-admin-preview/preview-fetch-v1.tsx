@@ -338,7 +338,7 @@ async function previewSettingsSetV1(command: PreviewCommandV1) {
   if (settings.scope.kind === 'school') Object.assign(previewSchool, settings.value ?? {});
   else {
     const key = previewScopeKey(settings.scope);
-    const current = { ...(previewOverrides.get(key) ?? {}) };
+    const current = { ...previewOverrides.get(key) };
     if (settings.operation === 'settings-set') Object.assign(current, settings.value);
     else for (const field of settings.keys ?? []) delete current[field];
     previewOverrides.set(key, current);

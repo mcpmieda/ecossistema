@@ -432,8 +432,10 @@ async function loadAssessments(
     );
     const entry = record.value.value;
     validateGradeEntry(entry, request, component.value.id);
-    tokens.push(versionToken('assessment-component', component));
-    tokens.push(academicRecordToken('grade-entry', record));
+    tokens.push(
+      versionToken('assessment-component', component),
+      academicRecordToken('grade-entry', record),
+    );
     assessments.push({
       assessmentComponentId: component.value.id,
       gradeEntryId: entry.id,
@@ -528,8 +530,10 @@ function checkedAssignmentsV1(
 /** The subject of an assignment, with both versions recorded in the data version. */
 function subjectOfV1(assignment: BulletinAssignmentV1, tokens: BulletinTokensV1) {
   if (assignment.subject === null) block(BULLETIN_MATERIALIZATION_REASONS_V1.subjectNotFound);
-  tokens.push(versionToken('teaching-assignment', assignment.assignment));
-  tokens.push(versionToken('subject', assignment.subject));
+  tokens.push(
+    versionToken('teaching-assignment', assignment.assignment),
+    versionToken('subject', assignment.subject),
+  );
   return {
     id: assignment.subject.value.id,
     teachingAssignmentId: assignment.assignment.value.id,

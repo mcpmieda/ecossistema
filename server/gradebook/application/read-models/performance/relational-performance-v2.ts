@@ -267,7 +267,7 @@ function factsDescriptionV2(
   specificOffer: boolean,
   options: PerformanceOptionsV2,
 ) {
-  if (specificOffer) {
+  if (specificOffer) { // NOSONAR one SQL expression, chosen by the reading's scope
     return 'i.descricao';
   } else if (options.descriptionOfferId !== undefined) {
     return `CASE WHEN o.id=${factsQuery.param(options.descriptionOfferId)} THEN i.descricao ELSE NULL::text END`;

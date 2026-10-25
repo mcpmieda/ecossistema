@@ -65,7 +65,7 @@ export function AnalyticsHintBodyV6({
           <span>Como é calculado</span>
           <ol>
             {steps.map((step, index) => (
-              <li key={index}>{step}</li>
+              <li key={index /* NOSONAR fixed explanation steps */}>{step}</li>
             ))}
           </ol>
           {result ? <p className="analytics-hint__result">{result}</p> : null}
