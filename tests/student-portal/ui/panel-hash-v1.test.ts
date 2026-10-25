@@ -25,7 +25,7 @@ describe('ADM view kept in the address (owner request 29/09/2026)', () => {
     writePanelHashParamsV1({ aluno: null });
     expect(readPanelHashParamV1('aluno')).toBeNull();
     expect(readPanelHashParamV1('area')).toBe('accounts');
-    expect(window.history.length).toBe(length);
+    expect(window.history).toHaveLength(length);
   });
 
   it('accepts only account identifiers', () => {

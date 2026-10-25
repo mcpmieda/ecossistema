@@ -24,7 +24,7 @@ function browserFor(width: number, height: number) {
 }
 it('accepts native EXIF-swapped PNG dimensions and uses the oriented size for both crop previews', async () => {
   const bytes = orientedPng();
-  expect(bytes.length).toBe(237);
+  expect(bytes).toHaveLength(237);
   expect(await sharp(bytes).metadata()).toMatchObject({ format: 'png', width: 60, height: 80, orientation: 6 });
   expect(probePhotoSourceV1(bytes)).toMatchObject({ width: 60, height: 80, exifMetadata: true, privateMetadata: true });
   const test = browserFor(80, 60);

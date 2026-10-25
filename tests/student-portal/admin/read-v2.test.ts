@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import { afterAll, beforeAll } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { installAdminReadFixtureV2 } from './read-fixture-v2';
 import { adminReadCasesV2 } from './read-cases-v2';
@@ -28,6 +28,9 @@ beforeAll(async () => {
 }, 30_000);
 afterAll(async () => {
   await pg?.close();
+});
+it('opens the disposable database with the read fixture', async () => {
+  expect((await pg.query('SELECT 1 AS one')).rows).toEqual([{ one: 1 }]);
 });
 adminReadCasesV2(() => ({
   sql,
