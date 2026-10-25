@@ -153,26 +153,29 @@ function plainFailureTextV1(status: number) {
   return status === 401 ? 'Unauthorized' : 'Invalid request';
 }
 
-function failureBody(path: string, payload: PayloadV1, status: number) {
-  let state: 'not-authorized' | 'unavailable' | 'invalid-request';
-  if (status === 401 || status === 403) {
-    state = 'not-authorized';
-  } else if (status === 429 || status >= 500) {
-    state = 'unavailable';
-  } else {
-    state = 'invalid-request';
-  }
+function failureStateV1(status: number): 'not-authorized' | 'unavailable' | 'invalid-request' {
+  if (status === 401 || status === 403) return 'not-authorized';
+  if (status === 429 || status >= 500) return 'unavailable';
+  return 'invalid-request';
+}
+
+/** Performance answers in the transport version it was asked for (2 to 6), otherwise version 1. */
+function performanceVersionV1(version: unknown) {
+  return typeof version === 'number' && [2, 3, 4, 5, 6].includes(version) ? version : 1;
+}
+
+/** The failure in the shape each gradebook transport expects; null when it sends no body; undefined
+ * when the path is not one of these. */
+function gradebookFailureBodyV1(
+  path: string,
+  payload: PayloadV1,
+  state: ReturnType<typeof failureStateV1>,
+) {
   if (path === RECONCILIATION_ROUTE_V1) return { contractVersion: 1, state };
   if (path === '/api/gradebook/import-persistence') return { transportVersion: 9, state };
   if (path === '/api/gradebook/import-diagnostics') return { version: 1, state };
-  if (path === '/api/gradebook/performance') {
-    const version = payload.transportVersion;
-    return {
-      transportVersion:
-        typeof version === 'number' && [2, 3, 4, 5, 6].includes(version) ? version : 1,
-      state,
-    };
-  }
+  if (path === '/api/gradebook/performance')
+    return { transportVersion: performanceVersionV1(payload.transportVersion), state };
   if (path === '/api/gradebook/operational-workspace')
     return { contractVersion: payload.contractVersion === 2 ? 2 : 1, state };
   if (path === '/api/gradebook/council-workspace')
@@ -184,6 +187,13 @@ function failureBody(path: string, payload: PayloadV1, status: number) {
   }
   if (path.startsWith('/api/gradebook/') && !path.includes('/admin/'))
     return { contractVersion: 1, state };
+  return undefined;
+}
+
+function failureBody(path: string, payload: PayloadV1, status: number) {
+  const state = failureStateV1(status);
+  const gradebook = gradebookFailureBodyV1(path, payload, state);
+  if (gradebook !== undefined) return gradebook;
   if (path.startsWith('/api/student-photos/'))
     return {
       version: 1,
@@ -205,6 +215,32 @@ function denied(path: string, payload: PayloadV1, status: number): Response {
   return withSecurityHeaders(response, true);
 }
 
+/** Retired transports perform no business work and retain their existing 410/validation responses. */
+function retiredTransportV1(path: string, payload: PayloadV1) {
+  return (
+    (path === '/api/gradebook/performance' && payload.transportVersion === 1) ||
+    (['/api/gradebook/operational-workspace', '/api/gradebook/bulletins'].includes(path) &&
+      payload.contractVersion === 1) ||
+    (path === '/api/gradebook/council-workspace' &&
+      [1, 2].includes(Number(payload.contractVersion)))
+  );
+}
+
+function adminContextV1(
+  session: NonNullable<Awaited<ReturnType<typeof readSession>>>,
+  env: RuntimeEnv,
+): TrustedAdminContextV1 {
+  return {
+    actorId: session.oid,
+    tenantId: env.TENANT_ID,
+    authenticatedAt: new Date().toISOString(),
+    requestId: crypto.randomUUID(),
+    capability: capabilitiesForRoles(session.roles).includes('platform.settings.write')
+      ? 'platform.settings.write'
+      : 'platform.settings.read',
+  };
+}
+
 /** A Pages-only guard before any handler/provider. Public auth/logout and static assets are untouched.
  * Portal ADM query/command/live enforce their quota at the private Worker boundary instead.
  */
@@ -224,29 +260,10 @@ export async function guardAdminOperationV1(
     if (!session) return denied(path, payload, 401);
     if (inspectsBodyV1(route, request))
       payload = await classificationPayload(request, route.bodyBytes!);
-    // Retired transports perform no business work and retain their existing 410/validation responses.
-    if (
-      (path === '/api/gradebook/performance' && payload.transportVersion === 1) ||
-      ([
-        '/api/gradebook/operational-workspace',
-        '/api/gradebook/bulletins',
-      ].includes(path) &&
-        payload.contractVersion === 1) ||
-      (path === '/api/gradebook/council-workspace' &&
-        [1, 2].includes(Number(payload.contractVersion)))
-    )
-      return null;
+    if (retiredTransportV1(path, payload)) return null;
     const binding = env.PORTAL_SERVICE as PortalAdminServiceBindingV1 | undefined;
     if (typeof binding?.limitOperation !== 'function') return denied(path, payload, 503);
-    const context: TrustedAdminContextV1 = {
-      actorId: session.oid,
-      tenantId: env.TENANT_ID,
-      authenticatedAt: new Date().toISOString(),
-      requestId: crypto.randomUUID(),
-      capability: capabilitiesForRoles(session.roles).includes('platform.settings.write')
-        ? 'platform.settings.write'
-        : 'platform.settings.read',
-    };
+    const context = adminContextV1(session, env);
     const result = await binding.limitOperation(
       context,
       classifyAdminOperationV1(path, request.method, payload),
