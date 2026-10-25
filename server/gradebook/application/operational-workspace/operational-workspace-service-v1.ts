@@ -196,6 +196,24 @@ function projectSubject(model: SubjectCenterReadModelV1): OperationalWorkspaceSu
   };
 }
 
+type WorkspaceViewV1 = Extract<OperationalWorkspaceTransportResponseV1, { view: unknown }>['view'];
+
+/** A record that is not in the year reads as empty; otherwise its projected view. */
+function viewResponseV1<M>(
+  context: NonNullable<ReturnType<typeof contextFor>>,
+  model: M | null,
+  project: (model: M) => WorkspaceViewV1,
+): OperationalWorkspaceTransportResponseV1 {
+  return model === null
+    ? { contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1, state: 'empty', context }
+    : {
+        contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
+        state: 'ready',
+        context,
+        view: project(model),
+      };
+}
+
 function unavailable(): OperationalWorkspaceTransportResponseV1 {
   return { contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1, state: 'unavailable' };
 }
@@ -235,50 +253,22 @@ export function createOperationalWorkspaceServiceV1(
 
       if (request.operation === 'student') {
         const model = await dependencies.readModels.students.get(persistenceContext, request.id);
-        return model === null
-          ? { contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1, state: 'empty', context }
-          : {
-              contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
-              state: 'ready',
-              context,
-              view: projectStudent(model),
-            };
+        return viewResponseV1(context, model, projectStudent);
       }
 
       if (request.operation === 'class-group') {
         const model = await dependencies.readModels.classGroups.get(persistenceContext, request.id);
-        return model === null
-          ? { contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1, state: 'empty', context }
-          : {
-              contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
-              state: 'ready',
-              context,
-              view: projectClassGroup(model),
-            };
+        return viewResponseV1(context, model, projectClassGroup);
       }
 
       if (request.operation === 'teacher') {
         const model = await dependencies.readModels.teachers.get(persistenceContext, request.id);
-        return model === null
-          ? { contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1, state: 'empty', context }
-          : {
-              contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
-              state: 'ready',
-              context,
-              view: projectTeacher(model),
-            };
+        return viewResponseV1(context, model, projectTeacher);
       }
 
       if (request.operation === 'subject') {
         const model = await dependencies.readModels.subjects.get(persistenceContext, request.id);
-        return model === null
-          ? { contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1, state: 'empty', context }
-          : {
-              contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
-              state: 'ready',
-              context,
-              view: projectSubject(model),
-            };
+        return viewResponseV1(context, model, projectSubject);
       }
 
       const response = await dependencies.readModels.search.search(request.request);
