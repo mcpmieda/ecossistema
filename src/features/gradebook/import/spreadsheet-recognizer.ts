@@ -214,9 +214,7 @@ export function teacherNameFromFileName(name: string): string | null {
     /^(?:BANCO\s+DE\s+NOTAS|CONTROLE\s+DE\s+NOTAS|NOTAS)\s*[-–—_:]*\s*/iu,
     '',
   );
-  const candidate = withoutTrailingYearV1(withoutPrefix)
-    .replaceAll(/\s+/gu, ' ')
-    .trim();
+  const candidate = withoutTrailingYearV1(withoutPrefix).replaceAll(/\s+/gu, ' ').trim();
   return candidate.length > 0 ? candidate : null;
 }
 
@@ -245,10 +243,7 @@ function rawValueAt(sheet: Worksheet, address: string): SourceCellRawValueV1 | u
  * SheetJS omits an empty XML/XLSB cell. A real formula/error without a saved
  * scalar remains unavailable and must never be reinterpreted as deletion.
  */
-function definitionRawValueAt(
-  sheet: Worksheet,
-  address: string,
-): SourceCellRawValueV1 | undefined {
+function definitionRawValueAt(sheet: Worksheet, address: string): SourceCellRawValueV1 | undefined {
   const cell = cellAt(sheet, address);
   if (!cell) return addressWithinWorksheetRange(sheet, address) ? null : undefined;
   if (cell.t === 'e' || (cell.f && (cell.v === undefined || cell.v === null))) return undefined;
@@ -328,41 +323,65 @@ function readNote(sheet: Worksheet, address: string): NoteValue | null {
   return { source, value: source, kind: 'manual' };
 }
 
+/** An absent cell inside the sheet's range is empty; outside it the field is missing. */
+function emptyOrMissingV1(sheet: Worksheet, address: string) {
+  return addressWithinWorksheetRange(sheet, address)
+    ? ({ classification: 'empty', rawValue: null } as const)
+    : ({ classification: 'missing-field' } as const);
+}
+
+/** The scalar value, else its non-blank formatted text, else nothing. */
+function applicabilityRawValueV3(cell: Cell) {
+  if (cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v))
+    return cell.v as SourceCellRawValueV1;
+  if (typeof cell.w === 'string' && cell.w.trim()) return cell.w;
+  return null;
+}
+
 function readResultCellObservationV4(
   sheet: Worksheet,
   address: string,
 ): GradebookImportResultCellObservationV4 {
   const cell = cellAt(sheet, address);
   if (!cell || (cell.v === undefined && !cell.f)) {
-    return addressWithinWorksheetRange(sheet, address)
-      ? { classification: 'empty', rawValue: null }
-      : { classification: 'missing-field' };
+    return emptyOrMissingV1(sheet, address);
   }
   const rawValue =
     cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v)
       ? (cell.v as SourceCellRawValueV1)
       : null;
 
-  if (cell.f) {
-    if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
-      return cell.v === 0
-        ? { classification: 'formula-zero', rawValue, formula: cell.f, cachedValue: 0 }
-        : {
-            classification: 'formula-nonzero',
-            rawValue,
-            formula: cell.f,
-            cachedValue: cell.v,
-          };
-    }
-    return {
-      classification: 'formula-error-or-missing-cache',
-      rawValue,
-      formula: cell.f,
-      cachedValue: null,
-      sourceError: errorTextOf(cell),
-    };
-  }
+  if (cell.f) return formulaResultObservationV4(cell, cell.f, rawValue);
+  return manualResultObservationV4(cell);
+}
 
+/** A formula keeps its cached number (zero apart), or reports the error or missing cache. */
+function formulaResultObservationV4(
+  cell: Cell,
+  formula: string,
+  rawValue: SourceCellRawValueV1 | null,
+): GradebookImportResultCellObservationV4 {
+  if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+    return cell.v === 0
+      ? { classification: 'formula-zero', rawValue, formula, cachedValue: 0 }
+      : {
+          classification: 'formula-nonzero',
+          rawValue,
+          formula,
+          cachedValue: cell.v,
+        };
+  }
+  return {
+    classification: 'formula-error-or-missing-cache',
+    rawValue,
+    formula,
+    cachedValue: null,
+    sourceError: errorTextOf(cell),
+  };
+}
+
+/** A typed value: empty, a legacy zero, a negative or positive number, or text that is no grade. */
+function manualResultObservationV4(cell: Cell): GradebookImportResultCellObservationV4 {
   if (cell.v === null || cell.v === '') return { classification: 'empty', rawValue: cell.v };
   if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
     if (cell.v === 0) return { classification: 'manual-legacy-zero', rawValue: 0 };
@@ -379,19 +398,10 @@ function readRecoveryApplicability(
 ): GradebookImportRecoveryApplicabilityObservationV3 {
   const cell = cellAt(sheet, address);
   if (!cell) {
-    return addressWithinWorksheetRange(sheet, address)
-      ? { classification: 'empty', rawValue: null }
-      : { classification: 'missing-field' };
+    return emptyOrMissingV1(sheet, address);
   }
 
-  let rawValue;
-  if (cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v)) {
-    rawValue = cell.v as SourceCellRawValueV1;
-  } else if (typeof cell.w === 'string' && cell.w.trim()) {
-    rawValue = cell.w;
-  } else {
-    rawValue = null;
-  }
+  const rawValue = applicabilityRawValueV3(cell);
   if (cell.f) {
     return {
       classification: 'formula',
@@ -401,9 +411,7 @@ function readRecoveryApplicability(
     };
   }
   if (cell.v === undefined) {
-    return addressWithinWorksheetRange(sheet, address)
-      ? { classification: 'empty', rawValue: null }
-      : { classification: 'missing-field' };
+    return emptyOrMissingV1(sheet, address);
   }
   if (cell.v === null || cell.v === '') return { classification: 'empty', rawValue: cell.v };
   if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
@@ -563,6 +571,39 @@ function recognizeAssessmentDefinitions(
   return [...quantitative, ...qualitative];
 }
 
+/** A trimester row's grades and result cells, in the order the recognition lists them; other
+ * stages read none. */
+function termGradesV1(
+  sheet: Worksheet,
+  row: number,
+  readGrades: boolean,
+): Omit<StudentRecognition, 'row' | 'number' | 'name' | 'status' | 'recovery'> {
+  return {
+    quantitativeAssessments: readGrades
+      ? [readNote(sheet, `R${row}`), readNote(sheet, `S${row}`)]
+      : [null, null],
+    quantitativeTotal: readGrades ? readNote(sheet, `T${row}`) : null,
+    parallel: readGrades ? readNote(sheet, `Z${row}`) : null,
+    qualitative: readGrades
+      ? SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) =>
+          readNote(sheet, `${slot.studentValueColumn}${row}`),
+        )
+      : [],
+    qualitativeTotal: readGrades ? readNote(sheet, `AK${row}`) : null,
+    official: readGrades ? readNote(sheet, `AM${row}`) : null,
+    annual: readGrades ? readNote(sheet, `AN${row}`) : null,
+    termResultObservations: readGrades
+      ? {
+          quantitativeTotal: readResultCellObservationV4(sheet, `T${row}`),
+          parallelAssessment: readResultCellObservationV4(sheet, `Z${row}`),
+          qualitativeTotal: readResultCellObservationV4(sheet, `AK${row}`),
+          officialTermGrade: readResultCellObservationV4(sheet, `AM${row}`),
+          annualAccumulatedTotal: readResultCellObservationV4(sheet, `AN${row}`),
+        }
+      : null,
+  };
+}
+
 function recognizeStudents(
   sheet: Worksheet,
   stage: GradeStage,
@@ -587,28 +628,7 @@ function recognizeStudents(
       number,
       name,
       status: textAt(sheet, `G${row}`),
-      quantitativeAssessments: readGrades
-        ? [readNote(sheet, `R${row}`), readNote(sheet, `S${row}`)]
-        : [null, null],
-      quantitativeTotal: readGrades ? readNote(sheet, `T${row}`) : null,
-      parallel: readGrades ? readNote(sheet, `Z${row}`) : null,
-      qualitative: readGrades
-        ? SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) =>
-            readNote(sheet, `${slot.studentValueColumn}${row}`),
-          )
-        : [],
-      qualitativeTotal: readGrades ? readNote(sheet, `AK${row}`) : null,
-      official: readGrades ? readNote(sheet, `AM${row}`) : null,
-      annual: readGrades ? readNote(sheet, `AN${row}`) : null,
-      termResultObservations: readGrades
-        ? {
-            quantitativeTotal: readResultCellObservationV4(sheet, `T${row}`),
-            parallelAssessment: readResultCellObservationV4(sheet, `Z${row}`),
-            qualitativeTotal: readResultCellObservationV4(sheet, `AK${row}`),
-            officialTermGrade: readResultCellObservationV4(sheet, `AM${row}`),
-            annualAccumulatedTotal: readResultCellObservationV4(sheet, `AN${row}`),
-          }
-        : null,
+      ...termGradesV1(sheet, row, readGrades),
       recovery: readRecovery ? recognizeRecovery(sheet, row) : null,
     });
   }
@@ -697,19 +717,86 @@ function recognizeGradeSheet(
   };
 }
 
-function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] {
-  const grouped = new Map<
+const isTrimesterStageV1 = (
+  stage: GradeStage,
+): stage is 'trimester-1' | 'trimester-2' | 'trimester-3' =>
+  stage === 'trimester-1' || stage === 'trimester-2' || stage === 'trimester-3';
+
+/** The raw source cells of every recognized student row, for the values snapshot. */
+function snapshotCellsOfV8(recognized: GradeSheetRecognition, sheet: Worksheet) {
+  const cells: Record<
     string,
-    {
-      displayName: string;
-      students: Set<string>;
-      declared: number[];
-      disciplines: Set<string>;
-      trimesters: Set<string>;
-      recovery: boolean;
-      sheets: GradeSheetRecognition[];
+    | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+    | null
+  > = {};
+  const columns =
+    recognized.stage === 'recovery'
+      ? ['R', 'S', 'T', 'U', 'X', 'Y', 'AA', 'AB', 'AC', 'AD', 'AE']
+      : [
+          'R',
+          'S',
+          'T',
+          'Z',
+          'AA',
+          'AB',
+          'AC',
+          'AD',
+          'AE',
+          'AF',
+          'AG',
+          'AH',
+          'AI',
+          'AJ',
+          'AK',
+          'AM',
+          'AN',
+        ];
+  const granularColumns = new Set([
+    'R',
+    'S',
+    'Z',
+    ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) => slot.sourceSlot),
+  ]);
+  for (const student of recognized.students)
+    for (const col of columns) {
+      const addr = `${col}${student.row}`;
+      const cell = cellAt(sheet, addr);
+      const value = snapshotRawCellV8(cell);
+      // Excel may omit an empty cell entirely. The sheet and student row were read,
+      // so this is an observed blank, not an unavailable source/cache.
+      if (recognized.stage.startsWith('trimester-') && granularColumns.has(col))
+        cells[addr] = value ?? null;
+      else if (value !== undefined) cells[addr] = value;
     }
-  >();
+  return cells;
+}
+
+type ClassGroupV1 = {
+  displayName: string;
+  students: Set<string>;
+  declared: number[];
+  disciplines: Set<string>;
+  trimesters: Set<string>;
+  recovery: boolean;
+  sheets: GradeSheetRecognition[];
+};
+
+function addSheetToClassV1(current: ClassGroupV1, sheet: GradeSheetRecognition) {
+  // Only trimester sheets count the class's students and name its trimesters.
+  if (isTrimesterStageV1(sheet.stage)) {
+    for (const student of sheet.students) {
+      current.students.add(`${student.number}|${normalizeText(student.name)}`);
+    }
+    current.trimesters.add(stageShortLabel(sheet.stage));
+  }
+  if (sheet.declaredStudents !== null) current.declared.push(sheet.declaredStudents);
+  if (sheet.discipline) current.disciplines.add(sheet.discipline);
+  if (sheet.stage === 'recovery') current.recovery = true;
+  current.sheets.push(sheet);
+}
+
+function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] {
+  const grouped = new Map<string, ClassGroupV1>();
 
   for (const sheet of gradeSheets) {
     if (sheet.stage === 'overview') continue;
@@ -725,26 +812,7 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
       sheets: [],
     };
 
-    if (
-      sheet.stage === 'trimester-1' ||
-      sheet.stage === 'trimester-2' ||
-      sheet.stage === 'trimester-3'
-    ) {
-      for (const student of sheet.students) {
-        current.students.add(`${student.number}|${normalizeText(student.name)}`);
-      }
-    }
-    if (sheet.declaredStudents !== null) current.declared.push(sheet.declaredStudents);
-    if (sheet.discipline) current.disciplines.add(sheet.discipline);
-    if (
-      sheet.stage === 'trimester-1' ||
-      sheet.stage === 'trimester-2' ||
-      sheet.stage === 'trimester-3'
-    ) {
-      current.trimesters.add(stageShortLabel(sheet.stage));
-    }
-    if (sheet.stage === 'recovery') current.recovery = true;
-    current.sheets.push(sheet);
+    addSheetToClassV1(current, sheet);
     grouped.set(key, current);
   }
 
@@ -776,53 +844,8 @@ export function recognizeWorkbook(
     const sheet = workbook.Sheets[name];
     if (!sheet) return [];
     const recognized = recognizeGradeSheet(file.name, source.fileSha256, name, sheet, xlsx);
-    if (recognized && source.captureValues) {
-      const cells: Record<
-        string,
-        | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
-        | null
-      > = {};
-      const columns =
-        recognized.stage === 'recovery'
-          ? ['R', 'S', 'T', 'U', 'X', 'Y', 'AA', 'AB', 'AC', 'AD', 'AE']
-          : [
-              'R',
-              'S',
-              'T',
-              'Z',
-              'AA',
-              'AB',
-              'AC',
-              'AD',
-              'AE',
-              'AF',
-              'AG',
-              'AH',
-              'AI',
-              'AJ',
-              'AK',
-              'AM',
-              'AN',
-            ];
-      const granularColumns = new Set([
-        'R',
-        'S',
-        'Z',
-        ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) => slot.sourceSlot),
-      ]);
-      for (const student of recognized.students)
-        for (const col of columns) {
-          const addr = `${col}${student.row}`;
-          const cell = cellAt(sheet, addr);
-          const value = snapshotRawCellV8(cell);
-          // Excel may omit an empty cell entirely. The sheet and student row were read,
-          // so this is an observed blank, not an unavailable source/cache.
-          if (recognized.stage.startsWith('trimester-') && granularColumns.has(col))
-            cells[addr] = value ?? null;
-          else if (value !== undefined) cells[addr] = value;
-        }
-      recognized.snapshotCellsV8 = cells;
-    }
+    if (recognized && source.captureValues)
+      recognized.snapshotCellsV8 = snapshotCellsOfV8(recognized, sheet);
     return recognized ? [recognized] : [];
   });
   const recognizedNames = new Set(gradeSheets.map((sheet) => sheet.name));

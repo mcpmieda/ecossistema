@@ -29,6 +29,48 @@ type SocketIdentityV1 = z.infer<typeof socketIdentityV1> & { resumed: boolean };
 const socketAttachmentV1 = socketIdentityV1.extend({ resumed: z.boolean() }).strict();
 
 /** One SQLite-backed coordination atom per authenticated audience/year. Browser sockets never access it directly. */
+
+/** The socket identity the authenticated HTTP composition put in the private headers. */
+function socketIdentityInputV1(headers: Headers) {
+  return {
+    purpose: headers.get('x-live-purpose') ?? 'academic',
+    authorizedAt: Date.now(),
+    ...(headers.has('x-live-connection-id') ? { connectionId: headers.get('x-live-connection-id'), sessionId: headers.get('x-live-session-id') } : {}),
+    audience: headers.get('x-live-audience'),
+    expiresAt: headers.get('x-live-expires-at'),
+    accountId: headers.get('x-live-account-id') || null,
+    studentId: headers.get('x-live-student-id')
+      ? Number(headers.get('x-live-student-id'))
+      : null,
+    classId: headers.get('x-live-class-id')
+      ? Number(headers.get('x-live-class-id'))
+      : null,
+  };
+}
+
+/** Not expired; a student has an account and a student; an admin has neither nor a class; the
+ * security channel is only for students. */
+function consistentIdentityV1(data: z.infer<typeof socketIdentityV1>) {
+  if (Date.parse(data.expiresAt) <= Date.now()) return false;
+  if (data.audience === 'student' && (!data.accountId || !data.studentId)) return false;
+  if (data.audience === 'admin' && (data.accountId || data.studentId || data.classId)) return false;
+  return data.purpose !== 'security' || data.audience === 'student';
+}
+
+function sendOrCloseV1(socket: WebSocket, message: string) {
+  try {
+    socket.send(message);
+  } catch {
+    socket.close(1011, 'delivery-failed');
+  }
+}
+
+/** Invalidate presence immediately; a fresh authenticated verification restores it. */
+function reauthorizeV1(socket: WebSocket, identity: SocketIdentityV1) {
+  socket.serializeAttachment({ ...identity, authorizedAt: 0, invalidatedAt: Date.now() });
+  sendOrCloseV1(socket, JSON.stringify({ contractVersion: 1, type: 'reauthorize' }));
+}
+
 export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
   private signals: PortalSignalBufferV1 | undefined;
   constructor(ctx: DurableObjectState, env: PortalCompositionEnvV1) {
@@ -89,30 +131,8 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
   override async fetch(request: Request): Promise<Response> {
     if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket')
       return new Response(null, { status: 404 });
-    const parsed = socketIdentityV1.safeParse({
-      purpose: request.headers.get('x-live-purpose') ?? 'academic',
-      authorizedAt: Date.now(),
-      ...(request.headers.has('x-live-connection-id') ? { connectionId: request.headers.get('x-live-connection-id'), sessionId: request.headers.get('x-live-session-id') } : {}),
-      audience: request.headers.get('x-live-audience'),
-      expiresAt: request.headers.get('x-live-expires-at'),
-      accountId: request.headers.get('x-live-account-id') || null,
-      studentId: request.headers.get('x-live-student-id')
-        ? Number(request.headers.get('x-live-student-id'))
-        : null,
-      classId: request.headers.get('x-live-class-id')
-        ? Number(request.headers.get('x-live-class-id'))
-        : null,
-    });
-    if (!parsed.success || Date.parse(parsed.data.expiresAt) <= Date.now())
-      return new Response(null, { status: 403 });
-    if (parsed.data.audience === 'student' && (!parsed.data.accountId || !parsed.data.studentId))
-      return new Response(null, { status: 403 });
-    if (
-      parsed.data.audience === 'admin' &&
-      (parsed.data.accountId || parsed.data.studentId || parsed.data.classId)
-    )
-      return new Response(null, { status: 403 });
-    if (parsed.data.purpose === 'security' && parsed.data.audience !== 'student')
+    const parsed = socketIdentityV1.safeParse(socketIdentityInputV1(request.headers));
+    if (!parsed.success || !consistentIdentityV1(parsed.data))
       return new Response(null, { status: 403 });
     const effectiveHeader = request.headers.get('x-live-effective-expires-at');
     const effectiveExpiry = z.iso
@@ -215,22 +235,10 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
       }
       if (event.audience === 'student' && !this.matches(identity.data, event)) continue;
       if (identity.data.purpose === 'security') {
-        if (event.securityRelevant) {
-          // Invalidate presence immediately; a fresh authenticated verification restores it.
-          socket.serializeAttachment({ ...identity.data, authorizedAt: 0, invalidatedAt: Date.now() });
-          try {
-            socket.send(JSON.stringify({ contractVersion: 1, type: 'reauthorize' }));
-          } catch {
-            socket.close(1011, 'delivery-failed');
-          }
-        }
+        if (event.securityRelevant) reauthorizeV1(socket, identity.data);
         continue;
       }
-      try {
-        socket.send(message);
-      } catch {
-        socket.close(1011, 'delivery-failed');
-      }
+      sendOrCloseV1(socket, message);
     }
     return outOfOrder ? 'duplicate' : 'delivered';
   }

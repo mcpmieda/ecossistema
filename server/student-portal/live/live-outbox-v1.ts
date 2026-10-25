@@ -110,6 +110,19 @@ async function settleLiveEventsV1(env: PortalCompositionEnvV1, token: string,
   });
 }
 
+/** Publishes a claimed batch in order; what the deadline leaves out is deferred, not failed. */
+async function deliverLiveEventsV1(env: PortalCompositionEnvV1, events: readonly Record<string, unknown>[], deadline: number) {
+  const delivered: string[] = [], failed: string[] = [], deferred: string[] = [];
+  for (const input of events) {
+    if (Date.now() >= deadline) { deferred.push(input.id as string); continue; }
+    try {
+      await publishBeforeDeadlineV1(env, input, deadline);
+      delivered.push(input.id as string);
+    } catch { failed.push(input.id as string); }
+  }
+  return { delivered, failed, deferred };
+}
+
 /** At most four batches and 20 seconds of delivery work, below each 30-second lease.
  * Database settlement can exceed that budget; token guards prevent acknowledging a new owner.
  * A timed-out RPC may finish remotely: the existing cursor deduplication handles its retry.
@@ -130,14 +143,7 @@ export async function dispatchPortalLiveEventsV1(env: PortalCompositionEnvV1, li
       // UPDATE RETURNING does not preserve the pending CTE's priority ordering.
       events.sort((a, b) => Number(b.security_relevant) - Number(a.security_relevant)
         || (BigInt(a.id as string) < BigInt(b.id as string) ? -1 : 1));
-      const delivered: string[] = [], failed: string[] = [], deferred: string[] = [];
-      for (const input of events) {
-        if (Date.now() >= deadline) { deferred.push(input.id as string); continue; }
-        try {
-          await publishBeforeDeadlineV1(env, input, deadline);
-          delivered.push(input.id as string);
-        } catch { failed.push(input.id as string); }
-      }
+      const { delivered, failed, deferred } = await deliverLiveEventsV1(env, events, deadline);
       accepted += delivered.length;
       rejected += failed.length;
       const settled = await settleLiveEventsV1(env, token, delivered, failed, deferred);

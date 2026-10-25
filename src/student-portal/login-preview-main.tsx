@@ -127,46 +127,59 @@ const session = () =>
   });
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The PIN step: the right PIN (2012) opens password creation. */
+function previewPinV1(body: Record<string, unknown>) {
+  if (body.pin === undefined) return reply(200, { state: 'credential-required', next: 'pin' });
+  return body.pin === '2012'
+    ? reply(200, {
+        state: 'password-creation',
+        challenge: 'C'.repeat(43),
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      })
+    : failure('unauthenticated');
+}
+
+/** The card step, as the screen under review asks; the risk check passes once per preview. */
+async function previewChallengeV1(
+  screen: ScreenV1,
+  body: Record<string, unknown>,
+  risk: { passed: boolean },
+) {
+  const challenge = screen.challenge ?? 'password';
+  await wait(challenge === 'slow' ? 10 * 60_000 : 500);
+  if (challenge === 'network') throw new TypeError('Failed to fetch');
+  if (challenge === 'unavailable' || challenge === 'unauthenticated') return failure(challenge);
+  if (challenge === 'rate-limited') return failure('rate-limited', 900);
+  if (challenge === 'risk' && !body.riskToken && !risk.passed)
+    return reply(200, { state: 'credential-required', next: 'risk' });
+  if (challenge === 'risk') risk.passed = true;
+  if (challenge === 'pin') return previewPinV1(body);
+  if (challenge === 'create' || challenge === 'create-expiring')
+    return reply(200, {
+      state: 'password-creation',
+      challenge: 'C'.repeat(43),
+      expiresAt: new Date(Date.now() + (challenge === 'create' ? 10 * 60_000 : 2500)).toISOString(),
+    });
+  return reply(200, { state: 'credential-required', next: 'password' });
+}
+
+/** The password step: 123456 signs in, unless the screen shows a refusal. */
+async function previewLoginV1(screen: ScreenV1, body: Record<string, unknown>) {
+  const login = screen.login ?? 'ok';
+  await wait(login === 'slow' ? 10 * 60_000 : 500);
+  if (login === 'unauthenticated') return failure('unauthenticated');
+  if (login === 'rate-limited') return failure('rate-limited', 900);
+  return body.password === '123456' ? session() : failure('unauthenticated');
+}
+
 /** Invented server: the same responses the Worker sends, chosen by the screen under review. */
 function previewFetchV1(screen: ScreenV1): typeof fetch {
-  let riskPassed = false;
+  const risk = { passed: false };
   return async (input, init) => {
     const path = scalarTextV1(input);
     const body = init?.body ? (JSON.parse(scalarTextV1(init.body)) as Record<string, unknown>) : {};
-    if (path === '/api/student/auth/challenge') {
-      const challenge = screen.challenge ?? 'password';
-      await wait(challenge === 'slow' ? 10 * 60_000 : 500);
-      if (challenge === 'network') throw new TypeError('Failed to fetch');
-      if (challenge === 'unavailable' || challenge === 'unauthenticated') return failure(challenge);
-      if (challenge === 'rate-limited') return failure('rate-limited', 900);
-      if (challenge === 'risk' && !body.riskToken && !riskPassed)
-        return reply(200, { state: 'credential-required', next: 'risk' });
-      if (challenge === 'risk') riskPassed = true;
-      if (challenge === 'pin') {
-        if (body.pin === undefined) return reply(200, { state: 'credential-required', next: 'pin' });
-        return body.pin === '2012'
-          ? reply(200, {
-              state: 'password-creation',
-              challenge: 'C'.repeat(43),
-              expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
-            })
-          : failure('unauthenticated');
-      }
-      if (challenge === 'create' || challenge === 'create-expiring')
-        return reply(200, {
-          state: 'password-creation',
-          challenge: 'C'.repeat(43),
-          expiresAt: new Date(Date.now() + (challenge === 'create' ? 10 * 60_000 : 2500)).toISOString(),
-        });
-      return reply(200, { state: 'credential-required', next: 'password' });
-    }
-    if (path === '/api/student/auth/login') {
-      const login = screen.login ?? 'ok';
-      await wait(login === 'slow' ? 10 * 60_000 : 500);
-      if (login === 'unauthenticated') return failure('unauthenticated');
-      if (login === 'rate-limited') return failure('rate-limited', 900);
-      return body.password === '123456' ? session() : failure('unauthenticated');
-    }
+    if (path === '/api/student/auth/challenge') return previewChallengeV1(screen, body, risk);
+    if (path === '/api/student/auth/login') return previewLoginV1(screen, body);
     if (path === '/api/student/auth/activate') {
       await wait(500);
       return session();

@@ -61,6 +61,76 @@ export type ImportedRecoveryApplicabilityMaterializationV1 =
       readonly applicability: ReturnType<typeof resolveGradebookImportRecoveryApplicabilityV3>;
     };
 
+/** A REC formula: its cached number decides; no cache is not applicable unless text is visible
+ * (then a person reviews it). */
+function formulaApplicabilityV1(
+  observation: Extract<
+    GradebookImportRecoveryApplicabilityObservationV3,
+    { classification: 'formula' }
+  >,
+  provenance: SourceCellProvenanceV1,
+  applicability: ReturnType<typeof resolveGradebookImportRecoveryApplicabilityV3>,
+): ImportedRecoveryApplicabilityMaterializationV1 {
+  if (
+    observation.cachedValue === null &&
+    observation.rawValue !== null &&
+    observation.rawValue !== ''
+  ) {
+    return { state: 'review-required', applicability };
+  }
+  if (observation.cachedValue === null) {
+    return {
+      state: 'ready',
+      value: {
+        value: {
+          state: 'not-applicable',
+          reason: 'source REC formula has no visible or cached applicability marker',
+        },
+        evidence: [
+          {
+            provenance: provenance,
+            classification: 'formula-error-or-missing-cache',
+            rawValue: observation.rawValue,
+            formula: observation.formula,
+            cachedValue: null,
+            sourceError: null,
+          },
+        ],
+      },
+    };
+  }
+  const authoritativeValue = observation.cachedValue;
+  return {
+    state: 'ready',
+    value: {
+      value:
+        authoritativeValue !== 1
+          ? {
+              state: 'not-applicable',
+              reason: 'source REC formula result is not the numeric applicability marker 1',
+            }
+          : { state: 'applicable' },
+      evidence: [
+        authoritativeValue === 0
+          ? {
+              provenance: provenance,
+              classification: 'formula-zero',
+              rawValue: observation.rawValue,
+              formula: observation.formula,
+              cachedValue: 0,
+            }
+          : {
+              provenance: provenance,
+              classification: 'formula-nonzero',
+              rawValue: observation.rawValue,
+              formula: observation.formula,
+              cachedValue: authoritativeValue,
+            },
+      ],
+    },
+  };
+}
+
 /** Numeric 1 is applicable; every other finite numeric marker is not applicable. */
 export function materializeImportedRecoveryApplicabilityV1(input: {
   readonly observation: GradebookImportRecoveryApplicabilityObservationV3;
@@ -82,66 +152,8 @@ export function materializeImportedRecoveryApplicabilityV1(input: {
       },
     };
   }
-  if (input.observation.classification === 'formula') {
-    if (
-      input.observation.cachedValue === null &&
-      input.observation.rawValue !== null &&
-      input.observation.rawValue !== ''
-    ) {
-      return { state: 'review-required', applicability };
-    }
-    if (input.observation.cachedValue === null) {
-      return {
-        state: 'ready',
-        value: {
-          value: {
-            state: 'not-applicable',
-            reason: 'source REC formula has no visible or cached applicability marker',
-          },
-          evidence: [
-            {
-              provenance: input.provenance,
-              classification: 'formula-error-or-missing-cache',
-              rawValue: input.observation.rawValue,
-              formula: input.observation.formula,
-              cachedValue: null,
-              sourceError: null,
-            },
-          ],
-        },
-      };
-    }
-    const authoritativeValue = input.observation.cachedValue;
-    return {
-      state: 'ready',
-      value: {
-        value:
-          authoritativeValue !== 1
-            ? {
-                state: 'not-applicable',
-                reason: 'source REC formula result is not the numeric applicability marker 1',
-              }
-            : { state: 'applicable' },
-        evidence: [
-          authoritativeValue === 0
-            ? {
-                provenance: input.provenance,
-                classification: 'formula-zero',
-                rawValue: input.observation.rawValue,
-                formula: input.observation.formula,
-                cachedValue: 0,
-              }
-            : {
-                provenance: input.provenance,
-                classification: 'formula-nonzero',
-                rawValue: input.observation.rawValue,
-                formula: input.observation.formula,
-                cachedValue: authoritativeValue,
-              },
-        ],
-      },
-    };
-  }
+  if (input.observation.classification === 'formula')
+    return formulaApplicabilityV1(input.observation, input.provenance, applicability);
   if (input.observation.classification !== 'numeric') {
     return { state: 'review-required', applicability };
   }

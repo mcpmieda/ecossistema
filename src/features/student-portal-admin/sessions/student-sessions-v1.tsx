@@ -25,6 +25,28 @@ import {
 
 type SessionsPageV2 = Extract<AdminReadResponseV2, { state: 'sessions-read' }>;
 type SessionRowV2 = SessionsPageV2['items'][number];
+
+/** The fresh read before a revocation: this exact scope, only this student (in the class on screen),
+ * and something left to revoke. */
+function assertFreshSessionsV1(
+  fresh: AdminReadResponseV2,
+  scope: ScopeV1,
+  parentScope: ScopeV1,
+): asserts fresh is SessionsPageV2 {
+  if (
+    fresh.state !== 'sessions-read' ||
+    settingsScopeKeyV1(fresh.scope) !== settingsScopeKeyV1(scope)
+  )
+    throw new PortalClientErrorV1('invalid-response');
+  if (
+    scope.kind === 'account' &&
+    (fresh.items.some((s) => s.accountId !== scope.accountId) ||
+      (parentScope.kind === 'class' &&
+        fresh.items.some((s) => s.classId !== parentScope.classId)))
+  )
+    throw new PortalClientErrorV1('conflict');
+  if (fresh.revocableCount === 0) throw new PortalClientErrorV1('conflict');
+}
 const labels = {
   valid: 'Ativa',
   expired: 'Expirou',
@@ -158,19 +180,7 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
         controller.signal,
       );
       controller.signal.throwIfAborted();
-      if (
-        fresh.state !== 'sessions-read' ||
-        settingsScopeKeyV1(fresh.scope) !== settingsScopeKeyV1(scope)
-      )
-        throw new PortalClientErrorV1('invalid-response');
-      if (
-        scope.kind === 'account' &&
-        (fresh.items.some((s) => s.accountId !== scope.accountId) ||
-          (parentScope.kind === 'class' &&
-            fresh.items.some((s) => s.classId !== parentScope.classId)))
-      )
-        throw new PortalClientErrorV1('conflict');
-      if (fresh.revocableCount === 0) throw new PortalClientErrorV1('conflict');
+      assertFreshSessionsV1(fresh, scope, parentScope);
       setReview({
         label,
         count: sessionId ? 1 : fresh.revocableCount,

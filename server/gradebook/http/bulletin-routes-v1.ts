@@ -76,6 +76,47 @@ function relationalStatus(response: RelationalBulletinResponseV2): number {
   return 200;
 }
 
+/** The relational storage serves bulletins only on Postgres, in a known environment, and in
+ * production only once enabled. */
+function relationalStorageReadyV2(env: RuntimeEnv) {
+  const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
+  return (
+    env.GRADEBOOK_STORAGE_PROVIDER === 'postgres' &&
+    ['production', 'local', 'preview'].includes(environment) &&
+    (environment !== 'production' || env.GRADEBOOK_PRODUCTION_ENABLED === 'true') &&
+    Boolean(env.GRADEBOOK_DATABASE)
+  );
+}
+
+/** Only an emission that produced at least one bulletin notifies live screens. */
+function emittedV2(response: RelationalBulletinResponseV2) {
+  return response.state === 'ready' && (response.operation === 'emit'
+    || (response.operation === 'emit-batch' && response.ready.length > 0));
+}
+
+async function handleRelationalBulletinV2(
+  payload: unknown,
+  env: RuntimeEnv,
+  session: Awaited<ReturnType<typeof requireAuth>>,
+  afterCommit: GradebookAfterCommitV1 | undefined,
+): Promise<Response> {
+  const parsed = relationalBulletinRequestSchemaV2.safeParse(payload);
+  if (!parsed.success) return relationalFailure(null, 'invalid-request', 400);
+  if (!relationalStorageReadyV2(env)) return relationalFailure(parsed.data, 'unavailable', 503);
+  try {
+    const database = env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1;
+    const service = createRelationalBulletinServiceV2({
+      database,
+      snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
+    });
+    const response = await service.execute(parsed.data, { issuerOid: session.oid });
+    if (emittedV2(response)) afterCommit?.(session);
+    return noStoreJson(response, relationalStatus(response));
+  } catch {
+    return relationalFailure(parsed.data, 'unavailable', 503);
+  }
+}
+
 export async function handleBulletinRequestV1(
   request: Request,
   env: RuntimeEnv,
@@ -110,30 +151,7 @@ export async function handleBulletinRequestV1(
     'contractVersion' in payload &&
     payload.contractVersion === RELATIONAL_BULLETIN_CONTRACT_VERSION_V2
   ) {
-    const parsed = relationalBulletinRequestSchemaV2.safeParse(payload);
-    if (!parsed.success) return relationalFailure(null, 'invalid-request', 400);
-    const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-    if (
-      env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
-      !['production', 'local', 'preview'].includes(environment) ||
-      (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-      !env.GRADEBOOK_DATABASE
-    ) {
-      return relationalFailure(parsed.data, 'unavailable', 503);
-    }
-    try {
-      const database = env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1;
-      const service = createRelationalBulletinServiceV2({
-        database,
-        snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
-      });
-      const response = await service.execute(parsed.data, { issuerOid: session.oid });
-      if (response.state === 'ready' && (response.operation === 'emit'
-        || (response.operation === 'emit-batch' && response.ready.length > 0))) afterCommit?.(session);
-      return noStoreJson(response, relationalStatus(response));
-    } catch {
-      return relationalFailure(parsed.data, 'unavailable', 503);
-    }
+    return handleRelationalBulletinV2(payload, env, session, afterCommit);
   }
 
   const readiness = inspectBulletinWorkspaceTransportRequestV1(payload);

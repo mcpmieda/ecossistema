@@ -304,6 +304,91 @@ export async function probeCloudflareCapabilitiesV1(input: {
   };
 }
 
+type RestReadV1 = Awaited<ReturnType<typeof readRestResourceV1>>;
+type GraphqlReadV1 = Awaited<ReturnType<typeof graphqlV1>>;
+
+/** The Portal Worker among the account's scripts, with its date and compatibility date. */
+function portalWorkerV1(workerRead: RestReadV1): CloudflarePortalDeployResultV1['worker'] {
+  if (workerRead.state !== 'accessible' || !workerRead.body) return { state: workerRead.state };
+  const result = workerRead.body.result;
+  if (!Array.isArray(result)) return { state: 'inconclusive' };
+  const match = result.map(asObjectV1).find((item) => item?.id === PORTAL_WORKER);
+  return match
+    ? {
+        state: 'accessible',
+        present: true,
+        modifiedAt: asStringV1(match.modified_on),
+        compatibilityDate: asStringV1(match.compatibility_date),
+      }
+    : { state: 'accessible', present: false };
+}
+
+/** The Pages project and its canonical deployment. */
+function portalPagesV1(pagesRead: RestReadV1): CloudflarePortalDeployResultV1['pages'] {
+  if (pagesRead.state === 'not-found') return { state: 'not-found', present: false };
+  if (pagesRead.state !== 'accessible' || !pagesRead.body) return { state: pagesRead.state };
+  const project = asObjectV1(pagesRead.body.result);
+  if (!project) return { state: 'inconclusive' };
+  const deployment = asObjectV1(project.canonical_deployment);
+  const latestStage = asObjectV1(deployment?.latest_stage);
+  return {
+    state: 'accessible',
+    present: true,
+    productionBranch: asStringV1(project.production_branch),
+    deploymentStatus: asStringV1(latestStage?.status),
+    deploymentCreatedAt: asStringV1(deployment?.created_on),
+  };
+}
+
+/** Requests, errors and the highest CPU quantiles over the rows; null when a row has no counts. */
+function invocationTotalsV1(rows: readonly unknown[]) {
+  let requests = 0;
+  let errors = 0;
+  let maxCpuTimeP50: number | undefined;
+  let maxCpuTimeP99: number | undefined;
+  for (const row of rows) {
+    const object = asObjectV1(row);
+    const sum = asObjectV1(object?.sum);
+    const rowRequests = asNonNegativeNumberV1(sum?.requests);
+    const rowErrors = asNonNegativeNumberV1(sum?.errors);
+    if (rowRequests === null || rowErrors === null) return null;
+    requests += rowRequests;
+    errors += rowErrors;
+    const quantiles = asObjectV1(object?.quantiles);
+    const cpuP50 = asNonNegativeNumberV1(quantiles?.cpuTimeP50);
+    const cpuP99 = asNonNegativeNumberV1(quantiles?.cpuTimeP99);
+    if (cpuP50 !== null)
+      maxCpuTimeP50 = Math.max(maxCpuTimeP50 ?? 0, cpuP50);
+    if (cpuP99 !== null)
+      maxCpuTimeP99 = Math.max(maxCpuTimeP99 ?? 0, cpuP99);
+  }
+  return { requests, errors, maxCpuTimeP50, maxCpuTimeP99 };
+}
+
+/** The Portal Worker's last hour of invocations. */
+function portalAnalyticsV1(analyticsRead: GraphqlReadV1): CloudflarePortalDeployResultV1['analytics'] {
+  if (analyticsRead.state !== 'accessible' || !analyticsRead.body)
+    return { state: analyticsRead.state, windowMinutes: 60 };
+  const data = asObjectV1(analyticsRead.body.data);
+  const viewer = asObjectV1(data?.viewer);
+  const accounts = viewer?.accounts;
+  if (!Array.isArray(accounts)) return { state: 'inconclusive', windowMinutes: 60 };
+  const first = asObjectV1(accounts[0]);
+  const rows = first?.workersInvocationsAdaptive;
+  if (!Array.isArray(rows)) return { state: 'inconclusive', windowMinutes: 60 };
+  const totals = invocationTotalsV1(rows);
+  if (!totals) return { state: 'inconclusive', windowMinutes: 60 };
+  const { requests, errors, maxCpuTimeP50, maxCpuTimeP99 } = totals;
+  return {
+    state: 'accessible',
+    windowMinutes: 60,
+    requests,
+    errors,
+    ...(maxCpuTimeP50 === undefined ? {} : { maxCpuTimeP50 }),
+    ...(maxCpuTimeP99 === undefined ? {} : { maxCpuTimeP99 }),
+  };
+}
+
 export async function diagnoseCloudflarePortalDeployV1(input: {
   accountId: string;
   token: string;
@@ -331,45 +416,14 @@ export async function diagnoseCloudflarePortalDeployV1(input: {
     input.token,
     fetcher,
   );
-  let worker: CloudflarePortalDeployResultV1['worker'] = { state: workerRead.state };
-  if (workerRead.state === 'accessible' && workerRead.body) {
-    const result = workerRead.body.result;
-    if (!Array.isArray(result)) worker = { state: 'inconclusive' };
-    else {
-      const match = result.map(asObjectV1).find((item) => item?.id === PORTAL_WORKER);
-      worker = match
-        ? {
-            state: 'accessible',
-            present: true,
-            modifiedAt: asStringV1(match.modified_on),
-            compatibilityDate: asStringV1(match.compatibility_date),
-          }
-        : { state: 'accessible', present: false };
-    }
-  }
+  const worker = portalWorkerV1(workerRead);
 
   const pagesRead = await readRestResourceV1(
     API_BASE + '/accounts/' + account + '/pages/projects/' + encodeURIComponent(PORTAL_PAGES),
     input.token,
     fetcher,
   );
-  let pages: CloudflarePortalDeployResultV1['pages'] = { state: pagesRead.state };
-  if (pagesRead.state === 'not-found') pages = { state: 'not-found', present: false };
-  else if (pagesRead.state === 'accessible' && pagesRead.body) {
-    const project = asObjectV1(pagesRead.body.result);
-    if (!project) pages = { state: 'inconclusive' };
-    else {
-      const deployment = asObjectV1(project.canonical_deployment);
-      const latestStage = asObjectV1(deployment?.latest_stage);
-      pages = {
-        state: 'accessible',
-        present: true,
-        productionBranch: asStringV1(project.production_branch),
-        deploymentStatus: asStringV1(latestStage?.status),
-        deploymentCreatedAt: asStringV1(deployment?.created_on),
-      };
-    }
-  }
+  const pages = portalPagesV1(pagesRead);
 
   const analyticsRead = await graphqlV1(
     input.accountId,
@@ -377,57 +431,7 @@ export async function diagnoseCloudflarePortalDeployV1(input: {
     fetcher,
     portalAnalyticsBodyV1(input.accountId, now),
   );
-  let analytics: CloudflarePortalDeployResultV1['analytics'] = {
-    state: analyticsRead.state,
-    windowMinutes: 60,
-  };
-  if (analyticsRead.state === 'accessible' && analyticsRead.body) {
-    const data = asObjectV1(analyticsRead.body.data);
-    const viewer = asObjectV1(data?.viewer);
-    const accounts = viewer?.accounts;
-    if (!Array.isArray(accounts)) analytics = { state: 'inconclusive', windowMinutes: 60 };
-    else {
-      const first = asObjectV1(accounts[0]);
-      const rows = first?.workersInvocationsAdaptive;
-      if (!Array.isArray(rows)) analytics = { state: 'inconclusive', windowMinutes: 60 };
-      else {
-        let requests = 0;
-        let errors = 0;
-        let maxCpuTimeP50: number | undefined;
-        let maxCpuTimeP99: number | undefined;
-        let valid = true;
-        for (const row of rows) {
-          const object = asObjectV1(row);
-          const sum = asObjectV1(object?.sum);
-          const rowRequests = asNonNegativeNumberV1(sum?.requests);
-          const rowErrors = asNonNegativeNumberV1(sum?.errors);
-          if (rowRequests === null || rowErrors === null) {
-            valid = false;
-            break;
-          }
-          requests += rowRequests;
-          errors += rowErrors;
-          const quantiles = asObjectV1(object?.quantiles);
-          const cpuP50 = asNonNegativeNumberV1(quantiles?.cpuTimeP50);
-          const cpuP99 = asNonNegativeNumberV1(quantiles?.cpuTimeP99);
-          if (cpuP50 !== null)
-            maxCpuTimeP50 = Math.max(maxCpuTimeP50 ?? 0, cpuP50);
-          if (cpuP99 !== null)
-            maxCpuTimeP99 = Math.max(maxCpuTimeP99 ?? 0, cpuP99);
-        }
-        analytics = valid
-          ? {
-              state: 'accessible',
-              windowMinutes: 60,
-              requests,
-              errors,
-              ...(maxCpuTimeP50 === undefined ? {} : { maxCpuTimeP50 }),
-              ...(maxCpuTimeP99 === undefined ? {} : { maxCpuTimeP99 }),
-            }
-          : { state: 'inconclusive', windowMinutes: 60 };
-      }
-    }
-  }
+  const analytics = portalAnalyticsV1(analyticsRead);
 
   return {
     contractVersion: 1,

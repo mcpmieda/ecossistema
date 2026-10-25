@@ -35,6 +35,13 @@ export function AssessmentNamesV1({ isActive = true }: Readonly<{ isActive?: boo
     />
   );
 }
+function saveLabelV1(
+  state: ReturnType<typeof emptyAssessmentNamesEditorV1>,
+): 'Salvando…' | 'Não salvo' | 'Editando' | 'Salvo' {
+  if (state.phase === 'saving') return 'Salvando…';
+  if (state.failure) return 'Não salvo';
+  return state.dirty ? 'Editando' : 'Salvo';
+}
 function NamesEditorV1({
   year,
   isActive,
@@ -75,16 +82,7 @@ function NamesEditorV1({
     domains: ['gradebook'],
     canRefresh: () => editor.current?.canRefresh() ?? false,
   });
-  let label: 'Salvando…' | 'Não salvo' | 'Editando' | 'Salvo';
-  if (state.phase === 'saving') {
-    label = 'Salvando…';
-  } else if (state.failure) {
-    label = 'Não salvo';
-  } else if (state.dirty) {
-    label = 'Editando';
-  } else {
-    label = 'Salvo';
-  }
+  const label = saveLabelV1(state);
   return (
     <Card aria-label="Nomear avaliações">
       <Card.Header className="flex-row items-center justify-between gap-3">

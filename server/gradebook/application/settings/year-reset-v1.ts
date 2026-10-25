@@ -251,6 +251,12 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
   return deleted;
 }
 
+/** Postgres 40001: a serializable transaction lost a race and may be retried from the start. */
+function serializationFailureV1(cause: unknown) {
+  const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : null;
+  return code === '40001';
+}
+
 export function createYearResetServiceV1(database: GradebookPostgresWritePortV1, actorOid: string) {
   return {
     async execute(input: unknown): Promise<YearResetResponseV1> {
@@ -332,8 +338,7 @@ export function createYearResetServiceV1(database: GradebookPostgresWritePortV1,
           );
           return yearResetResponseSchemaV1.parse(response);
         } catch (cause) {
-          const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : null;
-          if (code === '40001' && attempt === 0) continue;
+          if (serializationFailureV1(cause) && attempt === 0) continue;
           throw cause;
         }
       }

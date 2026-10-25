@@ -23,6 +23,71 @@ export interface BirthPageV1 {
   next: BirthCursorsV1 | null;
 }
 
+/** The birth read saw exactly the reused account, at its version and in the same account scope. */
+function snapshotStillCurrentV1(
+  snapshot: AdminAccountReadV2,
+  birth: AdminResponseV1,
+  initialAccount: InitialBirthAccountV1 | undefined,
+) {
+  return (
+    birth.state === 'birth-years' &&
+    birth.accountsScopeVersion !== undefined &&
+    birth.accountsScopeVersion === initialAccount?.scopeVersion &&
+    birth.items.length === 1 &&
+    !birth.nextCursor &&
+    birth.items[0]!.accountId === snapshot.accountId &&
+    birth.items[0]!.accountVersion === snapshot.version
+  );
+}
+
+/** The next page exists only while both reads continue. */
+function pairedCursorsV1(
+  accounts: string | null | undefined,
+  birth: string | null | undefined,
+): BirthCursorsV1 | null {
+  return accounts && birth ? { accounts, birth } : null;
+}
+
+/** One account with its birth record: same account version, a coherent year, the account in
+ * scope, and an open link in the expected class. */
+function pairedRowV1(
+  account: BirthRecordV1['account'],
+  value: BirthRecordV1['birth'] | undefined,
+  scope: BirthScopeV1,
+  classId: number | undefined,
+): BirthRecordV1 {
+  if (!value || account.version !== value.accountVersion) throw new PortalClientErrorV1('conflict');
+  if ((value.year === null) !== (value.confirmation === null))
+    throw new PortalClientErrorV1('invalid-response');
+  if (scope.kind === 'account' && account.accountId !== scope.accountId)
+    throw new PortalClientErrorV1('invalid-response');
+  if (
+    account.linkClosed ||
+    !account.link ||
+    account.classId === null ||
+    (classId !== undefined && account.classId !== classId)
+  )
+    throw new PortalClientErrorV1('conflict');
+  return { account, birth: value };
+}
+
+/** A repeated cursor pair would loop forever: refuse it. */
+function markCursorSeenV1(seen: Set<string>, cursor: BirthCursorsV1) {
+  const key = JSON.stringify(cursor);
+  if (seen.has(key)) throw new PortalClientErrorV1('invalid-response');
+  seen.add(key);
+}
+
+/** Adds a page's rows by account (a later copy replaces an earlier one) and counts the new ones. */
+function mergeBirthRowsV1(rows: Map<string, BirthRecordV1>, page: readonly BirthRecordV1[]) {
+  let added = 0;
+  for (const row of page) {
+    if (!rows.has(row.account.accountId)) added++;
+    rows.set(row.account.accountId, row);
+  }
+  return added;
+}
+
 /** Two bounded reads, joined by identity and matching account CAS, never by row position.
  * Opaque cursors belong to different operations and must remain separate. */
 export async function readBirthPageV1(
@@ -69,14 +134,7 @@ export async function readBirthPageV1(
   // A changed version falls back to a fresh account query, never an optimistic rebase.
   const accounts =
     loadedAccounts ??
-    (snapshot &&
-    birth.state === 'birth-years' &&
-    birth.accountsScopeVersion !== undefined &&
-    birth.accountsScopeVersion === initialAccount?.scopeVersion &&
-    birth.items.length === 1 &&
-    !birth.nextCursor &&
-    birth.items[0]!.accountId === snapshot.accountId &&
-    birth.items[0]!.accountVersion === snapshot.version
+    (snapshot && snapshotStillCurrentV1(snapshot, birth, initialAccount)
       ? {
           state: 'accounts-read' as const,
           items: [snapshot],
@@ -98,31 +156,14 @@ export async function readBirthPageV1(
   if (scope.kind === 'account' && (accounts.items.length > 1 || accounts.nextCursor))
     throw new PortalClientErrorV1('invalid-response');
   const classId = scope.kind === 'class' ? scope.classId : expectedClassId;
-  const rows = accounts.items.map((account) => {
-    const value = births.get(account.accountId);
-    if (!value || account.version !== value.accountVersion)
-      throw new PortalClientErrorV1('conflict');
-    if ((value.year === null) !== (value.confirmation === null))
-      throw new PortalClientErrorV1('invalid-response');
-    if (scope.kind === 'account' && account.accountId !== scope.accountId)
-      throw new PortalClientErrorV1('invalid-response');
-    if (
-      account.linkClosed ||
-      !account.link ||
-      account.classId === null ||
-      (classId !== undefined && account.classId !== classId)
-    )
-      throw new PortalClientErrorV1('conflict');
-    return { account, birth: value };
-  });
+  const rows = accounts.items.map((account) =>
+    pairedRowV1(account, births.get(account.accountId), scope, classId),
+  );
   return {
     rows,
     scopeVersion: birth.scopeVersion,
     accountsScopeVersion: accounts.scopeVersion,
-    next:
-      accounts.nextCursor && birth.nextCursor
-        ? { accounts: accounts.nextCursor, birth: birth.nextCursor }
-        : null,
+    next: pairedCursorsV1(accounts.nextCursor, birth.nextCursor),
   };
 }
 
@@ -144,11 +185,7 @@ export async function readBirthCollectionV1(
   let added = 0;
   for (let i = 0; i < Math.max(20, Math.ceil(desired / 100) + 10); i++) {
     signal.throwIfAborted();
-    if (cursor) {
-      const key = JSON.stringify(cursor);
-      if (seen.has(key)) throw new PortalClientErrorV1('invalid-response');
-      seen.add(key);
-    }
+    if (cursor) markCursorSeenV1(seen, cursor);
     const page = await readBirthPageV1(
       client,
       reader,
@@ -164,10 +201,7 @@ export async function readBirthCollectionV1(
       result.accountsScopeVersion !== page.accountsScopeVersion
     )
       throw new PortalClientErrorV1('conflict');
-    for (const row of page.rows) {
-      if (!rows.has(row.account.accountId)) added++;
-      rows.set(row.account.accountId, row);
-    }
+    added += mergeBirthRowsV1(rows, page.rows);
     result = { ...page, rows: [...rows.values()] };
     if (!page.next || added >= desired) return result;
     cursor = page.next;

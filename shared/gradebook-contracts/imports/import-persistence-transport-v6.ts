@@ -272,6 +272,112 @@ function validCompactCell(value: unknown): value is GradebookImportCompactCellV6
   );
 }
 
+/** The roster's positions (1, 2, … in order), each with a distinct name and an optional status. */
+function rosterPositionsV6(
+  students: readonly unknown[],
+): ReadonlySet<number> | 'invalid-request' | 'duplicate-identity' {
+  const positions = new Set<number>();
+  const names = new Set<string>();
+  for (const [index, student] of students.entries()) {
+    if (!Array.isArray(student) || (student.length !== 2 && student.length !== 3)) {
+      return 'invalid-request';
+    }
+    const expectedPosition = index + 1;
+    if (
+      student[0] !== expectedPosition ||
+      !boundedText(student[1], GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V6.maxSuggestionLength) ||
+      (student.length === 3 &&
+        !boundedText(student[2], GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V6.maxRosterStatusLength))
+    ) {
+      return 'invalid-request';
+    }
+    const name = canonicalText(student[1]);
+    if (names.has(name)) return 'duplicate-identity';
+    names.add(name);
+    positions.add(expectedPosition);
+  }
+  return positions;
+}
+
+/** The term's assessment slots, each valid and declared once. */
+function definitionSlotsV6(
+  definitions: readonly unknown[],
+): Set<string> | 'invalid-academic-shape' | 'duplicate-identity' {
+  const definitionSlots = new Set<string>();
+  for (const definition of definitions) {
+    if (!validAssessmentDefinition(definition)) return 'invalid-academic-shape';
+    if (definitionSlots.has(definition[0])) return 'duplicate-identity';
+    definitionSlots.add(definition[0]);
+  }
+  return definitionSlots;
+}
+
+/** One term row: a roster position seen once, valid cells, qualitative cells only for declared
+ * slots (recorded as observed), and AN only in the third term. */
+function inspectTermRowV6(
+  row: unknown,
+  term: unknown,
+  seen: {
+    rosterPositions: ReadonlySet<number>;
+    definitionSlots: ReadonlySet<string>;
+    rowPositions: Set<number>;
+    observedQualitative: Set<string>;
+  },
+): GradebookImportPersistenceRequestRejectionV6 | null {
+  if (!Array.isArray(row) || row.length !== 2 || !Number.isSafeInteger(row[0])) {
+    return 'invalid-academic-shape';
+  }
+  const position = Number(row[0]);
+  if (!seen.rosterPositions.has(position)) return 'incompatible-reference';
+  if (seen.rowPositions.has(position)) return 'duplicate-identity';
+  seen.rowPositions.add(position);
+  const cells = row[1];
+  const cellIssue = inspectCells(
+    cells,
+    TERM_CELL_KEYS,
+    GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V6.maxCompactCellsPerTermRow,
+  );
+  if (cellIssue) return cellIssue;
+  for (const key of Object.keys(cells as Record<string, unknown>)) {
+    if (!QUALITATIVE_SLOTS.has(key)) continue;
+    if (!seen.definitionSlots.has(key)) return 'invalid-academic-shape';
+    seen.observedQualitative.add(key);
+  }
+  if (term !== 3 && Object.hasOwn(cells as Record<string, unknown>, 'AN')) {
+    return 'invalid-academic-shape';
+  }
+  return null;
+}
+
+/** A sheet name not used before in the file. */
+function claimSheetNameV6(sheetName: unknown, sheetNames: Set<string>) {
+  if (typeof sheetName !== 'string' || sheetNames.has(sheetName)) return false;
+  sheetNames.add(sheetName);
+  return true;
+}
+
+/** The course's three terms in order and its recovery, each from a sheet of its own. */
+function inspectCourseSheetsV6(
+  terms: readonly unknown[],
+  recovery: unknown,
+  rosterPositions: ReadonlySet<number>,
+  sheetNames: Set<string>,
+): GradebookImportPersistenceRequestRejectionV6 | null {
+  for (let index = 0; index < 3; index += 1) {
+    const term = terms[index];
+    if (!isRecord(term) || term.term !== index + 1) return 'invalid-academic-shape';
+    const issue = inspectTerm(term, rosterPositions);
+    if (issue) return issue;
+    if (!claimSheetNameV6(term.sourceSheetName, sheetNames)) return 'duplicate-identity';
+  }
+
+  const recoveryIssue = inspectRecovery(recovery, rosterPositions);
+  if (recoveryIssue) return recoveryIssue;
+  if (isRecord(recovery) && !claimSheetNameV6(recovery.sourceSheetName, sheetNames))
+    return 'duplicate-identity';
+  return null;
+}
+
 function inspectRosters(value: unknown):
   | { readonly status: 'ready'; readonly positionsByClass: ReadonlyMap<string, ReadonlySet<number>> }
   | { readonly status: GradebookImportPersistenceRequestRejectionV6 } {
@@ -296,26 +402,8 @@ function inspectRosters(value: unknown):
     }
     const classKey = canonicalText(roster.classGroupLabel);
     if (positionsByClass.has(classKey)) return { status: 'duplicate-identity' };
-    const positions = new Set<number>();
-    const names = new Set<string>();
-    for (const [index, student] of roster.students.entries()) {
-      if (!Array.isArray(student) || (student.length !== 2 && student.length !== 3)) {
-        return { status: 'invalid-request' };
-      }
-      const expectedPosition = index + 1;
-      if (
-        student[0] !== expectedPosition ||
-        !boundedText(student[1], GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V6.maxSuggestionLength) ||
-        (student.length === 3 &&
-          !boundedText(student[2], GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V6.maxRosterStatusLength))
-      ) {
-        return { status: 'invalid-request' };
-      }
-      const name = canonicalText(student[1]);
-      if (names.has(name)) return { status: 'duplicate-identity' };
-      names.add(name);
-      positions.add(expectedPosition);
-    }
+    const positions = rosterPositionsV6(roster.students);
+    if (typeof positions === 'string') return { status: positions };
     totalStudents += roster.students.length;
     if (totalStudents > GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V6.maxStudentObservationsPerRequest) {
       return { status: 'payload-too-large' };
@@ -382,39 +470,20 @@ function inspectTerm(
   ) {
     return 'payload-too-large';
   }
-  const definitionSlots = new Set<string>();
-  for (const definition of value.assessmentDefinitions) {
-    if (!validAssessmentDefinition(definition)) return 'invalid-academic-shape';
-    if (definitionSlots.has(definition[0])) return 'duplicate-identity';
-    definitionSlots.add(definition[0]);
-  }
+  const definitionSlots = definitionSlotsV6(value.assessmentDefinitions);
+  if (typeof definitionSlots === 'string') return definitionSlots;
   if (!definitionSlots.has('R') || !definitionSlots.has('S')) return 'invalid-academic-shape';
 
   const rowPositions = new Set<number>();
   const observedQualitative = new Set<string>();
   for (const row of value.rows) {
-    if (!Array.isArray(row) || row.length !== 2 || !Number.isSafeInteger(row[0])) {
-      return 'invalid-academic-shape';
-    }
-    const position = Number(row[0]);
-    if (!rosterPositions.has(position)) return 'incompatible-reference';
-    if (rowPositions.has(position)) return 'duplicate-identity';
-    rowPositions.add(position);
-    const cells = row[1];
-    const cellIssue = inspectCells(
-      cells,
-      TERM_CELL_KEYS,
-      GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V6.maxCompactCellsPerTermRow,
-    );
-    if (cellIssue) return cellIssue;
-    for (const key of Object.keys(cells as Record<string, unknown>)) {
-      if (!QUALITATIVE_SLOTS.has(key)) continue;
-      if (!definitionSlots.has(key)) return 'invalid-academic-shape';
-      observedQualitative.add(key);
-    }
-    if (value.term !== 3 && Object.hasOwn(cells as Record<string, unknown>, 'AN')) {
-      return 'invalid-academic-shape';
-    }
+    const issue = inspectTermRowV6(row, value.term, {
+      rosterPositions,
+      definitionSlots,
+      rowPositions,
+      observedQualitative,
+    });
+    if (issue) return issue;
   }
 
   for (const definition of value.assessmentDefinitions) {
@@ -505,24 +574,8 @@ function inspectCourses(
     const courseKey = `${classKey}\u0000${canonicalText(course.subjectLabel)}\u0000${course.disciplineIndex}`;
     if (courseKeys.has(courseKey)) return 'duplicate-identity';
     courseKeys.add(courseKey);
-
-    for (let index = 0; index < 3; index += 1) {
-      const term = course.terms[index];
-      if (!isRecord(term) || term.term !== index + 1) return 'invalid-academic-shape';
-      const issue = inspectTerm(term, rosterPositions);
-      if (issue) return issue;
-      const sheetName = term.sourceSheetName;
-      if (typeof sheetName !== 'string' || sheetNames.has(sheetName)) return 'duplicate-identity';
-      sheetNames.add(sheetName);
-    }
-
-    const recoveryIssue = inspectRecovery(course.recovery, rosterPositions);
-    if (recoveryIssue) return recoveryIssue;
-    if (isRecord(course.recovery)) {
-      const sheetName = course.recovery.sourceSheetName;
-      if (typeof sheetName !== 'string' || sheetNames.has(sheetName)) return 'duplicate-identity';
-      sheetNames.add(sheetName);
-    }
+    const issue = inspectCourseSheetsV6(course.terms, course.recovery, rosterPositions, sheetNames);
+    if (issue) return issue;
   }
   return null;
 }

@@ -249,6 +249,26 @@ export function createStudentAuthFlowV1(
       if (!activateRequestV1.safeParse(input).success) return;
       clearTimeout(expiryTimer);
       proof = undefined;
+      const retryActivation = async (signal: AbortSignal, confirmLogin: () => Promise<unknown>) => {
+        try {
+          await client.activate(input, signal);
+          success(signal);
+        } catch (retryError) {
+          ensureCurrent(signal);
+          if (!isAmbiguousPortalResponseV1(retryError)) {
+            qr = undefined;
+            throw retryError;
+          }
+          // The bounded replay may also have committed before losing its response.
+          try {
+            await confirmLogin();
+            success(signal);
+          } catch (finalError) {
+            qr = undefined;
+            throw finalError;
+          }
+        }
+      };
       await run(
         async (signal) => {
           try {
@@ -285,25 +305,8 @@ export function createStudentAuthFlowV1(
                 throw confirmationError;
               }
             }
-            try {
-              // A 401 confirmation proves that activation did not commit; the proof is still usable.
-              await client.activate(input, signal);
-              success(signal);
-            } catch (retryError) {
-              ensureCurrent(signal);
-              if (!isAmbiguousPortalResponseV1(retryError)) {
-                qr = undefined;
-                throw retryError;
-              }
-              // The bounded replay may also have committed before losing its response.
-              try {
-                await confirmLogin();
-                success(signal);
-              } catch (finalError) {
-                qr = undefined;
-                throw finalError;
-              }
-            }
+            // A 401 confirmation proves that activation did not commit; the proof is still usable.
+            await retryActivation(signal, confirmLogin);
           }
         },
         'scan',

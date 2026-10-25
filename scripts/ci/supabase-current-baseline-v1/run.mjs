@@ -23,17 +23,19 @@ const known = new Set(manifest.functions.filter(x=>x.source).map(x=>x.schema_nam
 const schemas = snapshot.inventory.schemas.map(x=>x.nspname);
 const keys = ['relations','columns','constraints','indexes','sequences','policies','triggers','views','types','default_acls','function_hashes','functions','function_extra','acls','column_acls'];
 const wrapped = key => '('+queries[key].trim().replace(/;$/,'')+')';
+// Columns are compared by their order inside each relation, not by physical attnum.
+function numberColumns(rows) {
+  const ordinal = new Map();
+  for (const row of rows) {
+    const relation = row.schema_name+'.'+row.relname;
+    const next = (ordinal.get(relation)||0)+1;
+    ordinal.set(relation,next);
+    row.logical_ordinal=next;
+  }
+}
 function normalize(key, rows) {
   let copy = rows.map(row=>({...row}));
-  if (key==='columns') {
-    const ordinal = new Map();
-    for (const row of copy) {
-      const relation = row.schema_name+'.'+row.relname;
-      const next = (ordinal.get(relation)||0)+1;
-      ordinal.set(relation,next);
-      row.logical_ordinal=next;
-    }
-  }
+  if (key==='columns') numberColumns(copy);
   for(const row of copy) {
     // ACL arrays are checked semantically in aclexplode results; physical attnum holes are not reproduced.
     if(key==='relations'||key==='columns'||key==='functions') delete row.acl;

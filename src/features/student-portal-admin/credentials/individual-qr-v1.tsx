@@ -20,6 +20,57 @@ import {
 import { photoSubjectKeyV1 } from '../../../../shared/student-photos/catalog-v1';
 import { PhotoAdminClientErrorV1 } from '../../student-photos/admin-client-v1';
 
+/** After a ready QR: copied, copy unavailable, or a download that did not start. */
+function QrReadyNoticesV1({ state }: Readonly<{ state: QrOperationStateV1 }>) {
+  if (state.state !== 'ready') return null;
+  return (
+    <>
+      {state.copy === 'copied' ? (
+        <p>
+          <output className="contents">Imagem copiada.</output>
+        </p>
+      ) : null}
+      {state.copy === 'download-required' ? (
+        <p role="alert">Cópia indisponível neste navegador. Use Baixar QR.</p>
+      ) : null}
+      {state.downloadFailed ? <p role="alert">O download não começou. Tente novamente.</p> : null}
+    </>
+  );
+}
+
+/** A failed QR read or render: retry the same QR, or read the current one again. */
+function QrErrorV1({
+  state,
+  clock,
+  onRetry,
+  onReload,
+}: Readonly<{
+  state: QrOperationStateV1;
+  clock: number;
+  onRetry: () => void;
+  onReload: () => void;
+}>) {
+  if (state.state !== 'error') return null;
+  return (
+    <div role="alert">
+      <p>
+        {state.stage === 'render'
+          ? 'O QR foi consultado, mas a imagem não ficou pronta. A nova tentativa não troca o QR.'
+          : 'Não foi possível consultar o QR atual.'}
+      </p>
+      {state.retryable ? (
+        <Button variant="secondary" isDisabled={clock < state.retryAt} onPress={onRetry}>
+          Tentar novamente
+        </Button>
+      ) : (
+        <Button variant="secondary" isDisabled={clock < state.retryAt} onPress={onReload}>
+          Recarregar QR atual
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function IndividualQrV1(
   props: StudentCredentialsPropsV1 & { scope: Extract<ScopeV1, { kind: 'account' }> },
 ) {
@@ -353,46 +404,16 @@ export function IndividualQrV1(
             </div>
           </div>
         ) : null}
-        {state.state === 'ready' && state.copy === 'copied' ? (
-          <p>
-            <output className="contents">Imagem copiada.</output>
-          </p>
-        ) : null}
-        {state.state === 'ready' && state.copy === 'download-required' ? (
-          <p role="alert">Cópia indisponível neste navegador. Use Baixar QR.</p>
-        ) : null}
-        {state.state === 'ready' && state.downloadFailed ? (
-          <p role="alert">O download não começou. Tente novamente.</p>
-        ) : null}
-        {state.state === 'error' ? (
-          <div role="alert">
-            <p>
-              {state.stage === 'render'
-                ? 'O QR foi consultado, mas a imagem não ficou pronta. A nova tentativa não troca o QR.'
-                : 'Não foi possível consultar o QR atual.'}
-            </p>
-            {state.retryable ? (
-              <Button
-                variant="secondary"
-                isDisabled={clock < state.retryAt}
-                onPress={() => void operation.retry()}
-              >
-                Tentar novamente
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                isDisabled={clock < state.retryAt}
-                onPress={() => {
-                  requested.current = null;
-                  read.reload();
-                }}
-              >
-                Recarregar QR atual
-              </Button>
-            )}
-          </div>
-        ) : null}
+        <QrReadyNoticesV1 state={state} />
+        <QrErrorV1
+          state={state}
+          clock={clock}
+          onRetry={() => void operation.retry()}
+          onReload={() => {
+            requested.current = null;
+            read.reload();
+          }}
+        />
         {notice ? <p role="alert">{notice}</p> : null}
       </Card.Content>
     </Card>

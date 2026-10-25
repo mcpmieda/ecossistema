@@ -798,6 +798,24 @@ function inspectStudents(
   return 'valid';
 }
 
+/** The term's assessment slots, each declared once, and whether any definition is unresolved. */
+function termDefinitionsV1(
+  definitions: readonly unknown[],
+): { slots: Set<string>; blockedDefinition: boolean } | SheetInspection {
+  const slots = new Set<string>();
+  let blockedDefinition = false;
+  for (const definition of definitions) {
+    if (!isAssessmentDefinition(definition) || slots.has(definition.sourceSlot)) {
+      return slots.has(String((definition as Record<string, unknown>)?.sourceSlot))
+        ? { state: 'duplicate-identity' }
+        : { state: 'invalid' };
+    }
+    slots.add(definition.sourceSlot);
+    if (!isDefinitionResolved(definition)) blockedDefinition = true;
+  }
+  return { slots, blockedDefinition };
+}
+
 function inspectSheet(value: unknown): SheetInspection {
   if (
     !isRecord(value) ||
@@ -830,17 +848,9 @@ function inspectSheet(value: unknown): SheetInspection {
     ) {
       return { state: 'invalid' };
     }
-    const slots = new Set<string>();
-    let blockedDefinition = false;
-    for (const definition of value.assessmentDefinitions) {
-      if (!isAssessmentDefinition(definition) || slots.has(definition.sourceSlot)) {
-        return slots.has(String((definition as Record<string, unknown>)?.sourceSlot))
-          ? { state: 'duplicate-identity' }
-          : { state: 'invalid' };
-      }
-      slots.add(definition.sourceSlot);
-      if (!isDefinitionResolved(definition)) blockedDefinition = true;
-    }
+    const definitions = termDefinitionsV1(value.assessmentDefinitions);
+    if ('state' in definitions) return definitions;
+    const { slots, blockedDefinition } = definitions;
     if (slots.size !== ALL_ASSESSMENT_SLOTS.size) return { state: 'invalid' };
     const students = inspectStudents(value.students, (student) => isTermStudent(student, slots));
     return students === 'valid'
@@ -883,6 +893,72 @@ function isDiagnostic(value: unknown): value is GradebookImportRecognitionDiagno
     hasExactKeys(value, ['severity', 'code', 'scope', 'sourceSheetName']) &&
     boundedString(value.sourceSheetName, GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V1.maxSheetNameLength)
   );
+}
+
+/** One sheet: valid, its name and academic scope not seen before, and its enrollments consistent. */
+function registerSheetV1(
+  sheet: unknown,
+  seen: {
+    sheetNames: Set<string>;
+    academicScopes: Set<string>;
+    assignmentStudentToEnrollment: Map<string, string>;
+    enrollmentToStudent: Map<string, string>;
+  },
+):
+  | GradebookImportPersistenceRequestInspectionV1
+  | { studentCount: number; blockedDefinition: boolean } {
+  const inspection = inspectSheet(sheet);
+  if (inspection.state === 'payload-too-large') return 'payload-too-large';
+  if (inspection.state === 'duplicate-identity') return 'duplicate-identity';
+  if (inspection.state === 'invalid' || !isRecord(sheet)) return 'invalid-academic-shape';
+  const sheetName = String(sheet.sourceSheetName);
+  const scope = `${String(sheet.teachingAssignmentId)}:${String(sheet.kind)}:${scalarTextV1(sheet.term ?? '')}`;
+  if (seen.sheetNames.has(sheetName) || seen.academicScopes.has(scope)) return 'duplicate-identity';
+  seen.sheetNames.add(sheetName);
+  seen.academicScopes.add(scope);
+  if (!consistentEnrollmentsV1(sheet, seen.assignmentStudentToEnrollment, seen.enrollmentToStudent))
+    return 'invalid-context';
+  return inspection;
+}
+
+/** Each student keeps one enrollment per teaching assignment, and each enrollment one student. */
+function consistentEnrollmentsV1(
+  sheet: Record<string, unknown>,
+  assignmentStudentToEnrollment: Map<string, string>,
+  enrollmentToStudent: Map<string, string>,
+) {
+  for (const student of sheet.students as readonly Record<string, unknown>[]) {
+    const confirmed = student.confirmedStudent as Record<string, unknown>;
+    const studentId = String(confirmed.studentId);
+    const enrollmentId = String(confirmed.enrollmentId);
+    const assignmentStudentKey = `${String(sheet.teachingAssignmentId)}:${studentId}`;
+    if (
+      (assignmentStudentToEnrollment.has(assignmentStudentKey) &&
+        assignmentStudentToEnrollment.get(assignmentStudentKey) !== enrollmentId) ||
+      (enrollmentToStudent.has(enrollmentId) && enrollmentToStudent.get(enrollmentId) !== studentId)
+    ) {
+      return false;
+    }
+    assignmentStudentToEnrollment.set(assignmentStudentKey, enrollmentId);
+    enrollmentToStudent.set(enrollmentId, studentId);
+  }
+  return true;
+}
+
+/** A sheet diagnostic names a sheet of the request; a blocking one stops the import. */
+function diagnosticsIssueV1(
+  diagnostics: readonly GradebookImportRecognitionDiagnosticV1[],
+  sheetNames: ReadonlySet<string>,
+): 'invalid-academic-shape' | 'blocking-diagnostic' | null {
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.scope === 'sheet' && !sheetNames.has(diagnostic.sourceSheetName)) {
+      return 'invalid-academic-shape';
+    }
+    if (diagnostic.severity === 'blocking-error' || diagnostic.severity === 'critical-error') {
+      return 'blocking-diagnostic';
+    }
+  }
+  return null;
 }
 
 export function inspectGradebookImportPersistenceRequestV1(
@@ -932,47 +1008,18 @@ export function inspectGradebookImportPersistenceRequestV1(
   const enrollmentToStudent = new Map<string, string>();
   let totalStudents = 0;
   let blockedDefinition = false;
+  const seen = { sheetNames, academicScopes, assignmentStudentToEnrollment, enrollmentToStudent };
   for (const sheet of value.sheets) {
-    const inspection = inspectSheet(sheet);
-    if (inspection.state === 'payload-too-large') return 'payload-too-large';
-    if (inspection.state === 'duplicate-identity') return 'duplicate-identity';
-    if (inspection.state === 'invalid' || !isRecord(sheet)) return 'invalid-academic-shape';
-    const sheetName = String(sheet.sourceSheetName);
-    const scope = `${String(sheet.teachingAssignmentId)}:${String(sheet.kind)}:${scalarTextV1(sheet.term ?? '')}`;
-    if (sheetNames.has(sheetName) || academicScopes.has(scope)) return 'duplicate-identity';
-    sheetNames.add(sheetName);
-    academicScopes.add(scope);
-    totalStudents += inspection.studentCount;
-    blockedDefinition ||= inspection.blockedDefinition;
-
-    for (const student of sheet.students as readonly Record<string, unknown>[]) {
-      const confirmed = student.confirmedStudent as Record<string, unknown>;
-      const studentId = String(confirmed.studentId);
-      const enrollmentId = String(confirmed.enrollmentId);
-      const assignmentStudentKey = `${String(sheet.teachingAssignmentId)}:${studentId}`;
-      if (
-        (assignmentStudentToEnrollment.has(assignmentStudentKey) &&
-          assignmentStudentToEnrollment.get(assignmentStudentKey) !== enrollmentId) ||
-        (enrollmentToStudent.has(enrollmentId) &&
-          enrollmentToStudent.get(enrollmentId) !== studentId)
-      ) {
-        return 'invalid-context';
-      }
-      assignmentStudentToEnrollment.set(assignmentStudentKey, enrollmentId);
-      enrollmentToStudent.set(enrollmentId, studentId);
-    }
+    const registered = registerSheetV1(sheet, seen);
+    if (typeof registered === 'string') return registered;
+    totalStudents += registered.studentCount;
+    blockedDefinition ||= registered.blockedDefinition;
   }
   if (totalStudents > GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V1.maxStudentObservationsPerRequest) {
     return 'payload-too-large';
   }
-  for (const diagnostic of value.diagnostics) {
-    if (diagnostic.scope === 'sheet' && !sheetNames.has(diagnostic.sourceSheetName)) {
-      return 'invalid-academic-shape';
-    }
-    if (diagnostic.severity === 'blocking-error' || diagnostic.severity === 'critical-error') {
-      return 'blocking-diagnostic';
-    }
-  }
+  const diagnosticIssue = diagnosticsIssueV1(value.diagnostics, sheetNames);
+  if (diagnosticIssue) return diagnosticIssue;
   if (blockedDefinition) return 'blocked-definition';
   return 'ready';
 }

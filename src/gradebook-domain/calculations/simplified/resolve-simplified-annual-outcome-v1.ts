@@ -65,20 +65,26 @@ function terminal(
   };
 }
 
+/** Status precedence is independent from grades and Council calculations. */
+function statusOutcomeV1(status: SimplifiedAnnualOutcomeInputV1['status']): SimplifiedAnnualOutcomeV1 | null {
+  if (status === 2) return terminal(null, 'status:ASSISTIDO');
+  if (status === 5) return terminal('FALECIDO', 'status:FALECIDO');
+  if (status === 4) return terminal('TRANSFERIDO', 'status:TRANSFERIDO');
+  if (status === 3) return terminal('DESISTENTE', 'status:DESISTENTE');
+  if (status === 1) return terminal('APROVADO', 'status:ESPECIAL');
+  if (status === 6) {
+    throw new RangeError('FOI_PARA is a historical binding and cannot be resolved as the current annual status');
+  }
+  return null;
+}
+
 export function resolveSimplifiedAnnualOutcomeV1(
   input: SimplifiedAnnualOutcomeInputV1,
 ): SimplifiedAnnualOutcomeV1 {
   validate(input);
 
-  // Status precedence is independent from grades and Council calculations.
-  if (input.status === 2) return terminal(null, 'status:ASSISTIDO');
-  if (input.status === 5) return terminal('FALECIDO', 'status:FALECIDO');
-  if (input.status === 4) return terminal('TRANSFERIDO', 'status:TRANSFERIDO');
-  if (input.status === 3) return terminal('DESISTENTE', 'status:DESISTENTE');
-  if (input.status === 1) return terminal('APROVADO', 'status:ESPECIAL');
-  if (input.status === 6) {
-    throw new RangeError('FOI_PARA is a historical binding and cannot be resolved as the current annual status');
-  }
+  const byStatus = statusOutcomeV1(input.status);
+  if (byStatus) return byStatus;
 
   const approvedDirectComponentCount = input.components.filter(
     (component) => component.classification === 'approved-direct',

@@ -140,6 +140,16 @@ function seeded(seed: number) {
     return state / 2147483648;
   };
 }
+/** A month other than October: a whole day missed, one lesson missed, or none, at the month's rates. */
+function randomDayMarksV3(month: string, date: string, random: () => number): readonly [number, 'X' | 'J'][] {
+  const roll = random();
+  const lessons = lessonsOn(date);
+  // May sits near the minimum and August below it, so the preview shows every state.
+  const [wholeDay, oneLesson] = MONTH_ABSENCE_RATES[month] ?? [0.05, 0.14];
+  if (roll < wholeDay) return Array.from({ length: lessons }, (_, index) => [index + 1, random() < 0.25 ? 'J' : 'X'] as const);
+  if (roll < oneLesson) return [[1 + Math.floor(random() * lessons), 'X']];
+  return [];
+}
 function marksOf(month: string, today: string): FrequencySummaryV2['marks'] {
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
@@ -151,16 +161,7 @@ function marksOf(month: string, today: string): FrequencySummaryV2['marks'] {
     if (date < FIRST_SCHOOL_DAY) continue;
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
     if (weekday === 0 || weekday === 6 || HOLIDAYS.has(date)) continue;
-    const planned = month === '2026-10' ? OCTOBER[date] : undefined;
-    let dayMarks: readonly [number, 'X' | 'J'][] = planned ?? [];
-    if (month !== '2026-10') {
-      const roll = random();
-      const lessons = lessonsOn(date);
-      // May sits near the minimum and August below it, so the preview shows every state.
-      const [wholeDay, oneLesson] = MONTH_ABSENCE_RATES[month] ?? [0.05, 0.14];
-      if (roll < wholeDay) dayMarks = Array.from({ length: lessons }, (_, index) => [index + 1, random() < 0.25 ? 'J' : 'X'] as const);
-      else if (roll < oneLesson) dayMarks = [[1 + Math.floor(random() * lessons), 'X']];
-    }
+    const dayMarks = month === '2026-10' ? (OCTOBER[date] ?? []) : randomDayMarksV3(month, date, random);
     for (const [slot, mark] of dayMarks)
       marks.push({ date, slot, shift: 'VESPERTINO', mark, classLabels: ['TURMA ARTIFICIAL'] });
   }

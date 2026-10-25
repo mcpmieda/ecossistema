@@ -6,6 +6,45 @@ import { authNowV1 } from '../auth/transaction-v1';
 import { publicationDigestV1 } from './state-v1';
 import { scopedKeyV2, scopedSummaryV2 } from './scoped-source-v2';
 
+type ScopedSummaryValueV2 = Awaited<ReturnType<typeof scopedSummaryV2>>;
+type PublicationPeriodV2 = ScopedSummaryValueV2['items'][number]['period'];
+
+/** The source must be the one reviewed, the period must have data, and an update needs a published
+ * period with a pending update. */
+function checkPublicationDecisionV2(
+  summary: ScopedSummaryValueV2,
+  command: { readonly operation: string; readonly period: PublicationPeriodV2; readonly targetDataVersion?: unknown },
+) {
+  const removed = command.operation === 'unpublish';
+  if (!removed && 'targetDataVersion' in command && command.targetDataVersion !== summary.dataVersion)
+    throw new Error('student-portal-publication-source-conflict');
+  const periodState = summary.items.find((item) => item.period === command.period);
+  if (!periodState) throw new Error('student-portal-publication-no-data-conflict');
+  if (!removed && !periodState.availableRevision)
+    throw new Error('student-portal-publication-no-data-conflict');
+  if (command.operation === 'publish-update') {
+    if (!summary.allPublished.has(command.period))
+      throw new Error('student-portal-publication-not-published');
+    if (periodState.state !== 'update-pending')
+      throw new Error('student-portal-publication-no-update-conflict');
+  }
+}
+
+/** One release row: a class scope keeps its class; an account scope keeps the account and the class
+ * it is bound to; an unpublished period keeps no revision. */
+function releaseValuesV2(
+  scope: ScopeV1,
+  summary: ScopedSummaryValueV2,
+  period: PublicationPeriodV2,
+  removed: boolean,
+  version: number,
+  now: Date,
+) {
+  return [scopedKeyV2(scope), scope.kind, scope.kind === 'class' ? scope.classId : null,
+    scope.kind === 'account' ? scope.accountId : null, scope.kind === 'account' ? summary.classId : null,
+    period, removed ? null : summary.dataVersion, version, now.toISOString()];
+}
+
 /** Release state, receipt and audit commit together. No account loop, job or academic-year lock. */
 export class ScopedPublicationServiceV2 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
@@ -41,27 +80,14 @@ export class ScopedPublicationServiceV2 {
         const summary = await scopedSummaryV2(tx, scope);
         if (summary.count === 0) throw new Error('student-portal-publication-forbidden');
         const removed = command.operation === 'unpublish';
-        if (!removed && 'targetDataVersion' in command && command.targetDataVersion !== summary.dataVersion)
-          throw new Error('student-portal-publication-source-conflict');
-        const periodState = summary.items.find((item) => item.period === command.period);
-        if (!periodState) throw new Error('student-portal-publication-no-data-conflict');
-        if (!removed && !periodState.availableRevision)
-          throw new Error('student-portal-publication-no-data-conflict');
-        if (command.operation === 'publish-update') {
-          if (!summary.allPublished.has(command.period))
-            throw new Error('student-portal-publication-not-published');
-          if (periodState.state !== 'update-pending')
-            throw new Error('student-portal-publication-no-update-conflict');
-        }
+        checkPublicationDecisionV2(summary, command);
         const version = versionV1.parse(current + 1);
         await tx.unsafe(`INSERT INTO student_portal.publication_release_v2
           (scope_key,scope_kind,academic_year,class_id,account_id,bound_class_id,period,target_revision,version,released_at)
           VALUES($1,$2,2026,$3,$4::uuid,$5,$6,$7,$8,$9::timestamptz)
           ON CONFLICT(scope_key,period) DO UPDATE SET target_revision=EXCLUDED.target_revision,
             bound_class_id=EXCLUDED.bound_class_id,version=EXCLUDED.version,released_at=EXCLUDED.released_at`,
-        [scopedKeyV2(scope), scope.kind, scope.kind === 'class' ? scope.classId : null,
-          scope.kind === 'account' ? scope.accountId : null, scope.kind === 'account' ? summary.classId : null,
-          command.period, removed ? null : summary.dataVersion, version, now.toISOString()]);
+        releaseValuesV2(scope, summary, command.period, removed, version, now));
         await tx.unsafe('UPDATE student_portal.publication_control_v2 SET version=$1 WHERE academic_year=2026', [version]);
         const operationId = crypto.randomUUID();
         await store.appendAudit({ eventId: crypto.randomUUID(), at: now.toISOString(), actorId: actor,

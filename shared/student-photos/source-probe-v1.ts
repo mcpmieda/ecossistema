@@ -59,6 +59,18 @@ function png(bytes: Uint8Array, view: DataView): PhotoProbeV1 {
   }
   return invalid();
 }
+/** One JPEG segment after its marker: the frame header gives the size; any other segment is
+ * skipped by its length (returned); an end, scan or truncated segment is invalid. */
+function jpegSegmentV1(bytes: Uint8Array, view: DataView, marker: number | undefined, offset: number): PhotoProbeV1 | number {
+  if (marker === 0xd9 || marker === 0xda || offset + 2 > bytes.length) return invalid();
+  const length = view.getUint16(offset);
+  if (length < 2 || offset + length > bytes.length) return invalid();
+  if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+    if (length < 8) return invalid();
+    return { width: view.getUint16(offset + 5), height: view.getUint16(offset + 3), type: 'image/jpeg', privateMetadata: true };
+  }
+  return length;
+}
 function jpeg(bytes: Uint8Array, view: DataView): PhotoProbeV1 {
   let offset = 2, count = 0, fillBytes = 0;
   while (offset + 4 <= bytes.length && ++count <= 8192) {
@@ -67,15 +79,9 @@ function jpeg(bytes: Uint8Array, view: DataView): PhotoProbeV1 {
       if (++fillBytes > 8192) return invalid();
       offset++;
     }
-    const marker = bytes[offset++];
-    if (marker === 0xd9 || marker === 0xda || offset + 2 > bytes.length) return invalid();
-    const length = view.getUint16(offset);
-    if (length < 2 || offset + length > bytes.length) return invalid();
-    if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
-      if (length < 8) return invalid();
-      return { width: view.getUint16(offset + 5), height: view.getUint16(offset + 3), type: 'image/jpeg', privateMetadata: true };
-    }
-    offset += length;
+    const segment = jpegSegmentV1(bytes, view, bytes[offset++], offset);
+    if (typeof segment !== 'number') return segment;
+    offset += segment;
   }
   return invalid();
 }

@@ -19,6 +19,7 @@ import {
   useSealCountsCacheV1,
   type SealCountsV1,
   type SealCountsCacheV1,
+  type SealReadStateV1,
 } from './brilliant-seals-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import {
@@ -327,6 +328,243 @@ function narrowAccountsV1<T extends AdminAccountReadV2>(
 const inClassV1 = <T extends AdminAccountReadV2>(items: readonly T[], classId: number | null) =>
   classId === null ? [...items] : items.filter((item) => item.classId === classId);
 
+/** The view a reload brings back: plain alphabetical order, no filter, the address's scope. */
+function restorableViewV1(view: {
+  order: AccountOrderV1;
+  search: string;
+  states: ReadonlySet<string>;
+  blocks: ReadonlySet<string>;
+  classId: number | null;
+  scope: ScopeV1;
+}) {
+  return (
+    view.order === 'name' &&
+    view.search === '' &&
+    view.states.size === 0 &&
+    view.blocks.size === 0 &&
+    (view.classId === null || view.scope.kind === 'class')
+  );
+}
+
+/** A ranking or anything that narrows the list: it needs the complete collection. */
+function narrowedViewV1(view: {
+  order: AccountOrderV1;
+  search: string;
+  states: ReadonlySet<string>;
+  blocks: ReadonlySet<string>;
+  classId: number | null;
+}) {
+  return (
+    view.order !== 'name' ||
+    view.classId !== null ||
+    view.search !== '' ||
+    view.states.size > 0 ||
+    view.blocks.size > 0
+  );
+}
+
+function sealErrorV1(seals: SealReadStateV1) {
+  if (seals.state === 'error') return seals.error;
+  if (seals.state === 'ready') return seals.refreshError;
+  return undefined;
+}
+
+/** "N alunos", with what is still being read; just "Alunos" before the first page. */
+function listCountV1(
+  current: { nextCursor: string | null } | null,
+  count: number,
+  order: AccountOrderV1,
+  sealsState: SealReadStateV1['state'],
+) {
+  if (!current) return 'Alunos';
+  const loadingNote = current.nextCursor ? ' · lista em carregamento' : '';
+  const sealsNote = order === 'seals' && sealsState === 'loading' ? ' · contando selos' : '';
+  return `${count} ${count === 1 ? 'aluno' : 'alunos'}${loadingNote}${sealsNote}`;
+}
+
+function liveReadFailedV1(
+  refreshError: unknown,
+  order: AccountOrderV1,
+  sealError: PortalClientErrorV1 | undefined,
+) {
+  return Boolean(refreshError || (order === 'seals' && sealError));
+}
+
+/** A selection that belongs to one view: another view shows none, and the old keys are
+ * discarded so returning to that view cannot restore a previous selection. */
+function useOwnedSelectionV1(owner: string) {
+  const [selection, setSelection] = useState({ owner: '', keys: NO_SELECTION_V1 });
+  if (selection.owner !== owner && selection.keys.size > 0)
+    setSelection({ owner, keys: NO_SELECTION_V1 });
+  const selected = selection.owner === owner ? selection.keys : NO_SELECTION_V1;
+  const setSelected = (keys: Set<string>) => setSelection({ owner, keys });
+  return [selected, setSelected] as const;
+}
+
+/** Seals are counted only to order by them, once the accounts are listed. */
+function sealTargetV1(order: AccountOrderV1, listed: boolean, accountIds: readonly string[]) {
+  return order === 'seals' && listed && accountIds.length ? { accountIds } : null;
+}
+
+function readySealCountsV1(seals: SealReadStateV1) {
+  return seals.state === 'ready' ? seals.counts : null;
+}
+
+/** The first read in progress, or why the list cannot be shown. */
+function AccountsReadNoticesV1({
+  readState,
+  authorizationError,
+  canReload,
+  onReload,
+}: Readonly<{
+  readState:
+    { state: 'error'; error: PortalClientErrorV1 } | { state: 'idle' | 'loading' | 'ready' };
+  authorizationError: PortalClientErrorV1 | null;
+  canReload: boolean;
+  onReload: () => void;
+}>) {
+  return (
+    <>
+      {(readState.state === 'idle' || readState.state === 'loading') && (
+        <p>
+          <output className="contents">Consultando contas…</output>
+        </p>
+      )}
+      {(authorizationError || readState.state === 'error') && (
+        <AccountsErrorV1
+          error={accountsErrorV1(authorizationError, readState)}
+          canReload={canReload}
+          onReload={onReload}
+        />
+      )}
+    </>
+  );
+}
+
+function accountsErrorV1(
+  authorizationError: PortalClientErrorV1 | null,
+  state: { state: 'error'; error: PortalClientErrorV1 } | { state: 'idle' | 'loading' | 'ready' },
+) {
+  return (
+    authorizationError ??
+    (state.state === 'error' ? state.error : new PortalClientErrorV1('forbidden'))
+  );
+}
+
+/** Only accounts that can get a QR enter the selection ("all" means all of those). */
+function qrSelectionV1(keys: 'all' | Iterable<unknown>, eligible: ReadonlySet<string>) {
+  return new Set(
+    keys === 'all' ? eligible : [...keys].map(String).filter((id) => eligible.has(id)),
+  );
+}
+
+/** Focus returns to the row that opened the record, or to the list when that row is gone. */
+function focusBackV1(trigger: HTMLElement | null, list: HTMLElement | null) {
+  (trigger?.isConnected ? trigger : list)?.focus();
+}
+
+/** The QR tools of the chosen class, or what is missing for them. */
+function AccountsQrSectionV1({
+  qrClass,
+  current,
+  client,
+  accounts,
+  selected,
+  label,
+  canWrite,
+  pendingBirth,
+  onCommitted,
+  onAuthorizationLost,
+}: Readonly<{
+  qrClass: Extract<ScopeV1, { kind: 'class' }> | null;
+  current: { scopeVersion: number; nextCursor: string | null } | null;
+  client: PortalAdminClientV1;
+  accounts: Parameters<typeof QrBatchToolsV1>[0]['accounts'];
+  selected: Set<string>;
+  label: string;
+  canWrite: boolean;
+  pendingBirth: boolean;
+  onCommitted: () => void;
+  onAuthorizationLost: (error: PortalClientErrorV1) => void;
+}>) {
+  return (
+    <section className="pa-account-qr-panel" aria-label="QR code">
+      <h2>QR code</h2>
+      {qrClass && current ? (
+        <QrBatchToolsV1
+          key={qrClass.classId}
+          client={client}
+          accounts={accounts}
+          selected={selected}
+          academicYear={qrClass.academicYear}
+          classId={qrClass.classId}
+          scopeVersion={current.scopeVersion}
+          label={label}
+          canWrite={canWrite}
+          pendingBirth={pendingBirth}
+          hasMore={Boolean(current.nextCursor)}
+          onCommitted={onCommitted}
+          onAuthorizationLost={onAuthorizationLost}
+        />
+      ) : (
+        <p className="text-sm text-muted">
+          {qrClass ? 'Carregando opções de QR…' : 'Selecione uma turma para gerar PDF.'}
+        </p>
+      )}
+    </section>
+  );
+}
+
+type AccountRowContextV1 = {
+  selectedId: string | null;
+  selectable: boolean;
+  open: (accountId: string, trigger: HTMLElement) => void;
+};
+
+/** One account in the table; a class adds the selection cell. */
+function accountRowV1(account: AccountRowV1, row: AccountRowContextV1) {
+  return (
+    <Table.Row
+      id={account.accountId}
+      key={account.accountId}
+      className={row.selectedId === account.accountId ? 'pa-account-selected' : undefined}
+    >
+      {row.selectable ? (
+        <Table.Cell>
+          <Checkbox slot="selection" aria-label="Selecionar para QR">
+            <Checkbox.Content>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+            </Checkbox.Content>
+          </Checkbox>
+        </Table.Cell>
+      ) : null}
+      <Table.Cell>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="pa-student-name"
+          aria-label={'Abrir ficha de ' + (account.name || 'conta sem nome')}
+          onPress={(event) => row.open(account.accountId, event.target as HTMLElement)}
+        >
+          <AccountIdentityV1 account={account} />
+        </Button>
+      </Table.Cell>
+      <Table.Cell>
+        <AccountStatusV1 account={account} />
+        <SealCountV1 count={account.seals} />
+        {account.state !== 'active' && (
+          <span className="text-xs text-muted">{firstAccessLabelV1(account)}</span>
+        )}
+      </Table.Cell>
+      <Table.Cell>{accessText(account.access)}</Table.Cell>
+      <Table.Cell>{lastAuthenticationLabelV1(account.lastAuthenticationAt)}</Table.Cell>
+      <Table.Cell>{account.validSessionCount}</Table.Cell>
+    </Table.Row>
+  );
+}
+
 const AccountsResultsV1 = memo(function AccountsResultsV1(
   props: AccountsBodyPropsV1 & {
     query: AdminReadQueryV2;
@@ -368,7 +606,6 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   useEffect(() => writePanelHashParamsV1({ aluno: selectedId }), [selectedId]);
   // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.
   useEffect(() => () => writePanelHashParamsV1({ aluno: null }), []);
-  const [selection, setSelection] = useState({ owner: '', keys: NO_SELECTION_V1 });
   const [photoMaintenance] = useState(() => readPanelHashParamV1('manutencao') === 'miniaturas');
   const maintenance = photoMaintenance && props.canWrite && props.query.scope.kind === 'school';
   const selectedTrigger = useRef<HTMLElement | null>(null);
@@ -377,12 +614,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   // The view a reload brings back: order and filters start again, the scope returns from the
   // address. Its first rows are most likely the ones left on screen, so after a reload their
   // photos are asked for together with the list and the rows mount with them.
-  const restorable =
-    props.order === 'name' &&
-    props.search === '' &&
-    props.states.size === 0 &&
-    props.blocks.size === 0 &&
-    (props.classId === null || props.scope.kind === 'class');
+  const restorable = restorableViewV1(props);
   const rowsView = props.identityKey + '|' + settingsScopeKeyV1(props.scope);
   useEffect(() => {
     if (!restorable) return;
@@ -440,11 +672,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
   // A row hidden by a filter never stays selected for a QR or bulk operation.
   const selectionOwner = (current?.scopeVersion ?? '') + '|' + narrowed;
-  // Discard the old keys so returning to this view cannot restore a previous selection.
-  if (selection.owner !== selectionOwner && selection.keys.size > 0)
-    setSelection({ owner: selectionOwner, keys: NO_SELECTION_V1 });
-  const selectedQr = selection.owner === selectionOwner ? selection.keys : NO_SELECTION_V1;
-  const setSelectedQr = (keys: Set<string>) => setSelection({ owner: selectionOwner, keys });
+  const [selectedQr, setSelectedQr] = useOwnedSelectionV1(selectionOwner);
   const classItems = useMemo(
     () => inClassV1(current?.items ?? [], props.classId),
     [current?.items, props.classId],
@@ -461,13 +689,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   // Rankings and anything that narrows the list need the complete collection; plain
   // alphabetical browsing reads only visited pages.
   const { more, refreshing, loadMore } = read;
-  const wholeCollection =
-    maintenance ||
-    props.order !== 'name' ||
-    props.classId !== null ||
-    props.search !== '' ||
-    props.states.size > 0 ||
-    props.blocks.size > 0;
+  const wholeCollection = maintenance || narrowedViewV1(props);
   useEffect(() => {
     if (wholeCollection && !authorizationError && more && !refreshing && !read.refreshError)
       loadMore();
@@ -486,12 +708,10 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   );
   const seals = useSealCountsV1(
     props.reader,
-    props.order === 'seals' && current && sealAccountIds.length
-      ? { accountIds: sealAccountIds }
-      : null,
+    sealTargetV1(props.order, current !== null, sealAccountIds),
     { active: rankingActive, revision: current?.scopeVersion, cache: props.sealCache },
   );
-  const sealCounts = seals.state === 'ready' ? seals.counts : null;
+  const sealCounts = readySealCountsV1(seals);
   // The seal count travels inside each row: React Aria re-renders a row only when its item changes.
   const orderedItems = useMemo(
     () =>
@@ -530,6 +750,14 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   };
   const loadingRows = orderedItems.length <= visibleLimit && read.refreshing;
   const qrClass = scope.kind === 'class' ? scope : null;
+  const row: AccountRowContextV1 = {
+    selectedId,
+    selectable: qrClass !== null,
+    open: (accountId, trigger) => {
+      selectedTrigger.current = trigger;
+      setSelectedId(accountId);
+    },
+  };
   const eligibleQr = useMemo(
     () =>
       new Set(
@@ -562,14 +790,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     },
     [props.sealCache],
   );
-  let sealError;
-  if (seals.state === 'error') {
-    sealError = seals.error;
-  } else if (seals.state === 'ready') {
-    sealError = seals.refreshError;
-  } else {
-    sealError = undefined;
-  }
+  const sealError = sealErrorV1(seals);
   useEffect(() => {
     if (sealError && ['unauthenticated', 'forbidden'].includes(sealError.state))
       onAuthorizationLost(sealError);
@@ -581,37 +802,24 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     read.clear();
     read.reload();
   };
-  const loadingNote = current?.nextCursor ? ' · lista em carregamento' : '';
-  const sealsNote = props.order === 'seals' && seals.state === 'loading' ? ' · contando selos' : '';
-  const listCount = `${orderedItems.length} ${orderedItems.length === 1 ? 'aluno' : 'alunos'}${loadingNote}${sealsNote}`;
+  const listCount = listCountV1(current, orderedItems.length, props.order, seals.state);
+  const liveFailed = liveReadFailedV1(read.refreshError, props.order, sealError);
   return (
     <>
       {props.qrMount &&
         createPortal(
-          <section className="pa-account-qr-panel" aria-label="QR code">
-            <h2>QR code</h2>
-            {qrClass && current ? (
-              <QrBatchToolsV1
-                key={qrClass.classId}
-                client={props.client}
-                accounts={orderedItems}
-                selected={selectedQr}
-                academicYear={qrClass.academicYear}
-                classId={qrClass.classId}
-                scopeVersion={current.scopeVersion}
-                label={props.bulkScopeLabel}
-                canWrite={props.canWrite && !authorizationError && !protectedFailure}
-                pendingBirth={Boolean(read.refreshing || read.refreshError)}
-                hasMore={Boolean(current.nextCursor)}
-                onCommitted={onChanged}
-                onAuthorizationLost={onAuthorizationLost}
-              />
-            ) : (
-              <p className="text-sm text-muted">
-                {qrClass ? 'Carregando opções de QR…' : 'Selecione uma turma para gerar PDF.'}
-              </p>
-            )}
-          </section>,
+          <AccountsQrSectionV1
+            qrClass={qrClass}
+            current={current}
+            client={props.client}
+            accounts={orderedItems}
+            selected={selectedQr}
+            label={props.bulkScopeLabel}
+            canWrite={props.canWrite && !authorizationError && !protectedFailure}
+            pendingBirth={Boolean(read.refreshing || read.refreshError)}
+            onCommitted={onChanged}
+            onAuthorizationLost={onAuthorizationLost}
+          />,
           props.qrMount,
         )}
       {props.bulkMount &&
@@ -634,11 +842,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
         <Card.Content>
           <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>
             <p>
-              <output className="contents">{current ? listCount : 'Alunos'}</output>
+              <output className="contents">{listCount}</output>
             </p>
-            <LiveReadNoticeV1
-              failed={Boolean(read.refreshError || (props.order === 'seals' && sealError))}
-            />
+            <LiveReadNoticeV1 failed={liveFailed} />
           </div>
 
           {maintenance && current ? (
@@ -650,23 +856,12 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
               />
             </Suspense>
           ) : null}
-          {(read.state.state === 'idle' || read.state.state === 'loading') && (
-            <p>
-              <output className="contents">Consultando contas…</output>
-            </p>
-          )}
-          {(authorizationError || read.state.state === 'error') && (
-            <AccountsErrorV1
-              error={
-                authorizationError ??
-                (read.state.state === 'error'
-                  ? read.state.error
-                  : new PortalClientErrorV1('forbidden'))
-              }
-              canReload={read.canReload}
-              onReload={reload}
-            />
-          )}
+          <AccountsReadNoticesV1
+            readState={read.state}
+            authorizationError={authorizationError}
+            canReload={read.canReload}
+            onReload={reload}
+          />
           {current && visibleItems.length === 0 && !current.nextCursor && (
             <p>
               <output className="contents">Nenhuma conta encontrada neste filtro.</output>
@@ -687,15 +882,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
                   selectedKeys={selectedQr}
                   disabledBehavior="selection"
                   disabledKeys={disabledRows}
-                  onSelectionChange={(keys) =>
-                    setSelectedQr(
-                      new Set(
-                        keys === 'all'
-                          ? eligibleQr
-                          : [...keys].map(String).filter((id) => eligibleQr.has(id)),
-                      ),
-                    )
-                  }
+                  onSelectionChange={(keys) => setSelectedQr(qrSelectionV1(keys, eligibleQr))}
                 >
                   <Table.Header>
                     {qrClass ? (
@@ -724,55 +911,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
                     <Table.Column>Sessões ativas</Table.Column>
                   </Table.Header>
                   <Table.Body items={visibleItems}>
-                    {(account) => (
-                      <Table.Row
-                        id={account.accountId}
-                        key={account.accountId}
-                        className={
-                          selectedId === account.accountId ? 'pa-account-selected' : undefined
-                        }
-                      >
-                        {qrClass ? (
-                          <Table.Cell>
-                            <Checkbox slot="selection" aria-label="Selecionar para QR">
-                              <Checkbox.Content>
-                                <Checkbox.Control>
-                                  <Checkbox.Indicator />
-                                </Checkbox.Control>
-                              </Checkbox.Content>
-                            </Checkbox>
-                          </Table.Cell>
-                        ) : null}
-                        <Table.Cell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="pa-student-name"
-                            aria-label={'Abrir ficha de ' + (account.name || 'conta sem nome')}
-                            onPress={(event) => {
-                              selectedTrigger.current = event.target as HTMLElement;
-                              setSelectedId(account.accountId);
-                            }}
-                          >
-                            <AccountIdentityV1 account={account} />
-                          </Button>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <AccountStatusV1 account={account} />
-                          <SealCountV1 count={account.seals} />
-                          {account.state !== 'active' && (
-                            <span className="text-xs text-muted">
-                              {firstAccessLabelV1(account)}
-                            </span>
-                          )}
-                        </Table.Cell>
-                        <Table.Cell>{accessText(account.access)}</Table.Cell>
-                        <Table.Cell>
-                          {lastAuthenticationLabelV1(account.lastAuthenticationAt)}
-                        </Table.Cell>
-                        <Table.Cell>{account.validSessionCount}</Table.Cell>
-                      </Table.Row>
-                    )}
+                    {(account) => accountRowV1(account, row)}
                   </Table.Body>
                 </Table.Content>
                 {/* Observed again after each growth: a tall screen may still show the end. */}
@@ -787,7 +926,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
               </Table.ScrollContainer>
             </Table>
           )}
-          {current && !visibleItems.length ? (
+          {current && !visibleItems.length && (
             <ContinuousEndV1
               more={moreRows}
               busy={loadingRows}
@@ -795,7 +934,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
               loadMore={loadRows}
               retry={read.reload}
             />
-          ) : null}
+          )}
         </Card.Content>
       </Card>
       {selectedId && !protectedFailure && !authorizationError && (
@@ -808,10 +947,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
           canWrite={props.canWrite}
           onClose={() => {
             setSelectedId(null);
-            (selectedTrigger.current?.isConnected
-              ? selectedTrigger.current
-              : listControl.current
-            )?.focus();
+            focusBackV1(selectedTrigger.current, listControl.current);
           }}
           onChanged={onChanged}
           onAuthorizationLost={onAuthorizationLost}

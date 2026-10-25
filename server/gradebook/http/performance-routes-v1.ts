@@ -18,6 +18,7 @@ import {
   PERFORMANCE_TRANSPORT_VERSION_V1,
   isPerformanceTransportRequestV1,
   type PerformanceInvalidRequestReasonV1,
+  type PerformanceTransportRequestV1,
 } from '../../../shared/gradebook-contracts/performance/performance-transport-v1';
 import type { PlatformCapability } from '../../../shared/platform-contract';
 import { capabilitiesForRoles, requireCapability } from '../../auth/capabilities';
@@ -245,6 +246,12 @@ async function handleCurrentPerformanceRequestV1(
   return null;
 }
 
+/** A detail request whose reference does not decode for its own kind. */
+function invalidDetailRefV1(payload: PerformanceTransportRequestV1): boolean {
+  return (payload.operation === 'student-detail' && decodeStudentDetailRef(payload.detailRef) === null)
+    || (payload.operation === 'cell-detail' && decodeCellDetailRef(payload.detailRef) === null);
+}
+
 export function createPerformanceRequestHandlerV1(
   dependencies: PerformanceRequestHandlerDependenciesV1 = defaultDependencies,
 ): (request: Request, env: RuntimeEnv) => Promise<Response | null> {
@@ -277,10 +284,7 @@ export function createPerformanceRequestHandlerV1(
       const cursorFailure = inspectPerformanceCursorsV1(payload.request);
       if (cursorFailure !== null) return invalidRequest(cursorFailure);
     }
-    if ((payload.operation === 'student-detail' && decodeStudentDetailRef(payload.detailRef) === null)
-      || (payload.operation === 'cell-detail' && decodeCellDetailRef(payload.detailRef) === null)) {
-      return invalidRequest('invalid-detail-reference');
-    }
+    if (invalidDetailRefV1(payload)) return invalidRequest('invalid-detail-reference');
     return unavailable(410);
   };
 }

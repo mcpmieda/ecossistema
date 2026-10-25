@@ -489,6 +489,43 @@ function consolidatedCoverage(
   };
 }
 
+/** A term's own findings: out-of-range grades, a recovery grade where none applies, and a
+ * recovery marked not applicable where it applies. */
+function termFindingsV1(
+  term: AcademicTermV1,
+  applicability: NativeFinalRecoveryTermOutcomeV1['applicability'],
+  originalFinding: NativeFinalRecoveryFindingV1 | null,
+  recoveryFinding: NativeFinalRecoveryFindingV1 | null,
+  recoveryValue: number | null,
+  recoveryGrade: FinalRecoveryProjectionInputV1['recoveryGrades'][AcademicTermV1],
+  termMaximum: number,
+) {
+  const termFindings: NativeFinalRecoveryFindingV1[] = [];
+  if (originalFinding) termFindings.push(originalFinding);
+  if (recoveryFinding) termFindings.push(recoveryFinding);
+
+  if (applicability.state === 'not-applicable' && recoveryValue !== null) {
+    termFindings.push({
+      code: 'recovery-present-when-not-applicable',
+      term,
+      input: 'recovery-grade',
+      value: recoveryValue ?? undefined,
+      minimum: 0,
+      maximum: termMaximum,
+      message: `recovery-grade[${term}] was provided even though final recovery is not applicable`,
+    });
+  }
+  if (applicability.state === 'applicable' && recoveryGrade.state === 'not-applicable') {
+    termFindings.push({
+      code: 'recovery-state-conflicts-with-applicability',
+      term,
+      input: 'recovery-grade',
+      message: `recovery-grade[${term}] is marked not-applicable although final recovery applies`,
+    });
+  }
+  return termFindings;
+}
+
 export function resolveFinalRecoveryProjectionV1(
   input: FinalRecoveryProjectionInputV1,
   profile: NativeFinalRecoveryProfileV1,
@@ -544,32 +581,15 @@ export function resolveFinalRecoveryProjectionV1(
             applicabilityCutoff,
           )
         : input.applicability.terms[term];
-    const termFindings: NativeFinalRecoveryFindingV1[] = [];
-    if (originalFindings[term]) termFindings.push(originalFindings[term]);
-    if (recoveryFindings[term]) termFindings.push(recoveryFindings[term]);
-
-    if (applicability.state === 'not-applicable' && recoveryValues[term] !== null) {
-      termFindings.push({
-        code: 'recovery-present-when-not-applicable',
-        term,
-        input: 'recovery-grade',
-        value: recoveryValues[term] ?? undefined,
-        minimum: 0,
-        maximum: termMaximum,
-        message: `recovery-grade[${term}] was provided even though final recovery is not applicable`,
-      });
-    }
-    if (
-      applicability.state === 'applicable' &&
-      input.recoveryGrades[term].state === 'not-applicable'
-    ) {
-      termFindings.push({
-        code: 'recovery-state-conflicts-with-applicability',
-        term,
-        input: 'recovery-grade',
-        message: `recovery-grade[${term}] is marked not-applicable although final recovery applies`,
-      });
-    }
+    const termFindings = termFindingsV1(
+      term,
+      applicability,
+      originalFindings[term],
+      recoveryFindings[term],
+      recoveryValues[term],
+      input.recoveryGrades[term],
+      termMaximum,
+    );
 
     findings.push(...termFindings);
     const originalResolved = originalValues[term] !== null && originalFindings[term] === null;

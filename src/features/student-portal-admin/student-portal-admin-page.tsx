@@ -263,6 +263,116 @@ function panelStateFromHashV1() {
   };
 }
 
+/** The open area's content: the credentials of a chosen account, or the area itself. */
+function sectionContentV1({
+  section,
+  target,
+  onBack,
+  common,
+  slots,
+  onQr,
+  onReprint,
+  selectedShift,
+  sectionScope,
+  onOpenCustomization,
+}: {
+  section: StudentPortalSection;
+  target: AccountSlotContextV1 | null;
+  onBack: () => void;
+  common: PanelCommonV1;
+  slots: ReturnType<typeof accountSlotsV1>;
+  onQr: ReturnType<typeof useAccountQrHandoffV1>['accept'];
+  onReprint: (context: AccountSlotContextV1) => void;
+  selectedShift: ShiftKeyV1 | null;
+  sectionScope: SectionScope | null;
+  onOpenCustomization: (row: CustomizationRowV1, area: CustomizationAreaV1) => void;
+}): ReactNode {
+  if (target)
+    return (
+      <>
+        <Button variant="secondary" onPress={onBack}>
+          Voltar às contas
+        </Button>
+        <StudentCredentialsV1
+          {...common}
+          scope={target.scope}
+          scopeLabel={target.account.name}
+          canWrite={target.canWrite}
+        />
+      </>
+    );
+  switch (section) {
+    case 'reconciliation':
+      return (
+        <StudentReconciliationV1
+          client={common.reconciliation}
+          scope={common.scope}
+          canWrite={common.canWrite}
+          showPortalAccess={false}
+          pendingOnly
+        />
+      );
+    case 'accounts':
+    case 'credentials':
+      return (
+        <StudentAccountsV1
+          key={section}
+          {...common}
+          slots={slots}
+          onQr={onQr}
+          onReprint={onReprint}
+        />
+      );
+    case 'birth':
+      return <StudentBirthYearsV1 {...common} />;
+    case 'sessions':
+      // Sessions are read for the whole school only (owner decision 07/10/2026).
+      return <StudentSessionsV1 {...common} scope={SCHOOL} scopeLabel="Toda a escola" />;
+    case 'audit':
+      return <AuditWorkspaceV1 {...common} />;
+    case 'publication':
+    case 'policies':
+      return (
+        <>
+          <StudentPoliciesV1
+            client={common.client}
+            reader={common.reader}
+            scope={
+              selectedShift
+                ? { kind: 'shift', academicYear: 2026, shift: selectedShift }
+                : (sectionScope?.scope ?? common.scope)
+            }
+            scopeLabel={selectedShift ? undefined : (sectionScope?.label ?? common.scopeLabel)}
+            onCommitted={customizationChanged}
+            canWrite={common.canWrite}
+            onOpenCustomization={onOpenCustomization}
+          />
+        </>
+      );
+    case 'settings':
+      return (
+        <>
+          <PublicDemoControlV1 canWrite={common.canWrite} />
+          <StudentSettingsV1
+            client={common.client}
+            scope={SCHOOL}
+            scopeLabel="Toda a escola · 2026"
+            canWrite={common.canWrite}
+            area="general"
+          />
+        </>
+      );
+    default:
+      return (
+        <StudentOverviewV1
+          {...common}
+          scope={sectionScope?.scope ?? common.scope}
+          scopeLabel={sectionScope?.label ?? common.scopeLabel}
+        />
+      );
+  }
+}
+
 /** Keeps identity, scope and drafts mounted while section bundles are loaded on demand. */
 function PortalWorkspace({
   identity,
@@ -394,99 +504,20 @@ function PortalWorkspace({
     setCustomizationTarget(null);
     setTarget(context);
   }, []);
-  let content: ReactNode;
-  if (target)
-    content = (
-      <>
-        <Button variant="secondary" onPress={() => setTarget(null)}>
-          Voltar às contas
-        </Button>
-        <StudentCredentialsV1
-          {...common}
-          scope={target.scope}
-          scopeLabel={target.account.name}
-          canWrite={target.canWrite}
-        />
-      </>
-    );
-  else
-    switch (section) {
-      case 'reconciliation':
-        content = (
-          <StudentReconciliationV1
-            client={common.reconciliation}
-            scope={common.scope}
-            canWrite={common.canWrite}
-            showPortalAccess={false}
-            pendingOnly
-          />
-        );
-        break;
-      case 'accounts':
-      case 'credentials':
-        content = (
-          <StudentAccountsV1
-            key={section}
-            {...common}
-            slots={slots}
-            onQr={qr.accept}
-            onReprint={reprint}
-          />
-        );
-        break;
-      case 'birth':
-        content = <StudentBirthYearsV1 {...common} />;
-        break;
-      case 'sessions':
-        // Sessions are read for the whole school only (owner decision 07/10/2026).
-        content = <StudentSessionsV1 {...common} scope={SCHOOL} scopeLabel="Toda a escola" />;
-        break;
-      case 'audit':
-        content = <AuditWorkspaceV1 {...common} />;
-        break;
-      case 'publication':
-      case 'policies':
-        content = (
-          <>
-            <StudentPoliciesV1
-              client={common.client}
-              reader={common.reader}
-              scope={
-                selectedShift
-                  ? { kind: 'shift', academicYear: 2026, shift: selectedShift }
-                  : (sectionScope?.scope ?? common.scope)
-              }
-              scopeLabel={selectedShift ? undefined : (sectionScope?.label ?? common.scopeLabel)}
-              onCommitted={customizationChanged}
-              canWrite={common.canWrite}
-              onOpenCustomization={openCustomization}
-            />
-          </>
-        );
-        break;
-      case 'settings':
-        content = (
-          <>
-            <PublicDemoControlV1 canWrite={common.canWrite} />
-            <StudentSettingsV1
-              client={common.client}
-              scope={SCHOOL}
-              scopeLabel="Toda a escola · 2026"
-              canWrite={common.canWrite}
-              area="general"
-            />
-          </>
-        );
-        break;
-      default:
-        content = (
-          <StudentOverviewV1
-            {...common}
-            scope={sectionScope?.scope ?? common.scope}
-            scopeLabel={sectionScope?.label ?? common.scopeLabel}
-          />
-        );
-    }
+  const content = sectionContentV1({
+    section,
+    target,
+    onBack: () => setTarget(null),
+    common,
+    slots,
+    onQr: qr.accept,
+    onReprint: reprint,
+    selectedShift,
+    sectionScope,
+    onOpenCustomization: openCustomization,
+  });
+  // Credentials open inside the Alunos area.
+  const areaKey = section === 'credentials' ? 'accounts' : section;
   const scopedContent = (
     <>
       {section === 'sessions' || section === 'settings' ? (
@@ -595,7 +626,7 @@ function PortalWorkspace({
             <div className="pa-admin-content">{scopedContent}</div>
           ) : (
             <Tabs
-              selectedKey={section === 'credentials' ? 'accounts' : section}
+              selectedKey={areaKey}
               onSelectionChange={(key) => {
                 const next = studentPortalSections.find((item) => item.id === key);
                 if (!next || !allowDraftNavigationV1()) return;
@@ -621,10 +652,7 @@ function PortalWorkspace({
                     ))}
                 </Tabs.List>
               </Tabs.ListContainer>
-              <Tabs.Panel
-                id={section === 'credentials' ? 'accounts' : section}
-                className="pa-admin-content"
-              >
+              <Tabs.Panel id={areaKey} className="pa-admin-content">
                 {scopedContent}
               </Tabs.Panel>
             </Tabs>

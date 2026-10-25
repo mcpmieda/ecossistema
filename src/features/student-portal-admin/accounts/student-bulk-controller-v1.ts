@@ -29,6 +29,66 @@ export type BulkStateV1 = {
  */
 export const BULK_CONCURRENCY_V1 = 6;
 
+type PreviewEntryV1 = { item: BulkItemV1; proof: string };
+
+/** Each page belongs to the same, still valid preview: its action and scope, version and size. */
+function checkPreviewPageV1(
+  response: Preview,
+  query: Omit<BulkPreviewQueryV1, 'page'>,
+  first: Preview | undefined,
+) {
+  if (
+    response.action !== query.action ||
+    settingsScopeKeyV1(response.scope) !== settingsScopeKeyV1(query.scope)
+  )
+    throw new PortalClientErrorV1('invalid-response');
+  const base = first ?? response;
+  if (
+    response.scopeVersion !== base.scopeVersion ||
+    response.totalCount !== base.totalCount ||
+    response.createdAt !== base.createdAt ||
+    response.expiresAt !== base.expiresAt ||
+    Date.parse(response.expiresAt) <= Date.now()
+  )
+    throw new PortalClientErrorV1('conflict');
+  return base;
+}
+
+/** The page's accounts, each once and in the class asked for; ineligible ones are skipped. */
+function collectPreviewItemsV1(
+  response: Preview,
+  query: Omit<BulkPreviewQueryV1, 'page'>,
+  ids: Set<string>,
+  all: PreviewEntryV1[],
+) {
+  for (const item of response.items) {
+    if (
+      ids.has(item.accountId) ||
+      (query.scope.kind === 'class' && item.classId !== query.scope.classId)
+    )
+      throw new PortalClientErrorV1('invalid-response');
+    ids.add(item.accountId);
+    all.push({
+      item: { ...item, result: item.ineligibility ? 'skipped' : 'pending' },
+      proof: response.proof,
+    });
+  }
+}
+
+/** No more accounts than announced, and a next page only after a non-empty, unseen one. */
+function checkPreviewProgressV1(
+  response: Preview,
+  first: Preview,
+  collected: number,
+  cursors: ReadonlySet<string>,
+) {
+  if (
+    collected > first.totalCount ||
+    (response.nextCursor && (!response.items.length || cursors.has(response.nextCursor)))
+  )
+    throw new PortalClientErrorV1('invalid-response');
+}
+
 export function createStudentBulkControllerV1(
   client: PortalAdminClientV1,
   publish: (state: BulkStateV1) => void,
@@ -65,7 +125,7 @@ export function createStudentBulkControllerV1(
       let cursor: string | undefined;
       const ids = new Set<string>(),
         cursors = new Set<string>();
-      const all: { item: BulkItemV1; proof: string }[] = [];
+      const all: PreviewEntryV1[] = [];
       do {
         const response = bulkPreviewResponseV1.parse(
           await client.query(
@@ -74,37 +134,9 @@ export function createStudentBulkControllerV1(
           ),
         );
         controller.signal.throwIfAborted();
-        if (
-          response.action !== query.action ||
-          settingsScopeKeyV1(response.scope) !== settingsScopeKeyV1(query.scope)
-        )
-          throw new PortalClientErrorV1('invalid-response');
-        first ??= response;
-        if (
-          response.scopeVersion !== first.scopeVersion ||
-          response.totalCount !== first.totalCount ||
-          response.createdAt !== first.createdAt ||
-          response.expiresAt !== first.expiresAt ||
-          Date.parse(response.expiresAt) <= Date.now()
-        )
-          throw new PortalClientErrorV1('conflict');
-        for (const item of response.items) {
-          if (
-            ids.has(item.accountId) ||
-            (query.scope.kind === 'class' && item.classId !== query.scope.classId)
-          )
-            throw new PortalClientErrorV1('invalid-response');
-          ids.add(item.accountId);
-          all.push({
-            item: { ...item, result: item.ineligibility ? 'skipped' : 'pending' },
-            proof: response.proof,
-          });
-        }
-        if (
-          all.length > first.totalCount ||
-          (response.nextCursor && (!response.items.length || cursors.has(response.nextCursor)))
-        )
-          throw new PortalClientErrorV1('invalid-response');
+        first = checkPreviewPageV1(response, query, first);
+        collectPreviewItemsV1(response, query, ids, all);
+        checkPreviewProgressV1(response, first, all.length, cursors);
         emit({ phase: 'loading', items: [], total: first.totalCount });
         cursor = response.nextCursor ?? undefined;
         if (cursor) cursors.add(cursor);
@@ -169,6 +201,21 @@ export function createStudentBulkControllerV1(
     );
     let uncertain: PortalClientErrorV1 | undefined;
     let lost: PortalClientErrorV1 | undefined;
+    /** A write that failed: lost access stops every worker (false); a throttled or ambiguous answer
+     * leaves the item unknown and pauses the run after the writes already sent. */
+    const settle = (index: number, issue: PortalClientErrorV1) => {
+      if (denied(issue)) {
+        lost = issue;
+        return false;
+      }
+      const unclear =
+        issue.state === 'rate-limited' ||
+        issue.state === 'unavailable' ||
+        isAmbiguousPortalResponseV1(issue);
+      mark(index, { result: unclear ? 'unknown' : 'failed', error: issue.state });
+      if (unclear) uncertain = issue;
+      return true;
+    };
     const worker = async () => {
       while (!disposed && !stop && !uncertain && !lost && !controller.signal.aborted) {
         const entry = queue.shift();
@@ -178,18 +225,7 @@ export function createStudentBulkControllerV1(
           controller.signal.throwIfAborted();
           mark(entry.index, { result: 'committed', error: undefined });
         } catch (error) {
-          if (disposed || controller.signal.aborted) return;
-          const issue = failure(error);
-          if (denied(issue)) {
-            lost = issue;
-            return;
-          }
-          const unclear =
-            issue.state === 'rate-limited' ||
-            issue.state === 'unavailable' ||
-            isAmbiguousPortalResponseV1(issue);
-          mark(entry.index, { result: unclear ? 'unknown' : 'failed', error: issue.state });
-          if (unclear) uncertain = issue;
+          if (disposed || controller.signal.aborted || !settle(entry.index, failure(error))) return;
         }
       }
     };

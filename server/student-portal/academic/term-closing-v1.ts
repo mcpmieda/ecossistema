@@ -57,6 +57,13 @@ export interface TermClosingEvaluationV1 {
 
 const ratio = (value: number, maximum: number) => (maximum > 0 ? value / maximum : null);
 
+/** Below the minimum needs attention; near it, or with something not done or weak, has a point. */
+function closingLevelV1(totalRatio: number, minimumRatio: number, hasPoint: boolean): TermClosingV1['level'] {
+  if (totalRatio < minimumRatio) return 'attention';
+  if (totalRatio < minimumRatio + POINT_BAND_MARGIN || hasPoint) return 'point';
+  return 'good';
+}
+
 /** Returns null when the term has too little data for a fair reading (spec decision 12). */
 export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEvaluationV1 | null {
   const { term, outcome } = input;
@@ -81,15 +88,7 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
   const weakAssessments = assessmentRatio < minimumRatio;
   const weakActivities = qualitativeRatio !== null && qualitativeRatio < minimumRatio;
 
-  const below = totalRatio < minimumRatio;
-  let level: TermClosingV1['level'];
-  if (below) {
-    level = 'attention';
-  } else if (totalRatio < minimumRatio + POINT_BAND_MARGIN || notDone || weakAssessments || weakActivities) {
-    level = 'point';
-  } else {
-    level = 'good';
-  }
+  const level = closingLevelV1(totalRatio, minimumRatio, notDone || weakAssessments || weakActivities);
 
   if (term === 3 && input.recoveryPending)
     return {

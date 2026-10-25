@@ -289,6 +289,128 @@ function inspectRequiredMaximum(
   ];
 }
 
+type QualitativeMaximumBaseV1 = {
+  classCode: string;
+  subject: string | undefined;
+  period: ReturnType<typeof periodLabel>;
+  fieldKind: 'configuration';
+  slot: number;
+  fieldLabel: string;
+  sheetName: string;
+  cellAddress: string;
+};
+type QualitativeNameStateV1 = Extract<
+  GradeSheetRecognition['assessmentDefinitions'][number],
+  { kind: 'qualitative-activity' }
+>['name'];
+type QualitativeMaximumConfigurationV1 = NonNullable<
+  GradeSheetRecognition['assessmentDefinitions'][number]['maximumConfiguration']
+>;
+
+/** Whether any student row (5 to 50) has a value in the activity's column. */
+function hasQualitativeStudentValueV1(
+  sheet: GradeSheetRecognition,
+  slot: (typeof SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2)[number],
+): boolean {
+  for (const student of sheet.students) {
+    if (student.row < 5 || student.row > 50) continue;
+    const raw = snapshot(sheet, `${slot.studentValueColumn}${student.row}`);
+    if (
+      raw !== undefined &&
+      raw !== null &&
+      !Array.isArray(raw) &&
+      !(typeof raw === 'string' && raw.trim() === '')
+    )
+      return true;
+  }
+  return false;
+}
+
+/** A name that could not be read, unless the cell still holds the template's ordinal. */
+function qualitativeNameDiagnosticV1(
+  base: QualitativeMaximumBaseV1,
+  nameState: QualitativeNameStateV1 | undefined,
+  index: number,
+): GradebookImportDiagnosticV1 | undefined {
+  const templateOrdinal =
+    nameState?.state === 'unrecognized' &&
+    typeof nameState.rawValue === 'number' &&
+    nameState.rawValue === index + 1;
+  if (
+    templateOrdinal ||
+    (nameState?.state !== 'missing-field' && nameState?.state !== 'unrecognized')
+  )
+    return undefined;
+  return (
+      diagnostic({
+        ...base,
+        severity: 'warning',
+        code: 'source-unavailable',
+        fieldLabel: `Nome da atividade ${index + 1}`,
+        sheetName: nameState.provenance.sheetName,
+        cellAddress: nameState.provenance.cellAddress,
+        message: 'O nome de uma atividade não pôde ser lido na planilha.',
+        recommendedAction:
+          'Confira a célula indicada e salve a planilha novamente. O Banco preserva o nome atual enquanto a origem estiver indisponível.',
+        cause:
+          nameState.state === 'missing-field'
+            ? 'A célula de nome não foi encontrada na estrutura lida do arquivo.'
+            : 'A célula de nome contém um tipo de valor que não pode ser usado como rótulo.',
+        ...('rawValue' in nameState
+          ? { foundValue: displayValue(nameState.rawValue) }
+          : {}),
+      })
+  );
+}
+
+const QUALITATIVE_MAXIMUM_INVALID_V1 = 'O máximo informado não é um número positivo.';
+const QUALITATIVE_MAXIMUM_CAUSES_V1: Partial<Record<string, string>> = {
+  'ambiguous-empty': 'A atividade ainda possui nome ou lançamento, mas a célula de máximo está vazia.',
+  'ambiguous-marker': 'A célula de máximo contém o marcador * em vez de um número positivo.',
+  unrecognized: 'A célula de máximo contém um valor que não pôde ser interpretado como número.',
+};
+
+/** The maximum that could not be read or is not a positive number, unless the activity was
+ * deleted entirely (empty maximum, no name and no student value). */
+function qualitativeMaximumDiagnosticV1(
+  base: QualitativeMaximumBaseV1,
+  configuration: QualitativeMaximumConfigurationV1 | undefined,
+  name: string,
+  hasStudentValue: boolean,
+): GradebookImportDiagnosticV1 | undefined {
+  if (!configuration || configuration.state === 'missing-field') {
+    return diagnostic({
+      ...base,
+      severity: 'warning',
+      code: 'source-unavailable',
+      message: 'O máximo de uma atividade não pôde ser lido na planilha.',
+      recommendedAction:
+        'Confira a célula indicada, recalcule/salve o arquivo no Excel e importe novamente. O Banco preserva a definição atual enquanto a origem estiver indisponível.',
+      cause: 'A célula de máximo não foi encontrada na estrutura lida do arquivo.',
+    });
+  }
+
+  if (configuration.state === 'numeric' && configuration.rawValue > 0) return undefined;
+
+  const trulyDeleted =
+    configuration.state === 'ambiguous-empty' && !name && !hasStudentValue;
+  if (trulyDeleted) return undefined;
+
+  const found =
+    'rawValue' in configuration ? displayValue(configuration.rawValue) : undefined;
+  const cause = QUALITATIVE_MAXIMUM_CAUSES_V1[configuration.state] ?? QUALITATIVE_MAXIMUM_INVALID_V1;
+  return diagnostic({
+    ...base,
+    severity: 'warning',
+    code: 'invalid-maximum',
+    message: 'O máximo de uma atividade está ausente ou inválido.',
+    recommendedAction:
+      'Corrija a célula de máximo indicada ou apague integralmente a atividade se ela não existir mais; depois importe novamente.',
+    ...(found === undefined ? {} : { foundValue: found }),
+    cause,
+  });
+}
+
 function inspectQualitativeDefinitionMaximum(
   sheet: GradeSheetRecognition,
 ): readonly GradebookImportDiagnosticV1[] {
@@ -302,20 +424,7 @@ function inspectQualitativeDefinitionMaximum(
       definition?.kind === 'qualitative-activity' && definition.name.state === 'text'
         ? definition.name.rawValue.trim()
         : '';
-    let hasStudentValue = false;
-    for (const student of sheet.students) {
-      if (student.row < 5 || student.row > 50) continue;
-      const raw = snapshot(sheet, `${slot.studentValueColumn}${student.row}`);
-      if (
-        raw !== undefined &&
-        raw !== null &&
-        !Array.isArray(raw) &&
-        !(typeof raw === 'string' && raw.trim() === '')
-      ) {
-        hasStudentValue = true;
-        break;
-      }
-    }
+    const hasStudentValue = hasQualitativeStudentValueV1(sheet, slot);
 
     const base = {
       classCode: sheet.className.trim().toUpperCase(),
@@ -330,81 +439,11 @@ function inspectQualitativeDefinitionMaximum(
 
     const nameState =
       definition?.kind === 'qualitative-activity' ? definition.name : undefined;
-    const templateOrdinal =
-      nameState?.state === 'unrecognized' &&
-      typeof nameState.rawValue === 'number' &&
-      nameState.rawValue === index + 1;
-    if (
-      !templateOrdinal &&
-      (nameState?.state === 'missing-field' || nameState?.state === 'unrecognized')
-    ) {
-      result.push(
-        diagnostic({
-          ...base,
-          severity: 'warning',
-          code: 'source-unavailable',
-          fieldLabel: `Nome da atividade ${index + 1}`,
-          sheetName: nameState.provenance.sheetName,
-          cellAddress: nameState.provenance.cellAddress,
-          message: 'O nome de uma atividade não pôde ser lido na planilha.',
-          recommendedAction:
-            'Confira a célula indicada e salve a planilha novamente. O Banco preserva o nome atual enquanto a origem estiver indisponível.',
-          cause:
-            nameState.state === 'missing-field'
-              ? 'A célula de nome não foi encontrada na estrutura lida do arquivo.'
-              : 'A célula de nome contém um tipo de valor que não pode ser usado como rótulo.',
-          ...('rawValue' in nameState
-            ? { foundValue: displayValue(nameState.rawValue) }
-            : {}),
-        }),
-      );
-    }
+    const nameDiagnostic = qualitativeNameDiagnosticV1(base, nameState, index);
+    if (nameDiagnostic) result.push(nameDiagnostic);
 
-    if (!configuration || configuration.state === 'missing-field') {
-      result.push(
-        diagnostic({
-          ...base,
-          severity: 'warning',
-          code: 'source-unavailable',
-          message: 'O máximo de uma atividade não pôde ser lido na planilha.',
-          recommendedAction:
-            'Confira a célula indicada, recalcule/salve o arquivo no Excel e importe novamente. O Banco preserva a definição atual enquanto a origem estiver indisponível.',
-          cause: 'A célula de máximo não foi encontrada na estrutura lida do arquivo.',
-        }),
-      );
-      continue;
-    }
-
-    if (configuration.state === 'numeric' && configuration.rawValue > 0) continue;
-
-    const trulyDeleted =
-      configuration.state === 'ambiguous-empty' && !name && !hasStudentValue;
-    if (trulyDeleted) continue;
-
-    const found =
-      'rawValue' in configuration ? displayValue(configuration.rawValue) : undefined;
-    let cause: 'A atividade ainda possui nome ou lançamento, mas a célula de máximo está vazia.' | 'A célula de máximo contém o marcador * em vez de um número positivo.' | 'A célula de máximo contém um valor que não pôde ser interpretado como número.' | 'O máximo informado não é um número positivo.';
-    if (configuration.state === 'ambiguous-empty') {
-      cause = 'A atividade ainda possui nome ou lançamento, mas a célula de máximo está vazia.';
-    } else if (configuration.state === 'ambiguous-marker') {
-      cause = 'A célula de máximo contém o marcador * em vez de um número positivo.';
-    } else if (configuration.state === 'unrecognized') {
-      cause = 'A célula de máximo contém um valor que não pôde ser interpretado como número.';
-    } else {
-      cause = 'O máximo informado não é um número positivo.';
-    }
-    result.push(
-      diagnostic({
-        ...base,
-        severity: 'warning',
-        code: 'invalid-maximum',
-        message: 'O máximo de uma atividade está ausente ou inválido.',
-        recommendedAction:
-          'Corrija a célula de máximo indicada ou apague integralmente a atividade se ela não existir mais; depois importe novamente.',
-        ...(found === undefined ? {} : { foundValue: found }),
-        cause,
-      }),
-    );
+    const maximumDiagnostic = qualitativeMaximumDiagnosticV1(base, configuration, name, hasStudentValue);
+    if (maximumDiagnostic) result.push(maximumDiagnostic);
   }
   return result;
 }

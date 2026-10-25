@@ -113,6 +113,39 @@ export function AccountDetailV1(props: Readonly<AccountDetailPropsV1>) {
     </Drawer.Backdrop>
   );
 }
+/** Why this record cannot be changed here: read-only mode, a student who left, or a link the
+ * credential actions do not cover. */
+function ReadOnlyNoticesV1({
+  account,
+  canWrite,
+}: Readonly<{ account: Parameters<typeof accountManageableV1>[0]; canWrite: boolean }>) {
+  return (
+    <>
+      {!canWrite && <p>Modo somente leitura.</p>}
+      {account.eligibility === 'exit' ? (
+        <p>Aluno com saída da escola: ficha somente para consulta.</p>
+      ) : null}
+      {account.eligibility !== 'exit' && !accountManageableV1(account) ? (
+        <p>
+          As ações de credenciais estão indisponíveis para este vínculo. Corrija a origem ou use o
+          procedimento administrativo próprio; não há associação por nome.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+const stillReadingV1 = (state: string) => state === 'idle' || state === 'loading';
+
+/** What the list already shows, while the record's own first read is pending. */
+function listedAccountV1<T extends { accountId: string }>(
+  firstRead: boolean,
+  known: T | undefined,
+  accountId: string,
+) {
+  return firstRead && known?.accountId === accountId ? known : null;
+}
+
 function AccountDetailBodyV1({
   accountId,
   parentScope,
@@ -213,15 +246,12 @@ function AccountDetailBodyV1({
   }, [mutation, read.state, onAuthorizationLost]);
   const snapshot = !protectedFailure && read.state.state === 'ready' ? read.state.data : null;
   const account = snapshot?.account ?? null;
-  const waiting =
-    !protectedFailure && (read.state.state === 'idle' || read.state.state === 'loading');
+  const waiting = !protectedFailure && stillReadingV1(read.state.state);
   // Until the record's own read first answers, what the list already shows is on screen. A later
   // reload never falls back to the list: it could be older than what this record has shown.
   const [answered, setAnswered] = useState(false);
-  if (!answered && (read.state.state === 'ready' || read.state.state === 'error'))
-    setAnswered(true);
-  const shown =
-    account ?? (waiting && !answered && known?.accountId === accountId ? known : null);
+  if (!answered && !stillReadingV1(read.state.state)) setAnswered(true);
+  const shown = account ?? listedAccountV1(waiting && !answered, known, accountId);
   const editable = canWrite && !!account && accountManageableV1(account) && !pending && !failed;
   function refresh() {
     if (pending || (failed && Date.now() < mutation.retryAt)) return;
@@ -354,16 +384,7 @@ function AccountDetailBodyV1({
         )}
         {account && context && (
           <>
-            {!canWrite && <p>Modo somente leitura.</p>}
-            {account.eligibility === 'exit' ? (
-              <p>Aluno com saída da escola: ficha somente para consulta.</p>
-            ) : null}
-            {account.eligibility !== 'exit' && !accountManageableV1(account) ? (
-              <p>
-                As ações de credenciais estão indisponíveis para este vínculo. Corrija a origem ou
-                use o procedimento administrativo próprio; não há associação por nome.
-              </p>
-            ) : null}
+            <ReadOnlyNoticesV1 account={account} canWrite={canWrite} />
             <div className="pa-account-actions" aria-label="Ações de acesso">
               {(slots?.credentials || onReprint) && (
                 <Button

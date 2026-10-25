@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FrequencyClientErrorV2 } from './client-v2';
 
+/** A failed read: its state, and whether it is final (no session or no access: no retry). */
+function readFailureV2(reason: unknown) {
+  const state = reason instanceof FrequencyClientErrorV2 ? reason.state : 'unavailable';
+  return {
+    state,
+    terminal:
+      reason instanceof FrequencyClientErrorV2 &&
+      ['unauthenticated', 'forbidden', 'not-authorized'].includes(reason.state),
+  };
+}
+
 /** One request at a time; visibility/unmount fences every late completion. */
 export function useFrequencyReadV2<T>(
   read: (signal: AbortSignal) => Promise<T>,
@@ -55,12 +66,10 @@ export function useFrequencyReadV2<T>(
           setData(null);
           setReadAt(null);
           state.failures += 1;
-          setError(reason instanceof FrequencyClientErrorV2 ? reason.state : 'unavailable');
-          terminal =
-            reason instanceof FrequencyClientErrorV2 &&
-            ['unauthenticated', 'forbidden', 'not-authorized'].includes(reason.state);
-          if (reason instanceof FrequencyClientErrorV2 && reason.state === 'unauthenticated')
-            authenticationLost.current?.();
+          const failure = readFailureV2(reason);
+          setError(failure.state);
+          terminal = failure.terminal;
+          if (failure.state === 'unauthenticated') authenticationLost.current?.();
         }
       } finally {
         if (valid()) {

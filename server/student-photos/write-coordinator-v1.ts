@@ -68,13 +68,9 @@ export class PhotoWriteCoordinatorV1 {
       let receipt=await this.repository.claim(context,command,prepared.plan,finalImages);
       if(receipt.phase==='complete')return resultOf(command.requestId,false);
       if(receipt.phase==='prepared'){
-        const uploaded:{portrait:PhotoAssetV1|null;avatar:PhotoAssetV1|null}={portrait:null,avatar:null};
-        try{
-          for(const variant of ['portrait','avatar'] as const){
-            const data=prepared.validated[variant],metadata=prepared.plan[variant];if(!data||!metadata)continue;
-            signal.throwIfAborted();uploaded[variant]=await this.ports.upload({context,requestId:command.requestId,variant,bytes:data.bytes,metadata,signal});
-          }
-        }catch{return{state:'pending',requestId:command.requestId,stage:'upload'};}
+        let uploaded:{portrait:PhotoAssetV1|null;avatar:PhotoAssetV1|null};
+        try{uploaded=await this.uploadAll(context,command,prepared,signal);}
+        catch{return{state:'pending',requestId:command.requestId,stage:'upload'};}
         if(signal.aborted)return{state:'pending',requestId:command.requestId,stage:'commit'};
         await this.ports.authorize(context);
         if(signal.aborted)return{state:'pending',requestId:command.requestId,stage:'commit'};
@@ -84,12 +80,24 @@ export class PhotoWriteCoordinatorV1 {
           return{state:'pending',requestId:command.requestId,stage:'commit'};
         }
       }
-      if(this.ports.publish){
-        try{await this.ports.authorize(context);signal.throwIfAborted();await this.ports.publish(context,receipt,finalImages,signal);}
-        catch{return resultOf(receipt.requestId,true);}
-      }
+      if(this.ports.publish&&!await this.published(context,receipt,finalImages,signal))return resultOf(receipt.requestId,true);
       return await this.cleanup(context,receipt,signal);
     }finally{clearValidated(prepared.validated);}
+  }
+  /** Each prepared variant goes to remote storage; a failure leaves the write pending at upload. */
+  private async uploadAll(context:PhotoWriteContextV1,command:PhotoWriteCommandV1,
+    prepared:Awaited<ReturnType<PhotoWriteCoordinatorV1['prepare']>>,signal:AbortSignal){
+    const uploaded:{portrait:PhotoAssetV1|null;avatar:PhotoAssetV1|null}={portrait:null,avatar:null};
+    for(const variant of ['portrait','avatar'] as const){
+      const data=prepared.validated[variant],metadata=prepared.plan[variant];if(!data||!metadata)continue;
+      signal.throwIfAborted();uploaded[variant]=await this.ports.upload({context,requestId:command.requestId,variant,bytes:data.bytes,metadata,signal});
+    }
+    return uploaded;
+  }
+  /** False when publishing the final bytes failed: the committed write then awaits finalization. */
+  private async published(context:PhotoWriteContextV1,receipt:PhotoWriteReceiptV1,images:PhotoWriteInputV1,signal:AbortSignal){
+    try{await this.ports.authorize(context);signal.throwIfAborted();await this.ports.publish!(context,receipt,images,signal);return true;}
+    catch{return false;}
   }
   private async cleanup(context:PhotoWriteContextV1,initial:PhotoWriteReceiptV1,signal:AbortSignal):Promise<PhotoWriteResultV1>{
     let receipt=initial;

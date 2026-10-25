@@ -77,6 +77,37 @@ export function parseRelationStatusV9(raw: string): readonly [GradebookRelationS
   throw new Error(`Situação da Relação não reconhecida: ${raw.trim()}`);
 }
 
+/** One class's students in VINCULO AGENDA: its pair of columns (situation, name), rows 3 to 48. */
+function relationStudentsV9(agenda: NonNullable<Workbook['Sheets'][string]>, relationIndex: number) {
+  const statusColumn = columnName(9 + relationIndex * 2); // I, K, M ... AY
+  const nameColumn = columnName(10 + relationIndex * 2); // J, L, N ... AZ
+  const alunos: GradebookRelationStudentV9[] = [];
+  for (let agendaRow = 3; agendaRow <= 48; agendaRow += 1) {
+    const studentName = text(agenda, `${nameColumn}${agendaRow}`).trim();
+    if (!studentName || studentName === '0') continue;
+    const numero = agendaRow - 2;
+    const [situacao, relacionada] = parseRelationStatusV9(text(agenda, `${statusColumn}${agendaRow}`));
+    alunos.push(
+      relacionada === undefined
+        ? ([numero, studentName, situacao] as const)
+        : ([numero, studentName, situacao, relacionada] as const),
+    );
+  }
+  return alunos;
+}
+
+/** A transfer (6) or a "was in" (7) must name a class of this Relação. */
+function checkRelationMovementsV9(turmas: readonly GradebookRelationClassV9[]) {
+  const codes = new Set(turmas.map((turma) => turma.codigo.trim().toUpperCase()));
+  for (const turma of turmas) {
+    for (const aluno of turma.alunos) {
+      if ((aluno[2] === 6 || aluno[2] === 7) && !codes.has(aluno[3]!.trim().toUpperCase())) {
+        throw new Error(`Movimentação de ${aluno[1]} referencia turma inexistente: ${aluno[3]}.`);
+      }
+    }
+  }
+}
+
 export function recognizeMasterRelationV9(workbook: Workbook): MasterRelationRecognitionV9 | null {
   const inicioName = workbook.SheetNames.find((name) => normalize(name) === 'INICIO');
   const agendaName = workbook.SheetNames.find((name) => normalize(name).includes('VINCULO AGENDA'));
@@ -99,32 +130,11 @@ export function recognizeMasterRelationV9(workbook: Workbook): MasterRelationRec
       throw new Error(`Metadados incompletos da turma ${codigo} em INICIO.`);
     }
 
-    const relationIndex = sourceRow - 7;
-    const statusColumn = columnName(9 + relationIndex * 2); // I, K, M ... AY
-    const nameColumn = columnName(10 + relationIndex * 2); // J, L, N ... AZ
-    const alunos: GradebookRelationStudentV9[] = [];
-    for (let agendaRow = 3; agendaRow <= 48; agendaRow += 1) {
-      const studentName = text(agenda, `${nameColumn}${agendaRow}`).trim();
-      if (!studentName || studentName === '0') continue;
-      const numero = agendaRow - 2;
-      const [situacao, relacionada] = parseRelationStatusV9(text(agenda, `${statusColumn}${agendaRow}`));
-      alunos.push(
-        relacionada === undefined
-          ? ([numero, studentName, situacao] as const)
-          : ([numero, studentName, situacao, relacionada] as const),
-      );
-    }
+    const alunos = relationStudentsV9(agenda, sourceRow - 7);
     turmas.push({ codigo, nome, etapa, turno, alunos });
   }
 
   if (turmas.length === 0) throw new Error('Nenhuma turma foi encontrada na Relação.');
-  const codes = new Set(turmas.map((turma) => turma.codigo.trim().toUpperCase()));
-  for (const turma of turmas) {
-    for (const aluno of turma.alunos) {
-      if ((aluno[2] === 6 || aluno[2] === 7) && !codes.has(aluno[3]!.trim().toUpperCase())) {
-        throw new Error(`Movimentação de ${aluno[1]} referencia turma inexistente: ${aluno[3]}.`);
-      }
-    }
-  }
+  checkRelationMovementsV9(turmas);
   return { ano, turmas };
 }

@@ -116,13 +116,14 @@ function auditDetailOfV1(value: unknown) {
   return parsed.success && Object.keys(parsed.data).length ? { detail: parsed.data } : {};
 }
 
-export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: AdminQueryV1,
-  actor: string, now: Date, cursor: AdminCursorV1) {
-  const after = await cursor.read(query, actor, now);
-  if (after && !after.at) throw new Error('student-portal-cursor-invalid-request');
-  const parameters: unknown[] = [];
-  const bind = (value: unknown) => { parameters.push(value); return `$${parameters.length}`; };
-  const predicates = ["e.scope_json->>'academicYear'='2026'", "e.occurred_at>statement_timestamp()-interval '12 months'"];
+/** The audit filters in bind order: the 2026 year and 12 months, the scope (a class through the
+ * event's own class or its account), the chosen filters, and the page cursor. */
+function auditPredicatesV1(
+  query: AdminQueryV1,
+  after: Awaited<ReturnType<AdminCursorV1['read']>>,
+  bind: (value: unknown) => string,
+) {
+  const predicates: string[] = ["e.scope_json->>'academicYear'='2026'", "e.occurred_at>statement_timestamp()-interval '12 months'"];
   if (query.scope.kind === 'account') predicates.push(`e.account_id=${bind(query.scope.accountId)}::uuid`);
   if (query.scope.kind === 'class') {
     const classParam = bind(query.scope.classId);
@@ -140,6 +141,16 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
   if (query.eventId) predicates.push(`e.event_id=${bind(query.eventId)}::uuid`);
   // Keep microseconds as text through postgres.js; its timestamp serializer otherwise truncates to JS milliseconds.
   if (after) predicates.push(`(e.occurred_at,e.event_id)<(${bind(after.at)}::text::timestamptz,${bind(after.id)}::uuid)`);
+  return predicates;
+}
+
+export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: AdminQueryV1,
+  actor: string, now: Date, cursor: AdminCursorV1) {
+  const after = await cursor.read(query, actor, now);
+  if (after && !after.at) throw new Error('student-portal-cursor-invalid-request');
+  const parameters: unknown[] = [];
+  const bind = (value: unknown) => { parameters.push(value); return `$${parameters.length}`; };
+  const predicates = auditPredicatesV1(query, after, bind);
   // The IP is shown only in the detail, and only while it is still kept (90 days at most).
   const ipColumns = query.operation === 'audit-detail' ? `,
     CASE WHEN e.ip_expires_at>statement_timestamp() AND e.occurred_at>statement_timestamp()-interval '90 days' THEN host(e.raw_ip) ELSE NULL END AS ip,

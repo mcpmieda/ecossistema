@@ -225,6 +225,44 @@ function resolveApplicability(
   };
 }
 
+/** Not applicable when the cutoff was reached; incomplete while anything is missing or wrong;
+ * otherwise complete with both items, partial with one. */
+function coverageStateV1(
+  applicability: ReturnType<typeof resolveApplicability>['state'],
+  parallelState: NativeParallelRecoveryInputV1['parallelRecovery']['state'],
+  findingCount: number,
+  resolvedItemCount: number,
+): ResultCoverageV1['state'] {
+  if (applicability === 'not-applicable') return 'not-applicable';
+  if (
+    applicability === 'insufficient-data' ||
+    parallelState === 'not-applicable' ||
+    parallelState === 'insufficient-data' ||
+    findingCount > 0
+  )
+    return 'insufficient-data';
+  if (resolvedItemCount === 2) return 'complete';
+  if (resolvedItemCount === 1) return 'partial';
+  return 'insufficient-data';
+}
+
+/** What the parallel recovery added: nothing where it does not apply, never below zero. */
+const parallelGainV1 = (applicable: boolean, parallelValue: number, originalValue: number) =>
+  applicable ? Math.max(0, parallelValue - originalValue) : 0;
+
+/** The parallel recovery replaces the original only where it applies and is higher. */
+function consideredValueV1(
+  input: NativeParallelRecoveryInputV1,
+  originalResolved: boolean,
+  parallelWins: boolean,
+): AcademicGradeValueV1 {
+  if (!originalResolved)
+    return input.quantitativeOriginal.state === 'not-applicable'
+      ? input.quantitativeOriginal
+      : unresolvedConsidered('quantitative considered requires a valid quantitative original');
+  return parallelWins ? input.parallelRecovery : input.quantitativeOriginal;
+}
+
 function unresolvedConsidered(reason: string): AcademicGradeValueV1 {
   return { state: 'insufficient-data', reason };
 }
@@ -286,23 +324,12 @@ export function resolveNativeParallelRecovery(
     ...findings.map((finding) => finding.code),
   ].filter((reason): reason is string => reason !== null);
 
-  let coverageState: ResultCoverageV1['state'];
-  if (applicability.state === 'not-applicable') {
-    coverageState = 'not-applicable';
-  } else if (
-    applicability.state === 'insufficient-data' ||
-    input.parallelRecovery.state === 'not-applicable' ||
-    input.parallelRecovery.state === 'insufficient-data' ||
-    findings.length > 0
-  ) {
-    coverageState = 'insufficient-data';
-  } else if (resolvedItemCount === 2) {
-    coverageState = 'complete';
-  } else if (resolvedItemCount === 1) {
-    coverageState = 'partial';
-  } else {
-    coverageState = 'insufficient-data';
-  }
+  const coverageState = coverageStateV1(
+    applicability.state,
+    input.parallelRecovery.state,
+    findings.length,
+    resolvedItemCount,
+  );
 
   const coverage: ResultCoverageV1 = {
     state: coverageState,
@@ -312,32 +339,19 @@ export function resolveNativeParallelRecovery(
     reasons,
   };
 
-  let quantitativeConsidered: AcademicGradeValueV1;
-  if (!originalResolved) {
-    quantitativeConsidered =
-      input.quantitativeOriginal.state === 'not-applicable'
-        ? input.quantitativeOriginal
-        : unresolvedConsidered('quantitative considered requires a valid quantitative original');
-  } else if (
-    applicability.state === 'applicable' &&
-    parallelResolved &&
-    parallelValue > originalValue
-  ) {
-    quantitativeConsidered = input.parallelRecovery;
-  } else {
-    quantitativeConsidered = input.quantitativeOriginal;
-  }
+  const quantitativeConsidered = consideredValueV1(
+    input,
+    originalResolved,
+    originalResolved &&
+      applicability.state === 'applicable' &&
+      parallelResolved &&
+      parallelValue > originalValue,
+  );
 
-  let gain;
-  if (originalResolved && parallelResolved) {
-    if (applicability.state === 'applicable') {
-      gain = Math.max(0, parallelValue - originalValue);
-    } else {
-      gain = 0;
-    }
-  } else {
-    gain = null;
-  }
+  const gain =
+    originalResolved && parallelResolved
+      ? parallelGainV1(applicability.state === 'applicable', parallelValue, originalValue)
+      : null;
 
   return {
     profileVersion: profile.version,

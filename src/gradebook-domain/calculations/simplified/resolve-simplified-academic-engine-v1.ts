@@ -294,6 +294,66 @@ function orderedTerms(
   return result;
 }
 
+type RecoveryTermInputV1 = SimplifiedComponentRecoveryInputV1['terms'][number];
+type RecoverySourceV1 = SimplifiedComponentRecoveryInputV1['recovery'][SimplifiedAcademicTermV1];
+
+/** A recovery value where none applies, or above the term's maximum. */
+function recoveryWarningsV1(
+  warnings: SimplifiedEngineWarningV1[],
+  termNumber: SimplifiedAcademicTermV1,
+  term: RecoveryTermInputV1,
+  source: RecoverySourceV1,
+  applicable: boolean | null,
+) {
+  if (applicable === false && source !== null) {
+    warnings.push({
+      code: 'recovery-present-when-not-applicable',
+      term: termNumber,
+      valueMilli: typeof source === 'number' ? source : undefined,
+      maximumMilli: term.termMaximumMilli,
+    });
+  }
+  if (typeof source === 'number' && source > term.termMaximumMilli) {
+    warnings.push({
+      code: 'recovery-above-term-maximum',
+      term: termNumber,
+      valueMilli: source,
+      maximumMilli: term.termMaximumMilli,
+    });
+  }
+}
+
+/** The term's value after recovery: the recovery grade where it applies, the term grade where it
+ * does not, and none while it is pending, missing, NC or RR. */
+function recoveryReplacementV1(
+  term: RecoveryTermInputV1,
+  source: RecoverySourceV1,
+  applicable: boolean | null,
+): number | null {
+  if (applicable === false) return term.roundedMilli;
+  if (applicable === null) return null;
+  return typeof source === 'number' ? source : null;
+}
+
+/** RR first, then an incomplete year, direct approval, NC, a pending recovery, and the total. */
+function componentClassificationV1(facts: {
+  hasRr: boolean;
+  originalComplete: boolean;
+  recoveryRequired: boolean | null;
+  hasNc: boolean;
+  missingApplicableRecovery: boolean;
+  postRecoveryTotal: number | null;
+  minimumApprovalMilli: number;
+}): SimplifiedComponentClassificationV1 {
+  if (facts.hasRr) return 'failed-repeat';
+  if (!facts.originalComplete) return 'in-progress';
+  if (facts.recoveryRequired === false) return 'approved-direct';
+  if (facts.hasNc) return 'failed-no-show';
+  if (facts.missingApplicableRecovery || facts.postRecoveryTotal === null) return 'recovery-pending';
+  if (facts.postRecoveryTotal >= facts.minimumApprovalMilli) return 'approved-after-recovery';
+  return 'not-approved';
+}
+
 export function resolveSimplifiedComponentRecoveryV1(
   input: SimplifiedComponentRecoveryInputV1,
 ): SimplifiedComponentRecoveryOutcomeV1 {
@@ -305,9 +365,7 @@ export function resolveSimplifiedComponentRecoveryV1(
   const warnings: SimplifiedEngineWarningV1[] = [];
 
   const recoveryTerms = {} as Record<SimplifiedAcademicTermV1, SimplifiedRecoveryTermOutcomeV1>;
-  let hasNc = false;
   let hasRr = false;
-  let missingApplicableRecovery = false;
   for (const termNumber of [1, 2, 3] as const) {
     const term = terms[termNumber];
     const source = input.recovery[termNumber];
@@ -317,42 +375,8 @@ export function resolveSimplifiedComponentRecoveryV1(
       recoveryRequired === null
         ? null
         : recoveryRequired && term.roundedMilli * 5 < term.termMaximumMilli * 3;
-
-    if (applicable === false && source !== null) {
-      warnings.push({
-        code: 'recovery-present-when-not-applicable',
-        term: termNumber,
-        valueMilli: typeof source === 'number' ? source : undefined,
-        maximumMilli: term.termMaximumMilli,
-      });
-    }
-    if (typeof source === 'number' && source > term.termMaximumMilli) {
-      warnings.push({
-        code: 'recovery-above-term-maximum',
-        term: termNumber,
-        valueMilli: source,
-        maximumMilli: term.termMaximumMilli,
-      });
-    }
-
-    let replacement: number | null;
-    if (applicable === true) {
-      if (source === 'NC') {
-        hasNc = true;
-        replacement = null;
-      } else if (source === 'RR') {
-        replacement = null;
-      } else if (source === null) {
-        missingApplicableRecovery = true;
-        replacement = null;
-      } else {
-        replacement = source;
-      }
-    } else if (applicable === false) {
-      replacement = term.roundedMilli;
-    } else {
-      replacement = null;
-    }
+    recoveryWarningsV1(warnings, termNumber, term, source, applicable);
+    const replacement = recoveryReplacementV1(term, source, applicable);
 
     recoveryTerms[termNumber] = {
       term: termNumber,
@@ -362,6 +386,9 @@ export function resolveSimplifiedComponentRecoveryV1(
     };
   }
 
+  const applied = Object.values(recoveryTerms).filter((term) => term.applicable === true);
+  const hasNc = applied.some((term) => term.source === 'NC');
+  const missingApplicableRecovery = applied.some((term) => term.source === null);
   const replacements = [
     recoveryTerms[1].replacementMilli,
     recoveryTerms[2].replacementMilli,
@@ -371,14 +398,15 @@ export function resolveSimplifiedComponentRecoveryV1(
     ? replacements.reduce((total, value) => total + value, 0)
     : null;
 
-  let classification: SimplifiedComponentClassificationV1;
-  if (hasRr) classification = 'failed-repeat';
-  else if (!originalComplete) classification = 'in-progress';
-  else if (recoveryRequired === false) classification = 'approved-direct';
-  else if (hasNc) classification = 'failed-no-show';
-  else if (missingApplicableRecovery || postRecoveryTotal === null) classification = 'recovery-pending';
-  else if (postRecoveryTotal >= input.minimumApprovalMilli) classification = 'approved-after-recovery';
-  else classification = 'not-approved';
+  const classification = componentClassificationV1({
+    hasRr,
+    originalComplete,
+    recoveryRequired,
+    hasNc,
+    missingApplicableRecovery,
+    postRecoveryTotal,
+    minimumApprovalMilli: input.minimumApprovalMilli,
+  });
 
   return {
     originalTotalMilli: originalTotal,

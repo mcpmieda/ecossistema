@@ -92,6 +92,21 @@ export function GradeStatusChipV1({
   );
 }
 
+/** The schedule actions name the annual result or the trimester's grades. */
+function scheduleLabelsV1(gradeKey: GradeKeyV1) {
+  return {
+    open: gradeKey === 'final' ? 'Mostrar o resultado' : 'Mostrar as notas',
+    close: gradeKey === 'final' ? 'Ocultar o resultado' : 'Ocultar as notas',
+    noEffect: 'Sem efeito: a ação seguinte é igual.',
+  };
+}
+
+/** Unsaved schedules lock the switch; dates still read from the Calendário say where they came from. */
+function gradeShowNoticeV1(unsaved: boolean, fromCalendar: boolean): string | null {
+  if (unsaved) return 'Salve ou desfaça os agendamentos antes de usar a chave.';
+  return fromCalendar ? 'Vieram das datas do Calendário. Ao salvar, passam a valer daqui.' : null;
+}
+
 /**
  * "Mostrar para os alunos": the switch (state now) and its Mostrar/Ocultar, saved together into
  * the calendar. The same rule as access: before an action the grades are in its opposite state.
@@ -170,10 +185,7 @@ export function GradeShowV1({
     }
   };
   const steadyText = openNow ? 'Fica visível até alguém ocultar.' : 'Fica oculto até alguém mostrar.';
-  let notice: string | null = null;
-  if (canWrite && dirty) notice = 'Salve ou desfaça os agendamentos antes de usar a chave.';
-  else if (fromCalendar && saved.schedule.length)
-    notice = 'Vieram das datas do Calendário. Ao salvar, passam a valer daqui.';
+  const notice = gradeShowNoticeV1(canWrite && dirty, Boolean(fromCalendar && saved.schedule.length));
   return (
     <div className="pa-grade-show">
       <div className="pa-grade-show-now">
@@ -212,11 +224,7 @@ export function GradeShowV1({
           setRows(next);
           setError(null);
         }}
-        labels={{
-          open: gradeKey === 'final' ? 'Mostrar o resultado' : 'Mostrar as notas',
-          close: gradeKey === 'final' ? 'Ocultar o resultado' : 'Ocultar as notas',
-          noEffect: 'Sem efeito: a ação seguinte é igual.',
-        }}
+        labels={scheduleLabelsV1(gradeKey)}
         openNow={openNow}
         canWrite={canWrite}
         disabled={disabled}

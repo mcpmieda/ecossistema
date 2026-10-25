@@ -14,6 +14,22 @@ export type AccountMutationStateV1 =
     }
   | { state: 'error'; error: PortalClientErrorV1; retryable: boolean; retryAt: number };
 
+/** A committed write, or exactly this account's new card for a QR regeneration. */
+function expectedResultV1(
+  result: { state: string; cards?: readonly { accountId: string }[] },
+  operation: AccountCommandV1['operation'] | undefined,
+  accountId: string,
+): result is AccountQrResultV1 | Extract<AdminResponseV1, { state: 'committed' }> {
+  if (result.state !== 'committed' && result.state !== 'qr') return false;
+  if (operation === 'qr-regenerate')
+    return (
+      result.state === 'qr' &&
+      result.cards?.length === 1 &&
+      result.cards[0]?.accountId === accountId
+    );
+  return result.state === 'committed';
+}
+
 /** Credentials exist only in the handoff callback, never in generic presentation state. */
 export function createAccountMutationV1(
   client: PortalAdminClientV1,
@@ -28,6 +44,24 @@ export function createAccountMutationV1(
   let active: AbortController | undefined;
   let prepared: ReturnType<PortalAdminClientV1['prepareCommand']> | undefined;
   let operation: AccountCommandV1['operation'] | undefined;
+  /** The new card goes to the handoff (the PDF); the rotation itself is never retried. */
+  async function handOffQr(
+    result: AccountQrResultV1,
+    accept: NonNullable<typeof onQr>,
+    committed: Extract<AccountMutationStateV1, { state: 'committed' }>,
+    current: number,
+    controller: AbortController,
+  ) {
+    publish({ ...committed, artifact: 'preparing' });
+    try {
+      await accept(result, controller.signal);
+      if (current === generation && !controller.signal.aborted)
+        publish({ ...committed, artifact: 'offered' });
+    } catch {
+      // The server already committed. Reprinting is separate; never retry the rotation.
+      if (current === generation && !controller.signal.aborted) publish(committed);
+    }
+  }
   async function run() {
     if (pending || !prepared || now() < retryAt) return;
     const command = prepared,
@@ -40,15 +74,7 @@ export function createAccountMutationV1(
     try {
       const result = await command.execute(controller.signal);
       if (current !== generation || controller.signal.aborted) return;
-      if (result.state !== 'committed' && result.state !== 'qr')
-        throw new PortalClientErrorV1('invalid-response');
-      if (
-        operation === 'qr-regenerate'
-          ? result.state !== 'qr' ||
-            result.cards.length !== 1 ||
-            result.cards[0]?.accountId !== accountId
-          : result.state !== 'committed'
-      )
+      if (!expectedResultV1(result, operation, accountId))
         throw new PortalClientErrorV1('invalid-response');
       prepared = undefined;
       operation = undefined;
@@ -58,17 +84,9 @@ export function createAccountMutationV1(
         operation: completedOperation,
         artifact: result.state === 'qr' ? ('unavailable' as const) : ('none' as const),
       };
-      publish(result.state === 'qr' && onQr ? { ...committed, artifact: 'preparing' } : committed);
-      if (result.state === 'qr' && onQr) {
-        try {
-          await onQr(result, controller.signal);
-          if (current === generation && !controller.signal.aborted)
-            publish({ ...committed, artifact: 'offered' });
-        } catch {
-          // The server already committed. Reprinting is separate; never retry the rotation.
-          if (current === generation && !controller.signal.aborted) publish(committed);
-        }
-      }
+      if (result.state === 'qr' && onQr)
+        await handOffQr(result, onQr, committed, current, controller);
+      else publish(committed);
     } catch (error) {
       if (current !== generation || controller.signal.aborted) return;
       const failure =

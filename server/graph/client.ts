@@ -16,6 +16,20 @@ export class GraphTokenError extends Error {
     super('Graph token preparation failed');
   }
 }
+/** The issued token; null when this certificate was refused (the next one may be tried). */
+async function tokenOrRefusalV1(response: Response, slot: GraphCredentialSlot,
+  dependencies: GraphDependencies): Promise<string | null> {
+  if (response.ok) {
+    try { return tokenSchema.parse(await response.json()).access_token; }
+    catch { throw new GraphTokenError('response-contract', slot); }
+  }
+  const wait = graphRetryAfterMsV1(response.headers.get('Retry-After'), (dependencies.now ?? Date.now)());
+  await response.body?.cancel().catch(() => undefined);
+  // A throttled identity endpoint is not an invitation to try another certificate immediately.
+  if (response.status === 429 || response.status >= 500)
+    throw new GraphError(response.status, crypto.randomUUID(), wait === undefined ? undefined : Math.ceil(wait / 1000));
+  return null;
+}
 export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependencies = graphDefaultsV1,
   slot?: GraphCredentialSlot): Promise<string> {
   const endpoint = `https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/token`;
@@ -43,15 +57,8 @@ export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependen
         signal: AbortSignal.timeout(10_000) });
     } catch { throw new GraphTokenError('transport', credential.slot); }
     lastStatus = response.status;
-    if (response.ok) {
-      try { return tokenSchema.parse(await response.json()).access_token; }
-      catch { throw new GraphTokenError('response-contract', credential.slot); }
-    }
-    const wait = graphRetryAfterMsV1(response.headers.get('Retry-After'), (dependencies.now ?? Date.now)());
-    await response.body?.cancel().catch(() => undefined);
-    // A throttled identity endpoint is not an invitation to try another certificate immediately.
-    if (response.status === 429 || response.status >= 500)
-      throw new GraphError(response.status, crypto.randomUUID(), wait === undefined ? undefined : Math.ceil(wait / 1000));
+    const token = await tokenOrRefusalV1(response, credential.slot, dependencies);
+    if (token !== null) return token;
   }
   if (lastStatus === 0) {
     throw new GraphTokenError('assertion', lastAssertionSlot ?? slot ?? null);
@@ -105,6 +112,12 @@ export async function graphContentRequest(input: {
   return { response, correlationId };
 }
 
+/** The next page, absent on the last one; anything but a non-empty link is a broken page. */
+function nextPageV1(link: unknown, correlationId: string): string | null {
+  if (link !== undefined && (typeof link !== 'string' || !link)) throw new GraphError(502, correlationId);
+  return typeof link === 'string' ? graphUrlV1(link) : null;
+}
+
 /** Complete pagination, one token, opaque cursors and a resource deadline. Never return a
  * silently truncated collection. A loop, wrong origin or capacity failure is explicit.
  */
@@ -128,9 +141,7 @@ export async function graphAllPages<T>(env: RuntimeEnv, initialPath: string, tok
     if (!result.data || !Array.isArray(result.data.value)) throw new GraphError(502, correlationId);
     if (values.length + result.data.value.length > 50_000) throw new Error('Graph pagination capacity exceeded');
     for (const value of result.data.value) values.push(value);
-    const link: unknown = result.data['@odata.nextLink'];
-    if (link !== undefined && (typeof link !== 'string' || !link)) throw new GraphError(502, correlationId);
-    next = typeof link === 'string' ? graphUrlV1(link) : null;
+    next = nextPageV1(result.data['@odata.nextLink'], correlationId);
   }
   return values;
 }

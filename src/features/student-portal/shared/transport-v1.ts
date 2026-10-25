@@ -50,6 +50,51 @@ function retryDelay(header: string | null): number | undefined {
   return Number.isFinite(seconds) ? Math.min(86400, Math.max(1, seconds)) : undefined;
 }
 
+/** Fixed same-origin paths only: the student session and auth routes, the Portal ADM query and
+ * command, and the session check of one account (with its live connection). */
+function allowedPortalPathV1(path: string) {
+  return (
+    /^\/api\/(?:student\/(?:session|me|status|auth\/(?:challenge|activate|login|logout))|student-portal\/admin\/(?:query|command))$/u.test(
+      path,
+    ) ||
+    /^\/api\/student\/session\?accountId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?:&connectionId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})?$/iu.test(
+      path,
+    )
+  );
+}
+
+function dropExpiredV1(cooldowns: Map<string, number>, now: number) {
+  for (const [key, until] of cooldowns) if (until <= now) cooldowns.delete(key);
+}
+
+/** A new live connection ID must not bypass the same account's session cooldown. */
+function cooldownKeyV1(path: string) {
+  return path.startsWith('/api/student/session?') ? path.split('&connectionId=')[0]!.toLowerCase() : path;
+}
+
+/** Only sign-in and the session ask for the access-closed answer, when the client accepts it. */
+function acceptsAccessClosedV1(path: string, acceptAccessClosed: boolean | undefined) {
+  return Boolean(acceptAccessClosed) &&
+    (path === '/api/student/auth/challenge' || path === '/api/student/auth/login' || path.startsWith('/api/student/session'));
+}
+
+function requestInitV1(body: string | undefined, signal: AbortSignal | undefined, accessClosed: boolean): RequestInit {
+  return {
+    method: body === undefined ? 'GET' : 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    redirect: 'error',
+    referrerPolicy: 'no-referrer',
+    signal,
+    headers: {
+      Accept: 'application/json',
+      ...(accessClosed ? { [ACCESS_CLOSED_ACCEPT_HEADER_V1]: 'v1' } : {}),
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body }),
+  };
+}
+
 /** Fixed same-origin paths only; no identity headers, persistence, logging or automatic retries. */
 export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) {
   const fetcher = options.fetch ?? ((path, init) => fetch(path, init));
@@ -60,42 +105,20 @@ export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) 
     signal?: AbortSignal,
     body?: string,
   ): Promise<T> => {
-    if (
-      !/^\/api\/(?:student\/(?:session|me|status|auth\/(?:challenge|activate|login|logout))|student-portal\/admin\/(?:query|command))$/u.test(
-        path,
-      ) &&
-      !/^\/api\/student\/session\?accountId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?:&connectionId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})?$/iu.test(
-        path,
-      )
-    )
-      throw new PortalClientErrorV1('invalid-request');
+    if (!allowedPortalPathV1(path)) throw new PortalClientErrorV1('invalid-request');
     signal?.throwIfAborted();
     const now = Date.now();
-    for (const [key, until] of cooldowns) if (until <= now) cooldowns.delete(key);
-    // A new live connection ID must not bypass the same account's session cooldown.
-    const cooldownKey = path.startsWith('/api/student/session?') ? path.split('&connectionId=')[0]!.toLowerCase() : path;
+    dropExpiredV1(cooldowns, now);
+    const cooldownKey = cooldownKeyV1(path);
     const remaining = (cooldowns.get(cooldownKey) ?? 0) - now;
     if (options.respectRetryAfter && remaining > 0)
       throw new PortalClientErrorV1('rate-limited', 429, Math.ceil(remaining / 1000));
     let response: Response;
     try {
-      response = await fetcher(path, {
-        method: body === undefined ? 'GET' : 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        referrerPolicy: 'no-referrer',
-        signal,
-        headers: {
-          Accept: 'application/json',
-          ...(options.acceptAccessClosed &&
-          (path === '/api/student/auth/challenge' || path === '/api/student/auth/login' || path.startsWith('/api/student/session'))
-            ? { [ACCESS_CLOSED_ACCEPT_HEADER_V1]: 'v1' }
-            : {}),
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-        },
-        ...(body === undefined ? {} : { body }),
-      });
+      response = await fetcher(
+        path,
+        requestInitV1(body, signal, acceptsAccessClosedV1(path, options.acceptAccessClosed)),
+      );
     } catch {
       signal?.throwIfAborted();
       throw new PortalClientErrorV1('network-error');

@@ -139,6 +139,160 @@ function sourceLabelV1(
   if (settingsScopeKeyV1(source) === settingsScopeKeyV1(fixedScope)) return label;
   return describeScope?.(source) ?? settingsScopeLabelV1(source);
 }
+/** The labels of a yes/no option: the orientation type has its own. */
+function booleanLabelsV1(field: SettingsFieldV1) {
+  return field === 'termClosingConclusive'
+    ? ['Trimestre encerrado', 'Trimestre em andamento']
+    : ['Ativado', 'Desativado'];
+}
+
+/** The field's title (calendar and risk carry their own in compact cards), source and help. */
+function FieldHeadingV1({
+  field,
+  settings,
+  owns,
+  sourceLabel,
+  compact,
+}: Readonly<{
+  field: SettingsFieldV1;
+  settings: EffectiveSettingsV1;
+  owns: boolean;
+  sourceLabel: string;
+  compact: boolean;
+}>) {
+  return (
+    <div className="pa-settings-card-heading">
+      {!(compact && (field === 'calendar' || field === 'risk')) ? (
+        <h3>
+          {field === 'termClosingConclusive' ? 'Tipo de orientação' : SETTINGS_LABELS_V1[field]}
+        </h3>
+      ) : null}
+      {settings.scope.kind !== 'school' ? (
+        <Chip size="sm" variant="soft">
+          {sourceBadgeV1(settings, field, owns, sourceLabel)}
+        </Chip>
+      ) : null}
+      <p className="pa-settings-field-help">
+        {field === 'calendar' && settings.scope.kind === 'school'
+          ? 'Campos vazios não definem datas.'
+          : fieldHelp[field]}
+      </p>
+    </div>
+  );
+}
+
+/** A yes/no option as a menu, with "use default" outside the school. */
+function BooleanSettingSelectV1({
+  field,
+  settings,
+  owns,
+  value,
+  disabled,
+  review,
+}: Readonly<{
+  field: SettingsFieldV1;
+  settings: EffectiveSettingsV1;
+  owns: boolean;
+  value: unknown;
+  disabled: boolean;
+  review: (review: ReviewIntentV1) => void;
+}>) {
+  const sourceDraft = value;
+  const [onLabel, offLabel] = booleanLabelsV1(field);
+  const defaultLabel = sourceDraft ? onLabel : offLabel;
+  return (
+    <Select
+      selectedKey={
+        !owns && settings.scope.kind !== 'school' ? 'inherit' : String(sourceDraft)
+      }
+      isDisabled={disabled}
+      onSelectionChange={(key) => {
+        if (key === 'inherit') review({ field, inherit: true });
+        else if (key === 'true' || key === 'false')
+          review({
+            field,
+            inherit: false,
+            value: parseSettingsDraftV1(field, key === 'true'),
+          });
+      }}
+    >
+      <Label className="sr-only">{SETTINGS_LABELS_V1[field]}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox>
+          {settings.scope.kind !== 'school' ? (
+            <ListBox.Item id="inherit" textValue="Usar padrão">
+              {owns ? 'Usar padrão' : `Padrão · ${defaultLabel}`}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ) : null}
+          <ListBox.Item id="true" textValue={onLabel}>
+            {onLabel}
+            <ListBox.ItemIndicator />
+          </ListBox.Item>
+          <ListBox.Item id="false" textValue={offLabel}>
+            {offLabel}
+            <ListBox.ItemIndicator />
+          </ListBox.Item>
+        </ListBox>
+      </Select.Popover>
+    </Select>
+  );
+}
+
+/** Save or customize, and "use default" where this level owns the value. */
+function FieldActionsV1({
+  field,
+  settings,
+  owns,
+  dirty,
+  boolean,
+  compact,
+  disabled,
+  prepare,
+  review,
+}: Readonly<{
+  field: SettingsFieldV1;
+  settings: EffectiveSettingsV1;
+  owns: boolean;
+  dirty: boolean;
+  boolean: boolean;
+  compact: boolean;
+  disabled: boolean;
+  prepare: () => void;
+  review: (review: ReviewIntentV1) => void;
+}>) {
+  return (
+    <Card.Footer className="pa-settings-actions">
+      {!boolean ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          isDisabled={disabled || (owns && !dirty)}
+          onPress={prepare}
+          aria-label={`Revisar ${SETTINGS_LABELS_V1[field]}`}
+        >
+          {owns ? 'Salvar' : 'Personalizar'}
+        </Button>
+      ) : null}
+      {settings.scope.kind !== 'school' && owns && !(compact && boolean) ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          isDisabled={disabled}
+          onPress={() => review({ field, inherit: true })}
+          aria-label={`Usar padrão de ${SETTINGS_LABELS_V1[field]}`}
+        >
+          Usar padrão
+        </Button>
+      ) : null}
+    </Card.Footer>
+  );
+}
+
 function FieldCardV1({
   field,
   settings,
@@ -181,11 +335,6 @@ function FieldCardV1({
     boolean &&
     compact &&
     (settings.scope.kind !== 'school' || field === 'termClosingConclusive');
-  const [onLabel, offLabel] =
-    field === 'termClosingConclusive'
-      ? ['Trimestre encerrado', 'Trimestre em andamento']
-      : ['Ativado', 'Desativado'];
-  const defaultLabel = sourceDraft ? onLabel : offLabel;
   function prepare() {
     try {
       const value = parseSettingsDraftV1(field, draft);
@@ -200,65 +349,24 @@ function FieldCardV1({
       className={`pa-settings-card pa-settings-card--${field}${boolean ? ' pa-settings-card--boolean' : ''}`}
     >
       <Card.Header>
-        <div className="pa-settings-card-heading">
-          {!(compact && (field === 'calendar' || field === 'risk')) ? (
-            <h3>
-              {field === 'termClosingConclusive' ? 'Tipo de orientação' : SETTINGS_LABELS_V1[field]}
-            </h3>
-          ) : null}
-          {settings.scope.kind !== 'school' ? (
-            <Chip size="sm" variant="soft">
-              {sourceBadgeV1(settings, field, owns, sourceLabel)}
-            </Chip>
-          ) : null}
-          <p className="pa-settings-field-help">
-            {field === 'calendar' && settings.scope.kind === 'school'
-              ? 'Campos vazios não definem datas.'
-              : fieldHelp[field]}
-          </p>
-        </div>
+        <FieldHeadingV1
+          field={field}
+          settings={settings}
+          owns={owns}
+          sourceLabel={sourceLabel}
+          compact={compact}
+        />
       </Card.Header>
       <Card.Content>
         {asSelect ? (
-          <Select
-            selectedKey={
-              !owns && settings.scope.kind !== 'school' ? 'inherit' : String(sourceDraft)
-            }
-            isDisabled={disabled}
-            onSelectionChange={(key) => {
-              if (key === 'inherit') review({ field, inherit: true });
-              else if (key === 'true' || key === 'false')
-                review({
-                  field,
-                  inherit: false,
-                  value: parseSettingsDraftV1(field, key === 'true'),
-                });
-            }}
-          >
-            <Label className="sr-only">{SETTINGS_LABELS_V1[field]}</Label>
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                {settings.scope.kind !== 'school' ? (
-                  <ListBox.Item id="inherit" textValue="Usar padrão">
-                    {owns ? 'Usar padrão' : `Padrão · ${defaultLabel}`}
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ) : null}
-                <ListBox.Item id="true" textValue={onLabel}>
-                  {onLabel}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                <ListBox.Item id="false" textValue={offLabel}>
-                  {offLabel}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              </ListBox>
-            </Select.Popover>
-          </Select>
+          <BooleanSettingSelectV1
+            field={field}
+            settings={settings}
+            owns={owns}
+            value={sourceDraft}
+            disabled={disabled}
+            review={review}
+          />
         ) : null}
         {canWrite && !asSelect ? (
           <SettingsEditorV1
@@ -284,32 +392,60 @@ function FieldCardV1({
         ) : null}
       </Card.Content>
       {canWrite ? (
-        <Card.Footer className="pa-settings-actions">
-          {!boolean ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={disabled || (owns && !dirty)}
-              onPress={prepare}
-              aria-label={`Revisar ${SETTINGS_LABELS_V1[field]}`}
-            >
-              {owns ? 'Salvar' : 'Personalizar'}
-            </Button>
-          ) : null}
-          {settings.scope.kind !== 'school' && owns && !(compact && boolean) ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              isDisabled={disabled}
-              onPress={() => review({ field, inherit: true })}
-              aria-label={`Usar padrão de ${SETTINGS_LABELS_V1[field]}`}
-            >
-              Usar padrão
-            </Button>
-          ) : null}
-        </Card.Footer>
+        <FieldActionsV1
+          field={field}
+          settings={settings}
+          owns={owns}
+          dirty={dirty}
+          boolean={boolean}
+          compact={compact}
+          disabled={disabled}
+          prepare={prepare}
+          review={review}
+        />
       ) : null}
     </Card>
+  );
+}
+/** What the review changes: back to the default, the given presentation, the access plan or the
+ * new value. */
+function ReviewChangeV1({
+  review,
+  settings,
+}: Readonly<{ review: ReviewV1; settings: EffectiveSettingsV1 }>) {
+  const next = review.inherit ? null : review.value[review.field];
+  if (review.inherit) {
+    return (
+      <p>
+        {review.field === 'accessEnabled'
+          ? 'A entrada no Portal e os agendamentos voltarão a seguir o padrão aplicável.'
+          : 'Esta opção voltará a seguir o padrão aplicável.'}
+      </p>
+    );
+  }
+  if (review.presentation) {
+    return review.presentation.body;
+  }
+  if (review.field === 'accessEnabled') {
+    return (
+      <>
+        <p>Como vai ficar:</p>
+        <AccessPlanSummaryV1
+          plan={{
+            enabled: review.value.accessEnabled ?? false,
+            schedule: review.value.accessSchedule ?? [],
+          }}
+          now={Date.now()}
+          wasOpen={accessOpenAtV1(accessPlanOfSettingsV1(settings).plan, Date.now())}
+        />
+      </>
+    );
+  }
+  return (
+    <>
+      <p>Novo valor:</p>
+      <SettingsValueSummaryV1 field={review.field} value={next!} />
+    </>
   );
 }
 function ReviewDialogV1({
@@ -327,7 +463,6 @@ function ReviewDialogV1({
   close: () => void;
   confirm: () => void;
 }>) {
-  const next = review.inherit ? null : review.value[review.field];
   const past =
     !review.inherit && review.field === 'calendar' && review.value.calendar
       ? changedPastDatesV1(settings.value.calendar, review.value.calendar, Date.now())
@@ -335,39 +470,6 @@ function ReviewDialogV1({
   let title: ReactNode =
     review.field === 'accessEnabled' ? 'Entrada no Portal' : SETTINGS_LABELS_V1[review.field];
   if (!review.inherit && review.presentation) title = review.presentation.title;
-  let change: ReactNode;
-  if (review.inherit) {
-    change = (
-      <p>
-        {review.field === 'accessEnabled'
-          ? 'A entrada no Portal e os agendamentos voltarão a seguir o padrão aplicável.'
-          : 'Esta opção voltará a seguir o padrão aplicável.'}
-      </p>
-    );
-  } else if (review.presentation) {
-    change = review.presentation.body;
-  } else if (review.field === 'accessEnabled') {
-    change = (
-      <>
-        <p>Como vai ficar:</p>
-        <AccessPlanSummaryV1
-          plan={{
-            enabled: review.value.accessEnabled ?? false,
-            schedule: review.value.accessSchedule ?? [],
-          }}
-          now={Date.now()}
-          wasOpen={accessOpenAtV1(accessPlanOfSettingsV1(settings).plan, Date.now())}
-        />
-      </>
-    );
-  } else {
-    change = (
-      <>
-        <p>Novo valor:</p>
-        <SettingsValueSummaryV1 field={review.field} value={next!} />
-      </>
-    );
-  }
   return (
     <Modal.Backdrop
       isOpen
@@ -387,7 +489,7 @@ function ReviewDialogV1({
               <strong>{title}</strong>{' '}
               em {scopeLabel}.
             </p>
-            {change}
+            <ReviewChangeV1 review={review} settings={settings} />
             <p>Esta alteração pode mudar imediatamente o acesso e as notas visíveis.</p>
             {past.length ? (
               <div className="pa-settings-warning">

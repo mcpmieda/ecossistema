@@ -25,6 +25,49 @@ function nowMs(): number {
     : Date.now();
 }
 
+/** Retry-After in whole seconds, 1 s to one day; 60 s when missing or unreadable. */
+function retryAfterSecondsV9(raw: string | null) {
+  const seconds = raw !== null && /^\d+$/u.test(raw) ? Number(raw) : 60;
+  return Number.isFinite(seconds) ? Math.max(1, Math.min(86400, seconds)) : 60;
+}
+
+/** The server time header, when it is a non-negative number. */
+function serverMsV9(raw: string | null) {
+  const parsed = raw === null || raw.trim() === '' ? Number.NaN : Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+/** Optional commit diagnostics; they cannot claim confirmation for an academically unconfirmed
+ * response, change confirmation or repeat the POST. */
+function commitDiagnosticsV9(
+  headers: Headers,
+  state: GradebookImportPersistenceResponseV9['state'],
+): ImportCommitDiagnosticsV1 | null {
+  try {
+    const diagnostics = parseImportCommitDiagnosticsHeaderV1(
+      headers.get(IMPORT_COMMIT_DIAGNOSTICS_HEADER_V1),
+    );
+    if (state !== 'applied' && state !== 'no-changes' && diagnostics?.confirmed !== null)
+      return null;
+    return diagnostics;
+  } catch {
+    return null;
+  }
+}
+
+/** Optional timing cannot change a confirmed or uncertain result. */
+function reportTimingV9(
+  onTiming: ((timing: ImportPersistenceHttpTimingV1) => void) | undefined,
+  timing: ImportPersistenceHttpTimingV1,
+) {
+  if (!onTiming) return;
+  try {
+    onTiming(timing);
+  } catch {
+    /* Timing has no authority over the result. */
+  }
+}
+
 export async function persistGradebookCanonicalImportV9(
   request: GradebookImportPersistenceRequestV9,
   onTiming?: (timing: ImportPersistenceHttpTimingV1) => void,
@@ -66,9 +109,7 @@ export async function persistGradebookCanonicalImportV9(
       return { response: { transportVersion: 9, state: 'not-authorized' }, serverMs: null };
     }
     if (response.status === 429) {
-      const raw = response.headers.get('Retry-After');
-      const seconds = raw !== null && /^\d+$/u.test(raw) ? Number(raw) : 60;
-      const wait = Number.isFinite(seconds) ? Math.max(1, Math.min(86400, seconds)) : 60;
+      const wait = retryAfterSecondsV9(response.headers.get('Retry-After'));
       outcome = 'unavailable';
       // A refused request is not committed. The existing queue stops; never repeat this POST here.
       throw new Error(`Muitas solicitações. Aguarde ${wait} segundos antes de tentar novamente.`);
@@ -88,42 +129,19 @@ export async function persistGradebookCanonicalImportV9(
     ) {
       throw new Error('Gravação sem confirmação válida.');
     }
-    const raw = response.headers.get('X-Gradebook-Server-Ms');
-    const parsed = raw === null || raw.trim() === '' ? Number.NaN : Number(raw);
+    const serverMs = serverMsV9(response.headers.get('X-Gradebook-Server-Ms'));
     outcome = value.state;
-    try {
-      commitDiagnostics = parseImportCommitDiagnosticsHeaderV1(
-        response.headers.get(IMPORT_COMMIT_DIAGNOSTICS_HEADER_V1),
-      );
-      // A diagnostic cannot claim confirmation for an academically unconfirmed response.
-      if (
-        value.state !== 'applied' &&
-        value.state !== 'no-changes' &&
-        commitDiagnostics?.confirmed !== null
-      )
-        commitDiagnostics = null;
-    } catch {
-      /* Optional diagnostics cannot change confirmation or repeat the POST. */
-    }
+    commitDiagnostics = commitDiagnosticsV9(response.headers, value.state);
     if (value.state === 'applied' || value.state === 'no-changes') notifyLiveChangeV1('gradebook');
-    return {
-      response: value,
-      serverMs: Number.isFinite(parsed) && parsed >= 0 ? parsed : null,
-    };
+    return { response: value, serverMs };
   } finally {
     globalThis.clearTimeout(timer);
-    if (onTiming) {
-      try {
-        onTiming({
-          serializationMs,
-          payloadBytes,
-          persistRequestMs: requestStartedAt === null ? null : nowMs() - requestStartedAt,
-          outcome,
-          commitDiagnostics,
-        });
-      } catch {
-        /* Optional timing cannot change a confirmed or uncertain result. */
-      }
-    }
+    reportTimingV9(onTiming, {
+      serializationMs,
+      payloadBytes,
+      persistRequestMs: requestStartedAt === null ? null : nowMs() - requestStartedAt,
+      outcome,
+      commitDiagnostics,
+    });
   }
 }

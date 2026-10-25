@@ -165,6 +165,48 @@ function planLabelsV1(
 /** Where the labels go under a card's QR: left edge, top, width and the height they may use. */
 type LabelBoxV1 = { x: number; top: number; width: number; maxHeight: number };
 
+/** Labels the standard PDF font covers, drawn as text, each line centred. */
+function drawTextLabelsV1(
+  page: PDFPage,
+  font: PDFFont,
+  parts: LabelPlanV1['parts'],
+  { x, top, width, maxHeight }: LabelBoxV1,
+) {
+  let used = 0;
+  for (const part of parts) {
+    for (const line of part.lines) {
+      used += part.leading;
+      if (used > maxHeight) throw new QrArtifactErrorV1('text-does-not-fit');
+      page.drawText(line, {
+        font,
+        size: part.size,
+        x: x + (width - font.widthOfTextAtSize(line, part.size)) / 2,
+        y: top - used,
+        color: rgb(0, 0, 0),
+      });
+    }
+    used += 4;
+  }
+}
+
+/** SVG coordinates increase downwards; pdf-lib's path operator applies the matching Y flip. */
+function drawQrPathsV1(
+  page: PDFPage,
+  shapes: readonly { path: string; dark: boolean }[],
+  x: number,
+  y: number,
+  unit: number,
+) {
+  for (const shape of shapes)
+    page.drawSvgPath(shape.path, {
+      x,
+      y,
+      scale: unit,
+      color: shape.dark ? rgb(0, 0, 0) : rgb(1, 1, 1),
+      borderWidth: 0,
+    });
+}
+
 async function drawLabelsV1(
   pdf: PDFDocument,
   page: PDFPage,
@@ -176,21 +218,7 @@ async function drawLabelsV1(
   const { parts, supported } = plan;
   if (!parts.length) return;
   if (supported) {
-    let used = 0;
-    for (const part of parts) {
-      for (const line of part.lines) {
-        used += part.leading;
-        if (used > maxHeight) throw new QrArtifactErrorV1('text-does-not-fit');
-        page.drawText(line, {
-          font,
-          size: part.size,
-          x: x + (width - font.widthOfTextAtSize(line, part.size)) / 2,
-          y: top - used,
-          color: rgb(0, 0, 0),
-        });
-      }
-      used += 4;
-    }
+    drawTextLabelsV1(page, font, parts, { x, top, width, maxHeight });
     return;
   }
   // Standard PDF fonts cover Portuguese. Other scripts use the browser's local fonts,
@@ -284,15 +312,7 @@ export async function renderQrPdfV1(
         height: layout.qrSize,
         color: rgb(1, 1, 1),
       });
-      // SVG coordinates increase downwards; pdf-lib's path operator applies the matching Y flip.
-      for (const shape of qrLayerPathsV1(matrix, layout.quietModules))
-        page!.drawSvgPath(shape.path, {
-          x: qrX,
-          y: qrTop,
-          scale: unit,
-          color: shape.dark ? rgb(0, 0, 0) : rgb(1, 1, 1),
-          borderWidth: 0,
-        });
+      drawQrPathsV1(page!, qrLayerPathsV1(matrix, layout.quietModules), qrX, qrTop, unit);
       await drawLabelsV1(
         pdf,
         page!,

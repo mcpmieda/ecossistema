@@ -37,6 +37,103 @@ async function nativeQrDetectorV1(): Promise<NativeQrDetectorV1 | undefined> {
   }
 }
 
+/** Codes the platform detector finds in the frame; none when it is missing or fails. */
+async function nativeCodesV1(
+  native: NativeQrDetectorV1 | undefined,
+  player: HTMLVideoElement,
+): Promise<string[]> {
+  if (!native) return [];
+  try {
+    return (await native.detect(player))
+      .map((code) => code.rawValue)
+      .filter((value) => typeof value === 'string' && value.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+/** Draws one step of the rotation: centre at full detail (0 and 1) or the whole frame (2). */
+function drawCameraFrameV1(
+  context: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  player: HTMLVideoElement,
+  step: number,
+  assisted: boolean,
+) {
+  const [width, height] = [player.videoWidth, player.videoHeight];
+  if (step === 2) {
+    const scale = Math.min(1, (assisted ? 1280 : 960) / Math.max(width, height));
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    context.drawImage(player, 0, 0, canvas.width, canvas.height);
+    return;
+  }
+  const side = Math.round(Math.min(width, height) * 0.75);
+  canvas.width = canvas.height = Math.min(side, 1024);
+  context.drawImage(
+    player,
+    Math.round((width - side) / 2),
+    Math.round((height - side) / 2),
+    side,
+    side,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+}
+
+type CameraScanV1 = {
+  native: NativeQrDetectorV1 | undefined;
+  player: HTMLVideoElement;
+  canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
+  decoder: QrFrameDecoderV1;
+  signal: AbortSignal;
+  nextStep: () => number;
+  assisted: () => boolean;
+};
+
+/** The codes in the current frame: the platform detector first, then one step of the rotation. */
+async function frameCodesV1(scan: CameraScanV1): Promise<string[]> {
+  const { native, player, canvas, context, decoder, signal } = scan;
+  const codes = await nativeCodesV1(native, player);
+  signal.throwIfAborted();
+  if (codes.length) return codes;
+  // Rotate: centre at full detail, centre sharpened (soft focus), whole frame.
+  const step = scan.nextStep();
+  drawCameraFrameV1(context, canvas, player, step, scan.assisted());
+  const decoded = await decoder(context.getImageData(0, 0, canvas.width, canvas.height), signal, {
+    sharpen: step === 1,
+  });
+  signal.throwIfAborted();
+  return decoded;
+}
+
+/** A while without a read brings the distance tip (and, on the back camera, the zoom). */
+function scheduleCameraAssistV1(signal: AbortSignal, assist: () => void) {
+  const assistTimer = setTimeout(() => {
+    if (signal.aborted) return;
+    assist();
+  }, CAMERA_ASSIST_DELAY_MS_V1);
+  signal.addEventListener('abort', () => clearTimeout(assistTimer), {
+    once: true,
+  });
+}
+
+/** The pause between frames, cut short when the reading stops. */
+function cameraFrameGapV1(signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', done);
+      resolve();
+    };
+    const timer = setTimeout(done, CAMERA_FRAME_GAP_MS_V1);
+    signal.addEventListener('abort', done, { once: true });
+  });
+}
+
 const qrMessage = (error: unknown) => {
   if (error instanceof QrInputErrorV1)
     return {
@@ -233,6 +330,27 @@ export function StudentQrReaderV1({
       window.removeEventListener('pagehide', leave);
     };
   }, []);
+  /** A student QR among the frame's codes ends the reading; any other code says why it is not. */
+  const deliver = (codes: string[]) => {
+    if (!codes.length) return false;
+    try {
+      const qr = selectStudentQrV1([...new Set(codes)]);
+      stop();
+      setState('idle');
+      onRead.current(qr);
+      return true;
+    } catch (error) {
+      setMessage(qrMessage(error));
+      return false;
+    }
+  };
+  /** A denied camera shows how to allow it; any other failure, its message. */
+  const cameraFailed = (error: unknown) => {
+    stop();
+    setState('idle');
+    if (error instanceof DOMException && error.name === 'NotAllowedError') setBlocked(true);
+    else setMessage(qrMessage(error));
+  };
   const camera = async (direction: 'environment' | 'user') => {
     stop();
     setMessage(undefined);
@@ -254,14 +372,10 @@ export function StudentQrReaderV1({
       controller.signal.throwIfAborted();
       setState('camera');
       let assisted = false;
-      const assistTimer = setTimeout(() => {
-        if (controller.signal.aborted) return;
+      scheduleCameraAssistV1(controller.signal, () => {
         assisted = true;
         setShowDistanceTip(true);
         if (direction === 'environment') void lease.current?.zoomForDistance();
-      }, CAMERA_ASSIST_DELAY_MS_V1);
-      controller.signal.addEventListener('abort', () => clearTimeout(assistTimer), {
-        once: true,
       });
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -272,78 +386,22 @@ export function StudentQrReaderV1({
       const native = await nativeQrDetectorV1();
       controller.signal.throwIfAborted();
       let attempt = 0;
+      const scan: CameraScanV1 = {
+        native,
+        player,
+        canvas,
+        context,
+        decoder: frameDecoder,
+        signal: controller.signal,
+        nextStep: () => attempt++ % 3,
+        assisted: () => assisted,
+      };
       while (!controller.signal.aborted) {
-        if (player.videoWidth && player.videoHeight) {
-          let codes: string[] = [];
-          if (native)
-            try {
-              codes = (await native.detect(player))
-                .map((code) => code.rawValue)
-                .filter((value) => typeof value === 'string' && value.length > 0);
-            } catch {
-              codes = [];
-            }
-          controller.signal.throwIfAborted();
-          if (!codes.length) {
-            // Rotate: centre at full detail, centre sharpened (soft focus), whole frame.
-            const step = attempt++ % 3;
-            const [width, height] = [player.videoWidth, player.videoHeight];
-            if (step === 2) {
-              const scale = Math.min(1, (assisted ? 1280 : 960) / Math.max(width, height));
-              canvas.width = Math.max(1, Math.round(width * scale));
-              canvas.height = Math.max(1, Math.round(height * scale));
-              context.drawImage(player, 0, 0, canvas.width, canvas.height);
-            } else {
-              const side = Math.round(Math.min(width, height) * 0.75);
-              canvas.width = canvas.height = Math.min(side, 1024);
-              context.drawImage(
-                player,
-                Math.round((width - side) / 2),
-                Math.round((height - side) / 2),
-                side,
-                side,
-                0,
-                0,
-                canvas.width,
-                canvas.height,
-              );
-            }
-            codes = await frameDecoder(
-              context.getImageData(0, 0, canvas.width, canvas.height),
-              controller.signal,
-              { sharpen: step === 1 },
-            );
-            controller.signal.throwIfAborted();
-          }
-          if (codes.length) {
-            try {
-              const qr = selectStudentQrV1([...new Set(codes)]);
-              stop();
-              setState('idle');
-              onRead.current(qr);
-              return;
-            } catch (error) {
-              setMessage(qrMessage(error));
-            }
-          }
-        }
-        await new Promise<void>((resolve) => {
-          const done = () => {
-            clearTimeout(timer);
-            controller.signal.removeEventListener('abort', done);
-            resolve();
-          };
-          const timer = setTimeout(done, CAMERA_FRAME_GAP_MS_V1);
-          controller.signal.addEventListener('abort', done, { once: true });
-        });
+        if (player.videoWidth && player.videoHeight && deliver(await frameCodesV1(scan))) return;
+        await cameraFrameGapV1(controller.signal);
       }
     } catch (error) {
-      if (!controller.signal.aborted) {
-        stop();
-        setState('idle');
-        if (error instanceof DOMException && error.name === 'NotAllowedError') setBlocked(true);
-        else setMessage(qrMessage(error));
-      }
+      if (!controller.signal.aborted) cameraFailed(error);
     }
   };
   const image = async (file: File) => {

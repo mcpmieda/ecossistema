@@ -158,6 +158,32 @@ export function createBulletinWorkspaceServiceV1(
     createSnapshotId: dependencies.createSnapshotId,
   });
 
+  /** The class's emitted snapshots (optionally some students), or unavailable without history. */
+  async function readHistory(
+    request: Extract<BulletinWorkspaceTransportRequestV1, { readonly operation: 'history' }>,
+  ): Promise<BulletinWorkspaceTransportResponseV1> {
+    if (dependencies.snapshots.listHistory === undefined) return unavailable(request.operation);
+    const snapshots = await dependencies.snapshots.listHistory({
+      academicYearId: request.academicYearId,
+      classGroupId: request.classGroupId,
+      ...(request.studentIds === undefined ? {} : { studentIds: request.studentIds }),
+    });
+    const items = snapshots.map(historyItem);
+    return items.length === 0
+      ? {
+          contractVersion: BULLETIN_CONTRACT_VERSION_V1,
+          operation: request.operation,
+          state: 'empty',
+          items: [],
+        }
+      : {
+          contractVersion: BULLETIN_CONTRACT_VERSION_V1,
+          operation: request.operation,
+          state: 'ready',
+          items,
+        };
+  }
+
   return {
     async execute(
       request: BulletinWorkspaceTransportRequestV1,
@@ -244,28 +270,7 @@ export function createBulletinWorkspaceServiceV1(
           };
         }
 
-        if (request.operation === 'history') {
-          if (dependencies.snapshots.listHistory === undefined) return unavailable(request.operation);
-          const snapshots = await dependencies.snapshots.listHistory({
-            academicYearId: request.academicYearId,
-            classGroupId: request.classGroupId,
-            ...(request.studentIds === undefined ? {} : { studentIds: request.studentIds }),
-          });
-          const items = snapshots.map(historyItem);
-          return items.length === 0
-            ? {
-                contractVersion: BULLETIN_CONTRACT_VERSION_V1,
-                operation: request.operation,
-                state: 'empty',
-                items: [],
-              }
-            : {
-                contractVersion: BULLETIN_CONTRACT_VERSION_V1,
-                operation: request.operation,
-                state: 'ready',
-                items,
-              };
-        }
+        if (request.operation === 'history') return await readHistory(request);
 
         return {
           contractVersion: BULLETIN_CONTRACT_VERSION_V1,

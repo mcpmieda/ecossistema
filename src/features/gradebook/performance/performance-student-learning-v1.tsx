@@ -86,6 +86,27 @@ type Highlight = {
   icon: typeof ArrowUp;
 };
 
+/** The best and lowest current results, and the largest rise and fall between trimesters. */
+function studentHighlightsV1(
+  cells: PerformanceAnalyticsV6['students'][number]['cells'],
+  offers: ReadonlyMap<number, string>,
+): Highlight[] {
+  const complete = cells.filter(
+    (cell) => performanceResultCountsV2(cell.result.state) && cell.percent !== null,
+  );
+  const compared = complete.filter((cell) => cell.deltaPP !== null);
+  const best = [...complete].sort((a, b) => (b.percent ?? -Infinity) - (a.percent ?? -Infinity))[0];
+  const lowest = [...complete].sort((a, b) => (a.percent ?? Infinity) - (b.percent ?? Infinity))[0];
+  const rise = [...compared].sort((a, b) => (b.deltaPP ?? -Infinity) - (a.deltaPP ?? -Infinity))[0];
+  const fall = [...compared].sort((a, b) => (a.deltaPP ?? Infinity) - (b.deltaPP ?? Infinity))[0];
+  return [
+    best && { key: 'best', label: 'Melhor resultado atual', value: `${offers.get(best.offerId) ?? 'Componente'} · ${percent(best.percent)}`, offerId: best.offerId, icon: ArrowUp },
+    lowest && { key: 'lowest', label: 'Menor resultado atual', value: `${offers.get(lowest.offerId) ?? 'Componente'} · ${percent(lowest.percent)}`, offerId: lowest.offerId, icon: ArrowDown },
+    rise && rise.deltaPP !== null && rise.deltaPP > 0 && { key: 'rise', label: 'Maior avanço', value: `${offers.get(rise.offerId) ?? 'Componente'} · ${delta(rise.deltaPP)}`, offerId: rise.offerId, icon: TrendingUp },
+    fall && fall.deltaPP !== null && fall.deltaPP < 0 && { key: 'fall', label: 'Maior queda', value: `${offers.get(fall.offerId) ?? 'Componente'} · ${delta(fall.deltaPP)}`, offerId: fall.offerId, icon: ArrowDown },
+  ].filter((item): item is Highlight => Boolean(item));
+}
+
 export function PerformanceStudentLearningV1({
   value,
   studentId,
@@ -102,20 +123,7 @@ export function PerformanceStudentLearningV1({
   const evidence = value.learning?.students.find((item) => item.studentId === studentId);
   const dimensions = evidence?.dimensions;
   const offers = new Map<number, string>(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
-  const complete = student.cells.filter(
-    (cell) => performanceResultCountsV2(cell.result.state) && cell.percent !== null,
-  );
-  const compared = complete.filter((cell) => cell.deltaPP !== null);
-  const best = [...complete].sort((a, b) => (b.percent ?? -Infinity) - (a.percent ?? -Infinity))[0];
-  const lowest = [...complete].sort((a, b) => (a.percent ?? Infinity) - (b.percent ?? Infinity))[0];
-  const rise = [...compared].sort((a, b) => (b.deltaPP ?? -Infinity) - (a.deltaPP ?? -Infinity))[0];
-  const fall = [...compared].sort((a, b) => (a.deltaPP ?? Infinity) - (b.deltaPP ?? Infinity))[0];
-  const highlights: Highlight[] = [
-    best && { key: 'best', label: 'Melhor resultado atual', value: `${offers.get(best.offerId) ?? 'Componente'} · ${percent(best.percent)}`, offerId: best.offerId, icon: ArrowUp },
-    lowest && { key: 'lowest', label: 'Menor resultado atual', value: `${offers.get(lowest.offerId) ?? 'Componente'} · ${percent(lowest.percent)}`, offerId: lowest.offerId, icon: ArrowDown },
-    rise && rise.deltaPP !== null && rise.deltaPP > 0 && { key: 'rise', label: 'Maior avanço', value: `${offers.get(rise.offerId) ?? 'Componente'} · ${delta(rise.deltaPP)}`, offerId: rise.offerId, icon: TrendingUp },
-    fall && fall.deltaPP !== null && fall.deltaPP < 0 && { key: 'fall', label: 'Maior queda', value: `${offers.get(fall.offerId) ?? 'Componente'} · ${delta(fall.deltaPP)}`, offerId: fall.offerId, icon: ArrowDown },
-  ].filter((item): item is Highlight => Boolean(item));
+  const highlights = studentHighlightsV1(student.cells, offers);
   const reference = student.summary.movement.reference;
   const recurring = evidence?.recurring ?? [];
   const participation = evidence?.participation;

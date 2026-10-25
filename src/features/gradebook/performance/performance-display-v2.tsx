@@ -15,19 +15,17 @@ const SHORT_STATE: Partial<Record<PerformanceCellV2['state'], string>> = {
   'no-show': 'N/C', 'repeat-failure': 'R/R', 'recovery-pending': 'REC',
 };
 
+const toneOfV2 = (level: PerformanceCellV2['level']): 'text-danger' | 'text-accent' | 'text-foreground' => {
+  if (level === 'below') return 'text-danger';
+  return level === 'at-or-above' ? 'text-accent' : 'text-foreground';
+};
+
 export function GradeValue({ cell, prominent = false, partialAsMarker = false }: {
   readonly cell: PerformanceCellV2;
   readonly prominent?: boolean;
   readonly partialAsMarker?: boolean;
 }) {
-  let tone: 'text-danger' | 'text-accent' | 'text-foreground';
-  if (cell.level === 'below') {
-    tone = 'text-danger';
-  } else if (cell.level === 'at-or-above') {
-    tone = 'text-accent';
-  } else {
-    tone = 'text-foreground';
-  }
+  const tone = toneOfV2(cell.level);
   const partialMarker = cell.state === 'partial' && partialAsMarker;
   // Under the grade: the level for screen readers when complete, else the state (not for N/C, R/R or a marker).
   let footer: ReactNode = null;

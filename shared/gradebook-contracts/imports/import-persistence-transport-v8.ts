@@ -82,6 +82,28 @@ export function snapshotRequestAsV6(
   };
 }
 
+/** Source cells: finite numbers, booleans, text without NUL, or the unavailable marker ['u']. */
+function inspectCellsV8(values: GradebookSnapshotCellsV8) {
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return false;
+  return Object.values(values).every((cell) => {
+    if (Array.isArray(cell)) {
+      return cell.length === 1 && cell[0] === 'u';
+    }
+    if (typeof cell === 'number') {
+      return Number.isFinite(cell);
+    }
+    return typeof cell === 'boolean' || (typeof cell === 'string' && !cell.includes('\u0000'));
+  });
+}
+
+function courseCellsValidV8(course: GradebookImportPersistenceRequestV8['courses'][number]) {
+  for (const term of course.terms)
+    for (const row of term.rows) if (!inspectCellsV8(row[1])) return false;
+  if (course.recovery)
+    for (const row of course.recovery.rows) if (!inspectCellsV8(row[2])) return false;
+  return true;
+}
+
 export function inspectGradebookImportPersistenceRequestV8(
   value: unknown,
 ): ReturnType<typeof inspectGradebookImportPersistenceRequestV6> {
@@ -99,25 +121,7 @@ export function inspectGradebookImportPersistenceRequestV8(
       GRADEBOOK_IMPORT_VALUES_BODY_BYTES_V8
     )
       return 'payload-too-large';
-    const inspectCells = (values: GradebookSnapshotCellsV8) => {
-      if (!values || typeof values !== 'object' || Array.isArray(values)) return false;
-      return Object.values(values).every((cell) => {
-        if (Array.isArray(cell)) {
-          return cell.length === 1 && cell[0] === 'u';
-        }
-        if (typeof cell === 'number') {
-          return Number.isFinite(cell);
-        }
-        return typeof cell === 'boolean' || (typeof cell === 'string' && !cell.includes('\u0000'));
-      });
-    };
-    for (const course of request.courses) {
-      for (const term of course.terms)
-        for (const row of term.rows) if (!inspectCells(row[1])) return 'invalid-academic-shape';
-      if (course.recovery)
-        for (const row of course.recovery.rows)
-          if (!inspectCells(row[2])) return 'invalid-academic-shape';
-    }
+    if (!request.courses.every(courseCellsValidV8)) return 'invalid-academic-shape';
     return inspectGradebookImportPersistenceRequestV6(snapshotRequestAsV6(request));
   } catch {
     return 'invalid-request';

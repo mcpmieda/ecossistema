@@ -279,6 +279,33 @@ async function saveReceiptV1(
 }
 
 /** Private primitive: #713 supplies trusted admin authorization and transport; no public route. */
+
+/** A bulk operation acts only while its preview proof lasts, and only on a student still in the
+ * previewed scope (one current binding, in the previewed class). */
+async function checkBulkGuardV1(
+  tx: Parameters<Parameters<typeof authTransactionV1>[1]>[0],
+  guard: z.infer<typeof bulkGuardV1>,
+  studentId: number,
+  accountId: string,
+  now: Date,
+) {
+  if (Date.parse(guard.proofExpiresAt) <= now.getTime())
+    throw new Error('student-portal-bulk-preview-conflict');
+  const scope = guard.expectedScope;
+  if (scope.kind === 'account' && scope.accountId.toLowerCase() !== accountId)
+    throw new Error('student-portal-bulk-scope-forbidden');
+  const rows = await tx.unsafe(
+    `SELECT class_id FROM student_portal.academic_binding_v1
+          WHERE academic_year=2026 AND student_id=$1 AND status IS DISTINCT FROM 6 ORDER BY class_id LIMIT 2`,
+    [studentId],
+  );
+  if (
+    rows.length !== 1 ||
+    (scope.kind === 'class' && Number(rows[0]!.class_id) !== scope.classId)
+  )
+    throw new Error('student-portal-bulk-scope-conflict');
+}
+
 export class QrServiceV1 {
   constructor(
     private readonly sql: StudentPortalPostgresSqlV1,
@@ -327,23 +354,7 @@ export class QrServiceV1 {
       if (replay) return replay;
       if (!account.link || account.closedAt !== null)
         throw new Error('student-portal-qr-forbidden');
-      if (guard) {
-        if (Date.parse(guard.proofExpiresAt) <= now.getTime())
-          throw new Error('student-portal-bulk-preview-conflict');
-        const scope = guard.expectedScope;
-        if (scope.kind === 'account' && scope.accountId.toLowerCase() !== accountId)
-          throw new Error('student-portal-bulk-scope-forbidden');
-        const rows = await tx.unsafe(
-          `SELECT class_id FROM student_portal.academic_binding_v1
-          WHERE academic_year=2026 AND student_id=$1 AND status IS DISTINCT FROM 6 ORDER BY class_id LIMIT 2`,
-          [account.link.studentId],
-        );
-        if (
-          rows.length !== 1 ||
-          (scope.kind === 'class' && Number(rows[0]!.class_id) !== scope.classId)
-        )
-          throw new Error('student-portal-bulk-scope-conflict');
-      }
+      if (guard) await checkBulkGuardV1(tx, guard, account.link.studentId, accountId, now);
 
       if (account.version !== command.expectedVersion)
         throw new Error('student-portal-qr-version-conflict');

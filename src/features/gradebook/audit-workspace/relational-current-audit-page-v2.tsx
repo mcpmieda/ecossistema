@@ -444,6 +444,8 @@ function TreatmentHistory({ year, state, values, nextCursor, onLoad }: Treatment
   );
 }
 
+const abortedV2 = (cause: unknown) => cause instanceof DOMException && cause.name === 'AbortError';
+
 export function RelationalCurrentAuditPageV2() {
   const year = useGradebookYear()?.year ?? null;
   const [state, setState] = useState<LoadState>('loading');
@@ -516,11 +518,32 @@ export function RelationalCurrentAuditPageV2() {
     [mergeTreatments, year],
   );
 
-  const load = useCallback(async (background = false) => {
-    requestRef.current?.abort();
+  /** A read the user asked for starts from an empty list; a background one keeps what is shown. */
+  function clearListFor(background: boolean) {
     if (!background) {
       setLoadingMore(false); setItems([]); setNextOffset(null); setFeedback({});
     }
+  }
+  /** A background read only marks the screen stale; a read the user asked for shows the failure. */
+  function listFailed(background: boolean) {
+    if (background) setStale(true);
+    else setState('unavailable');
+    return false;
+  }
+  /** Treatments that did not load leave the list on screen; only a background failure marks it stale. */
+  function treatmentsPending(background: boolean, loaded: false | undefined) {
+    if (background && loaded === false) setStale(true);
+    return loaded;
+  }
+  function historyFailed(notAuthorized: boolean, background: boolean) {
+    if (notAuthorized) { setHistory([]); setHistoryState('not-authorized'); }
+    else if (background) setStale(true); else setHistoryState('unavailable');
+    return false;
+  }
+
+  const load = useCallback(async (background = false) => {
+    requestRef.current?.abort();
+    clearListFor(background);
     if (year === null) {
       setState('loading');
       return;
@@ -535,27 +558,17 @@ export function RelationalCurrentAuditPageV2() {
       );
       if (controller.signal.aborted) return;
       if (response.state === 'not-authorized') { setItems([]); setState('not-authorized'); return false; }
-      if (response.state !== 'ready') {
-        if (background) setStale(true);
-        else setState('unavailable');
-        return false;
-      }
+      if (response.state !== 'ready') return listFailed(background);
       if (background && draftFindingsRef.current.size > 0) return;
       setItems(response.items);
       setNextOffset(response.nextOffset);
       setState(response.items.length === 0 ? 'empty' : 'ready');
       const treatmentsLoaded = await loadTreatments(response.items, controller.signal);
-      if (treatmentsLoaded !== true) {
-        if (background && treatmentsLoaded === false) setStale(true);
-        return treatmentsLoaded;
-      }
+      if (treatmentsLoaded !== true) return treatmentsPending(background, treatmentsLoaded);
       setStale(false);
       return true;
     } catch (cause) {
-      if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
-        if (background) setStale(true); else setState('unavailable');
-        return false;
-      }
+      if (!abortedV2(cause)) return listFailed(background);
     }
   }, [loadTreatments, year]);
 
@@ -677,11 +690,8 @@ export function RelationalCurrentAuditPageV2() {
           controller.signal,
         );
         if (controller.signal.aborted) return;
-        if (response.state !== 'ready' || response.operation !== 'history') {
-          if (response.state === 'not-authorized') { setHistory([]); setHistoryState('not-authorized'); }
-          else if (background) setStale(true); else setHistoryState('unavailable');
-          return false;
-        }
+        if (response.state !== 'ready' || response.operation !== 'history')
+          return historyFailed(response.state === 'not-authorized', background);
         if (background && draftFindingsRef.current.size > 0) return;
         setHistory((current) =>
           cursor === null ? response.items : [...current, ...response.items],
@@ -691,10 +701,7 @@ export function RelationalCurrentAuditPageV2() {
         setStale(false);
         return true;
       } catch (cause) {
-        if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
-          if (background) setStale(true); else setHistoryState('unavailable');
-          return false;
-        }
+        if (!abortedV2(cause)) return historyFailed(false, background);
       }
     },
     [year],

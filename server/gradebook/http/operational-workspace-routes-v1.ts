@@ -45,6 +45,22 @@ function notAuthorized(status: 401 | 403): Response {
   const response: OperationalWorkspaceNotAuthorizedV1 = {contractVersion:OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,state:'not-authorized'};
   return noStoreJson(response, status);
 }
+/** Postgres storage, in a known environment, and in production only once enabled. */
+function relationalStorageReadyV2(env: RuntimeEnv): boolean {
+  const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
+  return env.GRADEBOOK_STORAGE_PROVIDER === 'postgres' &&
+    ['production','local','preview'].includes(environment) &&
+    (environment !== 'production' || env.GRADEBOOK_PRODUCTION_ENABLED === 'true') &&
+    Boolean(env.GRADEBOOK_DATABASE);
+}
+async function handleRelationalWorkspaceV2(payload: unknown, env: RuntimeEnv): Promise<Response> {
+  if (!isOperationalWorkspaceRequestV2(payload)) return noStoreJson({contractVersion:2,state:'invalid-request'},400);
+  if (!relationalStorageReadyV2(env)) return noStoreJson({contractVersion:2,state:'unavailable'},503);
+  try {
+    const response = await createRelationalWorkspaceV2(env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1).execute(payload);
+    return noStoreJson(response, httpStatusOf(response.state));
+  } catch { return noStoreJson({contractVersion:2,state:'unavailable'},503); }
+}
 export async function handleOperationalWorkspaceRequestV1(request: Request, env: RuntimeEnv): Promise<Response | null> {
   if (new URL(request.url).pathname !== GRADEBOOK_OPERATIONAL_WORKSPACE_ROUTE_V1) return null;
   enforceOfficialOrigin(request, env);
@@ -65,16 +81,7 @@ export async function handleOperationalWorkspaceRequestV1(request: Request, env:
 
   // V2 never instantiates the legacy entity/version runtime. Same authorization and origin boundary.
   if (payload !== null && typeof payload === 'object' && 'contractVersion' in payload && payload.contractVersion === 2) {
-    if (!isOperationalWorkspaceRequestV2(payload)) return noStoreJson({contractVersion:2,state:'invalid-request'},400);
-    const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-    if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
-        !['production','local','preview'].includes(environment) ||
-        (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-        !env.GRADEBOOK_DATABASE) return noStoreJson({contractVersion:2,state:'unavailable'},503);
-    try {
-      const response = await createRelationalWorkspaceV2(env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1).execute(payload);
-      return noStoreJson(response, httpStatusOf(response.state));
-    } catch { return noStoreJson({contractVersion:2,state:'unavailable'},503); }
+    return handleRelationalWorkspaceV2(payload, env);
   }
 
   // The simplified relational model is sourced by the annual imports. The former

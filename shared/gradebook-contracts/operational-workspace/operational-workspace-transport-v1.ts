@@ -522,6 +522,30 @@ function isSearchNonDisclosure(value: GlobalSearchResponseV1): value is GlobalSe
   return value.outcome !== 'results';
 }
 
+/** The year choice: exact keys, valid options, none when empty and some when ready. */
+function isYearOptionsResponseV1(value: Record<string, unknown>) {
+  if (!hasOwnKeys(value, ['contractVersion', 'state', 'availableAcademicYears'])) return false;
+  if (!isAcademicYearOptions(value.availableAcademicYears)) return false;
+  if (value.state === 'empty') return value.availableAcademicYears.length === 0;
+  return value.state === 'ready' && value.availableAcademicYears.length > 0;
+}
+
+/** A search answer: a valid results page when ready; otherwise an empty query or no results. */
+function isSearchStateResponseV1(value: Record<string, unknown>) {
+  if (!isGlobalSearchResponse(value.search)) return false;
+  if (value.state === 'ready') {
+    return (
+      hasOwnKeys(value, ['contractVersion', 'state', 'context', 'search']) &&
+      isGlobalSearchResultsPageValidV1(value.search as GlobalSearchResultsPageV1)
+    );
+  }
+  return (
+    hasOwnKeys(value, ['contractVersion', 'state', 'context', 'search']) &&
+    isSearchNonDisclosure(value.search) &&
+    (value.search.outcome === 'empty-query' || value.search.outcome === 'no-results')
+  );
+}
+
 export function isOperationalWorkspaceTransportResponseV1(
   value: unknown,
 ): value is OperationalWorkspaceTransportResponseV1 {
@@ -538,31 +562,13 @@ export function isOperationalWorkspaceTransportResponseV1(
     return hasOwnKeys(value, ['contractVersion', 'state']);
   }
 
-  if (Object.hasOwn(value, 'availableAcademicYears')) {
-    if (!hasOwnKeys(value, ['contractVersion', 'state', 'availableAcademicYears'])) return false;
-    if (!isAcademicYearOptions(value.availableAcademicYears)) return false;
-    if (value.state === 'empty') return value.availableAcademicYears.length === 0;
-    return value.state === 'ready' && value.availableAcademicYears.length > 0;
-  }
+  if (Object.hasOwn(value, 'availableAcademicYears')) return isYearOptionsResponseV1(value);
 
   if ((value.state !== 'ready' && value.state !== 'empty') || !isAcademicYearContext(value.context)) {
     return false;
   }
 
-  if (Object.hasOwn(value, 'search')) {
-    if (!isGlobalSearchResponse(value.search)) return false;
-    if (value.state === 'ready') {
-      return (
-        hasOwnKeys(value, ['contractVersion', 'state', 'context', 'search']) &&
-        isGlobalSearchResultsPageValidV1(value.search as GlobalSearchResultsPageV1)
-      );
-    }
-    return (
-      hasOwnKeys(value, ['contractVersion', 'state', 'context', 'search']) &&
-      isSearchNonDisclosure(value.search) &&
-      (value.search.outcome === 'empty-query' || value.search.outcome === 'no-results')
-    );
-  }
+  if (Object.hasOwn(value, 'search')) return isSearchStateResponseV1(value);
 
   if (value.state === 'empty') {
     return hasOwnKeys(value, ['contractVersion', 'state', 'context']);

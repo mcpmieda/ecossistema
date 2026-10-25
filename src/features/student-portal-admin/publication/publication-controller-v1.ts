@@ -46,6 +46,12 @@ export const initialPublicationViewV1 = (): PublicationViewV1 => ({
   mutation: { state: 'idle' },
 });
 /** Read observation is bounded; it never retries a mutation or invents job completion. */
+/** The read's failure: its error, or the error of a refresh that kept the last content. */
+function loadErrorV1<T>(load: PortalLoadStateV1<T>) {
+  if (load.state === 'error') return load.error;
+  return load.state === 'ready' ? load.refreshError : undefined;
+}
+
 export function createPublicationControllerV1(
   client: PortalAdminClientV1,
   scope: ScopeV1,
@@ -115,14 +121,7 @@ export function createPublicationControllerV1(
     const checks = accepted.checks + 1;
     if (view.load.state !== 'ready' || view.load.refreshError) {
       // Retained content cannot confirm a new decision after an unsuccessful read.
-      let error;
-      if (view.load.state === 'error') {
-        error = view.load.error;
-      } else if (view.load.state === 'ready') {
-        error = view.load.refreshError;
-      } else {
-        error = undefined;
-      }
+      const error = loadErrorV1(view.load);
       const retryable = error && ['network-error', 'unavailable'].includes(error.state);
       const observation = retryable && checks < maxChecks ? 'observing' : 'unconfirmed';
       view = { ...view, mutation: { ...accepted, checks, observation } };

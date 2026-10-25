@@ -795,6 +795,116 @@ type OfferTargetV9 = {
   readState: ImportOfferReadStateV11;
 };
 
+/** The student's closing row after the change: deleted when it became empty, created or updated. */
+async function writeClosingRowV9(
+  database: GradebookPostgresWritePortV1,
+  state: ImportStateV9,
+  {
+    ofertaId,
+    alunoId,
+    current,
+    next,
+    empty,
+    closing,
+  }: {
+    ofertaId: number;
+    alunoId: number;
+    current: RelationalClosingStateV9;
+    next: ReturnType<typeof resolveRelationalClosingUpdateV9>['next'];
+    empty: boolean;
+    closing: ImportOfferReadStateV11['closing'];
+  },
+) {
+  if (empty && current.exists) {
+    state.writes += await academicRun(
+      database,
+      state,
+      `DELETE FROM gradebook.fechamento WHERE oferta_id = $1 AND aluno_id = $2`,
+      [ofertaId, alunoId],
+    );
+    closing.delete(alunoId);
+    return;
+  }
+  if (empty) return;
+  if (!current.exists) {
+    state.writes += await academicRun(
+      database,
+      state,
+      `INSERT INTO gradebook.fechamento (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        ofertaId,
+        alunoId,
+        next.am[0],
+        next.am[1],
+        next.am[2],
+        next.rec[0],
+        next.rec[1],
+        next.rec[2],
+        next.ncMask,
+        next.rrMask,
+        next.u,
+      ],
+    );
+  } else {
+    state.writes += await academicRun(
+      database,
+      state,
+      `UPDATE gradebook.fechamento
+       SET am1_fonte = $1, am2_fonte = $2, am3_fonte = $3, rec1 = $4, rec2 = $5, rec3 = $6, rec_nc_mask = $7, rec_rr_mask = $8, u_fonte = $9
+       WHERE oferta_id = $10 AND aluno_id = $11`,
+      [
+        next.am[0],
+        next.am[1],
+        next.am[2],
+        next.rec[0],
+        next.rec[1],
+        next.rec[2],
+        next.ncMask,
+        next.rrMask,
+        next.u,
+        ofertaId,
+        alunoId,
+      ],
+    );
+  }
+  closing.set(alunoId, { ...next, exists: true });
+}
+
+/** Each student's AM per term and REC/U from the file, keyed by the student bound to that number. */
+function closingPatchesV9(
+  offer: GradebookImportOfferV9,
+  turmaId: number,
+  bindings: ReadonlyMap<string, number>,
+) {
+  const patches = new Map<number, RelationalClosingPatchV9>();
+  for (const term of offer.trimestres) {
+    for (const [numero, , am] of term.alunos) {
+      const alunoId = bindings.get(`${turmaId}:${numero}`);
+      if (alunoId === undefined)
+        throw new RelationalImportErrorV9(
+          'blocked',
+          `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}.`,
+        );
+      const patch = patches.get(alunoId) ?? {};
+      const ams: [GradebookImportCellV9?, GradebookImportCellV9?, GradebookImportCellV9?] =
+        patch.am ? [...patch.am] : [];
+      ams[term.trimestre - 1] = am;
+      patches.set(alunoId, { ...patch, am: ams });
+    }
+  }
+  for (const [numero, rec1, rec2, rec3, u] of offer.recuperacao ?? []) {
+    const alunoId = bindings.get(`${turmaId}:${numero}`);
+    if (alunoId === undefined)
+      throw new RelationalImportErrorV9(
+        'blocked',
+        `Aluno REC número ${numero} não existe na turma ${offer.turmaCodigo}.`,
+      );
+    const patch = patches.get(alunoId) ?? {};
+    patches.set(alunoId, { ...patch, rec: [rec1, rec2, rec3], u });
+  }
+  return patches;
+}
+
 async function processOffer(
   database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
@@ -838,32 +948,7 @@ async function processOffer(
     await reconcileInstrumentNotesV9(scope, entry.term, entry.column, instrument, entry.hasValue);
   }
 
-  const patches = new Map<number, RelationalClosingPatchV9>();
-  for (const term of offer.trimestres) {
-    for (const [numero, , am] of term.alunos) {
-      const alunoId = bindings.get(`${turmaId}:${numero}`);
-      if (alunoId === undefined)
-        throw new RelationalImportErrorV9(
-          'blocked',
-          `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}.`,
-        );
-      const patch = patches.get(alunoId) ?? {};
-      const ams: [GradebookImportCellV9?, GradebookImportCellV9?, GradebookImportCellV9?] =
-        patch.am ? [...patch.am] : [];
-      ams[term.trimestre - 1] = am;
-      patches.set(alunoId, { ...patch, am: ams });
-    }
-  }
-  for (const [numero, rec1, rec2, rec3, u] of offer.recuperacao ?? []) {
-    const alunoId = bindings.get(`${turmaId}:${numero}`);
-    if (alunoId === undefined)
-      throw new RelationalImportErrorV9(
-        'blocked',
-        `Aluno REC número ${numero} não existe na turma ${offer.turmaCodigo}.`,
-      );
-    const patch = patches.get(alunoId) ?? {};
-    patches.set(alunoId, { ...patch, rec: [rec1, rec2, rec3], u });
-  }
+  const patches = closingPatchesV9(offer, turmaId, bindings);
 
   for (const [alunoId, patch] of patches) {
     const current: RelationalClosingStateV9 = closing.get(alunoId) ?? {
@@ -893,60 +978,33 @@ async function processOffer(
         ],
       );
     }
-    if (empty && current.exists) {
-      state.writes += await academicRun(
-        database,
-        state,
-        `DELETE FROM gradebook.fechamento WHERE oferta_id = $1 AND aluno_id = $2`,
-        [ofertaId, alunoId],
-      );
-      closing.delete(alunoId);
-      continue;
-    }
-    if (empty) continue;
-    if (!current.exists) {
-      state.writes += await academicRun(
-        database,
-        state,
-        `INSERT INTO gradebook.fechamento (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [
-          ofertaId,
-          alunoId,
-          next.am[0],
-          next.am[1],
-          next.am[2],
-          next.rec[0],
-          next.rec[1],
-          next.rec[2],
-          next.ncMask,
-          next.rrMask,
-          next.u,
-        ],
-      );
-    } else {
-      state.writes += await academicRun(
-        database,
-        state,
-        `UPDATE gradebook.fechamento
-         SET am1_fonte = $1, am2_fonte = $2, am3_fonte = $3, rec1 = $4, rec2 = $5, rec3 = $6, rec_nc_mask = $7, rec_rr_mask = $8, u_fonte = $9
-         WHERE oferta_id = $10 AND aluno_id = $11`,
-        [
-          next.am[0],
-          next.am[1],
-          next.am[2],
-          next.rec[0],
-          next.rec[1],
-          next.rec[2],
-          next.ncMask,
-          next.rrMask,
-          next.u,
-          ofertaId,
-          alunoId,
-        ],
-      );
-    }
-    closing.set(alunoId, { ...next, exists: true });
+    await writeClosingRowV9(database, state, { ofertaId, alunoId, current, next, empty, closing });
   }
+}
+
+/** Each offer in its class, at most once per class and subject; a missing class blocks the file. */
+function preparedOffersV9(request: GradebookNotesImportRequestV9, classes: ReadonlyMap<string, number>) {
+  const seen = new Set<string>();
+  const prepared: Array<{ sourceIndex: number; offer: GradebookImportOfferV9; turmaId: number }> =
+    [];
+  for (const [sourceIndex, offer] of request.ofertas.entries()) {
+    const turmaId = classes.get(classKey(offer.turmaCodigo));
+    if (turmaId === undefined) {
+      throw new RelationalImportErrorV9(
+        'blocked',
+        `Turma ${offer.turmaCodigo} não existe na Relação ${request.ano}.`,
+      );
+    }
+    const key = `${turmaId}:${dbNameKey(offer.disciplina)}`;
+    if (seen.has(key))
+      throw new RelationalImportErrorV9(
+        'blocked',
+        `Oferta duplicada: ${offer.turmaCodigo} / ${offer.disciplina}.`,
+      );
+    seen.add(key);
+    prepared.push({ sourceIndex, offer, turmaId });
+  }
+  return prepared;
 }
 
 async function persistNotes(
@@ -985,26 +1043,7 @@ async function persistNotes(
     classStudents.set(turmaId, students);
   }
   const professorId = await resolveProfessor(database, state, request);
-  const seen = new Set<string>();
-  const prepared: Array<{ sourceIndex: number; offer: GradebookImportOfferV9; turmaId: number }> =
-    [];
-  for (const [sourceIndex, offer] of request.ofertas.entries()) {
-    const turmaId = classes.get(classKey(offer.turmaCodigo));
-    if (turmaId === undefined) {
-      throw new RelationalImportErrorV9(
-        'blocked',
-        `Turma ${offer.turmaCodigo} não existe na Relação ${request.ano}.`,
-      );
-    }
-    const key = `${turmaId}:${dbNameKey(offer.disciplina)}`;
-    if (seen.has(key))
-      throw new RelationalImportErrorV9(
-        'blocked',
-        `Oferta duplicada: ${offer.turmaCodigo} / ${offer.disciplina}.`,
-      );
-    seen.add(key);
-    prepared.push({ sourceIndex, offer, turmaId });
-  }
+  const prepared = preparedOffersV9(request, classes);
   const catalog = await resolveRelationalImportCatalogV11(
     database,
     request.ano,

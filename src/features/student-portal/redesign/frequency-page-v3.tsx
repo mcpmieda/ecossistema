@@ -680,6 +680,22 @@ function MonthHeadV3({
   );
 }
 
+/** Why an open day does not count yet: today, or a reading not complete. */
+function OpenDayNoteV3({ isToday }: Readonly<{ isToday: boolean }>) {
+  return (
+    <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
+      {isToday ? 'Dia em andamento · conta a partir de amanhã' : 'Leitura incompleta · conta quando o diário for lido'}
+    </Chip>
+  );
+}
+
+/** Today, or in a reading not complete, a lesson without a mark is still to be confirmed. */
+function lessonStateV3(mark: string | undefined, open: boolean): LessonStateV3 {
+  if (mark === 'X') return 'absent';
+  if (mark === 'J') return 'justified';
+  return open ? 'pending' : 'clear';
+}
+
 /** One month, drawn from the server's answer. */
 function FrequencyMonthV3({
   data,
@@ -922,11 +938,7 @@ function FrequencyMonthV3({
             {dayTitle(selected, today)}
           </Card.Title>
           {/* Today is always open; a past day is open while its reading is incomplete. */}
-          {isOpen ? (
-            <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
-              {isToday ? 'Dia em andamento · conta a partir de amanhã' : 'Leitura incompleta · conta quando o diário for lido'}
-            </Chip>
-          ) : null}
+          {isOpen ? <OpenDayNoteV3 isToday={isToday} /> : null}
           <p className="pa3-day-detail-sub">{daySentence(selectedDay, isOpen)}</p>
           {selectedLessons.map((group) => {
             const label = shiftLabel(group.shift);
@@ -936,17 +948,7 @@ function FrequencyMonthV3({
                 <ol className="pa3-lessons" data-count={group.slots.length}>
                   {group.slots.map((slot) => {
                     const mark = markAt.get(lessonKey(group.shift, slot));
-                    // Today, or in a reading not complete, a lesson without a mark is still to be confirmed.
-                    let state: LessonStateV3;
-                    if (mark?.mark === 'X') {
-                      state = 'absent';
-                    } else if (mark?.mark === 'J') {
-                      state = 'justified';
-                    } else if (isToday || !group.complete) {
-                      state = 'pending';
-                    } else {
-                      state = 'clear';
-                    }
+                    const state = lessonStateV3(mark?.mark, isToday || !group.complete);
                     // Its time and subject inside the tile (owner request 23/10/2026), when known.
                     const info = lessonInfo(selected, group.shift, slot);
                     return (

@@ -7,6 +7,18 @@ import { useLiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-sc
 type CursorPage = { items: unknown[]; nextCursor: string | null };
 type CollectionOptions = { maxPages?: number; cursors?: Set<string | undefined> };
 const INITIAL_ROWS = 100;
+/** Adds a page's items by their key (a later copy replaces an earlier one) and counts the new ones. */
+function mergePageItemsV1<T>(items: Map<string, T>, page: readonly T[], key: string) {
+  let added = 0;
+  for (const item of page) {
+    const id = (item as Record<string, unknown>)[key];
+    if (typeof id !== 'string' && typeof id !== 'number')
+      throw new PortalClientErrorV1('invalid-response');
+    if (!items.has(String(id))) added++;
+    items.set(String(id), item);
+  }
+  return added;
+}
 /** Collection/revalidation helper. The owning hook gives initial/append reads a one-page
  * budget, even for empty filtered pages, and keeps cursor history across incremental reads. */
 export async function collectCursorPagesV1<P extends CursorPage>(
@@ -37,13 +49,7 @@ export async function collectCursorPagesV1<P extends CursorPage>(
     signal.throwIfAborted();
     if (value.nextCursor && seen.has(value.nextCursor))
       throw new PortalClientErrorV1('invalid-response');
-    for (const item of value.items) {
-      const id = (item as Record<string, unknown>)[key];
-      if (typeof id !== 'string' && typeof id !== 'number')
-        throw new PortalClientErrorV1('invalid-response');
-      if (!items.has(String(id))) added++;
-      items.set(String(id), item);
-    }
+    added += mergePageItemsV1(items, value.items, key);
     result = { ...value, items: [...items.values()] };
     if (!value.nextCursor || added >= desired) return result;
     cursor = value.nextCursor;

@@ -149,17 +149,20 @@ async function confirmConnect(request:Request,env:RuntimeEnv,runtime:CollectorRu
     throw new Error('confirmation-denied',{cause:error});
   }
 }
+/** Cloudflare supplies CF-Connecting-IP at the edge; avoid storing raw IP.
+ * Do not trust forwarded client headers for authority: the independent
+ * global database budget enforces a ceiling even if this one is spoofed. */
+async function pairingScopeV1(request:Request,env:RuntimeEnv):Promise<string>{
+  const edgeAddress=request.headers.get('CF-Connecting-IP')??'';
+  const source=/^[0-9a-fA-F:.]{3,48}$/u.test(edgeAddress)?edgeAddress.toLowerCase():'unknown';
+  return 'client:'+await collectorOpaqueHashV1(env.SESSION_SECRET+String.raw`\0`+source);
+}
 async function pairingRequest(request:Request,url:URL,env:RuntimeEnv,runtime:CollectorRuntimeReadyV1):Promise<Response>{
   if(request.method!=='POST')return notAllowed();
   if(foreignOrigin(request,env))return denied();
   const value=await readBoundedJson(request,2048);
   if(url.pathname==='/api/frequency-collector/pairings'){
-    // Cloudflare supplies CF-Connecting-IP at the edge; avoid storing raw IP.
-    // Do not trust forwarded client headers for authority: the independent
-    // global database budget enforces a ceiling even if this one is spoofed.
-    const edgeAddress=request.headers.get('CF-Connecting-IP')??'';
-    const source=/^[0-9a-fA-F:.]{3,48}$/u.test(edgeAddress)?edgeAddress.toLowerCase():'unknown';
-    const scope='client:'+await collectorOpaqueHashV1(env.SESSION_SECRET+String.raw`\0`+source);
+    const scope=await pairingScopeV1(request,env);
     // Malformed/unsigned requests must not consume the scarce school-wide
     // pairing quota. A self-signed valid key is still untrusted, hence DB caps.
     const proof=await verifyCollectorPairingV1(value,runtime.oauth.now());

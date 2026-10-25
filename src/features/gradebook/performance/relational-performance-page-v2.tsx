@@ -156,6 +156,172 @@ function PerformanceSelect({
   );
 }
 
+type AnalyticsReadV2 = ReturnType<typeof usePerformanceAnalyticsV6>;
+type AnalyticsWorkspacePropsV2 = Parameters<typeof PerformanceAnalyticsWorkspaceV6>[0];
+
+/** Earlier trimesters to compare with: the 1st, and the 2nd from the 3rd on. */
+function comparisonItemsV2(period: unknown): FilterItem[] {
+  const items: FilterItem[] = [
+    { id: 'none', label: 'Sem comparação' },
+    { id: '1', label: '1º trimestre' },
+  ];
+  if (period === 3) items.push({ id: '2', label: '2º trimestre' });
+  return items;
+}
+
+const studentCountTextV2 = (matrix: { rows: readonly unknown[] } | null | undefined) =>
+  matrix ? ` · ${matrix.rows.length} estudantes` : '';
+
+/** The year still loading, or the year selector saying why it cannot be read. */
+function YearPendingV2({ loading }: Readonly<{ loading: boolean }>) {
+  return loading ? (
+    <div className="grid gap-3" aria-busy="true" aria-label="Carregando Desempenho">
+      <Skeleton className="h-28 rounded-2xl" />
+      <Skeleton className="h-72 rounded-2xl" />
+    </div>
+  ) : (
+    <div className="rounded-xl border border-separator p-5">
+      <GradebookYearContextBanner />
+    </div>
+  );
+}
+
+/** The name of the student being opened, from whichever reading already shows it. */
+function openingNameV2(
+  openingId: number | null,
+  matrix: { rows: readonly { student: { id: number; name: string } }[] } | null | undefined,
+  analytics: { students: readonly { student: { id: number; name: string } }[] } | null | undefined,
+) {
+  if (openingId === null) return undefined;
+  return (
+    matrix?.rows.find((row) => row.student.id === openingId)?.student.name ??
+    analytics?.students.find((item) => item.student.id === openingId)?.student.name
+  );
+}
+
+/** One analytics tab: the last failure (keeping the last reading), the workspace, or its loading. */
+function AnalyticsPanelV2({
+  analytics,
+  tab,
+  selection,
+  onSelection,
+  onNavigate,
+  onPeriod,
+  onCell,
+  onNotes,
+  classChosen,
+}: Readonly<{
+  analytics: AnalyticsReadV2;
+  tab: AnalyticsWorkspacePropsV2['tab'];
+  selection: AnalyticsWorkspacePropsV2['selection'];
+  onSelection: AnalyticsWorkspacePropsV2['onSelection'];
+  onNavigate: AnalyticsWorkspacePropsV2['onNavigate'];
+  onPeriod: AnalyticsWorkspacePropsV2['onPeriod'];
+  onCell: AnalyticsWorkspacePropsV2['onCell'];
+  onNotes: AnalyticsWorkspacePropsV2['onNotes'];
+  classChosen: boolean;
+}>) {
+  return (
+    <>
+      {analytics.failure ? (
+        <Alert status="warning" className="mb-3">
+          <Alert.Content>
+            <Alert.Title>
+              {analytics.data ? 'Exibindo a última leitura' : 'Consulta indisponível'}
+            </Alert.Title>
+            <Alert.Description>
+              {analytics.failure === 'not-authorized'
+                ? 'Entre novamente com uma conta autorizada.'
+                : 'A atualização automática tentará novamente.'}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      ) : null}
+      {analytics.data ? (
+        <PerformanceAnalyticsWorkspaceV6
+          value={analytics.data}
+          tab={tab}
+          selection={selection}
+          onSelection={onSelection}
+          onNavigate={onNavigate}
+          onPeriod={onPeriod}
+          onCell={onCell}
+          onNotes={onNotes}
+        />
+      ) : null}
+      {!analytics.data && analytics.busy ? (
+        <output aria-label="Carregando indicadores" className="grid gap-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            {[1, 2, 3, 4].map((id) => (
+              <Skeleton key={id} className="h-32 rounded-2xl" />
+            ))}
+          </div>
+          <Skeleton className="h-72 rounded-2xl" />
+        </output>
+      ) : null}
+      {!analytics.data && !analytics.busy ? (
+        <div className="grid min-h-64 place-items-center text-center">
+          <p className="text-sm text-muted">
+            {classChosen ? 'Nenhuma leitura disponível.' : 'Escolha uma turma para começar.'}
+          </p>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** The detail drawer before the student's data arrives: the name already on screen, or a title. */
+function DetailPlaceholderV2({
+  openingId,
+  openingName,
+  year,
+  busy,
+  failure,
+}: Readonly<{
+  openingId: number | null;
+  openingName: string | undefined;
+  year: number;
+  busy: boolean;
+  failure: keyof typeof failures | null;
+}>) {
+  return (
+    <>
+      {openingId !== null && openingName ? (
+        <Drawer.Header className="border-b border-separator pb-5 pr-10">
+          <div className="flex min-w-0 items-center gap-4">
+            <LinkedStudentPhotoAvatarV1
+              decorative
+              size="lg"
+              className="pa-student-avatar size-16 shrink-0"
+              fallbackTone={openingId % 6}
+              subject={{
+                source: 'gradebook',
+                academicYear: year,
+                studentIds: [openingId],
+              }}
+            />
+            <Drawer.Heading className="min-w-0 break-words text-2xl font-bold tracking-tight">
+              {openingName}
+            </Drawer.Heading>
+          </div>
+        </Drawer.Header>
+      ) : (
+        <Drawer.Header>
+          <Drawer.Heading>Detalhe do aluno</Drawer.Heading>
+        </Drawer.Header>
+      )}
+      <Drawer.Body>
+        {busy ? (
+          <p>
+            <output className="contents">Carregando detalhe…</output>
+          </p>
+        ) : null}
+        {failure ? <p role="alert">{failures[failure]}</p> : null}
+      </Drawer.Body>
+    </>
+  );
+}
+
 export function RelationalPerformancePageV2({
   isActive = true,
 }: { readonly isActive?: boolean } = {}) {
@@ -233,35 +399,18 @@ export function RelationalPerformancePageV2({
   if (state.year === null)
     // The year is still being read right after the page opens or reloads: that is loading, not
     // a lost session. When it cannot be read, the year selector says why and offers to retry.
-    return sharedYear?.loading ? (
-      <div className="grid gap-3" aria-busy="true" aria-label="Carregando Desempenho">
-        <Skeleton className="h-28 rounded-2xl" />
-        <Skeleton className="h-72 rounded-2xl" />
-      </div>
-    ) : (
-      <div className="rounded-xl border border-separator p-5">
-        <GradebookYearContextBanner />
-      </div>
-    );
+    return <YearPendingV2 loading={!!sharedYear?.loading} />;
   const detail = state.detail;
   // Everything but the situations shown: changing those keeps the panels, and what was typed
   // or picked inside them, in place while the same reading is refreshed.
   const scopeKey = JSON.stringify({ ...state.filters, statuses: null });
-  const openingName =
-    openingId === null
-      ? undefined
-      : (state.matrix?.rows.find((row) => row.student.id === openingId)?.student.name ??
-        analytics.data?.students.find((item) => item.student.id === openingId)?.student.name);
+  const openingName = openingNameV2(openingId, state.matrix, analytics.data);
   const comparisonDisabled =
     state.filters.lens === 'assessments' ||
     state.filters.period === 1 ||
     state.filters.period === 'annual';
   const selectedClass = state.classes?.classes.find((item) => item.id === state.filters.classId);
-  const comparisonItems: FilterItem[] = [
-    { id: 'none', label: 'Sem comparação' },
-    { id: '1', label: '1º trimestre' },
-  ];
-  if (state.filters.period === 3) comparisonItems.push({ id: '2', label: '2º trimestre' });
+  const comparisonItems = comparisonItemsV2(state.filters.period);
   return (
     <section
       aria-label="Desempenho relacional"
@@ -276,7 +425,7 @@ export function RelationalPerformancePageV2({
           {selectedClass ? (
             <p>
               {selectedClass.label}
-              {state.matrix ? ` · ${state.matrix.rows.length} estudantes` : ''}
+              {studentCountTextV2(state.matrix)}
             </p>
           ) : null}
         </div>
@@ -476,53 +625,17 @@ export function RelationalPerformancePageV2({
           {PERFORMANCE_PERSPECTIVES_V6.filter((item) => item.id !== 'notes').map((item) => (
             <Tabs.Panel key={item.id} id={item.id} className="min-w-0">
               {perspective === item.id && perspective !== 'notes' ? (
-                <>
-                  {analytics.failure ? (
-                    <Alert status="warning" className="mb-3">
-                      <Alert.Content>
-                        <Alert.Title>
-                          {analytics.data ? 'Exibindo a última leitura' : 'Consulta indisponível'}
-                        </Alert.Title>
-                        <Alert.Description>
-                          {analytics.failure === 'not-authorized'
-                            ? 'Entre novamente com uma conta autorizada.'
-                            : 'A atualização automática tentará novamente.'}
-                        </Alert.Description>
-                      </Alert.Content>
-                    </Alert>
-                  ) : null}
-                  {analytics.data ? (
-                    <PerformanceAnalyticsWorkspaceV6
-                      value={analytics.data}
-                      tab={perspective}
-                      selection={selection}
-                      onSelection={(next) => setSelection((previous) => ({ ...previous, ...next }))}
-                      onNavigate={navigate}
-                      onPeriod={(period) => void state.select({ period })}
-                      onCell={open}
-                      onNotes={openAssessmentNotes}
-                    />
-                  ) : null}
-                  {!analytics.data && analytics.busy ? (
-                    <output aria-label="Carregando indicadores" className="grid gap-4">
-                      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                        {[1, 2, 3, 4].map((id) => (
-                          <Skeleton key={id} className="h-32 rounded-2xl" />
-                        ))}
-                      </div>
-                      <Skeleton className="h-72 rounded-2xl" />
-                    </output>
-                  ) : null}
-                  {!analytics.data && !analytics.busy ? (
-                    <div className="grid min-h-64 place-items-center text-center">
-                      <p className="text-sm text-muted">
-                        {state.filters.classId === null
-                          ? 'Escolha uma turma para começar.'
-                          : 'Nenhuma leitura disponível.'}
-                      </p>
-                    </div>
-                  ) : null}
-                </>
+                <AnalyticsPanelV2
+                  analytics={analytics}
+                  tab={perspective}
+                  selection={selection}
+                  onSelection={(next) => setSelection((previous) => ({ ...previous, ...next }))}
+                  onNavigate={navigate}
+                  onPeriod={(period) => void state.select({ period })}
+                  onCell={open}
+                  onNotes={openAssessmentNotes}
+                  classChosen={state.filters.classId !== null}
+                />
               ) : null}
             </Tabs.Panel>
           ))}
@@ -553,40 +666,13 @@ export function RelationalPerformancePageV2({
                 openComponent={open}
               />
             ) : (
-              <>
-                {openingId !== null && openingName ? (
-                  <Drawer.Header className="border-b border-separator pb-5 pr-10">
-                    <div className="flex min-w-0 items-center gap-4">
-                      <LinkedStudentPhotoAvatarV1
-                        decorative
-                        size="lg"
-                        className="pa-student-avatar size-16 shrink-0"
-                        fallbackTone={openingId % 6}
-                        subject={{
-                          source: 'gradebook',
-                          academicYear: state.year,
-                          studentIds: [openingId],
-                        }}
-                      />
-                      <Drawer.Heading className="min-w-0 break-words text-2xl font-bold tracking-tight">
-                        {openingName}
-                      </Drawer.Heading>
-                    </div>
-                  </Drawer.Header>
-                ) : (
-                  <Drawer.Header>
-                    <Drawer.Heading>Detalhe do aluno</Drawer.Heading>
-                  </Drawer.Header>
-                )}
-                <Drawer.Body>
-                  {state.busy.detail ? (
-                    <p>
-                      <output className="contents">Carregando detalhe…</output>
-                    </p>
-                  ) : null}
-                  {state.detailFailure ? <p role="alert">{failures[state.detailFailure]}</p> : null}
-                </Drawer.Body>
-              </>
+              <DetailPlaceholderV2
+                openingId={openingId}
+                openingName={openingName}
+                year={state.year}
+                busy={state.busy.detail}
+                failure={state.detailFailure}
+              />
             )}
             {detail && state.detailFailure ? (
               <p>

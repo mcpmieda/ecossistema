@@ -151,6 +151,11 @@ function isDiagnosticItem(value: unknown): value is GradebookImportDiagnosticAud
   ) {
     return false;
   }
+  return isDiagnosticLocationV1(value);
+}
+
+/** Where a finding points: class, subject, period, student, slot, field and cell, each optional. */
+function isDiagnosticLocationV1(value: Record<string, unknown>): boolean {
   if (!optionalStringWithin(value.classCode, 24)) return false;
   if (!optionalStringWithin(value.subject, 160)) return false;
   if (!optionalStringWithin(value.period, 64)) return false;
@@ -162,8 +167,7 @@ function isDiagnosticItem(value: unknown): value is GradebookImportDiagnosticAud
   if (!optionalStringWithin(value.foundValue, 240)) return false;
   if (!optionalStringWithin(value.cause, 240)) return false;
   if (!optionalStringWithin(value.sheetName, 80)) return false;
-  if (!optionalStringWithin(value.cellAddress, 24)) return false;
-  return true;
+  return optionalStringWithin(value.cellAddress, 24);
 }
 
 export function isGradebookImportDiagnosticsAuditRequestV1(

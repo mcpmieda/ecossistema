@@ -40,6 +40,95 @@ function gapText(gapPP: number) {
   return `${gapPP > 0 ? 'Qualitativo' : 'Quantitativo'} acima nesta comparação.`;
 }
 
+type LearningRowV1 = PerformanceAnalyticsV6['students'][number] & {
+  evidence: NonNullable<PerformanceAnalyticsV6['learning']>['students'][number] | undefined;
+};
+
+/** Whether a student belongs to the chosen group of the follow-up list. */
+function matchesFilterV1(row: LearningRowV1, selected: Filter) {
+  const change = row.summary.movement.meanDeltaPP;
+  const below = row.summary.below > 0;
+  const above = row.summary.studentsAtOrAbove === 1;
+  switch (selected) {
+    case 'attention': return (row.evidence?.recurring.length ?? 0) > 0;
+    case 'rising': return change !== null && change > 0;
+    case 'falling': return change !== null && change < 0;
+    case 'compared': return change !== null;
+    case 'participation': return row.evidence?.participation.percent != null;
+    case 'above': return above;
+    case 'below': return below;
+    case 'pending': return !below && !above;
+    case 'below-up': return below && change !== null && change > 0;
+    case 'below-down': return below && change !== null && change < 0;
+    case 'above-down': return above && change !== null && change < 0;
+    case 'recovery': return (row.evidence?.parallelImprovements ?? 0) > 0;
+    default: return true;
+  }
+}
+
+/** Most improved first for "rising"; most fallen first where a fall is the point; the most recurring
+ * difficulties first for "attention"; otherwise by number. */
+function compareRowsV1(filter: Filter, a: LearningRowV1, b: LearningRowV1) {
+  if (filter === 'rising') return (b.summary.movement.meanDeltaPP ?? 0) - (a.summary.movement.meanDeltaPP ?? 0) || a.student.number - b.student.number;
+  if (filter === 'falling' || filter === 'below-down' || filter === 'above-down') return (a.summary.movement.meanDeltaPP ?? 0) - (b.summary.movement.meanDeltaPP ?? 0) || a.student.number - b.student.number;
+  if (filter === 'attention') return (b.evidence?.recurring.length ?? 0) - (a.evidence?.recurring.length ?? 0) || (a.summary.movement.meanDeltaPP ?? 0) - (b.summary.movement.meanDeltaPP ?? 0) || a.student.number - b.student.number;
+  return a.student.number - b.student.number;
+}
+
+/** What to observe about a student in the chosen group. */
+function rowNoteV1(row: LearningRowV1, filter: Filter, componentLabels: ReadonlyMap<number, string>) {
+  const first = row.evidence?.recurring[0];
+  let reasons;
+  if (first) {
+    reasons = `${componentLabels.get(first.offerId) ?? 'Componente'}: ${first.consecutiveTerms.length ? 'abaixo em trimestres seguidos' : 'notas baixas em mais de um instrumento'}`;
+  } else if (row.summary.below) {
+    reasons = `${row.summary.below} componentes abaixo da referência`;
+  } else if (row.summary.complete) {
+    reasons = 'Confira o desempenho por componente';
+  } else {
+    reasons = 'Ainda sem resultado suficiente';
+  }
+  let note = reasons;
+  if (filter === 'participation') note = `${row.evidence?.participation.components ?? 0} componentes · ${row.evidence?.participation.recorded ?? 0} notas de participação`;
+  else if (filter === 'recovery') note = `${row.evidence?.parallelImprovements ?? 0} resultados melhorados com a paralela`;
+  return note;
+}
+
+/** Why the follow-up list is empty: the search, too few marks for recurrence, or the group. */
+function emptyListTextV1(query: string, filter: Filter, assessed: number) {
+  if (query) return 'Nenhum aluno encontrado nesta busca.';
+  if (filter === 'attention' && !assessed) return 'Ainda não há notas suficientes para avaliar a recorrência.';
+  return 'Nenhum aluno neste grupo.';
+}
+
+/** The four headline indicators, each with its explanation and the group it opens. */
+function learningKpisV1({
+  value,
+  learning,
+  count,
+  reference,
+  assessed,
+  periodName,
+}: {
+  value: PerformanceAnalyticsV6;
+  learning: PerformanceAnalyticsV6['learning'];
+  count: (selected: Filter) => number;
+  reference: PerformanceAnalyticsV6['summary']['movement']['reference'];
+  assessed: number;
+  periodName: string;
+}) {
+  return [
+    { title: 'Desempenho médio', value: percent(value.summary.result.mean), caption: `${value.students.filter((item) => item.summary.complete > 0).length} alunos com resultado · ${periodName}`, icon: BookOpen, tone: 'accent', filter: 'all' as Filter,
+      hint: <Hint what="A nota média da turma, de 0 a 100." steps={['Cada nota final vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens de todas as notas finais da turma.', 'Divide-se a soma pelo número de notas.']} result={`Nesta turma: ${value.summary.result.n} notas somadas ÷ ${value.summary.result.n} = ${percent(value.summary.result.mean)}.`} note="Atividade ou prova em branco conta como não feita." /> },
+    { title: 'Evolução trimestral', value: delta(value.summary.movement.meanDeltaPP), caption: reference ? `Em relação ao ${reference}º trimestre` : 'Disponível a partir do 2º trimestre', icon: TrendingUp, tone: 'accent', filter: 'compared' as Filter,
+      hint: <Hint what="Mostra se as notas subiram ou caíram desde o trimestre anterior." steps={['Para cada aluno, em cada disciplina, compara-se a nota deste trimestre com a do anterior. Exemplo: 60% antes e 70% agora dá +10 pontos.', 'Tira-se a média de todas essas diferenças.']} result={reference ? `Nesta turma: ${value.summary.movement.n} comparações com o ${reference}º trimestre, média de ${delta(value.summary.movement.meanDeltaPP)}.` : undefined} note="Atividade em branco conta como não feita. Número positivo: a turma subiu. Negativo: caiu." /> },
+    { title: 'Alunos em evolução', value: reference && count('compared') ? String(count('rising')) : '—', caption: reference ? `de ${count('compared')} alunos com comparação` : 'Ainda sem trimestre anterior', icon: Users, tone: 'success', filter: 'rising' as Filter,
+      hint: <Hint what="Quantos alunos melhoraram desde o trimestre anterior." steps={['Para cada aluno, tira-se a média das diferenças entre as notas deste trimestre e as do anterior.', 'Se essa média for maior que zero, o aluno conta como em evolução.']} result={reference ? `Nesta turma: ${count('rising')} de ${count('compared')} alunos comparados.` : undefined} note="Trimestre em branco conta como zero na comparação." /> },
+    { title: 'Atenção recorrente', value: learning && assessed ? String(count('attention')) : '—', caption: `${assessed} alunos com base para analisar`, icon: TrendingDown, tone: 'warning', filter: 'attention' as Filter,
+      hint: <Hint what="Alunos que ficaram abaixo do mínimo mais de uma vez na mesma disciplina." steps={['Olha-se cada disciplina do aluno, uma por vez.', `O aluno entra na conta se ficou abaixo de ${percent(value.minimumPercent)} em dois trimestres seguidos nessa disciplina.`, 'Ou se, no mesmo trimestre, ficou abaixo em 2 ou mais atividades (quando há pelo menos 3 com nota).']} result={`Nesta turma: ${learning && assessed ? count('attention') : '—'} de ${assessed} alunos analisados.`} note="Nota de participação não entra nessa conta." /> },
+  ];
+}
+
 export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, onPeriod, onNotes }: Readonly<{
   value: PerformanceAnalyticsV6;
   onStudent: (id: number, offerId?: number) => void;
@@ -56,60 +145,24 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
     return value.students.map((student) => ({ ...student, evidence: evidence.get(student.student.id) }));
   }, [value]);
   const reference = value.summary.movement.reference;
-  const matches = (row: (typeof rows)[number], selected: Filter) => {
-    const change = row.summary.movement.meanDeltaPP;
-    const below = row.summary.below > 0;
-    const above = row.summary.studentsAtOrAbove === 1;
-    switch (selected) {
-      case 'attention': return (row.evidence?.recurring.length ?? 0) > 0;
-      case 'rising': return change !== null && change > 0;
-      case 'falling': return change !== null && change < 0;
-      case 'compared': return change !== null;
-      case 'participation': return row.evidence?.participation.percent != null;
-      case 'above': return above;
-      case 'below': return below;
-      case 'pending': return !below && !above;
-      case 'below-up': return below && change !== null && change > 0;
-      case 'below-down': return below && change !== null && change < 0;
-      case 'above-down': return above && change !== null && change < 0;
-      case 'recovery': return (row.evidence?.parallelImprovements ?? 0) > 0;
-      default: return true;
-    }
-  };
-  const count = (selected: Filter) => rows.filter((row) => matches(row, selected)).length;
+  const count = (selected: Filter) => rows.filter((row) => matchesFilterV1(row, selected)).length;
   const select = (selected: Filter) => { setFilter(selected); setSearch(''); listHeading.current?.focus(); };
   const query = search.trim().toLocaleLowerCase('pt-BR');
-  const selectedRows = rows.filter((row) => matches(row, filter));
+  const selectedRows = rows.filter((row) => matchesFilterV1(row, filter));
   const visibleRows = selectedRows.filter((row) => !query || row.student.name.toLocaleLowerCase('pt-BR').includes(query) || String(row.student.number) === query)
-    .sort((a, b) => {
-      if (filter === 'rising') return (b.summary.movement.meanDeltaPP ?? 0) - (a.summary.movement.meanDeltaPP ?? 0) || a.student.number - b.student.number;
-      if (filter === 'falling' || filter === 'below-down' || filter === 'above-down') return (a.summary.movement.meanDeltaPP ?? 0) - (b.summary.movement.meanDeltaPP ?? 0) || a.student.number - b.student.number;
-      if (filter === 'attention') return (b.evidence?.recurring.length ?? 0) - (a.evidence?.recurring.length ?? 0) || (a.summary.movement.meanDeltaPP ?? 0) - (b.summary.movement.meanDeltaPP ?? 0) || a.student.number - b.student.number;
-      return a.student.number - b.student.number;
-    });
+    .sort((a, b) => compareRowsV1(filter, a, b));
   const assessed = learning?.students.filter((item) => item.recurrenceAssessed).length ?? 0;
   const componentLabels = new Map<number, string>(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
   const instruments = new Map(value.components.flatMap((component) => component.instruments.map((instrument) => [instrument.key, { ...instrument, offerId: component.offer.id, subject: component.offer.subject.label }] as const)));
   const reviewActivities = (learning?.activitiesToReview ?? []).map((key) => instruments.get(key)).filter((item): item is NonNullable<typeof item> => item !== undefined);
   const periodName = value.period === 'annual' ? 'Ano letivo' : `${value.period}º trimestre`;
-  const kpis = [
-    { title: 'Desempenho médio', value: percent(value.summary.result.mean), caption: `${value.students.filter((item) => item.summary.complete > 0).length} alunos com resultado · ${periodName}`, icon: BookOpen, tone: 'accent', filter: 'all' as Filter,
-      hint: <Hint what="A nota média da turma, de 0 a 100." steps={['Cada nota final vira uma porcentagem. Exemplo: 7 em 10 vale 70%.', 'Somam-se as porcentagens de todas as notas finais da turma.', 'Divide-se a soma pelo número de notas.']} result={`Nesta turma: ${value.summary.result.n} notas somadas ÷ ${value.summary.result.n} = ${percent(value.summary.result.mean)}.`} note="Atividade ou prova em branco conta como não feita." /> },
-    { title: 'Evolução trimestral', value: delta(value.summary.movement.meanDeltaPP), caption: reference ? `Em relação ao ${reference}º trimestre` : 'Disponível a partir do 2º trimestre', icon: TrendingUp, tone: 'accent', filter: 'compared' as Filter,
-      hint: <Hint what="Mostra se as notas subiram ou caíram desde o trimestre anterior." steps={['Para cada aluno, em cada disciplina, compara-se a nota deste trimestre com a do anterior. Exemplo: 60% antes e 70% agora dá +10 pontos.', 'Tira-se a média de todas essas diferenças.']} result={reference ? `Nesta turma: ${value.summary.movement.n} comparações com o ${reference}º trimestre, média de ${delta(value.summary.movement.meanDeltaPP)}.` : undefined} note="Atividade em branco conta como não feita. Número positivo: a turma subiu. Negativo: caiu." /> },
-    { title: 'Alunos em evolução', value: reference && count('compared') ? String(count('rising')) : '—', caption: reference ? `de ${count('compared')} alunos com comparação` : 'Ainda sem trimestre anterior', icon: Users, tone: 'success', filter: 'rising' as Filter,
-      hint: <Hint what="Quantos alunos melhoraram desde o trimestre anterior." steps={['Para cada aluno, tira-se a média das diferenças entre as notas deste trimestre e as do anterior.', 'Se essa média for maior que zero, o aluno conta como em evolução.']} result={reference ? `Nesta turma: ${count('rising')} de ${count('compared')} alunos comparados.` : undefined} note="Trimestre em branco conta como zero na comparação." /> },
-    { title: 'Atenção recorrente', value: learning && assessed ? String(count('attention')) : '—', caption: `${assessed} alunos com base para analisar`, icon: TrendingDown, tone: 'warning', filter: 'attention' as Filter,
-      hint: <Hint what="Alunos que ficaram abaixo do mínimo mais de uma vez na mesma disciplina." steps={['Olha-se cada disciplina do aluno, uma por vez.', `O aluno entra na conta se ficou abaixo de ${percent(value.minimumPercent)} em dois trimestres seguidos nessa disciplina.`, 'Ou se, no mesmo trimestre, ficou abaixo em 2 ou mais atividades (quando há pelo menos 3 com nota).']} result={`Nesta turma: ${learning && assessed ? count('attention') : '—'} de ${assessed} alunos analisados.`} note="Nota de participação não entra nessa conta." /> },
-  ];
+  const kpis = learningKpisV1({ value, learning, count, reference, assessed, periodName });
   const distribution: { key: Filter; label: string; count: number; tone: string }[] = [
     { key: 'above', label: 'Na referência em todos', count: count('above'), tone: 'success' },
     { key: 'below', label: 'Abaixo em algum componente', count: count('below'), tone: 'warning' },
     { key: 'pending', label: 'Ainda sem conclusão', count: count('pending'), tone: 'muted' },
   ];
-  let emptyText = 'Nenhum aluno neste grupo.';
-  if (query) emptyText = 'Nenhum aluno encontrado nesta busca.';
-  else if (filter === 'attention' && !assessed) emptyText = 'Ainda não há notas suficientes para avaliar a recorrência.';
+  const emptyText = emptyListTextV1(query, filter, assessed);
   return <div className="learning-overview" data-testid="performance-learning-overview-v1">
     <div className="learning-kpis learning-enter">
       {kpis.map((item) => <Card key={item.title} className={`learning-kpi learning-tone--${item.tone}`}>
@@ -159,19 +212,7 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
         <div className="learning-students">
           <Table><Table.ScrollContainer><Table.Content aria-label={LABELS[filter]}><Table.Header><Table.Column id="student" isRowHeader>Aluno</Table.Column><Table.Column id="result">{filter === 'participation' ? 'Participação' : 'Notas'}</Table.Column><Table.Column id="reason">O que observar</Table.Column></Table.Header><Table.Body>{visibleRows.map((row) => {
             const first = row.evidence?.recurring[0];
-            let reasons;
-            if (first) {
-              reasons = `${componentLabels.get(first.offerId) ?? 'Componente'}: ${first.consecutiveTerms.length ? 'abaixo em trimestres seguidos' : 'notas baixas em mais de um instrumento'}`;
-            } else if (row.summary.below) {
-              reasons = `${row.summary.below} componentes abaixo da referência`;
-            } else if (row.summary.complete) {
-              reasons = 'Confira o desempenho por componente';
-            } else {
-              reasons = 'Ainda sem resultado suficiente';
-            }
-            let note = reasons;
-            if (filter === 'participation') note = `${row.evidence?.participation.components ?? 0} componentes · ${row.evidence?.participation.recorded ?? 0} notas de participação`;
-            else if (filter === 'recovery') note = `${row.evidence?.parallelImprovements ?? 0} resultados melhorados com a paralela`;
+            const note = rowNoteV1(row, filter, componentLabels);
             return <Table.Row key={row.student.id} id={String(row.student.id)}><Table.Cell><div className="learning-student-name"><LinkedStudentPhotoAvatarV1 decorative size="sm" className="pa-student-avatar" fallbackTone={row.student.id % 6} subject={{ source: 'gradebook', academicYear: value.context.year, studentIds: [row.student.id] }} /><Button size="sm" variant="ghost" onPress={() => onStudent(row.student.id, filter === 'attention' ? first?.offerId : undefined)} aria-label={`Ver notas de ${row.student.name}`}>{row.student.name}</Button></div></Table.Cell><Table.Cell><strong>{percent(filter === 'participation' ? row.evidence?.participation.percent ?? null : row.summary.result.mean)}</strong><span className="learning-muted">{delta(filter === 'participation' ? row.evidence?.participation.deltaPP ?? null : row.summary.movement.meanDeltaPP)}</span></Table.Cell><Table.Cell><span>{note}</span></Table.Cell></Table.Row>;
           })}</Table.Body></Table.Content></Table.ScrollContainer></Table>
           {!visibleRows.length ? <p className="learning-empty">{emptyText}</p> : null}

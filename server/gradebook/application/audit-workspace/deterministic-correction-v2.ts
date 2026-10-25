@@ -368,6 +368,29 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+/** A case already corrected, or one never eligible, is answered without claiming it. */
+function settledOutcomeV2(
+  current: DeterministicCorrectionCaseRecordV2,
+): DeterministicCorrectionExecutionResultV2 | null {
+  if (current.case.correctionOutcome.state === 'completed') {
+    return { outcome: 'already-completed', record: current };
+  }
+  if (current.case.automaticCorrection.state !== 'eligible') {
+    return { outcome: 'not-eligible', record: current };
+  }
+  return null;
+}
+
+/** A plan that lost a version race reports the case's version; any other failure is unavailable. */
+function failedExecutionOutcomeV2(status: string, version: number): DeterministicCorrectionExecutionResultV2 {
+  return status === 'version-conflict'
+    ? { outcome: 'version-conflict', currentVersion: version }
+    : { outcome: 'unavailable' };
+}
+
+const completeIdentityV2 = (identity: { readonly actorId: string; readonly occurredAt: string }) =>
+  nonEmpty(identity.actorId) && nonEmpty(identity.occurredAt);
+
 function recipeMatchesProof(
   record: DeterministicCorrectionCaseRecordV2,
 ): record is DeterministicCorrectionCaseRecordV2 & {
@@ -611,12 +634,8 @@ export function createDeterministicCorrectionWorkspaceV2(
       const context = { academicYearId: input.academicYearId };
       const current = await dependencies.store.getByReference(context, input.reference);
       if (!current) return { outcome: 'not-found' };
-      if (current.case.correctionOutcome.state === 'completed') {
-        return { outcome: 'already-completed', record: current };
-      }
-      if (current.case.automaticCorrection.state !== 'eligible') {
-        return { outcome: 'not-eligible', record: current };
-      }
+      const settled = settledOutcomeV2(current);
+      if (settled) return settled;
       if (!recipeMatchesProof(current)) return { outcome: 'blocked', record: current };
 
       const claim = await dependencies.store.claim(context, input.reference, input.expectedVersion);
@@ -662,7 +681,7 @@ export function createDeterministicCorrectionWorkspaceV2(
         }
 
         const identity = dependencies.server.correctionIdentity();
-        if (!nonEmpty(identity.actorId) || !nonEmpty(identity.occurredAt)) {
+        if (!completeIdentityV2(identity)) {
           await dependencies.store.release(context, input.reference);
           return { outcome: 'unavailable' };
         }
@@ -680,9 +699,7 @@ export function createDeterministicCorrectionWorkspaceV2(
         });
         if (executionFailed(execution)) {
           await dependencies.store.release(context, input.reference);
-          return execution.status === 'version-conflict'
-            ? { outcome: 'version-conflict', currentVersion: current.version }
-            : { outcome: 'unavailable' };
+          return failedExecutionOutcomeV2(execution.status, current.version);
         }
         const applied = execution.appliedVersions.academicRecords.find(
           (entry) => entry.stableKey === current.recipe.targetStableKey,

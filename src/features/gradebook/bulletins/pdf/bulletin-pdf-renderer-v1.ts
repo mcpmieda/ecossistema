@@ -199,6 +199,31 @@ function appendAnnualResult(
   appendText(lines, 'meta', bulletinCoverageLabelV1(annualResult.coverage), 20);
 }
 
+type PdfAssessmentV1 = {
+  readonly name: string;
+  readonly type: string;
+  readonly applicability: Parameters<typeof bulletinApplicabilityLabelV1>[0];
+  readonly value: Parameters<typeof appendComparedGrade>[2];
+};
+
+/** A term's assessments, or a note that the canonical model has none. */
+function appendAssessmentsV1(lines: BulletinPdfLineV1[], assessments: readonly PdfAssessmentV1[]) {
+  appendText(lines, 'subsection', 'Avaliações', 20);
+  if (assessments.length === 0) {
+    appendText(lines, 'meta', 'Nenhuma avaliação no modelo canônico.', 36);
+  }
+  for (const assessment of assessments) {
+    appendText(lines, 'body', assessment.name, 36);
+    appendText(
+      lines,
+      'meta',
+      `Tipo: ${assessment.type} · Aplicabilidade: ${bulletinApplicabilityLabelV1(assessment.applicability)}`,
+      52,
+    );
+    appendComparedGrade(lines, 'Valor', assessment.value);
+  }
+}
+
 /** Presentation-only projection over the canonical snapshot. No academic value is derived here. */
 export function buildBulletinPdfLinesV1(input: BulletinPdfInputV1): readonly BulletinPdfLineV1[] {
   assertReadyInput(input);
@@ -270,22 +295,7 @@ export function buildBulletinPdfLinesV1(input: BulletinPdfInputV1): readonly Bul
       appendComparedGrade(lines, 'Percentual', term.percentage);
       appendText(lines, 'meta', bulletinCoverageLabelV1(term.coverage), 20);
 
-      if ('assessments' in term) {
-        appendText(lines, 'subsection', 'Avaliações', 20);
-        if (term.assessments.length === 0) {
-          appendText(lines, 'meta', 'Nenhuma avaliação no modelo canônico.', 36);
-        }
-        for (const assessment of term.assessments) {
-          appendText(lines, 'body', assessment.name, 36);
-          appendText(
-            lines,
-            'meta',
-            `Tipo: ${assessment.type} · Aplicabilidade: ${bulletinApplicabilityLabelV1(assessment.applicability)}`,
-            52,
-          );
-          appendComparedGrade(lines, 'Valor', assessment.value);
-        }
-      }
+      if ('assessments' in term) appendAssessmentsV1(lines, term.assessments);
       lines.push({ kind: 'space', height: 12 });
     }
     appendAnnualResult(lines, subject.annualResult);
@@ -435,6 +445,13 @@ function splitLongToken(
   return pieces.length === 0 ? [''] : pieces;
 }
 
+/** A word that fits stays whole; a longer one is split into pieces that fit. */
+function wordTokensV1(context: CanvasRenderingContext2D, word: string, maximumWidth: number) {
+  return context.measureText(word).width <= maximumWidth
+    ? [word]
+    : splitLongToken(context, word, maximumWidth);
+}
+
 function wrapCanvasText(
   context: CanvasRenderingContext2D,
   text: string,
@@ -444,11 +461,7 @@ function wrapCanvasText(
   const output: string[] = [];
   let current = '';
   for (const word of text.split(' ')) {
-    const tokens =
-      context.measureText(word).width <= maximumWidth
-        ? [word]
-        : splitLongToken(context, word, maximumWidth);
-    for (const token of tokens) {
+    for (const token of wordTokensV1(context, word, maximumWidth)) {
       const candidate = current.length === 0 ? token : `${current} ${token}`;
       if (current.length > 0 && context.measureText(candidate).width > maximumWidth) {
         output.push(current);
