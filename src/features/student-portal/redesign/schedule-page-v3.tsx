@@ -21,6 +21,7 @@ import {
   bellMomentV1,
   type BellDayV1,
   type BellItemV1,
+  type BellMomentV1,
 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import {
   schoolDayOffLabelV1,
@@ -406,6 +407,96 @@ const PASSED_LABEL: Record<BellItemV1['kind'], string> = {
   aula: 'da aula',
 };
 
+type RowClockV3 = {
+  isNow: (item: { start: string; end: string } | null) => boolean;
+  isDone: (item: { start: string; end: string } | null) => boolean;
+};
+
+/** The row's state against the clock: the one going on now, or already over. */
+const rowStateClassV3 = (clock: RowClockV3, item: { start: string; end: string } | null) =>
+  (clock.isNow(item) ? ' is-now' : '') + (clock.isDone(item) ? ' is-done' : '');
+
+/** The break or the parada, in its place among the lessons. */
+function pauseRowV3(row: Exclude<RowV3, { kind: 'aula' }>, clock: RowClockV3) {
+  const parada = row.kind === 'parada';
+  const now = clock.isNow(row);
+  return (
+    <li
+      key={parada ? 'parada' + row.start : 'intervalo'}
+      aria-current={now ? 'time' : undefined}
+      className={
+        'pa3-schedule-row ' +
+        (parada ? 'pa3-schedule-parada' : 'pa3-schedule-break') +
+        rowStateClassV3(clock, row)
+      }
+    >
+      <span className="pa3-schedule-slot" aria-hidden="true">
+        {parada ? <Flag size={16} /> : <MugV3 steaming={now} />}
+      </span>
+      <span className="pa3-schedule-subject">{parada ? 'Parada' : 'Intervalo'}</span>
+      <span className="pa3-schedule-time">
+        {now ? (
+          <Chip
+            size="sm"
+            variant="primary"
+            color={parada ? 'accent' : 'warning'}
+            className="pa3-schedule-now"
+          >
+            agora
+          </Chip>
+        ) : null}
+        {timeText(row)}
+      </span>
+    </li>
+  );
+}
+
+/** One lesson position: its subject (or a blank, free position) and its time. */
+function lessonRowV3(row: Extract<RowV3, { kind: 'aula' }>, clock: RowClockV3) {
+  return (
+    <li
+      key={row.slot}
+      className={
+        'pa3-schedule-row' +
+        (row.subject
+          ? ` pa3-subject pa3-subject--${subjectStyleV3(row.subject).tone}`
+          : ' is-free') +
+        rowStateClassV3(clock, row.time)
+      }
+      aria-current={clock.isNow(row.time) ? 'time' : undefined}
+    >
+      <span className="pa3-schedule-slot" aria-hidden="true">
+        {row.slot}ª
+      </span>
+      {/* A free position is a blank space; a screen reader hears "6ª aula: sem aula". */}
+      <span className="pa3-schedule-subject">
+        <span className="pa-visually-hidden">{`${row.slot}ª aula: `}</span>
+        {row.subject ? (
+          <>
+            {(() => {
+              const { Icon } = subjectStyleV3(row.subject);
+              return <Icon size={16} className="pa3-subject-icon" aria-hidden="true" />;
+            })()}
+            <span className="pa3-subject-name">{subjectText(row.subject)}</span>
+          </>
+        ) : (
+          <span className="pa-visually-hidden">sem aula</span>
+        )}
+      </span>
+      {row.time ? (
+        <span className="pa3-schedule-time">
+          {clock.isNow(row.time) ? (
+            <Chip size="sm" variant="primary" color="accent" className="pa3-schedule-now">
+              agora
+            </Chip>
+          ) : null}
+          {timeText(row.time)}
+        </span>
+      ) : null}
+    </li>
+  );
+}
+
 /** One day's lessons as a list: time, subject, the break in its place, the lesson going on now. */
 function DayListV3({
   rows,
@@ -438,103 +529,10 @@ function DayListV3({
     minute !== null && ends.length > 0 && ends.every((end) => minute >= bellMinutesV1(end));
   const isDone = (item: { start: string; end: string } | null) =>
     !!item && minute !== null && !dayOver && minute >= bellMinutesV1(item.end);
+  const clock: RowClockV3 = { isNow, isDone };
   return (
     <ol className="pa3-schedule-list" aria-label={label}>
-      {rows.map((row) => {
-        if (row.kind === 'parada')
-          return (
-            <li
-              key={'parada' + row.start}
-              aria-current={isNow(row) ? 'time' : undefined}
-              className={
-                'pa3-schedule-row pa3-schedule-parada' +
-                (isNow(row) ? ' is-now' : '') +
-                (isDone(row) ? ' is-done' : '')
-              }
-            >
-              <span className="pa3-schedule-slot" aria-hidden="true">
-                <Flag size={16} />
-              </span>
-              <span className="pa3-schedule-subject">Parada</span>
-              <span className="pa3-schedule-time">
-                {isNow(row) ? (
-                  <Chip size="sm" variant="primary" color="accent" className="pa3-schedule-now">
-                    agora
-                  </Chip>
-                ) : null}
-                {timeText(row)}
-              </span>
-            </li>
-          );
-        if (row.kind === 'intervalo')
-          return (
-            <li
-              key="intervalo"
-              aria-current={isNow(row) ? 'time' : undefined}
-              className={
-                'pa3-schedule-row pa3-schedule-break' +
-                (isNow(row) ? ' is-now' : '') +
-                (isDone(row) ? ' is-done' : '')
-              }
-            >
-              <span className="pa3-schedule-slot" aria-hidden="true">
-                <MugV3 steaming={isNow(row)} />
-              </span>
-              <span className="pa3-schedule-subject">Intervalo</span>
-              <span className="pa3-schedule-time">
-                {isNow(row) ? (
-                  <Chip size="sm" variant="primary" color="warning" className="pa3-schedule-now">
-                    agora
-                  </Chip>
-                ) : null}
-                {timeText(row)}
-              </span>
-            </li>
-          );
-        return (
-          <li
-            key={row.slot}
-            className={
-              'pa3-schedule-row' +
-              (row.subject
-                ? ` pa3-subject pa3-subject--${subjectStyleV3(row.subject).tone}`
-                : ' is-free') +
-              (isNow(row.time) ? ' is-now' : '') +
-              (isDone(row.time) ? ' is-done' : '')
-            }
-            aria-current={isNow(row.time) ? 'time' : undefined}
-          >
-            <span className="pa3-schedule-slot" aria-hidden="true">
-              {row.slot}ª
-            </span>
-            {/* A free position is a blank space; a screen reader hears "6ª aula: sem aula". */}
-            <span className="pa3-schedule-subject">
-              <span className="pa-visually-hidden">{`${row.slot}ª aula: `}</span>
-              {row.subject ? (
-                <>
-                  {(() => {
-                    const { Icon } = subjectStyleV3(row.subject);
-                    return <Icon size={16} className="pa3-subject-icon" aria-hidden="true" />;
-                  })()}
-                  <span className="pa3-subject-name">{subjectText(row.subject)}</span>
-                </>
-              ) : (
-                <span className="pa-visually-hidden">sem aula</span>
-              )}
-            </span>
-            {row.time ? (
-              <span className="pa3-schedule-time">
-                {isNow(row.time) ? (
-                  <Chip size="sm" variant="primary" color="accent" className="pa3-schedule-now">
-                    agora
-                  </Chip>
-                ) : null}
-                {timeText(row.time)}
-              </span>
-            ) : null}
-          </li>
-        );
-      })}
+      {rows.map((row) => (row.kind === 'aula' ? lessonRowV3(row, clock) : pauseRowV3(row, clock)))}
     </ol>
   );
 }
@@ -596,6 +594,97 @@ const itemName = (item: BellItemV1, subject: string | null) => {
   }
   return `${item.slot}ª aula${subject ? ' · ' + subject : ''}`;
 };
+/** The day's own items: its lessons, the break and the paradas around them (rowsOf's order). */
+function bellItemsOfV3(shown: readonly RowV3[]) {
+  return shown.flatMap((row): BellItemV1[] => {
+    if (row.kind === 'aula') {
+      if (row.time) {
+        return [{ kind: 'aula', slot: row.slot, start: row.time.start, end: row.time.end }];
+      }
+      return [];
+    }
+    return [{ kind: row.kind, start: row.start, end: row.end }];
+  });
+}
+
+/** After the day's last lesson, on a weekend or a day off: the clock runs to the next lessons. */
+function NextLessonsCardV3({
+  item,
+  today,
+  daysOff,
+  seconds,
+  named,
+}: Readonly<{
+  item: ScheduleClassV3;
+  today: string;
+  daysOff: readonly SchoolDayOffV1[];
+  seconds: number;
+  named: boolean;
+}>) {
+  const next = nextSchoolDayOf(item, today, daysOff);
+  if (!next) return null;
+  const when = next.ahead === 1 ? 'amanhã' : DAYS[next.weekday - 1]!.long.toLowerCase();
+  return (
+    <Card className="pa3-card pa3-now" role="status" aria-live="off">
+      {named ? <p className="pa3-schedule-class">{item.label}</p> : null}
+      <Card.Header className="pa3-now-head">
+        <Card.Title className="pa3-now-title">Próximas aulas: {when}</Card.Title>
+        <Chip size="sm" variant="soft" color="accent" className="pa3-now-until">
+          {shortDate(next.date)} · {next.start}
+        </Chip>
+      </Card.Header>
+      <div className="pa3-now-clock pa-countdown">
+        <span className="pa3-now-label">Começa em</span>
+        <PortalTimerV1
+          seconds={next.ahead * 86_400 + bellMinutesV1(next.start) * 60 - seconds}
+          label="Começa em"
+        />
+      </div>
+      <p className="pa3-now-after">
+        {next.parada ? 'Começa com a parada · ' : ''}
+        Primeira: {next.slot}ª aula
+        {subjectAt(item.lessons, next.weekday, next.slot)
+          ? ` · ${subjectAt(item.lessons, next.weekday, next.slot)}`
+          : ''}
+      </p>
+    </Card>
+  );
+}
+
+/** The card's title, the countdown's label and target, and what comes after, for the moment. */
+function nowTextsV3(
+  moment: Exclude<BellMomentV1, { state: 'over' }>,
+  day: readonly BellItemV1[],
+  subjectOf: (bell: BellItemV1 | null) => string | null,
+) {
+  let title: string;
+  let clockLabel: string;
+  let target: string;
+  let after: BellItemV1 | null = null;
+  if (moment.state === 'in') {
+    title = `Agora: ${itemName(moment.current, subjectOf(moment.current))}`;
+    clockLabel = clockLabelInV3(moment.current, moment.next);
+    target = moment.current.end;
+    // After the break comes the lesson that follows it.
+    if (moment.next?.kind === 'intervalo') after = day[day.indexOf(moment.next) + 1] ?? null;
+    else if (moment.next) after = moment.next;
+  } else {
+    clockLabel = 'Começa em';
+    target = moment.next.start;
+    if (moment.state !== 'before') {
+      title = `Próxima: ${itemName(moment.next, subjectOf(moment.next))}`;
+    } else if (moment.next.kind === 'parada') {
+      title = `Hoje a parada começa às ${moment.next.start}`;
+      // Before the day: its first lesson, after the parada the day starts with.
+      after = day.find((bell) => bell.kind === 'aula') ?? null;
+    } else {
+      title = `Hoje as aulas começam às ${moment.next.start}`;
+      after = moment.next;
+    }
+  }
+  return { title, clockLabel, target, after };
+}
+
 /**
  * Today, now (owner decision 23/10/2026): the lesson going on and a short clock to what comes next
  * ("Intervalo em", "Saída em"), then what follows. Before the day starts (with the parada, when
@@ -623,76 +712,24 @@ function NowCardV3({
   const shown = schoolToday ? rowsOf(item, weekday) : [];
   const lastSlot = Math.max(0, ...shown.flatMap((row) => (row.kind === 'aula' ? [row.slot] : [])));
   // The day's own items: its lessons, the break and the paradas around them (rowsOf's order).
-  const day = shown.flatMap((row): BellItemV1[] => {
-    if (row.kind === 'aula') {
-      if (row.time) {
-        return [{ kind: 'aula', slot: row.slot, start: row.time.start, end: row.time.end }];
-      }
-      return [];
-    }
-    return [{ kind: row.kind, start: row.start, end: row.end }];
-  });
+  const day = bellItemsOfV3(shown);
   const moment =
     lastSlot && bells.length ? bellMomentV1(day, seconds / 60) : ({ state: 'over' } as const);
-  if (moment.state === 'over') {
+  if (moment.state === 'over')
     // After the day's last lesson, on a weekend or a day off: the clock runs to the next lessons.
-    const next = nextSchoolDayOf(item, today, daysOff);
-    if (!next) return null;
-    const when = next.ahead === 1 ? 'amanhã' : DAYS[next.weekday - 1]!.long.toLowerCase();
     return (
-      <Card className="pa3-card pa3-now" role="status" aria-live="off">
-        {named ? <p className="pa3-schedule-class">{item.label}</p> : null}
-        <Card.Header className="pa3-now-head">
-          <Card.Title className="pa3-now-title">Próximas aulas: {when}</Card.Title>
-          <Chip size="sm" variant="soft" color="accent" className="pa3-now-until">
-            {shortDate(next.date)} · {next.start}
-          </Chip>
-        </Card.Header>
-        <div className="pa3-now-clock pa-countdown">
-          <span className="pa3-now-label">Começa em</span>
-          <PortalTimerV1
-            seconds={next.ahead * 86_400 + bellMinutesV1(next.start) * 60 - seconds}
-            label="Começa em"
-          />
-        </div>
-        <p className="pa3-now-after">
-          {next.parada ? 'Começa com a parada · ' : ''}
-          Primeira: {next.slot}ª aula
-          {subjectAt(item.lessons, next.weekday, next.slot)
-            ? ` · ${subjectAt(item.lessons, next.weekday, next.slot)}`
-            : ''}
-        </p>
-      </Card>
+      <NextLessonsCardV3
+        item={item}
+        today={today}
+        daysOff={daysOff}
+        seconds={seconds}
+        named={named}
+      />
     );
-  }
   const subjectOf = (bell: BellItemV1 | null) =>
     bell?.kind === 'aula' ? subjectAt(item.lessons, weekday, bell.slot) : null;
   const until = (time: string) => bellMinutesV1(time) * 60 - seconds;
-  let title: string;
-  let clockLabel: string;
-  let target: string;
-  let after: BellItemV1 | null = null;
-  if (moment.state === 'in') {
-    title = `Agora: ${itemName(moment.current, subjectOf(moment.current))}`;
-    clockLabel = clockLabelInV3(moment.current, moment.next);
-    target = moment.current.end;
-    // After the break comes the lesson that follows it.
-    if (moment.next?.kind === 'intervalo') after = day[day.indexOf(moment.next) + 1] ?? null;
-    else if (moment.next) after = moment.next;
-  } else {
-    clockLabel = 'Começa em';
-    target = moment.next.start;
-    if (moment.state !== 'before') {
-      title = `Próxima: ${itemName(moment.next, subjectOf(moment.next))}`;
-    } else if (moment.next.kind === 'parada') {
-      title = `Hoje a parada começa às ${moment.next.start}`;
-      // Before the day: its first lesson, after the parada the day starts with.
-      after = day.find((bell) => bell.kind === 'aula') ?? null;
-    } else {
-      title = `Hoje as aulas começam às ${moment.next.start}`;
-      after = moment.next;
-    }
-  }
+  const { title, clockLabel, target, after } = nowTextsV3(moment, day, subjectOf);
   return (
     <Card className="pa3-card pa3-now" role="status" aria-live="off">
       {named ? <p className="pa3-schedule-class">{item.label}</p> : null}
