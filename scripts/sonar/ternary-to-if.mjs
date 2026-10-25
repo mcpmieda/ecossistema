@@ -55,42 +55,46 @@ for (const file of files) {
   };
   const hasComment = (node) => /\/\/|\/\*/u.test(raw(node));
   const edits = [];
+  // Each rewrite answers whether it handled the node (its children are then left alone).
+  const rewriteReturn = (node) => {
+    if (!(ts.isReturnStatement(node) && node.expression && nested(node.expression) && !hasComment(node))) return false;
+    const indent = indentOf(node);
+    // A `return` that is the whole body of an unbraced if/else/loop needs braces of its own.
+    if (ts.isBlock(node.parent) || ts.isSourceFile(node.parent) || ts.isCaseClause(node.parent) || ts.isDefaultClause(node.parent)) {
+      edits.push([node.getStart(source), node.getEnd(), emit(node.expression, (v) => `return ${v};`, indent, true).trimStart()]);
+    } else {
+      const inner = emit(node.expression, (v) => `return ${v};`, indent + unit, true);
+      edits.push([node.getStart(source), node.getEnd(), `{${nl}${inner}${nl}${indent}}`]);
+    }
+    return true;
+  };
+  const rewriteArrow = (node) => {
+    if (!(ts.isArrowFunction(node) && !ts.isBlock(node.body) && nested(node.body) && !hasComment(node.body))) return false;
+    const indent = indentOf(node);
+    const inner = emit(node.body, (v) => `return ${v};`, indent + unit, true);
+    // The brace goes right after `=>`, even when the old body started on the next line.
+    const arrowEnd = node.equalsGreaterThanToken.getEnd();
+    if (/\/\/|\/\*/u.test(text.slice(arrowEnd, node.body.getStart(source)))) return true;
+    edits.push([arrowEnd, node.body.getEnd(), ` {${nl}${inner}${nl}${indent}}`]);
+    return true;
+  };
+  const rewriteVariable = (node) => {
+    if (!ts.isVariableStatement(node) || node.modifiers?.length || node.declarationList.declarations.length !== 1) return false;
+    const decl = node.declarationList.declarations[0];
+    if (!(ts.isIdentifier(decl.name) && decl.initializer && nested(decl.initializer) && !hasComment(node))) return false;
+    const indent = indentOf(node);
+    // Without a declared type, `let` would widen literal values ('a' -> string); keep the union.
+    const leaves = literalLeaves(decl.initializer);
+    let type = '';
+    if (decl.type) type = `: ${raw(decl.type)}`;
+    else if (leaves) type = `: ${[...new Set(leaves)].join(' | ')}`;
+    const name = decl.name.text;
+    const body = emit(decl.initializer, (v) => `${name} = ${v};`, indent);
+    edits.push([node.getStart(source), node.getEnd(), `let ${name}${type};${nl}${body}`]);
+    return true;
+  };
   const visit = (node) => {
-    if (ts.isReturnStatement(node) && node.expression && nested(node.expression) && !hasComment(node)) {
-      const indent = indentOf(node);
-      // A `return` that is the whole body of an unbraced if/else/loop needs braces of its own.
-      if (ts.isBlock(node.parent) || ts.isSourceFile(node.parent) || ts.isCaseClause(node.parent) || ts.isDefaultClause(node.parent)) {
-        edits.push([node.getStart(source), node.getEnd(), emit(node.expression, (v) => `return ${v};`, indent, true).trimStart()]);
-      } else {
-        const inner = emit(node.expression, (v) => `return ${v};`, indent + unit, true);
-        edits.push([node.getStart(source), node.getEnd(), `{${nl}${inner}${nl}${indent}}`]);
-      }
-      return;
-    }
-    if (ts.isArrowFunction(node) && !ts.isBlock(node.body) && nested(node.body) && !hasComment(node.body)) {
-      const indent = indentOf(node);
-      const inner = emit(node.body, (v) => `return ${v};`, indent + unit, true);
-      // The brace goes right after `=>`, even when the old body started on the next line.
-      const arrowEnd = node.equalsGreaterThanToken.getEnd();
-      if (/\/\/|\/\*/u.test(text.slice(arrowEnd, node.body.getStart(source)))) return;
-      edits.push([arrowEnd, node.body.getEnd(), ` {${nl}${inner}${nl}${indent}}`]);
-      return;
-    }
-    if (ts.isVariableStatement(node) && !node.modifiers?.length && node.declarationList.declarations.length === 1) {
-      const decl = node.declarationList.declarations[0];
-      if (ts.isIdentifier(decl.name) && decl.initializer && nested(decl.initializer) && !hasComment(node)) {
-        const indent = indentOf(node);
-        // Without a declared type, `let` would widen literal values ('a' -> string); keep the union.
-        const leaves = literalLeaves(decl.initializer);
-        let type = '';
-        if (decl.type) type = `: ${raw(decl.type)}`;
-        else if (leaves) type = `: ${[...new Set(leaves)].join(' | ')}`;
-        const name = decl.name.text;
-        const body = emit(decl.initializer, (v) => `${name} = ${v};`, indent);
-        edits.push([node.getStart(source), node.getEnd(), `let ${name}${type};${nl}${body}`]);
-        return;
-      }
-    }
+    if (rewriteReturn(node) || rewriteArrow(node) || rewriteVariable(node)) return;
     ts.forEachChild(node, visit);
   };
   visit(source);
