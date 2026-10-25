@@ -5,18 +5,24 @@ export class PhotoTransportReadErrorV1 extends Error {
     super(`student-photo-transport-${code}`);
   }
 }
+/** Plain JSON only (no content encoding); the declared length, when sent, must be a whole number
+ * within the limit. */
+function declaredPhotoBytesV1(headers: Headers): number | null {
+  if (headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json')
+    throw new PhotoTransportReadErrorV1('invalid');
+  const encoding = headers.get('content-encoding');
+  if (encoding !== null && encoding.trim().toLowerCase() !== 'identity') throw new PhotoTransportReadErrorV1('invalid');
+  const header = headers.get('content-length');
+  const declared = header === null ? null : Number(header);
+  if (header !== null && (!/^\d+$/u.test(header) || !Number.isSafeInteger(declared))) throw new PhotoTransportReadErrorV1('invalid');
+  if (declared !== null && declared > PHOTO_ADMIN_BODY_BYTES_V1) throw new PhotoTransportReadErrorV1('too-large');
+  return declared;
+}
 /** Shared browser/Worker reader. Authenticate server requests before calling it.
  * Bounds actual bytes, not just Content-Length, and does not await a stalled cancel(). */
 export async function readPhotoJsonV1(message: Pick<Request, 'body' | 'headers'>, signal: AbortSignal): Promise<unknown> {
   if (signal.aborted) throw new PhotoTransportReadErrorV1('cancelled');
-  if (message.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json')
-    throw new PhotoTransportReadErrorV1('invalid');
-  const encoding = message.headers.get('content-encoding');
-  if (encoding !== null && encoding.trim().toLowerCase() !== 'identity') throw new PhotoTransportReadErrorV1('invalid');
-  const header = message.headers.get('content-length');
-  const declared = header === null ? null : Number(header);
-  if (header !== null && (!/^\d+$/u.test(header) || !Number.isSafeInteger(declared))) throw new PhotoTransportReadErrorV1('invalid');
-  if (declared !== null && declared > PHOTO_ADMIN_BODY_BYTES_V1) throw new PhotoTransportReadErrorV1('too-large');
+  const declared = declaredPhotoBytesV1(message.headers);
   const reader = message.body?.getReader();
   if (!reader) throw new PhotoTransportReadErrorV1('invalid');
   const storage = new Uint8Array(PHOTO_ADMIN_BODY_BYTES_V1);
