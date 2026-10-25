@@ -159,6 +159,29 @@ async function readSealsV1(
   return result.items;
 }
 
+/** The scopes a target key reads: one account, account batches, or each class. */
+function scopesOfKeyV1(key: string): SealTargetV1[] {
+  if (key.startsWith('account:'))
+    return [{ kind: 'account', academicYear: 2026, accountId: key.slice(8) }];
+  if (key.startsWith('accounts:')) return accountBatchesV1(key.slice(9));
+  return key
+    .slice(8)
+    .split(',')
+    .filter(Boolean)
+    .map((id) => ({
+      kind: 'class',
+      academicYear: 2026,
+      classId: Number(id),
+    }));
+}
+
+function addCountsV1(
+  counts: Map<string, number | null>,
+  items: readonly { accountId: string; seals: number | null }[] | undefined,
+) {
+  for (const item of items ?? []) counts.set(item.accountId, item.seals);
+}
+
 /**
  * Selos brilhantes for a record or a list (owner request 29/09/2026). The server counts one
  * record or up to 400 selected accounts per read; two batches may be in flight.
@@ -193,29 +216,12 @@ export function useSealCountsV1(
         cache.revision = revision;
       }
       signal.throwIfAborted();
-      let scopes: SealTargetV1[];
-      if (key.startsWith('account:')) {
-        scopes = [{ kind: 'account', academicYear: 2026, accountId: key.slice(8) }];
-      } else if (key.startsWith('accounts:')) {
-        scopes = accountBatchesV1(key.slice(9));
-      } else {
-        scopes = key
-            .slice(8)
-            .split(',')
-            .filter(Boolean)
-            .map((id) => ({
-              kind: 'class',
-              academicYear: 2026,
-              classId: Number(id),
-            }));
-      }
+      const scopes = scopesOfKeyV1(key);
       const counts = new Map<string, number | null>();
       cache.retainPending(active ? scopes : []);
       if (!active) {
-        for (const scope of scopes) {
-          const saved = cache.entries.get(targetKeyV1(scope));
-          for (const item of saved?.items ?? []) counts.set(item.accountId, item.seals);
-        }
+        // A hidden list shows only what is already read, without new requests.
+        for (const scope of scopes) addCountsV1(counts, cache.entries.get(targetKeyV1(scope))?.items);
         return counts;
       }
       try {
