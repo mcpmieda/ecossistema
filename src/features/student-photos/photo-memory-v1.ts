@@ -124,6 +124,17 @@ function failV1(entry: PhotoMemoryEntryV1) {
   entry.state = entry.src ? 'ready' : 'idle';
   entry.retryAt = Date.now() + RETRY_MS_V1;
 }
+/** Back to the queue, each one for its own read, keeping its turn. */
+function requeueV1(items: readonly QueuedV1[]) {
+  for (const { url, entry } of [...items].reverse()) {
+    entry.state = 'queued';
+    queue.push(url);
+  }
+}
+/** The entries still owned by this read (a newer read may have taken some). */
+function ownedV1(items: readonly QueuedV1[], controller: AbortController) {
+  return items.map(({ entry }) => entry).filter((entry) => entry.controller === controller);
+}
 async function loadV1(items: readonly QueuedV1[]) {
   const controller = new AbortController();
   const started = epoch;
@@ -151,11 +162,7 @@ async function loadV1(items: readonly QueuedV1[]) {
     if (controller.signal.aborted) return;
     if (!images) {
       together = false;
-      // Back to the queue, each one for its own read, keeping its turn.
-      for (const { url, entry } of [...items].reverse()) {
-        entry.state = 'queued';
-        queue.push(url);
-      }
+      requeueV1(items);
       return;
     }
     items.forEach(({ entry }, index) => {
@@ -172,10 +179,9 @@ async function loadV1(items: readonly QueuedV1[]) {
     });
   } catch {
     if (controller.signal.aborted) return;
-    for (const { entry } of items) if (entry.controller === controller) failV1(entry);
+    for (const entry of ownedV1(items, controller)) failV1(entry);
   } finally {
-    for (const { entry } of items)
-      if (entry.controller === controller) entry.controller = undefined;
+    for (const entry of ownedV1(items, controller)) entry.controller = undefined;
     if (started === epoch) {
       running -= 1;
       pumpV1();
