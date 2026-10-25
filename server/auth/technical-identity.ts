@@ -37,21 +37,28 @@ function rotatedCredential(
   return { ...rotatedCredentialSchema.parse(JSON.parse(serialized)), slot };
 }
 
+/** One named slot: it must be present and valid, with no fallback to the other. */
+function requestedCredential(
+  env: RuntimeEnv,
+  purpose: CredentialPurpose,
+  slot: GraphCredentialSlot,
+): GraphCredential {
+  try { return rotatedCredential(env, purpose, slot); }
+  catch {
+    throw new TechnicalCredentialError(
+      purpose,
+      env[`${purpose}_CREDENTIAL_${slot}`] ? 'invalid' : 'missing',
+      [slot],
+    );
+  }
+}
+
 function technicalCredentials(
   env: RuntimeEnv,
   purpose: CredentialPurpose,
   requestedSlot?: GraphCredentialSlot,
 ): GraphCredential[] {
-  if (requestedSlot) {
-    try { return [rotatedCredential(env, purpose, requestedSlot)]; }
-    catch {
-      throw new TechnicalCredentialError(
-        purpose,
-        env[`${purpose}_CREDENTIAL_${requestedSlot}`] ? 'invalid' : 'missing',
-        [requestedSlot],
-      );
-    }
-  }
+  if (requestedSlot) return [requestedCredential(env, purpose, requestedSlot)];
 
   const rotated: GraphCredential[] = [];
   const invalid: GraphCredentialSlot[] = [];
