@@ -22,6 +22,11 @@ const closureRetryText = (retryable: boolean) =>
   retryable
     ? 'O resultado do encerramento ainda não foi confirmado. Repetir mantém exatamente a mesma operação.'
     : 'A operação não foi autorizada ou não pôde ser validada. Recarregue o estado antes de tentar novamente.';
+/** A conflict asks for a new preview; any other failure says whether the same closing can be repeated. */
+const closureErrorTextV1 = (mutation: Extract<SettingsMutationStateV1, { state: 'error' }>) =>
+  mutation.error.state === 'conflict'
+    ? 'Os vínculos ou a prévia mudaram. Prepare uma nova prévia e confira a contagem.'
+    : closureRetryText(mutation.retryable);
 
 /** School-only composition. Preview token never enters the rendered state, storage or logs. */
 export function LinkClosureV1({
@@ -216,11 +221,7 @@ export function LinkClosureV1({
         ) : null}
         {mutation.state === 'error' ? (
           <div className="pa-settings-error" role="alert">
-            <p>
-              {mutation.error.state === 'conflict'
-                ? 'Os vínculos ou a prévia mudaram. Prepare uma nova prévia e confira a contagem.'
-                : closureRetryText(mutation.retryable)}
-            </p>
+            <p>{closureErrorTextV1(mutation)}</p>
             {mutation.retryable ? (
               <Button
                 size="sm"
