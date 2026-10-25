@@ -17,6 +17,124 @@ const batchFailureText = (state: string) =>
     ? 'A turma mudou. Recarregue a lista e revise os alunos antes de gerar.'
     : 'Não foi possível confirmar o resultado. Não gere outra solicitação sem revisar.';
 
+const selectionCountLabelV1 = (wholeList: boolean, count: number) =>
+  wholeList ? `Lista inteira · ${count}` : `${count} selecionados`;
+
+/** The compact QR: what it carries, and an optional instruction below it. */
+function QrCompactOptionsV1({
+  mode,
+  onMode,
+  withInstruction,
+  onWithInstruction,
+  instruction,
+  onInstruction,
+  disabled,
+}: Readonly<{
+  mode: PrintModeV1;
+  onMode: (mode: PrintModeV1) => void;
+  withInstruction: boolean;
+  onWithInstruction: (value: boolean) => void;
+  instruction: string;
+  onInstruction: (value: string) => void;
+  disabled: boolean;
+}>) {
+  return (
+    <>
+      <RadioGroup
+        value={mode}
+        onChange={(value) => onMode(value as PrintModeV1)}
+        orientation="horizontal"
+        isDisabled={disabled}
+      >
+        <Label>Conteúdo do QR</Label>
+        {(Object.entries(PRINT_MODES_V1) as [PrintModeV1, string][]).map(([value, text]) => (
+          <Radio key={value} value={value}>
+            <Radio.Content>
+              <Radio.Control>
+                <Radio.Indicator />
+              </Radio.Control>
+              <span>{text}</span>
+            </Radio.Content>
+          </Radio>
+        ))}
+      </RadioGroup>
+      <Checkbox isSelected={withInstruction} onChange={onWithInstruction} isDisabled={disabled}>
+        <Checkbox.Content>
+          <Checkbox.Control>
+            <Checkbox.Indicator />
+          </Checkbox.Control>
+          <span>Adicionar instrução ao cartão</span>
+        </Checkbox.Content>
+      </Checkbox>
+      {withInstruction ? (
+        <TextField value={instruction} onChange={onInstruction} isDisabled={disabled}>
+          <Label>Instrução abaixo do QR</Label>
+          <Input maxLength={240} placeholder="Texto opcional, somente neste navegador" />
+        </TextField>
+      ) : null}
+    </>
+  );
+}
+
+/** Progress while the QR and the PDF are prepared, a download that did not start, or the failure
+ * with its retry. */
+function QrBatchStatusV1({
+  state,
+  clock,
+  onRetry,
+  onReload,
+}: Readonly<{
+  state: QrOperationStateV1;
+  clock: number;
+  onRetry: () => void;
+  onReload: () => void;
+}>) {
+  return (
+    <>
+      {state.state === 'requesting' || state.state === 'rendering' ? (
+        <p>
+          <output className="contents">
+            {state.state === 'rendering'
+              ? `Gerando PDF: ${state.completed} de ${state.total}`
+              : `Preparando QR: ${state.completed} de ${state.count}`}
+          </output>
+        </p>
+      ) : null}
+      {state.state === 'ready' && state.downloadFailed ? (
+        <p role="alert">O PDF está pronto, mas o download não começou.</p>
+      ) : null}
+      {state.state === 'error' ? (
+        <div role="alert">
+          <p>
+            {state.stage === 'render'
+              ? 'O servidor confirmou os QR. Tentar novamente gera somente o arquivo.'
+              : batchFailureText(state.error.state)}
+          </p>
+          {state.retryable ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={clock < state.retryAt}
+              onPress={onRetry}
+            >
+              Repetir mesma solicitação
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={clock < state.retryAt}
+              onPress={onReload}
+            >
+              Recarregar disponibilidade
+            </Button>
+          )}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function QrBatchToolsV1({
   client,
   accounts,
@@ -235,48 +353,15 @@ export function QrBatchToolsV1({
         ))}
       </RadioGroup>
       {layout === 'compact' ? (
-        <>
-          <RadioGroup
-            value={mode}
-            onChange={(value) => setMode(value as PrintModeV1)}
-            orientation="horizontal"
-            isDisabled={!canWrite || working || unresolved}
-          >
-            <Label>Conteúdo do QR</Label>
-            {(Object.entries(PRINT_MODES_V1) as [PrintModeV1, string][]).map(([value, text]) => (
-              <Radio key={value} value={value}>
-                <Radio.Content>
-                  <Radio.Control>
-                    <Radio.Indicator />
-                  </Radio.Control>
-                  <span>{text}</span>
-                </Radio.Content>
-              </Radio>
-            ))}
-          </RadioGroup>
-          <Checkbox
-            isSelected={withInstruction}
-            onChange={setWithInstruction}
-            isDisabled={working || unresolved || !canWrite}
-          >
-            <Checkbox.Content>
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-              <span>Adicionar instrução ao cartão</span>
-            </Checkbox.Content>
-          </Checkbox>
-          {withInstruction ? (
-            <TextField
-              value={instruction}
-              onChange={setInstruction}
-              isDisabled={working || unresolved || !canWrite}
-            >
-              <Label>Instrução abaixo do QR</Label>
-              <Input maxLength={240} placeholder="Texto opcional, somente neste navegador" />
-            </TextField>
-          ) : null}
-        </>
+        <QrCompactOptionsV1
+          mode={mode}
+          onMode={setMode}
+          withInstruction={withInstruction}
+          onWithInstruction={setWithInstruction}
+          instruction={instruction}
+          onInstruction={setInstruction}
+          disabled={!canWrite || working || unresolved}
+        />
       ) : null}
       <div className="pa-credentials-actions">
         {onSelectAll ? (
@@ -300,9 +385,7 @@ export function QrBatchToolsV1({
           </>
         ) : null}
         <span>
-          <output className="contents">
-            {wholeList ? `Lista inteira · ${chosen.length}` : `${chosen.length} selecionados`}
-          </output>
+          <output className="contents">{selectionCountLabelV1(wholeList, chosen.length)}</output>
         </span>
         <Button
           size="sm"
@@ -322,49 +405,15 @@ export function QrBatchToolsV1({
           </Button>
         ) : null}
       </div>
-      {working ? (
-        <p>
-          <output className="contents">
-            {state.state === 'rendering'
-              ? `Gerando PDF: ${state.completed} de ${state.total}`
-              : `Preparando QR: ${state.completed} de ${state.count}`}
-          </output>
-        </p>
-      ) : null}
-      {state.state === 'ready' && state.downloadFailed ? (
-        <p role="alert">O PDF está pronto, mas o download não começou.</p>
-      ) : null}
-      {state.state === 'error' ? (
-        <div role="alert">
-          <p>
-            {state.stage === 'render'
-              ? 'O servidor confirmou os QR. Tentar novamente gera somente o arquivo.'
-              : batchFailureText(state.error.state)}
-          </p>
-          {state.retryable ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={clock < state.retryAt}
-              onPress={() => void operation.retry()}
-            >
-              Repetir mesma solicitação
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={clock < state.retryAt}
-              onPress={() => {
-                operation.clear();
-                callbacks.current.onCommitted();
-              }}
-            >
-              Recarregar disponibilidade
-            </Button>
-          )}
-        </div>
-      ) : null}
+      <QrBatchStatusV1
+        state={state}
+        clock={clock}
+        onRetry={() => void operation.retry()}
+        onReload={() => {
+          operation.clear();
+          callbacks.current.onCommitted();
+        }}
+      />
     </div>
   );
 }
