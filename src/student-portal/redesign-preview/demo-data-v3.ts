@@ -255,12 +255,7 @@ export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
     daysOff: schoolDaysOffOfV1(demoCalendarV3()),
     bells: officialBells2026V1(),
     grid: [{ shift: 'vespertino', lessons: demoScheduleV3()[0]!.lessons }],
-    months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => {
-      void _today;
-      void _year;
-      void _read;
-      return month;
-    }),
+    months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => month),
   };
 }
 

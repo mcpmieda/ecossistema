@@ -154,7 +154,6 @@ function asInspectionOnlyV4(value: Record<string, unknown>): Record<string, unkn
       if (!isRecord(student) || !validSourceStudent(student.sourceStudent)) return null;
       const key = `${sheetIndex}:${studentIndex}`;
       const { sourceStudent: _sourceStudent, ...rest } = student;
-      void _sourceStudent;
       students.push({
         ...rest,
         confirmedStudent: {

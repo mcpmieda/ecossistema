@@ -323,9 +323,8 @@ function term(
   sheet: GradeSheetRecognition,
   trimester: 1 | 2 | 3,
   runtime: CanonicalImportRuntimeV9,
-  context: { readonly ano: number; readonly professor: string },
+  _context: { readonly ano: number; readonly professor: string },
 ): GradebookImportTermV9 {
-  void context;
   const definitionSnapshot = definitionSnapshotV1(sheet);
   const definitions = definitionSnapshot.instrumentos;
   const seen = new Set<number>();

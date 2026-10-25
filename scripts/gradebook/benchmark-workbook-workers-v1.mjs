@@ -168,8 +168,6 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
       for (let index = 0; index < entries.length; index++) {
         const measured = await readEntry(entries[index], index, client);
         const { timing, roundTripMs, ...value } = canonical(measured);
-        void timing;
-        void roundTripMs;
         if (variant === 'W0') reference[index] = value;
         else equalValue(reference[index], value, 'worker-equivalence');
         equivalent.find((item) => item.ordinal === index && item.stage === 'complete').outcome =
@@ -263,8 +261,6 @@ async function compareWorkbookWorkersV1(reader, xlsx, workerUrl, onProgress, rep
     }
     return output.map((result) => {
       const { timing, roundTripMs, ...value } = canonical(result);
-      void timing;
-      void roundTripMs;
       return value;
     });
   }
