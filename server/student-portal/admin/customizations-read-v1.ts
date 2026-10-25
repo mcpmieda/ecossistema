@@ -47,6 +47,9 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   const headRevision = z.string().regex(/^[1-9]\d{0,19}$/u).parse(meta.revision);
   const args: unknown[] = [generation, headRevision, epoch, publicationVersion];
   const bind = (value: unknown) => { args.push(value); return `$${args.length}`; };
+  // Sent as text and cast in SQL: a string bound straight to a jsonb parameter is JSON-encoded
+  // again by the driver, and every option the school has no row for (Frequência, Horário) read
+  // as null, failing the whole page.
   const defaults = bind(JSON.stringify(schoolDefaults));
   const targetKey = query.scope.kind === 'school' ? null : scopedKeyV2(query.scope);
   const contextKey = bind(targetKey);
@@ -121,7 +124,7 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
       AND parent.field_key=o.field_key
     LEFT JOIN own_settings shift_parent ON t.scope_kind IN ('account','class') AND shift_parent.scope_key='shift:2026:'||t.shift
       AND shift_parent.field_key=o.field_key
-    CROSS JOIN LATERAL (SELECT COALESCE(school.normalized,${defaults}::jsonb->o.field_key) AS school) baseline
+    CROSS JOIN LATERAL (SELECT COALESCE(school.normalized,${defaults}::text::jsonb->o.field_key) AS school) baseline
     CROSS JOIN LATERAL (SELECT COALESCE(shift_parent.normalized,parent.normalized,baseline.school) AS inherited) base
     WHERE (t.scope_kind<>'class' OR shift_parent.scope_key IS NULL)
       AND CASE WHEN o.field_key='allowedPeriods' THEN

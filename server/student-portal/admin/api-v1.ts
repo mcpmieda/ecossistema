@@ -18,7 +18,7 @@ import { inheritPublicationV1 } from '../publication/publication-inheritance-v1'
 import { LinkClosureServiceV1 } from '../integration/lifecycle/link-closure-v1';
 import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { AdminCursorV1 } from './cursor-v1';
-import { adminFailureStateV1, boundSqlV1 } from './common-v1';
+import { adminFailureDetailV1, adminFailureStateV1, boundSqlV1 } from './common-v1';
 import { readAccountListV1, readAdminHealthV1, readAuditV1 } from './queries-v1';
 import { closeLinksIdempotentlyV1, qrBatchV1 } from './batches-v1';
 import { readPopulationV1, startPopulationV1 } from './population-v1';
@@ -69,7 +69,12 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
       });
       if (pendingSealWrites.length) await saveSealCacheV1(this.sql, pendingSealWrites);
       return response;
-    } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
+    } catch (error) {
+      const state = adminFailureStateV1(error);
+      if (state === 'unavailable')
+        console.warn({ event: 'student-portal-admin-read-failure-v1', operation: parsed.data.operation, ...adminFailureDetailV1(error) });
+      return this.failure(context.requestId, state);
+    }
   }
   private async queryV1(inputContext: unknown, input: unknown): Promise<AdminResponseV1 | FailureV1> {
     const context = this.context(inputContext, false);
