@@ -142,6 +142,18 @@ function mark(
       };
 }
 
+/** A recovery's mark: R/R and N/C codes, pending while blank, otherwise its grade. */
+function recoveryMarkV1(
+  source: 'RR' | 'NC' | number | null,
+  term: SimplifiedAcademicTermV1,
+  minimum: number,
+): AcademicStudentV1['subjects'][number]['periods'][number]['final'] {
+  if (source === 'RR') return { kind: 'rr' };
+  if (source === 'NC') return { kind: 'nc' };
+  if (source === null) return { kind: 'recovery-pending' };
+  return mark(source, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term], minimum);
+}
+
 type AnnualSituationV1 = NonNullable<AcademicStudentV1['profile']['annualSituation']>;
 type SubjectSituationV1 = NonNullable<AcademicStudentV1['subjects'][number]['annualSituation']>;
 type AnnualOutcomeV1 = ReturnType<typeof resolveSimplifiedAnnualOutcomeV1>;
@@ -423,12 +435,7 @@ export class AcademicStudentReaderPostgresV1
       for (const term of [1, 2, 3] as const) {
         const rec = recovery.recoveryTerms[term];
         if (rec.applicable !== true) continue;
-        let final: (typeof periods)[number]['final'];
-        if (rec.source === 'RR') final = { kind: 'rr' };
-        else if (rec.source === 'NC') final = { kind: 'nc' };
-        else if (rec.source === null) final = { kind: 'recovery-pending' };
-        else final = mark(rec.source, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term], minimum);
-        periods.push({ period: `REC${term}`, final });
+        periods.push({ period: `REC${term}`, final: recoveryMarkV1(rec.source, term, minimum) });
       }
       const classification = recovery.classification;
       let officialOutcome;
