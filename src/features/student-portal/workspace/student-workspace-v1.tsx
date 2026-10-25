@@ -376,6 +376,52 @@ function SubjectIconV1({ label, size = 18, animated = false }: Readonly<{ label:
   );
 }
 
+/** Present only when the server releases it: EM RECUPERAÇÃO with T3, every other situation with
+ * the final disclosure. Assisted students never receive one. */
+function FinalResultCardV1({
+  data,
+  subjects,
+}: Readonly<{ data: SelfResponseV1; subjects: readonly SubjectV1[] }>) {
+  const situation =
+    data.profile.annualSituation === 'awaiting-council' ? 'in-recovery' : data.profile.annualSituation;
+  let finalResult;
+  if (situation) {
+    finalResult = ANNUAL_SITUATION_LABELS_V1[situation];
+  } else if (data.profile.result in finalResultLabelsV1) {
+    finalResult = finalResultLabelsV1[data.profile.result as keyof typeof finalResultLabelsV1];
+  } else {
+    finalResult = null;
+  }
+  const inRecovery = subjects.filter((subject) => subject.annualSituation === 'recovery-pending');
+  if (!finalResult) return null;
+  return (
+    <Card className={'pa-final-result pa-final-result--' + finalResult.tone}>
+      <Card.Content className="pa-final-result-content">
+        <div>
+          <p className="pa-workspace-eyebrow">
+            {situation === 'in-recovery' ? 'Situação' : 'Resultado final'}{' '}
+            {data.profile.link.academicYear}
+          </p>
+          <p className="pa-final-result-label">{finalResult.label}</p>
+          {situation === 'in-recovery' && inRecovery.length ? (
+            <p className="pa-final-result-detail">
+              Recuperação em {inRecovery.map((subject) => subject.label).join(', ')}
+            </p>
+          ) : null}
+        </div>
+        <Chip
+          size="sm"
+          variant="soft"
+          color={chipColorV1(finalResult.tone)}
+          className={chipToneClassV1(finalResult.tone)}
+        >
+          Oficial
+        </Chip>
+      </Card.Content>
+    </Card>
+  );
+}
+
 function SummaryV1({
   data,
   profile,
@@ -423,17 +469,6 @@ function SummaryV1({
     },
   );
   const peekPeriod = periodDrag.peek === null ? undefined : neighbourPeriod(periodDrag.peek);
-  const situation =
-    data.profile.annualSituation === 'awaiting-council' ? 'in-recovery' : data.profile.annualSituation;
-  let finalResult;
-  if (situation) {
-    finalResult = ANNUAL_SITUATION_LABELS_V1[situation];
-  } else if (data.profile.result in finalResultLabelsV1) {
-    finalResult = finalResultLabelsV1[data.profile.result as keyof typeof finalResultLabelsV1];
-  } else {
-    finalResult = null;
-  }
-  const inRecovery = subjects.filter((subject) => subject.annualSituation === 'recovery-pending');
   // Each trimester tab shows its own summary, never another trimester's.
   const activeSummary =
     data.closingSummaries?.find((summary) => summary.period === active) ??
@@ -443,34 +478,7 @@ function SummaryV1({
     <div className="pa-workspace-view">
       {profile}
       <section className="pa-boletim-section" aria-labelledby="pa-summary-title">
-        {/* Present only when the server releases it: EM RECUPERAÇÃO with T3, every other
-            situation with the final disclosure. Assisted students never receive one. */}
-        {finalResult ? (
-          <Card className={'pa-final-result pa-final-result--' + finalResult.tone}>
-            <Card.Content className="pa-final-result-content">
-              <div>
-                <p className="pa-workspace-eyebrow">
-                  {situation === 'in-recovery' ? 'Situação' : 'Resultado final'}{' '}
-                  {data.profile.link.academicYear}
-                </p>
-                <p className="pa-final-result-label">{finalResult.label}</p>
-                {situation === 'in-recovery' && inRecovery.length ? (
-                  <p className="pa-final-result-detail">
-                    Recuperação em {inRecovery.map((subject) => subject.label).join(', ')}
-                  </p>
-                ) : null}
-              </div>
-              <Chip
-                size="sm"
-                variant="soft"
-                color={chipColorV1(finalResult.tone)}
-                className={chipToneClassV1(finalResult.tone)}
-              >
-                Oficial
-              </Chip>
-            </Card.Content>
-          </Card>
-        ) : null}
+        <FinalResultCardV1 data={data} subjects={subjects} />
 
         {/* One period only (e.g. just the 1º Trimestre released): no bar to choose from; the
             heading names it instead. */}
@@ -1235,6 +1243,97 @@ function SubjectHeaderV1({
   );
 }
 
+/** The head of a trimester card: its mark, status (with the seal), meter and trend. */
+function ScoreHeadV1({
+  subject,
+  active,
+  period,
+  mark,
+  recoveryOf,
+  sealed,
+  trend,
+  trendReference,
+}: Readonly<{
+  subject: SubjectV1;
+  active: PeriodIdV1;
+  period: PeriodV1;
+  mark: ScoreMarkV1 | null;
+  recoveryOf: string | undefined;
+  sealed: (period: PeriodIdV1) => boolean;
+  trend: TrendV1 | null;
+  trendReference: PeriodIdV1 | undefined;
+}>) {
+  const markBlock = useCaptionFitV1(`${subject.subjectId}:${active}:${mark?.value}:${mark?.maximum}`);
+  const statusLine = useFitLineV1<HTMLSpanElement>(`${subject.subjectId}:${active}:${periodStatusV1(period).label}`, 15);
+  return (
+    <Card.Content
+      className={
+        'pa-score-head' + (periodStatusV1(period).band === 'brilliant' ? ' pa-score-head--brilliant' : '')
+      }
+    >
+      {periodStatusV1(period).band === 'brilliant' ? (
+        // Crisp white sparkles, each twinkling in its own time (owner request 27/09/2026).
+        <span className="pa-head-sparkles" aria-hidden="true">
+          {Array.from({ length: 12 }, (_, index) => (
+            <i key={index} />
+          ))}
+        </span>
+      ) : null}
+      <span className="pa-score-head-label">
+        {recoveryOf
+          ? `Recuperação do ${recoveryOf}`
+          : `Sua nota do ${PERIOD_LABELS_V1[active].replace(' Trimestre', ' trimestre')}`}
+      </span>
+      <div className="pa-score-head-row">
+        <div className="pa-score-head-mark" aria-label="Nota do período" ref={markBlock}>
+          {mark ? (
+            <>
+              <strong>{trimesterNumber.format(mark.value)}</strong>
+              {mark.maximum !== null && mark.maximum !== undefined ? (
+                <span>de {number.format(mark.maximum)} pontos</span>
+              ) : null}
+            </>
+          ) : (
+            <strong>
+              <StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} />
+            </strong>
+          )}
+        </div>
+        <div className="pa-score-head-copy">
+          <span
+            ref={statusLine}
+            className="pa-score-head-status"
+            data-band={periodStatusV1(period).band ?? undefined}
+          >
+            <StatusEmblemV1 band={periodStatusV1(period).band} />
+            <span className="pa-status-word">
+              {/* "selo" rides small above the word when the seal was earned (owner request
+                  28/09/2026); a Brilhante without the seal reads Brilhante alone. */}
+              {sealed(active) ? (
+                <span className="pa-status-seal" aria-hidden="true">
+                  selo
+                </span>
+              ) : null}
+              {sealed(active) ? <span className="pa-visually-hidden">Selo </span> : null}
+              {periodStatusV1(period).label}
+            </span>
+          </span>
+          {mark ? <ScoreMeterV1 mark={mark} /> : null}
+          {trend && trendReference ? (
+            <TrendLineV1
+              trend={trend}
+              reference={trendReference}
+              current={mark?.meetsMinimum ?? null}
+              previous={scoreOfV1(subjectPeriodV1(subject, trendReference))?.meetsMinimum ?? null}
+              drop={trendDropV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))}
+            />
+          ) : null}
+        </div>
+      </div>
+    </Card.Content>
+  );
+}
+
 function SubjectV1View({
   subject,
   selected,
@@ -1274,8 +1373,6 @@ function SubjectV1View({
     : null;
   // Meta do ano lives only on the 2º tri tab (owner request, phase 4).
   const annualGoal = active === 'T2' ? annualGoalV1(subject, academicState) : null;
-  const markBlock = useCaptionFitV1(`${subject.subjectId}:${active}:${mark?.value}:${mark?.maximum}`);
-  const statusLine = useFitLineV1<HTMLSpanElement>(`${subject.subjectId}:${active}:${periodStatusV1(period).label}`, 15);
 
   return (
     <div className="pa-subject-body">
@@ -1335,71 +1432,16 @@ function SubjectV1View({
               'pa-score-card pa-score-card--' + scoreToneV1(mark)
             }
           >
-            <Card.Content
-              className={
-                'pa-score-head' + (periodStatusV1(period).band === 'brilliant' ? ' pa-score-head--brilliant' : '')
-              }
-            >
-              {periodStatusV1(period).band === 'brilliant' ? (
-                // Crisp white sparkles, each twinkling in its own time (owner request 27/09/2026).
-                <span className="pa-head-sparkles" aria-hidden="true">
-                  {Array.from({ length: 12 }, (_, index) => (
-                    <i key={index} />
-                  ))}
-                </span>
-              ) : null}
-              <span className="pa-score-head-label">
-                {recoveryOf
-                  ? `Recuperação do ${recoveryOf}`
-                  : `Sua nota do ${PERIOD_LABELS_V1[active].replace(' Trimestre', ' trimestre')}`}
-              </span>
-              <div className="pa-score-head-row">
-                <div className="pa-score-head-mark" aria-label="Nota do período" ref={markBlock}>
-                  {mark ? (
-                    <>
-                      <strong>{trimesterNumber.format(mark.value)}</strong>
-                      {mark.maximum !== null && mark.maximum !== undefined ? (
-                        <span>de {number.format(mark.maximum)} pontos</span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <strong>
-                      <StudentMarkV1 mark={period?.final ?? { kind: 'absent' }} />
-                    </strong>
-                  )}
-                </div>
-                <div className="pa-score-head-copy">
-                  <span
-                    ref={statusLine}
-                    className="pa-score-head-status"
-                    data-band={periodStatusV1(period).band ?? undefined}
-                  >
-                    <StatusEmblemV1 band={periodStatusV1(period).band} />
-                    <span className="pa-status-word">
-                      {/* "selo" rides small above the word when the seal was earned (owner request
-                          28/09/2026); a Brilhante without the seal reads Brilhante alone. */}
-                      {sealed(active) ? (
-                        <span className="pa-status-seal" aria-hidden="true">
-                          selo
-                        </span>
-                      ) : null}
-                      {sealed(active) ? <span className="pa-visually-hidden">Selo </span> : null}
-                      {periodStatusV1(period).label}
-                    </span>
-                  </span>
-                  {mark ? <ScoreMeterV1 mark={mark} /> : null}
-                  {trend && trendReference ? (
-                    <TrendLineV1
-                      trend={trend}
-                      reference={trendReference}
-                      current={mark?.meetsMinimum ?? null}
-                      previous={scoreOfV1(subjectPeriodV1(subject, trendReference))?.meetsMinimum ?? null}
-                      drop={trendDropV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))}
-                    />
-                  ) : null}
-                </div>
-              </div>
-            </Card.Content>
+            <ScoreHeadV1
+              subject={subject}
+              active={active}
+              period={period}
+              mark={mark}
+              recoveryOf={recoveryOf}
+              sealed={sealed}
+              trend={trend}
+              trendReference={trendReference}
+            />
             {/* No `partials` key means the admin did not release the breakdown (showPartials off):
                 render nothing rather than claiming there are no activities. */}
             {period?.partials === undefined ? null : (
