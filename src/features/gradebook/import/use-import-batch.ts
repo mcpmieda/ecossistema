@@ -283,6 +283,73 @@ export function selectPendingGradebookImportResultsV1(
   });
 }
 
+/** A Relação the server asks to review (or a conflict on an already reviewed one) goes back to review. */
+function needsMovementReviewV1(
+  request: Extract<LocalPreparationV9, { kind: 'ready' }>['request'],
+  response: GradebookImportPersistenceResponseV9,
+): response is Extract<
+  GradebookImportPersistenceResponseV9,
+  { state: 'blocked' | 'conflict' | 'review-required' }
+> {
+  return (
+    request.operation === 'persist-relacao' &&
+    ((response.state === 'review-required' && !!response.movementReview) ||
+      (response.state === 'conflict' && !!request.movementReview))
+  );
+}
+
+/** A refused file blocks the rest of the batch; anything else completed. */
+function runResultOfV1(
+  state: GradebookImportPersistenceResponseV9['state'],
+): ImportPersistenceRunResultV1 {
+  return state === 'review-required' ||
+    state === 'blocked' ||
+    state === 'conflict' ||
+    state === 'invalid-request'
+    ? 'blocked'
+    : 'completed';
+}
+
+/** A Relação confirmed in the movement review is sent with that confirmation. */
+function withMovementReviewV1(
+  local: LocalPreparationV9,
+  resultId: string,
+  movementSubmission: MovementReviewSubmissionV9 | undefined,
+): LocalPreparationV9 {
+  if (
+    movementSubmission?.resultId !== resultId ||
+    local.kind !== 'ready' ||
+    local.request.operation !== 'persist-relacao'
+  )
+    return local;
+  return {
+    ...local,
+    request: { ...local.request, movementReview: movementSubmission.confirmation },
+  };
+}
+
+/** Teacher files by academic year (each year is one lane), and those whose year is unknown. */
+function teacherLanesV1(teacherResults: readonly BatchSuccess[], offset: number) {
+  const lanes = new Map<
+    number,
+    Array<{ readonly result: BatchSuccess; readonly position: number }>
+  >();
+  const unknownYear: Array<{ readonly result: BatchSuccess; readonly position: number }> = [];
+  for (const [position, result] of teacherResults.entries()) {
+    // V9's producer uses precisely this validated recognition field for docente ano.
+    // Each prepared canonical request is checked against its lane before any fetch.
+    const year = result.summary.academicYear;
+    const item = { result, position: offset + position };
+    if (!isGradebookAcademicYearV2(year)) unknownYear.push(item);
+    else {
+      const lane = lanes.get(year) ?? [];
+      lane.push(item);
+      lanes.set(year, lane);
+    }
+  }
+  return { lanes, unknownYear };
+}
+
 export function useImportBatch() {
   const academicContext = useGradebookYear();
   const inFlight = useRef(false);
@@ -575,6 +642,27 @@ export function useImportBatch() {
     request = gradebookImportDiagnosticsAuditRequestV1(result, diagnostics),
     preserveAcademicReceipt = false,
   ): Promise<{ readonly ms: number; readonly authorizationRequired: boolean }> {
+    /** The audit's answer on screen: its failure note; a lost authorization stops the batch. */
+    function showAuditResponse(state: typeof auditOutcome) {
+      if (state !== 'recorded') {
+        setDiagnosticAuditFailures((current) => ({
+          ...current,
+          [result.id]: 'A Auditoria não confirmou a atualização dos problemas desta planilha.',
+        }));
+      } else {
+        setDiagnosticAuditFailures((current) => {
+          const next = { ...current };
+          delete next[result.id];
+          return next;
+        });
+      }
+      if (state === 'not-authorized') {
+        setAuditAuthorizationRequired(true);
+        if (!preserveAcademicReceipt) markAuthorizationRequired(result);
+        else setProgress(null);
+        stopDispatch(observation, 'auth-required');
+      }
+    }
     // Complete observations, including [], are exclusively owned by this endpoint.
     const auditStartedAt = nowMs();
     let auditOutcome: 'recorded' | 'unavailable' | 'failed' | 'not-authorized' | 'invalid-request' =
@@ -584,26 +672,7 @@ export function useImportBatch() {
     try {
       const response = await persistGradebookImportDiagnosticsAuditV1(request);
       auditOutcome = response.state;
-      if (isCurrent(observation)) {
-        if (response.state !== 'recorded') {
-          setDiagnosticAuditFailures((current) => ({
-            ...current,
-            [result.id]: 'A Auditoria não confirmou a atualização dos problemas desta planilha.',
-          }));
-        } else {
-          setDiagnosticAuditFailures((current) => {
-            const next = { ...current };
-            delete next[result.id];
-            return next;
-          });
-        }
-        if (response.state === 'not-authorized') {
-          setAuditAuthorizationRequired(true);
-          if (!preserveAcademicReceipt) markAuthorizationRequired(result);
-          else setProgress(null);
-          stopDispatch(observation, 'auth-required');
-        }
-      }
+      if (isCurrent(observation)) showAuditResponse(response.state);
     } catch {
       if (isCurrent(observation))
         setDiagnosticAuditFailures((current) => ({
@@ -763,37 +832,50 @@ export function useImportBatch() {
       observation,
       result,
     );
+    function onRequestTiming(
+      timing: Parameters<NonNullable<Parameters<typeof persistGradebookCanonicalImportV9>[1]>>[0],
+    ) {
+      if (isCurrent(observation))
+        appendTiming(
+          '[gradebook-import-client-timing]',
+          {
+            version: 2,
+            stage: 'persist-request',
+            ...timing,
+          },
+          observation,
+          result,
+        );
+    }
+    function onDispatch() {
+      if (!isCurrent(observation)) return;
+      observation.firstPersistenceStartedMs ??= elapsedMs(observation.startedAt);
+      appendTiming(
+        '[gradebook-import-browser-timing]',
+        {
+          version: 2,
+          stage: 'academic-dispatch',
+          operation: request.operation,
+        },
+        observation,
+        result,
+      );
+    }
+    /** A saved Relação's follow-up (its audit), kept pending until it completes. */
+    async function followUpRelation(
+      followUp: Parameters<typeof completeRelationFollowUp>[0],
+    ): Promise<ImportPersistenceRunResultV1 | null> {
+      setPendingRelationFollowUps((current) => ({ ...current, [followUp.result.id]: followUp }));
+      await completeRelationFollowUp(followUp, observation);
+      if (!isCurrent(observation)) return 'completed';
+      return observation.stop;
+    }
     let response: GradebookImportPersistenceResponseV9;
     try {
       const persisted = await persistGradebookCanonicalImportV9(
         request,
-        (timing) => {
-          if (isCurrent(observation))
-            appendTiming(
-              '[gradebook-import-client-timing]',
-              {
-                version: 2,
-                stage: 'persist-request',
-                ...timing,
-              },
-              observation,
-              result,
-            );
-        },
-        () => {
-          if (!isCurrent(observation)) return;
-          observation.firstPersistenceStartedMs ??= elapsedMs(observation.startedAt);
-          appendTiming(
-            '[gradebook-import-browser-timing]',
-            {
-              version: 2,
-              stage: 'academic-dispatch',
-              operation: request.operation,
-            },
-            observation,
-            result,
-          );
-        },
+        onRequestTiming,
+        onDispatch,
       );
       if (!isCurrent(observation)) return 'completed';
       response = persisted.response;
@@ -860,11 +942,7 @@ export function useImportBatch() {
       stopDispatch(observation, 'confirmation-required');
       return 'confirmation-required';
     }
-    if (
-      request.operation === 'persist-relacao' &&
-      ((response.state === 'review-required' && response.movementReview) ||
-        (response.state === 'conflict' && request.movementReview))
-    ) {
+    if (needsMovementReviewV1(request, response)) {
       const review = response.movementReview ?? null;
       const original = movementReviews.current.get(result.id)?.prepared ?? prepared;
       movementReviews.current.set(result.id, { prepared: original, review });
@@ -889,18 +967,14 @@ export function useImportBatch() {
       request.operation === 'persist-relacao' &&
       (response.state === 'applied' || response.state === 'no-changes')
     ) {
-      const followUp = { result, diagnostics: local.diagnostics ?? [], year: request.ano };
-      setPendingRelationFollowUps((current) => ({ ...current, [result.id]: followUp }));
-      await completeRelationFollowUp(followUp, observation);
-      if (!isCurrent(observation)) return 'completed';
-      if (observation.stop !== null) return observation.stop;
+      const stopped = await followUpRelation({
+        result,
+        diagnostics: local.diagnostics ?? [],
+        year: request.ano,
+      });
+      if (stopped !== null) return stopped;
     }
-    return response.state === 'review-required' ||
-      response.state === 'blocked' ||
-      response.state === 'conflict' ||
-      response.state === 'invalid-request'
-      ? 'blocked'
-      : 'completed';
+    return runResultOfV1(response.state);
   }
 
   async function persistRecognizedFiles(
@@ -912,42 +986,39 @@ export function useImportBatch() {
     const teacherResults = successes.filter((result) => !isMasterRelationResult(result));
     const relations: AuditedPreparationV9[] = [];
     let processed = 0;
-    try {
-      // Global preflight: no academic POST until every Relação has a valid local plan.
-      for (const result of relationResults) {
-        if (!isCurrent(observation) || observation.stop !== null)
-          return observation.stop ?? 'completed';
-        const savedReview = movementReviews.current.get(result.id);
-        let local = savedReview?.prepared.local ?? prepareLocal(result, observation);
-        if (
-          movementSubmission?.resultId === result.id &&
-          local.kind === 'ready' &&
-          local.request.operation === 'persist-relacao'
-        ) {
-          local = {
-            ...local,
-            request: { ...local.request, movementReview: movementSubmission.confirmation },
-          };
-        }
-        retainPreparation(observation, true);
-        const audited = savedReview
-          ? { local, auditMs: savedReview.prepared.auditMs }
-          : await auditLocal(local, observation);
-        if (!isCurrent(observation) || observation.stop !== null) {
-          releasePreparation(observation, true);
-          return observation.stop ?? 'completed';
-        }
-        if (local.kind !== 'ready') {
-          releasePreparation(observation, true);
-          blockTeacherFiles(
-            setPersistence,
-            teacherResults,
-            'Não enviada porque a Relação do lote não pôde ser preparada.',
-          );
-          return 'blocked';
-        }
-        relations.push(audited);
+    /** One Relação's local plan and audit; a status ends the batch before any academic POST. */
+    async function preflightRelation(
+      result: BatchSuccess,
+    ): Promise<ImportPersistenceRunResultV1 | AuditedPreparationV9> {
+      if (!isCurrent(observation) || observation.stop !== null)
+        return observation.stop ?? 'completed';
+      const savedReview = movementReviews.current.get(result.id);
+      const local = withMovementReviewV1(
+        savedReview?.prepared.local ?? prepareLocal(result, observation),
+        result.id,
+        movementSubmission,
+      );
+      retainPreparation(observation, true);
+      const audited = savedReview
+        ? { local, auditMs: savedReview.prepared.auditMs }
+        : await auditLocal(local, observation);
+      if (!isCurrent(observation) || observation.stop !== null) {
+        releasePreparation(observation, true);
+        return observation.stop ?? 'completed';
       }
+      if (local.kind !== 'ready') {
+        releasePreparation(observation, true);
+        blockTeacherFiles(
+          setPersistence,
+          teacherResults,
+          'Não enviada porque a Relação do lote não pôde ser preparada.',
+        );
+        return 'blocked';
+      }
+      return audited;
+    }
+    /** The Relações, one at a time; a status other than completed ends the batch. */
+    async function sendRelations(): Promise<ImportPersistenceRunResultV1 | null> {
       while (relations.length > 0) {
         const prepared = relations.shift()!;
         let status: ImportPersistenceRunResultV1;
@@ -969,6 +1040,80 @@ export function useImportBatch() {
         processed++;
         observation.processedItems = processed;
       }
+      return null;
+    }
+    /** Audit and save one prepared file; a stop is shared with every lane. */
+    async function saveInLane(executing: LocalPreparationV9, position: number) {
+      const audited = await auditLocal(executing, observation);
+      const status = await persistPreparedSingle(audited, position, successes.length, observation);
+      stopDispatch(observation, status);
+      return status;
+    }
+    /** Yield between local builds, then build the next file; it has no remote side effects. */
+    async function prefetchNext(result: BatchSuccess, year: number) {
+      await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0));
+      if (!isCurrent(observation) || observation.stop !== null) return null;
+      const next = prepareLocal(result, observation, year);
+      retainPreparation(observation, false);
+      return next;
+    }
+    /** One year's lane: the next file is built while the current one is saved. False ends the
+     * worker (the batch stopped or asked for authorization); true takes the next lane. */
+    async function runLane(
+      year: number,
+      items: ReadonlyArray<{ readonly result: BatchSuccess; readonly position: number }>,
+    ): Promise<boolean> {
+      observation.activeYearLanes++;
+      observation.maximumActiveYearLanes = Math.max(
+        observation.maximumActiveYearLanes,
+        observation.activeYearLanes,
+      );
+      let current: LocalPreparationV9 | null = null;
+      let next: LocalPreparationV9 | null = null;
+      try {
+        current = prepareLocal(items[0]!.result, observation, year);
+        retainPreparation(observation, false);
+        for (let position = 0; current !== null && position < items.length; position++) {
+          if (!isCurrent(observation) || observation.stop !== null) return false;
+          const executing = current;
+          const remote = saveInLane(executing, items[position]!.position);
+          if (position + 1 < items.length)
+            next = await prefetchNext(items[position + 1]!.result, year);
+          const status = await remote;
+          releasePreparation(observation, false);
+          current = next;
+          next = null;
+          if (!isCurrent(observation) || observation.stop !== null) return false;
+          processed++;
+          observation.processedItems = processed;
+          setProgress({
+            current: processed,
+            total: successes.length,
+            fileName: executing.result.manifest.fileName,
+            stage: 'saving',
+          });
+          if (current === null && position + 1 < items.length) {
+            current = prepareLocal(items[position + 1]!.result, observation, year);
+            retainPreparation(observation, false);
+          }
+          if (status === 'auth-required' || status === 'confirmation-required') return false;
+        }
+        return true;
+      } finally {
+        if (current !== null) releasePreparation(observation, false);
+        if (next !== null) releasePreparation(observation, false);
+        observation.activeYearLanes--;
+      }
+    }
+    try {
+      // Global preflight: no academic POST until every Relação has a valid local plan.
+      for (const result of relationResults) {
+        const step = await preflightRelation(result);
+        if (typeof step === 'string') return step;
+        relations.push(step);
+      }
+      const sent = await sendRelations();
+      if (sent !== null) return sent;
     } finally {
       observation.preparedRelations -= relations.length;
       relations.length = 0;
@@ -976,23 +1121,7 @@ export function useImportBatch() {
     if (!isCurrent(observation) || observation.stop !== null)
       return observation.stop ?? 'completed';
 
-    const lanes = new Map<
-      number,
-      Array<{ readonly result: BatchSuccess; readonly position: number }>
-    >();
-    const unknownYear: Array<{ readonly result: BatchSuccess; readonly position: number }> = [];
-    for (const [position, result] of teacherResults.entries()) {
-      // V9's producer uses precisely this validated recognition field for docente ano.
-      // Each prepared canonical request is checked against its lane before any fetch.
-      const year = result.summary.academicYear;
-      const item = { result, position: relationResults.length + position };
-      if (!isGradebookAcademicYearV2(year)) unknownYear.push(item);
-      else {
-        const lane = lanes.get(year) ?? [];
-        lane.push(item);
-        lanes.set(year, lane);
-      }
-    }
+    const { lanes, unknownYear } = teacherLanesV1(teacherResults, relationResults.length);
     for (const item of unknownYear) {
       if (!isCurrent(observation) || observation.stop !== null)
         return observation.stop ?? 'completed';
@@ -1008,71 +1137,17 @@ export function useImportBatch() {
     }
     const pendingLanes = [...lanes.entries()];
     let cursor = 0;
+    /** Takes the next year's lane until none is left or the batch stops. */
+    async function laneWorker() {
+      while (isCurrent(observation) && observation.stop === null) {
+        const entry = pendingLanes[cursor++];
+        if (!entry) return;
+        if (!(await runLane(...entry))) return;
+      }
+    }
     const workers = Array.from(
       { length: Math.min(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1, pendingLanes.length) },
-      async () => {
-        while (isCurrent(observation) && observation.stop === null) {
-          const entry = pendingLanes[cursor++];
-          if (!entry) return;
-          const [year, items] = entry;
-          observation.activeYearLanes++;
-          observation.maximumActiveYearLanes = Math.max(
-            observation.maximumActiveYearLanes,
-            observation.activeYearLanes,
-          );
-          let current: LocalPreparationV9 | null = null;
-          let next: LocalPreparationV9 | null = null;
-          try {
-            current = prepareLocal(items[0]!.result, observation, year);
-            retainPreparation(observation, false);
-            for (let position = 0; current !== null && position < items.length; position++) {
-              if (!isCurrent(observation) || observation.stop !== null) return;
-              const executing = current;
-              const remote = (async () => {
-                const audited = await auditLocal(executing, observation);
-                const status = await persistPreparedSingle(
-                  audited,
-                  items[position]!.position,
-                  successes.length,
-                  observation,
-                );
-                stopDispatch(observation, status);
-                return status;
-              })();
-              if (position + 1 < items.length) {
-                // Yield between local builds; the next item has no remote side effects.
-                await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0));
-                if (isCurrent(observation) && observation.stop === null) {
-                  next = prepareLocal(items[position + 1]!.result, observation, year);
-                  retainPreparation(observation, false);
-                }
-              }
-              const status = await remote;
-              releasePreparation(observation, false);
-              current = next;
-              next = null;
-              if (!isCurrent(observation) || observation.stop !== null) return;
-              processed++;
-              observation.processedItems = processed;
-              setProgress({
-                current: processed,
-                total: successes.length,
-                fileName: executing.result.manifest.fileName,
-                stage: 'saving',
-              });
-              if (current === null && position + 1 < items.length) {
-                current = prepareLocal(items[position + 1]!.result, observation, year);
-                retainPreparation(observation, false);
-              }
-              if (status === 'auth-required' || status === 'confirmation-required') return;
-            }
-          } finally {
-            if (current !== null) releasePreparation(observation, false);
-            if (next !== null) releasePreparation(observation, false);
-            observation.activeYearLanes--;
-          }
-        }
-      },
+      laneWorker,
     );
     // All operations already dispatched are drained, even after another lane stops.
     const settled = await Promise.allSettled(
@@ -1089,6 +1164,53 @@ export function useImportBatch() {
     if (failure?.status === 'rejected') throw failure.reason;
     if (isCurrent(observation) && observation.stop !== null) setProgress(null);
     return observation.stop ?? 'completed';
+  }
+
+  /** The batch's end on screen: done, an uncertain write to resume, or a blocked Relação. */
+  function showBatchOutcome(
+    outcome: ImportPersistenceRunResultV1,
+    successes: readonly BatchSuccess[],
+  ) {
+    if (outcome === 'completed') {
+      setProgress({
+        current: successes.length,
+        total: successes.length,
+        fileName: successes.at(-1)?.manifest.fileName ?? '',
+        stage: 'completed',
+      });
+    } else if (outcome === 'confirmation-required') {
+      setProgress(null);
+      setError('A resposta de uma gravação ficou incerta. Retome somente os pendentes nesta aba.');
+    } else if (outcome === 'blocked') {
+      setError(
+        'A Relação do lote foi bloqueada; as planilhas de notas desse lote não foram enviadas.',
+      );
+    }
+  }
+
+  /** A batch that failed: the recognition timing when it failed there, and the message. */
+  function batchFailed(
+    cause: unknown,
+    observation: BatchObservationV1,
+    recognitionStartedAt: number | null,
+    fileCount: number,
+  ) {
+    if (recognitionStartedAt !== null && observation.recognitionCallMs === null) {
+      observation.recognitionCallMs = elapsedMs(recognitionStartedAt);
+      appendTiming(
+        '[gradebook-import-browser-timing]',
+        {
+          version: 2,
+          stage: 'recognition-batch',
+          outcome: 'failed',
+          failureStage: 'recognition',
+          recognitionCallMs: observation.recognitionCallMs,
+          fileCount,
+        },
+        observation,
+      );
+    }
+    setError(failureMessage(cause, 'Não foi possível concluir a importação.'));
   }
 
   async function handleFiles(files: FileList | readonly File[]) {
@@ -1212,42 +1334,10 @@ export function useImportBatch() {
       const persistenceResult = await persistRecognizedFiles(result.successes, observation);
       if (!isCurrent(observation)) return;
       observation.outcome = persistenceResult;
-      if (persistenceResult === 'completed') {
-        setProgress({
-          current: result.successes.length,
-          total: result.successes.length,
-          fileName: result.successes.at(-1)?.manifest.fileName ?? '',
-          stage: 'completed',
-        });
-      } else if (persistenceResult === 'confirmation-required') {
-        setProgress(null);
-        setError(
-          'A resposta de uma gravação ficou incerta. Retome somente os pendentes nesta aba.',
-        );
-      } else if (persistenceResult === 'blocked') {
-        setError(
-          'A Relação do lote foi bloqueada; as planilhas de notas desse lote não foram enviadas.',
-        );
-      }
+      showBatchOutcome(persistenceResult, result.successes);
     } catch (cause) {
-      if (isCurrent(observation)) {
-        if (recognitionStartedAt !== null && observation.recognitionCallMs === null) {
-          observation.recognitionCallMs = elapsedMs(recognitionStartedAt);
-          appendTiming(
-            '[gradebook-import-browser-timing]',
-            {
-              version: 2,
-              stage: 'recognition-batch',
-              outcome: 'failed',
-              failureStage: 'recognition',
-              recognitionCallMs: observation.recognitionCallMs,
-              fileCount: selected.length,
-            },
-            observation,
-          );
-        }
-        setError(failureMessage(cause, 'Não foi possível concluir a importação.'));
-      }
+      if (isCurrent(observation))
+        batchFailed(cause, observation, recognitionStartedAt, selected.length);
     } finally {
       if (isCurrent(observation)) {
         finishBatchTiming(observation);
