@@ -196,6 +196,41 @@ function validRecoveryCell(value: unknown): value is GradebookImportRecoveryCell
   );
 }
 
+/** One student row: a new number, a name, a status 0–7, and the related class only for 6 and 7. */
+function validRelationStudentV9(aluno: unknown, numbers: Set<number>): boolean {
+  if (!Array.isArray(aluno) || (aluno.length !== 3 && aluno.length !== 4)) return false;
+  if (!Number.isSafeInteger(aluno[0]) || aluno[0] <= 0 || numbers.has(aluno[0])) return false;
+  numbers.add(aluno[0]);
+  if (
+    !nonEmptyText(aluno[1], 256) ||
+    !Number.isSafeInteger(aluno[2]) ||
+    aluno[2] < 0 ||
+    aluno[2] > 7
+  )
+    return false;
+  const related = aluno[3];
+  if (aluno[2] === 6 || aluno[2] === 7) return nonEmptyText(related, 32);
+  return related === undefined;
+}
+
+/** One class: code, name, stage and shift, a code not seen before, and up to 64 valid students. */
+function validRelationClassV9(turma: unknown, classCodes: Set<string>): boolean {
+  if (!record(turma) || !nonEmptyText(turma.codigo, 32) || !nonEmptyText(turma.nome, 128))
+    return false;
+  if (
+    !Number.isSafeInteger(turma.etapa) ||
+    Number(turma.etapa) <= 0 ||
+    !nonEmptyText(turma.turno, 64)
+  )
+    return false;
+  const classKey = turma.codigo.trim().toUpperCase();
+  if (classCodes.has(classKey)) return false;
+  classCodes.add(classKey);
+  if (!Array.isArray(turma.alunos) || turma.alunos.length > 64) return false;
+  const numbers = new Set<number>();
+  return turma.alunos.every((aluno) => validRelationStudentV9(aluno, numbers));
+}
+
 function validRelation(value: Record<string, unknown>): boolean {
   if (value.movementReview !== undefined && !validMovementConfirmation(value.movementReview))
     return false;
@@ -203,37 +238,7 @@ function validRelation(value: Record<string, unknown>): boolean {
   if (!Array.isArray(value.turmas) || value.turmas.length === 0 || value.turmas.length > 64)
     return false;
   const classCodes = new Set<string>();
-  for (const turma of value.turmas) {
-    if (!record(turma) || !nonEmptyText(turma.codigo, 32) || !nonEmptyText(turma.nome, 128))
-      return false;
-    if (
-      !Number.isSafeInteger(turma.etapa) ||
-      Number(turma.etapa) <= 0 ||
-      !nonEmptyText(turma.turno, 64)
-    )
-      return false;
-    const classKey = turma.codigo.trim().toUpperCase();
-    if (classCodes.has(classKey)) return false;
-    classCodes.add(classKey);
-    if (!Array.isArray(turma.alunos) || turma.alunos.length > 64) return false;
-    const numbers = new Set<number>();
-    for (const aluno of turma.alunos) {
-      if (!Array.isArray(aluno) || (aluno.length !== 3 && aluno.length !== 4)) return false;
-      if (!Number.isSafeInteger(aluno[0]) || aluno[0] <= 0 || numbers.has(aluno[0])) return false;
-      numbers.add(aluno[0]);
-      if (
-        !nonEmptyText(aluno[1], 256) ||
-        !Number.isSafeInteger(aluno[2]) ||
-        aluno[2] < 0 ||
-        aluno[2] > 7
-      )
-        return false;
-      const related = aluno[3];
-      if (aluno[2] === 6 || aluno[2] === 7) {
-        if (!nonEmptyText(related, 32)) return false;
-      } else if (related !== undefined) return false;
-    }
-  }
+  for (const turma of value.turmas) if (!validRelationClassV9(turma, classCodes)) return false;
   for (const turma of value.turmas as GradebookRelationClassV9[]) {
     for (const aluno of turma.alunos) {
       if ((aluno[2] === 6 || aluno[2] === 7) && !classCodes.has(aluno[3]!.trim().toUpperCase()))
