@@ -1,5 +1,31 @@
 import jsQR from 'jsqr';
 
+type RegionV1 = { x: number; y: number; width: number; height: number };
+
+/** A copy of one region of the frame, row by row. */
+function regionPixelsV1(bytes: Uint8ClampedArray, width: number, region: RegionV1) {
+  const pixels = new Uint8ClampedArray(region.width * region.height * 4);
+  for (let row = 0; row < region.height; row++)
+    pixels.set(
+      bytes.subarray(
+        ((region.y + row) * width + region.x) * 4,
+        ((region.y + row) * width + region.x + region.width) * 4,
+      ),
+      row * region.width * 4,
+    );
+  return pixels;
+}
+
+/** Paints a decoded code white so the next attempt can find another one. */
+function eraseV1(
+  pixels: Uint8ClampedArray,
+  regionWidth: number,
+  { left, right, top, bottom }: { left: number; right: number; top: number; bottom: number },
+) {
+  for (let y = top; y < bottom; y++)
+    pixels.fill(255, (y * regionWidth + left) * 4, (y * regionWidth + right) * 4);
+}
+
 /** Local fallback. Bounded frame; erase each decoded region to reject ambiguous images. */
 export function decodeQrPixelsV1(
   bytes: Uint8ClampedArray,
@@ -26,15 +52,7 @@ export function decodeQrPixelsV1(
     ),
   ];
   for (const region of regions) {
-    const pixels = new Uint8ClampedArray(region.width * region.height * 4);
-    for (let row = 0; row < region.height; row++)
-      pixels.set(
-        bytes.subarray(
-          ((region.y + row) * width + region.x) * 4,
-          ((region.y + row) * width + region.x + region.width) * 4,
-        ),
-        row * region.width * 4,
-      );
+    const pixels = regionPixelsV1(bytes, width, region);
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const code = jsQR(pixels, region.width, region.height, { inversionAttempts: 'attemptBoth' });
       if (!code) break;
@@ -60,11 +78,45 @@ export function decodeQrPixelsV1(
         found.push({ data: code.data, x, y, size });
         if (found.length > 1) return found.map((item) => item.data);
       }
-      for (let y = top; y < bottom; y++)
-        pixels.fill(255, (y * region.width + left) * 4, (y * region.width + right) * 4);
+      eraseV1(pixels, region.width, { left, right, top, bottom });
     }
   }
   return found.map((item) => item.data);
+}
+
+/** Box blur along each row; edges repeat the border pixel. */
+function horizontalBoxV1(
+  source: Float32Array,
+  target: Float32Array,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const row = y * width;
+      let sum = 0;
+      for (let offset = -radius; offset <= radius; offset++)
+        sum += source[row + Math.min(width - 1, Math.max(0, x + offset))]!;
+      target[row + x] = sum / (2 * radius + 1);
+    }
+}
+
+/** Box blur along each column; edges repeat the border pixel. */
+function verticalBoxV1(
+  source: Float32Array,
+  target: Float32Array,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+      for (let offset = -radius; offset <= radius; offset++)
+        sum += source[Math.min(height - 1, Math.max(0, y + offset)) * width + x]!;
+      target[y * width + x] = sum / (2 * radius + 1);
+    }
 }
 
 /** Unsharp mask on luminance, for camera frames softened by focus hunting (printed cards held
@@ -86,21 +138,8 @@ export function sharpenQrPixelsV1(
   const blurred = new Float32Array(grey);
   const scratch = new Float32Array(size);
   for (let pass = 0; pass < 2; pass++) {
-    for (let y = 0; y < height; y++)
-      for (let x = 0; x < width; x++) {
-        const row = y * width;
-        let sum = 0;
-        for (let offset = -radius; offset <= radius; offset++)
-          sum += blurred[row + Math.min(width - 1, Math.max(0, x + offset))]!;
-        scratch[row + x] = sum / (2 * radius + 1);
-      }
-    for (let y = 0; y < height; y++)
-      for (let x = 0; x < width; x++) {
-        let sum = 0;
-        for (let offset = -radius; offset <= radius; offset++)
-          sum += scratch[Math.min(height - 1, Math.max(0, y + offset)) * width + x]!;
-        blurred[y * width + x] = sum / (2 * radius + 1);
-      }
+    horizontalBoxV1(blurred, scratch, width, height, radius);
+    verticalBoxV1(scratch, blurred, width, height, radius);
   }
   const out = new Uint8ClampedArray(size * 4);
   for (let index = 0; index < size; index++) {
