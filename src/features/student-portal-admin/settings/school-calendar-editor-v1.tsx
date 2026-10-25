@@ -125,6 +125,73 @@ function eventsOf(days: ReadonlyMap<string, DayV1>, month: number) {
   return lines;
 }
 
+/** Only the dates moved here change; every other part of the policy stays as read. */
+function movedCalendarV1(policy: { calendar: CalendarV1; markers: MarkersV1 }, markers: MarkersV1) {
+  const calendar = { ...policy.calendar };
+  for (const { key, end } of MARKERS) {
+    const date = markers[key];
+    if (date !== policy.markers[key]) calendar[key] = date ? instantOfDate(date, end) : null;
+  }
+  return calendar;
+}
+
+/** The count against the 200 school days: reached, over, or still short. */
+function countToneV1(count: number): 'done' | 'over' | 'short' {
+  if (count === SCHOOL_DAYS_REQUIRED_V1) return 'done';
+  return count > SCHOOL_DAYS_REQUIRED_V1 ? 'over' : 'short';
+}
+
+/** A painted day; only described kinds keep the typed description (up to 80 characters). */
+function paintedDayV1(brush: Exclude<BrushV1, 'clear'>, note: string): DayV1 {
+  const text = note.trim();
+  return { kind: brush, ...(DESCRIBED.has(brush) && text ? { note: text.slice(0, 80) } : {}) };
+}
+
+/** Nothing saved yet: the official calendar on screen still has to be checked and saved. */
+function OfficialCalendarNoticeV1({ unsaved }: Readonly<{ unsaved: boolean }>) {
+  if (!unsaved) return null;
+  return (
+    <Alert status="accent">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Description>
+          Este é o calendário oficial de 2026 da Secretaria de Educação. Confira e clique em Salvar
+          calendário para ele valer no Portal.
+        </Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+function PendingMarkersAlertV1({ pending }: Readonly<{ pending: readonly (typeof MARKERS)[number][] }>) {
+  if (!pending.length) return null;
+  return (
+    <Alert status="warning">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>
+          {pending.length === 1 ? 'Falta marcar 1 data' : `Faltam marcar ${pending.length} datas`}
+        </Alert.Title>
+        <Alert.Description>{pending.map(({ label }) => label).join(', ')}.</Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+function OutOfOrderAlertV1({ label: outOfOrder }: Readonly<{ label: string | null }>) {
+  if (!outOfOrder) return null;
+  return (
+    <Alert status="danger">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Description>
+          As datas principais estão fora de ordem: confira {outOfOrder}. Corrija para salvar.
+        </Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
 export function SchoolCalendarEditorV1({
   client,
   canWrite,
@@ -238,8 +305,7 @@ export function SchoolCalendarEditorV1({
           setMessage(`O limite é ${SCHOOL_DAYS_REQUIRED_V1} dias letivos. Desmarque um dia letivo antes de marcar outro.`);
           return current;
         }
-        const text = note.trim();
-        next.set(date, { kind: brush, ...(DESCRIBED.has(brush) && text ? { note: text.slice(0, 80) } : {}) });
+        next.set(date, paintedDayV1(brush, note));
       }
       setMessage(null);
       return next;
@@ -261,12 +327,7 @@ export function SchoolCalendarEditorV1({
           days: listOf(draft),
         });
       if (markersChanged) {
-        // Only the dates moved here change; every other part of the policy stays as read.
-        const calendar = { ...policy.calendar };
-        for (const { key, end } of MARKERS) {
-          const date = markers[key];
-          if (date !== policy.markers[key]) calendar[key] = date ? instantOfDate(date, end) : null;
-        }
+        const calendar = movedCalendarV1(policy, markers);
         await client.command({
           contractVersion: 1,
           operation: 'settings-set',
@@ -406,14 +467,7 @@ export function SchoolCalendarEditorV1({
     );
   };
 
-  let tone: 'done' | 'over' | 'short';
-  if (count === SCHOOL_DAYS_REQUIRED_V1) {
-    tone = 'done';
-  } else if (count > SCHOOL_DAYS_REQUIRED_V1) {
-    tone = 'over';
-  } else {
-    tone = 'short';
-  }
+  const tone = countToneV1(count);
   const armedLabel = MARKERS.find(({ key }) => key === armed)?.label;
   return (
     <Card className="pa-school-calendar" aria-labelledby="pa-school-calendar-title">
@@ -444,17 +498,7 @@ export function SchoolCalendarEditorV1({
       </Card.Header>
 
       <Card.Content className="pa-school-calendar__body">
-        {saved.version === 0 ? (
-          <Alert status="accent">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Description>
-                Este é o calendário oficial de 2026 da Secretaria de Educação. Confira e clique em Salvar
-                calendário para ele valer no Portal.
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
-        ) : null}
+        <OfficialCalendarNoticeV1 unsaved={saved.version === 0} />
 
         {/* Datas principais (owner decision 23/10/2026): pick one, then click its day below. */}
         <Card variant="secondary" className="pa-school-marks">
@@ -467,27 +511,8 @@ export function SchoolCalendarEditorV1({
             </Card.Description>
           </Card.Header>
           <Card.Content className="pa-school-marks__body">
-            {pending.length ? (
-              <Alert status="warning">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>
-                    {pending.length === 1 ? 'Falta marcar 1 data' : `Faltam marcar ${pending.length} datas`}
-                  </Alert.Title>
-                  <Alert.Description>{pending.map(({ label }) => label).join(', ')}.</Alert.Description>
-                </Alert.Content>
-              </Alert>
-            ) : null}
-            {outOfOrder ? (
-              <Alert status="danger">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Description>
-                    As datas principais estão fora de ordem: confira {outOfOrder}. Corrija para salvar.
-                  </Alert.Description>
-                </Alert.Content>
-              </Alert>
-            ) : null}
+            <PendingMarkersAlertV1 pending={pending} />
+            <OutOfOrderAlertV1 label={outOfOrder} />
             <ul className="pa-school-marks__list">
               {MARKERS.map(({ key, label }) => {
                 const date = markers?.[key] ?? null;
