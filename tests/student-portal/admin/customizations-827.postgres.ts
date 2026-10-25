@@ -120,3 +120,17 @@ it('keeps later independent student differences when a class follows school agai
   expect(await approved()).toBeNull();
   expect(await approved('T3')).toBeTruthy();
 });
+it('reads an account option the school never stored (Frequência, Horário) against the default', async () => {
+  await owner.unsafe("DELETE FROM student_portal.setting WHERE scope_key='school:2026' AND field_key IN ('showFrequency','showSchedule')");
+  await owner.unsafe(`INSERT INTO student_portal.setting
+    (scope_key,field_key,scope_kind,academic_year,class_id,account_id,value_json,source_scope_json,version)
+    SELECT 'account:2026:'||$1,field,'account',2026,NULL,$1::uuid,'true'::jsonb,
+      jsonb_build_object('kind','account','academicYear',2026,'accountId',$1::text),
+      (SELECT min(version) FROM student_portal.setting WHERE scope_key='school:2026')
+    FROM unnest(ARRAY['showFrequency','showSchedule']) field`, [account.accountId]);
+  const own = (await read(account)).items[0]!;
+  expect(own.value).toEqual({ showFrequency: true, showSchedule: true });
+  expect(own.inheritedValue).toEqual({ showFrequency: false, showSchedule: false });
+  expect(own.schoolValue).toEqual({ showFrequency: false, showSchedule: false });
+  expect((await read()).items.map((row) => row.id)).toContain('account:2026:' + account.accountId);
+});
