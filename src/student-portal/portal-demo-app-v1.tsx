@@ -740,6 +740,20 @@ const SITUATION_OPTIONS_V1: readonly [AdminSimulationV1['situation'], string][] 
   ['failed-by-absence', 'Reprovado por falta'],
 ];
 
+/** Geografia carries the failure; the other recovered subject passed after recovery. */
+function geographyFailedV1(key: string, recovered: boolean, failed: SubjectSituationV1): SubjectSituationV1 {
+  if (key === 'geografia') return failed;
+  return recovered ? 'approved-after-recovery' : 'approved-direct';
+}
+
+/** Approved or failed once the subject's situation is decided; nothing while it is pending. */
+function officialOutcomeV1(subjectSituation: SubjectSituationV1 | undefined) {
+  if (subjectSituation === 'approved-direct' || subjectSituation === 'approved-after-recovery')
+    return 'approved' as const;
+  if (subjectSituation && subjectSituation !== 'recovery-pending') return 'failed' as const;
+  return undefined;
+}
+
 // Invented per-subject classifications consistent with each annual situation. Língua
 // Portuguesa and Geografia are the subjects that went to recovery in the sample data.
 function subjectSituationFor(
@@ -761,29 +775,11 @@ function subjectSituationFor(
     case 'failed-after-recovery':
       return recovered || key === 'historia' ? 'not-approved' : 'approved-direct';
     case 'failed-no-show':
-      if (key === 'geografia') {
-        return 'failed-no-show';
-      }
-      if (recovered) {
-        return 'approved-after-recovery';
-      }
-      return 'approved-direct';
+      return geographyFailedV1(key, recovered, 'failed-no-show');
     case 'failed-repeat':
-      if (key === 'geografia') {
-        return 'failed-repeat';
-      }
-      if (recovered) {
-        return 'approved-after-recovery';
-      }
-      return 'approved-direct';
+      return geographyFailedV1(key, recovered, 'failed-repeat');
     default: // Council cases: one subject failed within the Council limit.
-      if (key === 'geografia') {
-        return 'not-approved';
-      }
-      if (recovered) {
-        return 'approved-after-recovery';
-      }
-      return 'approved-direct';
+      return geographyFailedV1(key, recovered, 'not-approved');
   }
 }
 const coarseResultV1 = (situation: AdminSimulationV1['situation']): SelfResponseV1['profile']['result'] => {
@@ -798,6 +794,16 @@ const coarseResultV1 = (situation: AdminSimulationV1['situation']): SelfResponse
   }
   return 'failed';
 };
+
+/** An assisted student has no result; otherwise the annual result once final, before that in progress. */
+function profileResultV1(
+  admin: AdminSimulationV1,
+  assisted: boolean,
+  final: boolean,
+): SelfResponseV1['profile']['result'] {
+  if (assisted) return 'not-applicable';
+  return final ? coarseResultV1(admin.situation) : 'in-progress';
+}
 
 /** The demo data the simulator's "Dados" choice reads. */
 function datasetOfV1(admin: AdminSimulationV1) {
@@ -821,14 +827,7 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
         .slice(0, shownSubjects)
         .map((subject) => {
           const subjectSituation = subjectSituationFor(admin.situation, subject.label);
-          let outcome;
-          if (subjectSituation === 'approved-direct' || subjectSituation === 'approved-after-recovery') {
-            outcome = 'approved' as const;
-          } else if (subjectSituation && subjectSituation !== 'recovery-pending') {
-            outcome = 'failed' as const;
-          } else {
-            outcome = undefined;
-          }
+          const outcome = officialOutcomeV1(subjectSituation);
           return {
             subjectId: subject.subjectId,
             label: subject.label,
@@ -882,8 +881,7 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
       attentionSubjectIds: attention.map((subject) => subject.subjectId),
     };
   });
-  let result: SelfResponseV1['profile']['result'] = 'not-applicable';
-  if (!assisted) result = final ? coarseResultV1(admin.situation) : 'in-progress';
+  const result = profileResultV1(admin, assisted, final);
   return selfResponseV1.parse({
     ...data,
     state: withClosings.length > 0 ? 'ready' : 'no-publication',
