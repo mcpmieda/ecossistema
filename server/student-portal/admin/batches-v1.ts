@@ -17,6 +17,87 @@ import { accountsScopeVersionV1, adminDigestV1, boundSqlV1 } from './common-v1';
 import { ACCOUNT_JOIN_V1, ENROLLED_ACCOUNT_SQL_V1 } from './queries-v1';
 
 type QrBatch = Extract<AdminCommandV1, { operation: 'qr-batch' }>;
+type QrBatchRowV1 = Record<string, unknown>;
+
+/** A student not yet active, with a confirmed birth year from the profile or a report, whose
+ * canonical PIN was never derived: it is derived inside the batch. */
+const missingCanonicalPinV1 = (row: QrBatchRowV1) =>
+  row.auth_state !== 'active' &&
+  row.pin_verifier === null &&
+  row.birth_year !== null &&
+  row.confirmation === 'confirmed' &&
+  ['profile', 'report'].includes(String(row.birth_source));
+
+/** A student not yet active who cannot recover access: no confirmed birth year, or no current PIN. */
+const recoveryUnavailableV1 = (row: QrBatchRowV1, preparedPins: ReadonlySet<string>) =>
+  row.auth_state !== 'active' &&
+  (row.birth_year === null ||
+    row.confirmation !== 'confirmed' ||
+    (!preparedPins.has(String(row.id)) &&
+      (row.pin_verifier === null || Number(row.credential_pin_version) !== Number(row.pin_version))));
+
+/** A revoked credential (or one missing on a replay) is never silently replaced by a new QR. */
+const regenerationRequiredV1 = (row: QrBatchRowV1, replay: boolean) =>
+  row.credential_id === null && (row.had_credential || replay);
+
+/** The printed card: the QR, with the name and the class as the chosen mode asks. */
+function qrCardV1(accountId: string, mode: QrBatch['mode'], qr: string, row: QrBatchRowV1) {
+  return {
+    accountId,
+    mode,
+    qr,
+    ...(mode !== 'qr-only' ? { name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1).parse(row.name) } : {}),
+    ...(mode === 'qr-name-class'
+      ? { classLabel: z.string().min(1).max(80).parse(row.class_name) }
+      : {}),
+  };
+}
+
+/** One student's card: the active credential, or a new one (created after the batch is checked),
+ * and its audit event unless the request is a replay. */
+async function issueQrV1(
+  context: {
+    command: QrBatch;
+    cryptoPort: CryptoPortV1;
+    keyVersion: number;
+    actor: string;
+    now: Date;
+    replay: boolean;
+  },
+  id: string,
+  row: QrBatchRowV1,
+  issued: {
+    cards: ReturnType<typeof qrCardV1>[];
+    created: { account_id: string; credential_id: string; key_version: number }[];
+    audits: z.infer<typeof auditEventV1>[];
+  },
+) {
+  const { command, cryptoPort, keyVersion, actor, now, replay } = context;
+  const isNew = row.credential_id === null;
+  const credentialId = isNew ? cryptoPort.randomToken(32) : z.string().parse(row.credential_id);
+  const version = isNew ? keyVersion : z.number().int().positive().parse(row.key_version);
+  const qr = qrUrlV1.parse(
+    `${PORTAL_ORIGIN_V1}/access#v1.${credentialId}.${version}.${await cryptoPort.signQr(credentialId, version)}`,
+  );
+  issued.cards.push(qrCardV1(id, command.mode, qr, row));
+  if (isNew) issued.created.push({ account_id: id, credential_id: credentialId, key_version: version });
+  if (!replay)
+    issued.audits.push(
+      auditEventV1.parse({
+        eventId: crypto.randomUUID(),
+        at: now.toISOString(),
+        actorId: actor,
+        accountId: id,
+        scope: { kind: 'account', academicYear: 2026, accountId: id },
+        kind: isNew ? 'qr-issued' : 'qr-reprinted',
+        result: 'success',
+        requestId: command.idempotencyKey,
+        version: Number(row.version) + (isNew ? 1 : 0),
+        maskedIp: null,
+      }),
+    );
+}
+
 export async function qrBatchV1(
   sql: StudentPortalPostgresSqlV1,
   cryptoPort: CryptoPortV1,
@@ -60,64 +141,27 @@ export async function qrBatchV1(
       rows.some((row) => row.closed_at !== null || row.class_id !== command.classId)
     )
       throw new Error('student-portal-batch-forbidden');
-    const missingPins = rows.filter((row) => row.auth_state !== 'active' && row.pin_verifier === null &&
-      row.birth_year !== null && row.confirmation === 'confirmed' && ['profile','report'].includes(String(row.birth_source)));
+    const missingPins = rows.filter(missingCanonicalPinV1);
     if (missingPins.length > 4) throw new Error('student-portal-batch-recovery-conflict');
     const preparedPins = new Set<string>();
     await inOrderV1(missingPins, async (row) => {
       if (await ensureCanonicalPinV1(tx, cryptoPort, pepperVersion, String(row.id), Number(row.pin_version)))
         preparedPins.add(String(row.id));
     });
-    if (
-      rows.some(
-        (row) =>
-          row.auth_state !== 'active' &&
-          (row.birth_year === null ||
-            row.confirmation !== 'confirmed' ||
-            (!preparedPins.has(String(row.id)) && (row.pin_verifier === null ||
-            Number(row.credential_pin_version) !== Number(row.pin_version)))),
-      )
-    )
+    if (rows.some((row) => recoveryUnavailableV1(row, preparedPins)))
       throw new Error('student-portal-batch-recovery-conflict');
-    if (rows.some((row) => row.credential_id === null && (row.had_credential || replay)))
+    if (rows.some((row) => regenerationRequiredV1(row, replay)))
       throw new Error('student-portal-batch-regeneration-required');
-    const cards = [];
-    const created = [];
-    const audits = [];
+    const cards: ReturnType<typeof qrCardV1>[] = [];
+    const created: { account_id: string; credential_id: string; key_version: number }[] = [];
+    const audits: z.infer<typeof auditEventV1>[] = [];
     for (const id of command.accountIds) {
-      const row = rows.find((item) => item.id === id)!;
-      const isNew = row.credential_id === null;
-      const credentialId = isNew ? cryptoPort.randomToken(32) : z.string().parse(row.credential_id);
-      const version = isNew ? keyVersion : z.number().int().positive().parse(row.key_version);
-      const qr = qrUrlV1.parse(
-        `${PORTAL_ORIGIN_V1}/access#v1.${credentialId}.${version}.${await cryptoPort.signQr(credentialId, version)}`,
+      await issueQrV1(
+        { command, cryptoPort, keyVersion, actor, now, replay },
+        id,
+        rows.find((item) => item.id === id)!,
+        { cards, created, audits },
       );
-      cards.push({
-        accountId: id,
-        mode: command.mode,
-        qr,
-        ...(command.mode !== 'qr-only' ? { name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1).parse(row.name) } : {}),
-        ...(command.mode === 'qr-name-class'
-          ? { classLabel: z.string().min(1).max(80).parse(row.class_name) }
-          : {}),
-      });
-      if (isNew)
-        created.push({ account_id: id, credential_id: credentialId, key_version: version });
-      if (!replay)
-        audits.push(
-          auditEventV1.parse({
-            eventId: crypto.randomUUID(),
-            at: now.toISOString(),
-            actorId: actor,
-            accountId: id,
-            scope: { kind: 'account', academicYear: 2026, accountId: id },
-            kind: isNew ? 'qr-issued' : 'qr-reprinted',
-            result: 'success',
-            requestId: command.idempotencyKey,
-            version: Number(row.version) + (isNew ? 1 : 0),
-            maskedIp: null,
-          }),
-        );
     }
     if (replay) return { cards, version: receipt.version };
     if (receipt)
