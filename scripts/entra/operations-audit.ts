@@ -210,60 +210,74 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
   return JSON.stringify(sorted(left)) === JSON.stringify(sorted(right));
 }
 
-function auditDrift(
-  applications: { web: EntraApplicationAudit; graph: EntraApplicationAudit },
-  operationsIdentity: EntraOperationsIdentityAudit,
-  sharePointAuditEnabled: boolean,
+type AddDriftFinding = (
+  application: EntraDriftFinding['application'],
+  severity: EntraDriftFinding['severity'],
+  code: string,
+) => void;
+
+/** Identity, audience, redirect URIs, service principal, credentials and broad permissions. */
+function applicationDrift(
+  label: 'web' | 'graph',
+  actual: EntraApplicationAudit,
   now: Date,
-): EntraDriftAudit {
-  const findings: EntraDriftFinding[] = [];
-  const add = (
-    application: EntraDriftFinding['application'],
-    severity: EntraDriftFinding['severity'],
-    code: string,
-  ) => findings.push({ application, severity, code });
+  add: AddDriftFinding,
+): void {
+  const expected = EXPECTED_APPLICATIONS[label];
 
-  for (const label of ['web', 'graph'] as const) {
-    const actual = applications[label];
-    const expected = EXPECTED_APPLICATIONS[label];
+  if (actual.appId !== expected.appId) add(label, 'critical', 'app-id-mismatch');
+  if (actual.displayName !== expected.displayName) add(label, 'warning', 'display-name-drift');
+  if (actual.signInAudience !== expected.signInAudience)
+    add(label, 'critical', 'sign-in-audience-drift');
 
-    if (actual.appId !== expected.appId) add(label, 'critical', 'app-id-mismatch');
-    if (actual.displayName !== expected.displayName) add(label, 'warning', 'display-name-drift');
-    if (actual.signInAudience !== expected.signInAudience)
-      add(label, 'critical', 'sign-in-audience-drift');
-
-    for (const surface of ['web', 'spa', 'publicClient'] as const) {
-      if (!sameStrings(actual.redirectUris[surface], expected.redirectUris[surface]))
-        add(label, 'critical', `redirect-uri-${surface}-drift`);
-    }
-
-    if (!actual.servicePrincipal) add(label, 'critical', 'service-principal-missing');
-    else if (actual.servicePrincipal.accountEnabled === false)
-      add(label, 'critical', 'service-principal-disabled');
-
-    if (actual.passwordCredentials.length > 0)
-      add(label, 'warning', 'password-credential-present');
-    if (actual.keyCredentials.length === 0)
-      add(label, 'critical', 'certificate-credential-missing');
-
-    for (const credential of actual.keyCredentials) {
-      if (!credential.endDateTime) continue;
-      const remaining = new Date(credential.endDateTime).getTime() - now.getTime();
-      if (!Number.isFinite(remaining)) {
-        add(label, 'warning', 'certificate-expiry-invalid');
-        continue;
-      }
-      if (remaining <= 0) add(label, 'critical', 'certificate-expired');
-      else if (remaining <= 45 * 24 * 60 * 60 * 1000)
-        add(label, 'warning', 'certificate-expiring-soon');
-    }
-
-    for (const assignment of actual.servicePrincipal?.appRoleAssignments ?? []) {
-      if (BROAD_APPLICATION_PERMISSIONS.has(assignment.appRoleId))
-        add(label, 'warning', 'broad-application-permission-present');
-    }
+  for (const surface of ['web', 'spa', 'publicClient'] as const) {
+    if (!sameStrings(actual.redirectUris[surface], expected.redirectUris[surface]))
+      add(label, 'critical', `redirect-uri-${surface}-drift`);
   }
 
+  if (!actual.servicePrincipal) add(label, 'critical', 'service-principal-missing');
+  else if (actual.servicePrincipal.accountEnabled === false)
+    add(label, 'critical', 'service-principal-disabled');
+
+  if (actual.passwordCredentials.length > 0)
+    add(label, 'warning', 'password-credential-present');
+  if (actual.keyCredentials.length === 0)
+    add(label, 'critical', 'certificate-credential-missing');
+
+  certificateDrift(label, actual, now, add);
+
+  for (const assignment of actual.servicePrincipal?.appRoleAssignments ?? []) {
+    if (BROAD_APPLICATION_PERMISSIONS.has(assignment.appRoleId))
+      add(label, 'warning', 'broad-application-permission-present');
+  }
+}
+
+/** Certificates already expired, expiring within 45 days, or with an unreadable date. */
+function certificateDrift(
+  label: 'web' | 'graph',
+  actual: EntraApplicationAudit,
+  now: Date,
+  add: AddDriftFinding,
+): void {
+  for (const credential of actual.keyCredentials) {
+    if (!credential.endDateTime) continue;
+    const remaining = new Date(credential.endDateTime).getTime() - now.getTime();
+    if (!Number.isFinite(remaining)) {
+      add(label, 'warning', 'certificate-expiry-invalid');
+      continue;
+    }
+    if (remaining <= 0) add(label, 'critical', 'certificate-expired');
+    else if (remaining <= 45 * 24 * 60 * 60 * 1000)
+      add(label, 'warning', 'certificate-expiring-soon');
+  }
+}
+
+/** The operations identity: name, enabled, and exactly the allowed application roles. */
+function operationsDrift(
+  operationsIdentity: EntraOperationsIdentityAudit,
+  sharePointAuditEnabled: boolean,
+  add: AddDriftFinding,
+): void {
   if (operationsIdentity.displayName !== EXPECTED_OPERATIONS_DISPLAY_NAME)
     add('operations', 'warning', 'display-name-drift');
   if (operationsIdentity.accountEnabled === false)
@@ -285,6 +299,24 @@ function auditDrift(
     if (!allowedOperationsRoles.has(roleId))
       add('operations', 'critical', 'unexpected-application-permission');
   }
+}
+
+function auditDrift(
+  applications: { web: EntraApplicationAudit; graph: EntraApplicationAudit },
+  operationsIdentity: EntraOperationsIdentityAudit,
+  sharePointAuditEnabled: boolean,
+  now: Date,
+): EntraDriftAudit {
+  const findings: EntraDriftFinding[] = [];
+  const add = (
+    application: EntraDriftFinding['application'],
+    severity: EntraDriftFinding['severity'],
+    code: string,
+  ) => findings.push({ application, severity, code });
+
+  for (const label of ['web', 'graph'] as const)
+    applicationDrift(label, applications[label], now, add);
+  operationsDrift(operationsIdentity, sharePointAuditEnabled, add);
 
   let status: 'critical' | 'warning' | 'ok';
   if (findings.some((finding) => finding.severity === 'critical')) {
