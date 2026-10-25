@@ -253,6 +253,9 @@ function inspectHistory(value: Record<string, unknown>): BulletinWorkspaceTransp
   return 'ready';
 }
 
+const readyIfV1 = (valid: boolean): BulletinWorkspaceTransportReadinessV1 =>
+  valid ? 'ready' : 'invalid-request';
+
 export function inspectBulletinWorkspaceTransportRequestV1(
   value: unknown,
 ): BulletinWorkspaceTransportReadinessV1 {
@@ -267,21 +270,18 @@ export function inspectBulletinWorkspaceTransportRequestV1(
 
   switch (value.operation) {
     case 'bootstrap':
-      return hasExactKeys(value, ['contractVersion', 'operation']) ? 'ready' : 'invalid-request';
+      return readyIfV1(hasExactKeys(value, ['contractVersion', 'operation']));
     case 'class-groups':
-      return hasExactKeys(value, ['contractVersion', 'operation', 'academicYearId']) &&
-        isNonEmptyString(value.academicYearId)
-        ? 'ready'
-        : 'invalid-request';
+      return readyIfV1(
+        hasExactKeys(value, ['contractVersion', 'operation', 'academicYearId']) &&
+          isNonEmptyString(value.academicYearId),
+      );
     case 'students':
-      return hasExactKeys(value, [
-        'contractVersion',
-        'operation',
-        'academicYearId',
-        'classGroupId',
-      ]) && isNonEmptyString(value.academicYearId) && isNonEmptyString(value.classGroupId)
-        ? 'ready'
-        : 'invalid-request';
+      return readyIfV1(
+        hasExactKeys(value, ['contractVersion', 'operation', 'academicYearId', 'classGroupId']) &&
+          isNonEmptyString(value.academicYearId) &&
+          isNonEmptyString(value.classGroupId),
+      );
     case 'preview':
     case 'emit':
       return hasExactKeys(value, ['contractVersion', 'operation', 'request'])
