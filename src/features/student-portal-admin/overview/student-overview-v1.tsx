@@ -38,6 +38,27 @@ export function StudentOverviewV1(props: Readonly<OperationsPropsV1>) {
     </OperationsScopeV1>
   );
 }
+/** A lost authorization or a rate limit ends the whole read; other failures leave a part empty. */
+const stopsReadV1 = (reason: unknown) =>
+  reason instanceof PortalClientErrorV1 &&
+  (authorizationLostV1(reason) || reason.state === 'rate-limited');
+
+/** The fallback keeps health observable when the business summary is unavailable. */
+async function fallbackHealthV1(props: Readonly<OperationsPropsV1>, signal: AbortSignal) {
+  let health = null;
+  try {
+    const result = await props.client.query(
+      { contractVersion: 1, operation: 'health', scope: props.scope, page: { limit: 1 } },
+      signal,
+    );
+    if (result.state === 'health') health = result.status;
+  } catch (error) {
+    if (stopsReadV1(error)) throw error;
+  }
+  signal.throwIfAborted();
+  return health;
+}
+
 function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
   const [populationReview, setPopulationReview] = useState(false);
   const [populationBusy, setPopulationBusy] = useState(false);
@@ -68,34 +89,12 @@ function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
       ]);
       signal.throwIfAborted();
       for (const result of [overview, population])
-        if (
-          result.status === 'rejected' &&
-          result.reason instanceof PortalClientErrorV1 &&
-          (authorizationLostV1(result.reason) || result.reason.state === 'rate-limited')
-        )
-          throw result.reason;
+        if (result.status === 'rejected' && stopsReadV1(result.reason)) throw result.reason;
       const summary =
         overview.status === 'fulfilled' && overview.value.state === 'overview'
           ? overview.value
           : null;
-      let health = summary?.health ?? null;
-      if (!summary) {
-        // The fallback keeps health observable when the business summary is unavailable.
-        try {
-          const result = await props.client.query(
-            { contractVersion: 1, operation: 'health', scope: props.scope, page: { limit: 1 } },
-            signal,
-          );
-          if (result.state === 'health') health = result.status;
-        } catch (error) {
-          if (
-            error instanceof PortalClientErrorV1 &&
-            (authorizationLostV1(error) || error.state === 'rate-limited')
-          )
-            throw error;
-        }
-        signal.throwIfAborted();
-      }
+      const health = summary ? (summary.health ?? null) : await fallbackHealthV1(props, signal);
       return {
         overview: summary,
         health,
