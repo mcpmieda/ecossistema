@@ -113,7 +113,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .learning-overview .learning-enter { animation: none; transform: none; }
-  .learning-overview *, .learning-overview *::before, .learning-overview *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+  .learning-overview *, .learning-overview *::before, .learning-overview *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; } /* NOSONAR reduced motion wins over every motion rule */
 }
 
 /* Compact, fixed proportions (08/10/2026): the screen reads like a desktop panel. */

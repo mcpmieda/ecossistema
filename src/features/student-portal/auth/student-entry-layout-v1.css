@@ -311,7 +311,7 @@
     text-align: left;
   }
   .pa-entry:not(.pa-entry--splash) .pa-entry-crest {
-    --school-mark-size: 56px !important;
+    --school-mark-size: 56px !important; /* NOSONAR beats the size the component sets on the element */
     grid-row: span 3;
     margin: 0;
     box-shadow:

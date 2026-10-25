@@ -1497,16 +1497,16 @@ button.performance-kpi__button:hover {
   .route-stage,
   .stagger-item,
   .attention-pulse::after {
-    animation: none !important;
+    animation: none !important; /* NOSONAR reduced motion wins over every motion rule */
   }
 
   .council-queue-card {
-    transition: none !important;
+    transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
   }
 
   .platform-search-results .list-box-item,
   .platform-search-results__item {
-    transition: none !important;
+    transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
   }
 }
 

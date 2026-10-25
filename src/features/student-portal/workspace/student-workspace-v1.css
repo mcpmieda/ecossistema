@@ -583,7 +583,7 @@
 .pa-slide-ghost *,
 .pa-slide-ghost *::before,
 .pa-slide-ghost *::after {
-  animation: none !important;
+  animation: none !important; /* NOSONAR stills every descendant, whatever its own rule */
 }
 .pa-slide-in--forward {
   animation: pa-slide-in-forward 340ms cubic-bezier(0.4, 0, 0.2, 1) both;
@@ -2204,7 +2204,7 @@
 .pa-swipe-peek *,
 .pa-swipe-peek *::before,
 .pa-swipe-peek *::after {
-  animation: none !important;
+  animation: none !important; /* NOSONAR stills every descendant, whatever its own rule */
 }
 /* With the margin kept inside the sliding list, it no longer overlaps the 0.4rem under the column
    labels; 0.4rem here keeps the list exactly where it was (0.8rem from the labels). */
