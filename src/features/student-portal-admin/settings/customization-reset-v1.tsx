@@ -4,6 +4,14 @@ import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { CustomizationResetChoiceV1 } from './customization-values-v1';
 
+function resetFailureTextV1(denied: boolean, conflict: boolean, retryable: boolean) {
+  if (denied) return 'A autorização terminou. Feche e entre novamente.';
+  if (conflict) return 'A configuração mudou. Feche, confira os dados atualizados e revise novamente.';
+  if (retryable)
+    return 'A confirmação não chegou. Tentar novamente repete a mesma solicitação, sem criar outra alteração.';
+  return 'Não foi possível aplicar a alteração. Feche e consulte os dados novamente.';
+}
+
 /** Review one captured difference. Retries retain identical command bytes and CAS; never
  * silently rebase an open confirmation on a background refresh. */
 export function CustomizationResetV1({ client, label, choices, canWrite, onClose, onCommitted }: Readonly<{
@@ -58,12 +66,7 @@ export function CustomizationResetV1({ client, label, choices, canWrite, onClose
       if (!controller.signal.aborted) setBusy(false);
     }
   }
-  let failureText = 'Não foi possível aplicar a alteração. Feche e consulte os dados novamente.';
-  if (denied) failureText = 'A autorização terminou. Feche e entre novamente.';
-  else if (failure?.state === 'conflict')
-    failureText = 'A configuração mudou. Feche, confira os dados atualizados e revise novamente.';
-  else if (retryable)
-    failureText = 'A confirmação não chegou. Tentar novamente repete a mesma solicitação, sem criar outra alteração.';
+  const failureText = resetFailureTextV1(denied, failure?.state === 'conflict', retryable);
   // One action button: retry the same request, or confirm while nothing has failed.
   let action: ReactNode = null;
   if (!denied && retryable)
