@@ -38,6 +38,12 @@ function settleAfterTypingV1(input: HTMLInputElement | null) {
   setTimeout(() => button?.scrollIntoView?.({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' }), 300);
 }
 
+/** Hands the field to the caller's ref, a callback or an object. */
+function assignRefV1(inputRef: Ref<HTMLInputElement> | undefined, node: HTMLInputElement | null) {
+  if (typeof inputRef === 'function') inputRef(node);
+  else if (inputRef) inputRef.current = node;
+}
+
 function NumericCredentialV1({
   label,
   length,
@@ -89,8 +95,7 @@ function NumericCredentialV1({
       <InputOTP
         ref={(node: HTMLInputElement | null) => {
           own.current = node;
-          if (typeof inputRef === 'function') inputRef(node);
-          else if (inputRef) inputRef.current = node;
+          assignRefV1(inputRef, node);
         }}
         onComplete={() => onComplete?.(own.current)}
         id={id}
@@ -505,6 +510,70 @@ const STEPS_V1: Partial<Record<StudentAuthStateV1['step'], { eyebrow: string; in
   risk: { eyebrow: 'Só um instante' },
 };
 
+const STEPS_TITLES_V1: Record<StudentAuthStateV1['step'], string> = {
+  scan: 'Acessar minhas notas',
+  pin: 'Primeiro acesso',
+  password: 'Digite sua senha',
+  risk: 'Verificação rápida',
+  create: 'Criar senha',
+  authenticated: 'Acesso confirmado',
+};
+
+/** The step's eyebrow, title and progress; once the card is read, a "read" mark. */
+function AuthHeaderV1({ step: authStep }: Readonly<{ step: StudentAuthStateV1['step'] }>) {
+  const step = STEPS_V1[authStep];
+  return (
+    <Card.Header className="pa-auth-header">
+      {step ? <Card.Description className="pa-auth-eyebrow">{step.eyebrow}</Card.Description> : null}
+      <Card.Title className="pa-auth-title">{STEPS_TITLES_V1[authStep]}</Card.Title>
+      {step?.index ? (
+        <div className="pa-auth-progress" aria-hidden="true">
+          {[1, 2, 3].map((item) => (
+            <span key={item} data-done={item <= step.index! || undefined} />
+          ))}
+        </div>
+      ) : null}
+      {authStep === 'password' ? (
+        <span className="pa-auth-card-read">
+          <Check size={14} strokeWidth={3} aria-hidden="true" />
+          Cartão lido
+        </span>
+      ) : null}
+    </Card.Header>
+  );
+}
+
+/** Why the quick check is shown before the credentials. */
+function RiskIntroV1() {
+  return (
+    <div className="pa-risk-intro">
+      <span className="pa-risk-shield" aria-hidden="true">
+        <ShieldCheck size={30} />
+      </span>
+      <Card.Description>
+        Para proteger sua conta, precisamos confirmar que é você mesmo usando o portal. Leva só
+        alguns segundos.
+      </Card.Description>
+    </div>
+  );
+}
+
+/** The reader gives way to its own "read" state until the next step arrives. */
+function CardReadV1() {
+  return (
+    <output className="pa-qr-accepted" aria-live="polite">
+      <span className="pa-qr-accepted-mark" aria-hidden="true">
+        <Check size={30} strokeWidth={3} />
+      </span>
+      <strong>Cartão lido!</strong>
+      <span className="pa-qr-accepted-note">
+        <Spinner size="sm" aria-hidden="true" />
+        Preparando a entrada…
+      </span>
+    </output>
+  );
+}
+
 export function StudentAuthenticationV1({
   client,
   onAuthenticated,
@@ -548,62 +617,17 @@ export function StudentAuthenticationV1({
       window.removeEventListener('pagehide', clear);
     };
   }, [client, initialQr]);
-  const titles = {
-    scan: 'Acessar minhas notas',
-    pin: 'Primeiro acesso',
-    password: 'Digite sua senha',
-    risk: 'Verificação rápida',
-    create: 'Criar senha',
-    authenticated: 'Acesso confirmado',
-  };
-  const step = STEPS_V1[state.step];
+  // An unreadable card replaces the step's own message.
+  const notice = invalidQr ? 'Este QR não é um acesso válido ao Portal.' : state.message;
   return (
     <Card className="pa-auth-card" data-step={state.step}>
-      <Card.Header className="pa-auth-header">
-        {step ? <Card.Description className="pa-auth-eyebrow">{step.eyebrow}</Card.Description> : null}
-        <Card.Title className="pa-auth-title">{titles[state.step]}</Card.Title>
-        {step?.index ? (
-          <div className="pa-auth-progress" aria-hidden="true">
-            {[1, 2, 3].map((item) => (
-              <span key={item} data-done={item <= step.index! || undefined} />
-            ))}
-          </div>
-        ) : null}
-        {state.step === 'password' ? (
-          <span className="pa-auth-card-read">
-            <Check size={14} strokeWidth={3} aria-hidden="true" />
-            Cartão lido
-          </span>
-        ) : null}
-      </Card.Header>
+      <AuthHeaderV1 step={state.step} />
       <Card.Content>
-        {invalidQr ? <AuthNoticeV1 message="Este QR não é um acesso válido ao Portal." step={state.step} /> : null}
-        {!invalidQr && state.message ? <AuthNoticeV1 message={state.message} step={state.step} /> : null}
-        {state.step === 'risk' ? (
-          <div className="pa-risk-intro">
-            <span className="pa-risk-shield" aria-hidden="true">
-              <ShieldCheck size={30} />
-            </span>
-            <Card.Description>
-              Para proteger sua conta, precisamos confirmar que é você mesmo usando o portal. Leva
-              só alguns segundos.
-            </Card.Description>
-          </div>
-        ) : null}
+        {notice ? <AuthNoticeV1 message={notice} step={state.step} /> : null}
+        {state.step === 'risk' ? <RiskIntroV1 /> : null}
         {/* Once the card is read, the reader gives way to its own "read" state until the next step
             arrives, instead of flashing back to the opening screen (owner review 27/09/2026). */}
-        {state.step === 'scan' && state.pending ? (
-          <output className="pa-qr-accepted" aria-live="polite">
-            <span className="pa-qr-accepted-mark" aria-hidden="true">
-              <Check size={30} strokeWidth={3} />
-            </span>
-            <strong>Cartão lido!</strong>
-            <span className="pa-qr-accepted-note">
-              <Spinner size="sm" aria-hidden="true" />
-              Preparando a entrada…
-            </span>
-          </output>
-        ) : null}
+        {state.step === 'scan' && state.pending ? <CardReadV1 /> : null}
         {state.step === 'scan' && !state.pending ? (
           <fieldset className="pa-qr-controls">
             {state.retryAt ? <RetryCountdownV1 retryAt={state.retryAt} /> : null}
