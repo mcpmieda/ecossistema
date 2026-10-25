@@ -10,6 +10,51 @@ export interface StudentSecuritySocketV1 {
   close(): void;
 }
 
+/** A rate-limited verification waits what the server asks (15 s to one day) and blocks earlier
+ * checks; any other failure retries in 15 s. */
+function verificationRetryV1(error: unknown) {
+  if (error instanceof PortalClientErrorV1 && error.state === 'rate-limited')
+    return { wait: Math.max(15_000, Math.min(86_400, error.retryAfterSeconds ?? 60) * 1000), limited: true };
+  return { wait: 15_000, limited: false };
+}
+
+/** A security channel message: small JSON of contract version 1; pongs and anything else are ignored. */
+function securityMessageV1(data: unknown): Record<string, unknown> | null {
+  if (data === 'security-pong') return null;
+  if (typeof data !== 'string' || data.length > 128) return null;
+  let message: unknown;
+  try {
+    message = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  if (!message || typeof message !== 'object') return null;
+  const value = message as Record<string, unknown>;
+  return value.contractVersion === 1 ? value : null;
+}
+
+/** The connected handshake: exact keys, and an expiry wherever renewal or a lease is offered. */
+function securityHandshakeV1(value: Record<string, unknown>) {
+  const keys = Object.keys(value).length;
+  const supportsRenewal = value.renewable === true;
+  const expiry = instantV1.safeParse(value.expiresAt);
+  if (supportsRenewal ? keys !== 4 || !expiry.success : keys !== 2 && (keys !== 3 || !expiry.success)) return null;
+  return { keys, supportsRenewal, expiry };
+}
+
+/** The lease a fresh handshake grants (its expiry), or null: older servers only confirm the session. */
+function handshakeLeaseV1(
+  { keys, supportsRenewal, expiry }: NonNullable<ReturnType<typeof securityHandshakeV1>>,
+  startedAt: number,
+) {
+  return (keys === 3 || supportsRenewal) &&
+    expiry.success &&
+    Date.now() < startedAt + 60_000 &&
+    Date.parse(expiry.data) > Date.now()
+    ? expiry.data
+    : null;
+}
+
 /** Security leases never request or invalidate the academic snapshot. */
 export function createStudentSecurityV1(options: {
   connect: (connectionId?: string) => StudentSecuritySocketV1;
@@ -65,6 +110,27 @@ export function createStudentSecurityV1(options: {
   // HTTP (never /me). Only a confirmed revocation hides content — `authorize` publishes it and
   // the session hook disposes this channel. Network uncertainty (socket blocked, tab resumed
   // after the OS suspended it, flaky mobile data) keeps the content and retries shortly.
+  /** A renewal the server did not confirm reconnects that same socket; the lease restarts either way. */
+  function afterVerification(
+    renewalId: string | undefined,
+    current: StudentSecuritySocketV1 | undefined,
+    renewed: unknown,
+    startedAt: number,
+  ) {
+    if (renewalId && current === socket && renewed !== true) {
+      disconnect();
+      connect();
+    }
+    renew(startedAt);
+  }
+  /** Network uncertainty does not revoke an account or extend its authorization lease. */
+  function verificationFailed(error: unknown) {
+    clearTimeout(lease);
+    const { wait, limited } = verificationRetryV1(error);
+    if (limited) limitedUntil = Date.now() + wait;
+    lease = setTimeout(() => void authorize(), wait);
+    if (!socket) schedule();
+  }
   const authorize = async (repeat = false) => {
     if (disposed) return;
     if (Date.now() < limitedUntil) {
@@ -94,23 +160,9 @@ export function createStudentSecurityV1(options: {
         }),
       ]);
       controller.signal.throwIfAborted();
-      if (!disposed && !again) {
-        if (renewalId && current === socket && renewed !== true) {
-          disconnect();
-          connect();
-        }
-        renew(startedAt);
-      }
+      if (!disposed && !again) afterVerification(renewalId, current, renewed, startedAt);
     } catch (error) {
-      // Network uncertainty does not revoke an account or extend its authorization lease.
-      if (!disposed) {
-        clearTimeout(lease);
-        const wait = error instanceof PortalClientErrorV1 && error.state === 'rate-limited'
-          ? Math.max(15_000, Math.min(86_400, error.retryAfterSeconds ?? 60) * 1000) : 15_000;
-        if (error instanceof PortalClientErrorV1 && error.state === 'rate-limited') limitedUntil = Date.now() + wait;
-        lease = setTimeout(() => void authorize(), wait);
-        if (!socket) schedule();
-      }
+      if (!disposed) verificationFailed(error);
     } finally {
       clearTimeout(requestTimeout);
       request = undefined;
@@ -144,6 +196,22 @@ export function createStudentSecurityV1(options: {
       return;
     }
     socket = current;
+    /** The first valid handshake: renewal support, then the lease it grants or an HTTP check. */
+    function acceptHandshake(value: Record<string, unknown>) {
+      const handshake = securityHandshakeV1(value);
+      if (!handshake) return;
+      acknowledged = true;
+      if (handshake.supportsRenewal) {
+        renewable = true;
+        clearTimeout(rotation);
+      }
+      // An older handshake cannot override a security event or a newer HTTP observation.
+      if (version !== noticeVersion || startedAt < lastHttpStartedAt) return;
+      const leaseUntil = options.onAuthorized ? handshakeLeaseV1(handshake, startedAt) : null;
+      if (leaseUntil && options.onAuthorized) {
+        if (options.onAuthorized(leaseUntil, startedAt)) renew(startedAt);
+      } else void authorize(); // Older servers retain the session-only compatibility path.
+    }
     // Rotate even a stalled handshake; authorization never depends on receiving onclose.
     rotation = setTimeout(() => {
       disconnect();
@@ -163,43 +231,13 @@ export function createStudentSecurityV1(options: {
     };
     current.onmessage = ({ data }) => {
       if (disposed || socket !== current) return;
-      if (data === 'security-pong') return;
-      if (typeof data !== 'string' || data.length > 128) return;
-      let message: unknown;
-      try {
-        message = JSON.parse(data);
-      } catch {
-        return;
-      }
-      if (!message || typeof message !== 'object') return;
-      const value = message as Record<string, unknown>;
-      if (value.contractVersion !== 1) return;
+      const value = securityMessageV1(data);
+      if (!value) return;
       if (value.type === 'reauthorize' && Object.keys(value).length === 2) {
         noticeVersion++;
         void authorize(true);
       }
-      if (value.type === 'security-connected' && !acknowledged) {
-        const keys = Object.keys(value).length;
-        const supportsRenewal = value.renewable === true;
-        const expiry = instantV1.safeParse(value.expiresAt);
-        if (supportsRenewal ? keys !== 4 || !expiry.success : keys !== 2 && (keys !== 3 || !expiry.success)) return;
-        acknowledged = true;
-        if (supportsRenewal) {
-          renewable = true;
-          clearTimeout(rotation);
-        }
-        // An older handshake cannot override a security event or a newer HTTP observation.
-        if (version !== noticeVersion || startedAt < lastHttpStartedAt) return;
-        if (
-          (keys === 3 || supportsRenewal) &&
-          expiry.success &&
-          options.onAuthorized &&
-          Date.now() < startedAt + 60_000 &&
-          Date.parse(expiry.data) > Date.now()
-        ) {
-          if (options.onAuthorized(expiry.data, startedAt)) renew(startedAt);
-        } else void authorize(); // Older servers retain the session-only compatibility path.
-      }
+      if (value.type === 'security-connected' && !acknowledged) acceptHandshake(value);
     };
     current.onclose = current.onerror = () => {
       if (!disposed && socket === current) {
