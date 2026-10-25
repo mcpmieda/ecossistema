@@ -113,6 +113,75 @@ function assertReady(snapshot: RelationalBulletinSnapshotV2): void {
   throw new BulletinPdfRendererErrorV1(readiness.status, readiness.reason);
 }
 
+type BulletinTermV2 = RelationalBulletinSnapshotV2['model']['subjects'][number]['terms'][number];
+type BulletinAnnualV2 = NonNullable<
+  RelationalBulletinSnapshotV2['model']['subjects'][number]['annual']
+>;
+
+/** An instrument as the bulletin table shows it: blank is "Não fez", a numeric 0 is "Tirou zero". */
+function instrumentShownV2(instrument: BulletinTermV2['instruments'][number]) {
+  if (instrument.notDone) return 'Não fez';
+  if (instrument.valueMilli === 0) return 'Tirou zero';
+  return 'nota ' + grade(instrument.valueMilli);
+}
+
+/** One term: official and calculated AM, its composition and coverage, and the instruments if detailed. */
+function termLinesV2(lines: BulletinPdfLineV1[], term: BulletinTermV2, detailed: boolean) {
+  text(lines, 'subsection', `${term.term}º TRIMESTRE`);
+  text(
+    lines,
+    'body',
+    `AM oficial: ${grade(term.sourceAmMilli)} · cálculo comparativo: ${grade(term.calculatedAmMilli)} · ${comparison(term.comparison)}`,
+    20,
+  );
+  text(
+    lines,
+    'body',
+    `Composição calculada: quantitativo original ${grade(term.quantitative.originalMilli)} · recuperação paralela ${grade(term.quantitative.parallelMilli)} · quantitativo considerado ${grade(term.quantitative.consideredMilli)} · qualitativo ${grade(term.qualitativeMilli)}`,
+    20,
+  );
+  text(
+    lines,
+    'meta',
+    `Cobertura: ${term.coverage.missingSlots.length === 0 ? 'COMPLETA' : 'PARCIAL'} · slots resolvidos ${term.coverage.resolvedSlots.length}/${term.coverage.requiredSlots.length}`,
+    20,
+  );
+  if (detailed) {
+    for (const instrument of term.instruments)
+      text(
+        lines,
+        'meta',
+        `${instrument.label} · ${instrumentShownV2(instrument)} / ${grade(instrument.maximumMilli)}`,
+        36,
+      );
+  }
+}
+
+/** The annual result: totals, the recoveries that applied and the component's situation. */
+function annualLinesV2(lines: BulletinPdfLineV1[], annual: BulletinAnnualV2) {
+  text(lines, 'subsection', 'RESULTADO ANUAL');
+  text(
+    lines,
+    'body',
+    `Total normal calculado: ${grade(annual.originalTotalMilli)} · U oficial: ${grade(annual.sourceUMilli)} · cálculo pós-REC: ${grade(annual.calculatedPostRecoveryMilli)}`,
+    20,
+  );
+  text(
+    lines,
+    'body',
+    'REC: ' +
+      annual.recoveryTerms
+        .map((recovery) =>
+          recovery.applicable
+            ? `${recovery.term}º ${recoveryGrade(recovery.source)}`
+            : `${recovery.term}º —`,
+        )
+        .join(' · '),
+    20,
+  );
+  text(lines, 'body', `Situação do componente: ${classification(annual.classification)}`, 20);
+}
+
 /** Presentation-only projection. Academic values are copied from the immutable V2 snapshot. */
 export function buildRelationalBulletinPdfLinesV2(
   snapshot: RelationalBulletinSnapshotV2,
@@ -149,69 +218,8 @@ export function buildRelationalBulletinPdfLinesV2(
       `${subject.subject.abbreviation ? subject.subject.abbreviation + ' · ' : ''}${subject.subject.label}`,
     );
     text(lines, 'meta', `Professor: ${subject.teacher.label}`, 20);
-    for (const term of subject.terms) {
-      text(lines, 'subsection', `${term.term}º TRIMESTRE`);
-      text(
-        lines,
-        'body',
-        `AM oficial: ${grade(term.sourceAmMilli)} · cálculo comparativo: ${grade(term.calculatedAmMilli)} · ${comparison(term.comparison)}`,
-        20,
-      );
-      text(
-        lines,
-        'body',
-        `Composição calculada: quantitativo original ${grade(term.quantitative.originalMilli)} · recuperação paralela ${grade(term.quantitative.parallelMilli)} · quantitativo considerado ${grade(term.quantitative.consideredMilli)} · qualitativo ${grade(term.qualitativeMilli)}`,
-        20,
-      );
-      text(
-        lines,
-        'meta',
-        `Cobertura: ${term.coverage.missingSlots.length === 0 ? 'COMPLETA' : 'PARCIAL'} · slots resolvidos ${term.coverage.resolvedSlots.length}/${term.coverage.requiredSlots.length}`,
-        20,
-      );
-      if (model.detail === 'detailed') {
-        for (const instrument of term.instruments) {
-          let shown: string;
-          if (instrument.notDone) shown = 'Não fez';
-          else if (instrument.valueMilli === 0) shown = 'Tirou zero';
-          else shown = 'nota ' + grade(instrument.valueMilli);
-          text(
-            lines,
-            'meta',
-            `${instrument.label} · ${shown} / ${grade(instrument.maximumMilli)}`,
-            36,
-          );
-        }
-      }
-    }
-    if (subject.annual) {
-      text(lines, 'subsection', 'RESULTADO ANUAL');
-      text(
-        lines,
-        'body',
-        `Total normal calculado: ${grade(subject.annual.originalTotalMilli)} · U oficial: ${grade(subject.annual.sourceUMilli)} · cálculo pós-REC: ${grade(subject.annual.calculatedPostRecoveryMilli)}`,
-        20,
-      );
-      text(
-        lines,
-        'body',
-        'REC: ' +
-          subject.annual.recoveryTerms
-            .map((recovery) =>
-              recovery.applicable
-                ? `${recovery.term}º ${recoveryGrade(recovery.source)}`
-                : `${recovery.term}º —`,
-            )
-            .join(' · '),
-        20,
-      );
-      text(
-        lines,
-        'body',
-        `Situação do componente: ${classification(subject.annual.classification)}`,
-        20,
-      );
-    }
+    for (const term of subject.terms) termLinesV2(lines, term, model.detail === 'detailed');
+    if (subject.annual) annualLinesV2(lines, subject.annual);
     lines.push({ kind: 'space', height: 12 }, { kind: 'rule' }, { kind: 'space', height: 12 });
   }
 
