@@ -32,18 +32,9 @@ const WEEKDAY_PLURAL = ['', 'às segundas-feiras', 'às terças-feiras', 'às qu
 const days = (count: number) => (count === 1 ? '1 dia' : `${count} dias`);
 const dateLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
 
-export function frequencyCommentV2({
-  months,
-  today,
-  remainingSchoolDays,
-}: {
-  /** Every month so far, as the Portal reads them (marks and lesson days of the school calendar). */
-  months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[];
-  today: string;
-  /** School days left in the calendar, today included (0 without a calendar). */
-  remainingSchoolDays: number;
-}): FrequencyCommentV2 | null {
-  // Each day already over: its lessons (every shift's positions) and its absences without justification.
+/** Each day already over: its lessons (every shift's positions) and its absences without
+ * justification, most recent first; days without lessons are left out. */
+function pastSchoolDaysV2(months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[], today: string) {
   const lessons = new Map<string, Set<string>>();
   for (const day of months.flatMap((month) => month.days ?? []) as FrequencyDayV2[]) {
     if (day.date >= today) continue;
@@ -55,10 +46,34 @@ export function frequencyCommentV2({
   for (const mark of months.flatMap((month) => month.marks))
     if (mark.mark === 'X' && lessons.get(mark.date)?.has(`${mark.shift}:${mark.slot}`))
       absent.set(mark.date, (absent.get(mark.date) ?? 0) + 1);
-  const all = [...lessons.entries()]
+  return [...lessons.entries()]
     .map(([date, set]) => ({ date, lessons: set.size, absences: absent.get(date) ?? 0, weekday: new Date(`${date}T12:00:00Z`).getUTCDay() }))
     .filter((day) => day.lessons > 0)
     .sort((left, right) => right.date.localeCompare(left.date));
+}
+
+/** Whole weekdays missed in a row, counting back from the most recent. */
+function missedInARowV2(weekdays: readonly { absences: number; lessons: number }[]) {
+  let streak = 0;
+  for (const day of weekdays) {
+    if (day.absences < day.lessons) break;
+    streak += 1;
+  }
+  return streak;
+}
+
+export function frequencyCommentV2({
+  months,
+  today,
+  remainingSchoolDays,
+}: {
+  /** Every month so far, as the Portal reads them (marks and lesson days of the school calendar). */
+  months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[];
+  today: string;
+  /** School days left in the calendar, today included (0 without a calendar). */
+  remainingSchoolDays: number;
+}): FrequencyCommentV2 | null {
+  const all = pastSchoolDaysV2(months, today);
   if (!all.length) return null;
   const totalLessons = all.reduce((sum, day) => sum + day.lessons, 0);
   const totalAbsences = all.reduce((sum, day) => sum + day.absences, 0);
@@ -78,11 +93,7 @@ export function frequencyCommentV2({
   const beforeRate = rate(before);
   const recentAbsenceDays = recent.reduce((sum, day) => sum + day.absences, 0) / perDay;
   const fullDays = weekdays.filter((day) => day.absences >= day.lessons);
-  let streak = 0;
-  for (const day of weekdays) {
-    if (day.absences < day.lessons) break;
-    streak += 1;
-  }
+  const streak = missedInARowV2(weekdays);
   const byWeekday = [0, 0, 0, 0, 0, 0];
   for (const day of fullDays) byWeekday[day.weekday]! += 1;
   const topWeekday = byWeekday.indexOf(Math.max(...byWeekday));
