@@ -184,6 +184,51 @@ function position(index: number): boolean {
   return Number.isInteger(index) && index >= 0 && index < IMPORT_TIMING_FILE_LIMIT_V1;
 }
 
+/** The file's event in its own slot: recognition, preparation, canonical request, audit, queue,
+ * dispatch, HTTP (with its commit diagnostics) or persistence result. */
+function attachFileEventV1(file: ImportTimingFileV1, event: ImportTimingEventV1, value: unknown) {
+  switch (event.stage) {
+    case 'recognition-file':
+      file.recognition = event;
+      break;
+    case 'canonical-local':
+      file.preparation = event;
+      break;
+    case 'canonical-file':
+    case 'canonical-file-blocked':
+    case 'canonical-file-failed':
+      file.canonical = event;
+      break;
+    case 'audit-request':
+      if (event.phase === 'relation-follow-up') file.auditFollowUp = event;
+      else file.auditInitial = event;
+      break;
+    case 'persistence-dispatch':
+      file.queue = event;
+      break;
+    case 'academic-dispatch':
+      file.dispatch = event;
+      break;
+    case 'persist-request':
+      file.http = event;
+      {
+        const diagnostic = (value as { commitDiagnostics?: unknown })?.commitDiagnostics;
+        file.commitDiagnostics = isImportCommitDiagnosticsV1(diagnostic)
+          ? parseImportCommitDiagnosticsHeaderV1(
+              serializeImportCommitDiagnosticsHeaderV1(diagnostic),
+            )
+          : null;
+      }
+      break;
+    case 'persistence-result':
+      file.persistence = event;
+      break;
+  }
+}
+
+/** A batch that ended waiting for the user (authorization, confirmation, review) is paused. */
+const PAUSED_OUTCOMES_V1 = ['auth-required', 'confirmation-required', 'review-required'];
+
 export class ImportTimingReportV1 {
   private initial: TimingRun | null = null;
   private latestResume: TimingRun | null = null;
@@ -247,6 +292,16 @@ export class ImportTimingReportV1 {
     if (run !== null) run.diagnosticFailures++;
   }
 
+  /** A file's event goes to that file; only batch stages may come without one. False: no place. */
+  private attach(run: TimingRun, event: ImportTimingEventV1, value: unknown): boolean {
+    if (typeof event.sourceFileIndex !== 'number')
+      return ['library-wait', 'recognition-batch', 'batch-complete'].includes(String(event.stage));
+    const file = run.files.find((item) => item.sourceFileIndex === event.sourceFileIndex);
+    if (!file) return false;
+    attachFileEventV1(file, event, value);
+    return true;
+  }
+
   record(runOrdinal: number, value: unknown, sourceFileIndex?: number): ImportTimingEventV1 | null {
     const run = this.current(runOrdinal);
     if (run === null || run.status !== 'in-progress') return null;
@@ -265,53 +320,7 @@ export class ImportTimingReportV1 {
       run.recognition = event;
       run.recognitionStatus = 'performed';
     }
-    if (typeof event.sourceFileIndex === 'number') {
-      const file = run.files.find((item) => item.sourceFileIndex === event.sourceFileIndex);
-      if (!file) this.failure(runOrdinal);
-      else {
-        switch (event.stage) {
-          case 'recognition-file':
-            file.recognition = event;
-            break;
-          case 'canonical-local':
-            file.preparation = event;
-            break;
-          case 'canonical-file':
-          case 'canonical-file-blocked':
-          case 'canonical-file-failed':
-            file.canonical = event;
-            break;
-          case 'audit-request':
-            if (event.phase === 'relation-follow-up') file.auditFollowUp = event;
-            else file.auditInitial = event;
-            break;
-          case 'persistence-dispatch':
-            file.queue = event;
-            break;
-          case 'academic-dispatch':
-            file.dispatch = event;
-            break;
-          case 'persist-request':
-            file.http = event;
-            {
-              const diagnostic = (value as { commitDiagnostics?: unknown })?.commitDiagnostics;
-              file.commitDiagnostics = isImportCommitDiagnosticsV1(diagnostic)
-                ? parseImportCommitDiagnosticsHeaderV1(
-                    serializeImportCommitDiagnosticsHeaderV1(diagnostic),
-                  )
-                : null;
-            }
-            break;
-          case 'persistence-result':
-            file.persistence = event;
-            break;
-        }
-      }
-    } else if (
-      !['library-wait', 'recognition-batch', 'batch-complete'].includes(String(event.stage))
-    ) {
-      this.failure(runOrdinal);
-    }
+    if (!this.attach(run, event, value)) this.failure(runOrdinal);
     if (run.recentEvents.length === IMPORT_TIMING_TAIL_LIMIT_V1) {
       run.recentEvents.shift();
       run.discardedEvents++;
@@ -319,11 +328,7 @@ export class ImportTimingReportV1 {
     run.recentEvents.push(event);
     if (event.stage === 'batch-complete') {
       run.final = event;
-      run.status = ['auth-required', 'confirmation-required', 'review-required'].includes(
-        String(event.outcome),
-      )
-        ? 'paused'
-        : 'finished';
+      run.status = PAUSED_OUTCOMES_V1.includes(String(event.outcome)) ? 'paused' : 'finished';
     }
     return event;
   }
