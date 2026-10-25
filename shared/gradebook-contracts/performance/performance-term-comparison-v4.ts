@@ -52,6 +52,12 @@ const groups = z.object({ higher: members, equal: members, lower: members, unava
 const summary = z.object({ comparable: z.number().int().min(0).max(150), unavailable: z.number().int().min(0).max(150), groups }).strict();
 const column = z.object({ key: z.string().regex(/^\d+$/u), offerId: id, label: z.string().trim().min(1).max(600), summary }).strict();
 const analysis = performanceAnalysisResponseSchemaV3.options[0];
+/** Equal means no change, higher never a fall, lower never a rise. */
+function relationContradictsDeltaV4(item: Extract<z.infer<typeof comparisonValue>, { state: 'comparable' }>) {
+  if (item.relation === 'equal') return item.deltaPercentagePoints !== 0;
+  if (item.relation === 'higher') return item.deltaPercentagePoints < 0;
+  return item.deltaPercentagePoints > 0;
+}
 const ready = z.object({
   transportVersion: z.literal(4), operation: z.literal('term-comparison'), state: z.literal('ready'),
   authority: z.literal('descriptive-observation'), basis: z.literal('percentage-points-of-official-maximum'),
@@ -78,15 +84,7 @@ const ready = z.object({
   for (const row of value.rows) for (const item of row.values) {
     if (item.state !== 'comparable') continue;
     const delta = item.currentPercent - item.referencePercent;
-    let relationContradictsDelta;
-    if (item.relation === 'equal') {
-      relationContradictsDelta = item.deltaPercentagePoints !== 0;
-    } else if (item.relation === 'higher') {
-      relationContradictsDelta = item.deltaPercentagePoints < 0;
-    } else {
-      relationContradictsDelta = item.deltaPercentagePoints > 0;
-    }
-    if (Math.abs(delta - item.deltaPercentagePoints) > 1e-9 || relationContradictsDelta) fail();
+    if (Math.abs(delta - item.deltaPercentagePoints) > 1e-9 || relationContradictsDeltaV4(item)) fail();
   }
 });
 const failure = z.object({ transportVersion: z.literal(4), state: performanceResponseSchemaV2.options[0].shape.state }).strict();
