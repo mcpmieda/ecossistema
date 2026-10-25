@@ -39,6 +39,128 @@ const defaultClient = createPortalSelfClientV1({ respectRetryAfter: true, fetch:
 const defaultStatusClient = createPortalStatusClientV1();
 const defaultEntry: StudentEntryV1 = { qr: null, invalidQr: false, route: 'root' };
 
+/** The portrait is read only for a signed-in student on the Portal itself, never while leaving. */
+function portraitSubjectV1(
+  session: ReturnType<typeof useStudentSessionV1>,
+  access: boolean,
+  route: StudentEntryV1['route'],
+) {
+  return session.load.state === 'ready' && !access && route !== 'unknown'
+    && !['pending', 'failed', 'done'].includes(session.logoutState) ? session.load.data : null;
+}
+
+/** Who is on the entry page: a signed-out visitor, a student whose access closed (back to the
+ * login page, which shows the closed notice with its countdown), or a signed-in student. */
+function entryStateV1(session: ReturnType<typeof useStudentSessionV1>, access: boolean) {
+  const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
+  const accessClosed = session.load.state === 'error' && session.load.error.state === 'access-closed';
+  const signingIn = access || session.logoutState === 'done' || anonymous || accessClosed;
+  let noticesAudience: 'student' | 'anonymous' | null = null;
+  if (signingIn) noticesAudience = 'anonymous';
+  else if (session.load.state === 'ready') noticesAudience = 'student';
+  return { anonymous, accessClosed, signingIn, noticesAudience };
+}
+
+type PortalNoticesValueV1 = Parameters<typeof PortalSignedInNoticesV1>[0]['notices'];
+const portalClosedV1 = (notices: PortalNoticesValueV1 | null | undefined): notices is PortalNoticesValueV1 =>
+  notices?.access === 'closed';
+
+/** Signing out, or a sign-out that was not confirmed. */
+const leavingV1 = (session: ReturnType<typeof useStudentSessionV1>) =>
+  session.logoutState === 'pending' || session.logoutState === 'failed';
+
+/** A card was read (the access route) while this browser still holds a session. */
+const readingCardWhileSignedInV1 = (access: boolean, session: ReturnType<typeof useStudentSessionV1>) =>
+  access && session.logoutState !== 'done';
+
+const stillLoadingV1 = (load: ReturnType<typeof useStudentSessionV1>['load']) =>
+  load.state === 'idle' || load.state === 'loading';
+
+/** The notices above a signed-in student's marks, once both are read. */
+function signedInNoticesV1(
+  notices: Parameters<typeof PortalSignedInNoticesV1>[0]['notices'] | null | undefined,
+  load: ReturnType<typeof useStudentSessionV1>['load'],
+) {
+  if (!notices || load.state !== 'ready') return undefined;
+  return (
+    <PortalSignedInNoticesV1 notices={notices}
+      hasGrades={load.data.state !== 'no-publication' && load.data.subjects.length > 0} />
+  );
+}
+
+/** Signing out: in progress, or not confirmed with a retry. The data already left the screen. */
+function LogoutNoticeV1({ failed, onRetry }: Readonly<{ failed: boolean; onRetry: () => void }>) {
+  return (
+    <Alert status={failed ? 'warning' : 'default'}>
+      <Alert.Content>
+        <Alert.Title>
+          {failed ? 'Não foi possível confirmar a saída' : 'Encerrando sua sessão…'}
+        </Alert.Title>
+        <Alert.Description>Seus dados foram retirados desta tela.</Alert.Description>
+        {failed && <Button onPress={onRetry}>Tentar sair novamente</Button>}
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+/** A card read while a student is already signed in: keep this account or sign out first. */
+function AlreadySignedInV1({ onContinue, onSwitch }: Readonly<{ onContinue: () => void; onSwitch: () => void }>) {
+  return (
+    <StudentEntryLayoutV1>
+      <Card className="pa-account-switch">
+        <Card.Header>
+          <Card.Title>Você já está conectado</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <Card.Description>Para usar outro cartão, saia da conta atual.</Card.Description>
+          <Button onPress={onContinue}>Continuar nesta conta</Button>
+          <Button variant="secondary" onPress={onSwitch}>
+            Trocar de aluno
+          </Button>
+        </Card.Content>
+      </Card>
+    </StudentEntryLayoutV1>
+  );
+}
+
+function InvalidQrNoticeV1({ invalid }: Readonly<{ invalid: boolean }>) {
+  if (!invalid) return null;
+  return (
+    <Alert status="warning">
+      <Alert.Content>
+        <Alert.Title>Este QR não é um acesso válido ao Portal.</Alert.Title>
+        <Alert.Description>Leia novamente seu cartão de acesso.</Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+/** A card read while signed in: wait for the session, offer to keep it, or show the Portal. */
+function cardWhileSignedInV1(
+  session: ReturnType<typeof useStudentSessionV1>,
+  anonymous: boolean,
+  onContinue: () => void,
+) {
+  if (stillLoadingV1(session.load))
+    return <StudentSplashV1 />;
+  if (session.load.state === 'ready')
+    return (
+      <AlreadySignedInV1
+        onContinue={onContinue}
+        onSwitch={() => { void session.logout(); }}
+      />
+    );
+  if (!anonymous)
+    return (
+      <StudentPortalPageV1
+        load={session.load}
+        onRetry={() => { void session.refresh(); }}
+        onLogout={() => { void session.logout(); }}
+      />
+    );
+  return null;
+}
+
 /** Entry is a private, disposable holder. It never becomes a URL, DOM attribute or storage item. */
 export function StudentPortalApp({
   entry = defaultEntry,
@@ -58,8 +180,7 @@ export function StudentPortalApp({
   const [entered, setEntered] = useState(false);
   const session = useStudentSessionV1(client);
   const portraitSrc = useStudentPortraitV1(
-    session.load.state === 'ready' && !access && entry.route !== 'unknown'
-      && !['pending', 'failed', 'done'].includes(session.logoutState) ? session.load.data : null,
+    portraitSubjectV1(session, access, entry.route),
     portraitClient,
   );
   useEffect(() => {
@@ -78,14 +199,7 @@ export function StudentPortalApp({
     },
     [entry],
   );
-  const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
-  // Access closed while signed in (e.g. the school scheduled a later opening): back to the login
-  // page, which shows the closed notice with its countdown instead of a bare error.
-  const accessClosed = session.load.state === 'error' && session.load.error.state === 'access-closed';
-  const signingIn = access || session.logoutState === 'done' || anonymous || accessClosed;
-  let noticesAudience: 'student' | 'anonymous' | null = null;
-  if (signingIn) noticesAudience = 'anonymous';
-  else if (session.load.state === 'ready') noticesAudience = 'student';
+  const { anonymous, accessClosed, signingIn, noticesAudience } = entryStateV1(session, access);
   const notices = usePortalNoticesV1(statusClient, noticesAudience)?.value;
   if (entry.route === 'unknown')
     return (
@@ -98,64 +212,23 @@ export function StudentPortalApp({
         </Alert>
       </StudentPortalShellV1>
     );
-  if (session.logoutState === 'pending' || session.logoutState === 'failed')
+  if (leavingV1(session))
     return (
       <StudentPortalShellV1>
-        <Alert status={session.logoutState === 'failed' ? 'warning' : 'default'}>
-          <Alert.Content>
-            <Alert.Title>
-              {session.logoutState === 'pending'
-                ? 'Encerrando sua sessão…'
-                : 'Não foi possível confirmar a saída'}
-            </Alert.Title>
-            <Alert.Description>Seus dados foram retirados desta tela.</Alert.Description>
-            {session.logoutState === 'failed' && (
-              <Button onPress={() => { void session.logout(); }}>Tentar sair novamente</Button>
-            )}
-          </Alert.Content>
-        </Alert>
+        <LogoutNoticeV1 failed={session.logoutState === 'failed'} onRetry={() => { void session.logout(); }} />
       </StudentPortalShellV1>
     );
-  if (access && session.logoutState !== 'done') {
-    if (session.load.state === 'idle' || session.load.state === 'loading')
-      return <StudentSplashV1 />;
-    if (session.load.state === 'ready')
-      return (
-        <StudentEntryLayoutV1>
-          <Card className="pa-account-switch">
-            <Card.Header>
-              <Card.Title>Você já está conectado</Card.Title>
-            </Card.Header>
-            <Card.Content>
-              <Card.Description>Para usar outro cartão, saia da conta atual.</Card.Description>
-              <Button
-                onPress={() => {
-                  discardQr();
-                  setAccess(false);
-                  window.history.replaceState(null, '', '/');
-                }}
-              >
-                Continuar nesta conta
-              </Button>
-              <Button variant="secondary" onPress={() => { void session.logout(); }}>
-                Trocar de aluno
-              </Button>
-            </Card.Content>
-          </Card>
-        </StudentEntryLayoutV1>
-      );
-    if (!anonymous)
-      return (
-        <StudentPortalPageV1
-          load={session.load}
-          onRetry={() => { void session.refresh(); }}
-          onLogout={() => { void session.logout(); }}
-        />
-      );
+  if (readingCardWhileSignedInV1(access, session)) {
+    const screen = cardWhileSignedInV1(session, anonymous, () => {
+      discardQr();
+      setAccess(false);
+      window.history.replaceState(null, '', '/');
+    });
+    if (screen) return screen;
   }
   // Wait for the notices rather than flashing the card reader at a student who cannot enter.
   if (accessClosed && notices === undefined) return <StudentSplashV1 />;
-  if (signingIn && notices?.access === 'closed')
+  if (signingIn && portalClosedV1(notices))
     return (
       <StudentEntryLayoutV1>
         <PortalClosedNoticeV1 notices={notices} />
@@ -164,14 +237,7 @@ export function StudentPortalApp({
   if (signingIn)
     return (
       <StudentEntryLayoutV1>
-        {invalidQr && (
-          <Alert status="warning">
-            <Alert.Content>
-              <Alert.Title>Este QR não é um acesso válido ao Portal.</Alert.Title>
-              <Alert.Description>Leia novamente seu cartão de acesso.</Alert.Description>
-            </Alert.Content>
-          </Alert>
-        )}
+        <InvalidQrNoticeV1 invalid={invalidQr} />
         <Suspense fallback={<output>Preparando entrada segura…</output>}>
           <StudentAuthenticationV1 client={client} initialQr={initialQr} sitekey={PUBLIC_SITEKEY}
             onQrDiscarded={discardQr}
@@ -183,14 +249,11 @@ export function StudentPortalApp({
         </Suspense>
       </StudentEntryLayoutV1>
     );
-  if (session.load.state === 'idle' || session.load.state === 'loading')
+  if (stillLoadingV1(session.load))
     return <StudentSplashV1 entered={entered} />;
   return (
     <StudentPortalPageV1 load={session.load} portraitSrc={portraitSrc}
-      status={notices && session.load.state === 'ready' ? (
-        <PortalSignedInNoticesV1 notices={notices}
-          hasGrades={session.load.data.state !== 'no-publication' && session.load.data.subjects.length > 0} />
-      ) : undefined}
+      status={signedInNoticesV1(notices, session.load)}
       onRetry={() => { void session.refresh(); }}
       onLogin={() => { discardQr(); setAccess(true); }}
       onAuthenticationLost={() => { discardQr(); session.invalidateAuthorization(); setAccess(true); }}
