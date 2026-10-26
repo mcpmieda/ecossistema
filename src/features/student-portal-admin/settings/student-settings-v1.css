@@ -214,11 +214,7 @@
   font-weight: 600;
   font-size: 0.875rem;
 }
-.pa-calendar-disclosure {
-  display: grid;
-  gap: 0.75rem;
-  min-width: 0;
-}
+
 .pa-security-field {
   display: grid;
   align-content: start;
@@ -248,12 +244,7 @@
 .pa-custom-owner small {
   color: var(--muted);
 }
-.pa-custom-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  max-width: 44rem;
-}
+
 .pa-custom-settings .table__cell {
   padding-top: 0.45rem;
   padding-bottom: 0.45rem;

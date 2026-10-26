@@ -343,19 +343,6 @@ body {
   outline-offset: -2px;
 }
 
-.performance-filterbar {
-  display: grid;
-  min-height: 5rem;
-  grid-template-columns: minmax(13rem, 1.1fr) repeat(3, minmax(10rem, 0.8fr)) auto;
-  align-items: end;
-  gap: 0.75rem;
-  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: var(--radius-3xl);
-  background: var(--surface);
-  padding: 0.8rem;
-  box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 24%, transparent);
-}
-
 .bulletin-filterbar {
   display: grid;
   min-height: 5rem;
@@ -510,7 +497,6 @@ button.performance-kpi__button:hover {
 
 .performance-kpi__button:focus-visible,
 .performance-panorama__item:focus-visible,
-.performance-ranking li > button:focus-visible,
 .performance-bar:focus-visible {
   outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
   outline-offset: -2px;
@@ -784,8 +770,7 @@ button.performance-kpi__button:hover {
   letter-spacing: -0.04em;
 }
 
-.performance-panorama__item,
-.performance-ranking li > button {
+.performance-panorama__item {
   display: grid;
   width: 100%;
   align-items: center;
@@ -818,90 +803,6 @@ button.performance-kpi__button:hover {
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
-}
-
-.performance-ranking {
-  overflow: hidden;
-  margin-top: 0.6rem;
-  border-top: 0;
-  padding-top: 0.25rem;
-}
-
-.performance-ranking > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0 0.15rem 0.55rem;
-  cursor: pointer;
-  list-style: none;
-}
-
-.performance-ranking > summary::-webkit-details-marker {
-  display: none;
-}
-
-.performance-ranking__chevron {
-  color: var(--muted);
-  transition: transform 150ms var(--platform-ease);
-}
-
-.performance-ranking[open] .performance-ranking__chevron {
-  transform: rotate(180deg);
-}
-
-.performance-ranking > summary strong,
-.performance-ranking > summary small {
-  display: block;
-}
-
-.performance-ranking > summary strong {
-  font-size: 0.78rem;
-}
-
-.performance-ranking > summary small,
-.performance-ranking > p,
-.performance-ranking > footer {
-  color: var(--muted);
-  font-size: 0.65rem;
-}
-
-.performance-ranking > ol {
-  overflow: hidden;
-  border: 0;
-  border-radius: 0.55rem;
-}
-
-.performance-ranking li + li {
-  border-top: 0;
-}
-
-.performance-ranking li > button {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.55rem;
-  font-size: 0.7rem;
-  border: 0;
-  border-radius: 0;
-  padding: 0.3rem 0.5rem;
-}
-
-.performance-ranking__position {
-  display: grid;
-  aspect-ratio: 1;
-  place-items: center;
-  font-size: 0.62rem;
-  font-weight: 700;
-  width: 1.2rem;
-  border-radius: 0;
-  background: transparent;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.performance-ranking > p,
-.performance-ranking > footer {
-  padding: 0.55rem 0.15rem 0;
 }
 
 .performance-grid__row {
@@ -1304,9 +1205,7 @@ button.performance-kpi__button:hover {
 }
 
 @media (max-width: 1100px) {
-  .performance-filterbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+
   .bulletin-filterbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1337,9 +1236,7 @@ button.performance-kpi__button:hover {
 }
 
 @media (max-width: 640px) {
-  .performance-filterbar {
-    grid-template-columns: minmax(0, 1fr);
-  }
+
   .bulletin-filterbar {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1412,35 +1309,8 @@ button.performance-kpi__button:hover {
   }
 }
 
-.breadcrumbs {
-  min-width: 0;
-}
-
-.breadcrumbs__link {
-  font-size: 0.78rem;
-}
-
-.breadcrumbs__link[data-current='true'] {
-  color: var(--foreground);
-  font-weight: 550;
-}
-
 .search-field__group {
   min-height: 2.75rem;
-}
-
-.attention-pulse {
-  position: relative;
-}
-
-.attention-pulse::after {
-  position: absolute;
-  inset: -5px;
-  border: 1px solid color-mix(in oklab, var(--accent) 24%, transparent);
-  border-radius: inherit;
-  content: '';
-  animation: attention-ring 3.2s ease-out 2;
-  pointer-events: none;
 }
 
 @keyframes route-reveal {
@@ -1465,21 +1335,9 @@ button.performance-kpi__button:hover {
   }
 }
 
-@keyframes attention-ring {
-  from {
-    opacity: 0.62;
-    transform: scale(0.97);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.06);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .route-stage,
-  .stagger-item,
-  .attention-pulse::after {
+  .stagger-item {
     animation: none !important; /* NOSONAR reduced motion wins over every motion rule */
   }
 
@@ -3543,68 +3401,8 @@ button.performance-kpi__button:hover {
   margin-top: 0.75rem;
 }
 
-.performance-panorama__headline {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-.performance-panorama__headline > strong {
-  font-size: 1.75rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1;
-}
-.performance-panorama__headline > span {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.performance-stack {
-  display: flex;
-  height: 0.85rem;
-  gap: 3px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--separator) 55%, transparent);
-}
-.performance-stack__part {
-  min-width: 0.4rem;
-  height: 100%;
-  border-radius: 999px;
-  animation: performance-stack-grow 520ms var(--platform-ease) both;
-  transform-origin: left center;
-}
-.performance-stack__part--above {
-  background: linear-gradient(180deg, #3b91ff, var(--performance-above));
-}
-.performance-stack__part--below {
-  background: linear-gradient(180deg, #ff7a82, var(--performance-below));
-}
-.performance-stack__part--pending {
-  background: var(--performance-pending);
-}
-@keyframes performance-stack-grow {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .performance-stack__part { animation: none; }
-}
-
 .performance-panorama__item:nth-child(even) {
   background: color-mix(in oklab, var(--foreground) 4%, transparent);
-}
-
-.performance-ranking li:nth-child(even) > button {
-  background: color-mix(in oklab, var(--foreground) 4%, transparent);
-}
-
-.performance-ranking li > button:hover {
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
 
 .performance-panorama__item .performance-legend {
