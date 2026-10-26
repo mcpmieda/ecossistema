@@ -941,7 +941,7 @@
    is a soft slate tile with a dashed edge (never a colour of absence); tapping it says why. */
 .pa3-day.pa3-day--holiday {
   background: #eef2f7;
-  color: #64748b;
+  color: #606f85;
   box-shadow: inset 0 0 0 1.5px #c3cddb;
   background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgb(100 116 139 / 0.12) 5px 6px);
   cursor: pointer;
@@ -1221,4 +1221,10 @@
 }
 .pa3-schedule-row.pa3-schedule-parada .pa3-schedule-slot {
   border-right: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pa3-guide-label {
+    animation: none;
+  }
 }

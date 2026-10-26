@@ -224,27 +224,37 @@
 /* Quiet tinted header: the tone lives in the number and chip, not in a saturated fill. */
 .pa-score-card {
   --pa-score-accent: #1d4ed8;
-  --pa-score-surface: #f3f8ff;
-  --pa-score-border: #dbeafe;
+  --pa-score-surface: #fff;
+  --pa-score-border: #e2e8f0;
+  --pa-score-status-surface: #f1f5f9;
+  --pa-score-status-border: #cbd5e1;
   width: 100%;
   min-width: 0;
   max-width: 40rem;
   gap: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--pa-score-border);
+  border-radius: 1.2rem;
   background: white;
   color: #0f2747;
-  box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
+  box-shadow: 0 10px 28px -22px rgb(15 46 101 / 0.4);
 }
 
 /* Stronger blue header for marks at/above the minimum, matching the amber one; text darkened
    with it (WCAG AA on the darkest stop): mark #1e40af 6.1:1, maximum #3b4f7d 5.7:1, chip 8.7:1. */
 .pa-score-card--positive {
   --pa-score-accent: #1e40af;
-  --pa-score-surface: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  --pa-score-border: #93c5fd;
+  --pa-score-surface: linear-gradient(135deg, #eaf3ff 0%, #d8eaff 100%);
   --pa-score-maximum: #3b4f7d;
+  --pa-score-status-surface: #fff;
+  --pa-score-status-border: #bcd4ff;
+  /* A notch stronger (owner review 28/09/2026); the mark block stays a step above the fill. */
+  --pa-head-fill: #eaf3fc;
+  --pa-head-line: #cfe2f6;
+  --pa-head-surface: #d8e9f9;
+  --pa-head-ink: #0c447c;
+  --pa-head-soft: #185fa5;
 }
 
 /* Stronger amber header; text darkened with it (WCAG AA ≥ 4.5:1 on the darkest stop):
@@ -252,14 +262,22 @@
 .pa-score-card--negative {
   --pa-score-accent: #92400e;
   --pa-score-surface: linear-gradient(135deg, #fde9b5 0%, #fbd88c 100%);
-  --pa-score-border: #f3c566;
   --pa-score-maximum: #7a4b12;
+  --pa-score-status-surface: #fff;
+  --pa-score-status-border: #f5d38b;
+  --pa-head-fill: #fcefef;
+  --pa-head-line: #f2cfcf;
+  --pa-head-surface: #f9e0e0;
+  --pa-head-ink: #791f1f;
+  --pa-head-soft: #a32d2d;
 }
 
 .pa-score-card--neutral {
   --pa-score-accent: #475569;
-  --pa-score-surface: #f8fafc;
-  --pa-score-border: #e2e8f0;
+  --pa-head-fill: #f8fafc;
+  --pa-head-surface: #f1f5f9;
+  --pa-head-ink: #334155;
+  --pa-head-soft: #64748b;
 }
 
 .pa-score-card-partials {
@@ -268,10 +286,11 @@
 
 .pa-score-card-partials-title {
   margin: 0 0 0.35rem;
+  margin-bottom: 0.3rem;
   color: #64748b;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 0.64rem;
+  font-weight: 750;
+  letter-spacing: 0.055em;
   text-transform: uppercase;
 }
 
@@ -281,6 +300,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  gap: 0;
 }
 
 .pa-partials-list > li {
@@ -363,24 +383,17 @@
   height: 0.62rem;
 }
 
-/* The mark the student got stands out as a tinted pill; the maximum stays quiet beside it. */
-.pa-partials-list .pa-mark {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.1rem;
-}
-
 .pa-partials-list .pa-mark-value {
   display: inline-block;
-  min-width: 2.5rem;
-  padding: 0.16rem 0.6rem;
-  border-radius: 0.6rem;
   background: #f1f5f9;
   box-shadow: inset 0 0 0 1px rgb(15 39 71 / 0.1);
-  font-size: 1.15rem;
   font-weight: 780;
   line-height: 1.25;
   text-align: center;
+  min-width: 2.8rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 0.7rem;
+  font-size: 1.25rem;
 }
 
 .pa-partials-list .pa-mark[data-minimum='met'] .pa-mark-value {
@@ -415,6 +428,7 @@
 
 .pa-period-tab-label {
   font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 /* "vale 30 · 18 passa" under a trimester's name in the Boletim tabs, much smaller and quieter. */
@@ -439,14 +453,6 @@
 .pa-period-tab-mark .chip {
   min-height: 1.1rem;
   font-size: 0.62rem;
-}
-
-.pa-final-result {
-  margin-bottom: 1.1rem;
-  padding: 0;
-  border: 1px solid var(--pa-final-border);
-  background: var(--pa-final-surface);
-  box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
 }
 
 .pa-final-result--success {
@@ -583,7 +589,7 @@
 .pa-slide-ghost *,
 .pa-slide-ghost *::before,
 .pa-slide-ghost *::after {
-  animation: none !important;
+  animation: none !important; /* NOSONAR stills every descendant, whatever its own rule */
 }
 .pa-slide-in--forward {
   animation: pa-slide-in-forward 340ms cubic-bezier(0.4, 0, 0.2, 1) both;
@@ -686,6 +692,11 @@
 /* Entrance accents: the official result card settles in, the trend badge pops toward its
    direction. Both play on mount only (period switches remount the card). */
 .pa-final-result {
+  margin-bottom: 1.1rem;
+  padding: 0;
+  border: 1px solid var(--pa-final-border);
+  background: var(--pa-final-surface);
+  box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
   animation: pa-reveal 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -862,43 +873,6 @@
   padding-inline: clamp(0.35rem, 1.6vw, 0.8rem);
 }
 
-
-.pa-score-card {
-  --pa-score-surface: #fff;
-  --pa-score-border: #e2e8f0;
-  --pa-score-status-surface: #f1f5f9;
-  --pa-score-status-border: #cbd5e1;
-  border-radius: 1.2rem;
-  overflow: visible;
-  box-shadow: 0 10px 28px -22px rgb(15 46 101 / 0.4);
-}
-
-.pa-score-card--negative {
-  --pa-score-surface: linear-gradient(135deg, #fde9b5 0%, #fbd88c 100%);
-  --pa-score-status-surface: #fff;
-  --pa-score-status-border: #f5d38b;
-}
-
-.pa-score-card--positive {
-  --pa-score-surface: linear-gradient(135deg, #eaf3ff 0%, #d8eaff 100%);
-  --pa-score-status-surface: #fff;
-  --pa-score-status-border: #bcd4ff;
-}
-
-.pa-score-card-partials-title {
-  margin-bottom: 0.3rem;
-  color: #64748b;
-  font-size: 0.64rem;
-  font-weight: 750;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-}
-
-.pa-partials-list {
-  gap: 0;
-}
-
-
 .pa-partials-list .pa-workspace-list-copy {
   display: flex;
   grid-column: 1;
@@ -945,16 +919,11 @@
 }
 
 .pa-partials-list .pa-mark {
+  display: inline-flex;
   align-items: center;
   gap: 0.22rem;
 }
 
-.pa-partials-list .pa-mark-value {
-  min-width: 2.8rem;
-  padding: 0.22rem 0.55rem;
-  border-radius: 0.7rem;
-  font-size: 1.25rem;
-}
 
 .pa-closing-flag-cloth {
   animation: pa-workspace-flag-cloth 4.8s ease-in-out infinite;
@@ -1743,27 +1712,6 @@
   font-size: 0.76rem;
   font-weight: 600;
 }
-.pa-score-card--positive {
-  /* A notch stronger (owner review 28/09/2026); the mark block stays a step above the fill. */
-  --pa-head-fill: #eaf3fc;
-  --pa-head-line: #cfe2f6;
-  --pa-head-surface: #d8e9f9;
-  --pa-head-ink: #0c447c;
-  --pa-head-soft: #185fa5;
-}
-.pa-score-card--negative {
-  --pa-head-fill: #fcefef;
-  --pa-head-line: #f2cfcf;
-  --pa-head-surface: #f9e0e0;
-  --pa-head-ink: #791f1f;
-  --pa-head-soft: #a32d2d;
-}
-.pa-score-card--neutral {
-  --pa-head-fill: #f8fafc;
-  --pa-head-surface: #f1f5f9;
-  --pa-head-ink: #334155;
-  --pa-head-soft: #64748b;
-}
 
 .pa-list-columns {
   display: flex;
@@ -2132,7 +2080,6 @@
   }
 }
 
-
 /* The subject bar's edge fades are narrow (owner review 28/09/2026): HeroUI's 64px fade ate half a
    tab on a phone, so a tab next to the edge looked cut. A thin fade still says "more this way". */
 .pa-subject-bar .tabs__list-container__scroller[data-left-scroll='true'][data-right-scroll='true'] {
@@ -2162,12 +2109,6 @@
     justify-content: flex-end;
     padding-right: 1.6rem;
   }
-}
-
-/* Period cards keep their full name on one line (owner decision 20/10/2026): never shrunk below
-   it, so with six cards on a phone the row scrolls sideways like the bar of disciplines. */
-.pa-period-tab-label {
-  white-space: nowrap;
 }
 
 /* The sliding content keeps its own margins inside it (owner review 20/10/2026): otherwise the
@@ -2204,7 +2145,7 @@
 .pa-swipe-peek *,
 .pa-swipe-peek *::before,
 .pa-swipe-peek *::after {
-  animation: none !important;
+  animation: none !important; /* NOSONAR stills every descendant, whatever its own rule */
 }
 /* With the margin kept inside the sliding list, it no longer overlaps the 0.4rem under the column
    labels; 0.4rem here keeps the list exactly where it was (0.8rem from the labels). */
@@ -2261,7 +2202,6 @@
   box-shadow: none;
 }
 
-
 .pa-subject-head-row > .pa-workspace-back {
   flex: 0 0 auto;
   width: 2rem;
@@ -2277,5 +2217,29 @@
   .pa-student-workspace > .pa-slide-stage > .tabs__panel,
   .pa-period-tabs > .pa-slide-stage > .tabs__panel {
     padding-inline: 0;
+  }
+}
+
+/* The same motions, by the exact selectors that start them: a reduced-motion rule with a less
+   specific selector would lose to them. */
+@media (prefers-reduced-motion: reduce) {
+  .pa-subject-icon--animated > svg,
+  .pa-subject-icon--animated[data-motion='balance'] > svg,
+  .pa-subject-icon--animated[data-motion='beat'] > svg,
+  .pa-subject-icon--animated[data-motion='bounce'] > svg,
+  .pa-subject-icon--animated[data-motion='chat'] > svg,
+  .pa-subject-icon--animated[data-motion='glow'] > svg,
+  .pa-subject-icon--animated[data-motion='lift'] > svg,
+  .pa-subject-icon--animated[data-motion='orbit'] > svg,
+  .pa-subject-icon--animated[data-motion='page'] > svg,
+  .pa-subject-icon--animated[data-motion='pop'] > svg,
+  .pa-subject-icon--animated[data-motion='press'] > svg,
+  .pa-subject-icon--animated[data-motion='rise'] > svg,
+  .pa-subject-icon--animated[data-motion='shake'] > svg,
+  .pa-subject-icon--animated[data-motion='spin'] > svg,
+  .pa-subject-icon--animated[data-motion='swirl'] > svg,
+  .pa-subject-icon--animated[data-motion='write'] > svg,
+  .pa-partials-list .pa-partial-feedback--brilliant {
+    animation: none;
   }
 }

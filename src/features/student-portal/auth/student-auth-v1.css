@@ -89,31 +89,31 @@
  * hidden input. Same rules, shipped from our own stylesheet.
  */
 [data-input-otp]::selection {
-  background: transparent !important;
-  color: transparent !important;
+  background: transparent !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+  color: transparent !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
 }
 [data-input-otp]:autofill,
 [data-input-otp]:-webkit-autofill {
-  border-color: transparent !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  -webkit-box-shadow: none !important;
-  color: transparent !important;
-  opacity: 0 !important;
-  -webkit-text-fill-color: transparent !important;
+  border-color: transparent !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+  background: transparent !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+  box-shadow: none !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+  -webkit-box-shadow: none !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+  color: transparent !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+  opacity: 0 !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+  -webkit-text-fill-color: transparent !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
 }
 @supports (-webkit-touch-callout: none) {
   [data-input-otp] {
-    right: 1px !important;
-    left: -1px !important;
-    font-weight: 100 !important;
+    right: 1px !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+    left: -1px !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+    font-weight: 100 !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
     font-stretch: ultra-condensed;
-    letter-spacing: -0.6em !important;
-    font-optical-sizing: none !important;
+    letter-spacing: -0.6em !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
+    font-optical-sizing: none !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
   }
 }
 [data-input-otp] + * {
-  pointer-events: all !important;
+  pointer-events: all !important; /* NOSONAR input-otp's own rule, shipped from here because CSP blocks its style element */
 }
 .pa-auth-form[aria-busy] .pa-credential-field {
   opacity: 0.55;
@@ -221,8 +221,8 @@
   background: #e2e8f0;
   color: #334155;
 }
-.pa-auth-validation {
-  color: #9f1239 !important;
+.pa-auth-card p.pa-auth-validation {
+  color: #9f1239;
 }
 
 .pa-auth-countdown {
