@@ -7,17 +7,21 @@ Usage: python scripts/sonar/css-merge-duplicates.py <file.css> [--write]   (then
 """
 import os
 import re
+import subprocess
 import sys
 
 ROOT = os.path.realpath(os.getcwd())
+TRACKED = subprocess.run(['git', 'ls-files'], capture_output=True, text=True, check=True).stdout.splitlines()
 
 
 def inside_root(path):
-    """Only files inside the repository (run from its root) are read or written."""
-    full = os.path.realpath(path)
-    if os.path.commonpath([full, ROOT]) != ROOT:
-        sys.exit(f'outside the repository: {path}')
-    return full
+    """Only files the repository tracks (run from its root) are read or written; the name used is
+    the repository's own, not the argument."""
+    wanted = os.path.relpath(os.path.realpath(path), ROOT).replace(os.sep, '/')
+    for name in TRACKED:
+        if name == wanted:
+            return name
+    sys.exit(f'not a file of the repository: {path}')
 
 
 PATH = inside_root(sys.argv[1])

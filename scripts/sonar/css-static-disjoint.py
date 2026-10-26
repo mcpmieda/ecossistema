@@ -9,14 +9,17 @@ import subprocess
 import sys
 
 ROOT = os.path.realpath(os.getcwd())
+TRACKED = subprocess.run(['git', 'ls-files'], capture_output=True, text=True, check=True).stdout.splitlines()
 
 
 def inside_root(path):
-    """Only files inside the repository (run from its root) are read or written."""
-    full = os.path.realpath(path)
-    if os.path.commonpath([full, ROOT]) != ROOT:
-        sys.exit(f'outside the repository: {path}')
-    return full
+    """Only files the repository tracks (run from its root) are read or written; the name used is
+    the repository's own, not the argument."""
+    wanted = os.path.relpath(os.path.realpath(path), ROOT).replace(os.sep, '/')
+    for name in TRACKED:
+        if name == wanted:
+            return name
+    sys.exit(f'not a file of the repository: {path}')
 
 
 # Usage: python scripts/sonar/css-static-disjoint.py <file.css>... <measured.json> <out.json>
@@ -54,9 +57,9 @@ for t in texts.values():
 def last_classes(sel):
     if ',' in sel:
         return None
-    last = re.split(r'\s*[\s>+~]\s*', sel.strip())[-1]
+    last = re.split(r'[\s>+~]+', sel.strip())[-1]
     last = re.sub(r'::?[\w-]+(\([^)]*\))?', '', last)
-    if re.search(r'^[a-z]|\[|#|\*', last):
+    if re.match(r'[a-z]', last) or re.search(r'[[#*]', last):
         return None
     names = re.findall(r'\.([\w-]+)', last)
     return names or None
@@ -76,18 +79,39 @@ def ours(name):
 LIBRARY_COMPONENTS = {'breadcrumbs': 'Breadcrumbs'}
 
 
-# Prefixes of class names built at run time (`performance-bar--${tone}`, 'pa-chip-' + tone).
+def word_before(text, end):
+    """The run of letters, digits, '_' and '-' that ends at `end`."""
+    start = end
+    while start > 0 and (text[start - 1].isalnum() or text[start - 1] in '_-'):
+        start -= 1
+    return text[start:end]
+
+
+def built_prefixes(text):
+    """Prefixes of class names built at run time (`performance-bar--${tone}`, 'pa-chip-' + tone)."""
+    found = set()
+    for match in re.finditer(r'\$\{', text):
+        found.add(word_before(text, match.start()))
+    for match in re.finditer(r"['\"]\s*\+", text):
+        found.add(word_before(text, match.start()))
+    return found - {''}
+
+
 built = set()
 for t in texts.values():
-    built.update(re.findall(r'([\w-]+)\$\{', t))
-    built.update(re.findall(r"([\w-]+)['\"]\s*\+", t))
+    built |= built_prefixes(t)
+
+
+def whole_word(name):
+    """`name` alone: not part of a longer class name."""
+    return r'(?<![\w-])' + re.escape(name) + r'(?![\w-])'
 
 
 @functools.cache
 def written(name):
     if any(name.startswith(prefix) for prefix in built):
         return True
-    return any(re.search(r'(?<![\w-])' + re.escape(name) + r'(?![\w-])', t) for t in texts.values())
+    return any(re.search(whole_word(name), t) for t in texts.values())
 
 
 def matches_nothing(sel):
@@ -99,7 +123,7 @@ def matches_nothing(sel):
             return True
         base = name.split('__')[0]
         component = LIBRARY_COMPONENTS.get(base)
-        if component and not any(re.search(r'(?<![\w-])' + component + r'(?![\w-])', t) for t in texts.values()):
+        if component and not any(re.search(whole_word(component), t) for t in texts.values()):
             return True
     return False
 
@@ -114,7 +138,7 @@ for a, b in sorted(pairs):
         continue
     if not all(ours(n) for n in ca + cb):
         continue
-    together = [lit for lit in literals if all(re.search(r'(?<![\w-])' + re.escape(n) + r'(?![\w-])', lit) for n in ca + cb)]
+    together = [lit for lit in literals if all(re.search(whole_word(n), lit) for n in ca + cb)]
     if not together:
         accepted.append([a, b])
 print(len(pairs), 'conflitos;', len(accepted), 'provados separados pelo codigo')
