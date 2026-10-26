@@ -44,7 +44,7 @@ it('loads versioned synthetic keys, separates cursor signatures and refuses abse
     PASSWORD_PEPPER: JSON.stringify({ 1: Buffer.alloc(32, 71).toString('base64') }) };
   const keys = portalKeysV1(material);
   expect(keys.cursorSecret).toHaveLength(64);
-  expect(keys.cursorSecret === Buffer.alloc(32, 72).toString('hex')).toBe(false);
+  expect(keys.cursorSecret).not.toBe(Buffer.alloc(32, 72).toString('hex'));
   const signature = await keys.cryptoPort.signQr('a'.repeat(43), 1);
   expect(await keys.cryptoPort.verifyQr('a'.repeat(43), 1, signature)).toBe(true);
   expect(() => portalKeysV1({ ...material, QR_HMAC_KEYS: '{"1":"malformed"}' })).toThrow();

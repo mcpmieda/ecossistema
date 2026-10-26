@@ -34,7 +34,8 @@ for (const [file, lines] of byFile) {
     skipped.push(file + ':' + lines.join(','));
     continue;
   }
-  for (const [start, end] of edits.sort((a, b) => b[0] - a[0]))
+  edits.sort((a, b) => b[0] - a[0]);
+  for (const [start, end] of edits)
     text = text.slice(0, start) + 'Readonly<' + text.slice(start, end) + '>' + text.slice(end);
   writeFileSync(path, text);
   changed += edits.length;

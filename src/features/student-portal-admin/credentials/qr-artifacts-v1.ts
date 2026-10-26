@@ -73,7 +73,7 @@ export async function renderQrPngV1(qr: string, signal: AbortSignal): Promise<Qr
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, canvas.width, canvas.height);
     for (const shape of qrShapesV1(matrix, quiet)) paintQrShapeV1(context, shape, scale);
-    return { blob: await canvasBlobV1(canvas, signal), format: 'png', count: 1, pages: 1 };
+    return { blob: canvasBlobV1(canvas, signal), format: 'png', count: 1, pages: 1 };
   } finally {
     canvas.width = canvas.height = 1;
   }
@@ -241,7 +241,7 @@ async function drawLabelsV1(
       }
       used += 4;
     }
-    const png = await canvasBlobV1(canvas, signal);
+    const png = canvasBlobV1(canvas, signal);
     const image = await pdf.embedPng(await png.arrayBuffer());
     signal.throwIfAborted();
     page.drawImage(image, { x, y: top - maxHeight, width, height: maxHeight });

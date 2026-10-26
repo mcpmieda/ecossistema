@@ -321,8 +321,8 @@ export async function inspectCloudflareRateLimitsV1(input: {
     if (signal.aborted) return failV1(result, 'unavailable');
     const inspection = await inspectScriptV1(`${base}/${encodeURIComponent(script)}`, read);
     if (inspection.state !== 'accessible') return failV1(result, inspection.state);
-    snapshots.push({ script, source: 'settings', bindings: inspection.settings });
     snapshots.push(
+      { script, source: 'settings', bindings: inspection.settings },
       ...inspection.activeVersions.map((version) => ({
         script,
         source: 'active-version' as const,

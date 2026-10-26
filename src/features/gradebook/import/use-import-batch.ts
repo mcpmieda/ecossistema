@@ -241,7 +241,8 @@ function elapsedMs(startedAt: number): number {
   return Math.round((nowMs() - startedAt) * 10) / 10;
 }
 
-export function isMasterRelationResult(result: BatchSuccess): boolean {
+// A property cannot be a type predicate target; callers read the summary as the relation one.
+export function isMasterRelationResult(result: BatchSuccess): boolean /* NOSONAR */ {
   return Boolean((result.summary as SummaryWithRelationV9).masterRelationV9);
 }
 
@@ -579,8 +580,11 @@ export function useImportBatch() {
     status: ImportPersistenceRunResultV1,
   ): void {
     // An uncertain write takes precedence when another active lane loses authorization.
-    if (status === 'confirmation-required') observation.stop = status;
-    else if (status === 'auth-required' && observation.stop === null) observation.stop = status;
+    if (
+      status === 'confirmation-required' ||
+      (status === 'auth-required' && observation.stop === null)
+    )
+      observation.stop = status;
   }
 
   function retainPreparation(observation: BatchObservationV1, relation: boolean): void {
@@ -600,9 +604,12 @@ export function useImportBatch() {
     );
   }
 
-  function releasePreparation(observation: BatchObservationV1, relation: boolean): void {
-    if (relation) observation.preparedRelations--;
-    else observation.preparedTeacherItems--;
+  // One counter per lane.
+  function releaseRelationPreparation(observation: BatchObservationV1): void {
+    observation.preparedRelations--;
+  }
+  function releaseTeacherPreparation(observation: BatchObservationV1): void {
+    observation.preparedTeacherItems--;
   }
 
   function prepareLocal(
@@ -1003,11 +1010,11 @@ export function useImportBatch() {
         ? { local, auditMs: savedReview.prepared.auditMs }
         : await auditLocal(local, observation);
       if (!isCurrent(observation) || observation.stop !== null) {
-        releasePreparation(observation, true);
+        releaseRelationPreparation(observation);
         return observation.stop ?? 'completed';
       }
       if (local.kind !== 'ready') {
-        releasePreparation(observation, true);
+        releaseRelationPreparation(observation);
         blockTeacherFiles(
           setPersistence,
           teacherResults,
@@ -1025,7 +1032,7 @@ export function useImportBatch() {
         try {
           status = await persistPreparedSingle(prepared, processed, successes.length, observation);
         } finally {
-          releasePreparation(observation, true);
+          releaseRelationPreparation(observation);
         }
         if (!isCurrent(observation)) return 'completed';
         if (status === 'blocked') {
@@ -1080,7 +1087,7 @@ export function useImportBatch() {
           if (position + 1 < items.length)
             next = await prefetchNext(items[position + 1]!.result, year);
           const status = await remote;
-          releasePreparation(observation, false);
+          releaseTeacherPreparation(observation);
           current = next;
           next = null;
           if (!isCurrent(observation) || observation.stop !== null) return false;
@@ -1100,8 +1107,8 @@ export function useImportBatch() {
         }
         return true;
       } finally {
-        if (current !== null) releasePreparation(observation, false);
-        if (next !== null) releasePreparation(observation, false);
+        if (current !== null) releaseTeacherPreparation(observation);
+        if (next !== null) releaseTeacherPreparation(observation);
         observation.activeYearLanes--;
       }
     }
@@ -1130,7 +1137,7 @@ export function useImportBatch() {
       try {
         await auditLocal(local, observation);
       } finally {
-        releasePreparation(observation, false);
+        releaseTeacherPreparation(observation);
       }
       processed++;
       observation.processedItems = processed;

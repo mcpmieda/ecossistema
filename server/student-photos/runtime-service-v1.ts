@@ -105,7 +105,7 @@ export function createPhotoRuntimeServiceV1(options: {
           return tx.query('SELECT student_photos.takeover_write_v1($1,$2,$3,$4) AS receipt',
             [context.studentUid, context.actorId, requestId, inputHash]);
         });
-        receipt = photoWriteReceiptV1.parse(rows[0]?.receipt);
+        photoWriteReceiptV1.parse(rows[0]?.receipt);
       }
       const transport = storage(async action => {
         signal.throwIfAborted();

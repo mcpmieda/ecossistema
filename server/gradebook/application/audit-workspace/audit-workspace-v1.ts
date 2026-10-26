@@ -229,7 +229,7 @@ export function createAuditWorkspaceV1(
               kind: 'occurrence',
               id: request.reference.id,
             });
-            if (result === null || result.value.kind !== 'occurrence') {
+            if (result?.value.kind !== 'occurrence') {
               return detailNonDisclosure('not-found');
             }
             const pendingItems =
@@ -255,7 +255,7 @@ export function createAuditWorkspaceV1(
               kind: 'reconciliation',
               id: request.reference.id,
             });
-            if (result === null || result.value.kind !== 'reconciliation') {
+            if (result?.value.kind !== 'reconciliation') {
               return detailNonDisclosure('not-found');
             }
             const pendingItems =
@@ -297,7 +297,7 @@ export function createAuditWorkspaceV1(
           kind: 'occurrence',
           id: request.occurrenceId,
         });
-        if (current === null || current.value.kind !== 'occurrence') {
+        if (current?.value.kind !== 'occurrence') {
           return resolutionNonDisclosure('not-found');
         }
         if (current.version !== request.expectedVersion) {

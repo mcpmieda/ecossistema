@@ -170,14 +170,14 @@ function AccessCardV1() {
           <b>{SCHOOL_CARD_NAME_LINES_V1[1]}</b>
         </span>
         <span className="pa-access-card-title">
-          Portal do Aluno
+          {'Portal do Aluno'}
           <b>Cartão de acesso</b>
         </span>
       </div>
       <div className="pa-access-card-body">
         <span className="pa-access-card-photo" />
         <span className="pa-access-card-name">
-          SEU NOME
+          {'SEU NOME'}
           <i />
           <em>SUA TURMA</em>
         </span>

@@ -96,7 +96,7 @@ export type PerformanceLearningV1 = z.infer<typeof performanceLearningSchemaV1>;
 
 const ordinal = '(?:0?[1-9]|1[0-9]|20|i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)';
 const participationName = '(?:participacao|participacoes|particip|participac|partic|partc|part)';
-const participationPattern = new RegExp(`^(?:${participationName}|${ordinal}\\s*${participationName}|${participationName}\\s*${ordinal})$`, 'u');
+const participationPattern = new RegExp(String.raw`^(?:${participationName}|${ordinal}\s*${participationName}|${participationName}\s*${ordinal})$`, 'u');
 /** Category recognition only. Identity remains offer/term/slot; never merge similarly named rows.
  * Keep the grammar anchored: "parte", "partido" and compound activity names are not participation.
  * Apply this only to qualitative slots. Unknown descriptions remain ordinary qualitative work. */

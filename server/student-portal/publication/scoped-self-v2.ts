@@ -119,8 +119,7 @@ function finalAuthorityV2(
 ): boolean {
   return (
     !explicitWithdrawal &&
-    finalSource !== undefined &&
-    finalSource.student.profile.academicState === context.profile.academicState &&
+    finalSource?.student.profile.academicState === context.profile.academicState &&
     finalSource.finalAuthority.global
   );
 }

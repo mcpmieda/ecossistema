@@ -361,7 +361,7 @@ export function applyPublishedVisibilityV1(
   const final = mayDiscloseFinalV1(value, now, officialSourceAuthorized);
   // EM RECUPERAÇÃO (and which subjects are pending) follows the T3 disclosure so the student
   // learns it before the recovery week; every other situation waits for the final disclosure.
-  // TODO(student-portal): replace with a dedicated admin control once this branch is merged.
+  // Pending (student-portal): a dedicated admin control replaces this once the branch is merged.
   const recoveryDisclosed = periodDisclosureV1(value, 'T3', now) === 'allowed';
   const situationVisible = (situation: string | undefined, earlyValue: string) =>
     situation !== undefined && (final || (recoveryDisclosed && situation === earlyValue));

@@ -501,8 +501,7 @@ export class AuthServiceV1 {
         return required(requestId, 'risk');
       if (request.pin === undefined) return required(requestId, 'pin');
       if (
-        !pinProof ||
-        pinProof.accountId !== accountId ||
+        pinProof?.accountId !== accountId ||
         !sameVerifier(pinProof.verifier, credential.pin)
       )
         return auditedDenied(store, context.account, context.now, requestId, { reason: 'retry-needed', step, ...device });
@@ -658,8 +657,7 @@ export class AuthServiceV1 {
       if (attempt.failures >= context.policy.enforcedValue.risk.challengeAfter && !riskPassed)
         return passwordDenied('verification-required');
       if (
-        !passwordProof ||
-        passwordProof.accountId !== accountId ||
+        passwordProof?.accountId !== accountId ||
         !sameVerifier(passwordProof.verifier, credential.password)
       )
         return passwordDenied('retry-needed');

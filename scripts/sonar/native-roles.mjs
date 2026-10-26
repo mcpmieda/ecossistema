@@ -34,8 +34,10 @@ function wrapEdits(node, roleAttr, tag, source, edits, skipped) {
   for (const attribute of [roleAttr, ...moved]) edits.push([attribute.getFullStart(), attribute.getEnd(), '']);
   const own = moved.map((a) => ' ' + a.getText(source)).join('');
   if (ts.isJsxOpeningElement(node)) {
-    edits.push([node.getEnd(), node.getEnd(), `<output className="contents"${own}>`]);
-    edits.push([node.parent.closingElement.getStart(source), node.parent.closingElement.getStart(source), '</output>']);
+    edits.push(
+      [node.getEnd(), node.getEnd(), `<output className="contents"${own}>`],
+      [node.parent.closingElement.getStart(source), node.parent.closingElement.getStart(source), '</output>'],
+    );
   } else skipped.push(`empty ${tag} @${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`);
 }
 
@@ -93,7 +95,8 @@ for (const file of files) {
   if (skipped.length) console.log(`  ${file}: ${skipped.join('; ')}`);
   if (!edits.length) continue;
   let out = text;
-  for (const [s, e, r] of edits.sort((a, b) => b[0] - a[0] || b[1] - a[1])) out = out.slice(0, s) + r + out.slice(e);
+  edits.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+  for (const [s, e, r] of edits) out = out.slice(0, s) + r + out.slice(e);
   console.log(`${edits.length} ${file}`);
   if (write) writeFileSync(file, out);
 }

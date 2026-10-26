@@ -215,7 +215,7 @@ const RECOVERY_OF_V1: Partial<Record<PeriodIdV1, string>> = {
   REC2: '2º trimestre',
   REC3: '3º trimestre',
 };
-const RECOVERY_PERIODS_V1: readonly PeriodIdV1[] = ['REC1', 'REC2', 'REC3'];
+const RECOVERY_PERIODS_V1: ReadonlySet<PeriodIdV1> = new Set<PeriodIdV1>(['REC1', 'REC2', 'REC3']);
 type TrendV1 = 'higher' | 'equal' | 'lower';
 function trendV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): TrendV1 | null {
   if (!current?.maximum || !reference?.maximum) return null;
@@ -297,8 +297,9 @@ function TrendLineV1({
   );
 }
 
+type SlideMotionV1 = SlideV1 | 'still' | null;
 /** A sliding view's class: none while still, the slide while it moves, otherwise `entering`. */
-function slideClassV1(motion: SlideV1 | 'still' | null, entering: string) {
+function slideClassV1(motion: SlideMotionV1, entering: string) {
   if (motion === 'still') return undefined;
   return motion ? 'pa-slide-in pa-slide-in--' + motion : entering;
 }
@@ -439,7 +440,7 @@ function SummaryV1({
   // Only periods present in the payload get a tab: the server already dropped what the admin
   // has not released. Recoveries share one tab, shown only when any REC was released.
   const hasRecovery = subjects.some((subject) =>
-    subject.periods.some((period) => RECOVERY_PERIODS_V1.includes(period.period)),
+    subject.periods.some((period) => RECOVERY_PERIODS_V1.has(period.period)),
   );
   const available: SummaryKeyV1[] = [
     ...visibleMainPeriodsV1(subjects),
@@ -450,7 +451,7 @@ function SummaryV1({
     active === 'REC' ? 'Recuperação' : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active]);
   // Null until the first switch, so the list does not animate twice on mount; 'still' after a
   // drag, which already moved the new list into place.
-  const [listMotion, setListMotion] = useState<SlideV1 | 'still' | null>(null);
+  const [listMotion, setListMotion] = useState<SlideMotionV1>(null);
   const listStage = useSlideStageV1(':scope > .pa-swipe-track > [data-slide-live]');
   /** Tabs and swipes alike: the old list leaves to one side, the new one comes from the other. */
   const choosePeriod = (next: SummaryKeyV1) => {
@@ -575,7 +576,7 @@ function BulletinListV1({
   onOpenSubject: (subjectId: number, period?: PeriodIdV1) => void;
 }>) {
   const recoveryPeriodsOf = (subject: SubjectV1) =>
-    subject.periods.filter((period) => RECOVERY_PERIODS_V1.includes(period.period));
+    subject.periods.filter((period) => RECOVERY_PERIODS_V1.has(period.period));
   const published = subjects.filter((subject) =>
     active === 'REC'
       ? recoveryPeriodsOf(subject).length > 0
@@ -1525,7 +1526,7 @@ type WorkspaceEntryV1 = {
   period?: PeriodIdV1;
   summary?: SummaryKeyV1;
 };
-const SUMMARY_KEYS_V1: readonly SummaryKeyV1[] = [...ALL_PERIODS_V1, 'REC'];
+const SUMMARY_KEYS_V1: ReadonlySet<string> = new Set<SummaryKeyV1>([...ALL_PERIODS_V1, 'REC']);
 
 /** Reads a workspace entry from history; anything unknown is dropped, never trusted. */
 function readWorkspaceEntryV1(state: unknown): WorkspaceEntryV1 | null {
@@ -1540,7 +1541,7 @@ function readWorkspaceEntryV1(state: unknown): WorkspaceEntryV1 | null {
     area,
     subjectId: Number(subjectId),
     period: ALL_PERIODS_V1.includes(period as PeriodIdV1) ? (period as PeriodIdV1) : undefined,
-    summary: SUMMARY_KEYS_V1.includes(summary as SummaryKeyV1) ? (summary as SummaryKeyV1) : undefined,
+    summary: SUMMARY_KEYS_V1.has(summary as SummaryKeyV1) ? (summary as SummaryKeyV1) : undefined,
   };
 }
 
@@ -1566,7 +1567,7 @@ export function StudentPortalWorkspaceV1({
   // Boletim ⇄ Disciplina slide across too (owner review 27/09/2026): opening a discipline pushes the
   // Boletim out to the left; going back brings it in from the left.
   // 'still': the area stays as it is (switching disciplines moves only the body below the header).
-  const [areaSlide, setAreaSlide] = useState<SlideV1 | 'still' | null>(null);
+  const [areaSlide, setAreaSlide] = useState<SlideMotionV1>(null);
   const areaStage = useSlideStageV1(':scope > [role="tabpanel"] [data-area-live]');
   const goArea = (patch: Partial<WorkspaceEntryV1> & { area: WorkspaceAreaV1 }) => {
     const slide: SlideV1 = patch.area === 'subject' ? 'forward' : 'back';
@@ -1589,7 +1590,7 @@ export function StudentPortalWorkspaceV1({
     entry: WorkspaceEntryV1,
     direction?: 'forward' | 'back',
     slide: SlideV1 | null = null,
-    areaChange: SlideV1 | 'still' | null = null,
+    areaChange: SlideMotionV1 = null,
   ) => {
     shownEntry.current = entry;
     setSubjectSlide(slide);
@@ -1619,7 +1620,7 @@ export function StudentPortalWorkspaceV1({
     patch: Partial<WorkspaceEntryV1>,
     direction?: 'forward' | 'back',
     slide: SlideV1 | null = null,
-    areaChange: SlideV1 | 'still' | null = null,
+    areaChange: SlideMotionV1 = null,
   ) => {
     const entry = { ...current, ...patch };
     writeEntry(entry, 'push');

@@ -335,7 +335,8 @@ async function planDisciplineWritesV11(
   const updates: Array<{ id: number; nome: string }> = [];
   for (const [normalized, group] of groups) {
     if (new Set(group.sources.map((source) => source.name.trim())).size > 1) {
-      for (const source of group.sources.sort((a, b) => a.sourceIndex - b.sourceIndex))
+      group.sources.sort((a, b) => a.sourceIndex - b.sourceIndex);
+      for (const source of group.sources)
         ids.set(source.sourceIndex, await resolveAmbiguous(source.name));
       continue;
     }

@@ -47,6 +47,14 @@ const later = (time: string, minutes: number) => {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 };
 
+/** The list with one bell's start or end replaced. */
+function withTimeAtV1<T extends { start: string; end: string }>(list: readonly T[], index: number, part: 'start' | 'end', text: string): T[] {
+  return list.map((each, at) => (at === index ? { ...each, [part]: text } : each));
+}
+function withoutAtV1<T>(list: readonly T[], index: number): T[] {
+  return list.filter((_, at) => at !== index);
+}
+
 export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: PortalAdminClientV1; canWrite: boolean }>) {
   const [saved, setSaved] = useState<{ version: number; bells: SchoolBellsDaysV1 } | null>(null);
   const [draft, setDraft] = useState<SchoolBellsDaysV1 | null>(null);
@@ -237,9 +245,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                         }
                         const setTime = (part: 'start' | 'end', value: Time | null) => {
                           if (value)
-                            editDay(weekday, (list) =>
-                              list.map((each, at) => (at === index ? { ...each, [part]: textOf(value) } : each)),
-                            );
+                            editDay(weekday, (list) => withTimeAtV1(list, index, part, textOf(value)));
                         };
                         const field = (part: 'start' | 'end') => (
                           <TimeField
@@ -258,7 +264,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                           </TimeField>
                         );
                         return (
-                          <li key={index} className={'pa-school-bells__item pa-school-bells__item--' + item.kind}>
+                          <li key={index /* NOSONAR bells have no id; a key from their times would remount the field being typed in */} className={'pa-school-bells__item pa-school-bells__item--' + item.kind}>
                             <span className="pa-school-bells__name">
                               {item.kind === 'intervalo' ? <Coffee size={14} aria-hidden="true" /> : null}
                               {item.kind === 'parada' ? <Flag size={14} aria-hidden="true" /> : null}
@@ -275,7 +281,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                                 size="sm"
                                 variant="ghost"
                                 aria-label={`Remover ${name} de ${label.toLowerCase()}`}
-                                onPress={() => editDay(weekday, (list) => list.filter((_, at) => at !== index))}
+                                onPress={() => editDay(weekday, (list) => withoutAtV1(list, index))}
                               >
                                 <Trash2 size={14} aria-hidden="true" />
                               </Button>

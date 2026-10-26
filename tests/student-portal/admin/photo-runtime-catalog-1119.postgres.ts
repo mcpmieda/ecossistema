@@ -108,7 +108,7 @@ it('publishes committed Storage paths, clears recovery bytes and revokes on remo
   await p.catalog.publish(p.context, 'avatar', assets.avatar);
   await p.writer.complete(p.context, command.requestId);
   expect((await p.catalog.state(p.context)).portalReady).toBe(true);
-  expect((await db.unsafe('SELECT request_id FROM student_photos.write_payload_v1 WHERE request_id=$1', [command.requestId])).length).toBe(0);
+  expect(await db.unsafe('SELECT request_id FROM student_photos.write_payload_v1 WHERE request_id=$1', [command.requestId])).toHaveLength(0);
   const remove = { requestId: crypto.randomUUID(), expectedRevision: command.requestId, kind: 'remove' as const };
   await p.writer.claim(p.context, remove, { portrait: null, avatar: null }, { portrait: null, avatar: null });
   const delivery = await db.unsafe('SELECT storage_path,image_webp FROM student_photos.portal_delivery_v1 WHERE student_uid=$1', [p.context.studentUid]);

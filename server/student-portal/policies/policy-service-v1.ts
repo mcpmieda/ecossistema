@@ -46,8 +46,8 @@ const FIELDS = [
 ] as const;
 type Field = (typeof FIELDS)[number];
 /** Added by migrations 0020 (#1132), 0021 (schedules), 0027 (frequência) and 0028 (horário). Absent school rows read as off / none. */
-const OPTIONAL_SCHOOL_FIELDS: readonly Field[] = ['showTermClosing', 'termClosingConclusive', 'accessSchedule', 'showFrequency', 'showSchedule'];
-const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.length;
+const OPTIONAL_SCHOOL_FIELDS: ReadonlySet<Field> = new Set<Field>(['showTermClosing', 'termClosingConclusive', 'accessSchedule', 'showFrequency', 'showSchedule']);
+const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.size;
 const schoolFieldCountValidV1 = (count: number) =>
   count >= REQUIRED_SCHOOL_FIELD_COUNT && count <= FIELDS.length;
 /** Before migration 0020 the school row may be absent: the feature then reads as off. */
@@ -183,7 +183,7 @@ function schoolDefaultsV1(records: readonly StoredRowV1[]) {
   const complete =
     schoolFieldCountValidV1(school.length) &&
     present.size === school.length &&
-    FIELDS.every((field) => present.has(field) || OPTIONAL_SCHOOL_FIELDS.includes(field)) &&
+    FIELDS.every((field) => present.has(field) || OPTIONAL_SCHOOL_FIELDS.has(field)) &&
     new Set(school.map((row) => row.version)).size === 1;
   if (!complete) throw new Error('student-portal-policy-defaults-unavailable');
   if (school.some((row) => key(normalizedScope(row.source_scope_json)) !== key(SCHOOL)))

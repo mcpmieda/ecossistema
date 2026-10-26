@@ -167,7 +167,7 @@ export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
     snapshot: boolean,
   ): Promise<SelfResponseV1 | null> {
     const context = await publicationContextV1(this.sql, tx, store, accountId, true, !snapshot);
-    if (!context || context.account.state !== 'active') return null;
+    if (context?.account.state !== 'active') return null;
     return labelPublishedAssessmentsV1(
       await scopedSelfV2(tx, context, requestId),
       context.assessmentLabels,

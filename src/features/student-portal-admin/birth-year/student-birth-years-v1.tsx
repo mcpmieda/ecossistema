@@ -16,15 +16,16 @@ import {
 } from './birth-read-v1';
 import { StudentNameV1 } from '../shared/account-open-v1';
 
+// Every prop reaches BirthReadScopeV1 through the spread.
 export interface StudentBirthYearsPropsV1 {
   initialAccount?: InitialBirthAccountV1;
   client: PortalAdminClientV1;
   reader: PortalAdminReadClientV2;
   scope: ScopeV1;
-  identityKey: string;
-  canWrite: boolean;
-  catalog?: PortalClassCatalogV2;
-  scopeLabel?: string;
+  identityKey: string; // NOSONAR read through the spread
+  canWrite: boolean; // NOSONAR read through the spread
+  catalog?: PortalClassCatalogV2; // NOSONAR read through the spread
+  scopeLabel?: string; // NOSONAR read through the spread
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
 }
 

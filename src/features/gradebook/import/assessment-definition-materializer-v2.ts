@@ -300,18 +300,15 @@ export async function materializeAssessmentDefinitionsV2(
     }
   }
 
-  return {
-    components: components.sort(
-      (left, right) =>
-        left.value.order - right.value.order || left.value.id.localeCompare(right.value.id),
-    ),
-    gradeEntries: gradeEntries.sort(
-      (left, right) =>
-        left.assessmentComponentId.localeCompare(right.assessmentComponentId) ||
-        left.studentId.localeCompare(right.studentId),
-    ),
-    blockedDefinitions: blockedDefinitions.sort((left, right) =>
-      left.stableKey.localeCompare(right.stableKey),
-    ),
-  };
+  components.sort(
+    (left, right) =>
+      left.value.order - right.value.order || left.value.id.localeCompare(right.value.id),
+  );
+  gradeEntries.sort(
+    (left, right) =>
+      left.assessmentComponentId.localeCompare(right.assessmentComponentId) ||
+      left.studentId.localeCompare(right.studentId),
+  );
+  blockedDefinitions.sort((left, right) => left.stableKey.localeCompare(right.stableKey));
+  return { components, gradeEntries, blockedDefinitions };
 }

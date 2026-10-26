@@ -231,7 +231,7 @@ async function buildOpenReviewCandidate(
       }
       if (version.version === 0) return null;
       const current = await dependencies.decisions.getCurrent(expectedKey);
-      if (current === null || current.version !== version.version) {
+      if (current?.version !== version.version) {
         throw new CouncilWorkspaceSourceErrorV1('insufficient-data');
       }
       return current;

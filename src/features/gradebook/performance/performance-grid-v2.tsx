@@ -120,8 +120,8 @@ export function PerformanceGridV2({
   };
   const markColumn = (column: number) => {
     root.current
-      ?.querySelectorAll('[data-col-hover]')
-      .forEach((cell) => cell.removeAttribute('data-col-hover'));
+      ?.querySelectorAll<HTMLElement>('[data-col-hover]')
+      .forEach((cell) => delete cell.dataset.colHover);
     if (column < FIXED_COLUMNS) return;
     root.current
       ?.querySelectorAll<HTMLTableRowElement>('tbody tr')
@@ -130,8 +130,8 @@ export function PerformanceGridV2({
   const point = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch') return;
     const cell = (event.target as Element).closest<HTMLTableCellElement>('td, th');
-    const line = cell?.closest('tbody tr') ?? null;
-    const next = { row: line?.getAttribute('data-key') ?? null, column: cell?.cellIndex ?? -1 };
+    const line = cell?.closest<HTMLTableRowElement>('tbody tr') ?? null;
+    const next = { row: line?.dataset.key ?? null, column: cell?.cellIndex ?? -1 };
     if (next.row !== hovered.current.row) markBelow(next.row);
     if (next.column !== hovered.current.column) markColumn(next.column);
     hovered.current = next;

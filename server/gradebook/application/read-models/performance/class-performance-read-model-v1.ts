@@ -366,7 +366,7 @@ function encodeToken(prefix: string, payload: object): string {
   return `${prefix}${encodeBase64Url(JSON.stringify(payload))}`;
 }
 
-function decodeToken(prefix: string, token: string): unknown | null {
+function decodeToken(prefix: string, token: string): unknown {
   if (typeof token !== 'string' || !token.startsWith(prefix)) return null;
   const decoded = decodeBase64Url(token.slice(prefix.length));
   if (decoded === null) return null;
@@ -856,7 +856,8 @@ function cloneAssessmentsProjection(
       value: cloneComparedGrade(item.value),
     };
   });
-  return { items: items.sort(compareAssessmentValues) };
+  items.sort(compareAssessmentValues);
+  return { items };
 }
 
 function signalDetailRef(detail: unknown, detailRef: PerformanceCellDetailRefV1) {

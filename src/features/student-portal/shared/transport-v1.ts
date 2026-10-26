@@ -50,6 +50,13 @@ function retryDelay(header: string | null): number | undefined {
   return Number.isFinite(seconds) ? Math.min(86400, Math.max(1, seconds)) : undefined;
 }
 
+const UUID_V1 = '[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}';
+/** The session check of one account, with its live connection when there is one. */
+const SESSION_CHECK_PATH_V1 = new RegExp(
+  String.raw`^/api/student/session\?accountId=${UUID_V1}(?:&connectionId=${UUID_V1})?$`,
+  'iu',
+);
+
 /** Fixed same-origin paths only: the student session and auth routes, the Portal ADM query and
  * command, and the session check of one account (with its live connection). */
 function allowedPortalPathV1(path: string) {
@@ -57,9 +64,7 @@ function allowedPortalPathV1(path: string) {
     /^\/api\/(?:student\/(?:session|me|status|auth\/(?:challenge|activate|login|logout))|student-portal\/admin\/(?:query|command))$/u.test(
       path,
     ) ||
-    /^\/api\/student\/session\?accountId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?:&connectionId=[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})?$/iu.test(
-      path,
-    )
+    SESSION_CHECK_PATH_V1.test(path)
   );
 }
 
@@ -129,7 +134,7 @@ export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) 
     let value: unknown;
     try {
       if (!response.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))
-        throw new Error();
+        throw new Error('student-portal-response-not-json');
       value = await response.json();
     } catch {
       signal?.throwIfAborted();

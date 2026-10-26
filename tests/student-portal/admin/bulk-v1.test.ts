@@ -43,11 +43,6 @@ function command(preview: Preview, index = 0) {
 }
 
 describe('bulk administration #1102 with fictitious disposable data', () => {
-  it('rejects a school-wide bulk preview at the public contract', () => {
-    const school = { ...query, scope: { kind: 'school', academicYear: 2026 } };
-    expect(bulkPreviewQueryV1.safeParse(school).success).toBe(false);
-    expect(adminQueryV1.safeParse(school).success).toBe(false);
-  });
   let pg: PGlite;
   let sql: StudentPortalPostgresSqlV1;
   let service: BulkAdminV1;
@@ -99,6 +94,12 @@ describe('bulk administration #1102 with fictitious disposable data', () => {
   });
   afterAll(async () => {
     await pg?.close();
+  });
+
+  it('rejects a school-wide bulk preview at the public contract', () => {
+    const school = { ...query, scope: { kind: 'school', academicYear: 2026 } };
+    expect(bulkPreviewQueryV1.safeParse(school).success).toBe(false);
+    expect(adminQueryV1.safeParse(school).success).toBe(false);
   });
 
   it('counts all 151 accounts in the selected class and paginates the complete class', async () => {

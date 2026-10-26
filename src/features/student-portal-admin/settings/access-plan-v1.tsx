@@ -286,8 +286,8 @@ export function AccessPlanCardV1({
       const schedule = parseScheduleRowsV1(rows, Date.now());
       setError(null);
       submit(accessOpenAtV1(plan, Date.now()), schedule);
-    } catch (problem) {
-      setError(problem instanceof Error ? problem.message : 'Confira os agendamentos.');
+    } catch (error_) {
+      setError(error_ instanceof Error ? error_.message : 'Confira os agendamentos.');
     }
   };
 

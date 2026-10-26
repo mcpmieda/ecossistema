@@ -61,7 +61,7 @@ it.each([false, true])(
     await user.keyboard('{Enter}');
     expect(document.activeElement).toBe(main);
     expect(window.location.hash).toBe('');
-    expect(window.history.length).toBe(historyLength);
+    expect(window.history).toHaveLength(historyLength);
     expect(paths).toEqual(initialPaths);
     expect(screen.getByRole('main')).toBe(main);
   },

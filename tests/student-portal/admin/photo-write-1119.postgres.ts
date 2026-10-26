@@ -164,7 +164,7 @@ it('revokes immediately on remove, retains a tombstone, and completes only after
   await repository.acknowledgeCleanup(ctx,request.requestId,initial.uploaded.avatar!,'already-absent');
   await repository.complete(ctx,request.requestId);
   expect((await current(ctx)).revision).toBe(request.requestId);
-  expect((await current(ctx)).pending_request).toBe(null);
+  expect((await current(ctx)).pending_request).toBeNull();
   await expect(repository.claim(ctx,command('replace'),plan)).rejects.toMatchObject({ code: 'conflict' });
   await expect(repository.claim(ctx,command('replace',initial.request.requestId),plan)).rejects.toMatchObject({ code: 'conflict' });
   const audit = await db.unsafe('SELECT event FROM student_photos.write_audit_v1 WHERE request_id=$1::uuid ORDER BY id',[request.requestId]);
