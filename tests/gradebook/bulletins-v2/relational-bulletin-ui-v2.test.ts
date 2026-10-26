@@ -8,7 +8,10 @@ import type {
   RelationalBulletinModelV2,
   RelationalBulletinSnapshotV2,
 } from '../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
-import { RelationalBulletinPageV2 } from '../../../src/features/gradebook/bulletins/relational-bulletin-page-v2';
+import {
+  CLASSIFICATION_COLOR_V2,
+  RelationalBulletinPageV2,
+} from '../../../src/features/gradebook/bulletins/relational-bulletin-page-v2';
 import { GradebookYearProvider } from '../../../src/platform/gradebook-year-provider';
 
 const model: RelationalBulletinModelV2 = {
@@ -207,6 +210,16 @@ async function click(label: string): Promise<void> {
 }
 
 describe('relational bulletin V2 HeroUI journey', () => {
+  it('colours the annual result green only when approved', () => {
+    expect(CLASSIFICATION_COLOR_V2['not-approved']).toBe('danger');
+    expect(CLASSIFICATION_COLOR_V2['failed-no-show']).toBe('danger');
+    expect(CLASSIFICATION_COLOR_V2['failed-repeat']).toBe('danger');
+    expect(CLASSIFICATION_COLOR_V2['approved-direct']).toBe('success');
+    expect(CLASSIFICATION_COLOR_V2['approved-after-recovery']).toBe('success');
+    expect(CLASSIFICATION_COLOR_V2['in-progress']).toBe('default');
+    expect(CLASSIFICATION_COLOR_V2['recovery-pending']).toBe('default');
+  });
+
   it('keeps filters stable, uses full class names and previews official versus calculated values', async () => {
     await mount();
     await select('Turma', '10');
