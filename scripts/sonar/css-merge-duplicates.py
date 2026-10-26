@@ -5,23 +5,10 @@ rule (and its comment) disappears. Reports any rule between the two with the sam
 specificity that sets one of the moved properties and shares a class with it: those would change.
 Usage: python scripts/sonar/css-merge-duplicates.py <file.css> [--write]   (then validate with lightningcss and compare computed styles in the browser)
 """
-import os
 import re
-import subprocess
 import sys
 
-ROOT = os.path.realpath(os.getcwd())
-TRACKED = subprocess.run(['git', 'ls-files'], capture_output=True, text=True, check=True).stdout.splitlines()
-
-
-def inside_root(path):
-    """Only files the repository tracks (run from its root) are read or written; the name used is
-    the repository's own, not the argument."""
-    wanted = os.path.relpath(os.path.realpath(path), ROOT).replace(os.sep, '/')
-    for name in TRACKED:
-        if name == wanted:
-            return name
-    sys.exit(f'not a file of the repository: {path}')
+from repo_files import inside_root
 
 
 PATH = inside_root(sys.argv[1])

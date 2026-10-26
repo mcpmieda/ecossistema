@@ -3,23 +3,11 @@ never appear together in any source file (so no className can carry both), and e
 (written in some .tsx/.ts file), not a library's."""
 import functools
 import json
-import os
 import re
 import subprocess
 import sys
 
-ROOT = os.path.realpath(os.getcwd())
-TRACKED = subprocess.run(['git', 'ls-files'], capture_output=True, text=True, check=True).stdout.splitlines()
-
-
-def inside_root(path):
-    """Only files the repository tracks (run from its root) are read or written; the name used is
-    the repository's own, not the argument."""
-    wanted = os.path.relpath(os.path.realpath(path), ROOT).replace(os.sep, '/')
-    for name in TRACKED:
-        if name == wanted:
-            return name
-    sys.exit(f'not a file of the repository: {path}')
+from repo_files import inside_root
 
 
 # Usage: python scripts/sonar/css-static-disjoint.py <file.css>... <measured.json> <out.json>
