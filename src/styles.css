@@ -490,14 +490,14 @@ body {
 .performance-kpi__button {
   display: flex;
   width: 100%;
-  min-height: 5.8rem;
   align-items: center;
-  gap: 0.85rem;
   border: 0;
   background: transparent;
-  padding: 1rem;
   color: inherit;
   text-align: left;
+  min-height: 3.5rem;
+  gap: 0.6rem;
+  padding: 0.5rem 0.8rem;
 }
 
 button.performance-kpi__button {
@@ -554,19 +554,12 @@ button.performance-kpi__button:hover {
   height: 100%;
 }
 
-.performance-widget {
-  overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: var(--radius-3xl);
-  padding: 1rem;
-  box-shadow: 0 24px 54px -48px color-mix(in oklab, var(--foreground) 26%, transparent);
-}
 
 .performance-widget__header {
   display: flex;
-  min-height: 2.6rem;
   align-items: center;
-  gap: 0.7rem;
+  min-height: 2rem;
+  gap: 0.55rem;
 }
 
 
@@ -591,10 +584,12 @@ button.performance-kpi__button:hover {
 .performance-bars {
   display: flex;
   min-width: 0;
-  gap: 0.35rem;
-  margin-top: 1rem;
-  overflow-x: auto;
-  padding: 1.75rem 0.2rem 0.25rem;
+  justify-content: flex-start;
+  padding: 1.35rem 0.1rem 0.1rem;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  padding-top: 2.4rem;
+  overflow-x: visible;
 }
 
 .performance-bars__column {
@@ -663,6 +658,8 @@ button.performance-kpi__button:hover {
   padding: 0.05rem 0.25rem;
   color: #8c5a00;
   font-size: 0.58rem;
+  justify-self: center;
+  line-height: 1.2;
 }
 
 .performance-bars__detail {
@@ -699,10 +696,10 @@ button.performance-kpi__button:hover {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  grid-template-rows: auto minmax(0, 1fr);
   border: 1px solid var(--separator);
   border-radius: var(--radius-2xl);
   background: var(--surface);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .performance-bars__student-group > header {
@@ -839,10 +836,10 @@ button.performance-kpi__button:hover {
 }
 
 .performance-ranking {
-  margin-top: 1rem;
   overflow: hidden;
-  border-top: 1px solid var(--separator);
-  padding-top: 0.8rem;
+  margin-top: 0.6rem;
+  border-top: 0;
+  padding-top: 0.25rem;
 }
 
 .performance-ranking > summary {
@@ -2074,12 +2071,7 @@ button.performance-kpi__button:hover {
 .performance-workspace .performance-notes-bar > .tabs__list-container {
   flex: none;
 }
-/* Class indicators: one slim row. */
-.performance-kpi__button {
-  min-height: 3.5rem;
-  gap: 0.6rem;
-  padding: 0.5rem 0.8rem;
-}
+
 .performance-kpi__icon {
   width: 2rem;
   height: 2rem;
@@ -2142,25 +2134,19 @@ button.performance-kpi__button:hover {
   gap: 0.75rem;
 }
 .performance-widget {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
   border-radius: var(--radius-3xl);
   padding: 0.75rem 0.9rem 0.85rem;
   box-shadow: none;
 }
-.performance-widget__header {
-  min-height: 2rem;
-  gap: 0.55rem;
-}
+
 .performance-widget__icon {
   width: 1.9rem;
   height: 1.9rem;
   border-radius: var(--radius-2xl);
 }
-.performance-bars {
-  justify-content: flex-start;
-  gap: 0.25rem;
-  margin-top: 0.35rem;
-  padding: 1.35rem 0.1rem 0.1rem;
-}
+
 .performance-bars__column {
   min-width: 2.6rem;
   max-width: 4.25rem;
@@ -2264,9 +2250,7 @@ button.performance-kpi__button:hover {
 .performance-panorama__item > strong {
   font-variant-numeric: tabular-nums;
 }
-.performance-ranking {
-  margin-top: 0.6rem;
-}
+
 @keyframes performance-bar-rise {
   from {
     transform: scaleY(0);
@@ -2509,8 +2493,17 @@ button.performance-kpi__button:hover {
   --shell-top: 3.25rem;
   --shell-aside: 15rem;
   --shell-gap: 0.75rem;
-  background: linear-gradient(170deg, #f7f8f8 0%, #e8efed 48%, #dde5e8 100%);
+  --glass: rgb(255 255 255 / 0.62);
+  --glass-strong: rgb(255 255 255 / 0.78);
+  --glass-edge: rgb(255 255 255 / 0.85);
+  --glass-blur: saturate(180%) blur(20px);
+  --glass-lift: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 8px 24px -14px rgb(30 41 59 / 0.28);
+  background: radial-gradient(60rem 40rem at 8% -10%, rgb(129 140 248 / 0.14), transparent 60%),
+    radial-gradient(50rem 36rem at 100% 0%, rgb(45 212 191 / 0.14), transparent 62%),
+    radial-gradient(48rem 40rem at 70% 110%, rgb(56 189 248 / 0.12), transparent 60%),
+    linear-gradient(170deg, #f7f8fa 0%, #eaeff2 52%, #e0e7ec 100%);
   background-attachment: fixed;
+  timeline-scope: --sheet-scroll;
 }
 
 /* The top of the site. */
@@ -2680,9 +2673,10 @@ button.performance-kpi__button:hover {
   color: color-mix(in oklab, var(--foreground) 80%, transparent);
   font-size: 0.9rem;
   font-weight: 550;
-  transition:
-    color 120ms ease,
+  transition: color 120ms ease,
     background-color 120ms ease;
+  min-width: 0;
+  position: relative;
 }
 .shell-side__area:hover {
   color: var(--foreground);
@@ -3154,24 +3148,7 @@ button.performance-kpi__button:hover {
     padding-top: 0.625rem;
   }
 }
-/* Glass (owner request of 15/10/2026): the HeroUI frosted material (translucent surface over
-   backdrop-blur) in chosen places. The page carries soft colour for the glass to refract; the
-   head of the sheet stays put while the page slides under it; floating menus and the backdrops
-   of dialogs are frosted. Text always sits on at least 70% white, so contrast is unchanged. */
-.platform-shell--v2 {
-  --glass: rgb(255 255 255 / 0.62);
-  --glass-strong: rgb(255 255 255 / 0.78);
-  --glass-edge: rgb(255 255 255 / 0.85);
-  --glass-blur: saturate(180%) blur(20px);
-  --glass-lift: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 8px 24px -14px rgb(30 41 59 / 0.28);
-  background:
-    radial-gradient(60rem 40rem at 8% -10%, rgb(129 140 248 / 0.14), transparent 60%),
-    radial-gradient(50rem 36rem at 100% 0%, rgb(45 212 191 / 0.14), transparent 62%),
-    radial-gradient(48rem 40rem at 70% 110%, rgb(56 189 248 / 0.12), transparent 60%),
-    linear-gradient(170deg, #f7f8fa 0%, #eaeff2 52%, #e0e7ec 100%);
-  background-attachment: fixed;
-  timeline-scope: --sheet-scroll;
-}
+
 @supports (backdrop-filter: blur(1px)) {
   /* Top of the site: the search and the account are glass pills on the page. */
   .platform-shell--v2 .shell-tools .search-field__group {
@@ -3377,13 +3354,8 @@ button.performance-kpi__button:hover {
 .shell-side__areas {
   grid-template-columns: minmax(0, 1fr);
 }
-.shell-side__area {
-  min-width: 0;
-}
-/* The dot sits on the corner of the icon, so the name always fits. */
-.shell-side__area {
-  position: relative;
-}
+
+
 .shell-side__status,
 .platform-shell--v2[data-side='collapsed'] .shell-side__status {
   position: absolute;
@@ -3439,13 +3411,7 @@ button.performance-kpi__button:hover {
     box-shadow: 0 0 0 2px #fff;
   }
 }
-/* Situação por componente (owner request of 15/10/2026): more compact, one-line names, and, from
-   the second trimester on, the change since the trimester before over each number. */
-.performance-bars {
-  gap: 0.25rem;
-  margin-top: 0.5rem;
-  padding-top: 2.4rem;
-}
+
 .performance-bars__plot {
   height: 8.5rem;
   gap: 0.25rem;
@@ -3501,10 +3467,7 @@ button.performance-kpi__button:hover {
   content: none;
 }
 
-/* Every component fits the width of the card, up to twelve, without a scrollbar. */
-.performance-bars {
-  overflow-x: visible;
-}
+
 .performance-bars__column {
   min-width: 0;
   flex: 1 1 0;
@@ -3599,10 +3562,7 @@ button.performance-kpi__button:hover {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-/* The list starts right under the head of the card. */
-.performance-bars__student-group {
-  grid-template-rows: minmax(0, 1fr);
-}
+
 .performance-bars__student-group > ul,
 .performance-bars__student-group > p {
   border-top: 0;
@@ -3652,10 +3612,7 @@ button.performance-kpi__button:hover {
 .performance-bars__column {
   grid-template-columns: minmax(0, 1fr);
 }
-.performance-bars__pending {
-  justify-self: center;
-  line-height: 1.2;
-}
+
 /* Phone: twelve components do not fit legibly; the chart slides sideways, with no scrollbar. */
 @media (max-width: 640px) {
   .performance-bars {
@@ -3766,11 +3723,6 @@ button.performance-kpi__button:hover {
 .performance-panorama__item > strong {
   text-align: right;
 }
-.performance-ranking {
-  border-top: 0;
-  padding-top: 0.25rem;
-}
-
 
 .performance-ranking li:nth-child(even) > button {
   background: color-mix(in oklab, var(--foreground) 4%, transparent);

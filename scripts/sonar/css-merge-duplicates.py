@@ -5,18 +5,44 @@ rule (and its comment) disappears. Reports any rule between the two with the sam
 specificity that sets one of the moved properties and shares a class with it: those would change.
 Usage: python scripts/sonar/css-merge-duplicates.py <file.css> [--write]   (then validate with lightningcss and compare computed styles in the browser)
 """
+import os
 import re
 import sys
 
-PATH = sys.argv[1]
+ROOT = os.path.realpath(os.getcwd())
+
+
+def inside_root(path):
+    """Only files inside the repository (run from its root) are read or written."""
+    full = os.path.realpath(path)
+    if os.path.commonpath([full, ROOT]) != ROOT:
+        sys.exit(f'outside the repository: {path}')
+    return full
+
+
+PATH = inside_root(sys.argv[1])
 src = open(PATH, encoding='utf-8').read()
 # Optional: a JSON list of [selector, selector] pairs measured in the browser as never matching the
 # same element (no element matched both across the preview pages and states that were visited).
 MEASURED = set()
 if '--disjoint' in sys.argv:
     import json
-    with open(sys.argv[sys.argv.index('--disjoint') + 1], encoding='utf-8') as handle:
+    with open(inside_root(sys.argv[sys.argv.index('--disjoint') + 1]), encoding='utf-8') as handle:
         MEASURED = {frozenset(pair) for pair in json.load(handle)}
+
+
+def closing_brace(text, brace):
+    """Index of the brace that closes the one at `brace`."""
+    depth = 0
+    j = brace
+    while True:
+        if text[j] == '{':
+            depth += 1
+        elif text[j] == '}':
+            depth -= 1
+            if depth == 0:
+                return j
+        j += 1
 
 
 def blocks(text):
@@ -29,25 +55,14 @@ def blocks(text):
             i += 1
             continue
         if text.startswith('/*', i):
-            j = text.index('*/', i) + 2
-            if pending is None:
-                pending = i
-            i = j
+            pending = i if pending is None else pending
+            i = text.index('*/', i) + 2
             continue
         start = pending if pending is not None else i
         pending = None
         brace = text.index('{', i)
         sel = text[i:brace].strip()
-        depth = 0
-        j = brace
-        while True:
-            if text[j] == '{':
-                depth += 1
-            elif text[j] == '}':
-                depth -= 1
-                if depth == 0:
-                    break
-            j += 1
+        j = closing_brace(text, brace)
         out.append((start, j + 1, ' '.join(sel.split()), text[brace + 1:j], i))
         i = j + 1
     return out
@@ -74,7 +89,30 @@ def spec(sel):
 
 
 def last(sel):
-    return re.split(r'\s*[\s>+~]\s*', sel.strip())[-1]
+    return re.split(r'[\s>+~]+', sel.strip())[-1]
+
+
+def nth_fixed(x):
+    return int(x) if re.fullmatch(r'\d+', x) else None
+
+
+def nth_from(x):
+    m = re.fullmatch(r'n\s*\+\s*(\d+)', x)
+    return int(m.group(1)) if m else None
+
+
+def nth_disjoint(a, b):
+    """Different fixed :nth-child positions, or a fixed position before an `n+k` range."""
+    na, nb = re.findall(r':nth-child\(([^)]*)\)', a), re.findall(r':nth-child\(([^)]*)\)', b)
+    if not (na and nb and len(na) == len(nb)):
+        return False
+    if na != nb and all(re.fullmatch(r'\d+', x) for x in na + nb):
+        return True
+    for x, y in zip(na, nb):
+        fx, fy, kx, ky = nth_fixed(x), nth_fixed(y), nth_from(x), nth_from(y)
+        if (fx is not None and ky is not None and fx < ky) or (fy is not None and kx is not None and fy < kx):
+            return True
+    return False
 
 
 def disjoint(a, b):
@@ -86,19 +124,8 @@ def disjoint(a, b):
     if ta and tb and ta.group(0) != tb.group(0):
         return True
     # Different classes do NOT prove different elements (.card and .card--positive share one).
-    na, nb = re.findall(r':nth-child\(([^)]*)\)', a), re.findall(r':nth-child\(([^)]*)\)', b)
-    if na and nb and len(na) == len(nb) and na != nb and all(re.fullmatch(r'\d+', x) for x in na + nb):
+    if nth_disjoint(a, b):
         return True
-    if na and nb and len(na) == len(nb):
-        def fixed(x):
-            return int(x) if re.fullmatch(r'\d+', x) else None
-        def from_k(x):
-            m = re.fullmatch(r'n\s*\+\s*(\d+)', x)
-            return int(m.group(1)) if m else None
-        for x, y in zip(na, nb):
-            if (fixed(x) is not None and from_k(y) is not None and fixed(x) < from_k(y)) or (
-                fixed(y) is not None and from_k(x) is not None and fixed(y) < from_k(x)):
-                return True
     aa = dict(re.findall(r"\[([\w-]+)='([^']*)'\]", a))
     ab = dict(re.findall(r"\[([\w-]+)='([^']*)'\]", b))
     if any(k in ab and ab[k] != v for k, v in aa.items()):
@@ -134,99 +161,117 @@ def dead(prop, later):
     return any(short in LONGHANDS and re.fullmatch(LONGHANDS[short], prop) for short in later)
 
 
+AT_RULES = ('@media', '@supports', '@container', '@layer')
+
+
+def process_nested(src, items, depth):
+    """Each @media/@supports/... block is processed on its own (up to three levels)."""
+    rebuilt = []
+    cursor = 0
+    for (_start, end, sel, _body, sel_at) in items:
+        if sel.startswith(AT_RULES):
+            brace = src.index('{', sel_at)
+            inner = process(src[brace + 1:end - 1], depth + 1)
+            rebuilt.append(src[cursor:brace + 1] + inner + '}')
+            cursor = end
+    rebuilt.append(src[cursor:])
+    return ''.join(rebuilt)
+
+
+def merged_declarations(items, indexes):
+    """Every declaration of the group in source order; the merged rule keeps each property at the
+    place of its LAST declaration (the one that wins), so shorthand/longhand order holds."""
+    seq = [(prop, value) for index in indexes for prop, value in decls(items[index][3])]
+    position = {prop: k for k, (prop, _) in enumerate(seq)}
+    result = dict(seq)
+    order = sorted(position, key=position.get)
+    order = [prop for k, prop in enumerate(order)
+             if not (dead(prop, [o for o in order[k + 1:] if '!important' not in result[o]]) and '!important' not in result[prop])]
+    return [(prop, result[prop]) for prop in order]
+
+
+def inner_rules(other):
+    """The rule itself, or the rules inside an @media/@supports block in between."""
+    if other[2].startswith('@'):
+        return [(o[2], o[3]) for o in blocks(other[3])]
+    return [(other[2], other[3])]
+
+
+def conflicts(items, sel, indexes, moved):
+    found = []
+    for between in range(indexes[0] + 1, indexes[-1]):
+        if between in indexes:
+            continue
+        for osel, obody in inner_rules(items[between]):
+            if osel.startswith('@') or spec(osel) != spec(sel) or disjoint(sel, osel):
+                continue
+            props = {prop for prop, _ in decls(obody)} & moved
+            if props:
+                found.append(f'{sel}  <->  {osel}: {sorted(props)}')
+    return found
+
+
+def plan_group(items, sel, indexes):
+    """(index that keeps the merged rule, indexes removed, warnings): up into the first rule when
+    nothing in between disagrees, otherwise down into the last, otherwise skipped."""
+    up = conflicts(items, sel, indexes, {prop for index in indexes[1:] for prop, _ in decls(items[index][3])})
+    if not up:
+        return indexes[0], indexes[1:], []
+    last_props = {prop for prop, _ in decls(items[indexes[-1]][3])}
+    down = conflicts(items, sel, indexes, {prop for index in indexes[:-1] for prop, _ in decls(items[index][3])} - last_props)
+    if not down:
+        return indexes[-1], indexes[:-1], []
+    return None, [], up + down
+
+
+def rebuild(src, items, remove, merged):
+    out = []
+    cursor = 0
+    for index, (start, end, _sel, _body, sel_at) in enumerate(items):
+        out.append(src[cursor:start])
+        cursor = end
+        if index in remove:
+            # drop the blank line left behind
+            while cursor < len(src) and src[cursor] == '\n' and src[cursor + 1:cursor + 2] == '\n':
+                cursor += 1
+            continue
+        if index in merged:
+            sel_text = src[sel_at:src.index('{', sel_at)].rstrip()
+            out.append(src[start:sel_at])
+            lines = '\n'.join(f'  {prop}: {value};' for prop, value in merged[index])
+            out.append(f'{sel_text} {{\n{lines}\n}}')
+        else:
+            out.append(src[start:end])
+    out.append(src[cursor:])
+    return ''.join(out)
+
+
 def process(src, depth=0):
     items = blocks(src)
     if depth < 3:
-        rebuilt = []
-        cursor = 0
-        for (start, end, sel, body_, sel_at) in items:
-            if sel.startswith(('@media', '@supports', '@container', '@layer')):
-                brace = src.index('{', sel_at)
-                inner = process(src[brace + 1:end - 1], depth + 1)
-                rebuilt.append(src[cursor:brace + 1] + inner + '}')
-                cursor = end
-        rebuilt.append(src[cursor:])
-        src = ''.join(rebuilt)
+        src = process_nested(src, items, depth)
         items = blocks(src)
     by_sel = {}
-    for index, (start, end, sel, body, sel_at) in enumerate(items):
-        if sel.startswith('@'):
-            continue
-        by_sel.setdefault(sel, []).append(index)
-
+    for index, item in enumerate(items):
+        if not item[2].startswith('@'):
+            by_sel.setdefault(item[2], []).append(index)
     remove = set()
     merged = {}
     warnings = []
     for sel, indexes in by_sel.items():
         if len(indexes) < 2:
             continue
-        first = indexes[0]
-        # Every declaration of the group in source order; the merged rule keeps each property at
-        # the place of its LAST declaration (the one that wins), so shorthand/longhand order holds.
-        seq = [(prop, value) for index in indexes for prop, value in decls(items[index][3])]
-        last = {prop: k for k, (prop, _) in enumerate(seq)}
-        result = {prop: value for prop, value in seq}
-        order = sorted(last, key=last.get)
-        order = [prop for k, prop in enumerate(order)
-                 if not (dead(prop, [o for o in order[k + 1:] if '!important' not in result[o]]) and '!important' not in result[prop])]
-        classes = set(re.findall(r'\.[\w-]+', sel))
-
-        def conflicts(moved):
-            found = []
-            for between in range(first + 1, indexes[-1]):
-                other = items[between]
-                if between in indexes:
-                    continue
-                # Rules inside an @media/@supports block in between count too.
-                inner = [(o[2], o[3]) for o in blocks(other[3])] if other[2].startswith('@') else [(other[2], other[3])]
-                for osel, obody in inner:
-                    if osel.startswith('@') or spec(osel) > spec(sel) or disjoint(sel, osel):
-                        continue
-                    props = {prop for prop, _ in decls(obody)} & moved
-                    if props and spec(osel) == spec(sel):
-                        found.append(f'{sel}  <->  {osel}: {sorted(props)}')
-            return found
-
-        up = conflicts({prop for index in indexes[1:] for prop, _ in decls(items[index][3])})
-        if not up:
-            merged[first] = (sel, [(prop, result[prop]) for prop in order])
-            remove.update(indexes[1:])
+        keep, removed, found = plan_group(items, sel, indexes)
+        if keep is None:
+            warnings.extend(found)
+            print('PULADO', sel, 'nivel', depth)
             continue
-        last_props = {prop for prop, _ in decls(items[indexes[-1]][3])}
-        down = conflicts({prop for index in indexes[:-1] for prop, _ in decls(items[index][3])} - last_props)
-        if not down:
-            merged[indexes[-1]] = (sel, [(prop, result[prop]) for prop in order])
-            remove.update(indexes[:-1])
-            continue
-        warnings.extend(up + down)
-        print('PULADO', sel, 'nivel', depth)
-
+        merged[keep] = merged_declarations(items, indexes)
+        remove.update(removed)
     print('nivel', depth, 'repetidas:', sum(1 for v in by_sel.values() if len(v) > 1), 'regras a remover:', len(remove))
     for w in warnings:
         print('ATENCAO', w)
-
-    if True:
-        out = []
-        cursor = 0
-        for index, (start, end, sel, body, sel_at) in enumerate(items):
-            out.append(src[cursor:start])
-            if index in remove:
-                cursor = end
-                # drop the blank line left behind
-                while cursor < len(src) and src[cursor] == '\n' and src[cursor + 1:cursor + 2] == '\n':
-                    cursor += 1
-                continue
-            if index in merged:
-                sel_text = src[sel_at:src.index('{', sel_at)].rstrip()
-                out.append(src[start:sel_at])
-                lines = '\n'.join(f'  {prop}: {value};' for prop, value in merged[index][1])
-                out.append(f'{sel_text} {{\n{lines}\n}}')
-            else:
-                out.append(src[start:end])
-            cursor = end
-        out.append(src[cursor:])
-        return "".join(out)
-
+    return rebuild(src, items, remove, merged)
 
 result = process(src)
 if '--write' in sys.argv:
