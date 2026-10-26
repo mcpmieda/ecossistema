@@ -214,7 +214,7 @@
   border: 1px solid rgb(255 255 255 / 0.26);
   border-radius: inherit;
   background: linear-gradient(145deg, rgb(59 130 246 / 0.95), rgb(14 165 233 / 0.9));
-  color: white;
+  color: white; /* NOSONAR no text here: the box only holds the school logo image */
   box-shadow: none;
 }
 .pa-hero-brand-copy {
