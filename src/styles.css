@@ -614,12 +614,20 @@ button.performance-kpi__button:hover {
 }
 .performance-bar > span {
   position: absolute;
-  top: -1.15rem;
   left: 50%;
   color: var(--foreground);
-  font-size: 0.65rem;
   font-weight: 650;
   transform: translateX(-50%);
+  animation: performance-fade-in 300ms ease 260ms both;
+  top: auto;
+  bottom: calc(100% + 0.2rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.62rem;
 }
 
 .performance-bars__pending {
@@ -769,8 +777,11 @@ button.performance-kpi__button:hover {
 }
 
 .performance-donut__center strong {
-  font-size: 1.8rem;
-  letter-spacing: -0.05em;
+  line-height: 1.3rem;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.04em;
 }
 
 .performance-panorama__item,
@@ -2133,11 +2144,6 @@ button.performance-kpi__button:hover {
   filter: saturate(1.12) brightness(0.98);
   transform: none;
 }
-.performance-bar > span {
-  top: -1rem;
-  font-size: 0.62rem;
-  animation: performance-fade-in 300ms ease 260ms both;
-}
 
 .performance-bars__column:nth-child(2) .performance-bar {
   animation-delay: 30ms, -1.06s;
@@ -2162,10 +2168,6 @@ button.performance-kpi__button:hover {
 }
 .performance-bars__column:nth-child(n + 9) .performance-bar { animation-delay: 240ms; }
 
-.performance-donut__center strong {
-  font-size: 1.15rem;
-  line-height: 1.3rem;
-}
 .performance-donut__center span {
   color: var(--muted);
   font-size: 0.65rem;
@@ -3357,17 +3359,6 @@ button.performance-kpi__button:hover {
   );
 }
 
-.performance-bar > span {
-  top: auto;
-  bottom: calc(100% + 0.2rem);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
 .performance-delta--above {
   background: color-mix(in oklab, var(--performance-above) 14%, transparent);
   color: var(--performance-above);
@@ -3401,9 +3392,7 @@ button.performance-kpi__button:hover {
   font-size: 0.62rem;
   letter-spacing: 0;
 }
-.performance-bar > span {
-  font-size: 0.62rem;
-}
+
 .performance-delta {
   display: inline-flex;
   align-items: center;
@@ -3554,12 +3543,6 @@ button.performance-kpi__button:hover {
   margin-top: 0.75rem;
 }
 
-.performance-donut__center strong {
-  font-size: 1.25rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-}
 .performance-panorama__headline {
   display: flex;
   min-width: 0;
