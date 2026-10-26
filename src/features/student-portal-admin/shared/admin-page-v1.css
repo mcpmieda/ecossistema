@@ -38,11 +38,7 @@
 .pa-qr-handoff [data-slot='modal-footer'] {
   flex-wrap: wrap;
 }
-.pa-section-heading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
+
 /* Horizontal navigation is shared with Desempenho in workspace-tabs-v1.css.
  * Do not impose a second scroll container or override vertical widgets here. */
 .pa-admin-page h2 {
@@ -206,8 +202,3 @@
   }
 }
 
-/* In a record the birth year belongs to that student: the name column would only repeat it. */
-.pa-student-drawer .pa-birth-card table th:first-child,
-.pa-student-drawer .pa-birth-card table td:first-child {
-  display: none;
-}
