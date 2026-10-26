@@ -732,10 +732,10 @@ function ReconciliationDetailV1({
         </div>
       ))}
       {confirm ? (
-        <div
+        <div // NOSONAR an alert dialog closes with Escape (WAI-ARIA dialog pattern)
           ref={focusVisibleV1}
           tabIndex={-1}
-          role="alertdialog" // NOSONAR a dialog closes with Escape
+          role="alertdialog"
           aria-modal="false"
           aria-labelledby="reconciliation-confirm-title"
           className="space-y-3 rounded-xl border border-default p-4"
