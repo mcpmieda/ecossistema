@@ -268,10 +268,11 @@
 
 .pa-score-card-partials-title {
   margin: 0 0 0.35rem;
+  margin-bottom: 0.3rem;
   color: #64748b;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 0.64rem;
+  font-weight: 750;
+  letter-spacing: 0.055em;
   text-transform: uppercase;
 }
 
@@ -281,6 +282,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  gap: 0;
 }
 
 .pa-partials-list > li {
@@ -363,12 +365,6 @@
   height: 0.62rem;
 }
 
-/* The mark the student got stands out as a tinted pill; the maximum stays quiet beside it. */
-.pa-partials-list .pa-mark {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.1rem;
-}
 
 .pa-partials-list .pa-mark-value {
   display: inline-block;
@@ -415,6 +411,7 @@
 
 .pa-period-tab-label {
   font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 /* "vale 30 · 18 passa" under a trimester's name in the Boletim tabs, much smaller and quieter. */
@@ -441,13 +438,6 @@
   font-size: 0.62rem;
 }
 
-.pa-final-result {
-  margin-bottom: 1.1rem;
-  padding: 0;
-  border: 1px solid var(--pa-final-border);
-  background: var(--pa-final-surface);
-  box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
-}
 
 .pa-final-result--success {
   --pa-final-surface: #f0fdf4;
@@ -686,6 +676,11 @@
 /* Entrance accents: the official result card settles in, the trend badge pops toward its
    direction. Both play on mount only (period switches remount the card). */
 .pa-final-result {
+  margin-bottom: 1.1rem;
+  padding: 0;
+  border: 1px solid var(--pa-final-border);
+  background: var(--pa-final-surface);
+  box-shadow: 0 6px 18px -14px rgb(15 46 101 / 0.35);
   animation: pa-reveal 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -885,18 +880,6 @@
   --pa-score-status-border: #bcd4ff;
 }
 
-.pa-score-card-partials-title {
-  margin-bottom: 0.3rem;
-  color: #64748b;
-  font-size: 0.64rem;
-  font-weight: 750;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-}
-
-.pa-partials-list {
-  gap: 0;
-}
 
 
 .pa-partials-list .pa-workspace-list-copy {
@@ -945,6 +928,7 @@
 }
 
 .pa-partials-list .pa-mark {
+  display: inline-flex;
   align-items: center;
   gap: 0.22rem;
 }
@@ -2164,11 +2148,6 @@
   }
 }
 
-/* Period cards keep their full name on one line (owner decision 20/10/2026): never shrunk below
-   it, so with six cards on a phone the row scrolls sideways like the bar of disciplines. */
-.pa-period-tab-label {
-  white-space: nowrap;
-}
 
 /* The sliding content keeps its own margins inside it (owner review 20/10/2026): otherwise the
    list's top margin escapes the live element but not its absolutely placed copy, and the copy that
