@@ -103,17 +103,17 @@ const CLASSIFICATION: Record<
 };
 
 type ClassificationV2 = keyof typeof CLASSIFICATION;
-/** The annual result's colour. As before: "not-approved" contains "approved", so it is green too. */
-function classificationColor(classification: ClassificationV2) {
-  if (classification.includes('approved')) return 'success';
-  if (
-    classification === 'not-approved' ||
-    classification === 'failed-no-show' ||
-    classification === 'failed-repeat'
-  )
-    return 'danger';
-  return 'default';
-}
+/** The annual result's colour: green only when approved, red when not ("not-approved" used to
+ * be green because its name contains "approved"). */
+export const CLASSIFICATION_COLOR_V2: Record<ClassificationV2, 'success' | 'danger' | 'default'> = {
+  'in-progress': 'default',
+  'approved-direct': 'success',
+  'recovery-pending': 'default',
+  'approved-after-recovery': 'success',
+  'not-approved': 'danger',
+  'failed-no-show': 'danger',
+  'failed-repeat': 'danger',
+};
 
 /** What is loading while the page waits. */
 function busyText(busy: Busy) {
@@ -444,7 +444,7 @@ function BulletinArtifact({ artifact }: { readonly artifact: Artifact }) {
                                   <Chip
                                     size="sm"
                                     variant="soft"
-                                    color={classificationColor(subject.annual.classification)}
+                                    color={CLASSIFICATION_COLOR_V2[subject.annual.classification]}
                                   >
                                     <Chip.Label>
                                       {CLASSIFICATION[subject.annual.classification]}
