@@ -21,7 +21,6 @@
   border-top: 2px solid color-mix(in srgb, var(--learning-tone) 65%, transparent);
   animation: learning-enter 240ms ease-out both;
 }
-.learning-kpi .card__header { display: flex; flex-direction: row; align-items: center; gap: .5rem; font-size: .8rem; }
 .learning-kpi .card__header > :last-child { margin-left: auto; }
 .learning-kpi-icon {
   display: grid;
@@ -39,7 +38,14 @@
   padding: 0;
   min-height: 2rem;
 }
-.learning-kpi-button strong { font-size: clamp(1.6rem, 3cqi, 2.2rem); line-height: 1.15; font-weight: 700; letter-spacing: -.045em; font-variant-numeric: tabular-nums; color: var(--foreground); }
+.learning-kpi-button strong {
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -.045em;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  font-size: 1.45rem;
+}
 .learning-kpi-button > svg { color: var(--muted); }
 .learning-muted { display: block; color: var(--muted); font-size: .75rem; line-height: 1.45; font-weight: 400; }
 .learning-row {
@@ -122,7 +128,10 @@
   font-size: .75rem;
 }
 .learning-distribution-item > span:nth-child(2) { flex: 1; }
-.learning-distribution-item strong { font-size: 1.35rem; color: var(--foreground); }
+.learning-distribution-item strong {
+  color: var(--foreground);
+  font-size: 1.05rem;
+}
 .learning-dot { background: var(--learning-tone); width: .5rem; height: .5rem; border-radius: 50%; flex: 0 0 auto; }
 .learning-component-scroll {
   overflow: auto;
@@ -211,9 +220,13 @@
   font-size: .85rem;
 }
 
-.learning-kpi .card__header { font-size: .75rem; }
-
-.learning-kpi-button strong { font-size: 1.45rem; }
+.learning-kpi .card__header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: .5rem;
+  font-size: .75rem;
+}
 
 .learning-overview .analytics-timeline { height: 8.5rem; }
 
@@ -233,7 +246,6 @@
 
 
 
-.learning-distribution-item strong { font-size: 1.05rem; }
 
 .learning-component-scroll > div { gap: .55rem; }
 .learning-component-scroll strong { font-size: .85rem; }
