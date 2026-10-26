@@ -2,13 +2,27 @@
 never appear together in any source file (so no className can carry both), and each class is ours
 (written in some .tsx/.ts file), not a library's."""
 import json
+import os
 import re
 import subprocess
 import sys
 
-css_files = sys.argv[1:-2]
-measured_path, out_path = sys.argv[-2], sys.argv[-1]
-measured = json.load(open(measured_path, encoding='utf8'))
+ROOT = os.path.realpath(os.getcwd())
+
+
+def inside_root(path):
+    """Only files inside the repository (run from its root) are read or written."""
+    full = os.path.realpath(path)
+    if os.path.commonpath([full, ROOT]) != ROOT:
+        sys.exit(f'outside the repository: {path}')
+    return full
+
+
+# Usage: python scripts/sonar/css-static-disjoint.py <file.css>... <measured.json> <out.json>
+css_files = [inside_root(f) for f in sys.argv[1:-2]]
+measured_path, out_path = inside_root(sys.argv[-2]), inside_root(sys.argv[-1])
+with open(measured_path, encoding='utf8') as handle:
+    measured = json.load(handle)
 pairs = set()
 for f in css_files:
     out = subprocess.run([sys.executable, 'scripts/sonar/css-merge-duplicates.py', f, '--disjoint', measured_path],
@@ -21,7 +35,10 @@ for f in css_files:
 
 src = subprocess.run(['git', 'ls-files', 'src', 'tests'], capture_output=True, text=True).stdout.split()
 src = [p for p in src if p.endswith(('.tsx', '.ts'))]
-texts = {p: open(p, encoding='utf8').read() for p in src}
+texts = {}
+for path in src:
+    with open(path, encoding='utf8') as handle:
+        texts[path] = handle.read()
 
 
 # Every string literal (quotes and template literals): a className is one of them, or is built
@@ -65,4 +82,5 @@ for a, b in sorted(pairs):
     if not together:
         accepted.append([a, b])
 print(len(pairs), 'conflitos;', len(accepted), 'provados separados pelo codigo')
-json.dump(measured + accepted, open(out_path, 'w', encoding='utf8'))
+with open(out_path, 'w', encoding='utf8') as handle:
+    json.dump(measured + accepted, handle)
