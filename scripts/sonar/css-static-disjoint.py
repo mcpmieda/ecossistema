@@ -1,6 +1,7 @@
 """Static proof that two selectors never match one element: the classes of their last compound
 never appear together in any source file (so no className can carry both), and each class is ours
 (written in some .tsx/.ts file), not a library's."""
+import functools
 import json
 import os
 import re
@@ -33,8 +34,8 @@ for f in css_files:
             b = rest.rsplit(': [', 1)[0]
             pairs.add((a, b))
 
-src = subprocess.run(['git', 'ls-files', 'src', 'tests'], capture_output=True, text=True).stdout.split()
-src = [p for p in src if p.endswith(('.tsx', '.ts'))]
+src = subprocess.run(['git', 'ls-files', 'src', 'tests', '*.html'], capture_output=True, text=True).stdout.split()
+src = [p for p in src if p.endswith(('.tsx', '.ts', '.html'))]
 texts = {}
 for path in src:
     with open(path, encoding='utf8') as handle:
@@ -71,8 +72,43 @@ def ours(name):
     return name.startswith(OUR_PREFIXES) and any(name in t for t in texts.values())
 
 
+# HeroUI classes whose component is never imported: nothing on screen carries them.
+LIBRARY_COMPONENTS = {'breadcrumbs': 'Breadcrumbs'}
+
+
+# Prefixes of class names built at run time (`performance-bar--${tone}`, 'pa-chip-' + tone).
+built = set()
+for t in texts.values():
+    built.update(re.findall(r'([\w-]+)\$\{', t))
+    built.update(re.findall(r"([\w-]+)['\"]\s*\+", t))
+
+
+@functools.cache
+def written(name):
+    if any(name.startswith(prefix) for prefix in built):
+        return True
+    return any(re.search(r'(?<![\w-])' + re.escape(name) + r'(?![\w-])', t) for t in texts.values())
+
+
+def matches_nothing(sel):
+    """A selector naming one of our classes that no file ever writes (dead CSS) matches no element."""
+    if ',' in sel:
+        return False
+    for name in re.findall(r'\.([\w-]+)', sel):
+        if name.startswith(OUR_PREFIXES) and not written(name):
+            return True
+        base = name.split('__')[0]
+        component = LIBRARY_COMPONENTS.get(base)
+        if component and not any(re.search(r'(?<![\w-])' + component + r'(?![\w-])', t) for t in texts.values()):
+            return True
+    return False
+
+
 accepted = []
 for a, b in sorted(pairs):
+    if a != b and (matches_nothing(a) or matches_nothing(b)):
+        accepted.append([a, b])
+        continue
     ca, cb = last_classes(a), last_classes(b)
     if not ca or not cb or a == b:
         continue
