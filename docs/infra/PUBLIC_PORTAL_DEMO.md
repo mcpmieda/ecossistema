@@ -4,6 +4,15 @@ Escopo: somente demonstração pública isolada com dados fictícios e botão ad
 de ativar/desativar. Não há analytics, eventos, IPs, contadores, registros de visitantes,
 retencão ou consultas de estatísticas na aplicação.
 
+## Acesso
+
+- Endereço único: PUBLIC_DEMO_URL_V1 (shared/public-demo-control-v1.ts), sem login.
+- No ADM, o botão "Visão do aluno (demo)" do Painel do Aluno e o link "Abrir
+  demonstração" abrem esse mesmo endereço (decisão do responsável, 28/10/2026). A
+  antiga demo interna do ADM (/portal-demo.html, só para administradores) foi removida.
+- A demo abre com Notas, Frequência e Horário (decisão do responsável, 28/10/2026);
+  o painel "Simular admin" desliga cada página.
+
 ## Pacote e isolamento
 
 - Build: npm run build:public-demo. Compila e faz dry-run, sem upload.
