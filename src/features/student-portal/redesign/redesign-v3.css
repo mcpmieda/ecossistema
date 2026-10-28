@@ -691,20 +691,23 @@
   letter-spacing: 0.02em;
 }
 /* The day as a timeline of cards (owner requests 27/10/2026, schedule-page-v3 lessonRowV3). The
-   list leaves room around the cards for the ring of the one going on (the day slider clips). */
+   list leaves room around the cards for the ring of the one going on, and on the left for the live
+   dot's pulse, 11px past the dot (the day slider clips). */
 .pa3-schedule-list {
   /* The ring around the timeline's dots: the card's own background (below). */
   --pa3-rail-ground: #fff;
   display: grid;
   margin: 0;
-  padding: 0.3rem 0.3rem 0.3rem 0;
+  padding: 0.3rem 0.3rem 0.3rem 0.65rem;
   list-style: none;
 }
 .pa3-schedule-row {
+  /* The space between two cards; the timeline's line crosses it (below). */
+  --pa3-row-space: 0.2rem;
   display: flex;
   align-items: stretch;
   gap: 0.55rem;
-  padding-block: 0.2rem;
+  padding-block: var(--pa3-row-space);
 }
 .pa3-schedule-row.is-done {
   opacity: 0.5;
@@ -721,8 +724,9 @@
 }
 .pa3-schedule-rail::before {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  /* Through the row's space above and below, so the line never breaks between two cards. */
+  top: calc(-1 * var(--pa3-row-space));
+  bottom: calc(-1 * var(--pa3-row-space));
   left: calc(50% - 1px);
   width: 2px;
   background: #d5dde9;

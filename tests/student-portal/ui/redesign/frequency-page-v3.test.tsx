@@ -145,6 +145,19 @@ describe('Frequência page', () => {
     expect(label).not.toContain('sem aula');
   });
 
+  it('never says "sem aula" for a day after the diary\'s last reading (a collector stopped since)', async () => {
+    // Last read on 19/10 at 12:19 (school time): 18/10 was read, 20/10 not yet.
+    const client = clientOf(
+      { '2026-10': summary('2026-10', [lessonDay('2026-10-16'), lessonDay('2026-10-19')]) },
+      { extra: { lastReadAt: '2026-10-19T15:19:00Z' } },
+    );
+    render(<FrequencyPageV3 client={client} />);
+    await ready();
+    expect(dayButton(15).getAttribute('aria-label')).toBe('Quinta-feira, 15 de outubro: sem aula');
+    expect(dayButton(20).getAttribute('aria-label')).toBe('Terça-feira, 20 de outubro: sem dados');
+    expect(dayButton(20).className).toContain('pa3-day--unknown');
+  });
+
   it('shows the marks of a day the server sent without its lesson day', async () => {
     const months = { '2026-10': summary('2026-10', [lessonDay('2026-10-14')], [{ date: '2026-10-15', slot: 3, mark: 'X' }]) };
     render(<FrequencyPageV3 client={clientOf(months)} />);
