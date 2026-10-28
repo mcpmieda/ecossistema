@@ -447,8 +447,6 @@ function SummaryV1({
     ...(hasRecovery ? (['REC'] as const) : []),
   ];
   const active = selected && available.includes(selected) ? selected : (available[0] ?? 'T1');
-  const activeName =
-    active === 'REC' ? 'Recuperação' : (BULLETIN_PERIOD_LABELS_V1[active] ?? PERIOD_LABELS_V1[active]);
   // Null until the first switch, so the list does not animate twice on mount; 'still' after a
   // drag, which already moved the new list into place.
   const [listMotion, setListMotion] = useState<SlideMotionV1>(null);
@@ -507,20 +505,11 @@ function SummaryV1({
           </Tabs>
         ) : null}
 
-        {/* Column labels over the list (owner review 27/09/2026): "Disciplinas" over the names,
-            "Notas" over the marks. The section heading stays for screen readers. With a single
-            period there is no tab bar, so the marks' label names it. */}
+        {/* No column labels over the list (owner request 27/10/2026); the section heading stays
+            for screen readers. */}
         <h2 id="pa-summary-title" className="pa-visually-hidden">
           Minhas notas
         </h2>
-        <div className="pa-list-columns" aria-hidden="true">
-          <span>Disciplinas</span>
-          <span>
-            {available.length === 1
-              ? `Notas · ${activeName}`
-              : 'Notas'}
-          </span>
-        </div>
 
         {/* Keyed by period so the list slides in from the side of the tab that was chosen. */}
         {/* Entering the Boletim: the subjects rise in one after another; switching trimesters

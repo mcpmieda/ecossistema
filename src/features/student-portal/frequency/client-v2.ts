@@ -175,6 +175,8 @@ const wholeYear = z
     // The days without school, each lesson's time and the week's subjects (owner decision 23/10/2026).
     daysOff: schoolDaysOffV1.optional(),
     bells: schoolBellsDaysV1.nullable().optional(),
+    // From when those times hold (the ADM's last save, or the official sheets' day).
+    bellsValidFrom: z.iso.date().nullable().optional(),
     grid: z
       .array(
         z

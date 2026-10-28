@@ -5,14 +5,18 @@ import type { FrequencyDayV2, FrequencySummaryV2 } from './frequency-v2';
  * 22/10/2026). Plain words for families: only absences WITHOUT justification (justified ones are
  * transport, medical appointments… and never count), told in days ("cerca de"): the student's
  * absences in lessons divided by their own average of lessons per day, rounded to the nearest
- * whole day. The law's 75% makes the limit 50 of the 200 school days, never told as days "permitidos"
- * (owner decision 22/10/2026: it is not a right to miss them). Saturdays are symbolic
- * compensation days with automatic attendance, so they never show a trend (only weekdays do).
- * Only the first sentence that applies is shown; with none, nothing is shown.
+ * whole day. The law's 75% makes the limit a quarter of the year's school days (50 of 200), never
+ * told as days "permitidos" (owner decision 22/10/2026: it is not a right to miss them). Saturdays
+ * are symbolic compensation days with automatic attendance, so they never show a trend (only
+ * weekdays do). Only the first sentence that applies is shown; with none, nothing is shown.
  */
-export const MAXIMUM_ABSENCE_DAYS_V2 = 50;
-/** "Perto do limite" from this many days of absence on. */
-export const NEAR_LIMIT_DAYS_V2 = 30;
+/**
+ * The days of absence that fail the year: a quarter of the school days the ADM calendar marks
+ * (owner request 27/10/2026: derived from the calendar, never fixed in the code).
+ */
+export const absenceLimitDaysV2 = (schoolDays: number) => schoolDays / 4;
+/** "Perto do limite" from three fifths of the limit on (owner decision 23/10/2026: 30 of the 50). */
+const NEAR_LIMIT_SHARE = 0.6;
 /** The last four weeks: the twenty most recent weekdays with lessons. */
 const RECENT_WEEKDAYS = 20;
 
@@ -65,14 +69,18 @@ function missedInARowV2(weekdays: readonly { absences: number; lessons: number }
 export function frequencyCommentV2({
   months,
   today,
+  schoolDays,
   remainingSchoolDays,
 }: {
   /** Every month so far, as the Portal reads them (marks and lesson days of the school calendar). */
   months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[];
   today: string;
+  /** The year's school days in the calendar (the rule's 200 without a calendar). */
+  schoolDays: number;
   /** School days left in the calendar, today included (0 without a calendar). */
   remainingSchoolDays: number;
 }): FrequencyCommentV2 | null {
+  const limit = absenceLimitDaysV2(schoolDays);
   const all = pastSchoolDaysV2(months, today);
   if (!all.length) return null;
   const totalLessons = all.reduce((sum, day) => sum + day.lessons, 0);
@@ -100,13 +108,14 @@ export function frequencyCommentV2({
 
   const alert = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'alert', text });
   const good = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'good', text });
-  if (absenceDays > MAXIMUM_ABSENCE_DAYS_V2)
+  if (absenceDays > limit)
     return alert('over-limit', `Já faltou cerca de ${days(shown)}. Pode reprovar por falta.`);
-  if (absenceDays + recentRate * remainingSchoolDays > MAXIMUM_ABSENCE_DAYS_V2)
+  if (absenceDays + recentRate * remainingSchoolDays > limit)
     return alert('will-pass', `Já faltou cerca de ${days(shown)}. Faltando assim, pode reprovar por falta.`);
-  // From 30 days on (owner decision 23/10/2026). No sentence names the limit (owner decision
-  // 23/10/2026: a number of days reads as freedom to miss); it only decides when a warning shows.
-  if (absenceDays >= NEAR_LIMIT_DAYS_V2)
+  // From three fifths of the limit on (owner decision 23/10/2026: 30 days of 50). No sentence names
+  // the limit (owner decision 23/10/2026: a number of days reads as freedom to miss); it only decides
+  // when a warning shows.
+  if (absenceDays >= limit * NEAR_LIMIT_SHARE)
     return alert('near-limit', `Já faltou cerca de ${days(shown)}. Mais faltas podem reprovar.`);
   if (streak >= 3)
     return alert('in-a-row', `Não vem à escola desde ${dateLabel(weekdays[streak - 1]!.date)} (${streak} dias seguidos).`);

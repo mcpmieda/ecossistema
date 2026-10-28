@@ -376,8 +376,9 @@ describe('student portal grade workspace', () => {
   it('shows the Meta do ano only on the 2º tri tab, from marks already on screen', async () => {
     const data = gradesFixtureV1(false);
     const first = data.subjects.find((subject) => subject.order === 1)!;
+    // The gradebook's own verdict, at its 60% minimum (17,3 of 30 is below the 18 that pass).
     const scoreOf = (value: number, maximum: number) =>
-      ({ kind: 'score', value, maximum, meetsMinimum: true }) as const;
+      ({ kind: 'score', value, maximum, meetsMinimum: value * 100 >= maximum * 60 }) as const;
     first.periods = [
       { period: 'T1', final: scoreOf(18.5, 30) },
       { period: 'T2', final: scoreOf(17.3, 30) },

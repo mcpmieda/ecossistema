@@ -92,7 +92,7 @@ it("returns the student's own grid, read with its account and session only", asy
   const response = await servePortalScheduleV1(request(), env);
   expect(response.status).toBe(200);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
-  // No bells nor calendar marked yet: the grid without times, no day without school.
+  // No bells nor calendar marked yet: the grid without times, no day without school, no end of year.
   expect(await response.json()).toEqual({
     contractVersion: 1,
     state: 'ready',
@@ -100,11 +100,12 @@ it("returns the student's own grid, read with its account and session only", asy
     today: '2026-10-22',
     now: '2026-10-22T12:30:00.000Z',
     daysOff: [],
+    schoolYear: null,
   });
   expect(mocks.unsafe.mock.calls[0]?.[1]).toEqual([accountId, sessionId]);
 });
 
-it("adds the bells of each class's shift and the days without school (owner decision 23/10/2026)", async () => {
+it("adds the bells of each class's shift, the days without school and the school year (owner decisions 23 and 27/10/2026)", async () => {
   const classes = [
     { label: '6º ANO A - MATUTINO', observedAt: 'x', lessons: [] },
     { label: 'AEE', observedAt: 'x', lessons: [] },
@@ -117,10 +118,13 @@ it("adds the bells of each class's shift and the days without school (owner deci
   const body = (await (await servePortalScheduleV1(request(), env)).json()) as {
     classes: { bells: unknown }[];
     daysOff: { date: string; kind: string; note?: string }[];
+    schoolYear: { firstDay: string; lastDay: string } | null;
   };
   expect(body.classes.map((item: { bells: unknown }) => item.bells)).toEqual([officialBells2026V1().matutino, null]);
   expect(body.daysOff).toContainEqual({ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' });
   expect(body.daysOff.every((day: { kind: string }) => ['feriado', 'recesso', 'evento'].includes(day.kind))).toBe(true);
+  // The official calendar's first and last school day, never a fixed date.
+  expect(body.schoolYear).toEqual({ firstDay: '2026-02-23', lastDay: '2026-12-15' });
 });
 
 it('suppresses a result read past the session expiry', async () => {

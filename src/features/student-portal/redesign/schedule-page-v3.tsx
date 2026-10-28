@@ -2,12 +2,14 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
   type TouchEvent,
 } from 'react';
-import { CalendarOff, Flag } from 'lucide-react';
+import { CalendarOff } from 'lucide-react';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
@@ -26,12 +28,14 @@ import {
 import {
   schoolDayOffLabelV1,
   type SchoolDayOffV1,
+  type SchoolYearSpanV1,
 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 import type { StudentScheduleClientV1 } from '../schedule/client-v1';
 import { portalNowV1, PortalTimerV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
 import { usePortalPageActiveV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 import { subjectStyleV3 } from './subject-style-v3';
+import { CoffeeIconV3, FlagIconV3, type ScheduleIconV3 } from './schedule-icons-v3';
 import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
 
 /*
@@ -196,17 +200,22 @@ function rowsOf(item: ScheduleClassV3, weekday: WeekdayV3): RowV3[] {
  * On a phone, the day follows the finger (owner request 23/10/2026): dragged sideways, the card
  * slides and the next (or the previous) day shows as it slides in; let go past a fifth of the width,
  * it settles on that day, otherwise it slides back. A drag that starts up or down is the page's
- * scroll. Friday is followed by Monday, and Monday comes after Friday.
+ * scroll. Friday is followed by Monday, and Monday comes after Friday. `onDrag` tells how far it is
+ * (1 a whole day forward, -1 back) and whether the finger is still on it, so the chips follow.
+ * A day picked on the chips slides in the same way (owner request 27/10/2026): from the right when
+ * it comes later in the week, from the left when earlier, pushing out the day that was shown.
  */
 const SLIDE_MS_V3 = 260;
 const wrapWeekdayV3 = (weekday: number) => (((((weekday - 1) % 5) + 5) % 5) + 1) as WeekdayV3;
 function DaySliderV3({
   shown,
   onChange,
+  onDrag,
   panel,
 }: Readonly<{
   shown: WeekdayV3;
   onChange: (weekday: WeekdayV3) => void;
+  onDrag: (progress: number, dragging: boolean) => void;
   panel: (weekday: WeekdayV3, current: boolean) => ReactNode;
 }>) {
   const box = useRef<HTMLDivElement>(null);
@@ -224,16 +233,54 @@ function DaySliderV3({
     setHeight(element.offsetHeight);
     return () => observer.disconnect();
   }, [shown]);
-  const previous = wrapWeekdayV3(shown - 1);
-  const next = wrapWeekdayV3(shown + 1);
+  // A day picked on the chips: the day it replaces waits on its side, then the track slides over.
+  const [arriving, setArriving] = useState<{ from: WeekdayV3; side: -1 | 1 } | null>(null);
+  const shownBefore = useRef(shown);
+  const swiped = useRef(false);
+  useLayoutEffect(() => {
+    const from = shownBefore.current;
+    shownBefore.current = shown;
+    if (swiped.current || from === shown) {
+      swiped.current = false;
+      return;
+    }
+    const side = shown > from ? 1 : -1;
+    setArriving({ from, side });
+    setOffset(side * (box.current?.offsetWidth ?? 0));
+    // Two frames: the day that was shown is painted in place before the slide starts.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        setSettling(true);
+        setOffset(0);
+      });
+    });
+    const done = window.setTimeout(() => {
+      setSettling(false);
+      setArriving(null);
+    }, SLIDE_MS_V3 + 50);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(done);
+    };
+  }, [shown]);
+  const previous = arriving?.side === 1 ? arriving.from : wrapWeekdayV3(shown - 1);
+  const next = arriving?.side === -1 ? arriving.from : wrapWeekdayV3(shown + 1);
+  const move = (pixels: number, dragging: boolean) => {
+    setOffset(pixels);
+    onDrag(-pixels / (box.current?.offsetWidth || 1), dragging);
+  };
   const settle = (to: -1 | 0 | 1) => {
     const width = box.current?.offsetWidth ?? 0;
     setSettling(true);
-    setOffset(-to * width);
+    move(-to * width, false);
     window.setTimeout(() => {
-      if (to) onChange(to === 1 ? next : previous);
+      if (to) {
+        // Already in place: the change slides nothing more.
+        swiped.current = true;
+        onChange(to === 1 ? next : previous);
+      }
       setSettling(false);
-      setOffset(0);
+      move(0, false);
     }, SLIDE_MS_V3);
   };
   const onTouchStart = (event: TouchEvent) => {
@@ -251,7 +298,7 @@ function DaySliderV3({
       current.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
     if (current.axis !== 'x') return;
     current.dx = dx;
-    setOffset(dx);
+    move(dx, true);
   };
   const onTouchEnd = () => {
     const current = drag.current;
@@ -316,7 +363,12 @@ export function SchedulePageV3({
   const load = useCachedReadV3(read, active, onAuthenticationLost);
   if (load.data)
     return (
-      <ScheduleWeekV3 classes={load.data.classes} daysOff={load.data.daysOff} ticking={active} />
+      <ScheduleWeekV3
+        classes={load.data.classes}
+        daysOff={load.data.daysOff}
+        schoolYear={load.data.schoolYear}
+        ticking={active}
+      />
     );
   const [message, action] = scheduleStatusV3(load.error, onLogin, load.retry);
   return (
@@ -344,32 +396,6 @@ export function SchedulePageV3({
         </Card>
       }
     />
-  );
-}
-
-/**
- * The break's mug (owner request 23/10/2026): its steam rises while the break is going on. The cup
- * is lucide's "coffee"; the three wisps of steam are drawn wavy so they can drift up and fade.
- */
-function MugV3({ steaming }: Readonly<{ steaming: boolean }>) {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={'pa3-mug' + (steaming ? ' is-steaming' : '')}
-      aria-hidden="true"
-    >
-      <path className="pa3-mug-steam" d="M6 5c-.6-.8.6-1.6 0-2.6" />
-      <path className="pa3-mug-steam" d="M10 5c-.6-.8.6-1.6 0-2.6" />
-      <path className="pa3-mug-steam" d="M14 5c-.6-.8.6-1.6 0-2.6" />
-      <path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1" />
-    </svg>
   );
 }
 
@@ -416,6 +442,40 @@ type RowClockV3 = {
 const rowStateClassV3 = (clock: RowClockV3, item: { start: string; end: string } | null) =>
   (clock.isNow(item) ? ' is-now' : '') + (clock.isDone(item) ? ' is-done' : '');
 
+/*
+ * A row of the day (owner requests 27/10/2026): on the left, the day's timeline, one line from the
+ * first row to the last, a dot on what is already over today and the red one, beating, on what goes
+ * on now (redesign-v3.css, .pa3-schedule-rail); then the card in the subject's colour (the break's
+ * amber, the parada's slate): its icon, moving while it goes on, "3ª aula" over the name, the time on
+ * the right. A free position is an empty dashed card.
+ */
+/** The card's time, with "agora" over it while it goes on. */
+function RowTimeV3({ now, time }: Readonly<{ now: boolean; time: { start: string; end: string } }>) {
+  return (
+    <span className="pa3-schedule-time">
+      {now ? (
+        <Chip size="sm" variant="primary" className="pa3-schedule-now">
+          agora
+        </Chip>
+      ) : null}
+      {timeText(time)}
+    </span>
+  );
+}
+/** The card's icon, moving while it goes on, and the same icon large and faint behind it. */
+function RowIconV3({ Icon, now }: Readonly<{ Icon: ScheduleIconV3; now: boolean }>) {
+  return (
+    <>
+      <span className="pa3-schedule-watermark" aria-hidden="true">
+        <Icon live={false} />
+      </span>
+      <span className="pa3-schedule-icon" aria-hidden="true">
+        <Icon live={now} />
+      </span>
+    </>
+  );
+}
+
 /** The break or the parada, in its place among the lessons. */
 function pauseRowV3(row: Exclude<RowV3, { kind: 'aula' }>, clock: RowClockV3) {
   const parada = row.kind === 'parada';
@@ -430,22 +490,13 @@ function pauseRowV3(row: Exclude<RowV3, { kind: 'aula' }>, clock: RowClockV3) {
         rowStateClassV3(clock, row)
       }
     >
-      <span className="pa3-schedule-slot" aria-hidden="true">
-        {parada ? <Flag size={16} /> : <MugV3 steaming={now} />}
-      </span>
-      <span className="pa3-schedule-subject">{parada ? 'Parada' : 'Intervalo'}</span>
-      <span className="pa3-schedule-time">
-        {now ? (
-          <Chip
-            size="sm"
-            variant="primary"
-            color={parada ? 'accent' : 'warning'}
-            className="pa3-schedule-now"
-          >
-            agora
-          </Chip>
-        ) : null}
-        {timeText(row)}
+      <span className="pa3-schedule-rail" aria-hidden="true" />
+      <span className="pa3-schedule-tile">
+        <RowIconV3 Icon={parada ? FlagIconV3 : CoffeeIconV3} now={now} />
+        <span className="pa3-schedule-subject">
+          <span className="pa3-subject-name">{parada ? 'Parada' : 'Intervalo'}</span>
+        </span>
+        <RowTimeV3 now={now} time={row} />
       </span>
     </li>
   );
@@ -453,46 +504,34 @@ function pauseRowV3(row: Exclude<RowV3, { kind: 'aula' }>, clock: RowClockV3) {
 
 /** One lesson position: its subject (or a blank, free position) and its time. */
 function lessonRowV3(row: Extract<RowV3, { kind: 'aula' }>, clock: RowClockV3) {
+  const now = clock.isNow(row.time);
+  const look = row.subject ? subjectStyleV3(row.subject) : null;
   return (
     <li
       key={row.slot}
       className={
         'pa3-schedule-row' +
-        (row.subject
-          ? ` pa3-subject pa3-subject--${subjectStyleV3(row.subject).tone}`
-          : ' is-free') +
+        (look ? ` pa3-subject--${look.tone}` : ' is-free') +
         rowStateClassV3(clock, row.time)
       }
-      aria-current={clock.isNow(row.time) ? 'time' : undefined}
+      aria-current={now ? 'time' : undefined}
     >
-      <span className="pa3-schedule-slot" aria-hidden="true">
-        {row.slot}ª
-      </span>
-      {/* A free position is a blank space; a screen reader hears "6ª aula: sem aula". */}
-      <span className="pa3-schedule-subject">
-        <span className="pa-visually-hidden">{`${row.slot}ª aula: `}</span>
-        {row.subject ? (
-          <>
-            {(() => {
-              const { Icon } = subjectStyleV3(row.subject);
-              return <Icon size={16} className="pa3-subject-icon" aria-hidden="true" />;
-            })()}
+      <span className="pa3-schedule-rail" aria-hidden="true" />
+      <span className="pa3-schedule-tile">
+        {look ? <RowIconV3 Icon={look.Icon} now={now} /> : null}
+        {/* A screen reader hears "3ª aula: GEOGRAFIA", or "6ª aula: sem aula" for a free one. */}
+        <span className="pa3-schedule-subject">
+          <span className="pa3-schedule-slot">
+            {row.slot}ª aula<span className="pa-visually-hidden">: </span>
+          </span>
+          {row.subject ? (
             <span className="pa3-subject-name">{subjectText(row.subject)}</span>
-          </>
-        ) : (
-          <span className="pa-visually-hidden">sem aula</span>
-        )}
-      </span>
-      {row.time ? (
-        <span className="pa3-schedule-time">
-          {clock.isNow(row.time) ? (
-            <Chip size="sm" variant="primary" color="accent" className="pa3-schedule-now">
-              agora
-            </Chip>
-          ) : null}
-          {timeText(row.time)}
+          ) : (
+            <span className="pa-visually-hidden">sem aula</span>
+          )}
         </span>
-      ) : null}
+        {row.time ? <RowTimeV3 now={now} time={row.time} /> : null}
+      </span>
     </li>
   );
 }
@@ -554,17 +593,26 @@ function DayOffV3({ day, today }: Readonly<{ day: SchoolDayOffV1; today: boolean
 
 /**
  * The next school day after today with lessons and times for this class: a weekday the ADM calendar
- * does not mark as a day without school, looked for up to two months ahead (the July recess and the
- * January holidays keep the clock running to the first day back).
+ * does not mark as a day without school, inside its school year, however far (owner request
+ * 27/10/2026: the holidays before the first day keep the clock running to it, whatever their
+ * length). Without a calendar, looked for up to two months ahead.
  */
-function nextSchoolDayOf(item: ScheduleClassV3, today: string, daysOff: readonly SchoolDayOffV1[]) {
+function nextSchoolDayOf(
+  item: ScheduleClassV3,
+  today: string,
+  daysOff: readonly SchoolDayOffV1[],
+  schoolYear: SchoolYearSpanV1 | null,
+) {
   const off = new Set(daysOff.map((day) => day.date));
-  for (let ahead = 1; ahead <= 62; ahead += 1) {
+  // With a calendar the loop ends past its last school day (below); without one, after two months.
+  for (let ahead = 1; schoolYear || ahead <= 62; ahead += 1) {
     const date = new Date(Date.parse(`${today}T12:00:00Z`) + ahead * 86_400_000)
       .toISOString()
       .slice(0, 10);
+    // Nothing after the calendar's last school day; nothing before its first.
+    if (schoolYear && date > schoolYear.lastDay) return null;
     const weekday = weekdayOf(date);
-    if (weekday < 1 || weekday > 5 || off.has(date)) continue;
+    if (weekday < 1 || weekday > 5 || off.has(date) || (schoolYear && date < schoolYear.firstDay)) continue;
     const rows = rowsOf(item, weekday as WeekdayV3);
     const first = rows.find((row) => row.kind === 'aula');
     const bell =
@@ -577,9 +625,7 @@ function nextSchoolDayOf(item: ScheduleClassV3, today: string, daysOff: readonly
         ahead,
         date,
         weekday: weekday as WeekdayV3,
-        slot: first.slot,
         start: parada ? parada.start : bell.start,
-        parada: parada !== null,
       };
   }
   return null;
@@ -612,23 +658,39 @@ function NextLessonsCardV3({
   item,
   today,
   daysOff,
+  schoolYear,
   seconds,
   named,
 }: Readonly<{
   item: ScheduleClassV3;
   today: string;
   daysOff: readonly SchoolDayOffV1[];
+  schoolYear: SchoolYearSpanV1 | null;
   seconds: number;
   named: boolean;
 }>) {
-  const next = nextSchoolDayOf(item, today, daysOff);
-  if (!next) return null;
+  const next = nextSchoolDayOf(item, today, daysOff, schoolYear);
+  if (!next) {
+    // After the calendar's last lesson (owner request 27/10/2026), the same words as Frequência's
+    // countdown; no clock.
+    if (!schoolYear || today < schoolYear.lastDay) return null;
+    return (
+      <Card className="pa3-card pa3-now" role="status">
+        {named ? <p className="pa3-schedule-class">{item.label}</p> : null}
+        <Card.Header className="pa3-now-head">
+          <Card.Title className="pa3-now-title">O ano letivo terminou.</Card.Title>
+        </Card.Header>
+      </Card>
+    );
+  }
   const when = next.ahead === 1 ? 'amanhã' : DAYS[next.weekday - 1]!.long.toLowerCase();
   return (
     <Card className="pa3-card pa3-now" role="status" aria-live="off">
       {named ? <p className="pa3-schedule-class">{item.label}</p> : null}
       <Card.Header className="pa3-now-head">
-        <Card.Title className="pa3-now-title">Próximas aulas: {when}</Card.Title>
+        <Card.Title className="pa3-now-title">
+          Próximas aulas: <span className="pa3-now-pill">{when}</span>
+        </Card.Title>
         <Chip size="sm" variant="soft" color="accent" className="pa3-now-until">
           {shortDate(next.date)} · {next.start}
         </Chip>
@@ -640,15 +702,17 @@ function NextLessonsCardV3({
           label="Começa em"
         />
       </div>
-      <p className="pa3-now-after">
-        {next.parada ? 'Começa com a parada · ' : ''}
-        Primeira: {next.slot}ª aula
-        {subjectAt(item.lessons, next.weekday, next.slot)
-          ? ` · ${subjectAt(item.lessons, next.weekday, next.slot)}`
-          : ''}
-      </p>
     </Card>
   );
+}
+
+/**
+ * The item in the card's title, filled in its colour on the Horário (owner request 27/10/2026): the
+ * break in amber, the parada in slate, a lesson in its subject's colour.
+ */
+function NowItemV3({ item, subject }: Readonly<{ item: BellItemV1; subject: string | null }>) {
+  const tone = item.kind === 'aula' && subject ? ` pa3-subject--${subjectStyleV3(subject).tone}` : '';
+  return <span className={`pa3-now-pill pa3-now-pill--${item.kind}${tone}`}>{itemName(item, subject)}</span>;
 }
 
 /** The card's title, the countdown's label and target, and what comes after, for the moment. */
@@ -657,12 +721,18 @@ function nowTextsV3(
   day: readonly BellItemV1[],
   subjectOf: (bell: BellItemV1 | null) => string | null,
 ) {
-  let title: string;
+  let title: ReactNode;
   let clockLabel: string;
   let target: string;
   let after: BellItemV1 | null = null;
   if (moment.state === 'in') {
-    title = `Agora: ${itemName(moment.current, subjectOf(moment.current))}`;
+    title = (
+      <>
+        {/* The red "ao vivo" dot while something is going on (owner request 27/10/2026). */}
+        <span className="pa3-live" aria-hidden="true" />
+        Agora: <NowItemV3 item={moment.current} subject={subjectOf(moment.current)} />
+      </>
+    );
     clockLabel = clockLabelInV3(moment.current, moment.next);
     target = moment.current.end;
     // After the break comes the lesson that follows it.
@@ -672,7 +742,11 @@ function nowTextsV3(
     clockLabel = 'Começa em';
     target = moment.next.start;
     if (moment.state !== 'before') {
-      title = `Próxima: ${itemName(moment.next, subjectOf(moment.next))}`;
+      title = (
+        <>
+          Próxima: <NowItemV3 item={moment.next} subject={subjectOf(moment.next)} />
+        </>
+      );
     } else if (moment.next.kind === 'parada') {
       title = `Hoje a parada começa às ${moment.next.start}`;
       // Before the day: its first lesson, after the parada the day starts with.
@@ -695,14 +769,19 @@ function NowCardV3({
   today,
   schoolToday,
   daysOff,
+  schoolYear,
   seconds,
   named,
 }: Readonly<{
   item: ScheduleClassV3;
   today: string;
-  /** Today is a weekday with school (not a weekend, not a day off of the ADM calendar). */
+  /**
+   * Today is a weekday with school: not a weekend, not a day off of the ADM calendar, inside the
+   * school year.
+   */
   schoolToday: boolean;
   daysOff: readonly SchoolDayOffV1[];
+  schoolYear: SchoolYearSpanV1 | null;
   seconds: number;
   named: boolean;
 }>) {
@@ -722,6 +801,7 @@ function NowCardV3({
         item={item}
         today={today}
         daysOff={daysOff}
+        schoolYear={schoolYear}
         seconds={seconds}
         named={named}
       />
@@ -781,7 +861,8 @@ function dayPanelV3(
   item: ScheduleClassV3,
   offAt: (weekday: number) => SchoolDayOffV1 | null,
   isToday: (weekday: number) => boolean,
-  seconds: number,
+  /** The clock for today's lesson going on now; null when today has no lessons. */
+  seconds: number | null,
 ) {
   return (weekday: WeekdayV3, current: boolean) => {
     const day = DAYS[weekday - 1]!;
@@ -809,12 +890,15 @@ function dayPanelV3(
 export function ScheduleWeekV3({
   classes,
   daysOff = [],
+  schoolYear = null,
   status,
   ticking = true,
 }: Readonly<{
   classes: readonly ScheduleClassV3[] | null;
   /** The weekdays without school the ADM calendar names, with their description. */
   daysOff?: readonly SchoolDayOffV1[];
+  /** The school year's first and last school day (ADM calendar); null without a calendar. */
+  schoolYear?: SchoolYearSpanV1 | null;
   status?: ReactNode;
   /** The page is on screen: "Agora" counts every second (nothing while hidden). */
   ticking?: boolean;
@@ -827,10 +911,20 @@ export function ScheduleWeekV3({
   // Today first; on a weekend, Monday (the next school day). A day the reader picks stays.
   const [picked, setPicked] = useState<number | null>(null);
   const shown = (picked ?? (schoolDay ? todayWeekday : 1)) as WeekdayV3;
+  // The chips' blue pill follows the day being dragged (owner request 27/10/2026): from the day shown
+  // toward the one coming in, as far as the card has slid; it glides there on its own otherwise.
+  const [drag, setDrag] = useState({ progress: 0, dragging: false });
+  const toward = wrapWeekdayV3(shown + (drag.progress > 0 ? 1 : -1));
+  const pillAt = shown - 1 + (toward - shown) * Math.min(1, Math.abs(drag.progress));
   const offAt = (weekday: number) =>
     daysOff.find((day) => day.date === dateOfWeekday(today, weekday)) ?? null;
   const todayOff = schoolDay ? offAt(todayWeekday) : null;
   const isToday = (weekday: number) => schoolDay && weekday === todayWeekday;
+  // Today has lessons only inside the school year (owner request 27/10/2026): after the calendar's
+  // last school day, a weekday the calendar does not mark is no school day either.
+  const inYear = !schoolYear || (today >= schoolYear.firstDay && today <= schoolYear.lastDay);
+  const lessonsToday = schoolDay && !todayOff && inYear;
+  const liveSeconds = lessonsToday ? clock.seconds : null;
   const latest = (classes ?? [])
     .map((item) => item.observedAt)
     .sort((a, b) => Number(a > b) - Number(a < b))
@@ -858,8 +952,9 @@ export function ScheduleWeekV3({
                 key={'now' + item.label}
                 item={item}
                 today={today}
-                schoolToday={schoolDay && !todayOff}
+                schoolToday={lessonsToday}
                 daysOff={daysOff}
+                schoolYear={schoolYear}
                 seconds={clock.seconds}
                 named={classes.length > 1}
               />
@@ -868,6 +963,16 @@ export function ScheduleWeekV3({
 
           {/* Phone: the day's lessons, one day at a time. */}
           <fieldset className="min-w-auto pa3-week-chips" aria-label="Dia da semana">
+            <span className="pa3-week-track" aria-hidden="true">
+              {DAYS.map((day) => (
+                <span key={day.weekday} />
+              ))}
+            </span>
+            <span
+              className={'pa3-week-pill' + (drag.dragging ? ' is-dragging' : '')}
+              style={{ '--pa3-week-at': pillAt } as CSSProperties}
+              aria-hidden="true"
+            />
             {DAYS.map((day) => (
               <ToggleButton
                 key={day.weekday}
@@ -903,7 +1008,8 @@ export function ScheduleWeekV3({
                 <DaySliderV3
                   shown={shown}
                   onChange={setPicked}
-                  panel={dayPanelV3(item, offAt, isToday, clock.seconds)}
+                  onDrag={(progress, dragging) => setDrag({ progress, dragging })}
+                  panel={dayPanelV3(item, offAt, isToday, liveSeconds)}
                 />
               </div>
 
@@ -932,7 +1038,7 @@ export function ScheduleWeekV3({
                       ) : (
                         <DayListV3
                           rows={rowsOf(item, day.weekday)}
-                          now={isToday(day.weekday) ? clock.seconds : null}
+                          now={isToday(day.weekday) ? liveSeconds : null}
                           label={`Aulas de ${day.long.toLowerCase()}`}
                         />
                       )}

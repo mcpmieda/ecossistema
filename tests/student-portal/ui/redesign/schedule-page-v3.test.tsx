@@ -36,6 +36,8 @@ const morning = (): ScheduleClassV3 => ({
     })),
   ),
 });
+/** The now card's title as read, its highlighted part included. */
+const nowTitle = () => document.querySelector('.pa3-now-title')?.textContent;
 const phoneList = () => screen.getAllByRole('list')[0]!;
 const rows = (list = phoneList()) =>
   within(list)
@@ -60,7 +62,7 @@ it("opens on today's lessons, with a free position as a blank space", () => {
   expect(screen.getByRole('heading', { name: 'Hoje, quinta-feira' })).toBeTruthy();
   // Positions up to the day's last lesson; the 2nd is free on Thursday.
   // The official names (owner decision 23/10/2026): REDACAO → REDAÇÃO.
-  expect(rows()).toEqual(['1ª1ª aula: REDAÇÃO', '2ª2ª aula: sem aula', '3ª3ª aula: GEOGRAFIA']);
+  expect(rows()).toEqual(['1ª aula: REDAÇÃO', '2ª aula: sem aula', '3ª aula: GEOGRAFIA']);
   const free = within(phoneList()).getAllByRole('listitem')[1]!;
   expect(free.className).toContain('is-free');
   expect(free.querySelector('.pa3-schedule-subject')!.textContent).toBe('2ª aula: sem aula');
@@ -71,7 +73,7 @@ it("shows each day's own lessons only: no empty 6th on a day without one (owner 
   fireEvent.click(screen.getByRole('button', { name: 'Segunda-feira' }));
   expect(screen.getByRole('heading', { name: 'Segunda-feira' })).toBeTruthy();
   // Monday ends at its 2nd lesson, even though Thursday has a 3rd.
-  expect(rows()).toEqual(['1ª1ª aula: ARTE', '2ª2ª aula: COMPUTAÇÃO']);
+  expect(rows()).toEqual(['1ª aula: ARTE', '2ª aula: COMPUTAÇÃO']);
 });
 
 it('shows each lesson with its time and the break in its place, different on each day', () => {
@@ -79,24 +81,24 @@ it('shows each lesson with its time and the break in its place, different on eac
   // Thursday: the parada, six lessons, the break after the 4th.
   expect(rows()).toEqual([
     'Parada06:45 – 07:00',
-    '1ª1ª aula: MATERIA 4.107:00 – 07:45',
-    '2ª2ª aula: MATERIA 4.207:45 – 08:30',
-    '3ª3ª aula: MATERIA 4.308:30 – 09:15',
-    '4ª4ª aula: MATERIA 4.409:15 – 10:00',
+    '1ª aula: MATERIA 4.107:00 – 07:45',
+    '2ª aula: MATERIA 4.207:45 – 08:30',
+    '3ª aula: MATERIA 4.308:30 – 09:15',
+    '4ª aula: MATERIA 4.409:15 – 10:00',
     'Intervalo10:00 – 10:15',
-    '5ª5ª aula: MATERIA 4.510:15 – 11:00',
-    '6ª6ª aula: MATERIA 4.611:00 – 11:45',
+    '5ª aula: MATERIA 4.510:15 – 11:00',
+    '6ª aula: MATERIA 4.611:00 – 11:45',
   ]);
   // Monday: the parada, five lessons, the break after the 3rd.
   fireEvent.click(screen.getByRole('button', { name: 'Segunda-feira' }));
   expect(rows()).toEqual([
     'Parada06:45 – 07:00',
-    '1ª1ª aula: MATERIA 1.107:00 – 07:55',
-    '2ª2ª aula: MATERIA 1.207:55 – 08:50',
-    '3ª3ª aula: MATERIA 1.308:50 – 09:45',
+    '1ª aula: MATERIA 1.107:00 – 07:55',
+    '2ª aula: MATERIA 1.207:55 – 08:50',
+    '3ª aula: MATERIA 1.308:50 – 09:45',
     'Intervalo09:45 – 10:00',
-    '4ª4ª aula: MATERIA 1.410:00 – 10:55',
-    '5ª5ª aula: MATERIA 1.510:55 – 11:45',
+    '4ª aula: MATERIA 1.410:00 – 10:55',
+    '5ª aula: MATERIA 1.510:55 – 11:45',
   ]);
   // On a computer each day is its own column, with the same rows.
   const week = screen.getByRole('group', { name: 'Horário da semana' });
@@ -107,7 +109,7 @@ it('shows each lesson with its time and the break in its place, different on eac
 it('says the lesson going on now and counts to the break, the next lesson and the end', () => {
   at('2026-10-22T09:05:00');
   render(<SchedulePageV3 classes={[morning()]} />);
-  expect(screen.getByText('Agora: 3ª aula · MATERIA 4.3')).toBeTruthy();
+  expect(nowTitle()).toBe('Agora: 3ª aula · MATERIA 4.3');
   expect(screen.getByText('até 09:15')).toBeTruthy();
   expect(screen.getByText('Próxima aula em')).toBeTruthy();
   expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('Próxima aula em 10 minutos');
@@ -119,7 +121,7 @@ it('says the lesson going on now and counts to the break, the next lesson and th
     at('2026-10-22T09:50:00');
     vi.advanceTimersByTime(1000);
   });
-  expect(screen.getByText('Agora: 4ª aula · MATERIA 4.4')).toBeTruthy();
+  expect(nowTitle()).toBe('Agora: 4ª aula · MATERIA 4.4');
   expect(screen.getByText('Intervalo em')).toBeTruthy();
   expect(screen.getByText('Depois: 5ª aula · MATERIA 4.5 · 10:15')).toBeTruthy();
 
@@ -127,7 +129,7 @@ it('says the lesson going on now and counts to the break, the next lesson and th
     at('2026-10-22T10:05:00');
     vi.advanceTimersByTime(1000);
   });
-  expect(screen.getByText('Agora: Intervalo')).toBeTruthy();
+  expect(nowTitle()).toBe('Agora: Intervalo');
   expect(screen.getByText('Volta em')).toBeTruthy();
 
   act(() => {
@@ -141,7 +143,7 @@ it('says the lesson going on now and counts to the break, the next lesson and th
     at('2026-10-22T11:50:00');
     vi.advanceTimersByTime(1000);
   });
-  expect(screen.getByText('Próximas aulas: amanhã')).toBeTruthy();
+  expect(nowTitle()).toBe('Próximas aulas: amanhã');
   // Friday starts with the parada at 06:45.
   expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('Começa em 18 horas e 54 minutos');
 });
@@ -157,7 +159,7 @@ it('before the day, says when it starts: with the parada, which is never a lesso
     at('2026-10-23T07:00:00');
     vi.advanceTimersByTime(1000);
   });
-  expect(screen.getByText('Agora: Parada')).toBeTruthy();
+  expect(nowTitle()).toBe('Agora: Parada');
   expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('Aulas começam em 45 minutos');
 });
 
@@ -171,7 +173,7 @@ it("counts Friday afternoon's last lesson to the parada, then the parada to 18:0
     at('2026-10-23T17:30:00');
     vi.advanceTimersByTime(1000);
   });
-  expect(screen.getByText('Agora: Parada')).toBeTruthy();
+  expect(nowTitle()).toBe('Agora: Parada');
   expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('Saída em 30 minutos');
   expect(rows().at(-1)).toBe('Paradaagora17:15 – 18:00');
 });
@@ -187,7 +189,7 @@ it('on a day without school says why, from the ADM calendar, and counts to the n
   expect(screen.getAllByText('Feriado · Nossa Senhora Aparecida')[0]).toBeTruthy();
   // No lesson going on: the clock runs to Tuesday's first lesson (Wednesday is a holiday too).
   expect(screen.queryByText(/^Agora/u)).toBeNull();
-  expect(screen.getByText('Próximas aulas: amanhã')).toBeTruthy();
+  expect(nowTitle()).toBe('Próximas aulas: amanhã');
   // Wednesday of the same week says so too, on its chip and in its place.
   const wednesday = screen.getByRole('button', { name: 'Quarta-feira, sem aula' });
   fireEvent.click(wednesday);
@@ -238,12 +240,29 @@ it('marks the break going on with "agora" and a steaming mug (owner requests 23/
   expect(pause.textContent).toContain('Intervalo');
   expect(pause.getAttribute('aria-current')).toBe('time');
   expect(within(pause).getByText('agora')).toBeTruthy();
-  expect(pause.querySelector('.pa3-mug.is-steaming')).not.toBeNull();
+  expect(pause.querySelector('.pa3-icon--coffee.is-live')).not.toBeNull();
   // Outside the break the mug is still.
   cleanup();
   at('2026-10-22T09:05:00');
   render(<SchedulePageV3 classes={[morning()]} />);
-  expect(document.querySelector('.pa3-mug.is-steaming')).toBeNull();
+  expect(document.querySelector('.pa3-icon--coffee.is-live')).toBeNull();
+});
+
+it('moves only the icon of the lesson going on, and dots the timeline (owner request 27/10/2026)', () => {
+  at('2026-10-22T09:05:00'); // Thursday's 3rd lesson, 08:30–09:15.
+  render(<SchedulePageV3 classes={[morning()]} />);
+  const items = within(phoneList()).getAllByRole('listitem');
+  const stateOf = (item: HTMLElement) => {
+    if (item.classList.contains('is-now')) return 'now';
+    return item.classList.contains('is-done') ? 'done' : 'later';
+  };
+  // The parada, the 1st and the 2nd lessons are over; the 3rd goes on; the rest are still to come.
+  expect(items.map(stateOf)).toEqual(['done', 'done', 'done', 'now', 'later', 'later', 'later', 'later']);
+  expect(items.map((item) => item.querySelector('.pa3-schedule-icon .pa3-icon.is-live') !== null)).toEqual([
+    false, false, false, true, false, false, false, false,
+  ]);
+  // The large faint copy behind the name never moves.
+  expect(items[3]!.querySelector('.pa3-schedule-watermark .is-live')).toBeNull();
 });
 
 it('runs the clock across a recess to the first day back', () => {
@@ -253,9 +272,28 @@ it('runs the clock across a recess to the first day back', () => {
     return { date: date.toISOString().slice(0, 10), kind: 'recesso' as const };
   });
   render(<SchedulePageV3 classes={[morning()]} daysOff={recess} />);
-  expect(screen.getByText('Próximas aulas: segunda-feira')).toBeTruthy();
+  expect(nowTitle()).toBe('Próximas aulas: segunda-feira');
+  // The day starts with the parada at 06:45.
   expect(screen.getByText('03/08 · 06:45')).toBeTruthy();
-  expect(screen.getByText(/Começa com a parada/u)).toBeTruthy();
+});
+
+it("ends the year at the calendar's last lesson, whatever its date (owner request 27/10/2026)", () => {
+  const schoolYear = { firstDay: '2026-02-23', lastDay: '2026-12-15' };
+  at('2026-12-15T13:00:00'); // The last school day, after its lessons.
+  render(<SchedulePageV3 classes={[morning()]} schoolYear={schoolYear} />);
+  expect(nowTitle()).toBe('O ano letivo terminou.');
+  expect(screen.queryByRole('timer')).toBeNull();
+  cleanup();
+  // A weekday the calendar does not mark, after the year: no lesson going on.
+  at('2026-12-23T08:00:00');
+  render(<SchedulePageV3 classes={[morning()]} schoolYear={schoolYear} />);
+  expect(nowTitle()).toBe('O ano letivo terminou.');
+  expect(document.querySelector('.pa3-schedule-row.is-now')).toBeNull();
+  // The year ends where the calendar says: one marked a day later still has lessons that day.
+  cleanup();
+  at('2026-12-15T13:00:00');
+  render(<SchedulePageV3 classes={[morning()]} schoolYear={{ ...schoolYear, lastDay: '2026-12-16' }} />);
+  expect(nowTitle()).toBe('Próximas aulas: amanhã');
 });
 
 it('changes the day with a sideways swipe on a phone, never with a vertical one', () => {

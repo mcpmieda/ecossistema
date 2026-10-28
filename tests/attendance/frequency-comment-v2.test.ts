@@ -27,6 +27,7 @@ const year = (absentDates: readonly string[], extra: { days?: string[]; mark?: '
   frequencyCommentV2({
     months: [{ days: [...weekdays, ...(extra.days ?? [])].map(lessonDay), marks: absentDates.flatMap((date) => dayAbsent(date, extra.mark)) }],
     today: TODAY,
+    schoolDays: 200,
     remainingSchoolDays: 39,
   });
 const recent = (count: number) => weekdays.slice(-count);
@@ -95,6 +96,7 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
     const comment = frequencyCommentV2({
       months: [{ days: weekdays.map(lessonDay), marks }],
       today: TODAY,
+      schoolDays: 200,
       remainingSchoolDays: 39,
     });
     expect(comment).toEqual({ kind: 'improving', tone: 'good', text: 'Está faltando menos dias. Continue assim!' });
@@ -113,5 +115,12 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
 
   it('nothing to say: no sentence', () => {
     expect(year([weekdays[10]!, recent(10)[0]!])).toBeNull();
+  });
+
+  it("takes the limit from the calendar: a quarter of its school days (owner request 27/10/2026)", () => {
+    const months = [{ days: weekdays.map(lessonDay), marks: older(35, 2).flatMap((date) => dayAbsent(date)) }];
+    // 35 days: near the 50 of a 200-day year, past the 30 of a 120-day one.
+    expect(frequencyCommentV2({ months, today: TODAY, schoolDays: 200, remainingSchoolDays: 0 })?.kind).toBe('near-limit');
+    expect(frequencyCommentV2({ months, today: TODAY, schoolDays: 120, remainingSchoolDays: 0 })?.kind).toBe('over-limit');
   });
 });

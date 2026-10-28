@@ -219,18 +219,21 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
     expect(screen.getByText(/Feriado · Nossa Senhora Aparecida/u)).toBeTruthy();
   });
 
-  it("shows each lesson's time and subject inside its tile, from 22/06 on only", async () => {
-    const months = {
-      '2026-06': summary('2026-06', [lessonDay('2026-06-18', 6)], [{ date: '2026-06-18', slot: 3, mark: 'X' }]),
-      '2026-10': summary('2026-10', [lessonDay('2026-10-15', 6)], [
-        { date: '2026-10-15', slot: 3, mark: 'X' },
-        { date: '2026-10-15', slot: 5, mark: 'J' },
-      ]),
-    };
-    render(<FrequencyPageV3 client={clientOf(months, { extra: { bells, grid } })} />);
+  const tiles = () => [...document.querySelectorAll('.pa3-day-detail .pa3-lesson')].map((tile) => tile.textContent);
+  const october = () => ({
+    '2026-06': summary('2026-06', [lessonDay('2026-06-18', 6)], [{ date: '2026-06-18', slot: 3, mark: 'X' }]),
+    '2026-10': summary('2026-10', [lessonDay('2026-10-15', 6)], [
+      { date: '2026-10-15', slot: 3, mark: 'X' },
+      { date: '2026-10-15', slot: 5, mark: 'J' },
+    ]),
+  });
+
+  it("shows each lesson's time and subject inside its tile, from the day the bells hold only", async () => {
+    const months = october();
+    // The bells the system saved: the official sheets of 22/06.
+    render(<FrequencyPageV3 client={clientOf(months, { extra: { bells, bellsValidFrom: '2026-06-22', grid } })} />);
     await ready();
     fireEvent.click(dayButton(15));
-    const tiles = () => [...document.querySelectorAll('.pa3-day-detail .pa3-lesson')].map((tile) => tile.textContent);
     expect(tiles()[2]).toBe('3ª aula08:30–09:15MATEMÁTICAFaltou');
     expect(tiles()[4]).toBe('5ª aula10:15–11:00Justificada');
     expect(tiles()[0]).toBe('1ª aula07:00–07:45Sem falta');
@@ -238,6 +241,14 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
     for (let step = 0; step < 4; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
     await screen.findByRole('heading', { level: 3, name: 'Junho de 2026' });
     fireEvent.click(dayButton(18));
+    expect(tiles()[2]).toBe('3ª aulaFaltou');
+  });
+
+  it('never re-times a lesson older than the bells the ADM saved (owner request 27/10/2026)', async () => {
+    // Bells changed in the ADM on 20/10: the lessons of 15/10 may have had other times.
+    render(<FrequencyPageV3 client={clientOf(october(), { extra: { bells, bellsValidFrom: '2026-10-20', grid } })} />);
+    await ready();
+    fireEvent.click(dayButton(15));
     expect(tiles()[2]).toBe('3ª aulaFaltou');
   });
 });

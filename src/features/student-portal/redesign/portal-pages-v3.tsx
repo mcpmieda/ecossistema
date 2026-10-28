@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { CalendarCheck2, CalendarX2, Clock, NotebookPen } from 'lucide-react';
+import { NotebookPen } from 'lucide-react';
 import { StudentPortalShellV1, type StudentShellPropsV1 } from '../shell/student-shell-v1';
 import { portalNowV1 } from '../shell/portal-notices-v1';
 // The portal's own shell styles (helpers such as the screen-reader-only text), loaded unchanged.
@@ -24,9 +24,9 @@ const PortalPageActiveV3 = createContext(true);
 export const usePortalPageActiveV3 = () => useContext(PortalPageActiveV3);
 
 /**
- * The Frequência item of the menu says how it is going (owner decision 23/10/2026): a red calendar
- * with an X while the page has a red warning at the top (its approved sentences), a green calendar
- * with a check otherwise. Unknown until the year is read (the plain icon). The page reports it.
+ * The Frequência item of the menu says how it is going (owner decision 23/10/2026): a red X on the
+ * calendar while the page has a red warning at the top (its approved sentences), a green check
+ * otherwise. Unknown until the year is read (the plain check). The page reports it.
  */
 export type FrequencyToneV3 = 'good' | 'alert' | null;
 const FrequencyToneReportV3 = createContext<(tone: FrequencyToneV3) => void>(() => {});
@@ -35,18 +35,54 @@ export function useReportFrequencyToneV3(tone: FrequencyToneV3) {
   useEffect(() => report(tone), [report, tone]);
 }
 
-/** A menu item's icon: the red calendar while Frequência warns, the live clock for Horário. */
-function NavIconV3({ id, Icon, alert }: Readonly<{ id: PortalPageIdV3; Icon: typeof NotebookPen; alert: boolean }>) {
-  if (alert) return <CalendarX2 size={22} aria-hidden="true" />;
+/** A menu item's icon: Frequência's calendar says how it is going, Horário's clock tells the time. */
+function NavIconV3({ id, frequencyTone }: Readonly<{ id: PortalPageIdV3; frequencyTone: FrequencyToneV3 }>) {
+  if (id === 'frequency') return <FrequencyIconV3 tone={frequencyTone} size={22} />;
   if (id === 'schedule') return <LiveClockIconV3 size={22} />;
-  return <Icon size={22} aria-hidden="true" />;
+  return <NotebookPen size={22} aria-hidden="true" />;
 }
 
-const PAGES: readonly { id: PortalPageIdV3; label: string; Icon: typeof NotebookPen }[] = [
-  { id: 'grades', label: 'Notas', Icon: NotebookPen },
-  { id: 'frequency', label: 'Frequência', Icon: CalendarCheck2 },
-  { id: 'schedule', label: 'Horário', Icon: Clock },
+const PAGES: readonly { id: PortalPageIdV3; label: string }[] = [
+  { id: 'grades', label: 'Notas' },
+  { id: 'frequency', label: 'Frequência' },
+  { id: 'schedule', label: 'Horário' },
 ];
+
+/**
+ * The Frequência item's calendar (owner request 27/10/2026): the calendar in the menu's own color,
+ * like Notas and Horário; only its mark is colored, a green check or a red X. Drawn like lucide's
+ * "calendar-check-2" and "calendar-x-2".
+ */
+function FrequencyIconV3({ tone, size }: Readonly<{ tone: FrequencyToneV3; size: number }>) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 2v3" />
+      <path d="M16 2v3" />
+      <path d="M21 12V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8" />
+      <path d="M3 9h18" />
+      <g className={tone ? `pa3-frequency-mark--${tone}` : undefined}>
+        {tone === 'alert' ? (
+          <>
+            <path d="m17 16 5 5" />
+            <path d="m17 21 5-5" />
+          </>
+        ) : (
+          <path d="m16 19 2 2 4-4" />
+        )}
+      </g>
+    </svg>
+  );
+}
 
 /**
  * The Horário item's clock tells the time (owner request 23/10/2026): its hands follow the school's
@@ -97,7 +133,7 @@ function LiveClockIconV3({ size }: Readonly<{ size: number }>) {
 const SLIDE_MS_V3 = 340;
 const SLIDE_EASING_V3 = 'cubic-bezier(0.4, 0, 0.2, 1)';
 type SlideV3 = 'forward' | 'back';
-const reducedMotionV3 = () =>
+export const reducedMotionV3 = () =>
   globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /** The menu's highlight: one pill that glides under the chosen icon. */
@@ -294,7 +330,7 @@ function PortalMenuPagesV3({
           stop of the keyboard; the bar is fixed, so it shows in the same place. */}
       <nav ref={highlight.nav} className="pa3-nav" aria-label="Menu do Portal">
         <span ref={highlight.pill} className="pa3-nav-highlight" aria-hidden="true" />
-        {pages.map(({ id, label, Icon }) => (
+        {pages.map(({ id, label }) => (
           <button
             key={id}
             type="button"
@@ -304,10 +340,8 @@ function PortalMenuPagesV3({
             aria-describedby={id === 'frequency' && frequencyTone ? 'pa3-frequency-tone' : undefined}
             onClick={() => choose(id)}
           >
-            <span
-              className={'pa3-nav-icon' + (id === 'frequency' && frequencyTone ? ` pa3-nav-icon--${frequencyTone}` : '')}
-            >
-              <NavIconV3 id={id} Icon={Icon} alert={id === 'frequency' && frequencyTone === 'alert'} />
+            <span className="pa3-nav-icon">
+              <NavIconV3 id={id} frequencyTone={frequencyTone} />
             </span>
             <span className="pa3-nav-label">{label}</span>
           </button>

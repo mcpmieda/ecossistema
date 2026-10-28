@@ -74,7 +74,8 @@
 
 .pa-boletim-period-tabs {
   width: 100%;
-  margin: 0 0 1.4rem;
+  /* Close to the list since the column labels are gone (owner request 27/10/2026). */
+  margin: 0 0 0.5rem;
 }
 
 .pa-student-workspace .pa-boletim-period-tabs.tabs[data-orientation='horizontal']
@@ -123,6 +124,13 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* The subjects as wide as the trimester tabs above them (owner request 27/10/2026): no side
+   padding; nothing clipped, so a focused row's ring still shows past the edge. */
+.list-box.pa-workspace-list {
+  padding-inline: 0;
+  overflow: visible;
 }
 
 /* Boletim entrance: each subject rises in slightly after the previous one (up to ~0.5 s). */
@@ -1101,9 +1109,11 @@
   min-width: 0;
   align-items: center;
   gap: 0.75rem;
+  /* Out to the row's edges, as wide as the trimester tabs (owner request 27/10/2026); the padding
+     takes the same amount back, so the icon, name, mark and arrow stay in place. */
   margin-block: -0.3rem;
-  margin-left: -0.3rem;
-  padding: 0.3rem 0.4rem 0.3rem 0.3rem;
+  margin-inline: -0.5rem;
+  padding: 0.3rem 0.9rem 0.3rem 0.5rem;
   border-radius: 0.8rem;
 }
 /* The arrow sits inside the band: tinted to match a red or gold row. */
@@ -1713,19 +1723,6 @@
   font-weight: 600;
 }
 
-.pa-list-columns {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0.25rem 0 0.4rem;
-  /* Lines up with the icon on the left and the mark on the right (the chevron column follows). */
-  padding: 0 2.35rem 0 0.35rem;
-  color: #64748b;
-  font-size: 0.68rem;
-  font-weight: 750;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 .pa-score-head-status[data-band] {
   display: inline-flex;
   align-items: center;

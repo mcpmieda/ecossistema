@@ -44,6 +44,16 @@ describe('Meta do ano (2º trimestre)', () => {
     expect(annualGoalV1(subjectOf(base, { officialOutcome: 'approved' }), 'regular')).toBeNull();
   });
 
+  it("hides the goal when the school's minimum is not 60% (owner request 27/10/2026)", () => {
+    const marked = (value: number, meetsMinimum: boolean) => ({ kind: 'score', value, maximum: 30, meetsMinimum }) as const;
+    const goal = (t1: ReturnType<typeof marked>) =>
+      annualGoalV1(subjectOf([{ period: 'T1', final: t1 }, { period: 'T2', final: marked(20, true) }]), 'regular');
+    // 18 of 30 is 60%: the gradebook agrees, the goal shows.
+    expect(goal(marked(18, true))).not.toBeNull();
+    // 19 of 30 is above 60%, yet the gradebook says below its minimum: another minimum, no goal.
+    expect(goal(marked(19, false))).toBeNull();
+  });
+
   it.each([0, 20, 40])('preserves the T2 target when T3 already has %s points', (t3) => {
     const base = [
       { period: 'T1' as const, final: scoreOf(15, 30) },
