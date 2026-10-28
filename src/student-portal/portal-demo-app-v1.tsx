@@ -1073,15 +1073,16 @@ function AdminSimulatorPanelV1({
   );
 }
 
-/** Portal with invented data and the admin simulator: the local preview and the ADM demo page. */
+/** Portal with invented data and the admin simulator: the local preview and the public demo. */
 export function PortalDemoAppV1() {
   const [admin, setAdmin] = useState<AdminSimulationV1>({
     accessEnabled: true,
     showPartials: true,
     showTermClosing: true,
     termClosingConclusive: true,
-    showFrequency: false,
-    showSchedule: false,
+    // Frequência and Horário open at first (owner request 28/10/2026); the simulator turns them off.
+    showFrequency: true,
+    showSchedule: true,
     frequencyComment: 'auto',
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
