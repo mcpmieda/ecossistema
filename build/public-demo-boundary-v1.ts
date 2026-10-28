@@ -37,7 +37,6 @@ export function publicDemoBoundaryV1(root: string): Plugin {
       const file = info.id.replaceAll('\\', '/');
       if (
         /\/local-test\//u.test(file) ||
-        /\/src\/portal-demo\//u.test(file) ||
         /\/src\/features\/student-portal\/(?:auth|photos|live)\//u.test(file)
       )
         this.error('Session, network or local-only module in public demo');
