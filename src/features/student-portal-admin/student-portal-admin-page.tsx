@@ -19,6 +19,7 @@ import { Alert, Button, Tabs } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
 import type { PolicyScopeV1, ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CustomizationRowV1 } from '../../../shared/student-portal-contracts/customizations-v1';
+import { PUBLIC_DEMO_URL_V1 } from '../../../shared/public-demo-control-v1';
 import { notifyLiveChangeV1 } from '../../shared/live-data/live-refresh-v1';
 import type { CustomizationAreaV1 } from './settings/customization-values-v1';
 import {
@@ -624,7 +625,8 @@ function PortalWorkspace({
               <Button
                 size="sm"
                 variant="secondary"
-                onPress={() => window.open('/portal-demo.html', '_blank', 'noopener')}
+                // The public demo, the one link for everybody (owner request 28/10/2026).
+                onPress={() => window.open(PUBLIC_DEMO_URL_V1, '_blank', 'noopener,noreferrer')}
               >
                 Visão do aluno (demo)
               </Button>
