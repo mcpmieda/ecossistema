@@ -417,9 +417,9 @@ function useMonthSwipeV3(go: (step: number) => void, canBack: boolean, canForwar
  * Frequência uses it only until the server's today arrives (a phone with a wrong clock never moves
  * "HOJE" there); Horário marks today's column with it.
  */
+const SCHOOL_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' });
 /** The phone's date in the school's time zone (America/Bahia), until the server's today arrives. */
-export const schoolDateOnDeviceV3 = () =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
+export const schoolDateOnDeviceV3 = () => SCHOOL_DATE.format(new Date());
 const SCHOOL_UTC_OFFSET_MS = -3 * 3_600_000;
 const DAY_MS = 86_400_000;
 export function useTodayV3() {
@@ -838,14 +838,17 @@ function FrequencyMonthV3({
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  // The school date of the diary's last reading: a day from it on is not read in full yet.
+  const readOn = data.lastReadAt ? SCHOOL_DATE.format(new Date(data.lastReadAt)) : null;
   const stateOf = (date: string): DayStateV3 => {
     const lessons = lessonsAt(date);
     // A holiday, a recess or an event without school (ADM calendar), past or to come: it says why.
     if (offByDate.has(date) && !lessons) return 'holiday';
     if (date > today) return 'future';
-    // No lesson day: never "sem aula" for today (the first reading of the day may not have come
-    // yet), and only in a month read in full for the other days.
-    if (!lessons) return date !== today && monthCount.reliable ? 'off' : 'unknown';
+    // No lesson day: "sem aula" only before the diary's last reading, in a month read in full. Never
+    // for today (the first reading of the day may not have come yet) nor for a day the collector has
+    // not read yet (a reading stopped since then): those are "sem dados".
+    if (!lessons) return monthCount.reliable && readOn !== null && date < readOn ? 'off' : 'unknown';
     // A past day not read in full is only "leitura incompleta", whatever marks it has so far: a
     // colour would be worked out on part of its lessons, and the ring does not count it yet.
     if (date < today && !lessons.every((item) => item.complete)) return 'pending';
