@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
 import { bellDayV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
-import { schoolDaysOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
+import { schoolDaysOffV1, schoolYearSpanV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 
 /*
  * The weekly grid of the student's own class(es) (owner decision 22/10/2026), from
@@ -40,6 +40,8 @@ const answer = z
     today: z.iso.date(),
     now: z.iso.datetime({ offset: true }),
     daysOff: schoolDaysOffV1,
+    // The school year's first and last school day (ADM calendar), or null without a calendar.
+    schoolYear: schoolYearSpanV1.nullable(),
   })
   .strict();
 const failure = z
@@ -79,8 +81,8 @@ export function createStudentScheduleClientV1(
       if (failed.success) throw new FrequencyClientErrorV2(failed.data.state);
       const parsed = answer.safeParse(body);
       if (!response.ok || !parsed.success) throw new FrequencyClientErrorV2('unavailable');
-      const { classes, today, now, daysOff } = parsed.data;
-      return { classes, today, now, daysOff };
+      const { classes, today, now, daysOff, schoolYear } = parsed.data;
+      return { classes, today, now, daysOff, schoolYear };
     },
   };
 }

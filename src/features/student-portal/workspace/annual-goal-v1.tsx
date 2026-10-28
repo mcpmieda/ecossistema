@@ -14,6 +14,16 @@ type ScoreMarkV1 = Extract<PeriodV1['final'], { kind: 'score' }>;
  */
 const ANNUAL_MINIMUM_MILLI_V1 = 60_000;
 const TERM_MAXIMUM_MILLI_V1 = { T1: 30_000, T2: 30_000, T3: 40_000 } as const;
+/**
+ * The 60 of 100 above is the school's minimum only while its published marks agree (owner request
+ * 27/10/2026: the minimum is the gradebook's, never assumed): a T1 or T2 mark whose `meetsMinimum`
+ * (the server's) contradicts 60% of its maximum means another minimum, and the goal is hidden
+ * rather than wrong.
+ */
+const agreesWithAnnualMinimumV1 = (mark: ScoreMarkV1) =>
+  mark.meetsMinimum === null ||
+  mark.maximum === null ||
+  (mark.value * 100_000 >= mark.maximum * ANNUAL_MINIMUM_MILLI_V1 - 1e-6) === mark.meetsMinimum;
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 
 export type AnnualGoalV1 =
@@ -37,6 +47,7 @@ export function annualGoalV1(
   if (!t1 || !t2) return null;
   if (t1.maximum === null || t2.maximum === null) return null;
   if (milli(t1.maximum) !== TERM_MAXIMUM_MILLI_V1.T1 || milli(t2.maximum) !== TERM_MAXIMUM_MILLI_V1.T2) return null;
+  if (!agreesWithAnnualMinimumV1(t1) || !agreesWithAnnualMinimumV1(t2)) return null;
   const t1Milli = milli(t1.value);
   const t2Milli = milli(t2.value);
   const soFarMilli = t1Milli + t2Milli;

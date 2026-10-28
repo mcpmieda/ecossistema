@@ -89,22 +89,22 @@ describe('student shell and canonical profile', () => {
     expect(scheduleClient.read).toHaveBeenCalledOnce();
     expect(frequencyClient.read).not.toHaveBeenCalled();
   });
-  it("marks the Frequência item green, or red with an X while the page has a red warning (owner decision 23/10/2026)", async () => {
+  it("marks the Frequência calendar with a green check, or a red X while the page has a red warning (owner decision 23/10/2026)", async () => {
     const year = (tone: 'alert' | 'good' | null) => ({
       contractVersion: 2 as const, state: 'ready' as const, academicYear: 2026 as const, today: '2026-10-21',
       year: null, lastReadAt: null, months: [],
       comment: tone ? { kind: 'near-limit', tone, text: 'Frase' } : null,
     });
-    const icon = () => document.querySelector('.pa3-nav-item[aria-controls="pa3-panel-frequency"] .pa3-nav-icon')!;
+    const mark = () => document.querySelector('.pa3-nav-item[aria-controls="pa3-panel-frequency"] .pa3-nav-icon g')!;
     for (const [tone, expected, name] of [
-      ['alert', 'pa3-nav-icon--alert', 'Com aviso'],
-      ['good', 'pa3-nav-icon--good', 'Sem aviso'],
-      [null, 'pa3-nav-icon--good', 'Sem aviso'],
+      ['alert', 'pa3-frequency-mark--alert', 'Com aviso'],
+      ['good', 'pa3-frequency-mark--good', 'Sem aviso'],
+      [null, 'pa3-frequency-mark--good', 'Sem aviso'],
     ] as const) {
       const frequencyClient = { read: vi.fn(() => new Promise<never>(() => undefined)), readYear: vi.fn(async () => year(tone)) };
       render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, showFrequency: true } }, frequencyClient }));
       // Unknown until the year is read: the plain icon.
-      await vi.waitFor(() => expect(icon().className).toContain(expected));
+      await vi.waitFor(() => expect(mark().getAttribute('class')).toBe(expected));
       expect(screen.getByRole('button', { name: 'Frequência', description: name })).toBeTruthy();
       cleanup();
     }

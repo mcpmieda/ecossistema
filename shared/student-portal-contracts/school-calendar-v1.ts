@@ -72,6 +72,17 @@ export const schoolDaysOfV1 = (days: readonly SchoolCalendarDayV1[]) =>
     .sort((a, b) => Number(a > b) - Number(a < b));
 
 /**
+ * The school year's first and last school day as the calendar marks them (owner request 27/10/2026:
+ * the Horário ends the year at its last lesson, never at a fixed date). Null with no school day.
+ */
+export const schoolYearSpanV1 = z.object({ firstDay: z.iso.date(), lastDay: z.iso.date() }).strict();
+export type SchoolYearSpanV1 = z.infer<typeof schoolYearSpanV1>;
+export function schoolYearSpanOfV1(days: readonly SchoolCalendarDayV1[]): SchoolYearSpanV1 | null {
+  const school = schoolDaysOfV1(days);
+  return school.length ? { firstDay: school[0]!, lastDay: school.at(-1)! } : null;
+}
+
+/**
  * What the Portal shows of the calendar (no notes, no other kinds): how many school days the year
  * has, how many are left counting today, and the last one (the countdown's end).
  */

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import { CalendarOff, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, PartyPopper, TriangleAlert, X } from 'lucide-react';
 import {
   frequencyCountV2,
@@ -11,14 +11,10 @@ import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import { Spinner } from '@heroui/react/spinner';
-import {
-  BELLS_VALID_FROM_V1,
-  bellLessonV1,
-  bellShiftOfLabelV1,
-} from '../../../../shared/student-portal-contracts/school-bells-v1';
+import { bellLessonV1, bellShiftOfLabelV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolDayOffLabelV1, type SchoolDayOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
-import { usePortalPageActiveV3, useReportFrequencyToneV3 } from './portal-pages-v3';
+import { reducedMotionV3, usePortalPageActiveV3, useReportFrequencyToneV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
 
@@ -41,12 +37,16 @@ const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Jul
 const WEEKDAYS_SHORT = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 /**
- * The school year shown: February to December of the student's academic year
- * (profile.link.academicYear). After December the page stays on December instead of asking for a
- * month the API would refuse.
+ * The months shown: from the month of the school year's first school day to the month of its last,
+ * as the ADM calendar marks them (owner request 27/10/2026: never fixed in the code). Without a
+ * calendar, February to December of the student's academic year (profile.link.academicYear).
+ * After the last month the page stays on it instead of asking for a month the API would refuse.
  */
-const firstMonthOf = (year: number) => `${year}-02`;
-const lastMonthOf = (year: number) => `${year}-12`;
+function monthsOfYearV3(schoolYear: FrequencyYearSummaryV2['schoolYear'], academicYear: number) {
+  return schoolYear?.firstDay && schoolYear.lastDay
+    ? { firstMonth: schoolYear.firstDay.slice(0, 7), lastMonth: schoolYear.lastDay.slice(0, 7) }
+    : { firstMonth: `${academicYear}-02`, lastMonth: `${academicYear}-12` };
+}
 const SHIFT_LABELS: Record<string, string> = { MATUTINO: 'Manhã', VESPERTINO: 'Tarde', NOTURNO: 'Noite', INTEGRAL: 'Integral' };
 
 /** A school day: with or without an absence (89,7% of the school's days have none, 21/10/2026). */
@@ -529,9 +529,8 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
   // wrong clock never moves "HOJE".
   const deviceToday = useTodayV3();
   const today = load.data?.today ?? deviceToday;
-  const firstMonth = firstMonthOf(academicYear);
-  const lastMonth = lastMonthOf(academicYear);
-  // The current month, kept inside the school year: from January the page stays on December.
+  const { firstMonth, lastMonth } = monthsOfYearV3(load.data?.schoolYear, academicYear);
+  // The current month, kept inside the school year: before it, its first month; after it, its last.
   const todayMonth = today.slice(0, 7);
   let current;
   if (todayMonth > lastMonth) {
@@ -581,8 +580,9 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
           onMonth={(next) => setChosenMonth(next >= current ? null : next)}
           daysOff={year.daysOff}
           bells={year.bells}
+          bellsValidFrom={year.bellsValidFrom}
           grid={year.grid}
-          countdown={<SchoolYearCountdownV3 schoolYear={year.schoolYear ?? null} />}
+          countdown={<SchoolYearCountdownV3 schoolYear={year.schoolYear ?? null} today={year.today} />}
         />
       ) : (
         <FrequencyStatusV3 error={load.error} onLogin={onLogin} onRetry={load.retry} />
@@ -610,20 +610,36 @@ function FrequencyCommentV3({ comment }: Readonly<{ comment: NonNullable<Frequen
   );
 }
 
+const dateLabelV3 = (date: string) => date.split('-').reverse().join('/');
 /**
  * How long until the school year ends (owner request 22/10/2026), with the same split-flap clock as
  * the portal's opening countdown. It runs to the end of the last school day of the calendar marked
- * in the ADM, and says how many school days are left. Nothing while no calendar is marked.
+ * in the ADM, and says how many school days are left. Before the first school day, how long until
+ * the year starts (owner request 27/10/2026). Nothing while no calendar is marked.
  */
-function SchoolYearCountdownV3({ schoolYear }: Readonly<{ schoolYear: NonNullable<FrequencyYearSummaryV2['schoolYear']> | null }>) {
-  if (!schoolYear?.lastDay) return null;
-  const [year, month, day] = schoolYear.lastDay.split('-');
+function SchoolYearCountdownV3({
+  schoolYear,
+  today,
+}: Readonly<{ schoolYear: NonNullable<FrequencyYearSummaryV2['schoolYear']> | null; today: string }>) {
+  if (!schoolYear?.firstDay || !schoolYear.lastDay) return null;
+  if (today < schoolYear.firstDay)
+    return (
+      <Card className="pa3-card pa3-countdown">
+        <PortalCountdownV1
+          at={`${schoolYear.firstDay}T00:00:00-03:00`}
+          title="O ano letivo começa em"
+          when={dateLabelV3(schoolYear.firstDay)}
+          done="O ano letivo começou."
+        />
+        <p className="pa3-countdown-days">{plural(schoolYear.schoolDays, 'dia letivo', 'dias letivos')} no ano.</p>
+      </Card>
+    );
   return (
     <Card className="pa3-card pa3-countdown">
       <PortalCountdownV1
         at={`${schoolYear.lastDay}T23:59:59-03:00`}
         title="O ano letivo termina em"
-        when={`${day}/${month}/${year}`}
+        when={dateLabelV3(schoolYear.lastDay)}
         done="O ano letivo terminou."
       />
       <p className="pa3-countdown-days">
@@ -684,7 +700,8 @@ function MonthHeadV3({
 function OpenDayNoteV3({ isToday }: Readonly<{ isToday: boolean }>) {
   return (
     <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
-      {isToday ? 'Dia em andamento · conta a partir de amanhã' : 'Leitura incompleta · conta quando o diário for lido'}
+      {/* The teacher marks an absence during the lesson; a presence is only confirmed the next day (owner request 27/10/2026). */}
+      {isToday ? 'Falta aparece na hora · presença confirma amanhã' : 'Leitura incompleta · conta quando o diário for lido'}
     </Chip>
   );
 }
@@ -709,6 +726,7 @@ function FrequencyMonthV3({
   countdown,
   daysOff = [],
   bells = null,
+  bellsValidFrom = null,
   grid = [],
 }: Readonly<{
   data: FrequencySummaryV2;
@@ -726,18 +744,20 @@ function FrequencyMonthV3({
   daysOff?: readonly SchoolDayOffV1[];
   /** Each lesson's time by shift and weekday (ADM) and the week's subjects, for an absence. */
   bells?: Exclude<FrequencyYearSummaryV2['bells'], undefined>;
+  /** From when those times hold (the ADM's bells); null without bells. */
+  bellsValidFrom?: string | null;
   grid?: Exclude<FrequencyYearSummaryV2['grid'], undefined>;
 }>) {
   const offByDate = useMemo(() => new Map(daysOff.map((day) => [day.date, day])), [daysOff]);
   /**
    * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula
-   * (08:50–09:45), MATEMATICA"): only from the day the current bells began (22/06), never for an
-   * older day whose times or grid may have been different.
+   * (08:50–09:45), MATEMATICA"): only from the day the current bells hold, never for an older day
+   * whose times or grid may have been different.
    */
   const lessonInfo = (date: string, shift: string, slot: number) => {
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
     const bellShift = bellShiftOfLabelV1(shift);
-    if (date < BELLS_VALID_FROM_V1 || weekday < 1 || weekday > 5 || !bellShift) return null;
+    if (!bellsValidFrom || date < bellsValidFrom || weekday < 1 || weekday > 5 || !bellShift) return null;
     const time = bells ? bellLessonV1(bells[bellShift][weekday as 1 | 2 | 3 | 4 | 5], slot) : null;
     const subject =
       grid
@@ -795,6 +815,25 @@ function FrequencyMonthV3({
   };
   // Only the calendar card swipes, like the arrows in its head.
   const swipe = useMonthSwipeV3(go, month > firstMonth, month < current);
+  // A new month slides in a little from the side it comes from, fading in (owner request
+  // 27/10/2026): its name and its days; the legend stays still.
+  const calendar = useRef<HTMLFieldSetElement>(null);
+  const monthBefore = useRef(month);
+  useLayoutEffect(() => {
+    const from = monthBefore.current;
+    monthBefore.current = month;
+    const grid = calendar.current;
+    if (from === month || !grid || typeof grid.animate !== 'function' || reducedMotionV3()) return;
+    const side = month > from ? 1 : -1;
+    for (const element of [grid, grid.closest('.pa3-month')?.querySelector('[aria-live]')])
+      element?.animate(
+        [
+          { opacity: 0, transform: `translateX(${side * 28}px)` },
+          { opacity: 1, transform: 'none' },
+        ],
+        { duration: 280, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+      );
+  }, [month]);
 
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
@@ -818,7 +857,7 @@ function FrequencyMonthV3({
   const ariaOf = (date: string, state: DayStateV3) => {
     const day = dayAt(date);
     const isDay = date === today;
-    const todayNote = isDay ? ' (hoje, dia em andamento: conta a partir de amanhã)' : '';
+    const todayNote = isDay ? ' (hoje: falta aparece na hora, presença confirma amanhã)' : '';
     const text: Record<DayStateV3, string> = {
       clear: 'nenhuma falta registrada',
       missed: day ? daySentence(day, isDay) : '',
@@ -872,15 +911,20 @@ function FrequencyMonthV3({
           {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
           <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Faltou algumas aulas</li>
           <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
-          {/* A day without absence (owner request 23/10/2026): a white square, as on the calendar. */}
-          <li><span className="pa3-dot pa3-dot--clear" /> Sem falta</li>
+          {/* A day without absence (owner requests 23 and 27/10/2026): a white square with its check, as on the calendar. */}
+          <li>
+            <span className="pa3-dot pa3-dot--clear">
+              <Check size={8} strokeWidth={4} aria-hidden="true" />
+            </span>{' '}
+            Sem falta
+          </li>
           {/* A holiday or recess (owner decision 23/10/2026): tap it to see why there was no school. */}
           {daysOff.some((day) => day.date.startsWith(month)) ? (
             <li><span className="pa3-dot pa3-dot--holiday" /> Feriado ou recesso</li>
           ) : null}
         </ul>
         {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
-        <fieldset className="min-w-auto pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`}>
+        <fieldset ref={calendar} className="min-w-auto pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`}>
           {WEEKDAYS_SHORT.map((day, index) => (
             <span key={index} className="pa3-weekday" aria-hidden="true">
               {day}
@@ -910,6 +954,8 @@ function FrequencyMonthV3({
                 onClick={() => setPicked(date)}
               >
                 <span className="pa3-day-number">{index + 1}</span>
+                {/* A school day already over without absence (owner request 27/10/2026): a small check under the number. */}
+                {state === 'clear' ? <Check className="pa3-day-check" size={10} strokeWidth={3.5} aria-hidden="true" /> : null}
                 {date === today ? <span className="pa3-day-today">HOJE</span> : null}
               </button>
             );

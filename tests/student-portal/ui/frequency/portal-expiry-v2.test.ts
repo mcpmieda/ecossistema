@@ -242,18 +242,21 @@ it("adds the days without school, each lesson's time and, with the Horário on, 
   mocks.showSchedule = true;
   mocks.unsafe.mockReset()
     .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
-    .mockResolvedValueOnce([{ bells_json: officialBells2026V1() }]).mockResolvedValueOnce([calendar])
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: true, saved_on: '2026-10-23' }]).mockResolvedValueOnce([calendar])
     .mockResolvedValueOnce([{ schedule: grid }]);
   expect(await read()).toMatchObject({
     daysOff: [{ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' }],
     bells: officialBells2026V1(),
+    // Saved by the system (0030/0031): the official sheets' day, not the day it was saved.
+    bellsValidFrom: '2026-06-22',
     grid: [{ shift: 'matutino', lessons: [{ weekday: 1, slot: 3, subject: 'MATEMATICA' }] }],
   });
   // Horário off: no subject, and the grid is never read.
   mocks.showSchedule = false;
   mocks.unsafe.mockReset()
     .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
-    .mockResolvedValueOnce([{ bells_json: officialBells2026V1() }]).mockResolvedValueOnce([calendar]);
-  expect(await read()).toMatchObject({ grid: [], bells: officialBells2026V1() });
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: false, saved_on: '2026-10-25' }]).mockResolvedValueOnce([calendar]);
+  // Bells saved by a person in the ADM: they hold from that day.
+  expect(await read()).toMatchObject({ grid: [], bells: officialBells2026V1(), bellsValidFrom: '2026-10-25' });
   expect(mocks.unsafe.mock.calls.some(([query]) => query.includes('read_portal_schedule'))).toBe(false);
 });

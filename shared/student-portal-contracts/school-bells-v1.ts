@@ -59,11 +59,19 @@ export const schoolBellsV1 = z
 export type SchoolBellsV1 = z.infer<typeof schoolBellsV1>;
 
 /**
- * The sheets the bells came from are "Horário 2026 — 22/06": a lesson's time (and, with the class's
- * current grid, its subject) is shown for an absence only from that day on, never for an older one
- * whose times may have been different.
+ * The sheets the system saved the bells from are "Horário 2026 — 22/06" (student-portal 0030, and
+ * 0031 adding the parada): a lesson's time (and, with the class's current grid, its subject) is shown
+ * for an absence only from the day the bells hold, never for an older one whose times may have been
+ * different.
  */
 export const BELLS_VALID_FROM_V1 = '2026-06-22';
+/**
+ * From when the ADM's bells hold (owner request 27/10/2026: derived, never fixed in the code): the
+ * official sheets' day while the bells are still the ones the system saved, otherwise the day a
+ * person saved them in the ADM, so a change there never re-times older lessons.
+ */
+export const bellsValidFromV1 = (savedBySystem: boolean, savedOn: string) =>
+  savedBySystem ? BELLS_VALID_FROM_V1 : savedOn;
 
 /** The shift a class's label names (Smecel labels end in "- MATUTINO", "- VESPERTINO (…)"). */
 export function bellShiftOfLabelV1(label: string): BellShiftV1 | null {

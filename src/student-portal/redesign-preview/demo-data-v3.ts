@@ -9,8 +9,8 @@ import type { StudentFrequencyClientV2 } from '../../features/student-portal/fre
 import type { StudentScheduleClientV1 } from '../../features/student-portal/schedule/client-v1';
 import { schoolDateOnDeviceV3 } from '../../features/student-portal/redesign/frequency-page-v3';
 import { officialCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
-import { schoolDaysOffOfV1, schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
-import { officialBells2026V1 } from '../../../shared/student-portal-contracts/school-bells-v1';
+import { schoolDaysOffOfV1, schoolDaysOfV1, schoolYearProgressOfV1, schoolYearSpanOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
+import { BELLS_VALID_FROM_V1, officialBells2026V1 } from '../../../shared/student-portal-contracts/school-bells-v1';
 import { frequencyCommentV2, type FrequencyCommentKindV2 } from '../../../shared/attendance-contracts/frequency-comment-v2';
 
 const demoCalendarV3 = officialCalendar2026V1;
@@ -23,7 +23,8 @@ export type DemoFrequencyV3 = FrequencySummaryV2 & { days: FrequencyDayV2[] };
  * code and the official preview stay untouched. Delete the redesign-preview folder and
  * redesign-preview.html to undo it.
  */
-const TERM_MAXIMUM = { T1: 30, T2: 30, T3: 40 } as const;
+// Published up to the 2nd trimester (owner request 27/10/2026): the 3rd is still going on.
+const TERM_MAXIMUM = { T1: 30, T2: 30 } as const;
 const score = (value: number, maximum: number) => ({
   kind: 'score' as const,
   value,
@@ -38,28 +39,25 @@ const partial = (label: string, value: number, maximum: number) => ({
   ...(/^Avaliação \d/u.test(label) ? { assessment: true as const } : {}),
 });
 type TermV1 = readonly [av1: number, av2: number, work: number, list: number, class_: number];
-const term = (period: 'T1' | 'T2' | 'T3', [av1, av2, work, list, class_]: TermV1) => {
-  const assessmentMax = period === 'T3' ? 15 : 10;
-  return {
-    period,
-    final: score(av1 + av2 + work + list + class_, TERM_MAXIMUM[period]),
-    partials: [
-      partial('Avaliação 1', av1, assessmentMax),
-      partial('Avaliação 2', av2, assessmentMax),
-      partial('TRABALHO EM GRUPO', work, 4),
-      partial('LISTA DE EXERCÍCIOS', list, 3),
-      partial('PARTICIPAÇÃO', class_, 3),
-    ],
-  };
-};
-const CASES: readonly [label: string, t1: TermV1, t2: TermV1, t3: TermV1][] = [
-  ['MATEMÁTICA', [10, 9.5, 4, 3, 2.5], [10, 10, 4, 3, 2.5], [15, 14, 4, 3, 2.5]],
-  ['INGLÊS', [9.5, 9.5, 4, 3, 2.5], [8, 8.5, 3.5, 2.5, 2.5], [13, 13, 3.5, 2.5, 2.5]],
-  ['PORTUGUÊS', [7, 7, 3, 2, 2], [8, 8, 3, 2.5, 2.5], [12, 12, 3, 2.5, 2.5]],
-  ['HISTÓRIA', [7.5, 7, 3, 2.5, 2], [4.5, 4, 2, 1.5, 2], [10, 9, 2.5, 2, 2]],
-  ['CIÊNCIAS', [6, 6, 3, 2, 2], [3, 2.5, 1, 1, 2], [11, 10, 3, 2, 2]],
-  ['ARTE', [6.5, 6.5, 3, 2, 2], [6.5, 6.5, 3, 2, 2], [10, 10, 3, 2, 2]],
-  ['GEOGRAFIA', [6, 5.5, 2.5, 2, 2], [6.5, 6, 3, 2, 2], [9, 9, 2.5, 1.5, 2]],
+const term = (period: keyof typeof TERM_MAXIMUM, [av1, av2, work, list, class_]: TermV1) => ({
+  period,
+  final: score(av1 + av2 + work + list + class_, TERM_MAXIMUM[period]),
+  partials: [
+    partial('Avaliação 1', av1, 10),
+    partial('Avaliação 2', av2, 10),
+    partial('TRABALHO EM GRUPO', work, 4),
+    partial('LISTA DE EXERCÍCIOS', list, 3),
+    partial('PARTICIPAÇÃO', class_, 3),
+  ],
+});
+const CASES: readonly [label: string, t1: TermV1, t2: TermV1][] = [
+  ['MATEMÁTICA', [10, 9.5, 4, 3, 2.5], [10, 10, 4, 3, 2.5]],
+  ['INGLÊS', [9.5, 9.5, 4, 3, 2.5], [8, 8.5, 3.5, 2.5, 2.5]],
+  ['PORTUGUÊS', [7, 7, 3, 2, 2], [8, 8, 3, 2.5, 2.5]],
+  ['HISTÓRIA', [7.5, 7, 3, 2.5, 2], [4.5, 4, 2, 1.5, 2]],
+  ['CIÊNCIAS', [6, 6, 3, 2, 2], [3, 2.5, 1, 1, 2]],
+  ['ARTE', [6.5, 6.5, 3, 2, 2], [6.5, 6.5, 3, 2, 2]],
+  ['GEOGRAFIA', [6, 5.5, 2.5, 2, 2], [6.5, 6, 3, 2, 2]],
 ];
 
 export const REDESIGN_SELF_V3: SelfResponseV1 = selfResponseV1.parse({
@@ -80,14 +78,14 @@ export const REDESIGN_SELF_V3: SelfResponseV1 = selfResponseV1.parse({
     publicationVersion: 'preview:publication:3',
   },
   generatedAt: '2026-12-10T12:00:00-03:00',
-  endedPeriods: ['T1', 'T2', 'T3'],
+  endedPeriods: ['T1', 'T2'],
   showFrequency: true,
   showSchedule: true,
-  subjects: CASES.map(([label, t1, t2, t3], order) => ({
+  subjects: CASES.map(([label, t1, t2], order) => ({
     subjectId: 970001 + order,
     label,
     order,
-    periods: [term('T1', t1), term('T2', t2), term('T3', t3)],
+    periods: [term('T1', t1), term('T2', t2)],
   })),
 });
 
@@ -96,10 +94,13 @@ export const REDESIGN_SELF_V3: SelfResponseV1 = selfResponseV1.parse({
  * days, six on Tuesdays and Thursdays; no configuration involved, the preview just imitates the diary.
  */
 const lessonsOn = (date: string) => ([2, 4].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? 6 : 5);
-/** A holiday in the preview: the diary's calendar icon, so no lessons that day. */
-const HOLIDAYS = new Set(['2026-10-12']);
-/** The first school day of 2026, as in the real diary (23/02). */
-const FIRST_SCHOOL_DAY = '2026-02-23';
+/**
+ * The preview diary's lesson days: the school days of the official calendar, the only ones the
+ * server counts (owner request 27/10/2026: the ring's "dias já se passaram" as in the real portal).
+ */
+const SCHOOL_DAYS = new Set(schoolDaysOfV1(demoCalendarV3()));
+/** A school Saturday is a compensation day with automatic attendance: never an absence. */
+const isSaturday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay() === 6;
 const pad = (value: number) => String(value).padStart(2, '0');
 /** Today as the school's clock reads it (the same helper as the real page). */
 export const previewTodayV3 = schoolDateOnDeviceV3;
@@ -122,7 +123,7 @@ const OCTOBER: Record<string, readonly [slot: number, mark: 'X' | 'J'][]> = {
   '2026-10-06': [[1, 'X'], [2, 'X']],
   '2026-10-08': [[1, 'X'], [2, 'X'], [3, 'X'], [4, 'X'], [5, 'X'], [6, 'X']],
   '2026-10-09': [[1, 'J'], [2, 'J'], [3, 'J'], [4, 'J'], [5, 'J']],
-  '2026-10-14': [[4, 'X'], [5, 'X']],
+  '2026-10-19': [[4, 'X'], [5, 'X']],
   '2026-10-15': [[6, 'J']],
   '2026-10-16': [[3, 'X']],
   '2026-10-20': [[1, 'X']],
@@ -158,9 +159,7 @@ function marksOf(month: string, today: string): FrequencySummaryV2['marks'] {
   for (let day = 1; day <= days; day++) {
     const date = `${month}-${pad(day)}`;
     if (date > today) break;
-    if (date < FIRST_SCHOOL_DAY) continue;
-    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-    if (weekday === 0 || weekday === 6 || HOLIDAYS.has(date)) continue;
+    if (!SCHOOL_DAYS.has(date) || isSaturday(date)) continue;
     const dayMarks = month === '2026-10' ? (OCTOBER[date] ?? []) : randomDayMarksV3(month, date, random);
     for (const [slot, mark] of dayMarks)
       marks.push({ date, slot, shift: 'VESPERTINO', mark, classLabels: ['TURMA ARTIFICIAL'] });
@@ -174,9 +173,7 @@ function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
   for (let day = 1; day <= days; day++) {
     const date = `${month}-${pad(day)}`;
     if (date > today) break;
-    if (date < FIRST_SCHOOL_DAY) continue;
-    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-    if (weekday === 0 || weekday === 6 || HOLIDAYS.has(date)) continue;
+    if (!SCHOOL_DAYS.has(date)) continue;
     result.push({ date, shift: 'VESPERTINO', slots: Array.from({ length: lessonsOn(date) }, (_, index) => index + 1), complete: true });
   }
   return result;
@@ -244,7 +241,12 @@ export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
   const first = answers[0] ?? demoFrequencyV3('2026-01', today);
   const schoolYear = schoolYearProgressOfV1(demoCalendarV3(), today);
   return {
-    comment: frequencyCommentV2({ months: answers, today, remainingSchoolDays: schoolYear.remaining }),
+    comment: frequencyCommentV2({
+      months: answers,
+      today,
+      schoolDays: schoolYear.schoolDays,
+      remainingSchoolDays: schoolYear.remaining,
+    }),
     contractVersion: 2,
     state: 'ready',
     academicYear: 2026,
@@ -255,6 +257,8 @@ export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
     schoolYear,
     daysOff: schoolDaysOffOfV1(demoCalendarV3()),
     bells: officialBells2026V1(),
+    // The bells the system saved: the official sheets' day.
+    bellsValidFrom: BELLS_VALID_FROM_V1,
     grid: [{ shift: 'vespertino', lessons: demoScheduleV3()[0]!.lessons }],
     months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => month),
   };
@@ -336,6 +340,7 @@ export const createDemoScheduleClientV3 = (): StudentScheduleClientV1 => ({
             today: previewTodayV3(),
             now: previewNowV3(),
             daysOff: schoolDaysOffOfV1(demoCalendarV3()),
+            schoolYear: schoolYearSpanOfV1(demoCalendarV3()),
           }),
         250,
       );
