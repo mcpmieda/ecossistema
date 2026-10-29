@@ -536,7 +536,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     if (existing.length === 0 ? expectedVersion !== 0 : existing.some((row) => integer(row.version, 'setting-version') !== expectedVersion)) return false;
     await rows(this.sql, 'DELETE FROM student_portal.setting WHERE scope_key=$1', [key]);
     const [kind, year, classId, accountId] = scopeColumns(parsed.scope);
-    const fields = ['accessEnabled','accessSchedule','showPartials','autoUpdate','showFinalResult','showTermClosing','termClosingConclusive','showFrequency','showSchedule','allowedPeriods','risk','calendar'] as const;
+    const fields = ['accessEnabled','accessSchedule','showPartials','autoUpdate','showFinalResult','showTermClosing','termClosingConclusive','showFrequency','showSchedule','showIncidents','allowedPeriods','risk','calendar'] as const;
     for (const field of fields) {
       // No schedule is stored as no row (migration 0021 may not be applied yet).
       if (field === 'accessSchedule' && parsed.value.accessSchedule === null) continue;
@@ -544,6 +544,8 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       if (field === 'showFrequency' && !parsed.value.showFrequency) continue;
       // Hidden schedule too (migration 0028 may not be applied yet).
       if (field === 'showSchedule' && !parsed.value.showSchedule) continue;
+      // And hidden incidents (migration 0032 may not be applied yet).
+      if (field === 'showIncidents' && !parsed.value.showIncidents) continue;
       await rows(
         this.sql,
         `INSERT INTO student_portal.setting

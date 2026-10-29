@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   CalendarDays,
   DoorOpen,
+  FileWarning,
   GraduationCap,
   LockKeyhole,
   NotebookPen,
@@ -46,6 +47,14 @@ const categories = [
     title: 'Frequência',
     description: 'Escolha se os alunos veem a própria frequência no Portal.',
     fields: ['showFrequency'],
+  },
+  {
+    id: 'incidents',
+    label: 'Ocorrências',
+    icon: FileWarning,
+    title: 'Ocorrências',
+    description: 'Escolha se as famílias veem as ocorrências do aluno registradas no Smecel.',
+    fields: ['showIncidents'],
   },
   {
     id: 'calendar',

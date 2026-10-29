@@ -40,13 +40,14 @@ const FIELDS = [
   'termClosingConclusive',
   'showFrequency',
   'showSchedule',
+  'showIncidents',
   'allowedPeriods',
   'risk',
   'calendar',
 ] as const;
 type Field = (typeof FIELDS)[number];
-/** Added by migrations 0020 (#1132), 0021 (schedules), 0027 (frequência) and 0028 (horário). Absent school rows read as off / none. */
-const OPTIONAL_SCHOOL_FIELDS: ReadonlySet<Field> = new Set<Field>(['showTermClosing', 'termClosingConclusive', 'accessSchedule', 'showFrequency', 'showSchedule']);
+/** Added by migrations 0020 (#1132), 0021 (schedules), 0027 (frequência), 0028 (horário) and 0032 (ocorrências). Absent school rows read as off / none. */
+const OPTIONAL_SCHOOL_FIELDS: ReadonlySet<Field> = new Set<Field>(['showTermClosing', 'termClosingConclusive', 'accessSchedule', 'showFrequency', 'showSchedule', 'showIncidents']);
 const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.size;
 const schoolFieldCountValidV1 = (count: number) =>
   count >= REQUIRED_SCHOOL_FIELD_COUNT && count <= FIELDS.length;
@@ -556,10 +557,10 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
       );
       if (rows.length === 0) {
         const defaults = initialPolicyDefaultsV1();
-        // No row already reads as off for showFrequency and showSchedule, so the bootstrap never needs
-        // migrations 0027 or 0028.
+        // No row already reads as off for showFrequency, showSchedule and showIncidents, so the
+        // bootstrap never needs migrations 0027, 0028 or 0032.
         for (const field of FIELDS)
-          if (defaults[field] !== null && field !== 'showFrequency' && field !== 'showSchedule')
+          if (defaults[field] !== null && field !== 'showFrequency' && field !== 'showSchedule' && field !== 'showIncidents')
             await writeField(tx, SCHOOL, field, defaults[field], 1);
       }
       return this.readSnapshotInTransaction(tx, SCHOOL);
