@@ -170,7 +170,10 @@ it.each([false, true])(
       false,
     );
     const reads = fetcher.mock.calls.filter(([path]) => path === '/api/student-reconciliation/v1');
-    expect(reads.map(([, init]) => JSON.parse(String(init.body)).operation).sort()).toEqual([
+    const operations = reads.map(([, init]) => JSON.parse(String(init.body)).operation as string);
+    // The Coletor's automatic report panel reads too (read-only, refreshed with the list).
+    expect(operations).toContain('automatic-report');
+    expect(operations.filter((operation) => operation !== 'automatic-report').sort()).toEqual([
       'catalog',
       'detail',
       'list',
