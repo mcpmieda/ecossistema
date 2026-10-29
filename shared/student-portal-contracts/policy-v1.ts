@@ -168,6 +168,9 @@ export const settingsValueV1 = z
     // Horário no Portal do Aluno (owner decision 22/10/2026). Off: no "Horário" tab and the schedule
     // API refuses the read. A missing school row reads as off.
     showSchedule: z.boolean(),
+    // Ocorrências no Portal do Aluno (owner decision 29/10/2026). Off: no "Ocorrências" tab. A
+    // missing school row reads as off.
+    showIncidents: z.boolean(),
     allowedPeriods: z
       .array(periodV1)
       .max(6)
@@ -190,6 +193,8 @@ export const OPTIONAL_STORED_POLICY_DEFAULTS_V1 = {
   showFrequency: false,
   // Migration 0028 (horário): no row means the "Horário" tab stays hidden.
   showSchedule: false,
+  // Migration 0032 (ocorrências): no row means the "Ocorrências" tab stays hidden.
+  showIncidents: false,
 } as const;
 export const completeStoredPolicyValueV1 = (stored: unknown): unknown =>
   stored !== null && typeof stored === 'object' && !Array.isArray(stored)
@@ -198,7 +203,7 @@ export const completeStoredPolicyValueV1 = (stored: unknown): unknown =>
 /** Every policy option, as stored one row per option and scope. */
 export const POLICY_FIELDS_V1 = [
   'accessEnabled', 'accessSchedule', 'showPartials', 'autoUpdate', 'showFinalResult',
-  'showTermClosing', 'termClosingConclusive', 'showFrequency', 'showSchedule', 'allowedPeriods', 'risk', 'calendar',
+  'showTermClosing', 'termClosingConclusive', 'showFrequency', 'showSchedule', 'showIncidents', 'allowedPeriods', 'risk', 'calendar',
 ] as const;
 export const policyFieldV1 = z.enum(POLICY_FIELDS_V1);
 export type PolicyFieldV1 = z.infer<typeof policyFieldV1>;
@@ -223,6 +228,7 @@ export const effectiveSettingsV1 = z
         termClosingConclusive: policyScopeV1,
         showFrequency: policyScopeV1,
         showSchedule: policyScopeV1,
+        showIncidents: policyScopeV1,
         allowedPeriods: policyScopeV1,
         risk: policyScopeV1,
         calendar: policyScopeV1,

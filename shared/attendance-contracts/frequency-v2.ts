@@ -69,6 +69,21 @@ const scheduleLesson = z.object({
   weekday: z.number().int().min(1).max(5), slot,
   subject: z.string().trim().min(1).max(120),
 }).strict();
+const smecelId = z.string().regex(/^[1-9]\d{0,11}$/u);
+/**
+ * One Smecel "Ocorrência" as its student's page shows it. Only a suspension has a leave; the Smecel
+ * leaves its dates or its days blank at times (null), never all three.
+ */
+const incident = z.object({
+  sourceIncidentId: smecelId,
+  kind: z.string().trim().min(1).max(80),
+  date: civilDate,
+  sourceClassLabel: label,
+  leave: z.object({ from: civilDate.nullable(), to: civilDate.nullable(), days: z.number().int().min(0).max(366).nullable() }).strict()
+    .refine(v => v.from !== null || v.to !== null || v.days !== null)
+    .refine(v => v.from === null || v.to === null || v.from <= v.to).nullable(),
+  description: z.string().trim().min(1).max(8000),
+}).strict();
 const mutation = { ...read, requestId: uid };
 const fenced = { ...mutation, fencingToken: revision };
 export const frequencyRequestV2 = z.discriminatedUnion('operation', [
@@ -106,6 +121,23 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
       .refine(v => new Set(v.map(c => c.classId)).size === v.length)
       .refine(v => new Set(v.map(c => c.sourceClassId)).size === v.length),
   }).strict(),
+  /**
+   * The Smecel "Ocorrências" of the year (owner decision 29/10/2026), every student in one capture.
+   * `classId` is the student's class linked in the Centro (null when none of the student's Smecel
+   * classes is). `complete` says the collector read every page and every student, with the counts the
+   * Smecel list shows: only then may a record missing from the capture be marked removed.
+   */
+  z.object({ operation: z.literal('incident-collect'), ...fenced, sourceVersion, observedAt, complete: z.boolean(),
+    students: z.array(z.object({
+      sourceStudentId: smecelId, name: label, classId: classId.nullable(), sourceClassLabel: label.nullable(),
+      incidents: z.array(incident).min(1).max(500),
+    }).strict().refine(v => (v.classId === null) === (v.sourceClassLabel === null))).max(5000)
+      .refine(v => new Set(v.map(s => s.sourceStudentId)).size === v.length)
+      .refine(v => {
+        const ids = v.flatMap(s => s.incidents.map(i => i.sourceIncidentId));
+        return new Set(ids).size === ids.length;
+      }),
+  }).strict(),
   z.object({ operation: z.literal('resolve-conflict'), ...mutation, conflictId: uid, expectedRevision: revision, mark: z.enum(['X','J']).nullable(), reason: z.string().trim().min(1).max(500) }).strict(),
   z.object({ operation: z.literal('monthly-summary'), ...read, studentUid: uid, month: z.string().regex(/^2026-(0[1-9]|1[0-2])$/u) }).strict(),
 ]);
@@ -114,6 +146,8 @@ export type FrequencyCollectionV2 = Extract<FrequencyRequestV2, { operation: 'co
 export type FrequencyUnchangedV2 = Extract<FrequencyRequestV2, { operation: 'collect-unchanged' }>;
 export type FrequencyScheduleCollectionV2 = Extract<FrequencyRequestV2, { operation: 'schedule-collect' }>;
 export type FrequencyScheduleLessonV2 = z.infer<typeof scheduleLesson>;
+export type FrequencyIncidentCollectionV2 = Extract<FrequencyRequestV2, { operation: 'incident-collect' }>;
+export type FrequencyIncidentV2 = z.infer<typeof incident>;
 export type FrequencyScheduleV2 = z.infer<typeof frequencyScheduleV2>;
 
 /** Server-created only, after Entra session or payload-bound device proof. */
@@ -266,6 +300,13 @@ export function frequencyContentHashV2(input: Pick<FrequencyCollectionV2,
   return frequencyPayloadHashV2({
     classId: input.classId, sourceClassId: input.sourceClassId, sourceClassLabel: input.sourceClassLabel,
     rosterComplete: input.rosterComplete, records: input.records, coverage: input.coverage, marks: input.marks,
+  });
+}
+/** One Smecel record's content as stored and compared: an edit in the Smecel changes it. */
+export function frequencyIncidentHashV2(item: FrequencyIncidentV2): Promise<string> {
+  return frequencyPayloadHashV2({
+    kind: item.kind, date: item.date, sourceClassLabel: item.sourceClassLabel, leave: item.leave,
+    description: item.description,
   });
 }
 /** One class's weekly grid as stored and compared: lessons in day then position order. */

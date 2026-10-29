@@ -22,6 +22,7 @@ export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   termClosingConclusive: 'Tipo de orientação',
   showFrequency: 'Frequência no Portal',
   showSchedule: 'Horário no Portal',
+  showIncidents: 'Ocorrências no Portal',
   allowedPeriods: 'Períodos permitidos',
   risk: 'Segurança do acesso',
   calendar: 'Datas',

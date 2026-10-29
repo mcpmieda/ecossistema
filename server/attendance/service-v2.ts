@@ -6,10 +6,12 @@ import {
   frequencyCountV2,
   frequencyPayloadHashV2,
   frequencyScheduleHashV2,
+  frequencyIncidentHashV2,
   type FrequencyRequestV2,
   type FrequencyActorV2,
   type FrequencyCollectionV2,
   type FrequencyScheduleCollectionV2,
+  type FrequencyIncidentCollectionV2,
   type FrequencyUnchangedV2,
   type FrequencyDeviceV2,
   type FrequencyFailureEntryV2,
@@ -85,9 +87,9 @@ function text(value: unknown): string {
   throw new FrequencyErrorV2('unavailable', 503, 'unexpected-database-value');
 }
 const iso = (v: unknown) => new Date(text(v)).toISOString();
-const DEVICE_ONLY = new Set(['lease', 'collect', 'collect-unchanged', 'schedule-collect', 'heartbeat', 'release']);
+const DEVICE_ONLY = new Set(['lease', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'heartbeat', 'release']);
 /** Operations that write evidence under the live lease, as `collect` does. */
-const COLLECTING = new Set(['collect', 'collect-unchanged', 'schedule-collect']);
+const COLLECTING = new Set(['collect', 'collect-unchanged', 'schedule-collect', 'incident-collect']);
 const ADMIN_ONLY = new Set(['revoke-device', 'resolve-conflict', 'monthly-summary']);
 const UNLEASED = new Set(['heartbeat', 'lease', 'release']);
 
@@ -1435,6 +1437,160 @@ async function collectSchedule(
   }
   return { classes };
 }
+/**
+ * Each student's Centro link (owner decision 29/10/2026): the collector names the student's Smecel
+ * class linked in the Centro; the name is resolved in that class like a diary's. A class that is not
+ * (or no longer) linked, or a student not found, leaves the student's records without a link: they
+ * are kept and linked at a later reading, never refused.
+ */
+async function incidentStudents(tx: Tx, input: FrequencyIncidentCollectionV2) {
+  const links = new Map<string, { uid: string; classId: number } | null>();
+  const groups = new Map<string, FrequencyIncidentCollectionV2['students']>();
+  for (const student of input.students) {
+    if (student.classId === null || student.sourceClassLabel === null) {
+      links.set(student.sourceStudentId, null);
+      continue;
+    }
+    const key = `${student.classId}\u0000${student.sourceClassLabel}`;
+    groups.set(key, [...(groups.get(key) ?? []), student]);
+  }
+  for (const students of groups.values()) {
+    const { classId, sourceClassLabel } = students[0]!;
+    let reportLabel: string;
+    try {
+      ({ reportLabel } = await matchSourceClass(tx, {
+        academicYear: input.academicYear, classId: classId!, sourceClassLabel: sourceClassLabel!,
+      }));
+    } catch (error) {
+      if (!(error instanceof FrequencyErrorV2) || error.code !== 'identity-review') throw error;
+      for (const student of students) links.set(student.sourceStudentId, null);
+      continue;
+    }
+    const resolutions = await centralMany(
+      tx,
+      input.academicYear,
+      students.map((s) => ({ recordKey: s.sourceStudentId, originalName: s.name, originalClass: sourceClassLabel! })),
+      input.sourceVersion,
+      classId!,
+      reportLabel,
+    );
+    students.forEach((student, index) => {
+      const resolved = resolutions[index]!;
+      links.set(
+        student.sourceStudentId,
+        resolved.state === 'resolved' ? { uid: resolved.studentUid, classId: classId! } : null,
+      );
+    });
+  }
+  return links;
+}
+/**
+ * The Smecel "Ocorrências" of the year (owner decision 29/10/2026). The whole set comes at every
+ * collection; the server, not the computer, decides whether anything changed: the same content
+ * with the same Centro links only moves freshness. A record new or edited in the Smecel gets a
+ * version (an edit is open again for the family); a record missing from a capture is marked removed
+ * only when the collector read everything (`complete`), so a failed page never hides one.
+ */
+async function collectIncidents(
+  tx: Tx,
+  input: FrequencyIncidentCollectionV2,
+  actor: FrequencyActorV2,
+): Promise<Row> {
+  await liveLease(tx, input, actor);
+  const [clock] = await tx.query<Row>(`SELECT clock_timestamp()::text AS now`, []);
+  rejectSource(
+    new Date(input.observedAt).getTime() > new Date(text(clock!.now)).getTime() + 5000,
+    'observed-in-future',
+  );
+  const [state] = await tx.query<Row>(
+    `SELECT evidence_hash,last_observed_at::text FROM attendance.incident_state_v2 WHERE academic_year=$1 FOR UPDATE`,
+    [input.academicYear],
+  );
+  if (state && new Date(text(state.last_observed_at)) > new Date(input.observedAt))
+    fail('source-invalid', 409, 'older-than-last-collection');
+  const links = await incidentStudents(tx, input);
+  const rows = await Promise.all(
+    input.students.flatMap((student) =>
+      student.incidents.map(async (item) => ({
+        source_incident_id: item.sourceIncidentId,
+        source_student_id: student.sourceStudentId,
+        student_name: student.name,
+        student_uid: links.get(student.sourceStudentId)?.uid ?? null,
+        class_id: links.get(student.sourceStudentId)?.classId ?? null,
+        content_hash: await frequencyIncidentHashV2(item),
+        kind: item.kind,
+        occurred_on: item.date,
+        source_class_label: item.sourceClassLabel,
+        leave_from: item.leave?.from ?? null,
+        leave_to: item.leave?.to ?? null,
+        leave_days: item.leave?.days ?? null,
+        description: item.description,
+      })),
+    ),
+  );
+  rows.sort((a, b) => a.source_incident_id.localeCompare(b.source_incident_id));
+  const unresolvedStudents = input.students.filter((s) => links.get(s.sourceStudentId) === null).length;
+  const evidenceHash = await frequencyPayloadHashV2({
+    complete: input.complete,
+    rows: rows.map((r) => [r.source_incident_id, r.source_student_id, r.student_name, r.student_uid, r.class_id, r.content_hash]),
+  });
+  const summary = { incidents: rows.length, unresolvedStudents };
+  const saveState = () =>
+    tx.executeNative(
+      `INSERT INTO attendance.incident_state_v2(academic_year,evidence_hash,last_observed_at,last_received_at,incidents,unresolved_students)
+      VALUES($1,$2,$3::timestamptz,clock_timestamp(),$4,$5)
+      ON CONFLICT(academic_year) DO UPDATE SET evidence_hash=EXCLUDED.evidence_hash,last_observed_at=EXCLUDED.last_observed_at,
+        last_received_at=EXCLUDED.last_received_at,incidents=EXCLUDED.incidents,unresolved_students=EXCLUDED.unresolved_students`,
+      [input.academicYear, evidenceHash, input.observedAt, rows.length, unresolvedStudents],
+    );
+  if (state && text(state.evidence_hash) === evidenceHash) {
+    await tx.executeNative(
+      `UPDATE attendance.incident_v2 SET last_seen_at=$2::timestamptz WHERE academic_year=$1 AND removed_at IS NULL`,
+      [input.academicYear, input.observedAt],
+    );
+    await saveState();
+    return { changed: false, changedIncidents: 0, removedIncidents: 0, ...summary };
+  }
+  const recordset = `jsonb_to_recordset($2::text::jsonb) AS x(source_incident_id text,source_student_id text,student_name text,
+    student_uid uuid,class_id integer,content_hash text,kind text,occurred_on date,source_class_label text,leave_from date,
+    leave_to date,leave_days smallint,description text)`;
+  const payload = JSON.stringify(rows);
+  // A new record points at a placeholder version until its first one exists (deferred key).
+  await tx.executeNative(
+    `INSERT INTO attendance.incident_v2(id,academic_year,source_incident_id,source_student_id,student_name,student_uid,class_id,current_version_id,last_seen_at)
+    SELECT gen_random_uuid(),$1,x.source_incident_id,x.source_student_id,x.student_name,x.student_uid,x.class_id,gen_random_uuid(),$3::timestamptz FROM ${recordset}
+    ON CONFLICT(academic_year,source_incident_id) DO UPDATE SET source_student_id=EXCLUDED.source_student_id,
+      student_name=EXCLUDED.student_name,student_uid=EXCLUDED.student_uid,class_id=EXCLUDED.class_id,
+      last_seen_at=EXCLUDED.last_seen_at,removed_at=NULL`,
+    [input.academicYear, payload, input.observedAt],
+  );
+  await tx.executeNative(
+    `INSERT INTO attendance.incident_version_v2(id,academic_year,incident_id,content_hash,kind,occurred_on,source_class_label,leave_from,leave_to,leave_days,description,observed_at,actor_id,device_id)
+    SELECT gen_random_uuid(),$1,i.id,x.content_hash,x.kind,x.occurred_on,x.source_class_label,x.leave_from,x.leave_to,x.leave_days,x.description,$3::timestamptz,$4::uuid,$5::uuid
+    FROM ${recordset} JOIN attendance.incident_v2 i ON i.academic_year=$1 AND i.source_incident_id=x.source_incident_id
+    ON CONFLICT(incident_id,content_hash) DO NOTHING`,
+    [input.academicYear, payload, input.observedAt, actor.actorId, device(actor)],
+  );
+  const changed = (
+    await tx.executeNative<Row>(
+      `UPDATE attendance.incident_v2 i SET current_version_id=v.id FROM ${recordset}, attendance.incident_version_v2 v
+      WHERE i.academic_year=$1 AND i.source_incident_id=x.source_incident_id AND v.incident_id=i.id
+        AND v.content_hash=x.content_hash AND i.current_version_id<>v.id RETURNING i.id`,
+      [input.academicYear, payload],
+    )
+  ).rows.length;
+  const removed = input.complete
+    ? (
+        await tx.executeNative<Row>(
+          `UPDATE attendance.incident_v2 SET removed_at=clock_timestamp() WHERE academic_year=$1 AND removed_at IS NULL
+          AND source_incident_id NOT IN(SELECT value FROM jsonb_array_elements_text($2::text::jsonb)) RETURNING id`,
+          [input.academicYear, JSON.stringify(rows.map((r) => r.source_incident_id))],
+        )
+      ).rows.length
+    : 0;
+  await saveState();
+  return { changed: true, changedIncidents: changed, removedIncidents: removed, ...summary };
+}
 function mutate(context: Context, input: Mutation): Promise<Row> {
   switch (input.operation) {
     case 'save-settings':
@@ -1454,6 +1610,8 @@ function mutate(context: Context, input: Mutation): Promise<Row> {
       return collectUnchanged(context.tx, input, context.actor);
     case 'schedule-collect':
       return collectSchedule(context.tx, input, context.actor);
+    case 'incident-collect':
+      return collectIncidents(context.tx, input, context.actor);
     case 'resolve-conflict':
       return resolveConflict(context, input);
   }
@@ -1615,6 +1773,11 @@ export function createFrequencyServiceV2(database: GradebookPostgresDatabaseV1) 
 }
 export type FrequencyServiceV2 = ReturnType<typeof createFrequencyServiceV2>;
 const yearlyTables = [
+  // The Smecel "Ocorrências" (0014): the family's confirmations, the pointer rows, every version.
+  'incident_ack_v2',
+  'incident_state_v2',
+  'incident_v2',
+  'incident_version_v2',
   'correction_v2',
   'conflict_v2',
   'origin_v2',

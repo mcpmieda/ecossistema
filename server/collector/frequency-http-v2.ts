@@ -142,7 +142,7 @@ export async function handleFrequencyAdminRequestV2(
     requireRole(session.roles, 'ADMINISTRADOR');
     const input = frequencyRequestV2.parse(await readBoundedJson(request, FREQUENCY_BODY_BYTES_V2));
     if (
-      ['lease', 'heartbeat', 'release', 'collect', 'collect-unchanged', 'schedule-collect'].includes(
+      ['lease', 'heartbeat', 'release', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect'].includes(
         input.operation,
       )
     )

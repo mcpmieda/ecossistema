@@ -97,6 +97,8 @@ const fieldHelp: Record<SettingsFieldV1, string> = {
     'Mostra ao aluno a frequência do mês. Desativada, a seção some do Portal e a consulta é recusada.',
   showSchedule:
     'Mostra ao aluno a grade semanal da turma, como está no Smecel. Desativada, a aba some do Portal e a consulta é recusada.',
+  showIncidents:
+    'Mostra à família as ocorrências do aluno no Smecel, com a descrição completa, para confirmar a ciência. Desativada, a aba some do Portal.',
   allowedPeriods:
     'Define quais notas podem aparecer. Também é necessário publicar e respeitar as datas de divulgação.',
   risk: 'Os limites de sessão e proteção são uma configuração única. A sessão curta não pode exceder a persistente; a verificação deve começar antes do bloqueio.',

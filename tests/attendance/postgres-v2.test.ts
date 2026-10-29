@@ -815,6 +815,103 @@ describe('frequency V2 private PostgreSQL service', () => {
     await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
     expect(await versions()).toHaveLength(0);
   });
+  it('the Smecel incidents keep a version per edit, link the student and mark removals only when complete', async () => {
+    const record = (fields: Record<string, unknown> = {}) => ({
+      sourceIncidentId: '9001',
+      kind: 'ADVERTÊNCIA',
+      date: '2026-01-08',
+      sourceClassLabel: '6A',
+      leave: null,
+      description: 'Descrição sintética da ocorrência.',
+      ...fields,
+    });
+    const suspension = record({
+      sourceIncidentId: '9002',
+      kind: 'SUSPENSÃO',
+      // The Smecel left the start of this leave blank (seen on real records, 29/10/2026).
+      leave: { from: null, to: '2026-01-12', days: 2 },
+    });
+    const capture = (incidents: unknown[], fields: Record<string, unknown> = {}) => ({
+      operation: 'incident-collect',
+      academicYear: 2026,
+      requestId: id(),
+      fencingToken: token,
+      sourceVersion: `sha256:${'e'.repeat(64)}`,
+      observedAt: '2026-01-10T12:00:00Z',
+      complete: true,
+      students: [
+        { sourceStudentId: '501', name: 'ALUNA SINTETICA UM', classId: 101, sourceClassLabel: '6A', incidents },
+        // Not linked in the Centro: kept without a student.
+        { sourceStudentId: '502', name: 'PESSOA FORA DA RELACAO', classId: null, sourceClassLabel: null,
+          incidents: [record({ sourceIncidentId: '9003' })] },
+      ],
+      ...fields,
+    });
+    const rows = async () =>
+      (
+        await pg.query<Record<string, unknown>>(
+          `SELECT i.source_incident_id AS id,i.student_uid::text AS uid,i.removed_at IS NOT NULL AS removed,v.description,v.leave_days
+          FROM attendance.incident_v2 i JOIN attendance.incident_version_v2 v ON v.id=i.current_version_id ORDER BY 1`,
+        )
+      ).rows;
+    const versions = async () =>
+      Number((await pg.query<{ n: number }>('SELECT count(*)::integer AS n FROM attendance.incident_version_v2')).rows[0]!.n);
+    expect(await service.execute(capture([record(), suspension]), actor)).toMatchObject({
+      operation: 'incident-collect', changed: true, changedIncidents: 3, removedIncidents: 0, incidents: 3, unresolvedStudents: 1,
+    });
+    expect(await rows()).toEqual([
+      { id: '9001', uid, removed: false, description: 'Descrição sintética da ocorrência.', leave_days: null },
+      { id: '9002', uid, removed: false, description: 'Descrição sintética da ocorrência.', leave_days: 2 },
+      { id: '9003', uid: null, removed: false, description: 'Descrição sintética da ocorrência.', leave_days: null },
+    ]);
+    // The same content again (any computer, any order) is freshness only: the server decides.
+    expect(
+      await service.execute(capture([suspension, record()], { observedAt: '2026-01-11T12:00:00Z' }), actor),
+    ).toMatchObject({ changed: false, changedIncidents: 0 });
+    expect(await versions()).toBe(3);
+    // The family confirmed the first text; an edit in the Smecel is a new version without it.
+    await pg.exec(`INSERT INTO attendance.incident_ack_v2(academic_year,version_id,account_id)
+      SELECT 2026,current_version_id,'${id()}' FROM attendance.incident_v2 WHERE source_incident_id='9001'`);
+    const edited = record({ description: 'Descrição sintética corrigida.' });
+    expect(
+      await service.execute(capture([edited, suspension], { observedAt: '2026-01-12T12:00:00Z' }), actor),
+    ).toMatchObject({ changed: true, changedIncidents: 1 });
+    expect(await versions()).toBe(4);
+    expect(
+      (
+        await pg.query(
+          `SELECT count(a.version_id)::integer AS acknowledged FROM attendance.incident_v2 i
+          LEFT JOIN attendance.incident_ack_v2 a ON a.version_id=i.current_version_id WHERE i.source_incident_id='9001'`,
+        )
+      ).rows,
+    ).toEqual([{ acknowledged: 0 }]);
+    // A partial reading never removes; a complete one does, and a record back is open again.
+    expect(
+      await service.execute(capture([edited], { observedAt: '2026-01-13T12:00:00Z', complete: false }), actor),
+    ).toMatchObject({ removedIncidents: 0 });
+    expect(
+      await service.execute(capture([edited], { observedAt: '2026-01-14T12:00:00Z' }), actor),
+    ).toMatchObject({ removedIncidents: 1 });
+    expect((await rows()).find((r) => r.id === '9002')).toMatchObject({ removed: true });
+    await service.execute(capture([edited, suspension], { observedAt: '2026-01-15T12:00:00Z' }), actor);
+    expect((await rows()).find((r) => r.id === '9002')).toMatchObject({ removed: false });
+    // Guards: an older capture, a record twice, an administrator, the immutable history.
+    await expect(
+      service.execute(capture([edited], { observedAt: '2026-01-10T13:00:00Z' }), actor),
+    ).rejects.toMatchObject({ code: 'source-invalid' });
+    await expect(
+      service.execute(capture([edited, edited], { observedAt: '2026-01-16T12:00:00Z' }), actor),
+    ).rejects.toMatchObject({ code: 'invalid-request' });
+    await expect(
+      service.execute(capture([edited], { observedAt: '2026-01-16T12:00:00Z' }), admin),
+    ).rejects.toMatchObject({ code: 'not-authorized' });
+    await expect(pg.exec(`UPDATE attendance.incident_version_v2 SET description='x'`)).rejects.toThrow();
+    // Everything goes with its school year.
+    const counts = await database.transaction((tx) => frequencyYearCountsV2(tx, 2026));
+    expect(counts).toMatchObject({ incident_v2: 3, incident_version_v2: 4, incident_ack_v2: 1, incident_state_v2: 1 });
+    await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
+    expect(await versions()).toBe(0);
+  });
   it('two fichas disagreeing (J/X) in one reading require an audited admin choice, CAS, and no last writer', async () => {
     await service.execute(
       collection({

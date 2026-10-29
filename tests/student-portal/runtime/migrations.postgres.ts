@@ -179,6 +179,7 @@ beforeAll(async () => {
   await migrator.unsafe(readFileSync('migrations/student-portal/0029_school_calendar_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0030_school_bells_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0031_school_bells_parada_v1.sql', 'utf8'));
+  await migrator.unsafe(readFileSync('migrations/student-portal/0032_incident_policy_v1.sql', 'utf8'));
   await installReconciliationSchemaFixtureV1({exec:(sql)=>admin.unsafe(sql,[],{prepare:false})});
   await admin.unsafe(readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'));
   await admin.unsafe(readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'));
