@@ -70,14 +70,18 @@ const scheduleLesson = z.object({
   subject: z.string().trim().min(1).max(120),
 }).strict();
 const smecelId = z.string().regex(/^[1-9]\d{0,11}$/u);
-/** One Smecel "Ocorrência" as its student's page shows it; only a suspension has a leave. */
+/**
+ * One Smecel "Ocorrência" as its student's page shows it. Only a suspension has a leave; the Smecel
+ * leaves its dates or its days blank at times (null), never all three.
+ */
 const incident = z.object({
   sourceIncidentId: smecelId,
   kind: z.string().trim().min(1).max(80),
   date: civilDate,
   sourceClassLabel: label,
-  leave: z.object({ from: civilDate, to: civilDate, days: z.number().int().min(0).max(366) }).strict()
-    .refine(v => v.from <= v.to).nullable(),
+  leave: z.object({ from: civilDate.nullable(), to: civilDate.nullable(), days: z.number().int().min(0).max(366).nullable() }).strict()
+    .refine(v => v.from !== null || v.to !== null || v.days !== null)
+    .refine(v => v.from === null || v.to === null || v.from <= v.to).nullable(),
   description: z.string().trim().min(1).max(8000),
 }).strict();
 const mutation = { ...read, requestId: uid };

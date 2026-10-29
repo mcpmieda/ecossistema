@@ -42,7 +42,8 @@ CREATE TABLE attendance.incident_version_v2 (
  kind text NOT NULL CHECK(length(kind) BETWEEN 1 AND 80),
  occurred_on date NOT NULL,
  source_class_label text NOT NULL CHECK(length(source_class_label) BETWEEN 1 AND 300),
- -- Only a suspension has a leave: both dates and the school days the Smecel counts.
+ -- Only a suspension has a leave: its dates and the school days the Smecel counts. The Smecel
+ -- leaves any of the three blank at times; a blank one is NULL, never guessed.
  leave_from date,
  leave_to date,
  leave_days smallint CHECK(leave_days BETWEEN 0 AND 366),
@@ -51,7 +52,7 @@ CREATE TABLE attendance.incident_version_v2 (
  received_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  actor_id uuid NOT NULL,
  device_id uuid NOT NULL,
- CHECK((leave_from IS NULL) = (leave_to IS NULL) AND (leave_from IS NULL OR leave_from <= leave_to)),
+ CHECK(leave_from IS NULL OR leave_to IS NULL OR leave_from <= leave_to),
  UNIQUE(incident_id,content_hash)
 );
 ALTER TABLE attendance.incident_v2 ADD CONSTRAINT incident_v2_current_version_fk

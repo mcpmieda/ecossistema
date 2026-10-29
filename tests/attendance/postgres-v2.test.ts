@@ -828,7 +828,8 @@ describe('frequency V2 private PostgreSQL service', () => {
     const suspension = record({
       sourceIncidentId: '9002',
       kind: 'SUSPENSÃO',
-      leave: { from: '2026-01-09', to: '2026-01-12', days: 2 },
+      // The Smecel left the start of this leave blank (seen on real records, 29/10/2026).
+      leave: { from: null, to: '2026-01-12', days: 2 },
     });
     const capture = (incidents: unknown[], fields: Record<string, unknown> = {}) => ({
       operation: 'incident-collect',
