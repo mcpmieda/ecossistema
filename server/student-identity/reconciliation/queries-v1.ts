@@ -248,3 +248,35 @@ export async function detailV1(
     })),
   };
 }
+
+/** The Coletor's last automatic report: what it applied and the differences it left here. */
+export async function automaticReportV1(tx: TxV1, academicYear: number): Promise<ReconciliationResponseV1> {
+  const [row] = await tx.query(
+    `SELECT last_observed_at::text,last_changed_at::text,outcome,rows,notes_json FROM attendance.student_report_state_v2 WHERE academic_year=$1`,
+    [academicYear],
+  );
+  const notes = row
+    ? ((typeof row.notes_json === 'string' ? JSON.parse(row.notes_json) : row.notes_json) as {
+        counts: { rows: number; linked: number; pending: number } | null;
+        differences: string[];
+        invalid: { sourceRow: number; name: string; classLabel: string; field: string; reason: string }[];
+      })
+    : null;
+  return {
+    contractVersion: 1,
+    state: 'ready',
+    operation: 'automatic-report',
+    report:
+      row && notes
+        ? {
+            observedAt: new Date(String(row.last_observed_at)).toISOString(),
+            changedAt: new Date(String(row.last_changed_at)).toISOString(),
+            outcome: String(row.outcome) as 'applied' | 'preparing' | 'awaiting_relation' | 'review',
+            rows: Number(row.rows),
+            counts: notes.counts,
+            differences: notes.differences,
+            invalid: notes.invalid,
+          }
+        : null,
+  };
+}

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { studentUidV1 } from '../student-identity/student-identity-v1';
+import { reportRowV1, REPORT_MAX_ROWS_V1 } from '../student-identity/reconciliation-v1';
 
 export const FREQUENCY_CONTRACT_V2 = 2;
 export const FREQUENCY_BODY_BYTES_V2 = 16 * 1024 * 1024;
@@ -56,6 +57,22 @@ export const frequencyScheduleWriteV2 = frequencyScheduleV2.superRefine((schedul
       ctx.addIssue({ code: 'custom', path: ['rules'], message: `${name}: deixe pelo menos ${FREQUENCY_MIN_SLOT_GAP_MINUTES_V2} minutos entre as coletas.` });
   });
 });
+/** The shortest interval of the automatic student report (owner decision 29/10/2026). */
+export const REPORT_MIN_EVERY_MINUTES_V2 = 30;
+/**
+ * The agenda of the Smecel "Relatório de alunos", apart from the frequency's: every `every` minutes
+ * from `from` to `to` on the chosen weekdays (0 = Sunday). The Coletor never runs it together with a
+ * frequency run; its editor keeps the times apart.
+ */
+export const frequencyReportScheduleV2 = z.object({
+  timezone: frequencyScheduleV2.shape.timezone,
+  enabled: z.boolean(),
+  every: z.number().int().min(REPORT_MIN_EVERY_MINUTES_V2).max(720),
+  from: time,
+  to: time,
+  weekdays: z.array(z.number().int().min(0).max(6)).max(7).refine(v => new Set(v).size === v.length),
+}).strict().refine(v => v.from <= v.to, { message: 'O horário final deve vir depois do inicial.' });
+export type FrequencyReportScheduleV2 = z.infer<typeof frequencyReportScheduleV2>;
 const read = { academicYear: year };
 const classId = z.number().int().positive();
 const sourceVersion = z.string().regex(/^sha256:[a-f0-9]{64}$/u);
@@ -90,6 +107,7 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('status'), ...read }).strict(),
   z.object({ operation: z.literal('receipt'), ...mutation }).strict(),
   z.object({ operation: z.literal('save-settings'), ...mutation, expectedRevision: revision, schedule: frequencyScheduleWriteV2 }).strict(),
+  z.object({ operation: z.literal('save-report-settings'), ...mutation, expectedRevision: revision, reportSchedule: frequencyReportScheduleV2.nullable() }).strict(),
   z.object({ operation: z.literal('set-paused'), ...mutation, expectedRevision: revision, paused: z.boolean() }).strict(),
   z.object({ operation: z.literal('rename-device'), ...mutation, deviceId: uid, label: z.string().trim().min(1).max(80) }).strict(),
   z.object({ operation: z.literal('revoke-device'), ...mutation, deviceId: uid }).strict(),
@@ -138,6 +156,23 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
         return new Set(ids).size === ids.length;
       }),
   }).strict(),
+  /**
+   * The Smecel "Relatório de alunos" (owner decision 29/10/2026): every row of the export, read by the
+   * Coletor in memory with the 11 fields the Conciliação uses. The server applies it with the
+   * Conciliação's own prepare/apply; an unchanged report only refreshes the dates.
+   */
+  z.object({ operation: z.literal('student-report-collect'), ...fenced, sourceVersion, observedAt,
+    rows: z.array(reportRowV1).min(1).max(REPORT_MAX_ROWS_V1)
+      .refine(v => new Set(v.map(r => r.sourceRow)).size === v.length),
+  }).strict(),
+  /**
+   * The same report as the one this computer last sent (its local copy, owner request 29/10/2026):
+   * only the content's hash (studentReportHashV2). The server answers 'payload-required' unless it
+   * matches the last report it applied; the whole report goes then, and at least once a day.
+   */
+  z.object({ operation: z.literal('student-report-unchanged'), ...fenced, sourceVersion, observedAt,
+    rows: z.number().int().min(1).max(REPORT_MAX_ROWS_V1), contentHash: payloadHash,
+  }).strict(),
   z.object({ operation: z.literal('resolve-conflict'), ...mutation, conflictId: uid, expectedRevision: revision, mark: z.enum(['X','J']).nullable(), reason: z.string().trim().min(1).max(500) }).strict(),
   z.object({ operation: z.literal('monthly-summary'), ...read, studentUid: uid, month: z.string().regex(/^2026-(0[1-9]|1[0-2])$/u) }).strict(),
 ]);
@@ -148,6 +183,8 @@ export type FrequencyScheduleCollectionV2 = Extract<FrequencyRequestV2, { operat
 export type FrequencyScheduleLessonV2 = z.infer<typeof scheduleLesson>;
 export type FrequencyIncidentCollectionV2 = Extract<FrequencyRequestV2, { operation: 'incident-collect' }>;
 export type FrequencyIncidentV2 = z.infer<typeof incident>;
+export type FrequencyStudentReportV2 = Extract<FrequencyRequestV2, { operation: 'student-report-collect' }>;
+export type FrequencyStudentReportUnchangedV2 = Extract<FrequencyRequestV2, { operation: 'student-report-unchanged' }>;
 export type FrequencyScheduleV2 = z.infer<typeof frequencyScheduleV2>;
 
 /** Server-created only, after Entra session or payload-bound device proof. */
@@ -166,7 +203,9 @@ export type FrequencyConflictV2 = {
 };
 export type FrequencyStatusV2 = {
   contractVersion: 2; state: 'ready'; academicYear: 2026; serverTime: string;
-  settings: { revision: number; paused: boolean; schedule: FrequencyScheduleV2 | null };
+  settings: { revision: number; paused: boolean; schedule: FrequencyScheduleV2 | null; reportSchedule?: FrequencyReportScheduleV2 | null };
+  /** The last automatic student report (attendance 0015), or null before the first one. */
+  studentReport?: FrequencyStudentReportStateV2 | null;
   lease: { deviceId: string; expiresAt: string; fencingToken: number } | null;
   classes: FrequencyClassV2[]; devices: FrequencyDeviceV2[];
   collections: { classId: number; observedAt: string; receivedAt: string; resolvedRecords: number; unresolvedRecords: number; conflicts: number }[];
@@ -174,6 +213,17 @@ export type FrequencyStatusV2 = {
   /** Administrator view only; empty for a collector device. */
   unresolved: FrequencyUnresolvedV2[];
   failures: FrequencyFailureEntryV2[];
+};
+/** What the last automatic student report did; `notes` is what went to the Conciliação. */
+export type FrequencyStudentReportStateV2 = {
+  observedAt: string; receivedAt: string; changedAt: string;
+  outcome: 'applied' | 'preparing' | 'awaiting_relation' | 'review'; rows: number;
+  notes: FrequencyStudentReportNotesV2;
+};
+export type FrequencyStudentReportNotesV2 = {
+  counts: { rows: number; linked: number; pending: number } | null;
+  differences: string[];
+  invalid: { sourceRow: number; name: string; classLabel: string; field: string; reason: string }[];
 };
 /** Smecel rows of the latest collection that no reconciled student matches yet. */
 export type FrequencyUnresolvedV2 = {

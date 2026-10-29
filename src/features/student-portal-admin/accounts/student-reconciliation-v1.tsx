@@ -14,6 +14,7 @@ import {
   type PreparedReconciliationV1,
   type ReconciliationClientV1,
 } from '../shared/reconciliation-client-v1';
+import { AutomaticReportPanelV1 } from './automatic-report-v1';
 import { StudentNameV1 } from '../shared/account-open-v1';
 import { readReconciliationListV1 } from './reconciliation-list-read-v1';
 import { PreparedReportV1 } from '../../gradebook/import/student-report-import-v1';
@@ -497,6 +498,7 @@ export function StudentReconciliationV1({
       className="space-y-4"
       aria-label={pendingOnly ? 'Conciliação' : 'Alunos e conciliação'}
     >
+      {pendingOnly ? <AutomaticReportPanelV1 client={client} refresh={refresh} /> : null}
       <Card>
         <Card.Content className="flex flex-wrap items-center gap-3">
           <SearchField

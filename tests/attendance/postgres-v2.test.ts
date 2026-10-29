@@ -6,6 +6,8 @@ import {
   createFrequencyServiceV2,
   resetFrequencyYearV2,
   frequencyYearCountsV2,
+  StudentReportPendingV2,
+  studentReportHashV2,
 } from '../../server/attendance/service-v2';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
@@ -17,6 +19,7 @@ import type {
   FrequencyActorV2,
   FrequencyStatusV2,
   FrequencySummaryV2,
+  FrequencyStudentReportV2,
 } from '../../shared/attendance-contracts/frequency-v2';
 import {
   frequencySyntheticSetupSqlV2,
@@ -911,6 +914,69 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(counts).toMatchObject({ incident_v2: 3, incident_version_v2: 4, incident_ack_v2: 1, incident_state_v2: 1 });
     await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
     expect(await versions()).toBe(0);
+  });
+  it('the automatic student report: a short check, a recorded outcome and freshness only when unchanged', async () => {
+    const row = (sourceRow: number, fields: Record<string, unknown> = {}) => ({
+      sourceRow, name: 'ALUNA SINTETICA UM', birthDate: 41640, filiation1: 'MAE SINTETICA', inep: 123456789012,
+      enrollmentHash: `hash-${sourceRow}`, classLabel: '6A 2026 - MATUTINO', shift: 'MATUTINO',
+      stageLabel: 'ENSINO FUNDAMENTAL DE 9 ANOS - 6º ANO', status: 'MATRICULADO', enrolledAt: 46023, transferredAt: null,
+      ...fields,
+    });
+    const report = (rows: unknown[], fields: Record<string, unknown> = {}) => ({
+      operation: 'student-report-collect', academicYear: 2026, requestId: id(), fencingToken: token,
+      sourceVersion: `sha256:${'f'.repeat(64)}`, observedAt: '2026-01-10T12:00:00Z', rows, ...fields,
+    }) as FrequencyStudentReportV2;
+    const notes = { counts: { rows: 2, linked: 2, pending: 0 }, differences: ['1 origem(ns) não encontrada(s) no relatório.'],
+      invalid: [{ sourceRow: 4, name: 'ALUNO SINTETICO DOIS', classLabel: '6A 2026 - MATUTINO', field: 'birthDate', reason: 'nascimento ausente.' }] };
+    const first = report([row(2), row(3)]);
+    // Nothing recorded yet: the check leaves without writing, and the application runs outside it.
+    const pending = await service.execute(first, actor).catch((error: unknown) => error);
+    expect(pending).toBeInstanceOf(StudentReportPendingV2);
+    expect((pending as StudentReportPendingV2).previous).toBeNull();
+    const evidenceHash = (pending as StudentReportPendingV2).evidenceHash;
+    expect(evidenceHash).toBe(await studentReportHashV2({ rows: [row(3), row(2)] as FrequencyStudentReportV2['rows'] }));
+    const finished = await service.finishStudentReport(first, actor, {
+      evidenceHash, outcome: 'applied', batchId: id(), notes, changed: true,
+    });
+    expect(finished).toMatchObject({ operation: 'student-report-collect', changed: true, outcome: 'applied', rows: 2, invalid: 1, differences: 1 });
+    // The receipt answers a repeat of the same request.
+    expect(await service.execute(first, actor)).toEqual(finished);
+    // The administrator sees the rows left out; a device only what happened.
+    expect((await status()).studentReport).toMatchObject({ outcome: 'applied', rows: 2, notes });
+    const seen = (await service.execute({ operation: 'status', academicYear: 2026 }, actor)) as FrequencyStatusV2;
+    expect(seen.studentReport?.notes.invalid).toEqual([]);
+    // The same rows (any order) later: dates only, nothing heavy.
+    const again = await service.execute(report([row(3), row(2)], { observedAt: '2026-01-11T12:00:00Z' }), actor);
+    expect(again).toMatchObject({ changed: false, outcome: 'applied', invalid: 1 });
+    expect((await status()).studentReport?.observedAt).toBe('2026-01-11T12:00:00.000Z');
+    // The Coletor's local copy: only the hash. The right one is freshness; another asks for the report.
+    const short = (contentHash: string, observedAt: string) => ({ operation: 'student-report-unchanged', academicYear: 2026,
+      requestId: id(), fencingToken: token, sourceVersion: `sha256:${'f'.repeat(64)}`, observedAt, rows: 2, contentHash });
+    expect(await service.execute(short(evidenceHash, '2026-01-11T12:30:00Z'), actor)).toMatchObject({ changed: false, outcome: 'applied' });
+    await expect(service.execute(short('x'.repeat(43), '2026-01-11T12:40:00Z'), actor)).rejects.toMatchObject({ code: 'payload-required' });
+    // A change (the transfer date of a row) goes to the application again, with the last outcome.
+    const changed = report([row(2), row(3, { transferredAt: 46300, status: 'TRANSFERIDO' })], { observedAt: '2026-01-12T12:00:00Z' });
+    const next = (await service.execute(changed, actor).catch((error: unknown) => error)) as StudentReportPendingV2;
+    expect(next).toBeInstanceOf(StudentReportPendingV2);
+    expect(next.previous).toMatchObject({ evidenceHash, outcome: 'applied' });
+    // Credentials still being prepared: the same report is not "unchanged" until it is applied.
+    await service.finishStudentReport(changed, actor, { evidenceHash: next.evidenceHash, outcome: 'preparing', batchId: id(), notes, changed: true });
+    await expect(service.execute(report(changed.rows, { observedAt: '2026-01-12T12:05:00Z' }), actor)).rejects.toBeInstanceOf(StudentReportPendingV2);
+    // Guards: older than the last reading, without the lease, from an administrator.
+    await expect(service.execute(report([row(2)], { observedAt: '2026-01-09T12:00:00Z' }), actor)).rejects.toMatchObject({ code: 'source-invalid' });
+    await expect(service.execute(report([row(2)], { observedAt: '2026-01-13T12:00:00Z', fencingToken: token + 50 }), actor)).rejects.toMatchObject({ code: 'lease-fenced' });
+    await expect(service.execute(report([row(2)], { observedAt: '2026-01-13T12:00:00Z' }), admin)).rejects.toMatchObject({ code: 'not-authorized' });
+    // Its own agenda, saved with the school's revision (CAS) and shown in the status.
+    const agenda = { timezone: 'America/Bahia', enabled: true, every: 60, from: '07:10', to: '17:10', weekdays: [1, 2, 3, 4, 5] };
+    const revision = (await status()).settings.revision;
+    await execute('save-report-settings', { expectedRevision: revision, reportSchedule: agenda }, actor);
+    expect((await status()).settings).toMatchObject({ revision: revision + 1, reportSchedule: agenda });
+    await expect(execute('save-report-settings', { expectedRevision: revision, reportSchedule: null }, actor)).rejects.toMatchObject({ code: 'revision-conflict' });
+    await expect(execute('save-report-settings', { expectedRevision: revision + 1, reportSchedule: { ...agenda, every: 15 } }, actor)).rejects.toMatchObject({ code: 'invalid-request' });
+    // It goes with its school year.
+    expect(await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).toMatchObject({ student_report_state_v2: 1 });
+    await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
+    expect((await status()).studentReport).toBeNull();
   });
   it('two fichas disagreeing (J/X) in one reading require an audited admin choice, CAS, and no last writer', async () => {
     await service.execute(
