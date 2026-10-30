@@ -134,6 +134,9 @@ describe('the report hash is the Coletor one', () => {
       enrollmentHash: 'hash-sintetico', filiation1: 'MAE SINTETICA', inep: 123456789012, birthDate: 41640, enrolledAt: 46023,
       transferredAt: sourceRow === 2 ? null : 46300,
     }));
-    expect(await studentReportHashV2({ rows: [...rows].reverse() })).toBe('LQ96URThFLmWCfKP4nKEFcuu0SV7jnbjc2NJEXLFiXM');
+    expect(await studentReportHashV2({ rows: [...rows].reverse() })).toBe('0prs5ns-7GNFFBx7M8Tvr-DtB2o9mNDnRKGTfWrr6Ag');
+    // The Smecel swaps rows that tie from one export to the next: the position never counts.
+    const moved = [{ ...rows[0]!, sourceRow: 3 }, { ...rows[1]!, sourceRow: 2 }];
+    expect(await studentReportHashV2({ rows: moved })).toBe('0prs5ns-7GNFFBx7M8Tvr-DtB2o9mNDnRKGTfWrr6Ag');
   });
 });
