@@ -56,12 +56,30 @@
   cursor: pointer;
 }
 .pa3-nav-icon {
+  position: relative;
   display: grid;
   width: 3.4rem;
   height: 2rem;
   place-items: center;
   border-radius: 999px;
   transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+/* Ocorrências: how many the family has not confirmed yet, small at the icon's top right. */
+.pa3-nav-badge {
+  position: absolute;
+  top: -0.2rem;
+  right: 0.55rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--pa3-red);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
 }
 .pa3-nav-item[aria-current='page'] {
   color: var(--pa3-blue);
@@ -308,6 +326,9 @@
   .pa3-nav-icon {
     width: 2.4rem;
     height: 2.4rem;
+  }
+  .pa3-nav-badge {
+    right: -0.3rem;
   }
   .pa3-frequency {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1671,4 +1692,63 @@
   .pa3-guide-label {
     animation: none;
   }
+}
+
+/* ---------- Ocorrências (owner decisions 29/10/2026) ---------- */
+.pa3-incidents {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+}
+.pa3-incidents .pa3-page-title {
+  margin-bottom: 0;
+}
+.pa3-incident p {
+  margin: 0;
+}
+.pa3-incident-date {
+  color: var(--pa3-ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pa3-incident-class {
+  color: var(--pa3-muted);
+  font-size: 0.85rem;
+}
+.pa3-incident-leave {
+  color: var(--pa3-ink);
+  font-size: 0.9rem;
+}
+.pa3-incident-text {
+  color: var(--pa3-ink);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.pa3-incident-ack {
+  justify-self: start;
+}
+.pa3-incident-confirm {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.8rem;
+  background: var(--pa3-amber-soft);
+  color: var(--pa3-ink);
+  font-size: 0.9rem;
+}
+.pa3-incident-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.pa3-incident-seen {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--pa3-green);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.pa3-incidents-empty {
+  margin: 0;
+  color: var(--pa3-muted);
 }

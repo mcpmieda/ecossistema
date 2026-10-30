@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { servePortalFrequencyV2 } from './frequency-v2';
 import { servePortalScheduleV1 } from './schedule-v1';
+import { servePortalIncidentsV1 } from './incidents-v1';
 import {
   activateRequestV1,
   challengeRequestV1,
@@ -319,6 +320,7 @@ export async function servePortalSelfV1(
   const path = url.pathname;
   if(path==='/api/student/frequency')return servePortalFrequencyV2(request,env);
   if(path==='/api/student/schedule')return servePortalScheduleV1(request,env);
+  if(path==='/api/student/incidents'||path==='/api/student/incidents/acknowledge')return servePortalIncidentsV1(request,env);
   const connectionId = url.searchParams.get('connectionId');
   if (connectionId !== null && invalidConnectionV1(url, path, connectionId))
     return portalJsonV1(portalFailureV1('invalid-request'), 400);

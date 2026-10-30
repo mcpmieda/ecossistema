@@ -7,6 +7,7 @@ import {
 } from '../../../shared/attendance-contracts/frequency-v2';
 import type { StudentFrequencyClientV2 } from '../../features/student-portal/frequency/client-v2';
 import type { StudentScheduleClientV1 } from '../../features/student-portal/schedule/client-v1';
+import type { StudentIncidentV1, StudentIncidentsClientV1 } from '../../features/student-portal/incidents/client-v1';
 import { schoolDateOnDeviceV3 } from '../../features/student-portal/redesign/frequency-page-v3';
 import { officialCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
 import { schoolDaysOffOfV1, schoolDaysOfV1, schoolYearProgressOfV1, schoolYearSpanOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
@@ -81,6 +82,7 @@ export const REDESIGN_SELF_V3: SelfResponseV1 = selfResponseV1.parse({
   endedPeriods: ['T1', 'T2'],
   showFrequency: true,
   showSchedule: true,
+  showIncidents: true,
   subjects: CASES.map(([label, t1, t2], order) => ({
     subjectId: 970001 + order,
     label,
@@ -350,3 +352,60 @@ export const createDemoScheduleClientV3 = (): StudentScheduleClientV1 => ({
       });
     }),
 });
+
+/*
+ * The preview's Ocorrências (owner decisions 29/10/2026): invented records shaped like the Smecel's
+ * (a suspension with its leave, one whose start the Smecel left blank, warnings, one "outras"), one
+ * already confirmed. "Estou ciente" is kept in memory until the page is reloaded.
+ */
+const demoIncidentsV3 = (): StudentIncidentV1[] => [
+  {
+    id: 'demo-1', kind: 'ADVERTÊNCIA', date: '2026-09-29', classLabel: 'TURMA ARTIFICIAL - VESPERTINO', leave: null,
+    description: 'No dia 29/09/2026 o(a) aluno(a) foi advertido(a) conforme comunicação interna por usar o uniforme fora do padrão da escola, mesmo após orientação. Teve a perda de 0,10 ponto no seu cálculo, permanecendo no bom comportamento.',
+    acknowledgedAt: null,
+  },
+  {
+    id: 'demo-2', kind: 'SUSPENSÃO', date: '2026-10-22', classLabel: 'TURMA ARTIFICIAL - VESPERTINO',
+    leave: { from: '2026-10-22', to: '2026-10-28', days: 3 },
+    description: 'No dia 22/10/2026 o(a) aluno(a) recebeu 3 dias de suspensão por desrespeito a um colega de classe, conforme o Regimento Interno. Teve a perda de 0,50 ponto no cálculo de classificação, permanecendo no bom comportamento.',
+    acknowledgedAt: null,
+  },
+  {
+    id: 'demo-3', kind: 'SUSPENSÃO', date: '2026-08-18', classLabel: 'TURMA ARTIFICIAL - VESPERTINO',
+    leave: { from: null, to: '2026-08-19', days: 1 },
+    description: 'No dia 18/08/2026 o(a) aluno(a) recebeu 1 dia de suspensão por deixar a sala de aula sem autorização.',
+    acknowledgedAt: null,
+  },
+  {
+    id: 'demo-4', kind: 'OUTRAS', date: '2026-06-10', classLabel: 'TURMA ARTIFICIAL - VESPERTINO', leave: null,
+    description: 'O(A) aluno(a) foi comunicado(a) por trazer objeto não permitido para a escola. A família foi chamada para conversar com a coordenação.',
+    acknowledgedAt: `2026-06-11T13:20:00Z`,
+  },
+  {
+    id: 'demo-5', kind: 'ADVERTÊNCIA', date: '2026-04-27', classLabel: 'TURMA ARTIFICIAL - VESPERTINO', leave: null,
+    description: 'No dia 27/04/2026 o(a) aluno(a) foi advertido(a) por conversar durante a parada matinal, o que é fora do padrão.',
+    acknowledgedAt: null,
+  },
+];
+
+/** The preview's incidents "API". */
+export const createDemoIncidentsClientV3 = (): StudentIncidentsClientV1 => {
+  const incidents = demoIncidentsV3();
+  return {
+    read: (signal) =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve({ incidents: structuredClone(incidents) }), 250);
+        signal.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        });
+      }),
+    acknowledge: (id) =>
+      new Promise((resolve) => {
+        const acknowledgedAt = new Date().toISOString();
+        const item = incidents.find((entry) => entry.id === id);
+        if (item) item.acknowledgedAt = acknowledgedAt;
+        setTimeout(() => resolve({ acknowledgedAt }), 300);
+      }),
+  };
+};

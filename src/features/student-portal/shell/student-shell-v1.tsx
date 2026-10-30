@@ -13,12 +13,15 @@ import { SCHOOL_NAME_V1 } from '../../../shared/brand/school-mark-v1';
 import './student-shell-v1.css';
 import { createStudentFrequencyClientV2, type StudentFrequencyClientV2 } from '../frequency/client-v2';
 import { createStudentScheduleClientV1, type StudentScheduleClientV1 } from '../schedule/client-v1';
+import { createStudentIncidentsClientV1, type StudentIncidentsClientV1 } from '../incidents/client-v1';
 import { PortalPagesV3 } from '../redesign/portal-pages-v3';
 import { FrequencyPageV3 } from '../redesign/frequency-page-v3';
 import { SchedulePageV3 } from '../redesign/schedule-page-v3';
+import { IncidentsPageV3 } from '../redesign/incidents-page-v3';
 
 const defaultFrequencyClient = createStudentFrequencyClientV2();
 const defaultScheduleClient = createStudentScheduleClientV1();
+const defaultIncidentsClient = createStudentIncidentsClientV1();
 
 export const STUDENT_SCHOOL_NAME_V1 = SCHOOL_NAME_V1;
 const outcome = {
@@ -354,6 +357,7 @@ export interface StudentPagePropsV1
   portraitSrc?: string;
   frequencyClient?: StudentFrequencyClientV2;
   scheduleClient?: StudentScheduleClientV1;
+  incidentsClient?: StudentIncidentsClientV1;
 }
 
 function errorMessageKindV1(state: string): StudentMessageKindV1 {
@@ -373,6 +377,7 @@ export function StudentPortalPageV1({
   portraitSrc,
   frequencyClient = defaultFrequencyClient,
   scheduleClient = defaultScheduleClient,
+  incidentsClient = defaultIncidentsClient,
   ...shell
 }: Readonly<StudentPagePropsV1>) {
   const gradesHeading = useId();
@@ -390,9 +395,9 @@ export function StudentPortalPageV1({
     ) : undefined;
   if (load.state === 'ready') {
     const data = load.data;
-    // Notas, Frequência and Horário (PR 1317): one page each behind the menu. Frequência and
-    // Horário exist only when the school's ADM keys are on for this student (`showFrequency`,
-    // `showSchedule` from /api/student/me); off, nothing of their APIs is asked for, and with Notas
+    // Notas, Frequência, Horário (PR 1317) and Ocorrências: one page each behind the menu. All but
+    // Notas exist only when the school's ADM keys are on for this student (`showFrequency`,
+    // `showSchedule`, `showIncidents` from /api/student/me); off, nothing of their APIs is asked for, and with Notas
     // alone the portal looks as it did. Each page is keyed by the account, so a new sign-in never
     // shows what the previous one read.
     return (
@@ -431,6 +436,15 @@ export function StudentPortalPageV1({
               key={data.profile.accountId}
               client={scheduleClient}
               onLogin={onLogin}
+              onAuthenticationLost={onAuthenticationLost}
+            />
+          ) : undefined
+        }
+        incidents={
+          data.showIncidents === true ? (
+            <IncidentsPageV3
+              key={data.profile.accountId}
+              client={incidentsClient}
               onAuthenticationLost={onAuthenticationLost}
             />
           ) : undefined
