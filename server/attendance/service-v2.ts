@@ -1629,7 +1629,13 @@ function studentReportView(row: Row, names: boolean): FrequencyStudentReportStat
  */
 export function studentReportHashV2(input: Pick<FrequencyStudentReportV2, 'rows'>): Promise<string> {
   const rows = input.rows.map(({ sourceRow: _position, ...row }) => canonicalFrequencyJsonV2(row));
-  return frequencyPayloadHashV2(rows.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+  return frequencyPayloadHashV2(rows.sort(byCodeUnitV2));
+}
+/** Plain code-unit order (never the locale's): the stored hashes depend on it. */
+function byCodeUnitV2(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
 }
 /** The last report as the next step needs it: the batch it left and whether it still waits. */
 export type StudentReportPreviousV2 = {

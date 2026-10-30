@@ -255,8 +255,10 @@ export async function automaticReportV1(tx: TxV1, academicYear: number): Promise
     `SELECT last_observed_at::text,last_changed_at::text,outcome,rows,notes_json FROM attendance.student_report_state_v2 WHERE academic_year=$1`,
     [academicYear],
   );
+  // A jsonb column arrives parsed or as text, depending on the driver.
+  const stored = typeof row?.notes_json === 'string' ? JSON.parse(row.notes_json) : row?.notes_json;
   const notes = row
-    ? ((typeof row.notes_json === 'string' ? JSON.parse(row.notes_json) : row.notes_json) as {
+    ? (stored as {
         counts: { rows: number; linked: number; pending: number } | null;
         differences: string[];
         invalid: { sourceRow: number; name: string; classLabel: string; field: string; reason: string }[];
