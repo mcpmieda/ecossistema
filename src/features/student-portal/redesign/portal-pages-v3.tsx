@@ -15,7 +15,7 @@ import './redesign-v3.css';
  * the chosen item. A page the school turned off in the ADM (Frequência, Horário) has no menu item,
  * and with Notas alone the menu shows Notas only (owner decision 23/10/2026).
  */
-export type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule';
+type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule';
 /**
  * Whether the page is the one on screen. A page behind the menu stays mounted (so coming back is
  * instant) but reads nothing until it is opened, and stops reading when another one is chosen.
@@ -28,7 +28,7 @@ export const usePortalPageActiveV3 = () => useContext(PortalPageActiveV3);
  * calendar while the page has a red warning at the top (its approved sentences), a green check
  * otherwise. Unknown until the year is read (the plain check). The page reports it.
  */
-export type FrequencyToneV3 = 'good' | 'alert' | null;
+type FrequencyToneV3 = 'good' | 'alert' | null;
 const FrequencyToneReportV3 = createContext<(tone: FrequencyToneV3) => void>(() => {});
 export function useReportFrequencyToneV3(tone: FrequencyToneV3) {
   const report = useContext(FrequencyToneReportV3);
@@ -172,7 +172,7 @@ const pageOfState = (state: unknown, pages: readonly { id: PortalPageIdV3 }[]): 
   return pages.find((item) => item.id === saved)?.id ?? 'grades';
 };
 
-export type PortalPagesPropsV3 = Omit<StudentShellPropsV1, 'children' | 'hero' | 'busy'> & {
+type PortalPagesPropsV3 = Omit<StudentShellPropsV1, 'children' | 'hero' | 'busy'> & {
   /** The student's cover (StudentProfileV1). */
   hero: ReactNode;
   /** Notas: the portal's workspace (and its notices), always there. */

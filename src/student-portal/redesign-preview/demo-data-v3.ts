@@ -185,7 +185,7 @@ function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
  * the owner's rule (frequencyCountV2: today never counts), the school's today, the year so far
  * (null while any month is unknown) and the class's last reading.
  */
-export function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
+function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
   const monthOf = (key: string) => {
     const marks = marksOf(key, today);
     const days = daysOf(key, today);
@@ -292,7 +292,6 @@ export type DemoCommentChoiceV3 = 'auto' | 'none' | FrequencyCommentKindV2;
 
 /** The preview's frequency "API": the same answers as the real one; a sentence may be forced. */
 export const createDemoFrequencyClientV3 = (comment: DemoCommentChoiceV3 = 'auto'): StudentFrequencyClientV2 => ({
-  read: (month, signal) => later(() => demoFrequencyV3(month, previewTodayV3()), signal),
   readYear: (signal) =>
     later(() => {
       const year = demoFrequencyYearV3(previewTodayV3());

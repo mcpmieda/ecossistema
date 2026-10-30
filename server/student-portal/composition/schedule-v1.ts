@@ -13,7 +13,7 @@ import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persi
 // The weekly grid of the student's own class(es) (owner decision 22/10/2026; attendance 0011).
 // The subject exactly as the Smecel names it; no teacher; a free position is absent.
 const lessonSchema=z.object({weekday:z.number().int().min(1).max(5),slot:z.number().int().min(1).max(6),subject:z.string().min(1).max(120)}).strict();
-const readSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string(),lessons:z.array(lessonSchema).max(30)}).strict()).max(8)}).strict();
+const readSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string().refine(value=>!Number.isNaN(Date.parse(value))),lessons:z.array(lessonSchema).max(30)}).strict()).max(8)}).strict();
 const HIDDEN=Symbol('schedule-hidden');
 const jsonOf=(raw:unknown)=>typeof raw==='string'?JSON.parse(raw):raw;
 /**
@@ -61,8 +61,11 @@ export async function servePortalScheduleV1(request:Request,env:PortalCompositio
         if(clock[0]?.active!==true)return null;
         const{bells,daysOff,schoolYear}=await schoolBellsAndCalendarV1(tx);
         return{
-          // Each class with its shift's bells (the shift named in its label), or null.
-          classes:value.classes.map(item=>{const shift=bellShiftOfLabelV1(item.label);return{...item,bells:shift&&bells?bells[shift]:null};}),
+          // Each class with its shift's bells (the shift named in its label), or null. The reading's
+          // moment as ISO: Postgres text ("2026-10-30 07:34:38.049-03") is not a format every
+          // browser parses (Safari).
+          classes:value.classes.map(item=>{const shift=bellShiftOfLabelV1(item.label);
+            return{...item,observedAt:new Date(item.observedAt).toISOString(),bells:shift&&bells?bells[shift]:null};}),
           today:String(clock[0]!.today),
           now:new Date(clock[0]!.now as string|Date).toISOString(),
           daysOff,

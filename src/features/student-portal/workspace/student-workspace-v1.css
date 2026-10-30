@@ -218,6 +218,11 @@
   color: #164e9a;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9);
 }
+/* The subject's icon (the Horário's, subjectStyleV3), at the size its place asks for. */
+.pa-subject-icon > svg {
+  width: var(--pa-subject-glyph, 18px);
+  height: var(--pa-subject-glyph, 18px);
+}
 
 .pa-workspace-list {
   width: 100%;
@@ -486,12 +491,6 @@
   color: #fff;
 }
 
-.pa-final-result--default {
-  --pa-final-surface: #f8fafc;
-  --pa-final-border: #e2e8f0;
-  --pa-final-accent: #334155;
-}
-
 .pa-final-result-detail {
   margin: 0.35rem 0 0;
   color: #475569;
@@ -747,9 +746,7 @@
 .pa-subject-icon--animated[data-motion='beat'] > svg { animation-name: pa-icon-beat; }
 .pa-subject-icon--animated[data-motion='balance'] > svg { animation-name: pa-icon-balance; transform-origin: 50% 15%; animation-duration: 900ms; }
 .pa-subject-icon--animated[data-motion='swirl'] > svg { animation-name: pa-icon-swirl; }
-.pa-subject-icon--animated[data-motion='bounce'] > svg { animation-name: pa-icon-bounce; }
 .pa-subject-icon--animated[data-motion='glow'] > svg { animation-name: pa-icon-glow; }
-.pa-subject-icon--animated[data-motion='orbit'] > svg { animation-name: pa-icon-orbit; animation-duration: 900ms; }
 .pa-subject-icon--animated[data-motion='shake'] > svg { animation-name: pa-icon-shake; transform-origin: 50% 90%; }
 .pa-subject-icon--animated[data-motion='pop'] > svg { animation-name: pa-icon-pop; }
 
@@ -828,14 +825,6 @@
   60% { transform: rotate(12deg) scale(1.1); }
   100% { transform: none; }
 }
-/* Music: bouncing on the beat. */
-@keyframes pa-icon-bounce {
-  0%, 100% { transform: none; }
-  20% { transform: translateY(-5px) rotate(-6deg); }
-  40% { transform: translateY(0) rotate(0); }
-  60% { transform: translateY(-3px) rotate(6deg); }
-  80% { transform: translateY(0); }
-}
 /* Monitor: switching on. */
 @keyframes pa-icon-glow {
   0% { transform: scaleY(0.1); opacity: 0.3; }
@@ -843,11 +832,6 @@
   45% { opacity: 0.55; }
   60% { transform: none; opacity: 1; }
   100% { transform: none; }
-}
-/* Atom: a full orbit. */
-@keyframes pa-icon-orbit {
-  from { transform: rotate(0) scale(0.9); }
-  to { transform: rotate(360deg) scale(1); }
 }
 /* Flask: swirled like an experiment. */
 @keyframes pa-icon-shake {
@@ -2223,11 +2207,9 @@
   .pa-subject-icon--animated > svg,
   .pa-subject-icon--animated[data-motion='balance'] > svg,
   .pa-subject-icon--animated[data-motion='beat'] > svg,
-  .pa-subject-icon--animated[data-motion='bounce'] > svg,
   .pa-subject-icon--animated[data-motion='chat'] > svg,
   .pa-subject-icon--animated[data-motion='glow'] > svg,
   .pa-subject-icon--animated[data-motion='lift'] > svg,
-  .pa-subject-icon--animated[data-motion='orbit'] > svg,
   .pa-subject-icon--animated[data-motion='page'] > svg,
   .pa-subject-icon--animated[data-motion='pop'] > svg,
   .pa-subject-icon--animated[data-motion='press'] > svg,

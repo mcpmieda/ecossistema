@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { studentUidV1 } from '../student-identity/student-identity-v1';
 import { reportRowV1, REPORT_MAX_ROWS_V1 } from '../student-identity/reconciliation-v1';
 
-export const FREQUENCY_CONTRACT_V2 = 2;
 export const FREQUENCY_BODY_BYTES_V2 = 16 * 1024 * 1024;
 const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const uid = studentUidV1;

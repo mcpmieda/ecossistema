@@ -50,7 +50,7 @@ const failure = z
     state: z.enum(['unauthenticated', 'forbidden', 'invalid-request', 'unavailable']),
   })
   .passthrough();
-export type StudentScheduleV1 = Omit<z.infer<typeof answer>, 'contractVersion' | 'state'>;
+type StudentScheduleV1 = Omit<z.infer<typeof answer>, 'contractVersion' | 'state'>;
 export type StudentScheduleClientV1 = { read(signal: AbortSignal): Promise<StudentScheduleV1> };
 
 export function createStudentScheduleClientV1(

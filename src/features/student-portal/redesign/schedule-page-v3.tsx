@@ -39,8 +39,8 @@ import { CoffeeIconV3, FlagIconV3, type ScheduleIconV3 } from './schedule-icons-
 import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
 
 /*
- * Horário in a page of its own (owner decisions 22–23/10/2026, preview only): the weekly grid of the
- * student's class as the Smecel has it, read by the collector from "Grade de horários". Only the
+ * Horário in a page of its own (owner decisions 22–23/10/2026): the weekly grid of the student's
+ * class as the Smecel has it, read by the collector from "Grade de horários". Only the
  * subject, by its official name (the Notas' "PORTUGUÊS" for the Smecel's "LINGUA PORTUGUESA",
  * official-subjects-v1), with its own colour and icon; never the teacher; a free position ("VAGA")
  * is a blank space.
@@ -54,7 +54,7 @@ import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/o
  * Data: GET /api/student/schedule (createStudentScheduleClientV1), read with the sign-in and kept
  * (useCachedReadV3); shown only when the self response says `showSchedule === true`.
  */
-export type ScheduleLessonV3 = { weekday: number; slot: number; subject: string };
+type ScheduleLessonV3 = { weekday: number; slot: number; subject: string };
 export type ScheduleClassV3 = {
   label: string;
   observedAt: string;
@@ -91,14 +91,33 @@ function schoolClockAt(at: number) {
     seconds: Number(part('hour')) * 3600 + Number(part('minute')) * 60 + Number(part('second')),
   };
 }
-/** The school's clock, a tick a second (only while something on screen counts). */
+/**
+ * The school's clock: a tick a second while something on screen counts; otherwise only at the
+ * school's midnight and when the page comes back on screen, so "hoje" still moves on a page left
+ * open overnight (a class without times marked never ticks).
+ */
 function useSchoolClockV3(ticking: boolean) {
   const [now, setNow] = useState(() => schoolClockAt(portalNowV1()));
   useEffect(() => {
-    setNow(schoolClockAt(portalNowV1()));
-    if (!ticking) return;
-    const timer = window.setInterval(() => setNow(schoolClockAt(portalNowV1())), 1000);
-    return () => window.clearInterval(timer);
+    const check = () => setNow(schoolClockAt(portalNowV1()));
+    check();
+    if (ticking) {
+      const timer = window.setInterval(check, 1000);
+      return () => window.clearInterval(timer);
+    }
+    const untilMidnight = () => (86_400 - schoolClockAt(portalNowV1()).seconds) * 1000 + 1000;
+    let timer = window.setTimeout(function tick() {
+      check();
+      timer = window.setTimeout(tick, untilMidnight());
+    }, untilMidnight());
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [ticking]);
   return now;
 }
@@ -925,9 +944,10 @@ export function ScheduleWeekV3({
   const inYear = !schoolYear || (today >= schoolYear.firstDay && today <= schoolYear.lastDay);
   const lessonsToday = schoolDay && !todayOff && inYear;
   const liveSeconds = lessonsToday ? clock.seconds : null;
+  // ISO moments (the server's): the latest is the greatest string.
   const latest = (classes ?? [])
     .map((item) => item.observedAt)
-    .sort((a, b) => Number(a > b) - Number(a < b))
+    .sort((a, b) => a.localeCompare(b))
     .at(-1);
 
   return (

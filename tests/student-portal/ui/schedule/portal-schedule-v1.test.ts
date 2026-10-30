@@ -64,7 +64,8 @@ const grid = {
   classes: [
     {
       label: 'TURMA SINTÉTICA A',
-      observedAt: '2026-10-22 11:00:00+00',
+      // As Postgres writes it (timestamptz::text); the Portal receives it as ISO.
+      observedAt: '2026-10-22 08:00:00.123-03',
       lessons: [{ weekday: 1, slot: 1, subject: 'LINGUA PORTUGUESA' }],
     },
   ],
@@ -96,7 +97,7 @@ it("returns the student's own grid, read with its account and session only", asy
   expect(await response.json()).toEqual({
     contractVersion: 1,
     state: 'ready',
-    classes: grid.classes.map((item) => ({ ...item, bells: null })),
+    classes: grid.classes.map((item) => ({ ...item, observedAt: '2026-10-22T11:00:00.123Z', bells: null })),
     today: '2026-10-22',
     now: '2026-10-22T12:30:00.000Z',
     daysOff: [],
@@ -107,8 +108,8 @@ it("returns the student's own grid, read with its account and session only", asy
 
 it("adds the bells of each class's shift, the days without school and the school year (owner decisions 23 and 27/10/2026)", async () => {
   const classes = [
-    { label: '6º ANO A - MATUTINO', observedAt: 'x', lessons: [] },
-    { label: 'AEE', observedAt: 'x', lessons: [] },
+    { label: '6º ANO A - MATUTINO', observedAt: '2026-10-22 08:00:00-03', lessons: [] },
+    { label: 'AEE', observedAt: '2026-10-22 08:00:00-03', lessons: [] },
   ];
   mocks.unsafe
     .mockResolvedValueOnce([{ schedule: { classes } }])
@@ -152,8 +153,12 @@ it('rejects a query string and anything outside the recognized grid', async () =
   ]) {
     mocks.unsafe.mockReset();
     mocks.unsafe.mockResolvedValueOnce([
-      { schedule: { classes: [{ label: 'A', observedAt: 'x', lessons }] } },
+      { schedule: { classes: [{ label: 'A', observedAt: '2026-10-22 08:00:00-03', lessons }] } },
     ]);
     expect((await servePortalScheduleV1(request(), env)).status).toBe(503);
   }
+  // A reading moment no browser could show is not ours either.
+  mocks.unsafe.mockReset();
+  mocks.unsafe.mockResolvedValueOnce([{ schedule: { classes: [{ label: 'A', observedAt: 'ontem', lessons: [] }] } }]);
+  expect((await servePortalScheduleV1(request(), env)).status).toBe(503);
 });

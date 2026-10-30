@@ -26,7 +26,7 @@ const agreesWithAnnualMinimumV1 = (mark: ScoreMarkV1) =>
   (mark.value * 100_000 >= mark.maximum * ANNUAL_MINIMUM_MILLI_V1 - 1e-6) === mark.meetsMinimum;
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 
-export type AnnualGoalV1 =
+type AnnualGoalV1 =
   | { state: 'reached'; soFarMilli: number; t1Milli: number; t2Milli: number }
   | { state: 'reachable' | 'beyond'; soFarMilli: number; t1Milli: number; t2Milli: number; neededMilli: number };
 

@@ -58,7 +58,6 @@ describe('student shell and canonical profile', () => {
   });
   it('shows a menu item only for the pages the school turned on, each read once with the sign-in', async () => {
     const frequencyClient = {
-      read: vi.fn(() => new Promise<never>(() => undefined)),
       readYear: vi.fn(() => new Promise<never>(() => undefined)),
     };
     const scheduleClient = { read: vi.fn(() => new Promise<never>(() => undefined)) };
@@ -87,7 +86,6 @@ describe('student shell and canonical profile', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Horário' }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(scheduleClient.read).toHaveBeenCalledOnce();
-    expect(frequencyClient.read).not.toHaveBeenCalled();
   });
   it("marks the Frequência calendar with a green check, or a red X while the page has a red warning (owner decision 23/10/2026)", async () => {
     const year = (tone: 'alert' | 'good' | null) => ({
@@ -101,7 +99,7 @@ describe('student shell and canonical profile', () => {
       ['good', 'pa3-frequency-mark--good', 'Sem aviso'],
       [null, 'pa3-frequency-mark--good', 'Sem aviso'],
     ] as const) {
-      const frequencyClient = { read: vi.fn(() => new Promise<never>(() => undefined)), readYear: vi.fn(async () => year(tone)) };
+      const frequencyClient = { readYear: vi.fn(async () => year(tone)) };
       render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, showFrequency: true } }, frequencyClient }));
       // Unknown until the year is read: the plain icon.
       await vi.waitFor(() => expect(mark().getAttribute('class')).toBe(expected));

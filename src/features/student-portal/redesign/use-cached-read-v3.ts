@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
 
 /** A page's data older than this is read again when the page is opened (or the phone comes back). */
-export const STALE_AFTER_MS_V3 = 10 * 60_000;
+const STALE_AFTER_MS_V3 = 10 * 60_000;
 
 /**
  * One read with the sign-in, kept on screen (owner request 22/10/2026: "não pode piscar"). The
