@@ -67,8 +67,7 @@ const clientOf = (
       ...extra,
     }),
   );
-  const read = vi.fn(async (month: string) => summary(month, []));
-  return { read, readYear } satisfies StudentFrequencyClientV2;
+  return { readYear } satisfies StudentFrequencyClientV2;
 };
 
 const dayButton = (day: number) =>
@@ -182,7 +181,6 @@ describe('Frequência page', () => {
     render(<FrequencyPageV3 client={client} />);
     expect(await screen.findByRole('heading', { level: 3, name: 'Dezembro de 2026' })).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Próximo mês' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(client.read).not.toHaveBeenCalled();
   });
 
   it('says the ring in correct Portuguese for one day', async () => {
@@ -270,7 +268,6 @@ describe('Frequência page: reading', () => {
   it('says it is loading only until the year comes, then changes months without asking again', async () => {
     let finish!: (value: FrequencyYearSummaryV2) => void;
     const client = {
-      read: vi.fn(async (month: string) => summary(month, [])),
       readYear: vi.fn(() => new Promise<FrequencyYearSummaryV2>((resolve) => (finish = resolve))),
     };
     render(<FrequencyPageV3 client={client} />);
@@ -283,11 +280,10 @@ describe('Frequência page: reading', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Julho de 2026' })).toBeTruthy();
     expect(screen.queryByText('Carregando frequência…')).toBeNull();
     expect(client.readYear).toHaveBeenCalledOnce();
-    expect(client.read).not.toHaveBeenCalled();
   });
 
   it('hides everything and offers to sign in again when the session expires', async () => {
-    const client = { read: vi.fn(), readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unauthenticated'))) };
+    const client = { readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unauthenticated'))) };
     const onLogin = vi.fn();
     const onAuthenticationLost = vi.fn();
     render(<FrequencyPageV3 client={client} onLogin={onLogin} onAuthenticationLost={onAuthenticationLost} />);
@@ -299,11 +295,11 @@ describe('Frequência page: reading', () => {
   });
 
   it('says so when the policy was turned off meanwhile, and retries other failures', async () => {
-    const forbidden = { read: vi.fn(), readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('forbidden'))) };
+    const forbidden = { readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('forbidden'))) };
     const view = render(<FrequencyPageV3 client={forbidden} />);
     expect(await screen.findByText('A frequência não está disponível no momento.')).toBeTruthy();
     view.unmount();
-    const failing = { read: vi.fn(), readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unavailable'))) };
+    const failing = { readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unavailable'))) };
     render(<FrequencyPageV3 client={failing} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Tentar agora' }));
     await waitFor(() => expect(failing.readYear).toHaveBeenCalledTimes(2));

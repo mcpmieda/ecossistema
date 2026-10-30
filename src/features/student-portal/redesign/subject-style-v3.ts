@@ -17,36 +17,42 @@ import {
 
 /*
  * Each subject with a colour and an icon of its own (owner decision 23/10/2026: "leitura mais
- * fácil"), the same on every day, so a parent finds Matemática at a glance. Works with the official
- * name ("CIÊNCIAS") and the Smecel's ("CIENCIAS"); a subject not listed here still gets a steady
- * colour from its name and a plain book. The icons move while their lesson is going on
+ * fácil"), the same on every day and in every tab (Notas too), so a parent finds Matemática at a
+ * glance. Works with the official name ("CIÊNCIAS") and the Smecel's ("CIENCIAS"); a subject not
+ * listed here still gets a steady colour from its name and a plain book. The icons move while their lesson is going on
  * (schedule-icons-v3).
  */
-const KNOWN_V3: readonly [RegExp, ScheduleIconV3, number][] = [
-  [/PORTUGUES/u, BookIconV3, 0],
-  [/MATEMATICA/u, CalculatorIconV3, 1],
-  [/CIENCIAS/u, FlaskIconV3, 2],
-  [/HISTORIA/u, LandmarkIconV3, 3],
-  [/GEOGRAFIA/u, EarthIconV3, 4],
-  [/ARTE/u, PaletteIconV3, 5],
-  [/EDUCACAO FISICA|ED\. FISICA/u, DumbbellIconV3, 6],
-  [/INGLESA|INGLES|ESPANHOL/u, LanguagesIconV3, 7],
-  [/RELIGIOSO|RELIGIAO/u, HeartIconV3, 8],
-  [/REDACAO/u, PenIconV3, 9],
-  [/ETICA|CIDADANIA/u, ScaleIconV3, 10],
-  [/INFORMATICA|COMPUTACAO/u, MonitorIconV3, 11],
-];
+const KNOWN_V3 = [
+  [/PORTUGUES/u, BookIconV3, 0, 'portugues'],
+  [/MATEMATICA/u, CalculatorIconV3, 1, 'matematica'],
+  [/CIENCIAS/u, FlaskIconV3, 2, 'ciencias'],
+  [/HISTORIA/u, LandmarkIconV3, 3, 'historia'],
+  [/GEOGRAFIA/u, EarthIconV3, 4, 'geografia'],
+  [/ARTE/u, PaletteIconV3, 5, 'arte'],
+  [/EDUCACAO FISICA|ED\. FISICA/u, DumbbellIconV3, 6, 'educacao-fisica'],
+  [/INGLESA|INGLES|ESPANHOL/u, LanguagesIconV3, 7, 'lingua'],
+  [/RELIGIOSO|RELIGIAO/u, HeartIconV3, 8, 'religiao'],
+  [/REDACAO/u, PenIconV3, 9, 'redacao'],
+  [/ETICA|CIDADANIA/u, ScaleIconV3, 10, 'etica'],
+  [/INFORMATICA|COMPUTACAO/u, MonitorIconV3, 11, 'computacao'],
+] as const satisfies readonly (readonly [RegExp, ScheduleIconV3, number, string])[];
+/** Which known subject it is (the Notas give each its own opening motion); null for any other. */
+export type SubjectKindV3 = (typeof KNOWN_V3)[number][3];
 export const SUBJECT_TONES_V3 = 12;
 
-export function subjectStyleV3(subject: string): { Icon: ScheduleIconV3; tone: number } {
+export function subjectStyleV3(subject: string): {
+  Icon: ScheduleIconV3;
+  tone: number;
+  kind: SubjectKindV3 | null;
+} {
   // Official names have accents ("CIÊNCIAS", "ED. FÍSICA"): compared without them.
   const name = subject
     .normalize('NFD')
     .replace(/[̀-ͯ]/gu, '')
     .toUpperCase();
   const known = KNOWN_V3.find(([pattern]) => pattern.test(name));
-  if (known) return { Icon: known[1], tone: known[2] };
+  if (known) return { Icon: known[1], tone: known[2], kind: known[3] };
   let hash = 0;
   for (const letter of name) hash = (hash * 31 + letter.codePointAt(0)!) >>> 0;
-  return { Icon: MarkedBookIconV3, tone: hash % SUBJECT_TONES_V3 };
+  return { Icon: MarkedBookIconV3, tone: hash % SUBJECT_TONES_V3, kind: null };
 }

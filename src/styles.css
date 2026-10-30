@@ -774,15 +774,10 @@ button.performance-kpi__button:hover {
   display: grid;
   width: 100%;
   align-items: center;
-  border: 1px solid transparent;
-  border-radius: var(--radius-2xl);
   background: transparent;
   color: inherit;
   cursor: pointer;
   text-align: left;
-}
-
-.performance-panorama__item {
   animation: performance-fade-in 320ms ease both;
   font-size: 0.6875rem;
   border: 0;

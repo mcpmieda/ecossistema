@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import type {
-  FrequencySummaryV2,
-  FrequencyYearSummaryV2,
-} from '../../../../shared/attendance-contracts/frequency-v2';
+import type { FrequencyYearSummaryV2 } from '../../../../shared/attendance-contracts/frequency-v2';
 import { BELL_SHIFTS_V1, schoolBellsDaysV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolDaysOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 
@@ -202,7 +199,6 @@ const wholeYear = z
   .strict();
 
 export type StudentFrequencyClientV2 = {
-  read(month: string, signal: AbortSignal): Promise<FrequencySummaryV2>;
   /** The whole school year so far in one answer (read with the sign-in, PR 1317). */
   readYear(signal: AbortSignal): Promise<FrequencyYearSummaryV2>;
 };
@@ -210,24 +206,6 @@ export function createStudentFrequencyClientV2(
   fetcher: typeof fetch = (...args) => globalThis.fetch(...args),
 ): StudentFrequencyClientV2 {
   return {
-    async read(month, signal) {
-      if (!/^2026-(0[1-9]|1[0-2])$/u.test(month))
-        throw new FrequencyClientErrorV2('invalid-request');
-      const parsed = summary.safeParse(
-        await frequencyJsonV2(
-          fetcher,
-          '/api/student/frequency?month=' + encodeURIComponent(month),
-          { signal },
-        ),
-      );
-      if (
-        !parsed.success ||
-        parsed.data.month !== month ||
-        parsed.data.marks.some((mark) => !mark.date.startsWith(month + '-'))
-      )
-        throw new FrequencyClientErrorV2('unavailable');
-      return parsed.data;
-    },
     async readYear(signal) {
       const parsed = wholeYear.safeParse(
         await frequencyJsonV2(fetcher, '/api/student/frequency?year=2026', { signal }),

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent as ReactTouchEventV1, type SyntheticEvent as ReactSyntheticEventV1 } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent as ReactTouchEventV1, type SyntheticEvent as ReactSyntheticEventV1 } from 'react';
 import { flushSync } from 'react-dom';
 import {
   Button,
@@ -11,27 +11,13 @@ import {
   Tabs,
 } from '@heroui/react';
 import {
-  Atom,
   BookOpenCheck,
   CircleAlert,
   CircleCheck,
-  BookOpenText,
-  Calculator,
   ChevronLeft,
   ChevronRight,
-  Dumbbell,
-  FlaskConical,
-  Globe2,
-  HandHeart,
-  Landmark,
-  Languages,
   LayoutDashboard,
-  Monitor,
   MoveRight,
-  Music2,
-  Palette,
-  PenLine,
-  Scale,
   Sparkles,
   Star,
   TrendingDown,
@@ -46,6 +32,7 @@ import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import './student-workspace-v1.css';
 import { TermClosingCardV1, TermClosingSummaryCardV1 } from './term-closing-v1';
 import { AnnualGoalCardV1, annualGoalV1 } from './annual-goal-v1';
+import { subjectStyleV3, type SubjectKindV3 } from '../redesign/subject-style-v3';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
 type PeriodV1 = SubjectV1['periods'][number];
@@ -80,16 +67,16 @@ function termValueV1(subjects: readonly SubjectV1[], period: PeriodIdV1): number
 }
 /**
  * The school's minimum is the server's (`meetsMinimum`), not a constant here. The 60% line is only
- * stated while every published trimester mark agrees with it; one that does not (a school with
- * another minimum) hides "passa" rather than give a wrong passing mark (PR 1317 review).
+ * stated while the published marks agree with it; one that does not (a school with another
+ * minimum) hides it rather than give a wrong passing mark (PR 1317 review).
  */
+function agreesWithSixtyPercentV1(final: PeriodV1['final'] | undefined): boolean {
+  if (final?.kind !== 'score' || !final.maximum || final.meetsMinimum === null) return true;
+  const reaches = final.value * 100 >= final.maximum * METER_MINIMUM_PERCENT_V1 - 1e-9;
+  return reaches === final.meetsMinimum;
+}
 function minimumIsSixtyPercentV1(subjects: readonly SubjectV1[], period: PeriodIdV1): boolean {
-  return subjects.every((subject) => {
-    const final = subjectPeriodV1(subject, period)?.final;
-    if (final?.kind !== 'score' || !final.maximum || final.meetsMinimum === null) return true;
-    const reaches = final.value * 100 >= final.maximum * METER_MINIMUM_PERCENT_V1 - 1e-9;
-    return reaches === final.meetsMinimum;
-  });
+  return subjects.every((subject) => agreesWithSixtyPercentV1(subjectPeriodV1(subject, period)?.final));
 }
 function TermValueV1({ subjects, period }: Readonly<{ subjects: readonly SubjectV1[]; period: PeriodIdV1 }>) {
   const value = termValueV1(subjects, period);
@@ -103,18 +90,8 @@ function TermValueV1({ subjects, period }: Readonly<{ subjects: readonly Subject
     </span>
   );
 }
-const BULLETIN_PERIOD_LABELS_V1: Partial<Record<PeriodIdV1, string>> = {
-  T1: '1º Trimestre',
-  T2: '2º Trimestre',
-  T3: '3º Trimestre',
-};
-const resultLabels = {
-  approved: 'Aprovado',
-  failed: 'Reprovado',
-  'failed-attendance': 'Reprovado por falta',
-} as const;
 // 'failed' is a darker red than the 'danger' of Em recuperação (owner review 27/09/2026).
-type ToneV1 = 'default' | 'success' | 'danger' | 'failed';
+type ToneV1 = 'success' | 'danger' | 'failed';
 const chipColorV1 = (tone: ToneV1) => (tone === 'failed' ? 'danger' : tone);
 const chipToneClassV1 = (tone: ToneV1) => (tone === 'failed' ? 'pa-chip-failed' : undefined);
 /** Official BN/Council wording; the coarse `result` is only a fallback for legacy payloads. */
@@ -154,12 +131,7 @@ const finalResultLabelsV1 = {
 
 function subjectSituationV1(subject: SubjectV1): { label: string; tone: ToneV1 } | null {
   if (subject.annualSituation) return SUBJECT_SITUATION_LABELS_V1[subject.annualSituation];
-  if (subject.officialOutcome)
-    return {
-      label: resultLabels[subject.officialOutcome],
-      tone: subject.officialOutcome === 'approved' ? 'success' : 'failed',
-    };
-  return null;
+  return subject.officialOutcome ? finalResultLabelsV1[subject.officialOutcome] : null;
 }
 type SummaryKeyV1 = PeriodIdV1 | 'REC';
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
@@ -182,13 +154,13 @@ function visibleMainPeriodsV1(subjects: readonly SubjectV1[]) {
   );
 }
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
-function closingOfV1(subject: SubjectV1, period: PeriodIdV1) {
-  return subject.closings?.find((closing) => closing.period === period);
-}
 /**
  * Released periods only: a trimester's closing shows together with its marks, never alone
  * (owner decision 2026-09-24, replacing #1132 R2).
  */
+function closingOfV1(subject: SubjectV1, period: PeriodIdV1) {
+  return subject.closings?.find((closing) => closing.period === period);
+}
 /** The period a discipline shows: the one chosen if it has it, else its first. */
 function shownPeriodV1(subject: SubjectV1, selected: PeriodIdV1 | undefined): PeriodIdV1 {
   const available = subjectPeriodsV1(subject);
@@ -241,7 +213,7 @@ function trendV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): Tr
  *   percentage points or more (`drop`, in points of the trimester's maximum).
  * The 3rd trimester is worth 40, so trends compare percentages, never raw marks.
  */
-export function trendTextV1(
+function trendTextV1(
   trend: TrendV1,
   reference: PeriodIdV1,
   current: boolean | null,
@@ -321,58 +293,39 @@ type SubjectMotionV1 =
   | 'beat'
   | 'balance'
   | 'swirl'
-  | 'bounce'
   | 'glow'
-  | 'orbit'
   | 'shake'
   | 'pop';
-
-function subjectIconOfV1(label: string): { Icon: typeof BookOpenCheck; motion: SubjectMotionV1 } {
-  const normalized = label
-    .normalize('NFD')
-    .replaceAll(/[\u0300-\u036f]/gu, '')
-    .toLocaleLowerCase('pt-BR');
-
-  if (normalized.includes('matematica')) return { Icon: Calculator, motion: 'press' };
-  if (normalized.includes('portugues')) return { Icon: BookOpenText, motion: 'page' };
-  if (normalized.includes('historia')) return { Icon: Landmark, motion: 'rise' };
-  if (normalized.includes('geografia')) return { Icon: Globe2, motion: 'spin' };
-  if (normalized.includes('ingles')) return { Icon: Languages, motion: 'chat' };
-  // Production labels are upper-case abbreviations (ED. FÍSICA, COMPUTAÇÃO, REDAÇÃO...).
-  if (normalized.includes('educacao fisica') || normalized.startsWith('ed. fisica'))
-    return { Icon: Dumbbell, motion: 'lift' };
-  if (normalized.includes('redacao')) return { Icon: PenLine, motion: 'write' };
-  if (normalized.includes('religiao') || normalized.includes('ensino religioso'))
-    return { Icon: HandHeart, motion: 'beat' };
-  if (normalized.includes('etica')) return { Icon: Scale, motion: 'balance' };
-  if (normalized.includes('arte')) return { Icon: Palette, motion: 'swirl' };
-  if (normalized.includes('musica')) return { Icon: Music2, motion: 'bounce' };
-  if (
-    normalized.includes('informatica') ||
-    normalized.includes('computacao') ||
-    normalized.includes('tecnologia')
-  )
-    return { Icon: Monitor, motion: 'glow' };
-  if (normalized === 'fisica' || normalized.includes('fisica ')) return { Icon: Atom, motion: 'orbit' };
-  if (
-    normalized.includes('ciencia') ||
-    normalized.includes('quimica') ||
-    normalized.includes('biologia')
-  )
-    return { Icon: FlaskConical, motion: 'shake' };
-  return { Icon: BookOpenCheck, motion: 'pop' };
-}
+/**
+ * The icon is the Horário's (subjectStyleV3: one icon per subject in every tab); the Notas add
+ * each subject's own short motion when its discipline opens. Any other subject pops.
+ */
+const SUBJECT_MOTION_V1: Record<SubjectKindV3, SubjectMotionV1> = {
+  portugues: 'page',
+  matematica: 'press',
+  ciencias: 'shake',
+  historia: 'rise',
+  geografia: 'spin',
+  arte: 'swirl',
+  'educacao-fisica': 'lift',
+  lingua: 'chat',
+  religiao: 'beat',
+  redacao: 'write',
+  etica: 'balance',
+  computacao: 'glow',
+};
 
 /** `animated` plays the subject's own motion once on mount (the discipline view remounts per subject). */
 function SubjectIconV1({ label, size = 18, animated = false }: Readonly<{ label: string; size?: number; animated?: boolean }>) {
-  const { Icon, motion } = subjectIconOfV1(label);
+  const { Icon, kind } = subjectStyleV3(label);
   return (
     <span
       className={'pa-subject-icon' + (animated ? ' pa-subject-icon--animated' : '')}
-      data-motion={motion}
+      data-motion={kind ? SUBJECT_MOTION_V1[kind] : 'pop'}
+      style={{ '--pa-subject-glyph': `${size}px` } as CSSProperties}
       aria-hidden="true"
     >
-      <Icon size={size} strokeWidth={1.8} />
+      <Icon live={false} />
     </span>
   );
 }
@@ -494,7 +447,7 @@ function SummaryV1({
                     <span>
                       {period === 'REC'
                         ? 'Recuperação'
-                        : (BULLETIN_PERIOD_LABELS_V1[period] ?? PERIOD_LABELS_V1[period])}
+                        : PERIOD_LABELS_V1[period]}
                     </span>
                     {period === 'REC' ? null : <TermValueV1 subjects={subjects} period={period} />}
                     <Tabs.Indicator />
@@ -761,10 +714,6 @@ function PartialFeedbackV1({ partial, calm, sealed = false }: Readonly<{ partial
   );
 }
 
-/**
- * Status copy restates the server's mark kind and classification in the same four bands as the
- * activities (owner decision 2026-09-27); it never infers a result.
- */
 /*
  * Header status, a touch richer without more words (owner review 28/09/2026): a small emblem in
  * the band's colour before the reading (the star stays Brilhante's), and under it a slim meter of
@@ -787,16 +736,27 @@ function ScoreMeterV1({ mark }: Readonly<{ mark: ScoreMarkV1 }>) {
   // Floor, never round: 59,8% must not read as the minimum's 60%.
   const percent = Math.max(0, Math.min(100, Math.floor((mark.value / mark.maximum) * 100)));
   // The minimum in points, named under the notch: 18,0 of 30, 24,0 of 40 (owner review 28/09/2026).
-  const minimum = trimesterNumber.format((mark.maximum * METER_MINIMUM_PERCENT_V1) / 100);
+  // A mark that disagrees with the 60% line (another minimum) shows the share without a notch.
+  const minimum = agreesWithSixtyPercentV1(mark)
+    ? trimesterNumber.format((mark.maximum * METER_MINIMUM_PERCENT_V1) / 100)
+    : null;
   return (
-    <span className="pa-score-meter" role="img" aria-label={`${percent}% dos pontos; o mínimo é ${minimum}`}>
+    <span
+      className="pa-score-meter"
+      role="img"
+      aria-label={`${percent}% dos pontos` + (minimum ? `; o mínimo é ${minimum}` : '')}
+    >
       <span className="pa-score-meter-track" aria-hidden="true">
         <span className="pa-score-meter-fill" style={{ width: `${percent}%` }} />
         {/* The notch at the minimum, named right under it so no parent has to guess. */}
-        <span className="pa-score-meter-minimum" style={{ left: `${METER_MINIMUM_PERCENT_V1}%` }} />
-        <span className="pa-score-meter-minimum-label" style={{ left: `${METER_MINIMUM_PERCENT_V1}%` }}>
-          mínimo {minimum}
-        </span>
+        {minimum ? (
+          <>
+            <span className="pa-score-meter-minimum" style={{ left: `${METER_MINIMUM_PERCENT_V1}%` }} />
+            <span className="pa-score-meter-minimum-label" style={{ left: `${METER_MINIMUM_PERCENT_V1}%` }}>
+              mínimo {minimum}
+            </span>
+          </>
+        ) : null}
       </span>
       <span className="pa-score-meter-value" aria-hidden="true">
         {percent}%
@@ -805,6 +765,10 @@ function ScoreMeterV1({ mark }: Readonly<{ mark: ScoreMarkV1 }>) {
   );
 }
 
+/**
+ * Status copy restates the server's mark kind and classification in the same four bands as the
+ * activities (owner decision 2026-09-27); it never infers a result.
+ */
 function periodStatusV1(period: PeriodV1 | undefined) {
   const final = period?.final;
   if (!final || final.kind === 'absent') return { label: 'Ainda não lançada', band: null };

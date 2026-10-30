@@ -39,8 +39,8 @@ import { CoffeeIconV3, FlagIconV3, type ScheduleIconV3 } from './schedule-icons-
 import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
 
 /*
- * Horário in a page of its own (owner decisions 22–23/10/2026, preview only): the weekly grid of the
- * student's class as the Smecel has it, read by the collector from "Grade de horários". Only the
+ * Horário in a page of its own (owner decisions 22–23/10/2026): the weekly grid of the student's
+ * class as the Smecel has it, read by the collector from "Grade de horários". Only the
  * subject, by its official name (the Notas' "PORTUGUÊS" for the Smecel's "LINGUA PORTUGUESA",
  * official-subjects-v1), with its own colour and icon; never the teacher; a free position ("VAGA")
  * is a blank space.
@@ -54,7 +54,7 @@ import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/o
  * Data: GET /api/student/schedule (createStudentScheduleClientV1), read with the sign-in and kept
  * (useCachedReadV3); shown only when the self response says `showSchedule === true`.
  */
-export type ScheduleLessonV3 = { weekday: number; slot: number; subject: string };
+type ScheduleLessonV3 = { weekday: number; slot: number; subject: string };
 export type ScheduleClassV3 = {
   label: string;
   observedAt: string;
@@ -91,14 +91,33 @@ function schoolClockAt(at: number) {
     seconds: Number(part('hour')) * 3600 + Number(part('minute')) * 60 + Number(part('second')),
   };
 }
-/** The school's clock, a tick a second (only while something on screen counts). */
+/**
+ * The school's clock: a tick a second while something on screen counts; otherwise only at the
+ * school's midnight and when the page comes back on screen, so "hoje" still moves on a page left
+ * open overnight (a class without times marked never ticks).
+ */
 function useSchoolClockV3(ticking: boolean) {
   const [now, setNow] = useState(() => schoolClockAt(portalNowV1()));
   useEffect(() => {
-    setNow(schoolClockAt(portalNowV1()));
-    if (!ticking) return;
-    const timer = window.setInterval(() => setNow(schoolClockAt(portalNowV1())), 1000);
-    return () => window.clearInterval(timer);
+    const check = () => setNow(schoolClockAt(portalNowV1()));
+    check();
+    if (ticking) {
+      const timer = window.setInterval(check, 1000);
+      return () => window.clearInterval(timer);
+    }
+    const untilMidnight = () => (86_400 - schoolClockAt(portalNowV1()).seconds) * 1000 + 1000;
+    let timer = window.setTimeout(function tick() {
+      check();
+      timer = window.setTimeout(tick, untilMidnight());
+    }, untilMidnight());
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [ticking]);
   return now;
 }
@@ -612,23 +631,26 @@ function nextSchoolDayOf(
     // Nothing after the calendar's last school day; nothing before its first.
     if (schoolYear && date > schoolYear.lastDay) return null;
     const weekday = weekdayOf(date);
-    if (weekday < 1 || weekday > 5 || off.has(date) || (schoolYear && date < schoolYear.firstDay)) continue;
-    const rows = rowsOf(item, weekday as WeekdayV3);
-    const first = rows.find((row) => row.kind === 'aula');
-    const bell =
-      first?.kind === 'aula' ? bellLessonV1(item.bells?.[weekday as WeekdayV3], first.slot) : null;
-    // The day starts with the parada when it has one (the students arrive for it).
-    const head = rows[0];
-    const parada = head?.kind === 'parada' ? head : null;
-    if (first?.kind === 'aula' && bell)
-      return {
-        ahead,
-        date,
-        weekday: weekday as WeekdayV3,
-        start: parada ? parada.start : bell.start,
-      };
+    const start = isSchoolDateV3(date, weekday, off, schoolYear) ? dayStartOfV3(item, weekday as WeekdayV3) : null;
+    if (start) return { ahead, date, weekday: weekday as WeekdayV3, start };
   }
   return null;
+}
+/** A weekday the ADM calendar does not mark as without school, from the school year's first day. */
+function isSchoolDateV3(date: string, weekday: number, off: ReadonlySet<string>, schoolYear: SchoolYearSpanV1 | null) {
+  return weekday >= 1 && weekday <= 5 && !off.has(date) && !(schoolYear && date < schoolYear.firstDay);
+}
+/**
+ * When a weekday's lessons start for this class: with the parada when the day has one (the students
+ * arrive for it), else with its first lesson; null without a lesson with a time.
+ */
+function dayStartOfV3(item: ScheduleClassV3, weekday: WeekdayV3): string | null {
+  const rows = rowsOf(item, weekday);
+  const first = rows.find((row) => row.kind === 'aula');
+  const bell = first?.kind === 'aula' ? bellLessonV1(item.bells?.[weekday], first.slot) : null;
+  if (!bell) return null;
+  const head = rows[0];
+  return head?.kind === 'parada' ? head.start : bell.start;
 }
 
 const itemName = (item: BellItemV1, subject: string | null) => {
@@ -886,6 +908,60 @@ function dayPanelV3(
   };
 }
 
+/**
+ * The phone's weekday chips: today and the days without school say so, and the blue pill sits on
+ * the day shown (`pillAt`, 0 for Monday), following a drag.
+ */
+function WeekChipsV3({
+  shown,
+  pillAt,
+  dragging,
+  isToday,
+  isOff,
+  onPick,
+}: Readonly<{
+  shown: WeekdayV3;
+  pillAt: number;
+  dragging: boolean;
+  isToday: (weekday: number) => boolean;
+  isOff: (weekday: number) => boolean;
+  onPick: (weekday: WeekdayV3) => void;
+}>) {
+  return (
+    <fieldset className="min-w-auto pa3-week-chips" aria-label="Dia da semana">
+      <span className="pa3-week-track" aria-hidden="true">
+        {DAYS.map((day) => (
+          <span key={day.weekday} />
+        ))}
+      </span>
+      <span
+        className={'pa3-week-pill' + (dragging ? ' is-dragging' : '')}
+        style={{ '--pa3-week-at': pillAt } as CSSProperties}
+        aria-hidden="true"
+      />
+      {DAYS.map((day) => {
+        const today = isToday(day.weekday);
+        const off = isOff(day.weekday);
+        let note: string | null = null;
+        if (today) note = 'hoje';
+        else if (off) note = 'sem aula';
+        return (
+          <ToggleButton
+            key={day.weekday}
+            className={'pa3-week-chip' + (today ? ' is-today' : '') + (off ? ' is-off' : '')}
+            isSelected={day.weekday === shown}
+            aria-label={day.long + (today ? ' (hoje)' : '') + (off ? ', sem aula' : '')}
+            onChange={() => onPick(day.weekday)}
+          >
+            <span>{day.short}</span>
+            {note ? <span className="pa3-week-chip-today">{note}</span> : null}
+          </ToggleButton>
+        );
+      })}
+    </fieldset>
+  );
+}
+
 /** The week as read; `classes` null while it has not come yet (then `status` says why). */
 export function ScheduleWeekV3({
   classes,
@@ -925,9 +1001,10 @@ export function ScheduleWeekV3({
   const inYear = !schoolYear || (today >= schoolYear.firstDay && today <= schoolYear.lastDay);
   const lessonsToday = schoolDay && !todayOff && inYear;
   const liveSeconds = lessonsToday ? clock.seconds : null;
+  // ISO moments (the server's): the latest is the greatest string.
   const latest = (classes ?? [])
     .map((item) => item.observedAt)
-    .sort((a, b) => Number(a > b) - Number(a < b))
+    .sort((a, b) => a.localeCompare(b))
     .at(-1);
 
   return (
@@ -962,42 +1039,14 @@ export function ScheduleWeekV3({
           )}
 
           {/* Phone: the day's lessons, one day at a time. */}
-          <fieldset className="min-w-auto pa3-week-chips" aria-label="Dia da semana">
-            <span className="pa3-week-track" aria-hidden="true">
-              {DAYS.map((day) => (
-                <span key={day.weekday} />
-              ))}
-            </span>
-            <span
-              className={'pa3-week-pill' + (drag.dragging ? ' is-dragging' : '')}
-              style={{ '--pa3-week-at': pillAt } as CSSProperties}
-              aria-hidden="true"
-            />
-            {DAYS.map((day) => (
-              <ToggleButton
-                key={day.weekday}
-                className={
-                  'pa3-week-chip' +
-                  (isToday(day.weekday) ? ' is-today' : '') +
-                  (offAt(day.weekday) ? ' is-off' : '')
-                }
-                isSelected={day.weekday === shown}
-                aria-label={
-                  day.long +
-                  (isToday(day.weekday) ? ' (hoje)' : '') +
-                  (offAt(day.weekday) ? ', sem aula' : '')
-                }
-                onChange={() => setPicked(day.weekday)}
-              >
-                <span>{day.short}</span>
-                {isToday(day.weekday) || offAt(day.weekday) ? (
-                  <span className="pa3-week-chip-today">
-                    {isToday(day.weekday) ? 'hoje' : 'sem aula'}
-                  </span>
-                ) : null}
-              </ToggleButton>
-            ))}
-          </fieldset>
+          <WeekChipsV3
+            shown={shown}
+            pillAt={pillAt}
+            dragging={drag.dragging}
+            isToday={isToday}
+            isOff={(weekday) => offAt(weekday) !== null}
+            onPick={setPicked}
+          />
 
           {classes.map((item) => (
             <Card key={item.label} className="pa3-card pa3-schedule-card">

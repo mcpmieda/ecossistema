@@ -19,19 +19,20 @@ import { useCachedReadV3 } from './use-cached-read-v3';
 import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
 
 /*
- * Frequência in a page of its own (owner requests 20–21/10/2026, preview only): one month at a
- * time, read in DAYS and about absences only. Every school day already over is one of four kinds,
- * the same everywhere (calendar colour, legend, ring, sentence): "falta total" (an absence in every
+ * Frequência in a page of its own (owner requests 20–21/10/2026): one month at a time, read in
+ * DAYS and about absences only. Every school day already over is one of four kinds, the same
+ * everywhere (calendar colour, legend, ring, sentence): "falta total" (an absence in every
  * lesson, one at least not justified), "falta parcial" (in some lessons only), "justificada" (every
  * absence of the day justified) or frequented (no absence). The portal never interprets the diary:
  * no "arrived late", "left early" or "partly" (owner decisions 21/10/2026); which lessons were
  * missed only shows in the lesson tiles of the day. The legal attendance stays by lessons, over the
  * whole year (the ruler).
  *
- * Data (PR 1317 checklist, 22/10/2026): the real client (createStudentFrequencyClientV2), one month
- * per request, kept per month so going back and forth never waits twice. The server works out the
- * month's and the year's counts by the same rule (frequencyCountV2: today never counts) and sends
- * the school's today and the class's last reading; the page only draws them.
+ * Data: GET /api/student/frequency?year=2026 (createStudentFrequencyClientV2), the whole year so
+ * far in one answer, read with the sign-in and kept (useCachedReadV3), so changing months never
+ * waits. The server works out the month's and the year's counts by the same rule (frequencyCountV2:
+ * today never counts) and sends the school's today and the class's last reading; the page only
+ * draws them. Shown only when the self response says `showFrequency === true`.
  */
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const WEEKDAYS_SHORT = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -414,15 +415,14 @@ function useMonthSwipeV3(go: (step: number) => void, canBack: boolean, canForwar
  * Today, kept current while the page stays open (owner request 21/10/2026): a phone left on the
  * portal overnight moves "HOJE" (and, on the 1st, the month) when the parent comes back to it, and
  * at midnight. The school's clock: America/Bahia, always UTC−3 (no daylight saving since 2012).
- * Frequência uses it only until the server's today arrives (a phone with a wrong clock never moves
- * "HOJE" there); Horário marks today's column with it.
+ * Used only until the server's today arrives (a phone with a wrong clock never moves "HOJE").
  */
 const SCHOOL_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' });
 /** The phone's date in the school's time zone (America/Bahia), until the server's today arrives. */
 export const schoolDateOnDeviceV3 = () => SCHOOL_DATE.format(new Date());
 const SCHOOL_UTC_OFFSET_MS = -3 * 3_600_000;
 const DAY_MS = 86_400_000;
-export function useTodayV3() {
+function useTodayV3() {
   const [today, setToday] = useState(schoolDateOnDeviceV3);
   useEffect(() => {
     const check = () => setToday(schoolDateOnDeviceV3());
@@ -467,23 +467,19 @@ function frequencyFailureV3(
   return ['Não foi possível carregar a frequência agora. Vamos tentar de novo em instantes.', ['Tentar agora', onRetry]];
 }
 
-/** While the month has not come yet, or cannot be shown: what happened, in plain words. */
+/** While the year has not come yet, or cannot be shown: what happened, in plain words. */
 function FrequencyStatusV3({
   error,
   onLogin,
   onRetry,
-  month,
 }: Readonly<{
   error: string | null;
   onLogin?: () => void;
   onRetry: () => void;
-  /** The month and its arrows, so a month that is slow to come never traps the reader. */
-  month?: ReactNode;
 }>) {
   if (!error)
     return (
       <Card className="pa3-card pa3-status">
-        {month}
         <output className="pa3-status-loading">
           <Spinner size="sm" /> Carregando frequência…
         </output>
@@ -492,7 +488,6 @@ function FrequencyStatusV3({
   const [message, action] = frequencyFailureV3(error, onLogin, onRetry);
   return (
     <Card className="pa3-card pa3-status" role="alert">
-      {month}
       <Alert status={error === 'unauthenticated' ? 'warning' : 'danger'}>
         <Alert.Indicator />
         <Alert.Content>
@@ -881,8 +876,7 @@ function FrequencyMonthV3({
   // At first, the latest day with a mark that opens, so the page never selects a day it cannot show.
   const firstPick =
     [...marksByDay.keys()]
-      .sort((a, b) => Number(a > b) - Number(a < b))
-      .reverse()
+      .sort((a, b) => b.localeCompare(a))
       .find((date) => date <= today && isPickable(stateOf(date))) ?? null;
   const selected = picked?.startsWith(month) ? picked : firstPick;
   const selectedLessons = selected ? (lessonsAt(selected) ?? []) : [];

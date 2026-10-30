@@ -14,7 +14,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('uses a private month-only endpoint, rejects unknown payloads and removes stale data after a 404', async () => {
+it('reads the year from a private endpoint and rejects unknown payloads', async () => {
   const fetcher = vi.fn<typeof fetch>(
     async () =>
       new Response(JSON.stringify({ contractVersion: 2, state: 'something-new' }), {
@@ -22,10 +22,10 @@ it('uses a private month-only endpoint, rejects unknown payloads and removes sta
       }),
   );
   const client = createStudentFrequencyClientV2(fetcher);
-  await expect(client.read('2026-10', new AbortController().signal)).rejects.toMatchObject({
+  await expect(client.readYear(new AbortController().signal)).rejects.toMatchObject({
     state: 'unavailable',
   });
-  expect(fetcher.mock.calls[0]?.[0]).toBe('/api/student/frequency?month=2026-10');
+  expect(fetcher.mock.calls[0]?.[0]).toBe('/api/student/frequency?year=2026');
   expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
     cache: 'no-store',
     credentials: 'same-origin',
