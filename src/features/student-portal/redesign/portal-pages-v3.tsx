@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { NotebookPen } from 'lucide-react';
+import { FileWarning, NotebookPen } from 'lucide-react';
 import { StudentPortalShellV1, type StudentShellPropsV1 } from '../shell/student-shell-v1';
 import { portalNowV1 } from '../shell/portal-notices-v1';
 // The portal's own shell styles (helpers such as the screen-reader-only text), loaded unchanged.
@@ -12,10 +12,10 @@ import './redesign-v3.css';
  * white sheet, shared by Notas, Frequência and Horário (owner decision 22/10/2026), and a menu of
  * icons at the bottom on a phone and at the side on a computer. Switching only changes what is
  * inside the sheet: the cover, the sheet and the menu stay still; the menu's highlight glides to
- * the chosen item. A page the school turned off in the ADM (Frequência, Horário) has no menu item,
+ * the chosen item. A page the school turned off in the ADM (Frequência, Horário, Ocorrências) has no menu item,
  * and with Notas alone the menu shows Notas only (owner decision 23/10/2026).
  */
-type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule';
+type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule' | 'incidents';
 /**
  * Whether the page is the one on screen. A page behind the menu stays mounted (so coming back is
  * instant) but reads nothing until it is opened, and stops reading when another one is chosen.
@@ -35,10 +35,21 @@ export function useReportFrequencyToneV3(tone: FrequencyToneV3) {
   useEffect(() => report(tone), [report, tone]);
 }
 
+/**
+ * The Ocorrências item shows, small at its top right, how many incidents the family has not yet
+ * confirmed (owner decision 29/10/2026); nothing once all are confirmed. The page reports it.
+ */
+const OpenIncidentsReportV3 = createContext<(open: number | null) => void>(() => {});
+export function useReportOpenIncidentsV3(open: number | null) {
+  const report = useContext(OpenIncidentsReportV3);
+  useEffect(() => report(open), [report, open]);
+}
+
 /** A menu item's icon: Frequência's calendar says how it is going, Horário's clock tells the time. */
 function NavIconV3({ id, frequencyTone }: Readonly<{ id: PortalPageIdV3; frequencyTone: FrequencyToneV3 }>) {
   if (id === 'frequency') return <FrequencyIconV3 tone={frequencyTone} size={22} />;
   if (id === 'schedule') return <LiveClockIconV3 size={22} />;
+  if (id === 'incidents') return <FileWarning size={22} aria-hidden="true" />;
   return <NotebookPen size={22} aria-hidden="true" />;
 }
 
@@ -46,6 +57,7 @@ const PAGES: readonly { id: PortalPageIdV3; label: string }[] = [
   { id: 'grades', label: 'Notas' },
   { id: 'frequency', label: 'Frequência' },
   { id: 'schedule', label: 'Horário' },
+  { id: 'incidents', label: 'Ocorrências' },
 ];
 
 /**
@@ -128,7 +140,7 @@ function LiveClockIconV3({ size }: Readonly<{ size: number }>) {
 /*
  * Notas ⇄ Frequência (owner request 20/10/2026): the same move as between trimesters, inside the
  * sheet only. The content being left slides out to one side while the chosen one comes in from the
- * other; each page sits to the right of the one before it, as in the menu (Notas, Frequência, Horário).
+ * other; each page sits to the right of the one before it, as in the menu (Notas, Frequência, Horário, Ocorrências).
  */
 const SLIDE_MS_V3 = 340;
 const SLIDE_EASING_V3 = 'cubic-bezier(0.4, 0, 0.2, 1)';
@@ -181,10 +193,12 @@ type PortalPagesPropsV3 = Omit<StudentShellPropsV1, 'children' | 'hero' | 'busy'
   frequency?: ReactNode;
   /** Horário, only when the school's "Horário" key is on for the student. */
   schedule?: ReactNode;
+  /** Ocorrências, only when the school's "Ocorrências" key is on for the student. */
+  incidents?: ReactNode;
 };
 
-export function PortalPagesV3({ hero, grades, frequency, schedule, ...shell }: PortalPagesPropsV3) {
-  const contentOf: Record<PortalPageIdV3, ReactNode> = { grades, frequency, schedule };
+export function PortalPagesV3({ hero, grades, frequency, schedule, incidents, ...shell }: PortalPagesPropsV3) {
+  const contentOf: Record<PortalPageIdV3, ReactNode> = { grades, frequency, schedule, incidents };
   const pages = PAGES.filter((item) => item.id === 'grades' || contentOf[item.id] != null);
   // Notas alone (owner decision 23/10/2026: both keys off): the bottom bar stays, with Notas only.
   return <PortalMenuPagesV3 hero={hero} pages={pages} contentOf={contentOf} shell={shell} />;
@@ -211,6 +225,7 @@ function PortalMenuPagesV3({
   const entering = useRef<SlideV3 | null>(null);
   const highlight = useNavHighlightV3(page);
   const [frequencyTone, setFrequencyTone] = useState<FrequencyToneV3>(null);
+  const [openIncidents, setOpenIncidents] = useState<number | null>(null);
   const elementOf = (id: PortalPageIdV3) => panels.current[id] ?? null;
   // Set by a switch the reader asked for (menu or Back), never by the first render.
   const switched = useRef(false);
@@ -304,6 +319,7 @@ function PortalMenuPagesV3({
 
       <div className="pa3-page">
         <FrequencyToneReportV3 value={setFrequencyTone}>
+        <OpenIncidentsReportV3 value={setOpenIncidents}>
         <StudentPortalShellV1 {...shell} hero={hero}>
           <div ref={stage} className="pa3-stage">
             {pages.map(({ id, label }) => (
@@ -323,6 +339,7 @@ function PortalMenuPagesV3({
             ))}
           </div>
         </StudentPortalShellV1>
+        </OpenIncidentsReportV3>
         </FrequencyToneReportV3>
       </div>
 
@@ -342,6 +359,12 @@ function PortalMenuPagesV3({
           >
             <span className="pa3-nav-icon">
               <NavIconV3 id={id} frequencyTone={frequencyTone} />
+              {id === 'incidents' && openIncidents ? (
+                <span className="pa3-nav-badge">
+                  {openIncidents}
+                  <span className="pa-visually-hidden"> sem confirmação</span>
+                </span>
+              ) : null}
             </span>
             <span className="pa3-nav-label">{label}</span>
           </button>
