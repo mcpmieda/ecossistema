@@ -57,7 +57,9 @@ export async function servePortalIncidentsV1(request:Request,env:PortalCompositi
         const read=readSchema.parse(jsonOf(raw));
         const clock=await tx.unsafe('SELECT clock_timestamp() < $1::timestamptz AS active',[session.expiresAt]);
         if(clock[0]?.active!==true)return null;
-        return{state:'ready' as const,incidents:read.incidents.map(({leaveFrom,leaveTo,leaveDays,acknowledgedAt,...item})=>({...item,
+        // The class is still read (attendance 0016) but not shown to the family (owner request
+        // 30/10/2026), so it stays here.
+        return{state:'ready' as const,incidents:read.incidents.map(({leaveFrom,leaveTo,leaveDays,acknowledgedAt,classLabel:_class,...item})=>({...item,
           // Only a suspension has a leave; any part the Smecel left blank stays null.
           leave:leaveFrom===null&&leaveTo===null&&leaveDays===null?null:{from:leaveFrom,to:leaveTo,days:leaveDays},
           acknowledgedAt:instant(acknowledgedAt)}))};

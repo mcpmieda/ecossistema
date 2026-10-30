@@ -10,7 +10,6 @@ const incident = {
   id: versionId,
   kind: 'ADVERTÊNCIA',
   date: '2026-09-29',
-  classLabel: '6º ANO A - MATUTINO',
   leave: null,
   description: 'Advertido(a) por usar o uniforme fora do padrão.',
   acknowledgedAt: null,
