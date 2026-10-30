@@ -57,6 +57,7 @@ export const reconciliationRequestV1 = z.discriminatedUnion('operation', [
     .strict(),
   z.object({ ...base, operation: z.literal('catalog') }).strict(),
   z.object({ ...base, operation: z.literal('pending-count') }).strict(),
+  z.object({ ...base, operation: z.literal('automatic-report') }).strict(),
   z
     .object({
       ...mutation,
@@ -180,6 +181,33 @@ export const reconciliationListItemV1 = z.discriminatedUnion('kind', [
   reconciliationPendingV1,
 ]);
 export type ReconciliationListItemV1 = z.infer<typeof reconciliationListItemV1>;
+const automaticReportV1 = z
+  .object({
+    observedAt: z.string(),
+    changedAt: z.string(),
+    outcome: z.enum(['applied', 'preparing', 'awaiting_relation', 'review']),
+    rows: z.number().int().nonnegative(),
+    counts: z
+      .object({ rows: z.number().int(), linked: z.number().int(), pending: z.number().int() })
+      .strict()
+      .nullable(),
+    differences: z.array(z.string()).max(500),
+    invalid: z
+      .array(
+        z
+          .object({
+            sourceRow: z.number().int(),
+            name: z.string(),
+            classLabel: z.string(),
+            field: z.string(),
+            reason: z.string(),
+          })
+          .strict(),
+      )
+      .max(10000),
+  })
+  .strict();
+export type AutomaticReportV1 = z.infer<typeof automaticReportV1>;
 export type ReconciliationContextV1 = {
   generation: string;
   revision: number;
@@ -215,6 +243,13 @@ export type ReconciliationResponseV1 =
       operation: 'pending-count';
       /** Rows of the pending view (an external row, or a student not reconciled), capped at 51. */
       pending: number;
+    }
+  | {
+      contractVersion: 1;
+      state: 'ready';
+      operation: 'automatic-report';
+      /** The Coletor's last automatic report and what it left to confer (attendance 0015). */
+      report: AutomaticReportV1 | null;
     }
   | {
       contractVersion: 1;
@@ -316,6 +351,14 @@ export const reconciliationResponseV1: z.ZodType<ReconciliationResponseV1> = z.u
       state: z.literal('ready'),
       operation: z.literal('pending-count'),
       pending: z.number().int().min(0).max(RECONCILIATION_PENDING_CAP_V1 + 1),
+    })
+    .strict(),
+  z
+    .object({
+      contractVersion: z.literal(1),
+      state: z.literal('ready'),
+      operation: z.literal('automatic-report'),
+      report: automaticReportV1.nullable(),
     })
     .strict(),
   z

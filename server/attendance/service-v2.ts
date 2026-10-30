@@ -12,6 +12,11 @@ import {
   type FrequencyCollectionV2,
   type FrequencyScheduleCollectionV2,
   type FrequencyIncidentCollectionV2,
+  type FrequencyReportScheduleV2,
+  type FrequencyStudentReportV2,
+  type FrequencyStudentReportUnchangedV2,
+  type FrequencyStudentReportNotesV2,
+  type FrequencyStudentReportStateV2,
   type FrequencyUnchangedV2,
   type FrequencyDeviceV2,
   type FrequencyFailureEntryV2,
@@ -87,9 +92,9 @@ function text(value: unknown): string {
   throw new FrequencyErrorV2('unavailable', 503, 'unexpected-database-value');
 }
 const iso = (v: unknown) => new Date(text(v)).toISOString();
-const DEVICE_ONLY = new Set(['lease', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'heartbeat', 'release']);
+const DEVICE_ONLY = new Set(['lease', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'student-report-collect', 'student-report-unchanged', 'heartbeat', 'release']);
 /** Operations that write evidence under the live lease, as `collect` does. */
-const COLLECTING = new Set(['collect', 'collect-unchanged', 'schedule-collect', 'incident-collect']);
+const COLLECTING = new Set(['collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'student-report-collect', 'student-report-unchanged']);
 const ADMIN_ONLY = new Set(['revoke-device', 'resolve-conflict', 'monthly-summary']);
 const UNLEASED = new Set(['heartbeat', 'lease', 'release']);
 
@@ -629,6 +634,10 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
   );
   const live = truth(clock!.live);
   const paused = truth(row.paused);
+  const [report] = await tx.query<Row>(
+    `SELECT last_observed_at::text,last_received_at::text,last_changed_at::text,outcome,rows,notes_json FROM attendance.student_report_state_v2 WHERE academic_year=$1`,
+    [year],
+  );
   return {
     contractVersion: 2,
     state: 'ready',
@@ -638,7 +647,12 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
       revision: Number(row.revision),
       paused,
       schedule: row.schedule_json === null ? null : json<FrequencyScheduleV2>(row.schedule_json),
+      reportSchedule:
+        row.report_schedule_json === null || row.report_schedule_json === undefined
+          ? null
+          : json<FrequencyReportScheduleV2>(row.report_schedule_json),
     },
+    studentReport: report ? studentReportView(report, actor.mode === 'admin') : null,
     lease: live
       ? {
           deviceId: text(row.lease_device),
@@ -1175,13 +1189,18 @@ async function collect(
 
 async function saveSettings(
   { tx, row }: Context,
-  input: Extract<Mutation, { operation: 'save-settings' | 'set-paused' }>,
+  input: Extract<Mutation, { operation: 'save-settings' | 'save-report-settings' | 'set-paused' }>,
 ): Promise<Row> {
   if (Number(row.revision) !== input.expectedRevision) fail('revision-conflict');
   if (input.operation === 'save-settings')
     await tx.executeNative(
       `UPDATE attendance.school_state_v2 SET schedule_json=$2::text::jsonb,revision=revision+1 WHERE academic_year=$1`,
       [input.academicYear, JSON.stringify(input.schedule)],
+    );
+  else if (input.operation === 'save-report-settings')
+    await tx.executeNative(
+      `UPDATE attendance.school_state_v2 SET report_schedule_json=$2::text::jsonb,revision=revision+1 WHERE academic_year=$1`,
+      [input.academicYear, input.reportSchedule === null ? null : JSON.stringify(input.reportSchedule)],
     );
   else
     await tx.executeNative(
@@ -1591,9 +1610,165 @@ async function collectIncidents(
   await saveState();
   return { changed: true, changedIncidents: changed, removedIncidents: removed, ...summary };
 }
+/** A device sees what the report did, never the names of the rows left for the Conciliação. */
+function studentReportView(row: Row, names: boolean): FrequencyStudentReportStateV2 {
+  const notes = json<FrequencyStudentReportNotesV2>(row.notes_json);
+  return {
+    observedAt: iso(row.last_observed_at),
+    receivedAt: iso(row.last_received_at),
+    changedAt: iso(row.last_changed_at),
+    outcome: text(row.outcome) as FrequencyStudentReportStateV2['outcome'],
+    rows: Number(row.rows),
+    notes: names ? notes : { ...notes, invalid: [] },
+  };
+}
+/** The report's content as compared between readings: its rows in sheet order. */
+export function studentReportHashV2(input: Pick<FrequencyStudentReportV2, 'rows'>): Promise<string> {
+  return frequencyPayloadHashV2([...input.rows].sort((a, b) => a.sourceRow - b.sourceRow));
+}
+/** The last report as the next step needs it: the batch it left and whether it still waits. */
+export type StudentReportPreviousV2 = {
+  evidenceHash: string;
+  outcome: FrequencyStudentReportStateV2['outcome'];
+  batchId: string | null;
+  notes: FrequencyStudentReportNotesV2;
+};
+/**
+ * A report that differs from the last one (or whose application is unfinished): the check's
+ * transaction rolls back and the application runs outside the school row (student-report-v2.ts).
+ */
+export class StudentReportPendingV2 extends Error {
+  constructor(
+    public readonly evidenceHash: string,
+    public readonly previous: StudentReportPreviousV2 | null,
+  ) {
+    super('student-report-pending');
+  }
+}
+/** What the application did, written by the second, short transaction. */
+export type StudentReportOutcomeV2 = {
+  evidenceHash: string;
+  outcome: FrequencyStudentReportStateV2['outcome'];
+  batchId: string | null;
+  notes: FrequencyStudentReportNotesV2;
+  /** False when nothing changed in the Conciliação (a report still awaiting the Relação). */
+  changed: boolean;
+};
+async function studentReportState(
+  tx: Tx,
+  input: Pick<FrequencyStudentReportV2, 'academicYear' | 'fencingToken' | 'observedAt'>,
+  actor: FrequencyActorV2,
+) {
+  await liveLease(tx, input, actor);
+  const [clock] = await tx.query<Row>(`SELECT clock_timestamp()::text AS now`, []);
+  rejectSource(
+    new Date(input.observedAt).getTime() > new Date(text(clock!.now)).getTime() + 5000,
+    'observed-in-future',
+  );
+  const [state] = await tx.query<Row>(
+    `SELECT evidence_hash,last_observed_at::text,outcome,batch_id::text,notes_json FROM attendance.student_report_state_v2 WHERE academic_year=$1 FOR UPDATE`,
+    [input.academicYear],
+  );
+  if (state && new Date(text(state.last_observed_at)) > new Date(input.observedAt))
+    fail('source-invalid', 409, 'older-than-last-collection');
+  return state;
+}
+function studentReportReply(changed: boolean, outcome: string, notes: FrequencyStudentReportNotesV2, rows: number): Row {
+  return {
+    changed,
+    outcome,
+    rows,
+    linked: notes.counts?.linked ?? 0,
+    pending: notes.counts?.pending ?? 0,
+    differences: notes.differences.length,
+    invalid: notes.invalid.length,
+  };
+}
+/**
+ * Same report as last time and nothing left to finish: only the dates (owner decision 29/10/2026:
+ * no heavy application). Anything else leaves through StudentReportPendingV2.
+ */
+async function checkStudentReport(
+  tx: Tx,
+  input: FrequencyStudentReportV2,
+  actor: FrequencyActorV2,
+): Promise<Row> {
+  const state = await studentReportState(tx, input, actor);
+  const evidenceHash = await studentReportHashV2(input);
+  const notes = state ? json<FrequencyStudentReportNotesV2>(state.notes_json) : null;
+  if (state && notes && text(state.evidence_hash) === evidenceHash && ['applied', 'review'].includes(text(state.outcome))) {
+    await tx.executeNative(
+      `UPDATE attendance.student_report_state_v2 SET last_observed_at=$2::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1`,
+      [input.academicYear, input.observedAt],
+    );
+    return studentReportReply(false, text(state.outcome), notes, input.rows.length);
+  }
+  throw new StudentReportPendingV2(
+    evidenceHash,
+    state && notes
+      ? {
+          evidenceHash: text(state.evidence_hash),
+          outcome: text(state.outcome) as StudentReportPreviousV2['outcome'],
+          batchId: state.batch_id === null ? null : text(state.batch_id),
+          notes,
+        }
+      : null,
+  );
+}
+/**
+ * The Coletor's local copy says the report is the one it last sent: dates only, if the server's
+ * last report is that one and finished. Anything else asks for the whole report.
+ */
+async function studentReportUnchanged(
+  tx: Tx,
+  input: FrequencyStudentReportUnchangedV2,
+  actor: FrequencyActorV2,
+): Promise<Row> {
+  const state = await studentReportState(tx, input, actor);
+  if (
+    !state ||
+    text(state.evidence_hash) !== input.contentHash ||
+    !['applied', 'review'].includes(text(state.outcome))
+  )
+    fail('payload-required', 409, 'student-report-changed');
+  await tx.executeNative(
+    `UPDATE attendance.student_report_state_v2 SET last_observed_at=$2::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1`,
+    [input.academicYear, input.observedAt],
+  );
+  return studentReportReply(false, text(state.outcome), json<FrequencyStudentReportNotesV2>(state.notes_json), input.rows);
+}
+/** Records what the application did, under the same lease, with the request's receipt. */
+async function finishStudentReport(
+  tx: Tx,
+  input: FrequencyStudentReportV2,
+  actor: FrequencyActorV2,
+  result: StudentReportOutcomeV2,
+): Promise<Row> {
+  await studentReportState(tx, input, actor);
+  await tx.executeNative(
+    `INSERT INTO attendance.student_report_state_v2(academic_year,evidence_hash,last_observed_at,last_received_at,last_changed_at,outcome,batch_id,rows,notes_json)
+    VALUES($1,$2,$3::timestamptz,clock_timestamp(),clock_timestamp(),$4,$5::uuid,$6,$7::text::jsonb)
+    ON CONFLICT(academic_year) DO UPDATE SET evidence_hash=EXCLUDED.evidence_hash,last_observed_at=EXCLUDED.last_observed_at,
+      last_received_at=EXCLUDED.last_received_at,
+      last_changed_at=CASE WHEN $8::integer::boolean THEN EXCLUDED.last_changed_at ELSE student_report_state_v2.last_changed_at END,
+      outcome=EXCLUDED.outcome,batch_id=EXCLUDED.batch_id,rows=EXCLUDED.rows,notes_json=EXCLUDED.notes_json`,
+    [
+      input.academicYear,
+      result.evidenceHash,
+      input.observedAt,
+      result.outcome,
+      result.batchId,
+      input.rows.length,
+      JSON.stringify(result.notes),
+      result.changed ? 1 : 0,
+    ],
+  );
+  return studentReportReply(result.changed, result.outcome, result.notes, input.rows.length);
+}
 function mutate(context: Context, input: Mutation): Promise<Row> {
   switch (input.operation) {
     case 'save-settings':
+    case 'save-report-settings':
     case 'set-paused':
       return saveSettings(context, input);
     case 'rename-device':
@@ -1612,6 +1787,10 @@ function mutate(context: Context, input: Mutation): Promise<Row> {
       return collectSchedule(context.tx, input, context.actor);
     case 'incident-collect':
       return collectIncidents(context.tx, input, context.actor);
+    case 'student-report-collect':
+      return checkStudentReport(context.tx, input, context.actor);
+    case 'student-report-unchanged':
+      return studentReportUnchanged(context.tx, input, context.actor);
     case 'resolve-conflict':
       return resolveConflict(context, input);
   }
@@ -1703,6 +1882,7 @@ async function runOperation(
   tx: Tx,
   input: FrequencyRequestV2,
   actor: FrequencyActorV2,
+  operation: (context: Context, input: Mutation) => Promise<Row> = mutate,
 ): Promise<Row | FrequencyStatusV2 | FrequencySummaryV2> {
   await lockResetWriterV1(tx, input.academicYear);
   await lockDevice(tx, actor);
@@ -1725,7 +1905,7 @@ async function runOperation(
     return json<Row>(receipt.result_json);
   }
   const context = { tx, row, actor };
-  const fields = await mutate(context, input);
+  const fields = await operation(context, input);
   const result = {
     contractVersion: 2,
     state: 'committed',
@@ -1747,6 +1927,20 @@ export function createFrequencyServiceV2(database: GradebookPostgresDatabaseV1) 
       const input = parsed.data;
       authorizeOperation(input, actor);
       return database.transaction((tx) => runOperation(tx, input, actor));
+    },
+    /** The automatic report's second step: same receipt and lease rules as any collection. */
+    async finishStudentReport(
+      input: FrequencyStudentReportV2,
+      actor: FrequencyActorV2,
+      result: StudentReportOutcomeV2,
+    ): Promise<Row> {
+      authorizeOperation(input, actor);
+      return database.transaction(
+        (tx) =>
+          runOperation(tx, input, actor, (context) =>
+            finishStudentReport(context.tx, input, context.actor, result),
+          ) as Promise<Row>,
+      );
     },
     async summary(
       year: number,
@@ -1773,6 +1967,8 @@ export function createFrequencyServiceV2(database: GradebookPostgresDatabaseV1) 
 }
 export type FrequencyServiceV2 = ReturnType<typeof createFrequencyServiceV2>;
 const yearlyTables = [
+  // The automatic student report's last reading (0015).
+  'student_report_state_v2',
   // The Smecel "Ocorrências" (0014): the family's confirmations, the pointer rows, every version.
   'incident_ack_v2',
   'incident_state_v2',

@@ -36,6 +36,7 @@ export function frequencySyntheticSetupSqlV2(): string[] {
     readFileSync('migrations/attendance/0009_traceable_evidence_pruning_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0010_class_schedule_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0014_incidents_v2.sql', 'utf8'),
+    readFileSync('migrations/attendance/0015_student_report_v2.sql', 'utf8'),
     `${validity} REVOKE ALL ON FUNCTION gradebook.reconciliation_evidence_valid_v2(smallint,uuid,integer,jsonb,jsonb) FROM PUBLIC; GRANT EXECUTE ON FUNCTION gradebook.reconciliation_evidence_valid_v2(smallint,uuid,integer,jsonb,jsonb) TO gradebook_app;`,
     `CREATE FUNCTION attendance.record_reset_write_v2(smallint) RETURNS text LANGUAGE sql AS $$ UPDATE student_portal.frequency_test_coordination SET counter=counter+1 WHERE year=$1 RETURNING 'frequency:'||counter::text $$;
    REVOKE ALL ON FUNCTION attendance.record_reset_write_v2(smallint) FROM PUBLIC;
@@ -43,7 +44,7 @@ export function frequencySyntheticSetupSqlV2(): string[] {
   ];
 }
 export const FREQUENCY_SYNTHETIC_SEED_SQL_V2 = `
-TRUNCATE attendance.school_state_v2,attendance.device_status_v2,attendance.class_state_v2,attendance.batch_v2,attendance.source_row_v2,attendance.coverage_v2,attendance.source_mark_v2,attendance.occurrence_v2,attendance.origin_v2,attendance.conflict_v2,attendance.correction_v2,attendance.receipt_v2,attendance.retired_request_v2,attendance.failure_v2,attendance.pruned_origin_v2,attendance.prune_run_v2,attendance.schedule_state_v2,attendance.schedule_version_v2,attendance.incident_ack_v2,attendance.incident_state_v2,attendance.incident_v2,attendance.incident_version_v2;
+TRUNCATE attendance.school_state_v2,attendance.device_status_v2,attendance.class_state_v2,attendance.batch_v2,attendance.source_row_v2,attendance.coverage_v2,attendance.source_mark_v2,attendance.occurrence_v2,attendance.origin_v2,attendance.conflict_v2,attendance.correction_v2,attendance.receipt_v2,attendance.retired_request_v2,attendance.failure_v2,attendance.pruned_origin_v2,attendance.prune_run_v2,attendance.schedule_state_v2,attendance.schedule_version_v2,attendance.incident_ack_v2,attendance.incident_state_v2,attendance.incident_v2,attendance.incident_version_v2,attendance.student_report_state_v2;
 TRUNCATE gradebook.student_source_link_v1,gradebook.student_source_observation_v1,gradebook.student_source_record_v1,gradebook.student_report_class_v1,gradebook.student_reconciliation_scope_v1;
 DELETE FROM gradebook.vinculo;DELETE FROM gradebook.aluno;DELETE FROM gradebook.turma;DELETE FROM gradebook.ano_letivo;DELETE FROM gradebook.student_identity;
 TRUNCATE collector_auth.frequency_test_device,student_portal.frequency_test_coordination;

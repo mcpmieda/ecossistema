@@ -18,6 +18,7 @@ import {
 import type { GradebookPostgresDatabaseV1 } from '../gradebook/persistence/postgres/postgres-database-v1';
 import { withOfficialGradebookDatabaseV1 } from '../gradebook/persistence/postgres/official-gradebook-database-v1';
 import { CollectorAccessErrorV1, type CollectorAccessServiceV1 } from './access-service-v1';
+import { collectStudentReportV2 } from '../attendance/student-report-v2';
 
 const reply = (value: unknown, status = 200) =>
   Response.json(value, {
@@ -82,6 +83,9 @@ async function execute(
   const result = await withOfficialGradebookDatabaseV1(env, async (execution) => {
     const db = database(execution);
     try {
+      // The automatic student report runs its Conciliação steps outside the school row's transaction.
+      if (payload.operation === 'student-report-collect')
+        return reply(await collectStudentReportV2(db, execution, payload, actor));
       return reply(await createFrequencyServiceV2(db).execute(payload, actor));
     } catch (error) {
       const code = error instanceof FrequencyErrorV2 ? error.code : 'unavailable';
@@ -142,7 +146,7 @@ export async function handleFrequencyAdminRequestV2(
     requireRole(session.roles, 'ADMINISTRADOR');
     const input = frequencyRequestV2.parse(await readBoundedJson(request, FREQUENCY_BODY_BYTES_V2));
     if (
-      ['lease', 'heartbeat', 'release', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect'].includes(
+      ['lease', 'heartbeat', 'release', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'student-report-collect', 'student-report-unchanged'].includes(
         input.operation,
       )
     )

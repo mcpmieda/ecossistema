@@ -18,7 +18,7 @@ import {
 } from './storage-v1';
 import { prepareReportV1, preparedResponseV1 } from './prepare-v1';
 import { applyReportV1 } from './apply-v1';
-import { catalogV1, detailV1, listV1, pendingCountV1 } from './queries-v1';
+import { automaticReportV1, catalogV1, detailV1, listV1, pendingCountV1 } from './queries-v1';
 import { decideV1 } from './decisions-v1';
 
 type PrepareRequestV1 = Extract<ReconciliationRequestV1, { operation: 'prepare' }>;
@@ -155,6 +155,8 @@ export class StudentReconciliationServiceV1 {
             return catalogV1(tx, request.academicYear, context);
           case 'pending-count':
             return pendingCountV1(tx, request.academicYear);
+          case 'automatic-report':
+            return automaticReportV1(tx, request.academicYear);
           case 'list':
             return listV1(tx, this.actorId, request, context, this.cursorSecret);
           case 'detail':

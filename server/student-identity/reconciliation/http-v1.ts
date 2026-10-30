@@ -53,15 +53,21 @@ function coreAvailableV1(env: RuntimeEnv): boolean {
     Boolean(env.GRADEBOOK_DATABASE)
   );
 }
-/** KDF work happens after the core transaction ends. Final apply revalidates every CAS in one transaction. */
-async function stageCredentialsV1(
+export type StagedCredentialsV1 =
+  | { state: 'ready' | 'preparing'; remaining: number }
+  | { state: 'conflict' | 'expired' | 'unavailable' };
+/**
+ * Prepares up to four Portal credentials of a batch in the private Portal capability (the KDF runs
+ * there, outside any database transaction). The ADM's import and the Coletor's automatic report call
+ * the same step; the final apply revalidates every CAS in one transaction.
+ */
+export async function stageReconciliationCredentialsV1(
   env: RuntimeEnv,
   context: TrustedAdminContextV1,
   input: { batchId: string; generation: string; expectedRevision: number },
-): Promise<Response> {
+): Promise<StagedCredentialsV1> {
   const binding = env.PORTAL_SERVICE as CredentialBindingV1 | undefined;
-  if (typeof binding?.prepareReconciliationCredentials !== 'function')
-    return responseV1({ contractVersion: 1, state: 'unavailable' });
+  if (typeof binding?.prepareReconciliationCredentials !== 'function') return { state: 'unavailable' };
   const staged = stageResultV1.safeParse(
     await binding.prepareReconciliationCredentials(context, {
       contractVersion: 1,
@@ -70,15 +76,24 @@ async function stageCredentialsV1(
       expectedScopeRevision: input.expectedRevision,
     }),
   );
-  if (!staged.success) return responseV1({ contractVersion: 1, state: 'unavailable' });
+  if (!staged.success) return { state: 'unavailable' };
   if (staged.data.state === 'expired' || staged.data.state === 'conflict')
-    return responseV1({ contractVersion: 1, state: staged.data.state });
+    return { state: staged.data.state };
+  return { state: staged.data.state, remaining: staged.data.remainingCount ?? 0 };
+}
+async function stageCredentialsV1(
+  env: RuntimeEnv,
+  context: TrustedAdminContextV1,
+  input: { batchId: string; generation: string; expectedRevision: number },
+): Promise<Response> {
+  const staged = await stageReconciliationCredentialsV1(env, context, input);
+  if (!('remaining' in staged)) return responseV1({ contractVersion: 1, state: staged.state });
   return responseV1({
     contractVersion: 1,
     state: 'ready',
     operation: 'stage',
-    ready: staged.data.state === 'ready',
-    remaining: staged.data.remainingCount ?? 0,
+    ready: staged.state === 'ready',
+    remaining: staged.remaining,
   });
 }
 /** The browser can submit allowlisted observations, never prepared verifiers or a trusted actor. */
@@ -104,7 +119,7 @@ export async function handleStudentReconciliationRequestV1(
     );
     if (!parsed.success) return responseV1({ contractVersion: 1, state: 'invalid-request' });
     const input = parsed.data;
-    const write = !['catalog', 'pending-count', 'list', 'detail'].includes(input.operation);
+    const write = !['catalog', 'pending-count', 'automatic-report', 'list', 'detail'].includes(input.operation);
     const context = write
       ? await verifiedPagesContextV1(request, env, true, readContext.requestId)
       : readContext;

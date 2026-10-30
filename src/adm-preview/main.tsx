@@ -80,6 +80,15 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     && init.body.includes('"operation":"pending-count"'))
     return json({ contractVersion: 1, state: 'ready', operation: 'pending-count',
       pending: Math.min(51, Number(new URLSearchParams(window.location.search).get('pendencias') ?? 12)) });
+  // The Coletor's automatic report with a difference and a row left out (synthetic names).
+  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string'
+    && init.body.includes('"operation":"automatic-report"'))
+    return json({ contractVersion: 1, state: 'ready', operation: 'automatic-report', report: {
+      observedAt: new Date(Date.now() - 600_000).toISOString(), changedAt: new Date(Date.now() - 600_000).toISOString(),
+      outcome: 'applied', rows: 391, counts: { rows: 390, linked: 388, pending: 2 },
+      differences: ['1 origem(ns) não encontrada(s) no relatório.'],
+      invalid: [{ sourceRow: 57, name: 'ALUNA SINTETICA UM', classLabel: '6A 2026 - MATUTINO', field: 'birthDate',
+        reason: 'nascimento ausente.' }] } });
   if (!unanswered.has(path)) {
     unanswered.add(path);
     console.info('[preview] sem dados sintéticos para', path);
