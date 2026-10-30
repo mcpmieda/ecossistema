@@ -5,7 +5,13 @@ import { brilliantSealCountV1 } from '../../features/student-portal/grades/brill
 import { PortalPagesV3 } from '../../features/student-portal/redesign/portal-pages-v3';
 import { FrequencyPageV3 } from '../../features/student-portal/redesign/frequency-page-v3';
 import { SchedulePageV3 } from '../../features/student-portal/redesign/schedule-page-v3';
-import { createDemoFrequencyClientV3, createDemoScheduleClientV3, REDESIGN_SELF_V3 } from './demo-data-v3';
+import { IncidentsPageV3 } from '../../features/student-portal/redesign/incidents-page-v3';
+import {
+  createDemoFrequencyClientV3,
+  createDemoIncidentsClientV3,
+  createDemoScheduleClientV3,
+  REDESIGN_SELF_V3,
+} from './demo-data-v3';
 
 /*
  * Redesign preview (owner request 20/10/2026): the real Portal pages (PortalPagesV3, the same
@@ -15,6 +21,7 @@ import { createDemoFrequencyClientV3, createDemoScheduleClientV3, REDESIGN_SELF_
 const portrait = new URL('../assets/demo-student-boy.webp', import.meta.url).href;
 const frequencyClient = createDemoFrequencyClientV3();
 const scheduleClient = createDemoScheduleClientV3();
+const incidentsClient = createDemoIncidentsClientV3();
 
 export function RedesignAppV3() {
   const data = REDESIGN_SELF_V3;
@@ -25,6 +32,7 @@ export function RedesignAppV3() {
     [data],
   );
   const schedule = useMemo(() => <SchedulePageV3 client={scheduleClient} />, []);
+  const incidents = useMemo(() => <IncidentsPageV3 client={incidentsClient} />, []);
   return (
     <PortalPagesV3
       // No onLogout: the preview has no session, so it shows no "Sair" that would do nothing.
@@ -32,6 +40,7 @@ export function RedesignAppV3() {
       grades={grades}
       frequency={data.showFrequency === true ? frequency : undefined}
       schedule={data.showSchedule === true ? schedule : undefined}
+      incidents={data.showIncidents === true ? incidents : undefined}
     />
   );
 }

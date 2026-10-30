@@ -135,6 +135,8 @@ export const selfResponseV1 = z
     showFrequency: z.boolean().optional(),
     // Política Horário (owner decision 22/10/2026). Only `true` shows the "Horário" tab.
     showSchedule: z.boolean().optional(),
+    // Política Ocorrências (owner decisions 29/10/2026). Only `true` shows the "Ocorrências" tab.
+    showIncidents: z.boolean().optional(),
   })
   .strict()
   .superRefine((v, ctx) => {

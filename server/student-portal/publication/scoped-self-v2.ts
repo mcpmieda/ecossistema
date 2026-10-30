@@ -229,6 +229,7 @@ export async function scopedSelfV2(
     ...(endedPeriods.length ? { endedPeriods } : {}),
     showFrequency: context.policy.enforcedValue.showFrequency,
     showSchedule: context.policy.enforcedValue.showSchedule,
+    showIncidents: context.policy.enforcedValue.showIncidents,
   });
 }
 

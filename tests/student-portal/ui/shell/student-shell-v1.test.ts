@@ -62,24 +62,36 @@ describe('student shell and canonical profile', () => {
       readYear: vi.fn(() => new Promise<never>(() => undefined)),
     };
     const scheduleClient = { read: vi.fn(() => new Promise<never>(() => undefined)) };
+    const incidentsClient = {
+      read: vi.fn(() => new Promise<never>(() => undefined)),
+      acknowledge: vi.fn(() => new Promise<never>(() => undefined)),
+    };
     const menu = () =>
       screen.queryByRole('navigation', { name: 'Menu do Portal' }) &&
       within(screen.getByRole('navigation', { name: 'Menu do Portal' }))
         .getAllByRole('button')
         .map((item) => item.textContent);
-    const show = (fields: { showFrequency?: boolean; showSchedule?: boolean }) =>
-      render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, ...fields } }, frequencyClient, scheduleClient }));
-    // Both keys off (or a server without them): the bottom bar with Notas only (owner decision 23/10/2026).
-    show({ showFrequency: false, showSchedule: false });
+    const show = (fields: { showFrequency?: boolean; showSchedule?: boolean; showIncidents?: boolean }) =>
+      render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, ...fields } }, frequencyClient, scheduleClient, incidentsClient }));
+    // Every key off (or a server without them): the bottom bar with Notas only (owner decision 23/10/2026).
+    show({ showFrequency: false, showSchedule: false, showIncidents: false });
     expect(menu()).toEqual(['Notas']);
+    cleanup();
+    expect(incidentsClient.read).not.toHaveBeenCalled();
     cleanup();
     show({ showSchedule: true });
     expect(menu()).toEqual(['Notas', 'Horário']);
     cleanup();
+    // Ocorrências (owner decisions 29/10/2026): to the right of Horário, read once with the sign-in.
+    show({ showIncidents: true });
+    expect(menu()).toEqual(['Notas', 'Ocorrências']);
+    await vi.waitFor(() => expect(incidentsClient.read).toHaveBeenCalledOnce());
+    expect(incidentsClient.acknowledge).not.toHaveBeenCalled();
+    cleanup();
     frequencyClient.readYear.mockClear();
     scheduleClient.read.mockClear();
-    show({ showFrequency: true, showSchedule: true });
-    expect(menu()).toEqual(['Notas', 'Frequência', 'Horário']);
+    show({ showFrequency: true, showSchedule: true, showIncidents: true });
+    expect(menu()).toEqual(['Notas', 'Frequência', 'Horário', 'Ocorrências']);
     // Each page is read once, with the sign-in like the grades (one request each), and opening it
     // asks nothing more.
     await vi.waitFor(() => expect(frequencyClient.readYear).toHaveBeenCalledOnce());
