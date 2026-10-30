@@ -121,6 +121,33 @@ function nameLengthV1(name: string): 'regular' | 'long' | 'xlong' {
   return 'regular';
 }
 
+/** Five short beams between the star's points, in lucide's 24 box (the star's own). */
+const SEAL_BEAMS_V1 = [
+  'M6.65 4.8 L5.15 1.66 A1.15 1.15 0 0 0 3.34 3.08 L6.02 5.3 Z',
+  'M17.98 5.3 L20.66 3.08 A1.15 1.15 0 0 0 18.85 1.66 L17.35 4.8 Z',
+  'M20.57 15.67 L23.54 17.49 A1.15 1.15 0 0 0 24.29 15.31 L20.83 14.92 Z',
+  'M11.6 21.5 L10.85 24.9 A1.15 1.15 0 0 0 13.15 24.9 L12.4 21.5 Z',
+  'M3.17 14.92 L-0.29 15.31 A1.15 1.15 0 0 0 0.46 17.49 L3.43 15.67 Z',
+] as const;
+
+/**
+ * The seal's star, unchanged, shining (owner request 30/10/2026): a band of light crosses inside
+ * it now and then, and short beams leave it one after another (student-shell-v1.css).
+ */
+function SealStarV1() {
+  return (
+    <span className="pa-seal-star" aria-hidden="true">
+      <Star size={12} strokeWidth={2} fill="currentColor" />
+      <span className="pa-seal-star-band" />
+      <svg className="pa-seal-star-beams" viewBox="0 0 24 24">
+        {SEAL_BEAMS_V1.map((beam) => (
+          <path key={beam} d={beam} />
+        ))}
+      </svg>
+    </span>
+  );
+}
+
 /**
  * "★ 2 selos Brilhante" in the hero. With none, the same pill shows "0 selos Brilhante", dimmed
  * and without shine (owner request 29/09/2026). "Brilhante" is the name of the seal's level, so it
@@ -130,7 +157,7 @@ function SealCountV1({ count }: Readonly<{ count: number }>) {
   const empty = count <= 0;
   return (
     <span className={empty ? 'pa-seal-count pa-seal-count--empty' : 'pa-seal-count'}>
-      <Star size={12} strokeWidth={2} fill={empty ? 'none' : 'currentColor'} aria-hidden="true" />
+      {empty ? <Star size={12} strokeWidth={2} fill="none" aria-hidden="true" /> : <SealStarV1 />}
       {/* One text run, so the flex gap never adds a second space before "Brilhante". */}
       <span>
         {Math.max(0, count)} {count === 1 ? 'selo Brilhante' : 'selos Brilhante'}

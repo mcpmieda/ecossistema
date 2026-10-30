@@ -13,9 +13,10 @@ import { useCachedReadV3 } from './use-cached-read-v3';
 /*
  * Ocorrências in a page of its own (owner decisions 29/10/2026): the student's records of the year
  * as the Smecel has them (advertência, suspensão, outras), read by the collector, newest first, each
- * with its whole description: the family needs to know. Under each one, "Estou ciente dessa
- * ocorrência": after a confirmation it becomes a check with the day and time, kept for good (no
- * undo), and the open count on the menu goes down. An incident the school edits in the Smecel is
+ * with its whole description: the family needs to know. Under each one, "Toque aqui para
+ * confirmar que leu" (plain words for every family, owner request 30/10/2026; on the right, where a
+ * thumb reaches on a large phone): after a confirmation it becomes a check with the day and time,
+ * kept for good (no undo), and the open count on the menu goes down. An incident the school edits in the Smecel is
  * open again.
  *
  * Data: GET /api/student/incidents and POST /api/student/incidents/acknowledge
@@ -23,14 +24,15 @@ import { useCachedReadV3 } from './use-cached-read-v3';
  * the self response says `showIncidents === true`.
  */
 const DATE = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' });
-const MOMENT = new Intl.DateTimeFormat('pt-BR', {
+const READ_DATE = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Bahia',
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
 });
+const READ_TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Bahia', hour: '2-digit', minute: '2-digit' });
+/** "30/10/2026, às 10:03", in the school's time. */
+const readMomentV3 = (value: string) => `${READ_DATE.format(new Date(value))}, às ${READ_TIME.format(new Date(value))}`;
 const civil = (value: string) => DATE.format(new Date(`${value}T00:00:00Z`));
 
 /** The Smecel's kind in plain words and its colour: a suspension red, a warning amber. */
@@ -75,26 +77,27 @@ function AcknowledgementV3({
   if (acknowledgedAt)
     return (
       <p className="pa3-incident-seen">
-        <CheckCircle2 size={18} aria-hidden="true" /> Ciente em {MOMENT.format(new Date(acknowledgedAt))}
+        <CheckCircle2 size={18} aria-hidden="true" /> Você confirmou a leitura em {readMomentV3(acknowledgedAt)}
       </p>
     );
   if (confirming)
     return (
       <fieldset className="pa3-incident-confirm">
-        <legend>Confirmar que está ciente desta ocorrência? Não é possível desfazer.</legend>
+        <legend>Você leu e entendeu esta ocorrência? Depois de confirmar, não dá para desfazer.</legend>
+        {/* The answer last, at the right edge, under the thumb. */}
         <div className="pa3-incident-actions">
-          <Button size="sm" variant="primary" isPending={saving} onPress={onConfirm}>
-            Confirmar
-          </Button>
           <Button size="sm" variant="tertiary" isDisabled={saving} onPress={onCancel}>
-            Cancelar
+            Voltar
+          </Button>
+          <Button size="sm" variant="primary" isPending={saving} onPress={onConfirm}>
+            Sim, li
           </Button>
         </div>
       </fieldset>
     );
   return (
     <Button size="sm" variant="secondary" className="pa3-incident-ack" onPress={onAsk}>
-      Estou ciente dessa ocorrência
+      Toque aqui para confirmar que leu
     </Button>
   );
 }
@@ -127,7 +130,6 @@ function IncidentCardV3({
         </Chip>
         <span className="pa3-incident-date">{civil(incident.date)}</span>
       </div>
-      <p className="pa3-incident-class">{incident.classLabel}</p>
       {incident.leave ? (
         <p className="pa3-incident-leave">
           <strong>Afastamento:</strong> {leaveTextV3(incident.leave)}

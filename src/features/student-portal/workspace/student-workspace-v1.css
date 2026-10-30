@@ -1144,13 +1144,13 @@
   color: #475569;
   transition: border-color 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
   min-width: 0;
-  max-width: 10.5rem;
   height: auto;
   min-height: 2.75rem;
   padding: 0.35rem 0.3rem;
   text-align: center;
   white-space: normal;
-  flex: 1 0 auto;
+  /* The cards share the bar's whole width in equal parts, aligned with the card below. */
+  flex: 1 1 0;
 }
 .pa-student-workspace
   .pa-period-tabs.tabs[data-orientation='horizontal']
@@ -1289,10 +1289,16 @@
 .pa-student-workspace .pa-period-tabs .tabs__indicator {
   display: none;
 }
+.pa-student-workspace .pa-period-tabs {
+  /* The trimester panel's side padding (the tabs library's; none on a phone, below). */
+  --pa-period-panel-pad: 0.5rem;
+}
 .pa-student-workspace .pa-period-tabs.tabs[data-orientation='horizontal'] > .tabs__list-container {
-  /* As wide as the score card below, so the cards can use the room. */
-  width: 100%;
-  max-width: 40rem;
+  /* The cards' edges on the score card's below: past the panel's padding, less the bar's own
+     0.15rem kept for the keyboard focus ring. */
+  width: calc(100% - 2 * var(--pa-period-panel-pad) + 0.3rem);
+  max-width: 40.3rem;
+  margin-inline-start: calc(var(--pa-period-panel-pad) - 0.15rem);
   background: transparent;
   box-shadow: none;
 }
@@ -2198,6 +2204,9 @@
   .pa-student-workspace > .pa-slide-stage > .tabs__panel,
   .pa-period-tabs > .pa-slide-stage > .tabs__panel {
     padding-inline: 0;
+  }
+  .pa-student-workspace .pa-period-tabs {
+    --pa-period-panel-pad: 0rem;
   }
 }
 

@@ -11,14 +11,13 @@ import { PortalPagesV3 } from '../../../../src/features/student-portal/redesign/
 
 /*
  * The Ocorrências page (owner decisions 29/10/2026), fed through a client with answers shaped like
- * /api/student/incidents: the whole description, newest first, "Estou ciente" with a confirmation
- * and no undo, and the open count on the menu.
+ * /api/student/incidents: the whole description, newest first, "Toque aqui para confirmar que leu"
+ * with a confirmation and no undo, and the open count on the menu.
  */
 const incident = (fields: Partial<StudentIncidentV1>): StudentIncidentV1 => ({
   id: '33333333-3333-4333-8333-333333333333',
   kind: 'ADVERTÊNCIA',
   date: '2026-09-29',
-  classLabel: '6º ANO A - MATUTINO',
   leave: null,
   description: 'Advertido(a) por usar o uniforme fora do padrão.',
   acknowledgedAt: null,
@@ -51,12 +50,12 @@ const clientOf = (
 });
 const cards = () => [...document.querySelectorAll('.pa3-incident')] as HTMLElement[];
 const confirmFirstOpen = async () => {
-  fireEvent.click((await screen.findAllByRole('button', { name: 'Estou ciente dessa ocorrência' }))[0]!);
-  fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Toque aqui para confirmar que leu' }))[0]!);
+  fireEvent.click(await screen.findByRole('button', { name: 'Sim, li' }));
 };
 afterEach(cleanup);
 
-it('lists the records newest first, each with its kind, date, class, leave and whole description', async () => {
+it('lists the records newest first, each with its kind, date, leave and whole description (no class)', async () => {
   render(<IncidentsPageV3 client={clientOf([warning, seen, suspension])} />);
   await waitFor(() => expect(cards()).toHaveLength(3));
   expect(cards().map((card) => card.querySelector('.pa3-incident-date')?.textContent)).toEqual([
@@ -70,13 +69,14 @@ it('lists the records newest first, each with its kind, date, class, leave and w
     'Afastamento: De 22/10/2026 a 28/10/2026 · 3 dias',
   );
   expect(within(first).getByText('Três dias de suspensão por desrespeito a um colega.')).toBeTruthy();
-  expect(within(first).getByText('6º ANO A - MATUTINO')).toBeTruthy();
   // A warning has no leave; a part the Smecel left blank is left out, never guessed.
   expect(within(second).getByText('Advertência')).toBeTruthy();
   expect(second.querySelector('.pa3-incident-leave')).toBeNull();
   expect(third.querySelector('.pa3-incident-leave')?.textContent).toBe('Afastamento: Até 11/06/2026 · 1 dia');
   // Already confirmed: the check with the day and time (school time), no button.
-  expect(third.querySelector('.pa3-incident-seen')?.textContent).toContain('Ciente em 11/06/2026');
+  expect(third.querySelector('.pa3-incident-seen')?.textContent).toContain(
+    'Você confirmou a leitura em 11/06/2026, às 10:20',
+  );
   expect(within(third).queryByRole('button')).toBeNull();
 });
 
@@ -88,21 +88,21 @@ it('says so when the year has no record', async () => {
 it('asks before confirming, and a cancel keeps the record open', async () => {
   const client = clientOf([warning]);
   render(<IncidentsPageV3 client={client} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Estou ciente dessa ocorrência' }));
-  expect(screen.getByText(/Não é possível desfazer/u)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Toque aqui para confirmar que leu' }));
+  expect(screen.getByText(/não dá para desfazer/u)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
   expect(client.acknowledge).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: 'Estou ciente dessa ocorrência' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Toque aqui para confirmar que leu' })).toBeTruthy();
 });
 
 it('turns a confirmed record into a check at once, for that version, without reading again', async () => {
   const client = clientOf([warning]);
   render(<IncidentsPageV3 client={client} />);
   await confirmFirstOpen();
-  expect(await screen.findByText(/Ciente em 29\/10\/2026/u)).toBeTruthy();
+  expect(await screen.findByText(/Você confirmou a leitura em 29\/10\/2026, às 09:40/u)).toBeTruthy();
   expect(client.acknowledge).toHaveBeenCalledExactlyOnceWith(warning.id);
   expect(client.read).toHaveBeenCalledOnce();
-  expect(screen.queryByRole('button', { name: 'Estou ciente dessa ocorrência' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Toque aqui para confirmar que leu' })).toBeNull();
 });
 
 it('keeps the record open with a message when the confirmation fails', async () => {
@@ -115,7 +115,7 @@ it('keeps the record open with a message when the confirmation fails', async () 
   );
   await confirmFirstOpen();
   expect(await screen.findByText('Não foi possível registrar agora. Tente de novo em instantes.')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Estou ciente dessa ocorrência' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Toque aqui para confirmar que leu' })).toBeTruthy();
 });
 
 it('reads again and warns when the school edited the record meanwhile', async () => {
@@ -133,7 +133,7 @@ it('reads again and warns when the school edited the record meanwhile', async ()
   expect(await screen.findByText('Texto corrigido pela escola.')).toBeTruthy();
   expect(client.read).toHaveBeenCalledTimes(2);
   // The new version is open again.
-  expect(screen.getByRole('button', { name: 'Estou ciente dessa ocorrência' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Toque aqui para confirmar que leu' })).toBeTruthy();
 });
 
 it('hands an expired session to the portal', async () => {

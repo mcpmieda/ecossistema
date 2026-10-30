@@ -14,7 +14,6 @@ const incident = z
     id: z.uuid(),
     kind: z.string().min(1).max(80),
     date: z.iso.date(),
-    classLabel: z.string().min(1).max(300),
     /** A suspension's leave; the Smecel leaves any part blank at times (null). */
     leave: z
       .object({

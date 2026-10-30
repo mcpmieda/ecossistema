@@ -359,29 +359,29 @@ export const createDemoScheduleClientV3 = (): StudentScheduleClientV1 => ({
  */
 const demoIncidentsV3 = (): StudentIncidentV1[] => [
   {
-    id: 'demo-1', kind: 'ADVERTÊNCIA', date: '2026-09-29', classLabel: 'TURMA ARTIFICIAL - VESPERTINO', leave: null,
+    id: 'demo-1', kind: 'ADVERTÊNCIA', date: '2026-09-29', leave: null,
     description: 'No dia 29/09/2026 o(a) aluno(a) foi advertido(a) conforme comunicação interna por usar o uniforme fora do padrão da escola, mesmo após orientação. Teve a perda de 0,10 ponto no seu cálculo, permanecendo no bom comportamento.',
     acknowledgedAt: null,
   },
   {
-    id: 'demo-2', kind: 'SUSPENSÃO', date: '2026-10-22', classLabel: 'TURMA ARTIFICIAL - VESPERTINO',
+    id: 'demo-2', kind: 'SUSPENSÃO', date: '2026-10-22',
     leave: { from: '2026-10-22', to: '2026-10-28', days: 3 },
     description: 'No dia 22/10/2026 o(a) aluno(a) recebeu 3 dias de suspensão por desrespeito a um colega de classe, conforme o Regimento Interno. Teve a perda de 0,50 ponto no cálculo de classificação, permanecendo no bom comportamento.',
     acknowledgedAt: null,
   },
   {
-    id: 'demo-3', kind: 'SUSPENSÃO', date: '2026-08-18', classLabel: 'TURMA ARTIFICIAL - VESPERTINO',
+    id: 'demo-3', kind: 'SUSPENSÃO', date: '2026-08-18',
     leave: { from: null, to: '2026-08-19', days: 1 },
     description: 'No dia 18/08/2026 o(a) aluno(a) recebeu 1 dia de suspensão por deixar a sala de aula sem autorização.',
     acknowledgedAt: null,
   },
   {
-    id: 'demo-4', kind: 'OUTRAS', date: '2026-06-10', classLabel: 'TURMA ARTIFICIAL - VESPERTINO', leave: null,
+    id: 'demo-4', kind: 'OUTRAS', date: '2026-06-10', leave: null,
     description: 'O(A) aluno(a) foi comunicado(a) por trazer objeto não permitido para a escola. A família foi chamada para conversar com a coordenação.',
     acknowledgedAt: `2026-06-11T13:20:00Z`,
   },
   {
-    id: 'demo-5', kind: 'ADVERTÊNCIA', date: '2026-04-27', classLabel: 'TURMA ARTIFICIAL - VESPERTINO', leave: null,
+    id: 'demo-5', kind: 'ADVERTÊNCIA', date: '2026-04-27', leave: null,
     description: 'No dia 27/04/2026 o(a) aluno(a) foi advertido(a) por conversar durante a parada matinal, o que é fora do padrão.',
     acknowledgedAt: null,
   },

@@ -1711,10 +1711,6 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.pa3-incident-class {
-  color: var(--pa3-muted);
-  font-size: 0.85rem;
-}
 .pa3-incident-leave {
   color: var(--pa3-ink);
   font-size: 0.9rem;
@@ -1724,8 +1720,9 @@
   line-height: 1.5;
   white-space: pre-line;
 }
+/* The buttons on the right, where a thumb reaches on a large phone (owner request 30/10/2026). */
 .pa3-incident-ack {
-  justify-self: start;
+  align-self: flex-end;
 }
 .pa3-incident-confirm {
   display: grid;
@@ -1748,6 +1745,7 @@
 }
 .pa3-incident-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 .pa3-incident-seen {

@@ -130,7 +130,6 @@ it("returns the student's own records, read with its account and session only, i
         id: versionId,
         kind: 'SUSPENSÃO',
         date: '2026-10-22',
-        classLabel: '6º ANO A - MATUTINO',
         leave: { from: '2026-10-22', to: '2026-10-28', days: 3 },
         description: 'No dia 22/10/2026 o(a) aluno(a) recebeu 3 dias de suspensão.',
         acknowledgedAt: null,
@@ -139,7 +138,6 @@ it("returns the student's own records, read with its account and session only, i
         id: '44444444-4444-4444-8444-444444444444',
         kind: 'ADVERTÊNCIA',
         date: '2026-09-29',
-        classLabel: '6º ANO A - MATUTINO',
         // No leave at all: null, never three blank parts.
         leave: null,
         description: 'No dia 22/10/2026 o(a) aluno(a) recebeu 3 dias de suspensão.',
