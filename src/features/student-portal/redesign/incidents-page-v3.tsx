@@ -51,7 +51,8 @@ function leavePeriodV3({ from, to }: NonNullable<StudentIncidentV1['leave']>): s
 /** "De 22/10/2026 a 28/10/2026 · 3 dias", with only the parts the Smecel shows. */
 function leaveTextV3(leave: NonNullable<StudentIncidentV1['leave']>): string {
   const period = leavePeriodV3(leave);
-  const days = leave.days === null ? '' : `${leave.days} ${leave.days === 1 ? 'dia' : 'dias'}`;
+  if (leave.days === null) return period;
+  const days = `${leave.days} ${leave.days === 1 ? 'dia' : 'dias'}`;
   return [period, days].filter(Boolean).join(' · ');
 }
 
