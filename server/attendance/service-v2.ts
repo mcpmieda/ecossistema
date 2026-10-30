@@ -1622,9 +1622,14 @@ function studentReportView(row: Row, names: boolean): FrequencyStudentReportStat
     notes: names ? notes : { ...notes, invalid: [] },
   };
 }
-/** The report's content as compared between readings: its rows in sheet order. */
+/**
+ * The report's content as compared between readings: its rows without their position in the sheet,
+ * in canonical order. The Smecel swaps rows that tie in its own order from one export to the next
+ * (seen 29/10/2026), so the same report must give the same hash whatever the order.
+ */
 export function studentReportHashV2(input: Pick<FrequencyStudentReportV2, 'rows'>): Promise<string> {
-  return frequencyPayloadHashV2([...input.rows].sort((a, b) => a.sourceRow - b.sourceRow));
+  const rows = input.rows.map(({ sourceRow: _position, ...row }) => canonicalFrequencyJsonV2(row));
+  return frequencyPayloadHashV2(rows.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 /** The last report as the next step needs it: the batch it left and whether it still waits. */
 export type StudentReportPreviousV2 = {
