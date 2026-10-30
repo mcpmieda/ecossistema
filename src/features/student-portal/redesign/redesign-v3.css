@@ -1730,11 +1730,21 @@
 .pa3-incident-confirm {
   display: grid;
   gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  border: 0;
   padding: 0.7rem 0.8rem;
   border-radius: 0.8rem;
   background: var(--pa3-amber-soft);
   color: var(--pa3-ink);
   font-size: 0.9rem;
+}
+/* The question, as the group's name; spaced like the grid's gap (a legend is not a grid item). */
+.pa3-incident-confirm legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0;
 }
 .pa3-incident-actions {
   display: flex;

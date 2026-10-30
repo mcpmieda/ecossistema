@@ -41,18 +41,61 @@ function kindOfV3(kind: string): { label: string; color: 'danger' | 'warning' | 
   return { label: kind.charAt(0) + kind.slice(1).toLowerCase(), color: 'default' };
 }
 
+/** The leave's dates, with only the parts the Smecel shows. */
+function leavePeriodV3({ from, to }: NonNullable<StudentIncidentV1['leave']>): string {
+  if (from && to) return `De ${civil(from)} a ${civil(to)}`;
+  if (from) return `A partir de ${civil(from)}`;
+  if (to) return `Até ${civil(to)}`;
+  return '';
+}
 /** "De 22/10/2026 a 28/10/2026 · 3 dias", with only the parts the Smecel shows. */
 function leaveTextV3(leave: NonNullable<StudentIncidentV1['leave']>): string {
-  const period =
-    leave.from && leave.to
-      ? `De ${civil(leave.from)} a ${civil(leave.to)}`
-      : leave.from
-        ? `A partir de ${civil(leave.from)}`
-        : leave.to
-          ? `Até ${civil(leave.to)}`
-          : '';
+  const period = leavePeriodV3(leave);
   const days = leave.days === null ? '' : `${leave.days} ${leave.days === 1 ? 'dia' : 'dias'}`;
   return [period, days].filter(Boolean).join(' · ');
+}
+
+/** Under a record: the check once confirmed, the confirmation asked, or the button. */
+function AcknowledgementV3({
+  acknowledgedAt,
+  confirming,
+  saving,
+  onAsk,
+  onConfirm,
+  onCancel,
+}: Readonly<{
+  acknowledgedAt: string | null;
+  confirming: boolean;
+  saving: boolean;
+  onAsk: () => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}>) {
+  if (acknowledgedAt)
+    return (
+      <p className="pa3-incident-seen">
+        <CheckCircle2 size={18} aria-hidden="true" /> Ciente em {MOMENT.format(new Date(acknowledgedAt))}
+      </p>
+    );
+  if (confirming)
+    return (
+      <fieldset className="pa3-incident-confirm">
+        <legend>Confirmar que está ciente desta ocorrência? Não é possível desfazer.</legend>
+        <div className="pa3-incident-actions">
+          <Button size="sm" variant="primary" isPending={saving} onPress={onConfirm}>
+            Confirmar
+          </Button>
+          <Button size="sm" variant="tertiary" isDisabled={saving} onPress={onCancel}>
+            Cancelar
+          </Button>
+        </div>
+      </fieldset>
+    );
+  return (
+    <Button size="sm" variant="secondary" className="pa3-incident-ack" onPress={onAsk}>
+      Estou ciente dessa ocorrência
+    </Button>
+  );
 }
 
 function IncidentCardV3({
@@ -90,27 +133,14 @@ function IncidentCardV3({
         </p>
       ) : null}
       <p className="pa3-incident-text">{incident.description}</p>
-      {incident.acknowledgedAt ? (
-        <p className="pa3-incident-seen">
-          <CheckCircle2 size={18} aria-hidden="true" /> Ciente em {MOMENT.format(new Date(incident.acknowledgedAt))}
-        </p>
-      ) : confirming ? (
-        <div className="pa3-incident-confirm" role="group" aria-label="Confirmar ciência">
-          <span>Confirmar que está ciente desta ocorrência? Não é possível desfazer.</span>
-          <div className="pa3-incident-actions">
-            <Button size="sm" variant="primary" isPending={saving} onPress={() => void confirm()}>
-              Confirmar
-            </Button>
-            <Button size="sm" variant="tertiary" isDisabled={saving} onPress={() => setConfirming(false)}>
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <Button size="sm" variant="secondary" className="pa3-incident-ack" onPress={() => setConfirming(true)}>
-          Estou ciente dessa ocorrência
-        </Button>
-      )}
+      <AcknowledgementV3
+        acknowledgedAt={incident.acknowledgedAt}
+        confirming={confirming}
+        saving={saving}
+        onAsk={() => setConfirming(true)}
+        onConfirm={() => void confirm()}
+        onCancel={() => setConfirming(false)}
+      />
       {failed ? (
         <Alert status="danger">
           <Alert.Indicator />
@@ -163,15 +193,15 @@ export function IncidentsPageV3({
           </Alert.Content>
         </Alert>
       ) : null}
-      {load.data ? (
-        incidents.length ? (
-          incidents.map((item) => <IncidentCardV3 key={item.id} incident={item} onAcknowledge={acknowledge} />)
-        ) : (
-          <Card className="pa3-card pa3-status">
-            <p className="pa3-incidents-empty">Nenhuma ocorrência registrada neste ano.</p>
-          </Card>
-        )
-      ) : (
+      {load.data && incidents.length
+        ? incidents.map((item) => <IncidentCardV3 key={item.id} incident={item} onAcknowledge={acknowledge} />)
+        : null}
+      {load.data && !incidents.length ? (
+        <Card className="pa3-card pa3-status">
+          <p className="pa3-incidents-empty">Nenhuma ocorrência registrada neste ano.</p>
+        </Card>
+      ) : null}
+      {load.data ? null : (
         <Card className="pa3-card pa3-status" role={load.error ? 'alert' : undefined}>
           {load.error ? (
             <Alert status="danger">

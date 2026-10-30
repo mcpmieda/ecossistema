@@ -310,6 +310,14 @@ async function serveMeV1(self: SelfContextV1): Promise<Response> {
     : portalJsonV1(portalFailureV1('unauthenticated'), 401);
 }
 
+/** Frequência, Horário and Ocorrências: each checks its own method, query and policy. */
+const attendanceRoutesV1 = new Map<string, (request: Request, env: PortalCompositionEnvV1) => Promise<Response>>([
+  ['/api/student/frequency', servePortalFrequencyV2],
+  ['/api/student/schedule', servePortalScheduleV1],
+  ['/api/student/incidents', servePortalIncidentsV1],
+  ['/api/student/incidents/acknowledge', servePortalIncidentsV1],
+]);
+
 export async function servePortalSelfV1(
   request: Request,
   env: PortalCompositionEnvV1,
@@ -318,9 +326,8 @@ export async function servePortalSelfV1(
     return portalJsonV1(portalFailureV1('forbidden'), 403);
   const url = new URL(request.url);
   const path = url.pathname;
-  if(path==='/api/student/frequency')return servePortalFrequencyV2(request,env);
-  if(path==='/api/student/schedule')return servePortalScheduleV1(request,env);
-  if(path==='/api/student/incidents'||path==='/api/student/incidents/acknowledge')return servePortalIncidentsV1(request,env);
+  const attendance = attendanceRoutesV1.get(path);
+  if (attendance) return attendance(request, env);
   const connectionId = url.searchParams.get('connectionId');
   if (connectionId !== null && invalidConnectionV1(url, path, connectionId))
     return portalJsonV1(portalFailureV1('invalid-request'), 400);
