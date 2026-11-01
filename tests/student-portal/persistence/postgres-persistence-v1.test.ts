@@ -115,15 +115,17 @@ describe('StudentPortalPostgresPersistenceV1', () => {
     expect(birth).toEqual({ accountId: ACCOUNT, year: '2012', confirmation: 'unconfirmed-test', version: 1 });
 
     const verifier = { algorithm: 'synthetic-kdf', parameters: { cost: 1 }, salt: 'synthetic-salt', pepperVersion: 1, digest: 'synthetic-digest' };
+    // From the clock, never fixed dates: the database refuses a challenge consumed before it was created.
+    const after = (milliseconds: number) => new Date(Date.now() + milliseconds).toISOString();
     await persistence.transaction(async (tx) => {
       await tx.saveCredentials({ accountId: ACCOUNT, credentialId: 'A'.repeat(32), keyVersion: 1, state: 'active', pin: verifier, password: null, pinVersion: 0 });
-      await tx.saveChallenge({ tokenHash: 'challenge-hash', accountId: ACCOUNT, securityVersion: 0, pinVersion: 0, expiresAt: '2026-12-01T12:00:00.000Z', consumedAt: null });
-      await tx.saveSession({ id: '33333333-3333-4333-8333-333333333333', accountId: ACCOUNT, tokenHash: 'session-hash', securityVersion: 0, expiresAt: '2026-12-01T12:00:00.000Z', revokedAt: null, persistent: true });
+      await tx.saveChallenge({ tokenHash: 'challenge-hash', accountId: ACCOUNT, securityVersion: 0, pinVersion: 0, expiresAt: after(86_400_000), consumedAt: null });
+      await tx.saveSession({ id: '33333333-3333-4333-8333-333333333333', accountId: ACCOUNT, tokenHash: 'session-hash', securityVersion: 0, expiresAt: after(86_400_000), revokedAt: null, persistent: true });
     });
     expect(await persistence.transaction(async (tx) => tx.readCredentials(ACCOUNT))).toMatchObject({ credentialId: 'A'.repeat(32), pin: verifier, password: null });
     expect(await persistence.findSessionByHash('session-hash')).toMatchObject({ accountId: ACCOUNT, tokenHash: 'session-hash', persistent: true });
-    expect(await persistence.transaction(async (tx) => tx.consumeChallenge('challenge-hash', 0, 0, '2026-11-01T12:00:00.000Z'))).toBe(true);
-    expect(await persistence.transaction(async (tx) => tx.consumeChallenge('challenge-hash', 0, 0, '2026-11-01T12:00:01.000Z'))).toBe(false);
+    expect(await persistence.transaction(async (tx) => tx.consumeChallenge('challenge-hash', 0, 0, after(60_000)))).toBe(true);
+    expect(await persistence.transaction(async (tx) => tx.consumeChallenge('challenge-hash', 0, 0, after(61_000)))).toBe(false);
   });
 
   it('rolls back account and revision changes as one PostgreSQL transaction', async () => {

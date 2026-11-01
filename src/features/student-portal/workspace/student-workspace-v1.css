@@ -444,7 +444,7 @@
   white-space: nowrap;
 }
 
-/* "vale 30 · 18 passa" under a trimester's name in the Boletim tabs, much smaller and quieter. */
+/* "Mín. 18 · Máx. 30" under a trimester's name in the Boletim tabs, much smaller and quieter. */
 .pa-term-value {
   display: block;
   color: #64748b;
@@ -1299,8 +1299,13 @@
   width: calc(100% - 2 * var(--pa-period-panel-pad) + 0.3rem);
   max-width: 40.3rem;
   margin-inline-start: calc(var(--pa-period-panel-pad) - 0.15rem);
+  /* The same space above the cards, to the discipline tabs, as below, to the score card (owner request 01/11/2026). */
+  margin-block-start: 0.35rem;
   background: transparent;
   box-shadow: none;
+}
+.pa-student-workspace .pa-period-tabs.tabs[data-orientation='horizontal'] > .pa-slide-stage > .pa-swipe-track > .tabs__panel {
+  padding-block-start: 0;
 }
 /* Full names ("REC 1º Trimestre") share the width and wrap on narrow phones instead of scrolling. */
 .pa-student-workspace
@@ -2069,15 +2074,15 @@
 
 /* The subject bar's edge fades are narrow (owner review 28/09/2026): HeroUI's 64px fade ate half a
    tab on a phone, so a tab next to the edge looked cut. A thin fade still says "more this way". */
-.pa-subject-bar .tabs__list-container__scroller[data-left-scroll='true'][data-right-scroll='true'] {
+.pa-subject-bar .tabs__list-container__scroller[data-left-right-scroll='true'] {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
   mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
 }
-.pa-subject-bar .tabs__list-container__scroller[data-left-scroll='true'][data-right-scroll='false'] {
+.pa-subject-bar .tabs__list-container__scroller[data-left-scroll='true'] {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.25rem);
   mask-image: linear-gradient(90deg, transparent, #000 1.25rem);
 }
-.pa-subject-bar .tabs__list-container__scroller[data-left-scroll='false'][data-right-scroll='true'] {
+.pa-subject-bar .tabs__list-container__scroller[data-right-scroll='true'] {
   -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
   mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
 }
@@ -2104,6 +2109,7 @@
 .pa-slide-stage > [data-slide-live],
 .pa-slide-stage > .pa-swipe-track > [data-slide-live],
 .pa-slide-stage > [role='tabpanel'],
+.pa-slide-stage > .pa-swipe-track > [role='tabpanel'],
 [data-area-live] {
   display: flow-root;
 }
@@ -2128,6 +2134,10 @@
 }
 .pa-swipe-peek--prev {
   right: calc(100% + 0.75rem);
+}
+/* The trimester coming in under the finger: its panel only, under the same cards. */
+.pa-swipe-peek .pa-period-tabs > .tabs__list-container {
+  display: none;
 }
 .pa-swipe-peek *,
 .pa-swipe-peek *::before,
@@ -2189,11 +2199,20 @@
   box-shadow: none;
 }
 
+/* As tall as the disciplines' bar beside it (owner request 01/11/2026). */
 .pa-subject-head-row > .pa-workspace-back {
   flex: 0 0 auto;
-  width: 2rem;
-  min-width: 2rem;
-  height: 2rem;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  height: 2.5rem;
+}
+.pa-subject-head-row > .pa-workspace-back svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+/* Only the right arrow stays: on the left, beside the way back, the fade alone says there is more. */
+.pa-subject-bar .tabs__list-container__scroll-prev {
+  display: none;
 }
 .pa-subject-bar [role='tab'] {
   padding-inline: 0.6rem;
@@ -2202,7 +2221,7 @@
    side padding, so the cards and the list run close to the sheet's edge. */
 @media (max-width: 560px) {
   .pa-student-workspace > .pa-slide-stage > .tabs__panel,
-  .pa-period-tabs > .pa-slide-stage > .tabs__panel {
+  .pa-period-tabs > .pa-slide-stage > .pa-swipe-track > .tabs__panel {
     padding-inline: 0;
   }
   .pa-student-workspace .pa-period-tabs {

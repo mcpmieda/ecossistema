@@ -183,11 +183,58 @@ describe('Frequência page', () => {
     expect((screen.getByRole('button', { name: 'Próximo mês' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('moves between months under the finger, from a day too, never past the current month', async () => {
+    const months = {
+      '2026-09': summary('2026-09', [lessonDay('2026-09-29')]),
+      '2026-10': summary('2026-10', [lessonDay('2026-10-20')]),
+    };
+    render(<FrequencyPageV3 client={clientOf(months)} />);
+    await ready();
+    const swipe = (from: number, to: number) => {
+      const day = dayButton(20);
+      fireEvent.touchStart(day, { touches: [{ clientX: from, clientY: 300 }] });
+      fireEvent.touchMove(day, { touches: [{ clientX: to, clientY: 302 }] });
+      fireEvent.touchEnd(day, { changedTouches: [{ clientX: to, clientY: 302 }] });
+    };
+    const month = () => screen.getByRole('heading', { level: 3, name: /de 2026$/u }).textContent;
+
+    // The current month is the last: nothing comes after it.
+    swipe(260, 100);
+    expect(month()).toBe('Outubro de 2026');
+
+    // While dragging, the month before is drawn beside this one; a cancelled touch changes nothing.
+    const day = dayButton(20);
+    fireEvent.touchStart(day, { touches: [{ clientX: 100, clientY: 300 }] });
+    fireEvent.touchMove(day, { touches: [{ clientX: 180, clientY: 302 }] });
+    expect(document.querySelector('.pa-swipe-peek--prev')?.textContent).toContain('Setembro de 2026');
+    fireEvent.touchCancel(day);
+    expect(document.querySelector('.pa-swipe-peek')).toBeNull();
+    expect(month()).toBe('Outubro de 2026');
+
+    // Mostly vertical: a scroll, not a swipe.
+    fireEvent.touchStart(dayButton(20), { touches: [{ clientX: 100, clientY: 200 }] });
+    fireEvent.touchMove(dayButton(20), { touches: [{ clientX: 140, clientY: 420 }] });
+    fireEvent.touchEnd(dayButton(20), { changedTouches: [{ clientX: 140, clientY: 420 }] });
+    expect(month()).toBe('Outubro de 2026');
+
+    swipe(100, 260);
+    expect(month()).toBe('Setembro de 2026');
+    swipe(260, 100);
+    expect(month()).toBe('Outubro de 2026');
+  });
+
+  it('keeps every month as tall: six weeks of cells and the legend line of a holiday', async () => {
+    render(<FrequencyPageV3 client={clientOf()} />);
+    await ready();
+    expect(document.querySelectorAll('.pa3-calendar > :not(.pa3-weekday)')).toHaveLength(42);
+    expect(document.querySelectorAll('.pa3-legend > li')).toHaveLength(5);
+  });
+
   it('says the ring in correct Portuguese for one day', async () => {
     render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })} />);
     await ready();
     expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toBe(
-      'Ano letivo 2026, 1 dia de aula contado: 1 dia frequentado, 0 faltas totais, 0 faltas parciais, 0 justificadas',
+      'Ano letivo 2026, 1 dia de aula contado: 1 dia sem falta, 0 dias de falta, 0 faltou algumas aulas, 0 dias justificados',
     );
   });
 
@@ -199,7 +246,7 @@ describe('Frequência page', () => {
     render(<FrequencyPageV3 client={clientOf(months)} />);
     await ready();
     const ring = () => document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label');
-    expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados: 2 dias frequentados, 0 faltas totais, 1 falta parcial/u);
+    expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados: 2 dias sem falta, 0 dias de falta, 1 faltou algumas aulas/u);
     fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
     expect(screen.getByRole('heading', { level: 3, name: 'Setembro de 2026' })).toBeTruthy();
     expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados/u);

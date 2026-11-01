@@ -1,3 +1,4 @@
+import './preview-clock-v1';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PortalDemoAppV1 } from './portal-demo-app-v1';

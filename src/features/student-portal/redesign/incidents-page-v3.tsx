@@ -35,12 +35,15 @@ const READ_TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Bahia', 
 const readMomentV3 = (value: string) => `${READ_DATE.format(new Date(value))}, às ${READ_TIME.format(new Date(value))}`;
 const civil = (value: string) => DATE.format(new Date(`${value}T00:00:00Z`));
 
-/** The Smecel's kind in plain words and its colour: a suspension red, a warning amber. */
+/**
+ * The Smecel's kind in capitals and its colour: a suspension red, a warning amber. A suspension
+ * always reads "SUSPENSÃO SEM PREJUÍZO" on the Portal (owner requests 01/11/2026).
+ */
 function kindOfV3(kind: string): { label: string; color: 'danger' | 'warning' | 'default' } {
   const key = kind.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase();
-  if (key === 'SUSPENSAO') return { label: 'Suspensão', color: 'danger' };
-  if (key === 'ADVERTENCIA') return { label: 'Advertência', color: 'warning' };
-  return { label: kind.charAt(0) + kind.slice(1).toLowerCase(), color: 'default' };
+  if (key === 'SUSPENSAO') return { label: 'SUSPENSÃO SEM PREJUÍZO', color: 'danger' };
+  if (key === 'ADVERTENCIA') return { label: 'ADVERTÊNCIA', color: 'warning' };
+  return { label: kind.toUpperCase(), color: 'default' };
 }
 
 /** The leave's dates, with only the parts the Smecel shows. */
@@ -50,12 +53,17 @@ function leavePeriodV3({ from, to }: NonNullable<StudentIncidentV1['leave']>): s
   if (to) return `Até ${civil(to)}`;
   return '';
 }
-/** "De 22/10/2026 a 28/10/2026 · 3 dias", with only the parts the Smecel shows. */
-function leaveTextV3(leave: NonNullable<StudentIncidentV1['leave']>): string {
+/** "De 22/10/2026 a 28/10/2026 · 3 dias", with only the parts the Smecel shows; the days apart, for the styles. */
+function LeaveTextV3({ leave }: Readonly<{ leave: NonNullable<StudentIncidentV1['leave']> }>) {
   const period = leavePeriodV3(leave);
-  if (leave.days === null) return period;
-  const days = `${leave.days} ${leave.days === 1 ? 'dia' : 'dias'}`;
-  return [period, days].filter(Boolean).join(' · ');
+  const days = leave.days === null ? null : `${leave.days} ${leave.days === 1 ? 'dia' : 'dias'}`;
+  return (
+    <>
+      {period}
+      {period && days ? <span className="pa3-incident-leave-dot"> · </span> : null}
+      {days ? <span className="pa3-incident-leave-days">{days}</span> : null}
+    </>
+  );
 }
 
 /** Under a record: the check once confirmed, the confirmation asked, or the button. */
@@ -132,7 +140,7 @@ function IncidentCardV3({
       </div>
       {incident.leave ? (
         <p className="pa3-incident-leave">
-          <strong>Afastamento:</strong> {leaveTextV3(incident.leave)}
+          <strong>Afastamento:</strong> <LeaveTextV3 leave={incident.leave} />
         </p>
       ) : null}
       <p className="pa3-incident-text">{incident.description}</p>

@@ -3,7 +3,8 @@ import type { FrequencyDayV2, FrequencySummaryV2 } from './frequency-v2';
 /*
  * One sentence about the student's absences at the top of the Portal's Frequência (owner decisions
  * 22/10/2026). Plain words for families: only absences WITHOUT justification (justified ones are
- * transport, medical appointments… and never count), told in days ("cerca de"): the student's
+ * transport, medical appointments… and never count, except that "Nenhuma falta" needs no absence of
+ * either kind), told in days ("cerca de"): the student's
  * absences in lessons divided by their own average of lessons per day, rounded to the nearest
  * whole day. The law's 75% makes the limit a quarter of the year's school days (50 of 200), never
  * told as days "permitidos" (owner decision 22/10/2026: it is not a right to miss them). Saturdays
@@ -47,11 +48,14 @@ function pastSchoolDaysV2(months: readonly Pick<FrequencySummaryV2, 'marks' | 'd
     lessons.set(day.date, set);
   }
   const absent = new Map<string, number>();
-  for (const mark of months.flatMap((month) => month.marks))
-    if (mark.mark === 'X' && lessons.get(mark.date)?.has(`${mark.shift}:${mark.slot}`))
-      absent.set(mark.date, (absent.get(mark.date) ?? 0) + 1);
+  const marked = new Set<string>();
+  for (const mark of months.flatMap((month) => month.marks)) {
+    if (!lessons.get(mark.date)?.has(`${mark.shift}:${mark.slot}`)) continue;
+    marked.add(mark.date);
+    if (mark.mark === 'X') absent.set(mark.date, (absent.get(mark.date) ?? 0) + 1);
+  }
   return [...lessons.entries()]
-    .map(([date, set]) => ({ date, lessons: set.size, absences: absent.get(date) ?? 0, weekday: new Date(`${date}T12:00:00Z`).getUTCDay() }))
+    .map(([date, set]) => ({ date, lessons: set.size, absences: absent.get(date) ?? 0, marked: marked.has(date), weekday: new Date(`${date}T12:00:00Z`).getUTCDay() }))
     .filter((day) => day.lessons > 0)
     .sort((left, right) => right.date.localeCompare(left.date));
 }
@@ -125,8 +129,9 @@ export function frequencyCommentV2({
     return alert('weekday', `Falta muito ${WEEKDAY_PLURAL[topWeekday]}.`);
   if (before.length && beforeRate >= 0.1 && recentRate < 0.5 * beforeRate)
     return good('improving', 'Está faltando menos dias. Continue assim!');
-  if (totalAbsences === 0) return good('none-this-year', 'Nenhuma falta este ano. Parabéns!');
-  if (recent.length && recent.every((day) => day.absences === 0))
+  // "Nenhuma falta" is for who never missed: a justified absence is still an absence (owner request 01/11/2026).
+  if (all.every((day) => !day.marked)) return good('none-this-year', 'Nenhuma falta este ano. Parabéns!');
+  if (recent.length && recent.every((day) => !day.marked))
     return good('none-recently', 'Nenhuma falta nas últimas 4 semanas. Muito bem!');
   return null;
 }
