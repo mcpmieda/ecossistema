@@ -793,8 +793,11 @@ const DRAG_LOCK_PX_V1 = 8;
 const DRAG_EDGE_PX_V1 = 24;
 const DRAG_COMMIT_RATIO_V1 = 0.3;
 const DRAG_FLICK_PX_PER_MS_V1 = 0.45;
-/** How long after a real drag its own tap is swallowed (the press that ended it). */
-const DRAG_SWALLOW_MS_V1 = 400;
+/**
+ * How long after a drag ends a tap still belongs to it, by the time the tap happened. A new tap is
+ * never held back while the move ends (owner report 01/11/2026: the first tap after a drag was lost).
+ */
+const DRAG_SWALLOW_MS_V1 = 60;
 /**
  * The air between the two pages: .pa-swipe-peek sits at calc(100% + 0.75rem), so it follows the
  * root font size (a reader's larger text included), read when the gesture ends.
@@ -897,6 +900,9 @@ export function useDragSwipeV1(
   // A drag is not a tap: the one press that ends a real drag must not open the row it started on.
   // Armed only by a horizontal drag, and spent by the first click, so a new tap goes through.
   const swallowUntil = useRef(0);
+  // A move on its way to the next item, and a tap made during it: it finishes the move and counts.
+  const committing = useRef(false);
+  const hurriedTap = useRef<{ x: number; y: number } | null>(null);
   const shown = useRef<DragStepV1 | null>(null);
   const [peek, setPeek] = useState<DragStepV1 | null>(null);
   const showPeek = (step: DragStepV1 | null) => {
@@ -926,7 +932,6 @@ export function useDragSwipeV1(
     const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     if (!element || typeof element.animate !== 'function' || from === to || reduced) {
       done();
-      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
       return;
     }
     busy.current = true;
@@ -939,8 +944,7 @@ export function useDragSwipeV1(
     const release = () => {
       running.current = null;
       busy.current = false;
-      // Counted from the end of the move: a slow swap must not let the tap through afterwards.
-      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
+      committing.current = false;
     };
     animation.finished.then(
       () => {
@@ -957,7 +961,7 @@ export function useDragSwipeV1(
     );
   };
   const swallow = (event: ReactSyntheticEventV1, spend: boolean) => {
-    if (performance.now() > swallowUntil.current) return;
+    if (event.timeStamp > swallowUntil.current) return;
     event.stopPropagation();
     event.preventDefault();
     if (spend) swallowUntil.current = 0;
@@ -967,20 +971,25 @@ export function useDragSwipeV1(
     settle(from, 0, restore);
   };
   /** The gesture stops being a drag (a second finger, a cancelled touch): back in place, no step. */
-  const abandon = () => {
+  const abandon = (at: number) => {
     const drag = gesture.current;
     gesture.current = null;
     if (!drag?.locked) return;
-    swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
+    swallowUntil.current = at + DRAG_SWALLOW_MS_V1;
     springBack(drag.dx);
   };
   const handlers = {
     onTouchStart: (event: ReactTouchEventV1) => {
       if (event.touches.length !== 1) {
-        abandon();
+        abandon(event.timeStamp);
         return;
       }
       const touch = event.touches[0];
+      hurriedTap.current = committing.current && touch ? { x: touch.clientX, y: touch.clientY } : null;
+      if (busy.current) {
+        running.current?.finish();
+        busy.current = false;
+      }
       const target = event.target as HTMLElement;
       gesture.current =
         !busy.current &&
@@ -999,11 +1008,15 @@ export function useDragSwipeV1(
           : null;
     },
     onTouchMove: (event: ReactTouchEventV1) => {
+      const moved = event.touches[0];
+      const hurried = hurriedTap.current;
+      if (hurried && moved && Math.hypot(moved.clientX - hurried.x, moved.clientY - hurried.y) >= DRAG_LOCK_PX_V1)
+        hurriedTap.current = null;
       const drag = gesture.current;
       if (!drag) return;
       // A second finger (pinch to zoom) is never a drag.
       if (event.touches.length !== 1) {
-        abandon();
+        abandon(event.timeStamp);
         return;
       }
       const touch = Array.from(event.touches).find((item) => item.identifier === drag.id);
@@ -1018,6 +1031,8 @@ export function useDragSwipeV1(
           return;
         }
         swallowUntil.current = Number.POSITIVE_INFINITY;
+        // Not a press any more: the row under the finger must not stay pressed, or its next tap is lost.
+        event.target.dispatchEvent(new Event('pointercancel', { bubbles: true }));
         clipping(true);
       }
       const step: DragStepV1 = dx < 0 ? 1 : -1;
@@ -1031,10 +1046,17 @@ export function useDragSwipeV1(
       follow?.move(open ? -dx / ((track.current?.offsetWidth ?? window.innerWidth) + dragGapPxV1()) : 0);
     },
     onTouchEnd: (event: ReactTouchEventV1) => {
+      const startedAt = performance.now();
       const drag = gesture.current;
       gesture.current = null;
+      const tap = hurriedTap.current;
+      hurriedTap.current = null;
+      if (tap) {
+        // The row pressed was swapped under the finger: the tap goes to what is there now.
+        const element = document.elementFromPoint(tap.x, tap.y);
+        if (element instanceof HTMLElement && track.current?.contains(element)) element.click();
+      }
       if (!drag?.locked) return;
-      swallowUntil.current = performance.now() + DRAG_SWALLOW_MS_V1;
       // Where the finger really lifted: it may have gone on after the last move event arrived.
       const lifted = Array.from(event.changedTouches).find((item) => item.identifier === drag.id);
       if (lifted) {
@@ -1053,6 +1075,7 @@ export function useDragSwipeV1(
       if (canStep(step) && (Math.abs(drag.dx) > width * DRAG_COMMIT_RATIO_V1 || flick)) {
         showPeek(step);
         follow?.release(step);
+        committing.current = true;
         settle(drag.dx, -step * width, () => {
           flushSync(() => {
             onCommit(step);
@@ -1063,9 +1086,11 @@ export function useDragSwipeV1(
           follow?.clear();
         });
       } else springBack(drag.dx);
+      // On the touch's own clock, past any work done here: its tap may only be read after it.
+      swallowUntil.current = event.timeStamp + (performance.now() - startedAt) + DRAG_SWALLOW_MS_V1;
     },
     // Only a drag already under way arms the swallow; a cancelled scroll or tap blocks nothing.
-    onTouchCancel: () => abandon(),
+    onTouchCancel: (event: ReactTouchEventV1) => abandon(event.timeStamp),
     onPointerUpCapture: (event: ReactSyntheticEventV1) => swallow(event, false),
     onClickCapture: (event: ReactSyntheticEventV1) => swallow(event, true),
   };

@@ -878,7 +878,7 @@ function NowCardV3({
   );
 }
 
-/** One day of the phone's slider: its name, then why there is no school or its lessons. */
+/** One day of the phone's slider: its name, why there is no school if so, and its lessons. */
 function dayPanelV3(
   item: ScheduleClassV3,
   offAt: (weekday: number) => SchoolDayOffV1 | null,
@@ -894,15 +894,13 @@ function dayPanelV3(
         <h3 aria-live={current ? 'polite' : undefined}>
           {isToday(weekday) ? `Hoje, ${day.long.toLowerCase()}` : day.long}
         </h3>
-        {dayOff ? (
-          <DayOffV3 day={dayOff} today={isToday(weekday)} />
-        ) : (
-          <DayListV3
-            rows={rowsOf(item, weekday)}
-            now={isToday(weekday) ? seconds : null}
-            label={`Aulas de ${day.long.toLowerCase()}`}
-          />
-        )}
+        {/* A day without school still shows its timetable (owner request 01/11/2026), faded. */}
+        {dayOff ? <DayOffV3 day={dayOff} today={isToday(weekday)} /> : null}
+        <DayListV3
+          rows={rowsOf(item, weekday)}
+          now={isToday(weekday) && !dayOff ? seconds : null}
+          label={`Aulas de ${day.long.toLowerCase()}`}
+        />
       </>
     );
   };
@@ -1082,15 +1080,12 @@ export function ScheduleWeekV3({
                           <span className="pa3-week-chip-today">hoje</span>
                         ) : null}
                       </h3>
-                      {dayOff ? (
-                        <DayOffV3 day={dayOff} today={isToday(day.weekday)} />
-                      ) : (
-                        <DayListV3
-                          rows={rowsOf(item, day.weekday)}
-                          now={isToday(day.weekday) ? liveSeconds : null}
-                          label={`Aulas de ${day.long.toLowerCase()}`}
-                        />
-                      )}
+                      {dayOff ? <DayOffV3 day={dayOff} today={isToday(day.weekday)} /> : null}
+                      <DayListV3
+                        rows={rowsOf(item, day.weekday)}
+                        now={isToday(day.weekday) && !dayOff ? liveSeconds : null}
+                        label={`Aulas de ${day.long.toLowerCase()}`}
+                      />
                     </Card>
                   );
                 })}
