@@ -212,6 +212,24 @@ describe('student portal grade workspace', () => {
     expect(selectedPeriod()).toContain('1º Trimestre');
   });
 
+  it("a new tap right after a drag opens the discipline: only the drag's own tap is swallowed", async () => {
+    const data = gradesFixtureV1(false);
+    for (const subject of data.subjects)
+      subject.periods = [
+        { period: 'T1', final: { kind: 'score', value: 20, maximum: 30, meetsMinimum: true } },
+        { period: 'T2', final: { kind: 'score', value: 21, maximum: 30, meetsMinimum: true } },
+      ];
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    const row = () => screen.getAllByRole('option')[0]!;
+    fireEvent.touchStart(row(), { touches: [{ clientX: 260, clientY: 300 }] });
+    fireEvent.touchMove(row(), { touches: [{ clientX: 100, clientY: 302 }] });
+    fireEvent.touchEnd(row(), { changedTouches: [{ clientX: 100, clientY: 302 }] });
+    // Past the moment the drag ended, a tap is a new one.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    await userEvent.setup().click(row());
+    expect(screen.getByRole('tablist', { name: 'Trocar disciplina' })).toBeTruthy();
+  });
+
   it('keeps the chosen trimester across subjects, the Boletim tab on return and a reload', async () => {
     const data = gradesFixtureV1(false);
     const subjects = [...data.subjects].sort((a, b) => a.order - b.order);

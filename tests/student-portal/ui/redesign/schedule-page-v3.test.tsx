@@ -195,6 +195,10 @@ it('on a day without school says why, from the ADM calendar, and counts to the n
   fireEvent.click(wednesday);
   expect(screen.getAllByText('Sem aula em 14/10')[0]).toBeTruthy();
   expect(screen.getAllByText('Feriado · Antecipação do dia 28')[0]).toBeTruthy();
+  // The timetable stays under the reason (owner request 01/11/2026), with nothing going on now.
+  const list = screen.getAllByRole('list', { name: 'Aulas de quarta-feira' })[0]!;
+  expect(list.querySelectorAll('.pa3-schedule-row').length).toBeGreaterThan(0);
+  expect(document.querySelector('.pa3-schedule-row.is-now')).toBeNull();
 });
 
 it('on a weekend opens on Monday, with no day marked as today', () => {

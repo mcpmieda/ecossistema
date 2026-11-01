@@ -744,6 +744,11 @@
 .pa3-schedule-row.is-done {
   opacity: 0.5;
 }
+/* A day without school: its timetable stays, faded, under the reason (owner request 01/11/2026). */
+.pa3-schedule-off + .pa3-schedule-list {
+  margin-top: 0.5rem;
+  opacity: 0.6;
+}
 /* One line through the day, from the first row's middle to the last one's; a grey dot on what is
    over (today only), the live red one, larger and beating, on what goes on now. The dots sit in a
    ring of the card's own background (the phone's white card, the computer's grey columns). */
