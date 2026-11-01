@@ -1,18 +1,17 @@
-import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import {
   frequencyCountV2,
   type FrequencyDayV2,
   type FrequencySummaryV2,
   type FrequencyYearSummaryV2,
-} from '../../../shared/attendance-contracts/frequency-v2';
-import type { StudentFrequencyClientV2 } from '../../features/student-portal/frequency/client-v2';
-import type { StudentScheduleClientV1 } from '../../features/student-portal/schedule/client-v1';
-import type { StudentIncidentV1, StudentIncidentsClientV1 } from '../../features/student-portal/incidents/client-v1';
-import { schoolDateOnDeviceV3 } from '../../features/student-portal/redesign/frequency-page-v3';
-import { officialCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
-import { schoolDaysOffOfV1, schoolDaysOfV1, schoolYearProgressOfV1, schoolYearSpanOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
-import { BELLS_VALID_FROM_V1, officialBells2026V1 } from '../../../shared/student-portal-contracts/school-bells-v1';
-import { frequencyCommentV2, type FrequencyCommentKindV2 } from '../../../shared/attendance-contracts/frequency-comment-v2';
+} from '../../shared/attendance-contracts/frequency-v2';
+import type { StudentFrequencyClientV2 } from '../features/student-portal/frequency/client-v2';
+import type { StudentScheduleClientV1 } from '../features/student-portal/schedule/client-v1';
+import type { StudentIncidentV1, StudentIncidentsClientV1 } from '../features/student-portal/incidents/client-v1';
+import { schoolDateOnDeviceV3 } from '../features/student-portal/redesign/frequency-page-v3';
+import { officialCalendar2026V1 } from '../../shared/student-portal-contracts/school-calendar-2026-start-v1';
+import { schoolDaysOffOfV1, schoolDaysOfV1, schoolYearProgressOfV1, schoolYearSpanOfV1 } from '../../shared/student-portal-contracts/school-calendar-v1';
+import { BELLS_VALID_FROM_V1, officialBells2026V1 } from '../../shared/student-portal-contracts/school-bells-v1';
+import { frequencyCommentV2, type FrequencyCommentKindV2 } from '../../shared/attendance-contracts/frequency-comment-v2';
 
 const demoCalendarV3 = officialCalendar2026V1;
 
@@ -20,76 +19,9 @@ const demoCalendarV3 = officialCalendar2026V1;
 export type DemoFrequencyV3 = FrequencySummaryV2 & { days: FrequencyDayV2[] };
 
 /*
- * Redesign preview (owner request 20/10/2026): invented data only, self-contained so the product
- * code and the official preview stay untouched. Delete the redesign-preview folder and
- * redesign-preview.html to undo it.
+ * Invented frequency, schedule and incidents for the one Portal preview (ui-preview.html), through
+ * clients shaped like the real APIs, so it needs no session and asks nothing of the server.
  */
-// Published up to the 2nd trimester (owner request 27/10/2026): the 3rd is still going on.
-const TERM_MAXIMUM = { T1: 30, T2: 30 } as const;
-const score = (value: number, maximum: number) => ({
-  kind: 'score' as const,
-  value,
-  maximum,
-  meetsMinimum: value * 100 >= maximum * 60,
-});
-let nextId = 960000;
-const partial = (label: string, value: number, maximum: number) => ({
-  assessmentId: ++nextId,
-  label,
-  mark: score(value, maximum),
-  ...(/^Avaliação \d/u.test(label) ? { assessment: true as const } : {}),
-});
-type TermV1 = readonly [av1: number, av2: number, work: number, list: number, class_: number];
-const term = (period: keyof typeof TERM_MAXIMUM, [av1, av2, work, list, class_]: TermV1) => ({
-  period,
-  final: score(av1 + av2 + work + list + class_, TERM_MAXIMUM[period]),
-  partials: [
-    partial('Avaliação 1', av1, 10),
-    partial('Avaliação 2', av2, 10),
-    partial('TRABALHO EM GRUPO', work, 4),
-    partial('LISTA DE EXERCÍCIOS', list, 3),
-    partial('PARTICIPAÇÃO', class_, 3),
-  ],
-});
-const CASES: readonly [label: string, t1: TermV1, t2: TermV1][] = [
-  ['MATEMÁTICA', [10, 9.5, 4, 3, 2.5], [10, 10, 4, 3, 2.5]],
-  ['INGLÊS', [9.5, 9.5, 4, 3, 2.5], [8, 8.5, 3.5, 2.5, 2.5]],
-  ['PORTUGUÊS', [7, 7, 3, 2, 2], [8, 8, 3, 2.5, 2.5]],
-  ['HISTÓRIA', [7.5, 7, 3, 2.5, 2], [4.5, 4, 2, 1.5, 2]],
-  ['CIÊNCIAS', [6, 6, 3, 2, 2], [3, 2.5, 1, 1, 2]],
-  ['ARTE', [6.5, 6.5, 3, 2, 2], [6.5, 6.5, 3, 2, 2]],
-  ['GEOGRAFIA', [6, 5.5, 2.5, 2, 2], [6.5, 6, 3, 2, 2]],
-];
-
-export const REDESIGN_SELF_V3: SelfResponseV1 = selfResponseV1.parse({
-  contractVersion: 1,
-  requestId: '33333333-3333-4333-8333-333333333333',
-  state: 'ready',
-  profile: {
-    accountId: '33333333-3333-4333-8333-333333333333',
-    link: { academicYear: 2026, studentId: 930001 },
-    name: 'ALUNO ARTIFICIAL',
-    classLabel: 'TURMA ARTIFICIAL',
-    academicState: 'regular',
-    result: 'in-progress',
-  },
-  revisions: {
-    dataVersion: 'preview:academic:3',
-    policyVersion: 'preview:policy:3',
-    publicationVersion: 'preview:publication:3',
-  },
-  generatedAt: '2026-12-10T12:00:00-03:00',
-  endedPeriods: ['T1', 'T2'],
-  showFrequency: true,
-  showSchedule: true,
-  showIncidents: true,
-  subjects: CASES.map(([label, t1, t2], order) => ({
-    subjectId: 970001 + order,
-    label,
-    order,
-    periods: [term('T1', t1), term('T2', t2)],
-  })),
-});
 
 /**
  * Lessons of a school day, as the Smecel diary gives them (owner decision 20/10/2026): five on most

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { CalendarOff, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, PartyPopper, TriangleAlert, X } from 'lucide-react';
 import {
   frequencyCountV2,
@@ -17,13 +17,14 @@ import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/o
 import { reducedMotionV3, usePortalPageActiveV3, useReportFrequencyToneV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
+import { useDragSwipeV1 } from '../workspace/student-workspace-v1';
 
 /*
  * Frequência in a page of its own (owner requests 20–21/10/2026): one month at a time, read in
  * DAYS and about absences only. Every school day already over is one of four kinds, the same
- * everywhere (calendar colour, legend, ring, sentence): "falta total" (an absence in every
- * lesson, one at least not justified), "falta parcial" (in some lessons only), "justificada" (every
- * absence of the day justified) or frequented (no absence). The portal never interprets the diary:
+ * everywhere (calendar colour, legend, ring, sentence): "faltou o dia todo" (an absence in every
+ * lesson, one at least not justified), "faltou algumas aulas" (in some lessons only), "justificado" (every
+ * absence of the day justified) or "sem falta" (no absence). The portal never interprets the diary:
  * no "arrived late", "left early" or "partly" (owner decisions 21/10/2026); which lessons were
  * missed only shows in the lesson tiles of the day. The legal attendance stays by lessons, over the
  * whole year (the ruler).
@@ -156,8 +157,8 @@ const toneLevelOf = (day: DayV3 | null) => {
 
 /**
  * The month's school days as a ring with guide lines (owner choices 21/10/2026: "a A com as
- * legendas ao lado das setinhas guias de cada banda", darker tones). One arc per kind of day (falta
- * total, falta parcial, justificada, frequentado); from the middle of each arc a curved guide line
+ * legendas ao lado das setinhas guias de cada banda", darker tones). One arc per kind of day (faltou
+ * o dia todo, faltou algumas aulas, justificado, sem falta); from the middle of each arc a curved guide line
  * goes out to its number and name. The centre shows how many days are counted (days already over;
  * today is not). When the month opens, the arcs grow in turn and the labels appear after them
  * (still with reduced motion).
@@ -178,10 +179,11 @@ const RING_GAP_V3 = 0.05;
 // `ink`: the number's colour. The light red arc stays light, but its number is darker so it reads
 // at 4,5:1 on white even when the ring is scaled down on a narrow phone (#d45a4f was 3,9:1).
 const RING_KINDS_V3 = [
-  { kind: 'clear', colour: '#166534', ink: '#166534', one: 'dia frequentado', many: 'dias frequentados' },
-  { kind: 'full', colour: '#991b1b', ink: '#991b1b', one: 'falta total', many: 'faltas totais' },
-  { kind: 'partial', colour: '#d45a4f', ink: '#b42d22', one: 'falta parcial', many: 'faltas parciais' },
-  { kind: 'justified', colour: '#b45309', ink: '#b45309', one: 'justificada', many: 'justificadas' },
+  // The legend's own words (owner request 01/11/2026): "faltas totais" read as the sum of all absences.
+  { kind: 'clear', colour: '#166534', ink: '#166534', one: 'dia sem falta', many: 'dias sem falta' },
+  { kind: 'full', colour: '#991b1b', ink: '#991b1b', one: 'dia de falta', many: 'dias de falta' },
+  { kind: 'partial', colour: '#d45a4f', ink: '#b42d22', one: 'faltou algumas aulas', many: 'faltou algumas aulas' },
+  { kind: 'justified', colour: '#b45309', ink: '#b45309', one: 'dia justificado', many: 'dias justificados' },
 ] as const;
 type RingTotalsV3 = { days: number; clear: number; full: number; partial: number; justified: number };
 /**
@@ -224,7 +226,7 @@ const ringArc = (from: number, to: number) => {
 };
 /**
  * Labels on one side never overlap: each keeps at least this vertical distance, the height of a
- * label of two lines (the count, then "faltas / parciais"). At most three labels share a side.
+ * label of two lines (the count, then "faltou / algumas aulas"). At most three labels share a side.
  */
 const RING_LABEL_GAP_V3 = 50;
 type PointV3 = { x: number; y: number };
@@ -339,7 +341,7 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
         const text = end + label.side * 3;
         const anchor = label.side > 0 ? 'start' : 'end';
         const name = label.count === 1 ? label.one : label.many;
-        // Two words on two lines ("dias / frequentados", "falta / parcial"); one word stays alone.
+        // On two lines from the first space ("dias / sem falta", "dias / de falta"); one word stays alone.
         const [first, second] = name.includes(' ') ? [name.slice(0, name.indexOf(' ')), name.slice(name.indexOf(' ') + 1)] : [name, null];
         return (
           <g key={label.kind} className="pa3-guide-label" style={{ animationDelay: `${450 + label.order * 160}ms` }}>
@@ -378,37 +380,6 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
       </text>
     </svg>
   );
-}
-
-/**
- * A sideways swipe moves to the previous or next month, like the trimesters. One finger only: a
- * second finger (pinch to zoom) or a cancelled touch never changes the month.
- */
-function useMonthSwipeV3(go: (step: number) => void, canBack: boolean, canForward: boolean) {
-  const start = useRef<{ id: number; x: number; y: number } | null>(null);
-  return {
-    onTouchStart: (event: TouchEvent) => {
-      const touch = event.touches[0];
-      start.current = event.touches.length === 1 && touch ? { id: touch.identifier, x: touch.clientX, y: touch.clientY } : null;
-    },
-    onTouchMove: (event: TouchEvent) => {
-      if (event.touches.length !== 1) start.current = null;
-    },
-    onTouchEnd: (event: TouchEvent) => {
-      const origin = start.current;
-      start.current = null;
-      const touch = origin ? Array.from(event.changedTouches).find((item) => item.identifier === origin.id) : undefined;
-      if (!origin || !touch || event.touches.length > 0) return;
-      const dx = touch.clientX - origin.x;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(touch.clientY - origin.y) * 1.5) {
-        if (dx < 0 && canForward) go(1);
-        if (dx > 0 && canBack) go(-1);
-      }
-    },
-    onTouchCancel: () => {
-      start.current = null;
-    },
-  };
 }
 
 /**
@@ -560,12 +531,8 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
       {year?.comment ? <FrequencyCommentV3 comment={year.comment} /> : null}
       {year && totals ? (
         <FrequencyMonthV3
-          data={{
-            ...(year.months.find((item) => item.month === month) ?? emptyMonthV3(month)),
-            today: year.today,
-            year: year.year,
-            lastReadAt: year.lastReadAt,
-          }}
+          data={monthDataV3(year, month)}
+          neighbourData={(item) => monthDataV3(year, item)}
           totals={totals}
           academicYear={academicYear}
           today={today}
@@ -639,8 +606,8 @@ function SchoolYearCountdownV3({
       />
       <p className="pa3-countdown-days">
         {schoolYear.remaining === 1
-          ? 'Falta 1 dia letivo'
-          : `Faltam ${schoolYear.remaining} dias letivos`}{' '}
+          ? 'Resta 1 dia letivo'
+          : `Restam ${schoolYear.remaining} dias letivos`}{' '}
         de {schoolYear.schoolDays}.
       </p>
     </Card>
@@ -662,6 +629,13 @@ const emptyMonthV3 = (month: string): FrequencySummaryV2 => ({
   marks: [],
   conflicts: 0,
   days: [],
+});
+/** A month of the year's answer, with what its days are read against. */
+const monthDataV3 = (year: FrequencyYearSummaryV2, month: string): FrequencySummaryV2 => ({
+  ...(year.months.find((item) => item.month === month) ?? emptyMonthV3(month)),
+  today: year.today,
+  year: year.year,
+  lastReadAt: year.lastReadAt,
 });
 
 /** The month's name and its arrows (owner request 21/10/2026: the month bar is gone). */
@@ -708,59 +682,8 @@ function lessonStateV3(mark: string | undefined, open: boolean): LessonStateV3 {
   return open ? 'pending' : 'clear';
 }
 
-/** One month, drawn from the server's answer. */
-function FrequencyMonthV3({
-  data,
-  totals,
-  academicYear,
-  today,
-  month,
-  current,
-  firstMonth,
-  onMonth,
-  countdown,
-  daysOff = [],
-  bells = null,
-  bellsValidFrom = null,
-  grid = [],
-}: Readonly<{
-  data: FrequencySummaryV2;
-  /** The ring: the whole year so far. */
-  totals: RingTotalsV3;
-  academicYear: number;
-  today: string;
-  month: string;
-  current: string;
-  firstMonth: string;
-  onMonth: (month: string) => void;
-  /** The school year's countdown, under the year at a glance. */
-  countdown?: ReactNode;
-  /** The days without school the ADM calendar names (owner decision 23/10/2026: say why). */
-  daysOff?: readonly SchoolDayOffV1[];
-  /** Each lesson's time by shift and weekday (ADM) and the week's subjects, for an absence. */
-  bells?: Exclude<FrequencyYearSummaryV2['bells'], undefined>;
-  /** From when those times hold (the ADM's bells); null without bells. */
-  bellsValidFrom?: string | null;
-  grid?: Exclude<FrequencyYearSummaryV2['grid'], undefined>;
-}>) {
-  const offByDate = useMemo(() => new Map(daysOff.map((day) => [day.date, day])), [daysOff]);
-  /**
-   * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula
-   * (08:50–09:45), MATEMATICA"): only from the day the current bells hold, never for an older day
-   * whose times or grid may have been different.
-   */
-  const lessonInfo = (date: string, shift: string, slot: number) => {
-    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-    const bellShift = bellShiftOfLabelV1(shift);
-    if (!bellsValidFrom || date < bellsValidFrom || weekday < 1 || weekday > 5 || !bellShift) return null;
-    const time = bells ? bellLessonV1(bells[bellShift][weekday as 1 | 2 | 3 | 4 | 5], slot) : null;
-    const subject =
-      grid
-        .find((item) => item.shift === bellShift)
-        ?.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null;
-    const official = subject ? officialSubjectV1(subject) : null;
-    return time || official ? { time: time ? `${time.start}–${time.end}` : null, subject: official } : null;
-  };
+/** What the calendar knows of each date of a month, from the server's answer. */
+function useMonthDaysV3(data: FrequencySummaryV2, today: string, offByDate: ReadonlyMap<string, SchoolDayOffV1>) {
   const monthCount = useMemo(() => frequencyCountV2(data, today), [data, today]);
   // Lessons of each day, straight from the Smecel diary (data.days), kept per shift.
   const lessonsByDay = useMemo(() => {
@@ -803,36 +726,6 @@ function FrequencyMonthV3({
     const lessons = lessonsAt(date);
     return lessons ? dayOf(lessons, marksByDay.get(date) ?? []) : null;
   };
-  const [picked, setPicked] = useState<string | null>(null);
-  const go = (step: number) => {
-    onMonth(shiftMonth(month, step));
-    setPicked(null);
-  };
-  // Only the calendar card swipes, like the arrows in its head.
-  const swipe = useMonthSwipeV3(go, month > firstMonth, month < current);
-  // A new month slides in a little from the side it comes from, fading in (owner request
-  // 27/10/2026): its name and its days; the legend stays still.
-  const calendar = useRef<HTMLFieldSetElement>(null);
-  const monthBefore = useRef(month);
-  useLayoutEffect(() => {
-    const from = monthBefore.current;
-    monthBefore.current = month;
-    const grid = calendar.current;
-    if (from === month || !grid || typeof grid.animate !== 'function' || reducedMotionV3()) return;
-    const side = month > from ? 1 : -1;
-    for (const element of [grid, grid.closest('.pa3-month')?.querySelector('[aria-live]')])
-      element?.animate(
-        [
-          { opacity: 0, transform: `translateX(${side * 28}px)` },
-          { opacity: 1, transform: 'none' },
-        ],
-        { duration: 280, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
-      );
-  }, [month]);
-
-  const [year, monthNumber] = month.split('-').map(Number) as [number, number];
-  const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
-  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   // The school date of the diary's last reading: a day from it on is not read in full yet.
   const readOn = data.lastReadAt ? SCHOOL_DATE.format(new Date(data.lastReadAt)) : null;
   const stateOf = (date: string): DayStateV3 => {
@@ -852,6 +745,46 @@ function FrequencyMonthV3({
     if (day.kind !== 'clear') return day.kind;
     return date < today ? 'clear' : 'pending';
   };
+  return { lessonsAt, marksByDay, dayAt, stateOf };
+}
+
+// Only a day with an absence, or one still open, is highlighted and opens.
+const isPickableV3 = (state: DayStateV3) => state === 'missed' || state === 'pending';
+// A day without absence opens too (owner request 22/10/2026): a parent whose child never misses
+// can still see that day's lessons, every one "Sem falta". It is never chosen at first.
+// A day without school opens too, to say why (owner decision 23/10/2026).
+const opensV3 = (state: DayStateV3) => isPickableV3(state) || state === 'clear' || state === 'holiday';
+
+/** The month's name, its legend and its days: the part of the card that follows the finger. */
+function MonthPageV3({
+  month,
+  today,
+  days,
+  daysOff,
+  offByDate,
+  canBack,
+  canForward,
+  go,
+  selected,
+  onPick,
+  calendar,
+}: Readonly<{
+  month: string;
+  today: string;
+  days: ReturnType<typeof useMonthDaysV3>;
+  daysOff: readonly SchoolDayOffV1[];
+  offByDate: ReadonlyMap<string, SchoolDayOffV1>;
+  canBack: boolean;
+  canForward: boolean;
+  go: (step: number) => void;
+  selected: string | null;
+  onPick: (date: string) => void;
+  calendar?: Ref<HTMLFieldSetElement>;
+}>) {
+  const { dayAt, stateOf } = days;
+  const [year, monthNumber] = month.split('-').map(Number) as [number, number];
+  const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const ariaOf = (date: string, state: DayStateV3) => {
     const day = dayAt(date);
     const isDay = date === today;
@@ -867,17 +800,186 @@ function FrequencyMonthV3({
     };
     return `${dayLabel(date)}: ${text[state]}${todayNote}`;
   };
-  // Only a day with an absence, or one still open, is highlighted and opens.
-  const isPickable = (state: DayStateV3) => state === 'missed' || state === 'pending';
-  // A day without absence opens too (owner request 22/10/2026): a parent whose child never misses
-  // can still see that day's lessons, every one "Sem falta". It is never chosen at first.
-  // A day without school opens too, to say why (owner decision 23/10/2026).
-  const opens = (state: DayStateV3) => isPickable(state) || state === 'clear' || state === 'holiday';
+  return (
+    <div className="pa3-month-page">
+      <MonthHeadV3 month={month} canBack={canBack} canForward={canForward} go={go} />
+      <ul className="pa3-legend" aria-label="Legenda">
+        <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Faltou o dia todo</li>
+        {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
+        <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Faltou algumas aulas</li>
+        <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
+        {/* A day without absence (owner requests 23 and 27/10/2026): a white square with its check, as on the calendar. */}
+        <li>
+          <span className="pa3-dot pa3-dot--clear">
+            <Check size={8} strokeWidth={4} aria-hidden="true" />
+          </span>{' '}
+          Sem falta
+        </li>
+        {/* A holiday or recess (owner decision 23/10/2026): tap it to see why there was no school. */}
+        {/* Without one, its line stays empty: every month is as tall, nothing jumps below the card. */}
+        {daysOff.some((day) => day.date.startsWith(month)) ? (
+          <li><span className="pa3-dot pa3-dot--holiday" /> Feriado ou recesso</li>
+        ) : (
+          <li aria-hidden="true">&nbsp;</li>
+        )}
+      </ul>
+      {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
+      <fieldset ref={calendar} className="min-w-auto pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`}>
+        {WEEKDAYS_SHORT.map((day, index) => (
+          <span key={index} className="pa3-weekday" aria-hidden="true">
+            {day}
+          </span>
+        ))}
+        {Array.from({ length: firstWeekday }, (_, index) => (
+          <span key={'blank' + index} aria-hidden="true" />
+        ))}
+        {Array.from({ length: daysInMonth }, (_, index) => {
+          const date = `${month}-${pad(index + 1)}`;
+          const state = stateOf(date);
+          const justified = state === 'missed' && (dayAt(date)?.justified ?? false);
+          return (
+            <button
+              key={date}
+              type="button"
+              className={
+                'pa3-day pa3-day--' + state + ' pa3-kind--' + state +
+                (justified ? ' is-justified' : '') +
+                (selected === date ? ' is-selected' : '') +
+                (date === today ? ' is-today' : '')
+              }
+              disabled={!opensV3(state)}
+              aria-pressed={selected === date}
+              aria-label={ariaOf(date, state)}
+              data-tone={state === 'missed' ? toneLevelOf(dayAt(date)) : undefined}
+              onClick={() => onPick(date)}
+            >
+              <span className="pa3-day-number">{index + 1}</span>
+              {/* A school day already over without absence (owner request 27/10/2026): a small check under the number. */}
+              {state === 'clear' ? <Check className="pa3-day-check" size={10} strokeWidth={3.5} aria-hidden="true" /> : null}
+              {date === today ? <span className="pa3-day-today">HOJE</span> : null}
+            </button>
+          );
+        })}
+        {/* Six weeks always: the rows a shorter month does not use stay empty. */}
+        {Array.from({ length: 42 - firstWeekday - daysInMonth }, (_, index) => (
+          <span key={'after' + index} className="pa3-calendar-blank" aria-hidden="true" />
+        ))}
+      </fieldset>
+    </div>
+  );
+}
+
+/** The month beside the one shown, drawn as it comes in under the finger. */
+function MonthPeekV3({
+  data,
+  ...page
+}: Readonly<{ data: FrequencySummaryV2 } & Omit<Parameters<typeof MonthPageV3>[0], 'days' | 'selected' | 'onPick' | 'calendar'>>) {
+  const days = useMonthDaysV3(data, page.today, page.offByDate);
+  return <MonthPageV3 {...page} days={days} selected={null} onPick={() => undefined} />;
+}
+
+/** One month, drawn from the server's answer. */
+function FrequencyMonthV3({
+  data,
+  neighbourData,
+  totals,
+  academicYear,
+  today,
+  month,
+  current,
+  firstMonth,
+  onMonth,
+  countdown,
+  daysOff = [],
+  bells = null,
+  bellsValidFrom = null,
+  grid = [],
+}: Readonly<{
+  data: FrequencySummaryV2;
+  /** Another month of the year's answer, for the one coming in under the finger. */
+  neighbourData: (month: string) => FrequencySummaryV2;
+  /** The ring: the whole year so far. */
+  totals: RingTotalsV3;
+  academicYear: number;
+  today: string;
+  month: string;
+  current: string;
+  firstMonth: string;
+  onMonth: (month: string) => void;
+  /** The school year's countdown, under the year at a glance. */
+  countdown?: ReactNode;
+  /** The days without school the ADM calendar names (owner decision 23/10/2026: say why). */
+  daysOff?: readonly SchoolDayOffV1[];
+  /** Each lesson's time by shift and weekday (ADM) and the week's subjects, for an absence. */
+  bells?: Exclude<FrequencyYearSummaryV2['bells'], undefined>;
+  /** From when those times hold (the ADM's bells); null without bells. */
+  bellsValidFrom?: string | null;
+  grid?: Exclude<FrequencyYearSummaryV2['grid'], undefined>;
+}>) {
+  const offByDate = useMemo(() => new Map(daysOff.map((day) => [day.date, day])), [daysOff]);
+  /**
+   * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula
+   * (08:50–09:45), MATEMATICA"): only from the day the current bells hold, never for an older day
+   * whose times or grid may have been different.
+   */
+  const lessonInfo = (date: string, shift: string, slot: number) => {
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const bellShift = bellShiftOfLabelV1(shift);
+    if (!bellsValidFrom || date < bellsValidFrom || weekday < 1 || weekday > 5 || !bellShift) return null;
+    const time = bells ? bellLessonV1(bells[bellShift][weekday as 1 | 2 | 3 | 4 | 5], slot) : null;
+    const subject =
+      grid
+        .find((item) => item.shift === bellShift)
+        ?.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null;
+    const official = subject ? officialSubjectV1(subject) : null;
+    return time || official ? { time: time ? `${time.start}–${time.end}` : null, subject: official } : null;
+  };
+  const monthDays = useMonthDaysV3(data, today, offByDate);
+  const { lessonsAt, marksByDay, dayAt, stateOf } = monthDays;
+  const [picked, setPicked] = useState<string | null>(null);
+  const go = (step: number) => {
+    onMonth(shiftMonth(month, step));
+    setPicked(null);
+  };
+  // Only the calendar card swipes, like the arrows in its head; the month follows the finger, as the
+  // trimesters and the Horário's days do (owner request 01/11/2026), from anywhere on the calendar.
+  const canStep = (step: 1 | -1) => (step === 1 ? month < current : month > firstMonth);
+  const swiped = useRef(false);
+  const monthDrag = useDragSwipeV1(
+    canStep,
+    (step) => {
+      swiped.current = true;
+      go(step);
+    },
+    { ignored: 'input, select, summary' },
+  );
+  // A new month slides in a little from the side it comes from, fading in (owner request
+  // 27/10/2026): its name and its days; the legend stays still. A drag already brought it in.
+  const calendar = useRef<HTMLFieldSetElement>(null);
+  const monthBefore = useRef(month);
+  useLayoutEffect(() => {
+    const from = monthBefore.current;
+    monthBefore.current = month;
+    const grid = calendar.current;
+    const already = swiped.current;
+    swiped.current = false;
+    if (already || from === month || !grid || typeof grid.animate !== 'function' || reducedMotionV3()) return;
+    const side = month > from ? 1 : -1;
+    for (const element of [grid, grid.closest('.pa3-month')?.querySelector('[aria-live]')])
+      element?.animate(
+        [
+          { opacity: 0, transform: `translateX(${side * 28}px)` },
+          { opacity: 1, transform: 'none' },
+        ],
+        { duration: 280, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+      );
+  }, [month]);
+
   // At first, the latest day with a mark that opens, so the page never selects a day it cannot show.
   const firstPick =
     [...marksByDay.keys()]
       .sort((a, b) => b.localeCompare(a))
-      .find((date) => date <= today && isPickable(stateOf(date))) ?? null;
+      .find((date) => date <= today && isPickableV3(stateOf(date))) ?? null;
   const selected = picked?.startsWith(month) ? picked : firstPick;
   const selectedLessons = selected ? (lessonsAt(selected) ?? []) : [];
   const selectedDay = selected ? dayAt(selected) : null;
@@ -901,63 +1003,38 @@ function FrequencyMonthV3({
       </Card>
 
       {countdown}
-      <Card className="pa3-card pa3-month" {...swipe}>
-        <MonthHeadV3 month={month} canBack={month > firstMonth} canForward={month < current} go={go} />
-        <ul className="pa3-legend" aria-label="Legenda">
-          <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Faltou o dia todo</li>
-          {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
-          <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Faltou algumas aulas</li>
-          <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
-          {/* A day without absence (owner requests 23 and 27/10/2026): a white square with its check, as on the calendar. */}
-          <li>
-            <span className="pa3-dot pa3-dot--clear">
-              <Check size={8} strokeWidth={4} aria-hidden="true" />
-            </span>{' '}
-            Sem falta
-          </li>
-          {/* A holiday or recess (owner decision 23/10/2026): tap it to see why there was no school. */}
-          {daysOff.some((day) => day.date.startsWith(month)) ? (
-            <li><span className="pa3-dot pa3-dot--holiday" /> Feriado ou recesso</li>
-          ) : null}
-        </ul>
-        {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
-        <fieldset ref={calendar} className="min-w-auto pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`}>
-          {WEEKDAYS_SHORT.map((day, index) => (
-            <span key={index} className="pa3-weekday" aria-hidden="true">
-              {day}
-            </span>
-          ))}
-          {Array.from({ length: firstWeekday }, (_, index) => (
-            <span key={'blank' + index} aria-hidden="true" />
-          ))}
-          {Array.from({ length: daysInMonth }, (_, index) => {
-            const date = `${month}-${pad(index + 1)}`;
-            const state = stateOf(date);
-            const justified = state === 'missed' && (dayAt(date)?.justified ?? false);
-            return (
-              <button
-                key={date}
-                type="button"
-                className={
-                  'pa3-day pa3-day--' + state + ' pa3-kind--' + state +
-                  (justified ? ' is-justified' : '') +
-                  (selected === date ? ' is-selected' : '') +
-                  (date === today ? ' is-today' : '')
-                }
-                disabled={!opens(state)}
-                aria-pressed={selected === date}
-                aria-label={ariaOf(date, state)}
-                data-tone={state === 'missed' ? toneLevelOf(dayAt(date)) : undefined}
-                onClick={() => setPicked(date)}
-              >
-                <span className="pa3-day-number">{index + 1}</span>
-                {/* A school day already over without absence (owner request 27/10/2026): a small check under the number. */}
-                {state === 'clear' ? <Check className="pa3-day-check" size={10} strokeWidth={3.5} aria-hidden="true" /> : null}
-                {date === today ? <span className="pa3-day-today">HOJE</span> : null}
-              </button>
-            );
-          })}
-        </fieldset>
+      <Card className="pa3-card pa3-month">
+        <div className="pa-slide-stage pa-swipe-area" {...monthDrag.handlers}>
+          <div className="pa-swipe-track" ref={monthDrag.track}>
+            <MonthPageV3
+              month={month}
+              today={today}
+              days={monthDays}
+              daysOff={daysOff}
+              offByDate={offByDate}
+              canBack={canStep(-1)}
+              canForward={canStep(1)}
+              go={go}
+              selected={selected}
+              onPick={setPicked}
+              calendar={calendar}
+            />
+            {monthDrag.peek === null ? null : (
+              <div className={'pa-swipe-peek pa-swipe-peek--' + (monthDrag.peek === 1 ? 'next' : 'prev')} aria-hidden="true" inert>
+                <MonthPeekV3
+                  data={neighbourData(shiftMonth(month, monthDrag.peek))}
+                  month={shiftMonth(month, monthDrag.peek)}
+                  today={today}
+                  daysOff={daysOff}
+                  offByDate={offByDate}
+                  canBack
+                  canForward
+                  go={() => undefined}
+                />
+              </div>
+            )}
+          </div>
+        </div>
       </Card>
 
       {selected && selectedOff ? (

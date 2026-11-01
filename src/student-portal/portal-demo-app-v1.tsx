@@ -3,10 +3,11 @@ import { StudentPortalPageV1 } from '../features/student-portal/shell/student-sh
 import { PortalSignedInNoticesV1 } from '../features/student-portal/shell/portal-notices-v1';
 import {
   createDemoFrequencyClientV3,
+  createDemoIncidentsClientV3,
   createDemoScheduleClientV3,
   DEMO_FREQUENCY_COMMENTS_V3,
   type DemoCommentChoiceV3,
-} from './redesign-preview/demo-data-v3';
+} from './demo-data-v3';
 import { selfResponseV1, type SelfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
@@ -696,6 +697,8 @@ interface AdminSimulationV1 {
   showFrequency: boolean;
   /** Policy `showSchedule` (owner decision 22/10/2026): off hides the "Horário" page. */
   showSchedule: boolean;
+  /** Policy `showIncidents` (owner decisions 29/10/2026): off hides the "Ocorrências" page. */
+  showIncidents: boolean;
   /** The sentence about the absences on Frequência: computed from the invented data, or forced. */
   frequencyComment: DemoCommentChoiceV3;
   periods: readonly PeriodIdV1[];
@@ -899,11 +902,13 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     subjects: withClosings,
     showFrequency: admin.showFrequency,
     showSchedule: admin.showSchedule,
+    showIncidents: admin.showIncidents,
   });
 }
 
-/** Invented attendance and weekly grid (the redesign's demo clients): no request leaves the page. */
+/** Invented attendance, weekly grid and incidents (the redesign's demo clients): no request leaves the page. */
 const demoScheduleClient = createDemoScheduleClientV3();
+const demoIncidentsClient = createDemoIncidentsClientV3();
 
 const panelStyle: CSSProperties = {
   position: 'fixed',
@@ -927,7 +932,7 @@ function AdminSimulatorPanelV1({
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
 }>) {
-  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'showFrequency' | 'showSchedule' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject' | 'correctedRed') => (
+  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'showFrequency' | 'showSchedule' | 'showIncidents' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject' | 'correctedRed') => (
     <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
   );
   return (
@@ -1000,6 +1005,7 @@ function AdminSimulatorPanelV1({
         <label>{toggle('termClosingConclusive')} Usar termos de conclusão</label>
         <label>{toggle('showFrequency')} Frequência</label>
         <label>{toggle('showSchedule')} Horário</label>
+        <label>{toggle('showIncidents')} Ocorrências</label>
         <label>
           Frase da frequência{' '}
           <select
@@ -1080,9 +1086,10 @@ export function PortalDemoAppV1() {
     showPartials: true,
     showTermClosing: true,
     termClosingConclusive: true,
-    // Frequência and Horário open at first (owner request 28/10/2026); the simulator turns them off.
+    // Frequência, Horário and Ocorrências open at first (owner request 28/10/2026); the simulator turns them off.
     showFrequency: true,
     showSchedule: true,
+    showIncidents: true,
     frequencyComment: 'auto',
     periods: ALL_PERIODS_V1,
     finalDisclosed: false,
@@ -1131,6 +1138,7 @@ export function PortalDemoAppV1() {
         portraitSrc={admin.hasPortrait ? previewPortrait : undefined}
         frequencyClient={frequencyClient}
         scheduleClient={demoScheduleClient}
+        incidentsClient={demoIncidentsClient}
       />
     </>
   );

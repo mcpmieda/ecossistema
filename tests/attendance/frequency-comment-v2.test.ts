@@ -109,8 +109,9 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
       tone: 'good',
       text: 'Nenhuma falta nas últimas 4 semanas. Muito bem!',
     });
-    // Justified absences are never counted: still "no absence this year".
-    expect(year(recent(5), { mark: 'J' })?.kind).toBe('none-this-year');
+    // A justified absence is still an absence (owner request 01/11/2026): no "Nenhuma falta" over it.
+    expect(year(recent(5), { mark: 'J' })).toBeNull();
+    expect(year([weekdays[10]!], { mark: 'J' })?.kind).toBe('none-recently');
   });
 
   it('nothing to say: no sentence', () => {

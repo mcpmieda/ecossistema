@@ -1,4 +1,4 @@
-/* Redesign preview (owner request 20/10/2026). Scoped to .pa3-*, loaded only by redesign-preview.html. */
+/* The Portal pages (owner request 20/10/2026). Scoped to .pa3-*. */
 .pa3-app {
   --pa3-ink: #0f2a5f;
   --pa3-blue: #1d4ed8;
@@ -182,6 +182,10 @@
   grid-template-columns: repeat(7, minmax(0, 1fr));
   /* Wider than the selection ring (3px), so it never touches the next day (owner request 27/10/2026). */
   gap: 0.45rem;
+}
+/* The rows a shorter month does not use stay empty: every month is as tall (owner request 01/11/2026). */
+.pa3-calendar-blank {
+  aspect-ratio: 1;
 }
 .pa3-weekday {
   padding-bottom: 0.15rem;
@@ -438,8 +442,8 @@
 
 /* ---------- The calendar's days (owner decisions 21/10/2026) ----------
    Only a day with an absence is coloured; a day without one stays neutral, the same grey as a day
-   without lessons. Red: an absence in every lesson ("Falta total"); light red: in some lessons only
-   ("Falta parcial"); yellow: every absence of the day justified, all lessons or some. Each a soft
+   without lessons. Red: an absence in every lesson ("Faltou o dia todo"); light red: in some lessons only
+   ("Faltou algumas aulas"); yellow: every absence of the day justified, all lessons or some. Each a soft
    top-to-bottom gradient; the blue selection ring shows around any of them. Shared by the calendar
    and the legend. */
 .pa3-kind--clear {
@@ -522,6 +526,12 @@
   color: var(--pa3-green);
 }
 
+/* The month's name, legend and days, spaced as a card's parts: what slides under the finger. */
+.pa3-month-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem;
+}
 .pa3-month-arrows {
   display: flex;
   gap: 0.35rem;
@@ -719,7 +729,7 @@
   --pa3-rail-ground: #fff;
   display: grid;
   margin: 0;
-  padding: 0.3rem 0.3rem 0.3rem 0.65rem;
+  padding: 0.3rem 0.3rem 0.45rem 0.65rem;
   list-style: none;
 }
 .pa3-schedule-row {
@@ -727,7 +737,8 @@
   --pa3-row-space: 0.2rem;
   display: flex;
   align-items: stretch;
-  gap: 0.55rem;
+  /* Room for the live dot's halo, clear of the card's ring (owner request 01/11/2026). */
+  gap: 0.8rem;
   padding-block: var(--pa3-row-space);
 }
 .pa3-schedule-row.is-done {
@@ -783,7 +794,7 @@
     box-shadow: 0 0 0 3px var(--pa3-rail-ground), 0 0 0 3px rgb(220 38 38 / 0.5);
   }
   to {
-    box-shadow: 0 0 0 3px var(--pa3-rail-ground), 0 0 0 11px rgb(220 38 38 / 0);
+    box-shadow: 0 0 0 3px var(--pa3-rail-ground), 0 0 0 7px rgb(220 38 38 / 0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -812,11 +823,12 @@
   border-radius: 0.95rem;
   background: var(--pa3-subject-strong);
   color: #fff;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--pa3-subject-strong) 28%, transparent);
+  /* Short enough to end inside the day's sliding box, which clips what passes it (owner request 01/11/2026). */
+  box-shadow: 0 5px 8px -3px color-mix(in srgb, var(--pa3-subject-strong) 40%, transparent);
 }
 .pa3-schedule-row.is-now .pa3-schedule-tile {
   box-shadow:
-    0 8px 18px color-mix(in srgb, var(--pa3-subject-strong) 28%, transparent),
+    0 5px 8px -3px color-mix(in srgb, var(--pa3-subject-strong) 40%, transparent),
     0 0 0 2px #fff,
     0 0 0 4px var(--pa3-live);
 }
@@ -1026,7 +1038,8 @@
 .pa3-schedule-week {
   display: none;
 }
-@media (min-width: 900px) {
+/* The five columns only from where a card fits its column; below it, one day at a time, as on a phone. */
+@media (min-width: 1140px) {
   .pa3-week-chips,
   .pa3-schedule-day {
     display: none;
@@ -1060,11 +1073,15 @@
     color: #fff;
   }
   /* A column is narrow: the time goes under the name, without the large faint icon. */
-  .pa3-schedule-column .pa3-schedule-row {
-    gap: 0.35rem;
+  .pa3-schedule-column .pa3-schedule-list {
+    padding-left: 0.2rem;
   }
   .pa3-schedule-column .pa3-schedule-rail {
     flex-basis: 0.75rem;
+  }
+  .pa3-schedule-column .pa3-schedule-row.is-now .pa3-schedule-rail::after {
+    width: 0.7rem;
+    height: 0.7rem;
   }
   .pa3-schedule-column .pa3-schedule-tile {
     flex-wrap: wrap;
@@ -1078,9 +1095,10 @@
   .pa3-schedule-column .pa3-subject-name {
     font-size: 0.76rem;
   }
+  /* "agora" takes a line of its own: beside the time it would not fit, and would widen the column. */
   .pa3-schedule-column .pa3-schedule-time {
     flex: 1 0 100%;
-    flex-direction: row;
+    flex-flow: row wrap;
     align-items: center;
     justify-content: space-between;
     font-size: 0.7rem;
@@ -1703,26 +1721,97 @@
 .pa3-incidents .pa3-page-title {
   margin-bottom: 0;
 }
+/* A calm card (owner requests 01/11/2026): only the kind's label and the leave's days carry a colour. */
+.pa3-incident {
+  --incident-accent: #64748b;
+  --incident-soft: #f1f5f9;
+  gap: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.1rem;
+  padding: 1rem;
+  background: #fff;
+  box-shadow: 0 6px 18px -16px rgb(15 46 101 / 0.5);
+}
+.pa3-incident:has(.chip--danger) {
+  --incident-accent: #b91c1c;
+  --incident-soft: #fef2f2;
+}
+.pa3-incident:has(.chip--warning) {
+  --incident-accent: #b45309;
+  --incident-soft: #fffbeb;
+}
+.pa3-incident--seen {
+  box-shadow: none;
+}
 .pa3-incident p {
   margin: 0;
 }
+.pa3-incident .chip {
+  border-radius: 0.45rem;
+  background: var(--incident-soft);
+  color: var(--incident-accent);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
 .pa3-incident-date {
-  color: var(--pa3-ink);
-  font-weight: 700;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.pa3-incident-leave {
+/* The days in a large chip at the box's right; the dates wrap beside it. */
+.pa3-incident p.pa3-incident-leave {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 0.6rem;
+  align-items: center;
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.6rem 0.55rem 0.7rem;
+  background: #f8fafc;
   color: var(--pa3-ink);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
+}
+.pa3-incident-leave strong {
+  grid-column: 1;
+  margin-bottom: 0.1rem;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pa3-incident-leave-dot {
+  display: none;
+}
+.pa3-incident-leave-days {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  background: var(--incident-soft);
+  color: var(--incident-accent);
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .pa3-incident-text {
-  color: var(--pa3-ink);
-  line-height: 1.5;
+  color: #334155;
+  font-size: 0.94rem;
+  line-height: 1.55;
   white-space: pre-line;
+}
+.pa3-incident-text:not(:last-child) {
+  border-bottom: 1px solid #eef2f7;
+  padding-bottom: 0.8rem;
 }
 /* The buttons on the right, where a thumb reaches on a large phone (owner request 30/10/2026). */
 .pa3-incident-ack {
   align-self: flex-end;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 650;
 }
 .pa3-incident-confirm {
   display: grid;
@@ -1753,7 +1842,7 @@
   align-items: center;
   gap: 0.4rem;
   color: var(--pa3-green);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 600;
 }
 .pa3-incidents-empty {

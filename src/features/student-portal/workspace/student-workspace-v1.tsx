@@ -50,8 +50,8 @@ const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
   REC3: 'REC 3º Trimestre',
 };
 /*
- * What each trimester is worth and its passing mark, under its Boletim tab only ("vale 30 · 18
- * passa"; "vale 30 pontos" from 27/09/2026 to 20/10/2026); inside a discipline the header already reads "de 30 pontos".
+ * What each trimester is worth and its passing mark, under its Boletim tab only ("Mín. 18 · Máx. 30";
+ * "vale 30 · 18 passa" from 20/10/2026 to 01/11/2026); inside a discipline the header already reads "de 30 pontos".
  * A published mark carries its own maximum; this fallback mirrors the engine's term maxima
  * (SIMPLIFIED_TERM_MAXIMUM_MILLI_V1), which the UI bundle may not import.
  */
@@ -81,12 +81,12 @@ function minimumIsSixtyPercentV1(subjects: readonly SubjectV1[], period: PeriodI
 function TermValueV1({ subjects, period }: Readonly<{ subjects: readonly SubjectV1[]; period: PeriodIdV1 }>) {
   const value = termValueV1(subjects, period);
   if (value === null) return null;
-  // "vale 30 · 18 passa" (owner request 20/10/2026): what the trimester is worth and the
-  // minimum to pass it, the same 60% line the discipline's meter marks.
+  // "Mín. 18 · Máx. 30" (owner request 01/11/2026): the minimum to pass the trimester, the same
+  // 60% line the discipline's meter marks, and what it is worth.
   const passing = (value * METER_MINIMUM_PERCENT_V1) / 100;
   return (
     <span className="pa-term-value">
-      {`vale ${number.format(value)}${minimumIsSixtyPercentV1(subjects, period) ? ' · ' + number.format(passing) + ' passa' : ''}`}
+      {`${minimumIsSixtyPercentV1(subjects, period) ? 'Mín. ' + number.format(passing) + ' · ' : ''}Máx. ${number.format(value)}`}
     </span>
   );
 }
@@ -413,12 +413,14 @@ function SummaryV1({
     onSelect(next);
   };
   const neighbourPeriod = (step: DragStepV1) => available[available.indexOf(active) + step];
+  const periodFollow = useTabFollowV1('.pa-boletim-period-tabs [role="tab"]');
   const periodDrag = useDragSwipeV1(
     (step) => neighbourPeriod(step) !== undefined,
     (step) => {
       setListMotion('still');
       onSelect(neighbourPeriod(step)!);
     },
+    { follow: periodFollow },
   );
   const peekPeriod = periodDrag.peek === null ? undefined : neighbourPeriod(periodDrag.peek);
   // Each trimester tab shows its own summary, never another trimester's.
@@ -561,7 +563,7 @@ function BulletinListV1({
             >
             <SubjectIconV1 label={subject.label} />
             <div className="pa-workspace-list-copy">
-              <Label>{subject.label}</Label>
+              <Label className="pa-workspace-list-name">{subject.label}</Label>
               {outcome ? (
                 <Chip
                   size="sm"
@@ -801,7 +803,93 @@ const dragGapPxV1 = () => 0.75 * (Number.parseFloat(getComputedStyle(document.do
 type DragStepV1 = 1 | -1;
 type DragSampleV1 = { x: number; at: number };
 type DragGestureV1 = { id: number; x: number; y: number; dx: number; locked: boolean | null; samples: DragSampleV1[] };
-function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step: DragStepV1) => void) {
+/** Where a press never starts a drag, unless the caller says otherwise; a discipline's name in the list is only text. */
+const DRAG_IGNORED_V1 =
+  '[role="tablist"], button, a, input, label:not(.pa-workspace-list-name), select, summary, [role="switch"]';
+type TabFollowV1 = { move: (progress: number) => void; release: (step: DragStepV1 | 0) => void; clear: () => void };
+/**
+ * The tabs' highlight follows the finger as the content does (owner request 01/11/2026), as the
+ * Horário's days already did: from the chosen tab toward its neighbour, as far as the content has
+ * slid, and the bar scrolls along. Let go, it glides on its own (the library's own transition), and
+ * the tab chosen next takes over from where it stands. `ring`: tabs without a highlight of their own
+ * (a discipline's trimester cards, marked by a ring): for the drag, the ring leaves the card and moves.
+ */
+function useTabFollowV1(selector: string, ring = false): TabFollowV1 {
+  const state = useRef<{
+    tabs: HTMLElement[];
+    index: number;
+    indicator: HTMLElement;
+    scroller: HTMLElement | null;
+    base: number;
+  } | null>(null);
+  const begin = () => {
+    if (state.current) return state.current;
+    const tabs = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(
+      (tab) => !tab.closest('.pa-swipe-peek, .pa-slide-ghosts'),
+    );
+    const index = tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true');
+    const indicator = tabs[index]?.querySelector<HTMLElement>('.tabs__indicator');
+    if (!indicator) return null;
+    const scroller = tabs[index]!.closest<HTMLElement>('.tabs__list-container__scroller');
+    // The highlight passes under the other tabs' names, whichever side it goes; a ring, over the cards.
+    for (const tab of tabs) tab.style.zIndex = tab === tabs[index] === ring ? '1' : '0';
+    if (ring) {
+      const chosen = tabs[index]!;
+      const look = getComputedStyle(chosen);
+      indicator.style.display = 'block';
+      indicator.style.zIndex = '1';
+      indicator.style.background = 'transparent';
+      indicator.style.borderRadius = look.borderRadius;
+      indicator.style.boxShadow = `inset 0 0 0 2px ${look.borderColor}`;
+      chosen.style.overflow = 'visible';
+      chosen.style.boxShadow = 'none';
+      chosen.style.borderColor = 'transparent';
+    }
+    state.current = { tabs, index, indicator, scroller, base: scroller?.scrollLeft ?? 0 };
+    return state.current;
+  };
+  const paint = (progress: number) => {
+    const current = begin();
+    if (!current) return;
+    const from = current.tabs[current.index]!;
+    const to = current.tabs[current.index + (progress < 0 ? -1 : 1)];
+    const share = to ? Math.min(1, Math.abs(progress)) : 0;
+    const left = to ? to.offsetLeft - from.offsetLeft : 0;
+    const wider = to ? to.offsetWidth - from.offsetWidth : 0;
+    current.indicator.style.translate = share ? `${left * share}px 0` : '';
+    current.indicator.style.width = share ? `${from.offsetWidth + wider * share}px` : '';
+    if (current.scroller) current.scroller.scrollLeft = current.base + (left + wider / 2) * share;
+  };
+  return {
+    move: (progress) => {
+      const current = begin();
+      if (current) current.indicator.style.transition = 'none';
+      paint(progress);
+    },
+    release: (step) => {
+      const current = begin();
+      if (current) current.indicator.style.transition = '';
+      paint(step);
+    },
+    clear: () => {
+      const indicator = state.current?.indicator;
+      for (const tab of state.current?.tabs ?? []) {
+        tab.style.zIndex = '';
+        tab.style.overflow = '';
+        tab.style.boxShadow = '';
+        tab.style.borderColor = '';
+      }
+      state.current = null;
+      if (!indicator) return;
+      indicator.removeAttribute('style');
+    },
+  };
+}
+export function useDragSwipeV1(
+  canStep: (step: DragStepV1) => boolean,
+  onCommit: (step: DragStepV1) => void,
+  { follow, ignored = DRAG_IGNORED_V1 }: Readonly<{ follow?: TabFollowV1; ignored?: string }> = {},
+) {
   const track = useRef<HTMLDivElement>(null);
   const gesture = useRef<DragGestureV1 | null>(null);
   const busy = useRef(false);
@@ -824,6 +912,7 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
     showPeek(null);
     place(0);
     clipping(false);
+    follow?.clear();
   };
   // Leaving the page mid-move: stop it; its end never navigates (see settle).
   useEffect(() => () => running.current?.cancel(), []);
@@ -873,7 +962,10 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
     event.preventDefault();
     if (spend) swallowUntil.current = 0;
   };
-  const springBack = (from: number) => settle(from, 0, restore);
+  const springBack = (from: number) => {
+    follow?.release(0);
+    settle(from, 0, restore);
+  };
   /** The gesture stops being a drag (a second finger, a cancelled touch): back in place, no step. */
   const abandon = () => {
     const drag = gesture.current;
@@ -895,7 +987,7 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
         touch &&
         touch.clientX > DRAG_EDGE_PX_V1 &&
         touch.clientX < window.innerWidth - DRAG_EDGE_PX_V1 &&
-        !target.closest('[role="tablist"], button, a, input, label, select, summary, [role="switch"]')
+        !target.closest(ignored)
           ? {
               id: touch.identifier,
               x: touch.clientX,
@@ -936,6 +1028,7 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
       drag.dx = open ? dx : dx * 0.25;
       drag.samples = [...drag.samples.slice(-5), { x: touch.clientX, at: event.timeStamp }];
       place(drag.dx);
+      follow?.move(open ? -dx / ((track.current?.offsetWidth ?? window.innerWidth) + dragGapPxV1()) : 0);
     },
     onTouchEnd: (event: ReactTouchEventV1) => {
       const drag = gesture.current;
@@ -959,6 +1052,7 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
       const flick = Math.abs(velocity) > DRAG_FLICK_PX_PER_MS_V1 && Math.sign(velocity) === Math.sign(drag.dx);
       if (canStep(step) && (Math.abs(drag.dx) > width * DRAG_COMMIT_RATIO_V1 || flick)) {
         showPeek(step);
+        follow?.release(step);
         settle(drag.dx, -step * width, () => {
           flushSync(() => {
             onCommit(step);
@@ -966,6 +1060,7 @@ function useDragSwipeV1(canStep: (step: DragStepV1) => boolean, onCommit: (step:
           });
           place(0);
           clipping(false);
+          follow?.clear();
         });
       } else springBack(drag.dx);
     },
@@ -1015,13 +1110,25 @@ function useSlideStageV1(liveSelector = ':scope > [data-slide-live]') {
     // here shows as a jump before the slide (owner review 28/09/2026).
     const from = live.getBoundingClientRect();
     const origin = layer.getBoundingClientRect();
+    const look = getComputedStyle(live);
     Object.assign(ghost.style, {
+      // Laid out as the original, whatever rules it lost by leaving its place in the page (a grid's
+      // gaps, a panel's padding): any of them would push its parts down before the slide.
+      display: look.display,
+      boxSizing: 'border-box',
+      padding: look.padding,
+      margin: '0',
       position: 'absolute',
       left: `${from.left - origin.left}px`,
       top: `${from.top - origin.top}px`,
       width: `${from.width}px`,
     });
     layer.replaceChildren(ghost);
+    // A copy starts unscrolled: the bar of disciplines would jump back to its beginning.
+    const copies = ghost.querySelectorAll('*');
+    live.querySelectorAll('*').forEach((element, index) => {
+      if (element.scrollLeft) copies[index]!.scrollLeft = element.scrollLeft;
+    });
     // Safety net: never leave the copy behind, even if the animation never reports its end.
     setTimeout(() => ghost.remove(), 1000);
     const to = direction === 'forward' ? '-100%' : '100%';
@@ -1155,7 +1262,7 @@ function SubjectHeaderV1({
           aria-label="Voltar para o boletim"
           onPress={onBack}
         >
-          <ChevronLeft size={20} aria-hidden="true" />
+          <ChevronLeft size={24} aria-hidden="true" />
         </Button>
         <div ref={subjectTabs} className="pa-subject-bar">
           <Tabs
@@ -1317,7 +1424,20 @@ function SubjectV1View({
   // whole view already slides in when it opens.
   const [periodMotion, setPeriodMotion] = useState<SlideV1 | null>(null);
   // Trimester cards slide like the Boletim lists: the old card leaves while the new one comes in.
-  const periodStage = useSlideStageV1(':scope > [role="tabpanel"]');
+  const periodStage = useSlideStageV1(':scope > .pa-swipe-track > [role="tabpanel"]');
+  // A sideways drag moves between trimesters, as in the Boletim (owner request 01/11/2026: the same
+  // gesture does the same thing everywhere); the bar above changes the discipline.
+  const neighbourPeriod = (step: DragStepV1) => available[available.indexOf(active) + step];
+  const periodFollow = useTabFollowV1('.pa-period-tabs [role="tab"]', true);
+  const periodDrag = useDragSwipeV1(
+    (step) => neighbourPeriod(step) !== undefined,
+    (step) => {
+      setPeriodMotion(null);
+      onSelect(neighbourPeriod(step)!);
+    },
+    { follow: periodFollow },
+  );
+  const peekPeriod = periodDrag.peek === null ? undefined : neighbourPeriod(periodDrag.peek);
   const period = subjectPeriodV1(subject, active);
   const mark = scoreOfV1(period);
   const recoveryOf = RECOVERY_OF_V1[active];
@@ -1371,8 +1491,13 @@ function SubjectV1View({
             ))}
           </Tabs.List>
         </Tabs.ListContainer>
-        <div className="pa-slide-stage" ref={periodStage.stage}>
+        <div
+          className={'pa-slide-stage' + (available.length > 1 ? ' pa-swipe-area' : '')}
+          ref={periodStage.stage}
+          {...(available.length > 1 ? periodDrag.handlers : {})}
+        >
         <div className="pa-slide-ghosts" ref={periodStage.ghostLayer} aria-hidden="true" />
+        <div className="pa-swipe-track" ref={periodDrag.track}>
         <Tabs.Panel
           id={active}
           key={active}
@@ -1467,6 +1592,26 @@ function SubjectV1View({
             />
           ) : null}
         </Tabs.Panel>
+        {/* The neighbouring trimester, beside this one only while a finger drags it. */}
+        {peekPeriod ? (
+          <div
+            className={'pa-swipe-peek pa-swipe-peek--' + (periodDrag.peek === 1 ? 'next' : 'prev')}
+            aria-hidden="true"
+            inert
+          >
+            <SubjectV1View
+              preview
+              subject={subject}
+              selected={peekPeriod}
+              onSelect={() => undefined}
+              accountId={accountId}
+              academicState={academicState}
+              sealed={sealed}
+              assessmentSealed={assessmentSealed}
+            />
+          </div>
+        ) : null}
+        </div>
         </div>
       </Tabs>
     </div>
@@ -1516,7 +1661,7 @@ export function StudentPortalWorkspaceV1({
   const [motionDirection, setMotionDirection] = useState<'forward' | 'back'>('forward');
   // Set only while moving from one discipline to another: then the view slides across.
   const [subjectSlide, setSubjectSlide] = useState<SlideV1 | null>(null);
-  const subjectStage = useSlideStageV1(':scope > .pa-swipe-track > [data-slide-live]');
+  const subjectStage = useSlideStageV1();
   // Boletim ⇄ Disciplina slide across too (owner review 27/09/2026): opening a discipline pushes the
   // Boletim out to the left; going back brings it in from the left.
   // 'still': the area stays as it is (switching disciplines moves only the body below the header).
@@ -1588,17 +1733,6 @@ export function StudentPortalWorkspaceV1({
     // Only the body slides; the view around it must not replay its own entrance.
     go({ area: 'subject', subjectId }, slide, slide, 'still');
   };
-  const neighbourSubject = (step: DragStepV1) =>
-    selectedSubject ? subjects[orderOf(selectedSubject.subjectId) + step] : undefined;
-  const subjectDrag = useDragSwipeV1(
-    (step) => neighbourSubject(step) !== undefined,
-    (step) => {
-      const next = neighbourSubject(step)!;
-      // The drag already brought the new discipline into place: no slide on top of it.
-      go({ area: 'subject', subjectId: next.subjectId }, step === 1 ? 'forward' : 'back', null, 'still');
-    },
-  );
-  const peekSubject = subjectDrag.peek === null ? undefined : neighbourSubject(subjectDrag.peek);
   /** A tab inside the same place only updates the current step. */
   const remember = (patch: Partial<WorkspaceEntryV1>) => {
     const entry = { ...current, ...patch };
@@ -1682,12 +1816,11 @@ export function StudentPortalWorkspaceV1({
           <div
             data-area-live=""
             className={[
-              'pa-workspace-view pa-swipe-area',
+              'pa-workspace-view',
               slideClassV1(areaSlide, 'pa-tab-motion pa-tab-motion--' + motionDirection),
             ]
               .filter(Boolean)
               .join(' ')}
-            {...subjectDrag.handlers}
           >
             <SubjectHeaderV1
               subject={selectedSubject}
@@ -1700,7 +1833,6 @@ export function StudentPortalWorkspaceV1({
             {/* Only the body slides between disciplines; the header above stays. */}
             <div className="pa-slide-stage" ref={subjectStage.stage}>
               <div className="pa-slide-ghosts" ref={subjectStage.ghostLayer} aria-hidden="true" />
-              <div className="pa-swipe-track" ref={subjectDrag.track}>
               <div
                 key={'subject-' + selectedSubject.subjectId}
                 data-slide-live=""
@@ -1717,28 +1849,6 @@ export function StudentPortalWorkspaceV1({
                     earnsAssessmentSealV1(subjects, selectedSubject, period, partial, data.endedPeriods)
                   }
                 />
-              </div>
-              {/* The neighbouring discipline, beside this one only while a finger drags it. */}
-              {peekSubject ? (
-                <div
-                  className={'pa-swipe-peek pa-swipe-peek--' + (subjectDrag.peek === 1 ? 'next' : 'prev')}
-                  aria-hidden="true"
-                  inert
-                >
-                  <SubjectV1View
-                    preview
-                    subject={peekSubject}
-                    selected={subjectPeriod}
-                    onSelect={() => undefined}
-                    accountId={data.profile.accountId}
-                    academicState={data.profile.academicState}
-                    sealed={(period) => earnsSealV1(subjects, peekSubject, period)}
-                    assessmentSealed={(period, partial) =>
-                      earnsAssessmentSealV1(subjects, peekSubject, period, partial, data.endedPeriods)
-                    }
-                  />
-                </div>
-              ) : null}
               </div>
             </div>
           </div>

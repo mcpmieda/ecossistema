@@ -64,13 +64,13 @@ it('lists the records newest first, each with its kind, date, leave and whole de
     '10/06/2026',
   ]);
   const [first, second, third] = cards() as [HTMLElement, HTMLElement, HTMLElement];
-  expect(within(first).getByText('Suspensão')).toBeTruthy();
+  expect(within(first).getByText('SUSPENSÃO SEM PREJUÍZO')).toBeTruthy();
   expect(first.querySelector('.pa3-incident-leave')?.textContent).toBe(
     'Afastamento: De 22/10/2026 a 28/10/2026 · 3 dias',
   );
   expect(within(first).getByText('Três dias de suspensão por desrespeito a um colega.')).toBeTruthy();
   // A warning has no leave; a part the Smecel left blank is left out, never guessed.
-  expect(within(second).getByText('Advertência')).toBeTruthy();
+  expect(within(second).getByText('ADVERTÊNCIA')).toBeTruthy();
   expect(second.querySelector('.pa3-incident-leave')).toBeNull();
   expect(third.querySelector('.pa3-incident-leave')?.textContent).toBe('Afastamento: Até 11/06/2026 · 1 dia');
   // Already confirmed: the check with the day and time (school time), no button.

@@ -140,12 +140,9 @@ describe('student portal grade workspace', () => {
     expect(within(row('PARALELA PENDENTE')).queryByText('Foi uma segunda chance')).toBeNull();
   });
 
-  it('drags to the next or previous discipline, never on a tab bar or a vertical scroll', async () => {
+  it('drags a discipline between its trimesters, as in the Boletim, never on a tab bar or a vertical scroll', async () => {
     const data = gradesFixtureV1(false);
-    const [first, second] = [...data.subjects].sort((a, b) => a.order - b.order) as [
-      (typeof data.subjects)[number],
-      (typeof data.subjects)[number],
-    ];
+    const [first] = [...data.subjects].sort((a, b) => a.order - b.order) as [(typeof data.subjects)[number]];
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     // The content follows the finger (touchmove) and the move completes on release.
@@ -156,29 +153,32 @@ describe('student portal grade workspace', () => {
     };
     const heading = () => screen.getByRole('heading', { level: 2, name: /Disciplina sintética/u }).textContent;
 
-    // Right from the first discipline: nothing before it, no wrap.
+    // Right from the first trimester: nothing before it, no wrap.
     swipe(screen.getByText('Sua nota do 1º trimestre'), [100, 300], [260, 305]);
-    expect(heading()).toBe(first.label);
+    expect(screen.getByText('Sua nota do 1º trimestre')).toBeTruthy();
     // Mostly vertical: a scroll, not a swipe.
     swipe(screen.getByText('Sua nota do 1º trimestre'), [260, 200], [150, 420]);
-    expect(heading()).toBe(first.label);
+    expect(screen.getByText('Sua nota do 1º trimestre')).toBeTruthy();
     // On the subject bar, which scrolls sideways itself.
     swipe(screen.getByRole('tablist', { name: 'Trocar disciplina' }), [260, 150], [100, 150]);
-    expect(heading()).toBe(first.label);
+    expect(screen.getByText('Sua nota do 1º trimestre')).toBeTruthy();
 
-    // While dragging, the next discipline is already drawn beside this one (hidden from assistive tech).
+    // While dragging, the next trimester is already drawn beside this one (hidden from assistive tech).
     const card = screen.getByText('Sua nota do 1º trimestre');
     fireEvent.touchStart(card, { touches: [{ clientX: 260, clientY: 300 }] });
     fireEvent.touchMove(card, { touches: [{ clientX: 180, clientY: 302 }] });
     expect(document.querySelector('.pa-swipe-peek--next')?.getAttribute('aria-hidden')).toBe('true');
     fireEvent.touchCancel(card);
     expect(document.querySelector('.pa-swipe-peek')).toBeNull();
-    expect(heading()).toBe(first.label);
 
+    // The discipline stays; only the trimester changes, and back.
     swipe(screen.getByText('Sua nota do 1º trimestre'), [260, 300], [100, 305]);
-    expect(heading()).toBe(second.label);
-    swipe(screen.getByText('Sua nota do 1º trimestre'), [100, 300], [260, 305]);
     expect(heading()).toBe(first.label);
+    // The fixture's discipline goes from the 1º trimester straight to the 3º.
+    expect(screen.getByText('Sua nota do 3º trimestre')).toBeTruthy();
+    swipe(screen.getByText('Sua nota do 3º trimestre'), [100, 300], [260, 305]);
+    expect(heading()).toBe(first.label);
+    expect(screen.getByText('Sua nota do 1º trimestre')).toBeTruthy();
   });
 
   it('drags the Boletim between trimesters without opening the subject under the finger', () => {
