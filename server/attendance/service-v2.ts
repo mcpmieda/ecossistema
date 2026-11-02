@@ -366,12 +366,14 @@ export type PortalFrequencyYearReadV2 = {
 };
 /** One month of the year's read, by the owner's rule (today never counts). */
 function monthOfReadV2(read: PortalFrequencyYearReadV2, key: string): FrequencySummaryV2 {
+  const origins = read.origins.filter((row) => text(row.date).startsWith(`${key}-`));
+  // A mark under an open conflict is not shown: its day is "leitura incompleta", never "sem falta".
+  const disputed = new Set(origins.filter((row) => row.conflict_id).map((row) => text(row.date)));
   return withLessonDaysV2(
-    summarizeFrequencyPublicOriginsV2(
-      read.origins.filter((row) => text(row.date).startsWith(`${key}-`)),
-      key,
-    ),
-    read.days.filter((row) => text(row.date).startsWith(`${key}-`)),
+    summarizeFrequencyPublicOriginsV2(origins, key),
+    read.days
+      .filter((row) => text(row.date).startsWith(`${key}-`))
+      .map((row) => (disputed.has(text(row.date)) ? { ...row, complete: false } : row)),
     read.today,
   );
 }

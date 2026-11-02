@@ -18,7 +18,6 @@ import {
 import type { OperationalWorkspaceRequestV2 } from '../gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 
 /** Reuse the complete, authorized BN catalog, including classes with no bindings/accounts. */
-export const ADMIN_CLASS_CATALOG_PATH_V2 = '/api/gradebook/operational-workspace';
 export const ADMIN_ACCOUNTS_PAGE_SIZE_V2 = 400;
 export function adminClassCatalogRequestV2(
   offset = 0,

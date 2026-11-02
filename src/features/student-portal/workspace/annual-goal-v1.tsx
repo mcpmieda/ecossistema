@@ -1,4 +1,3 @@
-import { Flag, PartyPopper, Target } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import './annual-goal-v1.css';
 
@@ -79,14 +78,6 @@ const labelAt = (milli: number) => `${Math.min(92, Math.max(8, milli / 1000))}%`
 
 export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: AnnualGoalV1; subjectLabel: string }>) {
   const needed = goal.state === 'reached' ? 0 : Math.min(goal.neededMilli, TERM_MAXIMUM_MILLI_V1.T3);
-  let Icon;
-  if (goal.state === 'reached') {
-    Icon = PartyPopper;
-  } else if (goal.state === 'reachable') {
-    Icon = Target;
-  } else {
-    Icon = Flag;
-  }
   let goalText = `O 3º trimestre vale 40 pontos. Cada ponto dele conta, e a recuperação do fim do ano é a chance de completar o que faltar.`;
   if (goal.state === 'reached') goalText = 'O 3º trimestre continua valendo para o seu boletim.';
   else if (goal.state === 'reachable')
@@ -94,9 +85,6 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: Annual
   return (
     <section className={'pa-annual-goal pa-annual-goal--' + goal.state} aria-labelledby="pa-annual-goal-title">
       <header className="pa-annual-goal-header">
-        <span className="pa-annual-goal-icon" aria-hidden="true">
-          <Icon size={18} strokeWidth={2.2} />
-        </span>
         <div>
           <p className="pa-annual-goal-eyebrow">Meta do ano · 60 pontos</p>
           <h3 id="pa-annual-goal-title" className="pa-annual-goal-title">

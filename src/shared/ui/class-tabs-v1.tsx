@@ -27,7 +27,8 @@ export function ClassTabsV1({
       selectedKey={selected}
       keyboardActivation="manual"
       onSelectionChange={(key) => {
-        if (disabled) return;
+        // The library reports a click on the tab already chosen too: nothing to change or read again.
+        if (disabled || key === selected) return;
         if (key === 'all' && allLabel) onChange(null);
         else if (items.some((item) => String(item.id) === key)) onChange(Number(key));
       }}

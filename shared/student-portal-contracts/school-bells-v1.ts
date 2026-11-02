@@ -11,7 +11,6 @@ import { z } from 'zod';
  */
 export const BELL_SHIFTS_V1 = ['matutino', 'vespertino'] as const;
 export type BellShiftV1 = (typeof BELL_SHIFTS_V1)[number];
-export const BELL_WEEKDAYS_V1 = ['1', '2', '3', '4', '5'] as const;
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
 export const bellItemV1 = z.discriminatedUnion('kind', [

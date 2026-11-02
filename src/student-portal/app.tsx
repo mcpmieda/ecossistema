@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Alert, Button } from '@heroui/react';
+import { Alert } from '@heroui/react/alert';
+import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { useStudentSessionV1 } from '../features/student-portal/auth/student-session-v1';
 import {

@@ -437,7 +437,7 @@ function AccountDetailBodyV1({
               <Tabs
                 selectedKey={activeSlot}
                 onSelectionChange={(key) => {
-                  if (key && key in slotLabels && allowDraftNavigationV1())
+                  if (key && key !== activeSlot && key in slotLabels && allowDraftNavigationV1())
                     setActiveSlot(key as keyof AccountSlotsV1);
                 }}
               >

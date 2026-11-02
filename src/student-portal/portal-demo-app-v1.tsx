@@ -729,6 +729,8 @@ const PREVIEW_NAMES_V1 = [
   'ÂNGELA GONÇALVES DE ÁVILA JOÃO',
 ] as const;
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
+/** The three trimesters only (owner request 02/11/2026); recoveries come by their checkboxes or their own dataset. */
+const TERM_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3'];
 const SITUATION_OPTIONS_V1: readonly [AdminSimulationV1['situation'], string][] = [
   ['none', 'Em curso'],
   ['in-recovery', 'Em recuperação'],
@@ -942,11 +944,14 @@ function AdminSimulatorPanelV1({
         <span style={{ opacity: 0.7 }}>Dados:</span>
         <select
           value={value.dataset}
-          onChange={(event) => onChange({ ...value, dataset: event.target.value as AdminSimulationV1['dataset'] })}
+          onChange={(event) => {
+            const dataset = event.target.value as AdminSimulationV1['dataset'];
+            onChange({ ...value, dataset, periods: dataset === 'recovery' ? ALL_PERIODS_V1 : TERM_PERIODS_V1 });
+          }}
         >
           <option value="showcase">Vitrine: Brilhante e tendências</option>
           <option value="real">Como na produção (7º ANO, só T1)</option>
-          <option value="example">Exemplo completo (T1–T3 e REC)</option>
+          <option value="example">Exemplo completo (T1–T3)</option>
           <option value="trend">Casos de tendência (2º vs 1º)</option>
           <option value="recovery">Recuperação nos 3 trimestres (MATEMÁTICA)</option>
         </select>
@@ -1091,7 +1096,7 @@ export function PortalDemoAppV1() {
     showSchedule: true,
     showIncidents: true,
     frequencyComment: 'auto',
-    periods: ALL_PERIODS_V1,
+    periods: TERM_PERIODS_V1,
     finalDisclosed: false,
     hasPortrait: true,
     studentName: PREVIEW_NAMES_V1[0]!,

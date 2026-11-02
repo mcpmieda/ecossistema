@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { requestSignalV1 } from '../shared/request-signal-v1';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
 import { bellDayV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolDaysOffV1, schoolYearSpanV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
@@ -62,7 +63,7 @@ export function createStudentScheduleClientV1(
         credentials: 'same-origin',
         cache: 'no-store',
         redirect: 'error',
-        signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+        signal: requestSignalV1(signal),
       });
       if (response.status === 401) throw new FrequencyClientErrorV2('unauthenticated');
       if (response.status === 403) throw new FrequencyClientErrorV2('forbidden');

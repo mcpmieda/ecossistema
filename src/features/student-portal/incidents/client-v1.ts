@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { requestSignalV1 } from '../shared/request-signal-v1';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
 
 /*
@@ -61,9 +62,7 @@ async function requestV1<T>(
     credentials: 'same-origin',
     cache: 'no-store',
     redirect: 'error',
-    signal: init.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)])
-      : AbortSignal.timeout(15_000),
+    signal: requestSignalV1(init.signal),
   });
   if (response.status === 401) throw new FrequencyClientErrorV2('unauthenticated');
   if (response.status === 403) throw new FrequencyClientErrorV2('forbidden');

@@ -1726,11 +1726,16 @@
 .pa3-incidents .pa3-page-title {
   margin-bottom: 0;
 }
-/* A calm card (owner requests 01/11/2026): only the kind's label and the leave's days carry a colour. */
+/* A calm card (owner requests 01/11/2026): only its mini cover, in the kind's colour (owner request
+   02/11/2026), and the leave's days carry a colour. */
 .pa3-incident {
   --incident-accent: #64748b;
   --incident-soft: #f1f5f9;
+  --incident-cover: linear-gradient(120deg, #f1f5f9, #e2e8f0);
+  --incident-cover-line: #d8e0ea;
+  --incident-cover-ink: #475569;
   gap: 0.75rem;
+  overflow: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 1.1rem;
   padding: 1rem;
@@ -1740,10 +1745,16 @@
 .pa3-incident:has(.chip--danger) {
   --incident-accent: #b91c1c;
   --incident-soft: #fef2f2;
+  --incident-cover: linear-gradient(120deg, #fdeaea, #fbd3d3);
+  --incident-cover-line: #f5c2c2;
+  --incident-cover-ink: #991b1b;
 }
 .pa3-incident:has(.chip--warning) {
   --incident-accent: #b45309;
   --incident-soft: #fffbeb;
+  --incident-cover: linear-gradient(120deg, #fff4d6, #fde7ad);
+  --incident-cover-line: #f6dc9a;
+  --incident-cover-ink: #854d0e;
 }
 .pa3-incident--seen {
   box-shadow: none;
@@ -1751,18 +1762,25 @@
 .pa3-incident p {
   margin: 0;
 }
+/* The cover takes the place of the head and of the card's top padding: no taller than before. */
+.pa3-incident .pa3-card-head {
+  margin: -1rem -1rem 0;
+  border-bottom: 1px solid var(--incident-cover-line);
+  padding: 0.5rem 1rem;
+  background: var(--incident-cover);
+}
 .pa3-incident .chip {
-  border-radius: 0.45rem;
-  background: var(--incident-soft);
-  color: var(--incident-accent);
-  font-size: 0.68rem;
-  font-weight: 750;
-  letter-spacing: 0.02em;
+  padding-inline: 0;
+  background: transparent;
+  color: var(--incident-cover-ink);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 .pa3-incident-date {
-  color: #64748b;
+  color: var(--incident-cover-ink);
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 /* The days in a large chip at the box's right; the dates wrap beside it. */

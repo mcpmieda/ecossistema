@@ -1865,8 +1865,8 @@
   background: #fff;
   clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
 }
-/* Twelve of them, staggered so about five shine at any moment (owner request 20/10/2026), all
-   around the edges and between the blocks, never over the mark or the texts. */
+/* Eighteen of them, staggered so about seven shine at any moment (owner requests 20/10 and
+   02/11/2026), all around the edges and between the blocks, never over the mark or the texts. */
 .pa-head-sparkles i:nth-child(1) { --size: 16px; --delay: 0.1s; top: 12%; left: 58%; }
 .pa-head-sparkles i:nth-child(2) { --size: 21px; --delay: 0.7s; top: 20%; left: 88%; }
 .pa-head-sparkles i:nth-child(3) { --size: 14px; --delay: 1.2s; top: 70%; left: 93%; }
@@ -1879,6 +1879,12 @@
 .pa-head-sparkles i:nth-child(10) { --size: 11px; --delay: 4.7s; top: 90%; left: 44%; }
 .pa-head-sparkles i:nth-child(11) { --size: 8px; --delay: 5.1s; top: 4%; left: 6%; }
 .pa-head-sparkles i:nth-child(12) { --size: 12px; --delay: 5.6s; top: 58%; left: 50%; }
+.pa-head-sparkles i:nth-child(13) { --size: 10px; --delay: 0.4s; top: 3%; left: 84%; }
+.pa-head-sparkles i:nth-child(14) { --size: 11px; --delay: 1.5s; top: 92%; left: 28%; }
+.pa-head-sparkles i:nth-child(15) { --size: 9px; --delay: 2.5s; top: 94%; left: 60%; }
+.pa-head-sparkles i:nth-child(16) { --size: 12px; --delay: 3.5s; top: 40%; left: 38%; }
+.pa-head-sparkles i:nth-child(17) { --size: 10px; --delay: 4.45s; top: 90%; left: 86%; }
+.pa-head-sparkles i:nth-child(18) { --size: 8px; --delay: 5.3s; top: 48%; left: 1.5%; }
 /* A slow, soft glint: grows, turns a little, fades. */
 @keyframes pa-head-sparkle {
   0%,
