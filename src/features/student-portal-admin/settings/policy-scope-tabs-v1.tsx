@@ -70,6 +70,7 @@ export function PolicyScopeTabsV1({ reader, selectedShift, onShiftChange, ...pro
       selectedKey={selected}
       keyboardActivation="manual"
       onSelectionChange={(key) => {
+        if (key === selected) return;
         const shift = shifts.find((item) => item.shift === key);
         if (shift) onShiftChange(shift.shift);
         else if (key === 'all' || props.items.some((item) => String(item.id) === key))

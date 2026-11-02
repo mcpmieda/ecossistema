@@ -134,7 +134,7 @@ function PerformanceSelect({
       isOpen={isOpen}
       onOpenChange={(open) => onOpenChange(id, open)}
       onSelectionChange={(key) => {
-        if (key !== null) onChange(String(key));
+        if (key !== null && key !== value) onChange(String(key));
       }}
     >
       <Label className="mb-1.5 block text-xs font-medium text-muted">{label}</Label>
@@ -432,11 +432,12 @@ export function RelationalPerformancePageV2({
         <Tabs
           className="performance-period-tabs"
           selectedKey={String(state.filters.period)}
-          onSelectionChange={(key) =>
+          onSelectionChange={(key) => {
+            if (key === String(state.filters.period)) return;
             void state.select({
               period: key === 'annual' ? 'annual' : (Number(key) as PerformancePeriodV2),
-            })
-          }
+            });
+          }}
         >
           <Tabs.ListContainer>
             <Tabs.List aria-label="Período">
@@ -482,7 +483,7 @@ export function RelationalPerformancePageV2({
                   selectedKey={state.filters.lens}
                   className="performance-lens-tabs min-w-0"
                   onSelectionChange={(key) => {
-                    if (PERFORMANCE_LENSES_V3.includes(key as PerformanceLensV3))
+                    if (key !== state.filters.lens && PERFORMANCE_LENSES_V3.includes(key as PerformanceLensV3))
                       void state.select({ lens: key as PerformanceLensV3 });
                   }}
                 >

@@ -196,7 +196,7 @@ function AccountScopeV1({
       <Select
         selectedKey={selected?.id || 'all'}
         onSelectionChange={(key) => {
-          if (allowDraftNavigationV1())
+          if (key !== (selected?.id || 'all') && allowDraftNavigationV1())
             onChange(key === 'all' ? null : options.find((a) => a.id === key) || null);
         }}
       >

@@ -1,15 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent as ReactTouchEventV1, type SyntheticEvent as ReactSyntheticEventV1 } from 'react';
 import { flushSync } from 'react-dom';
-import {
-  Button,
-  Card,
-  Chip,
-  Description,
-  Label,
-  ListBox,
-  Surface,
-  Tabs,
-} from '@heroui/react';
+import { Button } from '@heroui/react/button';
+import { Card } from '@heroui/react/card';
+import { Chip } from '@heroui/react/chip';
+import { Description } from '@heroui/react/description';
+import { Label } from '@heroui/react/label';
+import { ListBox } from '@heroui/react/list-box';
+import { Surface } from '@heroui/react/surface';
+import { Tabs } from '@heroui/react/tabs';
 import {
   BookOpenCheck,
   CircleAlert,
@@ -659,8 +657,7 @@ function PartialLabelV1({ label, feedback }: Readonly<{ label: string; feedback?
  * assessments (columns R and S), since other activities get full marks too often (42% in
  * 2026) for it to mean anything. The 60% line is the server's `meetsMinimum`, so a tag never contradicts the
  * mark's colour; only the split inside each side is computed here, by exact cross-multiplication.
- * Não fez / Tirou zero already speak for themselves on the right, and a mark without a
- * classification or maximum gets nothing.
+ * Não fez and Tirou zero have their own tags, and a mark without a classification or maximum gets nothing.
  */
 type PartialBandV1 = 'needs-work' | 'below' | 'good' | 'excellent' | 'brilliant';
 const PARTIAL_BANDS_V1: Record<PartialBandV1, { label: string }> = {
@@ -691,6 +688,14 @@ function partialBandV1(partial: PartialV1): PartialBandV1 | null {
  * is kept for a trimester that went well (owner decision 2026-09-27). Brilhante always shines.
  */
 function PartialFeedbackV1({ partial, calm, sealed = false }: Readonly<{ partial: PartialV1; calm: boolean; sealed?: boolean }>) {
+  // Repeats the pill beside the activity, to reinforce it (owner request 02/11/2026); read aloud once.
+  const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
+  if (partial.notDone || zero)
+    return (
+      <Chip size="sm" variant="soft" className="pa-partial-feedback" data-band="below" aria-hidden="true">
+        {partial.notDone ? 'Não fez' : 'Tirou zero'}
+      </Chip>
+    );
   const band = partialBandV1(partial);
   if (!band) return null;
   // An assessment that earned a seal reads "selo Brilhante"; a Brilhante that did not (a red
@@ -815,8 +820,18 @@ type TabFollowV1 = { move: (progress: number) => void; release: (step: DragStepV
  * Horário's days already did: from the chosen tab toward its neighbour, as far as the content has
  * slid, and the bar scrolls along. Let go, it glides on its own (the library's own transition), and
  * the tab chosen next takes over from where it stands. `ring`: tabs without a highlight of their own
- * (a discipline's trimester cards, marked by a ring): for the drag, the ring leaves the card and moves.
+ * (a discipline's trimester cards, marked by a ring): the ring never crosses the gap between two cards
+ * (owner request 02/11/2026); it fades on the card being left as it lights on the next one, as far as
+ * the content has slid.
  */
+const RING_INK_V1: Readonly<Record<string, string>> = {
+  brilliant: '#ba7517',
+  excellent: '#185fa5',
+  good: '#185fa5',
+  below: '#a32d2d',
+  'needs-work': '#a32d2d',
+};
+const ringInkV1 = (tab: HTMLElement) => RING_INK_V1[tab.dataset.tone ?? ''] ?? '#1d4ed8';
 function useTabFollowV1(selector: string, ring = false): TabFollowV1 {
   const state = useRef<{
     tabs: HTMLElement[];
@@ -824,6 +839,7 @@ function useTabFollowV1(selector: string, ring = false): TabFollowV1 {
     indicator: HTMLElement;
     scroller: HTMLElement | null;
     base: number;
+    borders: string[];
   } | null>(null);
   const begin = () => {
     if (state.current) return state.current;
@@ -834,22 +850,24 @@ function useTabFollowV1(selector: string, ring = false): TabFollowV1 {
     const indicator = tabs[index]?.querySelector<HTMLElement>('.tabs__indicator');
     if (!indicator) return null;
     const scroller = tabs[index]!.closest<HTMLElement>('.tabs__list-container__scroller');
-    // The highlight passes under the other tabs' names, whichever side it goes; a ring, over the cards.
-    for (const tab of tabs) tab.style.zIndex = tab === tabs[index] === ring ? '1' : '0';
-    if (ring) {
-      const chosen = tabs[index]!;
-      const look = getComputedStyle(chosen);
-      indicator.style.display = 'block';
-      indicator.style.zIndex = '1';
-      indicator.style.background = 'transparent';
-      indicator.style.borderRadius = look.borderRadius;
-      indicator.style.boxShadow = `inset 0 0 0 2px ${look.borderColor}`;
-      chosen.style.overflow = 'visible';
-      chosen.style.boxShadow = 'none';
-      chosen.style.borderColor = 'transparent';
-    }
-    state.current = { tabs, index, indicator, scroller, base: scroller?.scrollLeft ?? 0 };
+    // The highlight passes under the other tabs' names, whichever side it goes.
+    if (!ring) for (const tab of tabs) tab.style.zIndex = tab === tabs[index] ? '0' : '1';
+    const borders = tabs.map((tab) => getComputedStyle(tab).borderColor);
+    state.current = { tabs, index, indicator, scroller, base: scroller?.scrollLeft ?? 0, borders };
     return state.current;
+  };
+  /** How lit each card's ring is: the card being left loses what the next one gains. */
+  const paintRing = (current: NonNullable<typeof state.current>, to: HTMLElement | undefined, share: number) => {
+    current.tabs.forEach((tab, position) => {
+      const chosen = position === current.index;
+      let lit = 0;
+      if (chosen) lit = 1 - share;
+      else if (tab === to) lit = share;
+      const ink = ringInkV1(tab);
+      const percent = Math.round(lit * 100);
+      tab.style.borderColor = `color-mix(in srgb, ${ink} ${percent}%, ${chosen ? 'transparent' : current.borders[position]})`;
+      tab.style.boxShadow = `inset 0 0 0 1px color-mix(in srgb, ${ink} ${percent}%, transparent)`;
+    });
   };
   const paint = (progress: number) => {
     const current = begin();
@@ -859,26 +877,31 @@ function useTabFollowV1(selector: string, ring = false): TabFollowV1 {
     const share = to ? Math.min(1, Math.abs(progress)) : 0;
     const left = to ? to.offsetLeft - from.offsetLeft : 0;
     const wider = to ? to.offsetWidth - from.offsetWidth : 0;
-    current.indicator.style.translate = share ? `${left * share}px 0` : '';
-    current.indicator.style.width = share ? `${from.offsetWidth + wider * share}px` : '';
+    if (ring) paintRing(current, to, share);
+    else {
+      current.indicator.style.translate = share ? `${left * share}px 0` : '';
+      current.indicator.style.width = share ? `${from.offsetWidth + wider * share}px` : '';
+    }
     if (current.scroller) current.scroller.scrollLeft = current.base + (left + wider / 2) * share;
   };
   return {
     move: (progress) => {
       const current = begin();
       if (current) current.indicator.style.transition = 'none';
+      if (ring) for (const tab of current?.tabs ?? []) tab.style.transition = 'none';
       paint(progress);
     },
     release: (step) => {
       const current = begin();
       if (current) current.indicator.style.transition = '';
+      if (ring) for (const tab of current?.tabs ?? []) tab.style.transition = 'border-color 220ms ease-out, box-shadow 220ms ease-out';
       paint(step);
     },
     clear: () => {
       const indicator = state.current?.indicator;
       for (const tab of state.current?.tabs ?? []) {
         tab.style.zIndex = '';
-        tab.style.overflow = '';
+        tab.style.transition = '';
         tab.style.boxShadow = '';
         tab.style.borderColor = '';
       }
@@ -1360,7 +1383,7 @@ function ScoreHeadV1({
       {periodStatusV1(period).band === 'brilliant' ? (
         // Crisp white sparkles, each twinkling in its own time (owner request 27/09/2026).
         <span className="pa-head-sparkles" aria-hidden="true">
-          {Array.from({ length: 12 }, (_, index) => (
+          {Array.from({ length: 18 }, (_, index) => (
             <i key={index} />
           ))}
         </span>
@@ -1481,6 +1504,8 @@ function SubjectV1View({
         selectedKey={active}
         onSelectionChange={(key) => {
           const next = String(key) as PeriodIdV1;
+          // The library reports a tap on the tab already chosen too: nothing changes, nothing moves.
+          if (next === active) return;
           const direction = available.indexOf(next) < available.indexOf(active) ? 'back' : 'forward';
           periodStage.leave(direction);
           setPeriodMotion(direction);

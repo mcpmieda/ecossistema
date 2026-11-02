@@ -182,6 +182,7 @@ export function IncidentsPageV3({
     try {
       const { acknowledgedAt } = await client.acknowledge(id);
       setSeen((current) => ({ ...current, [id]: acknowledgedAt }));
+      setChanged(false);
     } catch (reason) {
       const state = reason instanceof FrequencyClientErrorV2 ? reason.state : null;
       if (state === 'unauthenticated') onAuthenticationLost?.();

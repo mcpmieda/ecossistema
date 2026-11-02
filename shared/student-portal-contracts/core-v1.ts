@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-export const PORTAL_VERSION_V1 = 1 as const;
 export const PORTAL_YEAR_V1 = 2026 as const;
 export const PORTAL_ORIGIN_V1 = 'https://aluno.escolaieda.com';
 export const portalIdV1 = z.uuid();

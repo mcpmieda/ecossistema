@@ -108,10 +108,10 @@ it.each([null, 0, 5000])('shows only a recorded exceptional PARA in the real Por
   await screen.findByRole('list', { name: 'Avaliações publicadas' });
   expect(Boolean(screen.queryByText('PARA'))).toBe(parallel !== null);
   expect(screen.queryByText('Não fez')).toBeNull();
-  expect(Boolean(screen.queryByText('Tirou zero'))).toBe(parallel === 0);
+  expect(screen.queryAllByText('Tirou zero').length > 0).toBe(parallel === 0);
   if (parallel !== null) {
     const row = partialRow(screen.getByText('PARA'));
-    expect(within(row).getByText(parallel === 0 ? 'Tirou zero' : '5,0')).toBeTruthy();
+    expect(within(row).getAllByText(parallel === 0 ? 'Tirou zero' : '5,0').length).toBeGreaterThan(0);
   }
 });
 
@@ -122,7 +122,7 @@ it.each([
 ])('renders the eligible Portal PARA as $expected without replacing the official total', async (options) => {
   await portal(options);
   const partial = partialRow(await screen.findByText('PARA'));
-  expect(within(partial).getByText(options.expected)).toBeTruthy();
+  expect(within(partial).getAllByText(options.expected).length).toBeGreaterThan(0);
   // Trimester marks read with one decimal (owner review 27/09/2026).
   expect(screen.getAllByText('26,0').length).toBeGreaterThan(0);
   if (options.expected !== 'Não fez') expect(within(partial).queryByText('Não fez')).toBeNull();

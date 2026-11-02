@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
-import { Alert, Button } from '@heroui/react';
+import { Alert } from '@heroui/react/alert';
+import { Button } from '@heroui/react/button';
 import { isStudentModuleFailureV1, reportStudentDiagnosticV1 } from './diagnostics-v1';
 
 export class StudentDiagnosticBoundaryV1 extends Component<Readonly<{ children: ReactNode }>, { failed: boolean }> {

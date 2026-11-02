@@ -18,9 +18,6 @@ export function isWeakPasswordV1(password: string): boolean {
   return digits[0] === digits[1] && digits[2] === digits[3] && digits[4] === digits[5];
 }
 export const newPasswordV1 = passwordV1.refine((value) => !isWeakPasswordV1(value), 'Weak password');
-export const qrPayloadV1 = z.object({
-  formatVersion: z.literal(1), credentialId: opaqueV1, keyVersion: z.number().int().positive(), signature: opaqueV1,
-}).strict();
 export const qrUrlV1 = z.string().max(2048).refine((value) => {
   try {
     const url = new URL(value);

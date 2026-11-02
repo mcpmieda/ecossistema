@@ -76,8 +76,11 @@ describe('student portal grade workspace', () => {
     await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
 
     const partials = screen.getByRole('list', { name: 'Avaliações publicadas' });
-    expect(within(partials).getAllByText('Não fez')).toHaveLength(1);
-    expect(within(partials).getAllByText('Tirou zero')).toHaveLength(1);
+    // Under the activity and beside it, the repeated tag hidden from a screen reader.
+    expect(within(partials).getAllByText('Não fez')).toHaveLength(2);
+    expect(within(partials).getAllByText('Não fez').filter((tag) => !tag.closest('[aria-hidden="true"]'))).toHaveLength(1);
+    expect(within(partials).getAllByText('Tirou zero')).toHaveLength(2);
+    expect(within(partials).getAllByText('Tirou zero').filter((tag) => !tag.closest('[aria-hidden="true"]'))).toHaveLength(1);
     // Missing evidence stays neutral; it is never promoted to Não fez.
     expect(within(partials).getByLabelText('Ainda não lançado')).toBeTruthy();
   });
@@ -112,8 +115,8 @@ describe('student portal grade workspace', () => {
     expect(tag('Faixa 40')).toBe('Não foi muito bem');
     expect(tag('Faixa 79')).toBe('Foi bem');
     expect(tag('Faixa 80')).toBe('Excelente');
-    expect(tag('I AVALIAÇÃO')).toBeNull(); // Tirou zero already says it
-    expect(tag('AV2 SYNTHETIC')).toBeNull(); // Não fez already says it
+    expect(tag('I AVALIAÇÃO')).toBe('Tirou zero');
+    expect(tag('AV2 SYNTHETIC')).toBe('Não fez');
     expect(tag('Atividade 3')).toBeNull(); // no maximum → no classification
     expect(tag('Atividade 2')).toBeNull(); // not yet recorded
   });
@@ -179,6 +182,22 @@ describe('student portal grade workspace', () => {
     swipe(screen.getByText('Sua nota do 3º trimestre'), [100, 300], [260, 305]);
     expect(heading()).toBe(first.label);
     expect(screen.getByText('Sua nota do 1º trimestre')).toBeTruthy();
+  });
+
+  it('moves nothing when the tab already chosen is clicked again', async () => {
+    const data = gradesFixtureV1(false);
+    const [first] = [...data.subjects].sort((a, b) => a.order - b.order) as [(typeof data.subjects)[number]];
+    const user = userEvent.setup();
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    const periods = screen.getByRole('tablist', { name: 'Períodos de ' + first.label });
+    const slid = () => document.querySelector('.pa-period-tabs [role="tabpanel"].pa-slide-in');
+
+    await user.click(within(periods).getByRole('tab', { name: /^1º Trimestre/u }));
+    expect(slid()).toBeNull();
+    // The other tab still slides, or this test would prove nothing.
+    await user.click(within(periods).getByRole('tab', { name: /^3º Trimestre/u }));
+    expect(slid()).not.toBeNull();
   });
 
   it('drags the Boletim between trimesters without opening the subject under the finger', () => {

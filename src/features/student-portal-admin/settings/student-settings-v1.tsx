@@ -202,13 +202,13 @@ function BooleanSettingSelectV1({
   const sourceDraft = value;
   const [onLabel, offLabel] = booleanLabelsV1(field);
   const defaultLabel = sourceDraft ? onLabel : offLabel;
+  const selectedKey = !owns && settings.scope.kind !== 'school' ? 'inherit' : String(sourceDraft);
   return (
     <Select
-      selectedKey={
-        !owns && settings.scope.kind !== 'school' ? 'inherit' : String(sourceDraft)
-      }
+      selectedKey={selectedKey}
       isDisabled={disabled}
       onSelectionChange={(key) => {
+        if (key === selectedKey) return;
         if (key === 'inherit') review({ field, inherit: true });
         else if (key === 'true' || key === 'false')
           review({

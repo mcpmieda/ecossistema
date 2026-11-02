@@ -192,7 +192,7 @@ function BulletinSelect({
       selectedKey={value}
       isDisabled={disabled}
       onSelectionChange={(key) => {
-        if (key !== null) onChange(String(key));
+        if (key !== null && key !== value) onChange(String(key));
       }}
     >
       <Label className="mb-1.5 block text-xs font-medium text-muted">{label}</Label>

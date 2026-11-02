@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { requestSignalV1 } from '../shared/request-signal-v1';
 import type { FrequencyYearSummaryV2 } from '../../../../shared/attendance-contracts/frequency-v2';
 import { BELL_SHIFTS_V1, schoolBellsDaysV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolDaysOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
@@ -20,9 +21,7 @@ export async function frequencyJsonV2(
     credentials: 'same-origin',
     cache: 'no-store',
     redirect: 'error',
-    signal: init.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)])
-      : AbortSignal.timeout(15_000),
+    signal: requestSignalV1(init.signal),
   });
   if (response.status === 401) throw new FrequencyClientErrorV2('unauthenticated');
   if (response.status === 403) throw new FrequencyClientErrorV2('forbidden');

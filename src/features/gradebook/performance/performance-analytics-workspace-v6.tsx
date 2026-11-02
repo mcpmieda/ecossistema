@@ -90,7 +90,7 @@ function EntitySelect({ id, label, value, items, onChange }: Readonly<{
       onOpenChange={setIsOpen}
       onSelectionChange={(key) => {
         if (key !== null) {
-          onChange(Number(key));
+          if (Number(key) !== value) onChange(Number(key));
           setIsOpen(false);
         }
       }}
