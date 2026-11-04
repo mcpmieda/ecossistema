@@ -8,6 +8,8 @@
 
 Polling permanece como recuperação explícita se o push estiver indisponível. Não há promessa de tempo real entre dispositivos baseada apenas no temporizador ou no `BroadcastChannel`.
 
+**ADM desde 03/11/2026 (`ADMIN_AUTOMATIC_READS_V1 = false` em `src/App.tsx`):** o Painel do Aluno e o Banco de Notas não usam mais a recuperação periódica nem o push remoto; o ADM não abre WebSocket. A tela relê quando a janela volta, depois de cada escrita do próprio administrador e no F5 (área, turma, turno e ficha ficam no endereço). Essa releitura é silenciosa (`silent` em `createLatestPortalRequestV1`): não mostra "carregando", não desabilita controles, mantém a tela com o aviso de sincronização numa falha passageira e só redesenha quando a resposta muda. As escritas continuam conferindo versão (`expectedVersion`), e a publicação mantém seu acompanhamento próprio. O motivo foi a tela piscando a cada volta da janela e o custo de leituras sem uso para poucos administradores.
+
 ## Durabilidade, autorização e retomada
 
 `0011_live_event_outbox_v1.sql` deriva eventos mínimos, na mesma transação, de `revision_event` e dos eventos Portal confirmados em `audit_event`. Uma importação produz o evento de revisão agrupado já existente, não uma fila por aluno. O dispatcher reivindica lotes com lease/`SKIP LOCKED`, publica fora da transação PostgreSQL e marca entrega ou agenda retry exponencial. Uma execução agendada por minuto recupera falhas e gravações feitas fora do Worker do Portal.
