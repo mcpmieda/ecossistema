@@ -121,8 +121,8 @@ it('a background read covers the findings already loaded instead of going back t
     key: `synthetic-key-${index + 1}`,
   }));
   vi.mocked(listGradebookImportDiagnosticsAuditV1).mockImplementation(async (input) => {
-    const offset = input.offset ?? 0,
-      limit = input.limit ?? 50;
+    const offset = input?.offset ?? 0,
+      limit = input?.limit ?? 50;
     const items = findings.slice(offset, offset + limit);
     return {
       version: 1,

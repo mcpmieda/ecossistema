@@ -163,7 +163,7 @@ describe('QR workspace #1101: explicit download, independent account selection a
     fireEvent.click(pdf());
     await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
     expect(mock.writes.map((entry) => entry.expectedVersion)).toEqual([755, 755, 756]);
-    expect(mock.writes[2]).toMatchObject({ accountIds: mock.writes[1]!.accountIds });
+    expect(mock.writes[2]).toMatchObject({ accountIds: (mock.writes[1] as unknown as { accountIds: readonly string[] }).accountIds });
     expect(screen.queryByText(/A turma mudou/)).toBeNull();
   });
   it('still stops when the first chunk meets a conflict', async () => {
