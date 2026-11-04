@@ -10,7 +10,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ContextType,
   type ReactNode,
@@ -40,16 +39,11 @@ import {
   createPortalAdminReadClientV2,
   createPortalClassCatalogV2,
 } from './accounts/accounts-client-v2';
-import {
-  AccountDetailV1,
-  type AccountSlotContextV1,
-  type AccountSlotsV1,
-} from './accounts/account-detail-v1';
+import { AccountDetailV1, type AccountSlotsV1 } from './accounts/account-detail-v1';
 import { PortalClientErrorV1, type PortalFetchV1 } from '../student-portal/shared/transport-v1';
 import { AccountOpenContextV1 } from './shared/account-open-v1';
 import './shared/admin-page-v1.css';
 import { preloadedSectionV1, usePreloadedSectionsV1 } from '../../shared/ui/preloaded-section-v1';
-import { useAdministrativeLiveV1 } from '../../shared/live-data/administrative-live-v1';
 import {
   claimPanelHashV1,
   panelHashAccountIdV1,
@@ -113,10 +107,9 @@ if (typeof window !== 'undefined') {
   const opened = portalSectionFromHash(window.location.hash);
   if (opened === 'reconciliation') StudentReconciliationV1.preload();
   else if (opened === 'accounts' || opened === 'credentials') StudentAccountsV1.preload();
-  else if (opened === 'birth') StudentBirthYearsV1.preload();
   else if (opened === 'sessions') StudentSessionsV1.preload();
   else if (opened === 'audit') AuditWorkspaceV1.preload();
-  else if (opened === 'policies' || opened === 'publication') StudentPoliciesV1.preload();
+  else if (opened === 'policies') StudentPoliciesV1.preload();
   else if (opened === 'settings') StudentSettingsV1.preload();
   else StudentOverviewV1.preload();
 }
@@ -165,7 +158,13 @@ function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
         canWrite={context.canWrite}
       />
     ),
-    closing: (context) => <AccountClosingPreviewV1 reader={common.reader} scope={context.scope} />,
+    closing: (context) => (
+      <AccountClosingPreviewV1
+        reader={common.reader}
+        scope={context.scope}
+        refreshKey={context.revision}
+      />
+    ),
     audit: (context) => (
       <StudentAuditV1
         {...common}
@@ -188,7 +187,6 @@ function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
 }
 
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
-type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
 const enterInstitutionalLogin = () => window.location.replace('/auth/login');
 const customizationChanged = () => notifyLiveChangeV1('portal');
 /** Owner decision 28/09/2026: automatic reads paused during the first school-wide access; the
@@ -273,44 +271,22 @@ function panelStateFromHashV1() {
   };
 }
 
-/** The open area's content: the credentials of a chosen account, or the area itself. */
+/** The open area's content. */
 function sectionContentV1({
   section,
-  target,
-  onBack,
   common,
   slots,
   onQr,
-  onReprint,
   selectedShift,
-  sectionScope,
   onOpenCustomization,
 }: {
   section: StudentPortalSection;
-  target: AccountSlotContextV1 | null;
-  onBack: () => void;
   common: PanelCommonV1;
   slots: ReturnType<typeof accountSlotsV1>;
   onQr: ReturnType<typeof useAccountQrHandoffV1>['accept'];
-  onReprint: (context: AccountSlotContextV1) => void;
   selectedShift: ShiftKeyV1 | null;
-  sectionScope: SectionScope | null;
   onOpenCustomization: (row: CustomizationRowV1, area: CustomizationAreaV1) => void;
 }): ReactNode {
-  if (target)
-    return (
-      <>
-        <Button variant="secondary" onPress={onBack}>
-          Voltar às contas
-        </Button>
-        <StudentCredentialsV1
-          {...common}
-          scope={target.scope}
-          scopeLabel={target.account.name}
-          canWrite={target.canWrite}
-        />
-      </>
-    );
   switch (section) {
     case 'reconciliation':
       return (
@@ -324,23 +300,12 @@ function sectionContentV1({
       );
     case 'accounts':
     case 'credentials':
-      return (
-        <StudentAccountsV1
-          key={section}
-          {...common}
-          slots={slots}
-          onQr={onQr}
-          onReprint={onReprint}
-        />
-      );
-    case 'birth':
-      return <StudentBirthYearsV1 {...common} />;
+      return <StudentAccountsV1 key={section} {...common} slots={slots} onQr={onQr} />;
     case 'sessions':
       // Sessions are read for the whole school only (owner decision 07/10/2026).
       return <StudentSessionsV1 {...common} scope={SCHOOL} scopeLabel="Toda a escola" />;
     case 'audit':
       return <AuditWorkspaceV1 {...common} />;
-    case 'publication':
     case 'policies':
       return (
         <StudentPoliciesV1
@@ -349,9 +314,9 @@ function sectionContentV1({
           scope={
             selectedShift
               ? { kind: 'shift', academicYear: 2026, shift: selectedShift }
-              : (sectionScope?.scope ?? common.scope)
+              : common.scope
           }
-          scopeLabel={selectedShift ? undefined : (sectionScope?.label ?? common.scopeLabel)}
+          scopeLabel={selectedShift ? undefined : common.scopeLabel}
           onCommitted={customizationChanged}
           canWrite={common.canWrite}
           onOpenCustomization={onOpenCustomization}
@@ -371,13 +336,7 @@ function sectionContentV1({
         </>
       );
     default:
-      return (
-        <StudentOverviewV1
-          {...common}
-          scope={sectionScope?.scope ?? common.scope}
-          scopeLabel={sectionScope?.label ?? common.scopeLabel}
-        />
-      );
+      return <StudentOverviewV1 {...common} />;
   }
 }
 
@@ -393,10 +352,6 @@ function PortalWorkspace({
 }>) {
   const [section, setSection] = useState(() => portalSectionFromHash(window.location.hash));
   usePreloadedSectionsV1(PANEL_SECTIONS_V1);
-  useAdministrativeLiveV1({
-    identityKey: identity.identityKey,
-    onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),
-  });
   const panelAuthority = identity.identityKey + ':' + identity.capabilities.join(',');
   const initialPanel = useMemo(() => {
     claimPanelHashV1(panelAuthority);
@@ -406,13 +361,10 @@ function PortalWorkspace({
     initialPanel.classId === null ? null : { id: initialPanel.classId, label: '' },
   );
   const [selectedShift, setSelectedShift] = useState<ShiftKeyV1 | null>(initialPanel.shift);
-  const [target, setTarget] = useState<AccountSlotContextV1 | null>(null);
   const [customizationTarget, setCustomizationTarget] = useState<{
     row: CustomizationRowV1;
     area: CustomizationAreaV1;
   } | null>(null);
-  const [sectionScope, setSectionScope] = useState<SectionScope | null>(null);
-  const pendingScope = useRef<SectionScope | null>(null);
   const qr = useAccountQrHandoffV1();
   const [openedAccount, setOpenedAccount] = useState<{ id: string; parentScope: ScopeV1 } | null>(
     () =>
@@ -430,9 +382,6 @@ function PortalWorkspace({
     const change = () => {
       const next = portalSectionFromHash(window.location.hash);
       setSection(next);
-      setSectionScope(pendingScope.current?.section === next ? pendingScope.current : null);
-      pendingScope.current = null;
-      setTarget(null);
       setOpenedAccount(null);
       setCustomizationTarget(null);
       qr.clear();
@@ -518,20 +467,12 @@ function PortalWorkspace({
           },
     [section, common.scope],
   );
-  const reprint = useCallback((context: AccountSlotContextV1) => {
-    setCustomizationTarget(null);
-    setTarget(context);
-  }, []);
   const content = sectionContentV1({
     section,
-    target,
-    onBack: () => setTarget(null),
     common,
     slots,
     onQr: qr.accept,
-    onReprint: reprint,
     selectedShift,
-    sectionScope,
     onOpenCustomization: openCustomization,
   });
   // Credentials open inside the Alunos area.
@@ -553,7 +494,7 @@ function PortalWorkspace({
         </>
       ) : (
         <PortalScopeTabsV1
-          policies={section === 'policies' || section === 'publication'}
+          policies={section === 'policies'}
           reader={clients.reader}
           selectedShift={selectedShift}
           onShiftChange={(shift) => {
@@ -561,8 +502,6 @@ function PortalWorkspace({
             writePanelHashParamsV1({ aluno: null });
             setSelectedShift(shift);
             setSelectedClass(null);
-            setSectionScope(null);
-            setTarget(null);
             setCustomizationTarget(null);
             setOpenedAccount(null);
             qr.clear();
@@ -576,8 +515,6 @@ function PortalWorkspace({
             writePanelHashParamsV1({ aluno: null });
             setSelectedShift(null);
             setSelectedClass(classItems.find((item) => item.id === id) ?? null);
-            setSectionScope(null);
-            setTarget(null);
             setCustomizationTarget(null);
             setOpenedAccount(null);
             qr.clear();
@@ -594,17 +531,6 @@ function PortalWorkspace({
             <p className="text-xs text-muted">
               <output className="contents">Somente leitura</output>
             </p>
-          )}
-          {sectionScope && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={() => {
-                if (allowDraftNavigationV1()) setSectionScope(null);
-              }}
-            >
-              {selectedClass ? `Voltar à turma ${selectedClass.label}` : 'Toda a escola'}
-            </Button>
           )}
           <Suspense fallback={sectionFallback}>
             <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
@@ -640,14 +566,10 @@ function PortalWorkspace({
               onSelectionChange={(key) => {
                 const next = studentPortalSections.find((item) => item.id === key);
                 if (!next || !allowDraftNavigationV1()) return;
-                pendingScope.current = null;
                 setCustomizationTarget(null);
                 setOpenedAccount(null);
-                if (section === next.id) {
-                  setTarget(null);
-                  setSectionScope(null);
-                  qr.clear();
-                } else window.location.hash = studentPortalHref(next.id);
+                if (section === next.id) qr.clear();
+                else window.location.hash = studentPortalHref(next.id);
               }}
             >
               <Tabs.ListContainer className="pa-area-tabs max-w-full overflow-x-auto">
@@ -681,7 +603,6 @@ function PortalWorkspace({
                 onChanged={customizationChanged}
                 onAuthorizationLost={onLost}
                 onQr={qr.accept}
-                onReprint={reprint}
               />
             </Suspense>
           ) : null}

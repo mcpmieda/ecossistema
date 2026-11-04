@@ -107,6 +107,24 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
     [props.client, scopeKey, filters],
   );
   const read = useContinuousReadV1(load, 'eventId', props.onAuthorizationLost);
+  // Stable callbacks and a memoized end keep AuditEventsV1's memo effective.
+  const latestRead = useRef(read);
+  latestRead.current = read;
+  const loadMore = useCallback(() => latestRead.current.loadMore(), []);
+  const retry = useCallback(() => latestRead.current.reload(), []);
+  const endFailed = Boolean(read.refreshError);
+  const eventsEnd = useMemo(
+    () => (
+      <ContinuousEndV1
+        more={read.more}
+        busy={read.refreshing}
+        failed={endFailed}
+        loadMore={loadMore}
+        retry={retry}
+      />
+    ),
+    [read.more, read.refreshing, endFailed, loadMore, retry],
+  );
   const detailReader = useMemo(
     () => createAuditDetailV1(props, setDetail),
     [props.client, props.reader, props.canWrite],
@@ -137,9 +155,10 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
         const start = calendarInstantV1(from),
           end = calendarInstantV1(until);
         if (start && end && Date.parse(start) > Date.parse(end)) throw new Error('interval');
+        // The field stops at the minute: "Até 14:30" still includes an event at 14:30:40.
         const next: FiltersV1 = {
           ...(start ? { from: start } : {}),
-          ...(end ? { until: end } : {}),
+          ...(end ? { until: new Date(Date.parse(end) + 59_999).toISOString() } : {}),
           ...(event ? { event } : {}),
           ...(result ? { result } : {}),
         };
@@ -176,7 +195,7 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
         </Tooltip>
         <div className="pa-operations-filters">
           <DateInputV1 label="Desde" value={from} onChange={setFrom} disabled={false} />
-          <DateInputV1 label="Até" value={until} onChange={setUntil} disabled={false} />
+          <DateInputV1 label="Até" value={until} onChange={setUntil} disabled={false} endOfDay />
           <Select
             className="max-w-64"
             selectedKey={event || 'all'}
@@ -271,15 +290,7 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
                 items={data.items}
                 canWrite={props.canWrite}
                 onOpen={openDetail}
-                end={
-                  <ContinuousEndV1
-                    more={read.more}
-                    busy={read.refreshing}
-                    failed={Boolean(read.refreshError)}
-                    loadMore={read.loadMore}
-                    retry={read.reload}
-                  />
-                }
+                end={eventsEnd}
               />
             )}
           </>

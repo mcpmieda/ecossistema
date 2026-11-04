@@ -21,7 +21,7 @@ import {
   type SchoolDayKindV1,
 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 import { officialCalendar2026V1 } from '../../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
-import type { CalendarV1 } from './settings-values-v1';
+import { calendarChangeLabelV1, changedPastDatesV1, type CalendarV1 } from './settings-values-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import './school-calendar-editor-v1.css';
@@ -110,6 +110,16 @@ const markersOf = (calendar: CalendarV1): MarkersV1 =>
   Object.fromEntries(MARKERS.map(({ key, end }) => [key, dateOfInstant(calendar[key] ?? null, end)])) as MarkersV1;
 const shortDate = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith('2026') ? '' : '/' + date.slice(0, 4)}`;
 
+/** Only unmarked Saturdays and Sundays lie between the two days (no class day in between). */
+function weekendBetweenV1(days: ReadonlyMap<string, DayV1>, from: string, to: string) {
+  const end = Date.parse(`${to}T12:00:00Z`);
+  for (let at = Date.parse(`${from}T12:00:00Z`) + 86_400_000; at < end; at += 86_400_000) {
+    const date = new Date(at);
+    if ((date.getUTCDay() !== 0 && date.getUTCDay() !== 6) || days.has(date.toISOString().slice(0, 10))) return false;
+  }
+  return true;
+}
+
 /** Consecutive days of the same kind and description, shown as one line ("20/07 a 31/07 · Recesso"). */
 function eventsOf(days: ReadonlyMap<string, DayV1>, month: number) {
   const prefix = `2026-${pad(month)}-`;
@@ -119,7 +129,8 @@ function eventsOf(days: ReadonlyMap<string, DayV1>, month: number) {
     const last = lines.at(-1);
     // Consecutive days, or a weekend between two days of the same break, stay on one line.
     const gap = last ? (Date.parse(`${date}T12:00:00Z`) - Date.parse(`${last.to}T12:00:00Z`)) / 86_400_000 : Infinity;
-    if (last && last.kind === day.kind && last.note === day.note && gap <= 3) last.to = date;
+    if (last && last.kind === day.kind && last.note === day.note && gap <= 3 && weekendBetweenV1(days, last.to, date))
+      last.to = date;
     else lines.push({ from: date, to: date, kind: day.kind, ...(day.note ? { note: day.note } : {}) });
   }
   return lines;
@@ -213,6 +224,7 @@ export function SchoolCalendarEditorV1({
   const [policy, setPolicy] = useState<{ version: number; calendar: CalendarV1; markers: MarkersV1 } | null>(null);
   const [markers, setMarkers] = useState<MarkersV1 | null>(null);
   const [armed, setArmed] = useState<MarkerKeyV1 | null>(null);
+  const [confirmingPast, setConfirmingPast] = useState(false);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -312,13 +324,27 @@ export function SchoolCalendarEditorV1({
     });
   };
 
-  const save = async () => {
+  /** Main dates already reached that this save changes: they take effect at once, so ask first. */
+  const pastMarkers =
+    markers && policy && markersChanged
+      ? changedPastDatesV1(policy.calendar, movedCalendarV1(policy, markers), Date.now()).map(
+          (key) => MARKERS.find((marker) => marker.key === key)?.label ?? calendarChangeLabelV1(key),
+        )
+      : [];
+
+  const save = async (confirmedPast = false) => {
     if (!draft || !saved || !markers || !policy || count > SCHOOL_DAYS_REQUIRED_V1 || outOfOrder) return;
+    if (pastMarkers.length && !confirmedPast) {
+      setConfirmingPast(true);
+      return;
+    }
+    setConfirmingPast(false);
     setState('saving');
     setMessage(null);
+    let daysSaved = false;
     try {
-      if (daysChanged)
-        await client.command({
+      if (daysChanged) {
+        const result = await client.command({
           contractVersion: 1,
           operation: 'school-calendar-set',
           academicYear: 2026,
@@ -326,13 +352,30 @@ export function SchoolCalendarEditorV1({
           idempotencyKey: crypto.randomUUID(),
           days: listOf(draft),
         });
+        // The days are saved: if the main dates fail below, trying again sends only them.
+        if (result.state === 'committed') {
+          setSaved({ version: result.version, days: new Map(draft) });
+          daysSaved = true;
+        }
+      }
       if (markersChanged) {
-        const calendar = movedCalendarV1(policy, markers);
+        // The policy version grows with any policy saved since it was read (other tabs of this page
+        // too): read it again, and stop only if someone else moved the main dates meanwhile.
+        const current = await client.query({
+          contractVersion: 1,
+          operation: 'settings',
+          scope: { kind: 'school', academicYear: 2026 },
+          page: { limit: 1 },
+        });
+        if (current.state !== 'settings') throw new PortalClientErrorV1('invalid-response');
+        const read = markersOf(current.settings.value.calendar);
+        if (MARKERS.some(({ key }) => read[key] !== policy.markers[key])) throw new PortalClientErrorV1('conflict');
+        const calendar = movedCalendarV1({ calendar: current.settings.value.calendar, markers: read }, markers);
         await client.command({
           contractVersion: 1,
           operation: 'settings-set',
           scope: { kind: 'school', academicYear: 2026 },
-          expectedVersion: policy.version,
+          expectedVersion: current.settings.version,
           idempotencyKey: crypto.randomUUID(),
           value: { calendar },
           acknowledgeImmediateEffect: true,
@@ -343,11 +386,11 @@ export function SchoolCalendarEditorV1({
       setMessage('Calendário salvo.');
     } catch (error) {
       setState('ready');
-      setMessage(
+      const reason =
         error instanceof PortalClientErrorV1 && error.state === 'conflict'
           ? 'Outra pessoa alterou o calendário. Recarregue para ver a versão atual.'
-          : 'Não foi possível salvar agora. Tente de novo.',
-      );
+          : 'Não foi possível salvar agora. Tente de novo.';
+      setMessage(daysSaved ? `Os dias foram salvos, mas as datas principais não. ${reason}` : reason);
     }
   };
 
@@ -597,6 +640,23 @@ export function SchoolCalendarEditorV1({
         </div>
       </Card.Content>
 
+      {canWrite && confirmingPast && pastMarkers.length ? (
+        <Alert status="warning" className="pa-school-calendar__confirm">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Estas datas já chegaram e mudam no Portal assim que você salvar:</Alert.Title>
+            <Alert.Description>{pastMarkers.join(', ')}.</Alert.Description>
+            <div className="pa-settings-actions">
+              <Button size="sm" variant="primary" isDisabled={state !== 'ready'} onPress={() => void save(true)}>
+                Salvar mesmo assim
+              </Button>
+              <Button size="sm" variant="secondary" onPress={() => setConfirmingPast(false)}>
+                Voltar
+              </Button>
+            </div>
+          </Alert.Content>
+        </Alert>
+      ) : null}
       {canWrite ? (
         <Card.Footer className="pa-school-calendar__actions">
           <Button
@@ -613,6 +673,7 @@ export function SchoolCalendarEditorV1({
               setDraft(new Map(saved.days));
               setMarkers(policy ? { ...policy.markers } : null);
               setArmed(null);
+              setConfirmingPast(false);
             }}
           >
             Desfazer alterações

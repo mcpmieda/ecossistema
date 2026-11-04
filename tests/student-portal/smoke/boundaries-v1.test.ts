@@ -18,7 +18,10 @@ it('refuses malformed payload, rate limit and a closed deployment before opening
   expect((await servePortalSelfV1(request({ ...input, accountId: 'untrusted' }), env)).status).toBe(400);
   const global = { limit: vi.fn(async () => ({ success: false })) };
   const subject = { limit: vi.fn(async () => ({ success: true })) };
-  expect((await servePortalSelfV1(request(input), { ...env, PORTAL_AUTH_GLOBAL: global, PORTAL_AUTH_SUBJECT: subject })).status).toBe(429);
+  // The QR signature is checked (with the deployment's keys) before the anonymous budget.
+  const keys = JSON.stringify({ 1: Buffer.alloc(32, 72).toString('base64') });
+  expect((await servePortalSelfV1(request(input), { ...env, QR_HMAC_KEYS: keys, PASSWORD_PEPPER: keys,
+    PORTAL_AUTH_GLOBAL: global, PORTAL_AUTH_SUBJECT: subject })).status).toBe(429);
   expect(subject.limit).not.toHaveBeenCalled();
   expect((await servePortalSelfV1(request(input), { ...env, PORTAL_SERVING_ENABLED: 'false' })).status).toBe(503);
   await portalScheduledV1({ ...env, PORTAL_SERVING_ENABLED: 'false' });

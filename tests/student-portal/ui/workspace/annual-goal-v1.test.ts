@@ -3,6 +3,7 @@ import { annualGoalV1 } from '../../../../src/features/student-portal/workspace/
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
+const regular = { academicState: 'regular', result: 'in-progress' } as const;
 const scoreOf = (value: number, maximum: number | null) =>
   ({ kind: 'score', value, maximum, meetsMinimum: null }) as const;
 function subjectOf(periods: SubjectV1['periods'], extra: Partial<SubjectV1> = {}): SubjectV1 {
@@ -17,14 +18,14 @@ describe('Meta do ano (2º trimestre)', () => {
         { period: 'T2', final: scoreOf(19.8, 30) },
         { period: 'T3', final: { kind: 'absent' } },
       ]),
-      'regular',
+      regular,
     );
     expect(goal).toEqual({ state: 'reachable', soFarMilli: 36_300, t1Milli: 16_500, t2Milli: 19_800, neededMilli: 23_700 });
   });
 
   it('says the goal is reached at exactly 60 and beyond when more than 40 is missing', () => {
     const at = (t1: number, t2: number) =>
-      annualGoalV1(subjectOf([{ period: 'T1', final: scoreOf(t1, 30) }, { period: 'T2', final: scoreOf(t2, 30) }]), 'regular');
+      annualGoalV1(subjectOf([{ period: 'T1', final: scoreOf(t1, 30) }, { period: 'T2', final: scoreOf(t2, 30) }]), regular);
     expect(at(30, 30)?.state).toBe('reached');
     expect(at(10, 10)?.state).toBe('reachable'); // exactly 40 needed
     expect(at(10, 9.9)?.state).toBe('beyond');
@@ -35,19 +36,33 @@ describe('Meta do ano (2º trimestre)', () => {
       { period: 'T1' as const, final: scoreOf(15, 30) },
       { period: 'T2' as const, final: scoreOf(15, 30) },
     ];
-    expect(annualGoalV1(subjectOf([base[0]!]), 'regular')).toBeNull();
-    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, 25) }]), 'regular')).toBeNull();
-    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, null) }]), 'regular')).toBeNull();
-    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: { kind: 'nc' } }]), 'regular')).toBeNull();
-    expect(annualGoalV1(subjectOf(base), 'assisted')).toBeNull();
-    expect(annualGoalV1(subjectOf(base), 'special')).toBeNull();
-    expect(annualGoalV1(subjectOf(base, { officialOutcome: 'approved' }), 'regular')).toBeNull();
+    expect(annualGoalV1(subjectOf([base[0]!]), regular)).toBeNull();
+    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, 25) }]), regular)).toBeNull();
+    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, null) }]), regular)).toBeNull();
+    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: { kind: 'nc' } }]), regular)).toBeNull();
+    expect(annualGoalV1(subjectOf(base), { ...regular, academicState: 'assisted', result: 'not-applicable' })).toBeNull();
+    expect(annualGoalV1(subjectOf(base), { ...regular, academicState: 'special' })).toBeNull();
+    expect(annualGoalV1(subjectOf(base, { officialOutcome: 'approved' }), regular)).toBeNull();
+  });
+
+  it("hides the goal once the student's final result is published, even with no subject outcome", () => {
+    // Formal decision 3 (failed by absence) marks no subject; the hero already shows it.
+    const subject = subjectOf([
+      { period: 'T1', final: scoreOf(10, 30) },
+      { period: 'T2', final: scoreOf(12, 30) },
+    ]);
+    expect(annualGoalV1(subject, regular)).not.toBeNull();
+    expect(annualGoalV1(subject, { ...regular, result: 'failed-attendance' })).toBeNull();
+    expect(annualGoalV1(subject, { ...regular, result: 'approved' })).toBeNull();
+    expect(annualGoalV1(subject, { ...regular, annualSituation: 'failed-by-absence' })).toBeNull();
+    // Recovery is still in progress: the year is not closed.
+    expect(annualGoalV1(subject, { ...regular, annualSituation: 'in-recovery' })).not.toBeNull();
   });
 
   it("hides the goal when the school's minimum is not 60% (owner request 27/10/2026)", () => {
     const marked = (value: number, meetsMinimum: boolean) => ({ kind: 'score', value, maximum: 30, meetsMinimum }) as const;
     const goal = (t1: ReturnType<typeof marked>) =>
-      annualGoalV1(subjectOf([{ period: 'T1', final: t1 }, { period: 'T2', final: marked(20, true) }]), 'regular');
+      annualGoalV1(subjectOf([{ period: 'T1', final: t1 }, { period: 'T2', final: marked(20, true) }]), regular);
     // 18 of 30 is 60%: the gradebook agrees, the goal shows.
     expect(goal(marked(18, true))).not.toBeNull();
     // 19 of 30 is above 60%, yet the gradebook says below its minimum: another minimum, no goal.
@@ -60,11 +75,11 @@ describe('Meta do ano (2º trimestre)', () => {
       { period: 'T2' as const, final: scoreOf(15, 30) },
     ];
     const withThird = [...base, { period: 'T3' as const, final: scoreOf(t3, 40) }];
-    expect(annualGoalV1(subjectOf(withThird), 'regular')).toEqual(
-      annualGoalV1(subjectOf(base), 'regular'),
+    expect(annualGoalV1(subjectOf(withThird), regular)).toEqual(
+      annualGoalV1(subjectOf(base), regular),
     );
-    expect(annualGoalV1(subjectOf(withThird, { officialOutcome: 'approved' }), 'regular')).toBeNull();
-    expect(annualGoalV1(subjectOf(withThird, { annualSituation: 'approved-direct' }), 'regular')).toBeNull();
+    expect(annualGoalV1(subjectOf(withThird, { officialOutcome: 'approved' }), regular)).toBeNull();
+    expect(annualGoalV1(subjectOf(withThird, { annualSituation: 'approved-direct' }), regular)).toBeNull();
   });
 });
 

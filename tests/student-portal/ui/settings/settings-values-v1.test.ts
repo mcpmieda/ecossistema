@@ -2,7 +2,6 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_CALENDAR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import {
-  calendarDraftModeV1,
   calendarDraftV1,
   parseCalendarDraftV1,
 } from '../../../../src/features/student-portal-admin/settings/calendar-draft-v1';
@@ -33,25 +32,6 @@ describe('settings drafts keep the contract and São Paulo time', () => {
   });
   it('does not infer any institutional dates from an empty calendar', () => {
     expect(parseCalendarDraftV1(calendarDraftV1(EMPTY_CALENDAR_V1))).toEqual(EMPTY_CALENDAR_V1);
-  });
-  it('discards the inactive disclosure mode and does not propagate its date', () => {
-    const initial = calendarDraftV1({
-      ...EMPTY_CALENDAR_V1,
-      disclosure: { mode: 'single', at: '2026-09-14T11:00:00Z', periods: ['T2'] },
-    });
-    const split = calendarDraftModeV1(initial, 'per-period');
-    const parsed = parseCalendarDraftV1(split);
-    expect(parsed.disclosure).toEqual({
-      mode: 'per-period',
-      at: { T1: null, T2: null, T3: null, REC1: null, REC2: null, REC3: null },
-    });
-    split.periodAt.T1 = '2026-09-13T08:00';
-    expect(parseCalendarDraftV1(split).disclosure).toMatchObject({
-      at: { T1: '2026-09-13T11:00:00Z' },
-    });
-    const single = parseCalendarDraftV1(calendarDraftModeV1(split, 'single'));
-    expect(single.disclosure).not.toHaveProperty('at.T1');
-    expect(single.disclosure).toMatchObject({ mode: 'single', at: null });
   });
   it('uses the shared schema for chronology and allows null draft milestones', () => {
     const draft = calendarDraftV1(EMPTY_CALENDAR_V1);

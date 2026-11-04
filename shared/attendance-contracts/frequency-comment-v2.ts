@@ -123,7 +123,8 @@ export function frequencyCommentV2({
     return alert('near-limit', `Já faltou cerca de ${days(shown)}. Mais faltas podem reprovar.`);
   if (streak >= 3)
     return alert('in-a-row', `Não vem à escola desde ${dateLabel(weekdays[streak - 1]!.date)} (${streak} dias seguidos).`);
-  if (recentAbsenceDays >= 4 && recentRate >= 2 * beforeRate)
+  // "Antes" needs weekdays before the last four weeks (a student who just arrived has none).
+  if (before.length && recentAbsenceDays >= 4 && recentRate >= 2 * beforeRate)
     return alert('rising', `Faltou cerca de ${days(Math.round(recentAbsenceDays))} nas últimas 4 semanas. Antes, faltava menos.`);
   if (fullDays.length >= 8 && byWeekday[topWeekday]! >= 0.4 * fullDays.length)
     return alert('weekday', `Falta muito ${WEEKDAY_PLURAL[topWeekday]}.`);

@@ -83,8 +83,11 @@ export function createQrOperationV1({
   now = Date.now,
   onAuthorizationLost,
   retainUntilClear = false,
+  readVersion,
 }: Readonly<{
   retainUntilClear?: boolean;
+  /** The current batch version, read again when a later chunk of a qr-batch meets a conflict. */
+  readVersion?: (signal: AbortSignal) => Promise<number>;
   client: PortalAdminClientV1;
   publish: (state: QrOperationStateV1) => void;
   canWrite: boolean;
@@ -125,6 +128,7 @@ export function createQrOperationV1({
   }
 
   async function requestCards(current: number, controller: AbortController) {
+    let refreshed: QrCommandV1 | undefined;
     while (command && prepared) {
       const captured = command!;
       emit({
@@ -138,7 +142,25 @@ export function createQrOperationV1({
           ),
         completed: cards?.length ?? 0,
       });
-      const response = await prepared!.execute(controller.signal);
+      let response: Awaited<ReturnType<NonNullable<typeof prepared>['execute']>>;
+      try {
+        response = await prepared!.execute(controller.signal);
+      } catch (error) {
+        // The batch version counts every account of the school, so a later chunk can meet a change
+        // outside the class. The first chunk already checked what the operator reviewed; a later
+        // one reads the version again once, and the server still checks each account.
+        const conflict = error instanceof PortalClientErrorV1 && error.state === 'conflict';
+        if (!conflict || !readVersion || !cards?.length || refreshed === captured) throw error;
+        const version = await readVersion(controller.signal);
+        if (current !== generation || controller.signal.aborted) return false;
+        command = refreshed = {
+          ...captured,
+          expectedVersion: version,
+          idempotencyKey: crypto.randomUUID(),
+        };
+        prepared = client.prepareCommand(command);
+        continue;
+      }
       if (current !== generation || controller.signal.aborted) return false;
       if (response.state !== 'qr') throw new PortalClientErrorV1('invalid-response');
 

@@ -14,6 +14,9 @@ import { QrInputErrorV1, selectStudentQrV1 } from './qr-input-v1';
 
 const CAMERA_ASSIST_DELAY_MS_V1 = 2000;
 const CAMERA_FRAME_GAP_MS_V1 = 120;
+/** Failed frames in a row (worker timeout or error) before the camera reading gives up. */
+const CAMERA_FRAME_FAILURES_V1 = 3;
+const CAMERA_FAILED_MESSAGE_V1 = 'Não foi possível usar a câmera. Tente novamente ou escolha uma imagem.';
 
 type NativeQrDetectorV1 = { detect(source: CanvasImageSource): Promise<{ rawValue: string }[]> };
 /** The platform detector (Chrome on Android) copes with soft focus far better than jsQR. It runs
@@ -148,7 +151,7 @@ const qrMessage = (error: unknown) => {
     return 'A câmera não foi autorizada. Você pode escolher uma imagem do QR.';
   if (error instanceof DOMException && error.name === 'NotFoundError')
     return 'Nenhuma câmera disponível. Escolha uma imagem do QR.';
-  return 'Não foi possível usar a câmera. Tente novamente ou escolha uma imagem.';
+  return CAMERA_FAILED_MESSAGE_V1;
 };
 
 type PlatformV1 = 'android' | 'iphone';
@@ -235,8 +238,9 @@ function CameraBlockedV1({ onRetry }: Readonly<{ onRetry: () => void }>) {
             <>
               <li>
                 No topo da tela, toque no ícone{' '}
-                <kbd aria-label="de ajustes">
+                <kbd>
                   <SlidersHorizontal size={13} aria-hidden="true" />
+                  <span className="sr-only">de ajustes</span>
                 </kbd>{' '}
                 ao lado do endereço do site.
               </li>
@@ -349,6 +353,9 @@ export function StudentQrReaderV1({
     stop();
     setState('idle');
     if (error instanceof DOMException && error.name === 'NotAllowedError') setBlocked(true);
+    // The image message ("Tente outra imagem") would not fit a camera that could not decode.
+    else if (error instanceof QrInputErrorV1 && error.reason === 'unavailable')
+      setMessage(CAMERA_FAILED_MESSAGE_V1);
     else setMessage(qrMessage(error));
   };
   const camera = async (direction: 'environment' | 'user') => {
@@ -385,7 +392,8 @@ export function StudentQrReaderV1({
       if (session) controller.signal.addEventListener('abort', session.dispose, { once: true });
       const native = await nativeQrDetectorV1();
       controller.signal.throwIfAborted();
-      let attempt = 0;
+      let attempt = 0,
+        failures = 0;
       const scan: CameraScanV1 = {
         native,
         player,
@@ -397,7 +405,20 @@ export function StudentQrReaderV1({
         assisted: () => assisted,
       };
       while (!controller.signal.aborted) {
-        if (player.videoWidth && player.videoHeight && deliver(await frameCodesV1(scan))) return;
+        if (player.videoWidth && player.videoHeight) {
+          let codes: string[] = [];
+          try {
+            codes = await frameCodesV1(scan);
+            failures = 0;
+          } catch (error) {
+            // A frame the decoder could not finish (slow phone past the worker's limit, a worker
+            // error) is a frame without a code: the camera decoder replaces its worker for the
+            // next one. Only failures in a row end the reading.
+            const failed = error instanceof QrInputErrorV1 && error.reason === 'unavailable';
+            if (!failed || ++failures >= CAMERA_FRAME_FAILURES_V1) throw error;
+          }
+          if (deliver(codes)) return;
+        }
         await cameraFrameGapV1(controller.signal);
       }
     } catch (error) {

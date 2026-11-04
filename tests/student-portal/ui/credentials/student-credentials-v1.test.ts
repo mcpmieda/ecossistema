@@ -2,6 +2,7 @@ import { createElement, StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentCredentialsV1 } from '../../../../src/features/student-portal-admin/credentials/student-credentials-v1';
+import { createQrPrintV1 } from '../../../../src/features/student-portal-admin/credentials/qr-print-v1';
 import { QR_META_V1, qrJsonV1, qrMockV1, syntheticQrRendererV1 } from './fixtures-v1';
 import { qrPrintIdV1 } from '../../qr-print/fixtures-v1';
 import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
@@ -125,6 +126,57 @@ describe('QR workspace #1101: explicit download, independent account selection a
       await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
     },
   );
+  it('keeps the ticks and the ready PDF when a school-wide version change refreshes the list', async () => {
+    const mock = qrMockV1({
+      // Another account of the school changes after the PDF request: the scope version moves.
+      query: () => {
+        if (mock.writes.length) mock.setScopeVersion(756);
+        return undefined;
+      },
+    });
+    render(createElement(StudentCredentialsV1, mock.props));
+    fireEvent.click(await first());
+    fireEvent.click(pdf());
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mock.queries.filter((query) => query.operation === 'accounts-read')).toHaveLength(2),
+    );
+    expect(await screen.findByText('1 selecionados')).toBeTruthy();
+    expect(screen.queryByText('Lista inteira · 3')).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Baixar PDF pronto' }));
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(2);
+    expect(mock.writes).toHaveLength(1);
+  });
+  it('repeats a later chunk once with the version read again after a school-wide change', async () => {
+    let writes = 0;
+    const mock = qrMockV1({
+      count: 8,
+      write: () => {
+        // An account outside the class changes between the first and the second chunk.
+        if (++writes === 2) mock.setScopeVersion(756);
+        return undefined;
+      },
+    });
+    render(createElement(StudentCredentialsV1, mock.props));
+    await first();
+    expect(screen.getByText('Lista inteira · 8')).toBeTruthy();
+    fireEvent.click(pdf());
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
+    expect(mock.writes.map((entry) => entry.expectedVersion)).toEqual([755, 755, 756]);
+    expect(mock.writes[2]).toMatchObject({ accountIds: (mock.writes[1] as unknown as { accountIds: readonly string[] }).accountIds });
+    expect(screen.queryByText(/A turma mudou/)).toBeNull();
+  });
+  it('still stops when the first chunk meets a conflict', async () => {
+    const mock = qrMockV1();
+    mock.setScopeVersion(756);
+    render(createElement(StudentCredentialsV1, mock.props));
+    await first();
+    mock.setScopeVersion(757);
+    fireEvent.click(pdf());
+    await screen.findByText(/A turma mudou/);
+    expect(mock.writes).toHaveLength(1);
+    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
+  });
   it('selects and deselects through the header checkbox without issuing anything', async () => {
     const mock = qrMockV1();
     render(createElement(StudentCredentialsV1, mock.props));
@@ -231,6 +283,41 @@ describe('QR workspace #1101: explicit download, independent account selection a
     await screen.findByText(/Cópia indisponível/);
     view.unmount();
     expect(screen.queryByRole('img', { name: 'QR atual de acesso' })).toBeNull();
+  });
+  it('drops an old print failure once the operator prints again', async () => {
+    const mock = qrMockV1();
+    render(
+      createElement(StudentCredentialsV1, {
+        ...mock.props,
+        scope: { kind: 'account', academicYear: 2026, accountId: qrPrintIdV1(1) },
+      }),
+    );
+    const print = await screen.findByRole('button', { name: 'Imprimir QR' });
+    const stylesheet = () =>
+      document.querySelector<HTMLIFrameElement>('iframe.pa-qr-print-host')!.contentDocument!.head
+        .lastElementChild!;
+    fireEvent.click(print);
+    fireEvent.error(stylesheet());
+    await screen.findByText(/Não foi possível imprimir o QR/);
+    fireEvent.click(print);
+    expect(screen.queryByText(/Não foi possível imprimir o QR/)).toBeNull();
+  });
+  it('prints the card at its own size, not in the box of the bare QR', async () => {
+    const printer = createQrPrintV1();
+    const printed = printer.print('data:image/png;base64,AAAA', 'card');
+    const frame = document.querySelector<HTMLIFrameElement>('iframe.pa-qr-print-host')!;
+    const image = frame.contentDocument!.querySelector('img')!;
+    expect(image.className).toBe('qr-print-card');
+    expect(image.alt).toBe('Cartão de acesso');
+    printer.clear();
+    expect(await printed).toBe(false);
+    void printer.print('data:image/png;base64,AAAA');
+    expect(
+      document
+        .querySelector<HTMLIFrameElement>('iframe.pa-qr-print-host')!
+        .contentDocument!.querySelector('img')!.className,
+    ).toBe('qr-print-image');
+    printer.clear();
   });
   it('clears the individual QR when photo access is forbidden', async () => {
     vi.stubGlobal(

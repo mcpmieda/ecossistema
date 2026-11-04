@@ -55,3 +55,21 @@ it('keeps time editing and clear separate from opening the date calendar', async
   expect(document.querySelector('output')?.textContent).toBe('');
   expect(screen.queryByRole('dialog')).toBeNull();
 });
+
+it('an end-of-day bound picked from the calendar covers the whole day', async () => {
+  function EndDemo() {
+    const [value, set] = useState('');
+    return (
+      <>
+        <DateInputV1 label="Até" value={value} onChange={set} disabled={false} endOfDay />
+        <output>{value}</output>
+      </>
+    );
+  }
+  render(<EndDemo />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('spinbutton', { name: 'dia, Até' }));
+  const cell = (await screen.findAllByRole('button', { name: /\b15 de /i }))[0]!;
+  await user.click(cell);
+  expect(document.querySelector('output')?.textContent).toMatch(/-15T23:59:00$/);
+});

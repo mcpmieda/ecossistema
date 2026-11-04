@@ -178,6 +178,8 @@ export function IncidentsPageV3({
     .map((item) => ({ ...item, acknowledgedAt: item.acknowledgedAt ?? seen[item.id] ?? null }))
     .sort((a, b) => b.date.localeCompare(a.date));
   useReportOpenIncidentsV3(load.data ? incidents.filter((item) => !item.acknowledgedAt).length : null);
+  // Read again and nothing is left to confirm (the record was removed): the warning goes too.
+  if (changed && load.data && !incidents.some((item) => !item.acknowledgedAt)) setChanged(false);
   const acknowledge = async (id: string) => {
     try {
       const { acknowledgedAt } = await client.acknowledge(id);

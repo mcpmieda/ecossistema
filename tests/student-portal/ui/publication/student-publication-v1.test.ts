@@ -116,9 +116,9 @@ describe('publication interface', () => {
     automatic.fixture.settings.value.autoUpdate = true;
     render(createElement(StudentPublicationV1, automatic.props));
     await ready();
-    expect(screen.getByRole('button', { name: 'Publicar as notas novas de T1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' })).toBeTruthy();
     expect(
-      screen.queryByRole('button', { name: 'Publicar as notas novas de T2' }),
+      screen.queryByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }),
     ).toBeNull();
     expect(screen.queryByText('Publicar para todos')).toBeNull();
     cleanup();
@@ -128,7 +128,7 @@ describe('publication interface', () => {
     render(createElement(StudentPublicationV1, manual.props));
     await ready();
     expect(
-      screen.getByRole('button', { name: 'Publicar as notas novas de T2' }),
+      screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }),
     ).toBeTruthy();
     const published = screen
       .getByRole('heading', { name: 'Recuperação 1' })
@@ -143,7 +143,7 @@ describe('publication interface', () => {
       mock = setup();
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de T1' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }));
     expect(mock.writes).toHaveLength(0);
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:2')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
@@ -173,7 +173,7 @@ describe('publication interface', () => {
       mock = setup();
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }));
     await user.click(screen.getByRole('button', { name: 'Voltar' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(mock.writes).toHaveLength(0);
@@ -183,7 +183,7 @@ describe('publication interface', () => {
       mock = setup({ write: async () => json({ ...PUBLICATION_META_V1, state: 'conflict' }, 409) });
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }));
     mock.fixture.items.forEach((item) => {
       item.version = 11;
       if (item.availableRevision) item.availableRevision = 'synthetic:2026:revision:3';
@@ -202,7 +202,7 @@ describe('publication interface', () => {
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Recarregar' }));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }));
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:3')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Publicar as notas novas' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(2));
@@ -217,7 +217,7 @@ describe('publication interface', () => {
       mock = setup();
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Retirar publicação de T2' }));
+    await user.click(screen.getByRole('button', { name: 'Retirar publicação de 2º trimestre' }));
     expect(
       within(screen.getByRole('dialog')).getByText(
         /O histórico acadêmico e os demais períodos são preservados/u,
@@ -243,7 +243,7 @@ describe('publication interface', () => {
       mock = setup();
     const view = render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de T1' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }));
     view.rerender(createElement(StudentPublicationV1, { ...mock.props, canWrite: false }));
     expect(screen.queryByRole('dialog')).toBeNull();
     await ready();
@@ -297,7 +297,7 @@ describe('publication interface', () => {
     });
     render(createElement(StrictMode, null, createElement(StudentPublicationV1, mock.props)));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de T1' }));
+    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
     await screen.findByRole('button', { name: 'Tentar novamente' });
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -305,6 +305,51 @@ describe('publication interface', () => {
     await screen.findByText('1º trimestre: solicitação aceita.');
     expect(mock.bodies).toHaveLength(3);
     expect(new Set(mock.bodies).size).toBe(1);
+  });
+  it('enables the follow-up reload again after a rate-limited check keeps the old content', async () => {
+    const user = userEvent.setup(),
+      fixture = publicationFixtureV1();
+    let limited = false;
+    const client = createPortalAdminClientV1({
+      fetch: async (path, init) => {
+        if (!path.endsWith('/query')) {
+          limited = true;
+          return json({
+            ...PUBLICATION_META_V1,
+            state: 'committed',
+            operationId: SYNTHETIC_ID_V1,
+            version: 10,
+          });
+        }
+        if (limited)
+          return new Response(JSON.stringify({ ...PUBLICATION_META_V1, state: 'rate-limited' }), {
+            status: 429,
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-store',
+              'Retry-After': '1',
+            },
+          });
+        const input: AdminQueryV1 = JSON.parse(String(init.body));
+        return json(
+          input.operation === 'publication'
+            ? publicationResponseV1(fixture)
+            : { ...PUBLICATION_META_V1, state: 'settings', settings: fixture.settings },
+        );
+      },
+    });
+    render(
+      createElement(StudentPublicationV1, { client, scope: SETTINGS_CLASS_V1, canWrite: true }),
+    );
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }));
+    expect(within(screen.getByRole('dialog')).getByText('1º trimestre')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
+    const check = (await screen.findByRole('button', {
+      name: 'Consultar estado atual',
+    })) as HTMLButtonElement;
+    expect(check.disabled).toBe(true);
+    await vi.waitFor(() => expect(check.disabled).toBe(false), { timeout: 3000 });
   });
   it('never manufactures six no-data cards from an unavailable response', async () => {
     const client = createPortalAdminClientV1({

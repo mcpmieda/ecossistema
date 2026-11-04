@@ -68,6 +68,15 @@ describe('HTTP security', () => {
       expect(policy).not.toMatch(/script-src[^;]*blob:/u);
     }
   });
+  it('allows only the one SheetJS file the loader requests, not the whole CDN', () => {
+    const loader = readFileSync('src/features/gradebook/import/sheetjs-loader.ts', 'utf8');
+    const source = /const SHEETJS_SRC = '([^']+)'/u.exec(loader)?.[1];
+    expect(source).toMatch(/^https:\/\/cdn\.sheetjs\.com\/.+\.js$/u);
+    for (const policy of [readFileSync('public/_headers', 'utf8'), SECURITY_HEADERS['Content-Security-Policy']]) {
+      const scripts = /script-src ([^;\r\n]*)/u.exec(policy ?? '')?.[1];
+      expect(scripts?.split(' ')).toEqual(["'self'", source]);
+    }
+  });
   it('lets browsers keep content-hashed static assets while HTML revalidates', () => {
     const rules = readFileSync('public/_headers', 'utf8').split(/\r?\n(?=\S)/u);
     const rule = (path: string) => rules.find((block) => block.split(/\r?\n/u)[0] === path) ?? '';

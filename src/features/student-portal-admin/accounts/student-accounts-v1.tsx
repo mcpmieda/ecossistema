@@ -34,6 +34,7 @@ import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalAdminReadClientV2, PortalClassCatalogV2 } from './accounts-client-v2';
 import { AccountDetailV1, type AccountDetailPropsV1 } from './account-detail-v1';
 import { StudentBulkV1 } from './student-bulk-v1';
+import type { BulkInterruptedV1 } from './student-bulk-controller-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { ClassFilterV1 } from './class-filter-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
@@ -579,7 +580,6 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     bulkScopeLabel: string;
   },
 ) {
-  const [refreshVersion, setRefreshVersion] = useState(0);
   const [rowWindow] = useState(rowWindowV1);
   // The class chosen in the school list is a view of the same collection, with its own tools.
   const scope = useMemo<ScopeV1>(
@@ -659,7 +659,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
       if (!cursor && !signal.aborted) askPhotosAhead.current(page.items);
       return page;
     },
-    [props.reader, props.query, refreshVersion],
+    [props.reader, props.query],
   );
   const read = useContinuousReadV1(
     load,
@@ -669,6 +669,8 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     false,
     ADMIN_ACCOUNTS_PAGE_SIZE_V2,
   );
+  const reloadList = useRef(read.reloadNow);
+  reloadList.current = read.reloadNow;
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
   // A row hidden by a filter never stays selected for a QR or bulk operation.
   const selectionOwner = (current?.scopeVersion ?? '') + '|' + narrowed;
@@ -711,7 +713,18 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     sealTargetV1(props.order, current !== null, sealAccountIds),
     { active: rankingActive, revision: current?.scopeVersion, cache: props.sealCache },
   );
-  const sealCounts = readySealCountsV1(seals);
+  // While the same accounts' seals are read again (a record closed, the memory expired), the
+  // ranking keeps their last counts instead of falling back to A–Z.
+  const lastSealCounts = useRef<{ accountIds: readonly string[]; counts: SealCountsV1 } | null>(
+    null,
+  );
+  if (seals.state === 'ready' && rankingActive)
+    lastSealCounts.current = { accountIds: sealAccountIds, counts: seals.counts };
+  const sealCounts =
+    readySealCountsV1(seals) ??
+    (seals.state === 'loading' && lastSealCounts.current?.accountIds === sealAccountIds
+      ? lastSealCounts.current.counts
+      : null);
   // The seal count travels inside each row: React Aria re-renders a row only when its item changes.
   const orderedItems = useMemo(
     () =>
@@ -778,17 +791,35 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   useEffect(() => {
     if (protectedFailure) props.sealCache.clear();
   }, [protectedFailure, props.sealCache]);
+  // A write in the record or a bulk operation also reads the list again in the background: the
+  // rows stay on screen until the new ones arrive.
   const onChanged = useCallback(() => {
     props.sealCache.clear();
-    setRefreshVersion((value) => value + 1);
+    lastSealCounts.current = null;
+    reloadList.current();
   }, [props.sealCache]);
+  // A QR batch reads the list again in the background: its tools stay mounted with the PDF ready.
+  const onQrCommitted = () => {
+    props.sealCache.clear();
+    lastSealCounts.current = null;
+    read.reloadNow();
+  };
+  const [bulkInterrupted, setBulkInterrupted] = useState<BulkInterruptedV1 | null>(null);
   const onAuthorizationLost = useCallback(
     (error: PortalClientErrorV1) => {
       props.sealCache.clear();
+      lastSealCounts.current = null;
       setAuthorizationError(error);
       setSelectedId(null);
     },
     [props.sealCache],
+  );
+  const onBulkAuthorizationLost = useCallback(
+    (error: PortalClientErrorV1, interrupted?: BulkInterruptedV1) => {
+      setBulkInterrupted(interrupted ?? null);
+      onAuthorizationLost(error);
+    },
+    [onAuthorizationLost],
   );
   const sealError = sealErrorV1(seals);
   useEffect(() => {
@@ -798,7 +829,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   const reload = () => {
     if (!read.canReload) return;
     props.sealCache.clear();
+    lastSealCounts.current = null;
     setAuthorizationError(null);
+    setBulkInterrupted(null);
     read.clear();
     read.reload();
   };
@@ -817,7 +850,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
             label={props.bulkScopeLabel}
             canWrite={props.canWrite && !authorizationError && !protectedFailure}
             pendingBirth={Boolean(read.refreshing || read.refreshError)}
-            onCommitted={onChanged}
+            onCommitted={onQrCommitted}
             onAuthorizationLost={onAuthorizationLost}
           />,
           props.qrMount,
@@ -834,7 +867,8 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
             scopeLabel={props.bulkScopeLabel}
             canWrite={props.canWrite}
             selected={selectedQr}
-            onAuthorizationLost={onAuthorizationLost}
+            onAuthorizationLost={onBulkAuthorizationLost}
+            onCommitted={onChanged}
           />,
           props.bulkMount,
         )}
@@ -862,6 +896,14 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
             canReload={read.canReload}
             onReload={reload}
           />
+          {authorizationError && bulkInterrupted ? (
+            <p role="alert">
+              A sessão terminou durante a operação em massa:{' '}
+              {bulkInterrupted.written === 1
+                ? `1 de ${bulkInterrupted.targets} contas já foi alterada.`
+                : `${bulkInterrupted.written} de ${bulkInterrupted.targets} contas já foram alteradas.`}
+            </p>
+          ) : null}
           {current && visibleItems.length === 0 && !current.nextCursor && (
             <p>
               <output className="contents">Nenhuma conta encontrada neste filtro.</output>
@@ -910,7 +952,8 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
                     </Table.Column>
                     <Table.Column>Sessões ativas</Table.Column>
                   </Table.Header>
-                  <Table.Body items={visibleItems}>
+                  {/* Cached rows render again only for the opened record's highlight. */}
+                  <Table.Body items={visibleItems} dependencies={[selectedId]}>
                     {(account) => accountRowV1(account, row)}
                   </Table.Body>
                 </Table.Content>

@@ -1691,6 +1691,7 @@
   margin-bottom: 0.6rem;
 }
 @media (prefers-reduced-motion: reduce) {
+  .pa3-day-slider,
   .pa3-day-track.is-settling {
     transition: none;
   }
@@ -1712,6 +1713,7 @@
 
 
 @media (prefers-reduced-motion: reduce) {
+  .pa3-guide-arc,
   .pa3-guide-label {
     animation: none;
   }

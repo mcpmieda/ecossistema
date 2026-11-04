@@ -4,6 +4,7 @@ import {
   type EffectiveSettingsV1,
 } from '../../../../shared/student-portal-contracts/policy-v1';
 import {
+  combineAccessPlansV1,
   legacyAccessPlanV1,
   settleAccessPlanV1,
   type AccessPlanV1,
@@ -27,7 +28,11 @@ function periodStartV1(calendar: CalendarV1, period: GradePeriodV1): string | nu
   return calendar.recoveriesStartAt;
 }
 
-/** The older rule for one period — allowed, inside the single schedule, from its start — as a plan. */
+/**
+ * The older rule for one period — allowed, inside the single schedule, from its start — as a plan.
+ * Same as the server (calendar-v1 periodDisclosureV1): the Liberar/Ocultar agenda starting shown,
+ * and only from the period's start, so an Ocultar before that start keeps the period hidden.
+ */
 function legacyPeriodPlanV1(value: ValueV1, period: GradePeriodV1): AccessPlanV1 {
   const { calendar, allowedPeriods } = value;
   const disclosure = calendar.disclosure;
@@ -38,14 +43,17 @@ function legacyPeriodPlanV1(value: ValueV1, period: GradePeriodV1): AccessPlanV1
     return { enabled: false, schedule: [] };
   const at = disclosure.mode === 'single' ? disclosure.at : disclosure.at[period];
   const end = (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null;
-  const show = at !== null && Date.parse(at) > Date.parse(start) ? at : start;
-  const events = [
-    { at: new Date(Date.parse(show)).toISOString(), action: 'open' as const },
-    ...(end === null ? [] : [{ at: new Date(Date.parse(end)).toISOString(), action: 'close' as const }]),
+  const schedule = [
+    ...(at === null ? [] : [{ at: Date.parse(at), action: 'open' as const }]),
+    ...(end === null ? [] : [{ at: Date.parse(end), action: 'close' as const }]),
   ]
-    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
-    .filter((event, index, all) => index === 0 || all[index - 1]!.at !== event.at);
-  return { enabled: false, schedule: events };
+    .sort((left, right) => left.at - right.at)
+    .map((event) => ({ at: new Date(event.at).toISOString(), action: event.action }));
+  const fromStart: AccessPlanV1 = {
+    enabled: false,
+    schedule: [{ at: new Date(Date.parse(start)).toISOString(), action: 'open' }],
+  };
+  return combineAccessPlansV1({ enabled: true, schedule }, fromStart);
 }
 
 export function gradePlanOfV1(value: ValueV1, key: GradeKeyV1): AccessPlanV1 {

@@ -77,6 +77,33 @@ describe('nascimento administrativo somente leitura', () => {
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(mock.writes).toHaveLength(0);
   });
+  it('na ficha, nova renderização com a mesma conta não repete a consulta', async () => {
+    const mock = birthMockV1();
+    const account = mock.accounts[0]!;
+    // The record keeps its scope (memoized) but builds a new initialAccount on every render.
+    const scope = { kind: 'account' as const, academicYear: 2026 as const, accountId: account.accountId };
+    const props = () => ({
+      ...mock.props,
+      scope,
+      initialAccount: { account, scopeVersion: 99 },
+    });
+    const view = render(createElement(StudentBirthYearsV1, props()));
+    await screen.findByText('2000');
+    const after = mock.queries.length;
+    for (let i = 0; i < 3; i++) view.rerender(createElement(StudentBirthYearsV1, props()));
+    expect(screen.getByText('2000')).toBeTruthy();
+    expect(screen.queryByText('Carregando nascimento…')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mock.queries).toHaveLength(after);
+    view.rerender(
+      createElement(StudentBirthYearsV1, {
+        ...props(),
+        initialAccount: { account: { ...account, version: account.version + 1 }, scopeVersion: 99 },
+      }),
+    );
+    await waitFor(() => expect(mock.queries.length).toBeGreaterThan(after));
+    expect(mock.writes).toHaveLength(0);
+  });
   it('StrictMode não escreve nem confirma nascimento ao montar', async () => {
     const mock = birthMockV1();
     render(createElement(StrictMode, null, createElement(StudentBirthYearsV1, mock.props)));

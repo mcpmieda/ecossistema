@@ -150,6 +150,7 @@ export function QrBatchToolsV1({
   onCommitted,
   onAuthorizationLost,
   renderArtifact,
+  readScopeVersion,
 }: Readonly<{
   client: PortalAdminClientV1;
   accounts: AdminAccountReadV2[];
@@ -166,6 +167,8 @@ export function QrBatchToolsV1({
   onCommitted: () => void;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
   renderArtifact?: QrRendererV1;
+  /** Reads the current scope version again, for a later chunk that meets a conflict. */
+  readScopeVersion?: (signal: AbortSignal) => Promise<number>;
 }>) {
   const [state, setState] = useState<QrOperationStateV1>({ state: 'idle' });
   const [layout, setLayout] = useState<QrBatchLayoutV1>('card');
@@ -234,9 +237,10 @@ export function QrBatchToolsV1({
         publish: setState,
         render,
         retainUntilClear: true,
+        readVersion: readScopeVersion,
         onAuthorizationLost: (error) => callbacks.current.onAuthorizationLost?.(error),
       }),
-    [client, canWrite, render],
+    [client, canWrite, render, readScopeVersion],
   );
   const autoDownloaded = useRef('');
   useEffect(() => {
@@ -263,6 +267,10 @@ export function QrBatchToolsV1({
     operation.download(capture.current.filename);
     callbacks.current.onCommitted();
   }, [state, operation]);
+  useEffect(() => {
+    // A request that cannot be repeated never reaches the PDF: stop fetching portraits and painting.
+    if (state.state === 'error' && state.stage === 'request' && !state.retryable) stopArt();
+  }, [state, stopArt]);
   useEffect(() => {
     if (state.state !== 'error') return;
     setClock(Date.now());

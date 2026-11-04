@@ -228,12 +228,15 @@ const SLIDE_MS_V3 = 260;
 const wrapWeekdayV3 = (weekday: number) => (((((weekday - 1) % 5) + 5) % 5) + 1) as WeekdayV3;
 function DaySliderV3({
   shown,
+  swipedSide,
   onChange,
   onDrag,
   panel,
 }: Readonly<{
   shown: WeekdayV3;
-  onChange: (weekday: WeekdayV3) => void;
+  /** The way the last swipe went (on any class's card), or null for a day picked on the chips. */
+  swipedSide: -1 | 1 | null;
+  onChange: (weekday: WeekdayV3, side?: -1 | 1) => void;
   onDrag: (progress: number, dragging: boolean) => void;
   panel: (weekday: WeekdayV3, current: boolean) => ReactNode;
 }>) {
@@ -263,7 +266,8 @@ function DaySliderV3({
       swiped.current = false;
       return;
     }
-    const side = shown > from ? 1 : -1;
+    // Another class's card swiped from Friday to Monday: the day still comes in the finger's way.
+    const side = swipedSide ?? (shown > from ? 1 : -1);
     setArriving({ from, side });
     setOffset(side * (box.current?.offsetWidth ?? 0));
     // Two frames: the day that was shown is painted in place before the slide starts.
@@ -281,7 +285,7 @@ function DaySliderV3({
       cancelAnimationFrame(frame);
       window.clearTimeout(done);
     };
-  }, [shown]);
+  }, [shown, swipedSide]);
   const previous = arriving?.side === 1 ? arriving.from : wrapWeekdayV3(shown - 1);
   const next = arriving?.side === -1 ? arriving.from : wrapWeekdayV3(shown + 1);
   const move = (pixels: number, dragging: boolean) => {
@@ -296,7 +300,7 @@ function DaySliderV3({
       if (to) {
         // Already in place: the change slides nothing more.
         swiped.current = true;
-        onChange(to === 1 ? next : previous);
+        onChange(to === 1 ? next : previous, to);
       }
       setSettling(false);
       move(0, false);
@@ -985,6 +989,13 @@ export function ScheduleWeekV3({
   // Today first; on a weekend, Monday (the next school day). A day the reader picks stays.
   const [picked, setPicked] = useState<number | null>(null);
   const shown = (picked ?? (schoolDay ? todayWeekday : 1)) as WeekdayV3;
+  const [swipedSide, setSwipedSide] = useState<-1 | 1 | null>(null);
+  // The way of the last swipe, for every class's card (a chip picked comes by the week's order).
+  const pick = (weekday: number, side: -1 | 1 | null = null) => {
+    // Only with a new day: alone, it would cut short a slide still under way.
+    if (weekday !== shown) setSwipedSide(side);
+    setPicked(weekday);
+  };
   // The chips' blue pill follows the day being dragged (owner request 27/10/2026): from the day shown
   // toward the one coming in, as far as the card has slid; it glides there on its own otherwise.
   const [drag, setDrag] = useState({ progress: 0, dragging: false });
@@ -1043,7 +1054,7 @@ export function ScheduleWeekV3({
             dragging={drag.dragging}
             isToday={isToday}
             isOff={(weekday) => offAt(weekday) !== null}
-            onPick={setPicked}
+            onPick={pick}
           />
 
           {classes.map((item) => (
@@ -1054,7 +1065,8 @@ export function ScheduleWeekV3({
               <div className="pa3-schedule-day">
                 <DaySliderV3
                   shown={shown}
-                  onChange={setPicked}
+                  swipedSide={swipedSide}
+                  onChange={pick}
                   onDrag={(progress, dragging) => setDrag({ progress, dragging })}
                   panel={dayPanelV3(item, offAt, isToday, liveSeconds)}
                 />

@@ -129,6 +129,7 @@ function orderedSubjectsV2(
   finalSource: SourceV2 | undefined,
   accountId: string,
   finalAuthority: boolean,
+  t3Published: boolean,
 ) {
   const finalSubjects = finalSource ? academicToSelfV1(finalSource.student, accountId).subjects : [];
   return [...subjects.values()]
@@ -141,11 +142,12 @@ function orderedSubjectsV2(
       const hasAuthority = finalSource?.finalAuthority.subjectIds.includes(subject.subjectId) === true;
       // Final classifications need the same authority as officialOutcome. `recovery-pending`
       // exists precisely before the annual closure, so it is relayed from the accepted edition
-      // and gated later by T3 disclosure (applyPublishedVisibilityV1).
+      // and gated later by T3 disclosure (applyPublishedVisibilityV1), but only while the 3º
+      // trimestre itself is published: it is computed from the T3 marks.
       const situation = official?.annualSituation;
       const relaySituation =
         situation !== undefined &&
-        ((finalAuthority && hasAuthority) || situation === 'recovery-pending');
+        ((finalAuthority && hasAuthority) || (situation === 'recovery-pending' && t3Published));
       return {
         ...subject,
         order,
@@ -160,11 +162,17 @@ function orderedSubjectsV2(
     });
 }
 
-function profileSituationV2(context: ContextV2, finalSource: SourceV2 | undefined, finalAuthority: boolean) {
+function profileSituationV2(
+  context: ContextV2,
+  finalSource: SourceV2 | undefined,
+  finalAuthority: boolean,
+  t3Published: boolean,
+) {
   if (finalSource?.student.profile.academicState !== context.profile.academicState) return undefined;
   const situation = finalSource.student.profile.annualSituation;
-  // Same authority as `result`, except EM RECUPERAÇÃO, which precedes the annual closure.
-  return finalAuthority || situation === 'in-recovery' ? situation : undefined;
+  // Same authority as `result`, except EM RECUPERAÇÃO, which precedes the annual closure and
+  // needs the 3º trimestre it comes from to be published.
+  return finalAuthority || (situation === 'in-recovery' && t3Published) ? situation : undefined;
 }
 
 /** Auth/session/current-link validation is owned by the caller. Only this student's prepared rows are loaded. */
@@ -197,8 +205,10 @@ export async function scopedSelfV2(
   }
 
   const finalAuthority = finalAuthorityV2(context, finalSource, explicitWithdrawal);
-  const ordered = orderedSubjectsV2(subjects, finalSource, accountId, finalAuthority);
-  const annualSituation = profileSituationV2(context, finalSource, finalAuthority);
+  const published = PERIODS_V1.filter((_, index) => accepted[index] !== null);
+  const t3Published = published.includes('T3');
+  const ordered = orderedSubjectsV2(subjects, finalSource, accountId, finalAuthority, t3Published);
+  const annualSituation = profileSituationV2(context, finalSource, finalAuthority, t3Published);
   const projection = selfResponseV1.parse({
     contractVersion: 1,
     requestId,
@@ -222,7 +232,7 @@ export async function scopedSelfV2(
     context.now,
     finalAuthority,
   );
-  const withClosings = await termClosingsV2(tx, context, visible, reader, decoded, sources);
+  const withClosings = await termClosingsV2(tx, context, visible, published, reader, decoded, sources);
   const endedPeriods = endedPeriodsV1(context.policy.enforcedValue, context.now);
   return selfResponseV1.parse({
     ...withClosings,
@@ -233,20 +243,25 @@ export async function scopedSelfV2(
   });
 }
 
-/** Fechamento do trimestre (#1132): read only when the policy and a closed trimester require it. */
+/**
+ * Fechamento do trimestre (#1132): read only when the policy and a closed trimester require it, and
+ * only for a trimester whose marks are published (R2: the report never comes without its marks).
+ */
 async function termClosingsV2(
   tx: StudentPortalPostgresQueryV1,
   context: ContextV2,
   projection: SelfResponseV1,
+  published: readonly (typeof PERIODS_V1)[number][],
   reader: AcademicStudentReaderPostgresV1,
   decoded: Map<string, SourceV2>,
   sources?: ScopedSelfSourceReaderV2,
 ): Promise<SelfResponseV1> {
-  const targets = termClosingTargetsV1(
+  const allowed = termClosingTargetsV1(
     context.policy.enforcedValue,
     context.profile.academicState,
     context.now,
   );
+  const targets = { ...allowed, periods: allowed.periods.filter((period) => published.includes(period)) };
   if (targets.periods.length === 0) return projection;
   const source = await closingSourceV2(tx, context, reader, decoded, sources);
   return source ? attachTermClosingsV1({ projection, targets, ...source }) : projection;

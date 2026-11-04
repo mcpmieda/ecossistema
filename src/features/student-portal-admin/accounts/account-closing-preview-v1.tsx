@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Button } from '@heroui/react';
 import type { AdminReadResponseV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import {
@@ -11,7 +12,10 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 
 type PreviewV1 = Extract<AdminReadResponseV2, { state: 'closing-preview' }>;
-type StateV1 = { state: 'loading' } | { state: 'ready'; value: PreviewV1 } | { state: 'error'; message: string };
+type StateV1 =
+  | { state: 'loading' }
+  | { state: 'ready'; value: PreviewV1 }
+  | { state: 'error'; message: string; retry: boolean };
 
 const LEVEL_LABEL_V1: Record<TermClosingV1['level'], string> = {
   attention: 'Pede atenção',
@@ -35,15 +39,19 @@ function MessageLineV1({ message, closing }: Readonly<{ message?: TermClosingMes
 /**
  * Fechamento do trimestre preview (#1132 D12, R7): the same engine and phrase variants the student
  * receives, shown even while the `showTermClosing` policy is off so it can be reviewed first.
+ * `refreshKey` reads it again after the record changes access or policies: the tab stays mounted.
  */
 export function AccountClosingPreviewV1({
   reader,
   scope,
+  refreshKey,
 }: Readonly<{
   reader: PortalAdminReadClientV2;
   scope: Extract<ScopeV1, { kind: 'account' }>;
+  refreshKey?: number;
 }>) {
   const [state, setState] = useState<StateV1>({ state: 'loading' });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     setState({ state: 'loading' });
@@ -54,19 +62,28 @@ export function AccountClosingPreviewV1({
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
+        const forbidden = error instanceof PortalClientErrorV1 && error.state === 'forbidden';
         setState({
           state: 'error',
-          message:
-            error instanceof PortalClientErrorV1 && error.state === 'forbidden'
-              ? 'Sem permissão para esta consulta.'
-              : 'Prévia indisponível. Tente novamente.',
+          message: forbidden ? 'Sem permissão para esta consulta.' : 'Prévia indisponível. Tente novamente.',
+          retry: !forbidden,
         });
       });
     return () => controller.abort();
-  }, [reader, scope]);
+  }, [reader, scope, refreshKey, attempt]);
 
   if (state.state === 'loading') return <p><output className="contents">Carregando prévia do fechamento…</output></p>;
-  if (state.state === 'error') return <p role="alert">{state.message}</p>;
+  if (state.state === 'error')
+    return (
+      <div className="grid justify-items-start gap-2">
+        <p role="alert">{state.message}</p>
+        {state.retry ? (
+          <Button size="sm" variant="secondary" onPress={() => setAttempt((value) => value + 1)}>
+            Tentar novamente
+          </Button>
+        ) : null}
+      </div>
+    );
   const preview = state.value;
   if (!preview.available)
     return <p>Prévia indisponível: o vínculo deste aluno não está ativo ou elegível.</p>;

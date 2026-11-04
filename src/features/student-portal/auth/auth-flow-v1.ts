@@ -7,6 +7,9 @@ import type { PortalSelfClientV1 } from '../shared/self-client-v1';
 import { isAmbiguousPortalResponseV1, PortalClientErrorV1 } from '../shared/transport-v1';
 import { validateStudentQrV1 } from './qr-input-v1';
 
+/** The longest password-creation lifetime an admin can set (riskPolicyV1.challengeTtlSeconds). */
+const CHALLENGE_TTL_MAX_MS_V1 = 600_000;
+
 export type StudentAuthStepV1 = 'scan' | 'pin' | 'password' | 'risk' | 'create' | 'authenticated';
 export interface StudentAuthStateV1 {
   step: StudentAuthStepV1;
@@ -74,11 +77,13 @@ export function createStudentAuthFlowV1(
       emit({ step: result.next, needsRisk: needsRisk || result.next === 'risk' });
     else {
       proof = result.challenge;
-      proofExpiresAt = Date.parse(result.expiresAt);
-      if (proofExpiresAt <= now()) {
-        reset('O prazo para criar a senha terminou. Leia o QR novamente.');
-        return;
-      }
+      // The server dates the proof by its own clock. A fresh proof lives 30 s to 10 min
+      // (riskPolicyV1), so a local reading outside that window is the phone's clock, not the
+      // proof: hold it for the longest lifetime and let the server refuse a late activation.
+      const remaining = Date.parse(result.expiresAt) - now();
+      proofExpiresAt =
+        now() +
+        (remaining > 0 && remaining <= CHALLENGE_TTL_MAX_MS_V1 ? remaining : CHALLENGE_TTL_MAX_MS_V1);
       emit({ step: 'create', needsRisk: false, expiresAt: result.expiresAt });
       expiryTimer = setTimeout(
         () => reset('O prazo para criar a senha terminou. Leia o QR novamente.'),

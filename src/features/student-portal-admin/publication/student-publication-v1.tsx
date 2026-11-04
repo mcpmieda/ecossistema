@@ -100,7 +100,7 @@ function PublicationActionsV1({
           size="sm"
           variant="primary"
           isDisabled={disabled}
-          aria-label={`Publicar as notas novas de ${item.period}`}
+          aria-label={`Publicar as notas novas de ${termLabel(item.period)}`}
           onPress={() => review(item, 'publish')}
         >
           Publicar as notas novas
@@ -110,7 +110,7 @@ function PublicationActionsV1({
         <Button
           size="sm"
           isDisabled={disabled}
-          aria-label={`Publicar as notas novas de ${item.period}`}
+          aria-label={`Publicar as notas novas de ${termLabel(item.period)}`}
           onPress={() => review(item, 'publish-update')}
         >
           Publicar as notas novas
@@ -121,7 +121,7 @@ function PublicationActionsV1({
           size="sm"
           variant="danger-soft"
           isDisabled={disabled}
-          aria-label={`Retirar publicação de ${item.period}`}
+          aria-label={`Retirar publicação de ${termLabel(item.period)}`}
           onPress={() => review(item, 'unpublish')}
         >
           Retirar
@@ -452,7 +452,7 @@ function PublicationReviewV1({
           </Modal.Header>
           <Modal.Body className="pa-publication-review">
             <p>
-              <strong>{command.period}</strong> em {label}.
+              <strong>{termLabel(command.period)}</strong> em {label}.
             </p>
             {'targetDataVersion' in command ? (
               <p>
@@ -731,6 +731,12 @@ function PublicationScopeV1({
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [view.mutation, view.load.state, retryAt]);
+  // A failed follow-up read keeps old content without an error state; still end its wait.
+  useEffect(() => {
+    if (clock >= retryAt) return;
+    const timer = setTimeout(() => setClock(Date.now()), Math.max(0, retryAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [clock, retryAt]);
   const reload = () => {
     setReview(null);
     setNotice(null);

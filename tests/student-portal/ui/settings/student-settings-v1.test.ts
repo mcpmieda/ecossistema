@@ -263,6 +263,40 @@ describe('administrative settings UI', () => {
     expect(mock.writes.map((command) => command.expectedVersion)).toEqual([7, 8]);
     expect(mock.writes[0]!.idempotencyKey).not.toBe(mock.writes[1]!.idempotencyKey);
   });
+  it('clears the previous "Salvo." when the next change fails', async () => {
+    let calls = 0;
+    const user = userEvent.setup(),
+      mock = setup(undefined, async () =>
+        ++calls === 1
+          ? json({ ...base, state: 'committed', operationId: SYNTHETIC_ID_V1, version: 7 })
+          : json({ ...base, state: 'conflict' }, 409),
+      );
+    render(createElement(StudentSettingsV1, mock.props));
+    await ready();
+    await user.click(screen.getByRole('switch', { name: 'Portal aberto agora' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
+    await screen.findByText('Salvo.');
+    await vi.waitFor(() =>
+      expect(
+        (screen.getByRole('switch', { name: 'Portal aberto agora' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    );
+    await user.click(screen.getByRole('switch', { name: 'Portal aberto agora' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
+    await screen.findByText(
+      'A configuração mudou em outra operação. Recarregue e revise antes de salvar novamente.',
+    );
+    expect(screen.queryByText('Salvo.')).toBeNull();
+  });
+  it('opens the policies on the tab asked for', async () => {
+    const mock = setup();
+    render(
+      createElement(StudentSettingsV1, { ...mock.props, area: 'policies', initialCategory: 'grades' }),
+    );
+    await screen.findByRole('heading', { name: 'Notas' });
+    expect(screen.getByRole('tab', { name: 'Notas' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', { name: 'Acesso' }).getAttribute('aria-selected')).toBe('false');
+  });
   it('never shows the previous scope while a different scope is loading, nor applies its late response', async () => {
     let resolve!: (value: Response) => void;
     const client = createPortalAdminClientV1({

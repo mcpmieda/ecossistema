@@ -219,6 +219,168 @@ describe('bulk preview and execution', () => {
     expect(s.unauthorized).toHaveBeenCalledOnce();
     s.controller.dispose();
   });
+  it('keeps the longest wait asked for when a later failure brings none', async () => {
+    let writes = 0;
+    const s = setup(async (_path, init) => {
+      if (JSON.parse(init.body as string).operation === 'bulk-preview')
+        return opJsonV1(preview([1, 2]));
+      if (++writes === 1)
+        return opJsonV1({ ...OP_META_V1, state: 'rate-limited' }, 429, { 'Retry-After': '60' });
+      await new Promise((done) => setTimeout(done, 5));
+      return new Response('<html>busy</html>', {
+        status: 503,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    });
+    await s.controller.preview(query);
+    const started = Date.now();
+    await s.controller.run();
+    expect(s.state().phase).toBe('unknown');
+    expect(s.state().retryAt! - started).toBeGreaterThanOrEqual(55_000);
+    s.controller.dispose();
+  });
+  it('keeps a server error page that asks to wait as unconfirmed, ready to repeat', async () => {
+    const s = setup(async (_path, init) =>
+      JSON.parse(init.body as string).operation === 'bulk-preview'
+        ? opJsonV1(preview([1]))
+        : new Response('<html>busy</html>', {
+            status: 503,
+            headers: { 'Content-Type': 'text/html', 'Retry-After': '30' },
+          }),
+    );
+    await s.controller.preview(query);
+    await s.controller.run();
+    expect(s.state().phase).toBe('unknown');
+    expect(s.state().items[0]).toMatchObject({ result: 'unknown', error: 'invalid-response' });
+    s.controller.dispose();
+  });
+  it('sends nothing once the preview expired, unless a write still needs confirming', async () => {
+    let writes = 0;
+    let expiresAt = new Date(Date.now() + 300_000).toISOString();
+    const s = setup(async (_path, init) => {
+      if (JSON.parse(init.body as string).operation === 'bulk-preview')
+        return opJsonV1(preview([1, 2], 2, { expiresAt }));
+      writes++;
+      return committed();
+    });
+    await s.controller.preview(query);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(expiresAt) + 1);
+    await s.controller.run();
+    expect(writes).toBe(0);
+    expect(s.state()).toMatchObject({ phase: 'error', error: 'expired' });
+    vi.restoreAllMocks();
+    // An unconfirmed write is repeated with the same command; the server answers from its receipt.
+    let lost = true;
+    expiresAt = new Date(Date.now() + 300_000).toISOString();
+    const t = setup(async (_path, init) => {
+      if (JSON.parse(init.body as string).operation === 'bulk-preview')
+        return opJsonV1(preview([1], 1, { expiresAt }));
+      writes++;
+      if (lost) throw new Error('synthetic network loss');
+      return committed();
+    });
+    await t.controller.preview(query);
+    await t.controller.run();
+    expect(t.state().phase).toBe('unknown');
+    const sent = writes;
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(expiresAt) + 1);
+    lost = false;
+    await t.controller.run();
+    expect(t.state().phase).toBe('done');
+    expect(writes).toBeGreaterThan(sent);
+    s.controller.dispose();
+    t.controller.dispose();
+  });
+  it('past the expiry repeats only the unconfirmed write and leaves the pending ones unsent', async () => {
+    const sent: string[] = [];
+    const expiresAt = new Date(Date.now() + 300_000).toISOString();
+    let lost = true;
+    const ids = Array.from({ length: BULK_CONCURRENCY_V1 + 1 }, (_, i) => i + 1);
+    const s = setup(async (_path, init) => {
+      const body = JSON.parse(init.body as string);
+      if (body.operation === 'bulk-preview')
+        return opJsonV1(preview(ids, ids.length, { expiresAt }));
+      sent.push(body.accountId);
+      if (body.accountId === opIdV1(1) && lost) throw new Error('synthetic network loss');
+      await new Promise((done) => setTimeout(done, 5));
+      return committed();
+    });
+    await s.controller.preview(query);
+    await s.controller.run();
+    expect(s.state().phase).toBe('unknown');
+    expect(s.state().items.filter((entry) => entry.result === 'pending')).toHaveLength(1);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(expiresAt) + 1);
+    lost = false;
+    const before = sent.length;
+    await s.controller.run();
+    expect(sent.slice(before)).toEqual([opIdV1(1)]);
+    expect(s.state().phase).toBe('paused');
+    await s.controller.run();
+    expect(sent).toHaveLength(before + 1);
+    expect(s.state()).toMatchObject({ phase: 'done', error: 'expired' });
+    s.controller.dispose();
+  });
+  it('tells how many accounts were already written when access ends mid-run, without names', async () => {
+    let writes = 0;
+    const s = setup(async (_path, init) => {
+      if (JSON.parse(init.body as string).operation === 'bulk-preview')
+        return opJsonV1(preview([1, 2, 3, 4, 5, 6, 7, 8]));
+      return ++writes <= 6 ? committed() : opJsonV1({ ...OP_META_V1, state: 'forbidden' }, 403);
+    });
+    await s.controller.preview(query);
+    await s.controller.run();
+    expect(s.state().items).toEqual([]);
+    expect(s.unauthorized).toHaveBeenCalledWith(expect.anything(), { written: 6, targets: 8 });
+    s.controller.dispose();
+  });
+  it('accepts the phrase typed in lower case, as the field shows it', async () => {
+    const s = setup(async (_path, init) =>
+      JSON.parse(init.body as string).operation === 'bulk-preview'
+        ? opJsonV1(preview([1], 1, { action: 'block' }))
+        : committed(),
+    );
+    render(
+      <StudentBulkV1
+        client={s.client}
+        scope={OP_CLASS_V1}
+        scopeLabel="SYNTHETIC CLASS"
+        canWrite
+        onAuthorizationLost={s.unauthorized}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Bloquear acesso' }));
+    const input = await screen.findByRole('textbox', {
+      name: 'Digite BLOQUEAR ACESSO para confirmar',
+    });
+    fireEvent.change(input, { target: { value: 'bloquear acesso ' } });
+    const confirm = screen.getByRole('button', {
+      name: 'Confirmar bloquear acesso',
+    }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(false);
+    s.controller.dispose();
+  });
+  it('keeps naming the previewed target when the table selection is cleared under the dialog', async () => {
+    const s = setup(async (_path, init) =>
+      JSON.parse(init.body as string).operation === 'bulk-preview'
+        ? opJsonV1(preview([1, 2], 2, { action: 'block' }))
+        : committed(),
+    );
+    const props = {
+      client: s.client,
+      scope: OP_CLASS_V1,
+      scopeLabel: 'SYNTHETIC CLASS',
+      canWrite: true,
+      onAuthorizationLost: s.unauthorized,
+    };
+    const view = render(<StudentBulkV1 {...props} selected={new Set([opIdV1(1)])} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Bloquear acesso' }));
+    await screen.findByRole('textbox', { name: 'Digite BLOQUEAR ACESSO para confirmar' });
+    expect(screen.getByText('Somente selecionados')).toBeTruthy();
+    view.rerender(<StudentBulkV1 {...props} selected={new Set()} />);
+    expect(screen.getByText('Somente selecionados')).toBeTruthy();
+    expect(screen.queryByText('Turma inteira')).toBeNull();
+    s.controller.dispose();
+  });
   it('requires the explicit destructive phrase before account reset and displays per-account outcomes', async () => {
     let writes = 0;
     const s = setup(async (_path, init) => {
@@ -257,6 +419,39 @@ describe('bulk preview and execution', () => {
     expect(await screen.findByText(/1 concluídos/)).toBeTruthy();
     expect(screen.getByRole('progressbar', { name: /Progresso da operação/ })).toBeTruthy();
     expect(screen.queryByText('SYNTHETIC BULK 1 · SYNTHETIC CLASS')).toBeNull();
+    s.controller.dispose();
+  });
+  it('asks the list to read again once when a run with writes stops, never per item', async () => {
+    const s = setup(async (_path, init) =>
+      JSON.parse(init.body as string).operation === 'bulk-preview'
+        ? opJsonV1(preview([1, 2, 3], 3, { action: 'block' }))
+        : committed(),
+    );
+    const onCommitted = vi.fn();
+    render(
+      <StudentBulkV1
+        client={s.client}
+        scope={OP_CLASS_V1}
+        scopeLabel="SYNTHETIC CLASS"
+        canWrite
+        onAuthorizationLost={s.unauthorized}
+        onCommitted={onCommitted}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Bloquear acesso' }));
+    const input = await screen.findByRole('textbox', {
+      name: 'Digite BLOQUEAR ACESSO para confirmar',
+    });
+    expect(onCommitted).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: 'BLOQUEAR ACESSO' } });
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmar bloquear acesso' })),
+    );
+    expect(await screen.findByText(/3 concluídos/)).toBeTruthy();
+    expect(onCommitted).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    expect(await screen.findByRole('button', { name: 'Bloquear acesso' })).toBeTruthy();
+    expect(onCommitted).toHaveBeenCalledOnce();
     s.controller.dispose();
   });
   it('prepares each clicked action directly and requires its own command before writing', async () => {

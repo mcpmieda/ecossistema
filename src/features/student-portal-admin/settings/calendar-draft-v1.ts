@@ -72,22 +72,6 @@ export function calendarDraftV1(value: CalendarV1): CalendarDraftV1 {
         : emptyPeriodDates(),
   };
 }
-export function calendarDraftModeV1(
-  draft: CalendarDraftV1,
-  mode: CalendarDraftV1['mode'],
-): CalendarDraftV1 {
-  if (mode === draft.mode) return draft;
-  // A mode change never copies one date into six dates or silently schedules periods.
-  return {
-    ...draft,
-    mode,
-    singleAt: '',
-    singleUntil: '',
-    periodUntil: emptyPeriodDates(),
-    singlePeriods: [...PERIODS_V1],
-    periodAt: emptyPeriodDates(),
-  };
-}
 /** The draft's disclosure: the agenda when there is one, else the single date or one per period. */
 function draftDisclosureV1(draft: CalendarDraftV1) {
   if (draft.agenda?.disclosure) return draft.agenda.disclosure;

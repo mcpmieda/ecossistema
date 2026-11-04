@@ -103,17 +103,22 @@ export function DateInputV1({
   value,
   onChange,
   disabled,
+  endOfDay = false,
 }: Readonly<{
   label: string;
   value: string;
   onChange: (value: string) => void;
   disabled: boolean;
+  /** An upper bound picked from the calendar covers the whole chosen day. */
+  endOfDay?: boolean;
 }>) {
   const [isOpen, setOpen] = useState(false);
   const placeholder = useMemo(() => {
     const date = today('America/Sao_Paulo');
-    return new CalendarDateTime(date.year, date.month, date.day, 0, 0, 0);
-  }, []);
+    return endOfDay
+      ? new CalendarDateTime(date.year, date.month, date.day, 23, 59, 0)
+      : new CalendarDateTime(date.year, date.month, date.day, 0, 0, 0);
+  }, [endOfDay]);
   let parsed: CalendarDateTime | null = null;
   try {
     parsed = value ? parseDateTime(value) : null;

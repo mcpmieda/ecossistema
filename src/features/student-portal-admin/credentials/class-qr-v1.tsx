@@ -53,10 +53,7 @@ function ClassQrRowsV1(
     label: string;
   },
 ) {
-  const [selection, setSelection] = useState<{ revision: number; ids: Set<string> }>({
-    revision: -1,
-    ids: new Set(),
-  });
+  const [selection, setSelection] = useState(() => new Set<string>());
   const pageVersion = useRef<number | null>(null);
   const load = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
@@ -78,15 +75,26 @@ function ClassQrRowsV1(
     [props.reader, props.scope],
   );
   const read = useContinuousReadV1(load, 'accountId', props.onAuthorizationLost);
+  const readScopeVersion = useCallback(
+    async (signal: AbortSignal) => {
+      const result = await props.reader.query(
+        { contractVersion: 2, operation: 'accounts-read', scope: props.scope, page: { limit: 1 } },
+        signal,
+      );
+      if (result.state !== 'accounts-read') throw new PortalClientErrorV1('invalid-response');
+      return result.scopeVersion;
+    },
+    [props.reader, props.scope],
+  );
   const current = read.state.state === 'ready' ? read.state.data : null;
   const accounts = current?.items ?? [];
   const eligible = new Set(
     accounts.filter(accountCredentialPreparableV1).map((item) => item.accountId),
   );
-  const selected =
-    selection.revision === current?.scopeVersion
-      ? new Set([...selection.ids].filter((id) => eligible.has(id)))
-      : new Set<string>();
+  // The scope version counts every account of the school, so a live refresh keeps the ticks; the
+  // click sends the version it sees and the server checks it. The tools get the ticks as made: a
+  // tick that lost eligibility counts nothing, but never turns the selection into the whole list.
+  const selected = new Set([...selection].filter((id) => eligible.has(id)));
   const loading =
     read.state.state === 'error' ? null : <output className="block">Carregando alunos…</output>;
   return (
@@ -112,7 +120,7 @@ function ClassQrRowsV1(
             <QrBatchToolsV1
               client={props.client}
               accounts={accounts}
-              selected={selected}
+              selected={selection}
               academicYear={props.scope.academicYear}
               classId={props.scope.classId}
               scopeVersion={current.scopeVersion}
@@ -123,6 +131,7 @@ function ClassQrRowsV1(
               onCommitted={read.reload}
               onAuthorizationLost={props.onAuthorizationLost}
               renderArtifact={props.renderArtifact}
+              readScopeVersion={readScopeVersion}
             />
             <Table variant="secondary">
               <Table.ScrollContainer role="region" tabIndex={0} aria-label="Alunos para QR">
@@ -135,14 +144,13 @@ function ClassQrRowsV1(
                     .filter((item) => !props.canWrite || !eligible.has(item.accountId))
                     .map((item) => item.accountId)}
                   onSelectionChange={(keys) =>
-                    setSelection({
-                      revision: current.scopeVersion,
-                      ids: new Set(
+                    setSelection(
+                      new Set(
                         keys === 'all'
                           ? eligible
                           : [...keys].map(String).filter((id) => eligible.has(id)),
                       ),
-                    })
+                    )
                   }
                 >
                   <Table.Header>

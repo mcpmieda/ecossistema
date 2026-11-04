@@ -20,7 +20,6 @@ describe('birth values and bounded joined reads', () => {
       scope,
       undefined,
       new AbortController().signal,
-      undefined,
       { account, scopeVersion: 99 },
     );
     expect(result.rows[0]?.account).toBe(account);
@@ -40,7 +39,6 @@ describe('birth values and bounded joined reads', () => {
       scope,
       undefined,
       new AbortController().signal,
-      undefined,
       { account, scopeVersion: 99 },
     );
     expect(result.rows[0]?.account.version).toBe(mock.accounts[0]!.version);
@@ -60,7 +58,6 @@ describe('birth values and bounded joined reads', () => {
       scope,
       undefined,
       new AbortController().signal,
-      undefined,
       { account, scopeVersion: 98 },
     );
     expect(mock.queries.map((query) => query.operation)).toEqual(['birth-years', 'accounts-read']);
@@ -159,19 +156,9 @@ describe('birth values and bounded joined reads', () => {
       ),
     ).rejects.toMatchObject({ state: 'conflict' });
   });
-  it('rejects closed, moved or mismatched identities and refuses school scope before a request', async () => {
+  it('rejects closed identities and refuses school scope before a request', async () => {
     const mock = birthMockV1(),
       signal = new AbortController().signal;
-    await expect(
-      readBirthPageV1(
-        mock.client,
-        mock.reader,
-        { kind: 'account', academicYear: 2026, accountId: mock.accounts[0]!.accountId },
-        undefined,
-        signal,
-        754002,
-      ),
-    ).rejects.toMatchObject({ state: 'conflict' });
     mock.accounts[0]!.linkClosed = true;
     await expect(
       readBirthPageV1(mock.client, mock.reader, BIRTH_CLASS_V1, undefined, signal),

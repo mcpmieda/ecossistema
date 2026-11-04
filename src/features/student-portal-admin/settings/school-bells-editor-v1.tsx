@@ -54,6 +54,26 @@ function withTimeAtV1<T extends { start: string; end: string }>(list: readonly T
 function withoutAtV1<T>(list: readonly T[], index: number): T[] {
   return list.filter((_, at) => at !== index);
 }
+const minutesOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+/**
+ * A lesson or the break added at the end of the day. A parada after the lessons stays last: the new
+ * item takes its time and the parada follows it, as long as it was.
+ */
+function withAddedV1(list: readonly BellItemV1[], kind: 'aula' | 'intervalo', minutes: number, lastEnd: string): BellItemV1[] {
+  const tail = list.at(-1);
+  const closing = list.length > 1 && tail?.kind === 'parada' ? tail : null;
+  const start = closing ? closing.start : lastEnd;
+  const end = later(start, minutes);
+  const added: BellItemV1 = kind === 'aula' ? { kind, slot: 0, start, end } : { kind, start, end };
+  if (!closing) return [...list, added];
+  const length = minutesOf(closing.end) - minutesOf(closing.start);
+  return [...list.slice(0, -1), added, { ...closing, start: end, end: later(end, length) }];
+}
+/** A parada before the lessons (the usual one) or, when the day already starts with one, after them. */
+function withParadaV1(list: readonly BellItemV1[], firstStart: string, lastEnd: string): BellItemV1[] {
+  if (list[0]?.kind === 'parada') return [...list, { kind: 'parada', start: lastEnd, end: later(lastEnd, 15) }];
+  return [{ kind: 'parada', start: later(firstStart, -15), end: firstStart }, ...list];
+}
 
 export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: PortalAdminClientV1; canWrite: boolean }>) {
   const [saved, setSaved] = useState<{ version: number; bells: SchoolBellsDaysV1 } | null>(null);
@@ -303,9 +323,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                         size="sm"
                         variant="secondary"
                         isDisabled={lessons >= 6 || items.length >= 10}
-                        onPress={() =>
-                          editDay(weekday, (list) => [...list, { kind: 'aula', slot: 0, start: lastEnd, end: later(lastEnd, 50) }])
-                        }
+                        onPress={() => editDay(weekday, (list) => withAddedV1(list, 'aula', 50, lastEnd))}
                       >
                         <Plus size={14} aria-hidden="true" /> Aula
                       </Button>
@@ -313,9 +331,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                         size="sm"
                         variant="secondary"
                         isDisabled={hasBreak || items.length >= 10}
-                        onPress={() =>
-                          editDay(weekday, (list) => [...list, { kind: 'intervalo', start: lastEnd, end: later(lastEnd, 15) }])
-                        }
+                        onPress={() => editDay(weekday, (list) => withAddedV1(list, 'intervalo', 15, lastEnd))}
                       >
                         <Plus size={14} aria-hidden="true" /> Intervalo
                       </Button>
@@ -323,10 +339,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                         size="sm"
                         variant="secondary"
                         isDisabled={paradas >= 2 || items.length >= 10}
-                        onPress={() =>
-                          // Before the lessons (the usual one); the day's order is kept by the start time.
-                          editDay(weekday, (list) => [{ kind: 'parada', start: later(firstStart, -15), end: firstStart }, ...list])
-                        }
+                        onPress={() => editDay(weekday, (list) => withParadaV1(list, firstStart, lastEnd))}
                       >
                         <Plus size={14} aria-hidden="true" /> Parada
                       </Button>

@@ -55,6 +55,12 @@ function handshakeLeaseV1(
     : null;
 }
 
+/** Closes in a row before any handshake, while renewal is offered, before the legacy URL is used:
+ * a single one is as likely a dropped mobile connection as an older server. */
+const RENEWAL_MISSES_V1 = 2;
+/** Legacy connections before renewal is offered again; that probe falls back after one miss. */
+const RENEWAL_PROBE_AFTER_V1 = 10;
+
 /** Security leases never request or invalidate the academic snapshot. */
 export function createStudentSecurityV1(options: {
   connect: (connectionId?: string) => StudentSecuritySocketV1;
@@ -69,6 +75,8 @@ export function createStudentSecurityV1(options: {
   let connectionId: string | undefined;
   let renewable = false;
   let attemptRenewal = true;
+  let renewalMisses = 0,
+    legacyConnections = 0;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let rotation: ReturnType<typeof setTimeout> | undefined;
@@ -188,8 +196,15 @@ export function createStudentSecurityV1(options: {
     const startedAt = Date.now(),
       version = noticeVersion;
     let acknowledged = false;
+    if (!attemptRenewal && ++legacyConnections > RENEWAL_PROBE_AFTER_V1) {
+      // The fallback may have come from a flaky network, not an older server: offer renewal again.
+      attemptRenewal = true;
+      legacyConnections = 0;
+      renewalMisses = RENEWAL_MISSES_V1 - 1;
+    }
+    const offered = attemptRenewal;
     try {
-      connectionId = attemptRenewal ? crypto.randomUUID() : undefined;
+      connectionId = offered ? crypto.randomUUID() : undefined;
       current = options.connect(connectionId);
     } catch {
       schedule();
@@ -201,6 +216,7 @@ export function createStudentSecurityV1(options: {
       const handshake = securityHandshakeV1(value);
       if (!handshake) return;
       acknowledged = true;
+      if (offered) renewalMisses = 0;
       if (handshake.supportsRenewal) {
         renewable = true;
         clearTimeout(rotation);
@@ -243,7 +259,7 @@ export function createStudentSecurityV1(options: {
       if (!disposed && socket === current) {
         // Older deployments can reject unknown query parameters before acknowledging.
         // Retry their unchanged URL and retain the existing rotation protocol.
-        if (!acknowledged) attemptRenewal = false;
+        if (!acknowledged && offered && ++renewalMisses >= RENEWAL_MISSES_V1) attemptRenewal = false;
         schedule();
       }
     };

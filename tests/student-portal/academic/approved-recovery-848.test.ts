@@ -121,3 +121,65 @@ it('keeps the selected older edition and published REC through scopedSelfV2 with
   expect(subject.periods.find((period) => period.period === 'T1')!.partials!
     .find((item) => item.assessmentId === 8480103)).toMatchObject({ mark: { kind: 'absent' }, notDone: true });
 });
+
+/** The same student and policy, with only `published` periods released by the school. */
+async function selfWith848(published: readonly string[], kind: 'score' | 'recovery-pending', policy: Record<string, unknown> = {}) {
+  const fixture = parallelFixture848();
+  const source = approvedSource848(kind).source;
+  const rows = PERIODS_V1.map((period, index) => {
+    const on = published.includes(period);
+    return {
+      period, mask: 1 << index, decision_version: 1, approved_revision: on ? PARALLEL_VERSION_848 : null,
+      target_revision: on ? PARALLEL_VERSION_848 : null, payload_json: on ? source : null, edition_class_id: 848001,
+      edition_revision: '1', available_mask: 63, latest_revision: '1',
+    };
+  });
+  const defaults = initialPolicyDefaultsV1();
+  const value = settingsValueV1.parse({ ...defaults,
+    accessEnabled: true, showPartials: true, showFinalResult: false, showTermClosing: true, termClosingConclusive: true, autoUpdate: false,
+    allowedPeriods: [...PERIODS_V1], calendar: { ...defaults.calendar,
+      yearStartsAt: '2026-01-01T00:00:00Z', t1EndsAt: '2026-04-01T00:00:00Z',
+      t2StartsAt: '2026-04-02T00:00:00Z', t2EndsAt: '2026-07-01T00:00:00Z',
+      t3StartsAt: '2026-07-02T00:00:00Z', t3EndsAt: '2026-08-31T00:00:00Z',
+      recoveriesStartAt: '2026-09-01T00:00:00Z', finalDisclosureAt: '2026-09-17T00:00:00Z',
+      yearEndsAt: '2026-12-31T23:59:59Z',
+      disclosure: { mode: 'single', at: null, periods: [...PERIODS_V1] },
+    }, ...policy,
+  });
+  const context = {
+    account: { id: PARALLEL_ACCOUNT_848, link: fixture.link },
+    policy: { enforcedValue: value, classId: 848001, policyVersion: SYNTHETIC_SELF_V1.revisions.policyVersion, settings: { value } },
+    profile: { ...SYNTHETIC_SELF_V1.profile, accountId: PARALLEL_ACCOUNT_848, link: fixture.link,
+      name: 'ESTUDANTE SINTETICO', classLabel: 'TURMA SINTETICA', academicState: 'regular', result: 'in-progress' },
+    now: new Date('2026-09-18T00:00:00Z'),
+  } as unknown as Parameters<typeof scopedSelfV2>[1];
+  const tx = { unsafe: async () => { throw new Error('unexpected-query'); } } as unknown as StudentPortalPostgresQueryV1;
+  return scopedSelfV2(tx, context, '84800000-0000-4000-8000-000000000098', {
+    scoped: async () => structuredClone(rows) as never,
+    latest: async () => ({ payload_json: source, class_id: 848001, revision: PARALLEL_VERSION_848 }) as never,
+    studentKey: async () => 'synthetic-student-key' as never,
+  });
+}
+
+it('shows EM RECUPERAÇÃO only while the 3º trimestre it comes from is published', async () => {
+  const all = await selfWith848(PERIODS_V1, 'recovery-pending');
+  expect(all.profile.annualSituation).toBe('in-recovery');
+  expect(all.subjects[0]!.annualSituation).toBe('recovery-pending');
+  const withdrawn = await selfWith848(['T1', 'T2'], 'recovery-pending');
+  expect(withdrawn.subjects[0]!.periods.map((period) => period.period)).toEqual(['T1', 'T2']);
+  expect(withdrawn.profile.annualSituation).toBeUndefined();
+  expect(withdrawn.subjects[0]!.annualSituation).toBeUndefined();
+});
+
+it('never sends a trimester closing whose marks are not published', async () => {
+  const closingsOf = (self: Awaited<ReturnType<typeof selfWith848>>) =>
+    self.subjects.flatMap((subject) => (subject.closings ?? []).map((closing) => closing.period));
+  const all = await selfWith848(PERIODS_V1, 'recovery-pending');
+  expect(closingsOf(all).length).toBeGreaterThan(0);
+  const some = await selfWith848(['T1'], 'recovery-pending');
+  expect(new Set(closingsOf(some))).toEqual(new Set(['T1']));
+  const none = await selfWith848([], 'recovery-pending');
+  expect(none.state).toBe('no-publication');
+  expect(closingsOf(none)).toEqual([]);
+  expect(none.closingSummaries ?? []).toEqual([]);
+});

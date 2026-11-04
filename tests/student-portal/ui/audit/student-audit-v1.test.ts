@@ -85,6 +85,20 @@ describe('audit filters and restricted detail interface', () => {
     expect(mock.queries.at(-1)!.page.cursor).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
   }, 20_000);
+  it('"Até" includes the whole chosen minute', async () => {
+    const user = userEvent.setup();
+    const mock = operationsMockV1({ count: 3 });
+    render(createElement(StudentAuditV1, { ...mock.props, scope: OP_CLASS_V1 }));
+    await screen.findByRole('grid');
+    await enterDateV1(user, 'Até', '2026-11-03T14:30:00');
+    await waitFor(() =>
+      expect(mock.queries.at(-1)).toMatchObject({
+        operation: 'audit',
+        until: '2026-11-03T17:30:59.999Z',
+      }),
+    );
+    expect(mock.writes).toHaveLength(0);
+  }, 20_000);
   it('renders 100 audit events first and appends the final five only on demand', async () => {
     const observer = controlledContinuousObserverV1();
     const mock = operationsMockV1({ count: 105 });

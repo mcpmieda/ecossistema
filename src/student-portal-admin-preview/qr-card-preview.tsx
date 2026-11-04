@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { QrCardSchoolV1, QrAccessCard } from './qr-access-card';
+import { QrCardSchoolV1, QrAccessCard, columnsForWidth, savedSetting, sizeForRows } from './qr-access-card';
 import { createRoot, type Root } from 'react-dom/client';
 import { qrSvgV1 } from '../features/student-portal-admin/credentials/qr-artifacts-v1';
 import { SYNTHETIC_QR_V1 } from '../../shared/student-portal-contracts/fixtures-v1';
@@ -11,22 +11,6 @@ import './qr-card-preview.css';
 const qrImage = `data:image/svg+xml,${encodeURIComponent(qrSvgV1(SYNTHETIC_QR_V1))}`;
 const spacingKey = 'qr-card-preview-symbol-spacing';
 const rowsKey = 'qr-card-preview-symbol-rows';
-const emblemSize = 20;
-
-function columnsForWidth(width: number, spacing: number, size: number) {
-  return Math.floor((width - size) / (size + spacing)) + 1;
-}
-
-function sizeForRows(height: number, rows: number, spacing: number) {
-  return Math.min(emblemSize, Math.floor((height - (rows - 1) * spacing) / rows));
-}
-
-function savedSetting(key: string, fallback: number, min: number, max: number) {
-  const stored = window.localStorage.getItem(key);
-  if (stored === null) return fallback;
-  const value = Number(stored);
-  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
-}
 
 const sampleNames = [
   { label: 'Curto', value: 'Lucas Exemplo' },

@@ -135,8 +135,11 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
   const before = normalizeCalendarV1(previous);
   const after = normalizeCalendarV1(next);
   const past = (value: string | null) => value !== null && Date.parse(value) <= now;
+  // A blank date is not "later": a blank release opens with the term and a blank start falls
+  // back to an earlier date, so adding or clearing one can change what students see right away.
+  const settled = (value: string | null) => value === null || past(value);
   const changedDate = (left: string | null, right: string | null) =>
-    left !== right && (past(left) || past(right));
+    left !== right && (settled(left) || settled(right));
   const dates = [
     'enrollmentStartsAt',
     'yearStartsAt',
@@ -165,7 +168,7 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
       changedDate(left.endsAt ?? null, right.endsAt ?? null) ||
       (canonical([...left.periods].sort((a, b) => a.localeCompare(b))) !==
         canonical([...right.periods].sort((a, b) => a.localeCompare(b))) &&
-        (past(left.at) || past(right.at)))
+        (settled(left.at) || settled(right.at)))
     );
   }
   if (left.mode === 'per-period' && right.mode === 'per-period') {

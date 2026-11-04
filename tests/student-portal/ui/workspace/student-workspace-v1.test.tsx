@@ -519,6 +519,20 @@ describe('Relatório do trimestre summary on the Boletim', () => {
     expect(screen.getByText(/Relatório do 1º trimestre/u)).toBeTruthy();
     expect(screen.queryByText(/Relatório do 2º trimestre/u)).toBeNull();
   });
+
+  it('shows "Novo" on the summary of the trimester tab just opened, not the first one read', async () => {
+    globalThis.localStorage.clear();
+    // The 1º trimestre summary was already seen on this browser; the 2º one has just come out.
+    render(<StudentPortalWorkspaceV1 data={{ ...withT2(), closingSummaries: [summary('T1')] }} profile={null} />);
+    cleanup();
+    const data = { ...withT2(), closingSummaries: [summary('T1'), summary('T2')] };
+    render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
+    const first = screen.getByRole('region', { name: /Relatório do 1º trimestre/u });
+    expect(within(first).queryByText('Novo')).toBeNull();
+    await userEvent.setup().click(screen.getByRole('tab', { name: /^2º Trimestre/u }));
+    const second = await screen.findByRole('region', { name: /Relatório do 2º trimestre/u });
+    expect(within(second).getByText('Novo')).toBeTruthy();
+  });
 });
 
 it('goes back to the Boletim from the arrow beside the discipline icon', async () => {

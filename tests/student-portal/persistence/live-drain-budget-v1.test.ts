@@ -120,6 +120,18 @@ it('prunes publication editions only at midnight in Brasília', async () => {
   expect(pruned()).toBe(1);
 });
 
+it('keeps the midnight pruning when the cleanups carry the run past 00:01', async () => {
+  vi.setSystemTime(new Date('2026-10-02T03:00:57Z'));
+  const unsafe = vi.fn(async (_query: string) => {
+    vi.setSystemTime(Date.now() + 2_000);
+    return [];
+  });
+  const sql = { unsafe, begin: async (run: (tx: { unsafe: typeof unsafe }) => unknown) => run({ unsafe }) };
+  mocks.database.mockImplementation(async (_env, _operation, run) => run(sql));
+  await portalScheduledV1(env);
+  expect(unsafe.mock.calls.some(([query]) => query === 'SELECT student_portal.prune_publication_source_v1()')).toBe(true);
+});
+
 it('the private drain accepts only a fresh same-tenant BN capability in a serving production deployment', () => {
   expect(allowPortalLiveDrainV1(env, context())).toBe(true);
   for (const input of [{}, { ...context(), capability: 'platform.settings.write' },

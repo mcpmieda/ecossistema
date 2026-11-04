@@ -71,23 +71,6 @@ function pairedRowV1(
   return { account, birth: value };
 }
 
-/** A repeated cursor pair would loop forever: refuse it. */
-function markCursorSeenV1(seen: Set<string>, cursor: BirthCursorsV1) {
-  const key = JSON.stringify(cursor);
-  if (seen.has(key)) throw new PortalClientErrorV1('invalid-response');
-  seen.add(key);
-}
-
-/** Adds a page's rows by account (a later copy replaces an earlier one) and counts the new ones. */
-function mergeBirthRowsV1(rows: Map<string, BirthRecordV1>, page: readonly BirthRecordV1[]) {
-  let added = 0;
-  for (const row of page) {
-    if (!rows.has(row.account.accountId)) added++;
-    rows.set(row.account.accountId, row);
-  }
-  return added;
-}
-
 /** Two bounded reads, joined by identity and matching account CAS, never by row position.
  * Opaque cursors belong to different operations and must remain separate. */
 export async function readBirthPageV1(
@@ -96,7 +79,6 @@ export async function readBirthPageV1(
   scope: BirthScopeV1,
   cursor: BirthCursorsV1 | undefined,
   signal: AbortSignal,
-  expectedClassId?: number,
   initialAccount?: InitialBirthAccountV1,
 ): Promise<BirthPageV1> {
   const parsed = scopeV1.safeParse(scope);
@@ -155,7 +137,7 @@ export async function readBirthPageV1(
     throw new PortalClientErrorV1('invalid-response');
   if (scope.kind === 'account' && (accounts.items.length > 1 || accounts.nextCursor))
     throw new PortalClientErrorV1('invalid-response');
-  const classId = scope.kind === 'class' ? scope.classId : expectedClassId;
+  const classId = scope.kind === 'class' ? scope.classId : undefined;
   const rows = accounts.items.map((account) =>
     pairedRowV1(account, births.get(account.accountId), scope, classId),
   );
@@ -165,47 +147,4 @@ export async function readBirthPageV1(
     accountsScopeVersion: accounts.scopeVersion,
     next: pairedCursorsV1(accounts.nextCursor, birth.nextCursor),
   };
-}
-
-/** Automatic collection for the UI. The first interaction stays to one100-row page; later
- * continuation keeps the paired account/birth cursors and all existing CAS checks. */
-export async function readBirthCollectionV1(
-  client: PortalAdminClientV1,
-  reader: PortalAdminReadClientV2,
-  scope: BirthScopeV1,
-  signal: AbortSignal,
-  desired = 100,
-  seed?: BirthPageV1,
-  initialAccount?: InitialBirthAccountV1,
-): Promise<BirthPageV1> {
-  const rows = new Map((seed?.rows ?? []).map((row) => [row.account.accountId, row]));
-  const seen = new Set<string>();
-  let cursor = seed?.next ?? undefined;
-  let result = seed;
-  let added = 0;
-  for (let i = 0; i < Math.max(20, Math.ceil(desired / 100) + 10); i++) {
-    signal.throwIfAborted();
-    if (cursor) markCursorSeenV1(seen, cursor);
-    const page = await readBirthPageV1(
-      client,
-      reader,
-      scope,
-      cursor,
-      signal,
-      undefined,
-      i === 0 ? initialAccount : undefined,
-    );
-    signal.throwIfAborted();
-    if (
-      result?.accountsScopeVersion !== undefined &&
-      result.accountsScopeVersion !== page.accountsScopeVersion
-    )
-      throw new PortalClientErrorV1('conflict');
-    added += mergeBirthRowsV1(rows, page.rows);
-    result = { ...page, rows: [...rows.values()] };
-    if (!page.next || added >= desired) return result;
-    cursor = page.next;
-  }
-  if (!result) throw new PortalClientErrorV1('invalid-response');
-  return result;
 }

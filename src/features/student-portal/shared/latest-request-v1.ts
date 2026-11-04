@@ -5,27 +5,54 @@ export type PortalLoadStateV1<T> =
   | { state: 'ready'; data: T; refreshing?: boolean; refreshError?: PortalClientErrorV1 }
   | { state: 'error'; error: PortalClientErrorV1 };
 
-/** A background failure keeps content verified in the last minute; denial, conflict and malformed
- * data are never hidden behind old content. */
+/** A background failure keeps content verified in the last minute (a silent read keeps it with
+ * its notice); denial, conflict and malformed data are never hidden behind old content. */
 function failedStateV1<T>(
   error: unknown,
   previous: { data: T } | null,
-  verifiedAt: number,
+  retained: boolean,
 ): PortalLoadStateV1<T> {
   const failure =
     error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('network-error');
   const transient = ['network-error', 'unavailable', 'rate-limited'].includes(failure.state);
-  if (previous && transient && Date.now() - verifiedAt <= 60_000)
+  if (previous && transient && retained)
     return { state: 'ready', data: previous.data, refreshing: false, refreshError: failure };
   return { state: 'error', error: failure };
 }
 
+/** Same JSON values, arrays, Maps and Sets: an identical answer keeps what is on screen. */
+function sameReadV1(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null)
+    return false;
+  if (Object.getPrototypeOf(left) !== Object.getPrototypeOf(right)) return false;
+  if (left instanceof Map && right instanceof Map)
+    return (
+      left.size === right.size &&
+      [...left].every(([key, value]) => right.has(key) && sameReadV1(value, right.get(key)))
+    );
+  if (left instanceof Set && right instanceof Set)
+    return left.size === right.size && [...left].every((value) => right.has(value));
+  if (left instanceof Date && right instanceof Date) return left.getTime() === right.getTime();
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every(
+      (key) =>
+        Object.hasOwn(right, key) &&
+        sameReadV1((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+    )
+  );
+}
+
 /** A scope switch clears protected data immediately, even when a fetch ignores abort.
  * Background refresh is explicit and local to the same reader/context, never persistent cache.
+ * A silent read (the window came back) shows nothing while it runs and publishes only a change.
  */
 export function createLatestPortalRequestV1<T>(publish: (state: PortalLoadStateV1<T>) => void) {
   let generation = 0;
   let active: AbortController | undefined;
+  let activeSilent = false;
   let state: PortalLoadStateV1<T> = { state: 'idle' };
   let verifiedAt = 0;
   const emit = (next: PortalLoadStateV1<T>) => {
@@ -37,38 +64,54 @@ export function createLatestPortalRequestV1<T>(publish: (state: PortalLoadStateV
       generation += 1;
       active?.abort();
       active = undefined;
+      activeSilent = false;
       if (state.state === 'ready') emit({ ...state, refreshing: false });
     },
     clear() {
       generation += 1;
       active?.abort();
       active = undefined;
+      activeSilent = false;
       verifiedAt = 0;
       emit({ state: 'idle' });
     },
-    async run(load: (signal: AbortSignal) => Promise<T>, options: { background?: boolean } = {}) {
-      if (options.background && active) return;
+    async run(
+      load: (signal: AbortSignal) => Promise<T>,
+      options: { background?: boolean; silent?: boolean } = {},
+    ) {
+      // A silent read never waits for another read; a read someone asked for replaces it.
+      if (active && (options.silent || (options.background && !activeSilent))) return;
       const current = ++generation;
       active?.abort();
       const controller = new AbortController();
       active = controller;
-      const previous = options.background && state.state === 'ready' ? state : null;
-      emit(
-        previous ? { state: 'ready', data: previous.data, refreshing: true } : { state: 'loading' },
-      );
+      activeSilent = Boolean(options.silent);
+      const previous =
+        (options.background || options.silent) && state.state === 'ready' ? state : null;
+      if (!options.silent)
+        emit(
+          previous
+            ? { state: 'ready', data: previous.data, refreshing: true }
+            : { state: 'loading' },
+        );
       try {
         const data = await load(controller.signal);
         if (current === generation && !controller.signal.aborted) {
           verifiedAt = Date.now();
-          emit({ state: 'ready', data });
+          if (!options.silent || !previous || !sameReadV1(previous.data, data))
+            emit({ state: 'ready', data });
+          else if (previous.refreshError) emit({ state: 'ready', data: previous.data });
           return true;
         }
       } catch (error) {
         if (current !== generation || controller.signal.aborted) return;
-        emit(failedStateV1(error, previous, verifiedAt));
+        emit(failedStateV1(error, previous, options.silent || Date.now() - verifiedAt <= 60_000));
         return false;
       } finally {
-        if (current === generation) active = undefined;
+        if (current === generation) {
+          active = undefined;
+          activeSilent = false;
+        }
       }
     },
   };

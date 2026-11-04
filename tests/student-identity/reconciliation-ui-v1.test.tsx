@@ -139,6 +139,68 @@ describe('Relatório e aba Alunos', () => {
       ),
     ).toBe(true);
   });
+  it('mostra o histórico de decisões em português, sem os códigos gravados', async () => {
+    const scope = { kind: 'school' as const, academicYear: 2026 as const };
+    const request = vi.fn(
+      async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
+        const base = { contractVersion: 1 as const, state: 'ready' as const, context };
+        if (input.operation === 'catalog')
+          return { ...base, operation: 'catalog', classes: [], reportClasses: [] };
+        if (input.operation === 'detail')
+          return {
+            ...base,
+            operation: 'detail',
+            selectedObservationId: null,
+            sources: [],
+            candidates: [],
+            history: [
+              {
+                id: sourceId,
+                action: 'reject',
+                at: '2026-11-03T13:05:03Z',
+                reason: 'operator',
+                version: 1,
+              },
+              {
+                id: batchId,
+                action: 'associate',
+                at: '2026-11-03T13:06:03Z',
+                reason: 'inep_birth',
+                version: 2,
+              },
+            ],
+          };
+        return {
+          ...base,
+          operation: 'list',
+          nextCursor: null,
+          items: [
+            {
+              kind: 'person',
+              studentUid: uid,
+              academicStudentId: 1,
+              academicYear: 2026,
+              name: 'SYNTHETIC HISTORY',
+              relationName: 'SYNTHETIC HISTORY',
+              classId: null,
+              classLabel: null,
+              version: 1,
+              reconciliation: 'pending',
+              portal: 'without-portal',
+              accountId: null,
+              possibleSamePerson: false,
+            },
+          ],
+        };
+      },
+    );
+    render(<StudentReconciliationV1 client={{ request }} scope={scope} canWrite={false} />);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'SYNTHETIC HISTORY' }));
+    expect(await screen.findByText('Histórico de decisões')).toBeTruthy();
+    expect(screen.getByText(/Rejeição pelo operador$/)).toBeTruthy();
+    expect(screen.getByText(/Vínculo automático \(INEP e nascimento\)$/)).toBeTruthy();
+    expect(screen.queryByText(/reject|operator|inep_birth/)).toBeNull();
+  });
   it('mostra pessoa sem conta e pendência sem UID, carregando histórico somente ao abrir', async () => {
     const request = vi.fn(
       async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
@@ -1057,5 +1119,37 @@ describe('Relatório e aba Alunos', () => {
       credentials: 'same-origin',
       cache: 'no-store',
     });
+  });
+  it('Retry-After inválido numa falha ambígua não impede a única repetição técnica', async () => {
+    const fetcher = vi.fn(async () =>
+      fetcher.mock.calls.length === 1
+        ? new Response('<html>erro</html>', {
+            status: 502,
+            headers: { 'Content-Type': 'text/html', 'Retry-After': 'logo' },
+          })
+        : new Response(
+            JSON.stringify({
+              contractVersion: 1,
+              state: 'committed',
+              context,
+              operationId: batchId,
+            }),
+            { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
+          ),
+    );
+    const client = createReconciliationClientV1({ fetch: fetcher });
+    await expect(
+      client.request({
+        contractVersion: 1,
+        academicYear: 2026,
+        operation: 'apply',
+        generation: context.generation,
+        expectedRevision: 1,
+        batchId,
+        idempotencyKey: uid,
+        confirmDifferences: true,
+      }),
+    ).resolves.toMatchObject({ state: 'committed' });
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

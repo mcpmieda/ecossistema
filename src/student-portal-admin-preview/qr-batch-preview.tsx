@@ -4,7 +4,7 @@ import {
   PRINT_MODES_V1,
   type PrintModeV1,
 } from '../features/student-portal-admin/credentials/qr-values-v1';
-import { QrAccessCard } from './qr-access-card';
+import { QrAccessCard, savedSetting } from './qr-access-card';
 import './qr-card-preview.css';
 import './qr-batch-preview.css';
 
@@ -19,13 +19,6 @@ const students = Array.from({ length: 12 }, (_, index) => ({
 }));
 
 type Selection = 'class' | 'selected';
-
-function savedSetting(key: string, fallback: number, min: number, max: number) {
-  const stored = window.localStorage.getItem(key);
-  if (stored === null) return fallback;
-  const value = Number(stored);
-  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
-}
 
 function QrBatchPreview() {
   const [selection, setSelection] = useState<Selection>('class');

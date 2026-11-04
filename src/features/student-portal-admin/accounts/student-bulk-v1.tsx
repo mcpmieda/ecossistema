@@ -4,7 +4,11 @@ import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigatio
 import type { BulkPreviewQueryV1 } from '../../../../shared/student-portal-contracts/bulk-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
-import { createStudentBulkControllerV1, type BulkStateV1 } from './student-bulk-controller-v1';
+import {
+  createStudentBulkControllerV1,
+  type BulkInterruptedV1,
+  type BulkStateV1,
+} from './student-bulk-controller-v1';
 
 const actions = {
   'qr-regenerate': 'Mudar QR',
@@ -32,7 +36,9 @@ const errors: Record<string, string> = {
   'invalid-request': 'Solicitação recusada.',
   unavailable: 'Serviço indisponível.',
   'network-error': 'Resposta não recebida.',
+  'invalid-response': 'Resposta não reconhecida.',
   'rate-limited': 'Aguarde para tentar novamente.',
+  expired: 'A prévia expirou; prepare de novo.',
 };
 
 type BulkActionV1 = BulkPreviewQueryV1['action'];
@@ -136,6 +142,9 @@ function BulkProgressV1({
           </output>
         </p>
       ) : null}
+      {state.phase === 'done' && state.error === 'expired' ? (
+        <p role="alert">{errors.expired} Os itens pendentes não foram enviados.</p>
+      ) : null}
       {problems.length ? (
         <ul aria-label="Contas não concluídas" className="pa-bulk-dialog__problems">
           {problems.map((item) => (
@@ -227,24 +236,33 @@ export function StudentBulkV1({
   canWrite,
   selected,
   onAuthorizationLost,
+  onCommitted,
 }: Readonly<{
   client: PortalAdminClientV1;
   scope: BulkPreviewQueryV1['scope'];
   scopeLabel: string;
   canWrite: boolean;
   selected?: ReadonlySet<string>;
-  onAuthorizationLost: (error: PortalClientErrorV1) => void;
+  /** With how many accounts a run had already written, when access ended in the middle of it. */
+  onAuthorizationLost: (error: PortalClientErrorV1, interrupted?: BulkInterruptedV1) => void;
+  /** Once per stop of a run that wrote at least one account, never per item. */
+  onCommitted?: () => void;
 }>) {
   const [action, setAction] = useState<BulkPreviewQueryV1['action']>('qr-regenerate');
   const [state, setState] = useState<BulkStateV1>({ phase: 'idle', items: [], total: 0 });
   const [confirmation, setConfirmation] = useState('');
+  // The dialog names the target fixed by the preview, not a selection a re-read may clear.
+  const [onlySelected, setOnlySelected] = useState(false);
   const [clock, setClock] = useState(Date.now);
   const callback = useRef(onAuthorizationLost);
   callback.current = onAuthorizationLost;
   const controller = useRef<ReturnType<typeof createStudentBulkControllerV1> | null>(null);
+  const committedRef = useRef(onCommitted);
+  committedRef.current = onCommitted;
+  const announced = useRef(0);
   useEffect(() => {
-    const current = createStudentBulkControllerV1(client, setState, (error) =>
-      callback.current(error),
+    const current = createStudentBulkControllerV1(client, setState, (error, interrupted) =>
+      callback.current(error, interrupted),
     );
     controller.current = current;
     setState({ phase: 'idle', items: [], total: 0 });
@@ -258,6 +276,15 @@ export function StudentBulkV1({
     const timer = setTimeout(() => setClock(Date.now()), Math.max(0, state.retryAt - Date.now()));
     return () => clearTimeout(timer);
   }, [state.retryAt]);
+  // A run that stops with new writes asks the list to read again: automatic reads are paused.
+  const stopped = ['paused', 'unknown', 'done'].includes(state.phase);
+  const written = state.items.filter((item) => item.result === 'committed').length;
+  useEffect(() => {
+    if (state.phase === 'loading') announced.current = 0;
+    if (!stopped || written <= announced.current) return;
+    announced.current = written;
+    committedRef.current?.();
+  }, [state.phase, stopped, written]);
   const locked = ['loading', 'review', 'running', 'paused', 'unknown'].includes(state.phase);
   useDraftNavigationGuardV1(locked);
   const selection = selected?.size ?? 0;
@@ -269,6 +296,7 @@ export function StudentBulkV1({
     if (!canWrite || locked) return;
     setAction(next);
     setConfirmation('');
+    setOnlySelected(selection > 0);
     void controller.current?.preview(
       { contractVersion: 1, operation: 'bulk-preview', scope, action: next },
       selected,
@@ -321,7 +349,9 @@ export function StudentBulkV1({
                   <Chip variant="soft" color="accent">
                     {scopeLabel}
                   </Chip>
-                  <Chip variant="soft">{selection ? 'Somente selecionados' : 'Turma inteira'}</Chip>
+                  <Chip variant="soft">
+                    {onlySelected ? 'Somente selecionados' : 'Turma inteira'}
+                  </Chip>
                 </div>
                 {state.phase === 'loading' ? (
                   <ProgressBar isIndeterminate aria-label="Preparando a operação">
@@ -352,8 +382,9 @@ export function StudentBulkV1({
                 ) : null}
                 {state.phase === 'error' ? (
                   <p role="alert">
-                    Não foi possível carregar a operação.{' '}
-                    {errors[state.error ?? ''] ?? 'Solicitação recusada.'}
+                    {state.error === 'expired'
+                      ? errors.expired
+                      : `Não foi possível carregar a operação. ${errors[state.error ?? ''] ?? 'Solicitação recusada.'}`}
                   </p>
                 ) : null}
               </Modal.Body>
@@ -361,7 +392,7 @@ export function StudentBulkV1({
                 <BulkActionsV1
                   state={state}
                   action={action}
-                  ready={confirmation === required}
+                  ready={confirmation.trim().toLocaleUpperCase('pt-BR') === required}
                   targets={targets}
                   clock={clock}
                   controller={controller.current}

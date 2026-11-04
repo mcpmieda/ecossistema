@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Button, Card, Table } from '@heroui/react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -74,6 +74,13 @@ function BirthReadScopeV1(props: Readonly<StudentBirthYearsPropsV1>) {
   );
 }
 function BirthReadRowsV1(props: StudentBirthYearsPropsV1 & { scope: BirthScopeV1 }) {
+  // The record rebuilds initialAccount on every render: only a new account version or scope
+  // version may start another read.
+  const initialAccount = useRef(props.initialAccount);
+  initialAccount.current = props.initialAccount;
+  const initialKey = props.initialAccount
+    ? `${props.initialAccount.account.accountId}:${props.initialAccount.account.version}:${props.initialAccount.scopeVersion}`
+    : '';
   const load = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
       const pair: BirthCursorsV1 | undefined = cursor
@@ -85,15 +92,14 @@ function BirthReadRowsV1(props: StudentBirthYearsPropsV1 & { scope: BirthScopeV1
         props.scope,
         pair,
         signal,
-        undefined,
-        cursor ? undefined : props.initialAccount,
+        cursor ? undefined : initialAccount.current,
       );
       return {
         items: result.rows.map((row) => ({ ...row, accountId: row.account.accountId })),
         nextCursor: result.next ? JSON.stringify(result.next) : null,
       };
     },
-    [props.client, props.reader, props.scope, props.initialAccount],
+    [props.client, props.reader, props.scope, initialKey],
   );
   const read = useContinuousReadV1(load, 'accountId', props.onAuthorizationLost);
   const rows = read.state.state === 'ready' ? read.state.data.items : null;
