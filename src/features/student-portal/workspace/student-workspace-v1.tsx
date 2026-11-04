@@ -497,6 +497,8 @@ function SummaryV1({
         {/* Below the marks, like the subject closing under its breakdown. */}
         {activeSummary ? (
           <TermClosingSummaryCardV1
+            // Each trimester's summary is its own card: its "Novo" is read when it first appears.
+            key={activeSummary.period + '|' + activeSummary.mode}
             summary={activeSummary}
             subjects={subjects}
             accountId={data.profile.accountId}
@@ -1265,7 +1267,6 @@ function SubjectHeaderV1({
 }: Readonly<{
   subject: SubjectV1;
   subjects: readonly SubjectV1[];
-  period?: PeriodIdV1;
   onSubjectChange: (id: number) => void;
   onBack: () => void;
 }>) {
@@ -1448,7 +1449,7 @@ function SubjectV1View({
   selected,
   onSelect,
   accountId,
-  academicState,
+  profile,
   sealed,
   assessmentSealed,
   preview = false,
@@ -1464,7 +1465,8 @@ function SubjectV1View({
   selected: PeriodIdV1 | undefined;
   onSelect: (period: PeriodIdV1) => void;
   accountId: string;
-  academicState: SelfResponseV1['profile']['academicState'];
+  /** What the Meta do ano needs from the profile: the student's state and published result. */
+  profile: Pick<SelfResponseV1['profile'], 'academicState' | 'result' | 'annualSituation'>;
 }>) {
   const active = shownPeriodV1(subject, selected);
   const available = subjectPeriodsV1(subject);
@@ -1494,7 +1496,7 @@ function SubjectV1View({
     ? trendV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))
     : null;
   // Meta do ano lives only on the 2º tri tab (owner request, phase 4).
-  const annualGoal = active === 'T2' ? annualGoalV1(subject, academicState) : null;
+  const annualGoal = active === 'T2' ? annualGoalV1(subject, profile) : null;
 
   return (
     <div className="pa-subject-body">
@@ -1655,7 +1657,7 @@ function SubjectV1View({
               selected={peekPeriod}
               onSelect={() => undefined}
               accountId={accountId}
-              academicState={academicState}
+              profile={profile}
               sealed={sealed}
               assessmentSealed={assessmentSealed}
             />
@@ -1875,7 +1877,6 @@ export function StudentPortalWorkspaceV1({
             <SubjectHeaderV1
               subject={selectedSubject}
               subjects={subjects}
-              period={subjectPeriod}
               // Switching subjects keeps the trimester being read.
               onSubjectChange={changeSubject}
               onBack={() => goArea({ area: 'summary', subjectId: selectedSubject.subjectId })}
@@ -1893,7 +1894,7 @@ export function StudentPortalWorkspaceV1({
                   selected={subjectPeriod}
                   onSelect={(period) => remember({ period })}
                   accountId={data.profile.accountId}
-                  academicState={data.profile.academicState}
+                  profile={data.profile}
                   sealed={(period) => earnsSealV1(subjects, selectedSubject, period)}
                   assessmentSealed={(period, partial) =>
                     earnsAssessmentSealV1(subjects, selectedSubject, period, partial, data.endedPeriods)

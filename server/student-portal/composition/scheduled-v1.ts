@@ -12,6 +12,8 @@ const PRUNE_CLOCK_V1 = new Intl.DateTimeFormat('en-GB', {
  * no target can reach); scoped releases are read on demand. */
 export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<void> {
   if (env.PORTAL_ENVIRONMENT !== 'production' || env.PORTAL_SERVING_ENABLED !== 'true') return;
+  // Read when the run starts: the connection and the cleanups below may carry it past 00:01.
+  const pruneDue = PRUNE_CLOCK_V1.format(new Date()) === '00:00';
   try {
     await portalDatabaseV1(env, 'cleanup', async (sql) => {
       // Each family is its own single-statement transaction; sent together they share the round
@@ -25,7 +27,7 @@ export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<vo
       let failed = results.some((result) => result.status === 'rejected');
       // Editions no publication target can reach any more (owner request of 14/10/2026). They pile
       // up slowly and the pruning holds the year lock (~130 ms), so it runs once a day, at midnight.
-      if (PRUNE_CLOCK_V1.format(new Date()) === '00:00') {
+      if (pruneDue) {
         try {
           await sql.begin((tx) => Promise.resolve(tx.unsafe('SELECT student_portal.prune_publication_source_v1()')));
         } catch { failed = true; }

@@ -58,7 +58,8 @@ export function useAccountsReadV1<T>(
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [error]);
-  useLiveRefreshV1(() => reader.run(load, { background: true }), {
+  // An automatic read (the window came back, a failure retry) shows nothing; only a change is drawn.
+  useLiveRefreshV1(() => reader.run(load, { background: true, silent: true }), {
     active,
     eventDriven,
     intervalMs,
@@ -78,6 +79,12 @@ export function useAccountsReadV1<T>(
     reload: () => {
       if (Date.now() >= deadline.current)
         void reader.run(load, { background: state.state === 'ready' });
+    },
+    /** After this view's own confirmed write: neither a failed read's wait nor a background read
+     * sent before the write may drop it. */
+    reloadNow: () => {
+      reader.cancel();
+      void reader.run(load, { background: state.state === 'ready' });
     },
     clear: reader.clear,
   };

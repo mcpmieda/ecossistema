@@ -89,14 +89,19 @@ function checkPreviewProgressV1(
     throw new PortalClientErrorV1('invalid-response');
 }
 
+/** How far a run got when access was lost: counts only, never the students' names. */
+export type BulkInterruptedV1 = { written: number; targets: number };
+
 export function createStudentBulkControllerV1(
   client: PortalAdminClientV1,
   publish: (state: BulkStateV1) => void,
-  onAuthorizationLost: (error: PortalClientErrorV1) => void,
+  onAuthorizationLost: (error: PortalClientErrorV1, interrupted?: BulkInterruptedV1) => void,
 ) {
   let state: BulkStateV1 = { phase: 'idle', items: [], total: 0 };
   let disposed = false,
     stop = false;
+  /** The preview's proof expires on the server; past it every write would come back a conflict. */
+  let expiresAt = 0;
   let active: AbortController | undefined;
   let prepared: { index: number; command: ReturnType<PortalAdminClientV1['prepareCommand']> }[] =
     [];
@@ -142,6 +147,7 @@ export function createStudentBulkControllerV1(
         if (cursor) cursors.add(cursor);
       } while (cursor);
       if (all.length !== first?.totalCount) throw new PortalClientErrorV1('invalid-response');
+      expiresAt = Date.parse(first.expiresAt);
       const chosen = selected?.size ? all.filter(({ item }) => selected.has(item.accountId)) : all;
       prepared = chosen.flatMap(({ item, proof }, index) =>
         item.ineligibility
@@ -185,6 +191,17 @@ export function createStudentBulkControllerV1(
       Date.now() < (state.retryAt ?? 0)
     )
       return;
+    // An unconfirmed write is retried even then: the server reads its receipt before the proof.
+    const unconfirmed = prepared.some(({ index }) => state.items[index]!.result === 'unknown');
+    if (!unconfirmed && Date.now() >= expiresAt) {
+      prepared = [];
+      emit(
+        state.phase === 'review'
+          ? { phase: 'error', items: [], total: 0, error: 'expired' }
+          : { ...state, phase: 'done', error: 'expired', retryAt: undefined },
+      );
+      return;
+    }
     stop = false;
     const controller = new AbortController();
     active = controller;
@@ -194,12 +211,14 @@ export function createStudentBulkControllerV1(
       items[index] = { ...items[index]!, ...change };
       emit({ ...state, items });
     };
-    // Pending and uncertain items resume with their original prepared command (same key/bytes).
-    const queue = prepared.filter(({ index }) =>
-      ['pending', 'unknown'].includes(state.items[index]!.result),
-    );
+    // Pending and uncertain items resume with their original prepared command (same key/bytes);
+    // past the preview's expiry only the uncertain ones, which the server answers from a receipt.
+    const resumable = Date.now() >= expiresAt ? ['unknown'] : ['pending', 'unknown'];
+    const queue = prepared.filter(({ index }) => resumable.includes(state.items[index]!.result));
     let uncertain: PortalClientErrorV1 | undefined;
     let lost: PortalClientErrorV1 | undefined;
+    // The longest wait any answer asked for: a later failure without one never shortens it.
+    let waitSeconds = 0;
     /** A write that failed: lost access stops every worker (false); a throttled or ambiguous answer
      * leaves the item unknown and pauses the run after the writes already sent. */
     const settle = (index: number, issue: PortalClientErrorV1) => {
@@ -207,12 +226,18 @@ export function createStudentBulkControllerV1(
         lost = issue;
         return false;
       }
+      // A server error page stays uncertain even when it asks to wait: the write may have run.
       const unclear =
         issue.state === 'rate-limited' ||
         issue.state === 'unavailable' ||
+        (issue.state === 'invalid-response' &&
+          (issue.status === 0 || issue.status === 200 || issue.status >= 500)) ||
         isAmbiguousPortalResponseV1(issue);
       mark(index, { result: unclear ? 'unknown' : 'failed', error: issue.state });
-      if (unclear) uncertain = issue;
+      if (unclear) {
+        uncertain = issue;
+        waitSeconds = Math.max(waitSeconds, issue.retryAfterSeconds ?? 0);
+      }
       return true;
     };
     const worker = async () => {
@@ -232,9 +257,11 @@ export function createStudentBulkControllerV1(
     if (active === controller) active = undefined;
     if (disposed || controller.signal.aborted) return;
     if (lost) {
+      const written = state.items.filter((item) => item.result === 'committed').length;
+      const targets = state.targets ?? 0;
       emit({ phase: 'error', items: [], total: 0, error: lost.state });
       prepared = [];
-      onAuthorizationLost(lost);
+      onAuthorizationLost(lost, written ? { written, targets } : undefined);
       return;
     }
     if (uncertain) {
@@ -242,7 +269,7 @@ export function createStudentBulkControllerV1(
         ...state,
         phase: 'unknown',
         error: uncertain.state,
-        retryAt: Date.now() + (uncertain.retryAfterSeconds ?? 0) * 1000,
+        retryAt: Date.now() + waitSeconds * 1000,
       });
       return;
     }

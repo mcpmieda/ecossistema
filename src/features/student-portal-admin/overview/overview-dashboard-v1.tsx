@@ -54,16 +54,17 @@ const stats = [
 export function OverviewDashboardV1({ counts }: Readonly<{ counts: Counts }>) {
   return (
     <div className="pa-dashboard">
-      <dl className="pa-dashboard-stats">
+      {/* A list, not dt/dd: the cards and their help buttons cannot sit inside a valid dl. */}
+      <div className="pa-dashboard-stats" role="list">
         {stats.map(([key, label, tone, Icon, help]) => (
-          <Card key={key} className={`pa-stat pa-stat--${tone} pa-rise`}>
+          <Card key={key} role="listitem" className={`pa-stat pa-stat--${tone} pa-rise`}>
             <Card.Content>
               <div className="pa-stat-top">
-                <dt>{label}</dt>
+                <span className="pa-stat-label">{label}</span>
                 <InfoV1 label={`Sobre ${label}`}>{help}</InfoV1>
               </div>
               <div className="pa-stat-value">
-                <dd>{counts[key].toLocaleString('pt-BR')}</dd>
+                <strong className="pa-stat-number">{counts[key].toLocaleString('pt-BR')}</strong>
                 <span className="pa-stat-icon">
                   <Icon size={18} aria-hidden="true" />
                 </span>
@@ -71,7 +72,7 @@ export function OverviewDashboardV1({ counts }: Readonly<{ counts: Counts }>) {
             </Card.Content>
           </Card>
         ))}
-      </dl>
+      </div>
       <div className="pa-dashboard-bottom">
         <Card className="pa-rise">
           <Card.Header className="flex-row justify-between items-center">

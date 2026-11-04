@@ -10,7 +10,7 @@ import {
   Spinner,
 } from '@heroui/react';
 import { GRADE_LABELS_V1 } from './grades-agenda-v1';
-import { PolicyLayoutV1 } from './policy-layout-v1';
+import { PolicyLayoutV1, type PolicyCategoryV1 } from './policy-layout-v1';
 import { SchoolCalendarEditorV1 } from './school-calendar-editor-v1';
 import { SchoolBellsEditorV1 } from './school-bells-editor-v1';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
@@ -80,6 +80,8 @@ export interface StudentSettingsPropsV1 {
   readonly describeScope?: (scope: PolicyScopeV1) => string;
   readonly onCommitted?: () => void;
   readonly onOpenCustomization?: OpenCustomizationV1;
+  /** Policies area: the tab shown first. */
+  readonly initialCategory?: PolicyCategoryV1;
 }
 const fieldHelp: Record<SettingsFieldV1, string> = {
   accessEnabled:
@@ -616,6 +618,7 @@ function SettingsReadyV1({
   onRefresh,
   clock,
   onOpenCustomization,
+  initialCategory,
   linksClosed,
   setClosing,
   onReviewClose,
@@ -643,6 +646,7 @@ function SettingsReadyV1({
   onRefresh: () => void;
   clock: number;
   onOpenCustomization?: OpenCustomizationV1;
+  initialCategory?: PolicyCategoryV1;
   linksClosed: () => void;
   setClosing: (value: boolean) => void;
   onReviewClose: () => void;
@@ -754,6 +758,7 @@ function SettingsReadyV1({
       ) : null}
       {area === 'policies' ? (
         <PolicyLayoutV1
+          initialCategory={initialCategory}
           customizations={customizations}
           calendarEditable={canWrite && fixedScope.kind === 'school'}
           schoolCalendar={schoolEditors?.calendar}
@@ -859,6 +864,7 @@ function SettingsScopeV1({
   describeScope,
   onCommitted,
   onOpenCustomization,
+  initialCategory,
 }: StudentSettingsPropsV1) {
   const [fixedScope] = useState(() => ({ ...scope }));
   const [load, setLoad] = useState<PortalLoadStateV1<EffectiveSettingsV1>>({ state: 'idle' });
@@ -879,7 +885,7 @@ function SettingsScopeV1({
   const writer = useMemo(() => createSettingsMutationV1(client, setMutation), [client]);
   const label = scopeLabel ?? settingsScopeLabelV1(fixedScope);
   const reload = useCallback(
-    (background = false) =>
+    (background = false, silent = false) =>
       request.run(
         async (signal) => {
           const result = await client.query(
@@ -893,7 +899,7 @@ function SettingsScopeV1({
             throw new PortalClientErrorV1('invalid-response');
           return result.settings;
         },
-        { background },
+        { background, silent },
       ),
     [client, fixedScope, request],
   );
@@ -975,7 +981,8 @@ function SettingsScopeV1({
     void reload(true);
     onCommitted?.();
   }, [onCommitted, reload]);
-  useLiveRefreshV1(() => reload(true), {
+  // An automatic read leaves the editors enabled and redraws them only for changed settings.
+  useLiveRefreshV1(() => reload(true, true), {
     domains: ['portal', 'gradebook'],
     canRefresh: () =>
       load.state === 'ready' &&
@@ -987,6 +994,8 @@ function SettingsScopeV1({
   });
   async function confirm() {
     if (!canWrite || busy || !review || load.state !== 'ready') return;
+    // A new change: the "Salvo." of the previous one no longer applies.
+    setNotice(null);
     const common = {
       contractVersion: 1 as const,
       scope: fixedScope,
@@ -1067,6 +1076,7 @@ function SettingsScopeV1({
             onRefresh={() => void reload(true)}
             clock={clock}
             onOpenCustomization={onOpenCustomization}
+            initialCategory={initialCategory}
             linksClosed={linksClosed}
             setClosing={setClosing}
             onReviewClose={() => setReview(null)}

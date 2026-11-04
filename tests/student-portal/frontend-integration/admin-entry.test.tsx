@@ -76,6 +76,56 @@ it('waits for the actual server deadline across capped timers and a pending back
     error: { state: 'unauthenticated' },
   });
 });
+it('keeps an unexpired identity when a background recheck only fails to reach the server', async () => {
+  const fetcher = vi
+    .fn<PortalFetchV1>()
+    .mockResolvedValueOnce(opJsonV1(identity()))
+    .mockRejectedValueOnce(new TypeError('Synthetic network failure'))
+    .mockResolvedValueOnce(opJsonV1({}, 503))
+    .mockResolvedValueOnce(opJsonV1({}, 429))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify(identity()), { headers: { 'Content-Type': 'application/json' } }),
+    );
+  const hook = renderHook(() => usePortalAdminIdentityV1(fetcher));
+  await waitFor(() => expect(hook.result.current.state.state).toBe('ready'));
+  for (const calls of [2, 3, 4]) {
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(calls));
+    expect(hook.result.current.state).toMatchObject({
+      state: 'ready',
+      identity: { identityKey: 'synthetic-757-session' },
+    });
+  }
+  // A cacheable answer is not a passing failure: the workspace still closes.
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+  });
+  await waitFor(() =>
+    expect(hook.result.current.state).toMatchObject({
+      state: 'error',
+      error: { state: 'unavailable' },
+    }),
+  );
+});
+it('closes the workspace when a background recheck is denied', async () => {
+  const fetcher = vi
+    .fn<PortalFetchV1>()
+    .mockResolvedValueOnce(opJsonV1(identity()))
+    .mockResolvedValueOnce(opJsonV1({}, 403));
+  const hook = renderHook(() => usePortalAdminIdentityV1(fetcher));
+  await waitFor(() => expect(hook.result.current.state.state).toBe('ready'));
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+  });
+  await waitFor(() =>
+    expect(hook.result.current.state).toMatchObject({
+      state: 'error',
+      error: { state: 'forbidden' },
+    }),
+  );
+});
 it('inherits exact capabilities and rechecks a new identity after protected history is cleared', async () => {
   let current = identity();
   const fetcher = vi

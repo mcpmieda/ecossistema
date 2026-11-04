@@ -28,6 +28,62 @@ describe('silent read boundaries', () => {
     await reader.run(async () => { throw new PortalClientErrorV1('unauthenticated', 401); }, { background: true });
     expect(publish.mock.lastCall?.[0]).toMatchObject({ state: 'error', error: { state: 'unauthenticated' } });
   });
+  it('publishes nothing for a silent read that finds the same answer, and only the change otherwise', async () => {
+    const publish = vi.fn();
+    const reader = createLatestPortalRequestV1<{ rows: string[]; seals: Map<string, number> }>(publish);
+    await reader.run(async () => ({ rows: ['a'], seals: new Map([['a', 2]]) }));
+    const shown = publish.mock.lastCall?.[0].data;
+    publish.mockClear();
+    await reader.run(async () => ({ rows: ['a'], seals: new Map([['a', 2]]) }), { background: true, silent: true });
+    expect(publish).not.toHaveBeenCalled();
+    await reader.run(async () => ({ rows: ['a'], seals: new Map([['a', 3]]) }), { background: true, silent: true });
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.lastCall?.[0]).toEqual({ state: 'ready', data: { rows: ['a'], seals: new Map([['a', 3]]) } });
+    expect(publish.mock.lastCall?.[0].data).not.toBe(shown);
+  });
+  it('keeps the screen through a silent failure of any age, clears its notice with the same object, and keeps denial strict', async () => {
+    vi.useFakeTimers();
+    const publish = vi.fn();
+    const reader = createLatestPortalRequestV1<{ value: number }>(publish);
+    await reader.run(async () => ({ value: 1 }));
+    const shown = publish.mock.lastCall?.[0].data;
+    publish.mockClear();
+    vi.advanceTimersByTime(30 * 60_000);
+    await reader.run(async () => { throw new PortalClientErrorV1('network-error'); }, { silent: true });
+    expect(publish.mock.lastCall?.[0]).toMatchObject({ state: 'ready', data: shown, refreshError: { state: 'network-error' } });
+    expect(publish.mock.calls.some(([state]) => state.state === 'loading' || state.refreshing)).toBe(false);
+    await reader.run(async () => ({ value: 1 }), { silent: true });
+    expect(publish.mock.lastCall?.[0]).toEqual({ state: 'ready', data: shown });
+    expect(publish.mock.lastCall?.[0].data).toBe(shown);
+    await reader.run(async () => { throw new PortalClientErrorV1('forbidden', 403); }, { silent: true });
+    expect(publish.mock.lastCall?.[0]).toMatchObject({ state: 'error', error: { state: 'forbidden' } });
+    // A silent retry from an error shows no loading in between.
+    publish.mockClear();
+    await reader.run(async () => ({ value: 2 }), { silent: true });
+    expect(publish.mock.calls.map(([state]) => state.state)).toEqual(['ready']);
+  });
+  it('lets a read someone asked for replace a silent one, never the other way round', async () => {
+    const publish = vi.fn();
+    const reader = createLatestPortalRequestV1<string>(publish);
+    await reader.run(async () => 'first');
+    let resolveSilent!: (value: string) => void;
+    const silent = reader.run(() => new Promise<string>((done) => { resolveSilent = done; }), { silent: true });
+    const skipped = vi.fn(async () => 'skipped');
+    await reader.run(skipped, { silent: true });
+    expect(skipped).not.toHaveBeenCalled();
+    const asked = vi.fn(async () => 'asked');
+    await reader.run(asked, { background: true });
+    expect(asked).toHaveBeenCalledOnce();
+    resolveSilent('obsolete'); await silent;
+    expect(publish.mock.lastCall?.[0]).toEqual({ state: 'ready', data: 'asked' });
+    let resolveAsked!: (value: string) => void;
+    const pending = reader.run(() => new Promise<string>((done) => { resolveAsked = done; }), { background: true });
+    const late = vi.fn(async () => 'late');
+    await reader.run(late, { silent: true });
+    expect(late).not.toHaveBeenCalled();
+    resolveAsked('kept'); await pending;
+    expect(publish.mock.lastCall?.[0]).toEqual({ state: 'ready', data: 'kept' });
+  });
   it('bounds stale retention and never restores a cleared context from an obsolete read', async () => {
     vi.useFakeTimers();
     const publish = vi.fn();

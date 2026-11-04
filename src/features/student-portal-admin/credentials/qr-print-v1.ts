@@ -4,7 +4,8 @@ const stylesheet = new URL('./qr-print-v1.css?no-inline', import.meta.url).href;
 export function createQrPrintV1() {
   const active = new Set<() => void>();
   return {
-    print(imageUrl: string): Promise<boolean> {
+    /** A card prints at its real size (93.5 × 59 mm, the lamination pouch), not in the QR box. */
+    print(imageUrl: string, kind: 'qr' | 'card' = 'qr'): Promise<boolean> {
       return new Promise((resolve) => {
         const frame = document.createElement('iframe');
         frame.className = 'pa-qr-print-host';
@@ -33,8 +34,8 @@ export function createQrPrintV1() {
           style.rel = 'stylesheet';
           style.href = stylesheet;
           const image = doc.createElement('img');
-          image.className = 'qr-print-image';
-          image.alt = 'QR de acesso';
+          image.className = kind === 'card' ? 'qr-print-card' : 'qr-print-image';
+          image.alt = kind === 'card' ? 'Cartão de acesso' : 'QR de acesso';
           let styleReady = false,
             imageReady = false,
             printing = false;

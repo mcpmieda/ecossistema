@@ -1,8 +1,16 @@
 import './student-accounts-v1.css';
 import { AccountOpenContextV1 } from '../shared/account-open-v1';
 import { Star } from 'lucide-react';
-import { sealLabelV1, useSealCountsV1 } from './brilliant-seals-v1';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useSealCountsV1 } from './brilliant-seals-v1';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { AlertDialog, Button, Card, Drawer, Tabs, Tooltip } from '@heroui/react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { PolicyScopeV1, ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -10,6 +18,7 @@ import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { StudentPhotoPanelV1 } from '../../student-photos/student-photo-panel-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 import {
@@ -40,6 +49,9 @@ export interface AccountSlotContextV1 {
   scope: Extract<ScopeV1, { kind: 'account' }>;
   canWrite: boolean;
   refresh: () => void;
+  /** Grows after each confirmed action and each reload of the record: a slot whose read depends
+   * on access or policies (the closing preview) reads again. */
+  revision: number;
 }
 export type AccountSlotsV1 = Partial<
   Record<
@@ -85,11 +97,14 @@ function failureText(conflict: boolean, protectedFailure: boolean, retryable: bo
 }
 
 export function AccountDetailV1(props: Readonly<AccountDetailPropsV1>) {
+  // While an action is saving the record stays open: closing would abort a write the server may
+  // already have applied, with nothing said about it.
+  const saving = useRef(false);
   return (
     <Drawer.Backdrop
       isOpen
       onOpenChange={(open) => {
-        if (!open && allowDraftNavigationV1()) props.onClose();
+        if (!open && !saving.current && allowDraftNavigationV1()) props.onClose();
       }}
     >
       <Drawer.Content placement="right">
@@ -106,6 +121,7 @@ export function AccountDetailV1(props: Readonly<AccountDetailPropsV1>) {
                 (props.initialSlot ?? 'birth')
               }
               {...props}
+              saving={saving}
             />
           </Drawer.Body>
         </Drawer.Dialog>
@@ -161,7 +177,8 @@ function AccountDetailBodyV1({
   describeScope,
   initialSlot,
   known,
-}: Readonly<AccountDetailPropsV1>) {
+  saving,
+}: Readonly<AccountDetailPropsV1 & { saving: RefObject<boolean> }>) {
   const ownScope = useMemo(
     () => ({ kind: 'account' as const, academicYear: 2026 as const, accountId }),
     [accountId],
@@ -202,6 +219,7 @@ function AccountDetailBodyV1({
     );
   }, [activeSlot]);
   const [clock, setClock] = useState(0);
+  const [revision, setRevision] = useState(0);
   const writer = useMemo(
     () => createAccountMutationV1(client, accountId, setMutation, onQr),
     [client, accountId, onQr],
@@ -224,11 +242,19 @@ function AccountDetailBodyV1({
   useEffect(() => {
     if (mutation.state === 'committed' && handledVersion.current !== mutation.version) {
       handledVersion.current = mutation.version;
-      read.reload();
+      // Never dropped behind an older read or a failed read's wait: the screen must show the write.
+      read.reloadNow();
+      setRevision((value) => value + 1);
       onChanged();
     }
   }, [mutation, read, onChanged]);
   const pending = mutation.state === 'pending';
+  useEffect(() => {
+    saving.current = pending;
+    return () => {
+      saving.current = false;
+    };
+  }, [saving, pending]);
   const failed = mutation.state === 'error';
   const protectedFailure =
     failed && ['unauthenticated', 'forbidden'].includes(mutation.error.state);
@@ -258,9 +284,17 @@ function AccountDetailBodyV1({
     writer.clear();
     setReview(null);
     read.reload();
+    setRevision((value) => value + 1);
   }
   const context: AccountSlotContextV1 | null = account
-    ? { account, accountsScopeVersion: snapshot!.scopeVersion, scope: ownScope, canWrite: editable, refresh }
+    ? {
+        account,
+        accountsScopeVersion: snapshot!.scopeVersion,
+        scope: ownScope,
+        canWrite: editable,
+        refresh,
+        revision,
+      }
     : null;
   return (
     <Card className="pa-account-detail" aria-label="Ficha da conta">
@@ -270,6 +304,7 @@ function AccountDetailBodyV1({
         </h3>
         <Button
           variant="secondary"
+          isDisabled={pending}
           onPress={() => {
             if (allowDraftNavigationV1()) onClose();
           }}
@@ -323,6 +358,14 @@ function AccountDetailBodyV1({
             </Button>
           </div>
         )}
+        {!protectedFailure && read.refreshError && (
+          <div className="pa-account-notice">
+            <LiveReadNoticeV1 failed />
+            <Button variant="secondary" isDisabled={!read.canReload || pending} onPress={refresh}>
+              Recarregar ficha
+            </Button>
+          </div>
+        )}
         {pending && <p><output className="contents">Salvando…</output></p>}
         {waiting && !shown && <p><output className="contents">Carregando aluno…</output></p>}
         {!protectedFailure && read.state.state === 'error' && (
@@ -345,7 +388,7 @@ function AccountDetailBodyV1({
             </div>
             <StudentPhotoPanelV1
               showAvatar={false}
-              canWrite={canWrite}
+              canWrite={canWrite && shown.eligibility !== 'exit'}
               subject={{
                 source: 'portal',
                 academicYear: ownScope.academicYear,
@@ -385,7 +428,7 @@ function AccountDetailBodyV1({
         {account && context && (
           <>
             <ReadOnlyNoticesV1 account={account} canWrite={canWrite} />
-            <div className="pa-account-actions" aria-label="Ações de acesso">
+            <div className="pa-account-actions" role="group" aria-label="Ações de acesso">
               {(slots?.credentials || onReprint) && (
                 <Button
                   variant="secondary"
@@ -534,7 +577,7 @@ function RecordSealsV1({ reader, accountId }: Readonly<{ reader: AccountDetailPr
   const count = seals.state === 'ready' ? seals.counts.get(accountId) : undefined;
   if (count === undefined || count === null) return null;
   return (
-    <span className="pa-record-seals" aria-label={sealLabelV1(count)}>
+    <span className="pa-record-seals">
       <Star size={16} fill="currentColor" aria-hidden="true" />
       <strong>{count}</strong>
       <span>{count === 1 ? 'selo Brilhante' : 'selos Brilhante'}</span>

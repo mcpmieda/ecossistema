@@ -74,6 +74,26 @@ describe('student authentication state machine', () => {
     expect(s.client.activate).not.toHaveBeenCalled();
     s.flow.dispose();
   });
+  it('keeps a fresh proof on a phone whose clock runs ahead of the server and lets the server decide', async () => {
+    vi.setSystemTime(NOW + 6 * 60_000);
+    const s = setup();
+    await s.flow.begin(SYNTHETIC_QR_V1);
+    s.client.challenge.mockResolvedValueOnce(PROOF);
+    await s.flow.pin('0001');
+    expect(s.state().step).toBe('create');
+    await vi.advanceTimersByTimeAsync(599_999);
+    expect(s.state().step).toBe('create');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.state()).toMatchObject({
+      step: 'scan',
+      message: 'O prazo para criar a senha terminou. Leia o QR novamente.',
+    });
+    s.client.challenge.mockResolvedValueOnce(PROOF);
+    await s.flow.begin(SYNTHETIC_QR_V1);
+    await s.flow.activate('482913', '482913', false);
+    expect(s.client.activate).toHaveBeenCalledOnce();
+    s.flow.dispose();
+  });
   it('confirms a committed activation with the chosen password when its response was lost', async () => {
     const s = setup();
     s.client.challenge.mockResolvedValueOnce(PROOF);

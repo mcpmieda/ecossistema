@@ -39,7 +39,15 @@ describe('temporary proof cleanup boundary', () => {
       .mockResolvedValueOnce(Response.json({ errors: [{ code: 10000 }] }, { status: 403 }));
     await expect(deletePortalProof(state, account, 'synthetic', request)).resolves.toBeUndefined();
     await expect(deletePortalProof(state, account, 'synthetic', request)).rejects.toThrow(
-      'proof-cleanup-failed',
+      'proof-cleanup-failed:403',
+    );
+  });
+  it('reports the HTTP status when the API answers with a non-JSON body', async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('<html>Service Unavailable</html>', { status: 503 }));
+    await expect(deletePortalProof(state, account, 'synthetic', request)).rejects.toThrow(
+      'proof-cleanup-failed:503',
     );
   });
 });

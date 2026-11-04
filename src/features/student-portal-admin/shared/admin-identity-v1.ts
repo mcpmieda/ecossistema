@@ -26,8 +26,8 @@ const defaultFetch: PortalFetchV1 = (path, init) => fetch(path, init);
 function checkIdentityResponseV1(response: Response) {
   if (response.status === 401) throw new PortalClientErrorV1('unauthenticated', 401);
   if (response.status === 403) throw new PortalClientErrorV1('forbidden', 403);
-  if (!response.ok || !hasPortalNoStoreV1(response.headers))
-    throw new PortalClientErrorV1('unavailable');
+  if (!response.ok) throw new PortalClientErrorV1('unavailable', response.status);
+  if (!hasPortalNoStoreV1(response.headers)) throw new PortalClientErrorV1('unavailable');
 }
 
 export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) {
@@ -74,6 +74,8 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
           referrerPolicy: 'no-referrer',
           signal: controller.signal,
           headers: { Accept: 'application/json' },
+        }).catch(() => {
+          throw new PortalClientErrorV1('network-error');
         });
         controller.signal.throwIfAborted();
         checkIdentityResponseV1(response);
@@ -97,7 +99,21 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
         checkExpiry();
       } catch (error) {
         if (controller.signal.aborted || generation.current !== current) return;
-        lost(error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable'));
+        const failure =
+          error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable');
+        // A background recheck that only failed to reach the server keeps the unexpired session,
+        // its deadline and the open drafts; denial, expiry and malformed answers still close it.
+        const transient =
+          failure.state === 'network-error' ||
+          (failure.state === 'unavailable' && (failure.status === 429 || failure.status >= 500));
+        if (
+          preserve &&
+          transient &&
+          knownIdentity.current &&
+          Date.parse(knownIdentity.current.expiresAt) > Date.now()
+        )
+          return;
+        lost(failure.state === 'network-error' ? new PortalClientErrorV1('unavailable') : failure);
       } finally {
         if (active.current === controller) active.current = null;
       }

@@ -401,11 +401,99 @@ it('explains how to lift a camera the browser already reports as denied', async 
     expect(screen.queryByRole('button', { name: 'Ler QR com câmera' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Selecionar QR da galeria' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Tentar de novo com a câmera' })).toBeTruthy();
+    // The settings icon is named as text inside the key, which screen readers do read.
+    expect(screen.getByText('de ajustes').closest('kbd')?.hasAttribute('aria-label')).toBe(false);
     await userEvent.setup().click(screen.getByRole('button', { name: 'iPhone' }));
     expect(screen.getByText('Ajustes do Site')).toBeTruthy();
   } finally {
     if (descriptor) Object.defineProperty(navigator, 'permissions', descriptor);
     else Reflect.deleteProperty(navigator, 'permissions');
+  }
+});
+
+it('starts the next card with keep connected unchecked on a shared phone', async () => {
+  vi.spyOn(qrMediaV1, 'readQrImageV1').mockResolvedValueOnce(SYNTHETIC_QR_V1);
+  const client = clientFixtureV1();
+  client.challenge.mockResolvedValue(REQUIRED('password'));
+  const s = view(client);
+  await screen.findByLabelText('Senha de 6 números');
+  await s.user.click(screen.getByRole('checkbox', { name: 'Manter conectado neste celular' }));
+  expect((screen.getByRole('checkbox', { name: 'Manter conectado neste celular' }) as HTMLInputElement).checked).toBe(true);
+  await s.user.click(screen.getByRole('button', { name: 'Usar outro cartão' }));
+  const file = new File(['synthetic-image'], 'synthetic.png', { type: 'image/png' });
+  await s.user.upload(screen.getByLabelText('Imagem do QR'), file);
+  await screen.findByLabelText('Senha de 6 números');
+  expect((screen.getByRole('checkbox', { name: 'Manter conectado neste celular' }) as HTMLInputElement).checked).toBe(false);
+});
+
+it('tells screen readers the wait in minutes, never a second-by-second count', async () => {
+  const client = clientFixtureV1();
+  client.challenge.mockRejectedValueOnce(new PortalClientErrorV1('rate-limited', 429, 30));
+  view(client);
+  const countdown = await waitFor(() => {
+    const found = document.querySelector('output.pa-auth-countdown');
+    expect(found).not.toBeNull();
+    return found!;
+  });
+  expect(countdown.querySelector('.sr-only')?.textContent).toBe('Tente novamente em menos de um minuto.');
+  const visible = Array.from(countdown.querySelectorAll(':scope > span[aria-hidden="true"]'))
+    .map((span) => span.textContent)
+    .join(' ');
+  expect(visible).toContain('Tente novamente em 30 segundos.');
+});
+
+/** A camera that plays a 640x480 frame, with a canvas jsdom cannot draw on stubbed. */
+function stubCameraV1() {
+  const descriptor = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+  const stream = { getTracks: () => [], getVideoTracks: () => [] };
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+  });
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  vi.spyOn(HTMLVideoElement.prototype, 'videoWidth', 'get').mockReturnValue(640);
+  vi.spyOn(HTMLVideoElement.prototype, 'videoHeight', 'get').mockReturnValue(480);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    drawImage: vi.fn(),
+    getImageData: () => ({ width: 1, height: 1, data: new Uint8ClampedArray(4) }),
+  } as unknown as CanvasRenderingContext2D);
+  return () => {
+    if (descriptor) Object.defineProperty(navigator, 'mediaDevices', descriptor);
+    else Reflect.deleteProperty(navigator, 'mediaDevices');
+  };
+}
+
+it('reads on after a camera frame the decoder could not finish', async () => {
+  const restore = stubCameraV1();
+  try {
+    const decode = vi
+      .fn<qrMediaV1.QrFrameDecoderV1>()
+      .mockRejectedValueOnce(new QrInputErrorV1('unavailable'))
+      .mockRejectedValueOnce(new QrInputErrorV1('unavailable'))
+      .mockResolvedValueOnce([SYNTHETIC_QR_V1]);
+    const onQr = vi.fn();
+    render(createElement(StudentQrReaderV1, { onQr, decode }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Ler QR com câmera' }));
+    await waitFor(() => expect(onQr).toHaveBeenCalledWith(SYNTHETIC_QR_V1));
+    expect(decode).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole('alert')).toBeNull();
+  } finally {
+    restore();
+  }
+});
+
+it('stops the camera after failed frames in a row with a camera message, not an image one', async () => {
+  const restore = stubCameraV1();
+  try {
+    const decode = vi.fn<qrMediaV1.QrFrameDecoderV1>().mockRejectedValue(new QrInputErrorV1('unavailable'));
+    render(createElement(StudentQrReaderV1, { onQr: vi.fn(), decode }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Ler QR com câmera' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Não foi possível usar a câmera. Tente novamente ou escolha uma imagem.');
+    expect(decode).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
+  } finally {
+    restore();
   }
 });
 

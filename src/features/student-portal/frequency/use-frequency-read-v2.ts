@@ -48,12 +48,21 @@ export function useFrequencyReadV2<T>(
       let committed = false;
       let terminal = false;
       let confirmed = false;
+      let reading = !action;
       try {
         if (action) {
-          await action(controller.signal);
-          committed = valid();
+          try {
+            await action(controller.signal);
+            committed = valid();
+          } catch (reason) {
+            // A refused action keeps the panel and its open forms; stale data is re-read now.
+            const failure = readFailureV2(reason);
+            if (!['revision-conflict', 'lease-fenced'].includes(failure.state)) throw reason;
+            if (valid()) setError(failure.state);
+          }
         }
         controller.signal.throwIfAborted();
+        reading = true;
         const result = await read(controller.signal);
         if (valid()) {
           setData(result);
@@ -63,9 +72,11 @@ export function useFrequencyReadV2<T>(
         }
       } catch (reason) {
         if (valid()) {
-          setData(null);
-          setReadAt(null);
-          state.failures += 1;
+          if (reading) {
+            setData(null);
+            setReadAt(null);
+            state.failures += 1;
+          }
           const failure = readFailureV2(reason);
           setError(failure.state);
           terminal = failure.terminal;

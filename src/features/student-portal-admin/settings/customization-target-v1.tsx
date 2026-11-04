@@ -10,9 +10,10 @@ type Props = Omit<AccountDetailPropsV1, 'accountId' | 'parentScope' | 'initialSl
   area: CustomizationAreaV1;
 };
 /** Students use the shared account drawer. A class has its own scope,
- * never an invented student identity or a second copy of the publication editor. */
+ * never an invented student identity or a second copy of the publication editor.
+ * A class's publication difference opens on its Notas tab. */
 export function CustomizationTargetV1(props: Props) {
-  const { row, client, reader, canWrite, onClose, onChanged } = props;
+  const { row, area, client, reader, canWrite, onClose, onChanged } = props;
   if (row.scope.kind === 'account')
     return (
       <AccountDetailV1
@@ -50,6 +51,7 @@ export function CustomizationTargetV1(props: Props) {
               scope={row.scope}
               scopeLabel={row.label}
               canWrite={canWrite}
+              initialCategory={area === 'publication' ? 'grades' : undefined}
               onCommitted={onChanged}
             />
           </Drawer.Body>

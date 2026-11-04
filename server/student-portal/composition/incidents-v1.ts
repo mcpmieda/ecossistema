@@ -17,27 +17,42 @@ const ackSchema=z.discriminatedUnion('state',[z.object({state:z.literal('acknowl
   z.object({state:z.literal('changed')}).strict()]);
 const bodySchema=z.object({id:z.uuid()}).strict();
 const HIDDEN=Symbol('incidents-hidden');
+const ACK_BODY_BYTES=256;
 const jsonOf=(raw:unknown)=>typeof raw==='string'?JSON.parse(raw):raw;
 const instant=(value:string|null)=>value===null?null:new Date(value).toISOString();
 const response=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store, no-cache, private, must-revalidate','Pragma':'no-cache','Vary':'Cookie, Authorization'}});
 const fail=(state:string,status:number)=>response({contractVersion:1,state},status);
 
-/** The request body: a small JSON object with the version confirmed, nothing else. */
+/** The request body: a small JSON object with the version confirmed, nothing else. It is read
+ * bounded (header and bytes), so an oversized or broken body is refused without holding it. */
 async function acknowledgedIdOf(request:Request):Promise<string|null>{
   if(!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))return null;
-  const text=await request.text();
-  if(text.length>256)return null;
-  try{const parsed=bodySchema.safeParse(JSON.parse(text));return parsed.success?parsed.data.id:null;}catch{return null;}
+  const length=request.headers.get('content-length');
+  if(length!==null&&(!/^\d+$/u.test(length)||Number(length)>ACK_BODY_BYTES))return null;
+  const reader=request.body?.getReader();if(!reader)return null;
+  try{
+    const chunks:Uint8Array[]=[];let size=0;
+    for(;;){
+      const chunk=await reader.read();if(chunk.done)break;
+      size+=chunk.value.byteLength;
+      if(size>ACK_BODY_BYTES){await reader.cancel();return null;}
+      chunks.push(chunk.value);
+    }
+    const bytes=new Uint8Array(size);let offset=0;
+    for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+    const parsed=bodySchema.safeParse(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)));
+    return parsed.success?parsed.data.id:null;
+  }catch{return null;}finally{reader.releaseLock();}
 }
 
 export async function servePortalIncidentsV1(request:Request,env:PortalCompositionEnvV1):Promise<Response>{
   if(!portalRequestOriginAllowedV1(request,env.PORTAL_ENVIRONMENT,env.PORTAL_ORIGIN))return fail('forbidden',403);
   const acknowledging=new URL(request.url).pathname==='/api/student/incidents/acknowledge';
   if(request.method!==(acknowledging?'POST':'GET'))return fail('invalid-request',405);
-  const version=acknowledging?await acknowledgedIdOf(request):null;
-  if(acknowledging&&!version)return fail('invalid-request',400);
   if(env.PORTAL_SERVING_ENABLED!=='true')return fail('unavailable',503);
   const token=sessionCookieTokenV1(request);if(!token)return fail('unauthenticated',401);
+  const version=acknowledging?await acknowledgedIdOf(request):null;
+  if(acknowledging&&!version)return fail('invalid-request',400);
   try{
     await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'session-entry','public');
     const keys=portalKeysV1(env);

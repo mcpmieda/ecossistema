@@ -23,7 +23,7 @@ function retryDelayV1(response: Response): number | undefined {
   const seconds = /^\d+$/u.test(retry)
     ? Number(retry)
     : Math.ceil((Date.parse(retry) - Date.now()) / 1000);
-  return Math.max(1, Math.min(86400, seconds));
+  return Number.isFinite(seconds) ? Math.max(1, Math.min(86400, seconds)) : undefined;
 }
 
 const STATUS_BY_STATE_V1: Readonly<Record<string, number>> = {

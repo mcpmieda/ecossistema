@@ -238,3 +238,23 @@ it('rejects a confirmation body that is not exactly one version id, before any d
   ).toBe(405);
   expect(mocks.unsafe).not.toHaveBeenCalled();
 });
+
+it('reads the confirmation body bounded: an oversized or broken body is a 400, never held or thrown', async () => {
+  const streamed = (source: UnderlyingDefaultSource<Uint8Array>, headers: Record<string, string> = {}) =>
+    new Request(env.PORTAL_ORIGIN + '/api/student/incidents/acknowledge', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Origin: env.PORTAL_ORIGIN, ...headers },
+      body: new ReadableStream(source, { highWaterMark: 0 }), duplex: 'half',
+    } as RequestInit);
+  let pulled = 0;
+  const endless = { pull: (controller: ReadableStreamDefaultController<Uint8Array>) => {
+    pulled++; controller.enqueue(new Uint8Array(100).fill(32));
+  } };
+  // A declared length over the bound is refused before any byte is read.
+  expect((await servePortalIncidentsV1(streamed(endless, { 'Content-Length': String(64 * 1024 * 1024) }), env)).status).toBe(400);
+  expect(pulled).toBe(0);
+  // Without a length, reading stops just past the bound.
+  expect((await servePortalIncidentsV1(streamed(endless), env)).status).toBe(400);
+  expect(pulled).toBeLessThanOrEqual(4);
+  expect((await servePortalIncidentsV1(streamed({ pull: (controller) => controller.error(new Error('reset')) }), env)).status).toBe(400);
+  expect(mocks.unsafe).not.toHaveBeenCalled();
+});

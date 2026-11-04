@@ -122,4 +122,27 @@ describe('Aba Notas in the admin', () => {
     expect(saved.disclosure.periods.T2).toEqual(plan(false, [SHOW, 'open']));
     expect(saved.finalAgenda).toBeUndefined();
   });
+
+  it('keeps hidden a period whose Ocultar came before its start, like the server', () => {
+    const base = legacy();
+    const value = {
+      ...base,
+      allowedPeriods: ['T1' as const, 'T2' as const, 'T3' as const],
+      calendar: {
+        ...base.calendar,
+        disclosure: {
+          mode: 'single' as const,
+          at: '2026-04-01T13:00:00.000Z',
+          endsAt: '2026-05-15T03:00:00.000Z',
+          periods: ['T1' as const, 'T2' as const, 'T3' as const],
+        },
+      },
+    };
+    const now = Date.parse('2026-09-27T12:00:00Z');
+    expect(periodDisclosureV1(value, 'T2', new Date(now))).toBe('disabled');
+    expect(accessOpenAtV1(gradePlanOfV1(value, 'T2'), now)).toBe(false);
+    expect(accessOpenAtV1(gradePlanOfV1(value, 'T1'), Date.parse('2026-04-10T12:00:00Z'))).toBe(true);
+    const saved = calendarWithGradePlanV1(value, 'T1', empty, now);
+    expect(periodDisclosureV1({ ...value, calendar: saved.calendar! }, 'T2', new Date(now))).toBe('disabled');
+  });
 });

@@ -238,6 +238,8 @@ function RetryCountdownV1({ retryAt }: Readonly<{ retryAt: number }>) {
   const clock =
     seconds >= 60 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : `${seconds}s`;
   const minuteWord = minutes === 1 ? 'minuto' : 'minutos';
+  const inMinutes = `Tente novamente em ${minutes} ${minuteWord}.`;
+  // The output is a live region: screen readers hear the minutes, never a second-by-second count.
   return (
     <output className="pa-auth-countdown">
       <span
@@ -247,10 +249,11 @@ function RetryCountdownV1({ retryAt }: Readonly<{ retryAt: number }>) {
       >
         <i>{clock}</i>
       </span>
-      <span>
-        {seconds >= 60
-          ? `Tente novamente em ${minutes} ${minuteWord}.`
-          : `Tente novamente em ${seconds} segundos.`}
+      <span aria-hidden="true">
+        {seconds >= 60 ? inMinutes : `Tente novamente em ${seconds} segundos.`}
+      </span>
+      <span className="sr-only">
+        {seconds >= 60 ? inMinutes : 'Tente novamente em menos de um minuto.'}
       </span>
     </output>
   );
@@ -592,6 +595,10 @@ export function StudentAuthenticationV1({
   const [state, setState] = useState(INITIAL_AUTH_STATE_V1);
   // Off by default (owner decision): a shared or borrowed phone must not stay signed in.
   const [keepConnected, setKeepConnected] = useState(false);
+  // The choice belongs to one card: back at the reader, the next card starts unchecked.
+  useEffect(() => {
+    if (state.step === 'scan') setKeepConnected(false);
+  }, [state.step]);
   const [invalidQr, setInvalidQr] = useState(false);
   const flow = useRef<FlowV1 | null>(null);
   const success = useRef(onAuthenticated);

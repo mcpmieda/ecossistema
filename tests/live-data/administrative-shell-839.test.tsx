@@ -2,9 +2,10 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mockSecureJitterV1 } from './secure-jitter-fixture';
-import { App } from '../../src/App';
+import { App, ADMIN_AUTOMATIC_READS_V1 } from '../../src/App';
 import { PLATFORM_CAPABILITIES } from '../../shared/platform-contract';
 import { buildPlatformSnapshot } from '../../server/platform/snapshot';
+import { notifyLiveChangeV1 } from '../../src/shared/live-data/live-refresh-v1';
 
 const { reads } = vi.hoisted(() => ({ reads: vi.fn(async () => true) }));
 vi.mock('../../src/platform/pages', async () => {
@@ -30,8 +31,6 @@ class Socket extends EventTarget {
   constructor(readonly url: string | URL) { super(); Socket.instances.push(this); }
   send() {}
   close() { this.closed = true; }
-  message(input: unknown) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(input) })); }
-  deny() { this.closed = true; this.dispatchEvent(new CloseEvent('close', { code: 4403 })); }
 }
 const snapshot = () => buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId: 'synthetic' }, PLATFORM_CAPABILITIES);
 let key: string;
@@ -39,6 +38,7 @@ let status: number;
 let fetcher: ReturnType<typeof vi.fn<typeof fetch>>;
 const flush = () => act(async () => { for (let i = 0; i < 60; i++) await Promise.resolve(); });
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+const windowReturns = () => act(async () => { window.dispatchEvent(new Event('focus')); });
 beforeEach(() => {
   vi.useFakeTimers(); mockSecureJitterV1(0);
   reads.mockClear(); Socket.instances = []; key = 'synthetic-a'; status = 200;
@@ -59,42 +59,53 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetcher);
 });
 afterEach(async () => { cleanup(); await flush(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
-it('the real App owns one socket, routes a notice to its Bank reader, and preserves a draft on a broad update', async () => {
+it('the real App opens no live channel and reads again only when the window returns, keeping a draft', async () => {
+  expect(ADMIN_AUTOMATIC_READS_V1).toBe(false);
   render(<App />); await flush();
   const input = screen.getByLabelText('workspace-banco-de-notas') as HTMLInputElement;
-  expect(Socket.instances).toHaveLength(1);
-  const notice = { contractVersion: 1, type: 'change', cursor: '00000000000000000001', domain: 'gradebook', version: 'revision:1', occurredAt: new Date().toISOString() };
-  await act(async () => Socket.instances[0]!.message(notice)); await advance(250);
+  expect(Socket.instances).toHaveLength(0);
+  expect(screen.getByTestId('workspace-live').textContent).toBe('idle');
+  // No clock and no change notice reads by itself, not even after five quiet minutes.
+  await act(async () => notifyLiveChangeV1('gradebook', { broadcast: false }));
+  await advance(5 * 60_000);
+  expect(reads).not.toHaveBeenCalled();
+  await windowReturns(); await advance(250);
   expect(reads).toHaveBeenCalledTimes(1);
   fireEvent.change(input, { target: { value: 'rascunho local' } });
-  await act(async () => Socket.instances[0]!.message({ ...notice, cursor: '00000000000000000002' }));
-  await advance(2_000);
+  await advance(10_000);
+  await windowReturns(); await advance(2_000);
   expect(reads).toHaveBeenCalledTimes(1);
-  expect(screen.getByText(/Há atualizações a conferir/)).toBeTruthy();
   expect(screen.getByLabelText('workspace-banco-de-notas')).toBe(input);
   expect(input.value).toBe('rascunho local');
-  expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+  expect(screen.queryByText(/Há atualizações a conferir/)).toBeNull();
+  expect(Socket.instances).toHaveLength(0);
+  // Only reads: the side column's health dot and Conciliação badge are queried by POST.
+  const sideReads = ['/api/platform/system-health', '/api/student-reconciliation/v1'];
+  expect(fetcher.mock.calls.every(([path, init]) =>
+    !init?.method || init.method === 'GET' || sideReads.includes(String(path)))).toBe(true);
 });
-it.each([401, 403])('confirmed identity denial %i removes the workspace after a socket denial', async (code) => {
+it.each([401, 403])('confirmed identity denial %i on the window return removes the workspace', async (code) => {
   render(<App />); await flush();
   expect(screen.getByLabelText('workspace-banco-de-notas')).toBeTruthy();
   status = code;
-  await act(async () => Socket.instances[0]!.deny()); await flush();
+  await advance(10_000);
+  await windowReturns(); await flush();
   expect(screen.queryByLabelText('workspace-banco-de-notas')).toBeNull();
-  expect(Socket.instances.every((socket) => socket.closed)).toBe(true);
+  expect(Socket.instances).toHaveLength(0);
 });
 it('a transient identity error retains the same draft; an actual identity change resets it', async () => {
   render(<App />); await flush();
   const input = screen.getByLabelText('workspace-banco-de-notas') as HTMLInputElement;
   fireEvent.change(input, { target: { value: 'edição não salva' } });
   status = 503;
-  await act(async () => Socket.instances[0]!.deny()); await flush();
+  await advance(10_000);
+  await windowReturns(); await flush();
   expect(screen.getByLabelText('workspace-banco-de-notas')).toBe(input);
   expect(input.value).toBe('edição não salva');
   status = 200; key = 'synthetic-b';
   await advance(10_000);
-  await act(async () => window.dispatchEvent(new Event('focus'))); await flush();
+  await windowReturns(); await flush();
   const next = screen.getByLabelText('workspace-banco-de-notas') as HTMLInputElement;
   expect(next).not.toBe(input); expect(next.value).toBe('');
-  expect(Socket.instances.filter((socket) => !socket.closed)).toHaveLength(1);
+  expect(Socket.instances).toHaveLength(0);
 });

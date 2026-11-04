@@ -76,3 +76,32 @@ it('pauses hidden reads, avoids overlap, backs off errors and fences late visibi
   });
   expect(failing).toHaveBeenCalledTimes(2);
 });
+
+it('keeps the panel data when an action is refused and re-reads stale data at once', async () => {
+  let value = 1;
+  const read = vi.fn(async () => ({ value }));
+  const view = renderHook(() => useFrequencyReadV2(read, true));
+  await act(async () => {});
+  expect(view.result.current.data).toEqual({ value: 1 });
+  let ok = true;
+  await act(async () => {
+    ok = await view.result.current.perform(async () => {
+      throw new FrequencyClientErrorV2('invalid-request');
+    });
+  });
+  expect(ok).toBe(false);
+  expect(view.result.current.data).toEqual({ value: 1 });
+  expect(view.result.current.readAt).not.toBeNull();
+  expect(view.result.current.error).toBe('invalid-request');
+  expect(read).toHaveBeenCalledOnce();
+  value = 2;
+  await act(async () => {
+    ok = await view.result.current.perform(async () => {
+      throw new FrequencyClientErrorV2('revision-conflict');
+    });
+  });
+  expect(ok).toBe(false);
+  expect(read).toHaveBeenCalledTimes(2);
+  expect(view.result.current.data).toEqual({ value: 2 });
+  expect(view.result.current.error).toBe('revision-conflict');
+});

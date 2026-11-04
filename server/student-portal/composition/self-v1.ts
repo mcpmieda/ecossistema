@@ -78,16 +78,20 @@ async function invokeAuthV1<T>(
   if (!env.PORTAL_AUTH_GLOBAL || !env.PORTAL_AUTH_SUBJECT)
     throw new Error('student-portal-rate-limit-unavailable');
   // Anonymous input has its own budget; invalid signatures cannot spend the proven QR budget.
-  await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'auth-entry', 'public');
+  // The signature (one HMAC) is checked first, so forged QRs cannot hold a signed one behind
+  // the shared anonymous budget either: a proven credential has its own burst below.
   const keys = portalKeysV1(env);
   let verifiedSubject = subject;
   if (hasQr) {
     const qr = parseQrV1(subject);
-    if (!(await keys.cryptoPort.verifyQr(qr.credentialId, qr.keyVersion, qr.signature)))
+    if (!(await keys.cryptoPort.verifyQr(qr.credentialId, qr.keyVersion, qr.signature))) {
+      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'auth-entry', 'public');
       return { contractVersion: 1, requestId, state: 'unauthenticated' };
+    }
     verifiedSubject = `qr:${qr.keyVersion}:${qr.credentialId}`;
   }
   if (!hasQr) {
+    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'auth-entry', 'public');
     // A challenge is opaque until its existing database preflight verifies it. Keep its
     // budget separate from signed QRs; the durable account counter remains authoritative.
     await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'activation', 'public');

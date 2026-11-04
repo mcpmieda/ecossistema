@@ -495,6 +495,16 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
   // wrong clock never moves "HOJE".
   const deviceToday = useTodayV3();
   const today = load.data?.today ?? deviceToday;
+  // Midnight (or the parent coming back) on a page left open: the phone's new day asks the server
+  // for its today again, which still decides "HOJE".
+  const serverToday = load.data?.today;
+  const { retry } = load;
+  const checkedDay = useRef(deviceToday);
+  useEffect(() => {
+    if (checkedDay.current === deviceToday) return;
+    checkedDay.current = deviceToday;
+    if (serverToday && deviceToday > serverToday) retry();
+  }, [deviceToday, serverToday, retry]);
   const { firstMonth, lastMonth } = monthsOfYearV3(load.data?.schoolYear, academicYear);
   // The current month, kept inside the school year: before it, its first month; after it, its last.
   const todayMonth = today.slice(0, 7);

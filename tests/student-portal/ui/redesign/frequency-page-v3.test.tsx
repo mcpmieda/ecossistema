@@ -369,4 +369,21 @@ describe('Frequência page: reading', () => {
     // The month stays on screen while it is read again.
     expect(screen.getByRole('heading', { level: 3, name: 'Outubro de 2026' })).toBeTruthy();
   });
+
+  it('asks the server for its today again when midnight passes with the page open', async () => {
+    vi.setSystemTime(new Date('2026-10-21T23:59:00-03:00'));
+    const schoolToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
+    const client = {
+      readYear: vi.fn(async () => ({ ...(await clientOf().readYear()), today: schoolToday() })),
+    };
+    render(<FrequencyPageV3 client={client} />);
+    await ready();
+    expect(dayButton(21).className).toContain('is-today');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3 * 60_000);
+    });
+    await waitFor(() => expect(client.readYear).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(dayButton(22).className).toContain('is-today'));
+    expect(dayButton(21).className).not.toContain('is-today');
+  });
 });

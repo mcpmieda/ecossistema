@@ -162,11 +162,11 @@
   background: color-mix(in srgb, var(--pa-tone) 12%, transparent);
   color: var(--pa-tone);
 }
-.pa-stat dt {
+.pa-stat-label {
   font-size: 0.8rem;
   color: var(--muted);
 }
-.pa-stat dd {
+.pa-stat-number {
   margin: 0;
   font-size: clamp(1.75rem, 3vw, 2.35rem);
   font-weight: 700;
@@ -223,7 +223,7 @@
     width: 1.8rem;
     height: 1.8rem;
   }
-  .pa-stat dd {
+  .pa-stat-number {
     font-size: 1.6rem;
   }
 }
@@ -315,7 +315,7 @@
 .pa-overview .pa-stat-top {
   gap: 0.5rem;
 }
-.pa-overview .pa-stat dt {
+.pa-overview .pa-stat-label {
   font-size: 0.82rem;
   font-weight: 500;
 }
@@ -325,7 +325,7 @@
   justify-content: space-between;
   gap: 0.5rem;
 }
-.pa-overview .pa-stat dd {
+.pa-overview .pa-stat-number {
   font-size: clamp(1.7rem, 2.6vw, 2.1rem);
   letter-spacing: -0.03em;
 }

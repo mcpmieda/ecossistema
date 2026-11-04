@@ -80,6 +80,20 @@ describe('account list and detail', () => {
       expect(mock.writes).toHaveLength(0);
     },
   );
+  it('highlights the row of the open record and only while it is open', async () => {
+    window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts');
+    const mock = accountsMockV1({ count: 2 });
+    render(createElement(StudentAccountsV1, mock.props));
+    const user = userEvent.setup();
+    const row = (await ready()).closest('tr')!;
+    expect(row.classList.contains('pa-account-selected')).toBe(false);
+    await user.click(await ready());
+    const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
+    await waitFor(() => expect(row.classList.contains('pa-account-selected')).toBe(true));
+    await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
+    await waitFor(() => expect(row.classList.contains('pa-account-selected')).toBe(false));
+    expect(mock.writes).toHaveLength(0);
+  });
   it('offers bulk operations only for a selected class and keeps the read-only preview inert', async () => {
     const mock = accountsMockV1();
     render(createElement(StudentAccountsV1, { ...mock.props, canWrite: false }));
@@ -266,6 +280,36 @@ describe('account list and detail', () => {
       blocked: false,
       expectedVersion: 12,
     });
+  });
+  it('keeps the list on screen while it is read again after a write in the record', async () => {
+    let answer: (() => void) | null = null;
+    const mock = accountsMockV1({
+      query: (input) =>
+        mock.writes.length > 0 && input.operation === 'accounts-read' && input.scope.kind === 'school'
+          ? new Promise<Response>((resolve) => {
+              // The list's own read after the write answers when the test says so.
+              answer = () =>
+                resolve(accountJsonV1(accountPageV1(mock.accounts.map((item) => ({ ...item })))));
+            })
+          : undefined,
+    });
+    render(createElement(StudentAccountsV1, mock.props));
+    // Behind the open record the list is hidden from assistive technology, not removed.
+    const list = () => screen.getByRole('grid', { name: 'Contas do Portal', hidden: true });
+    await ready();
+    const grid = list();
+    const user = userEvent.setup();
+    await user.click(await ready());
+    await user.click(await detail());
+    await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
+    await screen.findByText(/Alteração salva/);
+    await waitFor(() => expect(answer).not.toBeNull());
+    // The read after the write is still on its way: the rows stay, nothing says "loading".
+    expect(list()).toBe(grid);
+    expect(screen.queryByText('Consultando contas…')).toBeNull();
+    (answer as unknown as () => void)();
+    await waitFor(() => expect(within(list()).getByText('Bloqueado')).toBeTruthy());
+    expect(list()).toBe(grid);
   });
   it('cancels a review and uses fresh detail CAS rather than the stale list row', async () => {
     const mock = accountsMockV1();

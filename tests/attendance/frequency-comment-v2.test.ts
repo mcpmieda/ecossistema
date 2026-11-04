@@ -78,6 +78,16 @@ describe('frequency comment (owner decisions 22/10/2026)', () => {
       tone: 'alert',
       text: 'Faltou cerca de 5 dias nas últimas 4 semanas. Antes, faltava menos.',
     });
+    // A student who arrived less than four weeks ago has no "antes" to compare with.
+    const arrived = recent(10);
+    expect(
+      frequencyCommentV2({
+        months: [{ days: arrived.map(lessonDay), marks: arrived.filter((_, index) => index % 2 === 0).flatMap((date) => dayAbsent(date)) }],
+        today: TODAY,
+        schoolDays: 200,
+        remainingSchoolDays: 39,
+      })?.kind,
+    ).not.toBe('rising');
   });
 
   it('whole days mostly on one weekday', () => {

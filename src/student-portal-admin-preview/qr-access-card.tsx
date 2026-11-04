@@ -7,12 +7,21 @@ import portrait from './assets/synthetic-student-portrait.png';
 
 const emblemSize = 20;
 
-function columnsForWidth(width: number, spacing: number, size: number) {
+// Shared with the card previews, so the current card and the proposal lay emblems out alike.
+export function columnsForWidth(width: number, spacing: number, size: number) {
   return Math.floor((width - size) / (size + spacing)) + 1;
 }
 
-function sizeForRows(height: number, rows: number, spacing: number) {
+export function sizeForRows(height: number, rows: number, spacing: number) {
   return Math.min(emblemSize, Math.floor((height - (rows - 1) * spacing) / rows));
+}
+
+/** A slider value the previews remember on this browser, kept inside its range. */
+export function savedSetting(key: string, fallback: number, min: number, max: number) {
+  const stored = window.localStorage.getItem(key);
+  if (stored === null) return fallback;
+  const value = Number(stored);
+  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 }
 
 type QrAccessCardProps = {

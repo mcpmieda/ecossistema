@@ -136,6 +136,19 @@ it('reads again and warns when the school edited the record meanwhile', async ()
   expect(screen.getByRole('button', { name: 'Toque aqui para confirmar que leu' })).toBeTruthy();
 });
 
+it('drops the warning once the list read again has nothing left to confirm (record removed)', async () => {
+  const client = clientOf([warning], async () => {
+    throw new FrequencyClientErrorV2('changed');
+  });
+  render(<IncidentsPageV3 client={client} />);
+  await waitFor(() => expect(cards()).toHaveLength(1));
+  client.read.mockResolvedValueOnce({ incidents: [] });
+  await confirmFirstOpen();
+  expect(await screen.findByText('Nenhuma ocorrência registrada neste ano.')).toBeTruthy();
+  expect(client.read).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText(/A escola alterou uma ocorrência/u)).toBeNull();
+});
+
 it('hands an expired session to the portal', async () => {
   const lost = vi.fn();
   render(

@@ -274,7 +274,8 @@ export function IndividualQrV1(
   }
   function printCard() {
     if (!card.current) return;
-    void printer.print(card.current.imageUrl).then((ok) => {
+    setNotice('');
+    void printer.print(card.current.imageUrl, 'card').then((ok) => {
       if (!ok)
         setNotice(
           'Não foi possível imprimir o cartão. Baixe a imagem para imprimir pelo navegador.',
@@ -333,6 +334,7 @@ export function IndividualQrV1(
                   <Button
                     variant="secondary"
                     onPress={() => {
+                      setNotice('');
                       void printer.print(imageUrl).then((ok) => {
                         if (!ok)
                           setNotice(

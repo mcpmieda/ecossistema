@@ -6,6 +6,7 @@ const IDENTIFIER = 1;
 const MOVE_PX = 4;
 let target: EventTarget | null = null;
 let start = { x: 0, y: 0 };
+let last = { x: 0, y: 0 };
 let moved = false;
 
 const send = (type: string, x: number, y: number) => {
@@ -20,17 +21,29 @@ const send = (type: string, x: number, y: number) => {
     }),
   );
 };
+const lift = (x: number, y: number) => {
+  send('touchend', x, y);
+  target = null;
+  document.body.style.userSelect = '';
+};
 
 globalThis.addEventListener('mousedown', (event) => {
   // The simulator's own panel and its fields keep the mouse.
   if (event.button !== 0 || (event.target as Element).closest('details, input, select, textarea')) return;
   target = event.target;
   start = { x: event.clientX, y: event.clientY };
+  last = start;
   moved = false;
   send('touchstart', event.clientX, event.clientY);
 });
 globalThis.addEventListener('mousemove', (event) => {
   if (!target) return;
+  // Released outside the window, so no mouseup came: the finger lifts where it was last seen.
+  if (event.buttons === 0) {
+    lift(last.x, last.y);
+    return;
+  }
+  last = { x: event.clientX, y: event.clientY };
   if (!moved && Math.hypot(event.clientX - start.x, event.clientY - start.y) < MOVE_PX) return;
   // A drag, not a text selection.
   moved = true;
@@ -39,7 +52,5 @@ globalThis.addEventListener('mousemove', (event) => {
 });
 globalThis.addEventListener('mouseup', (event) => {
   if (!target) return;
-  send('touchend', event.clientX, event.clientY);
-  target = null;
-  document.body.style.userSelect = '';
+  lift(event.clientX, event.clientY);
 });

@@ -68,18 +68,44 @@ async function setup() {
   };
 }
 describe('student security channel', () => {
-  it('falls back to legacy connection URL after an unacknowledged handshake failure', async () => {
+  it('falls back to legacy connection URL after unacknowledged handshake failures in a row', async () => {
     const sockets: Socket[] = [];
     const connect = vi.fn((_connectionId?: string) => { const socket = new Socket(); sockets.push(socket); return socket; });
     const security = createStudentSecurityV1({ connect, authorize: vi.fn().mockResolvedValue(undefined), onAuthorized: () => true });
     expect(connect.mock.calls[0]![0]).toMatch(/^[0-9a-f-]{36}$/u);
     sockets[0]!.onerror?.(new Event('error'));
     await vi.advanceTimersByTimeAsync(1000);
-    expect(connect.mock.calls[1]![0]).toBeUndefined();
-    sockets[1]!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt });
-    await vi.advanceTimersByTimeAsync(45_000);
-    expect(connect).toHaveBeenCalledTimes(3);
+    // One drop is as likely the network as an older server: renewal is still offered.
+    expect(connect.mock.calls[1]![0]).toMatch(/^[0-9a-f-]{36}$/u);
+    sockets[1]!.onerror?.(new Event('error'));
+    await vi.advanceTimersByTimeAsync(2000);
     expect(connect.mock.calls[2]![0]).toBeUndefined();
+    sockets[2]!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt });
+    await vi.advanceTimersByTimeAsync(45_000);
+    expect(connect).toHaveBeenCalledTimes(4);
+    expect(connect.mock.calls[3]![0]).toBeUndefined();
+    security.dispose();
+  });
+  it('offers renewal again after a while on the legacy URL, falling back at the first miss', async () => {
+    const sockets: Socket[] = [];
+    const connect = vi.fn((_connectionId?: string) => { const socket = new Socket(); sockets.push(socket); return socket; });
+    const security = createStudentSecurityV1({ connect, authorize: vi.fn().mockResolvedValue(undefined), onAuthorized: () => true });
+    sockets[0]!.onerror?.(new Event('error'));
+    await vi.advanceTimersByTimeAsync(1000);
+    sockets[1]!.onerror?.(new Event('error'));
+    await vi.advanceTimersByTimeAsync(2000);
+    // Ten legacy connections, each confirmed and rotated.
+    for (let legacy = 0; legacy < 10; legacy++) {
+      expect(connect.mock.calls.at(-1)![0]).toBeUndefined();
+      sockets.at(-1)!.open();
+      sockets.at(-1)!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt });
+      await vi.advanceTimersByTimeAsync(45_000);
+    }
+    const probe = sockets.length - 1;
+    expect(connect.mock.calls[probe]![0]).toMatch(/^[0-9a-f-]{36}$/u);
+    sockets[probe]!.onerror?.(new Event('error'));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(connect.mock.calls[probe + 1]![0]).toBeUndefined();
     security.dispose();
   });
   it('renews a supported socket eight times without reconnecting or rereading academics', async () => {

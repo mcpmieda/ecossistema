@@ -90,7 +90,7 @@ export function createPublicationControllerV1(
     };
     emit();
   });
-  const read = async (keepVisible = false) => {
+  const read = async (keepVisible = false, silent = false) => {
     return reader.run(
       async (signal) => {
         const [publication, policy] = await Promise.all([
@@ -105,7 +105,7 @@ export function createPublicationControllerV1(
         ]);
         return publicationSnapshotV1(ownScope, publication, policy);
       },
-      { background: keepVisible },
+      { background: keepVisible, silent },
     );
   };
   function stopObservation() {
@@ -252,7 +252,8 @@ export function createPublicationControllerV1(
         !['network-error', 'unavailable', 'rate-limited'].includes(view.load.error.state)
       )
         return;
-      return read(true);
+      // An automatic read keeps the period actions and the reading status as they are.
+      return read(true, true);
     },
     async load() {
       if (

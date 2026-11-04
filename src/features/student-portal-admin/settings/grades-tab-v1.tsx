@@ -129,7 +129,12 @@ export function GradeShowV1({
   const now = useScheduleClockV1();
   const plan = useMemo(() => gradePlanOfV1(settings.value, gradeKey), [settings, gradeKey]);
   const fromCalendar = gradesFromCalendarV1(settings.value, gradeKey);
-  const saved = useMemo(() => settleAccessPlanV1(plan, Date.now()), [plan]);
+  // Settled again once an action happens while the page is open, so it leaves the rows.
+  const happened = plan.schedule.filter((event) => Date.parse(event.at) <= now).length;
+  const saved = useMemo(
+    () => settleAccessPlanV1(plan, happened ? Date.parse(plan.schedule[happened - 1]!.at) : Date.now()),
+    [plan, happened],
+  );
   const sourceRows = useMemo(() => scheduleRowsOfV1(saved.schedule), [saved]);
   const [rows, setRows] = useState(sourceRows);
   const sourceKey = scheduleRowsKeyV1(sourceRows);
@@ -177,9 +182,13 @@ export function GradeShowV1({
     });
   const save = () => {
     try {
-      const schedule: AccessEventV1[] = parseScheduleRowsV1(rows, Date.now());
+      const current = Date.now();
+      // Saved actions that already happened are part of the state now, not pending rows.
+      const done = scheduleRowsOfV1(plan.schedule.filter((event) => Date.parse(event.at) <= current));
+      const pending = rows.filter((row) => !done.some((item) => item.at === row.at && item.action === row.action));
+      const schedule: AccessEventV1[] = parseScheduleRowsV1(pending, current);
       setError(null);
-      submit({ enabled: accessOpenAtV1(plan, Date.now()), schedule });
+      submit({ enabled: accessOpenAtV1(plan, current), schedule });
     } catch (error_) {
       setError(error_ instanceof Error ? error_.message : 'Confira os agendamentos.');
     }

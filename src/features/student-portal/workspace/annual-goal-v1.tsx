@@ -35,12 +35,17 @@ function scoreOf(subject: SubjectV1, period: PeriodV1['period']): ScoreMarkV1 | 
   return final?.kind === 'score' ? final : null;
 }
 
-/** The T2 target remains visible during T3; it is based only on the published T1 + T2 marks. */
+/**
+ * The T2 target remains visible during T3; it is based only on the published T1 + T2 marks. A
+ * published final result (the student's, even with no subject outcome) ends the goal.
+ */
 export function annualGoalV1(
   subject: SubjectV1,
-  academicState: SelfResponseV1['profile']['academicState'],
+  profile: Pick<SelfResponseV1['profile'], 'academicState' | 'result' | 'annualSituation'>,
 ): AnnualGoalV1 | null {
-  if (academicState !== 'regular' || subject.annualSituation || subject.officialOutcome) return null;
+  if (profile.academicState !== 'regular' || subject.annualSituation || subject.officialOutcome) return null;
+  if (profile.result !== 'in-progress') return null;
+  if (profile.annualSituation && profile.annualSituation !== 'in-recovery') return null;
   const t1 = scoreOf(subject, 'T1');
   const t2 = scoreOf(subject, 'T2');
   if (!t1 || !t2) return null;

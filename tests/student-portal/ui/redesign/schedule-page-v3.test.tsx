@@ -332,3 +332,19 @@ it('changes the day with a sideways swipe on a phone, never with a vertical one'
   drag([60, 300], [250, 300]);
   expect(shownDay()).toBe('Quarta-feira');
 });
+
+it("slides every class's card the finger's way when a swipe goes from Friday to Monday", () => {
+  at('2026-10-23T12:00:00'); // A Friday.
+  render(<SchedulePageV3 classes={[morning(), grid('6º ANO A - INTEGRAL')]} />);
+  const [first, second] = [...document.querySelectorAll('.pa3-day-slider')] as HTMLElement[];
+  for (const slider of [first!, second!]) Object.defineProperty(slider, 'offsetWidth', { value: 300 });
+  fireEvent.touchStart(first!, { touches: [{ clientX: 250, clientY: 300 }] });
+  fireEvent.touchMove(first!, { touches: [{ clientX: 60, clientY: 305 }] });
+  fireEvent.touchEnd(first!, { changedTouches: [{ clientX: 60, clientY: 305 }] });
+  act(() => {
+    vi.advanceTimersByTime(270);
+  });
+  const panels = () => [...second!.querySelectorAll('.pa3-day-panel h3')].map((title) => title.textContent);
+  // Monday comes in from the right on the other card too: Friday leaves to the left.
+  expect(panels()).toEqual(['Hoje, sexta-feira', 'Segunda-feira', 'Terça-feira']);
+});

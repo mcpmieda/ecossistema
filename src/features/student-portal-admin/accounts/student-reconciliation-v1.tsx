@@ -59,6 +59,31 @@ const confirmNounV1: Record<DecisionActionV1, string> = {
   associate: 'vínculo',
   confirm: 'vínculo',
 };
+/** The decision history in words; the stored codes stay only in the entry's tooltip. */
+const historyActionV1: Record<string, string> = {
+  associate: 'Vínculo',
+  reject: 'Rejeição',
+  separate: 'Separação',
+  release: 'Liberação da rejeição',
+  confirm: 'Confirmação do vínculo',
+  'select-observation': 'Escolha dos dados',
+  'class-link': 'Associação de turma',
+  'name-source': 'Fonte do nome',
+};
+const historyReasonV1: Record<string, string> = {
+  operator: 'pelo operador',
+  continuity: 'automático (continuidade)',
+  name_class: 'automático (nome e turma)',
+  inep_birth: 'automático (INEP e nascimento)',
+  name_birth_filiation: 'automático (nome, nascimento e filiação)',
+};
+function historyEntryLabelV1(entry: { action: string; reason: string }) {
+  const action = historyActionV1[entry.action] ?? 'Decisão';
+  // Settings changes record their own operation as the reason: the operator made them.
+  const reason =
+    entry.reason === entry.action ? historyReasonV1.operator : historyReasonV1[entry.reason];
+  return reason ? `${action} ${reason}` : action;
+}
 const itemKeyV1 = (item: ReconciliationListItemV1) =>
   item.kind === 'person' ? item.studentUid : item.id;
 const itemStateV1 = (item: ReconciliationListItemV1) =>
@@ -786,8 +811,8 @@ function ReconciliationDetailV1({
           <summary className="cursor-pointer text-sm">Histórico de decisões</summary>
           <ul className="mt-3 space-y-2 text-sm">
             {detail.history.map((entry) => (
-              <li key={entry.id}>
-                {dateLabelV1(entry.at)} — {entry.action}: {entry.reason}
+              <li key={entry.id} title={`${entry.action}: ${entry.reason}`}>
+                {dateLabelV1(entry.at)} — {historyEntryLabelV1(entry)}
               </li>
             ))}
           </ul>

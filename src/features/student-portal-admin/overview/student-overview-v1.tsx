@@ -38,10 +38,19 @@ export function StudentOverviewV1(props: Readonly<OperationsPropsV1>) {
     </OperationsScopeV1>
   );
 }
-/** A lost authorization or a rate limit ends the whole read; other failures leave a part empty. */
+/** A lost authorization, a rate limit or no network ends the whole read (the summary on screen
+ * stays with its notice); other failures leave a part empty. */
 const stopsReadV1 = (reason: unknown) =>
   reason instanceof PortalClientErrorV1 &&
-  (authorizationLostV1(reason) || reason.state === 'rate-limited');
+  (authorizationLostV1(reason) || ['rate-limited', 'network-error'].includes(reason.state));
+/** Only an unconfirmed start repeats the same prepared command; a refused one needs a new review. */
+const populationRetryableV1 = (error: PortalClientErrorV1 | null) =>
+  error !== null &&
+  ['network-error', 'invalid-response', 'unavailable', 'rate-limited'].includes(error.state);
+function populationActionLabelV1(error: PortalClientErrorV1 | null) {
+  if (!error) return 'Ativar cadastro automático';
+  return populationRetryableV1(error) ? 'Tentar sincronização novamente' : 'Consultar novamente';
+}
 
 /** The fallback keeps health observable when the business summary is unavailable. */
 async function fallbackHealthV1(props: Readonly<OperationsPropsV1>, signal: AbortSignal) {
@@ -127,7 +136,7 @@ function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
       });
       await populationCommand.current.execute(controller.signal);
       populationCommand.current = null;
-      read.reload();
+      read.reloadNow();
     } catch (error) {
       if (controller.signal.aborted) return;
       const failure =
@@ -135,12 +144,7 @@ function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
       if (authorizationLostV1(failure)) props.onAuthorizationLost?.(failure);
       else {
         setPopulationError(failure);
-        if (
-          !['network-error', 'invalid-response', 'unavailable', 'rate-limited'].includes(
-            failure.state,
-          )
-        )
-          populationCommand.current = null;
+        if (!populationRetryableV1(failure)) populationCommand.current = null;
       }
     } finally {
       if (!controller.signal.aborted) setPopulationBusy(false);
@@ -248,21 +252,25 @@ function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
                     </dl>
                     {populationError && (
                       <p role="alert">
-                        A sincronização não foi confirmada. Consulte novamente ou tente a mesma
-                        ação.
+                        {populationRetryableV1(populationError)
+                          ? 'A sincronização não foi confirmada. Consulte novamente ou tente a mesma ação.'
+                          : 'A sincronização não foi feita. Consulte os números atuais e revise antes de ativar.'}
                       </p>
                     )}
                     {!data.population.enabled && (
                       <Button
                         isDisabled={!props.canWrite || populationBusy}
                         isPending={populationBusy}
-                        onPress={() =>
-                          populationError ? void synchronizePopulation() : setPopulationReview(true)
-                        }
+                        onPress={() => {
+                          if (populationRetryableV1(populationError)) void synchronizePopulation();
+                          else if (populationError) {
+                            // A refused start never sends a new command without a new review.
+                            setPopulationError(null);
+                            read.reloadNow();
+                          } else setPopulationReview(true);
+                        }}
                       >
-                        {populationError
-                          ? 'Tentar sincronização novamente'
-                          : 'Ativar cadastro automático'}
+                        {populationActionLabelV1(populationError)}
                       </Button>
                     )}
                   </section>

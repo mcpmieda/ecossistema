@@ -75,6 +75,7 @@ const categories = [
     fields: ['risk'],
   },
 ] as const;
+export type PolicyCategoryV1 = (typeof categories)[number]['id'];
 
 export function PolicyLayoutV1({
   field,
@@ -85,6 +86,7 @@ export function PolicyLayoutV1({
   schoolCalendar,
   schoolBells,
   calendarEditable = false,
+  initialCategory = 'access',
 }: Readonly<{
   /** locked: shown read-only (the Calendário tab outside its edit mode). */
   field: (name: SettingsFieldV1, locked?: boolean) => ReactNode;
@@ -100,9 +102,11 @@ export function PolicyLayoutV1({
   schoolBells?: (editing: boolean) => ReactNode;
   /** The person may change the Calendário tab: it shows "Editar" (owner request 23/10/2026). */
   calendarEditable?: boolean;
+  /** The tab shown first: a customization opened for its publication starts on Notas. */
+  initialCategory?: PolicyCategoryV1;
 }>) {
-  const [selected, setSelected] = useState<string>('access');
-  const [publicationVisited, setPublicationVisited] = useState(false);
+  const [selected, setSelected] = useState<string>(initialCategory);
+  const [publicationVisited, setPublicationVisited] = useState(initialCategory === 'grades');
   const [customizationsVisited, setCustomizationsVisited] = useState(false);
   // Calendário opens read-only, so nothing changes by an accidental click (owner request
   // 23/10/2026); "Editar" unlocks it and shows the save buttons. Leaving discards unsaved changes.

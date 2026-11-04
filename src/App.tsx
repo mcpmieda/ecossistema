@@ -16,7 +16,14 @@ import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformDataV2 } from './platform/platform-data-v2';
 import { usePlatformIdentityV1, type PlatformIdentityV1 as Identity } from './platform/platform-identity-v1';
 import { AdministrativeLiveProviderV1 } from './shared/live-data/administrative-live-v1';
+import { LiveRefreshAutomaticV1Provider } from './shared/live-data/live-refresh-scope-v1';
 import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
+
+/** Since 03/11/2026, when the owner asked whether the automatic refresh was needed (screens still
+ * blinked): the ADM reads again when its window comes back, after each write and on F5, with no
+ * clock and no live channel; a change made elsewhere shows then. Writes still check versions.
+ * This flag turns both back on. */
+export const ADMIN_AUTOMATIC_READS_V1 = false;
 
 type AuthFailure = { correlationId?: string };
 function authFailureFromUrl(): AuthFailure | null {
@@ -318,8 +325,10 @@ export function App() {
   if (!identity.capabilities?.includes('platform.snapshot.read')) return <RestrictedExperience name={identity.name} />;
   return <AdministrativeLiveProviderV1
     identityKey={identity.identityKey ? `${identity.identityKey}:${identity.expiresAt ?? ''}:${identity.capabilities.join(',')}` : undefined}
-    enabled={identity.capabilities.includes('platform.settings.read')}
+    enabled={ADMIN_AUTOMATIC_READS_V1 && identity.capabilities.includes('platform.settings.read')}
     onAuthorizationLost={recheck}>
-    <AdminShell key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`} identity={identity} />
+    <LiveRefreshAutomaticV1Provider enabled={ADMIN_AUTOMATIC_READS_V1}>
+      <AdminShell key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`} identity={identity} />
+    </LiveRefreshAutomaticV1Provider>
   </AdministrativeLiveProviderV1>;
 }

@@ -467,6 +467,9 @@ export function RelationalCurrentAuditPageV2() {
   const historyRequestRef = useRef<AbortController | null>(null);
   const draftFindingsRef = useRef<ReadonlySet<number>>(new Set());
   const treatmentRetryKeysRef = useRef(new Map<string, string>());
+  // A background read covers the findings already loaded, so the list never shrinks under it.
+  const loadedRef = useRef(0);
+  loadedRef.current = items.length;
 
   const mergeTreatments = useCallback((incoming: readonly ImportDiagnosticTreatmentRecordV1[]) => {
     setTreatments((current) => {
@@ -483,13 +486,15 @@ export function RelationalCurrentAuditPageV2() {
       findings: readonly GradebookImportDiagnosticsAuditRecordV1[],
       signal: AbortSignal,
       append = false,
+      background = false,
     ) => {
-      if (!append) setTreatments([]);
+      // A background read keeps the treatments on screen until their new answer arrives.
+      if (!append && (!background || findings.length === 0)) setTreatments([]);
       if (findings.length === 0) {
         setTreatmentState('ready');
         return true;
       }
-      setTreatmentState('loading');
+      if (!background) setTreatmentState('loading');
       try {
         const response = await requestImportDiagnosticTreatmentV1(
           {
@@ -505,6 +510,8 @@ export function RelationalCurrentAuditPageV2() {
           setTreatmentState(response.state === 'not-authorized' ? 'not-authorized' : 'unavailable');
           return false;
         }
+        // Same render as the merge below: the old treatments leave as the new ones arrive.
+        if (!append && background) setTreatments([]);
         mergeTreatments(response.items);
         setTreatmentState('ready');
         return true;
@@ -553,7 +560,11 @@ export function RelationalCurrentAuditPageV2() {
     if (!background) setState('loading');
     try {
       const response = await listGradebookImportDiagnosticsAuditV1(
-        { academicYear: year, limit: PAGE_SIZE, offset: 0 },
+        {
+          academicYear: year,
+          limit: background ? Math.min(200, Math.max(PAGE_SIZE, loadedRef.current)) : PAGE_SIZE,
+          offset: 0,
+        },
         controller.signal,
       );
       if (controller.signal.aborted) return;
@@ -563,7 +574,12 @@ export function RelationalCurrentAuditPageV2() {
       setItems(response.items);
       setNextOffset(response.nextOffset);
       setState(response.items.length === 0 ? 'empty' : 'ready');
-      const treatmentsLoaded = await loadTreatments(response.items, controller.signal);
+      const treatmentsLoaded = await loadTreatments(
+        response.items,
+        controller.signal,
+        false,
+        background,
+      );
       if (treatmentsLoaded !== true) return treatmentsPending(background, treatmentsLoaded);
       setStale(false);
       return true;

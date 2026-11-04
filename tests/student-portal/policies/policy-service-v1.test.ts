@@ -153,6 +153,20 @@ describe('durable inherited policy', () => {
     await expect(set(SCHOOL, { calendar: { ...calendar, yearEndsAt: at(60) } }, false)).resolves.toMatchObject({ version: 3 });
   });
 
+  it('requires acknowledgment when a release date is cleared or added, since a blank release opens with the term', async () => {
+    await service.initializeDefaults();
+    const current = await service.read(SCHOOL);
+    const at = (days: number) => new Date(Date.now() + days * 86400_000).toISOString().replace(/\.\d{3}Z$/u, 'Z');
+    const none = { T1: null, T2: null, T3: null, REC1: null, REC2: null, REC3: null };
+    const released = (T1: string | null) => ({ ...current.value.calendar, yearStartsAt: at(-30), yearEndsAt: at(200),
+      disclosure: { mode: 'per-period' as const, at: { ...none, T1 } } });
+    await set(SCHOOL, { calendar: released(at(30)) });
+    await expect(set(SCHOOL, { calendar: released(null) }, false)).rejects.toThrow('student-portal-policy-immediate-confirmation-required');
+    await expect(set(SCHOOL, { calendar: released(at(40)) }, false)).resolves.toBeDefined();
+    await set(SCHOOL, { calendar: released(null) });
+    await expect(set(SCHOOL, { calendar: released(at(30)) }, false)).rejects.toThrow('student-portal-policy-immediate-confirmation-required');
+  });
+
   it('keeps calendar and risk atomic and invalidates jobs with the old policy version', async () => {
     await service.initializeDefaults();
     const original = await service.read(accountScope());
