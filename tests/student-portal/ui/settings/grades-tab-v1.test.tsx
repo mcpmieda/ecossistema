@@ -62,7 +62,9 @@ describe('Aba Notas schedule rows', () => {
   it('drops a saved action once it happens while the page is open', () => {
     setup();
     expect(screen.getAllByRole('button', { name: /Remover agendamento/ })).toHaveLength(2);
-    act(() => vi.advanceTimersByTime(7 * 60_000));
+    act(() => {
+      vi.advanceTimersByTime(7 * 60_000);
+    });
     expect(screen.getAllByRole('button', { name: /Remover agendamento/ })).toHaveLength(1);
   });
 
@@ -70,7 +72,9 @@ describe('Aba Notas schedule rows', () => {
     const review = setup();
     // Edited before 10:00: the Ocultar is removed and the Mostrar 10:00 stays as it was.
     fireEvent.click(screen.getByRole('button', { name: 'Remover agendamento 2' }));
-    act(() => vi.advanceTimersByTime(7 * 60_000));
+    act(() => {
+      vi.advanceTimersByTime(7 * 60_000);
+    });
     fireEvent.click(screen.getByRole('button', { name: /Salvar agendamentos/ }));
     expect(screen.queryByText('Cada agendamento precisa estar no futuro.')).toBeNull();
     expect(review).toHaveBeenCalledTimes(1);
