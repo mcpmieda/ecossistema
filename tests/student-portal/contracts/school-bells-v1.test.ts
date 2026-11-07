@@ -104,4 +104,28 @@ describe('school bells (owner decision 23/10/2026)', () => {
     // Never a weekend, never a school day.
     for (const day of off) expect([0, 6]).not.toContain(new Date(`${day.date}T12:00:00Z`).getUTCDay());
   });
+
+  it('gives an unmarked weekday inside the school year as "Sem aula", never as a day with lessons', () => {
+    // Wed 21/10 unmarked; the weekend and the days outside the year never come.
+    const off = schoolDaysOffOfV1([
+      { date: '2026-10-19', kind: 'letivo' },
+      { date: '2026-10-20', kind: 'letivo' },
+      { date: '2026-10-22', kind: 'feriado', note: 'Padroeiro' },
+      { date: '2026-10-23', kind: 'letivo' },
+      { date: '2026-10-26', kind: 'letivo' },
+    ]);
+    expect(off.map((day) => [day.date, schoolDayOffLabelV1(day)])).toEqual([
+      ['2026-10-21', 'Sem aula'],
+      ['2026-10-22', 'Feriado · Padroeiro'],
+    ]);
+    // Without any school day there is no year to fill.
+    expect(schoolDaysOffOfV1([{ date: '2026-10-21', kind: 'recesso' }])).toEqual([{ date: '2026-10-21', kind: 'recesso' }]);
+    expect(schoolDaysOffOfV1([])).toEqual([]);
+  });
+
+  it('adds nothing to the official calendar, which marks every weekday of the year', () => {
+    const calendar = officialCalendar2026V1();
+    const named = calendar.filter((day) => !['letivo', 'sabado-letivo', 'evento-letivo'].includes(day.kind));
+    expect(schoolDaysOffOfV1(calendar).every((day) => named.some((item) => item.date === day.date))).toBe(true);
+  });
 });
