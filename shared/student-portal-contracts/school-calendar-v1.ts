@@ -109,6 +109,8 @@ export function schoolYearProgressOfV1(days: readonly SchoolCalendarDayV1[], tod
  * The days without school the calendar names (owner decision 23/10/2026): a holiday, a recess or an
  * event without lessons, with its note, so the Portal says why there is no lesson ("Feriado ·
  * Finados") on the Horário and on the Frequência calendar. Weekdays only: a weekend is never marked.
+ * A weekday inside the school year that the calendar leaves unmarked has no school either (above:
+ * "a date not marked has no school"), so it comes as "Sem aula" too; never the Horário's lessons.
  */
 export const schoolDayOffV1 = z
   .object({
@@ -119,19 +121,31 @@ export const schoolDayOffV1 = z
   .strict();
 export type SchoolDayOffV1 = z.infer<typeof schoolDayOffV1>;
 export const schoolDaysOffV1 = z.array(schoolDayOffV1).max(366);
-export const schoolDaysOffOfV1 = (days: readonly SchoolCalendarDayV1[]): SchoolDayOffV1[] =>
-  days
-    .filter((day) => !SCHOOL_DAY_COUNTS_V1[day.kind])
-    .filter((day) => {
-      const weekday = new Date(`${day.date}T12:00:00Z`).getUTCDay();
-      return weekday >= 1 && weekday <= 5;
-    })
+const isWeekdayV1 = (date: string) => {
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return weekday >= 1 && weekday <= 5;
+};
+export function schoolDaysOffOfV1(days: readonly SchoolCalendarDayV1[]): SchoolDayOffV1[] {
+  const named: SchoolDayOffV1[] = days
+    .filter((day) => !SCHOOL_DAY_COUNTS_V1[day.kind] && isWeekdayV1(day.date))
     .map((day) => ({
       date: day.date,
       kind: day.kind as SchoolDayOffV1['kind'],
       ...(day.note ? { note: day.note } : {}),
-    }))
-    .sort((left, right) => left.date.localeCompare(right.date));
+    }));
+  // Unmarked weekdays between the first and the last school day: no school, without a description.
+  const span = schoolYearSpanOfV1(days);
+  const unmarked: SchoolDayOffV1[] = [];
+  if (span) {
+    const marked = new Set(days.map((day) => day.date));
+    const last = Date.parse(`${span.lastDay}T12:00:00Z`);
+    for (let at = Date.parse(`${span.firstDay}T12:00:00Z`); at <= last; at += 86_400_000) {
+      const date = new Date(at).toISOString().slice(0, 10);
+      if (!marked.has(date) && isWeekdayV1(date)) unmarked.push({ date, kind: 'evento' });
+    }
+  }
+  return [...named, ...unmarked].sort((left, right) => left.date.localeCompare(right.date));
+}
 const DAY_OFF_NAMES_V1: Record<SchoolDayOffV1['kind'], string> = {
   feriado: 'Feriado',
   recesso: 'Recesso',
