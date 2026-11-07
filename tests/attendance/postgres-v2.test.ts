@@ -909,6 +909,23 @@ describe('frequency V2 private PostgreSQL service', () => {
       service.execute(capture([edited], { observedAt: '2026-01-16T12:00:00Z' }), admin),
     ).rejects.toMatchObject({ code: 'not-authorized' });
     await expect(pg.exec(`UPDATE attendance.incident_version_v2 SET description='x'`)).rejects.toThrow();
+    // Each linked record keeps the evidence of its link (attendance 0017); once the Conciliação undoes
+    // that link the evidence no longer holds, and the Portal readers (0018) stop showing the record.
+    const linkHolds = async () =>
+      (
+        await pg.query<{ id: string; holds: boolean | null }>(
+          `SELECT source_incident_id AS id,gradebook.reconciliation_evidence_valid_v2(academic_year,student_uid,class_id,
+            source_ids_json,observation_ids_json) AS holds FROM attendance.incident_v2 ORDER BY 1`,
+        )
+      ).rows;
+    expect(await linkHolds()).toEqual([
+      { id: '9001', holds: true },
+      { id: '9002', holds: true },
+      { id: '9003', holds: false },
+    ]);
+    await pg.exec(`UPDATE gradebook.student_source_link_v1 SET review_required=true WHERE student_uid='${uid}'`);
+    expect((await linkHolds()).filter((row) => row.holds)).toEqual([]);
+    await pg.exec(`UPDATE gradebook.student_source_link_v1 SET review_required=false WHERE student_uid='${uid}'`);
     // Everything goes with its school year.
     const counts = await database.transaction((tx) => frequencyYearCountsV2(tx, 2026));
     expect(counts).toMatchObject({ incident_v2: 3, incident_version_v2: 4, incident_ack_v2: 1, incident_state_v2: 1 });
