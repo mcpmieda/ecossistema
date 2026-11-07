@@ -1465,7 +1465,8 @@ async function collectSchedule(
  * are kept and linked at a later reading, never refused.
  */
 async function incidentStudents(tx: Tx, input: FrequencyIncidentCollectionV2) {
-  const links = new Map<string, { uid: string; classId: number } | null>();
+  // With the link, its evidence (attendance 0017): the Portal shows a record only while it holds.
+  const links = new Map<string, { uid: string; classId: number; sourceIds: string[]; observationIds: string[] } | null>();
   const groups = new Map<string, FrequencyIncidentCollectionV2['students']>();
   for (const student of input.students) {
     if (student.classId === null || student.sourceClassLabel === null) {
@@ -1499,7 +1500,9 @@ async function incidentStudents(tx: Tx, input: FrequencyIncidentCollectionV2) {
       const resolved = resolutions[index]!;
       links.set(
         student.sourceStudentId,
-        resolved.state === 'resolved' ? { uid: resolved.studentUid, classId: classId! } : null,
+        resolved.state === 'resolved'
+          ? { uid: resolved.studentUid, classId: classId!, sourceIds: resolved.sourceIds, observationIds: resolved.observationIds }
+          : null,
       );
     });
   }
@@ -1538,6 +1541,8 @@ async function collectIncidents(
         student_name: student.name,
         student_uid: links.get(student.sourceStudentId)?.uid ?? null,
         class_id: links.get(student.sourceStudentId)?.classId ?? null,
+        source_ids_json: links.get(student.sourceStudentId)?.sourceIds ?? null,
+        observation_ids_json: links.get(student.sourceStudentId)?.observationIds ?? null,
         content_hash: await frequencyIncidentHashV2(item),
         kind: item.kind,
         occurred_on: item.date,
@@ -1553,7 +1558,8 @@ async function collectIncidents(
   const unresolvedStudents = input.students.filter((s) => links.get(s.sourceStudentId) === null).length;
   const evidenceHash = await frequencyPayloadHashV2({
     complete: input.complete,
-    rows: rows.map((r) => [r.source_incident_id, r.source_student_id, r.student_name, r.student_uid, r.class_id, r.content_hash]),
+    rows: rows.map((r) => [r.source_incident_id, r.source_student_id, r.student_name, r.student_uid, r.class_id, r.content_hash,
+      r.source_ids_json, r.observation_ids_json]),
   });
   const summary = { incidents: rows.length, unresolvedStudents };
   const saveState = () =>
@@ -1573,15 +1579,18 @@ async function collectIncidents(
     return { changed: false, changedIncidents: 0, removedIncidents: 0, ...summary };
   }
   const recordset = `jsonb_to_recordset($2::text::jsonb) AS x(source_incident_id text,source_student_id text,student_name text,
-    student_uid uuid,class_id integer,content_hash text,kind text,occurred_on date,source_class_label text,leave_from date,
+    student_uid uuid,class_id integer,source_ids_json jsonb,observation_ids_json jsonb,content_hash text,kind text,occurred_on date,source_class_label text,leave_from date,
     leave_to date,leave_days smallint,description text)`;
   const payload = JSON.stringify(rows);
   // A new record points at a placeholder version until its first one exists (deferred key).
   await tx.executeNative(
-    `INSERT INTO attendance.incident_v2(id,academic_year,source_incident_id,source_student_id,student_name,student_uid,class_id,current_version_id,last_seen_at)
-    SELECT gen_random_uuid(),$1,x.source_incident_id,x.source_student_id,x.student_name,x.student_uid,x.class_id,gen_random_uuid(),$3::timestamptz FROM ${recordset}
+    `INSERT INTO attendance.incident_v2(id,academic_year,source_incident_id,source_student_id,student_name,student_uid,class_id,
+      source_ids_json,observation_ids_json,current_version_id,last_seen_at)
+    SELECT gen_random_uuid(),$1,x.source_incident_id,x.source_student_id,x.student_name,x.student_uid,x.class_id,
+      x.source_ids_json,x.observation_ids_json,gen_random_uuid(),$3::timestamptz FROM ${recordset}
     ON CONFLICT(academic_year,source_incident_id) DO UPDATE SET source_student_id=EXCLUDED.source_student_id,
       student_name=EXCLUDED.student_name,student_uid=EXCLUDED.student_uid,class_id=EXCLUDED.class_id,
+      source_ids_json=EXCLUDED.source_ids_json,observation_ids_json=EXCLUDED.observation_ids_json,
       last_seen_at=EXCLUDED.last_seen_at,removed_at=NULL`,
     [input.academicYear, payload, input.observedAt],
   );

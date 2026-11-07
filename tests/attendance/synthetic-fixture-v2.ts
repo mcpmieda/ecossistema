@@ -36,6 +36,7 @@ export function frequencySyntheticSetupSqlV2(): string[] {
     readFileSync('migrations/attendance/0009_traceable_evidence_pruning_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0010_class_schedule_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0014_incidents_v2.sql', 'utf8'),
+    readFileSync('migrations/attendance/0017_incident_link_evidence_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0015_student_report_v2.sql', 'utf8'),
     `${validity} REVOKE ALL ON FUNCTION gradebook.reconciliation_evidence_valid_v2(smallint,uuid,integer,jsonb,jsonb) FROM PUBLIC; GRANT EXECUTE ON FUNCTION gradebook.reconciliation_evidence_valid_v2(smallint,uuid,integer,jsonb,jsonb) TO gradebook_app;`,
     `CREATE FUNCTION attendance.record_reset_write_v2(smallint) RETURNS text LANGUAGE sql AS $$ UPDATE student_portal.frequency_test_coordination SET counter=counter+1 WHERE year=$1 RETURNING 'frequency:'||counter::text $$;
