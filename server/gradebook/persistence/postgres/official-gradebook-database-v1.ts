@@ -3,7 +3,7 @@ import { createGradebookPostgresDatabaseV1, type GradebookPostgresFailureDiagnos
   type GradebookPostgresDatabaseV1 } from './postgres-database-v1';
 import { lazyGradebookDatabaseV1 } from './lazy-gradebook-database-v1';
 
-export type GradebookStorageProviderV1 = 'postgres';
+type GradebookStorageProviderV1 = 'postgres';
 type HyperdriveBindingV1 = { readonly connectionString: string };
 type OfficialGradebookDatabaseDependenciesV1 = {
   readonly createPostgresDatabase?: (connectionString: string) => Promise<GradebookPostgresDatabaseV1>;

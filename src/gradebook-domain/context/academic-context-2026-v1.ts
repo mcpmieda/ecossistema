@@ -36,7 +36,7 @@ export class AcademicContextErrorV1 extends Error {
   }
 }
 
-export interface NativeAcademicProfiles2026V1 {
+interface NativeAcademicProfiles2026V1 {
   readonly termComposition: NativeTermCompositionProfileV1;
   readonly parallelRecovery: NativeParallelRecoveryProfileV1;
   readonly termOutcome: NativeTermOutcomeProfileV1;

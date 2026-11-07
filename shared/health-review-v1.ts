@@ -11,7 +11,7 @@ const hourSchema = z.object({ startAt: z.iso.datetime(), samples: small, normal:
   attention: small, critical: small, unknown: small, missing: small, recovered: small }).strict()
   .refine((h) => h.normal + h.attention + h.critical + h.unknown === h.samples
     && h.samples + h.missing === 12 && h.recovered <= h.normal);
-export const reviewOperationV1 = z.object({ source: z.enum(SIGNAL_SOURCES_V1), outcome: z.enum(SIGNAL_OUTCOMES_V1),
+const reviewOperationV1 = z.object({ source: z.enum(SIGNAL_SOURCES_V1), outcome: z.enum(SIGNAL_OUTCOMES_V1),
   samples: z.number().int().min(1).max(288_000), maxMs: z.number().int().min(0).max(60_000),
   slow: z.number().int().min(0).max(288_000), capped: z.boolean() }).strict()
   .refine((p) => p.slow <= p.samples && (p.maxMs >= 3000 || p.slow === 0)

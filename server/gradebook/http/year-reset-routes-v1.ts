@@ -18,7 +18,7 @@ import { createYearResetServiceV1 } from '../application/settings/year-reset-v1'
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
-export const YEAR_RESET_ROUTE_V1 = '/api/gradebook/year-reset';
+const YEAR_RESET_ROUTE_V1 = '/api/gradebook/year-reset';
 
 function response(value: YearResetResponseV1, status: number): Response {
   return Response.json(value, {

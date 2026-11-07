@@ -167,12 +167,12 @@ function addClosingRowsV11(
   }
 }
 
-export interface ImportCatalogSourceV11 {
+interface ImportCatalogSourceV11 {
   readonly sourceIndex: number;
   readonly turmaId: number;
   readonly name: string;
 }
-export interface ImportResolvedCatalogV11 {
+interface ImportResolvedCatalogV11 {
   readonly ofertaId: number;
   readonly disciplinaId: number;
   readonly catalogChanged: boolean;

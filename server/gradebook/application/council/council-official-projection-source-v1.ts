@@ -37,7 +37,7 @@ import {
   type CouncilWorkspaceSourceV1,
 } from './council-workspace-source-v1';
 
-export const COUNCIL_OFFICIAL_PROJECTION_AUTHORITY_MODE_V1 = 'imported-source' as const;
+const COUNCIL_OFFICIAL_PROJECTION_AUTHORITY_MODE_V1 = 'imported-source' as const;
 
 export interface CouncilOfficialProjectionEnrollmentV1 {
   readonly enrollment: EnrollmentV1;

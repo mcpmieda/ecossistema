@@ -139,7 +139,7 @@ export type ReconciliationMutationV1 = Extract<
   { expectedRevision: number }
 >;
 export type ReconciliationPrepareV1 = Extract<ReconciliationRequestV1, { operation: 'prepare' }>;
-export const reconciliationPersonV1 = z
+const reconciliationPersonV1 = z
   .object({
     kind: z.literal('person'),
     studentUid: studentUidV1,
@@ -162,7 +162,7 @@ export const reconciliationPersonV1 = z
     possibleSamePerson: z.boolean(),
   })
   .strict();
-export const reconciliationPendingV1 = z
+const reconciliationPendingV1 = z
   .object({
     kind: z.literal('external'),
     id: z.string(),

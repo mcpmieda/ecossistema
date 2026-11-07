@@ -15,13 +15,13 @@ import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-
 import '../../student-portal-admin/shared/student-avatar-v1.css';
 import type { PerformanceRowV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 
-export interface PerformanceGridColumnV2 {
+interface PerformanceGridColumnV2 {
   readonly key: string;
   readonly label: string;
   readonly title: string;
   readonly offerId: number;
 }
-export interface PerformanceGridRowV2 {
+interface PerformanceGridRowV2 {
   readonly student: PerformanceRowV2['student'];
   readonly values: readonly ReactNode[];
   /** Per value column, whether this student is below the minimum there. */

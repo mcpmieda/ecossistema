@@ -7,7 +7,7 @@ export { GraphError } from './request-policy-v1';
 export type { GraphDependencies } from './request-policy-v1';
 
 const tokenSchema = z.object({ access_token: z.string(), expires_in: z.number() });
-export type GraphTokenFailureStage = 'assertion' | 'transport' | 'response-contract';
+type GraphTokenFailureStage = 'assertion' | 'transport' | 'response-contract';
 export class GraphTokenError extends Error {
   constructor(
     readonly stage: GraphTokenFailureStage,

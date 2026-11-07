@@ -1,7 +1,7 @@
 import { ERROR_HTTP_V1, type FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { STUDENT_PHOTO_CONTENT_PATH_V1, photoRevisionV1 } from '../../../shared/student-photos/portrait-v1';
 
-export const PORTAL_AUTH_BODY_BYTES_V1 = 8192;
+const PORTAL_AUTH_BODY_BYTES_V1 = 8192;
 const paths = new Map([
   ['/api/student/auth/challenge', 'POST'],
   ['/api/student/auth/activate', 'POST'],

@@ -6,7 +6,7 @@ import type {
 } from '../gradebook/persistence/postgres/postgres-database-v1';
 
 export type FrequencyFailureOriginV2 = 'collector' | 'admin' | 'device-report';
-export type FrequencyFailureV2 = {
+type FrequencyFailureV2 = {
   origin: FrequencyFailureOriginV2;
   operation: string;
   code: string;
@@ -100,7 +100,7 @@ async function purgeFrequencyFailuresV2(tx: GradebookPostgresTransactionV1): Pro
 }
 
 /** Receipts without a batch only answer retries; the collector queue gives up after 7 days. */
-export const FREQUENCY_OPERATIONAL_RECEIPT_DAYS_V2 = 8;
+const FREQUENCY_OPERATIONAL_RECEIPT_DAYS_V2 = 8;
 
 /**
  * Bounded cleanup run by the active computer's heartbeat and by the admin panel,

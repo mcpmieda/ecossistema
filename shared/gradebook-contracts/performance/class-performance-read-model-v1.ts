@@ -35,8 +35,7 @@ export type PerformanceLensV1 = (typeof PERFORMANCE_LENSES_V1)[number];
 export const PERFORMANCE_MODES_V1 = ['regular', 'recovery'] as const;
 export type PerformanceModeV1 = (typeof PERFORMANCE_MODES_V1)[number];
 
-export const PERFORMANCE_PERIOD_KINDS_V1 = ['term', 'annual'] as const;
-export type PerformancePeriodKindV1 = (typeof PERFORMANCE_PERIOD_KINDS_V1)[number];
+const PERFORMANCE_PERIOD_KINDS_V1 = ['term', 'annual'] as const;
 
 export type PerformancePeriodV1 =
   | {
@@ -48,12 +47,11 @@ export type PerformancePeriodV1 =
     };
 
 export const PERFORMANCE_COMPARABILITY_STATES_V1 = ['comparable', 'not-comparable'] as const;
-export type PerformanceComparabilityStateV1 = (typeof PERFORMANCE_COMPARABILITY_STATES_V1)[number];
 
 export const PERFORMANCE_COMPARISON_BASES_V1 = ['official-value', 'percentage'] as const;
 export type PerformanceComparisonBasisV1 = (typeof PERFORMANCE_COMPARISON_BASES_V1)[number];
 
-export const PERFORMANCE_MIN_PAGE_LIMIT_V1 = 1 as const;
+const PERFORMANCE_MIN_PAGE_LIMIT_V1 = 1 as const;
 export const PERFORMANCE_MAX_PAGE_LIMIT_V1 = 100 as const;
 export const PERFORMANCE_ROW_ORDER_V1 =
   'source-position-display-name-student-id-ascending-code-unit' as const;
@@ -359,7 +357,7 @@ function isOrderRequestV1(value: unknown): boolean {
   );
 }
 
-export type ClassPerformanceRequestReadinessV1 = 'ready' | 'invalid-request';
+type ClassPerformanceRequestReadinessV1 = 'ready' | 'invalid-request';
 
 /** Strict boundary inspection: extra fields are rejected, including client-side academic rules. */
 export function inspectClassPerformanceRequestV1(

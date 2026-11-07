@@ -9,7 +9,7 @@ import type {
 } from '../../../../shared/gradebook-contracts/council/council-workspace-contract-v1';
 import type { AcademicYearId } from '../../../../shared/gradebook-contracts/entities';
 
-export type CouncilWorkspaceSourceFailureV1 =
+type CouncilWorkspaceSourceFailureV1 =
   | 'invalid-cursor'
   | 'unavailable'
   | 'insufficient-data';
@@ -52,7 +52,7 @@ export interface CouncilWorkspaceSourceV1 {
   getStudent(request: CouncilStudentRequestV1): Promise<CouncilWorkspaceSourceStudentV1 | null>;
 }
 
-export interface LocalCouncilWorkspaceSourceDataV1 {
+interface LocalCouncilWorkspaceSourceDataV1 {
   readonly students: readonly CouncilWorkspaceSourceStudentV1[];
 }
 

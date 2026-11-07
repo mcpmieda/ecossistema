@@ -10,7 +10,7 @@ import {
   type SourceAssessmentInsufficientReasonV2,
 } from './source-contract-v2';
 
-export const SOURCE_CONTRACT_VERSION_V4 = 4 as const;
+const SOURCE_CONTRACT_VERSION_V4 = 4 as const;
 
 export type SourceAssessmentDefinitionResolutionV4 =
   | {
@@ -109,5 +109,3 @@ export const SOURCE_CONTRACT_V4 = {
   },
   authoritativeImportedAggregates: SOURCE_CONTRACT_V3.authoritativeImportedAggregates,
 } as const;
-
-export type SourceContractV4 = typeof SOURCE_CONTRACT_V4;

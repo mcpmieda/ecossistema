@@ -44,8 +44,6 @@ export const OPERATIONAL_WORKSPACE_TRANSPORT_OPERATIONS_V1 = [
   'subject',
   'search',
 ] as const;
-export type OperationalWorkspaceTransportOperationV1 =
-  (typeof OPERATIONAL_WORKSPACE_TRANSPORT_OPERATIONS_V1)[number];
 
 export interface OperationalWorkspaceBootstrapRequestV1 {
   readonly contractVersion: typeof OPERATIONAL_WORKSPACE_TRANSPORT_VERSION_V1;
@@ -119,7 +117,7 @@ export interface OperationalWorkspaceSubjectLinkV1 {
   readonly label: string;
 }
 
-export type OperationalWorkspaceEntityLinkV1 =
+type OperationalWorkspaceEntityLinkV1 =
   | OperationalWorkspaceStudentLinkV1
   | OperationalWorkspaceClassGroupLinkV1
   | OperationalWorkspaceTeacherLinkV1
@@ -188,7 +186,7 @@ export interface OperationalWorkspaceSubjectCenterViewV1 {
   readonly assignments: readonly OperationalWorkspaceTeachingAssignmentV1[];
 }
 
-export type OperationalWorkspaceCenterViewV1 =
+type OperationalWorkspaceCenterViewV1 =
   | OperationalWorkspaceStudentCenterViewV1
   | OperationalWorkspaceClassGroupCenterViewV1
   | OperationalWorkspaceTeacherCenterViewV1

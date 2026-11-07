@@ -6,18 +6,18 @@ import type {
 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 import type { AcademicGradeValueV1 } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 
-export interface SourceCellInterpretationProfile {
+interface SourceCellInterpretationProfile {
   readonly maximumValue: number;
 }
 
-export type SourceCellInterpretationOccurrenceCode =
+type SourceCellInterpretationOccurrenceCode =
   | 'missing-source-field'
   | 'negative-source-value'
   | 'source-value-above-maximum'
   | 'formula-error-or-missing-cache'
   | 'invalid-source-text';
 
-export interface SourceCellInterpretationOccurrence {
+interface SourceCellInterpretationOccurrence {
   readonly code: SourceCellInterpretationOccurrenceCode;
   readonly rule: 'source-cell-semantics-v1';
   readonly message: string;
@@ -25,7 +25,7 @@ export interface SourceCellInterpretationOccurrence {
   readonly provenance: SourceCellProvenanceV1;
 }
 
-export interface SourceCellInterpretation {
+interface SourceCellInterpretation {
   readonly present: boolean;
   readonly sourceValue: SourceCellRawValueV1 | undefined;
   readonly semanticValue: AcademicGradeValueV1;

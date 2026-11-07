@@ -77,7 +77,7 @@ export type BulletinModelMaterializationResultV1 =
       readonly reasons: BulletinEmissionReasonsV1;
     };
 
-export interface BulletinAggregateMaterializationItemV1 {
+interface BulletinAggregateMaterializationItemV1 {
   /** Index of the original batch request. Class-group requests can produce multiple items. */
   readonly requestIndex: number;
   /** Null only when the class-group base cannot yield a valid student target. */
@@ -85,7 +85,7 @@ export interface BulletinAggregateMaterializationItemV1 {
   readonly materialization: BulletinModelMaterializationResultV1;
 }
 
-export interface BulletinModelMaterializerV1 {
+interface BulletinModelMaterializerV1 {
   materialize(request: BulletinEmissionRequestV1): Promise<BulletinModelMaterializationResultV1>;
   /**
    * Materializes a batch against one cached ClassGroupCenter base per academic-year/class-group
@@ -96,7 +96,7 @@ export interface BulletinModelMaterializerV1 {
   ): Promise<readonly BulletinAggregateMaterializationItemV1[]>;
 }
 
-export interface BulletinModelMaterializerDependenciesV1 {
+interface BulletinModelMaterializerDependenciesV1 {
   readonly classGroups: ClassGroupCenterQueryV1;
   readonly academicRecords: AcademicRecordRepositoryV1;
 }

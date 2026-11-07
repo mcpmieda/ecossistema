@@ -24,24 +24,24 @@ import type { ImportBatchId, ImportFileId } from '../imports/import-ids-v1';
 import type { PlatformCapability } from '../../platform-contract';
 
 export const AUDIT_WORKSPACE_CONTRACT_VERSION_V1 = 1 as const;
-export const AUDIT_WORKSPACE_REQUIRED_CAPABILITY_V1 =
+const AUDIT_WORKSPACE_REQUIRED_CAPABILITY_V1 =
   'gradebook.persistence.admin' satisfies PlatformCapability;
-export const AUDIT_WORKSPACE_MIN_LIMIT_V1 = 1 as const;
+const AUDIT_WORKSPACE_MIN_LIMIT_V1 = 1 as const;
 export const AUDIT_WORKSPACE_MAX_LIMIT_V1 = 100 as const;
 
-export const AUDIT_WORKSPACE_COLLECTIONS_V1 = [
+const AUDIT_WORKSPACE_COLLECTIONS_V1 = [
   'import-batches',
   'audit-occurrences',
   'reconciliations',
 ] as const;
-export type AuditWorkspaceCollectionV1 = (typeof AUDIT_WORKSPACE_COLLECTIONS_V1)[number];
+type AuditWorkspaceCollectionV1 = (typeof AUDIT_WORKSPACE_COLLECTIONS_V1)[number];
 
 export const AUDIT_WORKSPACE_ORDERS_V1 = {
   'import-batches': 'updated-at-desc-id-asc',
   'audit-occurrences': 'created-at-desc-id-asc',
   reconciliations: 'recorded-at-desc-id-asc',
 } as const;
-export type AuditWorkspaceOrderV1 =
+type AuditWorkspaceOrderV1 =
   (typeof AUDIT_WORKSPACE_ORDERS_V1)[AuditWorkspaceCollectionV1];
 
 export const AUDIT_WORKSPACE_LIST_NON_DISCLOSURE_OUTCOMES_V1 = [
@@ -73,7 +73,7 @@ export const AUDIT_WORKSPACE_RESOLUTION_FAILURE_OUTCOMES_V1 = [
   'not-authorized',
   'unavailable',
 ] as const;
-export type AuditWorkspaceResolutionFailureOutcomeV1 =
+type AuditWorkspaceResolutionFailureOutcomeV1 =
   (typeof AUDIT_WORKSPACE_RESOLUTION_FAILURE_OUTCOMES_V1)[number];
 
 export const AUDIT_WORKSPACE_REQUEST_READINESS_V1 = [
@@ -81,7 +81,7 @@ export const AUDIT_WORKSPACE_REQUEST_READINESS_V1 = [
   'invalid-request',
   'invalid-cursor',
 ] as const;
-export type AuditWorkspaceRequestReadinessV1 =
+type AuditWorkspaceRequestReadinessV1 =
   (typeof AUDIT_WORKSPACE_REQUEST_READINESS_V1)[number];
 
 export const AUDIT_WORKSPACE_RESOLUTION_READINESS_V1 = [
@@ -89,7 +89,7 @@ export const AUDIT_WORKSPACE_RESOLUTION_READINESS_V1 = [
   'invalid-request',
   'invalid-transition',
 ] as const;
-export type AuditWorkspaceResolutionReadinessV1 =
+type AuditWorkspaceResolutionReadinessV1 =
   (typeof AUDIT_WORKSPACE_RESOLUTION_READINESS_V1)[number];
 
 declare const auditWorkspaceCursorBrand: unique symbol;
@@ -98,13 +98,13 @@ export type AuditWorkspaceCursorV1 = string & {
   readonly [auditWorkspaceCursorBrand]: 'AuditWorkspaceCursorV1';
 };
 
-export interface AuditWorkspacePeriodFilterV1 {
+interface AuditWorkspacePeriodFilterV1 {
   readonly fromInclusive: string | null;
   readonly toExclusive: string | null;
 }
 
 /** All populated filter dimensions are combined with logical AND. */
-export interface AuditWorkspaceFiltersV1 {
+interface AuditWorkspaceFiltersV1 {
   readonly importBatchId?: ImportBatchId;
   readonly importBatchStatuses?: readonly ImportBatchStatusV1[];
   readonly occurrenceStates?: readonly AuditOccurrenceStateV1[];
@@ -115,7 +115,7 @@ export interface AuditWorkspaceFiltersV1 {
   readonly period?: AuditWorkspacePeriodFilterV1;
 }
 
-export interface AuditWorkspacePageRequestV1 {
+interface AuditWorkspacePageRequestV1 {
   readonly limit: number;
   readonly cursor: AuditWorkspaceCursorV1 | null;
 }
@@ -238,7 +238,7 @@ export type AuditWorkspaceListResponseV1 =
   | AuditWorkspaceItemsPageV1
   | AuditWorkspaceListNonDisclosureV1;
 
-export type AuditWorkspacePendingReferenceV1 =
+type AuditWorkspacePendingReferenceV1 =
   | {
       readonly kind: 'import-file-review';
       readonly importBatchId: ImportBatchId;

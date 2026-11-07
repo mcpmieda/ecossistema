@@ -18,7 +18,7 @@ import type {
 const DEFAULT_PAGE_SIZE = 100;
 const MAXIMUM_PAGE_SIZE = 100;
 
-export type TeachingCenterReadModelErrorCodeV1 =
+type TeachingCenterReadModelErrorCodeV1 =
   'invalid-page-size' | 'incompatible-repository-result' | 'cursor-cycle';
 
 const ERROR_MESSAGES: Record<TeachingCenterReadModelErrorCodeV1, string> = {
@@ -84,12 +84,12 @@ export interface SubjectCenterQueryV1 {
   ): Promise<SubjectCenterReadModelV1 | null>;
 }
 
-export interface TeachingCenterQueriesV1 {
+interface TeachingCenterQueriesV1 {
   readonly teachers: TeacherCenterQueryV1;
   readonly subjects: SubjectCenterQueryV1;
 }
 
-export interface TeachingCenterReadModelOptionsV1 {
+interface TeachingCenterReadModelOptionsV1 {
   readonly pageSize?: number;
 }
 

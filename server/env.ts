@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const RUNTIME_ENVIRONMENTS = ['local', 'preview', 'production'] as const;
+const RUNTIME_ENVIRONMENTS = ['local', 'preview', 'production'] as const;
 export type RuntimeEnvironment = (typeof RUNTIME_ENVIRONMENTS)[number];
 
 export type RuntimeSecrets = {
@@ -127,7 +127,7 @@ const envSchema = z
     }
   });
 
-export class RuntimeEnvironmentValidationError extends Error {
+class RuntimeEnvironmentValidationError extends Error {
   constructor() {
     super('Runtime environment is invalid.');
     this.name = 'RuntimeEnvironmentValidationError';

@@ -3,7 +3,7 @@ import { STUDENT_PHOTO_MAX_BYTES_V1, STUDENT_PHOTO_MAX_WIDTH_V1, STUDENT_PHOTO_M
 
 export type WebpPhotoVariantV1 = 'portrait' | 'avatar';
 export type WebpPhotoQualityV1 = 92 | 86 | 80;
-export type WebpCodecFailureV1 = 'input' | 'dimensions' | 'metadata' | 'decode' | 'alpha' | 'encode' | 'output-size' | 'unavailable';
+type WebpCodecFailureV1 = 'input' | 'dimensions' | 'metadata' | 'decode' | 'alpha' | 'encode' | 'output-size' | 'unavailable';
 export class WebpCodecErrorV1 extends Error {
   constructor(readonly code: WebpCodecFailureV1) { super('student-photo-codec-' + code); }
 }

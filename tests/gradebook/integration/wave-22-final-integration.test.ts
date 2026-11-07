@@ -64,7 +64,7 @@ describe('integração final da onda 22 — comparação e correção determiní
     const comparisonPanel = source('src/features/gradebook/performance/performance-term-comparison-panel-v4.tsx');
     const performanceRoute = source('server/gradebook/http/performance-routes-v1.ts');
 
-    expect(platformSnapshot).toContain("byName.get('PLATAFORMA_CONFIGURACOES')");
+    expect(platformSnapshot).toContain("list: 'PLATAFORMA_CONFIGURACOES'");
     expect(settingsPage).toContain('snapshot.configurations.map');
     expect(settingsPage).toContain('Configurações institucionais');
     expect(performanceRoute).toContain("requireCapability(capabilities, 'platform.settings.read')");

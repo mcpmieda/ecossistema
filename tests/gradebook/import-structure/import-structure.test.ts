@@ -94,11 +94,6 @@ describe('gradebook importer structure', () => {
     expect(`${notesPage}\n${workspacePage}\n${shell}`).not.toMatch(
       /xlsx\.read|recognizeWorkbook|loadSheetJs/u,
     );
-
-    const compatibilityExport = source('src/platform/notes-spreadsheet-recognizer.ts').trim();
-    expect(compatibilityExport).toBe(
-      "export * from '../features/gradebook/import/spreadsheet-recognizer';",
-    );
   });
 
   it('keeps SheetJS loading, lean workbook options and HeroUI presentation explicit', () => {

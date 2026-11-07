@@ -12,7 +12,7 @@ import {
   type BulletinPdfLineV1,
 } from './bulletin-pdf-renderer-v1';
 
-export type RelationalBulletinPdfReadinessV2 =
+type RelationalBulletinPdfReadinessV2 =
   | { readonly status: 'ready' }
   | { readonly status: 'invalid-input' | 'bounds-exceeded'; readonly reason: string };
 

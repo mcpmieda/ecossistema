@@ -1,8 +1,8 @@
 import { secureJitterV1 } from './secure-jitter-v1';
 export type LiveDomainV1 = 'gradebook' | 'portal';
-export const LIVE_REFRESH_INTERVAL_V1 = 30_000;
+const LIVE_REFRESH_INTERVAL_V1 = 30_000;
 /** A working event channel owns freshness; this read recovers missed notifications. */
-export const LIVE_CONNECTED_READ_INTERVAL_V1 = 300_000;
+const LIVE_CONNECTED_READ_INTERVAL_V1 = 300_000;
 /** Heavy, read-only analytics opt in; interactive Portal/Council readers keep their cadence. */
 export const LIVE_HEAVY_READ_INTERVAL_V1 = 120_000;
 const MIN_GAP = 2_000;

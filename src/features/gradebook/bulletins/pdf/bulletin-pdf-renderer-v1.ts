@@ -41,7 +41,7 @@ const PDF_TOP = 74;
 const PDF_BOTTOM = 70;
 const PDF_CONTENT_WIDTH = BULLETIN_PDF_LIMITS_V1.canvasWidthPixels - PDF_LEFT - PDF_RIGHT;
 
-export type BulletinPdfInputReadinessV1 =
+type BulletinPdfInputReadinessV1 =
   | { readonly status: 'ready' }
   | { readonly status: 'invalid-input' | 'bounds-exceeded'; readonly reason: string };
 
@@ -55,7 +55,7 @@ export type BulletinPdfLineV1 =
   | { readonly kind: 'space'; readonly height: number }
   | { readonly kind: 'rule' };
 
-export interface BulletinPdfRasterPageV1 {
+interface BulletinPdfRasterPageV1 {
   readonly jpeg: Uint8Array;
   readonly widthPixels: number;
   readonly heightPixels: number;
@@ -662,16 +662,4 @@ export async function renderBulletinPdfLinesV1(
     byteLength: bytes.length,
     pageCount: pages.length,
   };
-}
-
-/**
- * Browser-only official renderer. Input is exactly BulletinPdfInputV1 ({ snapshot }); no fetch,
- * academic read, recalculation, remote font, persistent browser storage or metadata side channel.
- */
-export async function renderBulletinPdfV1(
-  input: BulletinPdfInputV1,
-): Promise<BulletinPdfArtifactV1> {
-  assertReadyInput(input);
-  const lines = buildBulletinPdfLinesV1(input);
-  return renderBulletinPdfLinesV1(lines, input.snapshot.snapshotVersion);
 }

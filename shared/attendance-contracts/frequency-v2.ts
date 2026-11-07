@@ -30,8 +30,8 @@ export const frequencyScheduleV2 = z.object({
   })).length(14).refine(v => new Set(v.map(r => `${r.weekday}:${r.shift}`)).size === 14),
 }).strict();
 /** Collection budget of one school day, across both shifts (times and rechecks). */
-export const FREQUENCY_MAX_DAILY_SLOTS_V2 = 48;
-export const FREQUENCY_MIN_SLOT_GAP_MINUTES_V2 = 5;
+const FREQUENCY_MAX_DAILY_SLOTS_V2 = 48;
+const FREQUENCY_MIN_SLOT_GAP_MINUTES_V2 = 5;
 /** Index = weekday as stored (0 = Sunday), for messages that name the day. */
 const WEEKDAY_NAMES_V2 = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'] as const;
 const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
@@ -57,7 +57,7 @@ export const frequencyScheduleWriteV2 = frequencyScheduleV2.superRefine((schedul
   });
 });
 /** The shortest interval of the automatic student report (owner decision 29/10/2026). */
-export const REPORT_MIN_EVERY_MINUTES_V2 = 30;
+const REPORT_MIN_EVERY_MINUTES_V2 = 30;
 /**
  * The agenda of the Smecel "Relatório de alunos", apart from the frequency's: every `every` minutes
  * from `from` to `to` on the chosen weekdays (0 = Sunday). The Coletor never runs it together with a
@@ -179,9 +179,9 @@ export type FrequencyRequestV2 = z.infer<typeof frequencyRequestV2>;
 export type FrequencyCollectionV2 = Extract<FrequencyRequestV2, { operation: 'collect' }>;
 export type FrequencyUnchangedV2 = Extract<FrequencyRequestV2, { operation: 'collect-unchanged' }>;
 export type FrequencyScheduleCollectionV2 = Extract<FrequencyRequestV2, { operation: 'schedule-collect' }>;
-export type FrequencyScheduleLessonV2 = z.infer<typeof scheduleLesson>;
+type FrequencyScheduleLessonV2 = z.infer<typeof scheduleLesson>;
 export type FrequencyIncidentCollectionV2 = Extract<FrequencyRequestV2, { operation: 'incident-collect' }>;
-export type FrequencyIncidentV2 = z.infer<typeof incident>;
+type FrequencyIncidentV2 = z.infer<typeof incident>;
 export type FrequencyStudentReportV2 = Extract<FrequencyRequestV2, { operation: 'student-report-collect' }>;
 export type FrequencyStudentReportUnchangedV2 = Extract<FrequencyRequestV2, { operation: 'student-report-unchanged' }>;
 export type FrequencyScheduleV2 = z.infer<typeof frequencyScheduleV2>;
@@ -285,7 +285,7 @@ export type FrequencyYearSummaryV2 = {
 };
 
 /** Lessons and absences (X) of the days already over; `reliable`: nothing of them is still unknown. */
-export type FrequencyCountV2 = { lessons: number; absences: number; reliable: boolean };
+type FrequencyCountV2 = { lessons: number; absences: number; reliable: boolean };
 /**
  * A month's counts by the owner's rule (20–21/10/2026): lessons are the positions of the days
  * already over (TODAY never counts: its roll call may still be under way), absences their X marks,

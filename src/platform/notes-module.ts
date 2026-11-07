@@ -11,7 +11,7 @@ export const notesModule: CoreModuleContract = {
   capabilities: [],
 };
 
-export type NotesSection = {
+type NotesSection = {
   id: string;
   label: string;
   description: string;

@@ -35,20 +35,20 @@ export interface NativeFinalRecoveryInputV1 {
   readonly recoveryGrades: AcademicTermGradeMapV1;
 }
 
-export interface AcademicTermApplicabilityMapV1 {
+interface AcademicTermApplicabilityMapV1 {
   readonly 1: ApplicabilityV1;
   readonly 2: ApplicabilityV1;
   readonly 3: ApplicabilityV1;
 }
 
-export type FinalRecoveryApplicabilityInputV1 =
+type FinalRecoveryApplicabilityInputV1 =
   | { readonly mode: 'native-derived' }
   | {
       readonly mode: 'source-observed';
       readonly terms: AcademicTermApplicabilityMapV1;
     };
 
-export interface FinalRecoveryProjectionInputV1 extends NativeFinalRecoveryInputV1 {
+interface FinalRecoveryProjectionInputV1 extends NativeFinalRecoveryInputV1 {
   readonly applicability: FinalRecoveryApplicabilityInputV1;
 }
 
@@ -60,7 +60,7 @@ export const NATIVE_FINAL_RECOVERY_FINDING_CODES_V1 = [
   'recovery-present-when-not-applicable',
   'recovery-state-conflicts-with-applicability',
 ] as const;
-export type NativeFinalRecoveryFindingCodeV1 =
+type NativeFinalRecoveryFindingCodeV1 =
   (typeof NATIVE_FINAL_RECOVERY_FINDING_CODES_V1)[number];
 
 export interface NativeFinalRecoveryFindingV1 {
@@ -73,7 +73,7 @@ export interface NativeFinalRecoveryFindingV1 {
   readonly message: string;
 }
 
-export interface NativeFinalRecoveryTermOutcomeV1 {
+interface NativeFinalRecoveryTermOutcomeV1 {
   readonly term: AcademicTermV1;
   readonly maximum: number;
   readonly applicabilityCutoff: number;

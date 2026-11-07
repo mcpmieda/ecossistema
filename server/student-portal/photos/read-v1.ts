@@ -9,8 +9,8 @@ import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '.
 export type PortraitReadV1 = { state: 'absent' }
   | { state: 'metadata'; metadata: PortraitMetadataV1 }
   | { state: 'content'; metadata: PortraitMetadataV1; bytes: Uint8Array };
-export type PortraitStorageObjectV1 = { path: string; byteSize: number; sha256: string; width: number; height: number };
-export type PortraitStorageReaderV1 = (object: PortraitStorageObjectV1) => Promise<Uint8Array>;
+type PortraitStorageObjectV1 = { path: string; byteSize: number; sha256: string; width: number; height: number };
+type PortraitStorageReaderV1 = (object: PortraitStorageObjectV1) => Promise<Uint8Array>;
 
 /** Integrity check for an already approved delivery, NOT a decoder or upload validator.
  * The administrative publisher must decode, re-encode and strip metadata before approval.

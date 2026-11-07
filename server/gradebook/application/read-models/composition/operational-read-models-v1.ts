@@ -21,7 +21,7 @@ export interface GradebookOperationalReadModelsV1 {
   readonly search: AcademicGlobalSearchReadModelV1;
 }
 
-export interface GradebookOperationalReadModelOptionsV1 {
+interface GradebookOperationalReadModelOptionsV1 {
   readonly pageSize?: number;
 }
 

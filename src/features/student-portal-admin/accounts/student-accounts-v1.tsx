@@ -67,7 +67,7 @@ import {
 import './student-accounts-v1.css';
 import '../credentials/student-credentials-v1.css';
 
-export interface StudentAccountsPropsV1 extends Pick<
+interface StudentAccountsPropsV1 extends Pick<
   AccountDetailPropsV1,
   'slots' | 'onQr' | 'onReprint' | 'describeScope'
 > {

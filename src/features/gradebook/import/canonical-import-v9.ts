@@ -21,8 +21,8 @@ import type {
 } from './spreadsheet-recognizer';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
 
-export type CanonicalImportProgressStageV9 = 'roster' | 'grades' | 'recovery' | 'compacting';
-export interface CanonicalImportProgressV9 {
+type CanonicalImportProgressStageV9 = 'roster' | 'grades' | 'recovery' | 'compacting';
+interface CanonicalImportProgressV9 {
   readonly stage: CanonicalImportProgressStageV9;
   readonly current: number;
   readonly total: number;
@@ -36,7 +36,7 @@ export interface CanonicalImportWarningV9 {
   readonly maximum: number;
 }
 
-export interface CanonicalImportRuntimeV9 {
+interface CanonicalImportRuntimeV9 {
   readonly onProgress?: (progress: CanonicalImportProgressV9) => void;
   readonly onWarning?: (warning: CanonicalImportWarningV9) => void;
 }

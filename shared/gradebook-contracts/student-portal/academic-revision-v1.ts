@@ -15,7 +15,6 @@ export const academicRevisionSchemaV1 = z
     dataVersion: academicVersionSchemaV1,
   })
   .strict();
-export type AcademicRevisionV1 = z.infer<typeof academicRevisionSchemaV1>;
 export type PortalAcademicLinkV1 = z.infer<typeof portalAcademicLinkSchemaV1>;
 
 export const academicRevisionEventSchemaV1 = z
@@ -27,8 +26,3 @@ export const academicRevisionEventSchemaV1 = z
     scope: z.literal('academic-year'),
   })
   .strict();
-
-/** Implementation must read the durable version in the same snapshot as facts. */
-export interface AcademicRevisionReaderV1<TTransaction> {
-  readInTransaction(tx: TTransaction, year: 2026): Promise<AcademicRevisionV1 | null>;
-}

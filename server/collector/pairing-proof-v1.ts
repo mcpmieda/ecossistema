@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {decodeBase64Url} from '../auth/base64url';
 import {collectorPublicKeyV1,collectorKeyThumbprintV1} from './device-proof-v1';
-export const collectorPairingRequestV1=z.object({id:z.string().uuid(),publicKey:collectorPublicKeyV1,
+const collectorPairingRequestV1=z.object({id:z.string().uuid(),publicKey:collectorPublicKeyV1,
   nonce:z.string().regex(/^[A-Za-z0-9_-]{43}$/u),issuedAt:z.number().int().positive(),expiresAt:z.number().int().positive(),
   signature:z.string().regex(/^[A-Za-z0-9_-]{86}$/u)}).strict();
 export async function verifyCollectorPairingV1(value:unknown,now:number){

@@ -14,7 +14,7 @@ import {
 
 export const NATIVE_ANNUAL_EQUIVALENCE_RULE_VERSION_V1 = 'native-annual-equivalence-v1' as const;
 
-export type NativeAnnualEquivalenceClassificationV1 = ReconciliationResultV1['status'];
+type NativeAnnualEquivalenceClassificationV1 = ReconciliationResultV1['status'];
 
 export const NATIVE_ANNUAL_EQUIVALENCE_FINDING_CODES_V1 = [
   'values-identical',
@@ -35,7 +35,7 @@ export const NATIVE_ANNUAL_EQUIVALENCE_FINDING_CODES_V1 = [
   'native-coverage-insufficient-data',
   'native-coverage-not-applicable',
 ] as const;
-export type NativeAnnualEquivalenceFindingCodeV1 =
+type NativeAnnualEquivalenceFindingCodeV1 =
   (typeof NATIVE_ANNUAL_EQUIVALENCE_FINDING_CODES_V1)[number];
 
 export interface NativeAnnualEquivalenceInputV1 {
@@ -46,27 +46,27 @@ export interface NativeAnnualEquivalenceInputV1 {
   readonly nativeAnnualInput: NativeAnnualOutcomeInputV1;
 }
 
-export interface NativeAnnualEquivalenceFindingV1 {
+interface NativeAnnualEquivalenceFindingV1 {
   readonly code: NativeAnnualEquivalenceFindingCodeV1;
   readonly side: 'comparison' | 'imported' | 'native';
   readonly state?: AcademicGradeValueV1['state'] | ResultCoverageV1['state'];
   readonly message: string;
 }
 
-export interface NativeAnnualEquivalenceCoverageV1 {
+interface NativeAnnualEquivalenceCoverageV1 {
   readonly imported: ResultCoverageV1;
   readonly native: ResultCoverageV1;
   readonly comparable: boolean;
 }
 
-export interface NativeAnnualEquivalenceVersionsV1 {
+interface NativeAnnualEquivalenceVersionsV1 {
   readonly equivalenceRule: typeof NATIVE_ANNUAL_EQUIVALENCE_RULE_VERSION_V1;
   readonly importedRule: string;
   readonly nativeAnnualProfileVersion: 1;
   readonly nativeAcademicYearProfile: 2026;
 }
 
-export interface NativeAnnualEquivalenceV1 {
+interface NativeAnnualEquivalenceV1 {
   readonly authorityMode: 'imported-source';
   readonly componentKey: string;
   readonly importedValue: ImportedGradeValueV1;

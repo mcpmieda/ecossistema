@@ -36,7 +36,7 @@ import {
   type GradebookRuntimeAuthorizationV1,
 } from '../authorization-v1';
 
-export const GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance';
+const GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance';
 
 function noStoreResponse(body: BodyInit | null, status: number, contentType?: string): Response {
   const headers = new Headers({
@@ -73,7 +73,7 @@ function invalidRequest(reason: PerformanceInvalidRequestReasonV1): Response {
   );
 }
 
-export interface PerformanceRequestHandlerDependenciesV1 {
+interface PerformanceRequestHandlerDependenciesV1 {
   authorizeRequest(
     request: Request,
     env: RuntimeEnv,

@@ -17,7 +17,7 @@ import {
 import { StudentNameV1 } from '../shared/account-open-v1';
 
 // Every prop reaches BirthReadScopeV1 through the spread.
-export interface StudentBirthYearsPropsV1 {
+interface StudentBirthYearsPropsV1 {
   initialAccount?: InitialBirthAccountV1;
   client: PortalAdminClientV1;
   reader: PortalAdminReadClientV2;

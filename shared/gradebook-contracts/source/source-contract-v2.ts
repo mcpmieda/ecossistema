@@ -10,8 +10,7 @@ import {
 
 export const SOURCE_CONTRACT_VERSION_V2 = 2 as const;
 
-export const SOURCE_TERM_STAGES_V2 = ['1º', '2º', '3º'] as const;
-export type SourceTermStageV2 = (typeof SOURCE_TERM_STAGES_V2)[number];
+const SOURCE_TERM_STAGES_V2 = ['1º', '2º', '3º'] as const;
 
 export const SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2 = [
   {
@@ -65,10 +64,8 @@ export const SOURCE_ASSESSMENT_MAXIMUM_CONFIGURATION_STATES_V2 = [
   'missing-field',
   'unrecognized',
 ] as const;
-export type SourceAssessmentMaximumConfigurationStateV2 =
-  (typeof SOURCE_ASSESSMENT_MAXIMUM_CONFIGURATION_STATES_V2)[number];
 
-export type SourceAssessmentMaximumConfigurationV2 =
+type SourceAssessmentMaximumConfigurationV2 =
   | {
       readonly state: 'numeric';
       readonly rawValue: number;
@@ -101,9 +98,8 @@ export const SOURCE_ASSESSMENT_NAME_STATES_V2 = [
   'missing-field',
   'unrecognized',
 ] as const;
-export type SourceAssessmentNameStateV2 = (typeof SOURCE_ASSESSMENT_NAME_STATES_V2)[number];
 
-export type SourceAssessmentNameV2 =
+type SourceAssessmentNameV2 =
   | {
       readonly state: 'text';
       readonly rawValue: string;
@@ -179,7 +175,7 @@ export type SourceAssessmentDefinitionResolutionV2 =
       readonly reason: SourceAssessmentInsufficientReasonV2;
     };
 
-export const SOURCE_CELL_MAP_V2 = {
+const SOURCE_CELL_MAP_V2 = {
   metadata: SOURCE_CELL_MAP_V1.metadata,
   studentColumns: SOURCE_CELL_MAP_V1.studentColumns,
   term: {

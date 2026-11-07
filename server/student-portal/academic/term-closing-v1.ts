@@ -27,14 +27,14 @@ const POINT_BAND_MARGIN = 0.1;
 const STRONG_RATIO = 0.8;
 const STRENGTH_CONTRAST = 0.15;
 
-export interface TermClosingInstrumentV1 {
+interface TermClosingInstrumentV1 {
   readonly slot: number;
   readonly value: number | null;
   readonly observed: boolean;
   /** Recorded maximum; used only by the in-progress reading (progress mode). */
   readonly maximum?: number | null;
 }
-export interface TermClosingInputV1 {
+interface TermClosingInputV1 {
   readonly term: 1 | 2 | 3;
   readonly outcome: SimplifiedTermOutcomeV1;
   /** Official closure total of the term (am1/am2/am3) when recorded. */

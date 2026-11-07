@@ -29,14 +29,14 @@ type ConfiguredResolutionV3 = Extract<
   { readonly maximum: number }
 >;
 
-export interface BlockedAssessmentDefinitionV3 {
+interface BlockedAssessmentDefinitionV3 {
   readonly stableKey: ReturnType<typeof assessmentComponentSourceStableKeyV2>;
   readonly sourceDefinition: SourceAssessmentDefinitionV2;
   readonly resolution: InsufficientResolutionV3;
   readonly gradeEntriesMaterialized: 0;
 }
 
-export interface UnconfiguredAssessmentDefinitionV3 {
+interface UnconfiguredAssessmentDefinitionV3 {
   readonly stableKey: ReturnType<typeof assessmentComponentSourceStableKeyV2>;
   readonly sourceDefinition: SourceAssessmentDefinitionV2;
   readonly resolution: UnconfiguredResolutionV3;
@@ -44,7 +44,7 @@ export interface UnconfiguredAssessmentDefinitionV3 {
   readonly gradeEntriesMaterialized: 0;
 }
 
-export interface AssessmentDefinitionMaterializationV3 extends Omit<
+interface AssessmentDefinitionMaterializationV3 extends Omit<
   AssessmentDefinitionMaterializationV2,
   'blockedDefinitions'
 > {

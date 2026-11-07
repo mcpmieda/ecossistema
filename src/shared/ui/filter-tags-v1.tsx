@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Label, Tag, TagGroup } from '@heroui/react';
 
-export interface FilterTagOptionV1 {
+interface FilterTagOptionV1 {
   readonly id: string;
   readonly label: string;
   readonly icon?: ReactNode;

@@ -52,7 +52,7 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
   },
 ] as const;
 
-export type GradebookWorkspaceSurfaceId = (typeof GRADEBOOK_WORKSPACE_SURFACES)[number]['id'];
+type GradebookWorkspaceSurfaceId = (typeof GRADEBOOK_WORKSPACE_SURFACES)[number]['id'];
 const NOTES_TABS_V1 = GRADEBOOK_WORKSPACE_SURFACES.filter((surface) => surface.id !== 'importacao');
 
 const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao';

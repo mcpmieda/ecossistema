@@ -23,7 +23,7 @@ export type GlobalSearchResultKindV1 = (typeof GLOBAL_SEARCH_RESULT_KINDS_V1)[nu
 export const GLOBAL_SEARCH_RESULT_KIND_ORDER_V1 = GLOBAL_SEARCH_RESULT_KINDS_V1;
 export const GLOBAL_SEARCH_ORDER_V1 =
   'kind-presentation-id-ascending-code-unit' as const;
-export const GLOBAL_SEARCH_MIN_LIMIT_V1 = 1 as const;
+const GLOBAL_SEARCH_MIN_LIMIT_V1 = 1 as const;
 export const GLOBAL_SEARCH_MAX_LIMIT_V1 = 100 as const;
 
 export const GLOBAL_SEARCH_NON_DISCLOSURE_OUTCOMES_V1 = [
@@ -43,7 +43,7 @@ export const GLOBAL_SEARCH_REQUEST_READINESS_V1 = [
   'insufficient-scope',
   'invalid-request',
 ] as const;
-export type GlobalSearchRequestReadinessV1 =
+type GlobalSearchRequestReadinessV1 =
   (typeof GLOBAL_SEARCH_REQUEST_READINESS_V1)[number];
 
 declare const globalSearchCursorBrand: unique symbol;
@@ -107,7 +107,7 @@ export type GlobalSearchResultV1 =
   | TeacherGlobalSearchResultV1
   | SubjectGlobalSearchResultV1;
 
-export const GLOBAL_SEARCH_RESULT_FIELDS_V1 = {
+const GLOBAL_SEARCH_RESULT_FIELDS_V1 = {
   student: ['kind', 'id', 'displayName'],
   'class-group': ['kind', 'id', 'code'],
   teacher: ['kind', 'id', 'displayName'],

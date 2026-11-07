@@ -4,14 +4,14 @@ import type { RelationalBulletinSnapshotV2 } from '../../../../../shared/gradebo
 import { trimCharsV1 } from '../../../../../shared/trim-chars-v1';
 
 export type RelationalBulletinPdfActionV2 = 'download' | 'print';
-export type RelationalBulletinPdfFailureV2 =
+type RelationalBulletinPdfFailureV2 =
   | 'invalid-input'
   | 'bounds-exceeded'
   | 'renderer-unavailable'
   | 'download-unavailable'
   | 'print-unavailable';
 
-export interface RelationalBulletinPdfActionResultV2 {
+interface RelationalBulletinPdfActionResultV2 {
   readonly filename: string;
   readonly pageCount: number;
   readonly byteLength: number;
@@ -25,7 +25,7 @@ interface RendererModuleV2 {
   }>;
 }
 
-export type RelationalBulletinPdfRendererImporterV2 = () => Promise<RendererModuleV2>;
+type RelationalBulletinPdfRendererImporterV2 = () => Promise<RendererModuleV2>;
 
 export class RelationalBulletinPdfActionErrorV2 extends Error {
   constructor(

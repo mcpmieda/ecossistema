@@ -42,7 +42,7 @@ export type GradeReviewIntentV1 = {
 };
 type PublicationStateV1 = 'no-data' | 'available' | 'published' | 'update-pending';
 
-export const GRADE_WORDS_V1: PlanWordsV1 = {
+const GRADE_WORDS_V1: PlanWordsV1 = {
   openNow: 'Visível para os alunos agora.',
   closedNow: 'Oculto para os alunos agora.',
   open: 'Mostrar',

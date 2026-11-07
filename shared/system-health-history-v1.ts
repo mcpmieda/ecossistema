@@ -4,7 +4,7 @@ export const HEALTH_HISTORY_INTERVAL_MS_V1 = 300_000;
 export const HEALTH_HISTORY_RETENTION_MS_V1 = 30 * 24 * 60 * 60_000;
 export const HEALTH_HISTORY_PAGE_SIZE_V1 = 48;
 export const HEALTH_HISTORY_BODY_BYTES_V1 = 32_768;
-export const HEALTH_HISTORY_STALE_MS_V1 = 600_000;
+const HEALTH_HISTORY_STALE_MS_V1 = 600_000;
 export type PortalHistoryPointV1 = {
   bucketAt: string;
   observedAt: string;

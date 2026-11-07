@@ -1,14 +1,8 @@
 import type { AcademicYearId, TeachingAssignmentId } from '../entities';
-import {
-  RESULTS_CONTRACT_V2,
-  type AssessmentComponentSourceIdentityV2,
-  type AssessmentComponentSourceStableKeyV2,
-  type AssessmentComponentTypeV2,
-  type ResolvedAssessmentApplicabilityV2,
-} from './results-contract-v2';
+import { RESULTS_CONTRACT_V2, type AssessmentComponentSourceStableKeyV2, type AssessmentComponentTypeV2, type ResolvedAssessmentApplicabilityV2 } from './results-contract-v2';
 import type { AcademicTermV1, AssessmentComponentId } from './results-contract-v1';
 
-export const RESULTS_CONTRACT_VERSION_V3 = 3 as const;
+const RESULTS_CONTRACT_VERSION_V3 = 3 as const;
 
 export type AssessmentMaximumV3 =
   { readonly state: 'defined'; readonly value: number } | { readonly state: 'not-defined' };
@@ -29,8 +23,6 @@ export interface AssessmentComponentV3 {
   readonly order: number;
   readonly applicability: ResolvedAssessmentApplicabilityV2;
 }
-
-export type AssessmentComponentSourceIdentityV3 = AssessmentComponentSourceIdentityV2;
 export type AssessmentComponentSourceStableKeyV3 = AssessmentComponentSourceStableKeyV2;
 
 export { assessmentComponentSourceStableKeyV2 as assessmentComponentSourceStableKeyV3 } from './results-contract-v2';
@@ -64,5 +56,3 @@ export const RESULTS_CONTRACT_V3 = {
     completeMaximumByAppendingSameComponentIdentity: true,
   },
 } as const;
-
-export type ResultsContractV3 = typeof RESULTS_CONTRACT_V3;

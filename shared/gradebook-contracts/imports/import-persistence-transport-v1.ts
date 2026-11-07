@@ -88,7 +88,7 @@ export const GRADEBOOK_IMPORT_PERSISTENCE_SECURITY_V1 = {
   browserPersistentAcademicStorage: 'forbidden',
 } as const;
 
-export type GradebookImportLogicalSourceIdV1 = EntityIdV1<'LogicalSourceV1'>;
+type GradebookImportLogicalSourceIdV1 = EntityIdV1<'LogicalSourceV1'>;
 
 export interface GradebookImportSourceManifestV1 {
   readonly fileName: string;
@@ -114,7 +114,7 @@ export interface GradebookImportConfirmedContextV1 {
   readonly logicalSourceId: GradebookImportLogicalSourceIdV1;
 }
 
-export interface GradebookImportRecognizedSheetContextV1 {
+interface GradebookImportRecognizedSheetContextV1 {
   readonly classGroupLabel: string;
   readonly subjectLabel: string;
   readonly disciplineIndex: SourceDisciplineIndexV1;
@@ -182,7 +182,7 @@ export interface GradebookImportConfirmedStudentReferenceV1 {
   readonly enrollmentId: EnrollmentId;
 }
 
-export interface GradebookImportTermAggregatesV1 {
+interface GradebookImportTermAggregatesV1 {
   readonly quantitativeTotal: GradebookImportRecognizedNoteV1 | null;
   readonly parallelAssessment: GradebookImportRecognizedNoteV1 | null;
   readonly qualitativeTotal: GradebookImportRecognizedNoteV1 | null;
@@ -273,7 +273,7 @@ export const GRADEBOOK_IMPORT_PERSISTENCE_REQUEST_REJECTIONS_V1 = [
 ] as const;
 export type GradebookImportPersistenceRequestRejectionV1 =
   (typeof GRADEBOOK_IMPORT_PERSISTENCE_REQUEST_REJECTIONS_V1)[number];
-export type GradebookImportPersistenceRequestInspectionV1 =
+type GradebookImportPersistenceRequestInspectionV1 =
   'ready' | GradebookImportPersistenceRequestRejectionV1;
 
 export interface GradebookImportAssessmentDefinitionCountsV1 {
@@ -297,27 +297,6 @@ export interface GradebookImportAcademicRecordCountsV1 {
   readonly blocked: number;
 }
 
-export interface GradebookImportPersistenceSummaryV1 {
-  readonly assessmentDefinitions: GradebookImportAssessmentDefinitionCountsV1;
-  readonly assessmentComponents: GradebookImportAssessmentComponentCountsV1;
-  readonly academicRecords: GradebookImportAcademicRecordCountsV1;
-  readonly plannedVersionWrites: number;
-  readonly committedVersionWrites: number;
-}
-
-export const GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_CODES_V1 = [
-  'invalid-context',
-  'incompatible-reference',
-  'duplicate-identity',
-  'blocked-definition',
-  'blocking-diagnostic',
-  'invalid-academic-shape',
-  'missing-from-new-source',
-  'planning-failed',
-] as const;
-export type GradebookImportPersistenceIssueCodeV1 =
-  (typeof GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_CODES_V1)[number];
-
 export const GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_SCOPES_V1 = [
   'file',
   'sheet',
@@ -326,72 +305,6 @@ export const GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_SCOPES_V1 = [
 ] as const;
 export type GradebookImportPersistenceIssueScopeV1 =
   (typeof GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_SCOPES_V1)[number];
-
-export interface GradebookImportPersistenceIssueV1 {
-  readonly code: GradebookImportPersistenceIssueCodeV1;
-  readonly scope: GradebookImportPersistenceIssueScopeV1;
-  readonly sourceSheetName?: string;
-  readonly sourceRow?: number;
-  readonly sourceSlot?: SourceAssessmentSlotV2;
-}
-
-interface GradebookImportPersistenceResponseBaseV1 {
-  readonly transportVersion: typeof GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V1;
-}
-
-export type GradebookImportPersistenceResponseV1 =
-  | (GradebookImportPersistenceResponseBaseV1 & {
-      readonly state: 'applied' | 'no-changes';
-      readonly summary: GradebookImportPersistenceSummaryV1;
-    })
-  | (GradebookImportPersistenceResponseBaseV1 & {
-      readonly state: 'review-required' | 'blocked';
-      readonly summary: GradebookImportPersistenceSummaryV1;
-      readonly issues: readonly [
-        GradebookImportPersistenceIssueV1,
-        ...GradebookImportPersistenceIssueV1[],
-      ];
-    })
-  | (GradebookImportPersistenceResponseBaseV1 & {
-      readonly state: 'conflict';
-    })
-  | (GradebookImportPersistenceResponseBaseV1 & {
-      readonly state: 'invalid-request';
-      readonly reason: GradebookImportPersistenceRequestRejectionV1;
-    })
-  | (GradebookImportPersistenceResponseBaseV1 & {
-      readonly state: 'not-authorized' | 'unavailable';
-    });
-
-export const GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_V1 = {
-  version: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V1,
-  operation: GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V1,
-  unit: 'one-recognized-source-file-per-request',
-  bounds: GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V1,
-  security: GRADEBOOK_IMPORT_PERSISTENCE_SECURITY_V1,
-  trustBoundary: {
-    browserInput: 'untrusted-recognized-academic-observations',
-    confirmedReferences: [
-      'academicYearId',
-      'logicalSourceId',
-      'teachingAssignmentId',
-      'studentId',
-      'enrollmentId',
-    ],
-    serverDerived: [
-      'import-batch-identity-and-version',
-      'source-file-manifest-identity',
-      'assessment-component-identity',
-      'grade-entry-identity',
-      'academic-record-identity',
-      'change-state',
-      'write-plan',
-      'expected-version-and-cas',
-      'authority-mode',
-    ],
-    forbiddenClientFields: GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V1,
-  },
-} as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -439,7 +352,7 @@ const FORBIDDEN_CLIENT_FIELD_SET = new Set<string>(
   GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V1,
 );
 
-export function containsGradebookImportPersistenceForbiddenClientFieldV1(value: unknown): boolean {
+function containsGradebookImportPersistenceForbiddenClientFieldV1(value: unknown): boolean {
   if (Array.isArray(value)) {
     return value.some(containsGradebookImportPersistenceForbiddenClientFieldV1);
   }
@@ -1022,148 +935,4 @@ export function inspectGradebookImportPersistenceRequestV1(
   if (diagnosticIssue) return diagnosticIssue;
   if (blockedDefinition) return 'blocked-definition';
   return 'ready';
-}
-
-export function isGradebookImportPersistenceRequestV1(
-  value: unknown,
-): value is GradebookImportPersistenceRequestV1 {
-  return inspectGradebookImportPersistenceRequestV1(value) === 'ready';
-}
-
-function isNonNegativeCount(value: unknown): value is number {
-  return Number.isSafeInteger(value) && Number(value) >= 0;
-}
-
-function isSummary(value: unknown): value is GradebookImportPersistenceSummaryV1 {
-  if (
-    !isRecord(value) ||
-    !hasExactKeys(value, [
-      'assessmentDefinitions',
-      'assessmentComponents',
-      'academicRecords',
-      'plannedVersionWrites',
-      'committedVersionWrites',
-    ]) ||
-    !isRecord(value.assessmentDefinitions) ||
-    !hasExactKeys(value.assessmentDefinitions, ['total', 'resolved', 'blocked']) ||
-    !isNonNegativeCount(value.assessmentDefinitions.total) ||
-    !isNonNegativeCount(value.assessmentDefinitions.resolved) ||
-    !isNonNegativeCount(value.assessmentDefinitions.blocked) ||
-    value.assessmentDefinitions.total !==
-      value.assessmentDefinitions.resolved + value.assessmentDefinitions.blocked ||
-    !isRecord(value.assessmentComponents) ||
-    !hasExactKeys(value.assessmentComponents, ['unchanged', 'new', 'changed', 'blocked']) ||
-    !Object.values(value.assessmentComponents).every(isNonNegativeCount) ||
-    !isRecord(value.academicRecords) ||
-    !hasExactKeys(value.academicRecords, [
-      'unchanged',
-      'new',
-      'changed',
-      'missingFromNewSource',
-      'blocked',
-    ]) ||
-    !Object.values(value.academicRecords).every(isNonNegativeCount) ||
-    !isNonNegativeCount(value.plannedVersionWrites) ||
-    !isNonNegativeCount(value.committedVersionWrites) ||
-    value.committedVersionWrites > value.plannedVersionWrites
-  ) {
-    return false;
-  }
-  return true;
-}
-
-function isResponseIssue(value: unknown): value is GradebookImportPersistenceIssueV1 {
-  if (
-    !isRecord(value) ||
-    !hasExactKeys(value, ['code', 'scope'], ['sourceSheetName', 'sourceRow', 'sourceSlot']) ||
-    !(GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_CODES_V1 as readonly unknown[]).includes(value.code) ||
-    !(GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_SCOPES_V1 as readonly unknown[]).includes(value.scope) ||
-    (value.sourceSheetName !== undefined &&
-      !boundedString(
-        value.sourceSheetName,
-        GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V1.maxSheetNameLength,
-      )) ||
-    (value.sourceRow !== undefined && !positiveSourceRow(value.sourceRow)) ||
-    (value.sourceSlot !== undefined &&
-      (typeof value.sourceSlot !== 'string' || !ALL_ASSESSMENT_SLOTS.has(value.sourceSlot)))
-  ) {
-    return false;
-  }
-  if (value.scope === 'file') {
-    return (
-      value.sourceSheetName === undefined &&
-      value.sourceRow === undefined &&
-      value.sourceSlot === undefined
-    );
-  }
-  if (value.scope === 'sheet') {
-    return (
-      value.sourceSheetName !== undefined &&
-      value.sourceRow === undefined &&
-      value.sourceSlot === undefined
-    );
-  }
-  if (value.scope === 'student') {
-    return (
-      value.sourceSheetName !== undefined &&
-      value.sourceRow !== undefined &&
-      value.sourceSlot === undefined
-    );
-  }
-  return (
-    value.sourceSheetName !== undefined &&
-    value.sourceSlot !== undefined &&
-    value.sourceRow === undefined
-  );
-}
-
-export function isGradebookImportPersistenceResponseV1(
-  value: unknown,
-): value is GradebookImportPersistenceResponseV1 {
-  if (
-    !isRecord(value) ||
-    value.transportVersion !== GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V1 ||
-    typeof value.state !== 'string'
-  ) {
-    return false;
-  }
-  if (
-    value.state === 'not-authorized' ||
-    value.state === 'unavailable' ||
-    value.state === 'conflict'
-  ) {
-    return hasExactKeys(value, ['transportVersion', 'state']);
-  }
-  if (value.state === 'invalid-request') {
-    return (
-      hasExactKeys(value, ['transportVersion', 'state', 'reason']) &&
-      (GRADEBOOK_IMPORT_PERSISTENCE_REQUEST_REJECTIONS_V1 as readonly unknown[]).includes(
-        value.reason,
-      )
-    );
-  }
-  if (value.state === 'applied' || value.state === 'no-changes') {
-    if (
-      !hasExactKeys(value, ['transportVersion', 'state', 'summary']) ||
-      !isSummary(value.summary)
-    ) {
-      return false;
-    }
-    return value.state === 'applied'
-      ? value.summary.committedVersionWrites > 0 &&
-          value.summary.committedVersionWrites === value.summary.plannedVersionWrites
-      : value.summary.committedVersionWrites === 0 && value.summary.plannedVersionWrites === 0;
-  }
-  if (value.state === 'review-required' || value.state === 'blocked') {
-    return (
-      hasExactKeys(value, ['transportVersion', 'state', 'summary', 'issues']) &&
-      isSummary(value.summary) &&
-      value.summary.committedVersionWrites === 0 &&
-      Array.isArray(value.issues) &&
-      value.issues.length > 0 &&
-      value.issues.length <= GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V1.maxDiagnosticsPerRequest &&
-      value.issues.every(isResponseIssue)
-    );
-  }
-  return false;
 }

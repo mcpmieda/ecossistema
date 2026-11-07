@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PORTAL_YEAR_V1 = 2026 as const;
+const PORTAL_YEAR_V1 = 2026 as const;
 export const PORTAL_ORIGIN_V1 = 'https://aluno.escolaieda.com';
 export const portalIdV1 = z.uuid();
 export const versionV1 = z.number().int().safe().nonnegative();
@@ -24,7 +24,7 @@ export const scopeV1 = z.discriminatedUnion('kind', [
 export const SHIFTS_V1 = ['MATUTINO', 'VESPERTINO', 'NOTURNO'] as const;
 export const shiftV1 = z.enum(SHIFTS_V1);
 export type ShiftV1 = z.infer<typeof shiftV1>;
-export const shiftScopeV1 = z.object({ kind: z.literal('shift'), academicYear: z.literal(PORTAL_YEAR_V1), shift: shiftV1 }).strict();
+const shiftScopeV1 = z.object({ kind: z.literal('shift'), academicYear: z.literal(PORTAL_YEAR_V1), shift: shiftV1 }).strict();
 /** Scopes that own policy settings: every scope plus the shift level. */
 export const policyScopeV1 = z.discriminatedUnion('kind', [...scopeV1.options, shiftScopeV1]);
 export type PolicyScopeV1 = z.infer<typeof policyScopeV1>;

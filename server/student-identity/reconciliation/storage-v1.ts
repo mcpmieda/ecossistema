@@ -19,7 +19,7 @@ export class ReconciliationConflictV1 extends Error {
     super('reconciliation-conflict');
   }
 }
-export function stableV1(input: unknown): string {
+function stableV1(input: unknown): string {
   if (Array.isArray(input)) return `[${input.map(stableV1).join(',')}]`;
   if (input !== null && typeof input === 'object')
     return `{${Object.entries(input)
@@ -120,7 +120,7 @@ export async function advanceV1(tx: TxV1, year: number, publish = false): Promis
     [year, await academicRevisionV1(tx, year)],
   );
 }
-export function normalizedDbRowV1(r: DbRowV1): NormalizedReportRowV1 {
+function normalizedDbRowV1(r: DbRowV1): NormalizedReportRowV1 {
   return {
     sourceRow: Number(r.source_row ?? 2),
     name: String(r.name),

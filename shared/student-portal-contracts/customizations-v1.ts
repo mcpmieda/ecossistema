@@ -4,7 +4,7 @@ import { settingsOverrideV1 } from './policy-v1';
 import { accountStateV1, commandMetaV1, instantV1, pageCursorV1, periodV1, policyScopeV1, portalIdV1, revisionV1, scopeV1, versionV1 } from './core-v1';
 
 /** Current differences only. A publication decision is not a grant of student access. */
-export const publicationChoiceV1 = z.object({
+const publicationChoiceV1 = z.object({
   source: scopeV1.nullable(), revision: revisionV1.nullable(), version: versionV1.nullable(),
 }).strict();
 export const publicationContextItemV1 = z.object({
@@ -72,4 +72,3 @@ export const publicationInheritCommandV1 = z.object({
 }).strict();
 export type CustomizationRowV1 = z.infer<typeof customizationRowV1>;
 export type PublicationContextItemV1 = z.infer<typeof publicationContextItemV1>;
-export type CustomizationsResponseV1 = z.infer<typeof customizationsResponseV1>;

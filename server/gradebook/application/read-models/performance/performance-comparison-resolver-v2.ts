@@ -7,12 +7,10 @@ import type {
   PerformanceProfileCompatibilityV2,
 } from '../../../../../shared/gradebook-contracts/performance/performance-comparison-contract-v2';
 import { comparePerformancePercentagesV2 } from '../../../../../shared/gradebook-contracts/performance/performance-comparison-contract-v2';
-
-export const PERFORMANCE_PERCENTAGE_SEMANTICS_2026_V1 = 'official-percentage:2026:v1' as const;
-export const PERFORMANCE_PROFILE_COMPATIBILITY_RULE_V2 =
+const PERFORMANCE_PROFILE_COMPATIBILITY_RULE_V2 =
   'performance-profile-compatibility:v2' as const;
 
-export interface PerformanceDeclaredProfileCompatibilityV2 {
+interface PerformanceDeclaredProfileCompatibilityV2 {
   readonly current: PerformanceComparisonProfileRefV2;
   readonly reference: PerformanceComparisonProfileRefV2;
   readonly ruleVersion: string;

@@ -20,7 +20,6 @@ export const photoAvatarBatchRequestV1 = z
     (value) => new Set(value.subjects.map(photoSubjectKeyV1)).size === value.subjects.length,
     'Each student once',
   );
-export type PhotoAvatarBatchRequestV1 = z.infer<typeof photoAvatarBatchRequestV1>;
 
 /** The image, null when the student has no photo, or 'unavailable' when it could not be read now. */
 export type PhotoAvatarBatchItemV1 = Uint8Array | null | 'unavailable';
@@ -29,7 +28,7 @@ const UNAVAILABLE_V1 = 0xffffffff;
 const HEADER_BYTES_V1 = 5;
 const ITEM_HEADER_BYTES_V1 = 4;
 export const PHOTO_AVATAR_BATCH_TYPE_V1 = 'application/octet-stream';
-export const PHOTO_AVATAR_BATCH_MAX_BYTES_V1 =
+const PHOTO_AVATAR_BATCH_MAX_BYTES_V1 =
   HEADER_BYTES_V1 + PHOTO_AVATAR_BATCH_MAX_V1 * (ITEM_HEADER_BYTES_V1 + STUDENT_PHOTO_MAX_BYTES_V1);
 
 /** One entry per requested student, in request order. */

@@ -57,14 +57,14 @@ const COUNCIL_LABELS: Record<number, string> = {
   3: 'REPROVADO POR FALTA',
 };
 
-export interface RelationalBulletinServiceDependenciesV2 {
+interface RelationalBulletinServiceDependenciesV2 {
   readonly database: GradebookPostgresWritePortV1;
   readonly snapshots: RelationalBulletinSnapshotRepositoryV2;
   readonly now?: () => string;
   readonly createSnapshotId?: () => string;
 }
 
-export interface RelationalBulletinServerContextV2 {
+interface RelationalBulletinServerContextV2 {
   readonly issuerOid: string;
 }
 
@@ -772,5 +772,3 @@ export function createRelationalBulletinServiceV2(
     },
   };
 }
-
-export type RelationalBulletinServiceV2 = ReturnType<typeof createRelationalBulletinServiceV2>;

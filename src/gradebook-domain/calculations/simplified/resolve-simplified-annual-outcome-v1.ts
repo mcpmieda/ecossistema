@@ -25,7 +25,7 @@ export type SimplifiedAnnualProgressStateV1 =
   | 'final'
   | 'council-eligible';
 
-export interface SimplifiedAnnualOutcomeInputV1 {
+interface SimplifiedAnnualOutcomeInputV1 {
   readonly status: SimplifiedEnrollmentStatusV1;
   readonly components: readonly SimplifiedComponentRecoveryOutcomeV1[];
   readonly maxCouncilComponents: number;

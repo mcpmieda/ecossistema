@@ -67,7 +67,7 @@ export const LOGICAL_BACKUP_TABLE_ORDER_V2 = [
   'conselho_idempotencia',
 ] as const;
 
-export type LogicalBackupTableV2 = (typeof LOGICAL_BACKUP_TABLE_ORDER_V2)[number];
+type LogicalBackupTableV2 = (typeof LOGICAL_BACKUP_TABLE_ORDER_V2)[number];
 
 export const LOGICAL_BACKUP_SEQUENCE_NAMES_V2 = [
   'aluno_id_seq',
@@ -84,7 +84,7 @@ export const LOGICAL_BACKUP_SEQUENCE_NAMES_V2 = [
   'turma_id_seq',
 ] as const;
 
-export type RecoverySequenceNameV2 = (typeof LOGICAL_BACKUP_SEQUENCE_NAMES_V2)[number];
+type RecoverySequenceNameV2 = (typeof LOGICAL_BACKUP_SEQUENCE_NAMES_V2)[number];
 
 /**
  * 0002 is the historical production migration whose resulting relation is already
@@ -98,7 +98,7 @@ export const RECOVERY_SCHEMA_PLAN_V2 = [
   '0005_relational_bulletin_snapshot_v2.sql',
 ] as const;
 
-export interface LogicalBackupV2 {
+interface LogicalBackupV2 {
   readonly format: 'gradebook-logical-backup-v2';
   readonly source: string;
   readonly captured_at: string;
@@ -108,13 +108,13 @@ export interface LogicalBackupV2 {
   readonly sequences: readonly BackupSequenceV2[];
 }
 
-export interface RecoveryTargetV2 {
+interface RecoveryTargetV2 {
   readonly connectionString: string;
   readonly databaseName: string;
   readonly host: '127.0.0.1' | 'localhost' | '::1';
 }
 
-export interface RecoveryReportV2 {
+interface RecoveryReportV2 {
   readonly format: 'gradebook-recovery-report-v2';
   readonly backupSha256: string;
   readonly sourceHead: string;

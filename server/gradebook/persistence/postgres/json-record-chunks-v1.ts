@@ -10,13 +10,13 @@ export interface SerializedJsonRecordV1 {
   readonly jsonBytes: number;
 }
 
-export interface JsonRecordChunkV1 {
+interface JsonRecordChunkV1 {
   readonly jsonText: string;
   readonly rows: number;
   readonly bytes: number;
 }
 
-export interface JsonRecordLimitsV1 {
+interface JsonRecordLimitsV1 {
   readonly maximumRows: number;
   readonly maximumBytes: number;
 }

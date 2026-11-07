@@ -38,8 +38,8 @@ export type ModuleIntegrationState = (typeof MODULE_INTEGRATION_STATES)[number];
 export type ModuleIntegrationIssue = (typeof MODULE_INTEGRATION_ISSUES)[number];
 export type ModuleState = 'ready' | 'planned';
 export type FoundationStatus = 'ok' | 'degraded';
-export type OperationalStatus = 'nominal' | 'attention';
-export type RecoveryStatus = 'not-verified' | 'verified';
+type OperationalStatus = 'nominal' | 'attention';
+type RecoveryStatus = 'not-verified' | 'verified';
 
 export type CoreModuleContract = {
   id: string;
@@ -139,7 +139,7 @@ export type PlatformSnapshotContract = {
   migrations: MigrationEntry[];
 };
 
-export function isPlatformRoute(value: string): value is PlatformRoute {
+function isPlatformRoute(value: string): value is PlatformRoute {
   return (PLATFORM_ROUTES as readonly string[]).includes(value);
 }
 

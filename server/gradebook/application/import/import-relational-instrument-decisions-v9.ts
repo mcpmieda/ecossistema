@@ -8,7 +8,7 @@ export interface RelationalInstrumentMetadataV9 {
   readonly descricao: string | null;
 }
 
-export type RelationalNoteMutationV9 =
+type RelationalNoteMutationV9 =
   | { readonly kind: 'preserve' }
   | { readonly kind: 'delete' }
   | { readonly kind: 'insert' | 'update'; readonly value: number | null };

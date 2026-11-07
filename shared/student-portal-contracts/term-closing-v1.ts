@@ -13,14 +13,14 @@ export { TERM_CLOSING_CATALOG_V1 };
 
 export type TermClosingCodeV1 = keyof typeof TERM_CLOSING_CATALOG_V1;
 const codes = Object.keys(TERM_CLOSING_CATALOG_V1) as [TermClosingCodeV1, ...TermClosingCodeV1[]];
-export const termClosingCodeV1 = z.enum(codes);
+const termClosingCodeV1 = z.enum(codes);
 export const TERM_CLOSING_PERIODS_V1 = ['T1', 'T2', 'T3'] as const;
 export type TermClosingPeriodV1 = (typeof TERM_CLOSING_PERIODS_V1)[number];
 /** `conclusion`: closed trimesters, past tense. `progress`: the trimester in progress. */
 export const TERM_CLOSING_MODES_V1 = ['conclusion', 'progress'] as const;
 export type TermClosingModeV1 = (typeof TERM_CLOSING_MODES_V1)[number];
 /** Message kind regardless of mode: `progress.weight.x` and `weight.x` are both a weight. */
-export const termClosingKindV1 = (code: string) => code.replace(/^progress\./u, '').split('.')[0]!;
+const termClosingKindV1 = (code: string) => code.replace(/^progress\./u, '').split('.')[0]!;
 const modeOfCodeV1 = (code: string): TermClosingModeV1 => (code.startsWith('progress.') ? 'progress' : 'conclusion');
 
 export const termClosingMessageV1 = z

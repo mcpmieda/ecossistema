@@ -26,7 +26,7 @@ import {
   type BulletinSnapshotIdV1,
 } from './bulletin-contract-v1';
 
-export const BULLETIN_WORKSPACE_OPERATIONS_V1 = [
+const BULLETIN_WORKSPACE_OPERATIONS_V1 = [
   'bootstrap',
   'class-groups',
   'students',
@@ -38,7 +38,6 @@ export const BULLETIN_WORKSPACE_OPERATIONS_V1 = [
 ] as const;
 
 export type BulletinWorkspaceOperationV1 = (typeof BULLETIN_WORKSPACE_OPERATIONS_V1)[number];
-export type BulletinWorkspaceStateV1 = 'ready' | 'empty' | 'unavailable' | 'not-authorized';
 
 export interface BulletinAcademicYearOptionV1 {
   readonly id: AcademicYearId;
@@ -212,7 +211,7 @@ export type BulletinWorkspaceTransportResponseV1 =
       readonly state: 'unavailable' | 'not-authorized';
     };
 
-export type BulletinWorkspaceTransportReadinessV1 =
+type BulletinWorkspaceTransportReadinessV1 =
   | 'ready'
   | 'invalid-request'
   | 'forbidden-client-payload';

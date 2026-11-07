@@ -4,7 +4,7 @@ import type { PerformanceCellV2, PerformanceOfferV2 } from '../../../../shared/g
 
 const formatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 });
 export const gradeText = (value: number | null) => value === null ? '—' : formatter.format(value / 1000);
-export const stateText: Record<PerformanceCellV2['state'], string> = {
+const stateText: Record<PerformanceCellV2['state'], string> = {
   complete: 'Completo', partial: 'Parcial', 'not-recorded': 'Sem nota', unavailable: 'Indisponível',
   'not-applicable': 'Não se aplica', 'recovery-pending': 'Pendente', 'no-show': 'N/C',
   'repeat-failure': 'Reprovado (R/R)',

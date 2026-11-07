@@ -278,7 +278,7 @@ async function summaryInTx(
  * collector sent (each collection stores only the days that changed). Parameters: year, student
  * uid, first day of the month. The caller still checks each row's identity evidence.
  */
-export const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c.date::text,b.shift,c.slots_json,c.complete,
+const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c.date::text,b.shift,c.slots_json,c.complete,
     b.academic_year,b.class_id,s.student_uid::text,s.source_ids_json,s.observation_ids_json
     FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id
     JOIN attendance.source_row_v2 s ON s.batch_id=c.batch_id AND s.record_key=c.record_key
@@ -334,7 +334,7 @@ export function withLessonDaysV2(
     coverage: count.reliable ? 'reliable' : 'incomplete',
   };
 }
-export async function summarizeFrequencyOriginsV2(
+async function summarizeFrequencyOriginsV2(
   tx: Tx,
   origins: readonly Row[],
   month: string,
@@ -767,7 +767,7 @@ async function addOccurrences(
  * fichas of the student disagree in that same batch does the conflict stay open for a person.
  * An open conflict whose stored mark already matches the latest evidence is simply closed.
  */
-export const FOLLOW_LATEST_READING_SQL = `WITH latest_batch AS (
+const FOLLOW_LATEST_READING_SQL = `WITH latest_batch AS (
     SELECT DISTINCT ON(p.occurrence_id) p.occurrence_id,p.batch_id FROM attendance.origin_v2 p
     JOIN attendance.batch_v2 b ON b.id=p.batch_id WHERE b.academic_year=$1 AND b.class_id=$2
     ORDER BY p.occurrence_id,b.received_at DESC,b.id DESC),
@@ -1987,7 +1987,6 @@ export function createFrequencyServiceV2(database: GradebookPostgresDatabaseV1) 
     },
   };
 }
-export type FrequencyServiceV2 = ReturnType<typeof createFrequencyServiceV2>;
 const yearlyTables = [
   // The automatic student report's last reading (0015).
   'student_report_state_v2',

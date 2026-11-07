@@ -51,7 +51,7 @@ export interface GradebookImportPersistenceRequestV2 extends Omit<
   readonly sourceResolution: GradebookImportSourceResolutionIntentV2;
 }
 
-export const GRADEBOOK_IMPORT_PERSISTENCE_REQUEST_REJECTIONS_V2 =
+const GRADEBOOK_IMPORT_PERSISTENCE_REQUEST_REJECTIONS_V2 =
   GRADEBOOK_IMPORT_PERSISTENCE_REQUEST_REJECTIONS_V1;
 export type GradebookImportPersistenceRequestRejectionV2 =
   GradebookImportPersistenceRequestRejectionV1;
@@ -76,7 +76,7 @@ export interface GradebookImportPersistenceSummaryV2 {
   readonly committedWrites: GradebookImportPersistenceWriteCountsV2;
 }
 
-export const GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_CODES_V2 = [
+const GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_CODES_V2 = [
   'invalid-context',
   'incompatible-reference',
   'duplicate-identity',
@@ -103,7 +103,7 @@ interface GradebookImportPersistenceResponseBaseV2 {
   readonly transportVersion: typeof GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V2;
 }
 
-export type GradebookImportPersistenceResponseV2 =
+type GradebookImportPersistenceResponseV2 =
   | (GradebookImportPersistenceResponseBaseV2 & {
       /** `no-changes` means no academic version changed; the audit batch may still be appended. */
       readonly state: 'applied' | 'no-changes';
@@ -127,36 +127,6 @@ export type GradebookImportPersistenceResponseV2 =
   | (GradebookImportPersistenceResponseBaseV2 & {
       readonly state: 'not-authorized' | 'unavailable';
     });
-
-export const GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_V2 = {
-  version: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V2,
-  operation: GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V2,
-  unit: 'one-recognized-source-file-per-request',
-  bounds: GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V2,
-  security: GRADEBOOK_IMPORT_PERSISTENCE_SECURITY_V2,
-  sourceResolution: {
-    mode: 'resolve-or-create',
-    context: 'teacher-year-gradebook',
-    authority: 'server',
-  },
-  trustBoundary: {
-    browserInput: 'untrusted-recognized-academic-observations',
-    confirmedReferences: ['academicYearId', 'teachingAssignmentId', 'studentId', 'enrollmentId'],
-    serverDerived: [
-      'logical-source-context-and-identity',
-      'import-batch-identity-and-version',
-      'source-file-manifest-identity',
-      'assessment-component-identity',
-      'grade-entry-identity',
-      'academic-record-identity',
-      'change-state',
-      'write-plan',
-      'expected-version-and-cas',
-      'authority-mode',
-    ],
-    forbiddenClientFields: GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V2,
-  },
-} as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -253,12 +223,6 @@ export function inspectGradebookImportPersistenceRequestV2(
   } as Record<string, unknown>;
   delete compatibleV1Request.sourceResolution;
   return inspectGradebookImportPersistenceRequestV1(compatibleV1Request);
-}
-
-export function isGradebookImportPersistenceRequestV2(
-  value: unknown,
-): value is GradebookImportPersistenceRequestV2 {
-  return inspectGradebookImportPersistenceRequestV2(value) === 'ready';
 }
 
 function nonNegativeInteger(value: unknown): value is number {

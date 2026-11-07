@@ -19,7 +19,7 @@ const writeV1 = z.object({
   expiresAt: z.iso.datetime().nullable(),
 });
 export type SealCacheWriteV1 = z.infer<typeof writeV1>;
-export type SealCachePlanV1 = {
+type SealCachePlanV1 = {
   write: Omit<SealCacheWriteV1, 'seals'>;
   hit: { seals: number | null } | null;
 };

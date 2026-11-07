@@ -1,15 +1,6 @@
 import { z } from 'zod';
-import {
-  performanceAnalysisResponseSchemaV3,
-  performanceAnalysisRequestSchemaV3,
-  type PerformanceAnalysisV3,
-  type PerformanceLensV3,
-} from './performance-analysis-v3';
-import {
-  performanceTermComparisonResponseSchemaV4,
-  type PerformanceReferencePeriodV4,
-  type PerformanceTermComparisonV4,
-} from './performance-term-comparison-v4';
+import { performanceAnalysisResponseSchemaV3, performanceAnalysisRequestSchemaV3, type PerformanceAnalysisV3 } from './performance-analysis-v3';
+import { performanceTermComparisonResponseSchemaV4, type PerformanceTermComparisonV4 } from './performance-term-comparison-v4';
 import {
   performanceRequestSchemaV2,
   performanceResponseSchemaV2,
@@ -217,12 +208,6 @@ export function dashboardAnalysisRequestV3(request: PerformanceDashboardRequestV
   });
 }
 
-export function dashboardReferencePeriodV5(
-  request: PerformanceDashboardRequestV5,
-): PerformanceReferencePeriodV4 | null {
-  return request.referencePeriod;
-}
-
 export function performanceDashboardMatchesV5(
   request: PerformanceDashboardRequestV5,
   response: PerformanceDashboardResponseV5,
@@ -244,5 +229,3 @@ export function performanceDashboardMatchesV5(
       : comparison?.referencePeriod === parsed.data.referencePeriod)
   );
 }
-
-export type PerformanceDashboardLensV5 = PerformanceLensV3;

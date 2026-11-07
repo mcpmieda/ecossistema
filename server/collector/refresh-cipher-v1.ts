@@ -9,7 +9,7 @@ export const collectorGrantBindingV1 = z.object({
 export type CollectorGrantBindingV1 = z.infer<typeof collectorGrantBindingV1>;
 const envelopeV1 = z.object({ v: z.literal(1), iv: z.string().max(32), ct: z.string().max(24_000) }).strict();
 
-export class CollectorCredentialErrorV1 extends Error {
+class CollectorCredentialErrorV1 extends Error {
   constructor() { super('collector-credential-unavailable'); }
 }
 

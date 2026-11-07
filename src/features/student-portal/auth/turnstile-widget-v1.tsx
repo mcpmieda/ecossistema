@@ -22,7 +22,7 @@ declare global {
 }
 
 /** Public sitekey only. The widget's single-use token is verified by the existing server. */
-export const mountTurnstileV1: RiskMountV1 = (container, sitekey, callbacks) => {
+const mountTurnstileV1: RiskMountV1 = (container, sitekey, callbacks) => {
   let disposed = false,
     widget: string | undefined,
     script: HTMLScriptElement | undefined;

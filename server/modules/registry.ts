@@ -19,7 +19,7 @@ const moduleFieldsSchema = z.object({
   AtualizadoEmUTC: z.string().optional(),
 });
 
-export type ModuleRegistryItem = {
+type ModuleRegistryItem = {
   id: string;
   fields: Record<string, unknown>;
 };
@@ -33,7 +33,7 @@ function numberOrZero(value: string | number | undefined): number {
   return 0;
 }
 
-export function normalizeModuleRegistryStatus(value: string | undefined): ModuleRegistryStatus {
+function normalizeModuleRegistryStatus(value: string | undefined): ModuleRegistryStatus {
   const normalized = (value ?? '')
     .trim()
     .normalize('NFD')

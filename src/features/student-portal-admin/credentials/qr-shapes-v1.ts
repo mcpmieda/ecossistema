@@ -1,5 +1,5 @@
 /** QR geometry only. No URLs, labels, logos or credentials are embedded as metadata. */
-export type QrShapeV1 = {
+type QrShapeV1 = {
   x: number;
   y: number;
   width: number;

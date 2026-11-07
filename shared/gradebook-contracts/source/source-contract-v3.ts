@@ -155,5 +155,3 @@ export const SOURCE_CONTRACT_V3 = {
   },
   authoritativeImportedAggregates: SOURCE_CONTRACT_V2.authoritativeImportedAggregates,
 } as const;
-
-export type SourceContractV3 = typeof SOURCE_CONTRACT_V3;

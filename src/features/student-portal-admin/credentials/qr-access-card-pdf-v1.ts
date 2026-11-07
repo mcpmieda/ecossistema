@@ -104,7 +104,7 @@ async function readPhotoOrNoneV1(
   }
 }
 
-export type QrCardPhotoSourceV1 = (accountId: string) => Promise<Blob | undefined>;
+type QrCardPhotoSourceV1 = (accountId: string) => Promise<Blob | undefined>;
 
 /** Starts every portrait download at once (bounded), so they overlap the credential request.
  * Blobs stay in memory only for this batch; the signal stops downloads that are still queued.

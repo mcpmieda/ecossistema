@@ -28,7 +28,7 @@ const DEFAULT_REPOSITORY_PAGE_SIZE = 100;
 const MAXIMUM_REPOSITORY_PAGE_SIZE = 100;
 const CURSOR_PREFIX = 'academic-global-search-v1.';
 
-export type AcademicGlobalSearchReadModelErrorCodeV1 = 'invalid-repository-page-size';
+type AcademicGlobalSearchReadModelErrorCodeV1 = 'invalid-repository-page-size';
 
 const ERROR_MESSAGES: Record<AcademicGlobalSearchReadModelErrorCodeV1, string> = {
   'invalid-repository-page-size': 'A paginação interna da pesquisa acadêmica é inválida.',
@@ -44,7 +44,7 @@ export class AcademicGlobalSearchReadModelErrorV1 extends Error {
   }
 }
 
-export interface AcademicGlobalSearchReadModelOptionsV1 {
+interface AcademicGlobalSearchReadModelOptionsV1 {
   readonly repositoryPageSize?: number;
 }
 

@@ -16,7 +16,7 @@ import type {
 const DEFAULT_PAGE_SIZE = 100;
 const MAXIMUM_PAGE_SIZE = 100;
 
-export type StudentCenterReadModelErrorCodeV1 =
+type StudentCenterReadModelErrorCodeV1 =
   'invalid-page-size' | 'incompatible-repository-result' | 'cursor-cycle';
 
 const ERROR_MESSAGES: Record<StudentCenterReadModelErrorCodeV1, string> = {
@@ -61,7 +61,7 @@ export interface StudentCenterQueryV1 {
   ): Promise<StudentCenterReadModelV1 | null>;
 }
 
-export interface StudentCenterReadModelOptionsV1 {
+interface StudentCenterReadModelOptionsV1 {
   readonly pageSize?: number;
 }
 

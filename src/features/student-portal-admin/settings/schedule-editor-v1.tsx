@@ -9,8 +9,8 @@ import { calendarInputV1, calendarInstantV1 } from './settings-values-v1';
  * The agenda editor shared by Acesso (Abrir/Fechar), Notas and Resultado anual (Mostrar/Ocultar):
  * rows of an action and a São Paulo date, validated into a time-ordered schedule.
  */
-export type ScheduleRowV1 = { id: number; at: string; action: AccessEventV1['action'] };
-export type ScheduleLabelsV1 = { open: string; close: string; noEffect: string };
+type ScheduleRowV1 = { id: number; at: string; action: AccessEventV1['action'] };
+type ScheduleLabelsV1 = { open: string; close: string; noEffect: string };
 
 let nextRowId = 1;
 export const scheduleRowsOfV1 = (events: readonly AccessEventV1[]): ScheduleRowV1[] =>

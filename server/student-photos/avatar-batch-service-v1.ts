@@ -7,7 +7,7 @@ export interface AvatarBatchFamilyV1 {
   uid: string;
   asset: PhotoAssetV1 | null;
 }
-export interface AvatarBatchPortsV1 {
+interface AvatarBatchPortsV1 {
   /** Fresh session and capability check; throws when access is no longer allowed. */
   authorize(): Promise<void>;
   /** One entry per subject, in order; null when the reference resolves to nobody. */

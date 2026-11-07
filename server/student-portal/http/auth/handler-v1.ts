@@ -7,8 +7,8 @@ import type { AuthServiceV1 } from '../../auth/auth-service-v1';
 import type { SessionServiceV1 } from '../../auth/session-service-v1';
 
 // Keep parsing bounded even when unrelated cookies are supplied. Valid token format is unchanged.
-export const SESSION_COOKIE_HEADER_BYTES_V1 = 8192;
-export const SESSION_COOKIE_PAIRS_V1 = 64;
+const SESSION_COOKIE_HEADER_BYTES_V1 = 8192;
+const SESSION_COOKIE_PAIRS_V1 = 64;
 const COOKIE = `${SESSION_COOKIE_V1.name}=`;
 const FLAGS = '; Path=/; Secure; HttpOnly; SameSite=Strict';
 const routes = new Map([['/api/student/auth/challenge', 'challenge'], ['/api/student/auth/activate', 'activate'],

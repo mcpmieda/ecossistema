@@ -16,7 +16,7 @@ import { frequencyCommentV2, type FrequencyCommentKindV2 } from '../../shared/at
 const demoCalendarV3 = officialCalendar2026V1;
 
 /** The official summary with its Smecel lesson days (`days`, attendance 0008). */
-export type DemoFrequencyV3 = FrequencySummaryV2 & { days: FrequencyDayV2[] };
+type DemoFrequencyV3 = FrequencySummaryV2 & { days: FrequencyDayV2[] };
 
 /*
  * Invented frequency, schedule and incidents for the one Portal preview (ui-preview.html), through
@@ -37,7 +37,7 @@ const SCHOOL_DAYS = new Set(schoolDaysOfV1(demoCalendarV3()));
 const isSaturday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay() === 6;
 const pad = (value: number) => String(value).padStart(2, '0');
 /** Today as the school's clock reads it (the same helper as the real page). */
-export const previewTodayV3 = schoolDateOnDeviceV3;
+const previewTodayV3 = schoolDateOnDeviceV3;
 /**
  * The preview's clock: the real time, or a simulated one with ?hora=15:35 in the address (owner
  * request 23/10/2026: "simula o intervalo"), today at that time in Brasília, running from there.
@@ -47,7 +47,7 @@ const SIMULATED_AT_V3 = (() => {
   if (!hora || !/^([01]\d|2[0-3]):[0-5]\d$/u.test(hora)) return null;
   return { at: Date.parse(`${schoolDateOnDeviceV3()}T${hora}:00-03:00`), loadedAt: Date.now() };
 })();
-export const previewNowV3 = () =>
+const previewNowV3 = () =>
   new Date(SIMULATED_AT_V3 ? SIMULATED_AT_V3.at + (Date.now() - SIMULATED_AT_V3.loadedAt) : Date.now()).toISOString();
 
 /** Hand-written October, so the story is easy to follow; other months are generated. */
@@ -169,7 +169,7 @@ function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
 }
 
 /** The whole year so far, as GET /api/student/frequency?year=2026 answers it. */
-export function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
+function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
   const months = Array.from({ length: 12 }, (_, index) => `2026-${pad(index + 1)}`).filter((key) => key <= today.slice(0, 7));
   const answers = months.map((key) => demoFrequencyV3(key, today));
   const first = answers[0] ?? demoFrequencyV3('2026-01', today);
@@ -250,7 +250,7 @@ const WEEK: readonly (readonly (string | null)[])[] = [
   ['HISTORIA', 'MATEMATICA', 'MATEMATICA', 'CIENCIAS', 'EDUCACAO FISICA'],
   [null, 'MATEMATICA', null, 'HISTORIA', null],
 ];
-export const demoScheduleV3 = () => [
+const demoScheduleV3 = () => [
   {
     label: 'TURMA ARTIFICIAL - VESPERTINO',
     // The school's official bells of the afternoon (sheets of 22/06): a class of the vespertino.

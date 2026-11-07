@@ -29,7 +29,6 @@ export const performanceAnalysisRequestSchemaV3 = matrixRequest
   .refine((value) => (value.lens === 'assessments') === (value.offerId !== null));
 export type PerformanceAnalysisRequestV3 = z.infer<typeof performanceAnalysisRequestSchemaV3>;
 export type PerformanceLensV3 = z.infer<typeof lens>;
-export type AnalysisBucketV3 = (typeof ANALYSIS_BUCKETS_V3)[number];
 const key = z.string().regex(/^\d+(?::[123]:\d+)?$/u);
 const reading = z
   .object({

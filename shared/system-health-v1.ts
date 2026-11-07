@@ -40,7 +40,7 @@ export type SystemHealthSnapshotV1 = {
 };
 export const SYSTEM_HEALTH_POLL_MS_V1 = 60_000;
 export const SYSTEM_HEALTH_TTL_MS_V1 = 30_000;
-export const SYSTEM_HEALTH_STALE_MS_V1 = 120_000;
+const SYSTEM_HEALTH_STALE_MS_V1 = 120_000;
 export const SYSTEM_HEALTH_BODY_BYTES_V1 = 16_384;
 
 function record(value: unknown): value is Record<string, unknown> {

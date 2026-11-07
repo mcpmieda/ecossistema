@@ -33,11 +33,10 @@ export const BULLETIN_AUTHORITY_MODE_V1 =
 export const BULLETIN_MODEL_KINDS_V1 = ['synthetic', 'composition', 'detailed'] as const;
 export type BulletinModelKindV1 = (typeof BULLETIN_MODEL_KINDS_V1)[number];
 
-export const BULLETIN_EMISSION_STATUSES_V1 = ['ready', 'blocked', 'insufficient-data'] as const;
-export type BulletinEmissionStatusV1 = (typeof BULLETIN_EMISSION_STATUSES_V1)[number];
+const BULLETIN_EMISSION_STATUSES_V1 = ['ready', 'blocked', 'insufficient-data'] as const;
 
-export const BULLETIN_PRESENTATION_DATE_STYLES_V1 = ['short', 'long'] as const;
-export type BulletinPresentationDateStyleV1 = (typeof BULLETIN_PRESENTATION_DATE_STYLES_V1)[number];
+const BULLETIN_PRESENTATION_DATE_STYLES_V1 = ['short', 'long'] as const;
+type BulletinPresentationDateStyleV1 = (typeof BULLETIN_PRESENTATION_DATE_STYLES_V1)[number];
 
 export interface BulletinPresentationOptionsV1 {
   readonly locale: string;
@@ -96,7 +95,7 @@ export interface BulletinStudentIdentityV1 {
   readonly displayName: string;
 }
 
-export interface BulletinClassGroupIdentityV1 {
+interface BulletinClassGroupIdentityV1 {
   readonly id: ClassGroupId;
   readonly code: string;
 }
@@ -300,7 +299,7 @@ export interface BulletinBatchEmissionResultV1 {
   }[];
 }
 
-export const BULLETIN_FORBIDDEN_CLIENT_REQUEST_FIELDS_V1 = [
+const BULLETIN_FORBIDDEN_CLIENT_REQUEST_FIELDS_V1 = [
   'formula',
   'formulas',
   'weight',
@@ -330,7 +329,7 @@ export const BULLETIN_FORBIDDEN_CLIENT_REQUEST_FIELDS_V1 = [
   'storage',
 ] as const;
 
-export const BULLETIN_FORBIDDEN_ARTIFACT_FIELDS_V1 = [
+const BULLETIN_FORBIDDEN_ARTIFACT_FIELDS_V1 = [
   'formula',
   'formulas',
   'weight',
@@ -398,9 +397,7 @@ export const BULLETIN_CONTRACT_V1 = {
   },
 } as const;
 
-export type BulletinContractV1 = typeof BULLETIN_CONTRACT_V1;
-
-export type BulletinRequestReadinessV1 = 'ready' | 'invalid-request' | 'forbidden-client-payload';
+type BulletinRequestReadinessV1 = 'ready' | 'invalid-request' | 'forbidden-client-payload';
 
 function canonicalFieldName(field: string): string {
   return field.replace(/[-_]/gu, '').toLowerCase();
@@ -552,7 +549,7 @@ export function inspectBulletinReprintRequestV1(input: unknown): BulletinRequest
   return 'ready';
 }
 
-export function isBulletinSnapshotVersionV1(input: unknown): input is number {
+function isBulletinSnapshotVersionV1(input: unknown): input is number {
   return typeof input === 'number' && Number.isInteger(input) && input > 0;
 }
 

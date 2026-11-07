@@ -45,16 +45,11 @@ import {
   type NativeAnnualOutcomeProfileV1,
   type NativeAnnualOutcomeV1,
 } from '../../../../src/gradebook-domain/calculations/annual-result/resolve-native-annual-outcome';
-
-export const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V1 =
-  'gradebook-imported-result-projection:2026:v1' as const;
-export const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2 =
-  'gradebook-imported-result-projection:2026:v2' as const;
-export const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V3 =
+const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V3 =
   'gradebook-imported-result-projection:2026:v3' as const;
 export const ANNUAL_CURRICULUM_PAGE_LIMIT_V1 = 100 as const;
 
-export type ImportedRecoveryApplicabilityMaterializationV1 =
+type ImportedRecoveryApplicabilityMaterializationV1 =
   | { readonly state: 'ready'; readonly value: ImportedApplicabilityV1 }
   | {
       readonly state: 'review-required';
@@ -204,7 +199,7 @@ function importedDerived(
   return { value, evidence };
 }
 
-export interface ImportedTermProjectionInputV1 extends ResultIdentityV1 {
+interface ImportedTermProjectionInputV1 extends ResultIdentityV1 {
   readonly id: TermResultId;
   readonly term: AcademicTermV1;
   /** T, Z and AK are direct source observations. */
@@ -216,7 +211,7 @@ export interface ImportedTermProjectionInputV1 extends ResultIdentityV1 {
   readonly calculatedInput: NativeTermOutcomeInputV1;
 }
 
-export interface ImportedTermProjectionV1 {
+interface ImportedTermProjectionV1 {
   readonly record: TermResultV1;
   readonly importedOutcome: NativeTermOutcomeV1;
   readonly calculatedOutcome: NativeTermOutcomeV1;
@@ -304,25 +299,25 @@ export function projectImportedTermResultV1(
   };
 }
 
-export interface ImportedTermGradeMapV1 {
+interface ImportedTermGradeMapV1 {
   readonly 1: ImportedGradeValueV1;
   readonly 2: ImportedGradeValueV1;
   readonly 3: ImportedGradeValueV1;
 }
 
-export interface ImportedTermApplicabilityMapV1 {
+interface ImportedTermApplicabilityMapV1 {
   readonly 1: ImportedApplicabilityV1;
   readonly 2: ImportedApplicabilityV1;
   readonly 3: ImportedApplicabilityV1;
 }
 
-export interface FinalRecoveryRecordIdMapV1 {
+interface FinalRecoveryRecordIdMapV1 {
   readonly 1: FinalRecoveryId;
   readonly 2: FinalRecoveryId;
   readonly 3: FinalRecoveryId;
 }
 
-export interface ImportedFinalRecoveryProjectionInputV1 extends ResultIdentityV1 {
+interface ImportedFinalRecoveryProjectionInputV1 extends ResultIdentityV1 {
   readonly ids: FinalRecoveryRecordIdMapV1;
   /** X/Y/AA, AC/AD/AE and R/S/T respectively. */
   readonly originalTermGrades: ImportedTermGradeMapV1;
@@ -331,7 +326,7 @@ export interface ImportedFinalRecoveryProjectionInputV1 extends ResultIdentityV1
   readonly calculatedInput: NativeFinalRecoveryInputV1;
 }
 
-export interface ImportedFinalRecoveryProjectionV1 {
+interface ImportedFinalRecoveryProjectionV1 {
   readonly records: readonly [FinalRecoveryV1, FinalRecoveryV1, FinalRecoveryV1];
   readonly importedOutcome: NativeFinalRecoveryOutcomeV1;
   readonly calculatedOutcome: NativeFinalRecoveryOutcomeV1;
@@ -430,7 +425,7 @@ function comparableNumber(value: AcademicGradeValueV1): number | null {
   }
 }
 
-export type ImportedAnnualOriginalResolutionV1 =
+type ImportedAnnualOriginalResolutionV1 =
   | {
       readonly state: 'resolved';
       readonly value: ImportedGradeValueV1;
@@ -478,7 +473,7 @@ export function resolveImportedAnnualOriginalTotalV1(input: {
   return { state: 'insufficient-data', reason: 'final-annual-original-total-unavailable' };
 }
 
-export type ImportedPostRecoveryTotalResolutionV1 =
+type ImportedPostRecoveryTotalResolutionV1 =
   | {
       readonly state: 'resolved';
       readonly value: ImportedGradeValueV1;
@@ -582,7 +577,7 @@ export async function loadOfficialAnnualCurriculumV1(
   return assignments;
 }
 
-export interface ImportedAnnualComponentV1 {
+interface ImportedAnnualComponentV1 {
   readonly id: AnnualResultId;
   readonly teachingAssignmentId: TeachingAssignmentId;
   readonly originalTotal: ImportedGradeValueV1;
@@ -590,14 +585,14 @@ export interface ImportedAnnualComponentV1 {
   readonly coverage: ResultCoverageV1;
 }
 
-export interface CalculatedAnnualComponentV1 {
+interface CalculatedAnnualComponentV1 {
   readonly teachingAssignmentId: TeachingAssignmentId;
   readonly originalTotal: AcademicGradeValueV1;
   readonly postRecoveryTotal: AcademicGradeValueV1;
   readonly coverage: ResultCoverageV1;
 }
 
-export interface ImportedAnnualProjectionInputV1 {
+interface ImportedAnnualProjectionInputV1 {
   readonly academicYearId: AcademicYearId;
   readonly studentId: StudentId;
   readonly enrollmentId: EnrollmentId;
@@ -607,7 +602,7 @@ export interface ImportedAnnualProjectionInputV1 {
   readonly calculatedComponents: readonly CalculatedAnnualComponentV1[];
 }
 
-export interface ImportedAnnualProjectionV1 {
+interface ImportedAnnualProjectionV1 {
   readonly records: readonly AnnualResultV1[];
   readonly importedOutcome: NativeAnnualOutcomeV1;
   readonly calculatedOutcome: NativeAnnualOutcomeV1;

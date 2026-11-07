@@ -1,7 +1,5 @@
 import { z } from 'zod';
 import { GRADEBOOK_ACADEMIC_YEAR_MAX_V2, GRADEBOOK_ACADEMIC_YEAR_MIN_V2 } from '../academic-year-v2';
-
-export const RELATIONAL_COUNCIL_CONTRACT_VERSION_V3 = 3 as const;
 export const RELATIONAL_COUNCIL_LIMITS_V3 = Object.freeze({
   classes: 100,
   students: 150,
@@ -43,7 +41,6 @@ export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation'
   z.object({ contractVersion: z.literal(3), operation: z.literal('reopen'), ...command }).strict(),
 ]);
 export type RelationalCouncilRequestV3 = z.infer<typeof relationalCouncilRequestSchemaV3>;
-export type RelationalCouncilOperationV3 = RelationalCouncilRequestV3['operation'];
 export type RelationalCouncilDecisionV3 = z.infer<typeof decisionCode>;
 
 const reference = z.object({ id, label }).strict();
@@ -167,7 +164,6 @@ export const relationalCouncilResponseSchemaV3 = z.union([
     operation: z.enum(['workspace', 'open', 'decision', 'vote', 'close', 'reopen']), workspace }).strict(),
 ]);
 export type RelationalCouncilResponseV3 = z.infer<typeof relationalCouncilResponseSchemaV3>;
-export type RelationalCouncilReadyV3 = Extract<RelationalCouncilResponseV3, { state: 'ready' }>;
 
 export function relationalCouncilResponseMatchesV3(
   request: RelationalCouncilRequestV3,

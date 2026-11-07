@@ -25,7 +25,7 @@ import { readPopulationV1, startPopulationV1 } from './population-v1';
 import { BulkAdminV1 } from './bulk-v1';
 
 export { trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
-export type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qrKeyVersion: number; pepperVersion: number;
+type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qrKeyVersion: number; pepperVersion: number;
   cursorSecret: string; scopedPublication?: boolean };
 
 /** Only the dedicated server-to-server ADM binding may invoke this facade. Shape validation is not authentication. */

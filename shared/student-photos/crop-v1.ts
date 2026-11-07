@@ -1,12 +1,12 @@
 export const PHOTO_SOURCE_MAX_BYTES_V1 = 12 * 1024 * 1024;
-export const PHOTO_SOURCE_MAX_PIXELS_V1 = 24_000_000;
+const PHOTO_SOURCE_MAX_PIXELS_V1 = 24_000_000;
 export const PHOTO_AVATAR_MAX_BYTES_V1 = 64 * 1024;
 export type PhotoKindV1 = 'portrait' | 'avatar';
 export interface PhotoSizeV1 { width: number; height: number }
 export interface CropControlsV1 { x: number; y: number; zoom: number }
 export interface PhotoCropV1 extends PhotoSizeV1 { x: number; y: number }
 export interface PhotoGeometryV1 { crop: PhotoCropV1; output: PhotoSizeV1 }
-export type PhotoPreparationCodeV1 = 'format' | 'size' | 'dimensions' | 'decode' | 'encode' | 'budget' | 'unsupported';
+type PhotoPreparationCodeV1 = 'format' | 'size' | 'dimensions' | 'decode' | 'encode' | 'budget' | 'unsupported';
 export class PhotoPreparationErrorV1 extends Error {
   constructor(readonly code: PhotoPreparationCodeV1) { super('student-photo-' + code); }
 }

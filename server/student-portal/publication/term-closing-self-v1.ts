@@ -18,7 +18,7 @@ const END_FIELD_V1 = { T1: 't1EndsAt', T2: 't2EndsAt', T3: 't3EndsAt' } as const
 
 const START_FIELD_V1 = { T1: 'yearStartsAt', T2: 't2StartsAt', T3: 't3StartsAt' } as const;
 const PREVIOUS_V1: Partial<Record<TermClosingPeriodV1, TermClosingPeriodV1>> = { T2: 'T1', T3: 'T2' };
-export interface TermClosingTargetsV1 {
+interface TermClosingTargetsV1 {
   readonly mode: TermClosingModeV1;
   readonly periods: readonly TermClosingPeriodV1[];
 }

@@ -126,7 +126,7 @@ async function firstRow(
   return row;
 }
 
-export async function provisionCurrentGradebookRolesV1(
+async function provisionCurrentGradebookRolesV1(
   sql: CurrentGradebookRecoveryQueryV1,
 ): Promise<void> {
   await sql.unsafe(`DO $$ BEGIN
@@ -188,7 +188,7 @@ export async function applyReconciliationCandidateSchemaV1(
   });
 }
 
-export async function readCurrentGradebookCatalogV1(
+async function readCurrentGradebookCatalogV1(
   sql: CurrentGradebookRecoveryQueryV1,
 ): Promise<typeof GRADEBOOK_CURRENT_CATALOG_V1> {
   const row = await firstRow(

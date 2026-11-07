@@ -107,7 +107,7 @@ export type AvatarBackfillSummaryV1 = Record<AvatarBackfillOutcomeV1, number> & 
   done: number;
   total: number;
 };
-export const emptyAvatarBackfillV1 = (total: number): AvatarBackfillSummaryV1 => ({
+const emptyAvatarBackfillV1 = (total: number): AvatarBackfillSummaryV1 => ({
   created: 0,
   present: 0,
   'no-portrait': 0,

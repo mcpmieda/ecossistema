@@ -8,7 +8,7 @@ import {
   type PerformancePeriodV1,
 } from './class-performance-read-model-v1';
 
-export const PERFORMANCE_COMPARISON_CONTRACT_VERSION_V2 = 2 as const;
+const PERFORMANCE_COMPARISON_CONTRACT_VERSION_V2 = 2 as const;
 export const PERFORMANCE_COMPARISON_BASIS_V2 = 'percentage' as const;
 
 export const PERFORMANCE_PROPORTIONAL_RELATIONS_V2 = [
@@ -16,10 +16,10 @@ export const PERFORMANCE_PROPORTIONAL_RELATIONS_V2 = [
   'proportionally-equal',
   'proportionally-lower',
 ] as const;
-export type PerformanceProportionalRelationV2 =
+type PerformanceProportionalRelationV2 =
   (typeof PERFORMANCE_PROPORTIONAL_RELATIONS_V2)[number];
 
-export const PERFORMANCE_COMPARISON_NOT_COMPARABLE_REASONS_V2 = [
+const PERFORMANCE_COMPARISON_NOT_COMPARABLE_REASONS_V2 = [
   'profile-semantics-not-declared-compatible',
   'current-coverage-partial',
   'current-coverage-insufficient-data',
@@ -36,7 +36,7 @@ export const PERFORMANCE_COMPARISON_NOT_COMPARABLE_REASONS_V2 = [
   'reference-percentage-insufficient-data',
   'reference-percentage-invalid',
 ] as const;
-export type PerformanceComparisonNotComparableReasonV2 =
+type PerformanceComparisonNotComparableReasonV2 =
   (typeof PERFORMANCE_COMPARISON_NOT_COMPARABLE_REASONS_V2)[number];
 
 export interface PerformanceComparisonProfileRefV2 {
@@ -348,5 +348,3 @@ export const PERFORMANCE_COMPARISON_CONTRACT_V2 = {
   tolerance: 'forbidden',
   derivedMetrics: 'forbidden',
 } as const;
-
-export type PerformanceComparisonContractV2 = typeof PERFORMANCE_COMPARISON_CONTRACT_V2;

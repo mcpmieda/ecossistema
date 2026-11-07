@@ -26,12 +26,12 @@ import {
  */
 export const PERFORMANCE_TRANSPORT_VERSION_V1 = 1 as const;
 
-export const PERFORMANCE_TRANSPORT_OPERATIONS_V1 = [
+const PERFORMANCE_TRANSPORT_OPERATIONS_V1 = [
   'matrix',
   'student-detail',
   'cell-detail',
 ] as const;
-export type PerformanceTransportOperationV1 =
+type PerformanceTransportOperationV1 =
   (typeof PERFORMANCE_TRANSPORT_OPERATIONS_V1)[number];
 
 export interface PerformanceMatrixTransportRequestV1 {
@@ -57,7 +57,7 @@ export type PerformanceTransportRequestV1 =
   | PerformanceStudentDetailTransportRequestV1
   | PerformanceCellDetailTransportRequestV1;
 
-export interface PerformanceStudentDetailTransportV1 {
+interface PerformanceStudentDetailTransportV1 {
   readonly detailRef: PerformanceStudentDetailRefV1;
   readonly academicYearId: AcademicYearId;
   readonly classGroupId: ClassGroupId;
@@ -79,46 +79,46 @@ export interface PerformanceStudentDetailTransportV1 {
   }[];
 }
 
-export interface PerformanceCellDetailTransportV1 {
+interface PerformanceCellDetailTransportV1 {
   readonly detailRef: PerformanceCellDetailRefV1;
   readonly studentId: StudentId;
   readonly authorityMode: typeof PERFORMANCE_AUTHORITY_MODE_V1;
   readonly cell: PerformanceCellV1;
 }
 
-export interface PerformanceMatrixReadyTransportResponseV1 {
+interface PerformanceMatrixReadyTransportResponseV1 {
   readonly transportVersion: typeof PERFORMANCE_TRANSPORT_VERSION_V1;
   readonly state: 'ready';
   readonly operation: 'matrix';
   readonly matrix: ClassPerformanceReadModelV1;
 }
 
-export interface PerformanceStudentDetailReadyTransportResponseV1 {
+interface PerformanceStudentDetailReadyTransportResponseV1 {
   readonly transportVersion: typeof PERFORMANCE_TRANSPORT_VERSION_V1;
   readonly state: 'ready';
   readonly operation: 'student-detail';
   readonly detail: PerformanceStudentDetailTransportV1;
 }
 
-export interface PerformanceCellDetailReadyTransportResponseV1 {
+interface PerformanceCellDetailReadyTransportResponseV1 {
   readonly transportVersion: typeof PERFORMANCE_TRANSPORT_VERSION_V1;
   readonly state: 'ready';
   readonly operation: 'cell-detail';
   readonly detail: PerformanceCellDetailTransportV1;
 }
 
-export interface PerformanceEmptyTransportResponseV1 {
+interface PerformanceEmptyTransportResponseV1 {
   readonly transportVersion: typeof PERFORMANCE_TRANSPORT_VERSION_V1;
   readonly state: 'empty';
   readonly operation: PerformanceTransportOperationV1;
 }
 
-export interface PerformanceUnavailableTransportResponseV1 {
+interface PerformanceUnavailableTransportResponseV1 {
   readonly transportVersion: typeof PERFORMANCE_TRANSPORT_VERSION_V1;
   readonly state: 'unavailable';
 }
 
-export interface PerformanceNotAuthorizedTransportResponseV1 {
+interface PerformanceNotAuthorizedTransportResponseV1 {
   readonly transportVersion: typeof PERFORMANCE_TRANSPORT_VERSION_V1;
   readonly state: 'not-authorized';
 }
@@ -132,13 +132,13 @@ export const PERFORMANCE_INVALID_REQUEST_REASONS_V1 = [
 export type PerformanceInvalidRequestReasonV1 =
   (typeof PERFORMANCE_INVALID_REQUEST_REASONS_V1)[number];
 
-export interface PerformanceInvalidRequestTransportResponseV1 {
+interface PerformanceInvalidRequestTransportResponseV1 {
   readonly transportVersion: typeof PERFORMANCE_TRANSPORT_VERSION_V1;
   readonly state: 'invalid-request';
   readonly reason: PerformanceInvalidRequestReasonV1;
 }
 
-export type PerformanceTransportResponseV1 =
+type PerformanceTransportResponseV1 =
   | PerformanceMatrixReadyTransportResponseV1
   | PerformanceStudentDetailReadyTransportResponseV1
   | PerformanceCellDetailReadyTransportResponseV1

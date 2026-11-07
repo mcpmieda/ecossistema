@@ -38,7 +38,7 @@ export const IMPORT_CHANGE_STATES_V1 = [
   'blocked',
 ] as const;
 
-export type ImportChangeStateV1 = (typeof IMPORT_CHANGE_STATES_V1)[number];
+type ImportChangeStateV1 = (typeof IMPORT_CHANGE_STATES_V1)[number];
 
 export interface ImportPlanReasonV1 {
   readonly code: string;
@@ -389,7 +389,7 @@ function semanticAcademicRecord(record: AcademicRecordV1): unknown {
   return removeSourceEvidence({ kind: record.kind, value });
 }
 
-export function academicRecordsSemanticallyEqualV1(
+function academicRecordsSemanticallyEqualV1(
   left: AcademicRecordV1,
   right: AcademicRecordV1,
 ): boolean {
