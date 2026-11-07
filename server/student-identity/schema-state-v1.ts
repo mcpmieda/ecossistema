@@ -2,7 +2,7 @@ import type { CurrentGradebookRecoveryQueryV1 } from '../gradebook/recovery/curr
 import { GRADEBOOK_CURRENT_TABLES_V1 } from '../gradebook/recovery/current-gradebook-schema-v1.ts';
 
 /** Exact Gradebook catalog after the existing foundation and the cross-module identity migration. */
-export const STUDENT_IDENTITY_GRADEBOOK_CATALOG_V1 = {
+const STUDENT_IDENTITY_GRADEBOOK_CATALOG_V1 = {
   tables: 31, columns: 254, constraints: 227, indexes: 73,
   foreignKeys: 53, sequences: 13, functions: 6, triggers: 5,
 } as const;

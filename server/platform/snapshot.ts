@@ -21,7 +21,7 @@ type PlatformList = z.infer<typeof listSchema>;
 type PlatformItem = { id: string; fields: Record<string, unknown> };
 type SnapshotSource = { lists: PlatformList[]; moduleItems: PlatformItem[]; configurationItems: PlatformItem[];
   auditItems: PlatformItem[]; migrationItems: PlatformItem[]; correlationId: string; generatedAt?: string };
-export type PlatformSnapshot = PlatformSnapshotContract;
+type PlatformSnapshot = PlatformSnapshotContract;
 export function isFailureResult(value: string): boolean {
   const normalized = value.trim().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
   return /^(erro|error|falha|falhou|failed|failure)(?:\b|[:_-])/u.test(normalized);
@@ -194,13 +194,4 @@ export async function getPlatformSnapshot(env: RuntimeEnv, capabilities: readonl
   const snapshot = await getPlatformSnapshotV2(env, capabilities);
   if (snapshot.unavailableSections?.length) throw new GraphError(503, snapshot.correlationId, snapshot.retryAfterSeconds);
   return snapshot;
-}
-/** Minimal settings read does not depend on the audit or migration lists. */
-export async function getPlatformConfigurations(env: RuntimeEnv, capabilities: readonly PlatformCapability[]): Promise<PlatformConfiguration[]> {
-  requireCapability(capabilities, 'platform.settings.read');
-  const token = await getGraphToken(env);
-  const lists = await readLists(env, token);
-  const byName = new Map(lists.map((list) => [list.displayName, list.id]));
-  return platformConfigurationsFromItems(await readListItems(env, byName.get('PLATAFORMA_CONFIGURACOES'),
-    'Chave,Escopo,Versao,Ativo,VigenciaInicioUTC,VigenciaFimUTC,AtualizadoEmUTC', token));
 }

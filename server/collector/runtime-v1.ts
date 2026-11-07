@@ -11,7 +11,7 @@ import {CollectorAccessServiceV1} from './access-service-v1';
 import type {CollectorOAuthDependenciesV1} from './oauth-v1';
 
 export type CollectorDatabaseV1=CollectorSqlV1 & {close:()=>Promise<void>};
-export type CollectorRuntimeV1={access:CollectorAccessServiceV1;pairings:CollectorPairingStoreV1;
+type CollectorRuntimeV1={access:CollectorAccessServiceV1;pairings:CollectorPairingStoreV1;
   cipher:CollectorRefreshCipherV1;oauth:CollectorOAuthDependenciesV1;close:()=>Promise<void>};
 export type CollectorRuntimeDependenciesV1={database?:(connectionString:string)=>Promise<CollectorDatabaseV1>;
   fetch?:typeof fetch;now?:()=>number;assertion?:()=>Promise<string>;verify?:typeof verifyIdToken};

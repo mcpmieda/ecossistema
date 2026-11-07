@@ -34,7 +34,7 @@ const TARGETS_V2 = `SELECT s.student_id,b.class_id,a.id AS account_id
 
 // Identical per-student resolution in admin summaries and Self. New decisions override the legacy floor,
 // including explicit withdrawals. Among overlapping active scopes the last committed decision wins.
-export const SCOPED_SELECTION_V2 = `SELECT p.period,p.mask,r.version AS decision_version,
+const SCOPED_SELECTION_V2 = `SELECT p.period,p.mask,r.version AS decision_version,
   CASE WHEN r.scope_key IS NOT NULL THEN r.target_revision ELSE legacy.published_revision END AS approved_revision,
   chosen.target_revision,edition.payload_json,edition.class_id AS edition_class_id,edition.revision::text AS edition_revision,
   COALESCE(latest.period_mask,0) AS available_mask,latest.revision::text AS latest_revision

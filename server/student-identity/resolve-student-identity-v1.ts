@@ -4,7 +4,7 @@ import {
   type StudentIdentityResolutionV1,
 } from '../../shared/student-identity/student-identity-v1';
 
-export type StudentIdentityQueryV1 = (
+type StudentIdentityQueryV1 = (
   query: string,
   parameters: readonly (string | number)[],
 ) => Promise<readonly Record<string, unknown>[]>;

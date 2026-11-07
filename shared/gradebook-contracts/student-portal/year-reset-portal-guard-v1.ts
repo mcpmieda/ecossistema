@@ -11,21 +11,7 @@ const year = z
   .min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2)
   .max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
-export const YEAR_RESET_CONFIRMATION_WINDOW_MS_V1 = 300_000;
-export const YEAR_RESET_LOCK_PROTOCOL_V1 = Object.freeze({
-  namespace: 613,
-  globalKey: 0,
-  writerGlobalMode: 'shared',
-  resetGlobalMode: 'exclusive',
-  order: [
-    'global-advisory',
-    'year-advisory-ascending',
-    'reset-academic-tables',
-    'year-coordination',
-    'accounts-uuid-ascending',
-    'credentials-sessions-jobs',
-  ] as const,
-});
+const YEAR_RESET_CONFIRMATION_WINDOW_MS_V1 = 300_000;
 export const yearResetRelevantStateSchemaV1 = z
   .object({
     academicRevision: academicVersionSchemaV1,
@@ -51,7 +37,7 @@ export const yearResetPreviewProofSchemaV1 = z
     const duration = Date.parse(v.expiresAt) - Date.parse(v.issuedAt);
     return duration > 0 && duration <= YEAR_RESET_CONFIRMATION_WINDOW_MS_V1;
   }, 'Invalid confirmation window');
-export type YearResetPreviewProofV1 = z.infer<typeof yearResetPreviewProofSchemaV1>;
+type YearResetPreviewProofV1 = z.infer<typeof yearResetPreviewProofSchemaV1>;
 
 /** Pure comparison of trusted, persisted proof after locks; not token authentication or consumption. */
 export function yearResetPreviewIsCurrentV1(
@@ -88,8 +74,3 @@ export const portalResetGuardResultSchemaV1 = z
     portalLinkRevision: academicVersionSchemaV1,
   })
   .strict();
-export type PortalResetGuardResultV1 = z.infer<typeof portalResetGuardResultSchemaV1>;
-/** Same physical transaction and connection as reset, after protocol locks. Any extant link blocks. */
-export interface YearResetPortalGuardV1<TTransaction> {
-  inspectInTransaction(tx: TTransaction, academicYear: number): Promise<PortalResetGuardResultV1>;
-}

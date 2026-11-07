@@ -6,8 +6,8 @@ export const SIMPLIFIED_TERM_MAXIMUM_MILLI_V1 = Object.freeze({
   3: 40_000,
 } as const);
 
-export const SIMPLIFIED_ROUNDING_LOWER_MILLI_V1 = 300 as const;
-export const SIMPLIFIED_ROUNDING_UPPER_MILLI_V1 = 750 as const;
+const SIMPLIFIED_ROUNDING_LOWER_MILLI_V1 = 300 as const;
+const SIMPLIFIED_ROUNDING_UPPER_MILLI_V1 = 750 as const;
 
 export const SIMPLIFIED_INSTRUMENT_SLOTS_V1 = [
   1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
@@ -29,7 +29,7 @@ export const SIMPLIFIED_ENGINE_WARNING_CODES_V1 = [
   'recovery-above-term-maximum',
   'recovery-present-when-not-applicable',
 ] as const;
-export type SimplifiedEngineWarningCodeV1 =
+type SimplifiedEngineWarningCodeV1 =
   (typeof SIMPLIFIED_ENGINE_WARNING_CODES_V1)[number];
 
 export interface SimplifiedEngineWarningV1 {
@@ -48,7 +48,7 @@ export interface SimplifiedCoverageV1 {
   readonly reasons: readonly string[];
 }
 
-export interface SimplifiedTermInputV1 {
+interface SimplifiedTermInputV1 {
   readonly term: SimplifiedAcademicTermV1;
   readonly instruments: readonly SimplifiedInstrumentFactV1[];
 }
@@ -73,7 +73,7 @@ export interface SimplifiedTermOutcomeV1 {
 
 export type SimplifiedRecoveryValueV1 = number | null | 'NC' | 'RR';
 
-export interface SimplifiedComponentRecoveryInputV1 {
+interface SimplifiedComponentRecoveryInputV1 {
   readonly terms: readonly [
     SimplifiedTermOutcomeV1,
     SimplifiedTermOutcomeV1,

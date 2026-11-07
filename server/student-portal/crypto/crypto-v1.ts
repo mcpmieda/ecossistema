@@ -5,7 +5,7 @@ import type { CryptoPortV1, VerifierV1 } from '../../../shared/student-portal-co
 // OWASP scrypt alternative when native Argon2id is unavailable. Proven in remote
 // workerd; PBKDF2 600k is rejected there despite succeeding in local workerd.
 export const SCRYPT_PARAMETERS_V1 = Object.freeze({ N: 32768, r: 8, p: 3, keyLength: 32 });
-export const SCRYPT_MAX_MEMORY_V1 = 64 * 1024 * 1024;
+const SCRYPT_MAX_MEMORY_V1 = 64 * 1024 * 1024;
 const verifierSchema = z.object({ algorithm: z.literal('scrypt-hmac-sha256-v1'),
   parameters: z.object({ N: z.literal(32768), r: z.literal(8), p: z.literal(3), keyLength: z.literal(32) }).strict(),
   salt: z.string().regex(/^[a-f0-9]{32}$/u), pepperVersion: z.number().int().positive().safe(),

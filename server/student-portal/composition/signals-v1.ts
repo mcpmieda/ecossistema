@@ -6,7 +6,7 @@ import { cleanupPortalSignalsV1, readPortalSignalsV1, savePortalSignalsV1 } from
 import { assertPortalMonitoringContextV1 } from './monitoring-v1';
 import { portalDatabaseV1 } from './database-v1';
 import type { PortalCompositionEnvV1 } from './config-v1';
-export interface PortalSignalStubV1 {
+interface PortalSignalStubV1 {
   recordOperationalSignal(input: unknown): Promise<boolean>;
   operationalSignals(): Promise<unknown>;
 }

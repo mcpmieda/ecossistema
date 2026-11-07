@@ -1,5 +1,4 @@
-/** The comparison contract shared by report preview and the authoritative server. */
-export const STUDENT_RECONCILIATION_NORMALIZATION_VERSION_V1 = 1 as const;
+
 
 export function normalizeStudentNameV1(value: string): string {
   return value
@@ -18,7 +17,7 @@ export function reportClassReferenceV1(label: string, shift: string, stage: stri
   ]);
 }
 
-export type CivilDateResultV1 =
+type CivilDateResultV1 =
   | { readonly ok: true; readonly value: string | null }
   | { readonly ok: false; readonly reason: 'missing' | 'invalid' | 'future' };
 
@@ -65,7 +64,7 @@ export function parseCivilDateV1(
   return { ok: true, value: result };
 }
 
-export type InepResultV1 =
+type InepResultV1 =
   | { readonly ok: true; readonly value: string | null; readonly key: string | null }
   | { readonly ok: false; readonly reason: 'invalid' };
 

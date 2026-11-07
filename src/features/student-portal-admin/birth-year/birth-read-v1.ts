@@ -8,7 +8,7 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 export type BirthScopeV1 = Exclude<ScopeV1, { kind: 'school' }>;
 export type InitialBirthAccountV1 = { account: AdminAccountReadV2; scopeVersion: number };
 export type BirthValueV1 = Extract<AdminResponseV1, { state: 'birth-years' }>['items'][number];
-export interface BirthRecordV1 {
+interface BirthRecordV1 {
   account: AdminAccountReadV2;
   birth: BirthValueV1;
 }
@@ -16,7 +16,7 @@ export interface BirthCursorsV1 {
   accounts: string;
   birth: string;
 }
-export interface BirthPageV1 {
+interface BirthPageV1 {
   rows: BirthRecordV1[];
   scopeVersion: number;
   accountsScopeVersion?: number;

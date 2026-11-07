@@ -34,7 +34,7 @@ type Cell = {
 };
 
 /** Capture only a saved scalar. A saved empty string is blank, not a missing cache. */
-export function snapshotRawCellV8(
+function snapshotRawCellV8(
   cell: Cell | undefined,
 ):
   | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
@@ -78,7 +78,7 @@ export type NoteValue = {
   snapshotState?: 'value' | 'unavailable';
 };
 
-export type RecoveryResultObservationsV4 = {
+type RecoveryResultObservationsV4 = {
   readonly trimester1: GradebookImportResultCellObservationV4;
   readonly trimester2: GradebookImportResultCellObservationV4;
   readonly trimester3: GradebookImportResultCellObservationV4;

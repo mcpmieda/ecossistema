@@ -2,9 +2,6 @@ import type { ComponentProps } from 'react';
 import { CircleCheck, KeyRound, LockKeyhole, LockKeyholeOpen, UserRoundPlus } from 'lucide-react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import { FilterTagsV1 } from '../../../shared/ui/filter-tags-v1';
-
-export type AccountStateFilterV1 = AdminAccountReadV2['state'];
-export type AccountBlockFilterV1 = 'blocked' | 'unblocked';
 export const ACCOUNT_STATE_OPTIONS_V1 = [
   {
     id: 'pending-activation',

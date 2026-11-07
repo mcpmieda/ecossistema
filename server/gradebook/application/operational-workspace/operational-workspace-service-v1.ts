@@ -34,11 +34,11 @@ import type {
   TeacherV1,
 } from '../../../../shared/gradebook-contracts/entities';
 
-export interface OperationalWorkspaceAcademicYearSourceV1 {
+interface OperationalWorkspaceAcademicYearSourceV1 {
   list(): Promise<readonly OperationalWorkspaceAcademicYearOptionV1[]>;
 }
 
-export interface OperationalWorkspaceServiceDependenciesV1 {
+interface OperationalWorkspaceServiceDependenciesV1 {
   readonly academicYears: OperationalWorkspaceAcademicYearSourceV1;
   readonly readModels: GradebookOperationalReadModelsV1;
 }

@@ -43,9 +43,9 @@ export type BatchFailureDetail = BatchFailure & {
   diagnostic: ImportFileDiagnosticV1;
 };
 
-export type BatchProgressStage = 'preparing' | 'recognizing';
+type BatchProgressStage = 'preparing' | 'recognizing';
 
-export type BatchProgress = {
+type BatchProgress = {
   current: number;
   total: number;
   fileName: string;
@@ -74,19 +74,19 @@ export interface ImportWorkbookFileTimingV1 {
     | null;
 }
 
-export interface WorkbookOperationalComponentV1 {
+interface WorkbookOperationalComponentV1 {
   readonly discipline: string;
   readonly disciplineIndex: string;
 }
 
-export type BatchResult = {
+type BatchResult = {
   successes: BatchSuccess[];
   failures: BatchFailure[];
   failureDetails: BatchFailureDetail[];
   batch: ImportBatchResultV1;
 };
 
-export interface ImportBatchRuntime extends FileManifestRuntime {
+interface ImportBatchRuntime extends FileManifestRuntime {
   readonly captureValues?: boolean;
   readonly onStageProgress?: (progress: BatchProgress) => void;
   readonly yieldBeforeRecognition?: () => Promise<void>;

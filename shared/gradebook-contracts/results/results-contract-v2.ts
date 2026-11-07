@@ -7,7 +7,7 @@ import {
   type AssessmentComponentId,
 } from './results-contract-v1';
 
-export const RESULTS_CONTRACT_VERSION_V2 = 2 as const;
+const RESULTS_CONTRACT_VERSION_V2 = 2 as const;
 
 export const ASSESSMENT_COMPONENT_TYPES_V2 = [
   'quantitative-assessment',
@@ -87,5 +87,3 @@ export const RESULTS_CONTRACT_V2 = {
     excludes: ['name', 'maximum'],
   },
 } as const;
-
-export type ResultsContractV2 = typeof RESULTS_CONTRACT_V2;

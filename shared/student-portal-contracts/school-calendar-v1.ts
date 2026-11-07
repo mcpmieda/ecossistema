@@ -8,7 +8,7 @@ import { z } from 'zod';
  */
 export const SCHOOL_DAYS_REQUIRED_V1 = 200;
 
-export const SCHOOL_DAY_KINDS_V1 = [
+const SCHOOL_DAY_KINDS_V1 = [
   'letivo',
   'sabado-letivo',
   'evento-letivo',
@@ -94,7 +94,7 @@ export const schoolYearProgressV1 = z
     lastDay: z.iso.date().nullable(),
   })
   .strict();
-export type SchoolYearProgressV1 = z.infer<typeof schoolYearProgressV1>;
+type SchoolYearProgressV1 = z.infer<typeof schoolYearProgressV1>;
 export function schoolYearProgressOfV1(days: readonly SchoolCalendarDayV1[], today: string): SchoolYearProgressV1 {
   const school = schoolDaysOfV1(days);
   return {

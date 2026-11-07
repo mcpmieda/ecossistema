@@ -11,7 +11,7 @@ import {
 } from './council-workspace-contract-v1';
 
 export const COUNCIL_INSTITUTIONAL_CONTRACT_VERSION_V2 = 2 as const;
-export const COUNCIL_INSTITUTIONAL_REQUIRED_CAPABILITY_V2 =
+const COUNCIL_INSTITUTIONAL_REQUIRED_CAPABILITY_V2 =
   COUNCIL_WORKSPACE_REQUIRED_CAPABILITY_V1;
 
 export const COUNCIL_INSTITUTIONAL_OPERATIONS_V2 = [
@@ -154,13 +154,6 @@ export interface CouncilClosureHistoryRequestV2 extends CouncilInstitutionalRequ
   readonly operation: 'closure-history';
 }
 
-export type CouncilInstitutionalRequestV2 =
-  | CouncilClosureReviewRequestV2
-  | CouncilVoteRequestV2
-  | CouncilTieBreakRequestV2
-  | CouncilClosureCloseRequestV2
-  | CouncilClosureHistoryRequestV2;
-
 export interface CouncilClosureReviewReadyV2 {
   readonly contractVersion: typeof COUNCIL_INSTITUTIONAL_CONTRACT_VERSION_V2;
   readonly outcome: 'review';
@@ -212,12 +205,6 @@ export type CouncilClosureCloseResponseV2 = CouncilClosureAppliedV2 | CouncilIns
 export type CouncilClosureHistoryResponseV2 =
   | CouncilClosureHistoryReadyV2
   | CouncilInstitutionalFailureV2;
-export type CouncilInstitutionalResponseV2 =
-  | CouncilClosureReviewResponseV2
-  | CouncilVoteResponseV2
-  | CouncilTieBreakResponseV2
-  | CouncilClosureCloseResponseV2
-  | CouncilClosureHistoryResponseV2;
 
 export const COUNCIL_INSTITUTIONAL_POLICY_V2 = {
   officialProjectionSource: 'existing-council-workspace-source-v1',
@@ -239,19 +226,6 @@ export const COUNCIL_INSTITUTIONAL_POLICY_V2 = {
   persistence: 'provider-independent-local-preview-disposable',
   physicalDurability: 'reserved-to-separate-issue',
 } as const;
-
-export const COUNCIL_INSTITUTIONAL_UNSUPPORTED_SEMANTICS_V2 = [
-  'named-participant-or-participant-role',
-  'abstention-field',
-  'automatic-attendance-rule',
-  'attendance-failure-inference',
-  'consecutive-history-rule',
-  'new-cut-tolerance-or-rounding',
-  'undocumented-individual-exception',
-  'engine-fabricated-collegial-decision',
-  'implicit-reopen',
-  'administrator-as-director-inference',
-] as const;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -286,7 +260,7 @@ function hasValidBase(value: Record<string, unknown>): boolean {
   );
 }
 
-export type CouncilInstitutionalRequestReadinessV2 = 'ready' | 'invalid-request';
+type CouncilInstitutionalRequestReadinessV2 = 'ready' | 'invalid-request';
 
 export function inspectCouncilInstitutionalRequestV2(
   value: unknown,

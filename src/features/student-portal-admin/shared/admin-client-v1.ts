@@ -15,8 +15,8 @@ import {
   type PortalTransportOptionsV1,
 } from '../../student-portal/shared/transport-v1';
 
-export type PortalAdminQueryInputV1 = z.input<typeof adminQueryV1>;
-export type PortalAdminCommandInputV1 = z.input<typeof adminCommandV1>;
+type PortalAdminQueryInputV1 = z.input<typeof adminQueryV1>;
+type PortalAdminCommandInputV1 = z.input<typeof adminCommandV1>;
 function responseFor(state: AdminResponseV1['state']) {
   return adminResponseV1.refine((value) => value.state === state, 'Unexpected operation response');
 }

@@ -1,7 +1,7 @@
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
 import { isSystemHealthSnapshotV1, SYSTEM_HEALTH_POLL_MS_V1, type SystemHealthSnapshotV1 } from '../../shared/system-health-v1';
 
-export type HealthMonitorStateV1 = {
+type HealthMonitorStateV1 = {
   snapshot: SystemHealthSnapshotV1 | null;
   loading: boolean;
   paused: boolean;

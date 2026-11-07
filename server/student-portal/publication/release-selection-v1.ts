@@ -1,7 +1,7 @@
 /** Trusted SQL fragments shared by Self, administrative summaries and the inventory.
  * Callers provide SQL expressions from source code, never request text. Aliases p/t are
  * period/current target; account decisions remain bound to their publication class. */
-export const TARGET_RELEASE_KEYS_V1 = "ARRAY['school:2026','class:2026:'||t.class_id::text,'account:2026:'||t.account_id::text]";
+const TARGET_RELEASE_KEYS_V1 = "ARRAY['school:2026','class:2026:'||t.class_id::text,'account:2026:'||t.account_id::text]";
 export const SCHOOL_RELEASE_KEYS_V1 = "ARRAY['school:2026']";
 export const PARENT_RELEASE_KEYS_V1 = "ARRAY['school:2026',CASE WHEN t.scope_kind='account' THEN 'class:2026:'||t.class_id::text END]";
 export function releaseSelectionSqlV1(keys = TARGET_RELEASE_KEYS_V1) {

@@ -19,7 +19,7 @@ import {
   type AccessPlanV1,
 } from '../../../shared/student-portal-contracts/access-schedule-v1';
 
-export type CalendarV1 = z.infer<typeof calendarV1>;
+type CalendarV1 = z.infer<typeof calendarV1>;
 export type PolicyValueV1 = z.infer<typeof settingsValueV1>;
 type PeriodV1 = z.infer<typeof periodV1>;
 

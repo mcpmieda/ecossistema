@@ -239,7 +239,7 @@ function CalendarSectionV1({
     </fieldset>
   );
 }
-export function CalendarEditorV1({
+function CalendarEditorV1({
   value,
   disabled,
   onChange,

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const CAPACITY_CACHE_MS_V1 = 60_000;
-export const CAPACITY_FRESH_MS_V1 = 120_000;
+const CAPACITY_FRESH_MS_V1 = 120_000;
 export const CAPACITY_BODY_BYTES_V1 = 2_048;
 export const CAPACITY_ROUTE_V1 = '/api/platform/system-health/capacity';
 const connections = z.number().int().min(0).max(1_000_000);

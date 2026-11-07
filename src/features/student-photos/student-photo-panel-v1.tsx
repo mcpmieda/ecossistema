@@ -20,7 +20,7 @@ interface Confirmation {
   portraitUrl?: string;
   avatarUrl?: string;
 }
-export interface StudentPhotoPanelPropsV1 { subject: PhotoAdminSubjectV1; canWrite?: boolean; showAvatar?: boolean }
+interface StudentPhotoPanelPropsV1 { subject: PhotoAdminSubjectV1; canWrite?: boolean; showAvatar?: boolean }
 function dispose(value: Confirmation | null) {
   if (!value) return;
   clearPhotoBytesV1(value.source);

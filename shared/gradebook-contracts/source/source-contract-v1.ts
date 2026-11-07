@@ -2,11 +2,11 @@ export const SOURCE_FILE_EXTENSIONS_V1 = ['xlsb', 'xlsx', 'xls'] as const;
 export type SourceFileExtensionV1 = (typeof SOURCE_FILE_EXTENSIONS_V1)[number];
 
 export const SOURCE_STAGES_V1 = ['VG', '1º', '2º', '3º', 'REC'] as const;
-export type SourceStageV1 = (typeof SOURCE_STAGES_V1)[number];
+type SourceStageV1 = (typeof SOURCE_STAGES_V1)[number];
 
 export type SourceDisciplineIndexV1 = `D${number}`;
 
-export type SourceGradeSheetIdentityV1 = {
+type SourceGradeSheetIdentityV1 = {
   classGroup: string;
   stage: SourceStageV1;
   disciplineIndex: SourceDisciplineIndexV1;

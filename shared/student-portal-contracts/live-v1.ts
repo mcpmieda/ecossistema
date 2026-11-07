@@ -3,8 +3,8 @@ import { trustedAdminContextV1 } from './admin-v1';
 import { instantV1, portalIdV1, revisionV1 } from './core-v1';
 
 export const liveAudienceV1 = z.enum(['admin', 'student']);
-export const liveDomainV1 = z.enum(['gradebook', 'portal']);
-export const liveCursorV1 = z.string().regex(/^\d{20}$/u);
+const liveDomainV1 = z.enum(['gradebook', 'portal']);
+const liveCursorV1 = z.string().regex(/^\d{20}$/u);
 
 export const liveResumeV1 = z
   .object({
@@ -41,7 +41,6 @@ export const liveServerMessageV1 = z.discriminatedUnion('type', [
     })
     .strict(),
 ]);
-export type LiveServerMessageV1 = z.infer<typeof liveServerMessageV1>;
 
 /** Internal service/DO message. Routing fields are consumed server-side and never serialized to a browser. */
 export const livePublishEventV1 = z
@@ -67,7 +66,6 @@ export const liveAdminContextV1 = z
     capability: z.literal('platform.settings.read'),
   })
   .strict();
-export type LiveAdminContextV1 = z.infer<typeof liveAdminContextV1>;
 
 /** Private binding metadata; the ADM must authorize the real BN session before calling. */
 export const liveDrainContextV1 = trustedAdminContextV1.extend({

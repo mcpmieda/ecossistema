@@ -18,7 +18,7 @@ import { createImportDiagnosticTreatmentServiceV1 } from '../application/audit/i
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
-export const IMPORT_DIAGNOSTIC_TREATMENT_ROUTE_V1 = '/api/gradebook/audit-treatment';
+const IMPORT_DIAGNOSTIC_TREATMENT_ROUTE_V1 = '/api/gradebook/audit-treatment';
 const VERSION = IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1;
 
 function response(value: ImportDiagnosticTreatmentResponseV1, status: number): Response {

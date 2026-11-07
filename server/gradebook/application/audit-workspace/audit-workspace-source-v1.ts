@@ -9,7 +9,7 @@ import type { AuditOccurrenceId } from '../../../../shared/gradebook-contracts/a
 import type { ImportBatchId } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
 import type { AcademicPersistenceContextV1 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 
-export type AuditWorkspaceSourceFailureV1 = 'invalid-cursor' | 'unavailable' | 'insufficient-data';
+type AuditWorkspaceSourceFailureV1 = 'invalid-cursor' | 'unavailable' | 'insufficient-data';
 
 export class AuditWorkspaceSourceErrorV1 extends Error {
   override readonly name = 'AuditWorkspaceSourceErrorV1';

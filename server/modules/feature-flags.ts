@@ -5,7 +5,6 @@ const flagSchema = z.object({
   active: z.boolean(),
   value: z.unknown().optional(),
 });
-export type FeatureFlag = z.infer<typeof flagSchema>;
 
 export function featureFlag(
   records: unknown[],

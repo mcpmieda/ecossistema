@@ -39,7 +39,7 @@ export interface ReconciliationSourceV1 {
   readonly profileSelected?: boolean;
 }
 
-export interface ReconciliationRejectedPairV1 {
+interface ReconciliationRejectedPairV1 {
   readonly sourceId: string;
   readonly studentUid: string;
 }
@@ -67,19 +67,19 @@ export interface ReconciliationRowPlanV1 {
   readonly candidateUids: readonly string[];
 }
 
-export interface ReconciliationProfilePlanV1 {
+interface ReconciliationProfilePlanV1 {
   readonly studentUid: string;
   readonly sourceRows: readonly number[];
   readonly selectedSourceRow: number | null;
   readonly reason: 'profile_conflict' | null;
 }
 
-export interface StudentReconciliationPlanV1 {
+interface StudentReconciliationPlanV1 {
   readonly rows: readonly ReconciliationRowPlanV1[];
   readonly profiles: readonly ReconciliationProfilePlanV1[];
 }
 
-export type FieldComparisonV1 = 'equal' | 'different' | 'empty';
+type FieldComparisonV1 = 'equal' | 'different' | 'empty';
 
 export function compareReconciliationFieldV1(
   left: string | null,

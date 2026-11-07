@@ -14,7 +14,7 @@ import {
 } from './publication-values-v1';
 
 export const PUBLICATION_CHECKS_V1 = 7;
-export const PUBLICATION_CHECK_DELAY_V1 = 10000;
+const PUBLICATION_CHECK_DELAY_V1 = 10000;
 type AcceptedV1 = {
   state: 'accepted';
   command: PublicationCommandV1;

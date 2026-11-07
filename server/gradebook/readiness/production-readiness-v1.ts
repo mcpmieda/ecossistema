@@ -14,7 +14,7 @@ export const GRADEBOOK_READINESS_PREPARATION_EVIDENCE_V1 = [
   'future-smoke-plan-review',
 ] as const;
 
-export type GradebookReadinessPreparationEvidenceIdV1 =
+type GradebookReadinessPreparationEvidenceIdV1 =
   (typeof GRADEBOOK_READINESS_PREPARATION_EVIDENCE_V1)[number];
 
 export const GRADEBOOK_PRODUCTION_HARD_STOPS_V1 = [
@@ -25,7 +25,7 @@ export const GRADEBOOK_PRODUCTION_HARD_STOPS_V1 = [
   'native-authority-separate-authorization',
 ] as const;
 
-export type GradebookProductionHardStopIdV1 = (typeof GRADEBOOK_PRODUCTION_HARD_STOPS_V1)[number];
+type GradebookProductionHardStopIdV1 = (typeof GRADEBOOK_PRODUCTION_HARD_STOPS_V1)[number];
 
 export const GRADEBOOK_SYNTHETIC_READINESS_SCENARIOS_V1 = [
   {
@@ -54,9 +54,6 @@ export const GRADEBOOK_SYNTHETIC_READINESS_SCENARIOS_V1 = [
     invariant: 'runtime rejects before touching the binding',
   },
 ] as const;
-
-export type GradebookSyntheticReadinessScenarioIdV1 =
-  (typeof GRADEBOOK_SYNTHETIC_READINESS_SCENARIOS_V1)[number]['id'];
 
 export const GRADEBOOK_FUTURE_PRODUCTION_SMOKE_PLAN_V1 = [
   {
@@ -102,7 +99,7 @@ export const GRADEBOOK_FUTURE_PRODUCTION_SMOKE_PLAN_V1 = [
   readonly prerequisite: GradebookProductionHardStopIdV1 | null;
 }[];
 
-export interface GradebookProductionReadinessPreparationInputV1 {
+interface GradebookProductionReadinessPreparationInputV1 {
   readonly authorityMode: AuthorityModeV1;
   readonly productionAcademicRuntimeEnabled: boolean;
   readonly productionD1BindingPresent: boolean;
@@ -111,14 +108,14 @@ export interface GradebookProductionReadinessPreparationInputV1 {
   readonly completedEvidence: readonly GradebookReadinessPreparationEvidenceIdV1[];
 }
 
-export type GradebookProductionReadinessScopeViolationV1 =
+type GradebookProductionReadinessScopeViolationV1 =
   | 'authority-mode-changed'
   | 'production-academic-runtime-enabled'
   | 'production-d1-binding-present'
   | 'remote-migrations-applied'
   | 'real-pilot-executed';
 
-export interface GradebookProductionReadinessPreparationResultV1 {
+interface GradebookProductionReadinessPreparationResultV1 {
   readonly status: 'incomplete' | 'prepared-for-manual-authorization' | 'scope-violation';
   readonly missingEvidence: readonly GradebookReadinessPreparationEvidenceIdV1[];
   readonly scopeViolations: readonly GradebookProductionReadinessScopeViolationV1[];

@@ -2,7 +2,7 @@ import type { RuntimeEnv } from '../env';
 import { z } from 'zod';
 
 export type GraphCredentialSlot = 'A' | 'B';
-export type TechnicalCredentialFailureStage = 'missing' | 'invalid';
+type TechnicalCredentialFailureStage = 'missing' | 'invalid';
 
 export class TechnicalCredentialError extends Error {
   constructor(
@@ -21,7 +21,7 @@ const rotatedCredentialSchema = z.object({
   createdAt: z.string().datetime(),
 });
 
-export type GraphCredential = z.infer<typeof rotatedCredentialSchema> & {
+type GraphCredential = z.infer<typeof rotatedCredentialSchema> & {
   slot: GraphCredentialSlot;
 };
 

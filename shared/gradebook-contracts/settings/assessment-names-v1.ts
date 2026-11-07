@@ -4,7 +4,7 @@ import {
   GRADEBOOK_ACADEMIC_YEAR_MAX_V2,
 } from '../academic-year-v2';
 
-export const ASSESSMENT_NAME_KEYS_V1 = ['1:1', '1:2', '2:1', '2:2', '3:1', '3:2'] as const;
+const ASSESSMENT_NAME_KEYS_V1 = ['1:1', '1:2', '2:1', '2:2', '3:1', '3:2'] as const;
 const name = z
   .string()
   .trim()

@@ -46,7 +46,7 @@ import type {
   CouncilWorkspaceV1,
 } from './council-workspace-v1';
 
-export interface CouncilInstitutionalServerContextV2 extends CouncilWorkspaceServerContextV1 {
+interface CouncilInstitutionalServerContextV2 extends CouncilWorkspaceServerContextV1 {
   /** Actor/time for session-level actions. No role or director identity is inferred here. */
   institutionalIdentity(): {
     readonly actorReference: CouncilActorReferenceV1;
@@ -54,7 +54,7 @@ export interface CouncilInstitutionalServerContextV2 extends CouncilWorkspaceSer
   };
 }
 
-export interface CouncilInstitutionalWorkspaceDependenciesV2 {
+interface CouncilInstitutionalWorkspaceDependenciesV2 {
   readonly source: CouncilWorkspaceSourceV1;
   readonly decisions: CouncilDecisionStoreV1;
   readonly workspace: CouncilWorkspaceV1;
@@ -62,7 +62,7 @@ export interface CouncilInstitutionalWorkspaceDependenciesV2 {
   readonly server: CouncilInstitutionalServerContextV2;
 }
 
-export interface CouncilInstitutionalWorkspaceV2 {
+interface CouncilInstitutionalWorkspaceV2 {
   review(request: CouncilClosureReviewRequestV2): Promise<CouncilClosureReviewResponseV2>;
   vote(request: CouncilVoteRequestV2): Promise<CouncilVoteResponseV2>;
   resolveTie(request: CouncilTieBreakRequestV2): Promise<CouncilTieBreakResponseV2>;

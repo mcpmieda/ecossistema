@@ -1,11 +1,8 @@
 import { isGradebookAcademicYearV2 } from '../academic-year-v2';
-
-/** Relational, read-only workspace. V1 consumers keep their original contract. Refs #639. */
-export const OPERATIONAL_WORKSPACE_VERSION_V2 = 2 as const;
 export const WORKSPACE_KINDS_V2 = ['student', 'class-group', 'teacher', 'subject'] as const;
 export type WorkspaceKindV2 = (typeof WORKSPACE_KINDS_V2)[number];
 export type WorkspaceStatusV2 = null | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-export const WORKSPACE_PAGE_LIMIT_V2 = 200;
+const WORKSPACE_PAGE_LIMIT_V2 = 200;
 export const WORKSPACE_MAX_OFFSET_V2 = 100_000;
 export const WORKSPACE_MAX_YEARS_V2 = 200;
 

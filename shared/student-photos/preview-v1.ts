@@ -5,7 +5,7 @@ import {
   PhotoWriteErrorV1,
 } from './write-v1';
 
-export const photoQualityV1 = z.union([z.literal(92), z.literal(86), z.literal(80)]);
+const photoQualityV1 = z.union([z.literal(92), z.literal(86), z.literal(80)]);
 export const photoQualitiesV1 = z.object({
   portrait: photoQualityV1.nullable(), avatar: photoQualityV1.nullable(),
 }).strict();

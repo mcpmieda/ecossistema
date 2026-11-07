@@ -11,7 +11,7 @@ export interface PhotoWriteQueryV1 {
 export interface PhotoWriteDatabaseV1 {
   transaction<T>(work: (tx: PhotoWriteQueryV1) => Promise<T>): Promise<T>;
 }
-export interface PhotoPreparedPayloadV1 { portrait: Uint8Array | null; avatar: Uint8Array | null }
+interface PhotoPreparedPayloadV1 { portrait: Uint8Array | null; avatar: Uint8Array | null }
 const emptyAssets = (): PhotoAssetsV1 => ({ portrait: null, avatar: null });
 const hex = (bytes: Uint8Array | null) => bytes === null ? null : Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
 

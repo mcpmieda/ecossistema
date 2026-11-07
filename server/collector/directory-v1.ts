@@ -69,7 +69,7 @@ const OIDC_SCOPES = new Set(['openid', 'profile', 'email', 'offline_access']);
  * asked for. The collector delegation is User.Read plus the sign-in scopes it
  * requested; any broader Graph permission or .default token is refused.
  */
-export function collectorDelegationScopeV1(scope: string): boolean {
+function collectorDelegationScopeV1(scope: string): boolean {
   const scopes = scope.trim().split(/\s+/u).map((value) => value.toLowerCase());
   const userRead = new Set(['user.read', USER_READ_SCOPE.toLowerCase()]);
   return (

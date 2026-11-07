@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { PLATFORM_CAPABILITIES, type PlatformCapability } from '../../shared/platform-contract';
 
-export const MODULE_CONTRACT_VERSION = 1 as const;
+const MODULE_CONTRACT_VERSION = 1 as const;
 
 const capabilitySchema = z.enum(PLATFORM_CAPABILITIES);
 const sameOriginPathSchema = z

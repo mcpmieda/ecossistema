@@ -35,7 +35,6 @@ export const GRADE_VALUE_STATES_V1 = [
   'not-applicable',
   'insufficient-data',
 ] as const;
-export type GradeValueStateV1 = (typeof GRADE_VALUE_STATES_V1)[number];
 
 export type AcademicGradeValueV1 =
   | {
@@ -79,12 +78,11 @@ export interface ComparedGradeValueV1 {
   readonly calculated: NativeEngineGradeValueV1;
 }
 
-export const APPLICABILITY_STATES_V1 = [
+const APPLICABILITY_STATES_V1 = [
   'applicable',
   'not-applicable',
   'insufficient-data',
 ] as const;
-export type ApplicabilityStateV1 = (typeof APPLICABILITY_STATES_V1)[number];
 
 export type ApplicabilityV1 =
   | {
@@ -210,10 +208,10 @@ export interface ComparedAcademicStateV1 {
   readonly calculated: AcademicResultStateV1;
 }
 
-export const ANNUAL_FINAL_DECISION_OUTCOMES_V1 = ['approved', 'failed', 'special-status'] as const;
+const ANNUAL_FINAL_DECISION_OUTCOMES_V1 = ['approved', 'failed', 'special-status'] as const;
 export type AnnualFinalDecisionOutcomeV1 = (typeof ANNUAL_FINAL_DECISION_OUTCOMES_V1)[number];
 
-export const ANNUAL_FINAL_DECISION_BASES_V1 = [
+const ANNUAL_FINAL_DECISION_BASES_V1 = [
   'academic-rule',
   'class-council',
   'attendance',
@@ -261,5 +259,3 @@ export const RESULTS_CONTRACT_V1 = {
   annualFinalDecisionOutcomes: ANNUAL_FINAL_DECISION_OUTCOMES_V1,
   annualFinalDecisionBases: ANNUAL_FINAL_DECISION_BASES_V1,
 } as const;
-
-export type ResultsContractV1 = typeof RESULTS_CONTRACT_V1;

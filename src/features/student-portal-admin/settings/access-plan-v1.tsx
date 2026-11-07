@@ -25,7 +25,7 @@ import {
 } from './schedule-editor-v1';
 
 type OverrideV1 = ReturnType<typeof settingsOverrideV1.parse>;
-export type AccessReviewIntentV1 =
+type AccessReviewIntentV1 =
   | { field: 'accessEnabled'; inherit: true }
   | { field: 'accessEnabled'; inherit: false; value: OverrideV1 };
 
@@ -56,7 +56,7 @@ export function accessPlanOfSettingsV1(settings: EffectiveSettingsV1): {
   };
 }
 
-export const accessWhenV1 = scheduleWhenV1;
+const accessWhenV1 = scheduleWhenV1;
 export type PlanWordsV1 = {
   openNow: string;
   closedNow: string;

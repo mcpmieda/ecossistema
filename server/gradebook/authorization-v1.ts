@@ -1,7 +1,6 @@
 import type { PlatformCapability } from '../../shared/platform-contract';
 import { capabilitiesForRoles, requireCapability } from '../auth/capabilities';
 import type { Session } from '../auth/session';
-import { AuthorizationError } from '../auth/roles';
 
 export const GRADEBOOK_ADMIN_CAPABILITY =
   'gradebook.persistence.admin' satisfies PlatformCapability;
@@ -21,16 +20,4 @@ export function authorizeGradebookRuntimeV1(
   const authorization = Object.freeze({});
   issuedAuthorizations.add(authorization);
   return authorization as GradebookRuntimeAuthorizationV1;
-}
-
-export function requireGradebookRuntimeAuthorizationV1(
-  authorization: unknown,
-): asserts authorization is GradebookRuntimeAuthorizationV1 {
-  if (
-    authorization === null ||
-    typeof authorization !== 'object' ||
-    !issuedAuthorizations.has(authorization)
-  ) {
-    throw new AuthorizationError();
-  }
 }

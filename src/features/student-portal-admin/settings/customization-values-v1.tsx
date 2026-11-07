@@ -18,7 +18,7 @@ export interface CustomizationResetChoiceV1 {
 }
 export const customizationPeriodV1 = (period: string) => period.startsWith('REC')
   ? `Recuperação ${period.slice(3)}` : `${period.slice(1)}º trimestre`;
-export const publicationStateLabelV1 = (revision: string | null) => revision === null ? 'não publicado' : 'publicado';
+const publicationStateLabelV1 = (revision: string | null) => revision === null ? 'não publicado' : 'publicado';
 export function publicationDifferenceV1(item: PublicationContextItemV1, scope: PolicyScopeV1) {
   const target = scope.kind === 'class' ? 'esta turma' : 'este aluno';
   const sameStatus = Boolean(item.current.revision) === Boolean(item.school.revision);

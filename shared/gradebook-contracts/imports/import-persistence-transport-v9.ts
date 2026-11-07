@@ -1,7 +1,5 @@
 import type { GradebookImportPersistenceSummaryV2 } from './import-persistence-transport-v2';
 import { isGradebookAcademicYearV2 } from '../academic-year-v2';
-
-export const GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V9 = 9 as const;
 export const GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9 = 2_000_000;
 
 export interface GradebookImportManifestV9 {

@@ -11,7 +11,7 @@ import { instantV1 } from './core-v1';
  * The school still prevails: a student may enter only while both the school and the student's own
  * level (class or student, when they have one) are open.
  */
-export const accessActionV1 = z.enum(['open', 'close']);
+const accessActionV1 = z.enum(['open', 'close']);
 export const accessEventV1 = z.object({ at: instantV1, action: accessActionV1 }).strict();
 export const accessScheduleV1 = z
   .array(accessEventV1)
@@ -21,7 +21,6 @@ export const accessScheduleV1 = z
     'Access schedule must be in time order without repeated times',
   );
 export type AccessEventV1 = z.infer<typeof accessEventV1>;
-export type AccessScheduleV1 = z.infer<typeof accessScheduleV1>;
 
 /** `enabled` is the switch as saved; the schedule acts on it from each event's time. */
 export type AccessPlanV1 = { readonly enabled: boolean; readonly schedule: readonly AccessEventV1[] };

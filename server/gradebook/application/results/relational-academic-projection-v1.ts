@@ -46,13 +46,13 @@ export interface RelationalAcademicProjectionV1 {
   readonly sourceUComparison: RelationalSourceComparisonV1;
 }
 
-export type RelationalAcademicProjectionErrorCodeV1 =
+type RelationalAcademicProjectionErrorCodeV1 =
   | 'offer-student-not-found'
   | 'invalid-relational-row'
   | 'incomplete-offer-definition'
   | 'projection-batch-too-large';
 
-export class RelationalAcademicProjectionErrorV1 extends Error {
+class RelationalAcademicProjectionErrorV1 extends Error {
   constructor(readonly code: RelationalAcademicProjectionErrorCodeV1) {
     super(code);
     this.name = 'RelationalAcademicProjectionErrorV1';

@@ -7,7 +7,7 @@ import {
 } from '../../../../shared/student-portal-contracts/core-v1';
 
 export type PortalFetchV1 = (path: string, init: RequestInit) => Promise<Response>;
-export type PortalClientStateV1 = FailureV1['state'] | 'invalid-response' | 'network-error';
+type PortalClientStateV1 = FailureV1['state'] | 'invalid-response' | 'network-error';
 export class PortalClientErrorV1 extends Error {
   constructor(
     readonly state: PortalClientStateV1,

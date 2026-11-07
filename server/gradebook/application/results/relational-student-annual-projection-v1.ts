@@ -15,13 +15,13 @@ import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook
 type Row = Record<string, unknown>;
 type BindValue = string | number | null;
 
-export type RelationalFormalCouncilDecisionV1 = 1 | 2 | 3;
-export type RelationalFormalCouncilVisibleResultV1 =
+type RelationalFormalCouncilDecisionV1 = 1 | 2 | 3;
+type RelationalFormalCouncilVisibleResultV1 =
   | 'APROVADO PELO CONSELHO'
   | 'REPROVADO PELO CONSELHO'
   | 'REPROVADO POR FALTA';
 
-export interface RelationalAnnualComponentProjectionV1 {
+interface RelationalAnnualComponentProjectionV1 {
   readonly ofertaId: number;
   readonly disciplinaId: number;
   readonly disciplina: string;
@@ -30,13 +30,13 @@ export interface RelationalAnnualComponentProjectionV1 {
   readonly projection: RelationalAcademicProjectionV1;
 }
 
-export interface RelationalComparisonSummaryV1 {
+interface RelationalComparisonSummaryV1 {
   readonly match: number;
   readonly mismatch: number;
   readonly unavailable: number;
 }
 
-export interface RelationalStudentAnnualProjectionV1 {
+interface RelationalStudentAnnualProjectionV1 {
   readonly ano: number;
   readonly alunoId: number;
   readonly alunoNome: string;
@@ -61,13 +61,13 @@ export interface RelationalStudentAnnualProjectionV1 {
   };
 }
 
-export type RelationalStudentAnnualProjectionErrorCodeV1 =
+type RelationalStudentAnnualProjectionErrorCodeV1 =
   | 'student-current-binding-not-found'
   | 'invalid-relational-row'
   | 'duplicate-current-discipline-offers'
   | 'projection-year-mismatch';
 
-export class RelationalStudentAnnualProjectionErrorV1 extends Error {
+class RelationalStudentAnnualProjectionErrorV1 extends Error {
   constructor(readonly code: RelationalStudentAnnualProjectionErrorCodeV1) {
     super(code);
     this.name = 'RelationalStudentAnnualProjectionErrorV1';

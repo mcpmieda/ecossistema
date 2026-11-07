@@ -30,7 +30,7 @@ export function selectStudentQrV1(codes: readonly string[]): string {
   return validateStudentQrV1(codes[0]!);
 }
 
-export const QR_IMAGE_MAX_BYTES_V1 = 10 * 1024 * 1024;
+const QR_IMAGE_MAX_BYTES_V1 = 10 * 1024 * 1024;
 export const QR_IMAGE_MAX_PIXELS_V1 = 16 * 1024 * 1024;
 export function validateQrImageFileV1(file: Pick<File, 'size' | 'type'>) {
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type))

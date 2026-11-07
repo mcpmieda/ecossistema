@@ -21,7 +21,7 @@ export const birthWriteV1 = z.discriminatedUnion('action', [
   z.object({ action: z.literal('clear'), accountId: portalIdV1, expectedVersion: versionV1 }).strict(),
 ]);
 const account = { ...commandMetaV1, accountId: portalIdV1 };
-export const printModeV1 = z.enum(['qr-only', 'qr-name', 'qr-name-class']);
+const printModeV1 = z.enum(['qr-only', 'qr-name', 'qr-name-class']);
 export const adminCommandV1 = z.discriminatedUnion('operation', [
   bulkExecuteCommandV1,
   publicationInheritCommandV1,
@@ -75,7 +75,7 @@ export const printCardV1 = z.discriminatedUnion('mode', [
  * Why a sign-in was refused and what helps support the family (owner request 29/09/2026). Only
  * operational facts about the attempt itself: never a secret, a mark or another student.
  */
-export const AUDIT_REASONS_V1 = [
+const AUDIT_REASONS_V1 = [
   'wrong-pin', 'wrong-password', 'temporarily-blocked', 'verification-required', 'access-closed',
   'card-replaced', 'account-blocked', 'not-enrolled', 'first-access-pending', 'first-access-not-ready',
   'password-window-expired', 'already-active', 'retry-needed',
@@ -102,7 +102,6 @@ export const savedBirthV1 = z.object({
   accountVersion: versionV1, version: versionV1,
   year: birthYearV1.nullable(), confirmation: z.enum(['confirmed', 'unconfirmed-test']).nullable(),
 }).strict();
-export type SavedBirthV1 = z.infer<typeof savedBirthV1>;
 const base = { contractVersion: z.literal(1), requestId: portalIdV1 };
 const paging = { nextCursor: pageCursorV1.nullable() };
 export const adminResponseV1 = z.discriminatedUnion('state', [

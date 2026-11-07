@@ -34,7 +34,7 @@ import type {
   StudentRecognition,
 } from './spreadsheet-recognizer';
 
-export const ASSESSMENT_IMPORT_RULE_VERSION_V2 = 'source-contract-v2-assessment-entry-v1' as const;
+const ASSESSMENT_IMPORT_RULE_VERSION_V2 = 'source-contract-v2-assessment-entry-v1' as const;
 
 export interface AssessmentImportStudentResolutionV2 {
   readonly row: number;

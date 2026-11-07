@@ -22,7 +22,7 @@ async function digestWithWebCrypto(data: ArrayBuffer): Promise<ArrayBuffer> {
   return globalThis.crypto.subtle.digest('SHA-256', data);
 }
 
-export async function calculateSha256(
+async function calculateSha256(
   data: ArrayBuffer,
   digestSha256: (data: ArrayBuffer) => Promise<ArrayBuffer> = digestWithWebCrypto,
 ): Promise<string> {

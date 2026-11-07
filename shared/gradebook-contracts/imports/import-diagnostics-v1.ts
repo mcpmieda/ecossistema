@@ -91,7 +91,7 @@ export type GradebookImportDiagnosticsAuditListResponseV1 =
       readonly state: 'not-authorized' | 'invalid-request' | 'unavailable';
     };
 
-export const GRADEBOOK_IMPORT_DIAGNOSTICS_MAX_ITEMS_V1 = 5000;
+const GRADEBOOK_IMPORT_DIAGNOSTICS_MAX_ITEMS_V1 = 5000;
 export const GRADEBOOK_IMPORT_DIAGNOSTICS_BODY_BYTES_V1 = 1_500_000;
 
 function isObject(value: unknown): value is Record<string, unknown> {

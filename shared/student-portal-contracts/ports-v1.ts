@@ -5,9 +5,6 @@ import type { AdminCommandV1, AdminQueryV1, AdminResponseV1, auditEventV1, trust
 import type { AcademicLinkV1, ScopeV1, RevisionsV1, FailureV1, accountStateV1, eligibilityStateV1 } from './core-v1';
 import type { EffectiveSettingsV1 } from './policy-v1';
 import type { SelfResponseV1 } from './self-v1';
-
-// Internal ports are not HTTP DTOs. #703 owns the shared BN implementation contract.
-export interface ClockPortV1 { now(): Date }
 export interface VerifierV1 { algorithm: string; parameters: Readonly<Record<string, number>>; salt: string; pepperVersion: number; digest: string }
 export interface CryptoPortV1 {
   randomToken(bytes: number): string;
@@ -82,9 +79,6 @@ export interface AcademicStudentReaderPortV1 {
   readOfficial(link: AcademicLinkV1, expectedDataVersion: string): Promise<{
     dataVersion: string; profile: SelfResponseV1['profile']; subjects: SelfResponseV1['subjects'];
   } | null>;
-}
-export interface YearResetPortalGuardPortV1 {
-  countLinkedInTransaction(tx: PortalTransactionV1, year: 2026): Promise<number>;
 }
 export interface PublishedProjectionPortV1 {
   readAuthorized(accountId: string, expected: RevisionsV1): Promise<SelfResponseV1 | null>;

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Button } from '@heroui/react';
-export const HEALTH_VISIBLE_ROWS_V1 = 6;
+const HEALTH_VISIBLE_ROWS_V1 = 6;
 /** Page only the bounded response already in memory; never fetch or recompute chronology. */
 export function HealthCompactRowsV1<T>({ rows, label, children }: Readonly<{
   rows: readonly T[]; label: string; children: (visible: readonly T[]) => ReactNode;

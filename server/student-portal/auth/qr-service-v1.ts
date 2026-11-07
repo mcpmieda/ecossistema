@@ -40,7 +40,7 @@ const operations = [
 ] as const;
 type Operation = (typeof operations)[number];
 type QrCommandV1 = Extract<AdminCommandV1, { operation: Operation }>;
-export type BulkGuardV1 = { expectedScope: ScopeV1; proofExpiresAt: string; proofDigest: string };
+type BulkGuardV1 = { expectedScope: ScopeV1; proofExpiresAt: string; proofDigest: string };
 const bulkGuardV1 = z
   .object({
     expectedScope: scopeV1,

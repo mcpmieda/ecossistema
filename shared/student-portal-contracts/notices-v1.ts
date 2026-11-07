@@ -30,4 +30,3 @@ export const portalStatusResponseV1 = z
     notices: portalNoticesV1,
   })
   .strict();
-export type PortalStatusResponseV1 = z.infer<typeof portalStatusResponseV1>;

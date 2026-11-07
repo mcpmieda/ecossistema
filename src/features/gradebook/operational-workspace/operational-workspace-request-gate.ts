@@ -1,10 +1,10 @@
-export interface OperationalWorkspaceRequestTicket {
+interface OperationalWorkspaceRequestTicket {
   readonly signal: AbortSignal;
   isCurrent(): boolean;
   complete(): void;
 }
 
-export interface OperationalWorkspaceRequestGate {
+interface OperationalWorkspaceRequestGate {
   begin(key: string): OperationalWorkspaceRequestTicket | null;
   invalidate(): void;
 }

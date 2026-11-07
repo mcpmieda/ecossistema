@@ -206,7 +206,6 @@ export const POLICY_FIELDS_V1 = [
   'showTermClosing', 'termClosingConclusive', 'showFrequency', 'showSchedule', 'showIncidents', 'allowedPeriods', 'risk', 'calendar',
 ] as const;
 export const policyFieldV1 = z.enum(POLICY_FIELDS_V1);
-export type PolicyFieldV1 = z.infer<typeof policyFieldV1>;
 // Complete value per scope: partial field inheritance is expressed by explicit keys.
 export const settingsOverrideV1 = settingsValueV1
   .partial()

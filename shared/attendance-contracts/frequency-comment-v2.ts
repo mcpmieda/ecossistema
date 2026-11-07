@@ -15,7 +15,7 @@ import type { FrequencyDayV2, FrequencySummaryV2 } from './frequency-v2';
  * The days of absence that fail the year: a quarter of the school days the ADM calendar marks
  * (owner request 27/10/2026: derived from the calendar, never fixed in the code).
  */
-export const absenceLimitDaysV2 = (schoolDays: number) => schoolDays / 4;
+const absenceLimitDaysV2 = (schoolDays: number) => schoolDays / 4;
 /** "Perto do limite" from three fifths of the limit on (owner decision 23/10/2026: 30 of the 50). */
 const NEAR_LIMIT_SHARE = 0.6;
 /** The last four weeks: the twenty most recent weekdays with lessons. */
@@ -31,7 +31,7 @@ export type FrequencyCommentKindV2 =
   | 'improving'
   | 'none-recently'
   | 'none-this-year';
-export type FrequencyCommentV2 = { kind: FrequencyCommentKindV2; tone: 'alert' | 'good'; text: string };
+type FrequencyCommentV2 = { kind: FrequencyCommentKindV2; tone: 'alert' | 'good'; text: string };
 
 const WEEKDAY_PLURAL = ['', 'às segundas-feiras', 'às terças-feiras', 'às quartas-feiras', 'às quintas-feiras', 'às sextas-feiras'];
 const days = (count: number) => (count === 1 ? '1 dia' : `${count} dias`);

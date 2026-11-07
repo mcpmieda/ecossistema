@@ -32,7 +32,7 @@ export interface CouncilWorkspaceServerContextV1 {
   };
 }
 
-export interface CouncilWorkspaceDependenciesV1 {
+interface CouncilWorkspaceDependenciesV1 {
   readonly source: CouncilWorkspaceSourceV1;
   readonly decisions: CouncilDecisionStoreV1;
   readonly server: CouncilWorkspaceServerContextV1;

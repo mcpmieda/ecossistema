@@ -1,4 +1,4 @@
-export type CookieOptions = {
+type CookieOptions = {
   maxAge?: number;
   sameSite?: 'Lax' | 'Strict';
 };

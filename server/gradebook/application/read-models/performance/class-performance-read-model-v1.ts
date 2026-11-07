@@ -64,7 +64,7 @@ const COLUMN_CURSOR_PREFIX = 'class-performance-column-v1.';
 const STUDENT_DETAIL_PREFIX = 'class-performance-student-detail-v1.';
 const CELL_DETAIL_PREFIX = 'class-performance-cell-detail-v1.';
 
-export type ClassPerformanceReadModelErrorCodeV1 =
+type ClassPerformanceReadModelErrorCodeV1 =
   | 'invalid-request'
   | 'invalid-row-cursor'
   | 'invalid-column-cursor'
@@ -101,7 +101,7 @@ export interface PerformanceMatrixSourceRequestV1 {
   readonly comparisonPeriod: PerformancePeriodV1 | null;
 }
 
-export interface PerformanceSourceSignalV1 {
+interface PerformanceSourceSignalV1 {
   readonly code: string;
   readonly explanation: string;
   readonly source: PerformanceSignalV1['source'];
@@ -191,7 +191,7 @@ export interface ClassPerformanceSourceV1 {
   ): Promise<PerformanceCellDetailSourceV1 | null>;
 }
 
-export interface PerformanceStudentDetailV1 {
+interface PerformanceStudentDetailV1 {
   readonly detailRef: PerformanceStudentDetailRefV1;
   readonly academicYearId: AcademicYearId;
   readonly classGroupId: ClassGroupId;
@@ -200,7 +200,7 @@ export interface PerformanceStudentDetailV1 {
   readonly statusHistory: readonly StudentStatusEventV1[];
 }
 
-export interface PerformanceCellDetailV1 extends PerformanceMatrixSourceRequestV1 {
+interface PerformanceCellDetailV1 extends PerformanceMatrixSourceRequestV1 {
   readonly detailRef: PerformanceCellDetailRefV1;
   readonly studentId: StudentId;
   readonly authorityMode: typeof PERFORMANCE_AUTHORITY_MODE_V1;
@@ -209,7 +209,7 @@ export interface PerformanceCellDetailV1 extends PerformanceMatrixSourceRequestV
   readonly officialRecords: readonly AcademicRecordV1[];
 }
 
-export interface ClassPerformanceReadModelProviderV1 {
+interface ClassPerformanceReadModelProviderV1 {
   get(request: ClassPerformanceRequestV1): Promise<ClassPerformanceReadModelV1 | null>;
   getStudentDetail(
     detailRef: PerformanceStudentDetailRefV1,
@@ -1294,8 +1294,6 @@ export function createClassPerformanceReadModelV1(
     },
   });
 }
-
-export const createClassPerformanceReadModelProviderV1 = createClassPerformanceReadModelV1;
 
 /** Inspect an already structurally validated request without loading a snapshot.
  * Retirement preserves syntax and scope checks, not existence checks on source keys.

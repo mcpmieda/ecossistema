@@ -57,7 +57,7 @@ export const NATIVE_COUNCIL_ELIGIBILITY_STATES_V1 = [
   'not-eligible',
   'insufficient-data',
 ] as const;
-export type NativeCouncilEligibilityStateV1 =
+type NativeCouncilEligibilityStateV1 =
   (typeof NATIVE_COUNCIL_ELIGIBILITY_STATES_V1)[number];
 
 export const NATIVE_ANNUAL_OUTCOME_FINDING_CODES_V1 = [
@@ -70,7 +70,7 @@ export const NATIVE_ANNUAL_OUTCOME_FINDING_CODES_V1 = [
   'component-post-recovery-total-unresolved',
   'component-coverage-incomplete',
 ] as const;
-export type NativeAnnualOutcomeFindingCodeV1 =
+type NativeAnnualOutcomeFindingCodeV1 =
   (typeof NATIVE_ANNUAL_OUTCOME_FINDING_CODES_V1)[number];
 
 type AnnualTotalInputV1 = 'original-total' | 'post-recovery-total';

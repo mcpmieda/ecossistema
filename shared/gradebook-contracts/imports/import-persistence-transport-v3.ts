@@ -31,7 +31,6 @@ export const GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V3 = GRADEBOOK_IMPORT_PERSISTEN
 export const GRADEBOOK_IMPORT_PERSISTENCE_SECURITY_V3 = GRADEBOOK_IMPORT_PERSISTENCE_SECURITY_V2;
 export const GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V3 =
   GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V2;
-export { GRADEBOOK_IMPORT_PERSISTENCE_REQUEST_REJECTIONS_V2 as GRADEBOOK_IMPORT_PERSISTENCE_REQUEST_REJECTIONS_V3 } from './import-persistence-transport-v2';
 
 export type GradebookImportRecoveryApplicabilityObservationV3 =
   | { readonly classification: 'numeric'; readonly rawValue: number }
@@ -88,7 +87,7 @@ interface GradebookImportPersistenceResponseBaseV3 {
   readonly transportVersion: typeof GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V3;
 }
 
-export type GradebookImportPersistenceResponseV3 =
+type GradebookImportPersistenceResponseV3 =
   | (GradebookImportPersistenceResponseBaseV3 & {
       readonly state: 'applied' | 'no-changes';
       readonly summary: GradebookImportPersistenceSummaryV2;
@@ -109,26 +108,6 @@ export type GradebookImportPersistenceResponseV3 =
   | (GradebookImportPersistenceResponseBaseV3 & {
       readonly state: 'not-authorized' | 'unavailable';
     });
-
-export const GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_V3 = {
-  version: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V3,
-  operation: GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V3,
-  unit: 'one-recognized-source-file-per-request',
-  bounds: GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V3,
-  security: GRADEBOOK_IMPORT_PERSISTENCE_SECURITY_V3,
-  recoveryApplicability: {
-    sourceCells: ['AC', 'AD', 'AE'],
-    preservedStates: ['numeric', 'empty', 'missing-field', 'unrecognized', 'formula'],
-    numericOne: 'applicable',
-    numericZero: 'not-applicable',
-    everythingElse: 'insufficient-data',
-  },
-  trustBoundary: {
-    browserInput: 'untrusted-recognized-academic-observations',
-    recoveryApplicability: 'observation-not-authority',
-    forbiddenClientFields: GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V3,
-  },
-} as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -286,12 +265,6 @@ export function inspectGradebookImportPersistenceRequestV3(
   return compatible === null
     ? 'invalid-request'
     : inspectGradebookImportPersistenceRequestV2(compatible);
-}
-
-export function isGradebookImportPersistenceRequestV3(
-  value: unknown,
-): value is GradebookImportPersistenceRequestV3 {
-  return inspectGradebookImportPersistenceRequestV3(value) === 'ready';
 }
 
 export function isGradebookImportPersistenceResponseV3(

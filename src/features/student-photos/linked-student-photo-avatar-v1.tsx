@@ -5,7 +5,7 @@ import { StudentPhotoAvatarV1, type StudentPhotoAvatarPropsV1 } from './student-
 import { PHOTO_CHANGED_EVENT_V1, type PhotoChangedDetailV1 } from './catalog-client-v1';
 import { usePhotoMemoryV1 } from './photo-memory-v1';
 
-export interface LinkedStudentPhotoAvatarPropsV1 extends Pick<StudentPhotoAvatarPropsV1, 'size' | 'label' | 'className' | 'decorative' | 'fallbackTone' | 'loading'> {
+interface LinkedStudentPhotoAvatarPropsV1 extends Pick<StudentPhotoAvatarPropsV1, 'size' | 'label' | 'className' | 'decorative' | 'fallbackTone' | 'loading'> {
   subject: PhotoAdminSubjectV1;
   studentUid?: string;
   revision?: string | null;

@@ -5,7 +5,7 @@ function readinessStatusOf(scopeViolations: number, missingEvidence: number) {
   return missingEvidence > 0 ? 'incomplete' : GRADEBOOK_CONTROLLED_PRODUCTION_STATUS_V2;
 }
 
-export const GRADEBOOK_CONTROLLED_PRODUCTION_READINESS_VERSION_V2 = 2 as const;
+const GRADEBOOK_CONTROLLED_PRODUCTION_READINESS_VERSION_V2 = 2 as const;
 
 export const GRADEBOOK_CONTROLLED_PRODUCTION_STATUS_V2 =
   'production-infrastructure-smoke-validated-awaiting-private-pilot' as const;
@@ -19,7 +19,7 @@ export const GRADEBOOK_CONTROLLED_PRODUCTION_EVIDENCE_V2 = [
   'recovery-capability-confirmed',
 ] as const;
 
-export type GradebookControlledProductionEvidenceIdV2 =
+type GradebookControlledProductionEvidenceIdV2 =
   (typeof GRADEBOOK_CONTROLLED_PRODUCTION_EVIDENCE_V2)[number];
 
 export const GRADEBOOK_POST_WAVE_23_HARD_STOPS_V2 = [
@@ -27,7 +27,7 @@ export const GRADEBOOK_POST_WAVE_23_HARD_STOPS_V2 = [
   'native-authority-separate-authorization',
 ] as const;
 
-export type GradebookPostWave23HardStopIdV2 =
+type GradebookPostWave23HardStopIdV2 =
   (typeof GRADEBOOK_POST_WAVE_23_HARD_STOPS_V2)[number];
 
 export interface GradebookControlledProductionReadinessInputV2 {
@@ -46,7 +46,7 @@ export interface GradebookControlledProductionReadinessInputV2 {
   readonly nativeAuthorityEnabled: boolean;
 }
 
-export type GradebookControlledProductionScopeViolationV2 =
+type GradebookControlledProductionScopeViolationV2 =
   | 'authority-mode-changed'
   | 'production-gate-left-open'
   | 'real-pilot-already-executed'
@@ -55,7 +55,7 @@ export type GradebookControlledProductionScopeViolationV2 =
   | 'synthetic-residue-present'
   | 'invalid-negative-count';
 
-export interface GradebookControlledProductionReadinessResultV2 {
+interface GradebookControlledProductionReadinessResultV2 {
   readonly version: typeof GRADEBOOK_CONTROLLED_PRODUCTION_READINESS_VERSION_V2;
   readonly status:
     | 'incomplete'

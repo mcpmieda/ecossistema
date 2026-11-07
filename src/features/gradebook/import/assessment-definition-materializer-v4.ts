@@ -37,15 +37,15 @@ import type {
   StudentRecognition,
 } from './spreadsheet-recognizer';
 
-export const ASSESSMENT_IMPORT_RULE_VERSION_V3 = 'source-contract-v4-assessment-entry-v3' as const;
+const ASSESSMENT_IMPORT_RULE_VERSION_V3 = 'source-contract-v4-assessment-entry-v3' as const;
 
-export interface AssessmentImportStudentResolutionV4 {
+interface AssessmentImportStudentResolutionV4 {
   readonly row: number;
   readonly studentId: StudentId;
   readonly enrollmentId: EnrollmentId;
 }
 
-export interface AssessmentDefinitionMaterializationContextV4 {
+interface AssessmentDefinitionMaterializationContextV4 {
   readonly logicalSourceReference: string;
   readonly academicYearId: AcademicYearId;
   readonly teachingAssignmentId: TeachingAssignmentId;
@@ -69,7 +69,7 @@ export interface BlockedAssessmentDefinitionV4 {
   readonly gradeEntriesMaterialized: 0;
 }
 
-export interface AssessmentDefinitionMaterializationV4 {
+interface AssessmentDefinitionMaterializationV4 {
   readonly components: readonly MaterializedAssessmentComponentV4[];
   readonly gradeEntries: readonly GradeEntryV1[];
   readonly blockedDefinitions: readonly BlockedAssessmentDefinitionV4[];

@@ -5,10 +5,10 @@ import {
   type ImportCommitDiagnosticsV1,
 } from '../../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';
 /** Browser-only, bounded diagnostics. Never accepts academic objects or free-form labels. */
-export const IMPORT_TIMING_FILE_LIMIT_V1 = 50;
-export const IMPORT_TIMING_TAIL_LIMIT_V1 = 50;
+const IMPORT_TIMING_FILE_LIMIT_V1 = 50;
+const IMPORT_TIMING_TAIL_LIMIT_V1 = 50;
 type Scalar = number | string | boolean | null;
-export type ImportTimingEventV1 = Record<string, Scalar>;
+type ImportTimingEventV1 = Record<string, Scalar>;
 export type ImportTimingRunKindV1 = 'initial' | 'resume';
 export type ImportTimingStatusV1 = 'in-progress' | 'paused' | 'finished';
 const numericKeys = [
@@ -145,7 +145,7 @@ export function sanitizeImportTimingEventV1(value: unknown): ImportTimingEventV1
   return event;
 }
 
-export interface ImportTimingFileV1 {
+interface ImportTimingFileV1 {
   sourceFileIndex: number;
   recognition: ImportTimingEventV1 | null;
   preparation: ImportTimingEventV1 | null;

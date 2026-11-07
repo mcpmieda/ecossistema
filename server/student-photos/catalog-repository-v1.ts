@@ -7,12 +7,12 @@ import { photoCatalogStateV1, type PhotoCatalogStateV1 } from '../../shared/stud
 import { PHOTO_AVATAR_BATCH_MAX_V1 } from '../../shared/student-photos/avatar-batch-v1';
 import type { PhotoWriteDatabaseV1, PhotoWriteQueryV1 } from './write-repository-v1';
 
-export const legacyPhotoSnapshotV1 = z.object({
+const legacyPhotoSnapshotV1 = z.object({
   accountId: studentUidV1,driveId: z.string().min(1),itemId: z.string().min(1),etag: z.string().nullable(),
   byteSize: z.number().int().positive().max(5242880),version: z.number().int().positive(),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
 }).strict();
-export type LegacyPhotoSnapshotV1 = z.infer<typeof legacyPhotoSnapshotV1>;
+type LegacyPhotoSnapshotV1 = z.infer<typeof legacyPhotoSnapshotV1>;
 const avatarSubjectsV1 = z.array(photoAdminSubjectV1).min(1).max(PHOTO_AVATAR_BATCH_MAX_V1);
 export function photoBytesFromHexV1(input: unknown): Uint8Array {
   if (typeof input !== 'string' || input.length < 40 || input.length > 262144 || !/^(?:[a-f0-9]{2})+$/u.test(input))

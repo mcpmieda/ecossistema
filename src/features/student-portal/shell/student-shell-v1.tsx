@@ -23,7 +23,7 @@ const defaultFrequencyClient = createStudentFrequencyClientV2();
 const defaultScheduleClient = createStudentScheduleClientV1();
 const defaultIncidentsClient = createStudentIncidentsClientV1();
 
-export const STUDENT_SCHOOL_NAME_V1 = SCHOOL_NAME_V1;
+const STUDENT_SCHOOL_NAME_V1 = SCHOOL_NAME_V1;
 const outcome = {
   'in-progress': { label: 'Em curso', color: 'default' },
   approved: { label: 'Aprovado', color: 'success' },
@@ -281,7 +281,7 @@ export function StudentProfileV1({
   );
 }
 
-export type StudentMessageKindV1 = 'empty' | 'error' | 'expired' | 'closed' | 'maintenance' | 'unavailable';
+type StudentMessageKindV1 = 'empty' | 'error' | 'expired' | 'closed' | 'maintenance' | 'unavailable';
 const messages = {
   empty: { title: 'Notas ainda não publicadas', description: '', status: 'default', action: '' },
   closed: { title: 'Acesso ao Portal fechado', description: '', status: 'warning', action: 'Tentar novamente' },
@@ -311,7 +311,7 @@ const messages = {
   },
 } as const;
 
-export function StudentPortalMessageV1({
+function StudentPortalMessageV1({
   kind,
   onAction,
 }: Readonly<{

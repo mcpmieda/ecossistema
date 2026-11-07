@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const studentUidV1 = z.guid().transform((value) => value.toLowerCase());
 const academicYear = z.number().int().min(1900).max(9999);
 const academicStudentId = z.number().int().positive().max(2_147_483_647);
-export const STUDENT_IDENTITY_BATCH_LIMIT_V1 = 500;
+const STUDENT_IDENTITY_BATCH_LIMIT_V1 = 500;
 
 export const studentIdentityRequestV1 = z.discriminatedUnion('source', [
   z.object({
@@ -34,8 +34,6 @@ export const studentIdentityResolutionV1 = z.discriminatedUnion('source', [
     gradebookStudentId: academicStudentId.nullable(),
   }).strict(),
 ]);
-
-export type StudentIdentityRequestV1 = z.infer<typeof studentIdentityRequestV1>;
 export type StudentIdentityResolutionV1 = z.infer<typeof studentIdentityResolutionV1>;
 /** Presentation names preserve the complete authorized report value. */
 export const STUDENT_NAME_MAX_LENGTH_V1 = 300;

@@ -1,7 +1,7 @@
 import { initialPhotoCropV1, PhotoPreparationErrorV1, photoGeometryV1, type CropControlsV1, type PhotoKindV1 } from '../../../shared/student-photos/crop-v1';
 import { loadPhotoSourceV1, preparePhotoDraftV1, type PhotoDraftV1, type PhotoExportOptionsV1, type PhotoSourceV1 } from './browser-v1';
 
-export interface PhotoEditorStateV1 {
+interface PhotoEditorStateV1 {
   status: 'empty' | 'loading' | 'editing' | 'preparing';
   source: PhotoSourceV1 | null;
   options: PhotoExportOptionsV1;

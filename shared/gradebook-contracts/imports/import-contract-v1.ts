@@ -143,5 +143,3 @@ export const IMPORT_CONTRACT_V1 = {
   fileStatuses: IMPORT_FILE_STATUSES_V1,
   batchStatuses: IMPORT_BATCH_STATUSES_V1,
 } as const;
-
-export type ImportContractV1 = typeof IMPORT_CONTRACT_V1;

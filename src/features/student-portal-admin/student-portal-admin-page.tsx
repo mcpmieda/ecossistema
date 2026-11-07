@@ -191,7 +191,7 @@ const enterInstitutionalLogin = () => window.location.replace('/auth/login');
 const customizationChanged = () => notifyLiveChangeV1('portal');
 /** Owner decision 28/09/2026: automatic reads paused during the first school-wide access; the
  * administrator reloads manually. Initial reads and explicit reloads are unchanged. */
-export const PORTAL_ADMIN_AUTO_REFRESH_V1 = false;
+const PORTAL_ADMIN_AUTO_REFRESH_V1 = false;
 /** Administrative Portal entry; heavyweight sections load only when the selected route needs them. */
 export function StudentPortalAdminPage({
   fetcher,

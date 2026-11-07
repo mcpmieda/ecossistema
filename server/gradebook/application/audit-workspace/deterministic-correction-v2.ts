@@ -198,7 +198,7 @@ function initialCaseReference(
 }
 
 /** Creates the safe default for a historical reconciliation when no investigation exists yet. */
-export function createFailClosedReconciliationCaseV2(
+function createFailClosedReconciliationCaseV2(
   reconciliation: ReconciliationResultV1,
 ): ReconciliationCaseV2 {
   const divergence = toReconciliationV2(reconciliation);
@@ -250,7 +250,7 @@ export function createFailClosedReconciliationCaseV2(
   };
 }
 
-export type DeterministicInvestigationFindingV2 =
+type DeterministicInvestigationFindingV2 =
   | {
       readonly state: 'eligible';
       readonly proof: DeterministicCorrectionProofV2;
@@ -314,11 +314,11 @@ export function createInvestigatedReconciliationCaseV2(input: {
   };
 }
 
-export type DeterministicCorrectionInspectionResultV2 =
+type DeterministicCorrectionInspectionResultV2 =
   | { readonly outcome: 'case'; readonly record: DeterministicCorrectionCaseRecordV2 }
   | { readonly outcome: 'not-found' | 'not-authorized' | 'unavailable' };
 
-export type DeterministicCorrectionExecutionResultV2 =
+type DeterministicCorrectionExecutionResultV2 =
   | { readonly outcome: 'applied'; readonly record: DeterministicCorrectionCaseRecordV2 }
   | { readonly outcome: 'already-completed'; readonly record: DeterministicCorrectionCaseRecordV2 }
   | {
@@ -328,12 +328,12 @@ export type DeterministicCorrectionExecutionResultV2 =
   | { readonly outcome: 'version-conflict'; readonly currentVersion: number | null }
   | { readonly outcome: 'not-found' | 'not-authorized' | 'unavailable' };
 
-export interface DeterministicCorrectionServerContextV2 {
+interface DeterministicCorrectionServerContextV2 {
   isAuthorized(): boolean;
   correctionIdentity(): { readonly actorId: string; readonly occurredAt: string };
 }
 
-export interface DeterministicCorrectionWorkspaceDependenciesV2 {
+interface DeterministicCorrectionWorkspaceDependenciesV2 {
   readonly store: DeterministicCorrectionCaseStoreV2;
   readonly audit: Pick<AuditPersistenceRepositoryV1, 'getCurrent'>;
   readonly planningRepositories: ImportReconciliationRepositoriesV1;
@@ -341,7 +341,7 @@ export interface DeterministicCorrectionWorkspaceDependenciesV2 {
   readonly server: DeterministicCorrectionServerContextV2;
 }
 
-export interface DeterministicCorrectionWorkspaceV2 {
+interface DeterministicCorrectionWorkspaceV2 {
   inspect(input: {
     readonly academicYearId: AcademicYearId;
     readonly reconciliationId: ReconciliationResultId;

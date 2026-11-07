@@ -42,16 +42,16 @@ export const BULLETIN_EMISSION_REASONS_V1 = {
   classGroupDataUnavailable: 'class-group-data-unavailable',
 } as const;
 
-export interface BulletinServerAuthorizationV1 {
+interface BulletinServerAuthorizationV1 {
   readonly decision: 'allowed' | 'denied';
 }
 
-export interface BulletinServerEmissionContextV1 extends BulletinServerAuthorizationV1 {
+interface BulletinServerEmissionContextV1 extends BulletinServerAuthorizationV1 {
   /** Opaque authenticated identity supplied by the server, never by the emission request. */
   readonly issuerId: BulletinIssuerIdV1;
 }
 
-export interface BulletinEmissionServiceDependenciesV1 {
+interface BulletinEmissionServiceDependenciesV1 {
   readonly classGroups: ClassGroupCenterQueryV1;
   readonly academicRecords: AcademicRecordRepositoryV1;
   readonly snapshots: BulletinSnapshotRepositoryV1;
@@ -61,7 +61,7 @@ export interface BulletinEmissionServiceDependenciesV1 {
   readonly createSnapshotId: (seriesKey: BulletinSnapshotSeriesKeyV1) => BulletinSnapshotIdV1;
 }
 
-export interface BulletinEmissionServiceV1 {
+interface BulletinEmissionServiceV1 {
   materialize(
     request: BulletinEmissionRequestV1,
     authorization: BulletinServerAuthorizationV1,

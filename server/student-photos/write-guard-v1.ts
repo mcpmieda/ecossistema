@@ -11,7 +11,7 @@ const transferSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('upload'), variant: z.enum(['portrait', 'avatar']), metadata: photoVariantMetadataV1 }).strict(),
   z.object({ kind: z.literal('remove'), asset: photoAssetV1 }).strict(),
 ]);
-export type PhotoGuardTransferV1 = z.infer<typeof transferSchema>;
+type PhotoGuardTransferV1 = z.infer<typeof transferSchema>;
 
 /** Read-only authorization evidence. The administrative permission check remains
  * mandatory and separate. No locks or database transaction are held during remote I/O. */

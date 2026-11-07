@@ -1,6 +1,6 @@
 import { lazy, useEffect, useState, type ComponentType, type ElementType } from 'react';
 
-export interface PreloadableSectionV1 {
+interface PreloadableSectionV1 {
   preload(): void;
 }
 

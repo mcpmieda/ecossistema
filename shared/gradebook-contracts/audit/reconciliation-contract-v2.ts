@@ -28,8 +28,7 @@ export type ReconciliationResultV2 =
       readonly explanation: string;
     });
 
-export const ACADEMIC_IMPACT_STATES_V2 = ['none', 'material', 'potentially-material'] as const;
-export type AcademicImpactStateV2 = (typeof ACADEMIC_IMPACT_STATES_V2)[number];
+const ACADEMIC_IMPACT_STATES_V2 = ['none', 'material', 'potentially-material'] as const;
 
 export type AcademicImpactAssessmentV2 =
   | {
@@ -43,15 +42,13 @@ export type AcademicImpactAssessmentV2 =
       readonly reason: string;
     };
 
-export const RECONCILIATION_INVESTIGATION_STATES_V2 = [
+const RECONCILIATION_INVESTIGATION_STATES_V2 = [
   'not-required',
   'required',
   'in-progress',
   'reconciled',
   'accepted-with-reason',
 ] as const;
-export type ReconciliationInvestigationStateV2 =
-  (typeof RECONCILIATION_INVESTIGATION_STATES_V2)[number];
 
 export type ReconciliationInvestigationV2 =
   | { readonly state: 'not-required' }
@@ -64,13 +61,11 @@ export type ReconciliationInvestigationV2 =
       readonly justification: string;
     };
 
-export const DETERMINISTIC_CORRECTION_OPERATION_KINDS_V2 = [
+const DETERMINISTIC_CORRECTION_OPERATION_KINDS_V2 = [
   'renormalize-imported-record',
   'reprocess-derived-result',
   'reapply-official-reconciliation',
 ] as const;
-export type DeterministicCorrectionOperationKindV2 =
-  (typeof DETERMINISTIC_CORRECTION_OPERATION_KINDS_V2)[number];
 
 export type DeterministicCorrectionPreconditionV2 =
   | {
@@ -150,13 +145,11 @@ export type AutomaticCorrectionEligibilityV2 =
       readonly explanation: string;
     };
 
-export const DETERMINISTIC_CORRECTION_OUTCOME_STATES_V2 = [
+const DETERMINISTIC_CORRECTION_OUTCOME_STATES_V2 = [
   'not-run',
   'completed',
   'failed',
 ] as const;
-export type DeterministicCorrectionOutcomeStateV2 =
-  (typeof DETERMINISTIC_CORRECTION_OUTCOME_STATES_V2)[number];
 
 export type DeterministicCorrectionOutcomeV2 =
   | {
@@ -175,8 +168,7 @@ export type DeterministicCorrectionOutcomeV2 =
       readonly evidencePreserved: true;
     };
 
-export const INSTITUTIONAL_RELEASE_STATES_V2 = ['blocked', 'eligible', 'released'] as const;
-export type InstitutionalReleaseStateV2 = (typeof INSTITUTIONAL_RELEASE_STATES_V2)[number];
+const INSTITUTIONAL_RELEASE_STATES_V2 = ['blocked', 'eligible', 'released'] as const;
 
 export type InstitutionalReleaseV2 =
   | {
@@ -364,5 +356,3 @@ export const RECONCILIATION_CONTRACT_V2 = {
   pilotAuthorityMode: 'imported-source',
   history: 'append-only-versioned-evidence-preserved',
 } as const;
-
-export type ReconciliationContractV2 = typeof RECONCILIATION_CONTRACT_V2;

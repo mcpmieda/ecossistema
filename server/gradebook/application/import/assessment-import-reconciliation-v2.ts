@@ -39,7 +39,7 @@ import {
   mapWithBoundedConcurrencyV1,
 } from './bounded-read-concurrency-v1';
 
-export type AssessmentComponentChangeStateV2 = 'unchanged' | 'new' | 'changed' | 'blocked';
+type AssessmentComponentChangeStateV2 = 'unchanged' | 'new' | 'changed' | 'blocked';
 
 interface AssessmentComponentPlanItemBaseV2 {
   readonly importFileId: ImportFileId;
@@ -104,7 +104,7 @@ export type AssessmentImportChangePlanV2 = ImportChangePlanV1 & {
   readonly assessmentComponentPlanV2: AssessmentComponentChangePlanV2;
 };
 
-export interface AssessmentDefinitionMaterializationAcceptedV2 {
+interface AssessmentDefinitionMaterializationAcceptedV2 {
   readonly components: readonly (
     MaterializedAssessmentComponentV2 | MaterializedAssessmentComponentV4
   )[];
@@ -114,7 +114,7 @@ export interface AssessmentDefinitionMaterializationAcceptedV2 {
   )[];
 }
 
-export interface AssessmentImportReconciliationFileInputV2 extends Omit<
+interface AssessmentImportReconciliationFileInputV2 extends Omit<
   ImportReconciliationFileInputV1,
   'records'
 > {
@@ -129,7 +129,7 @@ export interface AssessmentImportReconciliationFileInputV2 extends Omit<
   >[];
 }
 
-export interface AssessmentImportReconciliationInputV2 extends Omit<
+interface AssessmentImportReconciliationInputV2 extends Omit<
   ImportReconciliationInputV1,
   'files'
 > {
@@ -162,7 +162,7 @@ type AssociationPlanningRepositoryV2 =
     ) => Promise<readonly CurrentAssociationV2[]>;
   };
 
-export interface AssessmentImportReconciliationRepositoriesV2 extends ImportReconciliationRepositoriesV1 {
+interface AssessmentImportReconciliationRepositoriesV2 extends ImportReconciliationRepositoriesV1 {
   readonly entities: AssessmentEntityPlanningRepositoryV2;
   readonly academicRecords: AcademicRecordPlanningRepositoryV2;
   readonly logicalSourceRecords: AssociationPlanningRepositoryV2;

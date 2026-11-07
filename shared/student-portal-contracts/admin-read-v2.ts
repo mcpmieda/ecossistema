@@ -67,7 +67,7 @@ export const adminReadQueryV2 = z.object({
       [value.accountState, value.blocked, value.nameSearch, value.sessionView].every((field) => field === undefined)),
   'Seals are read for a record, a class or an explicit account batch');
 export const adminQueryRequestV2 = z.union([adminQueryV1, adminReadQueryV2]);
-export const adminAccessV2 = z.object({
+const adminAccessV2 = z.object({
   state: z.enum(['resolved', 'unresolved']), enabled: z.boolean().nullable(), source: policyScopeV1.nullable(),
   settingsVersion: versionV1.nullable(), accessPermitted: z.boolean(),
 }).strict();
@@ -86,7 +86,7 @@ export const adminAccountReadV2 = accountSummaryV1.extend({
 const base = { contractVersion: z.literal(2), requestId: portalIdV1, observedAt: instantV1 };
 const count = z.number().int().nonnegative().safe();
 export const ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 = 5_000;
-export const customizedSettingsRowV1 = z.object({
+const customizedSettingsRowV1 = z.object({
   id: z.string().regex(/^(?:class:2026:[1-9]\d*|shift:2026:(?:MATUTINO|VESPERTINO|NOTURNO)|account:2026:[0-9a-f-]{36})$/u),
   scope: policyScopeV1.refine((s) => s.kind !== 'school'), label: z.string().max(STUDENT_NAME_MAX_LENGTH_V1), classLabel: z.string().max(80),
   value: settingsOverrideV1, updatedAt: instantV1,

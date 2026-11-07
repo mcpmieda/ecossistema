@@ -11,7 +11,7 @@ function eligibilityStateOfV1(status: number | null | undefined, unresolved: boo
   return [3, 4, 5].includes(status ?? 0) ? 'exit' : 'eligible';
 }
 
-export const enrollmentStatusSchemaV1 = z.union([
+const enrollmentStatusSchemaV1 = z.union([
   z.null(),
   z.literal(1),
   z.literal(2),

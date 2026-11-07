@@ -9,11 +9,11 @@ export const SOURCE_SUBJECT_PRESENTATION_V1 = Object.freeze([
   ['CIENCIAS', 'C'], ['ARTE', 'A'], ['RELIGIAO', 'RL'], ['REDACAO', 'RD'],
   ['ED. FISICA', 'F'], ['ETICA', 'ET'], ['INGLES', 'I'], ['COMPUTACAO', 'CT'],
 ] as const);
-export const SOURCE_SUBJECT_ABBREVIATIONS_V1: Readonly<Record<string, string>> = Object.freeze(
+const SOURCE_SUBJECT_ABBREVIATIONS_V1: Readonly<Record<string, string>> = Object.freeze(
   Object.fromEntries(SOURCE_SUBJECT_PRESENTATION_V1));
 const SOURCE_SUBJECT_PRESENTATION_INDEX_V1 = new Map<string, number>(
   SOURCE_SUBJECT_PRESENTATION_V1.map(([name], index) => [name, index]));
-export function normalizeSourceSubjectNameV1(name: string): string {
+function normalizeSourceSubjectNameV1(name: string): string {
   return name.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').trim().replace(/\s+/gu, ' ').toUpperCase();
 }
 export function sourceSubjectPresentationOrderV1(name: string): number | null {

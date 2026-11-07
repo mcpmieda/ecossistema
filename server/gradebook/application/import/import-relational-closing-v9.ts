@@ -22,7 +22,7 @@ export interface RelationalClosingPatchV9 {
   readonly u?: GradebookImportCellV9;
 }
 
-export interface RelationalClosingChangeV9 {
+interface RelationalClosingChangeV9 {
   readonly campo: number;
   readonly oldValue: number | null;
   readonly newValue: number | null;
@@ -30,7 +30,7 @@ export interface RelationalClosingChangeV9 {
   readonly newState: number;
 }
 
-export interface RelationalClosingUpdateV9 {
+interface RelationalClosingUpdateV9 {
   readonly next: RelationalClosingStateV9;
   readonly changes: readonly RelationalClosingChangeV9[];
   readonly empty: boolean;

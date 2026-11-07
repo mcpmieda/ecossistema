@@ -20,7 +20,7 @@ import type {
 const DEFAULT_PAGE_SIZE = 100;
 const MAXIMUM_PAGE_SIZE = 100;
 
-export type ClassGroupCenterReadModelErrorCodeV1 =
+type ClassGroupCenterReadModelErrorCodeV1 =
   'invalid-page-size' | 'incompatible-repository-result' | 'cursor-cycle';
 
 const ERROR_MESSAGES: Record<ClassGroupCenterReadModelErrorCodeV1, string> = {
@@ -73,7 +73,7 @@ export interface ClassGroupCenterQueryV1 {
   ): Promise<ClassGroupCenterReadModelV1 | null>;
 }
 
-export interface ClassGroupCenterReadModelOptionsV1 {
+interface ClassGroupCenterReadModelOptionsV1 {
   readonly pageSize?: number;
 }
 

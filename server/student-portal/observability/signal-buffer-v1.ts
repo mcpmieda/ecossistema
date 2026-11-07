@@ -1,7 +1,7 @@
 import { portalSignalInputV1, signalCheckpointV1, signalKeyV1, SIGNAL_BUFFER_MS_V1,
   SIGNAL_INTERVAL_MS_V1, type PortalSignalBatchV1, type PortalSignalPointV1 } from '../../../shared/portal-signals-v1';
 
-export interface SignalCheckpointStoreV1 { read(): unknown; write(value: unknown): void }
+interface SignalCheckpointStoreV1 { read(): unknown; write(value: unknown): void }
 /** Best-effort observations, not a request ledger. A restart can lose the last 30 seconds. */
 export class PortalSignalBufferV1 {
   private readonly points = new Map<string, PortalSignalPointV1>();

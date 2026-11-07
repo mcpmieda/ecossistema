@@ -25,11 +25,8 @@ export const OPERATIONAL_WORKSPACE_STATES_V1 = [
   'unavailable',
   'not-authorized',
 ] as const;
-export type OperationalWorkspaceStateV1 = (typeof OPERATIONAL_WORKSPACE_STATES_V1)[number];
 
 export const OPERATIONAL_WORKSPACE_NAVIGATION_KINDS_V1 = GLOBAL_SEARCH_RESULT_KINDS_V1;
-export type OperationalWorkspaceNavigationKindV1 =
-  (typeof OPERATIONAL_WORKSPACE_NAVIGATION_KINDS_V1)[number];
 
 export interface OperationalWorkspaceAcademicYearOptionV1 {
   readonly id: AcademicYearId;

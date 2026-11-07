@@ -10,9 +10,9 @@ import type {
 export const COUNCIL_WORKSPACE_CONTRACT_VERSION_V1 = 1 as const;
 export const COUNCIL_WORKSPACE_REQUIRED_CAPABILITY_V1 =
   'gradebook.persistence.admin' satisfies PlatformCapability;
-export const COUNCIL_WORKSPACE_MIN_LIMIT_V1 = 1 as const;
+const COUNCIL_WORKSPACE_MIN_LIMIT_V1 = 1 as const;
 export const COUNCIL_WORKSPACE_MAX_LIMIT_V1 = 100 as const;
-export const COUNCIL_WORKSPACE_MAX_JUSTIFICATION_LENGTH_V1 = 4_000 as const;
+const COUNCIL_WORKSPACE_MAX_JUSTIFICATION_LENGTH_V1 = 4_000 as const;
 
 export const COUNCIL_QUEUE_STATES_V1 = [
   'follows-official-annual-result',
@@ -39,7 +39,7 @@ export const COUNCIL_LIST_NON_DISCLOSURE_OUTCOMES_V1 = [
   'unavailable',
   'insufficient-data',
 ] as const;
-export type CouncilListNonDisclosureOutcomeV1 =
+type CouncilListNonDisclosureOutcomeV1 =
   (typeof COUNCIL_LIST_NON_DISCLOSURE_OUTCOMES_V1)[number];
 
 export const COUNCIL_DETAIL_NON_DISCLOSURE_OUTCOMES_V1 = [
@@ -49,7 +49,7 @@ export const COUNCIL_DETAIL_NON_DISCLOSURE_OUTCOMES_V1 = [
   'unavailable',
   'insufficient-data',
 ] as const;
-export type CouncilDetailNonDisclosureOutcomeV1 =
+type CouncilDetailNonDisclosureOutcomeV1 =
   (typeof COUNCIL_DETAIL_NON_DISCLOSURE_OUTCOMES_V1)[number];
 
 export const COUNCIL_DECISION_FAILURE_OUTCOMES_V1 = [
@@ -61,7 +61,7 @@ export const COUNCIL_DECISION_FAILURE_OUTCOMES_V1 = [
   'unavailable',
   'insufficient-data',
 ] as const;
-export type CouncilDecisionFailureOutcomeV1 =
+type CouncilDecisionFailureOutcomeV1 =
   (typeof COUNCIL_DECISION_FAILURE_OUTCOMES_V1)[number];
 
 declare const councilClassReferenceBrand: unique symbol;
@@ -128,7 +128,7 @@ export interface CouncilCalculatedProjectionV1 {
   readonly reason: string;
 }
 
-export interface CouncilQueueItemV1 {
+interface CouncilQueueItemV1 {
   readonly studentReference: CouncilStudentReferenceV1;
   readonly studentLabel: string;
   readonly calculated: CouncilCalculatedProjectionV1;
@@ -177,7 +177,7 @@ export interface CouncilDecisionHistoryEntryV1 {
   readonly decidedAt: string;
 }
 
-export interface CouncilStudentDetailV1 {
+interface CouncilStudentDetailV1 {
   readonly studentReference: CouncilStudentReferenceV1;
   readonly studentLabel: string;
   readonly classReference: CouncilClassReferenceV1;
@@ -247,11 +247,6 @@ export type CouncilDecisionResponseV1 =
   | CouncilDecisionAppliedV1
   | CouncilDecisionVersionConflictV1
   | CouncilDecisionNonDisclosureV1;
-
-export type CouncilWorkspaceRequestV1 =
-  | CouncilQueueRequestV1
-  | CouncilStudentRequestV1
-  | CouncilDecisionRequestV1;
 export type CouncilWorkspaceResponseV1 =
   | CouncilQueueResponseV1
   | CouncilStudentResponseV1
@@ -262,20 +257,6 @@ export const COUNCIL_WORKSPACE_AUTHORIZATION_POLICY_V1 = {
   requiredCapability: COUNCIL_WORKSPACE_REQUIRED_CAPABILITY_V1,
   authorizationContext: 'server-issued-opaque',
   clientAuthorizationClaims: 'forbidden',
-} as const;
-
-export const COUNCIL_DECISION_POLICY_V1 = {
-  calculationSource: 'official-resolved-read-source',
-  decisionSource: 'explicit-human-record',
-  basis: 'class-council',
-  justification: 'required-for-every-version',
-  actorSource: 'server-authenticated-context',
-  decidedAtSource: 'server',
-  clientIdentityClaims: 'forbidden',
-  optimisticConcurrency: 'expected-version',
-  history: 'append-only-versioned',
-  persistence: 'provider-independent-local-preview-disposable',
-  crossRestartDurability: 'not-declared',
 } as const;
 
 export const COUNCIL_UNSUPPORTED_SEMANTICS_V1 = [
@@ -289,21 +270,6 @@ export const COUNCIL_UNSUPPORTED_SEMANTICS_V1 = [
   'consecutive-history-rule',
   'new-cut-tolerance-or-rounding',
 ] as const;
-
-export const COUNCIL_WORKSPACE_CONTRACT_V1 = {
-  version: COUNCIL_WORKSPACE_CONTRACT_VERSION_V1,
-  pagination: {
-    minimumLimit: COUNCIL_WORKSPACE_MIN_LIMIT_V1,
-    maximumLimit: COUNCIL_WORKSPACE_MAX_LIMIT_V1,
-    cursor: 'opaque',
-  },
-  annualPeriods: COUNCIL_ANNUAL_PERIODS_V1,
-  queueStates: COUNCIL_QUEUE_STATES_V1,
-  decisionSelections: COUNCIL_DECISION_SELECTIONS_V1,
-  authorization: COUNCIL_WORKSPACE_AUTHORIZATION_POLICY_V1,
-  decision: COUNCIL_DECISION_POLICY_V1,
-  unsupportedSemantics: COUNCIL_UNSUPPORTED_SEMANTICS_V1,
-} as const;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -330,9 +296,9 @@ function isDecisionSelection(value: unknown): value is CouncilDecisionSelectionV
   );
 }
 
-export type CouncilQueueRequestReadinessV1 = 'ready' | 'invalid-request' | 'invalid-cursor';
-export type CouncilStudentRequestReadinessV1 = 'ready' | 'invalid-request';
-export type CouncilDecisionRequestReadinessV1 = 'ready' | 'invalid-request';
+type CouncilQueueRequestReadinessV1 = 'ready' | 'invalid-request' | 'invalid-cursor';
+type CouncilStudentRequestReadinessV1 = 'ready' | 'invalid-request';
+type CouncilDecisionRequestReadinessV1 = 'ready' | 'invalid-request';
 
 export function inspectCouncilQueueRequestV1(value: unknown): CouncilQueueRequestReadinessV1 {
   if (!isObject(value)) return 'invalid-request';

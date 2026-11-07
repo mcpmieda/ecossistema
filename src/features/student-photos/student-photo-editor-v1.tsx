@@ -6,7 +6,7 @@ import { PhotoCropPanelV1 } from './crop-panel-v1';
 import type { PhotoDraftV1 } from './browser-v1';
 import './student-photos-v1.css';
 
-export interface StudentPhotoEditorPropsV1 {
+interface StudentPhotoEditorPropsV1 {
   ownerKey: string;
   onCancel(): void;
   /** Receives a local draft only. The caller owns server validation, CAS and persistence. */

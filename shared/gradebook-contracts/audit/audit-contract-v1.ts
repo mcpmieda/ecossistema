@@ -81,7 +81,7 @@ export type ReconciliationResultV1 =
       readonly explanation: string;
     });
 
-export type AuditSourceReferenceV1 =
+type AuditSourceReferenceV1 =
   | {
       readonly kind: 'file';
       readonly sourceFileManifestId: SourceFileManifestId;
@@ -177,5 +177,3 @@ export const AUDIT_CONTRACT_V1 = {
   reconciliationStatuses: RECONCILIATION_STATUSES_V1,
   occurrenceStates: AUDIT_OCCURRENCE_STATES_V1,
 } as const;
-
-export type AuditContractV1 = typeof AUDIT_CONTRACT_V1;

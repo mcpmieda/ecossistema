@@ -12,7 +12,7 @@ const transactionSchema=z.object({state:z.string().regex(/^collector\.[A-Za-z0-9
   nonce:z.string().regex(/^[A-Za-z0-9_-]{43}$/u),verifier:z.string().regex(/^[A-Za-z0-9_-]{64}$/u),
   exp:z.number().int().positive(),startedAt:z.number().int().positive(),pairingId:z.string().uuid()}).strict();
 export type CollectorOAuthTransactionV1=z.infer<typeof transactionSchema>;
-export class CollectorOAuthErrorV1 extends Error { constructor(){super('collector-login-denied');} }
+class CollectorOAuthErrorV1 extends Error { constructor(){super('collector-login-denied');} }
 
 const idTokenFailureReasons=new Map([
   ['Malformed ID token','malformed-token'],

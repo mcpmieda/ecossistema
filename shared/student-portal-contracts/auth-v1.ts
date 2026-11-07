@@ -17,7 +17,7 @@ export function isWeakPasswordV1(password: string): boolean {
   if (password.slice(0, 2).repeat(3) === password || password.slice(0, 3).repeat(2) === password) return true;
   return digits[0] === digits[1] && digits[2] === digits[3] && digits[4] === digits[5];
 }
-export const newPasswordV1 = passwordV1.refine((value) => !isWeakPasswordV1(value), 'Weak password');
+const newPasswordV1 = passwordV1.refine((value) => !isWeakPasswordV1(value), 'Weak password');
 export const qrUrlV1 = z.string().max(2048).refine((value) => {
   try {
     const url = new URL(value);
@@ -43,4 +43,3 @@ export const logoutResponseV1 = z.object({ ...input, requestId: portalIdV1, stat
 export const SESSION_COOKIE_V1 = { name: '__Host-student_portal_session', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' } as const;
 export const ACCESS_CLOSED_ACCEPT_HEADER_V1 = 'X-Student-Portal-Access-Status';
 export const AUTH_BODY_BYTES_V1 = 8192;
-export type ActivateRequestV1 = z.infer<typeof activateRequestV1>;

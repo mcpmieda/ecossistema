@@ -624,12 +624,6 @@ export function blockingGradebookImportDiagnosticsV1(
   return diagnostics.filter((value) => value.severity === 'blocking-error');
 }
 
-export function warningGradebookImportDiagnosticsV1(
-  diagnostics: readonly GradebookImportDiagnosticV1[],
-): readonly GradebookImportDiagnosticV1[] {
-  return diagnostics.filter((value) => value.severity === 'warning');
-}
-
 /** User-facing preflight stays intentionally narrower than the internal source diagnostics.
  * Technical/unavailable states still drive canonical preservation and audit replacement, but
  * only blocking errors and above-maximum warnings require operator attention.

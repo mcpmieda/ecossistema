@@ -27,21 +27,21 @@ import {
   type AuditWorkspaceSourceV1,
 } from './audit-workspace-source-v1';
 
-export interface AuditWorkspaceServerContextV1 {
+interface AuditWorkspaceServerContextV1 {
   /** Server authorization result; requests never carry roles or capabilities. */
   isAuthorized(): boolean;
   /** Effective identity and time used only for a validated resolution. */
   resolutionIdentity(): { readonly actorId: string; readonly occurredAt: string };
 }
 
-export interface ExistingImportChangePlanSourceV1 {
+interface ExistingImportChangePlanSourceV1 {
   getExistingImportChangePlan(
     academicYearId: AuditWorkspaceDetailRequestV1['academicYearId'],
     importBatchId: ImportBatchId,
   ): Promise<ImportChangePlanV1 | null>;
 }
 
-export interface AuditWorkspaceDependenciesV1 {
+interface AuditWorkspaceDependenciesV1 {
   readonly source: AuditWorkspaceSourceV1;
   readonly imports: Pick<ImportPersistenceRepositoryV1, 'getImportBatch'>;
   readonly audit: Pick<AuditPersistenceRepositoryV1, 'getCurrent' | 'appendVersion'>;
@@ -49,7 +49,7 @@ export interface AuditWorkspaceDependenciesV1 {
   readonly existingPlans?: ExistingImportChangePlanSourceV1;
 }
 
-export interface AuditWorkspaceV1 {
+interface AuditWorkspaceV1 {
   readonly authorizationPolicy: typeof AUDIT_WORKSPACE_AUTHORIZATION_POLICY_V1;
   list(request: AuditWorkspaceListRequestV1): Promise<AuditWorkspaceListResponseV1>;
   detail(request: AuditWorkspaceDetailRequestV1): Promise<AuditWorkspaceDetailResponseV1>;

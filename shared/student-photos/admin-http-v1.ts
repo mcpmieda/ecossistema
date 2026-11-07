@@ -14,11 +14,11 @@ export const photoAdminSubjectV1 = studentIdentityRequestV1.refine(value =>
   'Exactly one academic or account reference is required');
 export type PhotoAdminSubjectV1 = z.infer<typeof photoAdminSubjectV1>;
 export interface PhotoByteImagesV1 { portrait: Uint8Array | null; avatar: Uint8Array | null }
-export const photoWireImagesV1 = z.object({
+const photoWireImagesV1 = z.object({
   portrait: z.string().min(28).max(4 * Math.ceil(131072 / 3)).nullable(),
   avatar: z.string().min(28).max(4 * Math.ceil(65536 / 3)).nullable(),
 }).strict();
-export type PhotoWireImagesV1 = z.infer<typeof photoWireImagesV1>;
+type PhotoWireImagesV1 = z.infer<typeof photoWireImagesV1>;
 const requestFields = { version: z.literal(1), subject: photoAdminSubjectV1,
   command: photoWriteCommandV1, images: photoWireImagesV1 };
 export const photoAdminPreviewRequestV1 = z.object({ ...requestFields, qualities: photoQualitiesV1 }).strict()
@@ -37,8 +37,6 @@ export const photoAdminSaveRequestV1 = z.object({ ...requestFields, approval: ph
       if (value.approval && !sameCommand(value.command, value.approval.command)) throw new PhotoWriteErrorV1('conflict');
     } catch { ctx.addIssue({ code: 'custom', message: 'Invalid save request' }); }
   });
-export type PhotoAdminPreviewRequestV1 = z.infer<typeof photoAdminPreviewRequestV1>;
-export type PhotoAdminSaveRequestV1 = z.infer<typeof photoAdminSaveRequestV1>;
 
 export const photoAdminFailureStateV1 = z.enum(['unauthenticated', 'forbidden', 'invalid', 'too-large',
   'timeout', 'cancelled', 'conflict', 'busy', 'not-found', 'unavailable', 'disabled']);

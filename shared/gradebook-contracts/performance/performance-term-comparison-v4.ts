@@ -26,7 +26,6 @@ export const performanceTermComparisonRequestSchemaV4 = matrixRequest.extend({
   path: ['referencePeriod'],
 });
 export type PerformanceTermComparisonRequestV4 = z.infer<typeof performanceTermComparisonRequestSchemaV4>;
-export type PerformanceTermRelationV4 = 'higher' | 'equal' | 'lower';
 export type PerformanceReferencePeriodV4 = 1 | 2;
 
 const reason = z.enum([

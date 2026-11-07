@@ -9,12 +9,12 @@ import type {
   AcademicPersistenceContextV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 
-export interface ActiveAcademicContextServiceDependenciesV1 {
+interface ActiveAcademicContextServiceDependenciesV1 {
   readonly academicYearId: AcademicYearId;
   readonly entities: AcademicEntityRepositoryV1;
 }
 
-export interface ActiveAcademicContextServiceV1 {
+interface ActiveAcademicContextServiceV1 {
   getActiveContext(): Promise<AcademicContext2026V1>;
 }
 

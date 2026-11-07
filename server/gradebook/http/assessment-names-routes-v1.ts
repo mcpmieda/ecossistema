@@ -13,7 +13,7 @@ import { createAssessmentNamesServiceV1 } from '../application/settings/assessme
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
-export const ASSESSMENT_NAMES_ROUTE_V1 = '/api/gradebook/assessment-names';
+const ASSESSMENT_NAMES_ROUTE_V1 = '/api/gradebook/assessment-names';
 
 function response(value: AssessmentNamesResponseV1, status: number): Response {
   return Response.json(value, {

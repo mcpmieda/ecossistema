@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { decodeBase64Url, encodeBase64Url } from '../auth/base64url';
 
 const b64Coordinate = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
-export type CollectorProofPurposeV1 = 'collector-access'|'collector-revoke'|'collector-frequency';
+type CollectorProofPurposeV1 = 'collector-access'|'collector-revoke'|'collector-frequency';
 const PROOF_PATHS_V1 = { 'collector-access': 'access', 'collector-revoke': 'revoke', 'collector-frequency': 'frequency' } as const;
 /** Each purpose signs for exactly one route. */
 export function collectorProofPathV1(purpose: CollectorProofPurposeV1): string {
@@ -26,7 +26,7 @@ export type CollectorDeviceProofRecordV1 = Readonly<{
   deviceId: string; generation: number; tenantId: string; actorId: string;
   keyThumbprint: string; publicKey: CollectorPublicKeyV1; revokedAt: number | null;
 }>;
-export class CollectorDeviceProofErrorV1 extends Error {
+class CollectorDeviceProofErrorV1 extends Error {
   constructor() { super('collector-device-proof-denied'); }
 }
 
