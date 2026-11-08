@@ -8,9 +8,8 @@ import type { PhotoWriteDatabaseV1 } from '../../server/student-photos/write-rep
 
 const context = { actorId: '10000000-0000-4000-8000-000000000001', studentUid: '20000000-0000-4000-8000-000000000001' };
 const env = { PHOTO_STORAGE_SERVICE_KEY: 'x'.repeat(40) } as RuntimeEnv;
-function repositoryFor(legacy: unknown = null) {
+function repositoryFor() {
   const query = vi.fn(async (sql: string) => {
-    if (sql.includes('legacy_reference_v1')) return [{ data: legacy }];
     if (sql.includes('AS ready')) return [{ ready: 0 }];
     return [];
   });
@@ -19,15 +18,6 @@ function repositoryFor(legacy: unknown = null) {
 }
 
 describe('private Storage catalog', () => {
-  it('never adopts a linked legacy reference from a browser request', async () => {
-    const repository = repositoryFor({ accountId: context.studentUid, driveId: 'old', itemId: 'old',
-      etag: null, byteSize: 64, version: 1, contentType: 'image/webp' });
-    const initialize = vi.spyOn(repository, 'initialize');
-    const service = new PhotoCatalogServiceV1(env, repository, async () => undefined);
-    await expect(service.open(context, new AbortController().signal)).rejects.toThrow('student-photo-write-conflict');
-    expect(initialize).not.toHaveBeenCalled();
-  });
-
   it('initializes confirmed absence without reading the old provider', async () => {
     const repository = repositoryFor();
     vi.spyOn(repository, 'initialize').mockResolvedValue();
@@ -36,7 +26,7 @@ describe('private Storage catalog', () => {
       pendingRequest: null, pendingKind: null, pendingStage: null, ownPending: false, portalReady: false });
     const service = new PhotoCatalogServiceV1(env, repository, async () => undefined);
     expect((await service.open(context, new AbortController().signal)).initialized).toBe(true);
-    expect(repository.initialize).toHaveBeenCalledWith(context, null, null);
+    expect(repository.initialize).toHaveBeenCalledWith(context, null);
   });
 
   it('reads the exact private asset after authorization', async () => {
