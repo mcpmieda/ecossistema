@@ -148,14 +148,14 @@ export type GradebookImportRecognizedNoteV1 =
       readonly value: number;
     };
 
-export type GradebookImportAssessmentMaximumV1 =
+type GradebookImportAssessmentMaximumV1 =
   | { readonly state: 'numeric'; readonly rawValue: number }
   | { readonly state: 'ambiguous-empty'; readonly rawValue: null | '' }
   | { readonly state: 'ambiguous-marker'; readonly rawValue: '*' }
   | { readonly state: 'missing-field' }
   | { readonly state: 'unrecognized'; readonly rawValue: string | boolean };
 
-export type GradebookImportAssessmentNameV1 =
+type GradebookImportAssessmentNameV1 =
   | { readonly state: 'text'; readonly rawValue: string }
   | { readonly state: 'empty'; readonly rawValue: null | '' }
   | { readonly state: 'missing-field' }
@@ -172,7 +172,7 @@ export type GradebookImportAssessmentDefinitionV1 =
       readonly name: GradebookImportAssessmentNameV1;
     };
 
-export interface GradebookImportAssessmentValueV1 {
+interface GradebookImportAssessmentValueV1 {
   readonly sourceSlot: SourceAssessmentSlotV2;
   readonly value: GradebookImportRecognizedNoteV1;
 }

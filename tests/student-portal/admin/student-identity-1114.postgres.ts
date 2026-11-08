@@ -2,8 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { applyCurrentGradebookSchemaV1, assertCurrentGradebookSchemaV1 } from '../../../server/gradebook/recovery/current-gradebook-schema-v1.ts';
-import { assertStudentIdentitySchemaV1 } from '../../../server/student-identity/schema-state-v1.ts';
-import { resolveStudentIdentitiesV1 } from '../../../server/student-identity/resolve-student-identity-v1.ts';
+import { assertStudentIdentitySchemaV1 } from '../../student-identity/schema-state-helper.ts';
+import { resolveStudentIdentitiesV1 } from '../../student-identity/resolve-student-identity-helper.ts';
 
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
 if (target.protocol !== 'postgres:' || target.hostname !== '127.0.0.1'

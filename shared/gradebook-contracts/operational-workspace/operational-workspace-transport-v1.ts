@@ -45,7 +45,7 @@ export const OPERATIONAL_WORKSPACE_TRANSPORT_OPERATIONS_V1 = [
   'search',
 ] as const;
 
-export interface OperationalWorkspaceBootstrapRequestV1 {
+interface OperationalWorkspaceBootstrapRequestV1 {
   readonly contractVersion: typeof OPERATIONAL_WORKSPACE_TRANSPORT_VERSION_V1;
   readonly operation: 'bootstrap';
 }
@@ -55,37 +55,37 @@ interface OperationalWorkspaceCenterRequestBaseV1 {
   readonly academicYearId: AcademicYearId;
 }
 
-export interface OperationalWorkspaceStudentRequestV1
+interface OperationalWorkspaceStudentRequestV1
   extends OperationalWorkspaceCenterRequestBaseV1 {
   readonly operation: 'student';
   readonly id: StudentId;
 }
 
-export interface OperationalWorkspaceClassGroupRequestV1
+interface OperationalWorkspaceClassGroupRequestV1
   extends OperationalWorkspaceCenterRequestBaseV1 {
   readonly operation: 'class-group';
   readonly id: ClassGroupId;
 }
 
-export interface OperationalWorkspaceTeacherRequestV1
+interface OperationalWorkspaceTeacherRequestV1
   extends OperationalWorkspaceCenterRequestBaseV1 {
   readonly operation: 'teacher';
   readonly id: TeacherId;
 }
 
-export interface OperationalWorkspaceSubjectRequestV1
+interface OperationalWorkspaceSubjectRequestV1
   extends OperationalWorkspaceCenterRequestBaseV1 {
   readonly operation: 'subject';
   readonly id: SubjectId;
 }
 
-export interface OperationalWorkspaceSearchTransportRequestV1 {
+interface OperationalWorkspaceSearchTransportRequestV1 {
   readonly contractVersion: typeof OPERATIONAL_WORKSPACE_TRANSPORT_VERSION_V1;
   readonly operation: 'search';
   readonly request: GlobalSearchRequestV1;
 }
 
-export type OperationalWorkspaceTransportRequestV1 =
+type OperationalWorkspaceTransportRequestV1 =
   | OperationalWorkspaceBootstrapRequestV1
   | OperationalWorkspaceStudentRequestV1
   | OperationalWorkspaceClassGroupRequestV1
@@ -93,25 +93,25 @@ export type OperationalWorkspaceTransportRequestV1 =
   | OperationalWorkspaceSubjectRequestV1
   | OperationalWorkspaceSearchTransportRequestV1;
 
-export interface OperationalWorkspaceStudentLinkV1 {
+interface OperationalWorkspaceStudentLinkV1 {
   readonly kind: 'student';
   readonly id: StudentId;
   readonly label: string;
 }
 
-export interface OperationalWorkspaceClassGroupLinkV1 {
+interface OperationalWorkspaceClassGroupLinkV1 {
   readonly kind: 'class-group';
   readonly id: ClassGroupId;
   readonly label: string;
 }
 
-export interface OperationalWorkspaceTeacherLinkV1 {
+interface OperationalWorkspaceTeacherLinkV1 {
   readonly kind: 'teacher';
   readonly id: TeacherId;
   readonly label: string;
 }
 
-export interface OperationalWorkspaceSubjectLinkV1 {
+interface OperationalWorkspaceSubjectLinkV1 {
   readonly kind: 'subject';
   readonly id: SubjectId;
   readonly label: string;
@@ -123,41 +123,41 @@ type OperationalWorkspaceEntityLinkV1 =
   | OperationalWorkspaceTeacherLinkV1
   | OperationalWorkspaceSubjectLinkV1;
 
-export interface OperationalWorkspaceStudentStatusV1 {
+interface OperationalWorkspaceStudentStatusV1 {
   readonly id: StudentStatusEventId;
   readonly status: StudentStatusV1;
   readonly occurredOn?: string;
 }
 
-export interface OperationalWorkspaceStudentEnrollmentV1 {
+interface OperationalWorkspaceStudentEnrollmentV1 {
   readonly id: EnrollmentId;
   readonly position: EnrollmentPositionV1;
   readonly classGroup: OperationalWorkspaceClassGroupLinkV1 | null;
   readonly statusHistory: readonly OperationalWorkspaceStudentStatusV1[];
 }
 
-export interface OperationalWorkspaceStudentCenterViewV1 {
+interface OperationalWorkspaceStudentCenterViewV1 {
   readonly kind: 'student';
   readonly id: StudentId;
   readonly displayName: string;
   readonly enrollments: readonly OperationalWorkspaceStudentEnrollmentV1[];
 }
 
-export interface OperationalWorkspaceClassGroupStudentV1 {
+interface OperationalWorkspaceClassGroupStudentV1 {
   readonly id: EnrollmentId;
   readonly position: EnrollmentPositionV1;
   readonly student: OperationalWorkspaceStudentLinkV1 | null;
   readonly statusHistory: readonly OperationalWorkspaceStudentStatusV1[];
 }
 
-export interface OperationalWorkspaceTeachingAssignmentV1 {
+interface OperationalWorkspaceTeachingAssignmentV1 {
   readonly id: TeachingAssignmentId;
   readonly classGroup?: OperationalWorkspaceClassGroupLinkV1 | null;
   readonly teacher?: OperationalWorkspaceTeacherLinkV1 | null;
   readonly subject?: OperationalWorkspaceSubjectLinkV1 | null;
 }
 
-export interface OperationalWorkspaceClassGroupCenterViewV1 {
+interface OperationalWorkspaceClassGroupCenterViewV1 {
   readonly kind: 'class-group';
   readonly id: ClassGroupId;
   readonly code: string;
@@ -168,7 +168,7 @@ export interface OperationalWorkspaceClassGroupCenterViewV1 {
   readonly assignments: readonly OperationalWorkspaceTeachingAssignmentV1[];
 }
 
-export interface OperationalWorkspaceTeacherCenterViewV1 {
+interface OperationalWorkspaceTeacherCenterViewV1 {
   readonly kind: 'teacher';
   readonly id: TeacherId;
   readonly displayName: string;
@@ -176,7 +176,7 @@ export interface OperationalWorkspaceTeacherCenterViewV1 {
   readonly assignments: readonly OperationalWorkspaceTeachingAssignmentV1[];
 }
 
-export interface OperationalWorkspaceSubjectCenterViewV1 {
+interface OperationalWorkspaceSubjectCenterViewV1 {
   readonly kind: 'subject';
   readonly id: SubjectId;
   readonly code: string;

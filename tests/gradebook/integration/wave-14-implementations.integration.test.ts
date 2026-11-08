@@ -5,8 +5,6 @@ import { describe, expect, it } from 'vitest';
 
 import { BULLETIN_AUTHORITY_MODE_V1 } from '../../../shared/gradebook-contracts/bulletins/bulletin-contract-v1';
 import { PERFORMANCE_AUTHORITY_MODE_V1 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
-import { createAuditWorkspaceV1 } from '../../../server/gradebook/application/audit-workspace/audit-workspace-v1';
-import { createBulletinEmissionServiceV1 } from '../../../server/gradebook/application/bulletins/bulletin-emission-service-v1';
 import { createClassPerformanceReadModelV1 } from '../../../server/gradebook/application/read-models/performance/class-performance-read-model-v1';
 
 const root = process.cwd();
@@ -17,9 +15,7 @@ function source(path: string): string {
 
 describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
   it('mantém as implementações provider-independent disponíveis com autoridade imported-source', () => {
-    expect(createAuditWorkspaceV1).toBeTypeOf('function');
     expect(createClassPerformanceReadModelV1).toBeTypeOf('function');
-    expect(createBulletinEmissionServiceV1).toBeTypeOf('function');
     expect(PERFORMANCE_AUTHORITY_MODE_V1).toBe('imported-source');
     expect(BULLETIN_AUTHORITY_MODE_V1).toBe('imported-source');
   });

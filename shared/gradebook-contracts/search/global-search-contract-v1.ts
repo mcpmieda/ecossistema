@@ -18,9 +18,9 @@ export const GLOBAL_SEARCH_RESULT_KINDS_V1 = [
   'teacher',
   'subject',
 ] as const;
-export type GlobalSearchResultKindV1 = (typeof GLOBAL_SEARCH_RESULT_KINDS_V1)[number];
+type GlobalSearchResultKindV1 = (typeof GLOBAL_SEARCH_RESULT_KINDS_V1)[number];
 
-export const GLOBAL_SEARCH_RESULT_KIND_ORDER_V1 = GLOBAL_SEARCH_RESULT_KINDS_V1;
+const GLOBAL_SEARCH_RESULT_KIND_ORDER_V1 = GLOBAL_SEARCH_RESULT_KINDS_V1;
 export const GLOBAL_SEARCH_ORDER_V1 =
   'kind-presentation-id-ascending-code-unit' as const;
 const GLOBAL_SEARCH_MIN_LIMIT_V1 = 1 as const;

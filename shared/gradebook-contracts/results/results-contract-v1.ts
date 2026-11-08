@@ -62,7 +62,7 @@ export type AcademicGradeValueV1 =
       readonly reason: string;
     };
 
-export type SourceEvidenceSetV1 = readonly [SourceCellEvidenceV1, ...SourceCellEvidenceV1[]];
+type SourceEvidenceSetV1 = readonly [SourceCellEvidenceV1, ...SourceCellEvidenceV1[]];
 
 export interface ImportedGradeValueV1 {
   readonly value: AcademicGradeValueV1;

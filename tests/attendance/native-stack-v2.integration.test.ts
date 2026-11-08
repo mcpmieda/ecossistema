@@ -17,12 +17,17 @@ import {
   type PortalFrequencyYearReadV2,
 } from '../../server/attendance/service-v2';
 import { createYearResetServiceV1 } from '../../server/gradebook/application/settings/year-reset-v1';
-import { resolveReconciledSourceV1 } from '../../server/student-identity/reconciliation/resolve-source-v1';
+import { resolveReconciledSourcesV2 } from '../../server/student-identity/reconciliation/resolve-source-batch-v2';
 import type {
   FrequencyActorV2,
   FrequencyCollectionV2,
   FrequencySummaryV2,
 } from '../../shared/attendance-contracts/frequency-v2';
+
+const resolveOneSource = async (
+  tx: Parameters<typeof resolveReconciledSourcesV2>[0],
+  evidence: Parameters<typeof resolveReconciledSourcesV2>[1][number],
+) => (await resolveReconciledSourcesV2(tx, [evidence]))[0]!;
 
 const connection = process.env.ATTENDANCE_TEST_POSTGRES_URL ?? '';
 const native = connection ? describe : describe.skip;
@@ -209,11 +214,11 @@ native('frequency V2 complete native migration stack', () => {
       classLabel: '6A',
     };
     expect(
-      await database.transaction((tx) => resolveReconciledSourceV1(tx, evidence)),
+      await database.transaction((tx) => resolveOneSource(tx, evidence)),
     ).toMatchObject({ state: 'resolved', studentUid: uid });
     expect(
       await database.transaction((tx) =>
-        resolveReconciledSourceV1(tx, { ...evidence, academicYear: 2025 as 2026 }),
+        resolveOneSource(tx, { ...evidence, academicYear: 2025 as 2026 }),
       ),
     ).toEqual({ state: 'not_found', decisionVersion: 0 });
     const [acl] =

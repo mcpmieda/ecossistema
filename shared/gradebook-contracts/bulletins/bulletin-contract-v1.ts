@@ -89,7 +89,7 @@ export interface BulletinComparedApplicabilityV1 {
   readonly calculated: ComparedApplicabilityV1['calculated'];
 }
 
-export interface BulletinStudentIdentityV1 {
+interface BulletinStudentIdentityV1 {
   readonly id: StudentId;
   readonly enrollmentId: EnrollmentId;
   readonly displayName: string;
@@ -145,7 +145,7 @@ export interface BulletinTermCompositionV1 {
   readonly coverage: ResultCoverageV1;
 }
 
-export interface BulletinAssessmentEntryV1 {
+interface BulletinAssessmentEntryV1 {
   readonly assessmentComponentId: AssessmentComponentId;
   readonly gradeEntryId: GradeEntryId;
   readonly type: AssessmentComponentTypeV1 | AssessmentComponentTypeV2;

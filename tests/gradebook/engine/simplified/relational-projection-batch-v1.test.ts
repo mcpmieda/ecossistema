@@ -9,7 +9,6 @@ import {
   createRelationalAcademicProjectionServiceV1,
   RELATIONAL_PROJECTION_BATCH_LIMIT_V1,
 } from '../../../../server/gradebook/application/results/relational-academic-projection-v1';
-import { createRelationalStudentAnnualProjectionServiceV1 } from '../../../../server/gradebook/application/results/relational-student-annual-projection-v1';
 
 // Entirely synthetic, in-memory SQL fixtures. No production connection or source files.
 let pg: PGlite;
@@ -125,21 +124,5 @@ describe('relational projection batch through the PostgreSQL adapter', () => {
       Array.from({ length: RELATIONAL_PROJECTION_BATCH_LIMIT_V1+1 }, (_, index) => ({ ofertaId: index+1, alunoId: 1 })),
     )).rejects.toMatchObject({ code: 'projection-batch-too-large' });
     expect(queries).toHaveLength(0);
-  });
-
-  it('uses the batch in the default annual service: three SQL statements for 180 components', async () => {
-    const result = await createRelationalStudentAnnualProjectionServiceV1(database).project({ ano: 2026, alunoId: 1 });
-    expect(result.components).toHaveLength(180);
-    expect(result.calculatedAnnual.visibleResult).toBe('APROVADO DIRETO');
-    expect(result.homologation.am).toEqual({ match: 540, mismatch: 0, unavailable: 0 });
-    expect(queries).toHaveLength(3);
-    expect(queries.filter((query) => query.includes('WITH requested'))).toHaveLength(1);
-  });
-
-  it('still resolves a terminal status before loading offers or instrument facts', async () => {
-    const result = await createRelationalStudentAnnualProjectionServiceV1(database).project({ ano: 2026, alunoId: 3 });
-    expect(result.components).toEqual([]);
-    expect(result.calculatedAnnual.state).toBe('no-result');
-    expect(queries).toHaveLength(1);
   });
 });

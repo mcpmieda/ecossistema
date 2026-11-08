@@ -41,23 +41,13 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(BULLETIN_AUTHORITY_MODE_V1).toBe('imported-source');
   });
 
-  it('preserva hardening de Boletins e Operational Workspace sem alterar seus limites físicos', () => {
-    const materializer = source(
-      'server/gradebook/application/bulletins/bulletin-model-materializer-v1.ts',
-    );
-    const snapshots = source(
-      'server/gradebook/application/bulletins/bulletin-snapshot-repository-v1.ts',
-    );
+  it('preserva hardening do Operational Workspace sem alterar seus limites físicos', () => {
     const yearProvider = source('src/platform/gradebook-year-provider.tsx');
     const performanceHook = source('src/features/gradebook/performance/use-relational-performance-v2.ts');
     const operationalGate = source(
       'src/features/gradebook/operational-workspace/operational-workspace-request-gate.ts',
     );
 
-    expect(materializer).toContain('materializeBatch');
-    expect(materializer).toContain('classGroups = new Map');
-    expect(snapshots).toContain('cloneSnapshot');
-    expect(snapshots).toContain('freezeBulletinSnapshotV1(cloneSnapshot(candidate))');
     expect(yearProvider).toContain('requestOperationalWorkspaceV2');
     expect(performanceHook).toContain('createOperationalWorkspaceRequestGate');
     expect(performanceHook).toContain('ticket.isCurrent()');

@@ -54,7 +54,7 @@ export const SOURCE_ASSESSMENT_DEFINITION_KINDS_V2 = [
   'quantitative-assessment',
   'qualitative-activity',
 ] as const;
-export type SourceAssessmentDefinitionKindV2 =
+type SourceAssessmentDefinitionKindV2 =
   (typeof SOURCE_ASSESSMENT_DEFINITION_KINDS_V2)[number];
 
 export const SOURCE_ASSESSMENT_MAXIMUM_CONFIGURATION_STATES_V2 = [
@@ -153,10 +153,10 @@ export const SOURCE_ASSESSMENT_INSUFFICIENT_REASONS_V2 = [
   'name-missing-field',
   'name-unrecognized',
 ] as const;
-export type SourceAssessmentInsufficientReasonV2 =
+type SourceAssessmentInsufficientReasonV2 =
   (typeof SOURCE_ASSESSMENT_INSUFFICIENT_REASONS_V2)[number];
 
-export type SourceAssessmentDefinitionResolutionV2 =
+type SourceAssessmentDefinitionResolutionV2 =
   | {
       readonly state: 'resolved';
       readonly kind: SourceAssessmentDefinitionKindV2;

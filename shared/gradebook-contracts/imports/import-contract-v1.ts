@@ -40,7 +40,7 @@ export interface SourceFileManifestV1 {
   readonly confirmedTeacherId?: TeacherId;
 }
 
-export const IMPORT_FILE_STATUSES_V1 = [
+const IMPORT_FILE_STATUSES_V1 = [
   'received',
   'processing',
   'review-required',

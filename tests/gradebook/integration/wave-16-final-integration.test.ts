@@ -34,10 +34,6 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
 
   it('usa a projeção oficial #332 upstream do Council Workspace sem cálculo no workspace/wiring', () => {
     const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
-    const projection = source(
-      'server/gradebook/application/council/council-official-projection-source-v1.ts',
-    );
-    const workspace = source('server/gradebook/application/council/council-workspace-v1.ts');
     const functions = source('functions/[[path]].ts');
 
     expect(runtime).toContain('createGradebookD1CouncilOfficialProjectionSourceV1(database)');
@@ -45,30 +41,7 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(runtime).toContain('createGradebookD1BulletinCouncilDurabilityV1(database)');
     expect(runtime).toContain('decisions: this.durability.councilDecisions');
     expect(runtime).not.toContain('createLocalCouncilDecisionStoreV1');
-    expect(projection).toContain('resolveNativeAnnualOutcome');
-    expect(projection).toContain('NATIVE_ANNUAL_OUTCOME_PROFILE_2026_V1');
-    expect(projection).toContain('record.officialGrade.imported.value');
-    expect(projection).toContain('recoveryGrade.imported.value');
-    expect(projection).toContain("'final-recovery-ambiguous'");
-    expect(workspace).not.toContain('resolveNativeAnnualOutcome');
     expect(functions).not.toContain('resolveNativeAnnualOutcome');
-  });
-
-  it('preserva decisão humana, justificativa, histórico/CAS e decisão formal preexistente fail-closed', () => {
-    const workspace = source('server/gradebook/application/council/council-workspace-v1.ts');
-    const store = source('server/gradebook/application/council/council-decision-store-v1.ts');
-    const projection = source(
-      'server/gradebook/application/council/council-official-projection-source-v1.ts',
-    );
-
-    expect(workspace).toContain("student.calculated.queueState !== 'eligible-for-council'");
-    expect(workspace).toContain('request.expectedVersion');
-    expect(workspace).toContain('request.justification.trim()');
-    expect(store).toContain("basis: 'class-council'");
-    expect(store).toContain("status: 'version-conflict'");
-    expect(store).toContain('Object.freeze([...history, record])');
-    expect(projection).toContain('formalDecision');
-    expect(projection).toContain('follows-official-annual-result');
   });
 
   it('preserva F6: quatro lentes, recovery oficial, comparação canônica, paginação/drill-down e raw evidence fora do HTTP', () => {

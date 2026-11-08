@@ -3,7 +3,6 @@ import type {
   SourceCellProvenanceV1,
   SourceCellRawValueV1,
 } from './source-contract-v1';
-export const SNAPSHOT_ASSESSMENT_RULE_V5 = 'source-values-v5-assessment-entry-v1' as const;
 export type SnapshotSourceEvidenceV5 =
   | {
       readonly classification: 'snapshot-value';

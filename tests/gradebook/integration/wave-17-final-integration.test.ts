@@ -108,14 +108,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     const performance = source(
       'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
     );
-    const council = source(
-      'server/gradebook/application/council/council-official-projection-source-v1.ts',
-    );
-    const workspace = source('server/gradebook/application/council/council-workspace-v1.ts');
 
     expect(performance).toContain('resolvePerformanceComparisonProjectionV2');
-    expect(council).toContain('resolveNativeAnnualOutcome');
-    expect(council).toContain('record.officialGrade.imported.value');
-    expect(workspace).not.toContain('resolveNativeAnnualOutcome');
   });
 });

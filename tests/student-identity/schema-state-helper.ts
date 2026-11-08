@@ -1,5 +1,5 @@
-import type { CurrentGradebookRecoveryQueryV1 } from '../gradebook/recovery/current-gradebook-schema-v1.ts';
-import { GRADEBOOK_CURRENT_TABLES_V1 } from '../gradebook/recovery/current-gradebook-schema-v1.ts';
+import type { CurrentGradebookRecoveryQueryV1 } from '../../server/gradebook/recovery/current-gradebook-schema-v1.ts';
+import { GRADEBOOK_CURRENT_TABLES_V1 } from '../../server/gradebook/recovery/current-gradebook-schema-v1.ts';
 
 /** Exact Gradebook catalog after the existing foundation and the cross-module identity migration. */
 const STUDENT_IDENTITY_GRADEBOOK_CATALOG_V1 = {

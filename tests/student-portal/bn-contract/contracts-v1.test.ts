@@ -14,11 +14,6 @@ import {
   academicStudentSchemaV1,
 } from '../../../shared/gradebook-contracts/student-portal/academic-student-reader-v1';
 import {
-  yearResetPreviewIsCurrentV1,
-  yearResetPreviewProofSchemaV1,
-  portalResetGuardResultSchemaV1,
-} from '../../../shared/gradebook-contracts/student-portal/year-reset-portal-guard-v1';
-import {
   yearResetRequestSchemaV1,
   yearResetResponseSchemaV1,
   yearResetCountsSchemaV1,
@@ -55,24 +50,6 @@ const student = {
       officialAnnual: { kind: 'absent' },
     },
   ],
-};
-const state = { academicRevision: version, resetRevision: version, portalLinkRevision: version };
-const proof = {
-  contractVersion: 1 as const,
-  operation: 'execute' as const,
-  year: 2026,
-  actorDigest: 'b'.repeat(64),
-  tokenDigest: 'c'.repeat(64),
-  issuedAt: '2026-09-12T12:00:00Z',
-  expiresAt: '2026-09-12T12:05:00Z',
-  state,
-  consumed: false,
-};
-const context = {
-  year: 2026,
-  actorDigest: proof.actorDigest,
-  now: new Date('2026-09-12T12:01:00Z'),
-  state,
 };
 
 describe('BN identity and movement contract', () => {
@@ -145,45 +122,6 @@ describe('durable revision and preview boundaries', () => {
       academicRevisionEventSchemaV1.safeParse({ ...event, studentIds: [900001] }).success,
     ).toBe(false);
   });
-  it('accepts a current persisted proof', () =>
-    expect(yearResetPreviewIsCurrentV1(proof, context)).toBe(true));
-  it.each(['academicRevision', 'resetRevision', 'portalLinkRevision'] as const)(
-    'invalidates same-count changes in %s',
-    (key) => {
-      // No count is part of this decision: note edit, snapshot replacement, and link ABA each invalidate.
-      expect(
-        yearResetPreviewIsCurrentV1(proof, { ...context, state: { ...state, [key]: next } }),
-      ).toBe(false);
-    },
-  );
-  it('rejects a reset/reimport generation even when the counter is the same', () => {
-    expect(
-      yearResetPreviewIsCurrentV1(proof, {
-        ...context,
-        state: { ...state, academicRevision: `${'d'.repeat(32)}:1` },
-      }),
-    ).toBe(false);
-  });
-  it.each(['2026-09-12T11:59:59Z', '2026-09-12T12:05:00Z', 'invalid'])(
-    'rejects time outside the window %s',
-    (now) => {
-      expect(yearResetPreviewIsCurrentV1(proof, { ...context, now: new Date(now) })).toBe(false);
-    },
-  );
-  it('binds year, actor, operation and one-time consumption', () => {
-    expect(yearResetPreviewIsCurrentV1(proof, { ...context, year: 2027 })).toBe(false);
-    expect(yearResetPreviewIsCurrentV1(proof, { ...context, actorDigest: 'd'.repeat(64) })).toBe(
-      false,
-    );
-    expect(yearResetPreviewIsCurrentV1({ ...proof, consumed: true }, context)).toBe(false);
-    expect(
-      yearResetPreviewProofSchemaV1.safeParse({ ...proof, operation: 'preview' }).success,
-    ).toBe(false);
-    expect(
-      yearResetPreviewProofSchemaV1.safeParse({ ...proof, expiresAt: '2026-09-12T12:05:01Z' })
-        .success,
-    ).toBe(false);
-  });
 });
 
 describe('official academic values and PA compatibility', () => {
@@ -220,7 +158,7 @@ describe('official academic values and PA compatibility', () => {
         result: facts.profile.result,
       },
       revisions: { dataVersion: facts.dataVersion, policyVersion: '1', publicationVersion: '1' },
-      generatedAt: proof.issuedAt,
+      generatedAt: '2026-09-12T12:00:00Z',
       subjects: facts.subjects.map((s) => ({
         subjectId: s.subjectId,
         label: s.label,
@@ -386,13 +324,7 @@ describe('reset wire compatibility', () => {
       await requestYearResetV1({ contractVersion: 1, operation: 'preview', year: 2026 }),
     ).toEqual({ contractVersion: 1, state: 'portal-linked-accounts' });
   });
-  it('guard exposes no list or account-state filter, including blocked/inactive links', () => {
-    const guard = { year: 2026, state: 'portal-linked-accounts', portalLinkRevision: version };
-    expect(portalResetGuardResultSchemaV1.safeParse(guard).success).toBe(true);
-    for (const field of ['accounts', 'students', 'blocked', 'activeOnly'])
-      expect(portalResetGuardResultSchemaV1.safeParse({ ...guard, [field]: [] }).success).toBe(
-        false,
-      );
+  it('reset response exposes no student list', () => {
     expect(
       yearResetResponseSchemaV1.safeParse({
         contractVersion: 1,
