@@ -286,8 +286,8 @@ export async function assertCurrentGradebookSchemaV1(
        WHERE schemaname='gradebook' AND policyname='gradebook_app_backend_v1') AS policies`,
   );
   if (
-    integer(rls.enabled, 'gradebook-current-rls-enabled-invalid') !== 30 ||
-    integer(rls.policies, 'gradebook-current-rls-policies-invalid') !== 30
+    integer(rls.enabled, 'gradebook-current-rls-enabled-invalid') !== GRADEBOOK_CURRENT_CATALOG_V1.tables ||
+    integer(rls.policies, 'gradebook-current-rls-policies-invalid') !== GRADEBOOK_CURRENT_CATALOG_V1.tables
   ) {
     throw new Error('gradebook-current-rls-mismatch');
   }
