@@ -1,15 +1,5 @@
-import { ERROR_HTTP_V1, type FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
+import { type FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { STUDENT_PHOTO_CONTENT_PATH_V1, photoRevisionV1 } from '../../../shared/student-photos/portrait-v1';
-
-const PORTAL_AUTH_BODY_BYTES_V1 = 8192;
-const paths = new Map([
-  ['/api/student/auth/challenge', 'POST'],
-  ['/api/student/auth/activate', 'POST'],
-  ['/api/student/auth/login', 'POST'],
-  ['/api/student/auth/logout', 'POST'],
-  ['/api/student/session', 'GET'],
-  ['/api/student/me', 'GET'],
-]);
 export function portalFailureV1(state: FailureV1['state']): FailureV1 {
   return { contractVersion: 1, requestId: crypto.randomUUID(), state };
 }
@@ -23,9 +13,6 @@ export function portalJsonV1(value: unknown, status: number): Response {
       'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
     },
   });
-}
-function failure(state: FailureV1['state']): Response {
-  return portalJsonV1(portalFailureV1(state), ERROR_HTTP_V1[state]);
 }
 function securityQueryAllowedV1(url: URL): boolean {
   if (!url.search) return true;
@@ -101,53 +88,4 @@ export function portalDocumentNavigationAllowedV1(
   if (source !== null && source !== origin) return false;
   const destination = request.headers.get('sec-fetch-dest');
   return destination === null || destination === 'document';
-}
-async function bodyWithinLimit(request: Request): Promise<boolean> {
-  const length = request.headers.get('content-length');
-  if (length !== null && (!/^\d+$/u.test(length) || Number(length) > PORTAL_AUTH_BODY_BYTES_V1))
-    return false;
-  if (!request.body) return true;
-  const reader = request.body.getReader();
-  let bytes = 0;
-  try {
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) return true;
-      bytes += chunk.value.byteLength;
-      if (bytes > PORTAL_AUTH_BODY_BYTES_V1) {
-        await reader.cancel();
-        return false;
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-/** Foundation only: liveness is available; every business route remains fail-closed. */
-export async function servePortalFoundationV1(
-  request: Request,
-  environment: string,
-  origin: string,
-): Promise<Response> {
-  if (!portalRequestOriginAllowedV1(request, environment, origin)) return failure('forbidden');
-  const path = new URL(request.url).pathname;
-  if (path === '/healthz' && request.method === 'GET')
-    return portalJsonV1({ contractVersion: 1, state: 'ok' }, 200);
-  const method = paths.get(path);
-  if (!method) return portalJsonV1({ contractVersion: 1, state: 'unavailable' }, 404);
-  if (request.method !== method) return failure('invalid-request');
-  if (method === 'POST') {
-    if (
-      request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !==
-      'application/json'
-    )
-      return failure('invalid-request');
-    try {
-      if (!(await bodyWithinLimit(request))) return failure('body-too-large');
-    } catch {
-      return failure('invalid-request');
-    }
-  }
-  return failure('unavailable');
 }

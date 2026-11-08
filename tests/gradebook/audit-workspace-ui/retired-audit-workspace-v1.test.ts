@@ -44,13 +44,4 @@ describe('superfície aposentada do Audit Workspace V1', () => {
     expect(client).toContain("cache: 'no-store'");
   });
 
-  it('arquiva o runtime histórico e retira seu consumidor de Relatórios V1', () => {
-    const retired = source('server/gradebook/http/retired-reports-route.ts');
-    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
-
-    expect(retired).not.toContain('runtime.auditWorkspace(');
-    expect(retired).not.toContain('persistence/d1/');
-    expect(runtime).toContain('createAuditWorkspaceV1');
-    expect(runtime).toContain('GradebookD1AuditWorkspaceSourceV1');
-  });
 });

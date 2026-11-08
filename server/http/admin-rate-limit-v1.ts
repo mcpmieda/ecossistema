@@ -26,9 +26,7 @@ type RouteV1 = {
 const routes: Readonly<Record<string, RouteV1>> = {
   '/api/me': { methods: ['GET'], operation: 'read' },
   '/api/platform/bootstrap': { methods: ['GET'], operation: 'read' },
-  '/api/platform/snapshot': { methods: ['GET'], operation: 'read' },
   '/api/platform/snapshot-v2': { methods: ['GET'], operation: 'read' },
-  '/api/sharepoint/health': { methods: ['GET'], operation: 'read' },
   '/api/platform/settings/session': { methods: ['GET', 'POST'], operation: 'write' },
   '/api/platform/system-health': { methods: ['POST'], operation: 'read' },
   '/api/platform/system-health/history': { methods: ['POST'], operation: 'read' },
@@ -38,7 +36,6 @@ const routes: Readonly<Record<string, RouteV1>> = {
   '/api/platform/system-health/providers': { methods: ['POST'], operation: 'read' },
   '/api/gradebook/import-persistence': { methods: ['POST'], operation: 'import' },
   '/api/gradebook/import-diagnostics': { methods: ['GET', 'POST'], operation: 'import' },
-  '/api/gradebook/admin/persistence/status': { methods: ['GET'], operation: 'read' },
   '/api/gradebook/operational-workspace': {
     methods: ['POST'],
     operation: 'read',

@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  academicRevisionSchemaV1,
-  academicRevisionEventSchemaV1,
-  academicVersionSchemaV1,
-  portalAcademicLinkSchemaV1,
-} from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
+import { academicRevisionSchemaV1, academicVersionSchemaV1, portalAcademicLinkSchemaV1 } from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
 import {
   resolveEligibilityV1,
   eligibilitySchemaV1,
@@ -112,15 +107,6 @@ describe('durable revision and preview boundaries', () => {
     `${'a'.repeat(32)}:1.2`,
   ])('rejects noncanonical revision %s', (dataVersion) => {
     expect(academicVersionSchemaV1.safeParse(dataVersion).success).toBe(false);
-  });
-  it('carries a durable year-wide event without an incomplete student list', () => {
-    const revision = { contractVersion: 1, academicYear: 2026, dataVersion: version };
-    expect(academicRevisionSchemaV1.parse(revision)).toEqual(revision);
-    const event = { ...revision, eventId: id, cause: 'marks', scope: 'academic-year' };
-    expect(academicRevisionEventSchemaV1.safeParse(event).success).toBe(true);
-    expect(
-      academicRevisionEventSchemaV1.safeParse({ ...event, studentIds: [900001] }).success,
-    ).toBe(false);
   });
 });
 

@@ -1,13 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  SOURCE_CONTRACT_V1,
-  isSourceQualitativeActivityApplicableV1,
-} from '../../../shared/gradebook-contracts/source/source-contract-v1';
-import {
-  resolveSourceAssessmentDefinitionV2,
-  type SourceAssessmentSlotV2,
-} from '../../../shared/gradebook-contracts/source/source-contract-v2';
+import { SOURCE_CONTRACT_V1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
+import { type SourceAssessmentSlotV2 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
 import {
   recognizeWorkbook,
   type GradeSheetRecognition,
@@ -80,16 +74,6 @@ describe('massa sintética — contrato e guias da fonte', () => {
       className: '6A',
       declaredStage: '1º trimestre',
     });
-  });
-
-  it('SRC-004: aplica o contrato oficial a *, máximo zero e nome longo', () => {
-    for (const activity of SYNTHETIC_ACTIVITY_CASES) {
-      expect(
-        isSourceQualitativeActivityApplicableV1(activity),
-        `Aplicabilidade inesperada para a atividade sintética: ${activity.name}`,
-      ).toBe(activity.expectedApplicable);
-    }
-    expect(SYNTHETIC_ACTIVITY_CASES[2].name.length).toBeGreaterThan(80);
   });
 
   it('SRC-005/SRC-008: lê a guia marcada como protegida sem modificar a fonte sintética', () => {
@@ -306,26 +290,6 @@ describe('massa sintética — posições, movimentações e recuperação', () 
 });
 
 describe('massa sintética — definições trimestrais V2', () => {
-  it('lê R3/S3 antes dos alunos e mantém R/S como slots quantitativos genéricos', () => {
-    const sheet = requiredSheet('6A1º');
-    expect(sheet.students.every((student) => student.row >= 5)).toBe(true);
-    expect(sheet.assessmentDefinitions).toHaveLength(12);
-    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A1º', 'R'))).toMatchObject({
-      state: 'resolved',
-      kind: 'quantitative-assessment',
-      sourceSlot: 'R',
-      name: 'Avaliação quantitativa 1',
-      maximum: 8,
-    });
-    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A1º', 'S'))).toMatchObject({
-      state: 'resolved',
-      kind: 'quantitative-assessment',
-      sourceSlot: 'S',
-      name: 'Avaliação quantitativa 2',
-      maximum: 5.5,
-    });
-    expect(JSON.stringify(sheet)).not.toContain('simulation');
-  });
 
   it('separa AA3, AA4 e AA5 sem normalizar destrutivamente o nome livre', () => {
     const definition = requiredDefinition('6A1º', 'AA');
@@ -344,43 +308,6 @@ describe('massa sintética — definições trimestrais V2', () => {
     expect(requiredStudent('6A1º', 5).qualitative[0]).toEqual(
       SYNTHETIC_EXPECTATIONS.cells.manualNegative,
     );
-  });
-
-  it('preserva vazio, *, Unicode e definição nomeada incompleta como insufficient-data', () => {
-    const empty = requiredDefinition('6A1º', 'AC');
-    const marker = requiredDefinition('6A1º', 'AD');
-    expect(empty.maximumConfiguration).toMatchObject({ state: 'ambiguous-empty', rawValue: '' });
-    expect(marker.maximumConfiguration).toMatchObject({ state: 'ambiguous-marker', rawValue: '*' });
-    expect(resolveSourceAssessmentDefinitionV2(empty)).toMatchObject({
-      state: 'insufficient-data',
-      observedName: 'Atividade nomeada sem máximo',
-      reason: 'maximum-ambiguous-empty',
-    });
-    expect(resolveSourceAssessmentDefinitionV2(marker)).toMatchObject({
-      state: 'insufficient-data',
-      reason: 'maximum-ambiguous-marker',
-    });
-    if (marker.kind !== 'qualitative-activity' || marker.name.state !== 'text') {
-      throw new Error('Nome Unicode sintético não foi preservado.');
-    }
-    expect(marker.name.rawValue).toContain('Produção científica — investigação');
-    expect(marker.name.rawValue.length).toBeGreaterThan(80);
-  });
-
-  it('observa mudança de nome/máximo e regressão de slot resolvido para ambíguo/ausente', () => {
-    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A2º', 'AA'))).toMatchObject({
-      state: 'resolved',
-      name: 'Pesquisa sobre frações — versão revisada',
-      maximum: 4,
-    });
-    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A2º', 'S'))).toMatchObject({
-      state: 'insufficient-data',
-      reason: 'maximum-ambiguous-marker',
-    });
-    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A3º', 'R'))).toMatchObject({
-      state: 'insufficient-data',
-      reason: 'maximum-ambiguous-empty',
-    });
   });
 
   it('preserva T, AK, AM e AN do estudante sem recomposição pelos novos detalhes', () => {

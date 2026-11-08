@@ -1,12 +1,6 @@
 const FRONTEND_DIAGNOSTIC_VERSION_V1 = 1 as const;
 export const FRONTEND_DIAGNOSTIC_BODY_BYTES_V1 = 1_024;
 export const FRONTEND_DIAGNOSTIC_ROUTE_V1 = '/api/observability/frontend-diagnostic';
-export const FRONTEND_DIAGNOSTIC_ADMIN_CAPABILITY_V1 = 'platform.snapshot.read' as const;
-export const FRONTEND_DIAGNOSTIC_RATE_LIMIT_V1 = {
-  windowMs: 60_000,
-  maxReports: 6,
-} as const;
-export const FRONTEND_DIAGNOSTIC_DEDUPE_WINDOW_MS_V1 = 5 * 60_000;
 
 const FRONTEND_DIAGNOSTIC_AREAS_V1 = [
   'gradebook',
@@ -65,22 +59,4 @@ export function inspectFrontendDiagnosticSubmissionV1(
     typeof value.correlationId === 'string' &&
     UUID_V1.test(value.correlationId)
   );
-}
-
-/**
- * Future receiver boundary: bounded raw JSON, exact fields, no arbitrary text.
- * Returns null instead of echoing parse errors or rejected content.
- */
-export function parseFrontendDiagnosticSubmissionV1(
-  raw: string | null,
-): FrontendDiagnosticSubmissionV1 | null {
-  if (raw === null || raw.length === 0 || raw.length > FRONTEND_DIAGNOSTIC_BODY_BYTES_V1)
-    return null;
-  try {
-    const value: unknown = JSON.parse(raw);
-    if (!inspectFrontendDiagnosticSubmissionV1(value)) return null;
-    return value;
-  } catch {
-    return null;
-  }
 }

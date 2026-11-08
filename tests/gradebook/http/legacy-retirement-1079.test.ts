@@ -7,7 +7,6 @@ import { handleOperationalWorkspaceRequestV1 } from '../../../server/gradebook/h
 import { handlePerformanceRequestV1 } from '../../../server/gradebook/http/performance-routes-v1';
 import { handleBulletinRequestV1 } from '../../../server/gradebook/http/bulletin-routes-v1';
 import { handleCouncilWorkspaceRequestV1 } from '../../../server/gradebook/http/council-routes-v1';
-import { handleGradebookPersistenceAdminRequestV1 } from '../../../server/gradebook/http/persistence-admin-routes-v1';
 import { testEnv } from '../../fixtures';
 
 const retired = { state: 'retired' };
@@ -98,13 +97,3 @@ describe.each(cases)('legacy retirement #1079 $name', ({ path, handler, body, ex
   });
 });
 
-describe('migration retirement #1079', () => {
-  it.each(['local', 'preview', 'production'] as const)('returns 410 after guards without storage in %s', async (runtime) => {
-    const { env, access } = environment(runtime);
-    const response = await handleGradebookPersistenceAdminRequestV1(request('admin/persistence/migrations', env.OFFICIAL_ORIGIN, undefined), env);
-    expect(response?.status).toBe(410);
-    expect(response?.headers.get('Cache-Control')).toContain('no-store');
-    await expect(response?.json()).resolves.toMatchObject({ state: 'retired', provider: 'postgres' });
-    expect(access).not.toHaveBeenCalled();
-  });
-});

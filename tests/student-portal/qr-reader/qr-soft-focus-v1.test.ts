@@ -1,11 +1,22 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { qrSvgV1 } from '../../../src/features/student-portal-admin/credentials/qr-artifacts-v1';
 import {
   decodeQrPixelsV1,
   sharpenQrPixelsV1,
 } from '../../../src/features/student-portal/auth/qr-pixels-v1';
+import { qrMatrixV1 } from '../../../src/features/student-portal-admin/credentials/qr-artifacts-v1';
+import { qrLayerPathsV1 } from '../../../src/features/student-portal-admin/credentials/qr-shapes-v1';
+
+/** The printed card's QR as an SVG, drawn with the same shapes as the card. */
+function qrSvgV1(value: string): string {
+  const matrix = qrMatrixV1(value);
+  const size = matrix.size + 8;
+  const paths = qrLayerPathsV1(matrix)
+    .map((shape) => `<path d="${shape.path}" fill="${shape.dark ? 'black' : 'white'}"/>`)
+    .join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size * 8}" height="${size * 8}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="white"/>${paths}</svg>`;
+}
 
 // Invented, unsigned credential-shaped payload: the size of a real printed card's QR.
 const qr = `https://aluno.escolaieda.com/access#v1.${'Ab3_'.repeat(10)}Ab3.1.${'Zx9-'.repeat(10)}Zx9`;

@@ -78,12 +78,6 @@ export interface ComparedGradeValueV1 {
   readonly calculated: NativeEngineGradeValueV1;
 }
 
-const APPLICABILITY_STATES_V1 = [
-  'applicable',
-  'not-applicable',
-  'insufficient-data',
-] as const;
-
 export type ApplicabilityV1 =
   | {
       readonly state: 'applicable';
@@ -246,16 +240,3 @@ export interface AnnualResultV1 {
   readonly coverage: ResultCoverageV1;
   readonly ruleVersion: string;
 }
-
-export const RESULTS_CONTRACT_V1 = {
-  version: 1,
-  academicTerms: ACADEMIC_TERMS_V1,
-  assessmentComponentTypes: ASSESSMENT_COMPONENT_TYPES_V1,
-  authorityModes: AUTHORITY_MODES_V1,
-  gradeValueStates: GRADE_VALUE_STATES_V1,
-  applicabilityStates: APPLICABILITY_STATES_V1,
-  coverageStates: RESULT_COVERAGE_STATES_V1,
-  academicResultStates: ACADEMIC_RESULT_STATES_V1,
-  annualFinalDecisionOutcomes: ANNUAL_FINAL_DECISION_OUTCOMES_V1,
-  annualFinalDecisionBases: ANNUAL_FINAL_DECISION_BASES_V1,
-} as const;

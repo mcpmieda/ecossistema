@@ -1,5 +1,4 @@
 import type { AcademicYearId, TeacherId } from '../entities';
-import { SOURCE_CONTRACT_V1 } from '../source/source-contract-v1';
 import type { SourceContractV2 } from '../source/source-contract-v2';
 import type {
   SourceCellEvidenceV1,
@@ -136,10 +135,3 @@ export type ImportBatchResultV1 =
       readonly status: Exclude<ImportBatchStatusV1, 'approved'>;
       readonly summary: ImportBatchSummaryV1;
     });
-
-export const IMPORT_CONTRACT_V1 = {
-  version: 1,
-  sourceContractVersion: SOURCE_CONTRACT_V1.version,
-  fileStatuses: IMPORT_FILE_STATUSES_V1,
-  batchStatuses: IMPORT_BATCH_STATUSES_V1,
-} as const;

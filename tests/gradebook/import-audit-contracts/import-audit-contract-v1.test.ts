@@ -7,22 +7,14 @@ import type {
 } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import { SOURCE_CONTRACT_V1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 import type { SourceCellEvidenceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
-import {
-  AUDIT_CONTRACT_V1,
-  AUDIT_OCCURRENCE_STATES_V1,
-  AUDIT_SEVERITIES_V1,
-  RECONCILIATION_STATUSES_V1,
-} from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
+import { AUDIT_OCCURRENCE_STATES_V1, AUDIT_SEVERITIES_V1, RECONCILIATION_STATUSES_V1 } from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
 import type {
   AuditOccurrenceId,
   AuditOccurrenceV1,
   ReconciliationResultId,
   ReconciliationResultV1,
 } from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
-import {
-  IMPORT_BATCH_STATUSES_V1,
-  IMPORT_CONTRACT_V1,
-} from '../../../shared/gradebook-contracts/imports/import-contract-v1';
+import { IMPORT_BATCH_STATUSES_V1 } from '../../../shared/gradebook-contracts/imports/import-contract-v1';
 import type {
   ImportBatchResultV1,
   ImportFileDiagnosticV1,
@@ -285,31 +277,5 @@ describe('import, reconciliation and audit contracts v1', () => {
       occurredAt: '2026-08-31T17:02:00Z',
       justification: 'Evidência sintética revisada e reconciliada.',
     });
-  });
-
-  it('publishes one stable vocabulary for batch, severity, reconciliation and resolution states', () => {
-    expect(IMPORT_BATCH_STATUSES_V1).toEqual([
-      'received',
-      'processing',
-      'review-required',
-      'partially-approved',
-      'approved',
-      'rejected',
-      'failed',
-    ]);
-    expect(AUDIT_SEVERITIES_V1).toEqual([
-      'information',
-      'warning',
-      'blocking-error',
-      'critical-error',
-    ]);
-    expect(AUDIT_OCCURRENCE_STATES_V1).toEqual([
-      'open',
-      'acknowledged',
-      'resolved',
-      'dismissed-with-reason',
-    ]);
-    expect(IMPORT_CONTRACT_V1.sourceContractVersion).toBe(SOURCE_CONTRACT_V1.version);
-    expect(AUDIT_CONTRACT_V1.reconciliationStatuses).toBe(RECONCILIATION_STATUSES_V1);
   });
 });

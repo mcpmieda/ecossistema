@@ -78,7 +78,7 @@ export default {
       PROD_DB: bindings.PROD_DB,
     } as unknown as RuntimeEnv; // Generated production literal types; validateEnv still validates this synthetic runtime.
     if (
-      ['/api/platform/snapshot', '/api/platform/bootstrap', '/api/platform/snapshot-v2'].includes(input.path) &&
+      ['/api/platform/bootstrap', '/api/platform/snapshot-v2'].includes(input.path) &&
       !input.anonymous &&
       (input.role ?? 'ADMINISTRADOR') === 'ADMINISTRADOR'
     ) {

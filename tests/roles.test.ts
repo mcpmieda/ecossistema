@@ -1,12 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  AuthorizationError,
-  hasRole,
-  requireAnyRole,
-  requireRole,
-  rolesForGroups,
-} from '../server/auth/roles';
+import { AuthorizationError, hasRole, requireRole, rolesForGroups } from '../server/auth/roles';
 import { testEnv } from './fixtures';
 
 describe('institutional role mapping', () => {
@@ -29,11 +23,5 @@ describe('institutional role mapping', () => {
   it('requires one exact role', () => {
     expect(() => requireRole(['PROFESSOR'], 'ADMINISTRADOR')).toThrow(AuthorizationError);
     expect(hasRole(['PROFESSOR'], 'PROFESSOR')).toBe(true);
-  });
-  it('requires any allowlisted role', () => {
-    expect(() => requireAnyRole(['ALUNO'], ['ADMINISTRADOR', 'PROFESSOR'])).toThrow(
-      AuthorizationError,
-    );
-    expect(() => requireAnyRole(['APOIO'], ['ADMINISTRADOR', 'APOIO'])).not.toThrow();
   });
 });

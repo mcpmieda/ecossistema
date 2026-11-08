@@ -1,14 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  SOURCE_CELL_CLASSIFICATIONS_V1,
-  SOURCE_CONTRACT_V1,
-  SOURCE_STAGES_V1,
-  isSourceQualitativeActivityApplicableV1,
-  parseSourceGradeSheetNameV1,
-  type SourceCellEvidenceV1,
-  type SourceCellProvenanceV1,
-} from '../../../shared/gradebook-contracts/source/source-contract-v1';
+import { SOURCE_CELL_CLASSIFICATIONS_V1, SOURCE_CONTRACT_V1, SOURCE_STAGES_V1, type SourceCellEvidenceV1, type SourceCellProvenanceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 
 const provenance: SourceCellProvenanceV1 = {
   fileName: 'professor-sintetico.xlsx',
@@ -18,30 +10,6 @@ const provenance: SourceCellProvenanceV1 = {
 };
 
 describe('SourceContractV1 — estrutura da fonte', () => {
-  it('SRC-001: representa D1 sem sufixo sem ambiguidade', () => {
-    expect(parseSourceGradeSheetNameV1('6AVG')).toEqual({
-      classGroup: '6A',
-      stage: 'VG',
-      disciplineIndex: 'D1',
-      explicitDisciplineSuffix: null,
-    });
-    expect(parseSourceGradeSheetNameV1('6A1ºD1')).toBeNull();
-  });
-
-  it('SRC-002: representa D2 e D3 por sufixo explícito', () => {
-    expect(parseSourceGradeSheetNameV1('6A1ºD2')).toEqual({
-      classGroup: '6A',
-      stage: '1º',
-      disciplineIndex: 'D2',
-      explicitDisciplineSuffix: 'D2',
-    });
-    expect(parseSourceGradeSheetNameV1('6ARECD3')).toEqual({
-      classGroup: '6A',
-      stage: 'REC',
-      disciplineIndex: 'D3',
-      explicitDisciplineSuffix: 'D3',
-    });
-  });
 
   it('SRC-003: codifica metadados, alunos, trimestres e REC nos locais confirmados', () => {
     expect(SOURCE_STAGES_V1).toEqual(['VG', '1º', '2º', '3º', 'REC']);
@@ -79,16 +47,6 @@ describe('SourceContractV1 — estrutura da fonte', () => {
       recoveryAppliesToTerm2: 'AD',
       recoveryAppliesToTerm3: 'AE',
     });
-  });
-
-  it('SRC-004: considera atividade qualitativa aplicável somente com máximo positivo e nome diferente de *', () => {
-    expect(isSourceQualitativeActivityApplicableV1({ name: 'Atividade 1', maximum: 10 })).toBe(
-      true,
-    );
-    expect(isSourceQualitativeActivityApplicableV1({ name: '*', maximum: 10 })).toBe(false);
-    expect(isSourceQualitativeActivityApplicableV1({ name: 'Atividade 1', maximum: 0 })).toBe(
-      false,
-    );
   });
 });
 

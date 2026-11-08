@@ -16,13 +16,3 @@ export const academicRevisionSchemaV1 = z
   })
   .strict();
 export type PortalAcademicLinkV1 = z.infer<typeof portalAcademicLinkSchemaV1>;
-
-export const academicRevisionEventSchemaV1 = z
-  .object({
-    ...academicRevisionSchemaV1.shape,
-    eventId: z.uuid(),
-    cause: z.enum(['relation', 'marks', 'council', 'academic-policy']),
-    // Year-wide invalidation avoids incomplete affected-student lists.
-    scope: z.literal('academic-year'),
-  })
-  .strict();

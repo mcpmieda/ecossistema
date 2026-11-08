@@ -6,15 +6,7 @@ import {
   normalizeStudentNameV1,
   parseCivilDateV1,
 } from '../../shared/student-identity/reconciliation-normalization-v1';
-import {
-  adoptedStudentNameV1,
-  compareReconciliationFieldV1,
-  planStudentReconciliationV1,
-  reportContentV1,
-  type ReconciliationReportRowV1,
-  type ReconciliationSourceV1,
-  type ReconciliationStudentV1,
-} from '../../server/student-identity/reconciliation/domain-v1';
+import { compareReconciliationFieldV1, planStudentReconciliationV1, reportContentV1, type ReconciliationReportRowV1, type ReconciliationSourceV1, type ReconciliationStudentV1 } from '../../server/student-identity/reconciliation/domain-v1';
 import { normalizeRelationNameV9 } from '../../server/gradebook/application/import/import-relational-relation-plan-v9';
 
 const today = '2026-10-11';
@@ -572,16 +564,5 @@ describe('conciliação determinística por pessoa e origem', () => {
     expect(reportContentV1(rows)).toBe(reportContentV1([...rows].reverse()));
     expect(reportContentV1(rows)).not.toBe(reportContentV1([rows[0]!]));
     expect(reportContentV1([row()])).not.toBe(reportContentV1([row({ name: 'Aluna teste' })]));
-  });
-  it('fonte do nome não muda dados de identidade nem usa similaridade', () => {
-    expect(adoptedStudentNameV1('relation', 'Maria Sintética', 'Marina Sintética')).toBe(
-      'Maria Sintética',
-    );
-    expect(adoptedStudentNameV1('report', 'Maria Sintética', 'Marina Sintética')).toBe(
-      'Marina Sintética',
-    );
-    expect(adoptedStudentNameV1('relation', null, 'Marina Sintética')).toBe('Marina Sintética');
-    expect(adoptedStudentNameV1('report', 'Maria Sintética', null)).toBe('Maria Sintética');
-    expect(plan([row({ nameKey: 'ALUNO TESTE' })]).rows[0]?.studentUid).toBeNull();
   });
 });

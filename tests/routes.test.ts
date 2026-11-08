@@ -301,29 +301,3 @@ describe('administrative session settings', () => {
   });
 });
 
-describe('platform snapshot authorization', () => {
-  it('rejects requests without an authenticated session', async () => {
-    const response = await invoke(await authenticatedRequest('/api/platform/snapshot'));
-
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toMatchObject({ error: 'Unauthorized' });
-  });
-
-  it('rejects authenticated users without platform.snapshot.read', async () => {
-    const response = await invoke(
-      await authenticatedRequest('/api/platform/snapshot', ['PROFESSOR']),
-    );
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ error: 'Forbidden' });
-  });
-
-  it('rejects SharePoint health when platform.health.read is absent', async () => {
-    const response = await invoke(
-      await authenticatedRequest('/api/sharepoint/health', ['PROFESSOR']),
-    );
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ error: 'Forbidden' });
-  });
-});

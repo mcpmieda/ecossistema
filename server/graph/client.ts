@@ -89,29 +89,6 @@ export async function graphRequest<T>(input: {
   return { data: data as T, etag: response.headers.get('ETag'), correlationId };
 }
 
-export async function graphContentRequest(input: {
-  env: RuntimeEnv; path: string; method: 'GET' | 'PUT'; body?: Uint8Array; contentType?: string;
-  correlationId?: string; dependencies?: GraphDependencies; token?: string;
-  credentialSlot?: GraphCredentialSlot; signal?: AbortSignal;
-}): Promise<{ response: Response; correlationId: string }> {
-  const url = graphUrlV1(input.path);
-  if (input.method === 'PUT' && !input.contentType) throw new Error('Graph binary PUT requires contentType');
-  const dependencies = input.dependencies ?? graphDefaultsV1;
-  input.signal?.throwIfAborted();
-  const token = input.token ?? await getGraphToken(input.env, dependencies, input.credentialSlot);
-  const correlationId = input.correlationId ?? crypto.randomUUID();
-  let body: ArrayBuffer | undefined;
-  if (input.body !== undefined) {
-    const stable = new Uint8Array(input.body.byteLength); stable.set(input.body); body = stable.buffer;
-  }
-  const headers = new Headers({ Authorization: `Bearer ${token}`, 'client-request-id': correlationId, 'return-client-request-id': 'true' });
-  if (input.contentType) headers.set('Content-Type', input.contentType);
-  const response = await graphFetchV1({ url, dependencies, correlationId, signal: input.signal,
-    attemptTimeoutMs: 30_000, budgetMs: 45_000, allowContentRedirect: true,
-    init: { method: input.method, headers, body } });
-  return { response, correlationId };
-}
-
 /** The next page, absent on the last one; anything but a non-empty link is a broken page. */
 function nextPageV1(link: unknown, correlationId: string): string | null {
   if (link !== undefined && (typeof link !== 'string' || !link)) throw new GraphError(502, correlationId);
@@ -144,10 +121,4 @@ export async function graphAllPages<T>(env: RuntimeEnv, initialPath: string, tok
     next = nextPageV1(result.data['@odata.nextLink'], correlationId);
   }
   return values;
-}
-
-export async function graphBatch(env: RuntimeEnv,
-  requests: Array<{ id: string; method: string; url: string }>): Promise<unknown> {
-  if (requests.length === 0 || requests.length > 20) throw new Error('Graph batch requires 1 to 20 requests');
-  return (await graphRequest<unknown>({ env, path: '/$batch', method: 'POST', body: { requests } })).data;
 }

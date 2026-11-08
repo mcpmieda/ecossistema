@@ -524,11 +524,3 @@ export function planStudentReconciliationV1(input: {
     });
   return { rows, profiles };
 }
-
-export function adoptedStudentNameV1(
-  source: 'relation' | 'report',
-  relationName: string | null,
-  reportName: string | null,
-): string | null {
-  return source === 'relation' ? (relationName ?? reportName) : (reportName ?? relationName);
-}

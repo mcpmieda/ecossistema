@@ -2,16 +2,8 @@ export const SOURCE_FILE_EXTENSIONS_V1 = ['xlsb', 'xlsx', 'xls'] as const;
 export type SourceFileExtensionV1 = (typeof SOURCE_FILE_EXTENSIONS_V1)[number];
 
 export const SOURCE_STAGES_V1 = ['VG', '1º', '2º', '3º', 'REC'] as const;
-type SourceStageV1 = (typeof SOURCE_STAGES_V1)[number];
 
 export type SourceDisciplineIndexV1 = `D${number}`;
-
-type SourceGradeSheetIdentityV1 = {
-  classGroup: string;
-  stage: SourceStageV1;
-  disciplineIndex: SourceDisciplineIndexV1;
-  explicitDisciplineSuffix: SourceDisciplineIndexV1 | null;
-};
 
 export const SOURCE_CELL_MAP_V1 = {
   metadata: {
@@ -160,27 +152,3 @@ export const SOURCE_CONTRACT_V1 = {
 } as const;
 
 export type SourceContractV1 = typeof SOURCE_CONTRACT_V1;
-
-export function parseSourceGradeSheetNameV1(sheetName: string): SourceGradeSheetIdentityV1 | null {
-  const match = /^(.*?)(VG|1º|2º|3º|REC)(?:D([2-9]|[1-9]\d+))?$/u.exec(sheetName);
-  if (!match?.[1] || !match[2]) return null;
-
-  const stage = match[2] as SourceStageV1;
-  const explicitDisciplineSuffix = match[3]
-    ? (`D${match[3]}` as SourceDisciplineIndexV1)
-    : null;
-
-  return {
-    classGroup: match[1],
-    stage,
-    disciplineIndex: explicitDisciplineSuffix ?? 'D1',
-    explicitDisciplineSuffix,
-  };
-}
-
-export function isSourceQualitativeActivityApplicableV1(input: {
-  name: string;
-  maximum: number;
-}): boolean {
-  return input.maximum > 0 && input.name.trim() !== '*';
-}

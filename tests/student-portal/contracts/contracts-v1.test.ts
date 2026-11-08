@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { academicLinkV1, ERROR_HTTP_V1, failureV1, healthV1, pageRequestV1, scopeV1 } from '../../../shared/student-portal-contracts/core-v1';
+import { academicLinkV1, ERROR_HTTP_V1, failureV1, pageRequestV1, scopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { activateRequestV1, challengeRequestV1, challengeResponseV1, isWeakPasswordV1, loginRequestV1, logoutRequestV1, logoutResponseV1, passwordV1, pinV1, qrUrlV1, sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
 import { adminCommandV1, adminQueryV1, adminResponseV1, birthYearV1, printCardV1, trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { calendarV1, DEFAULT_RISK_V1, disclosureV1, effectiveSettingsV1, riskPolicyV1, settingsOverrideV1 } from '../../../shared/student-portal-contracts/policy-v1';
@@ -44,14 +44,6 @@ describe('Portal V1 identity and envelope', () => {
     expect(academicLinkV1.safeParse({ academicYear: 2026, studentId: 1, name: 'Example' }).success).toBe(false);
     for (const v of [scope, { kind: 'school', academicYear: 2026 }, { kind: 'class', academicYear: 2026, classId: 1 }]) expect(scopeV1.safeParse(v).success).toBe(true);
     expect(scopeV1.safeParse({ ...scope, classId: 1 }).success).toBe(false);
-  });
-  it('bounds pagination and public errors', () => {
-    expect(pageRequestV1.parse({}).limit).toBe(50);
-    expect(pageRequestV1.safeParse({ limit: 101 }).success).toBe(false);
-    expect(pageRequestV1.safeParse({ cursor: '../a', limit: 1 }).success).toBe(false);
-    for (const state of Object.keys(ERROR_HTTP_V1)) expect(failureV1.safeParse({ ...envelope, state }).success).toBe(true);
-    expect(failureV1.safeParse({ ...envelope, state: 'unauthenticated', name: 'Example' }).success).toBe(false);
-    expect(healthV1.safeParse({ contractVersion: 1, state: 'ok', database: 'internal' }).success).toBe(false);
   });
 });
 

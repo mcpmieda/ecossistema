@@ -100,11 +100,9 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'operational-workspace',
       'performance',
       'bulletins',
-      'reports',
       'council-workspace',
     ])
       expect(map).toContain(`/api/gradebook/${endpoint}`);
-    expect(map).toContain('handleGradebookPersistenceAdminRequestV1');
     expect(map).toContain('não é homologação visual conjunta');
     expect(map).not.toContain('/api/gradebook/audit-workspace');
     expect(map).toContain('UI e endpoint dedicado retirados pela #664');

@@ -168,10 +168,3 @@ export type AuditOccurrenceV1 =
         AuditDismissedTransitionV1,
       ];
     });
-
-export const AUDIT_CONTRACT_V1 = {
-  version: 1,
-  severities: AUDIT_SEVERITIES_V1,
-  reconciliationStatuses: RECONCILIATION_STATUSES_V1,
-  occurrenceStates: AUDIT_OCCURRENCE_STATES_V1,
-} as const;

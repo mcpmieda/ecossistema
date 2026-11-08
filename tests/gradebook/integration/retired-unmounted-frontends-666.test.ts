@@ -59,7 +59,6 @@ describe('frontends antigos sem montagem aposentados na #666', () => {
       'handleOperationalWorkspaceRequestV1',
       'handlePerformanceRequestV1',
       'handleBulletinRequestV1',
-      'handleRetiredGradebookReportsRequest',
       'handleCouncilWorkspaceRequestV1',
     ]) {
       expect(functions).toContain(handler);
