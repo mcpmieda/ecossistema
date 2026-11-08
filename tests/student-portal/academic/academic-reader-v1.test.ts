@@ -95,7 +95,17 @@ describe('official academic snapshot and self allowlist', () => {
     expect(result!.profile.annualSituation).toBe('failed-repeat');
   });
 
+  it('ignores an old Council decision while the student does not go to the Council', async () => {
+    // Recovery still pending: the student is not at the Council, so the decision does not show.
+    await pg.exec("INSERT INTO gradebook.conselho_decisao(aluno_id,decisao,justificativa,registrado_por) VALUES (910001,2,'SYNTHETIC ONLY','11111111-1111-4111-8111-111111111111')");
+    const pending = await reader.readOfficial(link, revision);
+    expect(pending?.profile.result).not.toBe('failed');
+    expect(pending?.profile.annualSituation).not.toBe('failed-by-council');
+  });
+
   it('applies formal attendance decision only to regular/7 and keeps assisted without global outcome', async () => {
+    // Zero in every applicable recovery: the student fails and goes to the Council.
+    await pg.exec('UPDATE gradebook.fechamento SET rec1=0,rec2=0,rec3=0 WHERE aluno_id=910001');
     await pg.exec("INSERT INTO gradebook.conselho_decisao(aluno_id,decisao,justificativa,registrado_por) VALUES (910001,3,'SYNTHETIC ONLY','11111111-1111-4111-8111-111111111111')");
     expect((await reader.readOfficial(link, revision))?.profile).toMatchObject({ result: 'failed-attendance', annualSituation: 'failed-by-absence' });
     await pg.exec('UPDATE gradebook.vinculo SET situacao=7,turma_relacionada_id=910002 WHERE aluno_id=910001');

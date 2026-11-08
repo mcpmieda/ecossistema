@@ -122,16 +122,18 @@ function cellFromObservation(
   sheet: GradeSheetRecognition,
   address: string,
   observation: GradebookImportResultCellObservationV4,
-  allowNc: boolean,
+  isRecovery: boolean,
 ): GradebookImportCellV9 | GradebookImportRecoveryCellV9 {
   const rawSnapshot = snapshot(sheet, address);
   if (Array.isArray(rawSnapshot)) return ['u'];
   switch (observation.classification) {
+    case 'manual-legacy-zero':
+      // A zero typed in a recovery column is the grade the student got; in AM/U it stays blank.
+      return isRecovery ? 0 : null;
     case 'missing-field':
     case 'empty':
-    case 'manual-legacy-zero':
     case 'formula-zero':
-      // AM/REC/U retain their separate existing zero/blank convention (BN-DEC-031).
+      // AM/U and formulas keep their separate zero/blank convention (BN-DEC-031).
       return null;
     case 'manual-official-zero-marker':
       // Compatibility with a previously recognized in-memory observation, not stored history.
@@ -139,11 +141,11 @@ function cellFromObservation(
     case 'manual-negative-number':
       throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
     case 'invalid-text': {
-      if (allowNc && ncText(observation.rawValue)) return ['n'];
-      if (allowNc && rrText(observation.rawValue)) return ['r'];
+      if (isRecovery && ncText(observation.rawValue)) return ['n'];
+      if (isRecovery && rrText(observation.rawValue)) return ['r'];
       if (/^[+-]?\d+(?:[.,]\d+)?$/u.test(observation.rawValue.trim())) {
         const numeric = Number(observation.rawValue.trim().replace(',', '.'));
-        return numeric === 0 ? null : canonicalMilliV9(numeric);
+        return numeric === 0 && !isRecovery ? null : canonicalMilliV9(numeric);
       }
       throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
     }
@@ -319,17 +321,25 @@ function studentNumber(student: StudentRecognition, sheet: GradeSheetRecognition
   return number;
 }
 
+/** The template's student rows (5 to 50). A student below row 50 would be lost, so the file stops. */
+function templateStudentsV9(sheet: GradeSheetRecognition): StudentRecognition[] {
+  const outside = sheet.students.find((student) => student.row > 50);
+  if (outside)
+    throw new Error(
+      `Aluno na linha ${outside.row} de ${sheet.name}: o modelo aceita alunos só até a linha 50 (46 alunos). Confira a planilha.`,
+    );
+  return sheet.students.filter((student) => student.row >= 5);
+}
+
 function term(
   sheet: GradeSheetRecognition,
   trimester: 1 | 2 | 3,
   runtime: CanonicalImportRuntimeV9,
-  _context: { readonly ano: number; readonly professor: string },
 ): GradebookImportTermV9 {
   const definitionSnapshot = definitionSnapshotV1(sheet);
   const definitions = definitionSnapshot.instrumentos;
   const seen = new Set<number>();
-  const alunos = sheet.students
-    .filter((student) => student.row >= 5 && student.row <= 50)
+  const alunos = templateStudentsV9(sheet)
     .map((student) => {
       const numero = studentNumber(student, sheet);
       if (seen.has(numero))
@@ -404,7 +414,6 @@ function courseGroups(summary: WorkbookSummary): readonly GradeSheetRecognition[
 function offer(
   sheets: readonly GradeSheetRecognition[],
   runtime: CanonicalImportRuntimeV9,
-  context: { readonly ano: number; readonly professor: string },
 ): GradebookImportOfferV9 {
   const termSheets = new Map(
     sheets
@@ -415,9 +424,9 @@ function offer(
   const first = termSheets.get(1);
   if (!first) throw new Error('1º trimestre ausente.');
   const trimestres = [
-    term(termSheets.get(1)!, 1, runtime, context),
-    term(termSheets.get(2)!, 2, runtime, context),
-    term(termSheets.get(3)!, 3, runtime, context),
+    term(termSheets.get(1)!, 1, runtime),
+    term(termSheets.get(2)!, 2, runtime),
+    term(termSheets.get(3)!, 3, runtime),
   ] as const;
   if (!sameNumbers(trimestres)) {
     throw new Error(
@@ -427,8 +436,8 @@ function offer(
 
   const recovery = sheets.find((sheet) => sheet.stage === 'recovery') ?? null;
   const recuperacao = recovery
-    ? recovery.students
-        .filter((student) => student.row >= 5 && student.row <= 50 && student.recovery !== null)
+    ? templateStudentsV9(recovery)
+        .filter((student) => student.recovery !== null)
         .map((student) => {
           const numero = studentNumber(student, recovery);
           const observations = student.recovery!.resultObservations;
@@ -508,10 +517,7 @@ export function createGradebookCanonicalImportRequestV9(
   if (groups.length === 0) throw new Error('Nenhuma oferta acadêmica reconhecida.');
   runtime.onProgress?.({ stage: 'grades', current: 0, total: groups.length });
   const ofertas = groups.map((sheets, index) => {
-    const value = offer(sheets, runtime, {
-      ano: summary.academicYear as number,
-      professor,
-    });
+    const value = offer(sheets, runtime);
     runtime.onProgress?.({ stage: 'grades', current: index + 1, total: groups.length });
     return value;
   });

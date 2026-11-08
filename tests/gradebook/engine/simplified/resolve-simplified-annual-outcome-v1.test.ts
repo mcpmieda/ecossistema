@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
+  effectiveCouncilDecisionV1,
   resolveSimplifiedAnnualOutcomeV1,
   type SimplifiedEnrollmentStatusV1,
 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
@@ -114,5 +115,21 @@ describe('simplified annual outcome v1', () => {
   it('treats ESTAVA_NO as a current regular binding and rejects historical FOI_PARA', () => {
     expect(resolve({ status: 7, components: [component('approved-direct')] }).visibleResult).toBe('APROVADO DIRETO');
     expect(() => resolve({ status: 6, components: [component('approved-direct')] })).toThrow(/FOI_PARA/u);
+  });
+
+  it('keeps a Council decision only while the student is still sent to the Council', () => {
+    const decided = 2; // REPROVADO PELO CONSELHO, recorded earlier
+    const eligible = resolve({ components: [component('not-approved'), component('approved-direct')] });
+    expect(eligible.councilEligibility).toBe('eligible');
+    expect(effectiveCouncilDecisionV1(eligible, decided)).toBe(2);
+    // A corrected grade approves the student: the old decision no longer applies.
+    const approved = resolve({ components: [component('approved-after-recovery'), component('approved-direct')] });
+    expect(effectiveCouncilDecisionV1(approved, decided)).toBeNull();
+    // Failing more components than the limit, R/R and terminal statuses also leave it out.
+    const aboveLimit = resolve({ components: [component('not-approved'), component('not-approved'), component('not-approved')] });
+    expect(effectiveCouncilDecisionV1(aboveLimit, 1)).toBeNull();
+    expect(effectiveCouncilDecisionV1(resolve({ components: [component('failed-repeat')] }), 1)).toBeNull();
+    expect(effectiveCouncilDecisionV1(resolve({ status: 4, components: [component('not-approved')] }), 1)).toBeNull();
+    expect(effectiveCouncilDecisionV1(null, 1)).toBeNull();
   });
 });

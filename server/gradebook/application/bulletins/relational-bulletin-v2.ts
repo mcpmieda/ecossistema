@@ -20,7 +20,7 @@ import {
   compareSourceSubjectPresentationV1,
 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import {
-  resolveSimplifiedAnnualOutcomeV1,
+  effectiveCouncilDecisionV1, resolveSimplifiedAnnualOutcomeV1,
   type SimplifiedEnrollmentStatusV1,
 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 import type { SimplifiedAcademicTermV1 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
@@ -370,10 +370,7 @@ async function readMaterializations(
     const hasRepeatFailure = projections.some(
       ({ projection }) => projection.recovery.classification === 'failed-repeat',
     );
-    const formalCouncilDecision =
-      (student.status === null || student.status === 7) && !hasRepeatFailure
-        ? student.councilDecision
-        : null;
+    const formalCouncilDecision = effectiveCouncilDecisionV1(annualOutcome, student.councilDecision);
     const visibleResult =
       student.status === 2 ? null : (formalCouncilDecision ?? annualOutcome.visibleResult);
     const reasons = new Set<string>();

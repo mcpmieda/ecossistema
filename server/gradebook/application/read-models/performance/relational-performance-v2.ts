@@ -20,7 +20,7 @@ import {
   type PerformanceOfferV2,
   type PerformanceFailureV2,
 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
-import { resolveSimplifiedAnnualOutcomeV1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
+import { effectiveCouncilDecisionV1, resolveSimplifiedAnnualOutcomeV1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 import type {
   SimplifiedInstrumentSlotV1,
   SimplifiedAcademicTermV1,
@@ -147,10 +147,7 @@ function makeRow(
           maxCouncilComponents,
         })
       : null;
-  const decision = nullable(source.decisao) as 1 | 2 | 3 | null;
-  const repeatFailure = projections.some(
-    (projection) => projection.recovery?.classification === 'failed-repeat',
-  );
+  const decision = effectiveCouncilDecisionV1(annual, nullable(source.decisao) as 1 | 2 | 3 | null);
   return {
     student: info,
     calculatedAnnual: annual
@@ -160,10 +157,7 @@ function makeRow(
           councilEligibility: annual.councilEligibility,
         }
       : null,
-    formalCouncilDecision:
-      decision === null || repeatFailure
-        ? null
-        : { code: decision, label: DECISION_LABELS[decision] },
+    formalCouncilDecision: decision === null ? null : { code: decision, label: DECISION_LABELS[decision] },
     cells: projections.map((value) => performanceCellV2(value, request.period, request.mode)),
   };
 }

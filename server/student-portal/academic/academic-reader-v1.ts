@@ -28,7 +28,7 @@ import {
   type SimplifiedAcademicTermV1,
   type SimplifiedInstrumentSlotV1,
 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
-import { resolveSimplifiedAnnualOutcomeV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
+import { effectiveCouncilDecisionV1, resolveSimplifiedAnnualOutcomeV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 import { resolveStudentMarkPresentationV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../gradebook/persistence/postgres/active-instrument-predicate-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
@@ -501,7 +501,7 @@ export class AcademicStudentReaderPostgresV1
       maxCouncilComponents: maxCouncil,
     });
     const hasRepeat = projections.some((item) => item.recovery.classification === 'failed-repeat');
-    const formal = (status === null || status === 7) && !hasRepeat ? decision : null;
+    const formal = effectiveCouncilDecisionV1(annual, decision);
     let result: 'not-applicable' | 'approved' | 'failed' | 'failed-attendance' | 'in-progress';
     if (status === 2) {
       result = 'not-applicable';
