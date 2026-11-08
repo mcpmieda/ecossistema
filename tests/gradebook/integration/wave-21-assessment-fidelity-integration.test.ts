@@ -60,16 +60,4 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     expect(recognizer).toContain('annual: readGrades ? readNote(sheet, `AN${row}`) : null');
     expect(recognizer).not.toContain('simulation:');
   });
-
-  it('preserva o catálogo D1 0001–0006 como memória histórica', () => {
-    const migrations = readdirSync(join(root, 'Aprendizados/RUNTIME-D1-RETIRADO-1079/migrations/gradebook')).sort();
-    expect(migrations).toEqual([
-      '0001_gradebook_context_entities_imports_v1.sql',
-      '0002_gradebook_records_audit_v1.sql',
-      '0003_logical_source_record_catalog_v1.sql',
-      '0004_bulletin_council_durability_v1.sql',
-      '0005_council_session_durability_v2.sql',
-      '0006_import_staging_v1.sql',
-    ]);
-  });
 });

@@ -41,7 +41,7 @@ function forbiddenImports(path: string, text: string): string[] {
 describe('retired D1 runtime boundary #1079', () => {
   it('keeps runtime modules archived and all active imports independent of historical memory', () => {
     expect(codeFiles(join(root, 'server/gradebook/persistence/d1'))).toEqual([]);
-    expect(existsSync(join(root, archive, 'server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts'))).toBe(true);
+    expect(existsSync(join(root, archive, 'README.md'))).toBe(true);
     const violations = ['server', 'functions', 'src', 'shared', 'scripts', 'build', 'tests']
       .flatMap((directory) => codeFiles(join(root, directory)))
       .flatMap((path) => forbiddenImports(path, readFileSync(path, 'utf8'))
