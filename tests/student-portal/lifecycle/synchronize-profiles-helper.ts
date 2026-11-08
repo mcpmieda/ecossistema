@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { StudentPortalPostgresQueryV1 } from '../../persistence/postgres-persistence-v1';
+import type { StudentPortalPostgresQueryV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 
 const counts = z.object({
   created_count: z.number().int().nonnegative(),

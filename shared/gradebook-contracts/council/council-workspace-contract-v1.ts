@@ -11,7 +11,7 @@ export const COUNCIL_WORKSPACE_CONTRACT_VERSION_V1 = 1 as const;
 export const COUNCIL_WORKSPACE_REQUIRED_CAPABILITY_V1 =
   'gradebook.persistence.admin' satisfies PlatformCapability;
 const COUNCIL_WORKSPACE_MIN_LIMIT_V1 = 1 as const;
-export const COUNCIL_WORKSPACE_MAX_LIMIT_V1 = 100 as const;
+const COUNCIL_WORKSPACE_MAX_LIMIT_V1 = 100 as const;
 const COUNCIL_WORKSPACE_MAX_JUSTIFICATION_LENGTH_V1 = 4_000 as const;
 
 export const COUNCIL_QUEUE_STATES_V1 = [
@@ -23,7 +23,7 @@ export const COUNCIL_QUEUE_STATES_V1 = [
 export type CouncilQueueStateV1 = (typeof COUNCIL_QUEUE_STATES_V1)[number];
 
 export const COUNCIL_ANNUAL_PERIODS_V1 = ['T1', 'T2', 'T3', 'REC'] as const;
-export type CouncilAnnualPeriodV1 = (typeof COUNCIL_ANNUAL_PERIODS_V1)[number];
+type CouncilAnnualPeriodV1 = (typeof COUNCIL_ANNUAL_PERIODS_V1)[number];
 
 export const COUNCIL_DECISION_SELECTIONS_V1 = [
   { outcome: 'approved', resultingState: 'approved-by-council' },
@@ -78,7 +78,7 @@ export type CouncilClassReferenceV1 = string & {
 export type CouncilStudentReferenceV1 = string & {
   readonly [councilStudentReferenceBrand]: 'CouncilStudentReferenceV1';
 };
-export type CouncilComponentReferenceV1 = string & {
+type CouncilComponentReferenceV1 = string & {
   readonly [councilComponentReferenceBrand]: 'CouncilComponentReferenceV1';
 };
 export type CouncilDecisionReferenceV1 = string & {
@@ -87,25 +87,25 @@ export type CouncilDecisionReferenceV1 = string & {
 export type CouncilActorReferenceV1 = string & {
   readonly [councilActorReferenceBrand]: 'CouncilActorReferenceV1';
 };
-export type CouncilCursorV1 = string & {
+type CouncilCursorV1 = string & {
   readonly [councilCursorBrand]: 'CouncilCursorV1';
 };
 
-export interface CouncilOfficialEvidenceV1 {
+interface CouncilOfficialEvidenceV1 {
   /** User-facing description of already resolved official evidence. */
   readonly label: string;
   /** Opaque reference only; raw source coordinates are intentionally not part of this transport. */
   readonly reference: string;
 }
 
-export interface CouncilOfficialPeriodResultV1 {
+interface CouncilOfficialPeriodResultV1 {
   readonly period: CouncilAnnualPeriodV1;
   readonly value: AcademicGradeValueV1;
   readonly coverage: ResultCoverageV1;
   readonly evidence: readonly CouncilOfficialEvidenceV1[];
 }
 
-export interface CouncilAnnualComponentViewV1 {
+interface CouncilAnnualComponentViewV1 {
   readonly componentReference: CouncilComponentReferenceV1;
   readonly componentLabel: string;
   /** Always ordered T1, T2, T3, REC. Values are projected, never recalculated by Council. */
@@ -135,38 +135,6 @@ interface CouncilQueueItemV1 {
   readonly currentDecisionVersion: number;
 }
 
-export interface CouncilQueuePageRequestV1 {
-  readonly limit: number;
-  readonly cursor: CouncilCursorV1 | null;
-}
-
-export interface CouncilQueueRequestV1 {
-  readonly operation: 'queue';
-  readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
-  readonly academicYearId: AcademicYearId;
-  readonly classReference: CouncilClassReferenceV1;
-  readonly page: CouncilQueuePageRequestV1;
-}
-
-export interface CouncilStudentRequestV1 {
-  readonly operation: 'student';
-  readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
-  readonly academicYearId: AcademicYearId;
-  readonly classReference: CouncilClassReferenceV1;
-  readonly studentReference: CouncilStudentReferenceV1;
-}
-
-export interface CouncilDecisionRequestV1 {
-  readonly operation: 'decision';
-  readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
-  readonly academicYearId: AcademicYearId;
-  readonly classReference: CouncilClassReferenceV1;
-  readonly studentReference: CouncilStudentReferenceV1;
-  readonly expectedVersion: number;
-  readonly decision: CouncilDecisionSelectionV1;
-  readonly justification: string;
-}
-
 export interface CouncilDecisionHistoryEntryV1 {
   readonly decisionReference: CouncilDecisionReferenceV1;
   readonly version: number;
@@ -190,7 +158,7 @@ interface CouncilStudentDetailV1 {
   readonly version: number;
 }
 
-export interface CouncilQueueItemsV1 {
+interface CouncilQueueItemsV1 {
   readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
   readonly outcome: 'items';
   readonly academicYearId: AcademicYearId;
@@ -199,7 +167,7 @@ export interface CouncilQueueItemsV1 {
   readonly nextCursor: CouncilCursorV1 | null;
 }
 
-export interface CouncilListNonDisclosureV1 {
+interface CouncilListNonDisclosureV1 {
   readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
   readonly outcome: CouncilListNonDisclosureOutcomeV1;
   readonly items: readonly [];
@@ -208,14 +176,14 @@ export interface CouncilListNonDisclosureV1 {
 
 export type CouncilQueueResponseV1 = CouncilQueueItemsV1 | CouncilListNonDisclosureV1;
 
-export interface CouncilStudentDetailPresentV1 {
+interface CouncilStudentDetailPresentV1 {
   readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
   readonly outcome: 'detail';
   readonly academicYearId: AcademicYearId;
   readonly detail: CouncilStudentDetailV1;
 }
 
-export interface CouncilDetailNonDisclosureV1 {
+interface CouncilDetailNonDisclosureV1 {
   readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
   readonly outcome: CouncilDetailNonDisclosureOutcomeV1;
   readonly detail: null;
@@ -223,7 +191,7 @@ export interface CouncilDetailNonDisclosureV1 {
 
 export type CouncilStudentResponseV1 = CouncilStudentDetailPresentV1 | CouncilDetailNonDisclosureV1;
 
-export interface CouncilDecisionAppliedV1 {
+interface CouncilDecisionAppliedV1 {
   readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
   readonly outcome: 'applied';
   readonly studentReference: CouncilStudentReferenceV1;
@@ -231,13 +199,13 @@ export interface CouncilDecisionAppliedV1 {
   readonly record: CouncilDecisionHistoryEntryV1;
 }
 
-export interface CouncilDecisionVersionConflictV1 {
+interface CouncilDecisionVersionConflictV1 {
   readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
   readonly outcome: 'version-conflict';
   readonly currentVersion: number | null;
 }
 
-export interface CouncilDecisionNonDisclosureV1 {
+interface CouncilDecisionNonDisclosureV1 {
   readonly contractVersion: typeof COUNCIL_WORKSPACE_CONTRACT_VERSION_V1;
   readonly outcome: Exclude<CouncilDecisionFailureOutcomeV1, 'version-conflict'>;
   readonly currentVersion: null;
@@ -251,25 +219,6 @@ export type CouncilWorkspaceResponseV1 =
   | CouncilQueueResponseV1
   | CouncilStudentResponseV1
   | CouncilDecisionResponseV1;
-
-export const COUNCIL_WORKSPACE_AUTHORIZATION_POLICY_V1 = {
-  enforcement: 'server',
-  requiredCapability: COUNCIL_WORKSPACE_REQUIRED_CAPABILITY_V1,
-  authorizationContext: 'server-issued-opaque',
-  clientAuthorizationClaims: 'forbidden',
-} as const;
-
-export const COUNCIL_UNSUPPORTED_SEMANTICS_V1 = [
-  'ballot-or-vote-count',
-  'tie-break',
-  'abstention',
-  'named-participant-or-participant-role',
-  'attendance-as-automatic-rule',
-  'attendance-failure-inference',
-  'undocumented-individual-exception',
-  'consecutive-history-rule',
-  'new-cut-tolerance-or-rounding',
-] as const;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

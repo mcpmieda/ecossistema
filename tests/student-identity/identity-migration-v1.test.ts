@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../student-portal/year-reset/schema-fixture';
-import { resolveStudentIdentitiesV1 } from '../../server/student-identity/resolve-student-identity-v1';
+import { resolveStudentIdentitiesV1 } from './resolve-student-identity-helper';
 import { createGradebookRelationalImportServiceV11 } from '../../server/gradebook/application/import/import-relational-service-v11';
 import {
   createGradebookPostgresDatabaseFromSqlV1,

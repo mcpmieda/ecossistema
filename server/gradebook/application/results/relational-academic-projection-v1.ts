@@ -14,7 +14,7 @@ import {
 type Row = Record<string, unknown>;
 type BindValue = string | number | null;
 
-export interface RelationalProjectionRequestV1 {
+interface RelationalProjectionRequestV1 {
   readonly ofertaId: number;
   readonly alunoId: number;
 }

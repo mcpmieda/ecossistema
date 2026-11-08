@@ -46,7 +46,7 @@ export type AuditEntityReferenceV1 =
   | { readonly kind: 'final-recovery'; readonly id: FinalRecoveryId }
   | { readonly kind: 'annual-result'; readonly id: AnnualResultId };
 
-export type ReconciliationTargetV1 =
+type ReconciliationTargetV1 =
   | { readonly kind: 'grade-entry'; readonly id: GradeEntryId }
   | { readonly kind: 'term-result'; readonly id: TermResultId }
   | { readonly kind: 'final-recovery'; readonly id: FinalRecoveryId }
@@ -58,7 +58,6 @@ export const RECONCILIATION_STATUSES_V1 = [
   'mismatch',
   'not-comparable',
 ] as const;
-export type ReconciliationStatusV1 = (typeof RECONCILIATION_STATUSES_V1)[number];
 
 interface ReconciliationResultBaseV1 {
   readonly id: ReconciliationResultId;
@@ -103,7 +102,6 @@ export const AUDIT_OCCURRENCE_STATES_V1 = [
   'resolved',
   'dismissed-with-reason',
 ] as const;
-export type AuditOccurrenceStateV1 = (typeof AUDIT_OCCURRENCE_STATES_V1)[number];
 
 export interface AuditAcknowledgedTransitionV1 {
   readonly previousState: 'open';

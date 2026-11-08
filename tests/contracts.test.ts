@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { featureFlag } from '../server/modules/feature-flags';
 import {
   integratedModuleContracts,
   moduleContract,
@@ -45,10 +44,4 @@ describe('extension contracts', () => {
       moduleContract.parse({ ...platformBaseModule, healthEndpoint: '/health' }),
     ).toThrow();
   });
-
-  it('resolves an active feature flag', () =>
-    expect(featureFlag([{ key: 'feature.base.demo', active: true }], 'base', 'demo')).toBe(true));
-
-  it('uses the safe feature-flag fallback', () =>
-    expect(featureFlag([{ key: 'invalid', active: true }], 'base', 'demo')).toBe(false));
 });

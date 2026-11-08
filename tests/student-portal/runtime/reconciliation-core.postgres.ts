@@ -7,7 +7,7 @@ import {
   type GradebookPostgresSqlV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { StudentReconciliationServiceV1 } from '../../../server/student-identity/reconciliation/service-v1';
-import { resolveReconciledSourceV1 } from '../../../server/student-identity/reconciliation/resolve-source-v1';
+import { resolveReconciledSourcesV2 } from '../../../server/student-identity/reconciliation/resolve-source-batch-v2';
 import { prepareReconciliationCredentialsV1 } from '../../../server/student-portal/birth-year/reconciliation-credentials-v1';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
@@ -17,6 +17,11 @@ import type {
   ReportRowV1,
   ReportClassLinkV1,
 } from '../../../shared/student-identity/reconciliation-v1';
+
+const resolveOneSource = async (
+  tx: Parameters<typeof resolveReconciledSourcesV2>[0],
+  evidence: Parameters<typeof resolveReconciledSourcesV2>[1][number],
+) => (await resolveReconciledSourcesV2(tx, [evidence]))[0]!;
 
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
 if (
@@ -527,7 +532,7 @@ it('resolves historical source evidence only to one central UID and marks affect
     classLabel: '7A 2026 - MATUTINO',
   };
   const resolved = await db.transaction((tx) =>
-    resolveReconciledSourceV1(tx, {
+    resolveOneSource(tx, {
       ...evidence,
       name: 'synthetic person alpha',
       classLabel: '7a 2026 - matutino',
@@ -551,7 +556,7 @@ it('resolves historical source evidence only to one central UID and marks affect
   expect(list.items.find((i) => i.kind === 'person' && i.studentUid === firstUid)).toMatchObject({
     reconciliation: 'review-required',
   });
-  expect((await db.transaction((tx) => resolveReconciledSourceV1(tx, evidence))).state).toBe(
+  expect((await db.transaction((tx) => resolveOneSource(tx, evidence))).state).toBe(
     'ambiguous',
   );
   const [link] = await owner.unsafe(
@@ -570,7 +575,7 @@ it('resolves historical source evidence only to one central UID and marks affect
       })
     ).state,
   ).toBe('committed');
-  expect((await db.transaction((tx) => resolveReconciledSourceV1(tx, evidence))).state).toBe(
+  expect((await db.transaction((tx) => resolveOneSource(tx, evidence))).state).toBe(
     'resolved',
   );
 });

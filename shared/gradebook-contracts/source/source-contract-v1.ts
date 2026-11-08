@@ -67,8 +67,6 @@ export const SOURCE_CELL_CLASSIFICATIONS_V1 = [
   'formula-error-or-missing-cache',
   'invalid-text',
 ] as const;
-
-export type SourceCellClassificationV1 = (typeof SOURCE_CELL_CLASSIFICATIONS_V1)[number];
 export type SourceCellRawValueV1 = string | number | boolean | null;
 
 export type SourceCellProvenanceV1 = {
