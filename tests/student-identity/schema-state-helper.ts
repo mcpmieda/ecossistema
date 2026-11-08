@@ -3,8 +3,8 @@ import { GRADEBOOK_CURRENT_TABLES_V1 } from '../../server/gradebook/recovery/cur
 
 /** Exact Gradebook catalog after the existing foundation and the cross-module identity migration. */
 const STUDENT_IDENTITY_GRADEBOOK_CATALOG_V1 = {
-  tables: 31, columns: 254, constraints: 227, indexes: 73,
-  foreignKeys: 53, sequences: 13, functions: 6, triggers: 5,
+  tables: 30, columns: 247, constraints: 220, indexes: 72,
+  foreignKeys: 52, sequences: 13, functions: 6, triggers: 5,
 } as const;
 
 /** Owner-side recovery/postflight assertion, not a runtime endpoint or permission grant. */

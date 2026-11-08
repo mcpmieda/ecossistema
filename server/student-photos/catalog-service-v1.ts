@@ -16,10 +16,8 @@ export class PhotoCatalogServiceV1 {
     await this.authorize(context); signal.throwIfAborted();
     let family = await this.repository.family(context.studentUid);
     if (!family) {
-      // A linked original may only be adopted by the verified backstage import.
-      if (await this.repository.legacy(context.studentUid)) throw new PhotoWriteErrorV1('conflict');
       await this.authorize(context); signal.throwIfAborted();
-      await this.repository.initialize(context, null, null);
+      await this.repository.initialize(context, null);
       family = await this.repository.family(context.studentUid);
     }
     if (family?.assets.portrait) {

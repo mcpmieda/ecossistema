@@ -50,7 +50,6 @@ async function seedYear(year: number, id: number) {
      INSERT INTO gradebook.instrumento (id,oferta_id,trimestre,slot,maximo,descricao) VALUES ($2,$2,1,1,30000,'AVALIACAO SINTETICA');
      INSERT INTO gradebook.nota VALUES ($2,$2,18000);
      INSERT INTO gradebook.fechamento (oferta_id,aluno_id,am1_fonte) VALUES ($2,$2,18000);
-     INSERT INTO gradebook.ano_letivo_historico VALUES ($1,50000,60000,2,2,$10,transaction_timestamp());
      INSERT INTO gradebook.conselho_anterior_historico VALUES ($2,false,true,$10,transaction_timestamp());
      INSERT INTO gradebook.conselho_decisao VALUES ($2,1,'DECISAO SINTETICA',$10,transaction_timestamp());
      INSERT INTO gradebook.conselho_decisao_historico VALUES ($2,2,1,'ANTERIOR','NOVA',$10,transaction_timestamp());
@@ -160,6 +159,7 @@ beforeAll(async () => {
   await installReconciliationSchemaFixtureV1(pg);
   await pg.exec(readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'));
   await pg.exec(readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'));
+  await pg.exec(readFileSync('migrations/gradebook-simplified/0017_drop_ano_letivo_historico_v1.sql', 'utf8'));
   await pg.exec(`
     INSERT INTO student_portal.revision_event
       (event_id,academic_year,student_ids,cause,affects_academic,affects_reset,
@@ -318,7 +318,7 @@ describe('year reset V1 PostgreSQL service', () => {
 
     const current = await preview(2025);
     if (current.state !== 'ready' || current.operation !== 'preview') throw new Error('preview');
-    expect(current.counts.totalRows).toBeGreaterThan(30);
+    expect(current.counts.totalRows).toBeGreaterThan(29);
     const untouchedBefore = await preview(2026);
     const untouchedTechnicalBefore = await technicalState(2026);
     const result = await createYearResetServiceV1(database, ACTOR).execute({

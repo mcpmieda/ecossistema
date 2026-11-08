@@ -53,3 +53,7 @@ Para `0008`, o preflight confirmou o catálogo pós-`0007` e a existência exata
 ## Recuperação comprovada e limites institucionais
 
 A #662 restaurou o artefato lógico V2 em PostgreSQL local descartável: 28 relações/120.879 linhas, IDs, 12 sequences, catálogo pós-`0005`, FKs, ACL local e jornadas selecionadas foram conferidos. RPO/RTO institucionais, restore gerenciado da produção, credenciais/configurações externas, failover e piloto integral permanecem gates #406/#596. Igualdade e restore locais não equivalem a backup/restore operacional da produção. A cópia D1 histórica não contém as novas escritas relacionais. Ver [`RELATIONAL_RECOVERY_REHEARSAL_662.md`](../../docs/gradebook/RELATIONAL_RECOVERY_REHEARSAL_662.md).
+
+## 0017 — histórico das regras do ano (08/11/2026)
+
+`0017_drop_ano_letivo_historico_v1.sql` remove `gradebook.ano_letivo_historico`. Nenhuma tela ou função muda a nota mínima ou o limite do Conselho depois da importação da Relação, então a tabela nunca teve linha. Aborta se tiver qualquer linha. O artefato lógico V2 da #662 continua restaurável: ele recria a estrutura antiga pelas migrações da época.

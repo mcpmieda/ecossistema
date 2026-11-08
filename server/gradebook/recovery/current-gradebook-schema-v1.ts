@@ -12,11 +12,11 @@ export interface CurrentGradebookRecoveryQueryV1 {
 }
 
 export const GRADEBOOK_CURRENT_CATALOG_V1 = {
-  tables: 30,
-  columns: 251,
-  constraints: 223,
-  indexes: 70,
-  foreignKeys: 52,
+  tables: 29,
+  columns: 244,
+  constraints: 216,
+  indexes: 69,
+  foreignKeys: 51,
   sequences: 13,
   functions: 4,
   triggers: 3,
@@ -25,7 +25,6 @@ export const GRADEBOOK_CURRENT_CATALOG_V1 = {
 export const GRADEBOOK_CURRENT_TABLES_V1 = [
   'aluno',
   'ano_letivo',
-  'ano_letivo_historico',
   'boletim_snapshot',
   'conselho_anterior_historico',
   'conselho_decisao',
@@ -87,6 +86,7 @@ export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
   '0012_current_state_cleanup_v1.sql',
   '0013_default_privileges_hardening_v1.sql',
   '0014_function_execute_hardening_v1.sql',
+  '0017_drop_ano_letivo_historico_v1.sql',
   'current_cross_schema_indexes_v1.sql',
 ] as const;
 
@@ -286,8 +286,8 @@ export async function assertCurrentGradebookSchemaV1(
        WHERE schemaname='gradebook' AND policyname='gradebook_app_backend_v1') AS policies`,
   );
   if (
-    integer(rls.enabled, 'gradebook-current-rls-enabled-invalid') !== 30 ||
-    integer(rls.policies, 'gradebook-current-rls-policies-invalid') !== 30
+    integer(rls.enabled, 'gradebook-current-rls-enabled-invalid') !== GRADEBOOK_CURRENT_CATALOG_V1.tables ||
+    integer(rls.policies, 'gradebook-current-rls-policies-invalid') !== GRADEBOOK_CURRENT_CATALOG_V1.tables
   ) {
     throw new Error('gradebook-current-rls-mismatch');
   }

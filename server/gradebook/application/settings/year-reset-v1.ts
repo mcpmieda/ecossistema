@@ -63,7 +63,6 @@ const RESET_TABLES_V1 = [
   'turma',
   'professor',
   'disciplina',
-  'ano_letivo_historico',
   'ano_letivo',
 ] as const;
 
@@ -120,8 +119,7 @@ async function loadCounts(
         +(SELECT count(*) FROM gradebook.conselho_fechamento c,y WHERE c.ano=y.ano)
         +(SELECT count(*) FROM gradebook.conselho_fechamento_item i JOIN gradebook.conselho_fechamento c ON c.id=i.fechamento_id,y WHERE c.ano=y.ano))::integer AS council,
        (SELECT count(*)::integer FROM gradebook.boletim_snapshot b,y WHERE b.ano=y.ano) AS bulletins,
-       ((SELECT count(*) FROM gradebook.ano_letivo_historico h,y WHERE h.ano=y.ano)
-        +(SELECT count(*) FROM gradebook.conselho_anterior_historico h JOIN gradebook.aluno a ON a.id=h.aluno_id,y WHERE a.ano=y.ano)
+       ((SELECT count(*) FROM gradebook.conselho_anterior_historico h JOIN gradebook.aluno a ON a.id=h.aluno_id,y WHERE a.ano=y.ano)
         +(SELECT count(*) FROM gradebook.conselho_decisao_historico h JOIN gradebook.aluno a ON a.id=h.aluno_id,y WHERE a.ano=y.ano)
         +(SELECT count(*) FROM gradebook.fechamento_historico h JOIN gradebook.oferta o ON o.id=h.oferta_id,y WHERE o.ano=y.ano)
         +(SELECT count(*) FROM gradebook.instrumento_historico h JOIN gradebook.instrumento i ON i.id=h.instrumento_id JOIN gradebook.oferta o ON o.id=i.oferta_id,y WHERE o.ano=y.ano)
@@ -243,7 +241,6 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
     'turma',
     'professor',
     'disciplina',
-    'ano_letivo_historico',
     'ano_letivo',
   ] as const) {
     await run(`DELETE FROM gradebook.${table} WHERE ano=$1`);
