@@ -185,11 +185,11 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
       `);
     }
   });
-  it('does not promote statuses to active indicators or override human decisions', async () => {
+  it('does not promote statuses and ignores a decision while the student is not at the Council', async () => {
     const result = await matrix({ period: 'annual' });
     expect(result.rows.find((r) => r.student.id === 6)).toMatchObject({ student: { indicatorEligible: false }, calculatedAnnual: { state: 'no-result', label: null } });
     expect(result.rows.find((r) => r.student.id === 7)).toMatchObject({ student: { indicatorEligible: false }, calculatedAnnual: { label: 'TRANSFERIDO' } });
-    expect(result.rows.find((r) => r.student.id === 4)).toMatchObject({ calculatedAnnual: { label: 'EM RECUPERAÇÃO' }, formalCouncilDecision: { code: 1, label: 'APROVADO PELO CONSELHO' } });
+    expect(result.rows.find((r) => r.student.id === 4)).toMatchObject({ calculatedAnnual: { label: 'EM RECUPERAÇÃO' }, formalCouncilDecision: null });
   });
   it('preserves warnings and refuses to invent comparability', async () => {
     const result = await matrix();

@@ -47,6 +47,7 @@ beforeAll(async () => {
     '0005_relational_bulletin_snapshot_v2.sql',
     '0006_import_diagnostic_treatment_v1.sql',
     '0007_multiyear_rr_v1.sql',
+    '0009_granular_observations_names_v1.sql',
   ]) await pg.exec(readFileSync(`${migrations}${migration}`, 'utf8'));
   const sql: GradebookPostgresSqlV1 = {
     unsafe: (query, values = []) => execute(pg, query, values),
@@ -77,7 +78,7 @@ function relation(year: number, classCode: string, hashDigit: string): Gradebook
 
 function notes2026(): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3) => ({
-    trimestre,
+    definitionSnapshotVersion: 1 as const, trimestre,
     instrumentos: trimestre === 3
       ? [[1, 9_000, 'AV1 TESTE'], [2, 9_000, 'AV2 TESTE'], [11, 22_000, 'QUALITATIVA TESTE']] as const
       : [[1, 6_750, 'AV1 TESTE'], [2, 6_750, 'AV2 TESTE'], [11, 16_500, 'QUALITATIVA TESTE']] as const,
@@ -85,7 +86,7 @@ function notes2026(): GradebookNotesImportRequestV9 {
   });
   return {
     transportVersion: 9,
-    operation: 'persist-notas',
+    operation: 'persist-notas', granularObservationVersion: 1 as const,
     manifest: manifest('NOTAS TESTE 2025.xlsb', 'c'),
     ano: 2026,
     professor: 'DOCENTE TESTE',

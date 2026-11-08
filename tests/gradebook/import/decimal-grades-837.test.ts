@@ -41,6 +41,16 @@ it('preserves decimals in REC/U while retaining NC/RR and the existing non-granu
   const marked = request(decimalGradeBatch837({}, { R5: { v: 'N/C' }, S5: { v: 'R/R' }, T5: { f: '1/10' }, U5: { v: 0 } }));
   expect(marked.ofertas[0]!.recuperacao![0]).toEqual([1, ['n'], ['r'], ['u'], null]);
 });
+it('reads a zero typed in a recovery column as the grade 0, while a zero in U stays blank', () => {
+  const zeros = request(decimalGradeBatch837({}, { R5: { v: 0 }, S5: { v: '0' }, T5: { v: '0,0' }, U5: { v: 0 } }));
+  expect(zeros.ofertas[0]!.recuperacao![0]).toEqual([1, 0, 0, 0, null]);
+  const blanks = request(decimalGradeBatch837({}, { R5: { v: '' }, S5: { v: null }, T5: { v: 0, f: '0' }, U5: { v: '' } }));
+  expect(blanks.ofertas[0]!.recuperacao![0]).toEqual([1, null, null, null, null]);
+});
+it('stops the file when a student sits below row 50 instead of dropping that student', () => {
+  const batch = decimalGradeBatch837({ '!ref': 'A1:AN51', J51: { v: 47 }, K51: { v: 'SYNTHETIC LATE STUDENT' } });
+  expect(() => request(batch)).toThrow(/linha 51 de TEST1º.*até a linha 50/u);
+});
 it('does not prefer the old zero interpretation over a newly captured decimal source value', () => {
   const batch = decimalGradeBatch837();
   const sheet = batch.summary.gradeSheets.find((item) => item.name === 'TEST1º')!;

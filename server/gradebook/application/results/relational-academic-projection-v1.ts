@@ -87,14 +87,6 @@ function requestKey(input: RelationalProjectionRequestV1): string {
   return `${input.ofertaId}:${input.alunoId}`;
 }
 
-async function first<T extends Row>(
-  database: GradebookPostgresReadPortV1,
-  sql: string,
-  values: readonly BindValue[],
-): Promise<T | null> {
-  return (await database.query<T>(sql, values))[0] ?? null;
-}
-
 async function all<T extends Row>(
   database: GradebookPostgresReadPortV1,
   sql: string,
@@ -151,10 +143,7 @@ function projectRows(
       term,
       outcome,
       sourceAmMilli,
-      sourceComparison: sourceComparison(
-        outcome.coverage.complete ? outcome.roundedMilli : null,
-        sourceAmMilli,
-      ),
+      sourceComparison: sourceComparison(outcome.roundedMilli, sourceAmMilli),
     } satisfies RelationalTermProjectionV1;
   }) as unknown as RelationalAcademicProjectionV1['terms'];
 
@@ -183,44 +172,6 @@ function projectRows(
 
 export function createRelationalAcademicProjectionServiceV1(database: GradebookPostgresReadPortV1) {
   return {
-    async project(input: RelationalProjectionRequestV1): Promise<RelationalAcademicProjectionV1> {
-      validateRequest(input);
-      const base = await first<Row>(
-        database,
-        `SELECT o.ano, a.minimo_aprovacao
-         FROM gradebook.oferta o
-         JOIN gradebook.ano_letivo a ON a.ano = o.ano
-         WHERE o.id = $1
-           AND EXISTS (
-             SELECT 1 FROM gradebook.vinculo v
-             WHERE v.turma_id = o.turma_id AND v.aluno_id = $2
-               AND COALESCE(v.situacao, 0) <> 6
-           )`,
-        [input.ofertaId, input.alunoId],
-      );
-      if (!base) throw new RelationalAcademicProjectionErrorV1('offer-student-not-found');
-      const instrumentRows = await all<Row>(
-        database,
-        `SELECT i.trimestre, i.slot, i.maximo, n.valor
-         FROM gradebook.instrumento i
-         LEFT JOIN gradebook.nota n
-           ON n.instrumento_id = i.id AND n.aluno_id = $1
-         WHERE i.oferta_id = $2 AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
-         ORDER BY i.trimestre, i.slot`,
-        [input.alunoId, input.ofertaId],
-      );
-      const closing = await first<Row>(
-        database,
-        `SELECT f.am1_fonte, f.am2_fonte, f.am3_fonte,
-                f.rec1, f.rec2, f.rec3, f.rec_nc_mask,
-                COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint, 0) AS rec_rr_mask,
-                f.u_fonte
-         FROM gradebook.fechamento f WHERE f.oferta_id = $1 AND f.aluno_id = $2`,
-        [input.ofertaId, input.alunoId],
-      );
-      return projectRows(input, base, instrumentRows, closing);
-    },
-
     /**
      * One parameterized PostgreSQL statement for the whole bounded set. Instruments,
      * grades and closing facts share the statement snapshot; no per-pair SQL, writes,

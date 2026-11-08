@@ -78,6 +78,18 @@ function statusOutcomeV1(status: SimplifiedAnnualOutcomeInputV1['status']): Simp
   return null;
 }
 
+/**
+ * A recorded Council decision counts only while the calculated result still sends the student to
+ * the Council. When grades change afterwards (approved after a correction, or failing more
+ * components than the limit), the old decision stops applying and the calculated result shows.
+ */
+export function effectiveCouncilDecisionV1<T>(
+  annual: Pick<SimplifiedAnnualOutcomeV1, 'councilEligibility'> | null,
+  decision: T | null,
+): T | null {
+  return annual?.councilEligibility === 'eligible' ? decision : null;
+}
+
 export function resolveSimplifiedAnnualOutcomeV1(
   input: SimplifiedAnnualOutcomeInputV1,
 ): SimplifiedAnnualOutcomeV1 {

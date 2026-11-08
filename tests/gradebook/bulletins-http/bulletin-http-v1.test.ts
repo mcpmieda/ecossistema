@@ -86,7 +86,7 @@ describe('Boletins HTTP V1', () => {
     );
     expect(response?.status).toBe(410);
     expect(response?.headers.get('Cache-Control')).toContain('no-store');
-    await expect(response?.json()).resolves.toEqual({ contractVersion: 1, operation: 'bootstrap', state: 'unavailable' });
+    await expect(response?.json()).resolves.toEqual({ state: 'retired' });
     expect(prepare).not.toHaveBeenCalled();
   });
 
@@ -103,7 +103,7 @@ describe('Boletins HTTP V1', () => {
         ),
         env,
       );
-      expect(response?.status).toBe(400);
+      expect(response?.status).toBe(410);
       expect(response?.headers.get('Cache-Control')).toContain('no-store');
     }
     expect(prepare).not.toHaveBeenCalled();

@@ -12,7 +12,6 @@ describe('Boletins PDF arquitetura V1', () => {
   const snapshots = source(
     'server/gradebook/persistence/postgres/relational-bulletin-snapshot-v2.ts',
   );
-  const transport = source('shared/gradebook-contracts/bulletins/bulletin-transport-v1.ts');
   const page = source('src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx');
   const actions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v2.ts');
   const renderer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts');
@@ -46,7 +45,6 @@ describe('Boletins PDF arquitetura V1', () => {
     expect(renderer).not.toContain('fetch(');
     expect(actions).toContain('URL.createObjectURL');
     expect(actions).toContain('URL.revokeObjectURL');
-    expect(transport).not.toContain("operation: 'pdf'");
   });
 
   it('preserva os mesmos campos semânticos entre preview e PDF sem recalcular', () => {
@@ -74,7 +72,7 @@ describe('Boletins PDF arquitetura V1', () => {
     expect(pdfActionSection).not.toContain('setArtifact(null)');
   });
   it('codifica as páginas sem toBlob, que no ADM entrega JPEG com ~1 s de atraso', () => {
-    const rasterizer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v1.ts');
+    const rasterizer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-engine.ts');
     expect(rasterizer).not.toMatch(/\.toBlob\(/u);
     expect(rasterizer).toContain("toDataURL('image/jpeg', 0.9)");
   });

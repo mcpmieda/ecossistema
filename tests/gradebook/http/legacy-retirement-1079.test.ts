@@ -8,29 +8,20 @@ import { handlePerformanceRequestV1 } from '../../../server/gradebook/http/perfo
 import { handleBulletinRequestV1 } from '../../../server/gradebook/http/bulletin-routes-v1';
 import { handleCouncilWorkspaceRequestV1 } from '../../../server/gradebook/http/council-routes-v1';
 import { handleGradebookPersistenceAdminRequestV1 } from '../../../server/gradebook/http/persistence-admin-routes-v1';
-import { PERFORMANCE_COLUMN_ORDER_V1, PERFORMANCE_ROW_ORDER_V1 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
 import { testEnv } from '../../fixtures';
 
-const matrix = {
-  contractVersion: 1, academicYearId: 'year:synthetic:2026', classGroupId: 'class:synthetic:a',
-  period: { kind: 'term', term: 1 }, mode: 'regular', lens: 'result', comparisonPeriod: null,
-  rows: { limit: 20, cursor: null }, columns: { limit: 6, cursor: null },
-  order: { rows: PERFORMANCE_ROW_ORDER_V1, columns: PERFORMANCE_COLUMN_ORDER_V1 },
-};
+const retired = { state: 'retired' };
 const cases = [
   { name: 'workspace-v1', path: 'operational-workspace', handler: handleOperationalWorkspaceRequestV1,
-    body: { contractVersion: 1, operation: 'bootstrap' }, expected: { contractVersion: 1, state: 'unavailable' } },
+    body: { contractVersion: 1, operation: 'bootstrap' }, expected: retired },
   { name: 'performance-v1', path: 'performance', handler: handlePerformanceRequestV1,
-    body: { transportVersion: 1, operation: 'matrix', request: matrix }, expected: { transportVersion: 1, state: 'unavailable' } },
+    body: { transportVersion: 1, operation: 'matrix' }, expected: retired },
   { name: 'bulletins-v1', path: 'bulletins', handler: handleBulletinRequestV1,
-    body: { contractVersion: 1, operation: 'bootstrap' }, expected: { contractVersion: 1, operation: 'bootstrap', state: 'unavailable' } },
+    body: { contractVersion: 1, operation: 'bootstrap' }, expected: retired },
   { name: 'council-v1', path: 'council-workspace', handler: handleCouncilWorkspaceRequestV1,
-    body: { contractVersion: 1, operation: 'queue', academicYearId: 'year:synthetic:2026',
-      classReference: 'class:synthetic:a', page: { limit: 20, cursor: null } },
-    expected: { contractVersion: 1, outcome: 'unavailable', items: [], nextCursor: null } },
+    body: { contractVersion: 1, operation: 'queue' }, expected: retired },
   { name: 'council-v2', path: 'council-workspace', handler: handleCouncilWorkspaceRequestV1,
-    body: { contractVersion: 2, operation: 'closure-review', academicYearId: 'year:synthetic:2026', classReference: 'class:synthetic:a' },
-    expected: { contractVersion: 2, outcome: 'unavailable', currentVersion: null } },
+    body: { contractVersion: 2, operation: 'closure-review' }, expected: retired },
 ] as const;
 const origins = {
   local: 'http://localhost:8788', preview: 'https://synthetic.pages.dev', production: testEnv.OFFICIAL_ORIGIN,
@@ -78,7 +69,7 @@ describe.each(cases)('legacy retirement #1079 $name', ({ path, handler, body, ex
   });
   it('preserves payload, body-size, method and origin guards before retirement', async () => {
     const { env, access } = environment('production');
-    const invalid = await handler(request(path, env.OFFICIAL_ORIGIN, { ...body, actorId: 'forged' }), env);
+    const invalid = await handler(request(path, env.OFFICIAL_ORIGIN, [body]), env);
     expect(invalid?.status).toBe(400);
     const valid = request(path, env.OFFICIAL_ORIGIN, body);
     const oversized = await handler(new Request(valid.url, {

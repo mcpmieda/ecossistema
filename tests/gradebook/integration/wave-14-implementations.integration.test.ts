@@ -3,10 +3,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { BULLETIN_AUTHORITY_MODE_V1 } from '../../../shared/gradebook-contracts/bulletins/bulletin-contract-v1';
-import { PERFORMANCE_AUTHORITY_MODE_V1 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
-import { createClassPerformanceReadModelV1 } from '../../../server/gradebook/application/read-models/performance/class-performance-read-model-v1';
-
 const root = process.cwd();
 
 function source(path: string): string {
@@ -14,12 +10,6 @@ function source(path: string): string {
 }
 
 describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
-  it('mantém as implementações provider-independent disponíveis com autoridade imported-source', () => {
-    expect(createClassPerformanceReadModelV1).toBeTypeOf('function');
-    expect(PERFORMANCE_AUTHORITY_MODE_V1).toBe('imported-source');
-    expect(BULLETIN_AUTHORITY_MODE_V1).toBe('imported-source');
-  });
-
   it('preserva a composição física original e reconhece somente os bridges ainda ativos', () => {
     const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const runtimeAuthorization = source(

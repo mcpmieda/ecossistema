@@ -621,8 +621,8 @@ describe('native import reset revisions', () => {
     expect(await service.execute({ transportVersion:9, operation:'persist-relacao', manifest, ano:2020,
       turmas:[{codigo:'T20',nome:'SYNTHETIC CLASS',etapa:6,turno:'MATUTINO',alunos:[[1,'SYNTHETIC IMPORT STUDENT',0]]}] }))
       .toMatchObject({state:'applied'});
-    const term = (trimestre: 1 | 2 | 3) => ({trimestre, instrumentos:[[1,10000,'SYNTHETIC ASSESSMENT']] as const,alunos:[[1,[3000],3000]] as const});
-    const notes = { transportVersion:9 as const, operation:'persist-notas' as const, manifest, ano:2020,professor:'SYNTHETIC TEACHER',
+    const term = (trimestre: 1 | 2 | 3) => ({trimestre, definitionSnapshotVersion: 1 as const, instrumentos:[[1,10000,'SYNTHETIC ASSESSMENT']] as const,alunos:[[1,[3000],3000]] as const});
+    const notes = { transportVersion:9 as const, operation:'persist-notas' as const, granularObservationVersion:1 as const, manifest, ano:2020,professor:'SYNTHETIC TEACHER',
       ofertas:[{turmaCodigo:'T20',disciplina:'SYNTHETIC SUBJECT',trimestres:[term(1),term(2),term(3)] as const,recuperacao:[]}] };
     queries.length=0;
     expect(await service.execute(notes)).toMatchObject({state:'applied'});

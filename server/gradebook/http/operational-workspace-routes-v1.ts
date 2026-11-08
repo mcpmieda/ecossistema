@@ -1,11 +1,3 @@
-import {
-  OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
-  type OperationalWorkspaceNotAuthorizedV1,
-  type OperationalWorkspaceUnavailableV1,
-} from '../../../shared/gradebook-contracts/operational-workspace/operational-workspace-contract-v1';
-import {
-  isOperationalWorkspaceTransportRequestV1,
-} from '../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v1';
 import { isOperationalWorkspaceRequestV2 } from '../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
@@ -18,6 +10,7 @@ import {
 } from '../../http/security';
 import { createRelationalWorkspaceV2 } from '../application/operational-workspace/relational-workspace-v2';
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
+import { retiredGradebookRequestV1 } from './retired-request-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
 function httpStatusOf(state: string) {
@@ -38,12 +31,10 @@ function noStoreJson(value: unknown, status = 200): Response {
   });
 }
 function unavailable(status = 503): Response {
-  const response: OperationalWorkspaceUnavailableV1 = {contractVersion:OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,state:'unavailable'};
-  return noStoreJson(response, status);
+  return noStoreJson({ contractVersion: 1, state: 'unavailable' }, status);
 }
 function notAuthorized(status: 401 | 403): Response {
-  const response: OperationalWorkspaceNotAuthorizedV1 = {contractVersion:OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,state:'not-authorized'};
-  return noStoreJson(response, status);
+  return noStoreJson({ contractVersion: 1, state: 'not-authorized' }, status);
 }
 /** Postgres storage, in a known environment, and in production only once enabled. */
 function relationalStorageReadyV2(env: RuntimeEnv): boolean {
@@ -84,10 +75,5 @@ export async function handleOperationalWorkspaceRequestV1(request: Request, env:
     return handleRelationalWorkspaceV2(payload, env);
   }
 
-  // The simplified relational model is sourced by the annual imports. The former
-  // maintenanceVersion write transport targeted entities/versions that do not
-  // exist in that model and is deliberately rejected before the legacy runtime.
-  if (!isOperationalWorkspaceTransportRequestV1(payload)) return unavailable(400);
-
-  return unavailable(410);
+  return retiredGradebookRequestV1(payload);
 }

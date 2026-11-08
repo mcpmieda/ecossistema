@@ -81,7 +81,7 @@ export type GradebookImportTermStudentV9 = readonly [
 export interface GradebookImportTermV9 {
   readonly trimestre: 1 | 2 | 3;
   /** V1 means this term is a complete current snapshot of qualitative definitions. */
-  readonly definitionSnapshotVersion?: 1;
+  readonly definitionSnapshotVersion: 1;
   /** Definition maximum could not be read safely; preserve the previous maximum for this slot. */
   readonly unavailableMaximumSlots?: readonly GradebookImportInstrumentV9[0][];
   /** Definition label could not be read safely; preserve the previous label for this slot. */
@@ -115,7 +115,7 @@ export interface GradebookNotesImportRequestV9 {
   readonly transportVersion: 9;
   readonly operation: 'persist-notas';
   /** V1 distinguishes an observed empty cell from a cell never read. */
-  readonly granularObservationVersion?: 1;
+  readonly granularObservationVersion: 1;
   readonly manifest: GradebookImportManifestV9;
   readonly ano: number;
   readonly professor: string;
@@ -247,9 +247,14 @@ function validRelation(value: Record<string, unknown>): boolean {
 }
 
 function validMovementPosition(value: unknown, named = false): boolean {
-  return record(value) && Object.keys(value).length === (named ? 3 : 2) &&
-    nonEmptyText(value.classCode, 32) && Number.isSafeInteger(value.number) && Number(value.number) > 0 &&
-    (!named || nonEmptyText(value.name, 256));
+  return (
+    record(value) &&
+    Object.keys(value).length === (named ? 3 : 2) &&
+    nonEmptyText(value.classCode, 32) &&
+    Number.isSafeInteger(value.number) &&
+    Number(value.number) > 0 &&
+    (!named || nonEmptyText(value.name, 256))
+  );
 }
 
 function validMovementDigest(value: unknown): value is string {
@@ -257,20 +262,45 @@ function validMovementDigest(value: unknown): value is string {
 }
 
 function validMovementConfirmation(value: unknown): boolean {
-  return record(value) && Object.keys(value).length === 2 && validMovementDigest(value.digest) &&
-    Array.isArray(value.pairs) && value.pairs.length > 0 && value.pairs.length <= 2048 &&
-    value.pairs.every((pair) => record(pair) && Object.keys(pair).length === 2 &&
-      validMovementPosition(pair.origin) && validMovementPosition(pair.destination));
+  return (
+    record(value) &&
+    Object.keys(value).length === 2 &&
+    validMovementDigest(value.digest) &&
+    Array.isArray(value.pairs) &&
+    value.pairs.length > 0 &&
+    value.pairs.length <= 2048 &&
+    value.pairs.every(
+      (pair) =>
+        record(pair) &&
+        Object.keys(pair).length === 2 &&
+        validMovementPosition(pair.origin) &&
+        validMovementPosition(pair.destination),
+    )
+  );
 }
 
 function validMovementReview(value: unknown): boolean {
-  return record(value) && Object.keys(value).length === 2 && validMovementDigest(value.digest) &&
-    Array.isArray(value.groups) && value.groups.length > 0 && value.groups.length <= 2048 &&
-    value.groups.every((group) => record(group) && Object.keys(group).length === 2 &&
-      Array.isArray(group.origins) && group.origins.length > 0 && group.origins.length <= 64 &&
-      Array.isArray(group.destinations) && group.destinations.length > 0 && group.destinations.length <= 64 &&
-      group.origins.every((position) => validMovementPosition(position, true)) &&
-      group.destinations.every((position) => validMovementPosition(position, true)));
+  return (
+    record(value) &&
+    Object.keys(value).length === 2 &&
+    validMovementDigest(value.digest) &&
+    Array.isArray(value.groups) &&
+    value.groups.length > 0 &&
+    value.groups.length <= 2048 &&
+    value.groups.every(
+      (group) =>
+        record(group) &&
+        Object.keys(group).length === 2 &&
+        Array.isArray(group.origins) &&
+        group.origins.length > 0 &&
+        group.origins.length <= 64 &&
+        Array.isArray(group.destinations) &&
+        group.destinations.length > 0 &&
+        group.destinations.length <= 64 &&
+        group.origins.every((position) => validMovementPosition(position, true)) &&
+        group.destinations.every((position) => validMovementPosition(position, true)),
+    )
+  );
 }
 
 const SLOTS = new Set([1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
@@ -296,11 +326,7 @@ function validInstrument(value: unknown, slots: Set<number>): boolean {
   return true;
 }
 
-function validTermStudent(
-  value: unknown,
-  instrumentCount: number,
-  numbers: Set<number>,
-): boolean {
+function validTermStudent(value: unknown, instrumentCount: number, numbers: Set<number>): boolean {
   if (
     !Array.isArray(value) ||
     value.length !== 3 ||
@@ -331,15 +357,7 @@ function validTerm(value: unknown, termIndex: number): boolean {
   if (value.instrumentos.length === 0 || value.instrumentos.length > 13 || value.alunos.length > 64)
     return false;
 
-  const snapshotVersion = value.definitionSnapshotVersion;
-  if (snapshotVersion !== undefined && snapshotVersion !== 1) return false;
-  if (
-    snapshotVersion === undefined &&
-    (value.unavailableMaximumSlots !== undefined ||
-      value.unavailableDescriptionSlots !== undefined ||
-      value.unavailableValueSlots !== undefined)
-  )
-    return false;
+  if (value.definitionSnapshotVersion !== 1) return false;
   if (
     !validUnavailableSlots(value.unavailableMaximumSlots) ||
     !validUnavailableSlots(value.unavailableDescriptionSlots) ||
@@ -351,7 +369,7 @@ function validTerm(value: unknown, termIndex: number): boolean {
   for (const instrumento of value.instrumentos) {
     if (!validInstrument(instrumento, slots)) return false;
   }
-  if (snapshotVersion === 1 && (!slots.has(1) || !slots.has(2) || !slots.has(3))) return false;
+  if (!slots.has(1) || !slots.has(2) || !slots.has(3)) return false;
 
   const numbers = new Set<number>();
   for (const aluno of value.alunos) {
@@ -386,7 +404,11 @@ function validRecovery(value: unknown): boolean {
 }
 
 function validOffer(value: unknown, offers: Set<string>): boolean {
-  if (!record(value) || !nonEmptyText(value.turmaCodigo, 32) || !nonEmptyText(value.disciplina, 256))
+  if (
+    !record(value) ||
+    !nonEmptyText(value.turmaCodigo, 32) ||
+    !nonEmptyText(value.disciplina, 256)
+  )
     return false;
   const offerKey = JSON.stringify([
     value.turmaCodigo.trim().toUpperCase(),
@@ -403,8 +425,7 @@ function validOffer(value: unknown, offers: Set<string>): boolean {
 }
 
 function validNotes(value: Record<string, unknown>): boolean {
-  if (value.granularObservationVersion !== undefined && value.granularObservationVersion !== 1)
-    return false;
+  if (value.granularObservationVersion !== 1) return false;
   if (!isGradebookAcademicYearV2(value.ano)) return false;
   if (
     !nonEmptyText(value.professor, 256) ||
@@ -450,11 +471,22 @@ export function isGradebookImportPersistenceResponseV9(
   if (!record(value) || value.transportVersion !== 9 || typeof value.state !== 'string')
     return false;
   if (value.state === 'applied' || value.state === 'no-changes') {
-    return record(value.summary) && (value.warnings === undefined ||
-      (Array.isArray(value.warnings) && value.warnings.length <= 4096 && value.warnings.every((warning) =>
-        record(warning) && Object.keys(warning).length === 4 && warning.code === 'movement-spelling' &&
-        nonEmptyText(warning.classCode, 32) && nonEmptyText(warning.relatedClassCode, 32) &&
-        Number.isSafeInteger(warning.number) && Number(warning.number) > 0)));
+    return (
+      record(value.summary) &&
+      (value.warnings === undefined ||
+        (Array.isArray(value.warnings) &&
+          value.warnings.length <= 4096 &&
+          value.warnings.every(
+            (warning) =>
+              record(warning) &&
+              Object.keys(warning).length === 4 &&
+              warning.code === 'movement-spelling' &&
+              nonEmptyText(warning.classCode, 32) &&
+              nonEmptyText(warning.relatedClassCode, 32) &&
+              Number.isSafeInteger(warning.number) &&
+              Number(warning.number) > 0,
+          )))
+    );
   }
   if (
     value.state === 'blocked' ||
@@ -462,7 +494,10 @@ export function isGradebookImportPersistenceResponseV9(
     value.state === 'review-required' ||
     value.state === 'invalid-request'
   )
-    return nonEmptyText(value.reason, 512) && (value.movementReview === undefined ||
-      (value.state === 'review-required' && validMovementReview(value.movementReview)));
+    return (
+      nonEmptyText(value.reason, 512) &&
+      (value.movementReview === undefined ||
+        (value.state === 'review-required' && validMovementReview(value.movementReview)))
+    );
   return value.state === 'not-authorized' || value.state === 'unavailable';
 }

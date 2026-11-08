@@ -1,13 +1,5 @@
 import type { GradebookAfterCommitV1 } from './live-after-commit-v1';
 import {
-  BULLETIN_CONTRACT_VERSION_V1,
-} from '../../../shared/gradebook-contracts/bulletins/bulletin-contract-v1';
-import {
-  inspectBulletinWorkspaceTransportRequestV1,
-  type BulletinWorkspaceTransportRequestV1,
-  type BulletinWorkspaceTransportResponseV1,
-} from '../../../shared/gradebook-contracts/bulletins/bulletin-transport-v1';
-import {
   RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
   relationalBulletinRequestSchemaV2,
   type RelationalBulletinRequestV2,
@@ -24,6 +16,7 @@ import {
 } from '../../http/security';
 import { createRelationalBulletinServiceV2 } from '../application/bulletins/relational-bulletin-v2';
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
+import { retiredGradebookRequestV1 } from './retired-request-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 import { createRelationalBulletinSnapshotRepositoryV2 } from '../persistence/postgres/relational-bulletin-snapshot-v2';
 
@@ -154,21 +147,5 @@ export async function handleBulletinRequestV1(
     return handleRelationalBulletinV2(payload, env, session, afterCommit);
   }
 
-  const readiness = inspectBulletinWorkspaceTransportRequestV1(payload);
-  if (readiness !== 'ready') {
-    return noStoreJson(
-      {
-        contractVersion: BULLETIN_CONTRACT_VERSION_V1,
-        state: 'unavailable',
-        reason: readiness,
-      },
-      400,
-    );
-  }
-
-  return noStoreJson({
-    contractVersion: BULLETIN_CONTRACT_VERSION_V1,
-    operation: (payload as BulletinWorkspaceTransportRequestV1).operation,
-    state: 'unavailable',
-  } satisfies BulletinWorkspaceTransportResponseV1, 410);
+  return retiredGradebookRequestV1(payload);
 }

@@ -59,9 +59,9 @@ describe('retired teacher-assignment maintenance transport', () => {
         GRADEBOOK_PRODUCTION_ENABLED:'true',
         GRADEBOOK_D1:{prepare,exec:vi.fn()},
       }, 'ADMINISTRADOR');
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(410);
       expect(response.headers.get('Cache-Control')).toContain('no-store');
-      expect(await response.json()).toEqual({contractVersion:1,state:'unavailable'});
+      expect(await response.json()).toEqual({state:'retired'});
       expect(prepare).not.toHaveBeenCalled();
     }
   });
@@ -71,7 +71,7 @@ describe('retired teacher-assignment maintenance transport', () => {
     const response = await invoke({...maintenancePayload,actorId:'browser',capability:'gradebook.persistence.admin'}, {
       ...testEnv,GRADEBOOK_D1:{prepare,exec:vi.fn()},
     }, 'ADMINISTRADOR');
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(410);
     expect(prepare).not.toHaveBeenCalled();
   });
 });

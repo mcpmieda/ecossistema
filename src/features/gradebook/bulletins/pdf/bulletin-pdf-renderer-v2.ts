@@ -10,7 +10,7 @@ import {
   renderBulletinPdfLinesV1,
   type BulletinPdfArtifactV1,
   type BulletinPdfLineV1,
-} from './bulletin-pdf-renderer-v1';
+} from './bulletin-pdf-engine';
 
 type RelationalBulletinPdfReadinessV2 =
   | { readonly status: 'ready' }
@@ -197,17 +197,7 @@ export function buildRelationalBulletinPdfLinesV2(
   text(
     lines,
     'meta',
-    `Snapshot: ${snapshot.snapshotId} · versão ${snapshot.snapshotVersion} · modelo ${model.modelVersion}`,
-  );
-  text(
-    lines,
-    'meta',
     `Emitido em: ${new Date(snapshot.emittedAt).toLocaleString(snapshot.presentation.locale)}`,
-  );
-  text(
-    lines,
-    'meta',
-    'Autoridade: AM/U importadas são oficiais; cálculo nativo é comparação descritiva.',
   );
   lines.push({ kind: 'space', height: 16 }, { kind: 'rule' }, { kind: 'space', height: 16 });
 

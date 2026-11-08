@@ -102,13 +102,13 @@ function confirmed(): {
 }
 function request(result: BatchSuccess): GradebookImportPersistenceRequestV9 {
   const term = (trimestre: 1 | 2 | 3) => ({
-    trimestre,
-    instrumentos: [[1, 10_000] as const],
-    alunos: [[1, [null], null] as const],
+    definitionSnapshotVersion: 1 as const, trimestre,
+    instrumentos: [[1, 10_000] as const, [2, 10_000] as const, [3, null] as const],
+    alunos: [[1, [null, null, null], null] as const],
   });
   return {
     transportVersion: 9,
-    operation: 'persist-notas',
+    operation: 'persist-notas', granularObservationVersion: 1 as const,
     manifest: {
       fileName: result.manifest.fileName,
       sha256: result.manifest.sha256,

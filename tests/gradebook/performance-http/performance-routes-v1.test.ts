@@ -1,8 +1,5 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import type { AcademicYearId, ClassGroupId } from '../../../shared/gradebook-contracts/entities';
-import { CLASS_PERFORMANCE_CONTRACT_VERSION_V1, PERFORMANCE_COLUMN_ORDER_V1, PERFORMANCE_ROW_ORDER_V1,
-  type ClassPerformanceRequestV1 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
 import { AuthorizationError } from '../../../server/auth/roles';
 import { AuthenticationError } from '../../../server/auth/session';
 import type { RuntimeEnv } from '../../../server/env';
@@ -10,37 +7,6 @@ import { createPerformanceRequestHandlerV1 } from '../../../server/gradebook/htt
 
 const ORIGIN = 'https://preview.pages.dev';
 const env = { OFFICIAL_ORIGIN: ORIGIN } as RuntimeEnv;
-const academicYearId = 'year-synthetic-2026' as AcademicYearId;
-const classGroupId = 'class-synthetic-a' as ClassGroupId;
-
-function detailReference(operation: 'student-detail' | 'cell-detail', overrides: Record<string, unknown> = {}): string {
-  const payload = operation === 'student-detail'
-    ? { version: 1, academicYearId, classGroupId, detailKey: 'synthetic:student', ...overrides }
-    : { version: 1, detailKey: 'synthetic:cell', scope: JSON.stringify({
-      version: 1, academicYearId, classGroupId, period: { kind: 'term', term: 1 },
-      mode: 'regular', lens: 'result', comparisonPeriod: null,
-    }), ...overrides };
-  return `class-performance-${operation}-v1.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
-}
-
-function matrixRequest(
-  overrides: Partial<ClassPerformanceRequestV1> = {},
-): ClassPerformanceRequestV1 {
-  return {
-    contractVersion: CLASS_PERFORMANCE_CONTRACT_VERSION_V1,
-    academicYearId,
-    classGroupId,
-    period: { kind: 'term', term: 1 },
-    mode: 'regular',
-    lens: 'result',
-    comparisonPeriod: null,
-    rows: { limit: 20, cursor: null },
-    columns: { limit: 6, cursor: null },
-    order: { rows: PERFORMANCE_ROW_ORDER_V1, columns: PERFORMANCE_COLUMN_ORDER_V1 },
-    ...overrides,
-  };
-}
-
 function request(body: unknown): Request {
   return new Request(`${ORIGIN}/api/gradebook/performance`, {
     method: 'POST',
@@ -63,7 +29,7 @@ describe('Performance HTTP V1 retirement', () => {
     const access = vi.fn(() => { throw new Error('retired-storage-access'); });
     const guarded = Object.defineProperty({ ...env }, 'GRADEBOOK_DATABASE', { get: access });
     const route = createPerformanceRequestHandlerV1({ async authorizeRequest() { throw new ErrorType(); } });
-    const response = await route(request({ transportVersion: 1, operation: 'matrix', request: matrixRequest() }), guarded);
+    const response = await route(request({ transportVersion: 1, operation: 'matrix' }), guarded);
     expect(response?.status).toBe(new ErrorType().status);
     expect(response?.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate, private');
     await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'not-authorized' });
@@ -137,48 +103,20 @@ describe('Performance HTTP V1 retirement', () => {
   });
 
 
-  it('validates bounds and rejects client configuration before retirement', async () => {
-    const route = handler();
-    for (const value of [{ bad: true }, matrixRequest({ rows: { limit: 0, cursor: null } }),
-      matrixRequest({ columns: { limit: 0, cursor: null } }), { ...matrixRequest(), comparisonEnabled: false }]) {
-      const response = await route(request({ transportVersion: 1, operation: 'matrix', request: value }), env);
-      expect(response?.status).toBe(400);
-      await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'invalid-request', reason: 'invalid-request' });
-    }
-  });
-  it('retires valid lenses, periods and details without resolving a source or configuration', async () => {
-    const access = vi.fn(() => { throw new Error('retired-storage-access'); });
-    const guarded = Object.defineProperties({ ...env }, {
-      GRADEBOOK_D1: { get: access }, GRADEBOOK_DATABASE: { get: access },
-    });
-    const route = handler();
-    const matrices = [matrixRequest(), matrixRequest({ lens: 'quantitative', mode: 'recovery' }),
-      matrixRequest({ lens: 'qualitative', mode: 'recovery' }), matrixRequest({ lens: 'assessments', mode: 'recovery' }),
-      matrixRequest({ lens: 'result', mode: 'recovery' }), matrixRequest({ lens: 'quantitative', period: { kind: 'annual' } }),
-      matrixRequest({ comparisonPeriod: { kind: 'term', term: 2 } })];
-    const bodies = [...matrices.map((value) => ({ transportVersion: 1, operation: 'matrix', request: value })),
-      { transportVersion: 1, operation: 'student-detail', detailRef: detailReference('student-detail') },
-      { transportVersion: 1, operation: 'cell-detail', detailRef: detailReference('cell-detail') }];
-    for (const body of bodies) {
-      const response = await route(request(body), guarded);
-      expect(response?.status).toBe(410);
-      expect(response?.headers.get('Cache-Control')).toContain('no-store');
-      await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'unavailable' });
-    }
-    expect(access).not.toHaveBeenCalled();
-  });
-  it.each(['student-detail', 'cell-detail'] as const)('preserves pure reference validation for %s before retirement', async (operation) => {
+  it('retires every old version without reading it or touching storage', async () => {
     const access = vi.fn(() => { throw new Error('retired-storage-access'); });
     const guarded = Object.defineProperties({ ...env }, {
       GRADEBOOK_D1: { get: access }, GRADEBOOK_DATABASE: { get: access }, PROD_DB: { get: access },
     });
     const route = handler();
-    for (const detailRef of ['opaque-synthetic-student', `class-performance-${operation}-v1.***`,
-      detailReference(operation, { detailKey: '' }), detailReference(operation, { unexpected: true }),
-      detailReference(operation, { version: 2 })]) {
-      const response = await route(request({ transportVersion: 1, operation, detailRef }), guarded);
-      expect(response?.status).toBe(400);
-      await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'invalid-request', reason: 'invalid-detail-reference' });
+    for (const body of [{ transportVersion: 1, operation: 'matrix' }, { transportVersion: 1, operation: 'cell-detail', detailRef: 'x' }, { bad: true }]) {
+      const response = await route(request(body), guarded);
+      expect(response?.status).toBe(410);
+      expect(response?.headers.get('Cache-Control')).toContain('no-store');
+      await expect(response?.json()).resolves.toEqual({ state: 'retired' });
+    }
+    for (const body of [[1], 'text', null]) {
+      expect((await route(request(body), guarded))?.status).toBe(400);
     }
     expect(access).not.toHaveBeenCalled();
   });

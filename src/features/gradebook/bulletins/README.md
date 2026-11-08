@@ -6,7 +6,7 @@ A página montada pelo shell usa `RelationalBulletinPageV2`, o contrato comparti
 
 - contexto vindo do seletor global de anos materializados pela Relação; sem comparação entre anos;
 - turma/alunos/ofertas/instrumentos/notas/fechamentos vêm das relações atuais;
-- AM/U importadas são oficiais; cálculo nativo é comparação descritiva;
+- AM/U importadas são oficiais; o cálculo do sistema serve só para conferência;
 - disciplinas seguem a ordem de apresentação da fonte;
 - REC normal, `N/C` e `R/R` aparecem junto da AM; qualquer `R/R` produz `REPROVADO`, sem Conselho, e `ASSISTIDO` não recebe resultado geral;
 - no anual terminal por `R/R`, AM oficiais continuam obrigatórias, mas lacunas do cálculo apenas descritivo e a U inexistente não bloqueiam emissão;

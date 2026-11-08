@@ -76,7 +76,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(projectState).toContain('production_gate_final: off');
     expect(academicContext).toContain('authorityMode: imported-source');
     expect(route).not.toContain('createGradebookD1RuntimeV1');
-    expect(route).toContain('return unavailable(410)');
+    expect(route).toContain('return retiredGradebookRequestV1(payload)');
   });
 
   it('não reinterpreta o checkpoint de autoridade F9/#347', () => {

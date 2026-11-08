@@ -64,10 +64,10 @@ describe('frontends antigos sem montagem aposentados na #666', () => {
     ]) {
       expect(functions).toContain(handler);
     }
-    expect(rendererV2).toContain("from './bulletin-pdf-renderer-v1'");
+    expect(rendererV2).toContain("from './bulletin-pdf-engine'");
     expect(existsSync(join(
       root,
-      'src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v1.ts',
+      'src/features/gradebook/bulletins/pdf/bulletin-pdf-engine.ts',
     ))).toBe(true);
   });
 });

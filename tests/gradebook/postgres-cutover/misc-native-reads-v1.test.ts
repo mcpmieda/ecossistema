@@ -70,10 +70,10 @@ function fixture(read: (sql: string) => Row[]) {
 }
 function notes(): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3): GradebookImportTermV9 => ({
-    trimestre, instrumentos: [[1, 6750]], alunos: [[1, [1000], null], [2, [2000], null]],
+    definitionSnapshotVersion: 1 as const, trimestre, instrumentos: [[1, 6750]], alunos: [[1, [1000], null], [2, [2000], null]],
   });
   return {
-    transportVersion: 9, operation: 'persist-notas', ano: 2090, professor: 'SYNTHETIC',
+    transportVersion: 9, operation: 'persist-notas', granularObservationVersion: 1 as const, ano: 2090, professor: 'SYNTHETIC',
     manifest: { fileName: 'synthetic.xlsx', sha256: 'a'.repeat(64), parserVersion: 'synthetic' },
     ofertas: [{ turmaCodigo: '6a', disciplina: 'MATEMATICA', trimestres: [term(1), term(2), term(3)], recuperacao: [[1, null, null, null, null], [2, null, null, null, null]] }],
   };

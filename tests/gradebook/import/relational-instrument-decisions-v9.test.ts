@@ -39,13 +39,12 @@ describe('relational instrument decisions V9', () => {
     })).toBe(false);
   });
 
-  it('preserves unavailable authoritative metadata and legacy missing values', () => {
+  it('preserves unavailable metadata and clears what the snapshot dropped', () => {
     const current = { maximo: 5000, descricao: 'Atividade' };
     expect(resolveRelationalInstrumentMetadataV9({
       current,
       sourceMaximum: null,
       sourceDescription: undefined,
-      authoritativeDefinitions: true,
       maximumUnavailable: true,
       descriptionUnavailable: true,
     })).toEqual(current);
@@ -54,16 +53,6 @@ describe('relational instrument decisions V9', () => {
       current,
       sourceMaximum: null,
       sourceDescription: undefined,
-      authoritativeDefinitions: false,
-      maximumUnavailable: false,
-      descriptionUnavailable: false,
-    })).toEqual(current);
-
-    expect(resolveRelationalInstrumentMetadataV9({
-      current,
-      sourceMaximum: null,
-      sourceDescription: undefined,
-      authoritativeDefinitions: true,
       maximumUnavailable: false,
       descriptionUnavailable: false,
     })).toEqual({ maximo: null, descricao: null });
@@ -75,7 +64,6 @@ describe('relational instrument decisions V9', () => {
       sourceDescription: undefined,
       hasValue: false,
       exists: false,
-      granularObservationVersion: 1,
       slot: 3,
     })).toBe(true);
 

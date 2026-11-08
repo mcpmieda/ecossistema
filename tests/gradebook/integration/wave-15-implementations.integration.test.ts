@@ -3,9 +3,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { BULLETIN_AUTHORITY_MODE_V1 } from '../../../shared/gradebook-contracts/bulletins/bulletin-contract-v1';
-import { PERFORMANCE_AUTHORITY_MODE_V1 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
-
 const root = process.cwd();
 
 function source(path: string): string {
@@ -37,8 +34,6 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(runtime).not.toContain('createBulletinEmissionServiceV1');
     expect(performanceSource).toContain('resolvePerformanceComparisonProjectionV2');
     expect(performanceSource).toContain("reasons: ['official-projection-unavailable']");
-    expect(PERFORMANCE_AUTHORITY_MODE_V1).toBe('imported-source');
-    expect(BULLETIN_AUTHORITY_MODE_V1).toBe('imported-source');
   });
 
   it('preserva hardening do Operational Workspace sem alterar seus limites físicos', () => {
