@@ -56,4 +56,4 @@ A #662 restaurou o artefato lógico V2 em PostgreSQL local descartável: 28 rela
 
 ## 0017 — histórico das regras do ano (08/11/2026)
 
-`0017_drop_ano_letivo_historico_v1.sql` remove `gradebook.ano_letivo_historico`. Nenhuma tela ou função muda a nota mínima ou o limite do Conselho depois da importação da Relação, então a tabela nunca teve linha. Aborta se tiver qualquer linha. O artefato lógico V2 da #662 continua restaurável: ele recria a estrutura antiga pelas migrações da época.
+`0017_drop_ano_letivo_historico_v1.sql` remove `gradebook.ano_letivo_historico`. Aplicada em produção como `gradebook_0017_drop_ano_letivo_historico_v1` (`20261108091103`), depois do deploy do código que deixou de usar a tabela; postflight: tabela ausente, 39 tabelas com RLS, Advisor de segurança limpo. Nenhuma tela ou função muda a nota mínima ou o limite do Conselho depois da importação da Relação, então a tabela nunca teve linha. Aborta se tiver qualquer linha. O artefato lógico V2 da #662 continua restaurável: ele recria a estrutura antiga pelas migrações da época.
