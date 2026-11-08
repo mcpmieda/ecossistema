@@ -47,7 +47,7 @@ const reconciliationCandidates = {
   gradebook: ['0015_student_reconciliation_v1.sql', '0016_reconciliation_year_reset_v1.sql'],
   portal: ['0025_reconciliation_credentials_v1.sql'],
 } as const;
-/** Removal of the never-used school-year rule history (owner decision of 08/11/2026). */
+/** Removal of the never-used school-year rule history (owner decision of 08/11/2026), applied as 20261108091103. */
 const gradebookCleanupCandidate = '0017_drop_ano_letivo_historico_v1.sql';
 /** Retention of unreachable publication editions (owner request of 14/10/2026), not yet applied. */
 const retentionCandidate = '0026_publication_source_retention_v1.sql';
