@@ -32,44 +32,6 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(functions.match(/handleCouncilWorkspaceRequestV1/gu)).toHaveLength(2);
   });
 
-  it('usa a projeção oficial #332 upstream do Council Workspace sem cálculo no workspace/wiring', () => {
-    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
-    const functions = source('functions/[[path]].ts');
-
-    expect(runtime).toContain('createGradebookD1CouncilOfficialProjectionSourceV1(database)');
-    expect(runtime).toContain('councilWorkspace(');
-    expect(runtime).toContain('createGradebookD1BulletinCouncilDurabilityV1(database)');
-    expect(runtime).toContain('decisions: this.durability.councilDecisions');
-    expect(runtime).not.toContain('createLocalCouncilDecisionStoreV1');
-    expect(functions).not.toContain('resolveNativeAnnualOutcome');
-  });
-
-  it('preserva F6: quatro lentes, recovery oficial, comparação canônica, paginação/drill-down e raw evidence fora do HTTP', () => {
-    const page = source('src/features/gradebook/performance/relational-performance-page-v2.tsx');
-    const hook = source('src/features/gradebook/performance/use-relational-performance-v2.ts');
-    const matrix = source('src/features/gradebook/performance/performance-result-matrix-v2.tsx');
-    const route = source('server/gradebook/http/performance-routes-v1.ts');
-    const physicalSource = source(
-      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
-    );
-
-    for (const label of ['Resultado', 'Quantitativo', 'Qualitativo', 'Avaliações']) {
-      expect(page).toContain(label);
-    }
-    expect(page).toContain('<PerformanceStudentDetailV2');
-    expect(page).toContain('<PerformanceResultMatrixV2');
-    expect(page).toContain('<PerformanceTermComparisonPanelV4');
-    expect(page).toContain('state.classes?.nextOffset');
-    expect(hook).toContain('ticket.isCurrent()');
-    expect(matrix).toContain('<PerformanceGridV2');
-    expect(matrix).toContain('open={open}');
-    expect(physicalSource).toContain("source: 'final-recovery'");
-    expect(physicalSource).toContain('resolvePerformanceComparisonProjectionV2');
-    expect(physicalSource).toContain('official-projection-unavailable');
-    expect(route).not.toContain('officialRecords: detail.officialRecords');
-    expect(route).not.toContain('rawSourceEvidence');
-  });
-
   it('preserva F8: mesma base canônica, lote isolado, snapshot histórico e PDF canônico snapshot-only', () => {
     const service = source('server/gradebook/application/bulletins/relational-bulletin-v2.ts');
     const snapshots = source(
@@ -117,28 +79,6 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(councilPage).toContain('aria-live="polite"');
     expect(councilPage).toContain('Linha do tempo');
     expect(councilPage).toContain('Fechamentos preservados');
-  });
-
-  it('mantém auth opaca, capability existente, no-store e produção fail-closed antes do binding', () => {
-    const functions = source('functions/[[path]].ts');
-    const runtime = source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
-    const handlers = [
-      source('server/gradebook/http/performance-routes-v1.ts'),
-      source('server/gradebook/http/bulletin-routes-v1.ts'),
-      source('server/gradebook/http/council-routes-v1.ts'),
-    ];
-
-    for (const handler of handlers) {
-      expect(handler).toContain('requireAuth');
-      expect(handler).toContain('authorizeGradebookRuntimeV1');
-      expect(handler).toContain('no-store');
-    }
-    expect(functions).toContain('handleCouncilWorkspaceRequestV1(request, env, afterCommit)');
-    expect(handlers[2]).toContain('authorizeGradebookRuntimeV1(session)');
-    const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
-    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_DATABASE ?? env.GRADEBOOK_D1);');
-    expect(environmentGate).toBeGreaterThanOrEqual(0);
-    expect(bindingAccess).toBeGreaterThan(environmentGate);
   });
 
   it('sincroniza F1 como 7/7 e remove os marcadores históricos já satisfeitos da memória central', () => {

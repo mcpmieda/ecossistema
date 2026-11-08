@@ -200,7 +200,7 @@ function AccountDetailBodyV1({
     },
     [reader, ownScope, parentClassId],
   );
-  const read = useAccountsReadV1(load, true, false);
+  const read = useAccountsReadV1(load);
   const [mutation, setMutation] = useState<AccountMutationStateV1>({ state: 'idle' });
   const [review, setReview] = useState<{
     action: AccountActionV1;

@@ -3,7 +3,7 @@ import { servePortalAdminV1 } from '../../../server/student-portal/http/admin/ha
 import { seal } from '../../../server/auth/sealed';
 import { createApplicationSession, SESSION_COOKIE } from '../../../server/auth/session';
 import type { RuntimeEnv } from '../../../server/env';
-import type { PortalAdminEntrypointV1, PortalAdminServiceBindingV1, TrustedAdminContextV1 } from '../../../shared/student-portal-contracts/ports-v1';
+import type { PortalAdminEntrypointV1, TrustedAdminContextV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { Role } from '../../../server/auth/roles';
 
 const ACTOR = '11111111-1111-4111-8111-111111111111';
@@ -33,25 +33,6 @@ function binding() {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('ADM Pages to private Portal binding', () => {
-  it('derives the WebSocket context from the sealed ADM session and never forwards browser claims', async () => {
-    const called = vi.fn(async (internal: Request) => {
-      expect(internal.url).toBe('https://portal-admin.internal/live');
-      expect(internal.headers.get('x-admin-actor-id')).toBe(ACTOR);
-      expect(internal.headers.get('x-admin-tenant-id')).toBe(TENANT);
-      expect(internal.headers.get('x-admin-capability')).toBe('platform.settings.read');
-      expect(internal.headers.get('x-browser-account')).toBeNull();
-      return new Response(null, { status: 200 });
-    });
-    const service = { ...binding().rpc, fetch: called } satisfies PortalAdminServiceBindingV1;
-    const live = new Request(`${ORIGIN}/api/student-portal/admin/live`, { headers: {
-      origin: ORIGIN, cookie: await cookie(), Upgrade: 'websocket', 'x-browser-account': TENANT,
-    } });
-    expect((await servePortalAdminV1(live, env, service)).status).toBe(200);
-    expect(called).toHaveBeenCalledTimes(1);
-    const withoutSession = new Request(live, { headers: { origin: ORIGIN, Upgrade: 'websocket' } });
-    expect((await servePortalAdminV1(withoutSession, env, service)).status).toBe(401);
-    expect(called).toHaveBeenCalledTimes(1);
-  });
 
   it('passes opt-in V2 reads through sealed ADM authentication and validates their own envelope', async () => {
     const input = { ...query, contractVersion: 2, operation: 'accounts-read' };

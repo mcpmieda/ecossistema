@@ -15,14 +15,13 @@ import { useDrawerSwipeV1 } from './platform/drawer-swipe-v1';
 import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformDataV2 } from './platform/platform-data-v2';
 import { usePlatformIdentityV1, type PlatformIdentityV1 as Identity } from './platform/platform-identity-v1';
-import { AdministrativeLiveProviderV1 } from './shared/live-data/administrative-live-v1';
 import { LiveRefreshAutomaticV1Provider } from './shared/live-data/live-refresh-scope-v1';
 import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
 
 /** Since 03/11/2026, when the owner asked whether the automatic refresh was needed (screens still
  * blinked): the ADM reads again when its window comes back, after each write and on F5, with no
  * clock and no live channel; a change made elsewhere shows then. Writes still check versions.
- * This flag turns both back on. */
+ * This flag turns the clock back on; the live channel of the ADM was removed on 08/11/2026. */
 export const ADMIN_AUTOMATIC_READS_V1 = false;
 
 type AuthFailure = { correlationId?: string };
@@ -312,7 +311,7 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
 }
 
 export function App() {
-  const { identity, accessError, retry, recheck } = usePlatformIdentityV1();
+  const { identity, accessError, retry } = usePlatformIdentityV1();
   const authFailure = authFailureFromUrl();
   if (accessError) return <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
     <Surface className="platform-card-surface w-full max-w-xl rounded-3xl p-6 sm:p-8"><Alert status="warning"><Alert.Indicator /><Alert.Content>
@@ -323,12 +322,7 @@ export function App() {
   if (authFailure && !identity.authenticated) return <AuthErrorExperience correlationId={authFailure.correlationId} />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
   if (!identity.capabilities?.includes('platform.snapshot.read')) return <RestrictedExperience name={identity.name} />;
-  return <AdministrativeLiveProviderV1
-    identityKey={identity.identityKey ? `${identity.identityKey}:${identity.expiresAt ?? ''}:${identity.capabilities.join(',')}` : undefined}
-    enabled={ADMIN_AUTOMATIC_READS_V1 && identity.capabilities.includes('platform.settings.read')}
-    onAuthorizationLost={recheck}>
-    <LiveRefreshAutomaticV1Provider enabled={ADMIN_AUTOMATIC_READS_V1}>
-      <AdminShell key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`} identity={identity} />
-    </LiveRefreshAutomaticV1Provider>
-  </AdministrativeLiveProviderV1>;
+  return <LiveRefreshAutomaticV1Provider enabled={ADMIN_AUTOMATIC_READS_V1}>
+    <AdminShell key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`} identity={identity} />
+  </LiveRefreshAutomaticV1Provider>;
 }

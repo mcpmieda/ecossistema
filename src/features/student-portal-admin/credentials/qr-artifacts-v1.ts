@@ -22,15 +22,6 @@ export function qrMatrixV1(qr: string) {
   if (!qrUrlV1.safeParse(qr).success) throw new QrArtifactErrorV1('invalid-cards');
   return QRCode.create(qr, { errorCorrectionLevel: 'M' }).modules;
 }
-export function qrSvgV1(qr: string): string {
-  const matrix = qrMatrixV1(qr),
-    size = matrix.size + 8;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size * 8}" height="${size * 8}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="white"/>${qrLayerPathsV1(
-    matrix,
-  )
-    .map((shape) => `<path d="${shape.path}" fill="${shape.dark ? 'black' : 'white'}"/>`)
-    .join('')}</svg>`;
-}
 // A task boundary keeps cancellation responsive without background-tab timer throttling.
 const yieldToBrowser = () =>
   new Promise<void>((resolve) => {

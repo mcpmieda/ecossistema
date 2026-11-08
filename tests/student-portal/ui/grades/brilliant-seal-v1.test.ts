@@ -1,11 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
-import {
-  brilliantSealCountV1,
-  earnsSealV1,
-  isBrilliantMarkV1,
-} from '../../../../src/features/student-portal/grades/brilliant-seal-v1';
+import { brilliantSealCountV1, earnsSealV1 } from '../../../../src/features/student-portal/grades/brilliant-seal-v1';
 import { score } from './fixtures-v1';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
@@ -25,16 +21,6 @@ const t = (period: PeriodV1['period'], value: number, maximum = 30): PeriodV1 =>
 });
 
 describe('selos brilhantes (owner rules 27/09/2026)', () => {
-  it('Brilhante is 90% or more of a mark that reached the minimum, exactly', () => {
-    expect(isBrilliantMarkV1(score(27, 30, true))).toBe(true);
-    expect(isBrilliantMarkV1(score(26.999, 30, true))).toBe(false);
-    expect(isBrilliantMarkV1(score(36, 40, true))).toBe(true);
-    expect(isBrilliantMarkV1(score(35.9, 40, true))).toBe(false);
-    expect(isBrilliantMarkV1(score(9, 10, true))).toBe(true);
-    expect(isBrilliantMarkV1(score(30, 30, null))).toBe(false);
-    expect(isBrilliantMarkV1(score(30, null, true))).toBe(false);
-    expect(isBrilliantMarkV1({ kind: 'absent' })).toBe(false);
-  });
 
   it('earns a seal when no subject is red in the trimester', () => {
     const star = subject(t('T1', 29.5));

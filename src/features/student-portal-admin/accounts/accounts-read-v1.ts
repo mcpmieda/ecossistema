@@ -11,7 +11,6 @@ import {
 export function useAccountsReadV1<T>(
   load: (signal: AbortSignal) => Promise<T>,
   active = true,
-  eventDriven = true,
   intervalMs?: number,
 ) {
   const [result, setResult] = useState<{ load: typeof load; state: PortalLoadStateV1<T> }>({
@@ -61,7 +60,6 @@ export function useAccountsReadV1<T>(
   // An automatic read (the window came back, a failure retry) shows nothing; only a change is drawn.
   useLiveRefreshV1(() => reader.run(load, { background: true, silent: true }), {
     active,
-    eventDriven,
     intervalMs,
     domains: ['portal', 'gradebook'],
     canRefresh: () =>

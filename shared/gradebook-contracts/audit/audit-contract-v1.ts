@@ -52,13 +52,6 @@ type ReconciliationTargetV1 =
   | { readonly kind: 'final-recovery'; readonly id: FinalRecoveryId }
   | { readonly kind: 'annual-result'; readonly id: AnnualResultId };
 
-export const RECONCILIATION_STATUSES_V1 = [
-  'match',
-  'expected-difference',
-  'mismatch',
-  'not-comparable',
-] as const;
-
 interface ReconciliationResultBaseV1 {
   readonly id: ReconciliationResultId;
   readonly target: ReconciliationTargetV1;
@@ -95,13 +88,6 @@ type AuditSourceReferenceV1 =
       readonly sourceFileManifestId: SourceFileManifestId;
       readonly evidence: SourceCellEvidenceV1;
     };
-
-export const AUDIT_OCCURRENCE_STATES_V1 = [
-  'open',
-  'acknowledged',
-  'resolved',
-  'dismissed-with-reason',
-] as const;
 
 export interface AuditAcknowledgedTransitionV1 {
   readonly previousState: 'open';
@@ -168,10 +154,3 @@ export type AuditOccurrenceV1 =
         AuditDismissedTransitionV1,
       ];
     });
-
-export const AUDIT_CONTRACT_V1 = {
-  version: 1,
-  severities: AUDIT_SEVERITIES_V1,
-  reconciliationStatuses: RECONCILIATION_STATUSES_V1,
-  occurrenceStates: AUDIT_OCCURRENCE_STATES_V1,
-} as const;

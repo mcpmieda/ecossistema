@@ -27,15 +27,6 @@ export type AssessmentComponentTypeV1 = (typeof ASSESSMENT_COMPONENT_TYPES_V1)[n
 export const AUTHORITY_MODES_V1 = ['imported-source', 'native-engine'] as const;
 export type AuthorityModeV1 = (typeof AUTHORITY_MODES_V1)[number];
 
-export const GRADE_VALUE_STATES_V1 = [
-  'absent',
-  'numeric',
-  'official-zero',
-  'legacy-zero',
-  'not-applicable',
-  'insufficient-data',
-] as const;
-
 export type AcademicGradeValueV1 =
   | {
       readonly state: 'absent';
@@ -77,12 +68,6 @@ export interface ComparedGradeValueV1 {
   readonly imported: ImportedGradeValueV1;
   readonly calculated: NativeEngineGradeValueV1;
 }
-
-const APPLICABILITY_STATES_V1 = [
-  'applicable',
-  'not-applicable',
-  'insufficient-data',
-] as const;
 
 export type ApplicabilityV1 =
   | {
@@ -208,10 +193,10 @@ export interface ComparedAcademicStateV1 {
   readonly calculated: AcademicResultStateV1;
 }
 
-const ANNUAL_FINAL_DECISION_OUTCOMES_V1 = ['approved', 'failed', 'special-status'] as const;
+export const ANNUAL_FINAL_DECISION_OUTCOMES_V1 = ['approved', 'failed', 'special-status'] as const;
 export type AnnualFinalDecisionOutcomeV1 = (typeof ANNUAL_FINAL_DECISION_OUTCOMES_V1)[number];
 
-const ANNUAL_FINAL_DECISION_BASES_V1 = [
+export const ANNUAL_FINAL_DECISION_BASES_V1 = [
   'academic-rule',
   'class-council',
   'attendance',
@@ -246,16 +231,3 @@ export interface AnnualResultV1 {
   readonly coverage: ResultCoverageV1;
   readonly ruleVersion: string;
 }
-
-export const RESULTS_CONTRACT_V1 = {
-  version: 1,
-  academicTerms: ACADEMIC_TERMS_V1,
-  assessmentComponentTypes: ASSESSMENT_COMPONENT_TYPES_V1,
-  authorityModes: AUTHORITY_MODES_V1,
-  gradeValueStates: GRADE_VALUE_STATES_V1,
-  applicabilityStates: APPLICABILITY_STATES_V1,
-  coverageStates: RESULT_COVERAGE_STATES_V1,
-  academicResultStates: ACADEMIC_RESULT_STATES_V1,
-  annualFinalDecisionOutcomes: ANNUAL_FINAL_DECISION_OUTCOMES_V1,
-  annualFinalDecisionBases: ANNUAL_FINAL_DECISION_BASES_V1,
-} as const;

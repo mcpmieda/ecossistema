@@ -3,5 +3,4 @@ export {
   brilliantSealCountV1,
   earnsAssessmentSealV1,
   earnsSealV1,
-  isBrilliantMarkV1,
 } from '../../../../shared/student-portal-contracts/brilliant-seal-v1';

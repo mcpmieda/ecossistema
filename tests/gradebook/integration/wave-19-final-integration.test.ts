@@ -33,21 +33,6 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(existsSync(join(root, 'server/gradebook/application/operational-workspace/teacher-assignment-maintenance-v1.ts'))).toBe(false);
   });
 
-  it('mantém F6 comparável somente quando houver semântica oficial e monta o dashboard relacional atual', () => {
-    const performancePage = source('src/features/gradebook/performance/relational-performance-page-v2.tsx');
-    const analysis = source('src/features/gradebook/performance/performance-analysis-panel-v3.tsx');
-    const widgets = source('src/features/gradebook/performance/performance-dashboard-widgets-v5.tsx');
-    const physicalSource = source(
-      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
-    );
-
-    expect(performancePage).toContain('<PerformanceAnalysisPanelV3');
-    expect(analysis).toContain('<PerformanceDashboardWidgetsV5');
-    expect(widgets).toContain('dashboardAnalysisV5');
-    expect(physicalSource).toContain('resolvePerformanceComparisonProjectionV2');
-    expect(physicalSource).not.toContain('tolerance');
-  });
-
   it('preserva bridges e browser storage e registra o catálogo do checkpoint histórico', () => {
     const functions = source('functions/[[path]].ts');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');

@@ -103,12 +103,4 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     expect(frontend).not.toMatch(/localStorage|sessionStorage|indexedDB|caches\.open/u);
     expect(frontend).not.toMatch(/retryDecision|retryEmit|autoRetry/u);
   });
-
-  it('mantém as invariantes acadêmicas da onda 16 intactas', () => {
-    const performance = source(
-      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
-    );
-
-    expect(performance).toContain('resolvePerformanceComparisonProjectionV2');
-  });
 });

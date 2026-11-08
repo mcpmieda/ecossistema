@@ -45,7 +45,6 @@ export const failureV1 = z.object({
   state: z.enum(['invalid-request', 'unauthenticated', 'forbidden', 'access-closed', 'conflict', 'body-too-large', 'rate-limited', 'unavailable']),
   retryAfterSeconds: z.number().int().positive().max(86400).optional(),
 }).strict();
-export const healthV1 = z.object({ contractVersion: z.literal(1), state: z.enum(['ok', 'unavailable']) }).strict();
 export type ScopeV1 = z.infer<typeof scopeV1>;
 export type AcademicLinkV1 = z.infer<typeof academicLinkV1>;
 export type RevisionsV1 = z.infer<typeof revisionsV1>;

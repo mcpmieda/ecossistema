@@ -26,10 +26,6 @@ export function requireRole(userRoles: readonly Role[], role: Role): void {
   if (!hasRole(userRoles, role)) throw new AuthorizationError();
 }
 
-export function requireAnyRole(userRoles: readonly Role[], allowed: readonly Role[]): void {
-  if (!allowed.some((role) => hasRole(userRoles, role))) throw new AuthorizationError();
-}
-
 export class AuthorizationError extends Error {
   readonly status = 403;
   constructor() {

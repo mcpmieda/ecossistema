@@ -10,27 +10,7 @@ import type {
   TeachingAssignmentId,
   TeachingAssignmentV1,
 } from '../../../shared/gradebook-contracts/entities';
-import {
-  ACADEMIC_RESULT_STATES_V1,
-  AUTHORITY_MODES_V1,
-  GRADE_VALUE_STATES_V1,
-  RESULTS_CONTRACT_V1,
-  type AcademicGradeValueV1,
-  type AnnualResultId,
-  type AnnualResultV1,
-  type ApplicabilityV1,
-  type AssessmentComponentId,
-  type AssessmentComponentV1,
-  type ComparedApplicabilityV1,
-  type ComparedGradeValueV1,
-  type FinalRecoveryId,
-  type FinalRecoveryV1,
-  type GradeEntryId,
-  type GradeEntryV1,
-  type ResultCoverageV1,
-  type TermResultId,
-  type TermResultV1,
-} from '../../../shared/gradebook-contracts/results/results-contract-v1';
+import { type AcademicGradeValueV1, type AnnualResultId, type AnnualResultV1, type ApplicabilityV1, type AssessmentComponentId, type AssessmentComponentV1, type ComparedApplicabilityV1, type ComparedGradeValueV1, type FinalRecoveryId, type FinalRecoveryV1, type GradeEntryId, type GradeEntryV1, type ResultCoverageV1, type TermResultId, type TermResultV1 } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import type { SourceCellEvidenceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 
 const academicYearId = 'academic-year:2026' as AcademicYearId;
@@ -101,15 +81,6 @@ const notApplicableEvidence = {
   provenance: provenance('AA10'),
   classification: 'not-applicable',
   rawValue: '*',
-} satisfies SourceCellEvidenceV1;
-
-const insufficientEvidence = {
-  provenance: provenance('AN10'),
-  classification: 'formula-error-or-missing-cache',
-  rawValue: null,
-  formula: '=SUM(R10:T10)',
-  cachedValue: null,
-  sourceError: '#VALUE!',
 } satisfies SourceCellEvidenceV1;
 
 function comparedGrade(
@@ -353,22 +324,5 @@ describe('academic result contracts v1', () => {
       resultingState: 'approved-by-council',
     });
     expect(annualResult.postRecoveryTotal.imported.evidence[0]).toBe(numericEvidence);
-  });
-
-  it('publishes stable machine vocabularies independently from interface labels', () => {
-    expect(AUTHORITY_MODES_V1).toEqual(['imported-source', 'native-engine']);
-    expect(GRADE_VALUE_STATES_V1).toEqual([
-      'absent',
-      'numeric',
-      'official-zero',
-      'legacy-zero',
-      'not-applicable',
-      'insufficient-data',
-    ]);
-    expect(ACADEMIC_RESULT_STATES_V1).toContain('approved-after-recovery');
-    expect(ACADEMIC_RESULT_STATES_V1).toContain('failed-by-attendance');
-    expect(RESULTS_CONTRACT_V1.version).toBe(1);
-    expect(RESULTS_CONTRACT_V1).not.toHaveProperty('labels');
-    expect(insufficientEvidence.classification).toBe('formula-error-or-missing-cache');
   });
 });

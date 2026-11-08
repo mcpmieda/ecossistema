@@ -46,9 +46,7 @@ describe('security remediation #637', () => {
     expect(removed).toEqual([]);
   });
 
-  it('preserves the Office.js types and the application database driver', () => {
-    expect(manifest.devDependencies['@types/office-js']).toBe('^1.0.377');
-    expect(lock.packages['node_modules/@types/office-js']).toBeDefined();
+  it('preserves the application database driver', () => {
     expect(manifest.dependencies.postgres).toBe('3.4.9');
     expect(lock.packages['node_modules/postgres']?.version).toBe('3.4.9');
   });

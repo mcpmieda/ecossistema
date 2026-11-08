@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { getGraphToken, GraphError, graphBatch, graphRequest } from '../server/graph/client';
+import { getGraphToken, GraphError, graphRequest } from '../server/graph/client';
 import { testEnv } from './fixtures';
 
 async function validRotatedCredential(createdAt: string) {
@@ -124,14 +124,4 @@ describe('Graph client resilience', () => {
     ).rejects.toBeInstanceOf(GraphError);
     expect(fetchMock).toHaveBeenCalledTimes(5);
   });
-  it('rejects batches larger than the current limit', async () => {
-    const requests = Array.from({ length: 21 }, (_, i) => ({
-      id: String(i),
-      method: 'GET',
-      url: '/me',
-    }));
-    await expect(graphBatch(testEnv, requests)).rejects.toThrow('1 to 20');
-  });
-  it('rejects empty batches', async () =>
-    await expect(graphBatch(testEnv, [])).rejects.toThrow('1 to 20'));
 });

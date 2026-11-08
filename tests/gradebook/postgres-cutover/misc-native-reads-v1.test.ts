@@ -2,7 +2,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../../server/env';
 import { createGradebookRelationalImportServiceV10 } from '../../../server/gradebook/application/import/import-relational-service-v10';
-import { handleGradebookPersistenceAdminRequestV1, GRADEBOOK_PERSISTENCE_STATUS_ROUTE } from '../../../server/gradebook/http/persistence-admin-routes-v1';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -78,14 +77,6 @@ function notes(): GradebookNotesImportRequestV9 {
     ofertas: [{ turmaCodigo: '6a', disciplina: 'MATEMATICA', trimestres: [term(1), term(2), term(3)], recuperacao: [[1, null, null, null, null], [2, null, null, null, null]] }],
   };
 }
-async function status() {
-  const env = {
-    OFFICIAL_ORIGIN: 'https://school.test', RUNTIME_ENVIRONMENT: 'production',
-    GRADEBOOK_STORAGE_PROVIDER: 'postgres', GRADEBOOK_PRODUCTION_ENABLED: 'true',
-    PROD_DB: { connectionString: 'synthetic' },
-  } as RuntimeEnv;
-  return handleGradebookPersistenceAdminRequestV1(new Request(`https://school.test${GRADEBOOK_PERSISTENCE_STATUS_ROUTE}`), env);
-}
 
 describe('native miscellaneous reads for B-15 slice 4', () => {
   it('reads historical bindings after the year locks and passes filtered facts to V9 in the same transaction', async () => {
@@ -120,29 +111,5 @@ describe('native miscellaneous reads for B-15 slice 4', () => {
     await expect(createGradebookRelationalImportServiceV10(database).execute(notes())).rejects.toThrow('relation "gradebook.vinculo" does not exist');
     expect(database.lastFailure()).toMatchObject({ operation: 'SELECT', relation: 'vinculo', category: 'relation-missing', sqlState: '42P01' });
     expect(mocks.persist).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    [[{ role: 'gradebook_app', ready: true }], 200],
-    [[{ role: 'gradebook_app', ready: 1 }], 200],
-    [[{ role: 'wrong-role', ready: true }], 503],
-    [[{ role: 'gradebook_app', ready: false }], 503],
-    [[], 503],
-  ] as const)('probes readiness and role through the native port: %j', async (rows, expectedStatus) => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { calls } = fixture(() => [...rows]);
-    const response = await status();
-    expect(response?.status).toBe(expectedStatus);
-    expect(response?.headers.get('Cache-Control')).toContain('no-store');
-    expect(calls).toEqual([{ channel: 'pool', values: [], sql: "SELECT current_user AS role,\n          to_regclass('gradebook.nota') IS NOT NULL AND to_regclass('gradebook.fechamento') IS NOT NULL\n          AND to_regclass('gradebook.vinculo') IS NOT NULL AS ready" }]);
-  });
-
-  it('retains the probe failure diagnostic and returns the existing opaque 503', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { database } = fixture(() => { throw Object.assign(new Error('synthetic-private-failure'), { code: '42501' }); });
-    const response = await status();
-    expect(response?.status).toBe(503);
-    expect(database.lastFailure()).toMatchObject({ sqlState: '42501' });
-    expect(await response?.text()).not.toContain('synthetic-private-failure');
   });
 });

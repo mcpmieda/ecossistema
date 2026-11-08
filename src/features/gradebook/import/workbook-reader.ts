@@ -1,5 +1,4 @@
 import type { SourceFileManifestV1 } from '../../../../shared/gradebook-contracts/imports/import-contract-v1';
-import { createSourceFileManifest } from './file-manifest';
 import { recognizeWorkbook, type SheetJs, type WorkbookSummary } from './spreadsheet-recognizer';
 import { recognizeMasterRelationV9, type MasterRelationRecognitionV9 } from './master-relation-v9';
 import { isStudentReportWorkbookV1 } from './student-report-reader-v1';
@@ -157,13 +156,4 @@ export function readWorkbookData(
       // Optional diagnostics must not change the recognized result or the original error.
     }
   }
-}
-
-export async function readWorkbook(
-  file: File,
-  xlsx: SheetJs,
-): Promise<WorkbookSummaryWithRelationV9> {
-  const data = await file.arrayBuffer();
-  const manifest = await createSourceFileManifest(file, data, xlsx.version);
-  return readWorkbookData(file, data, xlsx, manifest);
 }

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -20,24 +20,6 @@ describe('integração final da onda 22 — bridges e checkpoint', () => {
     expect(performanceRoute).toContain("requireCapability(capabilities, 'platform.settings.read')");
     expect(comparisonPanel).toContain('não mede evolução pedagógica');
     expect(`${settingsPage}${comparisonPanel}`).not.toMatch(/localStorage|sessionStorage|indexedDB/u);
-  });
-
-  it('preserva bridges atuais e catálogo D1 0001–0006 históricos', () => {
-    expect(readdirSync(join(root, 'Aprendizados/RUNTIME-D1-RETIRADO-1079/migrations/gradebook')).sort()).toEqual([
-      '0001_gradebook_context_entities_imports_v1.sql',
-      '0002_gradebook_records_audit_v1.sql',
-      '0003_logical_source_record_catalog_v1.sql',
-      '0004_bulletin_council_durability_v1.sql',
-      '0005_council_session_durability_v2.sql',
-      '0006_import_staging_v1.sql',
-    ]);
-
-    const functions = source('functions/[[path]].ts');
-    expect(functions).toContain('handlePerformanceRequestV1(request, env)');
-    expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
-    expect(functions).not.toContain('/api/gradebook/audit-workspace');
-    expect(source('server/gradebook/http/performance-routes-v1.ts')).toContain("GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance'");
-    expect(source('Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts')).toContain('deterministicCorrectionWorkspace(');
   });
 
   it('preserva o checkpoint documental das ondas 22–24 sem impor flags antigas ao programa final', () => {

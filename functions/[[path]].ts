@@ -38,17 +38,13 @@ import {
   HttpError,
   withSecurityHeaders,
 } from '../server/http/security';
-import { sharePointHealth } from '../server/graph/sharepoint';
 import { handleBulletinRequestV1 } from '../server/gradebook/http/bulletin-routes-v1';
 import { handleCouncilWorkspaceRequestV1 } from '../server/gradebook/http/council-routes-v1';
-import { handleGradebookPersistenceAdminRequestV1 } from '../server/gradebook/http/persistence-admin-routes-v1';
-import { handleRetiredGradebookReportsRequest } from '../server/gradebook/http/retired-reports-route';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
 import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessment-names-routes-v1';
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
-import { getPlatformSnapshot } from '../server/platform/snapshot';
 import { handleCollectorRequestV1 } from '../server/collector/routes-v1';
 import { handleFrequencyAdminRequestV2 } from '../server/collector/frequency-http-v2';
 
@@ -443,14 +439,8 @@ async function routeSessionV1(request: Request, env: ValidEnvV1, url: URL, corre
   return null;
 }
 
-/** The Banco de Notas: persistence admin, retired reports, reconciliation and the gradebook API. */
+/** The Banco de Notas: reconciliation and the gradebook API. */
 async function routeGradebookV1(context: Context, request: Request, env: ValidEnvV1, url: URL): Promise<Response | null> {
-  const gradebookPersistenceAdminResponse = await handleGradebookPersistenceAdminRequestV1(request, env);
-  if (gradebookPersistenceAdminResponse) return gradebookPersistenceAdminResponse;
-
-  const retiredReportsResponse = await handleRetiredGradebookReportsRequest(request, env);
-  if (retiredReportsResponse) return retiredReportsResponse;
-
   if (url.pathname === '/api/student-reconciliation/v1') {
     const response = await withOfficialGradebookDatabaseV1(env, (executionEnv) => handleStudentReconciliationRequestV1(request, executionEnv));
     if (response) return response;
@@ -465,26 +455,6 @@ async function routeGradebookV1(context: Context, request: Request, env: ValidEn
   return null;
 }
 
-/** The platform's own reads: SharePoint health and the snapshot. */
-async function routePlatformReadsV1(request: Request, env: ValidEnvV1, url: URL): Promise<Response | null> {
-  if (url.pathname === '/api/sharepoint/health') {
-    method(request, ['GET']);
-    const session = await requireAuth(request, env);
-    const capabilities = capabilitiesForRoles(session.roles);
-    requireCapability(capabilities, 'platform.health.read');
-    return json(await sharePointHealth(env));
-  }
-
-  if (url.pathname === '/api/platform/snapshot') {
-    method(request, ['GET']);
-    const session = await requireAuth(request, env);
-    const capabilities = capabilitiesForRoles(session.roles);
-    requireCapability(capabilities, 'platform.snapshot.read');
-    return json(await getPlatformSnapshot(env, capabilities));
-  }
-  return null;
-}
-
 async function route(context: Context, correlationId: string): Promise<Response> {
   const env = validateEnv(context.env);
   const request = context.request;
@@ -493,8 +463,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
   const response =
     (await routeServicesV1(request, env, url)) ??
     (await routeSessionV1(request, env, url, correlationId)) ??
-    (await routeGradebookV1(context, request, env, url)) ??
-    (await routePlatformReadsV1(request, env, url));
+    (await routeGradebookV1(context, request, env, url));
   if (response) return response;
   throw new HttpError(404, 'Not found');
 }

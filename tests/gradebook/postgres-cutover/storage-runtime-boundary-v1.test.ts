@@ -26,14 +26,11 @@ describe('official Gradebook storage boundary', () => {
     expect(official).toContain('gradebook-official-postgres-binding-missing');
   });
 
-  it('retires the D1 migration runtime and documents the naming boundary', () => {
-    const admin = source('server/gradebook/http/persistence-admin-routes-v1.ts');
+  it('documents that only PostgreSQL remains', () => {
     const map = source('docs/gradebook/STORAGE_RUNTIME_MAP.md');
     const legacy = source('docs/gradebook/D1_RUNTIME.md');
     const cutover = source('docs/gradebook/postgres-cutover-runbook-v1.md');
 
-    expect(admin).toContain("state: 'retired', provider: 'postgres'");
-    expect(admin).not.toContain('createGradebookD1RuntimeV1');
     expect(map).toContain('somente PostgreSQL em todos os ambientes');
     expect(map).toContain('não existe fallback automático para D1 físico');
     expect(legacy).toContain('Documento histórico');

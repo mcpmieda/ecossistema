@@ -50,13 +50,6 @@ export type SourceAssessmentSlotV2 =
   | SourceQuantitativeAssessmentSlotV2
   | SourceQualitativeActivitySlotV2;
 
-export const SOURCE_ASSESSMENT_DEFINITION_KINDS_V2 = [
-  'quantitative-assessment',
-  'qualitative-activity',
-] as const;
-type SourceAssessmentDefinitionKindV2 =
-  (typeof SOURCE_ASSESSMENT_DEFINITION_KINDS_V2)[number];
-
 export const SOURCE_ASSESSMENT_MAXIMUM_CONFIGURATION_STATES_V2 = [
   'numeric',
   'ambiguous-empty',
@@ -143,38 +136,6 @@ export type SourceAssessmentDefinitionV2 =
   | SourceQuantitativeAssessmentDefinitionV2
   | SourceQualitativeActivityDefinitionV2;
 
-export const SOURCE_ASSESSMENT_INSUFFICIENT_REASONS_V2 = [
-  'maximum-ambiguous-empty',
-  'maximum-ambiguous-marker',
-  'maximum-missing-field',
-  'maximum-unrecognized',
-  'maximum-not-positive',
-  'name-empty',
-  'name-missing-field',
-  'name-unrecognized',
-] as const;
-type SourceAssessmentInsufficientReasonV2 =
-  (typeof SOURCE_ASSESSMENT_INSUFFICIENT_REASONS_V2)[number];
-
-type SourceAssessmentDefinitionResolutionV2 =
-  | {
-      readonly state: 'resolved';
-      readonly kind: SourceAssessmentDefinitionKindV2;
-      readonly sourceSlot: SourceAssessmentSlotV2;
-      readonly order: number;
-      readonly name: string;
-      readonly maximum: number;
-      readonly applicability: { readonly state: 'applicable' };
-    }
-  | {
-      readonly state: 'insufficient-data';
-      readonly kind: SourceAssessmentDefinitionKindV2;
-      readonly sourceSlot: SourceAssessmentSlotV2;
-      readonly order: number;
-      readonly observedName: string | null;
-      readonly reason: SourceAssessmentInsufficientReasonV2;
-    };
-
 const SOURCE_CELL_MAP_V2 = {
   metadata: SOURCE_CELL_MAP_V1.metadata,
   studentColumns: SOURCE_CELL_MAP_V1.studentColumns,
@@ -245,121 +206,4 @@ export function classifySourceAssessmentNameV2(
   if (rawValue === null || rawValue === '') return { state: 'empty', rawValue, provenance };
   if (typeof rawValue === 'string') return { state: 'text', rawValue, provenance };
   return { state: 'unrecognized', rawValue, provenance };
-}
-
-type MaximumResolutionV2 =
-  | { readonly state: 'resolved'; readonly maximum: number }
-  | {
-      readonly state: 'insufficient-data';
-      readonly reason: Extract<
-        SourceAssessmentInsufficientReasonV2,
-        | 'maximum-ambiguous-empty'
-        | 'maximum-ambiguous-marker'
-        | 'maximum-missing-field'
-        | 'maximum-unrecognized'
-        | 'maximum-not-positive'
-      >;
-    };
-
-function resolveMaximumConfigurationV2(
-  configuration: SourceAssessmentMaximumConfigurationV2,
-): MaximumResolutionV2 {
-  switch (configuration.state) {
-    case 'numeric':
-      return Number.isFinite(configuration.rawValue) && configuration.rawValue > 0
-        ? { state: 'resolved', maximum: configuration.rawValue }
-        : { state: 'insufficient-data', reason: 'maximum-not-positive' };
-    case 'ambiguous-empty':
-      return { state: 'insufficient-data', reason: 'maximum-ambiguous-empty' };
-    case 'ambiguous-marker':
-      return { state: 'insufficient-data', reason: 'maximum-ambiguous-marker' };
-    case 'missing-field':
-      return { state: 'insufficient-data', reason: 'maximum-missing-field' };
-    case 'unrecognized':
-      return { state: 'insufficient-data', reason: 'maximum-unrecognized' };
-  }
-}
-
-function observedName(definition: SourceAssessmentDefinitionV2): string | null {
-  if (definition.kind === 'quantitative-assessment') return definition.structuralLabel;
-  return definition.name.state === 'text' ? definition.name.rawValue : null;
-}
-
-export function resolveSourceAssessmentDefinitionV2(
-  definition: SourceAssessmentDefinitionV2,
-): SourceAssessmentDefinitionResolutionV2 {
-  const maximumResolution = resolveMaximumConfigurationV2(definition.maximumConfiguration);
-  if (maximumResolution.state === 'insufficient-data') {
-    return {
-      state: 'insufficient-data',
-      kind: definition.kind,
-      sourceSlot: definition.sourceSlot,
-      order: definition.order,
-      observedName: observedName(definition),
-      reason: maximumResolution.reason,
-    };
-  }
-
-  const maximum = maximumResolution.maximum;
-  if (definition.kind === 'quantitative-assessment') {
-    return {
-      state: 'resolved',
-      kind: definition.kind,
-      sourceSlot: definition.sourceSlot,
-      order: definition.order,
-      name: definition.structuralLabel,
-      maximum,
-      applicability: { state: 'applicable' },
-    };
-  }
-
-  switch (definition.name.state) {
-    case 'text':
-      if (definition.name.rawValue.trim().length === 0) {
-        return {
-          state: 'insufficient-data',
-          kind: definition.kind,
-          sourceSlot: definition.sourceSlot,
-          order: definition.order,
-          observedName: definition.name.rawValue,
-          reason: 'name-empty',
-        };
-      }
-      return {
-        state: 'resolved',
-        kind: definition.kind,
-        sourceSlot: definition.sourceSlot,
-        order: definition.order,
-        name: definition.name.rawValue,
-        maximum,
-        applicability: { state: 'applicable' },
-      };
-    case 'empty':
-      return {
-        state: 'insufficient-data',
-        kind: definition.kind,
-        sourceSlot: definition.sourceSlot,
-        order: definition.order,
-        observedName: null,
-        reason: 'name-empty',
-      };
-    case 'missing-field':
-      return {
-        state: 'insufficient-data',
-        kind: definition.kind,
-        sourceSlot: definition.sourceSlot,
-        order: definition.order,
-        observedName: null,
-        reason: 'name-missing-field',
-      };
-    case 'unrecognized':
-      return {
-        state: 'insufficient-data',
-        kind: definition.kind,
-        sourceSlot: definition.sourceSlot,
-        order: definition.order,
-        observedName: null,
-        reason: 'name-unrecognized',
-      };
-  }
 }

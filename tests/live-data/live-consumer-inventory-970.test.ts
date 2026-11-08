@@ -34,10 +34,10 @@ describe('BN-21 current live consumer inventory', () => {
     expect(accounts).toContain('useContinuousReadV1(');
     expect(accounts).toContain('<QrBatchToolsV1');
     expect(source('src/features/student-portal-admin/shared/continuous-read-v1.tsx')).toContain(
-      'useOperationalReadV1(load, onAuthorizationLost, active, eventDriven)',
+      'useOperationalReadV1(load, onAuthorizationLost, active)',
     );
     expect(source('src/features/student-portal-admin/overview/operations-values-v1.ts')).toContain(
-      'useAccountsReadV1(guarded, active, eventDriven)',
+      'useAccountsReadV1(guarded, active)',
     );
     expect(birth).not.toContain('LIVE_HEAVY_READ_INTERVAL_V1');
     expect(accounts).not.toContain('LIVE_HEAVY_READ_INTERVAL_V1');
@@ -64,7 +64,6 @@ describe('BN-21 current live consumer inventory', () => {
     const regressionOwners = [
       'tests/live-data/draft-and-cadence-839.test.tsx',
       'tests/live-data/live-refresh-scope-839.test.tsx',
-      'tests/live-data/administrative-live-resilience-839.test.tsx',
       'tests/live-data/read-resilience-839.test.ts',
       'tests/student-portal/persistence/live-outbox-v1.test.ts',
     ] as const;

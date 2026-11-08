@@ -3,12 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import jsQR from 'jsqr';
 import sharp from 'sharp';
-import {
-  qrMatrixV1,
-  qrSvgV1,
-  renderQrPdfV1,
-  wrapQrLabelV1,
-} from '../../../src/features/student-portal-admin/credentials/qr-artifacts-v1';
+import { qrMatrixV1, renderQrPdfV1, wrapQrLabelV1 } from '../../../src/features/student-portal-admin/credentials/qr-artifacts-v1';
 import {
   qrLayerPathsV1,
   qrShapePathV1,
@@ -75,21 +70,6 @@ describe('private QR print artifacts', () => {
     expect(jsQR(pixels, width, height)?.data).toBe(qr);
     expect([...qrMatrixV1(qr).data]).toEqual([...matrix.data]);
   });
-  it.each([1, 37, 100])(
-    'decodes the actual rounded SVG raster at print scale, credential %i',
-    async (index) => {
-      const qr = qrPrintUrlV1(index);
-      const { data, info } = await sharp(Buffer.from(qrSvgV1(qr)))
-        .resize(450, 450)
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      expect(jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data).toBe(qr);
-      const svg = qrSvgV1(qr);
-      expect(svg).not.toContain(qr);
-      expect(svg).toContain('Q');
-    },
-  );
   it('draws the same outline with merged row paths as with one path per module', async () => {
     const matrix = qrMatrixV1(qrPrintUrlV1(7));
     const size = matrix.size + 8;

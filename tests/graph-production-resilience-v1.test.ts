@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { graphAllPages, graphContentRequest, GraphError, graphRequest } from '../server/graph/client';
+import { graphAllPages, GraphError, graphRequest } from '../server/graph/client';
 import { graphRetryAfterMsV1 } from '../server/graph/request-policy-v1';
 import { testEnv } from './fixtures';
 
@@ -29,12 +29,6 @@ describe('Graph production backoff and intent #806', () => {
       dependencies: { fetch, sleep: async () => undefined } })).rejects.toBeInstanceOf(GraphError);
     expect(fetch).toHaveBeenCalledOnce();
   });
-  it('does not replay a binary write after a lost reply', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockRejectedValue(new TypeError('synthetic interrupted connection'));
-    await expect(graphContentRequest({ ...input, method: 'PUT', contentType: 'application/octet-stream', body: new Uint8Array([1,2]),
-      dependencies: { fetch, sleep: async () => undefined } })).rejects.toMatchObject({ status: 503 });
-    expect(fetch).toHaveBeenCalledOnce();
-  });
   it('recovers a pure read once the transient connection returns', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockRejectedValueOnce(new TypeError('synthetic offline'))
       .mockResolvedValueOnce(json({ value: [1] }));
@@ -59,12 +53,6 @@ describe('Graph production backoff and intent #806', () => {
     const denied = vi.fn<typeof globalThis.fetch>().mockResolvedValue(json({}, 403));
     await expect(graphRequest({ ...input, dependencies: { fetch: denied, sleep: async () => undefined } })).rejects.toMatchObject({ status: 403 });
     expect(denied).toHaveBeenCalledOnce();
-  });
-  it('applies the same long backoff rule to binary operations', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(json({}, 429, { 'Retry-After': '60' }));
-    const sleep = vi.fn(async () => undefined);
-    await expect(graphContentRequest({ ...input, method: 'GET', dependencies: { fetch, sleep } })).rejects.toMatchObject({ retryAfterSeconds: 60 });
-    expect(fetch).toHaveBeenCalledOnce(); expect(sleep).not.toHaveBeenCalled();
   });
 });
 

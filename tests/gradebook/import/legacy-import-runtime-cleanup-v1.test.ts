@@ -28,11 +28,7 @@ const RETIRED_RUNTIME_FILES = [
 const ARCHIVE_FILES = [
   'Aprendizados/IMPORTADORES-LEGADOS/README.md',
   'Aprendizados/IMPORTADORES-LEGADOS/D1-V8/README.md',
-  'Aprendizados/IMPORTADORES-LEGADOS/D1-V8/codigo/src/features/gradebook/import/import-persistence-client-v8.ts',
-  'Aprendizados/IMPORTADORES-LEGADOS/D1-V8/codigo/server/gradebook/http/import-persistence-routes-v2.ts',
   'Aprendizados/IMPORTADORES-LEGADOS/HYPERDRIVE-SHADOW/README.md',
-  'Aprendizados/IMPORTADORES-LEGADOS/HYPERDRIVE-SHADOW/codigo/functions/api/gradebook/postgres-v8-shadow-benchmark.ts',
-  'Aprendizados/IMPORTADORES-LEGADOS/HYPERDRIVE-SHADOW/codigo/server/gradebook/persistence/shadow/postgres-shadow-apply-v1.ts',
 ] as const;
 
 describe('legacy gradebook import archive', () => {
@@ -45,7 +41,7 @@ describe('legacy gradebook import archive', () => {
     expect(catchAll).not.toContain('handleGradebookImportPersistenceRequestV2');
   });
 
-  it('preserves retired implementations under Aprendizados', () => {
+  it('keeps the learning notes of the retired importers', () => {
     for (const file of ARCHIVE_FILES) expect(existsSync(path(file)), file).toBe(true);
   });
 });

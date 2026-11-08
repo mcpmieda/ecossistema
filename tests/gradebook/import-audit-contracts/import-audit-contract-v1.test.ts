@@ -1,28 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { AcademicYearId, StudentId } from '../../../shared/gradebook-contracts/entities';
-import type {
-  ComparedGradeValueV1,
-  TermResultId,
-} from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import { SOURCE_CONTRACT_V1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 import type { SourceCellEvidenceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
-import {
-  AUDIT_CONTRACT_V1,
-  AUDIT_OCCURRENCE_STATES_V1,
-  AUDIT_SEVERITIES_V1,
-  RECONCILIATION_STATUSES_V1,
-} from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
-import type {
-  AuditOccurrenceId,
-  AuditOccurrenceV1,
-  ReconciliationResultId,
-  ReconciliationResultV1,
-} from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
-import {
-  IMPORT_BATCH_STATUSES_V1,
-  IMPORT_CONTRACT_V1,
-} from '../../../shared/gradebook-contracts/imports/import-contract-v1';
+import type { AuditOccurrenceId, AuditOccurrenceV1 } from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
 import type {
   ImportBatchResultV1,
   ImportFileDiagnosticV1,
@@ -52,16 +33,6 @@ const sourceEvidence = {
   classification: 'manual-positive-number',
   rawValue: 8,
 } satisfies SourceCellEvidenceV1;
-
-const comparedValue = {
-  imported: {
-    value: { state: 'numeric', value: 8 },
-    evidence: [sourceEvidence],
-  },
-  calculated: {
-    value: { state: 'numeric', value: 7.5 },
-  },
-} satisfies ComparedGradeValueV1;
 
 const manifest = {
   id: manifestId,
@@ -199,55 +170,6 @@ describe('import, reconciliation and audit contracts v1', () => {
     expect(diagnostic).not.toHaveProperty('localPath');
   });
 
-  it('keeps imported/native values, tolerance and rule version for every reconciliation status', () => {
-    const termResultId = 'term-result:synthetic-001' as TermResultId;
-    const base = {
-      target: { kind: 'term-result' as const, id: termResultId },
-      value: comparedValue,
-      ruleVersion: 'academic-rule:2026-v1',
-    };
-
-    const reconciliations: ReconciliationResultV1[] = [
-      {
-        ...base,
-        id: 'reconciliation:match' as ReconciliationResultId,
-        status: 'match',
-        difference: 0,
-        tolerance: 0.01,
-      },
-      {
-        ...base,
-        id: 'reconciliation:expected' as ReconciliationResultId,
-        status: 'expected-difference',
-        difference: 0.5,
-        tolerance: 0.01,
-        explanation: 'Diferença sintética esperada pela versão de regra.',
-      },
-      {
-        ...base,
-        id: 'reconciliation:mismatch' as ReconciliationResultId,
-        status: 'mismatch',
-        difference: 1,
-        tolerance: 0.01,
-      },
-      {
-        ...base,
-        id: 'reconciliation:not-comparable' as ReconciliationResultId,
-        status: 'not-comparable',
-        difference: null,
-        tolerance: null,
-        explanation: 'Cobertura sintética insuficiente.',
-      },
-    ];
-
-    expect(reconciliations.map((item) => item.status)).toEqual(RECONCILIATION_STATUSES_V1);
-    expect(reconciliations[0]?.value.imported.value).toEqual({ state: 'numeric', value: 8 });
-    expect(reconciliations[0]?.value.calculated.value).toEqual({ state: 'numeric', value: 7.5 });
-    expect(reconciliations[0]?.tolerance).toBe(0.01);
-    expect(reconciliations[0]?.ruleVersion).toBe('academic-rule:2026-v1');
-    expect(reconciliations[3]?.difference).toBeNull();
-  });
-
   it('makes critical severity explicit and preserves the full resolution transition', () => {
     const occurrence = {
       id: 'audit-occurrence:synthetic-001' as AuditOccurrenceId,
@@ -285,31 +207,5 @@ describe('import, reconciliation and audit contracts v1', () => {
       occurredAt: '2026-08-31T17:02:00Z',
       justification: 'Evidência sintética revisada e reconciliada.',
     });
-  });
-
-  it('publishes one stable vocabulary for batch, severity, reconciliation and resolution states', () => {
-    expect(IMPORT_BATCH_STATUSES_V1).toEqual([
-      'received',
-      'processing',
-      'review-required',
-      'partially-approved',
-      'approved',
-      'rejected',
-      'failed',
-    ]);
-    expect(AUDIT_SEVERITIES_V1).toEqual([
-      'information',
-      'warning',
-      'blocking-error',
-      'critical-error',
-    ]);
-    expect(AUDIT_OCCURRENCE_STATES_V1).toEqual([
-      'open',
-      'acknowledged',
-      'resolved',
-      'dismissed-with-reason',
-    ]);
-    expect(IMPORT_CONTRACT_V1.sourceContractVersion).toBe(SOURCE_CONTRACT_V1.version);
-    expect(AUDIT_CONTRACT_V1.reconciliationStatuses).toBe(RECONCILIATION_STATUSES_V1);
   });
 });

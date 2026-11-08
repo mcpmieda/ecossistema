@@ -25,3 +25,11 @@ Cloudflare D1 foi escolhido originalmente como armazenamento físico principal d
 Em setembro de 2026, benchmarks controlados mostraram que o caminho PostgreSQL via Hyperdrive é mais adequado à carga de importação atual. Isso não invalida o trabalho feito no D1: os padrões de domínio, contratos, versionamento, auditoria e vários mecanismos operacionais continuam reutilizáveis em qualquer backend.
 
 Os importadores anteriores foram retirados do runtime após o cutover do modelo relacional e preservados integralmente em `IMPORTADORES-LEGADOS/`, para que o código ativo mantenha somente o caminho atual sem perder o aprendizado acumulado.
+
+## Código arquivado (retirado da árvore em 08/11/2026)
+
+O código e os testes dos importadores legados e do runtime D1 saíram da árvore atual: não rodam, não são compilados e só eram lidos por testes de texto. Os documentos desta pasta continuam. Para consultar o código, use o histórico do Git a partir do commit `558e6bbbbe8e`, por exemplo:
+
+```bash
+git show 558e6bbbbe8e:Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts
+```
