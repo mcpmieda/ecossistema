@@ -3,7 +3,7 @@ import { servePortalAdminV1 } from '../../../server/student-portal/http/admin/ha
 import { seal } from '../../../server/auth/sealed';
 import { createApplicationSession, SESSION_COOKIE } from '../../../server/auth/session';
 import type { RuntimeEnv } from '../../../server/env';
-import type { PortalAdminEntrypointV1, PortalAdminServiceBindingV1, TrustedAdminContextV1 } from '../../../shared/student-portal-contracts/ports-v1';
+import type { PortalAdminEntrypointV1, TrustedAdminContextV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { Role } from '../../../server/auth/roles';
 
 const ACTOR = '11111111-1111-4111-8111-111111111111';

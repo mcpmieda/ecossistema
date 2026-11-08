@@ -14,34 +14,6 @@ export const liveResumeV1 = z
   })
   .strict();
 
-export const liveServerMessageV1 = z.discriminatedUnion('type', [
-  z
-    .object({
-      contractVersion: z.literal(1),
-      type: z.literal('connected'),
-      cursor: liveCursorV1.nullable(),
-    })
-    .strict(),
-  z
-    .object({
-      contractVersion: z.literal(1),
-      type: z.literal('resync'),
-      cursor: liveCursorV1.nullable(),
-      domains: z.array(liveDomainV1).min(1).max(2),
-    })
-    .strict(),
-  z
-    .object({
-      contractVersion: z.literal(1),
-      type: z.literal('change'),
-      cursor: liveCursorV1,
-      domain: liveDomainV1,
-      version: revisionV1,
-      occurredAt: instantV1,
-    })
-    .strict(),
-]);
-
 /** Internal service/DO message. Routing fields are consumed server-side and never serialized to a browser. */
 export const livePublishEventV1 = z
   .object({

@@ -50,11 +50,6 @@ export type SourceAssessmentSlotV2 =
   | SourceQuantitativeAssessmentSlotV2
   | SourceQualitativeActivitySlotV2;
 
-export const SOURCE_ASSESSMENT_DEFINITION_KINDS_V2 = [
-  'quantitative-assessment',
-  'qualitative-activity',
-] as const;
-
 export const SOURCE_ASSESSMENT_MAXIMUM_CONFIGURATION_STATES_V2 = [
   'numeric',
   'ambiguous-empty',
@@ -140,17 +135,6 @@ export type SourceQualitativeActivityDefinitionV2 = {
 export type SourceAssessmentDefinitionV2 =
   | SourceQuantitativeAssessmentDefinitionV2
   | SourceQualitativeActivityDefinitionV2;
-
-export const SOURCE_ASSESSMENT_INSUFFICIENT_REASONS_V2 = [
-  'maximum-ambiguous-empty',
-  'maximum-ambiguous-marker',
-  'maximum-missing-field',
-  'maximum-unrecognized',
-  'maximum-not-positive',
-  'name-empty',
-  'name-missing-field',
-  'name-unrecognized',
-] as const;
 
 const SOURCE_CELL_MAP_V2 = {
   metadata: SOURCE_CELL_MAP_V1.metadata,

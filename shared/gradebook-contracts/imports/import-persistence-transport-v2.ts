@@ -1,14 +1,12 @@
 import type { AcademicYearId } from '../entities';
 import { type SourceAssessmentSlotV2 } from '../source/source-contract-v2';
-import { GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V1, GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V1, GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V1, type GradebookImportAcademicRecordCountsV1, type GradebookImportAssessmentComponentCountsV1, type GradebookImportAssessmentDefinitionCountsV1, type GradebookImportPersistenceIssueScopeV1, type GradebookImportPersistenceRequestRejectionV1, type GradebookImportPersistenceRequestV1 } from './import-persistence-transport-v1';
+import { GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V1, type GradebookImportAcademicRecordCountsV1, type GradebookImportAssessmentComponentCountsV1, type GradebookImportAssessmentDefinitionCountsV1, type GradebookImportPersistenceIssueScopeV1, type GradebookImportPersistenceRequestRejectionV1, type GradebookImportPersistenceRequestV1 } from './import-persistence-transport-v1';
 
 /**
  * First-import evolution of the bounded browser transport. The V1 contract is
  * intentionally left frozen; V2 removes browser authority over logical-source identity.
  */
 export const GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V2 = 2 as const;
-export const GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V2 = GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V1;
-export const GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V2 = GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V1;
 
 export const GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V2 = [
   ...GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V1,
@@ -54,7 +52,7 @@ export interface GradebookImportPersistenceSummaryV2 {
   readonly committedWrites: GradebookImportPersistenceWriteCountsV2;
 }
 
-const GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_CODES_V2 = [
+export const GRADEBOOK_IMPORT_PERSISTENCE_ISSUE_CODES_V2 = [
   'invalid-context',
   'incompatible-reference',
   'duplicate-identity',

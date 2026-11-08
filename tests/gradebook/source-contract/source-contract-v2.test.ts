@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { SOURCE_CONTRACT_V1, type SourceCellProvenanceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
-import { SOURCE_CONTRACT_V2, SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2, SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2, classifySourceAssessmentMaximumConfigurationV2, classifySourceAssessmentNameV2, type SourceAssessmentDefinitionV2 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
+import { type SourceCellProvenanceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
+import { SOURCE_CONTRACT_V2, SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2, SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2, classifySourceAssessmentMaximumConfigurationV2 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
 
 function provenance(cellAddress: string): SourceCellProvenanceV1 {
   return {
@@ -10,25 +10,6 @@ function provenance(cellAddress: string): SourceCellProvenanceV1 {
     fileSha256: '1'.repeat(64),
     sheetName: '6A1ºD2',
     cellAddress,
-  };
-}
-
-function qualitativeDefinition(
-  sourceSlot: 'AA' | 'AB' | 'AC',
-  order: number,
-  maximum: number | null | '' | '*',
-  name: string | null | '',
-): SourceAssessmentDefinitionV2 {
-  return {
-    contractVersion: 2,
-    kind: 'qualitative-activity',
-    sourceSlot,
-    order,
-    maximumConfiguration: classifySourceAssessmentMaximumConfigurationV2(
-      maximum,
-      provenance(`${sourceSlot}3`),
-    ),
-    name: classifySourceAssessmentNameV2(name, provenance(`${sourceSlot}4`)),
   };
 }
 

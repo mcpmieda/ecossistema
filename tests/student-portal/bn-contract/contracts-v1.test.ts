@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { academicRevisionSchemaV1, academicVersionSchemaV1, portalAcademicLinkSchemaV1 } from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
+import { academicVersionSchemaV1, portalAcademicLinkSchemaV1 } from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
 import {
   resolveEligibilityV1,
   eligibilitySchemaV1,

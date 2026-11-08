@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { PlatformCapability, PlatformConfiguration, PlatformSnapshotContract } from '../../shared/platform-contract';
+import type { PlatformCapability, PlatformConfiguration } from '../../shared/platform-contract';
 import { PLATFORM_SOURCE_SECTIONS_V2, type PlatformSnapshotV2, type PlatformSourceSectionV2 } from '../../shared/platform-snapshot-v2';
 import { requireCapability } from '../auth/capabilities';
 import type { RuntimeEnv } from '../env';
@@ -21,7 +21,6 @@ type PlatformList = z.infer<typeof listSchema>;
 type PlatformItem = { id: string; fields: Record<string, unknown> };
 type SnapshotSource = { lists: PlatformList[]; moduleItems: PlatformItem[]; configurationItems: PlatformItem[];
   auditItems: PlatformItem[]; migrationItems: PlatformItem[]; correlationId: string; generatedAt?: string };
-type PlatformSnapshot = PlatformSnapshotContract;
 export function isFailureResult(value: string): boolean {
   const normalized = value.trim().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
   return /^(erro|error|falha|falhou|failed|failure)(?:\b|[:_-])/u.test(normalized);
@@ -188,10 +187,4 @@ export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: reado
   if (unavailableSections.length && snapshot.operational) snapshot.operational.status = 'attention';
   unavailableSections.sort((left, right) => left.localeCompare(right));
   return { ...snapshot, unavailableSections, ...(retryAfterSeconds ? { retryAfterSeconds } : {}) };
-}
-/** Old consumers must never interpret a partial V2 response as a complete snapshot. */
-export async function getPlatformSnapshot(env: RuntimeEnv, capabilities: readonly PlatformCapability[]): Promise<PlatformSnapshot> {
-  const snapshot = await getPlatformSnapshotV2(env, capabilities);
-  if (snapshot.unavailableSections?.length) throw new GraphError(503, snapshot.correlationId, snapshot.retryAfterSeconds);
-  return snapshot;
 }

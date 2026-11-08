@@ -1,5 +1,4 @@
 const FRONTEND_DIAGNOSTIC_VERSION_V1 = 1 as const;
-export const FRONTEND_DIAGNOSTIC_BODY_BYTES_V1 = 1_024;
 export const FRONTEND_DIAGNOSTIC_ROUTE_V1 = '/api/observability/frontend-diagnostic';
 
 const FRONTEND_DIAGNOSTIC_AREAS_V1 = [

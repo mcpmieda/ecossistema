@@ -7,15 +7,7 @@ import {
   type GradeSheetRecognition,
   type StudentRecognition,
 } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
-import {
-  SYNTHETIC_ACTIVITY_CASES,
-  SYNTHETIC_EXPECTATIONS,
-  SYNTHETIC_FILES,
-  SYNTHETIC_SHEET_CONTROLS,
-  SYNTHETIC_TEACHER_WORKBOOK,
-  createSyntheticFile,
-  createSyntheticSheetJs,
-} from '../fixtures/synthetic-teacher-workbooks';
+import { SYNTHETIC_EXPECTATIONS, SYNTHETIC_FILES, SYNTHETIC_SHEET_CONTROLS, SYNTHETIC_TEACHER_WORKBOOK, createSyntheticFile, createSyntheticSheetJs } from '../fixtures/synthetic-teacher-workbooks';
 
 const SYNTHETIC_SHA256 = 'a'.repeat(64);
 

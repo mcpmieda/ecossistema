@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { academicLinkV1, ERROR_HTTP_V1, failureV1, pageRequestV1, scopeV1 } from '../../../shared/student-portal-contracts/core-v1';
+import { academicLinkV1, scopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { activateRequestV1, challengeRequestV1, challengeResponseV1, isWeakPasswordV1, loginRequestV1, logoutRequestV1, logoutResponseV1, passwordV1, pinV1, qrUrlV1, sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
 import { adminCommandV1, adminQueryV1, adminResponseV1, birthYearV1, printCardV1, trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { calendarV1, DEFAULT_RISK_V1, disclosureV1, effectiveSettingsV1, riskPolicyV1, settingsOverrideV1 } from '../../../shared/student-portal-contracts/policy-v1';
