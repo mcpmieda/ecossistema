@@ -53,7 +53,7 @@ function notes(
   values: GradebookNotesImportRequestV9['ofertas'][number]['trimestres'][number]['alunos'][number][1],
 ): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3): GradebookImportTermV9 => ({
-    trimestre,
+    definitionSnapshotVersion: 1 as const, trimestre,
     instrumentos: [
       [1, 5000, 'AV 1'],
       [2, 5000, 'AV 2'],
@@ -179,22 +179,6 @@ describe('observed granular facts and ecosystem names #817', () => {
         )
       ).rows,
     ).toEqual([]);
-  });
-  it('keeps legacy untagged blank-as-clear compatibility without guessing a historical observation', async () => {
-    const original = notes([null, 0, ['u'], null, null]);
-    const { granularObservationVersion, ...r } = original;
-    expect(granularObservationVersion).toBe(1);
-    expect((await createGradebookRelationalImportServiceV11(database).execute(r)).state).toBe(
-      'applied',
-    );
-    expect(await rows()).toEqual([{ slot: 2, valor: 0 }]);
-    expect(
-      (
-        await createGradebookRelationalImportServiceV11(database).execute(
-          notes([null, 0, null, null, null]),
-        )
-      ).state,
-    ).toBe('applied');
   });
   it('saves six-key names with CAS, idempotent replay, year isolation and transactional notifications', async () => {
     const service = createAssessmentNamesServiceV1(database);

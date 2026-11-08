@@ -175,7 +175,7 @@ function tallyRecoveryTermV6(
   else if (r.source === null) recovery.pending++;
   else if (typeof r.source === 'number') {
     recovery.recorded++;
-    if (original?.coverage.complete && r.replacementMilli !== null) {
+    if (original && r.replacementMilli !== null) {
       const gain = r.replacementMilli - original.roundedMilli;
       gains.push(gain);
       if (gain !== 0) recovery.changed++;

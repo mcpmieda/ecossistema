@@ -166,14 +166,10 @@ async function ensureImport(
 async function changedRun(
   database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
-  _request: GradebookImportPersistenceRequestV9,
-  _tipo: 1 | 2,
   query: string,
   values: readonly GradebookPostgresScalarV1[],
   affectsAcademic = true,
 ): Promise<number> {
-  // _request/_tipo stay in this compatibility helper signature; current-state writes
-  // no longer create import ledger rows unless a retained history explicitly needs one.
   const changes = await run(database, query, values);
   state.writes += changes;
   if (affectsAcademic) state.academicWrites += changes;
@@ -183,8 +179,6 @@ async function changedRun(
 async function changedFirst<T extends Row>(
   database: GradebookPostgresWritePortV1,
   state: ImportStateV9,
-  _request: GradebookImportPersistenceRequestV9,
-  _tipo: 1 | 2,
   query: string,
   values: readonly GradebookPostgresScalarV1[],
   affectsAcademic = true,
@@ -222,8 +216,6 @@ async function resolveRelationClasses(
       const created = await changedFirst<Row>(
         database,
         state,
-        request,
-        1,
         `INSERT INTO gradebook.turma (ano, codigo, nome, etapa, turno) VALUES ($1, $2, $3, $4, $5)
          RETURNING id, codigo, nome, etapa, turno`,
         [
@@ -257,8 +249,6 @@ async function resolveRelationClasses(
       await changedRun(
         database,
         state,
-        request,
-        1,
         `UPDATE gradebook.turma
          SET codigo = $1, nome = $2, etapa = $3, turno = $4
          WHERE id = $5`,
@@ -438,8 +428,6 @@ async function resolveRelationComponentStudentV9(
     const created = await changedFirst<Row>(
       database,
       state,
-      request,
-      1,
       'INSERT INTO gradebook.aluno (ano, nome) VALUES ($1, $2) RETURNING id',
       [request.ano, component.preferred.nome],
     );
@@ -461,8 +449,6 @@ async function resolveRelationComponentStudentV9(
     await changedRun(
       database,
       state,
-      request,
-      1,
       'UPDATE gradebook.aluno SET nome = $1 WHERE id = $2',
       [component.preferred.nome, alunoId],
     );
@@ -482,8 +468,6 @@ async function persistRelationBindingV9(
     await changedRun(
       database,
       state,
-      request,
-      1,
       `INSERT INTO gradebook.vinculo (ano, turma_id, numero, aluno_id, situacao, turma_relacionada_id) VALUES ($1, $2, $3, $4, $5, $6)`,
       [request.ano, item.turmaId, item.numero, alunoId, item.situacao, item.relatedTurmaId],
     );
@@ -588,8 +572,6 @@ async function persistRelation(
     await changedRun(
       database,
       state,
-      request,
-      1,
       `INSERT INTO gradebook.ano_letivo (ano, minimo_aprovacao, max_componentes_conselho) VALUES ($1, 60000, 2)`,
       [request.ano],
     );
@@ -633,8 +615,6 @@ async function resolveProfessor(
     const created = await changedFirst<Row>(
       database,
       state,
-      request,
-      2,
       `INSERT INTO gradebook.professor (ano, nome) VALUES ($1, $2) RETURNING id`,
       [request.ano, request.professor.trim()],
       false,
@@ -646,8 +626,6 @@ async function resolveProfessor(
     await changedRun(
       database,
       state,
-      request,
-      2,
       `UPDATE gradebook.professor SET nome = $1 WHERE id = $2`,
       [request.professor.trim(), id],
       false,
@@ -671,8 +649,6 @@ async function resolveDiscipline(
     const created = await changedFirst<Row>(
       database,
       state,
-      request,
-      2,
       `INSERT INTO gradebook.disciplina (ano, nome) VALUES ($1, $2) RETURNING id`,
       [request.ano, name.trim()],
     );
@@ -685,8 +661,6 @@ async function resolveDiscipline(
     await changedRun(
       database,
       state,
-      request,
-      2,
       `UPDATE gradebook.disciplina SET nome = $1 WHERE id = $2`,
       [name.trim(), id],
     );
@@ -719,7 +693,6 @@ async function reconcileInstrumentNotesV9(
   const {
     database,
     state,
-    request,
     offer,
     turmaId,
     bindings,
@@ -733,7 +706,7 @@ async function reconcileInstrumentNotesV9(
     hasValue,
     observed: observedInstruments.has(instrument.id),
   });
-  const retainBlank = request.granularObservationVersion === 1 && activeInstrument;
+  const retainBlank = activeInstrument;
 
   for (const [numero, values] of term.alunos) {
     const alunoId = bindings.get(`${turmaId}:${numero}`);
@@ -915,7 +888,6 @@ async function processOffer(
   const plan = buildRelationalImportInstrumentPlanV11({
     ofertaId,
     offer,
-    granularObservationVersion: request.granularObservationVersion,
     instruments: existingInstruments,
   });
   const instrumentWrites = await materializeRelationalImportInstrumentPlanV11(

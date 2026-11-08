@@ -50,6 +50,7 @@ beforeAll(async () => {
     '0005_relational_bulletin_snapshot_v2.sql',
     '0006_import_diagnostic_treatment_v1.sql',
     '0007_multiyear_rr_v1.sql',
+    '0009_granular_observations_names_v1.sql',
   ]) await pg.exec(readFileSync(`${migrations}${migration}`, 'utf8'));
   const sql: GradebookPostgresSqlV1 = {
     unsafe: (query, values = []) => execute(pg, query, values),
@@ -80,7 +81,7 @@ function relation(year: number, classCode: string, hashDigit: string): Gradebook
 
 function notes2025(): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3) => ({
-    trimestre,
+    definitionSnapshotVersion: 1 as const, trimestre,
     instrumentos: trimestre === 3
       ? [[1, 9_000, 'AV1 TESTE'], [2, 9_000, 'AV2 TESTE'], [11, 22_000, 'QUALITATIVA TESTE']] as const
       : [[1, 6_750, 'AV1 TESTE'], [2, 6_750, 'AV2 TESTE'], [11, 16_500, 'QUALITATIVA TESTE']] as const,
@@ -88,7 +89,7 @@ function notes2025(): GradebookNotesImportRequestV9 {
   });
   return {
     transportVersion: 9,
-    operation: 'persist-notas',
+    operation: 'persist-notas', granularObservationVersion: 1 as const,
     manifest: manifest('NOTAS TESTE 2025.xlsb', 'c'),
     ano: 2025,
     professor: 'DOCENTE TESTE',
@@ -136,10 +137,10 @@ describe('materialização multi-ano e R/R terminal', () => {
     expect((await pg.query('SELECT rec_rr_mask,rec_nc_mask,rec1 FROM gradebook.fechamento WHERE oferta_id=$1 AND aluno_id=$2', [pair.oferta_id, pair.aluno_id])).rows)
       .toEqual([{ rec_rr_mask: 1, rec_nc_mask: 0, rec1: null }]);
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).project({
+    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
       ofertaId: pair.oferta_id,
       alunoId: pair.aluno_id,
-    });
+    }]).then((values) => values[0]!);
     expect(projection.recovery.classification).toBe('failed-repeat');
     expect(resolveSimplifiedAnnualOutcomeV1({ status: null, components: [projection.recovery], maxCouncilComponents: 2 }))
       .toMatchObject({ visibleResult: 'REPROVADO', councilEligibility: 'not-eligible', reasons: ['component:failed-repeat'] });

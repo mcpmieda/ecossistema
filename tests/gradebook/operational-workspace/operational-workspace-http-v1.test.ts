@@ -106,7 +106,7 @@ describe('operational workspace HTTP bridge v1', () => {
     );
     expect(response.status).toBe(410);
     expect(response.headers.get('Cache-Control')).toContain('no-store');
-    await expect(response.json()).resolves.toEqual({ contractVersion: 1, state: 'unavailable' });
+    await expect(response.json()).resolves.toEqual({ state: 'retired' });
     expect(prepare).not.toHaveBeenCalled();
   });
 
@@ -119,7 +119,7 @@ describe('operational workspace HTTP bridge v1', () => {
     );
     expect(handled?.status).toBe(410);
     expect(handled?.headers.get('Cache-Control')).toContain('no-store');
-    await expect(handled?.json()).resolves.toEqual({ contractVersion: 1, state: 'unavailable' });
+    await expect(handled?.json()).resolves.toEqual({ state: 'retired' });
     expect(binding).not.toHaveBeenCalled();
   });
 
@@ -134,9 +134,9 @@ describe('operational workspace HTTP bridge v1', () => {
       ),
       localEnv({ prepare, exec: vi.fn() }),
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(410);
     expect(response.headers.get('Cache-Control')).toContain('no-store');
-    await expect(response.json()).resolves.toEqual({ contractVersion: 1, state: 'unavailable' });
+    await expect(response.json()).resolves.toEqual({ state: 'retired' });
     expect(prepare).not.toHaveBeenCalled();
   });
 

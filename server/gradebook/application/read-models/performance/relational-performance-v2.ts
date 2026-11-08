@@ -302,7 +302,7 @@ async function readGroupedFactsV2(
     `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,n.instrumento_id IS NOT NULL AS observed,
     ${description} AS descricao,
     f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,
-    COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint,0) AS rec_rr_mask,f.u_fonte
+    COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint, 0) AS rec_rr_mask,f.u_fonte
     FROM gradebook.vinculo v JOIN gradebook.oferta o ON o.ano=v.ano AND o.turma_id=v.turma_id
     LEFT JOIN gradebook.instrumento i ON i.oferta_id=o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
     LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id AND n.aluno_id=v.aluno_id

@@ -73,12 +73,11 @@ function termEntriesV11(
   term: PlanTermV11,
   plannedKeys: Set<string>,
   definitions: {
-    authoritativeDefinitions: boolean;
     unavailableMaximum: PlanSlotSetV11;
     unavailableDescription: PlanSlotSetV11;
   },
 ) {
-  const { authoritativeDefinitions, unavailableMaximum, unavailableDescription } = definitions;
+  const { unavailableMaximum, unavailableDescription } = definitions;
   const out: ImportInstrumentPlanEntryV11[] = [];
   for (const [column, [slot, sourceMaximum, sourceDescription]] of term.instrumentos.entries()) {
     const key = `${term.trimestre}:${slot}`;
@@ -92,7 +91,6 @@ function termEntriesV11(
         sourceDescription,
         hasValue,
         exists: current !== undefined,
-        granularObservationVersion: input.granularObservationVersion,
         slot,
       })
     )
@@ -101,9 +99,8 @@ function termEntriesV11(
       current: current ?? null,
       sourceMaximum,
       sourceDescription,
-      authoritativeDefinitions,
-      maximumUnavailable: authoritativeDefinitions && unavailableMaximum.has(slot),
-      descriptionUnavailable: authoritativeDefinitions && unavailableDescription.has(slot),
+      maximumUnavailable: unavailableMaximum.has(slot),
+      descriptionUnavailable: unavailableDescription.has(slot),
     });
     const source: InstrumentSourceV11 = {
       key,
@@ -131,28 +128,24 @@ function termEntriesV11(
 export function buildRelationalImportInstrumentPlanV11(input: {
   readonly ofertaId: number;
   readonly offer: GradebookImportOfferV9;
-  readonly granularObservationVersion: 1 | undefined;
   readonly instruments: ReadonlyMap<string, ImportInstrumentStateV11>;
 }): ImportInstrumentPlanV11 {
   const entries: ImportInstrumentPlanEntryV11[] = [];
   const retirements: ImportInstrumentRetirementV11[] = [];
   const plannedKeys = new Set<string>();
   for (const term of input.offer.trimestres) {
-    const authoritativeDefinitions = term.definitionSnapshotVersion === 1;
     const unavailableMaximum = new Set(term.unavailableMaximumSlots ?? []);
     const unavailableDescription = new Set(term.unavailableDescriptionSlots ?? []);
     const unavailableValues = new Set(term.unavailableValueSlots ?? []);
-    if (authoritativeDefinitions)
-      retirements.push(
-        ...termRetirementsV11(input, term, {
-          unavailableMaximum,
-          unavailableDescription,
-          unavailableValues,
-        }),
-      );
+    retirements.push(
+      ...termRetirementsV11(input, term, {
+        unavailableMaximum,
+        unavailableDescription,
+        unavailableValues,
+      }),
+    );
     entries.push(
       ...termEntriesV11(input, term, plannedKeys, {
-        authoritativeDefinitions,
         unavailableMaximum,
         unavailableDescription,
       }),

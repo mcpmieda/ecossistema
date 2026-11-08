@@ -35,14 +35,14 @@ const calendar = {
 };
 function notes(first = 2000, final = 8000, professor = 'SYNTHETIC IMPORT TEACHER'): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3) => ({
-    trimestre,
+    definitionSnapshotVersion: 1 as const, trimestre,
     instrumentos: [[1, trimestre === 3 ? 9000 : 6750, 'AV1 TESTE'],
       [2, trimestre === 3 ? 9000 : 6750, 'AV2 TESTE'],
       [11, trimestre === 3 ? 22000 : 16500, 'QUALITATIVA TESTE']] as const,
     alunos: [[1, [trimestre === 1 ? first : 2000, 2000, 4000], trimestre === 1 ? final : 8000],
       [2, [2000, 2000, 4002], 8002]] as const,
   });
-  return { transportVersion: 9, operation: 'persist-notas', ano: 2026,
+  return { transportVersion: 9, operation: 'persist-notas', granularObservationVersion: 1 as const, ano: 2026,
     manifest: { fileName: 'SYNTHETIC IMPORT.xlsb', sha256: 'a'.repeat(64), parserVersion: 'synthetic-import-regression' },
     professor, ofertas: [{ turmaCodigo: 'R746-001', disciplina: 'MATEMATICA',
       trimestres: [term(1), term(2), term(3)], recuperacao: null }] };

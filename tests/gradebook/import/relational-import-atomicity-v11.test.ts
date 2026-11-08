@@ -49,9 +49,9 @@ const relation: GradebookRelationImportRequestV9 = {
 
 function offer(turmaCodigo = 'SYN-A', numero = 1): GradebookImportOfferV9 {
   const term = (trimestre: 1 | 2 | 3): GradebookImportTermV9 => ({
-    trimestre,
-    instrumentos: [[1, 10_000, 'SYNTHETIC AV1']],
-    alunos: [[numero, [5_000], 5_000]],
+    definitionSnapshotVersion: 1 as const, trimestre,
+    instrumentos: [[1, 10_000, 'SYNTHETIC AV1'], [2, 10_000, 'SYNTHETIC AV2'], [3, null]],
+    alunos: [[numero, [5_000, null, null], 5_000]],
   });
   return {
     turmaCodigo,
@@ -66,7 +66,7 @@ function notes(
 ): GradebookNotesImportRequestV9 {
   return {
     transportVersion: 9,
-    operation: 'persist-notas',
+    operation: 'persist-notas', granularObservationVersion: 1 as const,
     ano: 2026,
     manifest,
     professor: 'SYNTHETIC NEW TEACHER',
@@ -109,6 +109,7 @@ beforeEach(async () => {
     '0005_relational_bulletin_snapshot_v2.sql',
     '0006_import_diagnostic_treatment_v1.sql',
     '0007_multiyear_rr_v1.sql',
+    '0009_granular_observations_names_v1.sql',
   ]) {
     await pg.exec(readFileSync(`migrations/gradebook-simplified/${name}`, 'utf8'));
   }

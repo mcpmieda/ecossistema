@@ -42,7 +42,7 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
 
   it('preserva o renderer compartilhado e aposenta o gerador em lote sem montagem', () => {
     expect(existsSync(join(root, 'src/features/gradebook/bulletins/pdf/bulletin-pdf-batch-actions-v1.ts'))).toBe(false);
-    expect(source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts')).toContain("from './bulletin-pdf-renderer-v1'");
+    expect(source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts')).toContain("from './bulletin-pdf-engine'");
   });
 
   it('preserva o gate histórico e mantém a autoridade atual sem runtime D1', () => {

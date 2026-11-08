@@ -12,11 +12,13 @@ function fakeDatabase(input: {
   readonly queries?: string[];
 }): GradebookPostgresReadPortV1 {
   return {
-    async query<T extends Row>(sql: string) {
+    // One joined read: every instrument row carries the offer, the year and the closing.
+    async query<T extends Row>(sql: string, values: readonly unknown[] = []) {
       input.queries?.push(sql);
-      if (sql.includes('FROM gradebook.oferta o')) return (input.base ? [input.base] : []) as T[];
-      if (sql.includes('FROM gradebook.fechamento')) return (input.closing ? [input.closing] : []) as T[];
-      return (sql.includes('FROM gradebook.instrumento i') ? input.instruments ?? [] : []) as readonly T[];
+      if (!input.base) return [] as T[];
+      const shared = { oferta_id: values[0], aluno_id: values[1], ...input.base, ...(input.closing ?? {}) };
+      const instruments = input.instruments ?? [];
+      return (instruments.length ? instruments.map((row) => ({ ...shared, ...row })) : [{ ...shared, trimestre: null }]) as unknown as T[];
     },
   };
 }
@@ -61,10 +63,10 @@ describe('relational academic projection v1', () => {
       },
     });
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).project({
+    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
       ofertaId: 41,
       alunoId: 9,
-    });
+    }]).then((values) => values[0]!);
 
     expect(projection.ano).toBe(2026);
     expect(projection.minimumApprovalMilli).toBe(60_000);
@@ -79,7 +81,7 @@ describe('relational academic projection v1', () => {
     const database = fakeDatabase({ base: null, queries });
 
     await expect(
-      createRelationalAcademicProjectionServiceV1(database).project({ ofertaId: 99, alunoId: 12 }),
+      createRelationalAcademicProjectionServiceV1(database).projectMany([{ ofertaId: 99, alunoId: 12 }]).then((values) => values[0]!),
     ).rejects.toMatchObject({ code: 'offer-student-not-found' });
 
     expect(queries[0]).toContain('COALESCE(v.situacao, 0) <> 6');
@@ -105,10 +107,10 @@ describe('relational academic projection v1', () => {
       },
     });
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).project({
+    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
       ofertaId: 7,
       alunoId: 3,
-    });
+    }]).then((values) => values[0]!);
 
     expect(projection.terms[0].outcome.parallelApplicable).toBe(true);
     expect(projection.terms[0].outcome.parallelMilli).toBeNull();
@@ -138,10 +140,10 @@ describe('relational academic projection v1', () => {
       },
     });
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).project({
+    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
       ofertaId: 5,
       alunoId: 2,
-    });
+    }]).then((values) => values[0]!);
 
     expect(projection.recovery.originalTotalMilli).toBe(50_000);
     expect(projection.recovery.recoveryTerms[1]).toMatchObject({ applicable: true, source: 'NC' });
@@ -169,10 +171,10 @@ describe('relational academic projection v1', () => {
       },
     });
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).project({
+    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
       ofertaId: 6,
       alunoId: 4,
-    });
+    }]).then((values) => values[0]!);
 
     expect(projection.terms[0].outcome.rawMilli).toBe(19_255);
     expect(projection.terms[0].outcome.roundedMilli).toBe(19_000);

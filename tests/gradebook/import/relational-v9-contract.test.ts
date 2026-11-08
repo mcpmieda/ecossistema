@@ -35,7 +35,7 @@ const manifest = {
 function notesRequestV9(): GradebookNotesImportRequestV9 {
   return {
     transportVersion: 9,
-    operation: 'persist-notas',
+    operation: 'persist-notas', granularObservationVersion: 1 as const,
     manifest,
     ano: 2026,
     professor: 'PROFESSOR TESTE',
@@ -44,7 +44,7 @@ function notesRequestV9(): GradebookNotesImportRequestV9 {
         turmaCodigo: '6A',
         disciplina: 'MATEMÁTICA',
         trimestres: [1, 2, 3].map((trimestre) => ({
-          trimestre: trimestre as 1 | 2 | 3,
+          trimestre: trimestre as 1 | 2 | 3, definitionSnapshotVersion: 1 as const,
           instrumentos: [
             [1, 10000],
             [2, 10000],

@@ -18,9 +18,9 @@ function offer(term: Partial<GradebookImportTermV9> = {}): GradebookImportOfferV
     disciplina: 'SYNTHETIC',
     recuperacao: null,
     trimestres: [
-      { trimestre: 1, instrumentos: [[11, null]], alunos: [[1, [null], null]], ...term },
-      { trimestre: 2, instrumentos: [], alunos: [] },
-      { trimestre: 3, instrumentos: [], alunos: [] },
+      { trimestre: 1, definitionSnapshotVersion: 1 as const, instrumentos: [[11, null]], alunos: [[1, [null], null]], ...term },
+      { trimestre: 2, definitionSnapshotVersion: 1 as const, instrumentos: [], alunos: [] },
+      { trimestre: 3, definitionSnapshotVersion: 1 as const, instrumentos: [], alunos: [] },
     ],
   };
 }
@@ -31,7 +31,6 @@ function plan(
   return buildRelationalImportInstrumentPlanV11({
     ofertaId: 50,
     offer: source,
-    granularObservationVersion: 1,
     instruments,
   });
 }
@@ -39,12 +38,8 @@ const current = () =>
   new Map([['1:11', { id: 10, maximo: 5000, descricao: 'SYNTHETIC ACTIVITY' }]]);
 
 describe('instrument planning delegates to the established V9 decisions', () => {
-  it('preserves legacy null metadata and clears observed authoritative fields', () => {
+  it('clears fields the snapshot observed as empty', () => {
     expect(plan(offer(), current()).entries[0]).toMatchObject({
-      action: 'preserve',
-      metadata: { maximo: 5000, descricao: 'SYNTHETIC ACTIVITY' },
-    });
-    expect(plan(offer({ definitionSnapshotVersion: 1 }), current()).entries[0]).toMatchObject({
       action: 'update',
       metadata: { maximo: null, descricao: null },
     });

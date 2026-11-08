@@ -11,13 +11,9 @@ export type GradebookRuntimeAuthorizationV1 = Readonly<{
   [gradebookRuntimeAuthorizationBrand]: true;
 }>;
 
-const issuedAuthorizations = new WeakSet<object>();
-
 export function authorizeGradebookRuntimeV1(
   session: Pick<Session, 'roles'>,
 ): GradebookRuntimeAuthorizationV1 {
   requireCapability(capabilitiesForRoles(session.roles), GRADEBOOK_ADMIN_CAPABILITY);
-  const authorization = Object.freeze({});
-  issuedAuthorizations.add(authorization);
-  return authorization as GradebookRuntimeAuthorizationV1;
+  return Object.freeze({}) as GradebookRuntimeAuthorizationV1;
 }

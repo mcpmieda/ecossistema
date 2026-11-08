@@ -115,6 +115,10 @@ describe('relational bulletin PDF V2', () => {
     expect(text).toContain('REC: 1º N/C · 2º — · 3º 12');
     expect(text).toContain('REPROVADO POR NÃO COMPARECIMENTO');
     expect(text).toContain('AVALIAÇÃO ESCRITA · nota 6 / 6,75');
+    // No internal ids or engine wording on a printed bulletin.
+    expect(text).not.toContain('Snapshot:');
+    expect(text).not.toContain('Autoridade:');
+    expect(text).not.toContain('nativo');
   });
 
   it('keeps ASSISTIDO grades visible without creating a general result', () => {

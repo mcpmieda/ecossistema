@@ -61,26 +61,6 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     expect(recognizer).not.toContain('simulation:');
   });
 
-  it('preserva Desempenho e boletins com componentes V2', () => {
-    const performanceContract = source(
-      'shared/gradebook-contracts/performance/class-performance-read-model-v1.ts',
-    );
-    const performanceSource = source(
-      'Aprendizados/RUNTIME-D1-RETIRADO-1079/server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
-    );
-    const performanceTests = source(
-      'Aprendizados/RUNTIME-D1-RETIRADO-1079/tests/gradebook/performance-source/d1-class-performance-source-v1.test.ts',
-    );
-    const bulletinContract = source('shared/gradebook-contracts/bulletins/bulletin-contract-v1.ts');
-
-    expect(performanceContract).toContain('AssessmentComponentTypeV1 | AssessmentComponentTypeV2');
-    expect(performanceSource).toContain('resolvePerformanceComparisonProjectionV2');
-    expect(performanceSource).not.toContain('tolerance');
-    expect(performanceTests).toContain('expect(small.count).toBe(6)');
-    expect(performanceTests).toContain('expect(large.count).toBe(6)');
-    expect(bulletinContract).toContain('AssessmentComponentTypeV1 | AssessmentComponentTypeV2');
-  });
-
   it('preserva o catálogo D1 0001–0006 como memória histórica', () => {
     const migrations = readdirSync(join(root, 'Aprendizados/RUNTIME-D1-RETIRADO-1079/migrations/gradebook')).sort();
     expect(migrations).toEqual([

@@ -56,7 +56,6 @@ export function resolveRelationalInstrumentMetadataV9(input: {
   readonly current: RelationalInstrumentMetadataV9 | null;
   readonly sourceMaximum: number | null;
   readonly sourceDescription: string | undefined;
-  readonly authoritativeDefinitions: boolean;
   readonly maximumUnavailable: boolean;
   readonly descriptionUnavailable: boolean;
 }): RelationalInstrumentMetadataV9 {
@@ -66,17 +65,11 @@ export function resolveRelationalInstrumentMetadataV9(input: {
       descricao: input.descriptionUnavailable ? null : (input.sourceDescription ?? null),
     };
   }
-  if (input.authoritativeDefinitions) {
-    return {
-      maximo: input.maximumUnavailable ? input.current.maximo : input.sourceMaximum,
-      descricao: input.descriptionUnavailable
-        ? input.current.descricao
-        : (input.sourceDescription ?? null),
-    };
-  }
   return {
-    maximo: input.sourceMaximum ?? input.current.maximo,
-    descricao: input.sourceDescription ?? input.current.descricao,
+    maximo: input.maximumUnavailable ? input.current.maximo : input.sourceMaximum,
+    descricao: input.descriptionUnavailable
+      ? input.current.descricao
+      : (input.sourceDescription ?? null),
   };
 }
 
@@ -85,7 +78,6 @@ export function isRelationalInstrumentMeaningfulV9(input: {
   readonly sourceDescription: string | undefined;
   readonly hasValue: boolean;
   readonly exists: boolean;
-  readonly granularObservationVersion: 1 | undefined;
   readonly slot: GradebookImportInstrumentV9[0];
 }): boolean {
   return (
@@ -93,7 +85,7 @@ export function isRelationalInstrumentMeaningfulV9(input: {
     input.sourceDescription !== undefined ||
     input.hasValue ||
     input.exists ||
-    (input.granularObservationVersion === 1 && input.slot === 3)
+    input.slot === 3
   );
 }
 

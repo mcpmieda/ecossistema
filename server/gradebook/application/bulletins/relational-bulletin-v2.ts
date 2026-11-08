@@ -390,15 +390,13 @@ async function readMaterializations(
           : projection.terms;
       const terms = selectedTerms.map(
         ({ term: currentTerm, outcome, sourceAmMilli, sourceComparison }) => {
-          if (!outcome.coverage.complete && !terminalRepeatFailure)
-            reasons.add(`incomplete-calculation:${offer.id}:t${currentTerm}`);
           if (sourceAmMilli === null)
             reasons.add(`missing-official-am:${offer.id}:t${currentTerm}`);
           return {
             term: currentTerm,
             maximumMilli: outcome.termMaximumMilli,
             sourceAmMilli,
-            calculatedAmMilli: outcome.coverage.complete ? outcome.roundedMilli : null,
+            calculatedAmMilli: outcome.roundedMilli,
             comparison: sourceComparison,
             quantitative: {
               originalMilli: outcome.quantitativeOriginalMilli,

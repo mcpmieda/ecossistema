@@ -5,7 +5,7 @@ import { filterHistoricalClassFactsV10 } from '../../../server/gradebook/applica
 
 function request(): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3) => ({
-    trimestre,
+    definitionSnapshotVersion: 1 as const, trimestre,
     instrumentos: [[1, 6_750]] as const,
     alunos: [
       [1, [5_000], 10_000],
@@ -15,7 +15,7 @@ function request(): GradebookNotesImportRequestV9 {
 
   return {
     transportVersion: 9,
-    operation: 'persist-notas',
+    operation: 'persist-notas', granularObservationVersion: 1 as const,
     manifest: {
       fileName: 'NOTAS TESTE 2026.xlsb',
       sha256: 'a'.repeat(64),

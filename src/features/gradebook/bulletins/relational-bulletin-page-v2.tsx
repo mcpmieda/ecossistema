@@ -138,7 +138,6 @@ function periodLabel(period: RelationalBulletinPeriodV2): string {
 function readinessLabel(reason: string): string {
   if (reason.startsWith('missing-official-am:')) return 'AM oficial ainda não disponível';
   if (reason.startsWith('missing-official-u:')) return 'U oficial ainda não disponível';
-  if (reason.startsWith('incomplete-calculation:')) return 'Composição ainda incompleta';
   if (reason.startsWith('final-recovery-pending:')) return 'Recuperação final pendente';
   if (reason.startsWith('annual-in-progress:') || reason === 'annual-result-in-progress')
     return 'Ano ainda em curso';

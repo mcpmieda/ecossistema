@@ -8,18 +8,7 @@ import { performanceTermComparisonRequestSchemaV4 } from '../../../shared/gradeb
 import { createPerformanceTermComparisonV4 } from '../application/read-models/performance/performance-term-comparison-v4';
 import { performanceRequestSchemaV2 } from '../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { createRelationalPerformanceV2 } from '../application/read-models/performance/relational-performance-v2';
-import {
-  decodeCellDetailRef,
-  decodeStudentDetailRef,
-  inspectPerformanceCursorsV1,
-} from '../application/read-models/performance/class-performance-read-model-v1';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
-import {
-  PERFORMANCE_TRANSPORT_VERSION_V1,
-  isPerformanceTransportRequestV1,
-  type PerformanceInvalidRequestReasonV1,
-  type PerformanceTransportRequestV1,
-} from '../../../shared/gradebook-contracts/performance/performance-transport-v1';
 import type { PlatformCapability } from '../../../shared/platform-contract';
 import { capabilitiesForRoles, requireCapability } from '../../auth/capabilities';
 import { AuthenticationError, requireAuth } from '../../auth/session';
@@ -35,6 +24,7 @@ import {
   authorizeGradebookRuntimeV1,
   type GradebookRuntimeAuthorizationV1,
 } from '../authorization-v1';
+import { retiredGradebookRequestV1 } from './retired-request-v1';
 
 const GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance';
 
@@ -54,22 +44,15 @@ function noStoreJson(value: unknown, status = 200): Response {
 
 function notAuthorized(status: 401 | 403): Response {
   return noStoreJson(
-    { transportVersion: PERFORMANCE_TRANSPORT_VERSION_V1, state: 'not-authorized' },
+    { transportVersion: 1, state: 'not-authorized' },
     status,
   );
 }
 
 function unavailable(status = 503): Response {
   return noStoreJson(
-    { transportVersion: PERFORMANCE_TRANSPORT_VERSION_V1, state: 'unavailable' },
+    { transportVersion: 1, state: 'unavailable' },
     status,
-  );
-}
-
-function invalidRequest(reason: PerformanceInvalidRequestReasonV1): Response {
-  return noStoreJson(
-    { transportVersion: PERFORMANCE_TRANSPORT_VERSION_V1, state: 'invalid-request', reason },
-    400,
   );
 }
 
@@ -246,12 +229,6 @@ async function handleCurrentPerformanceRequestV1(
   return null;
 }
 
-/** A detail request whose reference does not decode for its own kind. */
-function invalidDetailRefV1(payload: PerformanceTransportRequestV1): boolean {
-  return (payload.operation === 'student-detail' && decodeStudentDetailRef(payload.detailRef) === null)
-    || (payload.operation === 'cell-detail' && decodeCellDetailRef(payload.detailRef) === null);
-}
-
 export function createPerformanceRequestHandlerV1(
   dependencies: PerformanceRequestHandlerDependenciesV1 = defaultDependencies,
 ): (request: Request, env: RuntimeEnv) => Promise<Response | null> {
@@ -274,18 +251,12 @@ export function createPerformanceRequestHandlerV1(
     try {
       payload = await readBoundedJson(request, 32_768);
     } catch {
-      return invalidRequest('invalid-request');
+      return retiredGradebookRequestV1(null);
     }
     const currentResponse = await handleCurrentPerformanceRequestV1(payload, env);
     if (currentResponse !== null) return currentResponse;
 
-    if (!isPerformanceTransportRequestV1(payload)) return invalidRequest('invalid-request');
-    if (payload.operation === 'matrix') {
-      const cursorFailure = inspectPerformanceCursorsV1(payload.request);
-      if (cursorFailure !== null) return invalidRequest(cursorFailure);
-    }
-    if (invalidDetailRefV1(payload)) return invalidRequest('invalid-detail-reference');
-    return unavailable(410);
+    return retiredGradebookRequestV1(payload);
   };
 }
 
