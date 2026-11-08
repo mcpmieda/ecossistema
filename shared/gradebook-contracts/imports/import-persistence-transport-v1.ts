@@ -16,26 +16,6 @@ import { SOURCE_CONTRACT_VERSION_V2, type SourceAssessmentSlotV2, type SourceQua
 export const GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V1 = 1 as const;
 export const GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V1 = 'persist-recognized-file' as const;
 
-export const GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V1 = {
-  maxFilesSelectedInBrowser: 50,
-  maxFilesPerRequest: 1,
-  maxBodyBytes: 8_388_608,
-  maxSheetsPerRequest: 128,
-  maxStudentsPerSheet: 512,
-  maxStudentObservationsPerRequest: 20_000,
-  maxAssessmentDefinitionsPerTermSheet: 12,
-  maxAssessmentValuesPerStudent: 12,
-  maxDiagnosticsPerRequest: 256,
-  maxIdentifierLength: 256,
-  maxFileNameLength: 512,
-  maxSheetNameLength: 256,
-  maxSuggestionLength: 512,
-  maxDiagnosticCodeLength: 128,
-  maxParserVersionLength: 128,
-  maxMimeTypeLength: 256,
-  maxFormulaLength: 4_096,
-} as const;
-
 export const GRADEBOOK_IMPORT_PERSISTENCE_FORBIDDEN_CLIENT_FIELDS_V1 = [
   'arrayBuffer',
   'authorityMode',

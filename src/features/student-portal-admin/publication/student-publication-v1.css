@@ -63,8 +63,7 @@
   gap: 0.2rem;
   min-width: 0;
 }
-.pa-publication-details dt,
-.pa-publication-hint {
+.pa-publication-details dt {
   color: var(--muted);
 }
 .pa-publication-details dd {

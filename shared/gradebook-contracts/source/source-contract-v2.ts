@@ -50,14 +50,6 @@ export type SourceAssessmentSlotV2 =
   | SourceQuantitativeAssessmentSlotV2
   | SourceQualitativeActivitySlotV2;
 
-export const SOURCE_ASSESSMENT_MAXIMUM_CONFIGURATION_STATES_V2 = [
-  'numeric',
-  'ambiguous-empty',
-  'ambiguous-marker',
-  'missing-field',
-  'unrecognized',
-] as const;
-
 type SourceAssessmentMaximumConfigurationV2 =
   | {
       readonly state: 'numeric';
@@ -84,13 +76,6 @@ type SourceAssessmentMaximumConfigurationV2 =
       readonly rawValue: string | boolean;
       readonly provenance: SourceCellProvenanceV1;
     };
-
-export const SOURCE_ASSESSMENT_NAME_STATES_V2 = [
-  'text',
-  'empty',
-  'missing-field',
-  'unrecognized',
-] as const;
 
 type SourceAssessmentNameV2 =
   | {

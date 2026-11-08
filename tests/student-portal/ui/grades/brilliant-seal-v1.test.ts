@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
-import { brilliantSealCountV1, earnsSealV1 } from '../../../../src/features/student-portal/grades/brilliant-seal-v1';
+import { brilliantSealCountV1, earnsSealV1 } from '../../../../shared/student-portal-contracts/brilliant-seal-v1';
 import { score } from './fixtures-v1';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];

@@ -49,7 +49,7 @@ describe('F9 — shell, isolamento e code splitting', () => {
     for (const featurePath of [
       'audit-workspace/gradebook-audit-surface',
       'performance/relational-performance-page-v2',
-      'bulletins/bulletin-page',
+      'bulletins/relational-bulletin-page-v2',
       'gradebook-council-surface',
     ]) {
       expect(shell).toContain(`import('${featurePath.startsWith('gradebook-') ? `./${featurePath}` : `../features/gradebook/${featurePath}`}')`);
@@ -156,7 +156,7 @@ describe('F9 — privacidade, auth e transporte', () => {
 
   it('não introduz retry automático de decisão do Conselho nem emissão de Boletim', () => {
     const council = source('src/features/gradebook/council/relational-council-page-v3.tsx');
-    const bulletins = source('src/features/gradebook/bulletins/bulletin-page.tsx');
+    const bulletins = source('src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx');
 
     expect(council).not.toMatch(/setInterval|retryDecision|retryEmit|autoRetry/u);
     expect(bulletins).not.toMatch(/setInterval|retryEmit|autoRetry/u);

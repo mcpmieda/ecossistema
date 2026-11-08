@@ -93,7 +93,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
       'src/features/student-portal-admin/accounts/accounts-client-v2.ts',
       'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
       'src/features/gradebook/performance/relational-performance-page-v2.tsx',
-      'src/features/gradebook/bulletins/bulletin-page.tsx',
+      'src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx',
       'src/features/gradebook/council/relational-council-page-v3.tsx',
       'src/platform/gradebook-workspace-shell.tsx',
     ]
