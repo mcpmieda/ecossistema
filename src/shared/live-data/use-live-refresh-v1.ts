@@ -22,7 +22,6 @@ export function useLiveRefreshV1(
     active?: boolean;
     canRefresh?: () => boolean;
     intervalMs?: number;
-    eventDriven?: boolean;
   },
 ) {
   const scopeActive = useLiveRefreshScopeV1();
@@ -49,7 +48,6 @@ export function useLiveRefreshV1(
         .split(',')
         .filter((domain): domain is LiveDomainV1 => domain === 'gradebook' || domain === 'portal'),
       intervalMs: interval,
-      eventDriven: options.eventDriven,
       refresh: () => current.current.refresh(),
       canRefresh: () => current.current.canRefresh?.() ?? true,
       isActive: () => current.current.active,
@@ -60,5 +58,5 @@ export function useLiveRefreshV1(
       if (subscription.current === control) subscription.current = null;
       control();
     };
-  }, [domainsKey, enabled, interval, options.eventDriven]);
+  }, [domainsKey, enabled, interval]);
 }

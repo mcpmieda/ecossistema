@@ -1,8 +1,6 @@
 import { secureJitterV1 } from './secure-jitter-v1';
 export type LiveDomainV1 = 'gradebook' | 'portal';
 const LIVE_REFRESH_INTERVAL_V1 = 30_000;
-/** A working event channel owns freshness; this read recovers missed notifications. */
-const LIVE_CONNECTED_READ_INTERVAL_V1 = 300_000;
 /** Heavy, read-only analytics opt in; interactive Portal/Council readers keep their cadence. */
 export const LIVE_HEAVY_READ_INTERVAL_V1 = 120_000;
 const MIN_GAP = 2_000;
@@ -17,7 +15,6 @@ interface Subscription {
   /** False pauses event and cadence reads; focus/return and failure retries still apply. */
   automatic: () => boolean;
   interval: number;
-  eventDriven: boolean;
   settledAt: number;
   requested: boolean;
   nextAt: number;
@@ -30,7 +27,6 @@ interface Subscription {
 export type LiveRefreshSubscriptionV1 = (() => void) & { resume(): void };
 const subscriptions = new Set<Subscription>();
 const changeListeners = new Set<(domain: LiveDomainV1) => void>();
-const connectedSources = new Set<readonly LiveDomainV1[]>();
 let timer: ReturnType<typeof setTimeout> | undefined;
 let channel: BroadcastChannel | undefined;
 let listening = false;
@@ -38,42 +34,9 @@ const visible = () => document.visibilityState !== 'hidden' && navigator.onLine 
 const jitter = () => secureJitterV1(1_000);
 
 function nextCadenceAt(entry: Subscription, from: number) {
-  return entry.automatic() ? from + readInterval(entry) + jitter() : Number.POSITIVE_INFINITY;
-}
-function readInterval(entry: Pick<Subscription, 'domains' | 'interval' | 'eventDriven'>) {
-  const covered =
-    entry.domains.length > 0 &&
-    entry.domains.every((domain) =>
-      Array.from(connectedSources).some((domains) => domains.includes(domain)),
-    );
-  return entry.eventDriven && covered
-    ? Math.max(entry.interval, LIVE_CONNECTED_READ_INTERVAL_V1)
-    : entry.interval;
+  return entry.automatic() ? from + entry.interval + jitter() : Number.POSITIVE_INFINITY;
 }
 
-/** Connection ownership is scoped to its mounted, authenticated reader. No payload cache. */
-export function registerLiveConnectionV1(domains: readonly LiveDomainV1[]) {
-  const source = [...domains];
-  let disposed = false;
-  const setConnected = (connected: boolean) => {
-    if (disposed || connectedSources.has(source) === connected) return;
-    if (connected) connectedSources.add(source);
-    else connectedSources.delete(source);
-    for (const entry of subscriptions) {
-      // Never postpone an event, a focus request, or the reader's failure cooldown.
-      if (!entry.pending && !entry.requested && entry.failures === 0)
-        entry.nextAt = nextCadenceAt(entry, entry.settledAt);
-    }
-    wake();
-  };
-  return {
-    setConnected,
-    dispose() {
-      setConnected(false);
-      disposed = true;
-    },
-  };
-}
 
 /** In-memory invalidation metadata only; no independent clock, socket, payload or storage. */
 export function subscribeLiveChangesV1(listener: (domain: LiveDomainV1) => void): () => void {
@@ -231,8 +194,6 @@ export function subscribeLiveRefreshV1(options: {
   isActive?: () => boolean;
   automatic?: () => boolean;
   intervalMs?: number;
-  /** Time-driven values such as presence need their cadence even with a healthy channel. */
-  eventDriven?: boolean;
 }): LiveRefreshSubscriptionV1 {
   if (typeof window === 'undefined' || typeof document === 'undefined')
     return Object.assign(() => undefined, { resume: () => undefined });
@@ -244,7 +205,6 @@ export function subscribeLiveRefreshV1(options: {
     isActive: options.isActive ?? (() => true),
     automatic: options.automatic ?? (() => true),
     interval,
-    eventDriven: options.eventDriven !== false,
     settledAt: Date.now(),
     requested: false,
     nextAt: 0,

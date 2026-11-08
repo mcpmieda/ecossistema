@@ -64,7 +64,6 @@ export function useContinuousReadV1<P extends CursorPage>(
   key: string,
   onAuthorizationLost?: (error: PortalClientErrorV1) => void,
   active = true,
-  eventDriven = true,
   pageSize = INITIAL_ROWS,
 ) {
   const cache = useMemo(
@@ -115,7 +114,7 @@ export function useContinuousReadV1<P extends CursorPage>(
     },
     [cache, loadPage, key, pageSize],
   );
-  const read = useOperationalReadV1(load, onAuthorizationLost, active, eventDriven);
+  const read = useOperationalReadV1(load, onAuthorizationLost, active);
   useEffect(() => {
     const clear = () => {
       cache.data = null;

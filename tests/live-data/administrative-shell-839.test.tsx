@@ -10,18 +10,15 @@ import { notifyLiveChangeV1 } from '../../src/shared/live-data/live-refresh-v1';
 const { reads } = vi.hoisted(() => ({ reads: vi.fn(async () => true) }));
 vi.mock('../../src/platform/pages', async () => {
   const React = await import('react');
-  const { useAdministrativeLiveV1 } = await import('../../src/shared/live-data/administrative-live-v1');
   const { useLiveRefreshV1 } = await import('../../src/shared/live-data/use-live-refresh-v1');
   const { useDraftNavigationGuardV1 } = await import('../../src/shared/forms/draft-navigation-v1');
   return {
     LoadingWorkspace: () => <p>Carregando área sintética</p>,
     PageContent: function Workspace({ route }: { route: string }) {
       const [value, setValue] = React.useState('');
-      const live = useAdministrativeLiveV1();
       useDraftNavigationGuardV1(value !== '');
       useLiveRefreshV1(reads, { domains: ['gradebook'], canRefresh: () => value === '' });
-      return <><input aria-label={`workspace-${route}`} value={value} onChange={(event) => setValue(event.target.value)} />
-        <span data-testid="workspace-live">{live}</span></>;
+      return <input aria-label={`workspace-${route}`} value={value} onChange={(event) => setValue(event.target.value)} />;
     },
   };
 });
@@ -64,7 +61,6 @@ it('the real App opens no live channel and reads again only when the window retu
   render(<App />); await flush();
   const input = screen.getByLabelText('workspace-banco-de-notas') as HTMLInputElement;
   expect(Socket.instances).toHaveLength(0);
-  expect(screen.getByTestId('workspace-live').textContent).toBe('idle');
   // No clock and no change notice reads by itself, not even after five quiet minutes.
   await act(async () => notifyLiveChangeV1('gradebook', { broadcast: false }));
   await advance(5 * 60_000);

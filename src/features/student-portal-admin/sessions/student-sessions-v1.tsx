@@ -122,7 +122,7 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
     },
     [props.reader, scopeKey, revision],
   );
-  const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost, true, false);
+  const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost);
   const operation = useMemo(
     () => createSessionMutationV1(props.client, props.canWrite, setMutation),
     [props.client, props.canWrite],
@@ -474,7 +474,7 @@ function SessionHistoryV1(
     },
     [props.reader, scopeKey],
   );
-  const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost, true, false);
+  const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost);
   const data = read.state.state === 'ready' ? read.state.data : null;
   return (
     <>

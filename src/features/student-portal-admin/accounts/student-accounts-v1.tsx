@@ -666,7 +666,6 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     'accountId',
     undefined,
     rankingActive,
-    false,
     ADMIN_ACCOUNTS_PAGE_SIZE_V2,
   );
   const reloadList = useRef(read.reloadNow);

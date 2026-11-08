@@ -28,7 +28,6 @@ export function useOperationalReadV1<T>(
   load: (signal: AbortSignal) => Promise<T>,
   onAuthorizationLost?: OperationsPropsV1['onAuthorizationLost'],
   active = true,
-  eventDriven = true,
 ) {
   const callback = useRef(onAuthorizationLost);
   const retryDeadline = useRef(0);
@@ -49,7 +48,7 @@ export function useOperationalReadV1<T>(
     },
     [load],
   );
-  const read = useAccountsReadV1(guarded, active, eventDriven);
+  const read = useAccountsReadV1(guarded, active);
   useEffect(() => {
     const clear = () => read.clear();
     window.addEventListener('pagehide', clear);

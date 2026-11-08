@@ -242,7 +242,6 @@ export function useSealCountsV1(
   const read = useAccountsReadV1(
     load,
     key !== null && options.active !== false,
-    true,
     LIVE_HEAVY_READ_INTERVAL_V1,
   );
   useEffect(() => {

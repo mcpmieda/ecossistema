@@ -18,7 +18,6 @@ import type { RuntimeEnv } from '../../../env';
 import { HttpError, readBoundedJson } from '../../../http/security';
 import { portalJsonV1 } from '../../runtime/http-v1';
 import { verifiedPagesContextV1 } from '../../admin-client/pages-context-v1';
-import { readSession } from '../../../auth/session';
 
 type AdminRequestKindV1 = 'query' | 'command';
 type AdminBindingResultV1 = {
@@ -61,37 +60,6 @@ function requestKindV1(path: string): AdminRequestKindV1 | null {
   if (path === '/api/student-portal/admin/query') return 'query';
   if (path === '/api/student-portal/admin/command') return 'command';
   return null;
-}
-
-async function serveLiveV1(
-  request: Request,
-  env: RuntimeEnv,
-  binding: PortalAdminServiceBindingV1,
-  requestId: string,
-) {
-  const fail = (state: FailureV1['state']) => failResponseV1(requestId, state);
-  if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket')
-    return fail('invalid-request');
-  const context = await verifiedPagesContextV1(request, env, false, requestId);
-  if (typeof context === 'string') return fail(context);
-  const session = await readSession(request, env);
-  if (
-    !session ||
-    session.oid.toLowerCase() !== context.actorId.toLowerCase() ||
-    typeof binding.fetch !== 'function'
-  )
-    return fail('unauthenticated');
-  return binding.fetch(
-    new Request('https://portal-admin.internal/live', {
-      headers: {
-        Upgrade: 'websocket',
-        'x-admin-actor-id': context.actorId,
-        'x-admin-tenant-id': context.tenantId,
-        'x-admin-capability': 'platform.settings.read',
-        'x-admin-expires-at': new Date(session.exp * 1000).toISOString(),
-      },
-    }),
-  );
 }
 
 async function queryBindingV1(
@@ -181,9 +149,6 @@ export async function servePortalAdminV1(
   const requestId = crypto.randomUUID();
   if (!allowed(request, env)) return failResponseV1(requestId, 'forbidden');
   const path = new URL(request.url).pathname;
-  if (path === '/api/student-portal/admin/live')
-    return serveLiveV1(request, env, binding, requestId);
-
   const kind = requestKindV1(path);
   if (!kind)
     return portalJsonV1({ contractVersion: 1, requestId, state: 'unavailable' }, 404);
