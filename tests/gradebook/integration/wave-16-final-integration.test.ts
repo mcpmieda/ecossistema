@@ -69,7 +69,7 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(shell).toContain(
       "import('../features/gradebook/performance/relational-performance-page-v2')",
     );
-    expect(shell).toContain("import('../features/gradebook/bulletins/bulletin-page')");
+    expect(shell).toContain("import('../features/gradebook/bulletins/relational-bulletin-page-v2')");
     expect(shell).toContain("import('./gradebook-council-surface')");
     expect(councilSurface).toContain('RelationalCouncilPageV3');
     expect(councilSurface).not.toContain('requestOperationalWorkspaceV1');

@@ -87,7 +87,6 @@
 .pa-settings-actions {
   justify-content: flex-start;
 }
-.pa-settings-origin,
 .pa-settings-hint {
   color: var(--muted);
 }
@@ -178,9 +177,6 @@
 .pa-date-picker {
   width: 100%;
   min-width: 0;
-}
-.pa-date-picker .date-field__group {
-  min-height: 2.5rem;
 }
 .pa-calendar-zone {
   display: flex;

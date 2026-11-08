@@ -50,10 +50,7 @@ import {
   readPanelHashParamV1,
   writePanelHashParamsV1,
 } from './shared/panel-hash-v1';
-import {
-  LiveRefreshAutomaticV1Provider,
-  LiveRefreshScopeV1,
-} from '../../shared/live-data/live-refresh-scope-v1';
+import { LiveRefreshScopeV1 } from '../../shared/live-data/live-refresh-scope-v1';
 
 const StudentAccountsV1 = preloadedSectionV1(() =>
   import('./accounts/student-accounts-v1').then((module) => module.StudentAccountsV1),
@@ -189,9 +186,6 @@ function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 const enterInstitutionalLogin = () => window.location.replace('/auth/login');
 const customizationChanged = () => notifyLiveChangeV1('portal');
-/** Owner decision 28/09/2026: automatic reads paused during the first school-wide access; the
- * administrator reloads manually. Initial reads and explicit reloads are unchanged. */
-const PORTAL_ADMIN_AUTO_REFRESH_V1 = false;
 /** Administrative Portal entry; heavyweight sections load only when the selected route needs them. */
 export function StudentPortalAdminPage({
   fetcher,
@@ -248,14 +242,12 @@ export function StudentPortalAdminPage({
       </section>
     );
   return (
-    <LiveRefreshAutomaticV1Provider enabled={PORTAL_ADMIN_AUTO_REFRESH_V1}>
-      <PortalWorkspace
-        key={auth.state.identity.identityKey + ':' + auth.state.identity.capabilities.join(',')}
-        identity={auth.state.identity}
-        onLost={auth.lost}
-        fetcher={fetcher}
-      />
-    </LiveRefreshAutomaticV1Provider>
+    <PortalWorkspace
+      key={auth.state.identity.identityKey + ':' + auth.state.identity.capabilities.join(',')}
+      identity={auth.state.identity}
+      onLost={auth.lost}
+      fetcher={fetcher}
+    />
   );
 }
 type ShiftKeyV1 = Extract<PolicyScopeV1, { kind: 'shift' }>['shift'];

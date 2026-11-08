@@ -73,7 +73,7 @@ describe('Boletins relacionais HeroUI V2', () => {
   it('mantém o shell lazy e o bridge autorizado/no-store existente', () => {
     expect(client).toContain("const ENDPOINT = '/api/gradebook/bulletins'");
     expect(client).toContain("cache: 'no-store'");
-    expect(shell).toContain("import('../features/gradebook/bulletins/bulletin-page')");
+    expect(shell).toContain("import('../features/gradebook/bulletins/relational-bulletin-page-v2')");
     expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
   });
 });

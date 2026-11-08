@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import { StudentMarkV1 } from '../grades/student-mark-v1';
-import { earnsAssessmentSealV1, earnsSealV1 } from '../grades/brilliant-seal-v1';
+import { earnsAssessmentSealV1, earnsSealV1 } from '../../../../shared/student-portal-contracts/brilliant-seal-v1';
 import { BrilliantSealBadgeV1 } from '../grades/brilliant-seal-badge-v1';
 import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import './student-workspace-v1.css';

@@ -97,7 +97,7 @@ const PerformancePage = preloadedSectionV1<{ isActive?: boolean }>(() =>
 );
 
 const BulletinPage = preloadedSectionV1(() =>
-  import('../features/gradebook/bulletins/bulletin-page').then((module) => module.BulletinPage),
+  import('../features/gradebook/bulletins/relational-bulletin-page-v2').then((module) => module.RelationalBulletinPageV2),
 );
 
 const CouncilWorkspaceSurface = preloadedSectionV1(() =>
