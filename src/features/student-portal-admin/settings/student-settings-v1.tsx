@@ -661,7 +661,7 @@ function SettingsReadyV1({
   const accessDisabled =
     fieldDisabled || controlledByShift('accessEnabled') || controlledByShift('accessSchedule');
   const gradesDisabled = fieldDisabled || controlledByShift('calendar');
-  const renderField = (field: SettingsFieldV1, locked = false) => {
+  const renderField = (field: SettingsFieldV1) => {
     if (field === 'accessSchedule') return null;
     // The switch and its schedules are one unit, edited on their own card.
     if (field === 'accessEnabled')
@@ -681,7 +681,7 @@ function SettingsReadyV1({
         key={`${discardVersion}:${field}:${fieldVersions[field] ?? 0}`}
         field={field}
         settings={data}
-        canWrite={canWrite && !locked}
+        canWrite={canWrite}
         disabled={fieldDisabled || controlledByShift(field)}
         compact={area === 'policies'}
         sourceLabel={sourceLabel(data.sources[field])}

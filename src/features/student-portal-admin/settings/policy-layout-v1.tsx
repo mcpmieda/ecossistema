@@ -3,6 +3,7 @@ import { Alert, Button, Tabs } from '@heroui/react';
 import {
   CalendarCheck,
   CalendarDays,
+  Clock,
   DoorOpen,
   FileWarning,
   GraduationCap,
@@ -57,6 +58,16 @@ const categories = [
     fields: ['showIncidents'],
   },
   {
+    // A tab of its own, like Frequência and Ocorrências (owner request 09/11/2026); the lesson
+    // times stay in Calendário.
+    id: 'schedule',
+    label: 'Horário',
+    icon: Clock,
+    title: 'Horário',
+    description: 'Escolha se os alunos veem a grade semanal de aulas no Portal.',
+    fields: ['showSchedule'],
+  },
+  {
     id: 'calendar',
     label: 'Calendário',
     icon: CalendarDays,
@@ -88,8 +99,7 @@ export function PolicyLayoutV1({
   calendarEditable = false,
   initialCategory = 'access',
 }: Readonly<{
-  /** locked: shown read-only (the Calendário tab outside its edit mode). */
-  field: (name: SettingsFieldV1, locked?: boolean) => ReactNode;
+  field: (name: SettingsFieldV1) => ReactNode;
   /** The Notas tab: periods (publication and agenda), Resultado anual and options. */
   grades?: ReactNode;
   disabled: boolean;
@@ -188,11 +198,8 @@ export function PolicyLayoutV1({
           {category.id === 'calendar' ? (
             <div key={calendarSession} className="pa-policy-calendar">
               {schoolCalendar?.(calendarEditing)}
-              {/* Horário das aulas inside Calendário (owner request 23/10/2026: no tab of its own):
-                  the switch that shows the weekly grid in the Portal, then each lesson's time. */}
-              <div className="pa-settings-fields pa-settings-fields--after">
-                {field('showSchedule', calendarEditable && !calendarEditing)}
-              </div>
+              {/* Each lesson's time, under the school calendar; the switch that shows the weekly grid
+                  in the Portal has its own tab (Horário). */}
               {schoolBells?.(calendarEditing)}
             </div>
           ) : null}
