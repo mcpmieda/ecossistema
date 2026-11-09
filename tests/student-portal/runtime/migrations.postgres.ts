@@ -182,6 +182,7 @@ beforeAll(async () => {
   await migrator.unsafe(readFileSync('migrations/student-portal/0032_incident_policy_v1.sql', 'utf8'));
   await installReconciliationSchemaFixtureV1({exec:(sql)=>admin.unsafe(sql,[],{prepare:false})});
   await admin.unsafe(readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'));
+  await admin.unsafe(readFileSync('migrations/student-portal/0033_reconciliation_cleanup_idle_v1.sql', 'utf8'));
   await admin.unsafe(readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'));
 });
 

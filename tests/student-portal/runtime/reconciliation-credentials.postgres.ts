@@ -60,6 +60,9 @@ beforeAll(async () => {
   await exec(
     readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'),
   );
+  await exec(
+    readFileSync('migrations/student-portal/0033_reconciliation_cleanup_idle_v1.sql', 'utf8'),
+  );
   await exec(`INSERT INTO gradebook.ano_letivo VALUES(2026,60000,2);
     INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES(700000,2026,'SYN','SYNTHETIC CLASS',7,'MATUTINO');`);
   await owner.unsafe(
@@ -687,4 +690,27 @@ it('expires only pending data with bounded cleanup while preserving applied obse
       applied.id,
     ]),
   ).toHaveLength(1);
+});
+
+it('runs the every-minute cleanup without the year lock when nothing expired, and with it otherwise', async () => {
+  // An ADM writer holds the 2026 year lock (owner request of 09/11/2026).
+  await peer.unsafe('SELECT pg_advisory_lock(613,2026)');
+  try {
+    await portal.unsafe("SET lock_timeout='300ms'");
+    expect((await portal.unsafe('SELECT student_portal.cleanup_reconciliation_pending_v1(100) AS n'))[0]!.n).toBe(0);
+    const pending = await batch(await students(1, false));
+    await owner.unsafe(
+      "UPDATE gradebook.student_report_batch_v1 SET expires_at=now()-interval '1 second' WHERE id=$1",
+      [pending.id],
+    );
+    await expect(portal.unsafe('SELECT student_portal.cleanup_reconciliation_pending_v1(100)'))
+      .rejects.toMatchObject({ code: '55P03' });
+    await peer.unsafe('SELECT pg_advisory_unlock(613,2026)');
+    expect((await portal.unsafe('SELECT student_portal.cleanup_reconciliation_pending_v1(100) AS n'))[0]!.n).toBe(1);
+    expect((await owner.unsafe('SELECT state FROM gradebook.student_report_batch_v1 WHERE id=$1', [pending.id]))[0]!.state)
+      .toBe('expired');
+  } finally {
+    await peer.unsafe('SELECT pg_advisory_unlock_all()');
+    await portal.unsafe('RESET lock_timeout');
+  }
 });
