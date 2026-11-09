@@ -97,7 +97,10 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
       if (query.operation === 'health') return await this.sql.begin(async (tx) => adminResponseV1.parse({
         ...base, ...await readAdminHealthV1(tx, query),
       }));
-      const yearMode = query.operation === 'publication' || query.operation === 'settings' ? 'shared' : 'exclusive';
+      // Reads share the year lock with each other and with family sign-ins (owner report 09/11/2026: the
+      // Auditoria opens several reads at once and one of them timed out waiting for the others). Only
+      // Sessões (it re-enters the revocation scope) and the link-closure preview (it writes) keep it whole.
+      const yearMode = query.operation === 'sessions' || query.operation === 'links-preview' ? 'exclusive' : 'shared';
       return await authTransactionV1(withAuditSqlV1(this.sql, context.clientIp ?? null, context), async (tx) => {
         const sql = boundSqlV1(tx);
         const now = await authNowV1(tx);
@@ -126,7 +129,13 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
           default: throw new Error('student-portal-query-invalid-request');
         }
       }, yearMode);
-    } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
+    } catch (error) {
+      const state = adminFailureStateV1(error);
+      // The same sanitized record as the V2 reads: no SQL, parameter or data, only its kind.
+      if (state === 'unavailable')
+        console.warn({ event: 'student-portal-admin-read-failure-v1', operation: query.operation, ...adminFailureDetailV1(error) });
+      return this.failure(context.requestId, state);
+    }
   }
   private queryFieldsAllowed(query: AdminQueryV1) {
     if (query.operation === 'bulk-preview') return true;

@@ -1216,6 +1216,23 @@ describe('native administrative facade and atomic batch receipts', () => {
     expect(await api.query({ ...context(), capability: 'platform.settings.read' }, detail)).toMatchObject({ state: 'forbidden' });
   });
 
+  it('reads accounts, audit and the calendar while a family sign-in holds the year lock (owner report 09/11/2026)', async () => {
+    await admin.begin(async (tx) => {
+      // What a family sign-in or another ADM read holds: the shared year barrier and FOR SHARE.
+      await tx.unsafe('SELECT pg_advisory_xact_lock_shared(613,0),pg_advisory_xact_lock_shared(613,2026)');
+      await tx.unsafe('SELECT academic_year FROM student_portal.academic_revision WHERE academic_year=2026 FOR SHARE');
+      await portal.unsafe("SET lock_timeout='200ms'");
+      try {
+        const reads = await Promise.all([
+          api.query(context(), { contractVersion: 1, operation: 'audit', scope, page: { limit: 100 } }),
+          api.query(context(), { contractVersion: 1, operation: 'accounts', scope, page: { limit: 100 } }),
+          api.query(context(), { contractVersion: 1, operation: 'school-calendar', scope: school, page: {} }),
+        ]);
+        expect(reads.map((read) => read.state)).toEqual(['audit', 'accounts', 'school-calendar']);
+      } finally { await portal.unsafe('RESET lock_timeout'); }
+    });
+  });
+
   it('replays link closure after commit without consuming another preview or touching academic records', async () => {
     const before = Number((await admin`SELECT count(*)::integer AS n FROM gradebook.aluno`)[0]!.n);
     const preview = await api.query(context(), { contractVersion: 1, operation: 'links-preview', scope: school, page: {} });
