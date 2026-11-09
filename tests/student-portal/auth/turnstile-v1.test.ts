@@ -18,6 +18,33 @@ describe('server-side Turnstile verification', () => {
       expect(await verifier.verify('synthetic-token')).toBe(false);
     }
   });
+  it('asks for the check again on a refused token, and is unavailable only on our or Cloudflare\'s fault', async () => {
+    // Production since 14/09/2026: every family that needed the check got "unavailable" instead.
+    const metrics: unknown[] = [];
+    const fetcher = vi.fn<typeof fetch>();
+    const verifier = new TurnstileVerifierV1('synthetic-secret', fetcher, (metric) => metrics.push(metric));
+    for (const [status, codes] of [[200, ['invalid-input-response']], [400, ['invalid-input-response']],
+      [400, ['timeout-or-duplicate']], [200, ['timeout-or-duplicate']], [400, ['missing-input-response']]] as const) {
+      fetcher.mockResolvedValueOnce(Response.json({ success: false, 'error-codes': codes }, { status }));
+      expect(await verifier.verify('synthetic-token')).toBe(false);
+    }
+    for (const [status, codes] of [[400, ['invalid-input-secret']], [400, ['missing-input-secret']],
+      [200, ['internal-error']], [400, ['bad-request']], [400, ['invalid-input-response', 'invalid-input-secret']],
+      [400, []], [400, ['something-new']]] as const) {
+      fetcher.mockResolvedValueOnce(Response.json({ success: false, 'error-codes': codes }, { status }));
+      await expect(verifier.verify('synthetic-token')).rejects.toThrow('student-portal-risk-unavailable');
+    }
+    fetcher.mockResolvedValueOnce(Response.json({ success: true, hostname: 'aluno.escolaieda.com', action: TURNSTILE_ACTION_V1,
+      'error-codes': [], cdata: null, metadata: { ephemeral_id: 'x' } }));
+    expect(await verifier.verify('synthetic-token')).toBe(true);
+    expect(metrics.map((metric) => (metric as { outcome: string; code: string | null }).outcome)).toEqual([
+      'rejected', 'rejected', 'rejected', 'rejected', 'rejected',
+      'unavailable', 'unavailable', 'unavailable', 'unavailable', 'unavailable', 'unavailable', 'unavailable', 'passed']);
+    expect(metrics[5]).toEqual({ event: 'student-portal-risk-verify-v1', outcome: 'unavailable', status: 400, code: 'invalid-input-secret' });
+    expect(metrics[11]).toMatchObject({ code: 'other' });
+    // Never the token or the secret.
+    expect(JSON.stringify(metrics)).not.toMatch(/synthetic/u);
+  });
   it('fails closed on missing configuration, transport failure, malformed response and timeout', async () => {
     expect(() => new TurnstileVerifierV1('')).toThrow('risk-unavailable');
     const fetcher = vi.fn<typeof fetch>().mockRejectedValueOnce(new Error('synthetic-secret-provider-error'))

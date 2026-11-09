@@ -22,6 +22,25 @@ export const portalAuthBurstMetricV1 = z.object({
 }).strict();
 export type PortalAuthBurstMetricV1 = z.infer<typeof portalAuthBurstMetricV1>;
 
+/** The security check's answer from Cloudflare: a fixed list of its codes, never the token or secret. */
+export const PORTAL_RISK_CODES_V1 = ['missing-input-secret', 'invalid-input-secret', 'missing-input-response',
+  'invalid-input-response', 'bad-request', 'timeout-or-duplicate', 'internal-error', 'other'] as const;
+export const portalRiskVerifyMetricV1 = z.object({
+  event: z.literal('student-portal-risk-verify-v1'),
+  outcome: z.enum(['passed', 'rejected', 'unavailable']),
+  status: z.number().int().min(0).max(599),
+  code: z.enum(PORTAL_RISK_CODES_V1).nullable(),
+}).strict();
+export type PortalRiskVerifyMetricV1 = z.infer<typeof portalRiskVerifyMetricV1>;
+export function emitPortalRiskVerifyMetricV1(
+  metric: PortalRiskVerifyMetricV1,
+  sink: (value: PortalRiskVerifyMetricV1) => void = console.info,
+): void {
+  const parsed = portalRiskVerifyMetricV1.safeParse(metric);
+  if (!parsed.success) return;
+  try { sink(parsed.data); } catch { /* Telemetry must never alter the auth outcome. */ }
+}
+
 export const portalOperationBurstMetricV1 = z.object({
   event: z.literal('student-portal-operation-burst-v1'),
   operation: z.enum(['auth-entry', 'session-entry', 'session', 'read-entry', 'read', 'status-entry', 'status',
