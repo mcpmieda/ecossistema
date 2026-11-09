@@ -180,10 +180,13 @@ const RING_GAP_V3 = 0.05;
 // at 4,5:1 on white even when the ring is scaled down on a narrow phone (#d45a4f was 3,9:1).
 const RING_KINDS_V3 = [
   // The legend's own words (owner request 01/11/2026): "faltas totais" read as the sum of all absences.
-  { kind: 'clear', colour: '#166534', ink: '#166534', one: 'dia sem falta', many: 'dias sem falta' },
-  { kind: 'full', colour: '#991b1b', ink: '#991b1b', one: 'dia de falta', many: 'dias de falta' },
-  { kind: 'partial', colour: '#d45a4f', ink: '#b42d22', one: 'faltou algumas aulas', many: 'faltou algumas aulas' },
-  { kind: 'justified', colour: '#b45309', ink: '#b45309', one: 'dia justificado', many: 'dias justificados' },
+  // Names that exclude each other (owner requests 09/11/2026: "dias de falta" read as if the
+  // justified days and the days with some lessons missed were inside it; every name a kind of day,
+  // "dia" for one). Each on its own two lines.
+  { kind: 'clear', colour: '#166534', ink: '#166534', one: ['dia sem', 'nenhuma falta'], many: ['dias sem', 'nenhuma falta'] },
+  { kind: 'full', colour: '#991b1b', ink: '#991b1b', one: ['dia com falta', 'o dia todo'], many: ['dias com falta', 'o dia todo'] },
+  { kind: 'partial', colour: '#d45a4f', ink: '#b42d22', one: ['dia com falta', 'em algumas aulas'], many: ['dias com falta', 'em algumas aulas'] },
+  { kind: 'justified', colour: '#b45309', ink: '#b45309', one: ['dia com falta', 'justificada'], many: ['dias com falta', 'justificadas'] },
 ] as const;
 type RingTotalsV3 = { days: number; clear: number; full: number; partial: number; justified: number };
 /**
@@ -226,7 +229,7 @@ const ringArc = (from: number, to: number) => {
 };
 /**
  * Labels on one side never overlap: each keeps at least this vertical distance, the height of a
- * label of two lines (the count, then "faltou / algumas aulas"). At most three labels share a side.
+ * label of two lines (the count, then "dias com falta / em algumas aulas"). At most three labels share a side.
  */
 const RING_LABEL_GAP_V3 = 50;
 type PointV3 = { x: number; y: number };
@@ -287,12 +290,25 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
   });
   for (const side of [1, -1]) spreadLabels(placed.filter((label) => label.side === side));
   const single = arcs.length === 1;
+  // Nothing is ever cut (owner check 09/11/2026: a label pushed far from its arc, or a long name,
+  // could run past the edge): once drawn, the picture widens evenly on both sides to hold every word,
+  // and so shrinks a little as a whole, which keeps every distance between the parts.
+  const ring = useRef<SVGSVGElement>(null);
+  const [extra, setExtra] = useState(0);
+  const key = `${counts.clear}-${counts.full}-${counts.partial}-${counts.justified}`;
+  useLayoutEffect(() => {
+    const svg = ring.current;
+    if (!svg || typeof svg.getBBox !== 'function') return;
+    const box = svg.getBBox();
+    setExtra(Math.ceil(Math.max(0, -box.x, box.x + box.width - RING_VIEW_V3.width) + (box.x < 0 || box.x + box.width > RING_VIEW_V3.width ? 2 : 0)));
+  }, [key]);
   return (
     <svg
+      ref={ring}
       className="pa3-guide-ring"
-      viewBox={`0 0 ${RING_VIEW_V3.width} ${RING_VIEW_V3.height}`}
+      viewBox={`${-extra} 0 ${RING_VIEW_V3.width + 2 * extra} ${RING_VIEW_V3.height}`}
       role="img"
-      aria-label={`${label}, ${plural(totals.days, 'dia de aula contado', 'dias de aula contados')}: ${RING_KINDS_V3.map((kind) => plural(totals[kind.kind], kind.one, kind.many)).join(', ')}`}
+      aria-label={`${label}, ${plural(totals.days, 'dia de aula contado', 'dias de aula contados')}: ${RING_KINDS_V3.map((kind) => plural(totals[kind.kind], kind.one.join(' '), kind.many.join(' '))).join(', ')}`}
     >
       <circle className="pa3-guide-track" cx={RING_CENTER_V3.x} cy={RING_CENTER_V3.y} r={RING_RADIUS_V3} strokeWidth={RING_STROKE_V3} />
       {placed.map((arc) =>
@@ -340,9 +356,7 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
         const end = finish.x;
         const text = end + label.side * 3;
         const anchor = label.side > 0 ? 'start' : 'end';
-        const name = label.count === 1 ? label.one : label.many;
-        // On two lines from the first space ("dias / sem falta", "dias / de falta"); one word stays alone.
-        const [first, second] = name.includes(' ') ? [name.slice(0, name.indexOf(' ')), name.slice(name.indexOf(' ') + 1)] : [name, null];
+        const [first, second] = label.count === 1 ? label.one : label.many;
         return (
           <g key={label.kind} className="pa3-guide-label" style={{ animationDelay: `${450 + label.order * 160}ms` }}>
             <circle cx={label.near.x} cy={label.near.y} r={2.2} fill={label.colour} />
@@ -359,11 +373,9 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
             <text x={text} y={label.y + 10} textAnchor={anchor} className="pa3-guide-name">
               {first}
             </text>
-            {second ? (
-              <text x={text} y={label.y + 22} textAnchor={anchor} className="pa3-guide-name">
-                {second}
-              </text>
-            ) : null}
+            <text x={text} y={label.y + 22} textAnchor={anchor} className="pa3-guide-name">
+              {second}
+            </text>
           </g>
         );
       })}
