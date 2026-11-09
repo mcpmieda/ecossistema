@@ -567,11 +567,6 @@
   flex: 0 0 auto;
   color: var(--muted);
 }
-/* A switch under a panel's own editor (Horário no Portal, under the school calendar). */
-.pa-settings-fields--after {
-  margin-top: 1rem;
-}
-
 /* Calendário: read-only until "Editar" (owner request 23/10/2026). */
 .pa-policy-edit-bar {
   display: flex;
