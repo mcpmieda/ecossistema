@@ -234,7 +234,7 @@ describe('Frequência page', () => {
     render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })} />);
     await ready();
     expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toBe(
-      'Ano letivo 2026, 1 dia de aula contado: 1 dia sem falta, 0 dias de falta, 0 faltou algumas aulas, 0 dias justificados',
+      'Ano letivo 2026, 1 dia de aula contado: 1 dia sem nenhuma falta, 0 dias com falta o dia todo, 0 dias com falta em algumas aulas, 0 dias com falta justificadas',
     );
   });
 
@@ -246,7 +246,7 @@ describe('Frequência page', () => {
     render(<FrequencyPageV3 client={clientOf(months)} />);
     await ready();
     const ring = () => document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label');
-    expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados: 2 dias sem falta, 0 dias de falta, 1 faltou algumas aulas/u);
+    expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados: 2 dias sem nenhuma falta, 0 dias com falta o dia todo, 1 dia com falta em algumas aulas/u);
     fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
     expect(screen.getByRole('heading', { level: 3, name: 'Setembro de 2026' })).toBeTruthy();
     expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados/u);

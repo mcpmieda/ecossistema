@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CalendarDays, CheckCircle2, CircleCheck, FileText, ShieldAlert, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
@@ -39,11 +39,11 @@ const civil = (value: string) => DATE.format(new Date(`${value}T00:00:00Z`));
  * The Smecel's kind in capitals and its colour: a suspension red, a warning amber. A suspension
  * always reads "SUSPENSÃO SEM PREJUÍZO" on the Portal (owner requests 01/11/2026).
  */
-function kindOfV3(kind: string): { label: string; color: 'danger' | 'warning' | 'default' } {
+function kindOfV3(kind: string): { label: string; color: 'danger' | 'warning' | 'default'; Icon: LucideIcon } {
   const key = kind.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase();
-  if (key === 'SUSPENSAO') return { label: 'SUSPENSÃO SEM PREJUÍZO', color: 'danger' };
-  if (key === 'ADVERTENCIA') return { label: 'ADVERTÊNCIA', color: 'warning' };
-  return { label: kind.toUpperCase(), color: 'default' };
+  if (key === 'SUSPENSAO') return { label: 'SUSPENSÃO SEM PREJUÍZO', color: 'danger', Icon: ShieldAlert };
+  if (key === 'ADVERTENCIA') return { label: 'ADVERTÊNCIA', color: 'warning', Icon: TriangleAlert };
+  return { label: kind.toUpperCase(), color: 'default', Icon: FileText };
 }
 
 /** The leave's dates, with only the parts the Smecel shows. */
@@ -105,6 +105,7 @@ function AcknowledgementV3({
     );
   return (
     <Button size="sm" variant="secondary" className="pa3-incident-ack" onPress={onAsk}>
+      <CircleCheck size={16} aria-hidden="true" />
       Toque aqui para confirmar que leu
     </Button>
   );
@@ -132,11 +133,21 @@ function IncidentCardV3({
   };
   return (
     <Card className={'pa3-card pa3-incident' + (incident.acknowledgedAt ? ' pa3-incident--seen' : '')}>
-      <div className="pa3-card-head">
-        <Chip size="sm" variant="soft" color={kind.color}>
-          {kind.label}
-        </Chip>
-        <span className="pa3-incident-date">{civil(incident.date)}</span>
+      {/* The kind's icon in a round badge, the kind and, under it, the day (owner request 09/11/2026:
+          "cards mais bonitos"). */}
+      <div className="pa3-card-head pa3-incident-head">
+        <span className="pa3-incident-icon" aria-hidden="true">
+          <kind.Icon size={20} strokeWidth={2.2} />
+        </span>
+        <div className="pa3-incident-title">
+          <Chip size="sm" variant="soft" color={kind.color}>
+            {kind.label}
+          </Chip>
+          <span className="pa3-incident-when">
+            <CalendarDays size={13} aria-hidden="true" />
+            <span className="pa3-incident-date">{civil(incident.date)}</span>
+          </span>
+        </div>
       </div>
       {incident.leave ? (
         <p className="pa3-incident-leave">
