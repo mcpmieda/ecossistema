@@ -63,7 +63,8 @@ async function fixture(): Promise<Fixture> {
     await exec(readFileSync('migrations/student-portal/' + file, 'utf8'));
   }
   for (const path of ['migrations/gradebook-simplified/0015_student_reconciliation_v1.sql',
-    'migrations/student-portal/0025_reconciliation_credentials_v1.sql']) await exec(readFileSync(path, 'utf8'));
+    'migrations/student-portal/0025_reconciliation_credentials_v1.sql',
+    'migrations/student-portal/0033_reconciliation_cleanup_idle_v1.sql']) await exec(readFileSync(path, 'utf8'));
   await app.unsafe('SET ROLE gradebook_app');
   await portal.unsafe('SET ROLE student_portal_app');
   return result;
