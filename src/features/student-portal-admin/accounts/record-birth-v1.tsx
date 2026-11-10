@@ -3,7 +3,7 @@ import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contr
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 import { useAccountsReadV1 } from './accounts-read-v1';
-import { readBirthPageV1, type BirthValueV1 } from '../birth-year/birth-read-v1';
+import { readAccountBirthV1, type BirthValueV1 } from '../birth-year/birth-read-v1';
 
 /** How the year stands: confirmed by the Relatório, legacy, or still waiting for it. */
 export function birthStateLabelV1(birth: BirthValueV1): string {
@@ -28,16 +28,7 @@ export function RecordBirthV1({
   latest.current = account;
   const load = useCallback(
     async (signal: AbortSignal) => {
-      const current = latest.current;
-      const page = await readBirthPageV1(
-        client,
-        reader,
-        { kind: 'account', academicYear: 2026, accountId: current.accountId },
-        undefined,
-        signal,
-        { account: current, scopeVersion },
-      );
-      return page.rows[0]?.birth ?? null;
+      return readAccountBirthV1(client, reader, latest.current, scopeVersion, signal);
     },
     // The account version changes after every confirmed action: the year is read again.
     [client, reader, account.accountId, account.version, scopeVersion],

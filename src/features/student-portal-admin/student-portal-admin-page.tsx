@@ -320,7 +320,7 @@ function sectionContentV1({
     default:
       // Every class at once from the school summary (owner request 10/11/2026): no class tabs.
       return (
-        <StudentOverviewV1 {...common} scope={SCHOOL} scopeLabel="Escola" classLabels={classLabels} />
+        <StudentOverviewV1 {...common} classLabels={classLabels} />
       );
   }
 }

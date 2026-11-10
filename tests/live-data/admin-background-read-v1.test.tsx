@@ -193,7 +193,7 @@ it('Visão geral: a return read without network keeps the summary instead of "in
   });
   render(
     <LiveRefreshAutomaticV1Provider enabled={false}>
-      <StudentOverviewV1 {...mock.props} scope={{ kind: 'school', academicYear: 2026 }} scopeLabel="Escola" />
+      <StudentOverviewV1 {...mock.props} />
     </LiveRefreshAutomaticV1Provider>,
   );
   await until(() => screen.queryByText('Operando normalmente'));

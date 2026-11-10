@@ -66,8 +66,6 @@ describe('actual operational summary and health', () => {
     render(
       createElement(StudentOverviewV1, {
         ...mock.props,
-        scope: { kind: 'school', academicYear: 2026 },
-        scopeLabel: 'Escola',
       }),
     );
     await screen.findByText('Cadastro automático desativado');
@@ -99,8 +97,6 @@ describe('actual operational summary and health', () => {
     render(
       createElement(StudentOverviewV1, {
         ...mock.props,
-        scope: { kind: 'school', academicYear: 2026 },
-        scopeLabel: 'Escola',
       }),
     );
     await screen.findByText('Cadastro automático desativado');

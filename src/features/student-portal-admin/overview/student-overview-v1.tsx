@@ -4,14 +4,12 @@ import { InfoV1 } from '../shared/info-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertDialog, Button, Card, Chip } from '@heroui/react';
-import { OperationsScopeV1 } from './operations-scope-v1';
 import {
   operationDateV1,
   authorizationLostV1,
   useOperationalReadV1,
   type OperationsPropsV1,
 } from './operations-values-v1';
-import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import { AccountsErrorV1 } from '../accounts/accounts-presentation-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 const healthLabels = {
@@ -24,23 +22,15 @@ function healthColor(health: string) {
   return health === 'attention' ? 'warning' : 'danger';
 }
 
-/** classLabels is null while the class catalog loads or after it failed: no table then. */
-type OverviewPropsV1 = OperationsPropsV1 & { classLabels?: readonly ClassLabelV1[] | null };
+/** The Visão geral reads the whole school, every class at once (owner request 10/11/2026).
+ * classLabels is null while the class catalog loads or after it failed: no table then. */
+type OverviewPropsV1 = Omit<OperationsPropsV1, 'scope' | 'scopeLabel'> & {
+  classLabels?: readonly ClassLabelV1[] | null;
+};
+const SCHOOL_V1 = { kind: 'school', academicYear: 2026 } as const;
 
 export function StudentOverviewV1(props: Readonly<OverviewPropsV1>) {
-  return (
-    <OperationsScopeV1 {...props}>
-      {(scope, label, onAuthorizationLost) => (
-        <OverviewBodyV1
-          key={props.identityKey + settingsScopeKeyV1(scope) + props.canWrite}
-          {...props}
-          scope={scope}
-          scopeLabel={label}
-          onAuthorizationLost={onAuthorizationLost}
-        />
-      )}
-    </OperationsScopeV1>
-  );
+  return <OverviewBodyV1 key={props.identityKey + props.canWrite} {...props} />;
 }
 /** A lost authorization, a rate limit or no network ends the whole read (the summary on screen
  * stays with its notice); other failures leave a part empty. */
@@ -57,11 +47,11 @@ function populationActionLabelV1(error: PortalClientErrorV1 | null) {
 }
 
 /** The fallback keeps health observable when the business summary is unavailable. */
-async function fallbackHealthV1(props: Readonly<OperationsPropsV1>, signal: AbortSignal) {
+async function fallbackHealthV1(props: Readonly<OverviewPropsV1>, signal: AbortSignal) {
   let health = null;
   try {
     const result = await props.client.query(
-      { contractVersion: 1, operation: 'health', scope: props.scope, page: { limit: 1 } },
+      { contractVersion: 1, operation: 'health', scope: SCHOOL_V1, page: { limit: 1 } },
       signal,
     );
     if (result.state === 'health') health = result.status;
@@ -80,7 +70,6 @@ function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
     OperationsPropsV1['client']['prepareCommand']
   > | null>(null);
   const populationAbort = useRef<AbortController | null>(null);
-  const scopeKey = settingsScopeKeyV1(props.scope);
   const load = useCallback(
     async (signal: AbortSignal) => {
       const [overview, population] = await Promise.allSettled([
@@ -88,18 +77,16 @@ function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
           {
             contractVersion: 2,
             operation: 'overview',
-            scope: props.scope,
+            scope: SCHOOL_V1,
             page: { limit: 100 },
-            ...(props.scope.kind === 'school' ? { byClass: true as const } : {}),
+            byClass: true,
           },
           signal,
         ),
-        props.scope.kind === 'school'
-          ? props.client.query(
-              { contractVersion: 1, operation: 'population', scope: props.scope, page: { limit: 1 } },
-              signal,
-            )
-          : Promise.resolve(null),
+        props.client.query(
+          { contractVersion: 1, operation: 'population', scope: SCHOOL_V1, page: { limit: 1 } },
+          signal,
+        ),
       ]);
       signal.throwIfAborted();
       for (const result of [overview, population])
@@ -118,13 +105,13 @@ function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
             : null,
       };
     },
-    [props.reader, props.client, scopeKey],
+    [props.reader, props.client],
   );
   const read = useOperationalReadV1(load, props.onAuthorizationLost);
   const data = read.state.state === 'ready' ? read.state.data : null;
   useEffect(() => () => populationAbort.current?.abort(), []);
   const synchronizePopulation = async () => {
-    if (!data?.population || populationBusy || props.scope.kind !== 'school') return;
+    if (!data?.population || populationBusy) return;
     setPopulationBusy(true);
     setPopulationError(null);
     const controller = new AbortController();
@@ -182,7 +169,7 @@ function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
           <>
             <section className="pa-overview-hero pa-rise" aria-label="Funcionamento">
               <div className="pa-overview-hero-main">
-                <p className="pa-overview-scope">{props.scopeLabel} · 2026</p>
+                <p className="pa-overview-scope">Escola · 2026</p>
                 <div className="pa-overview-health">
                   <h3>Funcionamento</h3>
                   {data.health ? (
