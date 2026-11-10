@@ -60,7 +60,7 @@ Abort e geração descartam respostas antigas sem fingir cancelar commit no serv
 401/403 removem ficha/lista; a composição também deve tratar onUnauthorized e logout.
 
 Bloqueio/desbloqueio é administrativo; não afirma remover a janela antiabuso.
-Redefinir senha preserva QR; redefinir conta gira QR e volta ao primeiro acesso;
+Redefinir senha preserva QR; resetar conta gira QR e volta ao primeiro acesso;
 regenerar QR preserva senha/estado. Todos respeitam as revogações do backend.
 Nenhuma dessas operações encerra vínculo ou libera reset anual do Banco.
 
