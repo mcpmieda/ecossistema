@@ -45,6 +45,7 @@ export const portalOperationBurstMetricV1 = z.object({
   event: z.literal('student-portal-operation-burst-v1'),
   operation: z.enum(['auth-entry', 'session-entry', 'session', 'read-entry', 'read', 'status-entry', 'status',
     'live-entry', 'live', 'photo-entry', 'photo', 'logout-entry', 'logout', 'activation',
+    'frequency-entry', 'schedule-entry', 'incidents-entry',
     'admin-read', 'admin-import', 'admin-write', 'admin-export', 'admin-live', 'admin-revoke']),
   outcome: z.enum(['allowed', 'limited', 'unavailable']),
   elapsedMs: count,

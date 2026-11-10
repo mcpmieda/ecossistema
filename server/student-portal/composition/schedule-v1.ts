@@ -46,7 +46,7 @@ export async function servePortalScheduleV1(request:Request,env:PortalCompositio
   if(env.PORTAL_SERVING_ENABLED!=='true')return fail('unavailable',503);
   const token=sessionCookieTokenV1(request);if(!token)return fail('unauthenticated',401);
   try{
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'session-entry','public');
+    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'schedule-entry','public');
     const keys=portalKeysV1(env);
     const read=await portalDatabaseV1(env,'self',sql=>new SessionServiceV1(sql,keys.cryptoPort,undefined,true,
       accountId=>checkPortalOperationV1(env.PORTAL_SESSION_ACCOUNT,'session',accountId)).withAuthorized(token,async(context,tx,session)=>{
