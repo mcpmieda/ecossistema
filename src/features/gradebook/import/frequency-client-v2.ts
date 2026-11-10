@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  frequencyReportScheduleV2,
   frequencyRequestV2,
   frequencyScheduleV2,
   type FrequencyRequestV2,
@@ -10,6 +11,36 @@ import { FrequencyClientErrorV2, frequencyJsonV2 } from '../../student-portal/fr
 const id = z.string().uuid();
 const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const timestamp = z.iso.datetime({ offset: true });
+/** The last automatic student report (attendance 0015); this panel only has to accept it. */
+const studentReport = z
+  .object({
+    observedAt: timestamp,
+    receivedAt: timestamp,
+    changedAt: timestamp,
+    outcome: z.enum(['applied', 'preparing', 'awaiting_relation', 'review']),
+    rows: revision,
+    notes: z
+      .object({
+        counts: z
+          .object({ rows: revision, linked: revision, pending: revision })
+          .strict()
+          .nullable(),
+        differences: z.array(z.string()),
+        invalid: z.array(
+          z
+            .object({
+              sourceRow: z.number().int(),
+              name: z.string(),
+              classLabel: z.string(),
+              field: z.string(),
+              reason: z.string(),
+            })
+            .strict(),
+        ),
+      })
+      .strict(),
+  })
+  .strict();
 const status = z
   .object({
     contractVersion: z.literal(2),
@@ -17,8 +48,14 @@ const status = z
     academicYear: z.literal(2026),
     serverTime: timestamp,
     settings: z
-      .object({ revision, paused: z.boolean(), schedule: frequencyScheduleV2.nullable() })
+      .object({
+        revision,
+        paused: z.boolean(),
+        schedule: frequencyScheduleV2.nullable(),
+        reportSchedule: frequencyReportScheduleV2.nullable().optional(),
+      })
       .strict(),
+    studentReport: studentReport.nullable().optional(),
     lease: z
       .object({ deviceId: id, expiresAt: timestamp, fencingToken: revision })
       .strict()
