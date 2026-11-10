@@ -793,7 +793,8 @@ describe('private administrative API with real persistence', () => {
   // Encerrar conta (owner request 10/11/2026): a duplicate record left by an import.
   it('explains a record without a class from its records and closes it once, leaving lists and totals', async () => {
     await pg.query(
-      "INSERT INTO gradebook.aluno(id,ano,nome) VALUES (910099,2026,'SYNTHETIC ACADEMIC OTHER') ON CONFLICT DO NOTHING",
+      // Two spaces: the same name only after spacing is normalized.
+      "INSERT INTO gradebook.aluno(id,ano,nome) VALUES (910099,2026,'SYNTHETIC  ACADEMIC OTHER') ON CONFLICT DO NOTHING",
     );
     await pg.query('UPDATE student_portal.account SET gradebook_student_id=910099 WHERE id=$1', [accounts[0]!.id]);
     const scope = accountScope();

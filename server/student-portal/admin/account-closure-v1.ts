@@ -23,8 +23,9 @@ export async function readAccountOriginV1(
   now: Date,
 ) {
   if (query.scope.kind !== 'account') throw new Error('student-portal-account-origin-invalid-request');
+  // Raw: the regular expression keeps its single backslash.
   const found = await tx.unsafe(
-    `SELECT a.id,a.version,a.created_at,a.auth_state,a.closed_at,a.gradebook_student_id,
+    String.raw`SELECT a.id,a.version,a.created_at,a.auth_state,a.closed_at,a.gradebook_student_id,
         (SELECT count(*) FROM student_portal.academic_binding_v1 b
           WHERE b.academic_year=a.academic_year AND b.student_id=a.gradebook_student_id) AS classes,
         EXISTS(SELECT 1 FROM student_portal.audit_event e WHERE e.account_id=a.id
@@ -34,7 +35,7 @@ export async function readAccountOriginV1(
           FROM student_portal.academic_student_v1 me
           JOIN student_portal.academic_student_v1 twin ON twin.academic_year=me.academic_year
             AND twin.student_id<>me.student_id
-            AND lower(regexp_replace(twin.name,'\\s+',' ','g'))=lower(regexp_replace(me.name,'\\s+',' ','g'))
+            AND lower(regexp_replace(twin.name,'\s+',' ','g'))=lower(regexp_replace(me.name,'\s+',' ','g'))
           JOIN student_portal.academic_binding_v1 other ON other.academic_year=twin.academic_year
             AND other.student_id=twin.student_id AND other.status IS DISTINCT FROM 6
           LEFT JOIN student_portal.account other_account ON other_account.gradebook_student_id=twin.student_id
