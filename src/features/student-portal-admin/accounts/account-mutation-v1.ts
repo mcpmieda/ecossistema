@@ -115,7 +115,9 @@ export function createAccountMutationV1(
       if (pending || prepared) return;
       if (
         command.accountId !== accountId ||
-        !['block', 'password-reset', 'account-reset', 'qr-regenerate'].includes(command.operation)
+        !['block', 'password-reset', 'account-reset', 'qr-regenerate', 'account-close'].includes(
+          command.operation,
+        )
       )
         throw new PortalClientErrorV1('invalid-request');
       prepared = client.prepareCommand(command);

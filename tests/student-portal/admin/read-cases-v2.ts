@@ -391,8 +391,12 @@ export function adminReadCasesV2(
     // Includes inserting/removing 5,001 fixtures; verifies bounded correctness, not latency.
     it('refuses an oversized overview instead of returning truncated school totals', async () => {
       await get().admin
-        .unsafe(`INSERT INTO student_portal.account(id,auth_state,eligibility,closed_at)
-        SELECT ('74600000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'pending-activation','unlinked',now()
+        // Open accounts: closed ones leave the totals (owner decision 10/11/2026).
+        .unsafe(`INSERT INTO gradebook.aluno(id,ano,nome)
+          SELECT 760000+n,2026,'SYNTHETIC OVERSIZED '||n FROM generate_series(1000,6000) n`);
+      await get().admin
+        .unsafe(`INSERT INTO student_portal.account(id,gradebook_student_id,auth_state,eligibility)
+        SELECT ('74600000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,760000+n,'pending-activation','unresolved'
         FROM generate_series(1000,6000) n`);
       try {
         const response = await readApiV2(get().sql).query(
@@ -406,7 +410,9 @@ export function adminReadCasesV2(
           'DELETE FROM student_portal.account WHERE id BETWEEN $1::uuid AND $2::uuid',
           [readAccountIdV2(1000), readAccountIdV2(6000)],
         );
+        await get().admin.unsafe('DELETE FROM gradebook.aluno WHERE id BETWEEN 761000 AND 766000');
       }
-    }, 30_000);
+      // 5,001 real students now (closed accounts no longer count): ~25 s alone, more under load.
+    }, 90_000);
   });
 }

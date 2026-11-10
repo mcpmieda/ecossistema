@@ -33,7 +33,7 @@ export function adminClassCatalogRequestV2(
 /** Opt-in reads only; every existing query/response and CAS meaning remains unchanged. */
 export const adminReadQueryV2 = z.object({
   contractVersion: z.literal(2),
-  operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read', 'closing-preview', 'shifts-read', 'seals-read']),
+  operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read', 'closing-preview', 'shifts-read', 'seals-read', 'account-origin']),
   scope: scopeV1,
   page: pageRequestV1.extend({ limit: z.number().int().min(1).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2).default(50) }),
   accountState: accountStateV1.optional(),
@@ -59,6 +59,10 @@ export const adminReadQueryV2 = z.object({
   .refine((value) => value.operation !== 'customizations-read' ||
     (value.accountState === undefined && value.blocked === undefined && !value.nameSearch?.includes('\0')), 'Customization inventory accepts only scope and name search')
   // Fechamento do trimestre preview (#1132 D12): one student's record only.
+  // Encerrar conta (owner request 10/11/2026): one record's own facts, no filters.
+  .refine((value) => value.operation !== 'account-origin' ||
+    (value.scope.kind === 'account' && [value.accountState, value.blocked, value.nameSearch, value.sessionView, value.byClass].every((field) => field === undefined)),
+  'Account origin is read for one account')
   .refine((value) => value.operation !== 'closing-preview' ||
     (value.scope.kind === 'account' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
   'Closing preview is read for one account')
@@ -115,6 +119,11 @@ const overviewCountsV2 = z.object({ accounts: count, active: count, pendingActiv
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
   customizationsResponseV1,
   z.object({ ...base, state: z.literal('shifts-read'), items: z.array(shiftSummaryV1).max(3) }).strict(),
+  // Why a record has no class, from the records themselves (owner request 10/11/2026).
+  z.object({ ...base, state: z.literal('account-origin'), accountId: portalIdV1, version: versionV1,
+    createdAt: instantV1, everAccessed: z.boolean(), classesThisYear: count, closable: z.boolean(),
+    sameName: z.array(z.object({ classLabel: z.string().max(80), accountActive: z.boolean() }).strict()).max(10),
+  }).strict(),
   // Seals each student currently sees on the Portal; null when the Portal shows no marks to them.
   z.object({ ...base, state: z.literal('seals-read'), items: z.array(z.object({
     accountId: portalIdV1, seals: z.number().int().nonnegative().max(1000).nullable(),

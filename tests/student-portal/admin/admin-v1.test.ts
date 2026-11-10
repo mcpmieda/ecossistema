@@ -5,6 +5,7 @@ import { officialBells2026V1 } from '../../../shared/student-portal-contracts/sc
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
+import { readAccountOriginV1 } from '../../../server/student-portal/admin/account-closure-v1';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
 import { PolicyServiceV1 } from '../../../server/student-portal/policies/policy-service-v1';
 import { AdminCursorV1 } from '../../../server/student-portal/admin/cursor-v1';
@@ -789,6 +790,56 @@ describe('private administrative API with real persistence', () => {
     ).toBe('conflict');
   });
 
+  // Encerrar conta (owner request 10/11/2026): a duplicate record left by an import.
+  it('explains a record without a class from its records and closes it once, leaving lists and totals', async () => {
+    await pg.query(
+      // Two spaces: the same name only after spacing is normalized.
+      "INSERT INTO gradebook.aluno(id,ano,nome) VALUES (910099,2026,'SYNTHETIC  ACADEMIC OTHER') ON CONFLICT DO NOTHING",
+    );
+    await pg.query('UPDATE student_portal.account SET gradebook_student_id=910099 WHERE id=$1', [accounts[0]!.id]);
+    const scope = accountScope();
+    const origin = await sql.begin((tx) =>
+      readAccountOriginV1(tx, { contractVersion: 2, operation: 'account-origin', scope, page: { limit: 1 } }, crypto.randomUUID(), new Date()),
+    );
+    expect(origin).toMatchObject({
+      state: 'account-origin',
+      classesThisYear: 0,
+      everAccessed: false,
+      closable: true,
+      sameName: [{ classLabel: 'SYNTHETIC ACADEMIC CLASS', accountActive: false }],
+    });
+    // A record that has a class is refused, and nothing is written for it.
+    const other = command('account-close', 0, { accountId: accounts[1]!.id, confirmed: true });
+    expect((await api.command(context(), other)).state).toBe('conflict');
+    const input = command('account-close', 0, { accountId: accounts[0]!.id, confirmed: true });
+    expect((await api.command(context(), { ...input, confirmed: false })).state).toBe('invalid-request');
+    expect((await api.command(context('platform.settings.read'), input)).state).toBe('forbidden');
+    const first = state(await api.command(context(), input), 'committed');
+    const replay = state(await api.command(context(), input), 'committed');
+    expect(replay.operationId).toBe(first.operationId);
+    const closed = (
+      await pg.query<{ closed: boolean; student: number | null }>(
+        'SELECT closed_at IS NOT NULL AS closed,gradebook_student_id AS student FROM student_portal.account WHERE id=$1',
+        [accounts[0]!.id],
+      )
+    ).rows[0]!;
+    expect(closed).toEqual({ closed: true, student: null });
+    const audit = (
+      await pg.query<{ kind: string; account_id: string }>(
+        'SELECT kind,account_id FROM student_portal.audit_event WHERE account_id=$1',
+        [accounts[0]!.id],
+      )
+    ).rows;
+    expect(audit).toEqual([{ kind: 'links-closed', account_id: accounts[0]!.id }]);
+    // It leaves the lists and the totals; a second close (new request) is refused.
+    expect((await query('accounts', { scope: SCHOOL })).items.map((item) => item.accountId)).not.toContain(
+      accounts[0]!.id,
+    );
+    expect(
+      (await api.command(context(), command('account-close', first.version, { accountId: accounts[0]!.id, confirmed: true })))
+        .state,
+    ).toBe('conflict');
+  });
   it('accepts the full one-hundred-card boundary with bounded SQL rather than per-account round trips', async () => {
     await pg.exec(`INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno)
       VALUES (910003,2026,'S713','SYNTHETIC BATCH CLASS',6,'TESTE');

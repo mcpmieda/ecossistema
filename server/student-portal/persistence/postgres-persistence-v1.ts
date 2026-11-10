@@ -570,40 +570,94 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     if (linked.length === 0) return 0;
     const studentIds: number[] = [];
     for (const row of linked) {
-      const accountId = text(row.id, 'account-id');
       const studentId = integer(row.gradebook_student_id, 'student-id');
-      const version = integer(row.version, 'account-version') + 1;
       studentIds.push(studentId);
-      await rows(
-        this.sql,
-        `INSERT INTO student_portal.link_closure
-           (account_id,academic_year,gradebook_student_id,closed_at,version)
-         VALUES ($1::uuid,$2,$3,$4::timestamptz,$5)`,
-        [accountId, year, studentId, closedAt, version],
-      );
-      await rows(
-        this.sql,
-        `UPDATE student_portal.account
-            SET gradebook_student_id=NULL,eligibility='unlinked',closed_at=$1::timestamptz,
-                version=$2,security_version=security_version+1,updated_at=now()
-          WHERE id=$3::uuid`,
-        [closedAt, version, accountId],
-      );
-      await rows(
-        this.sql,
-        `UPDATE student_portal.session SET revoked_at=$1::timestamptz
-          WHERE account_id=$2::uuid AND revoked_at IS NULL`,
-        [closedAt, accountId],
-      );
-      await rows(
-        this.sql,
-        `UPDATE student_portal.auth_challenge SET consumed_at=$1::timestamptz
-          WHERE account_id=$2::uuid AND consumed_at IS NULL`,
-        [closedAt, accountId],
+      await this.closeOneLink(
+        year,
+        text(row.id, 'account-id'),
+        studentId,
+        integer(row.version, 'account-version') + 1,
+        closedAt,
       );
     }
     await bumpPortalLinkRevision(this.sql, studentIds);
     return linked.length;
+  }
+
+  /**
+   * Encerrar conta (owner request 10/11/2026): one record that has no class this year and was
+   * never used (a duplicate left by an import), closed exactly like the yearly closure.
+   */
+  async closeUnusedAccountLink(
+    accountId: string,
+    expectedVersion: number,
+    closedAt: string,
+  ): Promise<{ studentId: number; version: number }> {
+    await this.lockAcademicYear(2026);
+    const found = await rows(
+      this.sql,
+      `SELECT a.gradebook_student_id,a.version,a.auth_state,a.closed_at,
+          EXISTS(SELECT 1 FROM student_portal.academic_binding_v1 b
+            WHERE b.academic_year=a.academic_year AND b.student_id=a.gradebook_student_id) AS has_class,
+          EXISTS(SELECT 1 FROM student_portal.audit_event e WHERE e.account_id=a.id
+            AND e.kind IN ('login','activated') AND e.result='success') AS used
+        FROM student_portal.account a WHERE a.id=$1::uuid AND a.academic_year=2026
+        FOR UPDATE OF a`,
+      [accountId],
+    );
+    const row = found[0];
+    if (!row || integer(row.version, 'account-version') !== expectedVersion)
+      throw new Error('student-portal-account-close-conflict');
+    if (
+      row.closed_at !== null ||
+      row.gradebook_student_id === null ||
+      row.auth_state !== 'pending-activation' ||
+      row.has_class !== false ||
+      row.used !== false
+    )
+      throw new Error('student-portal-account-close-conflict');
+    const studentId = integer(row.gradebook_student_id, 'student-id');
+    const version = expectedVersion + 1;
+    await this.closeOneLink(2026, accountId, studentId, version, closedAt);
+    await bumpPortalLinkRevision(this.sql, [studentId]);
+    return { studentId, version };
+  }
+
+  /** The closure of one account: its record, the account itself, its sessions and challenges. */
+  private async closeOneLink(
+    year: 2026,
+    accountId: string,
+    studentId: number,
+    version: number,
+    closedAt: string,
+  ) {
+    await rows(
+      this.sql,
+      `INSERT INTO student_portal.link_closure
+         (account_id,academic_year,gradebook_student_id,closed_at,version)
+       VALUES ($1::uuid,$2,$3,$4::timestamptz,$5)`,
+      [accountId, year, studentId, closedAt, version],
+    );
+    await rows(
+      this.sql,
+      `UPDATE student_portal.account
+          SET gradebook_student_id=NULL,eligibility='unlinked',closed_at=$1::timestamptz,
+              version=$2,security_version=security_version+1,updated_at=now()
+        WHERE id=$3::uuid`,
+      [closedAt, version, accountId],
+    );
+    await rows(
+      this.sql,
+      `UPDATE student_portal.session SET revoked_at=$1::timestamptz
+        WHERE account_id=$2::uuid AND revoked_at IS NULL`,
+      [closedAt, accountId],
+    );
+    await rows(
+      this.sql,
+      `UPDATE student_portal.auth_challenge SET consumed_at=$1::timestamptz
+        WHERE account_id=$2::uuid AND consumed_at IS NULL`,
+      [closedAt, accountId],
+    );
   }
 
   async appendRevision(event: RevisionEventV1): Promise<void> {

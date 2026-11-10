@@ -162,7 +162,34 @@ if (localStudents?.length) {
     ][index]!;
     account.classLabel = '7º ANO A';
   }
+  // Sem turma (owner request 10/11/2026): the real case, a second record of a student who is in
+  // 7º ANO A, with no class and never used, to see "Por que está sem turma" and "Encerrar conta".
+  const template = mock.accounts[0]!;
+  mock.accounts.push({
+    ...template,
+    accountId: opIdV1(9904),
+    link: { academicYear: 2026, studentId: 756099 },
+    name: 'Ana Costa',
+    classId: null,
+    classLabel: '',
+    state: 'pending-activation',
+    eligibility: 'unresolved',
+    blocked: false,
+    version: 1,
+    lastAuthenticationAt: null,
+    validSessionCount: 0,
+    firstAccess: { state: 'birth-missing', qrIssued: false, recoveryReady: false },
+    access: {
+      state: 'unresolved',
+      enabled: null,
+      source: null,
+      settingsVersion: null,
+      accessPermitted: false,
+    },
+  });
 }
+/** Accounts closed in the preview: out of lists and totals, their record still opens. */
+const closedAccounts = new Map<string, (typeof mock.accounts)[number]>();
 const classes = localStudents?.length
   ? [
       ...new Map(
@@ -359,6 +386,53 @@ async function previewBulkExecuteV1(init: RequestInit) {
   return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9950), version: 4 });
 }
 
+/** Encerrar conta: the same rule as the server, then the account leaves lists and totals. */
+function previewAccountCloseV1(
+  account: (typeof mock.accounts)[number] | undefined,
+  command: { expectedVersion?: number },
+) {
+  if (
+    !account ||
+    account.version !== command.expectedVersion ||
+    account.classId !== null ||
+    account.state !== 'pending-activation'
+  )
+    return opJsonV1({ ...meta, state: 'conflict' }, 409);
+  mock.accounts.splice(mock.accounts.indexOf(account), 1);
+  const version = account.version + 1;
+  closedAccounts.set(account.accountId, {
+    ...account,
+    version,
+    link: null,
+    linkClosed: true,
+    eligibility: 'unlinked',
+  });
+  return opJsonV1({ ...meta, state: 'committed', operationId: opIdV1(9905), version });
+}
+
+/** "Por que está sem turma": the preview's own records for one account. */
+function previewOriginV1(scope: PreviewScopeV1) {
+  if (scope.kind !== 'account') return undefined;
+  const account = mock.accounts.find((item) => item.accountId === scope.accountId);
+  if (!account) return undefined;
+  const sameName = mock.accounts
+    .filter((item) => item !== account && item.name === account.name && item.classId !== null)
+    .map((item) => ({ classLabel: item.classLabel, accountActive: item.state === 'active' }));
+  return opJsonV1({
+    contractVersion: 2,
+    requestId,
+    observedAt,
+    state: 'account-origin',
+    accountId: account.accountId,
+    version: account.version,
+    createdAt: '2026-09-14T19:29:10Z',
+    everAccessed: account.state !== 'pending-activation',
+    classesThisYear: account.classId === null ? 0 : 1,
+    closable: account.classId === null && account.state === 'pending-activation',
+    sameName,
+  });
+}
+
 /** The admin commands: accepted, refused or simulated as the panel would see them. */
 async function previewCommandV1(init: RequestInit): Promise<Response> {
   const command = JSON.parse(scalarTextV1(init.body)) as {
@@ -378,6 +452,7 @@ async function previewCommandV1(init: RequestInit): Promise<Response> {
     return previewSettingsSetV1(command);
   if (command.operation === 'bulk-execute') return previewBulkExecuteV1(init);
   const account = mock.accounts.find((item) => item.accountId === command.accountId);
+  if (command.operation === 'account-close') return previewAccountCloseV1(account, command);
   if (
     command.operation === 'qr-reprint' &&
     account?.firstAccess.qrIssued &&
@@ -686,12 +761,12 @@ async function previewAccountsQueryV1(
   return undefined;
 }
 
-/** The preview's totals for a group of accounts (everyone active, one live session). */
+/** The preview's totals for a group of accounts (by state, one live session). */
 function previewOverviewCountsV1(accounts: ReturnType<typeof inScope>) {
   return {
     accounts: accounts.length,
-    active: accounts.length,
-    pendingActivation: 0,
+    active: accounts.filter((account) => account.state === 'active').length,
+    pendingActivation: accounts.filter((account) => account.state === 'pending-activation').length,
     resetRequired: 0,
     blocked: 0,
     unresolved: accounts.filter((account) => account.access.state === 'unresolved').length,
@@ -785,6 +860,22 @@ export const previewFetch: PortalFetchV1 = async (path, init) => {
   if (query.operation === 'settings')
     return opJsonV1({ ...meta, state: 'settings', settings: previewSettingsV1(scope) });
   if (scope.kind === 'shift') return opJsonV1({ ...meta, state: 'not-found' }, 404);
+  if (query.operation === 'account-origin') {
+    const origin = previewOriginV1(scope);
+    if (origin) return origin;
+  }
+  const closed = scope.kind === 'account' ? closedAccounts.get(scope.accountId) : undefined;
+  if (closed && query.contractVersion === 2 && query.operation === 'accounts-read')
+    return opJsonV1({
+      contractVersion: 2,
+      requestId,
+      observedAt,
+      state: 'accounts-read',
+      scopeVersion: 7,
+      items: [closed],
+      nextCursor: null,
+      lastAuthenticationWindowMonths: 12,
+    });
   for (const group of PREVIEW_QUERY_GROUPS_V1) {
     const answer = await group(query, scope);
     if (answer) return answer;
