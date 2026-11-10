@@ -54,7 +54,7 @@ export async function servePortalIncidentsV1(request:Request,env:PortalCompositi
   const version=acknowledging?await acknowledgedIdOf(request):null;
   if(acknowledging&&!version)return fail('invalid-request',400);
   try{
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'session-entry','public');
+    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'incidents-entry','public');
     const keys=portalKeysV1(env);
     // A confirmation writes, so it runs in the account's locked transaction; the list is a snapshot.
     const result=await portalDatabaseV1(env,'self',sql=>new SessionServiceV1(sql,keys.cryptoPort,undefined,!acknowledging,

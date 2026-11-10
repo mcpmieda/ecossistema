@@ -60,6 +60,10 @@ function handshakeLeaseV1(
 const RENEWAL_MISSES_V1 = 2;
 /** Legacy connections before renewal is offered again; that probe falls back after one miss. */
 const RENEWAL_PROBE_AFTER_V1 = 10;
+/** A page hidden this long stops its channel and its checks: nobody is looking at the content, and
+ * the wait keeps a quick change of tab or app from reconnecting. Back on screen, the channel
+ * reconnects and a check older than its lease is made at once. */
+const HIDDEN_PAUSE_AFTER_MS_V1 = 30_000;
 
 /** Security leases never request or invalidate the academic snapshot. */
 export function createStudentSecurityV1(options: {
@@ -88,6 +92,11 @@ export function createStudentSecurityV1(options: {
   let requestTimeout: ReturnType<typeof setTimeout> | undefined;
   let noticeVersion = 0,
     lastHttpStartedAt = 0;
+  const page = typeof document === 'undefined' ? undefined : document;
+  let paused = false;
+  let pauseTimer: ReturnType<typeof setTimeout> | undefined;
+  /** When the session was last confirmed; a page shown again measures its lease from here. */
+  let leaseFrom = Date.now();
   const disconnect = () => {
     clearInterval(heartbeat);
     clearTimeout(rotation);
@@ -108,10 +117,14 @@ export function createStudentSecurityV1(options: {
     clearTimeout(requestTimeout);
     clearTimeout(reconnect);
     clearTimeout(lease);
+    clearTimeout(pauseTimer);
+    page?.removeEventListener('visibilitychange', visibilityChanged);
     disconnect();
   };
   const renew = (verifiedAt = Date.now()) => {
     clearTimeout(lease);
+    leaseFrom = verifiedAt;
+    if (paused) return;
     lease = setTimeout(() => void authorize(), Math.max(0, (renewable ? 45_000 : 60_000) - (Date.now() - verifiedAt)));
   };
   // Stable login (owner decision, 22/09/2026): when the lease is due, re-check the session over
@@ -136,11 +149,12 @@ export function createStudentSecurityV1(options: {
     clearTimeout(lease);
     const { wait, limited } = verificationRetryV1(error);
     if (limited) limitedUntil = Date.now() + wait;
+    if (paused) return;
     lease = setTimeout(() => void authorize(), wait);
     if (!socket) schedule();
   }
   const authorize = async (repeat = false) => {
-    if (disposed) return;
+    if (disposed || paused) return;
     if (Date.now() < limitedUntil) {
       clearTimeout(lease);
       lease = setTimeout(() => void authorize(), limitedUntil - Date.now());
@@ -178,11 +192,10 @@ export function createStudentSecurityV1(options: {
       if (again && !disposed) {
         again = false;
         void authorize();
-      }
-    }
+      }    }
   };
   const schedule = () => {
-    if (disposed || reconnect) return;
+    if (disposed || paused || reconnect) return;
     disconnect();
     reconnect = setTimeout(() => {
       reconnect = undefined;
@@ -191,7 +204,7 @@ export function createStudentSecurityV1(options: {
     retry = Math.min(15_000, retry * 2);
   };
   const connect = () => {
-    if (disposed) return;
+    if (disposed || paused) return;
     let current: StudentSecuritySocketV1;
     const startedAt = Date.now(),
       version = noticeVersion;
@@ -264,7 +277,32 @@ export function createStudentSecurityV1(options: {
       }
     };
   };
+  // A hidden page asks nothing of the server. The server refuses every read of a revoked session
+  // anyway; this channel only hides what is already on screen, and a hidden screen shows nothing.
+  // A check already on its way is left to finish; it reconnects nothing while paused.
+  const pause = () => {
+    if (disposed || paused) return;
+    paused = true;
+    clearTimeout(lease);
+    clearTimeout(reconnect);
+    reconnect = undefined;
+    disconnect();
+  };
+  const resume = () => {
+    paused = false;
+    retry = 1000;
+    renew(leaseFrom);
+    connect();
+  };
+  function visibilityChanged() {
+    if (disposed) return;
+    clearTimeout(pauseTimer);
+    if (page?.visibilityState === 'hidden') pauseTimer = setTimeout(pause, HIDDEN_PAUSE_AFTER_MS_V1);
+    else if (paused) resume();
+  }
+  page?.addEventListener('visibilitychange', visibilityChanged);
   renew();
   connect();
+  if (page?.visibilityState === 'hidden') pauseTimer = setTimeout(pause, HIDDEN_PAUSE_AFTER_MS_V1);
   return { dispose };
 }
