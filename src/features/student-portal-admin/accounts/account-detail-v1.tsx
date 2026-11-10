@@ -33,7 +33,6 @@ import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-
 import {
   ACCOUNT_ACTIONS_V1,
   accountAccessOriginV1,
-  accountCredentialPreparableV1,
   firstAccessLabelV1,
   accountCommandV1,
   accountLinkLabelV1,
@@ -72,7 +71,6 @@ export interface AccountDetailPropsV1 {
   onChanged: () => void;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
   onQr?: (result: AccountQrResultV1, signal: AbortSignal) => void | Promise<void>;
-  onReprint?: (context: AccountSlotContextV1) => void;
   slots?: AccountSlotsV1;
   describeScope?: (scope: PolicyScopeV1) => string;
   initialSlot?: keyof AccountSlotsV1;
@@ -88,10 +86,13 @@ const slotLabels = {
   audit: 'Auditoria',
   settings: 'Políticas',
 } as const;
-/** The tab a record opens on: the one asked for, else the first one this record has. */
+/** The tab a record opens on: the one asked for, else the first one this record has. The QR code
+ * tab is never opened by itself: showing the current QR asks the server for a reprint, which is
+ * recorded, so it only happens when someone opens that tab. */
 function startSlotV1(slots: AccountSlotsV1 | undefined, initialSlot?: keyof AccountSlotsV1) {
   if (initialSlot && slots?.[initialSlot]) return initialSlot;
-  const first = (Object.keys(slotLabels) as (keyof AccountSlotsV1)[]).find((key) => slots?.[key]);
+  const keys = Object.keys(slotLabels) as (keyof AccountSlotsV1)[];
+  const first = keys.find((key) => key !== 'credentials' && slots?.[key]);
   return first ?? 'credentials';
 }
 /** Why the last action failed, and what to do next. */
@@ -180,7 +181,6 @@ function AccountDetailBodyV1({
   onChanged,
   onAuthorizationLost,
   onQr,
-  onReprint,
   slots,
   describeScope,
   initialSlot,
@@ -265,7 +265,6 @@ function AccountDetailBodyV1({
       </Button>
     );
   };
-  const qrPanel = useRef<HTMLDivElement>(null);
   const handledVersion = useRef<number | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const focused = useRef(false);
@@ -489,34 +488,8 @@ function AccountDetailBodyV1({
             <ReadOnlyNoticesV1 account={account} canWrite={canWrite} />
             <div className="pa-account-actions" role="group" aria-label="Ações de acesso">
               {/* Order and colours chosen by the owner (10/11/2026): the everyday action first,
-                  in green; none in red. */}
+                  in green; none in red. The QR actions live in the QR code tab. */}
               {actionButton('password-reset', 'primary', 'pa-action-success')}
-              {(slots?.credentials || onReprint) && (
-                <Button
-                  variant="secondary"
-                  isDisabled={
-                    !editable ||
-                    !accountCredentialPreparableV1(account) ||
-                    !account.firstAccess.qrIssued
-                  }
-                  onPress={() => {
-                    if (allowDraftNavigationV1()) {
-                      if (slots?.credentials) {
-                        setActiveSlot('credentials');
-                        // Already on that tab, the click still answers: the card comes into view.
-                        requestAnimationFrame(() => {
-                          const panel = qrPanel.current;
-                          panel?.scrollIntoView({ block: 'nearest' });
-                          panel?.focus({ preventScroll: true });
-                        });
-                      }
-                      else onReprint?.(context);
-                    }
-                  }}
-                >
-                  Reimprimir QR atual
-                </Button>
-              )}
               {actionButton(account.blocked ? 'unblock' : 'block')}
               {actionButton('account-reset')}
             </div>
@@ -548,7 +521,6 @@ function AccountDetailBodyV1({
                     <Tabs.Panel
                       key={key}
                       id={key}
-                      ref={key === 'credentials' ? qrPanel : undefined}
                       shouldForceMount
                       className="pa-account-slot"
                       hidden={key !== activeSlot}

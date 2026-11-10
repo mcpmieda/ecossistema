@@ -68,7 +68,7 @@ import '../credentials/student-credentials-v1.css';
 
 interface StudentAccountsPropsV1 extends Pick<
   AccountDetailPropsV1,
-  'slots' | 'onQr' | 'onReprint' | 'describeScope'
+  'slots' | 'onQr' | 'describeScope'
 > {
   reader: PortalAdminReadClientV2;
   client: PortalAdminClientV1;
@@ -976,7 +976,6 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
           onAuthorizationLost={onAuthorizationLost}
           slots={props.slots}
           onQr={props.onQr}
-          onReprint={props.onReprint}
           describeScope={props.describeScope}
         />
       )}

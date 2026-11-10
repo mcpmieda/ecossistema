@@ -57,11 +57,12 @@ it('ficha: ações na ordem pedida, Redefinir senha verde e nenhuma vermelha (10
   const labels = [...group.querySelectorAll('button')].map((button) => button.textContent);
   expect(labels).toEqual([
     'Redefinir senha',
-    'Reimprimir QR atual',
     expect.stringMatching(/^(Bloquear|Desbloquear) acesso$/),
     'Resetar conta',
   ]);
   expect(group.querySelector('button')!.className).toContain('pa-action-success');
+  // Opening a record never shows the QR by itself: that read is a recorded reprint.
+  expect(screen.getByRole('tab', { name: 'Sessões' }).getAttribute('aria-selected')).toBe('true');
   expect(group.querySelector('.button--danger')).toBeNull();
 });
 

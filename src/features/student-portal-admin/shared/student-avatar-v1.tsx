@@ -13,5 +13,5 @@ export function StudentAvatarV1({ id, detail = false }: Readonly<{ id: string; d
   let hash = 0;
   for (const char of id) hash = (hash * 31 + char.codePointAt(0)!) >>> 0;
   return <LinkedStudentPhotoAvatarV1 decorative size={detail ? 'lg' : 'sm'} loading={detail ? 'eager' : 'lazy'} fallbackTone={hash % 6} className="pa-student-avatar"
-    subject={studentAvatarPhotoV1(id).subject} />;
+    subject={{ source: 'portal', academicYear: 2026, accountIds: [id] }} />;
 }

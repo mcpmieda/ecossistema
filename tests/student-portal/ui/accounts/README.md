@@ -68,7 +68,7 @@ QR retornado vai apenas ao callback privado onQr(result, signal). Nunca entra em
 estado genérico, DOM, URL, clipboard, storage ou log do módulo. O callback de #755
 deve respeitar o signal e apagar o artefato ao trocar contexto.
 Falha ao abrir o artefato depois do commit orienta reimpressão, sem repetir rotação.
-onReprint recebe contexto, sem duplicar emissão/PDF. Account-reset retorna somente
+A reimpressão fica na aba QR code (Imprimir QR). Account-reset retorna somente
 recibo de commit; a reimpressão é a operação própria para obter seu novo cartão.
 
 ## Evidências e limites

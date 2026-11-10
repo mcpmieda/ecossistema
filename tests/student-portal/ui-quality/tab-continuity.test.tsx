@@ -57,12 +57,16 @@ it.each(['accounts', 'credentials', 'birth'])(
     await user.click(open);
     const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
     const tabs = await within(drawer).findByRole('tablist', { name: 'Dados do aluno' });
-    await within(tabs).findByRole('tab', { name: 'Nascimento' });
+    await within(tabs).findByRole('tab', { name: 'QR code' });
     expect(
       within(tabs)
         .getAllByRole('tab')
         .map((tab) => tab.textContent),
-    ).toEqual(['Nascimento', 'QR code', 'Sessões', 'Relatório de notas', 'Auditoria', 'Políticas']);
+    ).toEqual(['QR code', 'Sessões', 'Relatório de notas', 'Auditoria', 'Políticas']);
+    // Opening a record never shows the QR by itself: that read is a recorded reprint.
+    expect(within(tabs).getByRole('tab', { name: 'Sessões' }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
     expect(await within(drawer).findByRole('button', { name: 'Bloquear acesso' })).toBeTruthy();
     await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
     await waitFor(() =>

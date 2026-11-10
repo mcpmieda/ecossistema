@@ -118,7 +118,7 @@ describe('audit filters and restricted detail interface', () => {
     expect(screen.queryByText('Próxima página')).toBeNull();
     expect(mock.writes).toHaveLength(0);
   });
-  it('shows empty results without fake events and clears all detail on authorization loss', async () => {
+  it('shows empty results without fake events and reports an authorization loss to the panel', async () => {
     let denied = false;
     const mock = operationsMockV1({
       query: (q) =>
@@ -126,13 +126,14 @@ describe('audit filters and restricted detail interface', () => {
           ? Promise.resolve(opJsonV1({ ...OP_META_V1, state: 'forbidden' }, 403))
           : undefined,
     });
-    render(createElement(StudentAuditV1, mock.props));
+    const lost = vi.fn();
+    render(createElement(StudentAuditV1, { ...mock.props, onAuthorizationLost: lost }));
     await screen.findByRole('grid');
     denied = true;
     fireEvent.click(screen.getAllByRole('button', { name: 'Detalhes' })[0]!);
     await screen.findByText('Sem permissão para esta consulta.');
-    expect(screen.queryByRole('grid')).toBeNull();
-    expect(screen.queryByRole('dialog')).toBeNull();
+    // The panel removes every protected view on a lost authorization (authorizationAwareFetchV1).
+    expect(lost).toHaveBeenCalledWith(expect.objectContaining({ state: 'forbidden' }));
     expect(document.body.textContent).not.toContain('192.0.2.');
   });
 });

@@ -72,7 +72,7 @@ it('retains visited account slots but revalidates only the visible slot', async 
       onClose={vi.fn()}
       onChanged={vi.fn()}
       slots={{
-        credentials: () => <PublicationProbe read={birth} />,
+        sessions: () => <PublicationProbe read={birth} />,
         settings: () => <PublicationProbe read={policies} />,
       }}
     />,
@@ -85,7 +85,7 @@ it('retains visited account slots but revalidates only the visible slot', async 
   await advance(31_100);
   expect(birth).toHaveBeenCalledTimes(1);
   expect(policies).toHaveBeenCalledTimes(2);
-  fireEvent.click(screen.getByRole('tab', { name: 'QR code' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Sessões' }));
   await advance(1_500);
   expect(birth).toHaveBeenCalledTimes(2);
   expect(policies).toHaveBeenCalledTimes(2);

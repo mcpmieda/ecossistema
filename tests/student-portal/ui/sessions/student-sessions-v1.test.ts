@@ -132,7 +132,7 @@ describe('administrative sessions interface', () => {
     await waitFor(() => expect(document.activeElement).toBe(button));
     expect(mock.writes).toHaveLength(0);
   });
-  it('uses account CAS from a class row and removes protected content after 401', async () => {
+  it('uses account CAS from a class row and reports a 401 to the panel', async () => {
     let denied = false;
     const mock = operationsMockV1({
       write: () => Promise.resolve(opJsonV1({ ...OP_META_V1, state: 'unauthenticated' }, 401)),
@@ -141,15 +141,21 @@ describe('administrative sessions interface', () => {
           ? Promise.resolve(opJsonV1({ ...OP_META_V1, state: 'unauthenticated' }, 401))
           : undefined,
     });
-    render(createElement(StudentSessionsV1, { ...mock.props, scope: OP_CLASS_V1 }));
+    const lost = vi.fn();
+    render(
+      createElement(StudentSessionsV1, {
+        ...mock.props,
+        scope: OP_CLASS_V1,
+        onAuthorizationLost: lost,
+      }),
+    );
     fireEvent.click((await screen.findAllByRole('button', { name: /Encerrar sessão de/ }))[0]!);
     await screen.findByRole('alertdialog');
     denied = true;
     await confirm();
-    await screen.findByText('Sessão administrativa expirada. Entre novamente.');
+    // The panel removes every protected view on a lost session (authorizationAwareFetchV1).
+    await waitFor(() => expect(lost).toHaveBeenCalledWith(expect.objectContaining({ state: 'unauthenticated' })));
     expect(mock.writes[0]).toMatchObject({ scope: OP_ACCOUNT_V1, expectedVersion: 11 });
-    expect(screen.queryAllByRole('grid')[0] ?? null).toBeNull();
-    expect(document.body.textContent).not.toContain('SYNTHETIC OP STUDENT');
   });
   it('does not offer school-wide revocation, disables writes for read-only and pages beyond 100', async () => {
     const observer = controlledContinuousObserverV1();

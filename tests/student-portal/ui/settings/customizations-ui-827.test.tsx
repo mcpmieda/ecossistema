@@ -43,7 +43,7 @@ const student = 'SYNTHETIC ACCOUNT 001';
 const difference = '2º trimestre: publicado para este aluno. Padrão da escola: não publicado.';
 
 it.each(['Abrir', 'Editar'])(
-  '%s opens the exact six-tab student drawer at Políticas, with the school comparison',
+  '%s opens the exact five-tab student drawer at Políticas, with the school comparison',
   async (verb) => {
     const { mock, user } = mount();
     const table = await grid();
@@ -54,8 +54,8 @@ it.each(['Abrir', 'Editar'])(
     const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
     expect(drawer.closest('[data-placement="right"]')).toBeTruthy();
     const tabs = await within(drawer).findByRole('tablist', { name: 'Dados do aluno' });
-    // Includes the Fechamento preview tab (#1132 D12).
-    expect(within(tabs).getAllByRole('tab')).toHaveLength(6);
+    // Includes the Fechamento preview tab (#1132 D12); Nascimento became a line (10/11/2026).
+    expect(within(tabs).getAllByRole('tab')).toHaveLength(5);
     expect(within(tabs).getByRole('tab', { name: 'Políticas' }).getAttribute('aria-selected')).toBe(
       'true',
     );
