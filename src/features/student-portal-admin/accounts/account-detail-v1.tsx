@@ -95,6 +95,23 @@ function startSlotV1(slots: AccountSlotsV1 | undefined, initialSlot?: keyof Acco
   const first = keys.find((key) => key !== 'credentials' && slots?.[key]);
   return first ?? 'credentials';
 }
+/** The birth line under the name, once the record has read its account. Without an open link
+ * the birth read refuses the account, and "Vínculo" already says why. */
+function RecordBirthLineV1({
+  client,
+  reader,
+  account,
+  scopeVersion,
+}: Readonly<{
+  client: PortalAdminClientV1;
+  reader: PortalAdminReadClientV2;
+  account: AdminAccountReadV2 | null;
+  scopeVersion: number | undefined;
+}>) {
+  if (!account || scopeVersion === undefined) return null;
+  if (!account.link || account.linkClosed || account.classId === null) return null;
+  return <RecordBirthV1 client={client} reader={reader} account={account} scopeVersion={scopeVersion} />;
+}
 /** Recovery actions (and a QR change on a not yet active account) wait for recovery data. */
 function accountActionBlockedV1(account: AdminAccountReadV2, action: AccountActionV1) {
   const needsRecovery =
@@ -433,15 +450,12 @@ function AccountDetailBodyV1({
                 account={shown}
                 detail
                 birth={
-                  // Without an open link the birth read refuses the account: "Vínculo" says why.
-                  account && context && account.link && !account.linkClosed && account.classId !== null ? (
-                    <RecordBirthV1
-                      client={client}
-                      reader={reader}
-                      account={account}
-                      scopeVersion={context.accountsScopeVersion}
-                    />
-                  ) : null
+                  <RecordBirthLineV1
+                    client={client}
+                    reader={reader}
+                    account={account}
+                    scopeVersion={context?.accountsScopeVersion}
+                  />
                 }
               />
               <RecordSealsV1 reader={reader} accountId={shown.accountId} />
