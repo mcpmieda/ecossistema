@@ -5,14 +5,14 @@ import { StudentPhotoAvatarV1, type StudentPhotoAvatarPropsV1 } from './student-
 import { PHOTO_CHANGED_EVENT_V1, type PhotoChangedDetailV1 } from './catalog-client-v1';
 import { usePhotoMemoryV1 } from './photo-memory-v1';
 
-interface LinkedStudentPhotoAvatarPropsV1 extends Pick<StudentPhotoAvatarPropsV1, 'size' | 'label' | 'className' | 'decorative' | 'fallbackTone' | 'loading'> {
+interface LinkedStudentPhotoAvatarPropsV1 extends Pick<StudentPhotoAvatarPropsV1, 'size' | 'className' | 'decorative' | 'fallbackTone' | 'loading'> {
   subject: PhotoAdminSubjectV1;
   studentUid?: string;
   revision?: string | null;
 }
 export function LinkedStudentPhotoAvatarV1(props: Readonly<LinkedStudentPhotoAvatarPropsV1>) {
   const parsed = photoAdminSubjectV1.safeParse(props.subject);
-  if (!parsed.success) return <StudentPhotoAvatarV1 size={props.size} label={props.label} className={props.className} decorative={props.decorative} fallbackTone={props.fallbackTone} loading={props.loading}
+  if (!parsed.success) return <StudentPhotoAvatarV1 size={props.size} className={props.className} decorative={props.decorative} fallbackTone={props.fallbackTone} loading={props.loading}
     identityKey={props.studentUid ?? 'unresolved-student'} />;
   return <LinkedAvatarSessionV1 key={photoSubjectKeyV1(parsed.data)} {...props} subject={parsed.data} />;
 }

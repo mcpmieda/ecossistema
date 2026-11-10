@@ -1,5 +1,37 @@
-import type { GradebookImportPersistenceSummaryV2 } from './import-persistence-transport-v2';
 import { isGradebookAcademicYearV2 } from '../academic-year-v2';
+
+/** Counts of one import, planned and written (formerly in the v1/v2 transports, 10/11/2026). */
+interface ImportWriteCountsV9 {
+  readonly logicalSources: number;
+  readonly sourceFileVersions: number;
+  readonly importBatchVersions: number;
+  readonly assessmentComponentVersions: number;
+  readonly academicRecordVersions: number;
+  readonly logicalSourceRecordAssociationVersions: number;
+  readonly total: number;
+}
+interface ImportPersistenceSummaryV9 {
+  readonly assessmentDefinitions: {
+    readonly total: number;
+    readonly resolved: number;
+    readonly blocked: number;
+  };
+  readonly assessmentComponents: {
+    readonly unchanged: number;
+    readonly new: number;
+    readonly changed: number;
+    readonly blocked: number;
+  };
+  readonly academicRecords: {
+    readonly unchanged: number;
+    readonly new: number;
+    readonly changed: number;
+    readonly missingFromNewSource: number;
+    readonly blocked: number;
+  };
+  readonly plannedWrites: ImportWriteCountsV9;
+  readonly committedWrites: ImportWriteCountsV9;
+}
 export const GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9 = 2_000_000;
 
 export interface GradebookImportManifestV9 {
@@ -136,7 +168,7 @@ export type GradebookImportPersistenceResponseV9 =
   | {
       readonly transportVersion: 9;
       readonly state: 'applied' | 'no-changes';
-      readonly summary: GradebookImportPersistenceSummaryV2;
+      readonly summary: ImportPersistenceSummaryV9;
       readonly warnings?: readonly GradebookRelationWarningV9[];
     }
   | {

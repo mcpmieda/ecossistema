@@ -114,7 +114,7 @@ async function readAccountsV2(
           String(selected.at(-1)!.name)) : null,
       lastAuthenticationWindowMonths: 12,
     });
-  return overviewResponseV2(base, items, health!.status);
+  return overviewResponseV2(base, items, health!.status, query.scope.kind === 'school');
 }
 
 type SessionPolicyV2 = { id: string; security: number; end: string; persistent: number; short: number };
@@ -196,28 +196,45 @@ async function countValidSessionsV2(
   for (const item of items) item.validSessionCount = counts.get(item.accountId) ?? 0;
 }
 
+/** The totals of one group of accounts. */
+export function overviewCountsV2(items: readonly AdminAccountItemV2[]) {
+  const count = (predicate: (item: AdminAccountItemV2) => boolean) => items.filter(predicate).length;
+  return {
+    accounts: items.length,
+    active: count((item) => item.state === 'active'),
+    pendingActivation: count((item) => item.state === 'pending-activation'),
+    resetRequired: count((item) => item.state === 'reset-required'),
+    blocked: count((item) => item.blocked),
+    unresolved: count((item) => item.eligibility === 'unresolved'),
+    unlinked: count((item) => item.eligibility === 'unlinked'),
+    accessEnabled: count((item) => item.access.enabled === true),
+    accessPermitted: count((item) => item.access.accessPermitted),
+    validSessions: items.reduce((total, item) => total + item.validSessionCount, 0),
+  };
+}
+
+/** The same accounts grouped by class, so the school summary shows every class at once. */
+export function overviewClassesV2(items: readonly AdminAccountItemV2[]) {
+  const groups = new Map<number | null, AdminAccountItemV2[]>();
+  for (const item of items) {
+    const group = groups.get(item.classId);
+    if (group) group.push(item);
+    else groups.set(item.classId, [item]);
+  }
+  return [...groups].map(([classId, group]) => ({ classId, counts: overviewCountsV2(group) }));
+}
+
 function overviewResponseV2(
   base: { contractVersion: number; requestId: string; observedAt: string; scopeVersion: unknown },
   items: readonly AdminAccountItemV2[],
   health: unknown,
+  byClass: boolean,
 ) {
-  const count = (predicate: (item: (typeof items)[number]) => boolean) =>
-    items.filter(predicate).length;
   return adminReadResponseV2.parse({
     ...base,
     state: 'overview',
-    counts: {
-      accounts: items.length,
-      active: count((item) => item.state === 'active'),
-      pendingActivation: count((item) => item.state === 'pending-activation'),
-      resetRequired: count((item) => item.state === 'reset-required'),
-      blocked: count((item) => item.blocked),
-      unresolved: count((item) => item.eligibility === 'unresolved'),
-      unlinked: count((item) => item.eligibility === 'unlinked'),
-      accessEnabled: count((item) => item.access.enabled === true),
-      accessPermitted: count((item) => item.access.accessPermitted),
-      validSessions: items.reduce((total, item) => total + item.validSessionCount, 0),
-    },
+    counts: overviewCountsV2(items),
     health,
+    ...(byClass ? { classes: overviewClassesV2(items) } : {}),
   });
 }

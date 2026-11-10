@@ -304,16 +304,6 @@ export const SYNTHETIC_SHEET_CONTROLS = {
   hiddenSheetNames: ['CONFIGURAÇÃO', 'AUXILIAR OCULTA'],
 } as const;
 
-export const SYNTHETIC_ACTIVITY_CASES = [
-  { name: '*', maximum: 10, expectedApplicable: false },
-  { name: 'Atividade com máximo zero', maximum: 0, expectedApplicable: false },
-  {
-    name: 'Projeto interdisciplinar sintético com um nome deliberadamente longo para validar preservação textual',
-    maximum: 10,
-    expectedApplicable: true,
-  },
-] as const;
-
 export const SYNTHETIC_EXPECTATIONS = {
   source: {
     gradeSheetNames: ['6AVG', '6A1º', '6B1º', '6A2º', '6A2ºD2', '6A3º', '6A3ºD3', '6AREC'],

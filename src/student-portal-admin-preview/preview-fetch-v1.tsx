@@ -686,6 +686,22 @@ async function previewAccountsQueryV1(
   return undefined;
 }
 
+/** The preview's totals for a group of accounts (everyone active, one live session). */
+function previewOverviewCountsV1(accounts: ReturnType<typeof inScope>) {
+  return {
+    accounts: accounts.length,
+    active: accounts.length,
+    pendingActivation: 0,
+    resetRequired: 0,
+    blocked: 0,
+    unresolved: accounts.filter((account) => account.access.state === 'unresolved').length,
+    unlinked: accounts.filter((account) => account.eligibility === 'unlinked').length,
+    accessEnabled: accounts.filter((account) => account.access.enabled).length,
+    accessPermitted: accounts.filter((account) => account.access.accessPermitted).length,
+    validSessions: accounts.some((account) => account.accountId === opIdV1(1)) ? 1 : 0,
+  };
+}
+
 /** The school's calendar and bells, the population and the overview. */
 async function previewSchoolQueryV1(
   query: PreviewQueryV1,
@@ -726,25 +742,25 @@ async function previewSchoolQueryV1(
   }
   if (query.operation === 'overview') {
     const response = await mock.reader.query(query);
-    if (response.state === 'overview')
+    if (response.state === 'overview') {
+      const accounts = inScope(scope);
+      const classIds = [...new Set(accounts.map((account) => account.classId))];
       return opJsonV1({
         ...response,
         observedAt,
-        counts: {
-          accounts: inScope(scope).length,
-          active: inScope(scope).length,
-          pendingActivation: 0,
-          resetRequired: 0,
-          blocked: 0,
-          unresolved: inScope(scope).filter((account) => account.access.state === 'unresolved')
-            .length,
-          unlinked: inScope(scope).filter((account) => account.eligibility === 'unlinked').length,
-          accessEnabled: inScope(scope).filter((account) => account.access.enabled).length,
-          accessPermitted: inScope(scope).filter((account) => account.access.accessPermitted)
-            .length,
-          validSessions: inScope(scope).some((account) => account.accountId === opIdV1(1)) ? 1 : 0,
-        },
+        counts: previewOverviewCountsV1(accounts),
+        ...(scope.kind === 'school'
+          ? {
+              classes: classIds.map((classId) => ({
+                classId,
+                counts: previewOverviewCountsV1(
+                  accounts.filter((account) => account.classId === classId),
+                ),
+              })),
+            }
+          : {}),
       });
+    }
   }
   return undefined;
 }

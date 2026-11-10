@@ -104,6 +104,9 @@ export const shiftSummaryV1 = z.object({
   }).strict()).max(60),
 }).strict();
 export type ShiftSummaryV1 = z.infer<typeof shiftSummaryV1>;
+const overviewCountsV2 = z.object({ accounts: count, active: count, pendingActivation: count, resetRequired: count, blocked: count,
+  unresolved: count, unlinked: count, accessEnabled: count, accessPermitted: count, validSessions: count,
+}).strict();
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
   customizationsResponseV1,
   z.object({ ...base, state: z.literal('shifts-read'), items: z.array(shiftSummaryV1).max(3) }).strict(),
@@ -134,9 +137,11 @@ export const adminReadResponseV2 = z.discriminatedUnion('state', [
     items: z.array(adminAccountReadV2).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2), nextCursor: pageCursorV1.nullable(), lastAuthenticationWindowMonths: z.literal(12),
   }).strict(),
   z.object({ ...base, state: z.literal('overview'), scopeVersion: versionV1,
-    counts: z.object({ accounts: count, active: count, pendingActivation: count, resetRequired: count, blocked: count,
-      unresolved: count, unlinked: count, accessEnabled: count, accessPermitted: count, validSessions: count,
-    }).strict(), health: z.enum(['normal', 'attention', 'intervention']),
+    counts: overviewCountsV2, health: z.enum(['normal', 'attention', 'intervention']),
+    // Visão geral (owner request 10/11/2026): every class read in the same school summary.
+    classes: z.array(z.object({
+      classId: z.number().int().positive().safe().nullable(), counts: overviewCountsV2,
+    }).strict()).max(500).optional(),
   }).strict(),
 ]);
 export type AdminReadQueryV2 = z.infer<typeof adminReadQueryV2>;

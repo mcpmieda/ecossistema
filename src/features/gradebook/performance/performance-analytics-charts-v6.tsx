@@ -77,10 +77,8 @@ export function AnalyticsHintBodyV6({
 }
 export function AnalyticsKpisV6({
   summary,
-  individual = false,
 }: Readonly<{
   summary: PerformanceAnalyticsSummaryV6;
-  individual?: boolean;
 }>) {
   const values = [
     {
@@ -96,11 +94,9 @@ export function AnalyticsKpisV6({
       hint: 'Valor central dos percentuais dos resultados. Dispersão: desvio-padrão populacional.',
     },
     {
-      label: individual ? 'Componentes abaixo' : 'Alunos abaixo',
-      value: String(individual ? summary.below : summary.studentsBelow),
-      sub: individual
-        ? `${summary.complete}/${summary.readings} resultados`
-        : `${summary.students} alunos considerados`,
+      label: 'Alunos abaixo',
+      value: String(summary.studentsBelow),
+      sub: `${summary.students} alunos considerados`,
       hint: 'Ao menos um resultado abaixo do limite.',
     },
     {

@@ -52,10 +52,10 @@ Fornecer clients estáveis e identidade/capacidade da sessão Entra vigente.
 Sem props de role/contexto confiável vindo do browser. A API continua decidindo
 autorização e require platform.settings.write para comando/detalhe bruto.
 
-OperationsScopeV1 reutiliza ClassFilterV1 e accounts-read V2: escola→turma→conta,
-busca de nomes apenas para localizar IDs, 100 por página e catálogo inclui vazias.
-Sem casamento por nome. Troca de escopo/identidade/capacidade desmonta o estado;
-pagehide descarta a vista e exige Retomar consulta. 401/403 em consultas de negócio,
+OperationsScopeV1 só repassa o escopo escolhido nas abas do Painel do Aluno
+(o seletor próprio de turma e aluno foi removido em 10/11/2026: nunca aparecia).
+A Visão geral lê a escola e mostra todas as turmas numa só consulta. Troca de
+escopo/identidade/capacidade desmonta o estado. 401/403 em consultas de negócio,
 catálogo, comando ou detalhe elimina contexto protegido e notifica a integração.
 Nenhum cache/storage, exportação de auditoria, QR, nascimento ou senha nestas telas.
 

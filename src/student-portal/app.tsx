@@ -16,7 +16,6 @@ import {
   StudentEntryLayoutV1,
   StudentSplashV1,
 } from '../features/student-portal/auth/student-entry-layout-v1';
-import type { PortraitClientV1 } from '../features/student-portal/photos/portrait-client-v1';
 import {
   createPortalStatusClientV1,
   PortalClosedNoticeV1,
@@ -166,12 +165,10 @@ function cardWhileSignedInV1(
 export function StudentPortalApp({
   entry = defaultEntry,
   client = defaultClient,
-  portraitClient,
   statusClient = defaultStatusClient,
 }: Readonly<{
   entry?: StudentEntryV1;
   client?: PortalSelfClientV1;
-  portraitClient?: PortraitClientV1;
   statusClient?: PortalStatusClientV1;
 }>) {
   const [initialQr, setInitialQr] = useState(entry.qr);
@@ -182,7 +179,6 @@ export function StudentPortalApp({
   const session = useStudentSessionV1(client);
   const portraitSrc = useStudentPortraitV1(
     portraitSubjectV1(session, access, entry.route),
-    portraitClient,
   );
   useEffect(() => {
     if (session.load.state === 'error' && ['unavailable', 'invalid-response', 'network-error'].includes(session.load.error.state))

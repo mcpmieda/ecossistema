@@ -1,7 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Button, Card, Checkbox, Table } from '@heroui/react';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
-import { ClassFilterV1 } from '../accounts/class-filter-v1';
 import {
   accountCredentialPreparableV1,
   accountPageMatchesV1,
@@ -15,30 +14,17 @@ import type { StudentCredentialsPropsV1 } from './student-credentials-v1';
 
 /** QR selection consumes account eligibility, independently of birth editing or birth queries. */
 export function ClassQrV1(props: Readonly<StudentCredentialsPropsV1>) {
-  const [selected, setSelected] = useState<{ id: number; label: string } | null>(null);
-  const scope = useMemo(() => {
-    if (props.scope.kind === 'class') return props.scope;
-    return selected
-      ? { kind: 'class' as const, academicYear: 2026 as const, classId: selected.id }
-      : null;
-  }, [props.scope, selected]);
+  // The class is chosen in the tabs above; the whole school has no single QR list.
+  const scope = props.scope.kind === 'class' ? props.scope : null;
   return (
     <section className="space-y-4" aria-label="QR por turma">
       <h2>QR code</h2>
-      {props.scope.kind === 'school' && props.catalog ? (
-        <ClassFilterV1
-          catalog={props.catalog}
-          selected={selected}
-          onChange={setSelected}
-          allLabel="Escolha a turma"
-        />
-      ) : null}
       {scope ? (
         <ClassQrRowsV1
           key={scope.classId}
           {...props}
           scope={scope}
-          label={selected?.label ?? props.scopeLabel ?? 'Turma'}
+          label={props.scopeLabel ?? 'Turma'}
         />
       ) : (
         <p className="text-sm text-muted">Escolha uma turma.</p>

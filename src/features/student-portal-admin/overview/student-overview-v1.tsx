@@ -1,4 +1,5 @@
 import { OverviewDashboardV1 } from './overview-dashboard-v1';
+import { OverviewClassesV1, type ClassLabelV1 } from './overview-classes-v1';
 import { InfoV1 } from '../shared/info-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,7 +24,9 @@ function healthColor(health: string) {
   return health === 'attention' ? 'warning' : 'danger';
 }
 
-export function StudentOverviewV1(props: Readonly<OperationsPropsV1>) {
+type OverviewPropsV1 = OperationsPropsV1 & { classLabels?: readonly ClassLabelV1[] };
+
+export function StudentOverviewV1(props: Readonly<OverviewPropsV1>) {
   return (
     <OperationsScopeV1 {...props}>
       {(scope, label, onAuthorizationLost) => (
@@ -68,7 +71,7 @@ async function fallbackHealthV1(props: Readonly<OperationsPropsV1>, signal: Abor
   return health;
 }
 
-function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
+function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
   const [populationReview, setPopulationReview] = useState(false);
   const [populationBusy, setPopulationBusy] = useState(false);
   const [populationError, setPopulationError] = useState<PortalClientErrorV1 | null>(null);
@@ -220,6 +223,12 @@ function OverviewBodyV1(props: Readonly<OperationsPropsV1>) {
               <>
                 <OverviewDashboardV1 counts={data.overview.counts} />
                 {data.overview.counts.accounts === 0 ? <p>Nenhuma conta neste recorte.</p> : null}
+                {data.overview.classes && data.overview.classes.length > 0 ? (
+                  <OverviewClassesV1
+                    classes={data.overview.classes}
+                    labels={props.classLabels ?? []}
+                  />
+                ) : null}
                 {data.population && (
                   <section
                     className="pa-overview-population pa-rise"

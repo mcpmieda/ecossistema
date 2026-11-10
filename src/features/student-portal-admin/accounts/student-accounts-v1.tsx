@@ -31,12 +31,11 @@ import {
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
-import type { PortalAdminReadClientV2, PortalClassCatalogV2 } from './accounts-client-v2';
+import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 import { AccountDetailV1, type AccountDetailPropsV1 } from './account-detail-v1';
 import { StudentBulkV1 } from './student-bulk-v1';
 import type { BulkInterruptedV1 } from './student-bulk-controller-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
-import { ClassFilterV1 } from './class-filter-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import {
@@ -73,7 +72,6 @@ interface StudentAccountsPropsV1 extends Pick<
 > {
   reader: PortalAdminReadClientV2;
   client: PortalAdminClientV1;
-  catalog: PortalClassCatalogV2;
   scope: ScopeV1;
   canWrite: boolean;
   identityKey: string;
@@ -124,7 +122,6 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
   const orderKeys = useMemo(() => new Set<string>([order]), [order]);
   const [states, setStates] = useState<Set<string>>(() => new Set());
   const [blocks, setBlocks] = useState<Set<string>>(() => new Set());
-  const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
   const [qrMount, setQrMount] = useState<HTMLDivElement | null>(null);
   const [bulkMount, setBulkMount] = useState<HTMLDivElement | null>(null);
   // The controls answer the click at once; the list follows without blocking them.
@@ -132,18 +129,11 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
   const listStates = useDeferredValue(states);
   const listBlocks = useDeferredValue(blocks);
   const listSearch = useDeferredValue(name.trim());
-  // The class comes from the panel, or from this list's own tabs when it stands alone.
-  let classId;
-  if (props.scope.kind === 'class') {
-    classId = props.scope.classId;
-  } else if (props.scope.kind === 'school') {
-    classId = selectedClass?.id ?? null;
-  } else {
-    classId = null;
-  }
+  // The class comes from the panel's tabs.
+  const classId = props.scope.kind === 'class' ? props.scope.classId : null;
   const listClassId = useDeferredValue(classId);
   const listClassLabel = useDeferredValue(
-    props.scope.kind === 'class' ? props.scopeLabel : selectedClass?.label,
+    props.scope.kind === 'class' ? props.scopeLabel : undefined,
   );
   const classSelected = classId !== null;
   // One read brings the school; class, search, Situação and Bloqueio narrow what is already in
@@ -165,15 +155,6 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
       >
         <Card.Content className="pa-account-controls">
           <div className="pa-account-filters">
-            {props.scope.kind === 'school' && (
-              <ClassFilterV1
-                catalog={props.catalog}
-                selected={selectedClass}
-                onChange={(value) => {
-                  if (allowDraftNavigationV1()) setSelectedClass(value);
-                }}
-              />
-            )}
             <SearchField
               className="pa-account-search min-w-48"
               aria-label="Buscar aluno"

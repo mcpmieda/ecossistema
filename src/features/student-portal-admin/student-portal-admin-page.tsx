@@ -271,7 +271,9 @@ function sectionContentV1({
   onQr,
   selectedShift,
   onOpenCustomization,
+  classItems,
 }: {
+  classItems: readonly { id: number; label: string }[];
   section: StudentPortalSection;
   common: PanelCommonV1;
   slots: ReturnType<typeof accountSlotsV1>;
@@ -328,7 +330,10 @@ function sectionContentV1({
         </>
       );
     default:
-      return <StudentOverviewV1 {...common} />;
+      // Every class at once from the school summary (owner request 10/11/2026): no class tabs.
+      return (
+        <StudentOverviewV1 {...common} scope={SCHOOL} scopeLabel="Escola" classLabels={classItems} />
+      );
   }
 }
 
@@ -466,12 +471,13 @@ function PortalWorkspace({
     onQr: qr.accept,
     selectedShift,
     onOpenCustomization: openCustomization,
+    classItems,
   });
   // Credentials open inside the Alunos area.
   const areaKey = section === 'credentials' ? 'accounts' : section;
   const scopedContent = (
     <>
-      {section === 'sessions' || section === 'settings' ? (
+      {section === 'sessions' || section === 'settings' || section === 'overview' ? (
         <>
           {!common.canWrite && (
             <p className="text-xs text-muted">

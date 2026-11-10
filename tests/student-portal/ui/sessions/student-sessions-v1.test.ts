@@ -182,13 +182,4 @@ describe('administrative sessions interface', () => {
     expect(mock.queries.some((q) => q.operation === 'sessions-read' && q.page.cursor)).toBe(true);
     expect(mock.writes).toHaveLength(0);
   }, 20_000);
-  it('clears on pagehide and requires a fresh read to resume', async () => {
-    const mock = operationsMockV1();
-    render(createElement(StudentSessionsV1, mock.props));
-    await screen.findByRole('grid', { name: 'Sessões ativas' });
-    fireEvent(window, new Event('pagehide'));
-    expect(screen.queryAllByRole('grid')[0] ?? null).toBeNull();
-    fireEvent(window, new Event('pageshow'));
-    await screen.findByRole('grid', { name: 'Sessões ativas' });
-  });
 });

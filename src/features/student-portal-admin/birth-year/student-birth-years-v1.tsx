@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { Button, Card, Table } from '@heroui/react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
-import type { PortalAdminReadClientV2, PortalClassCatalogV2 } from '../accounts/accounts-client-v2';
-import { ClassFilterV1 } from '../accounts/class-filter-v1';
+import type { PortalAdminReadClientV2 } from '../accounts/accounts-client-v2';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { ContinuousEndV1, useContinuousReadV1 } from '../shared/continuous-read-v1';
@@ -24,7 +23,6 @@ interface StudentBirthYearsPropsV1 {
   scope: ScopeV1;
   identityKey: string; // NOSONAR read through the spread
   canWrite: boolean; // NOSONAR read through the spread
-  catalog?: PortalClassCatalogV2; // NOSONAR read through the spread
   scopeLabel?: string; // NOSONAR read through the spread
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
 }
@@ -50,21 +48,10 @@ function BirthNoticeV1({ failed, loading }: Readonly<{ failed: boolean; loading:
 }
 
 function BirthReadScopeV1(props: Readonly<StudentBirthYearsPropsV1>) {
-  const [selected, setSelected] = useState<{ id: number; label: string } | null>(null);
-  const scope = useMemo<BirthScopeV1 | null>(() => {
-    if (props.scope.kind !== 'school') return props.scope;
-    return selected ? { kind: 'class', academicYear: 2026, classId: selected.id } : null;
-  }, [props.scope, selected]);
+  // The whole school is too broad: the class is chosen in the tabs above.
+  const scope: BirthScopeV1 | null = props.scope.kind === 'school' ? null : props.scope;
   return (
     <section className="space-y-4" aria-label="Nascimento">
-      {props.scope.kind === 'school' && props.catalog ? (
-        <ClassFilterV1
-          catalog={props.catalog}
-          selected={selected}
-          onChange={setSelected}
-          allLabel="Escolha a turma"
-        />
-      ) : null}
       {scope ? (
         <BirthReadRowsV1 key={settingsScopeKeyV1(scope)} {...props} scope={scope} />
       ) : (
