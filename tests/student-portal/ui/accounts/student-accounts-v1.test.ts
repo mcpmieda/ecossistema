@@ -145,7 +145,7 @@ describe('account list and detail', () => {
       within(screen.getByRole('region', { name: /Tabela de contas/ })).getByText('Primeiro acesso'),
     ).toBeTruthy();
     expect(screen.getByText('Encerrada')).toBeTruthy();
-    expect(screen.getAllByText('Desconhecido nos últimos 12 meses')).toHaveLength(3);
+    expect(screen.getAllByText('Nenhum em 12 meses')).toHaveLength(3);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: 'SYNTHETIC EMPTY CLASS' }));
     expect(await screen.findByText('Nenhuma conta encontrada neste filtro.')).toBeTruthy();
@@ -264,7 +264,7 @@ describe('account list and detail', () => {
     // Nothing can be decided on the list row.
     expect(
       drawer.queryByRole('button', {
-        name: /^(Bloquear acesso|Desbloquear acesso|Redefinir senha|Redefinir conta|Mudar QR)$/,
+        name: /^(Bloquear acesso|Desbloquear acesso|Redefinir senha|Resetar conta|Mudar QR)$/,
       }),
     ).toBeNull();
     expect(drawer.queryByRole('tablist')).toBeNull();
@@ -359,7 +359,7 @@ describe('account list and detail', () => {
     const user = userEvent.setup();
     await user.click(await ready());
     await detail();
-    await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
+    await user.click(screen.getByRole('button', { name: 'Resetar conta' }));
     expect(
       within(screen.getByRole('alertdialog')).getByText(
         /não encerra o vínculo nem libera o reset anual/,
@@ -393,7 +393,7 @@ describe('account list and detail', () => {
       (screen.getByRole('button', { name: 'Redefinir senha' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(
-      (screen.getByRole('button', { name: 'Redefinir conta' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Resetar conta' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect((screen.getByRole('button', { name: 'Mudar QR' }) as HTMLButtonElement).disabled).toBe(
       false,
@@ -409,7 +409,7 @@ describe('account list and detail', () => {
       const user = userEvent.setup();
       await user.click(await ready());
       await detail();
-      await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
+      await user.click(screen.getByRole('button', { name: 'Resetar conta' }));
       const previousReads = mock.queries.length;
       view.rerender(
         createElement(StudentAccountsV1, {
@@ -683,7 +683,7 @@ it('confirms a complete reset and tells the operator to reprint the current QR',
   const user = userEvent.setup();
   await user.click(await ready());
   await detail();
-  await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
+  await user.click(screen.getByRole('button', { name: 'Resetar conta' }));
   await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
   await screen.findByText(/Conta redefinida: o QR anterior/);
   expect(mock.writes[0]?.operation).toBe('account-reset');

@@ -27,7 +27,7 @@ export const ACCOUNT_ACTIONS_V1: Record<AccountActionV1, { label: string; descri
       'Invalida a senha atual e revoga as sessões. O aluno precisará definir outra senha usando o mesmo QR e o ano de nascimento já cadastrado.',
   },
   'account-reset': {
-    label: 'Redefinir conta',
+    label: 'Resetar conta',
     description:
       'Invalida o QR e a senha atuais, gera outro QR e revoga as sessões. Volta ao primeiro acesso. Preserva nascimento, vínculo e histórico acadêmico; não encerra o vínculo nem libera o reset anual do Banco.',
   },
@@ -37,13 +37,13 @@ export const ACCOUNT_ACTIONS_V1: Record<AccountActionV1, { label: string; descri
       'Invalida o QR atual, gera outro e revoga as sessões. Preserva a senha, o estado de autenticação, o nascimento e o vínculo acadêmico.',
   },
 };
+/** The record's "Vínculo" fact, short (owner request 10/11/2026). */
 export function accountLinkLabelV1(account: AdminAccountReadV2) {
-  if (account.linkClosed) return 'Vínculo Portal encerrado';
+  if (account.linkClosed) return 'Encerrado no Portal';
   if (account.link === null || account.eligibility === 'unlinked') return 'Sem vínculo acadêmico';
-  if (account.eligibility === 'unresolved' || account.classId === null)
-    return 'Vínculo não resolvido';
+  if (account.eligibility === 'unresolved' || account.classId === null) return 'Não resolvido';
   if (account.eligibility === 'exit') return 'Saída da escola';
-  return 'Vínculo vigente';
+  return 'Vigente';
 }
 export function accountManageableV1(account: AdminAccountReadV2) {
   return (
@@ -122,7 +122,7 @@ const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
 });
 export function lastAuthenticationLabelV1(at: string | null) {
-  return at === null ? 'Desconhecido nos últimos 12 meses' : dateFormatter.format(new Date(at));
+  return at === null ? 'Nenhum em 12 meses' : dateFormatter.format(new Date(at));
 }
 export function accountAccessOriginV1(
   source: PolicyScopeV1 | null,

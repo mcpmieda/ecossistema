@@ -58,9 +58,6 @@ const StudentAccountsV1 = preloadedSectionV1(() =>
 const StudentReconciliationV1 = preloadedSectionV1(() =>
   import('./accounts/student-reconciliation-v1').then((module) => module.StudentReconciliationV1),
 );
-const StudentBirthYearsV1 = preloadedSectionV1(() =>
-  import('./birth-year/student-birth-years-v1').then((module) => module.StudentBirthYearsV1),
-);
 const StudentCredentialsV1 = preloadedSectionV1(() =>
   import('./credentials/student-credentials-v1').then((module) => module.StudentCredentialsV1),
 );
@@ -94,7 +91,6 @@ const PANEL_SECTIONS_V1 = [
   AuditWorkspaceV1,
   StudentAuditV1,
   StudentSettingsV1,
-  StudentBirthYearsV1,
   StudentCredentialsV1,
   CustomizationTargetV1,
 ];
@@ -129,15 +125,6 @@ type PanelCommonV1 = {
 /** The student record's own areas (birth year, card, sessions, closing, audit, settings), opened inside it. */
 function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
   return {
-    birth: (context) => (
-      <StudentBirthYearsV1
-        {...common}
-        scope={context.scope}
-        scopeLabel={context.account.name}
-        initialAccount={{ account: context.account, scopeVersion: context.accountsScopeVersion }}
-        canWrite={context.canWrite}
-      />
-    ),
     credentials: (context) => (
       <StudentCredentialsV1
         {...common}

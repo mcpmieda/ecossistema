@@ -11,10 +11,10 @@ import {
 describe('account presentation decisions', () => {
   it('distinguishes Portal closure, missing, ambiguous and exit without rewriting academic identity', () => {
     const account = accountFixtureV1();
-    expect(accountLinkLabelV1({ ...account, linkClosed: true })).toBe('Vínculo Portal encerrado');
+    expect(accountLinkLabelV1({ ...account, linkClosed: true })).toBe('Encerrado no Portal');
     expect(accountLinkLabelV1({ ...account, link: null })).toBe('Sem vínculo acadêmico');
     expect(accountLinkLabelV1({ ...account, eligibility: 'unresolved' })).toBe(
-      'Vínculo não resolvido',
+      'Não resolvido',
     );
     expect(accountLinkLabelV1({ ...account, eligibility: 'exit' })).toBe('Saída da escola');
     for (const item of [
@@ -45,7 +45,7 @@ describe('account presentation decisions', () => {
     expect(reset.expectedVersion).toBe(9);
   });
   it('never turns missing retained authentication into never and rejects wrong identities', () => {
-    expect(lastAuthenticationLabelV1(null)).toBe('Desconhecido nos últimos 12 meses');
+    expect(lastAuthenticationLabelV1(null)).toBe('Nenhum em 12 meses');
     expect(lastAuthenticationLabelV1('2026-09-13T15:00:00Z')).toContain('12:00');
     const account = accountFixtureV1();
     expect(() =>

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button, Chip } from '@heroui/react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
@@ -9,13 +10,18 @@ function accountColorV1(account: { linkClosed?: boolean; state: string }) {
   return account.state === 'active' ? 'success' : 'warning';
 }
 
-export function AccountIdentityV1({ account, detail = false }: Readonly<{ account: AdminAccountReadV2; detail?: boolean }>) {
+export function AccountIdentityV1({
+  account,
+  detail = false,
+  birth,
+}: Readonly<{ account: AdminAccountReadV2; detail?: boolean; birth?: ReactNode }>) {
   const name = account.name || 'Nome indisponível';
   return (
     <div className={detail ? 'pa-account-identity pa-account-identity--detail' : 'pa-account-identity'}>
       <StudentAvatarV1 id={account.accountId} detail={detail} />
       <div>
         <strong>{name}</strong>
+        {birth}
         <span>{account.classLabel || 'Turma não resolvida'}</span>
       </div>
     </div>
