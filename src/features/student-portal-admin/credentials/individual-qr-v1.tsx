@@ -285,6 +285,17 @@ export function IndividualQrV1(
   return (
     <Card className="pa-individual-qr" aria-label="QR atual do aluno">
       <Card.Content>
+        {props.regenerateQr ? (
+          <div className="pa-individual-qr-head">
+            <Button
+              variant="secondary"
+              isDisabled={props.regenerateQr.disabled}
+              onPress={props.regenerateQr.open}
+            >
+              Mudar QR
+            </Button>
+          </div>
+        ) : null}
         {!canWrite ? (
           <p>
             <output className="contents">

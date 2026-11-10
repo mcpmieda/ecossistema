@@ -58,7 +58,6 @@ it('ficha: ações na ordem pedida, Redefinir senha verde e nenhuma vermelha (10
   expect(labels).toEqual([
     'Redefinir senha',
     'Reimprimir QR atual',
-    'Mudar QR',
     expect.stringMatching(/^(Bloquear|Desbloquear) acesso$/),
     'Resetar conta',
   ]);
@@ -87,4 +86,21 @@ it('ficha sem aba de QR abre na primeira aba que existe', async () => {
   await openRecord({ sessions: () => <span>Painel de sessões</span> });
   expect(screen.getByRole('tab', { name: 'Sessões' }).getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText('Painel de sessões')).toBeTruthy();
+});
+
+it('"Mudar QR" fica na aba QR code e abre a mesma confirmação da ficha', async () => {
+  await openRecord({
+    credentials: (context) => (
+      <button type="button" disabled={context.regenerateQr.disabled} onClick={context.regenerateQr.open}>
+        Mudar QR
+      </button>
+    ),
+  });
+  const group = screen.getByRole('group', { name: 'Ações de acesso' });
+  expect(group.textContent).not.toContain('Mudar QR');
+  act(() => screen.getByRole('button', { name: 'Mudar QR' }).click());
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(screen.getByRole('alertdialog').textContent).toContain('Mudar QR');
 });

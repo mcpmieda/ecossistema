@@ -17,6 +17,8 @@ export interface StudentCredentialsPropsV1 {
   refreshKey?: number;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
   renderArtifact?: QrRendererV1;
+  /** Inside a student record: the record's "Mudar QR", shown at the top of this tab. */
+  regenerateQr?: { disabled: boolean; open: () => void };
 }
 export function StudentCredentialsV1(props: StudentCredentialsPropsV1) {
   const key =

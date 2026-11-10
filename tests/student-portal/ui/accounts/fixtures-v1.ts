@@ -128,7 +128,22 @@ export function accountsMockV1(
   });
   const client = createPortalAdminClientV1({
     fetch: async (_path, init) => {
-      const input: AdminCommandV1 = JSON.parse(String(init.body));
+      const raw = JSON.parse(String(init.body));
+      // The record's birth line (10/11/2026) is a read, not a command: answered, never a write.
+      if (raw.operation === 'birth-years' && raw.scope?.kind === 'account') {
+        const account = accounts.find((item) => item.accountId === raw.scope.accountId);
+        return accountJsonV1({
+          ...ACCOUNT_META_V1,
+          state: 'birth-years',
+          scopeVersion: 1,
+          accountsScopeVersion: 4,
+          nextCursor: null,
+          items: account
+            ? [{ accountId: account.accountId, accountVersion: account.version, year: null, confirmation: null, version: 0 }]
+            : [],
+        });
+      }
+      const input: AdminCommandV1 = raw;
       writes.push(input);
       bodies.push(String(init.body));
       if (options.write) return options.write(input, init.signal);

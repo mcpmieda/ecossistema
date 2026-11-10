@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentAccountsV1 } from '../../../../src/features/student-portal-admin/accounts/student-accounts-v1';
+import type { AccountSlotContextV1 } from '../../../../src/features/student-portal-admin/accounts/account-detail-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { clearPhotoMemoryV1 } from '../../../../src/features/student-photos/photo-memory-v1';
 import {
@@ -40,6 +41,15 @@ function setupAccountsDomV1() {
     },
   );
 }
+// The record's QR code tab holds "Mudar QR" (10/11/2026): a minimal tab with the same action.
+const QR_SLOTS_V1 = {
+  credentials: (context: AccountSlotContextV1) =>
+    createElement(
+      'button',
+      { type: 'button', disabled: context.regenerateQr.disabled, onClick: context.regenerateQr.open },
+      'Mudar QR',
+    ),
+};
 beforeEach(setupAccountsDomV1);
 afterEach(() => {
   cleanup();
@@ -96,10 +106,18 @@ describe('account list and detail', () => {
   });
   it('offers bulk operations only for a selected class and keeps the read-only preview inert', async () => {
     const mock = accountsMockV1();
-    render(createElement(StudentAccountsV1, { ...mock.props, canWrite: false }));
+    const view = render(createElement(StudentAccountsV1, { ...mock.props, canWrite: false }));
     await ready();
     expect(screen.queryByRole('heading', { name: 'Operações em massa' })).toBeNull();
-    await userEvent.setup().click(await screen.findByRole('tab', { name: 'SYNTHETIC CLASS A' }));
+    // The panel's class tabs choose the class (10/11/2026: the list has no tabs of its own).
+    view.rerender(
+      createElement(StudentAccountsV1, {
+        ...mock.props,
+        canWrite: false,
+        scope: ACCOUNT_CLASS_V1,
+        scopeLabel: 'SYNTHETIC CLASS A',
+      }),
+    );
     expect(await screen.findByRole('heading', { name: 'Operações em massa' })).toBeTruthy();
     const controls = document.querySelector('.pa-account-controls-card');
     expect(controls?.contains(screen.getByRole('searchbox', { name: 'Buscar aluno' }))).toBe(true);
@@ -139,22 +157,27 @@ describe('account list and detail', () => {
     const mock = accountsMockV1();
     mock.accounts[1]!.state = 'pending-activation';
     mock.accounts[2]!.linkClosed = true;
-    render(createElement(StudentAccountsV1, mock.props));
+    const view = render(createElement(StudentAccountsV1, mock.props));
     await ready();
     expect(
       within(screen.getByRole('region', { name: /Tabela de contas/ })).getByText('Primeiro acesso'),
     ).toBeTruthy();
     expect(screen.getByText('Encerrada')).toBeTruthy();
     expect(screen.getAllByText('Nenhum em 12 meses')).toHaveLength(3);
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('tab', { name: 'SYNTHETIC EMPTY CLASS' }));
+    const inClass = (classId: number, scopeLabel: string) =>
+      createElement(StudentAccountsV1, {
+        ...mock.props,
+        scope: { ...ACCOUNT_CLASS_V1, classId },
+        scopeLabel,
+      });
+    view.rerender(inClass(753002, 'SYNTHETIC EMPTY CLASS'));
     expect(await screen.findByText('Nenhuma conta encontrada neste filtro.')).toBeTruthy();
     // A class is a view of the school collection already read, with that class's own tools.
     expect(mock.queries.filter((query) => query.operation === 'accounts-read')).toEqual([
       expect.objectContaining({ scope: { kind: 'school', academicYear: 2026 } }),
     ]);
     expect(await screen.findByRole('heading', { name: 'Operações em massa' })).toBeTruthy();
-    await user.click(await screen.findByRole('tab', { name: 'SYNTHETIC CLASS A' }));
+    view.rerender(inClass(753001, 'SYNTHETIC CLASS A'));
     await ready();
     expect(screen.getAllByRole('checkbox', { name: /^Selecionar para QR/ })).toHaveLength(3);
     expect(mock.queries.filter((query) => query.operation === 'accounts-read')).toHaveLength(1);
@@ -355,7 +378,7 @@ describe('account list and detail', () => {
   it('keeps account reset distinct from QR regeneration and never renders the credential', async () => {
     const mock = accountsMockV1(),
       onQr = vi.fn();
-    render(createElement(StudentAccountsV1, { ...mock.props, onQr }));
+    render(createElement(StudentAccountsV1, { ...mock.props, onQr, slots: QR_SLOTS_V1 }));
     const user = userEvent.setup();
     await user.click(await ready());
     await detail();
@@ -385,7 +408,7 @@ describe('account list and detail', () => {
   it('blocks destructive recovery actions when the backend says recovery is not ready', async () => {
     const mock = accountsMockV1();
     mock.accounts[0]!.firstAccess.recoveryReady = false;
-    render(createElement(StudentAccountsV1, mock.props));
+    render(createElement(StudentAccountsV1, { ...mock.props, slots: QR_SLOTS_V1 }));
     const user = userEvent.setup();
     await user.click(await ready());
     await detail();

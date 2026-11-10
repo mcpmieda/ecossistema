@@ -132,6 +132,7 @@ function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
         scope={context.scope}
         scopeLabel={context.account.name}
         canWrite={context.canWrite}
+        regenerateQr={context.regenerateQr}
       />
     ),
     sessions: (context) => (

@@ -53,6 +53,8 @@ export interface AccountSlotContextV1 {
   /** Grows after each confirmed action and each reload of the record: a slot whose read depends
    * on access or policies (the closing preview) reads again. */
   revision: number;
+  /** "Mudar QR" lives in the QR code tab (owner request 10/11/2026); it opens the record's review. */
+  regenerateQr: { disabled: boolean; open: () => void };
 }
 export type AccountSlotsV1 = Partial<
   Record<
@@ -231,6 +233,20 @@ function AccountDetailBodyV1({
     [client, accountId, onQr],
   );
   /** One access action, opened for review first. */
+  const actionDisabled = (action: AccountActionV1) =>
+    !account ||
+    !editable ||
+    ((['password-reset', 'account-reset'].includes(action) ||
+      (action === 'qr-regenerate' && account.state !== 'active')) &&
+      !account.firstAccess.recoveryReady);
+  const openReview = (action: AccountActionV1) => {
+    if (!account) return;
+    setReview({
+      action,
+      command: accountCommandV1(account, action),
+      name: account.name || 'Nome indisponível',
+    });
+  };
   const actionButton = (
     action: AccountActionV1,
     variant: 'primary' | 'secondary' = 'secondary',
@@ -242,19 +258,8 @@ function AccountDetailBodyV1({
         key={action}
         variant={variant}
         className={className}
-        isDisabled={
-          !editable ||
-          ((['password-reset', 'account-reset'].includes(action) ||
-            (action === 'qr-regenerate' && account.state !== 'active')) &&
-            !account.firstAccess.recoveryReady)
-        }
-        onPress={() =>
-          setReview({
-            action,
-            command: accountCommandV1(account, action),
-            name: account.name || 'Nome indisponível',
-          })
-        }
+        isDisabled={actionDisabled(action)}
+        onPress={() => openReview(action)}
       >
         {ACCOUNT_ACTIONS_V1[action].label}
       </Button>
@@ -331,6 +336,10 @@ function AccountDetailBodyV1({
         canWrite: editable,
         refresh,
         revision,
+        regenerateQr: {
+          disabled: actionDisabled('qr-regenerate'),
+          open: () => openReview('qr-regenerate'),
+        },
       }
     : null;
   return (
@@ -508,7 +517,6 @@ function AccountDetailBodyV1({
                   Reimprimir QR atual
                 </Button>
               )}
-              {actionButton('qr-regenerate')}
               {actionButton(account.blocked ? 'unblock' : 'block')}
               {actionButton('account-reset')}
             </div>
