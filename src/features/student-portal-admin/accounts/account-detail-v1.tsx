@@ -241,34 +241,31 @@ function AccountDetailBodyV1({
     [client, accountId, onQr],
   );
   /** One access action, opened for review first. */
-  const actionDisabled = (action: AccountActionV1) =>
-    !account || !editable || accountActionBlockedV1(account, action);
-  const openReview = (action: AccountActionV1) => {
-    if (!account) return;
+  // The record's account is passed in: these run only once the record has read it.
+  const actionDisabled = (target: AdminAccountReadV2, action: AccountActionV1) =>
+    !editable || accountActionBlockedV1(target, action);
+  const openReview = (target: AdminAccountReadV2, action: AccountActionV1) =>
     setReview({
       action,
-      command: accountCommandV1(account, action),
-      name: account.name || 'Nome indisponível',
+      command: accountCommandV1(target, action),
+      name: target.name || 'Nome indisponível',
     });
-  };
   const actionButton = (
+    target: AdminAccountReadV2,
     action: AccountActionV1,
     variant: 'primary' | 'secondary' = 'secondary',
     className?: string,
-  ) => {
-    if (!account) return null;
-    return (
-      <Button
-        key={action}
-        variant={variant}
-        className={className}
-        isDisabled={actionDisabled(action)}
-        onPress={() => openReview(action)}
-      >
-        {ACCOUNT_ACTIONS_V1[action].label}
-      </Button>
-    );
-  };
+  ) => (
+    <Button
+      key={action}
+      variant={variant}
+      className={className}
+      isDisabled={actionDisabled(target, action)}
+      onPress={() => openReview(target, action)}
+    >
+      {ACCOUNT_ACTIONS_V1[action].label}
+    </Button>
+  );
   const handledVersion = useRef<number | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const focused = useRef(false);
@@ -340,8 +337,8 @@ function AccountDetailBodyV1({
         refresh,
         revision,
         regenerateQr: {
-          disabled: actionDisabled('qr-regenerate'),
-          open: () => openReview('qr-regenerate'),
+          disabled: actionDisabled(account, 'qr-regenerate'),
+          open: () => openReview(account, 'qr-regenerate'),
         },
       }
     : null;
@@ -493,9 +490,9 @@ function AccountDetailBodyV1({
             <div className="pa-account-actions" role="group" aria-label="Ações de acesso">
               {/* Order and colours chosen by the owner (10/11/2026): the everyday action first,
                   in green; none in red. The QR actions live in the QR code tab. */}
-              {actionButton('password-reset', 'primary', 'pa-action-success')}
-              {actionButton(account.blocked ? 'unblock' : 'block')}
-              {actionButton('account-reset')}
+              {actionButton(account, 'password-reset', 'primary', 'pa-action-success')}
+              {actionButton(account, account.blocked ? 'unblock' : 'block')}
+              {actionButton(account, 'account-reset')}
             </div>
             {Object.keys(slots ?? {}).length ? (
               <Tabs
