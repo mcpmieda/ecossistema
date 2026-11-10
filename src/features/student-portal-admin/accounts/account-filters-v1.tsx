@@ -1,5 +1,12 @@
 import type { ComponentProps } from 'react';
-import { CircleCheck, KeyRound, LockKeyhole, LockKeyholeOpen, UserRoundPlus } from 'lucide-react';
+import {
+  CircleCheck,
+  KeyRound,
+  LockKeyhole,
+  LockKeyholeOpen,
+  UserRoundPlus,
+  UserRoundX,
+} from 'lucide-react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import { FilterTagsV1 } from '../../../shared/ui/filter-tags-v1';
 export const ACCOUNT_STATE_OPTIONS_V1 = [
@@ -14,6 +21,10 @@ export const ACCOUNT_STATE_OPTIONS_V1 = [
 export const ACCOUNT_BLOCK_OPTIONS_V1 = [
   { id: 'blocked', label: 'Bloqueadas', icon: <LockKeyhole size={13} aria-hidden /> },
   { id: 'unblocked', label: 'Sem bloqueio', icon: <LockKeyholeOpen size={13} aria-hidden /> },
+] as const;
+/** Only the accounts without a class, as the "Sem turma" row of the Visão geral counts them. */
+export const ACCOUNT_CLASS_OPTIONS_V1 = [
+  { id: 'sem-turma', label: 'Sem turma', icon: <UserRoundX size={13} aria-hidden /> },
 ] as const;
 /** Empty selection means unrestricted. Multiple values are OR within each group, AND across groups. */
 export function matchesAccountFiltersV1(

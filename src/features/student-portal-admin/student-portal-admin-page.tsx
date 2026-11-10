@@ -260,6 +260,7 @@ function sectionContentV1({
   selectedShift,
   onOpenCustomization,
   classLabels,
+  onOpenWithoutClass,
 }: {
   /** The class catalog, or null while it loads or after it failed. */
   classLabels: readonly { id: number; label: string }[] | null;
@@ -269,6 +270,7 @@ function sectionContentV1({
   onQr: ReturnType<typeof useAccountQrHandoffV1>['accept'];
   selectedShift: ShiftKeyV1 | null;
   onOpenCustomization: (row: CustomizationRowV1, area: CustomizationAreaV1) => void;
+  onOpenWithoutClass: () => void;
 }): ReactNode {
   switch (section) {
     case 'reconciliation':
@@ -321,7 +323,11 @@ function sectionContentV1({
     default:
       // Every class at once from the school summary (owner request 10/11/2026): no class tabs.
       return (
-        <StudentOverviewV1 {...common} classLabels={classLabels} />
+        <StudentOverviewV1
+          {...common}
+          classLabels={classLabels}
+          onOpenWithoutClass={onOpenWithoutClass}
+        />
       );
   }
 }
@@ -443,6 +449,13 @@ function PortalWorkspace({
     customizationChanged();
   };
   const slots = useMemo(() => accountSlotsV1(common), [common]);
+  // "Sem turma" in the Visão geral opens the Alunos list of the whole school, already narrowed.
+  const openWithoutClass = useCallback(() => {
+    if (!allowDraftNavigationV1()) return;
+    setSelectedShift(null);
+    setSelectedClass(null);
+    window.location.hash = studentPortalHref('accounts') + '&semturma=1';
+  }, []);
   const openAccount = useMemo<ContextType<typeof AccountOpenContextV1>>(
     () =>
       section === 'reconciliation'
@@ -460,6 +473,7 @@ function PortalWorkspace({
     onQr: qr.accept,
     selectedShift,
     onOpenCustomization: openCustomization,
+    onOpenWithoutClass: openWithoutClass,
     classLabels: classRead.state.state === 'ready' ? classRead.state.data : null,
   });
   // Credentials open inside the Alunos area.

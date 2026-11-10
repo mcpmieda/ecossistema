@@ -26,7 +26,7 @@ export function panelHashAccountIdV1(key: string): string | null {
 }
 
 const PANEL_OWNER_KEY_V1 = 'pa-panel-owner-v1';
-const PANEL_KEYS_V1 = ['turma', 'turno', 'ficha', 'aluno'] as const;
+const PANEL_KEYS_V1 = ['turma', 'turno', 'ficha', 'aluno', 'semturma'] as const;
 /** Short fingerprint only, so the per-tab marker never holds the identity key itself. */
 function fingerprintV1(value: string) {
   let hash = 5381;

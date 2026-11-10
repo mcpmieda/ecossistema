@@ -26,6 +26,8 @@ function healthColor(health: string) {
  * classLabels is null while the class catalog loads or after it failed: no table then. */
 type OverviewPropsV1 = Omit<OperationsPropsV1, 'scope' | 'scopeLabel'> & {
   classLabels?: readonly ClassLabelV1[] | null;
+  /** Opens the Alunos list showing only the accounts without a class. */
+  onOpenWithoutClass?: () => void;
 };
 const SCHOOL_V1 = { kind: 'school', academicYear: 2026 } as const;
 
@@ -216,6 +218,7 @@ function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
                   <OverviewClassesV1
                     classes={data.overview.classes}
                     labels={props.classLabels}
+                    onOpenWithoutClass={props.onOpenWithoutClass}
                   />
                 ) : null}
                 {data.population && (

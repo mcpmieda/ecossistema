@@ -17,7 +17,7 @@ const ZERO_COUNTS_V1: ClassRowV1['counts'] = {
   accessPermitted: 0,
   validSessions: 0,
 };
-const collator =new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
+const collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
 
 /** Every class with its label, in school order; accounts without a class come last. */
 export function overviewClassRowsV1(
@@ -58,14 +58,32 @@ const attention: Partial<Record<(typeof columns)[number][0], 'warning' | 'danger
   blocked: 'danger',
 };
 
-/** All classes read in the same school summary: no tabs, one request. */
+/** All classes read in the same school summary: no tabs, one request. The "Sem turma" row opens
+ * the Alunos list showing only those accounts (owner request 10/11/2026). */
 export function OverviewClassesV1({
   classes,
   labels,
-}: Readonly<{ classes: readonly ClassRowV1[]; labels: readonly ClassLabelV1[] }>) {
+  onOpenWithoutClass,
+}: Readonly<{
+  classes: readonly ClassRowV1[];
+  labels: readonly ClassLabelV1[];
+  onOpenWithoutClass?: () => void;
+}>) {
   const rows = overviewClassRowsV1(classes, labels);
+  const opens = (row: { classId: number | null }) =>
+    row.classId === null && onOpenWithoutClass !== undefined;
   return (
-    <section className="pa-overview-classes pa-rise" aria-labelledby="pa-overview-classes-title">
+    <section
+      className="pa-overview-classes pa-rise"
+      aria-labelledby="pa-overview-classes-title"
+      // React Aria runs a row action on Enter only; Space opens the "Sem turma" row as well.
+      onKeyDownCapture={(event) => {
+        if (event.key !== ' ' || !onOpenWithoutClass) return;
+        if (!(event.target as Element).closest?.('tr[data-key="sem-turma"]')) return;
+        event.preventDefault();
+        onOpenWithoutClass();
+      }}
+    >
       <h3 id="pa-overview-classes-title">Por turma</h3>
       <Table>
         <Table.ScrollContainer className="max-w-full overflow-x-auto">
@@ -82,9 +100,16 @@ export function OverviewClassesV1({
             </Table.Header>
             <Table.Body items={rows} renderEmptyState={() => 'Nenhuma turma com alunos.'}>
               {(row) => (
-                <Table.Row id={row.key}>
+                <Table.Row
+                  id={row.key}
+                  {...(opens(row)
+                    ? { onAction: onOpenWithoutClass, className: 'cursor-pointer' }
+                    : {})}
+                >
                   <Table.Cell>
                     <span className="font-semibold">{row.label}</span>
+                    {/* The row is named by this cell (React Aria ignores a row aria-label). */}
+                    {opens(row) && <span className="sr-only">, ver na lista de Alunos</span>}
                   </Table.Cell>
                   {columns.map(([key]) => {
                     const value = row.counts[key];

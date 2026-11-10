@@ -58,6 +58,7 @@ import {
 } from '../shared/panel-hash-v1';
 
 import {
+  ACCOUNT_CLASS_OPTIONS_V1,
   AccountFilterTagsV1,
   ACCOUNT_STATE_OPTIONS_V1,
   ACCOUNT_BLOCK_OPTIONS_V1,
@@ -122,6 +123,10 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
   const orderKeys = useMemo(() => new Set<string>([order]), [order]);
   const [states, setStates] = useState<Set<string>>(() => new Set());
   const [blocks, setBlocks] = useState<Set<string>>(() => new Set());
+  // "Sem turma", opened from the Visão geral or kept in the address after a reload.
+  const [withoutClass, setWithoutClass] = useState(() => readPanelHashParamV1('semturma') === '1');
+  useEffect(() => writePanelHashParamsV1({ semturma: withoutClass ? '1' : null }), [withoutClass]);
+  useEffect(() => () => writePanelHashParamsV1({ semturma: null }), []);
   const [qrMount, setQrMount] = useState<HTMLDivElement | null>(null);
   const [bulkMount, setBulkMount] = useState<HTMLDivElement | null>(null);
   // The controls answer the click at once; the list follows without blocking them.
@@ -136,6 +141,8 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
     props.scope.kind === 'class' ? props.scopeLabel : undefined,
   );
   const classSelected = classId !== null;
+  // A chosen class already has its accounts; "Sem turma" only narrows the whole school.
+  const listWithoutClass = useDeferredValue(withoutClass && !classSelected);
   // One read brings the school; class, search, Situação and Bloqueio narrow what is already in
   // memory, so each of them answers without a request.
   const readScope = readScopeV1(props.scope);
@@ -199,6 +206,16 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
                 }}
                 options={ACCOUNT_BLOCK_OPTIONS_V1}
               />
+              {!classSelected && (
+                <AccountFilterTagsV1
+                  label="Turma"
+                  selected={withoutClass ? WITHOUT_CLASS_KEYS_V1 : NO_SELECTION_V1}
+                  onChange={(value) => {
+                    if (allowDraftNavigationV1()) setWithoutClass(value.has('sem-turma'));
+                  }}
+                  options={ACCOUNT_CLASS_OPTIONS_V1}
+                />
+              )}
             </fieldset>
           </div>
           {classSelected && <div ref={setQrMount} className="pa-account-qr-mount" />}
@@ -215,6 +232,7 @@ function AccountsBodyV1(props: AccountsBodyPropsV1) {
         blocks={listBlocks}
         search={listSearch}
         classId={listClassId}
+        withoutClass={listWithoutClass}
         qrMount={qrMount}
         bulkMount={bulkMount}
         bulkScopeLabel={
@@ -283,6 +301,7 @@ function useStableRowsV1() {
   }, []);
 }
 const NO_SELECTION_V1: Set<string> = new Set();
+const WITHOUT_CLASS_KEYS_V1: Set<string> = new Set(['sem-turma']);
 /** Maintenance of saved photos, asked for by the address: `manutencao=miniaturas`. */
 const AvatarBackfillPanelV1 = lazy(() =>
   import('../../student-photos/avatar-backfill-panel-v1').then((module) => ({
@@ -307,8 +326,14 @@ function narrowAccountsV1<T extends AdminAccountReadV2>(
       (!search || foldNameV1(item.name).includes(search)),
   );
 }
-const inClassV1 = <T extends AdminAccountReadV2>(items: readonly T[], classId: number | null) =>
-  classId === null ? [...items] : items.filter((item) => item.classId === classId);
+const inClassV1 = <T extends AdminAccountReadV2>(
+  items: readonly T[],
+  classId: number | null,
+  withoutClass = false,
+) => {
+  if (classId !== null) return items.filter((item) => item.classId === classId);
+  return withoutClass ? items.filter((item) => item.classId === null) : [...items];
+};
 
 /** The view a reload brings back: plain alphabetical order, no filter, the address's scope. */
 function restorableViewV1(view: {
@@ -317,9 +342,11 @@ function restorableViewV1(view: {
   states: ReadonlySet<string>;
   blocks: ReadonlySet<string>;
   classId: number | null;
+  withoutClass: boolean;
   scope: ScopeV1;
 }) {
   return (
+    !view.withoutClass &&
     view.order === 'name' &&
     view.search === '' &&
     view.states.size === 0 &&
@@ -335,8 +362,10 @@ function narrowedViewV1(view: {
   states: ReadonlySet<string>;
   blocks: ReadonlySet<string>;
   classId: number | null;
+  withoutClass: boolean;
 }) {
   return (
+    view.withoutClass ||
     view.order !== 'name' ||
     view.classId !== null ||
     view.search !== '' ||
@@ -556,6 +585,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     blocks: Set<string>;
     search: string;
     classId: number | null;
+    withoutClass: boolean;
     qrMount: HTMLDivElement | null;
     bulkMount: HTMLDivElement | null;
     bulkScopeLabel: string;
@@ -570,9 +600,13 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
         : props.query.scope,
     [props.query.scope, props.classId],
   );
-  const narrowed = [props.classId ?? '', props.search, ...props.states, '', ...props.blocks].join(
-    '|',
-  );
+  const narrowed = [
+    props.classId ?? (props.withoutClass ? 'sem-turma' : ''),
+    props.search,
+    ...props.states,
+    '',
+    ...props.blocks,
+  ].join('|');
   // A new order or filter starts again from the first rows.
   const view = props.order + '|' + narrowed;
   const [shown, setShown] = useState({ view, limit: rowWindow });
@@ -616,7 +650,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   askPhotosAhead.current = (items) => {
     if (props.order === 'seals') return;
     const first = orderAccountsV1(
-      narrowAccountsV1(inClassV1(items, props.classId), props),
+      narrowAccountsV1(inClassV1(items, props.classId, props.withoutClass), props),
       props.order,
       null,
     ).slice(0, rowWindow);
@@ -656,8 +690,8 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   const selectionOwner = (current?.scopeVersion ?? '') + '|' + narrowed;
   const [selectedQr, setSelectedQr] = useOwnedSelectionV1(selectionOwner);
   const classItems = useMemo(
-    () => inClassV1(current?.items ?? [], props.classId),
-    [current?.items, props.classId],
+    () => inClassV1(current?.items ?? [], props.classId, props.withoutClass),
+    [current?.items, props.classId, props.withoutClass],
   );
   const filteredItems = useMemo(
     () =>
