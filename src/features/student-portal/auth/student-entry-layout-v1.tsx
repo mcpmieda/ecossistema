@@ -19,7 +19,7 @@ function CoverV1({ splash = false }: Readonly<{ splash?: boolean }>) {
 }
 
 /** The school's front door: blue cover with the crest, and a white sheet with the sign-in. */
-export function StudentEntryLayoutV1({ children, busy = false }: Readonly<{ children: ReactNode; busy?: boolean }>) {
+export function StudentEntryLayoutV1({ children }: Readonly<{ children: ReactNode }>) {
   const contentId = useId();
   const content = useRef<HTMLElement>(null);
   return (
@@ -43,7 +43,6 @@ export function StudentEntryLayoutV1({ children, busy = false }: Readonly<{ chil
         ref={content}
         className="pa-entry-sheet"
         tabIndex={-1}
-        aria-busy={busy || undefined}
       >
         {children}
         <footer className="pa-entry-foot">

@@ -28,9 +28,10 @@ describe('BN-21 current live consumer inventory', () => {
   });
 
   it('keeps canonical birth and the QR account collection on the shared authorized refresh chain', () => {
-    const birth = source('src/features/student-portal-admin/birth-year/student-birth-years-v1.tsx');
+    // The record's birth line (10/11/2026) replaced the birth tab.
+    const birth = source('src/features/student-portal-admin/accounts/record-birth-v1.tsx');
     const accounts = source('src/features/student-portal-admin/accounts/student-accounts-v1.tsx');
-    expect(birth).toContain('useContinuousReadV1(load,');
+    expect(birth).toContain('useAccountsReadV1(load)');
     expect(accounts).toContain('useContinuousReadV1(');
     expect(accounts).toContain('<QrBatchToolsV1');
     expect(source('src/features/student-portal-admin/shared/continuous-read-v1.tsx')).toContain(

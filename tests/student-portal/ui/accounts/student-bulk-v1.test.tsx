@@ -400,17 +400,17 @@ describe('bulk preview and execution', () => {
         />
       </StrictMode>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Redefinir contas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resetar contas' }));
     expect(screen.queryByRole('button', { name: 'Preparar prévia' })).toBeNull();
     const input = await screen.findByRole('textbox', {
-      name: 'Digite REDEFINIR CONTAS para confirmar',
+      name: 'Digite RESETAR CONTAS para confirmar',
     });
     const confirm = screen.getByRole('button', {
-      name: 'Confirmar redefinir contas',
+      name: 'Confirmar resetar contas',
     }) as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);
     expect(writes).toBe(0);
-    fireEvent.change(input, { target: { value: 'REDEFINIR CONTAS' } });
+    fireEvent.change(input, { target: { value: 'RESETAR CONTAS' } });
     await act(async () => {
       fireEvent.click(confirm);
     });

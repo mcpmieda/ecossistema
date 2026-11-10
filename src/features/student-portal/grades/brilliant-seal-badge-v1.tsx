@@ -21,13 +21,13 @@ const STAR_POINTS = Array.from({ length: 10 }, (_, index) => {
   return `${(CENTER_X + radius * Math.cos(angle)).toFixed(2)},${(CENTER_Y + radius * Math.sin(angle)).toFixed(2)}`;
 }).join(' ');
 
-export function BrilliantSealBadgeV1({ label = 'Selo Brilhante' }: Readonly<{ label?: string }>) {
+export function BrilliantSealBadgeV1() {
   const id = useId().replaceAll(':', '');
   const gold = `${id}-gold`;
   const face = `${id}-face`;
   const edge = `${id}-edge`;
   return (
-    <span className="pa-seal" role="img" aria-label={label}>
+    <span className="pa-seal" role="img" aria-label="Selo Brilhante">
       <svg viewBox="0 0 32 38" aria-hidden="true" focusable="false">
         <defs>
           <linearGradient id={gold} x1="0" y1="0" x2="1" y2="1">

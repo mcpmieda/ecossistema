@@ -20,10 +20,10 @@ const LABELS: Record<Filter, string> = {
   pending: 'Ainda sem conclusão', 'below-up': 'Abaixo, mas melhorando',
   'below-down': 'Abaixo e com queda', 'above-down': 'Na referência, mas com queda', recovery: 'Melhoraram com a paralela',
 };
-function Panel({ title, hint, children, footer }: Readonly<{
-  title: string; hint: ReactNode; children: ReactNode; footer?: ReactNode;
+function Panel({ title, hint, children }: Readonly<{
+  title: string; hint: ReactNode; children: ReactNode;
 }>) {
-  return <AnalyticsPanelV6 title={title} action={<AnalyticsHintV6 label={`Sobre ${title}`}>{hint}</AnalyticsHintV6>} footer={footer}>{children}</AnalyticsPanelV6>;
+  return <AnalyticsPanelV6 title={title} action={<AnalyticsHintV6 label={`Sobre ${title}`}>{hint}</AnalyticsHintV6>}>{children}</AnalyticsPanelV6>;
 }
 function MetricBar({ label, caption, value, tone }: Readonly<{ label: string; caption: string; value: number | null; tone: string }>) {
   return <div className={`learning-dimension learning-tone--${tone}`}>

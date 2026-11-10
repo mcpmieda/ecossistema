@@ -13,7 +13,7 @@ import {
 const actions = {
   'qr-regenerate': 'Mudar QR',
   'password-reset': 'Redefinir senhas',
-  'account-reset': 'Redefinir contas',
+  'account-reset': 'Resetar contas',
   block: 'Bloquear acesso',
 } as const;
 const consequences = {

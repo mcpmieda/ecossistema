@@ -11,8 +11,8 @@ import { createPortalAdminClientV1 } from '../../../../src/features/student-port
 import { createPortalAdminReadClientV2 } from '../../../../src/features/student-portal-admin/accounts/accounts-client-v2';
 import type { BirthValueV1 } from '../../../../src/features/student-portal-admin/birth-year/birth-read-v1';
 
-export const BIRTH_CLASS_V1 = { kind: 'class', academicYear: 2026, classId: 754001 } as const;
-export const birthIdV1 = (n: number) => '75400000-0000-4000-8000-' + String(n).padStart(12, '0');
+const BIRTH_CLASS_V1 = { kind: 'class', academicYear: 2026, classId: 754001 } as const;
+const birthIdV1 = (n: number) => '75400000-0000-4000-8000-' + String(n).padStart(12, '0');
 export const BIRTH_META_V1 = { contractVersion: 1 as const, requestId: birthIdV1(9000) };
 export const birthJsonV1 = (value: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(value), {

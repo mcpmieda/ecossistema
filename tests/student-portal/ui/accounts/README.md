@@ -60,7 +60,7 @@ Abort e geração descartam respostas antigas sem fingir cancelar commit no serv
 401/403 removem ficha/lista; a composição também deve tratar onUnauthorized e logout.
 
 Bloqueio/desbloqueio é administrativo; não afirma remover a janela antiabuso.
-Redefinir senha preserva QR; redefinir conta gira QR e volta ao primeiro acesso;
+Redefinir senha preserva QR; resetar conta gira QR e volta ao primeiro acesso;
 regenerar QR preserva senha/estado. Todos respeitam as revogações do backend.
 Nenhuma dessas operações encerra vínculo ou libera reset anual do Banco.
 
@@ -68,7 +68,7 @@ QR retornado vai apenas ao callback privado onQr(result, signal). Nunca entra em
 estado genérico, DOM, URL, clipboard, storage ou log do módulo. O callback de #755
 deve respeitar o signal e apagar o artefato ao trocar contexto.
 Falha ao abrir o artefato depois do commit orienta reimpressão, sem repetir rotação.
-onReprint recebe contexto, sem duplicar emissão/PDF. Account-reset retorna somente
+A reimpressão fica na aba QR code (Imprimir QR). Account-reset retorna somente
 recibo de commit; a reimpressão é a operação própria para obter seu novo cartão.
 
 ## Evidências e limites

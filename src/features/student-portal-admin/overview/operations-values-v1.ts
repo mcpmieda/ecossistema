@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
-import type { PortalAdminReadClientV2, PortalClassCatalogV2 } from '../accounts/accounts-client-v2';
+import type { PortalAdminReadClientV2 } from '../accounts/accounts-client-v2';
 import { useAccountsReadV1 } from '../accounts/accounts-read-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 
@@ -12,7 +12,6 @@ export interface OperationsPropsV1 {
   identityKey: string;
   canWrite: boolean;
   scopeLabel?: string;
-  catalog?: PortalClassCatalogV2;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
 }
 const operationDateFormatterV1 = new Intl.DateTimeFormat('pt-BR', {

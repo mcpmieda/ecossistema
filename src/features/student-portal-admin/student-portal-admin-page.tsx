@@ -58,9 +58,6 @@ const StudentAccountsV1 = preloadedSectionV1(() =>
 const StudentReconciliationV1 = preloadedSectionV1(() =>
   import('./accounts/student-reconciliation-v1').then((module) => module.StudentReconciliationV1),
 );
-const StudentBirthYearsV1 = preloadedSectionV1(() =>
-  import('./birth-year/student-birth-years-v1').then((module) => module.StudentBirthYearsV1),
-);
 const StudentCredentialsV1 = preloadedSectionV1(() =>
   import('./credentials/student-credentials-v1').then((module) => module.StudentCredentialsV1),
 );
@@ -94,7 +91,6 @@ const PANEL_SECTIONS_V1 = [
   AuditWorkspaceV1,
   StudentAuditV1,
   StudentSettingsV1,
-  StudentBirthYearsV1,
   StudentCredentialsV1,
   CustomizationTargetV1,
 ];
@@ -129,15 +125,6 @@ type PanelCommonV1 = {
 /** The student record's own areas (birth year, card, sessions, closing, audit, settings), opened inside it. */
 function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
   return {
-    birth: (context) => (
-      <StudentBirthYearsV1
-        {...common}
-        scope={context.scope}
-        scopeLabel={context.account.name}
-        initialAccount={{ account: context.account, scopeVersion: context.accountsScopeVersion }}
-        canWrite={context.canWrite}
-      />
-    ),
     credentials: (context) => (
       <StudentCredentialsV1
         {...common}
@@ -145,6 +132,7 @@ function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
         scope={context.scope}
         scopeLabel={context.account.name}
         canWrite={context.canWrite}
+        regenerateQr={context.regenerateQr}
       />
     ),
     sessions: (context) => (
@@ -271,7 +259,10 @@ function sectionContentV1({
   onQr,
   selectedShift,
   onOpenCustomization,
+  classLabels,
 }: {
+  /** The class catalog, or null while it loads or after it failed. */
+  classLabels: readonly { id: number; label: string }[] | null;
   section: StudentPortalSection;
   common: PanelCommonV1;
   slots: ReturnType<typeof accountSlotsV1>;
@@ -328,7 +319,10 @@ function sectionContentV1({
         </>
       );
     default:
-      return <StudentOverviewV1 {...common} />;
+      // Every class at once from the school summary (owner request 10/11/2026): no class tabs.
+      return (
+        <StudentOverviewV1 {...common} classLabels={classLabels} />
+      );
   }
 }
 
@@ -466,13 +460,21 @@ function PortalWorkspace({
     onQr: qr.accept,
     selectedShift,
     onOpenCustomization: openCustomization,
+    classLabels: classRead.state.state === 'ready' ? classRead.state.data : null,
   });
   // Credentials open inside the Alunos area.
   const areaKey = section === 'credentials' ? 'accounts' : section;
   const scopedContent = (
     <>
-      {section === 'sessions' || section === 'settings' ? (
+      {section === 'sessions' || section === 'settings' || section === 'overview' ? (
         <>
+          {section === 'overview' && classRead.state.state === 'error' ? (
+            <AccountsErrorV1
+              error={classRead.state.error}
+              canReload={classRead.canReload}
+              onReload={classRead.reload}
+            />
+          ) : null}
           {!common.canWrite && (
             <p className="text-xs text-muted">
               <output className="contents">Somente leitura</output>

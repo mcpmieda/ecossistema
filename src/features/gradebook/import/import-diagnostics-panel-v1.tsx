@@ -78,13 +78,11 @@ function groupedCauses(values: readonly GradebookImportDiagnosticV1[]): string {
     .join(' · ');
 }
 
-function OccurrenceList({
-  values,
-  limit = 30,
-}: {
-  readonly values: readonly GradebookImportDiagnosticV1[];
-  readonly limit?: number;
-}) {
+/** Occurrences shown per diagnostic; the rest stay in the Auditoria. */
+const OCCURRENCE_LIMIT_V1 = 30;
+
+function OccurrenceList({ values }: { readonly values: readonly GradebookImportDiagnosticV1[] }) {
+  const limit = OCCURRENCE_LIMIT_V1;
   if (values.length === 0) return null;
   return (
     <div className="mt-3 grid gap-2">

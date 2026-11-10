@@ -282,9 +282,21 @@ export function IndividualQrV1(
         );
     });
   }
+  const regenerateButton = props.regenerateQr ? (
+    <Button
+      variant="secondary"
+      isDisabled={props.regenerateQr.disabled}
+      onPress={props.regenerateQr.open}
+    >
+      Mudar QR
+    </Button>
+  ) : null;
   return (
     <Card className="pa-individual-qr" aria-label="QR atual do aluno">
       <Card.Content>
+        {props.regenerateQr && !imageUrl ? (
+          <div className="pa-individual-qr-head">{regenerateButton}</div>
+        ) : null}
         {!canWrite ? (
           <p>
             <output className="contents">
@@ -318,9 +330,9 @@ export function IndividualQrV1(
           <div className="pa-individual-qr-variants">
             <div className="pa-individual-qr-variant">
               <h4>QR puro</h4>
-              <div className="pa-individual-qr-layout">
-                <img src={imageUrl} alt="QR atual de acesso" width={224} height={224} />
-                <div className="pa-individual-qr-actions">
+              {/* Every QR button in one row (owner request 10/11/2026); "Imprimir QR" is the
+                  reprint of the current QR. */}
+              <div className="pa-individual-qr-actions">
                   <Button onPress={() => operation.download(qrFilenameV1(account?.name, 'png'))}>
                     Baixar QR
                   </Button>
@@ -345,8 +357,9 @@ export function IndividualQrV1(
                   >
                     Imprimir QR
                   </Button>
+                  {regenerateButton}
                 </div>
-              </div>
+              <img src={imageUrl} alt="QR atual de acesso" width={224} height={224} />
             </div>
             <div className="pa-individual-qr-variant">
               <h4>Cartão completo</h4>

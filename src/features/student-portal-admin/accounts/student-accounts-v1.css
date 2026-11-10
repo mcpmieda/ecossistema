@@ -258,6 +258,8 @@
 .pa-student-drawer .pa-account-detail {
   box-shadow: none;
   border: 0;
+  /* Narrower margins in the record (owner request 10/11/2026). */
+  padding: 0.5rem;
 }
 /* Only the record's own header shows the large photo; rows inside its tabs keep small avatars. */
 .pa-student-drawer .pa-account-identity--detail .pa-student-avatar {
@@ -361,6 +363,10 @@
   border-radius: 999px;
   background: color-mix(in srgb, #eab308 16%, transparent);
   font-size: 0.875rem;
+}
+.pa-record-seals--none {
+  color: var(--muted);
+  background: var(--surface-secondary);
 }
 .pa-seal-count {
   margin-top: 0.2rem;
@@ -535,5 +541,32 @@
 @media (max-width: 640px) {
   .pa-account-qr-panel .pa-credentials-actions .button--primary {
     margin-left: 0;
+  }
+}
+/* "Redefinir senha" in the record: HeroUI's success colour on the primary button (10/11/2026). */
+.pa-account-actions .pa-action-success {
+  background: var(--success);
+  color: var(--success-foreground);
+}
+.pa-account-actions .pa-action-success:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--success) 88%, var(--foreground));
+}
+/* Narrower margins in the record, on the computer and on phones (owner request 10/11/2026). */
+.drawer__dialog.pa-student-drawer {
+  padding: 0.75rem;
+}
+@media (max-width: 640px) {
+  .drawer__dialog.pa-student-drawer {
+    padding: 0.5rem;
+  }
+  .pa-student-drawer .drawer__body .pa-account-detail {
+    padding: 0.25rem;
+  }
+  /* Phones: the body and the card add no side margin of their own. */
+  .pa-student-drawer .drawer__body {
+    padding-inline: 0.25rem;
+  }
+  .pa-student-drawer .drawer__body .pa-account-detail > .card__content {
+    padding-inline: 0;
   }
 }

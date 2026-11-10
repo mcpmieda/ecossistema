@@ -139,7 +139,6 @@ export function QrBatchToolsV1({
   client,
   accounts,
   selected,
-  onSelectAll,
   academicYear,
   classId,
   scopeVersion,
@@ -155,8 +154,6 @@ export function QrBatchToolsV1({
   client: PortalAdminClientV1;
   accounts: AdminAccountReadV2[];
   selected: Set<string>;
-  /** Omitted where the list itself selects (the header checkbox of the accounts table). */
-  onSelectAll?: (selected: boolean) => void;
   academicYear: number;
   classId: number;
   scopeVersion: number;
@@ -279,9 +276,9 @@ export function QrBatchToolsV1({
   }, [state]);
   const working = state.state === 'requesting' || state.state === 'rendering';
   const unresolved = state.state === 'error';
-  // Where the list selects, nothing ticked means the whole list, as in the bulk operations. A
-  // list still loading more rows is not whole, so it keeps asking for an explicit selection.
-  const wholeList = !onSelectAll && selected.size === 0 && !hasMore;
+  // Nothing ticked means the whole list, as in the bulk operations. A list still loading more
+  // rows is not whole, so it keeps asking for an explicit selection.
+  const wholeList = selected.size === 0 && !hasMore;
   const chosen = accounts.filter(
     (account) =>
       (wholeList || selected.has(account.accountId)) && accountCredentialPreparableV1(account),
@@ -372,26 +369,6 @@ export function QrBatchToolsV1({
         />
       ) : null}
       <div className="pa-credentials-actions">
-        {onSelectAll ? (
-          <>
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={!canWrite || working || unresolved}
-              onPress={() => onSelectAll(true)}
-            >
-              {hasMore ? 'Selecionar exibidos' : 'Selecionar lista'}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={!selected.size || working || unresolved}
-              onPress={() => onSelectAll(false)}
-            >
-              Limpar
-            </Button>
-          </>
-        ) : null}
         <span>
           <output className="contents">{selectionCountLabelV1(wholeList, chosen.length)}</output>
         </span>

@@ -3,8 +3,6 @@ export type SourceFileExtensionV1 = (typeof SOURCE_FILE_EXTENSIONS_V1)[number];
 
 export const SOURCE_STAGES_V1 = ['VG', '1º', '2º', '3º', 'REC'] as const;
 
-export type SourceDisciplineIndexV1 = `D${number}`;
-
 export const SOURCE_CELL_MAP_V1 = {
   metadata: {
     declaredStudentCount: 'J1',

@@ -42,7 +42,12 @@ export const adminReadQueryV2 = z.object({
   sessionView: z.enum(['active', 'history']).optional(),
   accountIds: z.array(portalIdV1).min(1).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2)
     .refine((ids) => new Set(ids.map((id) => id.toLowerCase())).size === ids.length).optional(),
+  // Visão geral (10/11/2026): only a client that asks gets the per-class totals, so a tab opened
+  // before the deploy keeps reading the summary it knows.
+  byClass: z.literal(true).optional(),
 }).strict()
+  .refine((value) => value.byClass === undefined ||
+    (value.operation === 'overview' && value.scope.kind === 'school'), 'Per-class totals are only read for the school overview')
   .refine((value) => value.accountIds === undefined ||
     (value.operation === 'seals-read' && value.scope.kind === 'school'), 'Account batches are only valid for school seals')
   .refine((value) => value.operation === 'accounts-read' || value.page.limit <= 100,
@@ -104,6 +109,9 @@ export const shiftSummaryV1 = z.object({
   }).strict()).max(60),
 }).strict();
 export type ShiftSummaryV1 = z.infer<typeof shiftSummaryV1>;
+const overviewCountsV2 = z.object({ accounts: count, active: count, pendingActivation: count, resetRequired: count, blocked: count,
+  unresolved: count, unlinked: count, accessEnabled: count, accessPermitted: count, validSessions: count,
+}).strict();
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
   customizationsResponseV1,
   z.object({ ...base, state: z.literal('shifts-read'), items: z.array(shiftSummaryV1).max(3) }).strict(),
@@ -134,9 +142,11 @@ export const adminReadResponseV2 = z.discriminatedUnion('state', [
     items: z.array(adminAccountReadV2).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2), nextCursor: pageCursorV1.nullable(), lastAuthenticationWindowMonths: z.literal(12),
   }).strict(),
   z.object({ ...base, state: z.literal('overview'), scopeVersion: versionV1,
-    counts: z.object({ accounts: count, active: count, pendingActivation: count, resetRequired: count, blocked: count,
-      unresolved: count, unlinked: count, accessEnabled: count, accessPermitted: count, validSessions: count,
-    }).strict(), health: z.enum(['normal', 'attention', 'intervention']),
+    counts: overviewCountsV2, health: z.enum(['normal', 'attention', 'intervention']),
+    // Visão geral (owner request 10/11/2026): every class read in the same school summary.
+    classes: z.array(z.object({
+      classId: z.number().int().positive().safe().nullable(), counts: overviewCountsV2,
+    }).strict()).max(500).optional(),
   }).strict(),
 ]);
 export type AdminReadQueryV2 = z.infer<typeof adminReadQueryV2>;

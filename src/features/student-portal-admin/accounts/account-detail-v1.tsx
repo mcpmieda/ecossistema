@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { AlertDialog, Button, Card, Drawer, Tabs, Tooltip } from '@heroui/react';
+import { AlertDialog, Button, Card, Drawer, Tabs } from '@heroui/react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { PolicyScopeV1, ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -27,12 +27,12 @@ import {
   type AccountQrResultV1,
 } from './account-mutation-v1';
 import { useAccountsReadV1 } from './accounts-read-v1';
+import { RecordBirthV1 } from './record-birth-v1';
 import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import {
   ACCOUNT_ACTIONS_V1,
   accountAccessOriginV1,
-  accountCredentialPreparableV1,
   firstAccessLabelV1,
   accountCommandV1,
   accountLinkLabelV1,
@@ -52,10 +52,12 @@ export interface AccountSlotContextV1 {
   /** Grows after each confirmed action and each reload of the record: a slot whose read depends
    * on access or policies (the closing preview) reads again. */
   revision: number;
+  /** "Mudar QR" lives in the QR code tab (owner request 10/11/2026); it opens the record's review. */
+  regenerateQr: { disabled: boolean; open: () => void };
 }
 export type AccountSlotsV1 = Partial<
   Record<
-    'birth' | 'credentials' | 'sessions' | 'publication' | 'closing' | 'audit' | 'settings',
+    'credentials' | 'sessions' | 'publication' | 'closing' | 'audit' | 'settings',
     (context: AccountSlotContextV1) => ReactNode
   >
 >;
@@ -69,7 +71,6 @@ export interface AccountDetailPropsV1 {
   onChanged: () => void;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
   onQr?: (result: AccountQrResultV1, signal: AbortSignal) => void | Promise<void>;
-  onReprint?: (context: AccountSlotContextV1) => void;
   slots?: AccountSlotsV1;
   describeScope?: (scope: PolicyScopeV1) => string;
   initialSlot?: keyof AccountSlotsV1;
@@ -78,7 +79,6 @@ export interface AccountDetailPropsV1 {
   known?: AdminAccountReadV2;
 }
 const slotLabels = {
-  birth: 'Nascimento',
   credentials: 'QR code',
   sessions: 'Sessões',
   publication: 'Notas publicadas',
@@ -86,6 +86,40 @@ const slotLabels = {
   audit: 'Auditoria',
   settings: 'Políticas',
 } as const;
+/** The tab a record opens on: the one asked for, else the first one this record has. The QR code
+ * tab is never opened by itself: showing the current QR asks the server for a reprint, which is
+ * recorded, so it only happens when someone opens that tab. */
+function startSlotV1(slots: AccountSlotsV1 | undefined, initialSlot?: keyof AccountSlotsV1) {
+  if (initialSlot && slots?.[initialSlot]) return initialSlot;
+  const keys = Object.keys(slotLabels) as (keyof AccountSlotsV1)[];
+  const first = keys.find((key) => key !== 'credentials' && slots?.[key]);
+  return first ?? 'credentials';
+}
+/** The birth line under the name, once the record has read its account. Without an open link
+ * the birth read refuses the account, and "Vínculo" already says why. */
+function RecordBirthLineV1({
+  client,
+  reader,
+  account,
+  scopeVersion,
+}: Readonly<{
+  client: PortalAdminClientV1;
+  reader: PortalAdminReadClientV2;
+  account: AdminAccountReadV2 | null;
+  scopeVersion: number | undefined;
+}>) {
+  if (!account || scopeVersion === undefined) return null;
+  if (!account.link || account.linkClosed || account.classId === null) return null;
+  return <RecordBirthV1 client={client} reader={reader} account={account} scopeVersion={scopeVersion} />;
+}
+/** Recovery actions (and a QR change on a not yet active account) wait for recovery data. */
+function accountActionBlockedV1(account: AdminAccountReadV2, action: AccountActionV1) {
+  const needsRecovery =
+    action === 'password-reset' ||
+    action === 'account-reset' ||
+    (action === 'qr-regenerate' && account.state !== 'active');
+  return needsRecovery && !account.firstAccess.recoveryReady;
+}
 /** Why the last action failed, and what to do next. */
 function failureText(conflict: boolean, protectedFailure: boolean, retryable: boolean) {
   if (conflict) return 'A conta mudou. Recarregue e revise uma nova ação.';
@@ -118,7 +152,7 @@ export function AccountDetailV1(props: Readonly<AccountDetailPropsV1>) {
                 ':' +
                 props.canWrite +
                 ':' +
-                (props.initialSlot ?? 'birth')
+                startSlotV1(props.slots, props.initialSlot)
               }
               {...props}
               saving={saving}
@@ -172,7 +206,6 @@ function AccountDetailBodyV1({
   onChanged,
   onAuthorizationLost,
   onQr,
-  onReprint,
   slots,
   describeScope,
   initialSlot,
@@ -208,10 +241,10 @@ function AccountDetailBodyV1({
     name: string;
   } | null>(null);
   const [activeSlot, setActiveSlot] = useState<keyof AccountSlotsV1>(() =>
-    initialSlot && slots?.[initialSlot] ? initialSlot : 'birth',
+    startSlotV1(slots, initialSlot),
   );
   const [openedSlots, setOpenedSlots] = useState<Set<keyof AccountSlotsV1>>(
-    () => new Set([initialSlot && slots?.[initialSlot] ? initialSlot : 'birth']),
+    () => new Set([startSlotV1(slots, initialSlot)]),
   );
   useEffect(() => {
     setOpenedSlots((previous) =>
@@ -223,6 +256,32 @@ function AccountDetailBodyV1({
   const writer = useMemo(
     () => createAccountMutationV1(client, accountId, setMutation, onQr),
     [client, accountId, onQr],
+  );
+  /** One access action, opened for review first. */
+  // The record's account is passed in: these run only once the record has read it.
+  const actionDisabled = (target: AdminAccountReadV2, action: AccountActionV1) =>
+    !editable || accountActionBlockedV1(target, action);
+  const openReview = (target: AdminAccountReadV2, action: AccountActionV1) =>
+    setReview({
+      action,
+      command: accountCommandV1(target, action),
+      name: target.name || 'Nome indisponível',
+    });
+  const actionButton = (
+    target: AdminAccountReadV2,
+    action: AccountActionV1,
+    variant: 'primary' | 'secondary' = 'secondary',
+    className?: string,
+  ) => (
+    <Button
+      key={action}
+      variant={variant}
+      className={className}
+      isDisabled={actionDisabled(target, action)}
+      onPress={() => openReview(target, action)}
+    >
+      {ACCOUNT_ACTIONS_V1[action].label}
+    </Button>
   );
   const handledVersion = useRef<number | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -294,6 +353,10 @@ function AccountDetailBodyV1({
         canWrite: editable,
         refresh,
         revision,
+        regenerateQr: {
+          disabled: actionDisabled(account, 'qr-regenerate'),
+          open: () => openReview(account, 'qr-regenerate'),
+        },
       }
     : null;
   return (
@@ -383,7 +446,18 @@ function AccountDetailBodyV1({
         {shown && (
           <>
             <div className="pa-account-profile">
-              <AccountIdentityV1 account={shown} detail />
+              <AccountIdentityV1
+                account={shown}
+                detail
+                birth={
+                  <RecordBirthLineV1
+                    client={client}
+                    reader={reader}
+                    account={account}
+                    scopeVersion={context?.accountsScopeVersion}
+                  />
+                }
+              />
               <RecordSealsV1 reader={reader} accountId={shown.accountId} />
             </div>
             <StudentPhotoPanelV1
@@ -413,68 +487,26 @@ function AccountDetailBodyV1({
                 <dt>Sessões ativas</dt>
                 <dd>{shown.validSessionCount}</dd>
               </div>
+              <div>
+                <dt>Vínculo</dt>
+                <dd>{accountLinkLabelV1(shown)}</dd>
+              </div>
+              <div>
+                <dt>Regra de acesso</dt>
+                <dd>{accountAccessOriginV1(shown.access.source, describeScope)}</dd>
+              </div>
             </dl>
-            <div className="flex items-center gap-2 text-xs text-muted">
-              <span>{accountLinkLabelV1(shown)}</span>
-              <Tooltip>
-                <Tooltip.Trigger>Origem do acesso</Tooltip.Trigger>
-                <Tooltip.Content>
-                  {accountAccessOriginV1(shown.access.source, describeScope)}
-                </Tooltip.Content>
-              </Tooltip>
-            </div>
           </>
         )}
         {account && context && (
           <>
             <ReadOnlyNoticesV1 account={account} canWrite={canWrite} />
             <div className="pa-account-actions" role="group" aria-label="Ações de acesso">
-              {(slots?.credentials || onReprint) && (
-                <Button
-                  variant="secondary"
-                  isDisabled={
-                    !editable ||
-                    !accountCredentialPreparableV1(account) ||
-                    !account.firstAccess.qrIssued
-                  }
-                  onPress={() => {
-                    if (allowDraftNavigationV1()) {
-                      if (slots?.credentials) setActiveSlot('credentials');
-                      else onReprint?.(context);
-                    }
-                  }}
-                >
-                  Reimprimir QR atual
-                </Button>
-              )}
-              {(
-                [
-                  'qr-regenerate',
-                  account.blocked ? 'unblock' : 'block',
-                  'password-reset',
-                  'account-reset',
-                ] as AccountActionV1[]
-              ).map((action) => (
-                <Button
-                  key={action}
-                  variant={action === 'account-reset' ? 'danger' : 'secondary'}
-                  isDisabled={
-                    !editable ||
-                    ((['password-reset', 'account-reset'].includes(action) ||
-                      (action === 'qr-regenerate' && account.state !== 'active')) &&
-                      !account.firstAccess.recoveryReady)
-                  }
-                  onPress={() =>
-                    setReview({
-                      action,
-                      command: accountCommandV1(account, action),
-                      name: account.name || 'Nome indisponível',
-                    })
-                  }
-                >
-                  {ACCOUNT_ACTIONS_V1[action].label}
-                </Button>
-              ))}
+              {/* Order and colours chosen by the owner (10/11/2026): the everyday action first,
+                  in green; none in red. The QR actions live in the QR code tab. */}
+              {actionButton(account, 'password-reset', 'primary', 'pa-action-success')}
+              {actionButton(account, account.blocked ? 'unblock' : 'block')}
+              {actionButton(account, 'account-reset')}
             </div>
             {Object.keys(slots ?? {}).length ? (
               <Tabs
@@ -576,6 +608,8 @@ function RecordSealsV1({ reader, accountId }: Readonly<{ reader: AccountDetailPr
   const seals = useSealCountsV1(reader, { accountId });
   const count = seals.state === 'ready' ? seals.counts.get(accountId) : undefined;
   if (count === undefined || count === null) return null;
+  // No seal yet: plain grey text, the gold is kept for a real seal (owner request 10/11/2026).
+  if (count === 0) return <span className="pa-record-seals pa-record-seals--none">Sem selos</span>;
   return (
     <span className="pa-record-seals">
       <Star size={16} fill="currentColor" aria-hidden="true" />

@@ -21,8 +21,8 @@ Buscas de consumidor neste mapa **excluem `Aprendizados/**` como autoridade oper
 
 | Artefato | Estado | Consumidores vivos observados | Evidência/testes | Condição de retirada |
 | --- | --- | --- | --- | --- |
-| `import-persistence-transport-v1.ts` | COMPATIBILITY | base importada por v2/v3/v4 e tipos ainda usados na cadeia de source/import | testes de source/result/persistence | somente após retirar todos os derivados que importam v1 |
-| `import-persistence-transport-v2.ts` | COMPATIBILITY | v3/v4/v9 | cadeia de importação V9 | somente após v9 e derivados deixarem de importar seus tipos |
+| `import-persistence-transport-v1.ts` | REMOVIDO 10/11/2026 | — | só v2 usava 4 tipos de contagem | contagens movidas para a v9 |
+| `import-persistence-transport-v2.ts` | REMOVIDO 10/11/2026 | — | v9 usava só o tipo do resumo | resumo movido para a v9 |
 | `import-persistence-transport-v3.ts` | COMPATIBILITY | v4, `spreadsheet-recognizer.ts`, `academic-result-projection-v1.ts` | testes de projeção/source | migrar consumidores diretos antes |
 | `import-persistence-transport-v4.ts` | COMPATIBILITY | v5, `canonical-import-v9.ts`, diagnósticos e recognizer | testes de importação atuais | migrar consumidores diretos antes |
 | `import-persistence-transport-v5.ts` | COMPATIBILITY | v6 | cadeia de transportes | retirar somente após v6 deixar de depender |

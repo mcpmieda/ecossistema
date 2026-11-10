@@ -27,6 +27,8 @@ function dispose(value: Confirmation | null) {
   if (value.portraitUrl) URL.revokeObjectURL(value.portraitUrl);
   if (value.avatarUrl) URL.revokeObjectURL(value.avatarUrl);
 }
+/** Opening the record never shows a write failure nobody asked for (owner request 10/11/2026). */
+const READ_FAILED_V1 = 'Não foi possível carregar a foto agora.';
 function messageFor(error: unknown) {
   if (error instanceof PhotoAdminClientErrorV1) {
     if (error.code === 'forbidden') return 'Sua permissão não permite alterar esta foto.';
@@ -34,7 +36,7 @@ function messageFor(error: unknown) {
     if (error.code === 'too-large') return 'O WebP final ficou grande demais. Escolha 600 px ou outra qualidade no editor.';
     if (error.code === 'conflict' || error.code === 'busy') return 'A foto mudou ou existe uma operação pendente. Atualize os dados antes de continuar.';
   }
-  return 'Não foi possível confirmar a operação. A foto anterior não será substituída sem confirmação do servidor.';
+  return 'A foto não foi salva. A anterior continua valendo.';
 }
 
 /** Removing a photo asks first; closing it while nothing runs cancels. */
@@ -61,6 +63,8 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
   const [canWrite, setCanWrite] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  // Only a failed read (or a stale state) offers "Tentar de novo"; success texts never do.
+  const [readFailed, setReadFailed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [initialPhoto, setInitialPhoto] = useState<Blob>();
   const [kind, setKind] = useState<'replace' | 'avatar'>('replace');
@@ -92,7 +96,8 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
         setCanWrite(false);
         return;
       }
-      setMessage(messageFor(error));
+      setReadFailed(true);
+      setMessage(READ_FAILED_V1);
     });
     return () => { controller.abort(); dispose(ownedConfirmation.current); ownedConfirmation.current = null; };
   // The keyed parent fixes the subject for the lifetime of this session.
@@ -101,9 +106,14 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
   async function run(operation: (signal: AbortSignal) => Promise<void>) {
     if (working.current) return;
     const signal = active.current.signal;
-    working.current = true; setBusy(true); setMessage('');
+    working.current = true; setBusy(true); setMessage(''); setReadFailed(false);
     try { signal.throwIfAborted(); await operation(signal); }
-    catch (error) { if (!signal.aborted) setMessage(messageFor(error)); }
+    catch (error) {
+      if (signal.aborted) return;
+      setMessage(messageFor(error));
+      // "Atualize os dados antes de continuar" needs the button that re-reads them.
+      if (error instanceof PhotoAdminClientErrorV1 && (error.code === 'conflict' || error.code === 'busy')) setReadFailed(true);
+    }
     finally { working.current = false; if (!signal.aborted) setBusy(false); }
   }
   function openEditor(mode: 'replace' | 'avatar') {
@@ -220,9 +230,11 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
         {canWrite && catalog?.pendingRequest ? <Button size="sm" isDisabled={busy} onPress={recover}>
           <RotateCw size={15} aria-hidden="true" /> Concluir operação
         </Button> : null}
-        <Button size="sm" variant="tertiary" isDisabled={busy} onPress={() => void run(async signal => { await refresh(signal); })} aria-label="Atualizar estado da foto">
-          <RotateCw size={15} aria-hidden="true" />
-        </Button>
+        {readFailed ? <Button size="sm" variant="tertiary" isDisabled={busy} onPress={() => void run(async signal => {
+          try { await refresh(signal); } catch { if (!signal.aborted) { setReadFailed(true); setMessage(READ_FAILED_V1); } }
+        })}>
+          <RotateCw size={15} aria-hidden="true" /> Tentar de novo
+        </Button> : null}
       </div>
     </div>
     {busy ? <output aria-live="polite">Processando foto…</output> : null}

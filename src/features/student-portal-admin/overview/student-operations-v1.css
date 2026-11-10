@@ -243,7 +243,8 @@
   padding: 0;
 }
 .pa-overview-hero,
-.pa-overview-population {
+.pa-overview-population,
+.pa-overview-classes {
   border-radius: var(--radius-3xl);
   background: var(--surface);
   box-shadow: var(
@@ -334,9 +335,24 @@
   height: 2rem;
   border-radius: var(--radius-2xl);
 }
-.pa-overview-population {
+.pa-overview-population,
+.pa-overview-classes {
   display: grid;
   gap: 0.75rem;
+}
+/* On a phone the table scrolls sideways: the class name stays in view. */
+.pa-overview-classes .table__content :is(th, td):first-child {
+  position: sticky;
+  white-space: nowrap;
+  inset-inline-start: 0;
+  z-index: 1;
+}
+.pa-overview-classes .table__content th:first-child {
+  z-index: 3;
+  background: var(--surface-secondary);
+}
+.pa-overview-classes .table__content td:first-child {
+  background: var(--surface);
 }
 .pa-overview-population-head {
   display: flex;
