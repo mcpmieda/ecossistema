@@ -42,7 +42,12 @@ export const adminReadQueryV2 = z.object({
   sessionView: z.enum(['active', 'history']).optional(),
   accountIds: z.array(portalIdV1).min(1).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2)
     .refine((ids) => new Set(ids.map((id) => id.toLowerCase())).size === ids.length).optional(),
+  // Visão geral (10/11/2026): only a client that asks gets the per-class totals, so a tab opened
+  // before the deploy keeps reading the summary it knows.
+  byClass: z.literal(true).optional(),
 }).strict()
+  .refine((value) => value.byClass === undefined ||
+    (value.operation === 'overview' && value.scope.kind === 'school'), 'Per-class totals are only read for the school overview')
   .refine((value) => value.accountIds === undefined ||
     (value.operation === 'seals-read' && value.scope.kind === 'school'), 'Account batches are only valid for school seals')
   .refine((value) => value.operation === 'accounts-read' || value.page.limit <= 100,

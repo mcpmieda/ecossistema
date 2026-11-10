@@ -25,7 +25,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function openRecord() {
+async function openRecord(
+  slots: Parameters<typeof AccountDetailV1>[0]['slots'] = {
+    credentials: () => <span>QR</span>,
+    sessions: () => <span>Sessões</span>,
+  },
+) {
   const mock = accountsMockV1();
   render(
     <LiveRefreshAutomaticV1Provider enabled={false}>
@@ -35,7 +40,7 @@ async function openRecord() {
         parentScope={mock.props.scope}
         onClose={vi.fn()}
         onChanged={vi.fn()}
-        slots={{ credentials: () => <span>QR</span>, sessions: () => <span>Sessões</span> }}
+        slots={slots}
       />
     </LiveRefreshAutomaticV1Provider>,
   );
@@ -67,7 +72,8 @@ it('ficha: vínculo e regra no resumo, sem aba Nascimento', async () => {
   expect(screen.getByText('Regra de acesso')).toBeTruthy();
   expect(screen.queryByText('Origem do acesso')).toBeNull();
   expect(screen.queryByRole('tab', { name: 'Nascimento' })).toBeNull();
-  expect(screen.getByText(/^Nascimento/)).toBeTruthy();
+  // The line sits under the name; its values are covered by record-birth-v1.test.tsx.
+  expect(screen.getByText(/^Nascimento/).closest('.pa-account-identity')).toBeTruthy();
 });
 
 it('textos curtos da ficha', () => {
@@ -75,4 +81,10 @@ it('textos curtos da ficha', () => {
   expect(birthStateLabelV1({ year: null, confirmation: null } as never)).toBe('Aguardando Relatório');
   expect(birthStateLabelV1({ year: 2013, confirmation: 'confirmed' } as never)).toBe('Confirmado');
   expect(accountLinkLabelV1({ linkClosed: true } as never)).toBe('Encerrado no Portal');
+});
+
+it('ficha sem aba de QR abre na primeira aba que existe', async () => {
+  await openRecord({ sessions: () => <span>Painel de sessões</span> });
+  expect(screen.getByRole('tab', { name: 'Sessões' }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByText('Painel de sessões')).toBeTruthy();
 });

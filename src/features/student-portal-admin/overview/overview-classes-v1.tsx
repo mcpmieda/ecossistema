@@ -1,6 +1,5 @@
 import { Chip, Table } from '@heroui/react';
 import type { AdminReadResponseV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
-import { InfoV1 } from '../shared/info-v1';
 
 type OverviewV2 = Extract<AdminReadResponseV2, { state: 'overview' }>;
 type ClassRowV1 = NonNullable<OverviewV2['classes']>[number];
@@ -67,12 +66,7 @@ export function OverviewClassesV1({
   const rows = overviewClassRowsV1(classes, labels);
   return (
     <section className="pa-overview-classes pa-rise" aria-labelledby="pa-overview-classes-title">
-      <div className="pa-overview-population-head">
-        <h3 id="pa-overview-classes-title">Por turma</h3>
-        <InfoV1 label="Sobre os totais por turma">
-          Os mesmos números do resumo da escola, separados por turma, lidos de uma só vez.
-        </InfoV1>
-      </div>
+      <h3 id="pa-overview-classes-title">Por turma</h3>
       <Table>
         <Table.ScrollContainer className="max-w-full overflow-x-auto">
           <Table.Content aria-label="Totais por turma" className="min-w-[640px]">

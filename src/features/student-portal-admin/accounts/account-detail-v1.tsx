@@ -86,6 +86,12 @@ const slotLabels = {
   audit: 'Auditoria',
   settings: 'Políticas',
 } as const;
+/** The tab a record opens on: the one asked for, else the first one this record has. */
+function startSlotV1(slots: AccountSlotsV1 | undefined, initialSlot?: keyof AccountSlotsV1) {
+  if (initialSlot && slots?.[initialSlot]) return initialSlot;
+  const first = (Object.keys(slotLabels) as (keyof AccountSlotsV1)[]).find((key) => slots?.[key]);
+  return first ?? 'credentials';
+}
 /** Why the last action failed, and what to do next. */
 function failureText(conflict: boolean, protectedFailure: boolean, retryable: boolean) {
   if (conflict) return 'A conta mudou. Recarregue e revise uma nova ação.';
@@ -118,7 +124,7 @@ export function AccountDetailV1(props: Readonly<AccountDetailPropsV1>) {
                 ':' +
                 props.canWrite +
                 ':' +
-                (props.initialSlot ?? 'credentials')
+                startSlotV1(props.slots, props.initialSlot)
               }
               {...props}
               saving={saving}
@@ -208,10 +214,10 @@ function AccountDetailBodyV1({
     name: string;
   } | null>(null);
   const [activeSlot, setActiveSlot] = useState<keyof AccountSlotsV1>(() =>
-    initialSlot && slots?.[initialSlot] ? initialSlot : 'credentials',
+    startSlotV1(slots, initialSlot),
   );
   const [openedSlots, setOpenedSlots] = useState<Set<keyof AccountSlotsV1>>(
-    () => new Set([initialSlot && slots?.[initialSlot] ? initialSlot : 'credentials']),
+    () => new Set([startSlotV1(slots, initialSlot)]),
   );
   useEffect(() => {
     setOpenedSlots((previous) =>
@@ -254,6 +260,7 @@ function AccountDetailBodyV1({
       </Button>
     );
   };
+  const qrPanel = useRef<HTMLDivElement>(null);
   const handledVersion = useRef<number | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const focused = useRef(false);
@@ -417,7 +424,8 @@ function AccountDetailBodyV1({
                 account={shown}
                 detail
                 birth={
-                  account && context ? (
+                  // Without an open link the birth read refuses the account: "Vínculo" says why.
+                  account && context && account.link && !account.linkClosed && account.classId !== null ? (
                     <RecordBirthV1
                       client={client}
                       reader={reader}
@@ -484,7 +492,15 @@ function AccountDetailBodyV1({
                   }
                   onPress={() => {
                     if (allowDraftNavigationV1()) {
-                      if (slots?.credentials) setActiveSlot('credentials');
+                      if (slots?.credentials) {
+                        setActiveSlot('credentials');
+                        // Already on that tab, the click still answers: the card comes into view.
+                        requestAnimationFrame(() => {
+                          const panel = qrPanel.current;
+                          panel?.scrollIntoView({ block: 'nearest' });
+                          panel?.focus({ preventScroll: true });
+                        });
+                      }
                       else onReprint?.(context);
                     }
                   }}
@@ -524,6 +540,7 @@ function AccountDetailBodyV1({
                     <Tabs.Panel
                       key={key}
                       id={key}
+                      ref={key === 'credentials' ? qrPanel : undefined}
                       shouldForceMount
                       className="pa-account-slot"
                       hidden={key !== activeSlot}

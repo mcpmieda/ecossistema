@@ -43,13 +43,17 @@ export function RecordBirthV1({
     [client, reader, account.accountId, account.version, scopeVersion],
   );
   const read = useAccountsReadV1(load);
-  let text = 'Nascimento: …';
-  if (read.state.state === 'error') text = 'Nascimento indisponível';
+  // The last line shown stays while a new version is read, so it never flickers to "…".
+  const shown = useRef('Nascimento: …');
+  if (read.state.state === 'error')
+    // A conflict means the year does not apply to this account, not that the read failed.
+    shown.current =
+      read.state.error.state === 'conflict' ? 'Nascimento: —' : 'Nascimento indisponível';
   else if (read.state.state === 'ready') {
     const birth = read.state.data;
-    text = birth
+    shown.current = birth
       ? `Nascimento: ${birth.year ?? '—'} · ${birthStateLabelV1(birth)}`
       : 'Nascimento: —';
   }
-  return <span className="pa-record-birth">{text}</span>;
+  return <span className="pa-record-birth">{shown.current}</span>;
 }

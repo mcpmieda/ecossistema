@@ -114,7 +114,7 @@ async function readAccountsV2(
           String(selected.at(-1)!.name)) : null,
       lastAuthenticationWindowMonths: 12,
     });
-  return overviewResponseV2(base, items, health!.status, query.scope.kind === 'school');
+  return overviewResponseV2(base, items, health!.status, query.byClass === true);
 }
 
 type SessionPolicyV2 = { id: string; security: number; end: string; persistent: number; short: number };

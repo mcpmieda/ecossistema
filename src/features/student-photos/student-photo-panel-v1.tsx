@@ -63,6 +63,8 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
   const [canWrite, setCanWrite] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  // Only a failed read (or a stale state) offers "Tentar de novo"; success texts never do.
+  const [readFailed, setReadFailed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [initialPhoto, setInitialPhoto] = useState<Blob>();
   const [kind, setKind] = useState<'replace' | 'avatar'>('replace');
@@ -94,6 +96,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
         setCanWrite(false);
         return;
       }
+      setReadFailed(true);
       setMessage(READ_FAILED_V1);
     });
     return () => { controller.abort(); dispose(ownedConfirmation.current); ownedConfirmation.current = null; };
@@ -103,9 +106,14 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
   async function run(operation: (signal: AbortSignal) => Promise<void>) {
     if (working.current) return;
     const signal = active.current.signal;
-    working.current = true; setBusy(true); setMessage('');
+    working.current = true; setBusy(true); setMessage(''); setReadFailed(false);
     try { signal.throwIfAborted(); await operation(signal); }
-    catch (error) { if (!signal.aborted) setMessage(messageFor(error)); }
+    catch (error) {
+      if (signal.aborted) return;
+      setMessage(messageFor(error));
+      // "Atualize os dados antes de continuar" needs the button that re-reads them.
+      if (error instanceof PhotoAdminClientErrorV1 && (error.code === 'conflict' || error.code === 'busy')) setReadFailed(true);
+    }
     finally { working.current = false; if (!signal.aborted) setBusy(false); }
   }
   function openEditor(mode: 'replace' | 'avatar') {
@@ -222,8 +230,8 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
         {canWrite && catalog?.pendingRequest ? <Button size="sm" isDisabled={busy} onPress={recover}>
           <RotateCw size={15} aria-hidden="true" /> Concluir operação
         </Button> : null}
-        {message ? <Button size="sm" variant="tertiary" isDisabled={busy} onPress={() => void run(async signal => {
-          try { await refresh(signal); } catch { if (!signal.aborted) setMessage(READ_FAILED_V1); }
+        {readFailed ? <Button size="sm" variant="tertiary" isDisabled={busy} onPress={() => void run(async signal => {
+          try { await refresh(signal); } catch { if (!signal.aborted) { setReadFailed(true); setMessage(READ_FAILED_V1); } }
         })}>
           <RotateCw size={15} aria-hidden="true" /> Tentar de novo
         </Button> : null}

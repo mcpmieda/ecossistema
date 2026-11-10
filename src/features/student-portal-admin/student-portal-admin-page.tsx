@@ -258,9 +258,10 @@ function sectionContentV1({
   onQr,
   selectedShift,
   onOpenCustomization,
-  classItems,
+  classLabels,
 }: {
-  classItems: readonly { id: number; label: string }[];
+  /** The class catalog, or null while it loads or after it failed. */
+  classLabels: readonly { id: number; label: string }[] | null;
   section: StudentPortalSection;
   common: PanelCommonV1;
   slots: ReturnType<typeof accountSlotsV1>;
@@ -319,7 +320,7 @@ function sectionContentV1({
     default:
       // Every class at once from the school summary (owner request 10/11/2026): no class tabs.
       return (
-        <StudentOverviewV1 {...common} scope={SCHOOL} scopeLabel="Escola" classLabels={classItems} />
+        <StudentOverviewV1 {...common} scope={SCHOOL} scopeLabel="Escola" classLabels={classLabels} />
       );
   }
 }
@@ -458,7 +459,7 @@ function PortalWorkspace({
     onQr: qr.accept,
     selectedShift,
     onOpenCustomization: openCustomization,
-    classItems,
+    classLabels: classRead.state.state === 'ready' ? classRead.state.data : null,
   });
   // Credentials open inside the Alunos area.
   const areaKey = section === 'credentials' ? 'accounts' : section;
@@ -466,6 +467,13 @@ function PortalWorkspace({
     <>
       {section === 'sessions' || section === 'settings' || section === 'overview' ? (
         <>
+          {section === 'overview' && classRead.state.state === 'error' ? (
+            <AccountsErrorV1
+              error={classRead.state.error}
+              canReload={classRead.canReload}
+              onReload={classRead.reload}
+            />
+          ) : null}
           {!common.canWrite && (
             <p className="text-xs text-muted">
               <output className="contents">Somente leitura</output>

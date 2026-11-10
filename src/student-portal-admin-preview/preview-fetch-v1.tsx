@@ -749,7 +749,7 @@ async function previewSchoolQueryV1(
         ...response,
         observedAt,
         counts: previewOverviewCountsV1(accounts),
-        ...(scope.kind === 'school'
+        ...(query.byClass
           ? {
               classes: classIds.map((classId) => ({
                 classId,

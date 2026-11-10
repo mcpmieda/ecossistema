@@ -340,9 +340,6 @@
   display: grid;
   gap: 0.75rem;
 }
-.pa-overview-classes h3 {
-  margin-inline-end: auto;
-}
 /* On a phone the table scrolls sideways: the class name stays in view. */
 .pa-overview-classes .table__content :is(th, td):first-child {
   position: sticky;

@@ -348,6 +348,25 @@ export function adminReadCasesV2(
         health: 'normal',
       });
       expect(get().calls()).toBeLessThanOrEqual(8);
+      expect('classes' in overview).toBe(false);
+      // Visão geral (10/11/2026): the school summary brings every class only when asked.
+      const school = await readApiV2(get().sql).query(
+        readContextV2(),
+        input({ operation: 'overview', scope: READ_SCHOOL_V2, byClass: true }),
+      );
+      if (school.state !== 'overview' || !school.classes) throw new Error('per-class totals missing');
+      expect(school.classes.reduce((sum, row) => sum + row.counts.accounts, 0)).toBe(
+        school.counts.accounts,
+      );
+      const plain = await readApiV2(get().sql).query(
+        readContextV2(),
+        input({ operation: 'overview', scope: READ_SCHOOL_V2 }),
+      );
+      expect(plain.state === 'overview' && plain.classes).toBeFalsy();
+      expect(
+        (await readApiV2(get().sql).query(readContextV2(), input({ operation: 'overview', byClass: true })))
+          .state,
+      ).toBe('invalid-request');
       await get().admin.unsafe('UPDATE student_portal.account SET blocked=true WHERE id=$1::uuid', [
         readAccountIdV2(1),
       ]);

@@ -24,7 +24,8 @@ function healthColor(health: string) {
   return health === 'attention' ? 'warning' : 'danger';
 }
 
-type OverviewPropsV1 = OperationsPropsV1 & { classLabels?: readonly ClassLabelV1[] };
+/** classLabels is null while the class catalog loads or after it failed: no table then. */
+type OverviewPropsV1 = OperationsPropsV1 & { classLabels?: readonly ClassLabelV1[] | null };
 
 export function StudentOverviewV1(props: Readonly<OverviewPropsV1>) {
   return (
@@ -84,17 +85,18 @@ function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
     async (signal: AbortSignal) => {
       const [overview, population] = await Promise.allSettled([
         props.reader.query(
-          { contractVersion: 2, operation: 'overview', scope: props.scope, page: { limit: 100 } },
+          {
+            contractVersion: 2,
+            operation: 'overview',
+            scope: props.scope,
+            page: { limit: 100 },
+            ...(props.scope.kind === 'school' ? { byClass: true as const } : {}),
+          },
           signal,
         ),
         props.scope.kind === 'school'
           ? props.client.query(
-              {
-                contractVersion: 1,
-                operation: 'population',
-                scope: props.scope,
-                page: { limit: 1 },
-              },
+              { contractVersion: 1, operation: 'population', scope: props.scope, page: { limit: 1 } },
               signal,
             )
           : Promise.resolve(null),
@@ -223,10 +225,10 @@ function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
               <>
                 <OverviewDashboardV1 counts={data.overview.counts} />
                 {data.overview.counts.accounts === 0 ? <p>Nenhuma conta neste recorte.</p> : null}
-                {data.overview.classes && data.overview.classes.length > 0 ? (
+                {data.overview.classes && data.overview.classes.length > 0 && props.classLabels ? (
                   <OverviewClassesV1
                     classes={data.overview.classes}
-                    labels={props.classLabels ?? []}
+                    labels={props.classLabels}
                   />
                 ) : null}
                 {data.population && (
@@ -286,10 +288,12 @@ function OverviewBodyV1(props: Readonly<OverviewPropsV1>) {
                 )}
               </>
             ) : (
-              <p role="alert">
-                Resumo indisponível para este escopo. Os totais não foram substituídos por zero.
-                Tente uma turma ou uma conta.
-              </p>
+              <div role="alert" className="pa-account-notice">
+                <p>Resumo indisponível. Os totais não foram substituídos por zero.</p>
+                <Button variant="secondary" isDisabled={!read.canReload} onPress={read.reload}>
+                  Consultar novamente
+                </Button>
+              </div>
             )}
           </>
         )}
