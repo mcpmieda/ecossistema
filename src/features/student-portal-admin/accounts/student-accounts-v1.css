@@ -570,3 +570,24 @@
     padding-inline: 0;
   }
 }
+/* "Por que está sem turma" in the record (owner request 10/11/2026). */
+.pa-record-origin > .card__content {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+.pa-record-origin h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.pa-record-origin ul {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+  list-style: disc;
+  display: grid;
+  gap: 0.2rem;
+}
+.pa-record-origin-conclusion {
+  font-weight: 600;
+}

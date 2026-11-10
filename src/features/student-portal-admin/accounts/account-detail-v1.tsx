@@ -28,6 +28,7 @@ import {
 } from './account-mutation-v1';
 import { useAccountsReadV1 } from './accounts-read-v1';
 import { RecordBirthV1 } from './record-birth-v1';
+import { RecordOriginV1 } from './record-origin-v1';
 import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import {
@@ -111,6 +112,16 @@ function RecordBirthLineV1({
   if (!account || scopeVersion === undefined) return null;
   if (!account.link || account.linkClosed || account.classId === null) return null;
   return <RecordBirthV1 client={client} reader={reader} account={account} scopeVersion={scopeVersion} />;
+}
+/** What the record may write now. Closing is for a record without a class, so it does not need
+ * a manageable account; every other action does. */
+function recordWriteV1(
+  writable: boolean,
+  account: AdminAccountReadV2 | null,
+  reviewing: AccountActionV1 | undefined,
+) {
+  const editable = writable && account !== null && accountManageableV1(account);
+  return { writable, editable, confirmable: reviewing === 'account-close' ? writable : editable };
 }
 /** Recovery actions (and a QR change on a not yet active account) wait for recovery data. */
 function accountActionBlockedV1(account: AdminAccountReadV2, action: AccountActionV1) {
@@ -337,7 +348,11 @@ function AccountDetailBodyV1({
   const [answered, setAnswered] = useState(false);
   if (!answered && !stillReadingV1(read.state.state)) setAnswered(true);
   const shown = account ?? listedAccountV1(waiting && !answered, known, accountId);
-  const editable = canWrite && !!account && accountManageableV1(account) && !pending && !failed;
+  const { writable, editable, confirmable } = recordWriteV1(
+    canWrite && !pending && !failed,
+    account,
+    review?.action,
+  );
   function refresh() {
     if (pending || (failed && Date.now() < mutation.retryAt)) return;
     writer.clear();
@@ -384,6 +399,9 @@ function AccountDetailBodyV1({
                 Conta redefinida: o QR anterior, a senha e as sessões foram invalidados. Reimprima o
                 QR atual e leia a nova imagem no Portal para voltar ao PIN.
               </p>
+            )}
+            {mutation.operation === 'account-close' && (
+              <p>Conta encerrada. Ela saiu da lista e dos totais; o registro fica na Auditoria.</p>
             )}
             {mutation.operation === 'password-reset' && (
               <p>
@@ -496,6 +514,12 @@ function AccountDetailBodyV1({
                 <dd>{accountAccessOriginV1(shown.access.source, describeScope)}</dd>
               </div>
             </dl>
+            <RecordOriginV1
+              reader={reader}
+              account={account}
+              canWrite={writable}
+              onClose={(target) => openReview(target, 'account-close')}
+            />
           </>
         )}
         {account && context && (
@@ -584,9 +608,9 @@ function AccountDetailBodyV1({
                 </Button>
                 <Button
                   variant="danger"
-                  isDisabled={!review || !editable}
+                  isDisabled={!review || !confirmable}
                   onPress={() => {
-                    if (!review || !editable) return;
+                    if (!review || !confirmable) return;
                     const command = review.command;
                     setReview(null);
                     void writer.submit(command);

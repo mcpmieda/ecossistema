@@ -5,10 +5,10 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { AccountsReadPageV2 } from './accounts-client-v2';
 
 export type AccountActionV1 =
-  'block' | 'unblock' | 'password-reset' | 'account-reset' | 'qr-regenerate';
+  'block' | 'unblock' | 'password-reset' | 'account-reset' | 'qr-regenerate' | 'account-close';
 export type AccountCommandV1 = Extract<
   AdminCommandV1,
-  { operation: 'block' | 'password-reset' | 'account-reset' | 'qr-regenerate' }
+  { operation: 'block' | 'password-reset' | 'account-reset' | 'qr-regenerate' | 'account-close' }
 >;
 export const ACCOUNT_ACTIONS_V1: Record<AccountActionV1, { label: string; description: string }> = {
   block: {
@@ -35,6 +35,11 @@ export const ACCOUNT_ACTIONS_V1: Record<AccountActionV1, { label: string; descri
     label: 'Mudar QR',
     description:
       'Invalida o QR atual, gera outro e revoga as sessões. Preserva a senha, o estado de autenticação, o nascimento e o vínculo acadêmico.',
+  },
+  'account-close': {
+    label: 'Encerrar conta',
+    description:
+      'Encerra esta conta do Portal. Ela sai da lista e dos totais; o registro fica na Auditoria. Não apaga nada do Banco de Notas.',
   },
 };
 /** The record's "Vínculo" fact, short (owner request 10/11/2026). */
@@ -87,7 +92,12 @@ export function accountCommandV1(
   account: AdminAccountReadV2,
   action: AccountActionV1,
 ): AccountCommandV1 {
-  if (!accountManageableV1(account)) throw new PortalClientErrorV1('invalid-request');
+  // Closing is for a record without a class; the server checks again under lock.
+  const allowed =
+    action === 'account-close'
+      ? !account.linkClosed && account.classId === null
+      : accountManageableV1(account);
+  if (!allowed) throw new PortalClientErrorV1('invalid-request');
   const base = {
     contractVersion: 1 as const,
     accountId: account.accountId,

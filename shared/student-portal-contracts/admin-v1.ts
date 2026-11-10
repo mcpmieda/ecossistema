@@ -30,6 +30,8 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...account, operation: z.literal('qr-regenerate'), confirmed: z.literal(true) }).strict(),
   z.object({ ...account, operation: z.literal('password-reset'), confirmed: z.literal(true) }).strict(),
   z.object({ ...account, operation: z.literal('account-reset'), confirmed: z.literal(true) }).strict(),
+  // Encerrar conta (owner request 10/11/2026): only a record with no class this year, never used.
+  z.object({ ...account, operation: z.literal('account-close'), confirmed: z.literal(true) }).strict(),
   z.object({ ...account, operation: z.literal('block'), blocked: z.boolean(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('sessions-revoke'), scope: scopeV1, sessionId: portalIdV1.optional(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('birth-write'), item: birthWriteV1, includeSavedBirth: z.literal(true).optional() }).strict(),

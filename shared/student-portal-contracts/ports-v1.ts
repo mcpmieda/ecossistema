@@ -64,6 +64,11 @@ export interface PortalTransactionV1 {
   appendAudit(event: z.infer<typeof auditEventV1>): Promise<void>;
   compareAndSetSettings(settings: EffectiveSettingsV1, expectedVersion: number): Promise<boolean>;
   closeAcademicLinks(year: 2026, expectedCount: number, closedAt: string): Promise<number>;
+  closeUnusedAccountLink(
+    accountId: string,
+    expectedVersion: number,
+    closedAt: string,
+  ): Promise<{ studentId: number; version: number }>;
   appendRevision(event: RevisionEventV1): Promise<void>;
   enqueuePublication(job: PublicationJobV1): Promise<'created' | 'existing'>;
 }

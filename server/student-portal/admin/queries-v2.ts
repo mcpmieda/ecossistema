@@ -1,5 +1,6 @@
 import { readCustomizationsV1 } from './customizations-read-v1';
 import { readClosingPreviewV2 } from './closing-preview-v2';
+import { readAccountOriginV1 } from './account-closure-v1';
 import { readSettingsOverridesV1 } from './settings-overrides-v1';
 import { readShiftsV1 } from './shifts-read-v1';
 import { readSealsV1 } from './seals-read-v1';
@@ -42,6 +43,7 @@ export async function readAdminV2(
   pendingSealWrites?: SealCacheWriteV1[],
 ) {
   if (query.operation === 'closing-preview') return readClosingPreviewV2(tx, query, requestId, now);
+  if (query.operation === 'account-origin') return readAccountOriginV1(tx, query, requestId, now);
   if (query.operation === 'customizations-read')
     return readCustomizationsV1(tx, query, actor, requestId, now, cursor);
   if (query.operation === 'settings-overrides')

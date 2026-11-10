@@ -14,11 +14,12 @@ export const ACCOUNT_JOIN_V1 = `FROM student_portal.account a
       AND status IS DISTINCT FROM 6) b ON b.matches=1`;
 /** The admin lists and operations show only em curso, especial and estava no (owner decision,
  * 26/09/2026): assistido (2), desistente (3), transferido (4) and falecido (5) are hidden. "Foi
- * para" (6) is already history outside the class binding. Needs the `a` account alias.
+ * para" (6) is already history outside the class binding. A closed account leaves lists and
+ * totals too (owner decision 10/11/2026); the audit keeps its closure. Needs the `a` alias.
  */
-export const ENROLLED_ACCOUNT_SQL_V1 = `NOT EXISTS(SELECT 1 FROM student_portal.academic_binding_v1 exit_b
+export const ENROLLED_ACCOUNT_SQL_V1 = `(a.closed_at IS NULL AND NOT EXISTS(SELECT 1 FROM student_portal.academic_binding_v1 exit_b
   WHERE exit_b.student_id=a.gradebook_student_id AND exit_b.academic_year=a.academic_year
-    AND exit_b.status IN (2,3,4,5))`;
+    AND exit_b.status IN (2,3,4,5)))`;
 export const studentNameOrderSqlV1 = (value: string) =>
   `translate(lower(${value}),'áàâãäéèêëíìîïóòôõöúùûüç','aaaaaeeeeiiiiooooouuuuc') COLLATE "C"`;
 function accountFilter(query: AdminQueryV1, parameters: unknown[]): string {
