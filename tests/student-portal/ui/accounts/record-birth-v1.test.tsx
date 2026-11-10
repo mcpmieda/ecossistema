@@ -28,7 +28,7 @@ it('mostra o ano lido e não repete a consulta com a mesma conta', async () => {
   ui.rerender(view(mock));
   ui.rerender(view(mock));
   ui.rerender(view(mock));
-  expect(mock.queries.length).toBe(reads);
+  expect(mock.queries).toHaveLength(reads);
   expect(mock.writes).toHaveLength(0);
 });
 

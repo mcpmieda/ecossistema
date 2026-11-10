@@ -258,6 +258,8 @@
 .pa-student-drawer .pa-account-detail {
   box-shadow: none;
   border: 0;
+  /* Narrower margins in the record (owner request 10/11/2026). */
+  padding: 0.5rem;
 }
 /* Only the record's own header shows the large photo; rows inside its tabs keep small avatars. */
 .pa-student-drawer .pa-account-identity--detail .pa-student-avatar {
@@ -553,18 +555,13 @@
 .drawer__dialog.pa-student-drawer {
   padding: 0.75rem;
 }
-.pa-student-drawer .pa-account-detail {
-  padding: 0.5rem;
-}
 @media (max-width: 640px) {
   .drawer__dialog.pa-student-drawer {
     padding: 0.5rem;
   }
-  .pa-student-drawer .pa-account-detail {
+  .pa-student-drawer .drawer__body .pa-account-detail {
     padding: 0.25rem;
   }
-}
-@media (max-width: 640px) {
   /* Phones: the body and the card add no side margin of their own. */
   .pa-student-drawer .drawer__body {
     padding-inline: 0.25rem;

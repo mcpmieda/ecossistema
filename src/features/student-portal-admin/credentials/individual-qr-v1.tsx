@@ -332,7 +332,7 @@ export function IndividualQrV1(
               <h4>QR puro</h4>
               {/* Every QR button in one row (owner request 10/11/2026); "Imprimir QR" is the
                   reprint of the current QR. */}
-              <div className="pa-individual-qr-actions" role="group" aria-label="Ações do QR">
+              <div className="pa-individual-qr-actions">
                   <Button onPress={() => operation.download(qrFilenameV1(account?.name, 'png'))}>
                     Baixar QR
                   </Button>

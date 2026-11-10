@@ -95,6 +95,14 @@ function startSlotV1(slots: AccountSlotsV1 | undefined, initialSlot?: keyof Acco
   const first = keys.find((key) => key !== 'credentials' && slots?.[key]);
   return first ?? 'credentials';
 }
+/** Recovery actions (and a QR change on a not yet active account) wait for recovery data. */
+function accountActionBlockedV1(account: AdminAccountReadV2, action: AccountActionV1) {
+  const needsRecovery =
+    action === 'password-reset' ||
+    action === 'account-reset' ||
+    (action === 'qr-regenerate' && account.state !== 'active');
+  return needsRecovery && !account.firstAccess.recoveryReady;
+}
 /** Why the last action failed, and what to do next. */
 function failureText(conflict: boolean, protectedFailure: boolean, retryable: boolean) {
   if (conflict) return 'A conta mudou. Recarregue e revise uma nova ação.';
@@ -234,11 +242,7 @@ function AccountDetailBodyV1({
   );
   /** One access action, opened for review first. */
   const actionDisabled = (action: AccountActionV1) =>
-    !account ||
-    !editable ||
-    ((['password-reset', 'account-reset'].includes(action) ||
-      (action === 'qr-regenerate' && account.state !== 'active')) &&
-      !account.firstAccess.recoveryReady);
+    !account || !editable || accountActionBlockedV1(account, action);
   const openReview = (action: AccountActionV1) => {
     if (!account) return;
     setReview({
