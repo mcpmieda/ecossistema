@@ -402,6 +402,40 @@ describe('frequency V2 private PostgreSQL service', () => {
       ),
     ).rejects.toMatchObject({ code: 'identity-review', detail: 'class-not-linked' });
   });
+  it('a report row kept "Somente no Smecel" is neither counted nor listed as unrecognized', async () => {
+    const records = [
+      { recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '6A' },
+      { recordKey: 'r9', originalName: 'ALUNO SO NO SMECEL', originalClass: '6A' },
+    ];
+    // In the report with no student in the Relação: listed until it is marked.
+    await pg.exec(`INSERT INTO gradebook.student_source_record_v1(id,academic_year,review_required) VALUES('50000000-0000-4000-8000-000000000009',2026,true);
+      INSERT INTO gradebook.student_source_observation_v1(id,academic_year,source_id,report_class_id,name_key,birth_date,enrolled_at)
+      VALUES('60000000-0000-4000-8000-000000000009',2026,'50000000-0000-4000-8000-000000000009','40000000-0000-4000-8000-000000000001','ALUNO SO NO SMECEL','2014-03-01','2026-01-01');`);
+    expect(await service.execute(collection({ records }), actor)).toMatchObject({
+      resolvedRecords: 1,
+      unresolvedRecords: 1,
+    });
+    expect((await status()).unresolved).toEqual([
+      expect.objectContaining({ name: 'ALUNO SO NO SMECEL', reason: 'ambiguous' }),
+    ]);
+    // Marked: it leaves the list at once, and the next collection does not count it.
+    await pg.exec(
+      `UPDATE gradebook.student_source_record_v1 SET smecel_only=true WHERE id='50000000-0000-4000-8000-000000000009'`,
+    );
+    expect((await status()).unresolved).toEqual([]);
+    expect(
+      await service.execute(
+        collection({ records, expectedRevision: 1, observedAt: '2026-01-11T12:00:00Z', sourceVersion: `sha256:${'b'.repeat(64)}` }),
+        actor,
+      ),
+    ).toMatchObject({ resolvedRecords: 1, unresolvedRecords: 0 });
+    const [state] = (
+      await pg.query<{ unresolved: unknown[] }>(
+        `SELECT unresolved_json AS unresolved FROM attendance.class_state_v2 WHERE class_id=101`,
+      )
+    ).rows;
+    expect(state?.unresolved).toEqual([]);
+  });
   it('the seven-day failure trail keeps computer reports and collapses repeats', async () => {
     const report = (status: string, code: string | null) =>
       execute('heartbeat', { fencingToken: token, status, classId: null, code }, actor);

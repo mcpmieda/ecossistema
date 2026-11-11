@@ -132,6 +132,15 @@ export const reconciliationRequestV1 = z.discriminatedUnion('operation', [
       nameSource: z.enum(['relation', 'report']),
     })
     .strict(),
+  /** A report row with no student in the Relação kept only in the Smecel: no notice until it is. */
+  z
+    .object({
+      ...mutation,
+      operation: z.literal('smecel-only'),
+      sourceId: z.uuid(),
+      smecelOnly: z.boolean(),
+    })
+    .strict(),
 ]);
 export type ReconciliationRequestV1 = z.infer<typeof reconciliationRequestV1>;
 export type ReconciliationMutationV1 = Extract<
@@ -487,4 +496,9 @@ export type ReconciliationSourceResolutionV1 =
       decisionVersion: number;
       observationIds: string[];
     }
-  | { state: 'ambiguous' | 'not_found'; decisionVersion: number };
+  | {
+      state: 'ambiguous' | 'not_found';
+      decisionVersion: number;
+      /** Every matching report row is marked "Somente no Smecel": expected, not a notice. */
+      smecelOnly?: boolean;
+    };

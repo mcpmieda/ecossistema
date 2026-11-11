@@ -78,6 +78,7 @@ describe('current Gradebook recovery catalog V1', () => {
       'gradebook-simplified/0015_student_reconciliation_v1.sql',
       'student-portal/0025_reconciliation_credentials_v1.sql',
       'gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
+      'gradebook-simplified/0018_smecel_only_source_v1.sql',
     ]);
     expect(GRADEBOOK_RECONCILIATION_TABLES_V1).toHaveLength(9);
     expect(new Set(GRADEBOOK_RECONCILIATION_TABLES_V1).size).toBe(9);

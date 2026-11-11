@@ -38,6 +38,7 @@ const statusV1: Record<string, string> = {
   sibling_candidate: 'Conferir identidade',
   no_match: 'Sem correspondência',
   profile_conflict: 'Escolher dados cadastrais',
+  smecel_only: 'Somente no Smecel',
 };
 const stateLabelV1 = (value: string) => statusV1[value] ?? 'Pendente';
 const dateLabelV1 = (value: string) =>
@@ -69,6 +70,7 @@ const historyActionV1: Record<string, string> = {
   'select-observation': 'Escolha dos dados',
   'class-link': 'Associação de turma',
   'name-source': 'Fonte do nome',
+  'smecel-only': 'Somente no Smecel',
 };
 const historyReasonV1: Record<string, string> = {
   operator: 'pelo operador',
@@ -589,6 +591,52 @@ interface PendingConfirmationV1 {
   readonly action: DecisionActionV1;
 }
 
+/**
+ * A report row with no student in the Relação that stays only in the Smecel: marked, it leaves the
+ * pending view, the Frequência's unrecognized list and the Coletor's notices. The next report that
+ * finds the student in the Relação links it as usual and clears the mark.
+ */
+function SmecelOnlyV1({
+  detail,
+  selected,
+  source,
+  busy,
+  mutate,
+}: Readonly<{
+  detail: DetailV1;
+  selected: ReconciliationListItemV1;
+  source: DetailV1['sources'][number];
+  busy: boolean;
+  mutate: MutateV1;
+}>) {
+  if (selected.kind !== 'external' || selected.sourceId !== source.id) return null;
+  const marked = selected.reason === 'smecel_only';
+  return (
+    <div className="w-full space-y-1">
+      <Button
+        size="sm"
+        variant="secondary"
+        isDisabled={busy}
+        onPress={() =>
+          void mutate({
+            ...reconciliationMutationV1(detail.context),
+            operation: 'smecel-only',
+            sourceId: source.id,
+            smecelOnly: !marked,
+          })
+        }
+      >
+        {marked ? 'Voltar a pendente' : 'Somente no Smecel'}
+      </Button>
+      <p className="text-xs text-muted">
+        {marked
+          ? 'Sem aviso enquanto não estiver na Relação. Quando entrar, é vinculado sozinho.'
+          : 'Para quem só será cadastrado no Smecel: tira o aviso e vincula sozinho se entrar na Relação.'}
+      </p>
+    </div>
+  );
+}
+
 function SourceActionsV1({
   detail,
   selected,
@@ -649,6 +697,7 @@ function SourceActionsV1({
             {actionLabelV1[action]}
           </Button>
         ))}
+        <SmecelOnlyV1 detail={detail} selected={selected} source={source} busy={busy} mutate={mutate} />
       </div>
     );
   const canSelectData =

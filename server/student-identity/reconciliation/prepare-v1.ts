@@ -393,6 +393,8 @@ export async function preparedResponseV1(
     `SELECT b.*, to_jsonb(b.differences) AS differences_value,
     (SELECT count(*)::integer FROM gradebook.student_report_pending_row_v1 WHERE batch_id=b.id) AS rows,
     (SELECT count(*)::integer FROM gradebook.student_report_pending_row_v1 WHERE batch_id=b.id AND target_uid IS NOT NULL) AS linked,
+    (SELECT count(*)::integer FROM gradebook.student_report_pending_row_v1 p JOIN gradebook.student_source_record_v1 s ON s.id=p.target_source_id
+      WHERE p.batch_id=b.id AND p.target_uid IS NULL AND s.smecel_only) AS smecel_only,
     expires_at>clock_timestamp() AS usable FROM gradebook.student_report_batch_v1 b WHERE id=$1::uuid`,
     [batchId],
   );
@@ -417,7 +419,8 @@ export async function preparedResponseV1(
     counts: {
       rows: Number(r.rows),
       linked: Number(r.linked),
-      pending: Number(r.rows) - Number(r.linked),
+      // Rows marked "Somente no Smecel" (gradebook-simplified 0018) are expected, not pending.
+      pending: Number(r.rows) - Number(r.linked) - Number(r.smecel_only),
     },
     credentialsReady: false,
   };

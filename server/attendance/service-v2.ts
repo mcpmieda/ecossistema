@@ -61,6 +61,8 @@ type StoredSource = {
   original_name: string;
   original_class: string;
   resolution: string;
+  /** Kept "Somente no Smecel" in the Conciliação: not counted nor listed as unrecognized. */
+  smecel_only?: boolean;
   student_uid: string | null;
   decision_version: number;
   source_ids_json: string[];
@@ -584,6 +586,15 @@ async function adminDiagnostics(tx: Tx, year: number) {
     WHERE s.academic_year=$1 ORDER BY s.class_id`,
     [year],
   );
+  // A row marked "Somente no Smecel" leaves the list at once, not only at the class's next new diary.
+  const smecelOnly = await tx.query<Row>(
+    `SELECT DISTINCT c.gradebook_class_id AS class_id,o.name_key FROM gradebook.student_source_record_v1 r
+    JOIN gradebook.student_source_observation_v1 o ON o.source_id=r.id AND o.academic_year=r.academic_year
+    JOIN gradebook.student_report_class_v1 c ON c.id=o.report_class_id
+    WHERE r.academic_year=$1 AND r.smecel_only AND c.gradebook_class_id IS NOT NULL`,
+    [year],
+  );
+  const expected = new Set(smecelOnly.map((r) => `${Number(r.class_id)}:${text(r.name_key)}`));
   const failures = await tx.query<Row>(
     `SELECT first_at::text,last_at::text,occurrences,origin,operation,code,detail,device_id::text,class_id
     FROM attendance.failure_v2 WHERE last_at>clock_timestamp()-make_interval(days=>$1)
@@ -602,7 +613,9 @@ async function adminDiagnostics(tx: Tx, year: number) {
       shift: text(c.shift),
       marks: json<Mark[]>(c.marks_json),
     })),
-    unresolved: unresolved.map(unresolvedView),
+    unresolved: unresolved
+      .map(unresolvedView)
+      .filter((u) => !expected.has(`${u.classId}:${normalizeStudentNameV1(u.name)}`)),
     failures: failures.map(failureView),
   };
 }
@@ -914,6 +927,7 @@ function storedSourcesOf(input: FrequencyCollectionV2, resolutions: Resolution[]
       original_name: source.originalName,
       original_class: source.originalClass,
       resolution: resolved.state,
+      smecel_only: !ok && resolved.smecelOnly === true,
       student_uid: ok ? resolved.studentUid : null,
       decision_version: resolved.decisionVersion,
       source_ids_json: ok ? resolved.sourceIds : [],
@@ -1047,7 +1061,7 @@ export async function collectionEvents(tx: Tx, input: FrequencyCollectionV2, sou
 }
 function unresolvedOf(input: FrequencyCollectionV2, stored: StoredSource[]) {
   return stored
-    .filter((s) => s.resolution !== 'resolved')
+    .filter((s) => s.resolution !== 'resolved' && !s.smecel_only)
     .map((s) => ({
       name: s.original_name,
       classLabel: input.sourceClassLabel,
@@ -1128,7 +1142,9 @@ async function collect(
   ).rows;
   const storedSources = storedSourcesOf(input, resolutions);
   const resolvedRecords = storedSources.filter((s) => s.resolution === 'resolved').length;
-  const unresolvedRecords = storedSources.length - resolvedRecords;
+  const unresolvedRecords = storedSources.filter(
+    (s) => s.resolution !== 'resolved' && !s.smecel_only,
+  ).length;
   const changedSources = await changedSourceKeys(tx, input, storedSources);
   const deltaCoverage = await coverageDelta(tx, input, changedSources, cutoff);
   const events = await collectionEvents(

@@ -1153,3 +1153,78 @@ describe('Relatório e aba Alunos', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('Somente no Smecel', () => {
+  afterEach(cleanup);
+  it.each([
+    { reason: 'source_review', button: 'Somente no Smecel', smecelOnly: true, state: 'Revisão necessária' },
+    { reason: 'smecel_only', button: 'Voltar a pendente', smecelOnly: false, state: 'Somente no Smecel' },
+  ])('marks a report row without a link ($reason)', async ({ reason, button, smecelOnly, state }) => {
+    const request = vi.fn(
+      async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
+        if (input.operation === 'catalog')
+          return { contractVersion: 1, state: 'ready', operation: 'catalog', context, classes: [], reportClasses: [] };
+        if (input.operation === 'detail')
+          return {
+            contractVersion: 1,
+            state: 'ready',
+            operation: 'detail',
+            context,
+            selectedObservationId: null,
+            sources: [
+              {
+                id: sourceId,
+                observationId: batchId,
+                name: 'Aluno só do Smecel',
+                classLabel: '6D',
+                birthDate: '2013-03-22',
+                filiation1: null,
+                inep: null,
+                studentUid: null,
+                version: 1,
+                decisionId: null,
+                reviewRequired: true,
+              },
+            ],
+            candidates: [],
+            history: [],
+          };
+        if (input.operation === 'smecel-only')
+          return { contractVersion: 1, state: 'committed', context, operationId: '12690000-0000-4000-8000-000000000031' };
+        return {
+          contractVersion: 1,
+          state: 'ready',
+          operation: 'list',
+          context,
+          nextCursor: null,
+          items: [
+            {
+              kind: 'external',
+              id: sourceId,
+              sourceId,
+              batchId,
+              name: 'Aluno só do Smecel',
+              classLabel: '6D',
+              reason,
+              expiresAt: null,
+              warning: false,
+              sourceRow: null,
+            },
+          ],
+        };
+      },
+    );
+    render(<StudentReconciliationV1 client={{ request }} scope={{ kind: 'school', academicYear: 2026 }} canWrite />);
+    expect(await screen.findByText(state)).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Aluno só do Smecel' }));
+    fireEvent.click(await screen.findByRole('button', { name: button }));
+    await waitFor(() =>
+      expect(request.mock.calls.find(([input]) => input.operation === 'smecel-only')?.[0]).toMatchObject({
+        sourceId,
+        smecelOnly,
+        generation: context.generation,
+        expectedRevision: context.revision,
+      }),
+    );
+  });
+});

@@ -42,7 +42,9 @@ async function activateReportRowsV1(
     SELECT target_source_id,academic_year,batch_id,target_uid IS NULL,pending_reason
     FROM gradebook.student_report_pending_row_v1 WHERE batch_id=$1::uuid
     ON CONFLICT(id) DO UPDATE SET last_batch_id=EXCLUDED.last_batch_id,review_required=EXCLUDED.review_required,
-      pending_reason=EXCLUDED.pending_reason,version=student_source_record_v1.version+1`,
+      pending_reason=EXCLUDED.pending_reason,version=student_source_record_v1.version+1,
+      -- "Somente no Smecel" (gradebook-simplified 0018) lasts until the Relação has the student.
+      smecel_only=student_source_record_v1.smecel_only AND EXCLUDED.review_required`,
     [batchId],
   );
   await tx.executeNative(
