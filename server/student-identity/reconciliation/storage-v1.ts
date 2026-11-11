@@ -165,7 +165,7 @@ export async function loadDomainV1(tx: TxV1, year: number) {
     }));
   const observations = await tx.query(
     `SELECT o.*,o.birth_date::text,o.enrolled_at::text,o.transferred_at::text,
-    c.label AS class_label,c.class_key,c.stage,c.gradebook_class_id,r.current_observation_id::text,r.review_required AS source_review,
+    c.label AS class_label,c.class_key,c.stage,c.gradebook_class_id,r.current_observation_id::text,r.review_required AS source_review,r.smecel_only,
     l.student_uid::text,l.review_required AS link_review,(p.observation_id=o.id AND NOT p.review_required) AS profile_selected FROM gradebook.student_source_observation_v1 o
     JOIN gradebook.student_report_class_v1 c ON c.id=o.report_class_id
     JOIN gradebook.student_source_record_v1 r ON r.id=o.source_id
@@ -188,6 +188,7 @@ export async function loadDomainV1(tx: TxV1, year: number) {
       studentUid: nullableTextV1(current.student_uid),
       profileSelected: boolV1(current.profile_selected),
       reviewRequired: boolV1(current.source_review) || boolV1(current.link_review),
+      smecelOnly: boolV1(current.smecel_only) && nullableTextV1(current.student_uid) === null,
       history: rows.filter((r) => r !== current).map(normalizedDbRowV1),
     };
   });

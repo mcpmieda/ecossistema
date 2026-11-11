@@ -14,6 +14,38 @@ import {
   type TxV1,
 } from './storage-v1';
 import { applyDecisionV1 } from './decisions-v1';
+import { normalizeStudentNameV1 } from '../../../shared/student-identity/reconciliation-normalization-v1';
+
+/**
+ * A row kept "Somente no Smecel" whose name is now in the Relação but in another class (a change of
+ * class the name and class rule cannot decide) returns to pending, so the operator links it.
+ */
+async function reviveSmecelOnlyV1(tx: TxV1, year: number): Promise<void> {
+  const kept = await tx.query(
+    `SELECT r.id::text,o.name_key FROM gradebook.student_source_record_v1 r
+    JOIN gradebook.student_source_observation_v1 o ON o.id=r.current_observation_id
+    LEFT JOIN gradebook.student_source_link_v1 l ON l.academic_year=r.academic_year AND l.source_id=r.id
+    WHERE r.academic_year=$1 AND r.smecel_only AND l.source_id IS NULL`,
+    [year],
+  );
+  if (!kept.length) return;
+  const names = new Set(
+    (
+      await tx.query(
+        `SELECT DISTINCT a.nome FROM gradebook.aluno a JOIN gradebook.vinculo v ON v.aluno_id=a.id AND v.ano=a.ano
+        WHERE a.ano=$1 AND v.situacao IS DISTINCT FROM 6`,
+        [year],
+      )
+    ).map((r) => normalizeStudentNameV1(String(r.nome))),
+  );
+  const revived = kept.filter((r) => names.has(String(r.name_key))).map((r) => String(r.id));
+  if (revived.length)
+    await tx.executeNative(
+      `UPDATE gradebook.student_source_record_v1 SET smecel_only=false,version=version+1
+      WHERE id IN(SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))`,
+      [JSON.stringify(revived)],
+    );
+}
 
 /** Classes, origins, observations, associations and links of a prepared report, in dependency order. */
 async function activateReportRowsV1(
@@ -121,7 +153,10 @@ export async function applyReportV1(
     [request.batchId],
   );
   if (batch.purpose === 'decision') await applyDecisionV1(tx, actorId, batch, context);
-  else await activateReportRowsV1(tx, actorId, request.batchId, context);
+  else {
+    await activateReportRowsV1(tx, actorId, request.batchId, context);
+    await reviveSmecelOnlyV1(tx, request.academicYear);
+  }
   await tx.executeNative(
     `UPDATE gradebook.student_report_profile_v1 p SET review_required=true,version=p.version+1
     WHERE p.academic_year=$2 AND EXISTS(SELECT 1 FROM gradebook.student_report_pending_row_v1 r
