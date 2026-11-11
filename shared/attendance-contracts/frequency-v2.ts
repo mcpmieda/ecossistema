@@ -108,6 +108,8 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('save-settings'), ...mutation, expectedRevision: revision, schedule: frequencyScheduleWriteV2 }).strict(),
   z.object({ operation: z.literal('save-report-settings'), ...mutation, expectedRevision: revision, reportSchedule: frequencyReportScheduleV2.nullable() }).strict(),
   z.object({ operation: z.literal('set-paused'), ...mutation, expectedRevision: revision, paused: z.boolean() }).strict(),
+  /** ADM only: the computer that sends the frequency while online; null = whichever asks first. */
+  z.object({ operation: z.literal('set-preferred-device'), ...mutation, expectedRevision: revision, deviceId: uid.nullable() }).strict(),
   z.object({ operation: z.literal('rename-device'), ...mutation, deviceId: uid, label: z.string().trim().min(1).max(80) }).strict(),
   z.object({ operation: z.literal('revoke-device'), ...mutation, deviceId: uid }).strict(),
   z.object({ operation: z.literal('lease'), ...mutation, durationSeconds: z.number().int().min(15).max(300) }).strict(),
@@ -202,7 +204,11 @@ export type FrequencyConflictV2 = {
 };
 export type FrequencyStatusV2 = {
   contractVersion: 2; state: 'ready'; academicYear: 2026; serverTime: string;
-  settings: { revision: number; paused: boolean; schedule: FrequencyScheduleV2 | null; reportSchedule?: FrequencyReportScheduleV2 | null };
+  settings: {
+    revision: number; paused: boolean; schedule: FrequencyScheduleV2 | null; reportSchedule?: FrequencyReportScheduleV2 | null;
+    /** The computer chosen in the ADM to send the frequency; null = whichever asks first. */
+    preferredDeviceId?: string | null;
+  };
   /** The last automatic student report (attendance 0015), or null before the first one. */
   studentReport?: FrequencyStudentReportStateV2 | null;
   lease: { deviceId: string; expiresAt: string; fencingToken: number } | null;

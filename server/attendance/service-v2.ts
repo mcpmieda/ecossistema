@@ -95,7 +95,15 @@ const iso = (v: unknown) => new Date(text(v)).toISOString();
 const DEVICE_ONLY = new Set(['lease', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'student-report-collect', 'student-report-unchanged', 'heartbeat', 'release']);
 /** Operations that write evidence under the live lease, as `collect` does. */
 const COLLECTING = new Set(['collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'student-report-collect', 'student-report-unchanged']);
-const ADMIN_ONLY = new Set(['revoke-device', 'resolve-conflict', 'monthly-summary']);
+const ADMIN_ONLY = new Set(['revoke-device', 'resolve-conflict', 'monthly-summary', 'set-preferred-device']);
+/**
+ * How long a reserve waits for the preferred computer (migrations/attendance/0019): past it, a
+ * preferred computer that took no lease since the reserve began waiting no longer holds the slot.
+ */
+const PREFERRED_GRACE_SECONDS_V2 = 180;
+/** A wait older than this belongs to an earlier slot and starts over. */
+const PREFERRED_WAIT_RESET_SECONDS_V2 = 1800;
+const PREFERRED_WAIT_DETAIL_V2 = 'preferred-device';
 const UNLEASED = new Set(['heartbeat', 'lease', 'release']);
 
 export class FrequencyErrorV2 extends Error {
@@ -653,6 +661,7 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
         row.report_schedule_json === null || row.report_schedule_json === undefined
           ? null
           : json<FrequencyReportScheduleV2>(row.report_schedule_json),
+      preferredDeviceId: textOrNull(row.preferred_device ?? null),
     },
     studentReport: report ? studentReportView(report, actor.mode === 'admin') : null,
     lease: live
@@ -1236,7 +1245,63 @@ async function changeDevice(
     `UPDATE attendance.school_state_v2 SET lease_device=NULL,lease_actor=NULL,lease_until=NULL,fencing_token=fencing_token+1 WHERE academic_year=$1 AND lease_device=$2::uuid`,
     [input.academicYear, input.deviceId],
   );
+  // A revoked computer never holds the slot of the others.
+  await tx.executeNative(
+    `UPDATE attendance.school_state_v2 SET preferred_device=NULL,revision=revision+1 WHERE academic_year=$1 AND preferred_device=$2::uuid`,
+    [input.academicYear, input.deviceId],
+  );
   return { deviceId: input.deviceId };
+}
+/**
+ * A reserve waits while the preferred computer is online (seen within 2 minutes, authorized, no
+ * error of its own) unless it has been waiting for the grace period. Any lease granted clears every
+ * wait, so a preferred computer that started the slot restarts it. The refusal is 'lease-busy', the
+ * same routine wait of a busy school lease.
+ */
+async function waitsForPreferred(tx: Tx, row: Row, year: number, deviceId: string): Promise<boolean> {
+  if (row.preferred_device === null || row.preferred_device === undefined) return false;
+  if (text(row.preferred_device) === deviceId) return false;
+  const [state] = await tx.query<Row>(
+    `SELECT p.last_seen_at>clock_timestamp()-interval '2 minutes' AND p.state NOT IN('error','login-required')
+      AND d.revoked_at IS NULL AND d.grant_state='active' AS online,
+     w.lease_waiting_since IS NOT NULL AND w.lease_waiting_since>clock_timestamp()-$4::integer*interval '1 second' AS waiting,
+     w.lease_waiting_since<=clock_timestamp()-$3::integer*interval '1 second' AS lapsed
+    FROM attendance.device_status_v2 p
+    JOIN collector_auth.device_public_v2 d ON d.device_id=p.device_id
+    LEFT JOIN attendance.device_status_v2 w ON w.academic_year=p.academic_year AND w.device_id=$2::uuid
+    WHERE p.academic_year=$1 AND p.device_id=$5::uuid`,
+    [year, deviceId, PREFERRED_GRACE_SECONDS_V2, PREFERRED_WAIT_RESET_SECONDS_V2, text(row.preferred_device)],
+  );
+  if (!state || !truth(state.online)) return false;
+  return !(truth(state.waiting) && truth(state.lapsed));
+}
+/** Records when a reserve began waiting; its refusal rolled the operation's transaction back. */
+async function markPreferredWait(tx: Tx, year: number, deviceId: string): Promise<void> {
+  await tx.executeNative(
+    `INSERT INTO attendance.device_status_v2(academic_year,device_id,last_seen_at,lease_waiting_since) VALUES($1,$2::uuid,clock_timestamp(),clock_timestamp())
+    ON CONFLICT(academic_year,device_id) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at,
+      lease_waiting_since=CASE WHEN device_status_v2.lease_waiting_since>clock_timestamp()-$3::integer*interval '1 second'
+        THEN device_status_v2.lease_waiting_since ELSE EXCLUDED.lease_waiting_since END`,
+    [year, deviceId, PREFERRED_WAIT_RESET_SECONDS_V2],
+  );
+}
+async function setPreferredDevice(
+  { tx, row, actor }: Context,
+  input: Extract<Mutation, { operation: 'set-preferred-device' }>,
+): Promise<Row> {
+  if (Number(row.revision) !== input.expectedRevision) fail('revision-conflict');
+  if (input.deviceId !== null) {
+    const [target] = await tx.query<Row>(
+      `SELECT revoked_at FROM collector_auth.device_public_v2 WHERE device_id=$1::uuid AND tenant_id=$2::uuid`,
+      [input.deviceId, actor.tenantId],
+    );
+    if (!target || target.revoked_at !== null) fail('invalid-request', 400);
+  }
+  await tx.executeNative(
+    `UPDATE attendance.school_state_v2 SET preferred_device=$2::uuid,revision=revision+1 WHERE academic_year=$1`,
+    [input.academicYear, input.deviceId],
+  );
+  return { settingsRevision: Number(row.revision) + 1 };
 }
 async function acquireLease(
   { tx, row, actor }: Context,
@@ -1252,6 +1317,8 @@ async function acquireLease(
     (row.lease_device !== actor.deviceId || row.lease_actor !== actor.actorId)
   )
     fail('lease-busy');
+  if (await waitsForPreferred(tx, row, input.academicYear, device(actor)))
+    fail('lease-busy', 409, PREFERRED_WAIT_DETAIL_V2);
   const [lease] = (
     await tx.executeNative<Row>(
       `UPDATE attendance.school_state_v2 SET lease_device=$2::uuid,lease_actor=$3::uuid,lease_until=clock_timestamp()+$4::integer*interval '1 second',fencing_token=fencing_token+1 WHERE academic_year=$1 RETURNING fencing_token,lease_until::text`,
@@ -1259,8 +1326,13 @@ async function acquireLease(
     )
   ).rows;
   await tx.executeNative(
-    `INSERT INTO attendance.device_status_v2(academic_year,device_id,last_seen_at) VALUES($1,$2::uuid,clock_timestamp()) ON CONFLICT(academic_year,device_id) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at`,
+    `INSERT INTO attendance.device_status_v2(academic_year,device_id,last_seen_at,last_lease_at) VALUES($1,$2::uuid,clock_timestamp(),clock_timestamp())
+    ON CONFLICT(academic_year,device_id) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at,last_lease_at=EXCLUDED.last_lease_at`,
     [input.academicYear, device(actor)],
+  );
+  await tx.executeNative(
+    `UPDATE attendance.device_status_v2 SET lease_waiting_since=NULL WHERE academic_year=$1 AND lease_waiting_since IS NOT NULL`,
+    [input.academicYear],
   );
   return {
     fencingToken: Number(lease!.fencing_token),
@@ -1793,6 +1865,8 @@ function mutate(context: Context, input: Mutation): Promise<Row> {
     case 'save-report-settings':
     case 'set-paused':
       return saveSettings(context, input);
+    case 'set-preferred-device':
+      return setPreferredDevice(context, input);
     case 'rename-device':
     case 'revoke-device':
       return changeDevice(context, input);
@@ -1948,7 +2022,15 @@ export function createFrequencyServiceV2(database: GradebookPostgresDatabaseV1) 
       if (!parsed.success) fail('invalid-request', 400);
       const input = parsed.data;
       authorizeOperation(input, actor);
-      return database.transaction((tx) => runOperation(tx, input, actor));
+      try {
+        return await database.transaction((tx) => runOperation(tx, input, actor));
+      } catch (error) {
+        if (error instanceof FrequencyErrorV2 && error.detail === PREFERRED_WAIT_DETAIL_V2)
+          await database.transaction((tx) =>
+            markPreferredWait(tx, input.academicYear, device(actor)),
+          );
+        throw error;
+      }
     },
     /** The automatic report's second step: same receipt and lease rules as any collection. */
     async finishStudentReport(

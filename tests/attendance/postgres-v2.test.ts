@@ -342,6 +342,51 @@ describe('frequency V2 private PostgreSQL service', () => {
     });
     await execute('set-paused', { expectedRevision: 1, paused: false });
   });
+  it('the preferred computer sends the frequency; a reserve waits, then covers for it', async () => {
+    const lease = (who: FrequencyActorV2) => execute('lease', { durationSeconds: 300 }, who);
+    const release = async (who: FrequencyActorV2, granted: unknown) =>
+      execute('release', { fencingToken: Number((granted as Row).fencingToken), code: null }, who);
+    type Row = Record<string, unknown>;
+    await execute('release', { fencingToken: token, code: null }, actor);
+    await expect(
+      execute('set-preferred-device', { expectedRevision: 0, deviceId: actor.deviceId }, next),
+    ).rejects.toMatchObject({ code: 'not-authorized' });
+    await expect(
+      execute('set-preferred-device', { expectedRevision: 0, deviceId: id() }),
+    ).rejects.toMatchObject({ code: 'invalid-request' });
+    await execute('set-preferred-device', { expectedRevision: 0, deviceId: next.deviceId });
+    expect((await status()).settings.preferredDeviceId).toBe(next.deviceId);
+    // Never seen: the preferred computer is offline, so the other one collects.
+    await release(actor, await lease(actor));
+    // Online: the other one waits as a reserve.
+    await service.execute({ operation: 'status', academicYear: 2026 }, next);
+    await expect(lease(actor)).rejects.toMatchObject({ code: 'lease-busy' });
+    const [wait] = (
+      await pg.query<{ waiting: boolean }>(
+        `SELECT lease_waiting_since IS NOT NULL AS waiting FROM attendance.device_status_v2 WHERE device_id=$1`,
+        [actor.deviceId],
+      )
+    ).rows;
+    expect(wait?.waiting).toBe(true);
+    // The preferred one starts the slot: the reserve's wait starts over.
+    await release(next, await lease(next));
+    await expect(lease(actor)).rejects.toMatchObject({ code: 'lease-busy' });
+    // It does not start within the grace: the reserve covers for it.
+    await pg.exec(
+      `UPDATE attendance.device_status_v2 SET lease_waiting_since=clock_timestamp()-interval '181 seconds' WHERE device_id='${actor.deviceId}'`,
+    );
+    await release(actor, await lease(actor));
+    // A preferred computer with an error of its own holds nothing.
+    await service.execute({ operation: 'status', academicYear: 2026 }, next);
+    await pg.exec(
+      `UPDATE attendance.device_status_v2 SET state='login-required' WHERE device_id='${next.deviceId}'`,
+    );
+    await release(actor, await lease(actor));
+    // Revoking it clears the choice.
+    await execute('revoke-device', { deviceId: next.deviceId });
+    expect((await status()).settings.preferredDeviceId).toBeNull();
+    await release(actor, await lease(actor));
+  });
   it('a reserve computer status poll refreshes presence without overwriting its leader state', async () => {
     expect((await status()).devices.find((d) => d.deviceId === next.deviceId)?.state).toBe(
       'offline',
