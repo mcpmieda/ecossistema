@@ -16,6 +16,9 @@ import {
 } from '../shared/reconciliation-client-v1';
 import { AutomaticReportPanelV1 } from './automatic-report-v1';
 import { StudentNameV1 } from '../shared/account-open-v1';
+import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
+import type { PortalAdminReadClientV2 } from './accounts-client-v2';
+import { AccountCloseV1 } from './account-close-v1';
 import { readReconciliationListV1 } from './reconciliation-list-read-v1';
 import { PreparedReportV1 } from '../../gradebook/import/student-report-import-v1';
 
@@ -217,12 +220,15 @@ export function StudentReconciliationV1({
   canWrite,
   showPortalAccess = true,
   pendingOnly = false,
+  accountClose,
 }: Readonly<{
   client: ReconciliationClientV1;
   scope: ScopeV1;
   canWrite: boolean;
   showPortalAccess?: boolean;
   pendingOnly?: boolean;
+  /** Offers "Encerrar conta" on a record without a class, as the Portal record does. */
+  accountClose?: { client: PortalAdminClientV1; reader: PortalAdminReadClientV2 };
 }>) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -412,6 +418,12 @@ export function StudentReconciliationV1({
       if (!active.current?.signal.aborted) setBusy(false);
     }
   }
+  // The closed record leaves the list: the Conciliação counts it as settled.
+  const accountClosed = useCallback(() => {
+    setFocusFeedback(true);
+    setNotice('Conta encerrada. O cadastro saiu da Conciliação; o registro fica na Auditoria.');
+    reload();
+  }, [reload]);
   const back = () => {
     returnFocus.current = selected ? itemKeyV1(selected) : null;
     detailRead.current?.abort();
@@ -458,6 +470,14 @@ export function StudentReconciliationV1({
     return null;
   }
   function selectedCard(current: ReconciliationListItemV1) {
+    const closable =
+      accountClose &&
+      current.kind === 'person' &&
+      current.accountId &&
+      current.classId === null &&
+      current.portal === 'with-portal'
+        ? current.accountId
+        : null;
     return (
       <Card>
         <Card.Content className="space-y-4">
@@ -474,6 +494,15 @@ export function StudentReconciliationV1({
             <StudentNameV1 accountId={current.accountId} name={current.name} parentScope={scope}>
               Acesso ao Portal
             </StudentNameV1>
+          ) : null}
+          {closable && accountClose ? (
+            <AccountCloseV1
+              client={accountClose.client}
+              reader={accountClose.reader}
+              accountId={closable}
+              canWrite={canWrite}
+              onClosed={accountClosed}
+            />
           ) : null}
           {selectedContent(current)}
         </Card.Content>
@@ -697,7 +726,13 @@ function SourceActionsV1({
             {actionLabelV1[action]}
           </Button>
         ))}
-        <SmecelOnlyV1 detail={detail} selected={selected} source={source} busy={busy} mutate={mutate} />
+        <SmecelOnlyV1
+          detail={detail}
+          selected={selected}
+          source={source}
+          busy={busy}
+          mutate={mutate}
+        />
       </div>
     );
   const canSelectData =

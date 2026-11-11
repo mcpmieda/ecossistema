@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { App } from '../App';
 import '../styles.css';
 import { PLATFORM_CAPABILITIES } from '../../shared/platform-contract';
-import { previewFetch } from '../student-portal-admin-preview/preview-fetch-v1';
+import {
+  previewFetch,
+  previewReconciliationV1,
+} from '../student-portal-admin-preview/preview-fetch-v1';
 
 /*
  * Local preview of the whole Centro de Administração: the real App over an offline, synthetic
@@ -80,6 +83,11 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     && init.body.includes('"operation":"pending-count"'))
     return json({ contractVersion: 1, state: 'ready', operation: 'pending-count',
       pending: Math.min(51, Number(new URLSearchParams(window.location.search).get('pendencias') ?? 12)) });
+  // The Conciliação's records without a class, the same accounts as the Painel (11/11/2026).
+  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string') {
+    const answer = previewReconciliationV1(init.body);
+    if (answer) return json(answer);
+  }
   // The Coletor's automatic report with a difference and a row left out (synthetic names).
   if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string'
     && init.body.includes('"operation":"automatic-report"'))

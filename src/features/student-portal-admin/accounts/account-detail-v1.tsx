@@ -27,6 +27,7 @@ import {
   type AccountQrResultV1,
 } from './account-mutation-v1';
 import { useAccountsReadV1 } from './accounts-read-v1';
+import { failureText } from './accounts-values-v1';
 import { RecordBirthV1 } from './record-birth-v1';
 import { RecordOriginV1 } from './record-origin-v1';
 import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
@@ -131,16 +132,6 @@ function accountActionBlockedV1(account: AdminAccountReadV2, action: AccountActi
     (action === 'qr-regenerate' && account.state !== 'active');
   return needsRecovery && !account.firstAccess.recoveryReady;
 }
-/** Why the last action failed, and what to do next. */
-function failureText(conflict: boolean, protectedFailure: boolean, retryable: boolean) {
-  if (conflict) return 'A conta mudou. Recarregue e revise uma nova ação.';
-  if (protectedFailure)
-    return 'A autorização administrativa terminou. Os dados desta ficha foram removidos.';
-  return retryable
-    ? 'Não foi possível confirmar a resposta. A ação pode ter sido concluída; repetir usa a mesma solicitação.'
-    : 'A ação foi recusada. Recarregue a ficha antes de decidir novamente.';
-}
-
 export function AccountDetailV1(props: Readonly<AccountDetailPropsV1>) {
   // While an action is saving the record stays open: closing would abort a write the server may
   // already have applied, with nothing said about it.
