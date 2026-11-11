@@ -83,7 +83,8 @@ const RECONCILIATION_ROWS_SQL_V1 = `WITH people AS (
     LEFT JOIN student_portal.reconciliation_accounts_v1($1::smallint) ac ON ac.student_uid=a.student_uid WHERE a.ano=$1
   ), external AS (
     SELECT 'e:'||r.id::text AS key,jsonb_build_object('kind','external','id',r.id,'sourceId',r.id,'batchId',r.last_batch_id,
-      'name',o.name,'classLabel',c.label,'reason',COALESCE(r.pending_reason,'pending'),'expiresAt',NULL,'warning',false,'sourceRow',NULL) AS item,
+      'name',o.name,'classLabel',c.label,'reason',CASE WHEN r.smecel_only THEN 'smecel_only' ELSE COALESCE(r.pending_reason,'pending') END,
+      'expiresAt',NULL,'warning',false,'sourceRow',NULL) AS item,
       c.gradebook_class_id AS class_id,o.name FROM gradebook.student_source_record_v1 r JOIN gradebook.student_source_observation_v1 o ON o.id=r.current_observation_id
       JOIN gradebook.student_report_class_v1 c ON c.id=o.report_class_id
       LEFT JOIN gradebook.student_source_link_v1 l ON l.academic_year=r.academic_year AND l.source_id=r.id
@@ -99,7 +100,7 @@ const RECONCILIATION_ROWS_SQL_V1 = `WITH people AS (
 export async function pendingCountV1(tx: TxV1, academicYear: number): Promise<ReconciliationResponseV1> {
   const [row] = await tx.query(
     `${RECONCILIATION_ROWS_SQL_V1} SELECT count(*)::integer AS pending FROM (SELECT 1 FROM (SELECT item FROM people UNION ALL SELECT item FROM external) all_rows
-    WHERE all_rows.item->>'kind'='external' OR all_rows.item->>'reconciliation'<>'reconciled' LIMIT $2) counted`,
+    WHERE (all_rows.item->>'kind'='external' AND all_rows.item->>'reason'<>'smecel_only') OR all_rows.item->>'reconciliation'<>'reconciled' LIMIT $2) counted`,
     [academicYear, RECONCILIATION_PENDING_CAP_V1 + 1],
   );
   return { contractVersion: 1, state: 'ready', operation: 'pending-count', pending: Number(row?.pending ?? 0) };

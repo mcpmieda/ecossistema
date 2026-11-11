@@ -64,7 +64,8 @@ async function fixture(): Promise<Fixture> {
   }
   for (const path of ['migrations/gradebook-simplified/0015_student_reconciliation_v1.sql',
     'migrations/student-portal/0025_reconciliation_credentials_v1.sql',
-    'migrations/student-portal/0033_reconciliation_cleanup_idle_v1.sql']) await exec(readFileSync(path, 'utf8'));
+    'migrations/student-portal/0033_reconciliation_cleanup_idle_v1.sql',
+    'migrations/gradebook-simplified/0018_smecel_only_source_v1.sql']) await exec(readFileSync(path, 'utf8'));
   await app.unsafe('SET ROLE gradebook_app');
   await portal.unsafe('SET ROLE student_portal_app');
   return result;
@@ -110,7 +111,7 @@ async function list(f: Fixture) {
 }
 // The count of the side column follows the rule of the pending view of the screen.
 async function expectPendingCount(f: Fixture) {
-  const rows = (await list(f)).items.filter((item) => item.kind === 'external' || item.reconciliation !== 'reconciled');
+  const rows = (await list(f)).items.filter((item) => item.kind === 'external' ? item.reason !== 'smecel_only' : item.reconciliation !== 'reconciled');
   expect(await f.service.execute({ ...base, operation: 'pending-count' }))
     .toEqual({ contractVersion: 1, state: 'ready', operation: 'pending-count', pending: rows.length });
   return rows.length;
@@ -267,4 +268,35 @@ it.each(['older', 'unknown'] as const)('requires confirmation for changed conten
   expect(await pendingFirst.service.execute({ ...command, confirmDifferences: true })).toMatchObject({ state: 'committed' });
   expect(await pendingFirst.service.execute({ ...command, confirmDifferences: true })).toMatchObject({ state: 'committed' });
   expect(await pendingFirst.owner.unsafe('SELECT 1 FROM student_portal.account')).toHaveLength(0);
+});
+
+it('keeps a report row "Somente no Smecel" out of the pending view until the Relação has the student', async () => {
+  const f = relationFirst;
+  const beta = (await list(f)).items.find((item) => item.kind === 'external');
+  if (beta?.kind !== 'external' || !beta.sourceId) throw new Error('synthetic-external-missing');
+  const mark = async (smecelOnly: boolean) => f.service.execute({ ...mutation((await catalog(f)).context),
+    operation: 'smecel-only', sourceId: beta.sourceId!, smecelOnly });
+  expect(await expectPendingCount(f)).toBe(1);
+  expect(await mark(true)).toMatchObject({ state: 'committed' });
+  expect(await mark(true)).toMatchObject({ state: 'conflict' });
+  expect((await list(f)).items.find((item) => item.kind === 'external')).toMatchObject({ reason: 'smecel_only' });
+  expect(await expectPendingCount(f)).toBe(0);
+  expect(await mark(false)).toMatchObject({ state: 'committed' });
+  expect(await expectPendingCount(f)).toBe(1);
+  expect(await mark(true)).toMatchObject({ state: 'committed' });
+  // The student enters the Relação: the next report links the row as usual and clears the mark.
+  await f.owner.begin(async (tx) => {
+    await tx.unsafe('SELECT pg_advisory_xact_lock_shared(613,0)');
+    await tx.unsafe('SELECT pg_advisory_xact_lock(613,2026)');
+    await tx.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome) VALUES(730002,2026,'SYNTHETIC EXTERNAL BETA');
+      INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero) VALUES(2026,730001,730002,2);`, [], { prepare: false });
+    await tx.unsafe(`SELECT student_portal.record_gradebook_change_v1(gen_random_uuid(),2026::smallint,
+      'relation',true,ARRAY[730001],statement_timestamp())`);
+  });
+  const p = prepared(await f.service.execute(await prepareInput(f)));
+  expect(p.counts).toEqual({ rows: 2, linked: 2, pending: 0 });
+  await stage(f, p);
+  expect(await f.service.execute(apply(p))).toMatchObject({ state: 'committed' });
+  expect((await list(f)).items.filter((item) => item.kind === 'external')).toEqual([]);
+  expect(await f.owner.unsafe('SELECT 1 FROM gradebook.student_source_record_v1 WHERE smecel_only')).toHaveLength(0);
 });

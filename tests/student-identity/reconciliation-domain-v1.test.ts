@@ -531,6 +531,22 @@ describe('conciliação determinística por pessoa e origem', () => {
       plan([row({ enrollmentHash: 'changed' })], [separated], [student], []).rows[0]?.studentUid,
     ).toBe(student.studentUid);
   });
+  it('"Somente no Smecel" sem vínculo é decidido pela regra de nome e turma quando o aluno entra na Relação', () => {
+    const kept = { ...source({ reviewRequired: true, smecelOnly: true }), studentUid: null };
+    expect(plan([row()], [kept], [student]).rows[0]).toMatchObject({
+      sourceId: 'synthetic-origin-a',
+      studentUid: student.studentUid,
+      rule: 'name_class',
+    });
+    expect(plan([row()], [kept], [{ ...student, classId: 8 }]).rows[0]).toMatchObject({
+      studentUid: null,
+    });
+    const reviewed = { ...source({ reviewRequired: true }), studentUid: null };
+    expect(plan([row()], [reviewed], [student]).rows[0]).toMatchObject({
+      studentUid: null,
+      reason: 'source_review',
+    });
+  });
   it('revisão de turma não valida vínculos silenciosamente', () => {
     const result = plan([row()], [source({ reviewRequired: true })]);
     expect(result.rows[0]).toMatchObject({

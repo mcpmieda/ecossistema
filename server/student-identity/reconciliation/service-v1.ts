@@ -169,6 +169,7 @@ export class StudentReconciliationServiceV1 {
           case 'class-link':
           case 'resolve':
           case 'select-observation':
+          case 'smecel-only':
             return decideV1(tx, this.actorId, request, context);
           case 'stage':
             return stageBatchV1(tx, this.actorId, request, context);

@@ -37,6 +37,8 @@ export interface ReconciliationSourceV1 {
   readonly history?: readonly NormalizedReportRowV1[];
   readonly reviewRequired?: boolean;
   readonly profileSelected?: boolean;
+  /** Unlinked and kept "Somente no Smecel": its review does not block the name and class rule. */
+  readonly smecelOnly?: boolean;
 }
 
 interface ReconciliationRejectedPairV1 {
@@ -403,7 +405,9 @@ function candidatesForRowV1(
     homonym: nameMatches.size > 1,
     rejected: rejectedUids.length > 0,
     sourceConflict: knownHash && origin === undefined,
-    sourceReview: origin?.reviewRequired === true || linked.sourceReview,
+    // A row kept "Somente no Smecel" was waiting for the Relação: once the student is there, the
+    // ordinary rules decide it (owner request 10/11/2026); any other review still blocks.
+    sourceReview: (origin?.reviewRequired === true && origin.smecelOnly !== true) || linked.sourceReview,
     sibling: linked.sibling,
   };
 }

@@ -60,6 +60,7 @@ beforeAll(async () => {
   await exec(
     readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'),
   );
+  await exec(readFileSync('migrations/gradebook-simplified/0018_smecel_only_source_v1.sql', 'utf8'));
   await exec(
     readFileSync('migrations/student-portal/0033_reconciliation_cleanup_idle_v1.sql', 'utf8'),
   );

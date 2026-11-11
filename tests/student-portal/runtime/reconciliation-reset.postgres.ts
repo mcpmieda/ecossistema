@@ -42,7 +42,8 @@ beforeAll(async () => {
   }
   for (const file of ['migrations/gradebook-simplified/0015_student_reconciliation_v1.sql',
     'migrations/student-portal/0025_reconciliation_credentials_v1.sql',
-    'migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql']) await exec(readFileSync(file, 'utf8'));
+    'migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
+    'migrations/gradebook-simplified/0018_smecel_only_source_v1.sql']) await exec(readFileSync(file, 'utf8'));
 }, 60_000);
 afterAll(async () => {
   await owner?.end({ timeout: 2 });
