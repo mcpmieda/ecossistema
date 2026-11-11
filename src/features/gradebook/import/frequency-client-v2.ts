@@ -53,6 +53,7 @@ const status = z
         paused: z.boolean(),
         schedule: frequencyScheduleV2.nullable(),
         reportSchedule: frequencyReportScheduleV2.nullable().optional(),
+        preferredDeviceId: id.nullable().optional(),
       })
       .strict(),
     studentReport: studentReport.nullable().optional(),
@@ -160,7 +161,12 @@ export type FrequencyAdminMutationV2 = Extract<
   FrequencyRequestV2,
   {
     operation:
-      'save-settings' | 'set-paused' | 'rename-device' | 'revoke-device' | 'resolve-conflict';
+      | 'save-settings'
+      | 'set-paused'
+      | 'set-preferred-device'
+      | 'rename-device'
+      | 'revoke-device'
+      | 'resolve-conflict';
   }
 >;
 type Command<T> = T extends FrequencyAdminMutationV2
@@ -203,7 +209,11 @@ function committedSchema(input: FrequencyAdminMutationV2) {
     operation: z.literal(input.operation),
     requestId: z.literal(input.requestId),
   };
-  if (input.operation === 'save-settings' || input.operation === 'set-paused')
+  if (
+    input.operation === 'save-settings' ||
+    input.operation === 'set-paused' ||
+    input.operation === 'set-preferred-device'
+  )
     return z.object({ ...common, settingsRevision: revision }).strict();
   if (input.operation === 'resolve-conflict')
     return z.object({ ...common, conflictId: z.literal(input.conflictId), revision }).strict();

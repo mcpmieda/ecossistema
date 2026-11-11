@@ -138,12 +138,17 @@ function FrequencyDeviceCardV2({
   classLabel,
   busy,
   mutate,
+  preferred,
+  onPrefer,
 }: Readonly<{
   device: FrequencyDeviceV2;
   leader: boolean;
   classLabel: string;
   busy: boolean;
   mutate: Mutate;
+  preferred: boolean;
+  /** Present only while two or more computers are authorized. */
+  onPrefer?: () => void;
 }>) {
   const [rename, setRename] = useState(false);
   const [label, setLabel] = useState(device.label);
@@ -156,6 +161,11 @@ function FrequencyDeviceCardV2({
         <Chip size="sm" variant="soft" color={chipColor(device, leader)}>
           {chipLabel(device, leader)}
         </Chip>
+        {preferred ? (
+          <Chip size="sm" variant="soft" color="success">
+            Envia a frequência
+          </Chip>
+        ) : null}
       </Card.Header>
       <Card.Content>
         <dl className="frequency-device-details">
@@ -203,6 +213,11 @@ function FrequencyDeviceCardV2({
           </form>
         ) : (
           <div className="frequency-actions">
+            {onPrefer && !preferred && !revoked ? (
+              <Button size="sm" variant="primary" isDisabled={busy} onPress={onPrefer}>
+                Usar para enviar a frequência
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant="secondary"
@@ -592,9 +607,32 @@ function DevicesSectionV2({ data, pending, mutate }: SectionProps) {
   const classLabel = (classId: number | null) =>
     data.classes.find((item) => item.classId === classId)?.sourceClassLabel ??
     'Sem turma em coleta';
+  const preferredId = data.settings.preferredDeviceId ?? null;
+  const preferred = data.devices.find((d) => d.deviceId === preferredId && d.state !== 'revoked');
+  const choosing = data.devices.filter((d) => d.state !== 'revoked').length >= 2;
+  const prefer = (deviceId: string | null) =>
+    void mutate({
+      operation: 'set-preferred-device',
+      deviceId,
+      expectedRevision: data.settings.revision,
+    });
   return (
     <section aria-label="Computadores autorizados">
       <h4>Computadores autorizados</h4>
+      {choosing || preferred ? (
+        <div className="frequency-heading">
+          <p>
+            {preferred
+              ? `${preferred.label} envia a frequência. Os outros ficam de reserva e só coletam se ele estiver desligado ou não começar em 3 minutos.`
+              : 'Qualquer computador ligado pode enviar a frequência: coleta o primeiro que pedir.'}
+          </p>
+          {preferred ? (
+            <Button size="sm" variant="secondary" isDisabled={pending} onPress={() => prefer(null)}>
+              Qualquer computador
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {data.devices.length === 0 ? (
         <p>Nenhum computador registrado.</p>
       ) : (
@@ -607,6 +645,8 @@ function DevicesSectionV2({ data, pending, mutate }: SectionProps) {
               busy={pending}
               classLabel={classLabel(device.classId)}
               mutate={mutate}
+              preferred={device.deviceId === preferred?.deviceId}
+              onPrefer={choosing ? () => prefer(device.deviceId) : undefined}
             />
           ))}
         </div>

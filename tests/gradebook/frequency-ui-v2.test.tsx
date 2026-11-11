@@ -561,3 +561,48 @@ it('lists unrecognized Smecel students and the failure trail with the actions th
   expect(within(failures).getByText(/COMPUTADOR INVENTADO · TURMA INVENTADA/)).toBeTruthy();
   expect(within(failures).getByText('Smecel desconectado')).toBeTruthy();
 });
+
+it('with two computers the ADM picks the one that sends the frequency, and can undo it', async () => {
+  const value = fixture();
+  const otherId = '44444444-4444-4444-8444-444444444444';
+  value.devices.push({ ...value.devices[0]!, deviceId: otherId, label: 'OUTRO COMPUTADOR', state: 'reserve' });
+  const client = {
+    status: vi.fn(async () => structuredClone(value)),
+    mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
+  };
+  render(<FrequencyPanelV2 client={client} />);
+  const user = userEvent.setup();
+  await screen.findByText(/coleta o primeiro que pedir/);
+  const other = screen.getByText('OUTRO COMPUTADOR').closest('[data-slot="card"]') as HTMLElement;
+  await user.click(within(other).getByRole('button', { name: 'Usar para enviar a frequência' }));
+  await waitFor(() =>
+    expect(client.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'set-preferred-device', deviceId: otherId, expectedRevision: 3 }),
+      expect.anything(),
+    ),
+  );
+  value.settings.preferredDeviceId = otherId;
+  value.settings.revision = 4;
+  cleanup();
+  render(<FrequencyPanelV2 client={client} />);
+  expect(await screen.findByText('Envia a frequência')).toBeTruthy();
+  expect(screen.getByText(/OUTRO COMPUTADOR envia a frequência/)).toBeTruthy();
+  expect(screen.getAllByRole('button', { name: 'Usar para enviar a frequência' })).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'Qualquer computador' }));
+  await waitFor(() =>
+    expect(client.mutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ operation: 'set-preferred-device', deviceId: null, expectedRevision: 4 }),
+      expect.anything(),
+    ),
+  );
+});
+
+it('with a single computer there is nothing to choose', async () => {
+  const client = {
+    status: vi.fn(async () => fixture()),
+    mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
+  };
+  render(<FrequencyPanelV2 client={client} />);
+  await screen.findByText('Líder');
+  expect(screen.queryByRole('button', { name: 'Usar para enviar a frequência' })).toBeNull();
+});
