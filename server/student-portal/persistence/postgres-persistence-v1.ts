@@ -172,6 +172,14 @@ function sessionFromRow(row: SqlRowV1): SessionRecordV1 {
   };
 }
 
+/** PostgreSQL integer[] literal. A JS array parameter reaches the production driver (Hyperdrive,
+ * no prepared types) as "127" and fails with "malformed array literal"; a literal works in both. */
+function integerArrayLiteralV1(values: readonly number[]): string {
+  for (const value of values)
+    if (!Number.isSafeInteger(value)) throw new Error('student-portal-student-id-invalid');
+  return '{' + values.join(',') + '}';
+}
+
 async function bumpPortalLinkRevision(
   sql: StudentPortalPostgresQueryV1,
   studentIds: readonly number[],
@@ -198,7 +206,7 @@ async function bumpPortalLinkRevision(
        (event_id,academic_year,student_ids,cause,affects_academic,affects_reset,
         data_version,reset_version,portal_link_version,occurred_at)
      VALUES (gen_random_uuid(),$1,$2::integer[],'portal-link',false,true,$3,$4,$5,now())`,
-    [2026, [...studentIds], dataVersion, resetVersion, portalLinkVersion],
+    [2026, integerArrayLiteralV1(studentIds), dataVersion, resetVersion, portalLinkVersion],
   );
 }
 
@@ -682,7 +690,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
           data_version,reset_version,portal_link_version,occurred_at)
        VALUES ($1::uuid,$2,$3::integer[],$4,true,true,$5,$6,$7,$8::timestamptz)
        ON CONFLICT (event_id) DO NOTHING`,
-      [event.eventId, event.academicYear, [...event.studentIds], event.cause, event.dataVersion, resetVersion, portalLinkVersion, event.occurredAt],
+      [event.eventId, event.academicYear, integerArrayLiteralV1(event.studentIds), event.cause, event.dataVersion, resetVersion, portalLinkVersion, event.occurredAt],
     );
   }
 
