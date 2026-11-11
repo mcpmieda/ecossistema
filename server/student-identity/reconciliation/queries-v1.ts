@@ -81,6 +81,8 @@ const RECONCILIATION_ROWS_SQL_V1 = `WITH people AS (
     LEFT JOIN gradebook.student_source_observation_v1 o ON o.id=p.observation_id
     LEFT JOIN gradebook.student_source_record_v1 r ON r.id=o.source_id
     LEFT JOIN student_portal.reconciliation_accounts_v1($1::smallint) ac ON ac.student_uid=a.student_uid WHERE a.ano=$1
+      -- A record without a class whose Portal account the school closed (Encerrar conta) is settled.
+      AND NOT (v.turma_id IS NULL AND ac.closed_at IS NOT NULL)
   ), external AS (
     SELECT 'e:'||r.id::text AS key,jsonb_build_object('kind','external','id',r.id,'sourceId',r.id,'batchId',r.last_batch_id,
       'name',o.name,'classLabel',c.label,'reason',CASE WHEN r.smecel_only THEN 'smecel_only' ELSE COALESCE(r.pending_reason,'pending') END,

@@ -300,3 +300,27 @@ it('keeps a report row "Somente no Smecel" out of the pending view until the Rel
   expect((await list(f)).items.filter((item) => item.kind === 'external')).toEqual([]);
   expect(await f.owner.unsafe('SELECT 1 FROM gradebook.student_source_record_v1 WHERE smecel_only')).toHaveLength(0);
 });
+
+it('settles a record without a class once its Portal account is closed (Encerrar conta, 11/11/2026)', async () => {
+  const f = relationFirst;
+  const accountId = crypto.randomUUID();
+  await f.owner.begin(async (tx) => {
+    await tx.unsafe('SELECT pg_advisory_xact_lock_shared(613,0)');
+    await tx.unsafe('SELECT pg_advisory_xact_lock(613,2026)');
+    await tx.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome) VALUES(730009,2026,'SYNTHETIC REPEATED RECORD')`, [], { prepare: false });
+  });
+  await f.owner.unsafe(`INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility)
+    VALUES($1,2026,730009,'pending-activation','eligible')`, [accountId]);
+  const listed = async () => (await list(f)).items.find((item) => item.kind === 'person' && item.name === 'SYNTHETIC REPEATED RECORD');
+  expect(await listed()).toMatchObject({ classId: null, reconciliation: 'without-report', portal: 'with-portal' });
+  const before = await expectPendingCount(f);
+  // The same writes as the Portal's closure of one link.
+  await f.owner.begin(async (tx) => {
+    await tx.unsafe(`INSERT INTO student_portal.link_closure(account_id,academic_year,gradebook_student_id,closed_at,version)
+      VALUES($1::uuid,2026,730009,statement_timestamp(),1)`, [accountId]);
+    await tx.unsafe(`UPDATE student_portal.account SET gradebook_student_id=NULL,eligibility='unlinked',
+      closed_at=statement_timestamp(),version=1,security_version=security_version+1 WHERE id=$1::uuid`, [accountId]);
+  });
+  expect(await listed()).toBeUndefined();
+  expect(await expectPendingCount(f)).toBe(before - 1);
+});

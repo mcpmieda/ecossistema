@@ -281,6 +281,7 @@ function sectionContentV1({
           canWrite={common.canWrite}
           showPortalAccess={false}
           pendingOnly
+          accountClose={{ client: common.client, reader: common.reader }}
         />
       );
     case 'accounts':

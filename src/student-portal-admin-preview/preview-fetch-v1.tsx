@@ -847,6 +847,48 @@ const PREVIEW_QUERY_GROUPS_V1 = [
   previewSchoolQueryV1,
 ];
 
+/** The Conciliação of the preview: its records without a class, until their account is closed. */
+export function previewReconciliationV1(body: string) {
+  const request = JSON.parse(body) as { operation?: string };
+  const context = {
+    generation: '75600000-0000-4000-8000-000000009950',
+    revision: 1,
+    nameSource: 'report' as const,
+    relationAvailable: true,
+  };
+  const base = { contractVersion: 1 as const, state: 'ready' as const, context };
+  if (request.operation === 'catalog')
+    return { ...base, operation: 'catalog', classes: [], reportClasses: [] };
+  if (request.operation === 'detail')
+    return {
+      ...base,
+      operation: 'detail',
+      selectedObservationId: null,
+      sources: [],
+      candidates: [],
+      history: [],
+    };
+  if (request.operation !== 'list') return undefined;
+  const items = mock.accounts
+    .filter((account) => account.classId === null && account.link)
+    .map((account, index) => ({
+      kind: 'person' as const,
+      studentUid: opIdV1(9960 + index),
+      academicStudentId: account.link!.studentId,
+      academicYear: 2026,
+      name: account.name,
+      relationName: account.name,
+      classId: null,
+      classLabel: null,
+      version: 1,
+      reconciliation: 'without-report' as const,
+      portal: 'with-portal' as const,
+      accountId: account.accountId,
+      possibleSamePerson: false,
+    }));
+  return { ...base, operation: 'list', items, nextCursor: null };
+}
+
 export const previewFetch: PortalFetchV1 = async (path, init) => {
   init.signal?.throwIfAborted();
   const direct = (await previewPhotoFetchV1(path, init)) ?? previewPlatformFetchV1(path, init);

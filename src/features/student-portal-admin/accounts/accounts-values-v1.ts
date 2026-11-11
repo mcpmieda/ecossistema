@@ -151,3 +151,12 @@ export function accountAccessOriginV1(
   }
   return 'Individual';
 }
+/** Why the last action failed, and what to do next. */
+export function failureText(conflict: boolean, protectedFailure: boolean, retryable: boolean) {
+  if (conflict) return 'A conta mudou. Recarregue e revise uma nova ação.';
+  if (protectedFailure)
+    return 'A autorização administrativa terminou. Os dados desta ficha foram removidos.';
+  return retryable
+    ? 'Não foi possível confirmar a resposta. A ação pode ter sido concluída; repetir usa a mesma solicitação.'
+    : 'A ação foi recusada. Recarregue a ficha antes de decidir novamente.';
+}
