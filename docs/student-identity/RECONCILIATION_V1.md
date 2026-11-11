@@ -105,6 +105,6 @@ Entre os passos 2 e 4 a versão publicada continua funcionando, pois lê o nasci
 
 Reversão: antes do primeiro relatório aplicado, voltar o código restaura o comportamento anterior; a escrita manual de nascimento só volta com a devolução explícita de `INSERT, UPDATE, DELETE` em `account_access_data`. Depois de um relatório aplicado, voltar o código **não** desfaz nascimento nem PIN já atualizados: a correção é para frente, pela separação da associação ou por novo relatório. O nome adotado volta à Relação pela própria configuração, sem reversão de código.
 
-## Somente no Smecel (gradebook-simplified 0018, pedido do responsável em 10/11/2026)
+## Somente no Smecel (gradebook-simplified 0018, pedido do responsável em 10/11/2026; aplicada como 20261111075937)
 
 Uma linha do Relatório sem aluno na Relação, que a escola sabe que ficará só no Smecel, pode ser marcada na Conciliação (`smecel-only`, decisão registrada como `smecel-only`). Marcada, ela sai da contagem e da visão de pendências, da lista "Alunos não reconhecidos" da Frequência e dos avisos do Coletor (a contagem guardada do último Relatório automático acompanha a marcação na hora). Continua visível na lista completa com a situação "Somente no Smecel" e pode voltar a pendente. Nunca cria vínculo: o próximo Relatório que encontrar o aluno na Relação vincula a linha como de costume e limpa a marcação; um vínculo manual também a limpa.
