@@ -106,6 +106,36 @@ describe('StudentPortalPostgresPersistenceV1', () => {
     expect(after).toBe(before + 1);
   });
 
+  it('sends student ids as an integer[] literal, as the production driver needs (11/11/2026)', async () => {
+    // Production (Hyperdrive, no prepared types) sends a JS array as "127": "malformed array literal".
+    const strict = (client: Pick<PGlite, 'query'>) => ({
+      unsafe<R extends Row>(query: string, values: readonly unknown[] = []) {
+        if (values.some(Array.isArray)) throw new Error('array parameter');
+        return execute<R>(client, query, values);
+      },
+    });
+    let open: Pick<PGlite, 'query'> | undefined;
+    const strictPersistence = new StudentPortalPostgresPersistenceV1({
+      ...strict(pg),
+      async begin<T>(operation: (sql: StudentPortalPostgresQueryV1) => Promise<T>) {
+        return pg.transaction(async (transaction) => {
+          open = transaction;
+          return operation(strict(transaction));
+        });
+      },
+    });
+    // Rolled back at the end: the following tests keep their own data.
+    let ids: number[] | undefined;
+    await expect(strictPersistence.transaction(async (tx) => {
+      expect(await tx.insertAccount(account(ACCOUNT_TWO, 2))).toBe('created');
+      ids = (await open!.query<{ student_ids: number[] }>(
+        "SELECT student_ids FROM student_portal.revision_event WHERE cause='portal-link' ORDER BY occurred_at DESC LIMIT 1",
+      )).rows[0]?.student_ids;
+      throw new Error('synthetic-rollback');
+    })).rejects.toThrow('synthetic-rollback');
+    expect(ids).toEqual([2]);
+  });
+
   it('reads pre-transition birth, verifiers, challenge and opaque session hashes', async () => {
     await pg.query(`INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation,version)
       VALUES($1,2012,'unconfirmed-test',1)`,[ACCOUNT]);
