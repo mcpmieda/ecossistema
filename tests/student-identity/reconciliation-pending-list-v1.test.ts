@@ -152,6 +152,14 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
     );
     expect(client.request).toHaveBeenCalledTimes(2);
   });
+  it('leaves a row kept "Somente no Smecel" out of the pending view only', async () => {
+    const kept = { ...external, id: 'synthetic-kept', reason: 'smecel_only' };
+    const response = page([external, kept], null);
+    expect(await readReconciliationListV1(mock(response), input, signal(), true)).toEqual(
+      page([external], null),
+    );
+    expect(await readReconciliationListV1(mock(response), input, signal(), false)).toBe(response);
+  });
   it('preserves a genuinely empty result', async () => {
     const client = mock(page([], null));
     expect(await readReconciliationListV1(client, input, signal(), true)).toEqual(page([], null));

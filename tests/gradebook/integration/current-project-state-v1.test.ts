@@ -49,6 +49,8 @@ const reconciliationCandidates = {
 } as const;
 /** Removal of the never-used school-year rule history (owner decision of 08/11/2026), applied as 20261108091103. */
 const gradebookCleanupCandidate = '0017_drop_ano_letivo_historico_v1.sql';
+/** "Somente no Smecel" in the Conciliação (owner request of 10/11/2026). */
+const smecelOnlyCandidate = '0018_smecel_only_source_v1.sql';
 /** Retention of unreachable publication editions (owner request of 14/10/2026), not yet applied. */
 const retentionCandidate = '0026_publication_source_retention_v1.sql';
 /** Política Frequência (owner request of 20/10/2026), applied as 20261020115021 (POSTFLIGHT_0027). */
@@ -70,7 +72,7 @@ describe('current canonical project state', () => {
   it('preserves the latest applied Gradebook migration separately from draft candidates', () => {
     const state = source('docs/gradebook/PROJECT_STATE.yaml');
     const latest = migrationFiles('migrations/gradebook-simplified')
-      .filter((file) => !new Set<string>([...reconciliationCandidates.gradebook, gradebookCleanupCandidate]).has(file))
+      .filter((file) => !new Set<string>([...reconciliationCandidates.gradebook, gradebookCleanupCandidate, smecelOnlyCandidate]).has(file))
       .at(-1);
     expect(latest).toBe('0014_function_execute_hardening_v1.sql');
     expect(state).toContain(`latest_gradebook_migration_file: ${latest}`);
@@ -174,7 +176,7 @@ describe('current canonical project state', () => {
       migrationFiles('migrations/gradebook-simplified').filter(
         (file) => Number(file.slice(0, 4)) > 14,
       ),
-    ).toEqual([...reconciliationCandidates.gradebook, gradebookCleanupCandidate]);
+    ).toEqual([...reconciliationCandidates.gradebook, gradebookCleanupCandidate, smecelOnlyCandidate]);
     expect(
       migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) === 25),
     ).toEqual(reconciliationCandidates.portal);

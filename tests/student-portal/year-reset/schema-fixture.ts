@@ -64,4 +64,5 @@ export async function installReconciliationSchemaFixtureV1(
     await database.exec(readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8'));
   }
   await database.exec(readFileSync('migrations/gradebook-simplified/0015_student_reconciliation_v1.sql', 'utf8'));
+  await database.exec(readFileSync('migrations/gradebook-simplified/0018_smecel_only_source_v1.sql', 'utf8'));
 }

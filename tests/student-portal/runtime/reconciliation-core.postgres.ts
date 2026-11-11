@@ -65,6 +65,7 @@ beforeAll(async () => {
   await exec(
     readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'),
   );
+  await exec(readFileSync('migrations/gradebook-simplified/0018_smecel_only_source_v1.sql', 'utf8'));
   await exec(`INSERT INTO gradebook.ano_letivo VALUES(2026,60000,2);
     INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES(710001,2026,'7A','SYNTHETIC CLASS A',7,'MATUTINO'),(710002,2026,'7B','SYNTHETIC CLASS B',7,'MATUTINO');
     INSERT INTO gradebook.aluno(id,ano,nome) VALUES(710001,2026,'SYNTHETIC PERSON ALPHA'),(710002,2026,'SYNTHETIC PERSON BETA');

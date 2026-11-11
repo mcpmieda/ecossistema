@@ -18,7 +18,7 @@ export function frequencySyntheticSetupSqlV2(): string[] {
    CREATE FUNCTION student_portal.ensure_year_coordination_v1(smallint) RETURNS void LANGUAGE sql AS $$ INSERT INTO student_portal.frequency_test_coordination(year) VALUES($1) ON CONFLICT DO NOTHING $$;
    CREATE TABLE gradebook.student_reconciliation_scope_v1(academic_year smallint PRIMARY KEY,revision bigint);
    CREATE TABLE gradebook.student_report_class_v1(id uuid PRIMARY KEY,academic_year smallint,label text,class_key text,shift_key text,gradebook_class_id integer,review_required boolean DEFAULT false,version bigint DEFAULT 1);
-   CREATE TABLE gradebook.student_source_record_v1(id uuid PRIMARY KEY,academic_year smallint,review_required boolean DEFAULT false);
+   CREATE TABLE gradebook.student_source_record_v1(id uuid PRIMARY KEY,academic_year smallint,review_required boolean DEFAULT false,smecel_only boolean NOT NULL DEFAULT false);
    CREATE TABLE gradebook.student_source_observation_v1(id uuid PRIMARY KEY,academic_year smallint,source_id uuid,report_class_id uuid,name_key text,inep_key text,birth_date date,filiation1_key text,enrolled_at date,transferred_at date);
    CREATE TABLE gradebook.student_source_link_v1(source_id uuid,academic_year smallint,student_uid uuid,review_required boolean DEFAULT false);
    CREATE SCHEMA collector_auth;

@@ -19,7 +19,7 @@ import {
 
 type DecisionRequest = Extract<
   ReconciliationMutationV1,
-  { operation: 'resolve' | 'class-link' | 'name-source' | 'select-observation' }
+  { operation: 'resolve' | 'class-link' | 'name-source' | 'select-observation' | 'smecel-only' }
 >;
 type ResolveRequestV1 = Extract<DecisionRequest, { operation: 'resolve' }>;
 type PersonRequestV1 = Extract<DecisionRequest, { operation: 'resolve' | 'select-observation' }>;
@@ -92,6 +92,48 @@ async function nameSourceDecisionV1(
     reason: request.operation,
     before: { nameSource: context.nameSource },
     after: { nameSource: request.nameSource },
+  };
+}
+
+/** Marks (or unmarks) a report row without a link as kept only in the Smecel; never a link. */
+async function smecelOnlyDecisionV1(
+  scope: DecisionScopeV1<Extract<DecisionRequest, { operation: 'smecel-only' }>>,
+): Promise<DecisionRecordV1> {
+  const { tx, request } = scope;
+  const [source] = await tx.query(
+    `SELECT r.smecel_only,r.current_observation_id::text,l.source_id IS NOT NULL AS linked
+    FROM gradebook.student_source_record_v1 r
+    LEFT JOIN gradebook.student_source_link_v1 l ON l.academic_year=r.academic_year AND l.source_id=r.id
+    WHERE r.academic_year=$1 AND r.id=$2::uuid FOR UPDATE OF r`,
+    [request.academicYear, request.sourceId],
+  );
+  if (!source || boolV1(source.linked) || boolV1(source.smecel_only) === request.smecelOnly)
+    throw new ReconciliationConflictV1();
+  await tx.executeNative(
+    `UPDATE gradebook.student_source_record_v1 SET smecel_only=$2::integer::boolean,version=version+1 WHERE id=$1::uuid`,
+    [request.sourceId, request.smecelOnly ? 1 : 0],
+  );
+  // The automatic report's stored count (attendance 0015) is what the Coletor and the ADM show while
+  // the Smecel report does not change: it follows the mark at once, for the row of that report.
+  const [attendance] = await tx.query(
+    `SELECT to_regclass('attendance.student_report_state_v2') IS NOT NULL AS present`,
+    [],
+  );
+  if (boolV1(attendance?.present))
+    await tx.executeNative(
+      `UPDATE attendance.student_report_state_v2 s
+      SET notes_json=jsonb_set(s.notes_json,'{counts,pending}',to_jsonb(GREATEST(0,(s.notes_json->'counts'->>'pending')::integer+$3)))
+      WHERE s.academic_year=$1 AND jsonb_typeof(s.notes_json->'counts')='object'
+        AND s.batch_id=(SELECT last_batch_id FROM gradebook.student_source_record_v1 WHERE id=$2::uuid)`,
+      [request.academicYear, request.sourceId, request.smecelOnly ? -1 : 1],
+    );
+  return {
+    action: request.operation,
+    reason: 'operator',
+    source: request.sourceId,
+    observation: source.current_observation_id === null ? undefined : scalarTextV1(source.current_observation_id),
+    before: { smecelOnly: !request.smecelOnly },
+    after: { smecelOnly: request.smecelOnly },
   };
 }
 
@@ -294,6 +336,8 @@ function decisionStepV1(scope: DecisionScopeV1): Promise<DecisionStepV1> {
       return classLinkDecisionV1({ ...scope, request });
     case 'select-observation':
       return selectObservationDecisionV1({ ...scope, request });
+    case 'smecel-only':
+      return smecelOnlyDecisionV1({ ...scope, request });
     default:
       return resolveDecisionV1({ ...scope, request });
   }
@@ -464,7 +508,7 @@ export async function applyDecisionV1(
     [Number(batch.academic_year), resolution.sourceId, resolution.studentUid, id],
   );
   await tx.executeNative(
-    `UPDATE gradebook.student_source_record_v1 SET review_required=false,pending_reason=NULL,version=version+1 WHERE id=$1::uuid`,
+    `UPDATE gradebook.student_source_record_v1 SET review_required=false,pending_reason=NULL,smecel_only=false,version=version+1 WHERE id=$1::uuid`,
     [resolution.sourceId],
   );
   // The profile and credential are activated by the caller after this identity decision.

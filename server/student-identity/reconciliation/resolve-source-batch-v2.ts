@@ -18,7 +18,7 @@ export async function resolveReconciledSourcesV2(tx: TxV1, inputs: Reconciliatio
   const decisionVersion=Number(scope?.revision??0);
   const rows=normalized.length?await tx.query(`WITH wanted AS (
     SELECT * FROM jsonb_to_recordset($1::text::jsonb) AS w(ordinal integer,name_key text,class_key text,inep_key text,birth_date date,filiation1_key text))
-    SELECT w.ordinal,o.id::text,o.source_id::text,l.student_uid::text,r.review_required AS source_review,l.review_required AS link_review
+    SELECT w.ordinal,o.id::text,o.source_id::text,l.student_uid::text,r.review_required AS source_review,l.review_required AS link_review,r.smecel_only
     FROM wanted w JOIN gradebook.student_source_observation_v1 o ON o.academic_year=2026 AND o.name_key=w.name_key
     JOIN gradebook.student_report_class_v1 c ON c.id=o.report_class_id AND c.academic_year=o.academic_year AND c.class_key=w.class_key
     JOIN gradebook.student_source_record_v1 r ON r.id=o.source_id AND r.academic_year=o.academic_year
@@ -31,7 +31,10 @@ export async function resolveReconciledSourcesV2(tx: TxV1, inputs: Reconciliatio
     if(!validOrdinals.has(ordinal))return {state:'not_found',decisionVersion:0};
     const group=groups.get(ordinal);if(!group?.length)return {state:'not_found',decisionVersion};
     const uids=new Set(group.map(row=>row.student_uid));
-    if(uids.size!==1||uids.has(null)||uids.has(undefined)||group.some(row=>boolV1(row.source_review)||boolV1(row.link_review)))return {state:'ambiguous',decisionVersion};
+    // Every matching row kept "Somente no Smecel" (gradebook-simplified 0018): expected, not a notice.
+    const smecelOnly=group.every(row=>boolV1(row.smecel_only)&&(row.student_uid===null||row.student_uid===undefined));
+    if(uids.size!==1||uids.has(null)||uids.has(undefined)||group.some(row=>boolV1(row.source_review)||boolV1(row.link_review)))
+      return smecelOnly?{state:'ambiguous',decisionVersion,smecelOnly}:{state:'ambiguous',decisionVersion};
     return {state:'resolved',studentUid:String(group[0]!.student_uid),sourceIds:[...new Set(group.map(row=>String(row.source_id)))],
       observationIds:group.map(row=>String(row.id)),decisionVersion};
   });
