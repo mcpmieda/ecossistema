@@ -82,14 +82,21 @@
 .pa-account-identity div {
   min-width: 0;
 }
-.pa-account-identity strong,
-.pa-account-identity span {
+.pa-account-identity strong {
   display: block;
   overflow-wrap: anywhere;
 }
 .pa-account-identity span {
+  display: block;
+  overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 0.8rem;
+}
+/* The actions are a fieldset (a named group); without the browser's frame. */
+fieldset.pa-account-actions {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .pa-account-tags,
 .pa-account-actions,

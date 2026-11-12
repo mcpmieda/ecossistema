@@ -159,6 +159,84 @@ function paintedDayV1(brush: Exclude<BrushV1, 'clear'>, note: string): DayV1 {
 }
 
 /** Nothing saved yet: the official calendar on screen still has to be checked and saved. */
+const DAY_LIMIT_MESSAGE_V1 = `O limite é ${SCHOOL_DAYS_REQUIRED_V1} dias letivos. Desmarque um dia letivo antes de marcar outro.`;
+
+/** The first main date out of the year's order (an end may share the day of the next start). */
+function outOfOrderV1(markers: MarkersV1 | null): string | null {
+  if (!markers) return null;
+  let previous = -Infinity;
+  for (const { key, label, end } of MARKERS) {
+    const date = markers[key];
+    if (!date) continue;
+    const at = Date.parse(instantOfDate(date, end));
+    if (at < previous) return label;
+    previous = at;
+  }
+  return null;
+}
+
+/** The days with one more painted, or null when it would pass the 200 school days. */
+function paintedDraftV1(
+  current: ReadonlyMap<string, DayV1>,
+  date: string,
+  brush: BrushV1,
+  note: string,
+): Map<string, DayV1> | null {
+  const next = new Map(current);
+  if (brush === 'clear') {
+    next.delete(date);
+    return next;
+  }
+  const before = next.get(date);
+  const counts = SCHOOL_DAY_COUNTS_V1[brush] && !(before && SCHOOL_DAY_COUNTS_V1[before.kind]);
+  // The rule: never more than 200 school days.
+  if (counts && schoolDaysIn(current) >= SCHOOL_DAYS_REQUIRED_V1) return null;
+  next.set(date, paintedDayV1(brush, note));
+  return next;
+}
+
+/** Main dates already reached that this save changes: they take effect at once. */
+function pastMarkersV1(policy: { calendar: CalendarV1; markers: MarkersV1 }, markers: MarkersV1) {
+  return changedPastDatesV1(policy.calendar, movedCalendarV1(policy, markers), Date.now()).map(
+    (key) => MARKERS.find((marker) => marker.key === key)?.label ?? calendarChangeLabelV1(key),
+  );
+}
+
+/**
+ * Saves the main dates. The policy version grows with any policy saved since it was read (other
+ * tabs of this page too): it is read again, and the save stops only if someone else moved the
+ * main dates meanwhile.
+ */
+async function saveMarkersV1(client: PortalAdminClientV1, readMarkers: MarkersV1, markers: MarkersV1) {
+  const current = await client.query({
+    contractVersion: 1,
+    operation: 'settings',
+    scope: { kind: 'school', academicYear: 2026 },
+    page: { limit: 1 },
+  });
+  if (current.state !== 'settings') throw new PortalClientErrorV1('invalid-response');
+  const read = markersOf(current.settings.value.calendar);
+  if (MARKERS.some(({ key }) => read[key] !== readMarkers[key])) throw new PortalClientErrorV1('conflict');
+  const calendar = movedCalendarV1({ calendar: current.settings.value.calendar, markers: read }, markers);
+  await client.command({
+    contractVersion: 1,
+    operation: 'settings-set',
+    scope: { kind: 'school', academicYear: 2026 },
+    expectedVersion: current.settings.version,
+    idempotencyKey: crypto.randomUUID(),
+    value: { calendar },
+    acknowledgeImmediateEffect: true,
+  });
+}
+
+function saveFailureV1(error: unknown, daysSaved: boolean): string {
+  const reason =
+    error instanceof PortalClientErrorV1 && error.state === 'conflict'
+      ? 'Outra pessoa alterou o calendário. Recarregue para ver a versão atual.'
+      : 'Não foi possível salvar agora. Tente de novo.';
+  return daysSaved ? `Os dias foram salvos, mas as datas principais não. ${reason}` : reason;
+}
+
 function OfficialCalendarNoticeV1({ unsaved }: Readonly<{ unsaved: boolean }>) {
   if (!unsaved) return null;
   return (
@@ -277,18 +355,7 @@ export function SchoolCalendarEditorV1({
   const changed = daysChanged || markersChanged;
   const pending = markers ? MARKERS.filter(({ key }) => !markers[key]) : [];
   // In the year's order, as the server requires (an end may share the day of the next start).
-  const outOfOrder = useMemo(() => {
-    if (!markers) return null;
-    let previous = -Infinity;
-    for (const { key, label, end } of MARKERS) {
-      const date = markers[key];
-      if (!date) continue;
-      const at = Date.parse(instantOfDate(date, end));
-      if (at < previous) return label;
-      previous = at;
-    }
-    return null;
-  }, [markers]);
+  const outOfOrder = useMemo(() => outOfOrderV1(markers), [markers]);
   const markersAt = (date: string) => (markers ? MARKERS.filter(({ key }) => markers[key] === date) : []);
   /** With a main date chosen, a click marks it on that day instead of painting. */
   const place = (date: string) => {
@@ -307,30 +374,14 @@ export function SchoolCalendarEditorV1({
     if (!canWrite || state !== 'ready' || !date.startsWith('2026-')) return;
     setDraft((current) => {
       if (!current) return current;
-      const next = new Map(current);
-      const before = next.get(date);
-      if (brush === 'clear') next.delete(date);
-      else {
-        const counts = SCHOOL_DAY_COUNTS_V1[brush] && !(before && SCHOOL_DAY_COUNTS_V1[before.kind]);
-        // The rule: never more than 200 school days.
-        if (counts && schoolDaysIn(current) >= SCHOOL_DAYS_REQUIRED_V1) {
-          setMessage(`O limite é ${SCHOOL_DAYS_REQUIRED_V1} dias letivos. Desmarque um dia letivo antes de marcar outro.`);
-          return current;
-        }
-        next.set(date, paintedDayV1(brush, note));
-      }
-      setMessage(null);
-      return next;
+      const next = paintedDraftV1(current, date, brush, note);
+      setMessage(next ? null : DAY_LIMIT_MESSAGE_V1);
+      return next ?? current;
     });
   };
 
   /** Main dates already reached that this save changes: they take effect at once, so ask first. */
-  const pastMarkers =
-    markers && policy && markersChanged
-      ? changedPastDatesV1(policy.calendar, movedCalendarV1(policy, markers), Date.now()).map(
-          (key) => MARKERS.find((marker) => marker.key === key)?.label ?? calendarChangeLabelV1(key),
-        )
-      : [];
+  const pastMarkers = markers && policy && markersChanged ? pastMarkersV1(policy, markers) : [];
 
   const save = async (confirmedPast = false) => {
     if (!draft || !saved || !markers || !policy || count > SCHOOL_DAYS_REQUIRED_V1 || outOfOrder) return;
@@ -359,38 +410,14 @@ export function SchoolCalendarEditorV1({
         }
       }
       if (markersChanged) {
-        // The policy version grows with any policy saved since it was read (other tabs of this page
-        // too): read it again, and stop only if someone else moved the main dates meanwhile.
-        const current = await client.query({
-          contractVersion: 1,
-          operation: 'settings',
-          scope: { kind: 'school', academicYear: 2026 },
-          page: { limit: 1 },
-        });
-        if (current.state !== 'settings') throw new PortalClientErrorV1('invalid-response');
-        const read = markersOf(current.settings.value.calendar);
-        if (MARKERS.some(({ key }) => read[key] !== policy.markers[key])) throw new PortalClientErrorV1('conflict');
-        const calendar = movedCalendarV1({ calendar: current.settings.value.calendar, markers: read }, markers);
-        await client.command({
-          contractVersion: 1,
-          operation: 'settings-set',
-          scope: { kind: 'school', academicYear: 2026 },
-          expectedVersion: current.settings.version,
-          idempotencyKey: crypto.randomUUID(),
-          value: { calendar },
-          acknowledgeImmediateEffect: true,
-        });
+        await saveMarkersV1(client, policy.markers, markers);
         onSaved?.();
       }
       await load();
       setMessage('Calendário salvo.');
     } catch (error) {
       setState('ready');
-      const reason =
-        error instanceof PortalClientErrorV1 && error.state === 'conflict'
-          ? 'Outra pessoa alterou o calendário. Recarregue para ver a versão atual.'
-          : 'Não foi possível salvar agora. Tente de novo.';
-      setMessage(daysSaved ? `Os dias foram salvos, mas as datas principais não. ${reason}` : reason);
+      setMessage(saveFailureV1(error, daysSaved));
     }
   };
 

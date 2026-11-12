@@ -1,7 +1,8 @@
 import { StudentNameV1 } from '../shared/account-open-v1';
 import { StudentPresenceV1 } from './student-presence-v1';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertDialog, Button, Card, Chip, Table, Tooltip } from '@heroui/react';
+import { AlertDialog, Button, Card, Chip, Table } from '@heroui/react';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import type { AdminReadResponseV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';

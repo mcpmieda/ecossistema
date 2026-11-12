@@ -125,6 +125,13 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Each card fills its list item, as when the cards were the grid items themselves. */
+.pa-dashboard-stats > li {
+  display: grid;
+  min-width: 0;
 }
 .pa-stat {
   border: 1px solid var(--border);
@@ -404,22 +411,22 @@
 .pa-rise {
   animation: pa-rise 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-.pa-dashboard-stats > .pa-rise:nth-child(1) {
+.pa-dashboard-stats > li:nth-child(1) > .pa-rise {
   animation-delay: 60ms;
 }
-.pa-dashboard-stats > .pa-rise:nth-child(2) {
+.pa-dashboard-stats > li:nth-child(2) > .pa-rise {
   animation-delay: 110ms;
 }
-.pa-dashboard-stats > .pa-rise:nth-child(3) {
+.pa-dashboard-stats > li:nth-child(3) > .pa-rise {
   animation-delay: 160ms;
 }
-.pa-dashboard-stats > .pa-rise:nth-child(4) {
+.pa-dashboard-stats > li:nth-child(4) > .pa-rise {
   animation-delay: 210ms;
 }
-.pa-dashboard-stats > .pa-rise:nth-child(5) {
+.pa-dashboard-stats > li:nth-child(5) > .pa-rise {
   animation-delay: 260ms;
 }
-.pa-dashboard-stats > .pa-rise:nth-child(6) {
+.pa-dashboard-stats > li:nth-child(6) > .pa-rise {
   animation-delay: 310ms;
 }
 .pa-dashboard-bottom > .pa-rise:nth-child(1) {

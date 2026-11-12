@@ -900,6 +900,35 @@ function MonthPeekV3({
   return <MonthPageV3 {...page} days={days} selected={null} onPick={() => undefined} />;
 }
 
+/**
+ * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula
+ * (08:50–09:45), MATEMATICA"): only from the day the current bells hold, never for an older day
+ * whose times or grid may have been different.
+ */
+function lessonInfoV3(
+  school: {
+    bells: Exclude<FrequencyYearSummaryV2['bells'], undefined> | null;
+    bellsValidFrom: string | null;
+    grid: Exclude<FrequencyYearSummaryV2['grid'], undefined>;
+  },
+  date: string,
+  shift: string,
+  slot: number,
+) {
+  const { bells, bellsValidFrom, grid } = school;
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const bellShift = bellShiftOfLabelV1(shift);
+  if (!bellsValidFrom || date < bellsValidFrom || weekday < 1 || weekday > 5 || !bellShift) return null;
+  const time = bells ? bellLessonV1(bells[bellShift][weekday as 1 | 2 | 3 | 4 | 5], slot) : null;
+  const subject =
+    grid
+      .find((item) => item.shift === bellShift)
+      ?.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null;
+  const official = subject ? officialSubjectV1(subject) : null;
+  if (!time && !official) return null;
+  return { time: time ? `${time.start}–${time.end}` : null, subject: official };
+}
+
 /** One month, drawn from the server's answer. */
 function FrequencyMonthV3({
   data,
@@ -939,23 +968,8 @@ function FrequencyMonthV3({
   grid?: Exclude<FrequencyYearSummaryV2['grid'], undefined>;
 }>) {
   const offByDate = useMemo(() => new Map(daysOff.map((day) => [day.date, day])), [daysOff]);
-  /**
-   * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula
-   * (08:50–09:45), MATEMATICA"): only from the day the current bells hold, never for an older day
-   * whose times or grid may have been different.
-   */
-  const lessonInfo = (date: string, shift: string, slot: number) => {
-    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-    const bellShift = bellShiftOfLabelV1(shift);
-    if (!bellsValidFrom || date < bellsValidFrom || weekday < 1 || weekday > 5 || !bellShift) return null;
-    const time = bells ? bellLessonV1(bells[bellShift][weekday as 1 | 2 | 3 | 4 | 5], slot) : null;
-    const subject =
-      grid
-        .find((item) => item.shift === bellShift)
-        ?.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null;
-    const official = subject ? officialSubjectV1(subject) : null;
-    return time || official ? { time: time ? `${time.start}–${time.end}` : null, subject: official } : null;
-  };
+  const lessonInfo = (date: string, shift: string, slot: number) =>
+    lessonInfoV3({ bells, bellsValidFrom, grid }, date, shift, slot);
   const monthDays = useMonthDaysV3(data, today, offByDate);
   const { lessonsAt, marksByDay, dayAt, stateOf } = monthDays;
   const [picked, setPicked] = useState<string | null>(null);

@@ -11,7 +11,8 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Card, Checkbox, Tooltip, SearchField, Table } from '@heroui/react';
+import { Button, Card, Checkbox, SearchField, Table } from '@heroui/react';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import { ArrowDownAZ, Clock, Star } from 'lucide-react';
 import {
   sealLabelV1,
@@ -36,6 +37,7 @@ import { AccountDetailV1, type AccountDetailPropsV1 } from './account-detail-v1'
 import { StudentBulkV1 } from './student-bulk-v1';
 import type { BulkInterruptedV1 } from './student-bulk-controller-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import {
@@ -576,6 +578,65 @@ function accountRowV1(account: AccountRowV1, row: AccountRowContextV1) {
   );
 }
 
+/** The record open in a history step, or none. */
+function studentStepV1(value: unknown): { aluno: string | null } | null {
+  if (value === null || typeof value !== 'object') return null;
+  const aluno = (value as { aluno?: unknown }).aluno;
+  return { aluno: typeof aluno === 'string' && /^[0-9a-f-]{36}$/u.test(aluno) ? aluno : null };
+}
+
+/** A bulk operation cut short by the end of the session: how far it went. */
+function BulkInterruptedNoticeV1({ interrupted }: Readonly<{ interrupted: BulkInterruptedV1 }>) {
+  const { written, targets } = interrupted;
+  return (
+    <p role="alert">
+      A sessão terminou durante a operação em massa:{' '}
+      {written === 1
+        ? `1 de ${targets} contas já foi alterada.`
+        : `${written} de ${targets} contas já foram alteradas.`}
+    </p>
+  );
+}
+
+function NoAccountsNoticeV1() {
+  return (
+    <p>
+      <output className="contents">Nenhuma conta encontrada neste filtro.</output>
+    </p>
+  );
+}
+
+/** Thumbnail maintenance asks for every listed account's photo. */
+function photoSubjectsV1(items: readonly { accountId: string }[]) {
+  return items.map((item) => ({ source: 'portal' as const, academicYear: 2026, accountIds: [item.accountId] }));
+}
+
+/**
+ * The seal counts of the listed accounts. While the same accounts' seals are read again (a
+ * record closed, the memory expired), the ranking keeps their last counts instead of falling
+ * back to A–Z.
+ */
+function useRankingSealsV1(
+  seals: SealReadStateV1,
+  rankingActive: boolean,
+  sealAccountIds: readonly string[],
+): { counts: SealCountsV1 | null; forget: () => void } {
+  const lastSealCounts = useRef<{ accountIds: readonly string[]; counts: SealCountsV1 } | null>(
+    null,
+  );
+  // A write or a new session makes the kept counts stale: the next read starts from nothing.
+  const forget = useCallback(() => {
+    lastSealCounts.current = null;
+  }, []);
+  if (seals.state === 'ready' && rankingActive)
+    lastSealCounts.current = { accountIds: sealAccountIds, counts: seals.counts };
+  const ready = readySealCountsV1(seals);
+  if (ready) return { counts: ready, forget };
+  const kept = lastSealCounts.current;
+  const counts = seals.state === 'loading' && kept?.accountIds === sealAccountIds ? kept.counts : null;
+  return { counts, forget };
+}
+
 const AccountsResultsV1 = memo(function AccountsResultsV1(
   props: AccountsBodyPropsV1 & {
     query: AdminReadQueryV2;
@@ -619,6 +680,15 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   );
   const rankingActive = useLiveRefreshScopeV1() && selectedId === null;
   useEffect(() => writePanelHashParamsV1({ aluno: selectedId }), [selectedId]);
+  // The phone's back button closes the record (or reopens the one seen before).
+  useHistoryStepV1(
+    'panel-student',
+    { aluno: selectedId },
+    (restored) => {
+      if (allowDraftNavigationV1()) setSelectedId(restored.aluno);
+    },
+    studentStepV1,
+  );
   // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.
   useEffect(() => () => writePanelHashParamsV1({ aluno: null }), []);
   const [photoMaintenance] = useState(() => readPanelHashParamV1('manutencao') === 'miniaturas');
@@ -712,14 +782,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   }, [wholeCollection, authorizationError, more, refreshing, read.refreshError, loadMore]);
   const sealAccountIds = useMemo(() => classItems.map((item) => item.accountId), [classItems]);
   const photoSubjects = useMemo(
-    () =>
-      maintenance
-        ? classItems.map((item) => ({
-            source: 'portal' as const,
-            academicYear: 2026,
-            accountIds: [item.accountId],
-          }))
-        : [],
+    () => (maintenance ? photoSubjectsV1(classItems) : []),
     [maintenance, classItems],
   );
   const seals = useSealCountsV1(
@@ -727,18 +790,11 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     sealTargetV1(props.order, current !== null, sealAccountIds),
     { active: rankingActive, revision: current?.scopeVersion, cache: props.sealCache },
   );
-  // While the same accounts' seals are read again (a record closed, the memory expired), the
-  // ranking keeps their last counts instead of falling back to A–Z.
-  const lastSealCounts = useRef<{ accountIds: readonly string[]; counts: SealCountsV1 } | null>(
-    null,
+  const { counts: sealCounts, forget: forgetSeals } = useRankingSealsV1(
+    seals,
+    rankingActive,
+    sealAccountIds,
   );
-  if (seals.state === 'ready' && rankingActive)
-    lastSealCounts.current = { accountIds: sealAccountIds, counts: seals.counts };
-  const sealCounts =
-    readySealCountsV1(seals) ??
-    (seals.state === 'loading' && lastSealCounts.current?.accountIds === sealAccountIds
-      ? lastSealCounts.current.counts
-      : null);
   // The seal count travels inside each row: React Aria re-renders a row only when its item changes.
   const orderedItems = useMemo(
     () =>
@@ -809,24 +865,24 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   // rows stay on screen until the new ones arrive.
   const onChanged = useCallback(() => {
     props.sealCache.clear();
-    lastSealCounts.current = null;
+    forgetSeals();
     reloadList.current();
-  }, [props.sealCache]);
+  }, [props.sealCache, forgetSeals]);
   // A QR batch reads the list again in the background: its tools stay mounted with the PDF ready.
   const onQrCommitted = () => {
     props.sealCache.clear();
-    lastSealCounts.current = null;
+    forgetSeals();
     read.reloadNow();
   };
   const [bulkInterrupted, setBulkInterrupted] = useState<BulkInterruptedV1 | null>(null);
   const onAuthorizationLost = useCallback(
     (error: PortalClientErrorV1) => {
       props.sealCache.clear();
-      lastSealCounts.current = null;
+      forgetSeals();
       setAuthorizationError(error);
       setSelectedId(null);
     },
-    [props.sealCache],
+    [props.sealCache, forgetSeals],
   );
   const onBulkAuthorizationLost = useCallback(
     (error: PortalClientErrorV1, interrupted?: BulkInterruptedV1) => {
@@ -843,7 +899,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   const reload = () => {
     if (!read.canReload) return;
     props.sealCache.clear();
-    lastSealCounts.current = null;
+    forgetSeals();
     setAuthorizationError(null);
     setBulkInterrupted(null);
     read.clear();
@@ -910,19 +966,8 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
             canReload={read.canReload}
             onReload={reload}
           />
-          {authorizationError && bulkInterrupted ? (
-            <p role="alert">
-              A sessão terminou durante a operação em massa:{' '}
-              {bulkInterrupted.written === 1
-                ? `1 de ${bulkInterrupted.targets} contas já foi alterada.`
-                : `${bulkInterrupted.written} de ${bulkInterrupted.targets} contas já foram alteradas.`}
-            </p>
-          ) : null}
-          {current && visibleItems.length === 0 && !current.nextCursor && (
-            <p>
-              <output className="contents">Nenhuma conta encontrada neste filtro.</output>
-            </p>
-          )}
+          {authorizationError && bulkInterrupted ? <BulkInterruptedNoticeV1 interrupted={bulkInterrupted} /> : null}
+          {current && visibleItems.length === 0 && !current.nextCursor && <NoAccountsNoticeV1 />}
           {current && visibleItems.length > 0 && (
             // Rows are kept per account; a class adds the selection column, so its table is another.
             <Table key={qrClass ? 'class' : 'all'} className="pa-account-table">

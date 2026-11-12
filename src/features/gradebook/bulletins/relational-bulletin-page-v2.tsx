@@ -33,6 +33,7 @@ import {
 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { readSessionRecordV1, storedIdV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import {
@@ -60,8 +61,11 @@ type Busy = 'catalog' | 'students' | 'artifact' | 'batch' | 'history' | null;
 /** Class, period and detail kept for the tab across a reload. */
 const VIEW_KEY_V2 = 'gradebook-bulletins-view';
 function readStoredViewV2() {
-  const stored = readSessionRecordV1(VIEW_KEY_V2);
-  if (!stored) return null;
+  return parseViewV2(readSessionRecordV1(VIEW_KEY_V2));
+}
+function parseViewV2(value: unknown) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const stored = value as Record<string, unknown>;
   const term = ([1, 2, 3] as const).find((item) => item === stored.term);
   let period: RelationalBulletinPeriodV2 | null;
   if (stored.term === 'annual') {
@@ -76,6 +80,18 @@ function readStoredViewV2() {
   return { year: storedIdV1(stored.year), classId: storedIdV1(stored.classId), period, detail };
 }
 type PdfState = RelationalBulletinPdfActionV2 | null;
+type BulletinTermV2 = 1 | 2 | 3 | 'annual';
+const termOfV2 = (period: RelationalBulletinPeriodV2): BulletinTermV2 =>
+  period.kind === 'annual' ? 'annual' : period.term;
+const periodOfTermV2 = (term: BulletinTermV2): RelationalBulletinPeriodV2 =>
+  term === 'annual' ? { kind: 'annual' } : { kind: 'term', term };
+/** The view kept in a history step, read back with the same checks as the stored one. */
+function stepViewV2(value: unknown) {
+  const parsed = parseViewV2(value);
+  return parsed
+    ? { year: parsed.year, classId: parsed.classId, term: termOfV2(parsed.period), detail: parsed.detail }
+    : null;
+}
 
 const FAILURE: Record<RelationalBulletinFailureV2, string> = {
   'invalid-request': 'Os filtros do boletim ficaram inconsistentes. Selecione novamente o recorte.',
@@ -767,10 +783,24 @@ export function RelationalBulletinPageV2() {
     const target = restoreClass.current;
     if (!catalog || target === null) return;
     restoreClass.current = null;
-    if (storedView?.year === year && catalog.classes.some((item) => item.id === target))
+    if (storedView?.year === year && catalog.classes.some((item) => item.id === target)) {
+      correctsView();
       void loadStudents(target);
+    }
     // Runs once, when the catalog of the restored year arrives.
   }, [catalog]);
+  // The phone's back button returns to the class, period and detail chosen before.
+  const correctsView = useHistoryStepV1(
+    `gradebook-bulletins-view:${year ?? 0}`,
+    { year, classId, term: termOfV2(period), detail },
+    (restored) => {
+      setPeriod(periodOfTermV2(restored.term));
+      setDetail(restored.detail);
+      setArtifact(null);
+      if (restored.classId !== null && restored.classId !== classId) void loadStudents(restored.classId);
+    },
+    stepViewV2,
+  );
   useEffect(() => {
     if (year !== null && catalog && restoreClass.current === null)
       writeSessionViewV1(VIEW_KEY_V2, {

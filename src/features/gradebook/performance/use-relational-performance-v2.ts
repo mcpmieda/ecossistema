@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { PERFORMANCE_LENSES_V3 } from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 import type {
   PerformanceRequestV2,
   PerformanceReadyV2,
@@ -328,10 +329,21 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
   useEffect(() => {
     if (year !== null) writeSessionViewV1(filtersKeyV2(year), filters);
   }, [year, filters]);
+  // The phone's back button returns to the class, period and filters chosen before.
+  const correctsView = useHistoryStepV1(
+    `gradebook-performance-filters:${year ?? 0}`,
+    filters,
+    (restored) => void select(restored),
+    (value) => {
+      const parsed = storedFiltersV2.safeParse(value);
+      return parsed.success ? (parsed.data as Filters) : null;
+    },
+  );
   useEffect(() => {
     if (!restoring.current || year === null || !classes || classes.nextOffset != null) return;
     restoring.current = false;
     if (!classes.classes.some((item) => item.id === filters.classId)) {
+      correctsView();
       setFilters((current) => ({
         ...current,
         classId: null,

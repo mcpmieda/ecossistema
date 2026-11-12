@@ -45,6 +45,27 @@ function sameReadV1(left: unknown, right: unknown): boolean {
   );
 }
 
+type ReadOptionsV1 = { background?: boolean; silent?: boolean };
+type ReadyStateV1<T> = Extract<PortalLoadStateV1<T>, { state: 'ready' }>;
+
+/** A silent read never waits for another read; a read someone asked for replaces it. */
+function yieldsToRunningReadV1(options: ReadOptionsV1, activeSilent: boolean): boolean {
+  if (options.silent) return true;
+  return Boolean(options.background) && !activeSilent;
+}
+
+/** What shows while a read runs: the content refreshing, or the loading state. */
+function startedStateV1<T>(previous: ReadyStateV1<T> | null): PortalLoadStateV1<T> {
+  return previous ? { state: 'ready', data: previous.data, refreshing: true } : { state: 'loading' };
+}
+
+/** What a finished read shows. A silent read that brought the same answer publishes nothing,
+ * unless it clears the notice of an earlier failure. */
+function settledStateV1<T>(previous: ReadyStateV1<T> | null, data: T, silent: boolean): PortalLoadStateV1<T> | null {
+  if (!silent || !previous || !sameReadV1(previous.data, data)) return { state: 'ready', data };
+  return previous.refreshError ? { state: 'ready', data: previous.data } : null;
+}
+
 /** A scope switch clears protected data immediately, even when a fetch ignores abort.
  * Background refresh is explicit and local to the same reader/context, never persistent cache.
  * A silent read (the window came back) shows nothing while it runs and publishes only a change.
@@ -79,8 +100,7 @@ export function createLatestPortalRequestV1<T>(publish: (state: PortalLoadStateV
       load: (signal: AbortSignal) => Promise<T>,
       options: { background?: boolean; silent?: boolean } = {},
     ) {
-      // A silent read never waits for another read; a read someone asked for replaces it.
-      if (active && (options.silent || (options.background && !activeSilent))) return;
+      if (active && yieldsToRunningReadV1(options, activeSilent)) return;
       const current = ++generation;
       active?.abort();
       const controller = new AbortController();
@@ -88,19 +108,13 @@ export function createLatestPortalRequestV1<T>(publish: (state: PortalLoadStateV
       activeSilent = Boolean(options.silent);
       const previous =
         (options.background || options.silent) && state.state === 'ready' ? state : null;
-      if (!options.silent)
-        emit(
-          previous
-            ? { state: 'ready', data: previous.data, refreshing: true }
-            : { state: 'loading' },
-        );
+      if (!options.silent) emit(startedStateV1(previous));
       try {
         const data = await load(controller.signal);
         if (current === generation && !controller.signal.aborted) {
           verifiedAt = Date.now();
-          if (!options.silent || !previous || !sameReadV1(previous.data, data))
-            emit({ state: 'ready', data });
-          else if (previous.refreshError) emit({ state: 'ready', data: previous.data });
+          const next = settledStateV1(previous, data, Boolean(options.silent));
+          if (next) emit(next);
           return true;
         }
       } catch (error) {

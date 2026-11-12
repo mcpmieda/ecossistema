@@ -1444,6 +1444,47 @@ function ScoreHeadV1({
   );
 }
 
+/** One published activity of a trimester: its description, status and mark. */
+function PartialRowV1({
+  partial,
+  calm,
+  sealed,
+}: Readonly<{ partial: PartialV1; calm: boolean; sealed: boolean }>) {
+  // Same rule as the bulletin table: observed blank → Não fez, numeric 0 → Tirou zero.
+  const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
+  return (
+    <li>
+      {/* The description leads, its status chip right under it reads as its subtitle,
+          and the mark sits on the description's line (owner review 27/09/2026). */}
+      <PartialLabelV1
+        label={partial.label}
+        feedback={
+          <>
+            <PartialFeedbackV1 partial={partial} calm={calm} sealed={sealed} />
+            {/* A taken parallel exam (a score, zero included) was a second chance. */}
+            {partial.parallel && partial.mark.kind === 'score' ? (
+              <span className="pa-partial-second-chance">
+                <TriangleAlert size={14} strokeWidth={2.2} aria-hidden="true" />
+                Foi uma segunda chance
+              </span>
+            ) : null}
+          </>
+        }
+      />
+      <strong className={partialStatusClassV1(partial.notDone, zero)}>
+        {partial.notDone || zero ? (
+          <GranularStatusV1 notDone={partial.notDone} zero={zero} />
+        ) : (
+          // The mark pill wears its band colour, like the tag under the description.
+          <span className="pa-mark-band" data-band={partialBandV1(partial) ?? undefined}>
+            <StudentMarkV1 mark={partial.mark} showMaximum oneDecimal />
+          </span>
+        )}
+      </strong>
+    </li>
+  );
+}
+
 function SubjectV1View({
   subject,
   selected,
@@ -1582,47 +1623,14 @@ function SubjectV1View({
                   <p className="pa-score-card-partials-title">Como o aluno foi em cada atividade</p>
                   {/* A plain list: nothing here is selectable, and each row may hold a toggle. */}
                   <ul aria-label="Avaliações publicadas" className="pa-partials-list">
-                    {period.partials.map((partial) => {
-                      // Same rule as the bulletin table: observed blank → Não fez, numeric 0 → Tirou zero.
-                      const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
-                      return (
-                        <li key={partial.assessmentId}>
-                          {/* The description leads, its status chip right under it reads as its subtitle,
-                              and the mark sits on the description's line (owner review 27/09/2026). */}
-                          <PartialLabelV1
-                            label={partial.label}
-                            feedback={
-                              <>
-                                <PartialFeedbackV1
-                                  partial={partial}
-                                  calm={mark?.meetsMinimum === false}
-                                  sealed={assessmentSealed(active, partial)}
-                                />
-                                {/* A taken parallel exam (a score, zero included) was a second chance. */}
-                                {partial.parallel && partial.mark.kind === 'score' ? (
-                                  <span className="pa-partial-second-chance">
-                                    <TriangleAlert size={14} strokeWidth={2.2} aria-hidden="true" />
-                                    Foi uma segunda chance
-                                  </span>
-                                ) : null}
-                              </>
-                            }
-                          />
-                          <strong
-                            className={partialStatusClassV1(partial.notDone, zero)}
-                          >
-                            {partial.notDone || zero ? (
-                              <GranularStatusV1 notDone={partial.notDone} zero={zero} />
-                            ) : (
-                              // The mark pill wears its band colour, like the tag under the description.
-                              <span className="pa-mark-band" data-band={partialBandV1(partial) ?? undefined}>
-                                <StudentMarkV1 mark={partial.mark} showMaximum oneDecimal />
-                              </span>
-                            )}
-                          </strong>
-                        </li>
-                      );
-                    })}
+                    {period.partials.map((partial) => (
+                      <PartialRowV1
+                        key={partial.assessmentId}
+                        partial={partial}
+                        calm={mark?.meetsMinimum === false}
+                        sealed={assessmentSealed(active, partial)}
+                      />
+                    ))}
                   </ul>
                 </>
               ) : (

@@ -1,6 +1,7 @@
 import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigation-v1';
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Chip, Input, Label, Skeleton, TextField, Tooltip } from '@heroui/react';
+import { Button, Card, Chip, Input, Label, Skeleton, TextField } from '@heroui/react';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import { Info } from 'lucide-react';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';

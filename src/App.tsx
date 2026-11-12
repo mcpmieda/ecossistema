@@ -12,6 +12,7 @@ import { BrandMark, formatDate, initials } from './platform/presentation';
 import { SCHOOL_NAME_V1 } from './shared/brand/school-mark-v1';
 import { PlatformSearch } from './platform/search';
 import { useDrawerSwipeV1 } from './platform/drawer-swipe-v1';
+import { useBackClosesOverlayV1 } from './platform/back-closes-overlay-v1';
 import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformDataV2 } from './platform/platform-data-v2';
 import { usePlatformIdentityV1, type PlatformIdentityV1 as Identity } from './platform/platform-identity-v1';
@@ -179,7 +180,9 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
   const drawerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  useDrawerSwipeV1(menuOpen, setMenuOpen, drawerRef);
+  const backdropRef = useRef<HTMLButtonElement>(null);
+  useDrawerSwipeV1(menuOpen, setMenuOpen, drawerRef, backdropRef);
+  useBackClosesOverlayV1();
   useEffect(() => {
     if (!menuOpen) return;
     const drawer = drawerRef.current;
@@ -279,7 +282,8 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
         <ShellSectionTabsV1 route={route} section={section} modules={modules} />
       </div>
       <div className="shell-body shell-body--service">
-        {menuOpen && <button type="button" className="shell-drawer-backdrop" tabIndex={-1} aria-hidden="true" onClick={() => setMenuOpen(false)} />}
+        {/* Always present, so it can fade with the drawer while a finger drags it. */}
+        <button ref={backdropRef} type="button" className="shell-drawer-backdrop" data-open={menuOpen ? 'true' : undefined} tabIndex={-1} aria-hidden="true" onClick={() => setMenuOpen(false)} />
         <aside ref={drawerRef} id="shell-drawer" className="shell-aside" data-open={menuOpen ? 'true' : undefined} {...(menuOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menu do Centro' } : {})}>
           <Button variant="ghost" size="sm" isIconOnly className="shell-drawer-close" aria-label="Fechar menu" onPress={() => setMenuOpen(false)}><X /></Button>
           <ShellSidebarV3

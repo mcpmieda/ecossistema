@@ -71,6 +71,8 @@ const DAYS = [
   { weekday: 5, short: 'Sex', long: 'Sexta-feira' },
 ] as const;
 type WeekdayV3 = (typeof DAYS)[number]['weekday'];
+/** The way a swipe went: back a day (-1) or ahead (1). */
+type SwipeSideV3 = -1 | 1;
 
 const SCHOOL_TIME = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Bahia',
@@ -235,8 +237,8 @@ function DaySliderV3({
 }: Readonly<{
   shown: WeekdayV3;
   /** The way the last swipe went (on any class's card), or null for a day picked on the chips. */
-  swipedSide: -1 | 1 | null;
-  onChange: (weekday: WeekdayV3, side?: -1 | 1) => void;
+  swipedSide: SwipeSideV3 | null;
+  onChange: (weekday: WeekdayV3, side?: SwipeSideV3) => void;
   onDrag: (progress: number, dragging: boolean) => void;
   panel: (weekday: WeekdayV3, current: boolean) => ReactNode;
 }>) {
@@ -256,7 +258,7 @@ function DaySliderV3({
     return () => observer.disconnect();
   }, [shown]);
   // A day picked on the chips: the day it replaces waits on its side, then the track slides over.
-  const [arriving, setArriving] = useState<{ from: WeekdayV3; side: -1 | 1 } | null>(null);
+  const [arriving, setArriving] = useState<{ from: WeekdayV3; side: SwipeSideV3 } | null>(null);
   const shownBefore = useRef(shown);
   const swiped = useRef(false);
   useLayoutEffect(() => {
@@ -964,6 +966,26 @@ function WeekChipsV3({
   );
 }
 
+/** ISO moments (the server's): the latest is the greatest string. */
+function latestObservedV3(classes: readonly ScheduleClassV3[] | null): string | undefined {
+  return (classes ?? [])
+    .map((item) => item.observedAt)
+    .sort((a, b) => a.localeCompare(b))
+    .at(-1);
+}
+
+/** Today first; on a weekend, Monday (the next school day). */
+const firstShownDayV3 = (schoolDay: boolean, todayWeekday: number) => (schoolDay ? todayWeekday : 1);
+
+/**
+ * Today has lessons only inside the school year (owner request 27/10/2026): after the calendar's
+ * last school day, a weekday the calendar does not mark is no school day either.
+ */
+function inSchoolYearV3(today: string, schoolYear: SchoolYearSpanV1 | null): boolean {
+  if (!schoolYear) return true;
+  return today >= schoolYear.firstDay && today <= schoolYear.lastDay;
+}
+
 /** The week as read; `classes` null while it has not come yet (then `status` says why). */
 export function ScheduleWeekV3({
   classes,
@@ -988,10 +1010,10 @@ export function ScheduleWeekV3({
   const schoolDay = todayWeekday >= 1 && todayWeekday <= 5;
   // Today first; on a weekend, Monday (the next school day). A day the reader picks stays.
   const [picked, setPicked] = useState<number | null>(null);
-  const shown = (picked ?? (schoolDay ? todayWeekday : 1)) as WeekdayV3;
-  const [swipedSide, setSwipedSide] = useState<-1 | 1 | null>(null);
+  const shown = (picked ?? firstShownDayV3(schoolDay, todayWeekday)) as WeekdayV3;
+  const [swipedSide, setSwipedSide] = useState<SwipeSideV3 | null>(null);
   // The way of the last swipe, for every class's card (a chip picked comes by the week's order).
-  const pick = (weekday: number, side: -1 | 1 | null = null) => {
+  const pick = (weekday: number, side: SwipeSideV3 | null = null) => {
     // Only with a new day: alone, it would cut short a slide still under way.
     if (weekday !== shown) setSwipedSide(side);
     setPicked(weekday);
@@ -1005,16 +1027,9 @@ export function ScheduleWeekV3({
     daysOff.find((day) => day.date === dateOfWeekday(today, weekday)) ?? null;
   const todayOff = schoolDay ? offAt(todayWeekday) : null;
   const isToday = (weekday: number) => schoolDay && weekday === todayWeekday;
-  // Today has lessons only inside the school year (owner request 27/10/2026): after the calendar's
-  // last school day, a weekday the calendar does not mark is no school day either.
-  const inYear = !schoolYear || (today >= schoolYear.firstDay && today <= schoolYear.lastDay);
-  const lessonsToday = schoolDay && !todayOff && inYear;
+  const lessonsToday = schoolDay && !todayOff && inSchoolYearV3(today, schoolYear);
   const liveSeconds = lessonsToday ? clock.seconds : null;
-  // ISO moments (the server's): the latest is the greatest string.
-  const latest = (classes ?? [])
-    .map((item) => item.observedAt)
-    .sort((a, b) => a.localeCompare(b))
-    .at(-1);
+  const latest = latestObservedV3(classes);
 
   return (
     <section className="pa3-schedule" aria-labelledby="pa3-schedule-title">

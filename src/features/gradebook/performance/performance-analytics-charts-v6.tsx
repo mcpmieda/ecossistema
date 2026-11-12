@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react';
-import { Button, Card, Chip, Label, Meter, Tooltip } from '@heroui/react';
+import { Button, Card, Chip, Label, Meter } from '@heroui/react';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import { Info } from 'lucide-react';
 import type { PerformanceAnalyticsSummaryV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import {

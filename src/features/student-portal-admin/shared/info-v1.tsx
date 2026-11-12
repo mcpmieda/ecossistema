@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Tooltip } from '@heroui/react/tooltip';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import { Info } from 'lucide-react';
 
 export function InfoV1({ label, children }: Readonly<{ label: string; children: ReactNode }>) {

@@ -225,6 +225,27 @@ function bulkCountsV1(state: BulkStateV1, targets: number) {
   return { skipped, completed, failed, unclear, processed, percent };
 }
 
+function BulkLoadingV1({ total }: Readonly<{ total: number }>) {
+  return (
+    <ProgressBar isIndeterminate aria-label="Preparando a operação">
+      <Label>Preparando a operação{total ? ` · ${total} contas` : ''}…</Label>
+      <ProgressBar.Track>
+        <ProgressBar.Fill />
+      </ProgressBar.Track>
+    </ProgressBar>
+  );
+}
+
+function BulkErrorV1({ error }: Readonly<{ error: BulkStateV1['error'] }>) {
+  return (
+    <p role="alert">
+      {error === 'expired'
+        ? errors.expired
+        : `Não foi possível carregar a operação. ${errors[error ?? ''] ?? 'Solicitação recusada.'}`}
+    </p>
+  );
+}
+
 /** Bulk writes open in a full-screen dialog: counts instead of a name list, a typed confirmation
  * and a progress bar. With rows selected in the table only those accounts are written; with none
  * selected the whole class is (owner decision, 26/09/2026).
@@ -353,16 +374,7 @@ export function StudentBulkV1({
                     {onlySelected ? 'Somente selecionados' : 'Turma inteira'}
                   </Chip>
                 </div>
-                {state.phase === 'loading' ? (
-                  <ProgressBar isIndeterminate aria-label="Preparando a operação">
-                    <Label>
-                      Preparando a operação{state.total ? ` · ${state.total} contas` : ''}…
-                    </Label>
-                    <ProgressBar.Track>
-                      <ProgressBar.Fill />
-                    </ProgressBar.Track>
-                  </ProgressBar>
-                ) : null}
+                {state.phase === 'loading' ? <BulkLoadingV1 total={state.total} /> : null}
                 {state.phase === 'review' ? (
                   <BulkReviewV1
                     action={action}
@@ -380,13 +392,7 @@ export function StudentBulkV1({
                     counts={{ completed, failed, unclear, skipped, processed, percent }}
                   />
                 ) : null}
-                {state.phase === 'error' ? (
-                  <p role="alert">
-                    {state.error === 'expired'
-                      ? errors.expired
-                      : `Não foi possível carregar a operação. ${errors[state.error ?? ''] ?? 'Solicitação recusada.'}`}
-                  </p>
-                ) : null}
+                {state.phase === 'error' ? <BulkErrorV1 error={state.error} /> : null}
               </Modal.Body>
               <Modal.Footer className="pa-bulk-dialog__edge">
                 <BulkActionsV1

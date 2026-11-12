@@ -42,7 +42,7 @@ describe('actual operational summary and health', () => {
     expect(screen.getByRole('button', { name: 'Sobre Sessões ativas' })).toBeTruthy();
     expect(document.querySelectorAll('.pa-stat')).toHaveLength(6);
     // Cards cannot be valid dt/dd groups; the counts are a plain list of label and value.
-    expect(document.querySelectorAll('.pa-dashboard-stats > [role="listitem"]')).toHaveLength(6);
+    expect(document.querySelectorAll('.pa-dashboard-stats > li')).toHaveLength(6);
     expect(document.querySelector('.pa-dashboard-stats dt, .pa-dashboard-stats dd')).toBeNull();
     expect(document.querySelector('svg[role="img"],canvas')).toBeNull();
     expect(mock.queries.some((q) => q.operation === 'health')).toBe(false);

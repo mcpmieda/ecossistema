@@ -273,6 +273,34 @@ function CameraBlockedV1({ onRetry }: Readonly<{ onRetry: () => void }>) {
   );
 }
 
+/**
+ * One frame's codes. A frame the decoder could not finish (slow phone past the worker's limit, a
+ * worker error) is a frame without a code: the camera decoder replaces its worker for the next
+ * one. Only failures in a row end the reading.
+ */
+async function frameAttemptV1(scan: CameraScanV1, failures: { count: number }): Promise<string[]> {
+  try {
+    const codes = await frameCodesV1(scan);
+    failures.count = 0;
+    return codes;
+  } catch (error) {
+    if (!(error instanceof QrInputErrorV1 && error.reason === 'unavailable')) throw error;
+    failures.count += 1;
+    if (failures.count >= CAMERA_FRAME_FAILURES_V1) throw error;
+    return [];
+  }
+}
+
+/** Reads frames until one carries a code the screen accepts, or the reading is stopped. */
+async function scanFramesV1(scan: CameraScanV1, deliver: (codes: string[]) => boolean): Promise<void> {
+  const failures = { count: 0 };
+  while (!scan.signal.aborted) {
+    const showing = scan.player.videoWidth > 0 && scan.player.videoHeight > 0;
+    if (showing && deliver(await frameAttemptV1(scan, failures))) return;
+    await cameraFrameGapV1(scan.signal);
+  }
+}
+
 export function StudentQrReaderV1({
   onQr,
   decode,
@@ -392,8 +420,7 @@ export function StudentQrReaderV1({
       if (session) controller.signal.addEventListener('abort', session.dispose, { once: true });
       const native = await nativeQrDetectorV1();
       controller.signal.throwIfAborted();
-      let attempt = 0,
-        failures = 0;
+      let attempt = 0;
       const scan: CameraScanV1 = {
         native,
         player,
@@ -404,23 +431,7 @@ export function StudentQrReaderV1({
         nextStep: () => attempt++ % 3,
         assisted: () => assisted,
       };
-      while (!controller.signal.aborted) {
-        if (player.videoWidth && player.videoHeight) {
-          let codes: string[] = [];
-          try {
-            codes = await frameCodesV1(scan);
-            failures = 0;
-          } catch (error) {
-            // A frame the decoder could not finish (slow phone past the worker's limit, a worker
-            // error) is a frame without a code: the camera decoder replaces its worker for the
-            // next one. Only failures in a row end the reading.
-            const failed = error instanceof QrInputErrorV1 && error.reason === 'unavailable';
-            if (!failed || ++failures >= CAMERA_FRAME_FAILURES_V1) throw error;
-          }
-          if (deliver(codes)) return;
-        }
-        await cameraFrameGapV1(controller.signal);
-      }
+      await scanFramesV1(scan, deliver);
     } catch (error) {
       if (!controller.signal.aborted) cameraFailed(error);
     }

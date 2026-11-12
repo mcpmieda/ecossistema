@@ -16,6 +16,7 @@ import {
 } from 'react';
 import { Alert, Button, Tabs } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
+import { useHistoryStepV1 } from '../../shared/ui/history-step-v1';
 import type { PolicyScopeV1, ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CustomizationRowV1 } from '../../../shared/student-portal-contracts/customizations-v1';
 import { PUBLIC_DEMO_URL_V1 } from '../../../shared/public-demo-control-v1';
@@ -422,6 +423,41 @@ function PortalWorkspace({
       ficha: openedAccount?.id ?? null,
     });
   }, [section, selectedClass, selectedShift, openedAccount]);
+  // The phone's back button returns to the class, shift and record shown before.
+  useHistoryStepV1(
+    'panel-scope',
+    { turma: selectedClass?.id ?? null, turno: selectedShift, ficha: openedAccount?.id ?? null },
+    (restored) => {
+      if (!allowDraftNavigationV1()) return;
+      setSelectedShift(restored.turno);
+      setSelectedClass(
+        restored.turma === null
+          ? null
+          : (classItems.find((item) => item.id === restored.turma) ?? { id: restored.turma, label: '' }),
+      );
+      setCustomizationTarget(null);
+      setOpenedAccount(
+        restored.ficha === null
+          ? null
+          : {
+              id: restored.ficha,
+              parentScope:
+                restored.turma === null
+                  ? SCHOOL
+                  : { kind: 'class', academicYear: 2026, classId: restored.turma },
+            },
+      );
+      qr.clear();
+    },
+    (value) => {
+      if (value === null || typeof value !== 'object') return null;
+      const stored = value as Record<string, unknown>;
+      const turma = typeof stored.turma === 'number' && Number.isSafeInteger(stored.turma) && stored.turma > 0 ? stored.turma : null;
+      const turno = PANEL_SHIFTS_V1.find((item) => item === stored.turno) ?? null;
+      const ficha = typeof stored.ficha === 'string' && /^[0-9a-f-]{36}$/u.test(stored.ficha) ? stored.ficha : null;
+      return { turma, turno, ficha };
+    },
+  );
   const panelScope = useMemo(
     () => ({
       scope: selectedClass

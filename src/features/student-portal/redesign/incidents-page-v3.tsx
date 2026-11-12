@@ -56,7 +56,8 @@ function leavePeriodV3({ from, to }: NonNullable<StudentIncidentV1['leave']>): s
 /** "De 22/10/2026 a 28/10/2026 · 3 dias", with only the parts the Smecel shows; the days apart, for the styles. */
 function LeaveTextV3({ leave }: Readonly<{ leave: NonNullable<StudentIncidentV1['leave']> }>) {
   const period = leavePeriodV3(leave);
-  const days = leave.days === null ? null : `${leave.days} ${leave.days === 1 ? 'dia' : 'dias'}`;
+  const unit = leave.days === 1 ? 'dia' : 'dias';
+  const days = leave.days === null ? null : `${leave.days} ${unit}`;
   return (
     <>
       {period}

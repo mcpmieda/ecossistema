@@ -283,7 +283,9 @@ function GradebookWorkspaceShellContent() {
       return { ...current, surfaces: next };
     });
     setActiveSurface(surfaceId);
-    replaceWorkspaceSurfaceHash(surfaceId);
+    // A new history entry, so the phone's back button returns to the previous area.
+    const nextHash = workspaceSurfaceHash(surfaceId);
+    if (window.location.hash !== nextHash) window.location.hash = nextHash;
   };
 
   useEffect(() => {

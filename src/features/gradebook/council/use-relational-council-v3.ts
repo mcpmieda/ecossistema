@@ -9,6 +9,8 @@ import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { requestRelationalCouncilV3 } from './relational-council-client-v3';
 import { readSessionRecordV1, storedIdV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
+import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 
 /** The class in session, kept for the tab across a reload. */
 const VIEW_KEY_V3 = 'gradebook-council-view';
@@ -66,6 +68,7 @@ export function useRelationalCouncilV3() {
     const stored = restoreClass.current;
     restoreClass.current = null;
     if (stored?.year === currentYear && selectedClass.current === null && list.some((item) => item.id === stored.classId)) {
+      correctsView();
       selectedClass.current = stored.classId; setClassId(stored.classId);
       void loadWorkspace(stored.classId!);
     }
@@ -141,6 +144,18 @@ export function useRelationalCouncilV3() {
     canRefresh: () => !busy.classes && !busy.workspace && !busy.command && !draftProtected.current,
   });
 
+  // The phone's back button returns to the class open before, unless a draft would be lost.
+  const correctsView = useHistoryStepV1(
+    `gradebook-council-class:${year ?? 0}`,
+    { classId },
+    (restored) => {
+      if (restored.classId !== classId && allowDraftNavigationV1()) void selectClass(restored.classId);
+    },
+    (value) =>
+      value !== null && typeof value === 'object' && 'classId' in value
+        ? { classId: storedIdV1((value as { classId: unknown }).classId) }
+        : null,
+  );
   async function selectClass(next: number | null) {
     workspaceController.current?.abort(); sequence.current += 1;
     selectedClass.current = next;

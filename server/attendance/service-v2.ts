@@ -1311,7 +1311,8 @@ async function setPreferredDevice(
       `SELECT revoked_at FROM collector_auth.device_public_v2 WHERE device_id=$1::uuid AND tenant_id=$2::uuid`,
       [input.deviceId, actor.tenantId],
     );
-    if (!target || target.revoked_at !== null) fail('invalid-request', 400);
+    // No such device, or a revoked one.
+    if (target?.revoked_at !== null) fail('invalid-request', 400);
   }
   await tx.executeNative(
     `UPDATE attendance.school_state_v2 SET preferred_device=$2::uuid,revision=revision+1 WHERE academic_year=$1`,

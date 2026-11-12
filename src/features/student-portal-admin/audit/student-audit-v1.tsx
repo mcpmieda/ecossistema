@@ -1,7 +1,8 @@
 import { StudentNameV1 } from '../shared/account-open-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Card, Chip, Tooltip, Label, ListBox, Modal, Select, Table } from '@heroui/react';
+import { Button, Card, Chip, Label, ListBox, Modal, Select, Table } from '@heroui/react';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import {
   auditKindV1,
   type AdminQueryV1,
