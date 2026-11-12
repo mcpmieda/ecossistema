@@ -82,7 +82,7 @@ describe('history steps v1', () => {
     });
     rerender({ value: { period: 2 } });
     await tick(20);
-    expect(window.history.length).toBe(start);
+    expect(window.history).toHaveLength(start);
     expect((window.history.state as Record<string, unknown>)['step-v1:test-load']).toEqual({ period: 2 });
   });
 });

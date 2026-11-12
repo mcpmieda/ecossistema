@@ -118,6 +118,22 @@ function rrText(value: unknown): boolean {
   return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'RR';
 }
 
+/** A cell typed as text: NC or RR in a recovery column, or a number typed as text. */
+function textCellV9(
+  sheet: GradeSheetRecognition,
+  address: string,
+  rawValue: string,
+  isRecovery: boolean,
+): GradebookImportCellV9 | GradebookImportRecoveryCellV9 {
+  if (isRecovery && ncText(rawValue)) return ['n'];
+  if (isRecovery && rrText(rawValue)) return ['r'];
+  if (/^[+-]?\d+(?:[.,]\d+)?$/u.test(rawValue.trim())) {
+    const numeric = Number(rawValue.trim().replace(',', '.'));
+    return numeric === 0 && !isRecovery ? null : canonicalMilliV9(numeric);
+  }
+  throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
+}
+
 function cellFromObservation(
   sheet: GradeSheetRecognition,
   address: string,
@@ -140,15 +156,8 @@ function cellFromObservation(
       return canonicalMilliV9(observation.rawValue);
     case 'manual-negative-number':
       throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
-    case 'invalid-text': {
-      if (isRecovery && ncText(observation.rawValue)) return ['n'];
-      if (isRecovery && rrText(observation.rawValue)) return ['r'];
-      if (/^[+-]?\d+(?:[.,]\d+)?$/u.test(observation.rawValue.trim())) {
-        const numeric = Number(observation.rawValue.trim().replace(',', '.'));
-        return numeric === 0 && !isRecovery ? null : canonicalMilliV9(numeric);
-      }
-      throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
-    }
+    case 'invalid-text':
+      return textCellV9(sheet, address, observation.rawValue, isRecovery);
     case 'manual-positive-number': {
       if (typeof observation.rawValue !== 'number')
         throw new Error(`Valor inválido em ${sheet.name}!${address}.`);

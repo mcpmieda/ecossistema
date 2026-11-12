@@ -20,22 +20,22 @@ const failure = (
   state: Exclude<ViewPreferencesResponseV1['state'], 'ready'>,
 ): ViewPreferencesResponseV1 => ({ contractVersion: 1, state });
 
+async function readViews(db: GradebookPostgresWritePortV1, actorId: string): Promise<ViewsV1> {
+  const rows = await db.query<{ view_key: unknown; view_value: unknown }>(
+    `SELECT view_key, view_value::text AS view_value FROM admin_preferences.view_state_v1
+      WHERE actor_id=$1::uuid ORDER BY updated_at DESC LIMIT $2`,
+    [actorId, VIEW_PREFERENCE_MAX_KEYS_V1],
+  );
+  const views: ViewsV1 = {};
+  for (const row of rows) {
+    if (typeof row.view_key !== 'string' || typeof row.view_value !== 'string') continue;
+    views[row.view_key] = JSON.parse(row.view_value) as ViewsV1[string];
+  }
+  return views;
+}
+
 /** Each account reads and writes only its own rows; the actor comes from the session. */
 export function createViewPreferencesServiceV1(database: Database) {
-  async function readViews(db: GradebookPostgresWritePortV1, actorId: string): Promise<ViewsV1> {
-    const rows = await db.query<{ view_key: unknown; view_value: unknown }>(
-      `SELECT view_key, view_value::text AS view_value FROM admin_preferences.view_state_v1
-        WHERE actor_id=$1::uuid ORDER BY updated_at DESC LIMIT $2`,
-      [actorId, VIEW_PREFERENCE_MAX_KEYS_V1],
-    );
-    const views: ViewsV1 = {};
-    for (const row of rows) {
-      if (typeof row.view_key !== 'string' || typeof row.view_value !== 'string') continue;
-      views[row.view_key] = JSON.parse(row.view_value) as ViewsV1[string];
-    }
-    return views;
-  }
-
   return {
     async read(actorId: string): Promise<ViewPreferencesResponseV1> {
       if (!ACTOR_PATTERN_V1.test(actorId)) return failure('not-authorized');

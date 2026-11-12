@@ -516,13 +516,13 @@ function AccountDetailBodyV1({
         {account && context && (
           <>
             <ReadOnlyNoticesV1 account={account} canWrite={canWrite} />
-            <div className="pa-account-actions" role="group" aria-label="Ações de acesso">
+            <fieldset className="pa-account-actions" aria-label="Ações de acesso">
               {/* Order and colours chosen by the owner (10/11/2026): the everyday action first,
                   in green; none in red. The QR actions live in the QR code tab. */}
               {actionButton(account, 'password-reset', 'primary', 'pa-action-success')}
               {actionButton(account, account.blocked ? 'unblock' : 'block')}
               {actionButton(account, 'account-reset')}
-            </div>
+            </fieldset>
             {Object.keys(slots ?? {}).length ? (
               <Tabs
                 selectedKey={activeSlot}

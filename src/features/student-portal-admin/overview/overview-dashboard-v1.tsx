@@ -55,24 +55,26 @@ export function OverviewDashboardV1({ counts }: Readonly<{ counts: Counts }>) {
   return (
     <div className="pa-dashboard">
       {/* A list, not dt/dd: the cards and their help buttons cannot sit inside a valid dl. */}
-      <div className="pa-dashboard-stats" role="list">
+      <ul className="pa-dashboard-stats">
         {stats.map(([key, label, tone, Icon, help]) => (
-          <Card key={key} role="listitem" className={`pa-stat pa-stat--${tone} pa-rise`}>
-            <Card.Content>
-              <div className="pa-stat-top">
-                <span className="pa-stat-label">{label}</span>
-                <InfoV1 label={`Sobre ${label}`}>{help}</InfoV1>
-              </div>
-              <div className="pa-stat-value">
-                <strong className="pa-stat-number">{counts[key].toLocaleString('pt-BR')}</strong>
-                <span className="pa-stat-icon">
-                  <Icon size={18} aria-hidden="true" />
-                </span>
-              </div>
-            </Card.Content>
-          </Card>
+          <li key={key}>
+            <Card className={`pa-stat pa-stat--${tone} pa-rise`}>
+              <Card.Content>
+                <div className="pa-stat-top">
+                  <span className="pa-stat-label">{label}</span>
+                  <InfoV1 label={`Sobre ${label}`}>{help}</InfoV1>
+                </div>
+                <div className="pa-stat-value">
+                  <strong className="pa-stat-number">{counts[key].toLocaleString('pt-BR')}</strong>
+                  <span className="pa-stat-icon">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                </div>
+              </Card.Content>
+            </Card>
+          </li>
         ))}
-      </div>
+      </ul>
       <div className="pa-dashboard-bottom">
         <Card className="pa-rise">
           <Card.Header className="flex-row justify-between items-center">

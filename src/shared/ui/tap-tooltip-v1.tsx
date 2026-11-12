@@ -7,7 +7,9 @@
 import {
   createContext,
   use,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -35,11 +37,15 @@ function TapTooltipRoot({
   const isOpen = isOpenProp ?? ownOpen;
   const tapOpened = useRef(false);
   const trigger = useRef<HTMLElement | null>(null);
-  const setOpen = (open: boolean) => {
-    if (!open) tapOpened.current = false;
-    setOwnOpen(open);
-    onOpenChange?.(open);
-  };
+  const setOpen = useCallback(
+    (open: boolean) => {
+      if (!open) tapOpened.current = false;
+      setOwnOpen(open);
+      onOpenChange?.(open);
+    },
+    [onOpenChange],
+  );
+  const control = useMemo(() => ({ isOpen, setOpen, tapOpened, trigger }), [isOpen, setOpen]);
   useEffect(() => {
     if (!isOpen || !tapOpened.current) return;
     const closeOutside = (event: globalThis.PointerEvent) => {
@@ -53,7 +59,7 @@ function TapTooltipRoot({
     return () => document.removeEventListener('pointerdown', closeOutside, true);
   }, [isOpen, onOpenChange]);
   return (
-    <TapContextV1 value={{ isOpen, setOpen, tapOpened, trigger }}>
+    <TapContextV1 value={control}>
       <BaseTooltip.Root {...props} isOpen={isOpen} onOpenChange={setOpen} />
     </TapContextV1>
   );

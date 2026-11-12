@@ -80,6 +80,18 @@ function parseViewV2(value: unknown) {
   return { year: storedIdV1(stored.year), classId: storedIdV1(stored.classId), period, detail };
 }
 type PdfState = RelationalBulletinPdfActionV2 | null;
+type BulletinTermV2 = 1 | 2 | 3 | 'annual';
+const termOfV2 = (period: RelationalBulletinPeriodV2): BulletinTermV2 =>
+  period.kind === 'annual' ? 'annual' : period.term;
+const periodOfTermV2 = (term: BulletinTermV2): RelationalBulletinPeriodV2 =>
+  term === 'annual' ? { kind: 'annual' } : { kind: 'term', term };
+/** The view kept in a history step, read back with the same checks as the stored one. */
+function stepViewV2(value: unknown) {
+  const parsed = parseViewV2(value);
+  return parsed
+    ? { year: parsed.year, classId: parsed.classId, term: termOfV2(parsed.period), detail: parsed.detail }
+    : null;
+}
 
 const FAILURE: Record<RelationalBulletinFailureV2, string> = {
   'invalid-request': 'Os filtros do boletim ficaram inconsistentes. Selecione novamente o recorte.',
@@ -780,19 +792,14 @@ export function RelationalBulletinPageV2() {
   // The phone's back button returns to the class, period and detail chosen before.
   const correctsView = useHistoryStepV1(
     `gradebook-bulletins-view:${year ?? 0}`,
-    { year, classId, term: period.kind === 'annual' ? ('annual' as const) : period.term, detail },
+    { year, classId, term: termOfV2(period), detail },
     (restored) => {
-      setPeriod(restored.term === 'annual' ? { kind: 'annual' } : { kind: 'term', term: restored.term });
+      setPeriod(periodOfTermV2(restored.term));
       setDetail(restored.detail);
       setArtifact(null);
       if (restored.classId !== null && restored.classId !== classId) void loadStudents(restored.classId);
     },
-    (value) => {
-      const parsed = parseViewV2(value);
-      if (!parsed) return null;
-      const term = parsed.period.kind === 'annual' ? ('annual' as const) : parsed.period.term;
-      return { year: parsed.year, classId: parsed.classId, term, detail: parsed.detail };
-    },
+    stepViewV2,
   );
   useEffect(() => {
     if (year !== null && catalog && restoreClass.current === null)

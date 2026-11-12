@@ -30,6 +30,45 @@ function checkIdentityResponseV1(response: Response) {
   if (!hasPortalNoStoreV1(response.headers)) throw new PortalClientErrorV1('unavailable');
 }
 
+/** A session known and not yet past its deadline. */
+function unexpiredV1(identity: PortalAdminIdentityV1 | null): boolean {
+  return identity !== null && Date.parse(identity.expiresAt) > Date.now();
+}
+
+/** Only failing to reach the server, or a server busy or down for a moment. */
+function transientFailureV1(failure: PortalClientErrorV1): boolean {
+  if (failure.state === 'network-error') return true;
+  return failure.state === 'unavailable' && (failure.status === 429 || failure.status >= 500);
+}
+
+/** The session as the server reads it now, checked for caching and shape. */
+async function readIdentityV1(fetcher: PortalFetchV1, signal: AbortSignal) {
+  const response = await fetcher('/api/me', {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    redirect: 'error',
+    referrerPolicy: 'no-referrer',
+    signal,
+    headers: { Accept: 'application/json' },
+  }).catch(() => {
+    throw new PortalClientErrorV1('network-error');
+  });
+  signal.throwIfAborted();
+  checkIdentityResponseV1(response);
+  const identity = identitySchema.parse(await response.json());
+  signal.throwIfAborted();
+  return identity;
+}
+
+/** The Painel needs the settings capability and a session still within its deadline. */
+function checkIdentityV1(identity: PortalAdminIdentityV1) {
+  if (!identity.capabilities.includes('platform.settings.read'))
+    throw new PortalClientErrorV1('forbidden', 403);
+  if (Date.parse(identity.expiresAt) - Date.now() <= 0)
+    throw new PortalClientErrorV1('unauthenticated', 401);
+}
+
 export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) {
   const [state, setState] = useState<IdentityStateV1>({ state: 'checking' });
   const active = useRef<AbortController | null>(null);
@@ -53,10 +92,7 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
   const refresh = useCallback(
     async (background = false) => {
       if (background && active.current) return;
-      const preserve =
-        background &&
-        knownIdentity.current !== null &&
-        Date.parse(knownIdentity.current.expiresAt) > Date.now();
+      const preserve = background && unexpiredV1(knownIdentity.current);
       stop(preserve);
       const current = generation.current;
       const controller = new AbortController();
@@ -66,26 +102,9 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
         setState({ state: 'checking' });
       }
       try {
-        const response = await fetcher('/api/me', {
-          method: 'GET',
-          credentials: 'same-origin',
-          cache: 'no-store',
-          redirect: 'error',
-          referrerPolicy: 'no-referrer',
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        }).catch(() => {
-          throw new PortalClientErrorV1('network-error');
-        });
-        controller.signal.throwIfAborted();
-        checkIdentityResponseV1(response);
-        const identity = identitySchema.parse(await response.json());
-        controller.signal.throwIfAborted();
+        const identity = await readIdentityV1(fetcher, controller.signal);
         if (generation.current !== current) return;
-        if (!identity.capabilities.includes('platform.settings.read'))
-          throw new PortalClientErrorV1('forbidden', 403);
-        const remaining = Date.parse(identity.expiresAt) - Date.now();
-        if (remaining <= 0) throw new PortalClientErrorV1('unauthenticated', 401);
+        checkIdentityV1(identity);
         knownIdentity.current = identity;
         setState({ state: 'ready', identity });
         clearTimeout(expiry.current);
@@ -103,16 +122,7 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
           error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable');
         // A background recheck that only failed to reach the server keeps the unexpired session,
         // its deadline and the open drafts; denial, expiry and malformed answers still close it.
-        const transient =
-          failure.state === 'network-error' ||
-          (failure.state === 'unavailable' && (failure.status === 429 || failure.status >= 500));
-        if (
-          preserve &&
-          transient &&
-          knownIdentity.current &&
-          Date.parse(knownIdentity.current.expiresAt) > Date.now()
-        )
-          return;
+        if (preserve && transientFailureV1(failure) && unexpiredV1(knownIdentity.current)) return;
         lost(failure.state === 'network-error' ? new PortalClientErrorV1('unavailable') : failure);
       } finally {
         if (active.current === controller) active.current = null;

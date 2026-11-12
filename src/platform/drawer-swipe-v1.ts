@@ -101,7 +101,7 @@ export function useDrawerSwipeV1(
         element?.style.removeProperty('transition');
         element?.style.removeProperty('visibility');
         element?.style.removeProperty('opacity');
-        element?.removeAttribute('data-dragging');
+        if (element) delete element.dataset.dragging;
       }
     };
     /** How much of the drawer shows for this finger position, from 0 (shut) to 1 (open). */
@@ -112,14 +112,14 @@ export function useDrawerSwipeV1(
     const follow = (share: number) => {
       const element = drawer.current;
       if (element) {
-        element.setAttribute('data-dragging', 'true');
+        element.dataset.dragging = 'true';
         element.style.transition = 'none';
         element.style.visibility = 'visible';
         element.style.transform = `translateX(${(share - 1) * 100}%)`;
       }
       const shade = backdrop.current;
       if (shade) {
-        shade.setAttribute('data-dragging', 'true');
+        shade.dataset.dragging = 'true';
         shade.style.transition = 'none';
         shade.style.opacity = String(share);
       }

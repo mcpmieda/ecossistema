@@ -36,7 +36,7 @@ export function useBackClosesOverlayV1(): void {
     let closingByBack = false;
     const push = () => {
       const current = window.history.state as Record<string, unknown> | null;
-      window.history.pushState({ ...(current ?? {}), [MARK_V1]: true }, '');
+      window.history.pushState({ ...current, [MARK_V1]: true }, '');
       pushed = true;
     };
     const sync = () => {

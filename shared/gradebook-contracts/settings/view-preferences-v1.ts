@@ -5,7 +5,7 @@ import { z } from 'zod';
  * kept per account so another computer opens on the same view (owner request of 12/11/2026).
  * Only identifiers of choices travel here; each screen revalidates them against what it reads.
  */
-export const VIEW_PREFERENCE_KEY_PATTERN_V1 = /^[a-z][a-z0-9-]{0,63}(?::[0-9]{1,6})?$/u;
+export const VIEW_PREFERENCE_KEY_PATTERN_V1 = /^[a-z][a-z0-9-]{0,63}(?::\d{1,6})?$/u;
 export const VIEW_PREFERENCE_MAX_VALUE_CHARS_V1 = 2048;
 export const VIEW_PREFERENCE_MAX_KEYS_V1 = 64;
 

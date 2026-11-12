@@ -75,6 +75,19 @@ function artifactValidV1(artifact: QrArtifactV1, format: 'pdf' | 'png', expected
 }
 
 /** Credentials/blobs never enter React state, errors, URLs or persistent storage. */
+/** How many cards a command asks for. */
+const commandSizeV1 = (command: QrCommandV1) =>
+  command.operation === 'qr-batch' ? command.accountIds.length : 1;
+
+/** The cards of an answer, checked; anything malformed is an invalid answer. */
+function receivedCardsV1(cards: unknown): PrintCardV1[] {
+  try {
+    return validatePrintCardsV1(cards);
+  } catch {
+    throw new PortalClientErrorV1('invalid-response');
+  }
+}
+
 export function createQrOperationV1({
   client,
   publish,
@@ -127,49 +140,49 @@ export function createQrOperationV1({
     emit({ state: next });
   }
 
+  /**
+   * The batch version counts every account of the school, so a later chunk can meet a change
+   * outside the class. The first chunk already checked what the operator reviewed; a later one
+   * reads the version again once, and the server still checks each account. Anything else fails.
+   */
+  async function retryWithNewVersion(
+    error: unknown,
+    captured: QrCommandV1,
+    refreshed: QrCommandV1 | undefined,
+    current: number,
+    controller: AbortController,
+  ): Promise<QrCommandV1 | false> {
+    const conflict = error instanceof PortalClientErrorV1 && error.state === 'conflict';
+    if (!conflict || !readVersion || !cards?.length || refreshed === captured) throw error;
+    const version = await readVersion(controller.signal);
+    if (current !== generation || controller.signal.aborted) return false;
+    return { ...captured, expectedVersion: version, idempotencyKey: crypto.randomUUID() };
+  }
+
   async function requestCards(current: number, controller: AbortController) {
     let refreshed: QrCommandV1 | undefined;
     while (command && prepared) {
       const captured = command!;
+      const done = cards?.length ?? 0;
       emit({
         state: 'requesting',
-        count:
-          (cards?.length ?? 0) +
-          (captured.operation === 'qr-batch' ? captured.accountIds.length : 1) +
-          queue.reduce(
-            (total, next) => total + (next.operation === 'qr-batch' ? next.accountIds.length : 1),
-            0,
-          ),
-        completed: cards?.length ?? 0,
+        count: done + [captured, ...queue].reduce((total, next) => total + commandSizeV1(next), 0),
+        completed: done,
       });
       let response: Awaited<ReturnType<NonNullable<typeof prepared>['execute']>>;
       try {
         response = await prepared!.execute(controller.signal);
       } catch (error) {
-        // The batch version counts every account of the school, so a later chunk can meet a change
-        // outside the class. The first chunk already checked what the operator reviewed; a later
-        // one reads the version again once, and the server still checks each account.
-        const conflict = error instanceof PortalClientErrorV1 && error.state === 'conflict';
-        if (!conflict || !readVersion || !cards?.length || refreshed === captured) throw error;
-        const version = await readVersion(controller.signal);
-        if (current !== generation || controller.signal.aborted) return false;
-        command = refreshed = {
-          ...captured,
-          expectedVersion: version,
-          idempotencyKey: crypto.randomUUID(),
-        };
+        const retry = await retryWithNewVersion(error, captured, refreshed, current, controller);
+        if (!retry) return false;
+        command = refreshed = retry;
         prepared = client.prepareCommand(command);
         continue;
       }
       if (current !== generation || controller.signal.aborted) return false;
       if (response.state !== 'qr') throw new PortalClientErrorV1('invalid-response');
 
-      let received: PrintCardV1[];
-      try {
-        received = validatePrintCardsV1(response.cards);
-      } catch {
-        throw new PortalClientErrorV1('invalid-response');
-      }
+      const received = receivedCardsV1(response.cards);
       cards = [...(cards ?? []), ...orderedCardsV1(received, captured, response.version)];
       prepared = command = undefined;
       const next = queue.shift();

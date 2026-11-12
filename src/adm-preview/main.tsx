@@ -49,70 +49,90 @@ function syntheticHealth() {
   };
 }
 
-window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = new URL(
-    typeof input === 'string' || input instanceof URL ? String(input) : input.url,
-    window.location.origin,
-  );
-  const path = url.pathname;
-  // Vite modules, styles and images are real local files.
-  if (url.origin !== window.location.origin || !path.startsWith('/api/')) {
-    return nativeFetch(input, init);
+type PreviewRequestV1 = {
+  readonly input: RequestInfo | URL;
+  readonly init: RequestInit | undefined;
+  readonly path: string;
+  readonly search: string;
+};
+
+/** The account's last views, kept in this browser so another tab acts as another computer. */
+function viewPreferencesV1(init: RequestInit | undefined): Response {
+  const key = 'adm-preview.view-preferences';
+  let views: Record<string, unknown>;
+  try { views = JSON.parse(window.localStorage.getItem(key) ?? '{}') as Record<string, unknown>; } catch { views = {}; }
+  if (init?.method === 'PUT' && typeof init.body === 'string') {
+    views = { ...views, ...(JSON.parse(init.body) as { views: Record<string, unknown> }).views };
+    try { window.localStorage.setItem(key, JSON.stringify(views)); } catch { /* kept for this load */ }
   }
-  if (path === '/api/me') return json(identity);
-  // The platform summary and the Banco are answered by the local development backend.
-  if (path === '/api/platform/bootstrap' || path === '/api/platform/snapshot-v2')
-    return nativeFetch(input, init);
-  if (path.startsWith('/api/student-portal/') || path.startsWith('/api/student-photos/'))
-    return previewFetch(path + url.search, init ?? {});
-  // The account's last views, kept in this browser so another tab acts as another computer.
-  if (path === '/api/gradebook/view-preferences') {
-    const key = 'adm-preview.view-preferences';
-    let views: Record<string, unknown>;
-    try { views = JSON.parse(window.localStorage.getItem(key) ?? '{}') as Record<string, unknown>; } catch { views = {}; }
-    if (init?.method === 'PUT' && typeof init.body === 'string') {
-      views = { ...views, ...(JSON.parse(init.body) as { views: Record<string, unknown> }).views };
-      try { window.localStorage.setItem(key, JSON.stringify(views)); } catch { /* kept for this load */ }
-    }
-    return json({ contractVersion: 1, state: 'ready', views });
-  }
-  if (path.startsWith('/api/gradebook/')) {
-    // The Painel lists its own synthetic classes; every other Banco read goes to the local
-    // development backend, which runs the real handlers over an in-memory database.
-    if (
-      window.location.hash.startsWith('#/painel-do-aluno') &&
-      path === '/api/gradebook/operational-workspace' &&
-      typeof init?.body === 'string'
-    )
-      return previewFetch(path, init);
-    return nativeFetch(input, init);
-  }
-  // A healthy system; `?saude=attention` or `?saude=critical` in the address shows the others.
-  if (path === '/api/platform/system-health') return json(syntheticHealth());
-  // Rows waiting in the Conciliação; `?pendencias=` in the address changes the number.
-  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string'
-    && init.body.includes('"operation":"pending-count"'))
+  return json({ contractVersion: 1, state: 'ready', views });
+}
+
+/** The Painel lists its own synthetic classes; every other Banco read goes to the local
+ * development backend, which runs the real handlers over an in-memory database. */
+function gradebookV1({ input, init, path }: PreviewRequestV1): Promise<Response> | Response {
+  if (
+    window.location.hash.startsWith('#/painel-do-aluno') &&
+    path === '/api/gradebook/operational-workspace' &&
+    typeof init?.body === 'string'
+  )
+    return previewFetch(path, init);
+  return nativeFetch(input, init);
+}
+
+/** The Coletor's automatic report with a difference and a row left out (synthetic names). */
+const automaticReportV1 = () =>
+  json({ contractVersion: 1, state: 'ready', operation: 'automatic-report', report: {
+    observedAt: new Date(Date.now() - 600_000).toISOString(), changedAt: new Date(Date.now() - 600_000).toISOString(),
+    outcome: 'applied', rows: 391, counts: { rows: 390, linked: 388, pending: 2 },
+    differences: ['1 origem(ns) não encontrada(s) no relatório.'],
+    invalid: [{ sourceRow: 57, name: 'ALUNA SINTETICA UM', classLabel: '6A 2026 - MATUTINO', field: 'birthDate',
+      reason: 'nascimento ausente.' }] } });
+
+/** The Conciliação: rows waiting (`?pendencias=` changes the number), its records without a
+ * class (the same accounts as the Painel, 11/11/2026) and the Coletor's report. */
+function reconciliationV1(body: string): Response | null {
+  if (body.includes('"operation":"pending-count"'))
     return json({ contractVersion: 1, state: 'ready', operation: 'pending-count',
       pending: Math.min(51, Number(new URLSearchParams(window.location.search).get('pendencias') ?? 12)) });
-  // The Conciliação's records without a class, the same accounts as the Painel (11/11/2026).
-  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string') {
-    const answer = previewReconciliationV1(init.body);
-    if (answer) return json(answer);
-  }
-  // The Coletor's automatic report with a difference and a row left out (synthetic names).
-  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string'
-    && init.body.includes('"operation":"automatic-report"'))
-    return json({ contractVersion: 1, state: 'ready', operation: 'automatic-report', report: {
-      observedAt: new Date(Date.now() - 600_000).toISOString(), changedAt: new Date(Date.now() - 600_000).toISOString(),
-      outcome: 'applied', rows: 391, counts: { rows: 390, linked: 388, pending: 2 },
-      differences: ['1 origem(ns) não encontrada(s) no relatório.'],
-      invalid: [{ sourceRow: 57, name: 'ALUNA SINTETICA UM', classLabel: '6A 2026 - MATUTINO', field: 'birthDate',
-        reason: 'nascimento ausente.' }] } });
+  const answer = previewReconciliationV1(body);
+  if (answer) return json(answer);
+  if (body.includes('"operation":"automatic-report"')) return automaticReportV1();
+  return null;
+}
+
+function unansweredV1(path: string): Response {
   if (!unanswered.has(path)) {
     unanswered.add(path);
     console.info('[preview] sem dados sintéticos para', path);
   }
   return json({ state: 'unavailable' }, 503);
+}
+
+/** The synthetic answer for an API path, or null when this preview has none. */
+function answerV1(request: PreviewRequestV1): Promise<Response> | Response | null {
+  const { input, init, path, search } = request;
+  if (path === '/api/me') return json(identity);
+  // The platform summary and the Banco are answered by the local development backend.
+  if (path === '/api/platform/bootstrap' || path === '/api/platform/snapshot-v2') return nativeFetch(input, init);
+  if (path.startsWith('/api/student-portal/') || path.startsWith('/api/student-photos/'))
+    return previewFetch(path + search, init ?? {});
+  if (path === '/api/gradebook/view-preferences') return viewPreferencesV1(init);
+  if (path.startsWith('/api/gradebook/')) return gradebookV1(request);
+  // A healthy system; `?saude=attention` or `?saude=critical` in the address shows the others.
+  if (path === '/api/platform/system-health') return json(syntheticHealth());
+  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string') return reconciliationV1(init.body);
+  return null;
+}
+
+window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  const url = new URL(
+    typeof input === 'string' || input instanceof URL ? String(input) : input.url,
+    window.location.origin,
+  );
+  // Vite modules, styles and images are real local files.
+  if (url.origin !== window.location.origin || !url.pathname.startsWith('/api/')) return nativeFetch(input, init);
+  return (await answerV1({ input, init, path: url.pathname, search: url.search })) ?? unansweredV1(url.pathname);
 }) as typeof window.fetch;
 
 /** The live channel has no server here; a socket that never opens keeps the page on its reads. */
