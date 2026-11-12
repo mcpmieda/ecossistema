@@ -17,6 +17,7 @@ import { StudentReportImportV1 } from './student-report-import-v1';
 import { RelationMovementReviewV9 } from './relation-movement-review-v9';
 import { FrequencyPanelV2 } from './frequency-panel-v2';
 import type { FrequencyAdminClientV2 } from './frequency-client-v2';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 
 function FileHash({ sha256 }: Readonly<{ sha256: string }>) {
   return (
@@ -329,6 +330,11 @@ export function NotesImportPanel({
   frequencyClient,
 }: { frequencyClient?: FrequencyAdminClientV2 } = {}) {
   const [area, setArea] = useState('workbooks');
+  // The phone's back button returns to the import area seen before.
+  useHistoryStepV1('import-area', { area }, (restored) => setArea(restored.area), (value) => {
+    const restored = (value as { area?: unknown } | null)?.area;
+    return restored === 'workbooks' || restored === 'frequency' ? { area: restored } : null;
+  });
   return (
     <div>
       <Tabs selectedKey={area} onSelectionChange={(key) => setArea(String(key))}>

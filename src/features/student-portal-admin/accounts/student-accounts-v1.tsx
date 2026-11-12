@@ -37,6 +37,7 @@ import { AccountDetailV1, type AccountDetailPropsV1 } from './account-detail-v1'
 import { StudentBulkV1 } from './student-bulk-v1';
 import type { BulkInterruptedV1 } from './student-bulk-controller-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import {
@@ -620,6 +621,19 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   );
   const rankingActive = useLiveRefreshScopeV1() && selectedId === null;
   useEffect(() => writePanelHashParamsV1({ aluno: selectedId }), [selectedId]);
+  // The phone's back button closes the record (or reopens the one seen before).
+  useHistoryStepV1(
+    'panel-student',
+    { aluno: selectedId },
+    (restored) => {
+      if (allowDraftNavigationV1()) setSelectedId(restored.aluno);
+    },
+    (value) => {
+      if (value === null || typeof value !== 'object') return null;
+      const aluno = (value as { aluno?: unknown }).aluno;
+      return { aluno: typeof aluno === 'string' && /^[0-9a-f-]{36}$/u.test(aluno) ? aluno : null };
+    },
+  );
   // Leaving the list (another area) forgets the record, so a reload does not reopen it elsewhere.
   useEffect(() => () => writePanelHashParamsV1({ aluno: null }), []);
   const [photoMaintenance] = useState(() => readPanelHashParamV1('manutencao') === 'miniaturas');

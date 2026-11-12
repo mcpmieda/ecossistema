@@ -33,6 +33,7 @@ import {
 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { readSessionRecordV1, storedIdV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import {
@@ -60,8 +61,11 @@ type Busy = 'catalog' | 'students' | 'artifact' | 'batch' | 'history' | null;
 /** Class, period and detail kept for the tab across a reload. */
 const VIEW_KEY_V2 = 'gradebook-bulletins-view';
 function readStoredViewV2() {
-  const stored = readSessionRecordV1(VIEW_KEY_V2);
-  if (!stored) return null;
+  return parseViewV2(readSessionRecordV1(VIEW_KEY_V2));
+}
+function parseViewV2(value: unknown) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const stored = value as Record<string, unknown>;
   const term = ([1, 2, 3] as const).find((item) => item === stored.term);
   let period: RelationalBulletinPeriodV2 | null;
   if (stored.term === 'annual') {
@@ -767,10 +771,29 @@ export function RelationalBulletinPageV2() {
     const target = restoreClass.current;
     if (!catalog || target === null) return;
     restoreClass.current = null;
-    if (storedView?.year === year && catalog.classes.some((item) => item.id === target))
+    if (storedView?.year === year && catalog.classes.some((item) => item.id === target)) {
+      correctsView();
       void loadStudents(target);
+    }
     // Runs once, when the catalog of the restored year arrives.
   }, [catalog]);
+  // The phone's back button returns to the class, period and detail chosen before.
+  const correctsView = useHistoryStepV1(
+    `gradebook-bulletins-view:${year ?? 0}`,
+    { year, classId, term: period.kind === 'annual' ? ('annual' as const) : period.term, detail },
+    (restored) => {
+      setPeriod(restored.term === 'annual' ? { kind: 'annual' } : { kind: 'term', term: restored.term });
+      setDetail(restored.detail);
+      setArtifact(null);
+      if (restored.classId !== null && restored.classId !== classId) void loadStudents(restored.classId);
+    },
+    (value) => {
+      const parsed = parseViewV2(value);
+      if (!parsed) return null;
+      const term = parsed.period.kind === 'annual' ? ('annual' as const) : parsed.period.term;
+      return { year: parsed.year, classId: parsed.classId, term, detail: parsed.detail };
+    },
+  );
   useEffect(() => {
     if (year !== null && catalog && restoreClass.current === null)
       writeSessionViewV1(VIEW_KEY_V2, {

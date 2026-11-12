@@ -2559,11 +2559,17 @@ button.performance-kpi__button:hover {
     background: linear-gradient(170deg, #f9fafa 0%, #e8efed 100%);
     box-shadow: 0 0 60px -20px rgb(15 23 42 / 0.55);
     transform: translateX(-105%);
-    transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    /* Closing slides out first and only then hides, so the movement is seen both ways. */
+    transition:
+      transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s linear 240ms;
     visibility: hidden;
   }
   .platform-shell--v2 .shell-aside[data-open='true'] {
     transform: translateX(0);
+    transition:
+      transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s;
     visibility: visible;
   }
   .shell-drawer-backdrop {
@@ -2573,6 +2579,23 @@ button.performance-kpi__button:hover {
     display: block;
     border: 0;
     background: rgb(15 23 42 / 0.32);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      opacity 240ms ease,
+      visibility 0s linear 240ms;
+  }
+  .shell-drawer-backdrop[data-open='true'],
+  .shell-drawer-backdrop[data-dragging='true'] {
+    opacity: 1;
+    visibility: visible;
+    transition:
+      opacity 240ms ease,
+      visibility 0s;
+  }
+  .shell-drawer-backdrop[data-open='true'] {
+    pointer-events: auto;
   }
   .shell-drawer-close {
     position: absolute;

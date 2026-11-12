@@ -29,6 +29,7 @@ import { ArrowLeft, ChartColumn } from 'lucide-react';
 import { GradebookYearContextBanner } from '../../../platform/gradebook-year-provider';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 
 /** The perspective and what was picked inside it, kept for the tab across a reload. */
 const VIEW_KEY_V2 = 'gradebook-performance-view';
@@ -39,23 +40,24 @@ type StoredViewV2 = {
 };
 const idOrNull = (value: unknown) =>
   typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
+function parseViewV2(value: unknown): StoredViewV2 | null {
+  if (value === null || typeof value !== 'object') return null;
+  const stored = value as Record<string, unknown>;
+  const perspective = PERFORMANCE_PERSPECTIVES_V6.find((item) => item.id === stored.perspective);
+  if (!perspective) return null;
+  const selection = (stored.selection ?? {}) as Record<string, unknown>;
+  return {
+    perspective: perspective.id,
+    selection: {
+      studentId: idOrNull(selection.studentId),
+      offerId: idOrNull(selection.offerId),
+      teacherId: idOrNull(selection.teacherId),
+    },
+    year: idOrNull(stored.year),
+  };
+}
 function readStoredViewV2(): StoredViewV2 | null {
-  return readSessionViewV1(VIEW_KEY_V2, (value) => {
-    if (value === null || typeof value !== 'object') return null;
-    const stored = value as Record<string, unknown>;
-    const perspective = PERFORMANCE_PERSPECTIVES_V6.find((item) => item.id === stored.perspective);
-    if (!perspective) return null;
-    const selection = (stored.selection ?? {}) as Record<string, unknown>;
-    return {
-      perspective: perspective.id,
-      selection: {
-        studentId: idOrNull(selection.studentId),
-        offerId: idOrNull(selection.offerId),
-        teacherId: idOrNull(selection.teacherId),
-      },
-      year: idOrNull(stored.year),
-    };
-  });
+  return readSessionViewV1(VIEW_KEY_V2, parseViewV2);
 }
 
 const failures: Record<PerformanceFailureV2, string> = {
@@ -422,6 +424,18 @@ export function RelationalPerformancePageV2({
     state.filters.classId,
     state.filters.period,
     isActive && perspective !== 'notes',
+  );
+  // The phone's back button returns to the perspective and the selection seen before.
+  useHistoryStepV1(
+    'gradebook-performance-view',
+    { perspective, selection, year: viewYear },
+    (restored) => {
+      state.closeDetail();
+      setPerspective(restored.perspective);
+      setSelection(restored.selection);
+      if (restored.perspective === 'notes') void state.refresh(true);
+    },
+    parseViewV2,
   );
   function navigate(tab: PerformancePerspectiveV6) {
     if (tab === perspective) return;
