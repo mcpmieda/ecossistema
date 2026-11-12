@@ -15,7 +15,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import type { PerformanceDashboardV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
-import { dashboardAnalysisV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
+import { dashboardAnalysisV5, rankingPlacesV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { gradeText, subjectText } from './performance-display-v2';
 import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 
@@ -249,6 +249,8 @@ function ClassPanoramaV5({ value, previous, selection, onSelectionChange, open }
       ? { open: (stored as { open: boolean }).open } : null,
   );
   const partial = value.overview.ranking.some((entry) => entry.partial);
+  // Equal totals share a place and a medal (1º, 2º, 2º, 4º).
+  const places = rankingPlacesV5(value.overview.ranking.map((entry) => entry.totalMilli));
   if (rankingOpen) return <Surface ref={card} variant="default" className="performance-widget performance-widget--detail min-w-0">
     <section className="performance-bars__detail" aria-label="Classificação da turma" aria-live="polite">
       <header className="performance-bars__detail-header"><Button size="sm" variant="ghost" onPress={() => { setBack(true); setRankingOpen(false); }}><ArrowLeft size={15}/>Voltar ao gráfico</Button><span className="performance-bars__detail-title" data-bucket="above"><Chip size="sm" variant="soft" color="accent">Top 10</Chip></span></header>
@@ -256,8 +258,9 @@ function ClassPanoramaV5({ value, previous, selection, onSelectionChange, open }
         {value.overview.ranking.length > 0 ? <ul>{value.overview.ranking.map((entry, index) => {
           const student = students.get(entry.studentId);
           if (student === undefined) return null;
-          return <li key={entry.studentId}><button type="button" className={withRed.has(entry.studentId) ? 'text-danger' : undefined} onClick={() => open(entry.studentId)} aria-label={`${index + 1}º lugar, ${student.name}, ${totalLabel}: ${gradeText(entry.totalMilli)}${entry.partial ? ', somatório parcial' : ''}`}>
-            {index < 3 ? <Medal className={`performance-medal performance-medal--${['gold', 'silver', 'bronze'][index]}`} size={15} strokeWidth={2.25} aria-hidden/> : <small>{index + 1}</small>}<span className="truncate">{student.name}</span><strong className="tabular-nums">{gradeText(entry.totalMilli)}{entry.partial ? '*' : ''}</strong>
+          const place = places[index]!;
+          return <li key={entry.studentId}><button type="button" className={withRed.has(entry.studentId) ? 'text-danger' : undefined} onClick={() => open(entry.studentId)} aria-label={`${place}º lugar${places.filter((other) => other === place).length > 1 ? ' (empate)' : ''}, ${student.name}, ${totalLabel}: ${gradeText(entry.totalMilli)}${entry.partial ? ', somatório parcial' : ''}`}>
+            {place <= 3 ? <Medal className={`performance-medal performance-medal--${['gold', 'silver', 'bronze'][place - 1]}`} size={15} strokeWidth={2.25} aria-hidden/> : <small>{place}</small>}<span className="truncate">{student.name}</span><strong className="tabular-nums">{gradeText(entry.totalMilli)}{entry.partial ? '*' : ''}</strong>
           </button></li>;
         })}</ul> : <p>Nenhum estudante tem valor numérico em todos os componentes deste recorte.</p>}
       </section></div>

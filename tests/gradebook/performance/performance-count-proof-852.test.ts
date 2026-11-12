@@ -1250,7 +1250,8 @@ function proveAnalysisAndDashboard(
         left.number - right.number ||
         left.studentId - right.studentId,
     )
-    .slice(0, 10)
+    // Equal totals share a place (1º, 2º, 2º, 4º): everyone up to the tenth place is listed.
+    .filter((entry, _index, sorted) => sorted.filter((other) => other.totalMilli > entry.totalMilli).length < 10)
     .map(({ number: _number, ...entry }) => entry);
   expect(overview.ranking).toEqual(ranking);
 

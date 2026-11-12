@@ -7,6 +7,25 @@ import {
 } from './relational-performance-v2';
 
 const matrixRequest = performanceRequestSchemaV2.options[1];
+
+/** The class ranking shows the first ten places. */
+export const PERFORMANCE_RANKING_PLACES_V5 = 10;
+/**
+ * The place of each total in a ranking sorted from the highest: equal totals share a place and
+ * the next one skips as many (1º, 2º, 2º, 4º), owner request of 12/11/2026.
+ */
+export function rankingPlacesV5(totals: readonly (number | bigint)[]): number[] {
+  const places: number[] = [];
+  totals.forEach((total, index) => {
+    places.push(index > 0 && totals[index - 1] === total ? places[index - 1]! : index + 1);
+  });
+  return places;
+}
+/** Every entry up to the tenth place, so a tie at the tenth place keeps all of the tied. */
+export function rankingCutV5<T>(sorted: readonly T[], total: (entry: T) => number | bigint): T[] {
+  const places = rankingPlacesV5(sorted.map(total));
+  return sorted.filter((_, index) => places[index]! <= PERFORMANCE_RANKING_PLACES_V5);
+}
 const lens = z.enum(['result', 'quantitative', 'qualitative', 'assessments']);
 const id = z.number().int().positive().max(2_147_483_647);
 const count = z.number().int().min(0).max(100_000);
@@ -85,7 +104,7 @@ const overview = z
           })
           .strict(),
       )
-      .max(10),
+      .max(150),
     columns: z.array(column).max(40),
   })
   .strict();
@@ -142,12 +161,12 @@ const ready = z
           return -1;
         }
         return 1;
-      })
-      .slice(0, 10);
+      });
+    const expectedTop = rankingCutV5(expectedRanking, (entry) => entry.total);
     if (
-      expectedRanking.some((entry) => entry.total > BigInt(Number.MAX_SAFE_INTEGER)) ||
-      expectedRanking.length !== value.overview.ranking.length ||
-      expectedRanking.some((entry, index) => {
+      expectedTop.some((entry) => entry.total > BigInt(Number.MAX_SAFE_INTEGER)) ||
+      expectedTop.length !== value.overview.ranking.length ||
+      expectedTop.some((entry, index) => {
         const actual = value.overview.ranking[index];
         return actual === undefined || actual.studentId !== entry.studentId || actual.totalMilli !== Number(entry.total) || actual.partial !== entry.partial;
       })
