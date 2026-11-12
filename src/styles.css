@@ -1628,8 +1628,15 @@ button.performance-kpi__button:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-left: auto;
+  gap: 0.3rem 0.4rem;
+}
+.performance-matrix-filters .tag {
+  padding-inline: 0.4rem;
+}
+.performance-matrix-filters > .button {
+  height: 1.6rem;
+  padding-inline: 0.55rem;
+  font-size: 0.75rem;
 }
 /* The tags say what they filter; the label stays for screen readers only. */
 .performance-matrix-filters .filter-tags-v1--inline > .label {

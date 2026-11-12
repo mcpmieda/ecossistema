@@ -71,7 +71,7 @@ export function PerformanceResultMatrixV2({
       ? 'Todas'
       : `${shown[0]?.label ?? ''}${shown.length > 1 ? ` +${shown.length - 1}` : ''}`;
   return (
-    <Surface variant="default" className="performance-widget grid min-w-0 gap-3">
+    <Surface variant="default" className="performance-widget grid min-w-0 gap-2">
       <header className="performance-widget__header performance-matrix-header">
         <span className="performance-widget__icon performance-widget__icon--accent">
           <Table2 size={18} />
