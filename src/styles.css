@@ -728,6 +728,12 @@ button.performance-kpi__button:hover {
   height: 2.25rem;
 }
 
+/* Number and situation take only what they show; the rest goes to the student and the marks. */
+.performance-grid .performance-grid__fit {
+  width: 1%;
+  white-space: nowrap;
+}
+
 .performance-grid__cell {
   height: 2.25rem;
   line-height: 1rem;

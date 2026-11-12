@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Alert, Avatar, Button, Chip, Description, Dropdown,
   Label, Separator, Spinner, Surface,
@@ -17,6 +17,7 @@ import { usePlatformDataV2 } from './platform/platform-data-v2';
 import { usePlatformIdentityV1, type PlatformIdentityV1 as Identity } from './platform/platform-identity-v1';
 import { LiveRefreshAutomaticV1Provider } from './shared/live-data/live-refresh-scope-v1';
 import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
+import { rememberAddressV1, startAccountViewsV1 } from './shared/ui/session-view-v1';
 
 /** Since 03/11/2026, when the owner asked whether the automatic refresh was needed (screens still
  * blinked): the ADM reads again when its window comes back, after each write and on F5, with no
@@ -31,6 +32,8 @@ function authFailureFromUrl(): AuthFailure | null {
   const correlationId = params.get('correlationId')?.trim();
   return { correlationId: correlationId || undefined };
 }
+/** Read before anything rewrites the address: only an address-less opening returns to the last area. */
+const OPENED_WITHOUT_ADDRESS_V1 = /^#?\/?$/u.test(window.location.hash);
 function routeFromHash(): PlatformRoute { return normalizePlatformRoute(window.location.hash.replace(/^#\/?/u, '')); }
 function usePlatformRoute(): PlatformRoute {
   const [route, setRoute] = useState<PlatformRoute>(() => routeFromHash());
@@ -148,6 +151,16 @@ function RestrictedExperience({ name }: Readonly<{ name?: string }>) {
     </Surface>
   </main>;
 }
+/** The person's last views are in place before any screen reads them. */
+function AccountViewsGateV1({ owner, children }: Readonly<{ owner: string; children: ReactNode }>) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void startAccountViewsV1(owner, OPENED_WITHOUT_ADDRESS_V1).finally(() => { if (active) setReady(true); });
+    return () => { active = false; };
+  }, [owner]);
+  return ready ? children : <SessionCheckExperience />;
+}
 function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
   const route = usePlatformRoute();
   const { loadState, reload } = usePlatformDataV2();
@@ -158,6 +171,7 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
   } : null, [loadState, identity.capabilities]);
   const modules = snapshot?.coreModules ?? [];
   const hash = useLocationHash();
+  useEffect(() => { rememberAddressV1(hash); }, [hash]);
   // On phones the side column is a drawer; it closes when the address changes.
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { setMenuOpen(false); }, [hash]);
@@ -323,6 +337,8 @@ export function App() {
   if (!identity.authenticated) return <LoginExperience loading={false} />;
   if (!identity.capabilities?.includes('platform.snapshot.read')) return <RestrictedExperience name={identity.name} />;
   return <LiveRefreshAutomaticV1Provider enabled={ADMIN_AUTOMATIC_READS_V1}>
+    <AccountViewsGateV1 owner={(identity.identityKey ?? 'current-session').split(':')[0] ?? 'current-session'}>
     <AdminShell key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`} identity={identity} />
+    </AccountViewsGateV1>
   </LiveRefreshAutomaticV1Provider>;
 }
