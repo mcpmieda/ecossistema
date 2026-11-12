@@ -75,13 +75,13 @@ export function PerformanceGridV2({
 }) {
   const academicYear = useContext(PerformanceGridYearV2);
   const headers = [
-    { id: 'number', label: 'Nº', width: 40 },
-    { id: 'status', label: 'Situação', width: 144 },
+    { id: 'number', label: 'Nº', width: 28 },
+    { id: 'status', label: 'Situação', width: 72 },
     { id: 'student', label: 'Aluno', width: 192 },
     ...columns.map((column) => ({
       id: `value-${column.key}`,
       label: column.label,
-      width: column.label.length > 5 ? 112 : 48,
+      width: column.label.length > 5 ? 112 : 44,
     })),
     ...(showAnnual ? [{ id: 'annual', label: 'Resultado', width: 150 }] : []),
   ];
@@ -258,7 +258,7 @@ export function PerformanceGridV2({
                     isRowHeader={header.id === 'student'}
                     defaultWidth={header.id === 'student' ? '1fr' : header.width}
                     minWidth={header.width}
-                    className="performance-grid__head px-2 py-1"
+                    className={`performance-grid__head py-1 ${header.id === 'student' ? 'px-2' : 'px-1'}${header.id === 'number' || header.id === 'status' ? ' performance-grid__fit' : ''}`}
                   >
                     {title}
                   </Table.Column>
@@ -330,7 +330,9 @@ export function PerformanceGridV2({
                       );
                     }
                     return (
-                      <Table.Cell className="performance-grid__cell px-2 py-0.5">
+                      <Table.Cell
+                        className={`performance-grid__cell py-0.5 ${header.id === 'student' ? 'pl-1 pr-2' : 'px-1'}${header.id === 'number' ? ' text-center' : ''}${header.id === 'number' || header.id === 'status' ? ' performance-grid__fit' : ''}`}
+                      >
                         {content}
                       </Table.Cell>
                     );
