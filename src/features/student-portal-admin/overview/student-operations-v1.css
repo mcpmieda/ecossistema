@@ -55,7 +55,8 @@
 .pa-operations-scroll .pa-student-name {
   white-space: normal;
   text-align: left;
-  padding-inline: 0;
+  /* A little room before the name, so the hover shade does not start on its first letter. */
+  padding-inline: 0.375rem;
   min-width: 0;
 }
 .pa-operations-dialog {

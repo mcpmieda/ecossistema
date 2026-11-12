@@ -258,7 +258,7 @@ export function AnalyticsBarsV6({ items, onSelect }: Readonly<{
   onSelect: (id: number) => void;
 }>) {
   const maximum = Math.max(100, ...items.map((item) => item.value ?? 0));
-  return <div className="grid gap-4">{items.map((item) => <div key={item.id} className="grid gap-1"><div className="flex items-center justify-between gap-3"><Button size="sm" variant="ghost" className="h-auto min-w-0 justify-start px-0 py-1 text-left" onPress={() => onSelect(item.id)}><span className="truncate">{item.label}</span></Button><strong className="shrink-0 text-base tabular-nums">{percent(item.value)}</strong></div><Meter aria-label={`${item.label}: aproveitamento`} value={item.value ?? 0} maxValue={maximum} color={item.below ? 'danger' : 'accent'}><Meter.Track><Meter.Fill /></Meter.Track></Meter>{item.secondary ? <span className="text-[11px] text-muted">{item.secondary}</span> : null}</div>)}</div>;
+  return <div className="grid gap-4">{items.map((item) => <div key={item.id} className="grid gap-1"><div className="flex items-center justify-between gap-3"><Button size="sm" variant="ghost" className="h-auto min-w-0 justify-start px-1.5 py-1 text-left" onPress={() => onSelect(item.id)}><span className="truncate">{item.label}</span></Button><strong className="shrink-0 text-base tabular-nums">{percent(item.value)}</strong></div><Meter aria-label={`${item.label}: aproveitamento`} value={item.value ?? 0} maxValue={maximum} color={item.below ? 'danger' : 'accent'}><Meter.Track><Meter.Fill /></Meter.Track></Meter>{item.secondary ? <span className="text-[11px] text-muted">{item.secondary}</span> : null}</div>)}</div>;
 }
 export function AnalyticsRecoveryV6({ summary }: Readonly<{ summary: PerformanceAnalyticsSummaryV6 }>) {
   const recovery = summary.recovery;

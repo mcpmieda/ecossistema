@@ -145,7 +145,7 @@ export function AnalyticsStudentsTableV6({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-auto max-w-72 justify-start whitespace-normal px-0 text-left"
+                      className="h-auto max-w-72 justify-start whitespace-normal px-1.5 text-left"
                       onPress={() => onSelect(item.id)}
                     >
                       {item.name}
@@ -235,7 +235,7 @@ export function AnalyticsHeatmapV6({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-auto max-w-64 justify-start whitespace-normal px-0 text-left"
+                      className="h-auto max-w-64 justify-start whitespace-normal px-1.5 text-left"
                       onPress={() => onStudent(item.student.id)}
                     >
                       {item.student.number}. {item.student.name}
