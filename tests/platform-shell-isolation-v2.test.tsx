@@ -138,6 +138,8 @@ it.each([503, 401])(
         });
       if (path === '/api/platform/bootstrap') return Response.json(snapshot());
       if (path === '/api/platform/snapshot-v2') return waiting;
+      if (path === '/api/gradebook/view-preferences')
+        return Response.json({ contractVersion: 1, state: 'ready', views: {} });
       throw new Error('Unexpected synthetic request');
     });
     vi.stubGlobal('fetch', fetcher);
@@ -157,7 +159,8 @@ it.each([503, 401])(
       expect(screen.queryByRole('textbox', { name: 'workspace-banco-de-notas' })).toBeNull();
       expect(screen.getByText(/Sua autorização precisa ser verificada novamente/u)).toBeTruthy();
     }
-    expect(fetcher).toHaveBeenCalledTimes(3);
+    // Identity, the person's saved views, bootstrap and the snapshot; no retry or second read.
+    expect(fetcher.mock.calls.filter(([, init]) => !init?.method || init.method === 'GET')).toHaveLength(4);
   },
 );
 it('limits a partial outage to pages that actually need the unavailable source', async () => {

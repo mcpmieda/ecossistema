@@ -51,6 +51,7 @@ beforeEach(() => {
       ? Response.json({ authenticated: true, identityKey: key, expiresAt, capabilities: PLATFORM_CAPABILITIES })
       : new Response(null, { status });
     if (path === '/api/platform/bootstrap' || path === '/api/platform/snapshot-v2') return Response.json(snapshot());
+    if (path === '/api/gradebook/view-preferences') return Response.json({ contractVersion: 1, state: 'ready', views: {} });
     throw new Error('Unexpected synthetic request');
   });
   vi.stubGlobal('fetch', fetcher);
@@ -75,8 +76,9 @@ it('the real App opens no live channel and reads again only when the window retu
   expect(input.value).toBe('rascunho local');
   expect(screen.queryByText(/Há atualizações a conferir/)).toBeNull();
   expect(Socket.instances).toHaveLength(0);
-  // Only reads: the side column's health dot and Conciliação badge are queried by POST.
-  const sideReads = ['/api/platform/system-health', '/api/student-reconciliation/v1'];
+  // Only reads: the side column's health dot and Conciliação badge are queried by POST; the
+  // person's last area is kept by PUT on their own saved views, never on school data.
+  const sideReads = ['/api/platform/system-health', '/api/student-reconciliation/v1', '/api/gradebook/view-preferences'];
   expect(fetcher.mock.calls.every(([path, init]) =>
     !init?.method || init.method === 'GET' || sideReads.includes(String(path)))).toBe(true);
 });

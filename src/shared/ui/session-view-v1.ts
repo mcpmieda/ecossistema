@@ -23,6 +23,8 @@ const ADDRESS_PATTERN_V1 = /^#\/[a-z0-9-]{1,48}(?:\?[a-z0-9=&_.-]{0,120})?$/u;
 
 let accountSync = false;
 let listening = false;
+/** What the account already holds, so an unchanged choice is not sent again. */
+const known = new Map<string, string>();
 let pending: Record<string, unknown> = {};
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -77,7 +79,8 @@ export function writeSessionViewV1(key: string, value: unknown): void {
     return;
   }
   if (!accountSync || !VIEW_PREFERENCE_KEY_PATTERN_V1.test(key)) return;
-  if (text.length > VIEW_PREFERENCE_MAX_VALUE_CHARS_V1) return;
+  if (text.length > VIEW_PREFERENCE_MAX_VALUE_CHARS_V1 || known.get(key) === text) return;
+  known.set(key, text);
   pending[key] = value;
   if (flushTimer !== null) clearTimeout(flushTimer);
   flushTimer = setTimeout(() => sendPending(), FLUSH_DELAY_MS_V1);
@@ -128,6 +131,7 @@ export async function startAccountViewsV1(owner: string, openedWithoutAddress: b
   accountSync = true;
   if (views) {
     for (const [key, value] of Object.entries(views)) {
+      known.set(key, JSON.stringify(value));
       try {
         if (window.sessionStorage.getItem(PREFIX_V1 + key) === null)
           window.sessionStorage.setItem(PREFIX_V1 + key, JSON.stringify(value));
