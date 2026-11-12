@@ -527,7 +527,7 @@ export function StudentReconciliationV1({
           <Button
             isIconOnly
             variant="secondary"
-            aria-label="Voltar aos alunos"
+            aria-label="Voltar à lista de alunos"
             isDisabled={locked}
             onPress={back}
           >
