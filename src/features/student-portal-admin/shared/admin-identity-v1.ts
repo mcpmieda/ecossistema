@@ -30,6 +30,13 @@ function checkIdentityResponseV1(response: Response) {
   if (!hasPortalNoStoreV1(response.headers)) throw new PortalClientErrorV1('unavailable');
 }
 
+const portalFailureV1 = (error: unknown) =>
+  error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable');
+
+/** A session closed for a server that could not be reached reads as unavailable. */
+const closingFailureV1 = (failure: PortalClientErrorV1) =>
+  failure.state === 'network-error' ? new PortalClientErrorV1('unavailable') : failure;
+
 /** A session known and not yet past its deadline. */
 function unexpiredV1(identity: PortalAdminIdentityV1 | null): boolean {
   return identity !== null && Date.parse(identity.expiresAt) > Date.now();
@@ -118,12 +125,11 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
         checkExpiry();
       } catch (error) {
         if (controller.signal.aborted || generation.current !== current) return;
-        const failure =
-          error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable');
+        const failure = portalFailureV1(error);
         // A background recheck that only failed to reach the server keeps the unexpired session,
         // its deadline and the open drafts; denial, expiry and malformed answers still close it.
         if (preserve && transientFailureV1(failure) && unexpiredV1(knownIdentity.current)) return;
-        lost(failure.state === 'network-error' ? new PortalClientErrorV1('unavailable') : failure);
+        lost(closingFailureV1(failure));
       } finally {
         if (active.current === controller) active.current = null;
       }

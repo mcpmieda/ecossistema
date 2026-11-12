@@ -237,6 +237,21 @@ function saveFailureV1(error: unknown, daysSaved: boolean): string {
   return daysSaved ? `Os dias foram salvos, mas as datas principais não. ${reason}` : reason;
 }
 
+function CalendarMessageV1({ message }: Readonly<{ message: string }>) {
+  return (
+    <Alert status={message === 'Calendário salvo.' ? 'success' : 'warning'}>
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Description>{message}</Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+function SaveLabelV1({ saving }: Readonly<{ saving: boolean }>) {
+  return <>{saving ? 'Salvando…' : 'Salvar calendário'}</>;
+}
+
 function OfficialCalendarNoticeV1({ unsaved }: Readonly<{ unsaved: boolean }>) {
   if (!unsaved) return null;
   return (
@@ -651,14 +666,7 @@ export function SchoolCalendarEditorV1({
             <Input placeholder="Ex.: Padroeiro da cidade" />
           </TextField>
         ) : null}
-        {message ? (
-          <Alert status={message === 'Calendário salvo.' ? 'success' : 'warning'}>
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Description>{message}</Alert.Description>
-            </Alert.Content>
-          </Alert>
-        ) : null}
+        {message ? <CalendarMessageV1 message={message} /> : null}
 
         <div className="pa-school-calendar__months">
           {/* December of the year before: only the enrollment's start is marked there. */}
@@ -691,7 +699,7 @@ export function SchoolCalendarEditorV1({
             onPress={() => void save()}
             isDisabled={!changed || state === 'saving' || count > SCHOOL_DAYS_REQUIRED_V1 || !!outOfOrder}
           >
-            {state === 'saving' ? 'Salvando…' : 'Salvar calendário'}
+            <SaveLabelV1 saving={state === 'saving'} />
           </Button>
           <Button
             variant="secondary"

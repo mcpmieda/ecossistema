@@ -1444,6 +1444,44 @@ function ScoreHeadV1({
   );
 }
 
+/**
+ * A trimester's activities. No `partials` key means the admin did not release the breakdown
+ * (showPartials off): nothing is drawn rather than claiming there are no activities.
+ */
+function PartialsV1({
+  partials,
+  calm,
+  sealed,
+}: Readonly<{
+  partials: readonly PartialV1[] | undefined;
+  calm: boolean;
+  sealed: (partial: PartialV1) => boolean;
+}>) {
+  if (partials === undefined) return null;
+  return (
+    <div className="pa-score-card-partials">
+      {partials.length ? (
+        <>
+          <p className="pa-score-card-partials-title">Como o aluno foi em cada atividade</p>
+          {/* A plain list: nothing here is selectable, and each row may hold a toggle. */}
+          <ul aria-label="Avaliações publicadas" className="pa-partials-list">
+            {partials.map((partial) => (
+              <PartialRowV1
+                key={partial.assessmentId}
+                partial={partial}
+                calm={calm}
+                sealed={sealed(partial)}
+              />
+            ))}
+          </ul>
+        </>
+      ) : (
+        <Description className="pa-score-card-empty">Nenhuma avaliação parcial publicada.</Description>
+      )}
+    </div>
+  );
+}
+
 /** One published activity of a trimester: its description, status and mark. */
 function PartialRowV1({
   partial,
@@ -1614,32 +1652,11 @@ function SubjectV1View({
               trend={trend}
               trendReference={trendReference}
             />
-            {/* No `partials` key means the admin did not release the breakdown (showPartials off):
-                render nothing rather than claiming there are no activities. */}
-            {period?.partials === undefined ? null : (
-            <div className="pa-score-card-partials">
-              {period.partials.length ? (
-                <>
-                  <p className="pa-score-card-partials-title">Como o aluno foi em cada atividade</p>
-                  {/* A plain list: nothing here is selectable, and each row may hold a toggle. */}
-                  <ul aria-label="Avaliações publicadas" className="pa-partials-list">
-                    {period.partials.map((partial) => (
-                      <PartialRowV1
-                        key={partial.assessmentId}
-                        partial={partial}
-                        calm={mark?.meetsMinimum === false}
-                        sealed={assessmentSealed(active, partial)}
-                      />
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <Description className="pa-score-card-empty">
-                  Nenhuma avaliação parcial publicada.
-                </Description>
-              )}
-            </div>
-            )}
+            <PartialsV1
+              partials={period.partials}
+              calm={mark?.meetsMinimum === false}
+              sealed={(partial) => assessmentSealed(active, partial)}
+            />
           </Card>
           ) : null}
           {annualGoal ? <AnnualGoalCardV1 goal={annualGoal} subjectLabel={subject.label} /> : null}
