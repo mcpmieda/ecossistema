@@ -4,6 +4,7 @@ import { Boxes, Search, Settings2, X } from 'lucide-react';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
 import { routeIcons } from './routes';
+import { goToHashV1 } from './back-closes-overlay-v1';
 
 function SearchResults({
   items,
@@ -131,7 +132,8 @@ export function PlatformSearch({
 
   const navigateFromSearch = (href: string) => {
     closeSearch();
-    if (window.location.hash !== href) window.location.hash = href;
+    // From the open phone search, the result takes the search's place in the history.
+    goToHashV1(href);
   };
 
   useEffect(() => {
@@ -218,7 +220,7 @@ export function PlatformSearch({
       </Button>
 
       {mobileOpen && snapshot && (
-        <div className="platform-search-mobile-panel order-last basis-full md:hidden">
+        <div className="platform-search-mobile-panel order-last basis-full md:hidden" data-back-layer="">
           <div className="flex items-center gap-2">
             <InlineSearchField
               inputRef={mobileInputRef}

@@ -13,6 +13,7 @@ import {
   type PerformanceDashboardSelectionV5,
 } from './performance-dashboard-widgets-v5';
 import { PerformanceGridV2 } from './performance-grid-v2';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 const percent = (value: number | null) => (value === null ? '—' : `${number.format(value)}%`);
@@ -44,6 +45,17 @@ function readingContent(
   return reading.state === 'no-show' ? 'N/C' : gradeText(reading.valueMilli);
 }
 
+const GROUPS_V3 = ['allAtOrAbove', 'withBelow', 'pending'] as const;
+function dashboardSelectionV3(value: unknown): PerformanceDashboardSelectionV5 | undefined {
+  if (value === null) return null;
+  if (typeof value !== 'object') return undefined;
+  const item = value as Record<string, unknown>;
+  if (item.kind === 'column' && typeof item.key === 'string' && (item.bucket === 'above' || item.bucket === 'below'))
+    return { kind: 'column', key: item.key, bucket: item.bucket };
+  const group = GROUPS_V3.find((name) => name === item.group);
+  return item.kind === 'group' && group ? { kind: 'group', group } : undefined;
+}
+
 export function PerformanceAnalysisPanelV3({
   value,
   dashboard,
@@ -64,6 +76,17 @@ export function PerformanceAnalysisPanelV3({
   readonly statuses: readonly PerformanceStatusV2[];
 }) {
   const [selection, setSelection] = useState<PerformanceDashboardSelectionV5>(null);
+  // The phone's back button returns from a bar's students (or a group filter) to the chart.
+  useHistoryStepV1(
+    'performance-dashboard-selection',
+    { selection },
+    (restored) => setSelection(restored.selection),
+    (stored) => {
+      if (stored === null || typeof stored !== 'object') return null;
+      const restored = dashboardSelectionV3((stored as { selection?: unknown }).selection);
+      return restored === undefined ? null : { selection: restored };
+    },
+  );
   const column =
     selection?.kind === 'column' ? value.columns.find((item) => item.key === selection.key) : null;
   // prettier-ignore

@@ -750,7 +750,13 @@ export function RelationalPerformancePageV2({
             {/* Back to the screen behind (or to the indicator list it came from), at the top so it is
                 always in reach without scrolling the detail. */}
             {backLabel ? (
-              <Button variant="ghost" size="sm" className="-ml-2 mb-1 self-start" onPress={goBack}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="-ml-2 mb-1 self-start"
+                onPress={goBack}
+                data-back-step=""
+              >
                 <ArrowLeft size={16} aria-hidden="true" />
                 {backLabel}
               </Button>
@@ -776,6 +782,12 @@ export function RelationalPerformancePageV2({
               </p>
             ) : null}
             <Drawer.Footer>
+              {/* The same step back, where the thumb is on a phone. */}
+              {backLabel ? (
+                <Button isIconOnly variant="secondary" aria-label={backLabel} onPress={goBack}>
+                  <ArrowLeft size={18} aria-hidden="true" />
+                </Button>
+              ) : null}
               <Button variant="secondary" onPress={close}>
                 Fechar
               </Button>

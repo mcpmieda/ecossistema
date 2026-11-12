@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Tabs } from '@heroui/react';
 import {
   CalendarCheck,
@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import type { SettingsFieldV1 } from './settings-values-v1';
 import { LiveRefreshScopeV1 } from '../../../shared/live-data/live-refresh-scope-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
+import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 
 const categories = [
   {
@@ -122,103 +124,131 @@ export function PolicyLayoutV1({
   // 23/10/2026); "Editar" unlocks it and shows the save buttons. Leaving discards unsaved changes.
   const [calendarEditing, setCalendarEditing] = useState(false);
   const [calendarSession, setCalendarSession] = useState(0);
+  const choose = (key: string) => {
+    setSelected(key);
+    if (key === 'grades') setPublicationVisited(true);
+    if (key === 'customizations') setCustomizationsVisited(true);
+  };
+  // On the page, the phone's back button returns to the category seen before. Inside a window
+  // (a class or student customization) back closes the window instead, so no step is kept there.
+  const root = useRef<HTMLDivElement>(null);
+  const [inWindow, setInWindow] = useState(true);
+  useLayoutEffect(() => {
+    setInWindow(Boolean(root.current?.closest('[role="dialog"], [data-slot$="-dialog"]')));
+  }, []);
+  useHistoryStepV1(
+    'policy-category',
+    { category: inWindow ? null : selected },
+    (restored) => {
+      if (restored.category === null || restored.category === selected) return;
+      if (disabled || calendarEditing || !allowDraftNavigationV1()) return false;
+      choose(restored.category);
+    },
+    (stored) => {
+      const category = (stored as { category?: unknown } | null)?.category;
+      return typeof category === 'string' || category === null ? { category } : null;
+    },
+  );
   return (
-    <Tabs
-      className="pa-policy-tabs"
-      selectedKey={selected}
-      onSelectionChange={(key) => {
-        setSelected(String(key));
-        if (key === 'grades') setPublicationVisited(true);
-        if (key === 'customizations') setCustomizationsVisited(true);
-      }}
-    >
-      <Tabs.ListContainer className="pa-policy-navigation">
-        <Tabs.List aria-label="Categorias de políticas">
-          {categories.map(({ id, label, icon: Icon }) => (
-            <Tabs.Tab key={id} id={id} isDisabled={disabled}>
-              <Icon size={16} aria-hidden />
-              {label}
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          ))}
-          {customizations ? (
-            <Tabs.Tab id="customizations" isDisabled={disabled}>
-              <UserCog size={16} aria-hidden />
-              Políticas personalizadas
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          ) : null}
-        </Tabs.List>
-      </Tabs.ListContainer>
-      {categories.map((category) => (
-        <Tabs.Panel key={category.id} id={category.id} shouldForceMount className="pa-policy-panel">
-          <header className="pa-policy-intro">
-            <h2>{category.title}</h2>
-            <p>
-              {shift && category.id === 'grades'
-                ? 'Escolha quando os alunos deste turno veem as notas publicadas.'
-                : category.description}
-            </p>
-          </header>
-          {category.fields.length ? (
-            <div className="pa-settings-fields">{category.fields.map((name) => field(name))}</div>
-          ) : null}
-          {category.id === 'calendar' && calendarEditable ? (
-            <div className="pa-policy-edit-bar">
-              {calendarEditing ? (
-                <>
-                  <Alert status="warning" className="pa-policy-edit-bar__note">
-                    <Alert.Indicator />
-                    <Alert.Content>
-                      <Alert.Title>Modo de edição</Alert.Title>
-                      <Alert.Description>
-                        Salve cada parte antes de sair. O que não for salvo é descartado.
-                      </Alert.Description>
-                    </Alert.Content>
-                  </Alert>
-                  <Button
-                    variant="secondary"
-                    onPress={() => {
-                      setCalendarEditing(false);
-                      setCalendarSession((value) => value + 1);
-                    }}
-                  >
-                    <LockKeyhole size={16} aria-hidden />
-                    Sair da edição
+    <div ref={root} className="contents">
+      <Tabs
+        className="pa-policy-tabs"
+        selectedKey={selected}
+        onSelectionChange={(key) => choose(String(key))}
+      >
+        <Tabs.ListContainer className="pa-policy-navigation">
+          <Tabs.List aria-label="Categorias de políticas">
+            {categories.map(({ id, label, icon: Icon }) => (
+              <Tabs.Tab key={id} id={id} isDisabled={disabled}>
+                <Icon size={16} aria-hidden />
+                {label}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+            {customizations ? (
+              <Tabs.Tab id="customizations" isDisabled={disabled}>
+                <UserCog size={16} aria-hidden />
+                Políticas personalizadas
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ) : null}
+          </Tabs.List>
+        </Tabs.ListContainer>
+        {categories.map((category) => (
+          <Tabs.Panel
+            key={category.id}
+            id={category.id}
+            shouldForceMount
+            className="pa-policy-panel"
+          >
+            <header className="pa-policy-intro">
+              <h2>{category.title}</h2>
+              <p>
+                {shift && category.id === 'grades'
+                  ? 'Escolha quando os alunos deste turno veem as notas publicadas.'
+                  : category.description}
+              </p>
+            </header>
+            {category.fields.length ? (
+              <div className="pa-settings-fields">{category.fields.map((name) => field(name))}</div>
+            ) : null}
+            {category.id === 'calendar' && calendarEditable ? (
+              <div className="pa-policy-edit-bar">
+                {calendarEditing ? (
+                  <>
+                    <Alert status="warning" className="pa-policy-edit-bar__note">
+                      <Alert.Indicator />
+                      <Alert.Content>
+                        <Alert.Title>Modo de edição</Alert.Title>
+                        <Alert.Description>
+                          Salve cada parte antes de sair. O que não for salvo é descartado.
+                        </Alert.Description>
+                      </Alert.Content>
+                    </Alert>
+                    <Button
+                      variant="secondary"
+                      onPress={() => {
+                        setCalendarEditing(false);
+                        setCalendarSession((value) => value + 1);
+                      }}
+                    >
+                      <LockKeyhole size={16} aria-hidden />
+                      Sair da edição
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="primary" onPress={() => setCalendarEditing(true)}>
+                    <PencilLine size={16} aria-hidden />
+                    Editar
                   </Button>
-                </>
-              ) : (
-                <Button variant="primary" onPress={() => setCalendarEditing(true)}>
-                  <PencilLine size={16} aria-hidden />
-                  Editar
-                </Button>
-              )}
-            </div>
-          ) : null}
-          {category.id === 'calendar' ? (
-            <div key={calendarSession} className="pa-policy-calendar">
-              {schoolCalendar?.(calendarEditing)}
-              {/* Each lesson's time, under the school calendar; the switch that shows the weekly grid
+                )}
+              </div>
+            ) : null}
+            {category.id === 'calendar' ? (
+              <div key={calendarSession} className="pa-policy-calendar">
+                {schoolCalendar?.(calendarEditing)}
+                {/* Each lesson's time, under the school calendar; the switch that shows the weekly grid
                   in the Portal has its own tab (Horário). */}
-              {schoolBells?.(calendarEditing)}
-            </div>
-          ) : null}
-          {category.id === 'grades' && publicationVisited ? (
-            <LiveRefreshScopeV1 active={selected === 'grades'}>
-              <div className="pa-grades">{grades}</div>
-            </LiveRefreshScopeV1>
-          ) : null}
-        </Tabs.Panel>
-      ))}
-      {customizations ? (
-        <Tabs.Panel id="customizations" shouldForceMount className="pa-policy-panel">
-          {customizationsVisited ? (
-            <LiveRefreshScopeV1 active={selected === 'customizations'}>
-              {customizations}
-            </LiveRefreshScopeV1>
-          ) : null}
-        </Tabs.Panel>
-      ) : null}
-    </Tabs>
+                {schoolBells?.(calendarEditing)}
+              </div>
+            ) : null}
+            {category.id === 'grades' && publicationVisited ? (
+              <LiveRefreshScopeV1 active={selected === 'grades'}>
+                <div className="pa-grades">{grades}</div>
+              </LiveRefreshScopeV1>
+            ) : null}
+          </Tabs.Panel>
+        ))}
+        {customizations ? (
+          <Tabs.Panel id="customizations" shouldForceMount className="pa-policy-panel">
+            {customizationsVisited ? (
+              <LiveRefreshScopeV1 active={selected === 'customizations'}>
+                {customizations}
+              </LiveRefreshScopeV1>
+            ) : null}
+          </Tabs.Panel>
+        ) : null}
+      </Tabs>
+    </div>
   );
 }
