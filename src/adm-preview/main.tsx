@@ -65,6 +65,17 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     return nativeFetch(input, init);
   if (path.startsWith('/api/student-portal/') || path.startsWith('/api/student-photos/'))
     return previewFetch(path + url.search, init ?? {});
+  // The account's last views, kept in this browser so another tab acts as another computer.
+  if (path === '/api/gradebook/view-preferences') {
+    const key = 'adm-preview.view-preferences';
+    let views: Record<string, unknown>;
+    try { views = JSON.parse(window.localStorage.getItem(key) ?? '{}') as Record<string, unknown>; } catch { views = {}; }
+    if (init?.method === 'PUT' && typeof init.body === 'string') {
+      views = { ...views, ...(JSON.parse(init.body) as { views: Record<string, unknown> }).views };
+      try { window.localStorage.setItem(key, JSON.stringify(views)); } catch { /* kept for this load */ }
+    }
+    return json({ contractVersion: 1, state: 'ready', views });
+  }
   if (path.startsWith('/api/gradebook/')) {
     // The Painel lists its own synthetic classes; every other Banco read goes to the local
     // development backend, which runs the real handlers over an in-memory database.

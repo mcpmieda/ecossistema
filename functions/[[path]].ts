@@ -43,6 +43,7 @@ import { handleCouncilWorkspaceRequestV1 } from '../server/gradebook/http/counci
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
 import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessment-names-routes-v1';
+import { handleViewPreferencesRequestV1 } from '../server/gradebook/http/view-preferences-routes-v1';
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { handleCollectorRequestV1 } from '../server/collector/routes-v1';
@@ -173,6 +174,9 @@ async function routeOfficialGradebookRequestV1(
   env: RuntimeEnv,
   afterCommit: GradebookAfterCommitV1,
 ): Promise<Response | null> {
+  const viewPreferencesResponse = await handleViewPreferencesRequestV1(request, env);
+  if (viewPreferencesResponse) return viewPreferencesResponse;
+
   const assessmentNamesResponse = await handleAssessmentNamesRequestV1(request, env, afterCommit);
   if (assessmentNamesResponse) return assessmentNamesResponse;
 
