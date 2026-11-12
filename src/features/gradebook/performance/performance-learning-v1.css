@@ -279,3 +279,6 @@
   .learning-overview .analytics-timeline text,
   .learning-kpi { animation: none; }
 }
+
+/* Side panel with the students of an indicator: the drawer body already scrolls, so the table grows. */
+.learning-panel .learning-students .table__scroll-container { max-height: none; }

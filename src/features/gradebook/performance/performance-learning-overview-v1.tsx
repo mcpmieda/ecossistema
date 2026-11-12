@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Accordion, Alert, Button, Card, Chip, Meter, SearchField, Table } from '@heroui/react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Accordion, Alert, Button, Card, Chip, Drawer, Meter, SearchField, Table } from '@heroui/react';
 import { ArrowRight, BookOpen, MessageCircle, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import {
@@ -101,6 +101,41 @@ function emptyListTextV1(query: string, filter: Filter, assessed: number) {
   return 'Nenhum aluno neste grupo.';
 }
 
+const BASE_FILTERS = ['attention', 'rising', 'falling', 'all'] as const;
+
+/** The follow-up list of one group: filter buttons, search and the students' table. The page shows it
+ * at the bottom and the side panel shows it on top of the page, so a click never scrolls away. */
+function FollowUpListV1({ rows, filter, onFilter, value, componentLabels, assessed, onStudent, searchLabel }: Readonly<{
+  rows: readonly LearningRowV1[];
+  filter: Filter;
+  onFilter: (filter: Filter) => void;
+  value: PerformanceAnalyticsV6;
+  componentLabels: ReadonlyMap<number, string>;
+  assessed: number;
+  onStudent: (id: number, offerId?: number) => void;
+  searchLabel: string;
+}>) {
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLocaleLowerCase('pt-BR');
+  const selectedRows = rows.filter((row) => matchesFilterV1(row, filter));
+  const visibleRows = selectedRows.filter((row) => !query || row.student.name.toLocaleLowerCase('pt-BR').includes(query) || String(row.student.number) === query)
+    .sort((a, b) => compareRowsV1(filter, a, b));
+  const choose = (key: Filter) => { onFilter(key); setSearch(''); };
+  return <>
+    <div className="learning-filters" aria-label="Filtros de acompanhamento">{BASE_FILTERS.map((key) => <Button key={key} size="sm" variant={filter === key ? 'secondary' : 'ghost'} aria-pressed={filter === key} onPress={() => choose(key)}>{FILTER_BUTTON[key]}</Button>)}</div>
+    <div className="learning-list-heading"><h3>{LABELS[filter]}</h3><Chip size="sm">{selectedRows.length}</Chip></div>
+    <SearchField aria-label={searchLabel} value={search} onChange={setSearch}><SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Buscar aluno" /><SearchField.ClearButton /></SearchField.Group></SearchField>
+    <div className="learning-students">
+      <Table><Table.ScrollContainer><Table.Content aria-label={LABELS[filter]}><Table.Header><Table.Column id="student" isRowHeader>Aluno</Table.Column><Table.Column id="result">{filter === 'participation' ? 'Participação' : 'Notas'}</Table.Column><Table.Column id="reason">O que observar</Table.Column></Table.Header><Table.Body>{visibleRows.map((row) => {
+        const first = row.evidence?.recurring[0];
+        const note = rowNoteV1(row, filter, componentLabels);
+        return <Table.Row key={row.student.id} id={String(row.student.id)}><Table.Cell><div className="learning-student-name"><LinkedStudentPhotoAvatarV1 decorative size="sm" className="pa-student-avatar" fallbackTone={row.student.id % 6} subject={{ source: 'gradebook', academicYear: value.context.year, studentIds: [row.student.id] }} /><Button size="sm" variant="ghost" onPress={() => onStudent(row.student.id, filter === 'attention' ? first?.offerId : undefined)} aria-label={`Ver notas de ${row.student.name}`}>{row.student.name}</Button></div></Table.Cell><Table.Cell><strong>{percent(filter === 'participation' ? row.evidence?.participation.percent ?? null : row.summary.result.mean)}</strong><span className="learning-muted">{delta(filter === 'participation' ? row.evidence?.participation.deltaPP ?? null : row.summary.movement.meanDeltaPP)}</span></Table.Cell><Table.Cell><span>{note}</span></Table.Cell></Table.Row>;
+      })}</Table.Body></Table.Content></Table.ScrollContainer></Table>
+      {!visibleRows.length ? <p className="learning-empty">{emptyListTextV1(query, filter, assessed)}</p> : null}
+    </div>
+  </>;
+}
+
 /** The four headline indicators, each with its explanation and the group it opens. */
 function learningKpisV1({
   value,
@@ -137,8 +172,8 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
   onNotes: (offerId: number) => void;
 }>) {
   const [filter, setFilter] = useState<Filter>('attention');
-  const [search, setSearch] = useState('');
-  const listHeading = useRef<HTMLHeadingElement>(null);
+  // The group opened from an indicator, shown in the side panel; null while the panel is closed.
+  const [panel, setPanel] = useState<Filter | null>(null);
   const learning = value.learning;
   const rows = useMemo(() => {
     const evidence = new Map(value.learning?.students.map((item) => [item.studentId, item]) ?? []);
@@ -146,11 +181,9 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
   }, [value]);
   const reference = value.summary.movement.reference;
   const count = (selected: Filter) => rows.filter((row) => matchesFilterV1(row, selected)).length;
-  const select = (selected: Filter) => { setFilter(selected); setSearch(''); listHeading.current?.focus(); };
-  const query = search.trim().toLocaleLowerCase('pt-BR');
-  const selectedRows = rows.filter((row) => matchesFilterV1(row, filter));
-  const visibleRows = selectedRows.filter((row) => !query || row.student.name.toLocaleLowerCase('pt-BR').includes(query) || String(row.student.number) === query)
-    .sort((a, b) => compareRowsV1(filter, a, b));
+  const select = (selected: Filter) => setPanel(selected);
+  // Close the list first so the student's detail opens alone, over the same spot of the page.
+  const openStudentFromPanel = (id: number, offerId?: number) => { setPanel(null); onStudent(id, offerId); };
   const assessed = learning?.students.filter((item) => item.recurrenceAssessed).length ?? 0;
   const componentLabels = new Map<number, string>(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
   const instruments = new Map(value.components.flatMap((component) => component.instruments.map((instrument) => [instrument.key, { ...instrument, offerId: component.offer.id, subject: component.offer.subject.label }] as const)));
@@ -162,7 +195,6 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
     { key: 'below', label: 'Abaixo em algum componente', count: count('below'), tone: 'warning' },
     { key: 'pending', label: 'Ainda sem conclusão', count: count('pending'), tone: 'muted' },
   ];
-  const emptyText = emptyListTextV1(query, filter, assessed);
   return <div className="learning-overview" data-testid="performance-learning-overview-v1">
     <div className="learning-kpis learning-enter">
       {kpis.map((item) => <Card key={item.title} className={`learning-kpi learning-tone--${item.tone}`}>
@@ -205,18 +237,8 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
       </Panel>
     </div>
     <div className="learning-row learning-row--action learning-enter">
-      <Panel title="Acompanhamento dos alunos" hint={<Hint what="Os alunos de cada indicador desta tela." steps={['Notas: a média do aluno no período, de 0 a 100.', 'O número ao lado: quanto essa média mudou desde o trimestre anterior.']} note="Clique em um indicador para filtrar a lista. Ela mostra as notas que pedem acompanhamento; não é um diagnóstico do aluno." />}>
-        <div className="learning-filters" aria-label="Filtros de acompanhamento">{(['attention', 'rising', 'falling', 'all'] as const).map((key) => <Button key={key} size="sm" variant={filter === key ? 'secondary' : 'ghost'} aria-pressed={filter === key} onPress={() => { setFilter(key); setSearch(''); }}>{FILTER_BUTTON[key]}</Button>)}</div>
-        <div className="learning-list-heading"><h3 ref={listHeading} tabIndex={-1}>{LABELS[filter]}</h3><Chip size="sm">{selectedRows.length}</Chip></div>
-        <SearchField aria-label="Buscar no acompanhamento" value={search} onChange={setSearch}><SearchField.Group><SearchField.SearchIcon /><SearchField.Input placeholder="Buscar aluno" /><SearchField.ClearButton /></SearchField.Group></SearchField>
-        <div className="learning-students">
-          <Table><Table.ScrollContainer><Table.Content aria-label={LABELS[filter]}><Table.Header><Table.Column id="student" isRowHeader>Aluno</Table.Column><Table.Column id="result">{filter === 'participation' ? 'Participação' : 'Notas'}</Table.Column><Table.Column id="reason">O que observar</Table.Column></Table.Header><Table.Body>{visibleRows.map((row) => {
-            const first = row.evidence?.recurring[0];
-            const note = rowNoteV1(row, filter, componentLabels);
-            return <Table.Row key={row.student.id} id={String(row.student.id)}><Table.Cell><div className="learning-student-name"><LinkedStudentPhotoAvatarV1 decorative size="sm" className="pa-student-avatar" fallbackTone={row.student.id % 6} subject={{ source: 'gradebook', academicYear: value.context.year, studentIds: [row.student.id] }} /><Button size="sm" variant="ghost" onPress={() => onStudent(row.student.id, filter === 'attention' ? first?.offerId : undefined)} aria-label={`Ver notas de ${row.student.name}`}>{row.student.name}</Button></div></Table.Cell><Table.Cell><strong>{percent(filter === 'participation' ? row.evidence?.participation.percent ?? null : row.summary.result.mean)}</strong><span className="learning-muted">{delta(filter === 'participation' ? row.evidence?.participation.deltaPP ?? null : row.summary.movement.meanDeltaPP)}</span></Table.Cell><Table.Cell><span>{note}</span></Table.Cell></Table.Row>;
-          })}</Table.Body></Table.Content></Table.ScrollContainer></Table>
-          {!visibleRows.length ? <p className="learning-empty">{emptyText}</p> : null}
-        </div>
+      <Panel title="Acompanhamento dos alunos" hint={<Hint what="Os alunos de cada indicador desta tela." steps={['Notas: a média do aluno no período, de 0 a 100.', 'O número ao lado: quanto essa média mudou desde o trimestre anterior.']} note="Os indicadores abrem a lista num painel lateral, sem sair do lugar. Ela mostra as notas que pedem acompanhamento; não é um diagnóstico do aluno." />}>
+        <FollowUpListV1 rows={rows} filter={filter} onFilter={setFilter} value={value} componentLabels={componentLabels} assessed={assessed} onStudent={onStudent} searchLabel="Buscar no acompanhamento" />
         {reference ? <div className="learning-priority" aria-label="Nível atual e evolução">{(['below-up', 'below-down', 'above-down'] as const).map((key) => <Button key={key} size="sm" variant="ghost" onPress={() => select(key)}><strong>{count(key)}</strong><span>{LABELS[key]}</span></Button>)}</div> : null}
       </Panel>
       <Panel title="Atividades para revisar" hint={<Hint what="As atividades em que mais alunos ficaram abaixo do mínimo." steps={['Em cada atividade, conta-se quantos alunos ficaram abaixo do mínimo.', 'A lista começa pelas atividades com mais alunos abaixo.', 'O número à direita é a nota média da turma na atividade.']} note="Só entram atividades com pelo menos 3 notas. Participação e paralela ficam de fora." />}>
@@ -229,6 +251,20 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
       <Accordion.Item id="recovery"><Accordion.Heading><Accordion.Trigger><span>Recuperação · detalhes</span><Accordion.Indicator /></Accordion.Trigger></Accordion.Heading><Accordion.Panel><Accordion.Body><p className="learning-muted">A paralela elevou {learning?.parallel.improvements ?? 0} resultados. Ganho médio nesses casos: {delta(learning?.parallel.meanGainPP ?? null)} do máximo quantitativo. Isso descreve a nota, não prova a causa da melhora.</p><AnalyticsRecoveryV6 summary={value.summary} /></Accordion.Body></Accordion.Panel></Accordion.Item>
       <Accordion.Item id="quality"><Accordion.Heading><Accordion.Trigger><span>Base dos indicadores · qualidade dos dados</span><Accordion.Indicator /></Accordion.Trigger></Accordion.Heading><Accordion.Panel><Accordion.Body><p className="learning-muted">Nos resultados e na participação, instrumentos exigidos em branco contam como não feitos e somam zero, sem alterar os dados originais. A participação usa instrumentos com pontuação máxima válida e é comparada entre trimestres mesmo com campos em branco; instrumentos sem escala válida ficam fora do percentual. Avaliações e atividades para revisar consideram apenas notas lançadas.</p><AnalyticsCoverageV6 summary={value.summary} partial={value.students.reduce((sum, item) => sum + item.cells.filter((cell) => cell.result.state === 'partial').length, 0)} /></Accordion.Body></Accordion.Panel></Accordion.Item>
     </Accordion>
+    <Drawer.Backdrop isOpen={panel !== null} onOpenChange={(isOpen) => { if (!isOpen) setPanel(null); }}>
+      <Drawer.Content placement="right">
+        <Drawer.Dialog className="learning-panel w-full max-w-full sm:w-[min(40rem,90vw)]">
+          <Drawer.CloseTrigger aria-label="Fechar lista de alunos" />
+          <Drawer.Header className="border-b border-separator pb-4 pr-10">
+            <Drawer.Heading className="text-xl font-bold tracking-tight">Alunos · {periodName}</Drawer.Heading>
+          </Drawer.Header>
+          <Drawer.Body className="pt-4">
+            {panel !== null ? <FollowUpListV1 key={panel} rows={rows} filter={panel} onFilter={setPanel} value={value} componentLabels={componentLabels} assessed={assessed} onStudent={openStudentFromPanel} searchLabel="Buscar na lista" /> : null}
+          </Drawer.Body>
+          <Drawer.Footer><Button variant="secondary" onPress={() => setPanel(null)}>Fechar</Button></Drawer.Footer>
+        </Drawer.Dialog>
+      </Drawer.Content>
+    </Drawer.Backdrop>
     <footer className="learning-footer"><span>{value.summary.students}/{value.classStudents} alunos · {periodName} · referência {percent(value.minimumPercent)}</span><span>Notas calculadas para acompanhamento, não diagnóstico.</span></footer>
   </div>;
 }

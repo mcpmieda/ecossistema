@@ -132,3 +132,18 @@ it('keeps responsive width guards and removes entrance motion when reduced motio
   const source = readFileSync('src/features/gradebook/performance/performance-analytics-workspace-v6.tsx', 'utf8');
   expect(source).not.toMatch(/key=\{[^}]*readAt/);
 });
+it('opens the indicator list in a side panel over the page and closes it before the student detail', async () => {
+  const model = props(); render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Ver alunos: Alunos em evolução' }));
+  const panel = await screen.findByRole('dialog');
+  expect(within(panel).getByRole('heading', { name: 'Maiores evoluções' })).toBeTruthy();
+  await user.click(within(panel).getByRole('button', { name: 'Quedas' }));
+  expect(within(panel).getByRole('heading', { name: 'Maiores quedas' })).toBeTruthy();
+  await user.click(within(panel).getByRole('button', { name: 'Evoluções' }));
+  await user.click(within(panel).getByRole('button', { name: 'Ver notas de Aluno exemplo 02' }));
+  expect(model.onCell).toHaveBeenCalledWith(2, undefined);
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  // The list at the bottom of the page keeps its own group.
+  expect(screen.getByRole('heading', { name: 'Atenção recorrente' })).toBeTruthy();
+});
