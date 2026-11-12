@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, Chip, Popover, Surface } from '@heroui/react';
-import { ChevronDown, CircleAlert, CircleDashed, ListChecks, Table2 } from 'lucide-react';
+import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, ListChecks, Table2 } from 'lucide-react';
 import type {
   PerformanceMatrixV2,
   PerformanceStatusV2,
@@ -11,11 +11,12 @@ import { PerformanceGridV2 } from './performance-grid-v2';
 
 const statusKey = (status: PerformanceStatusV2) =>
   status === null ? 'status-current' : `status-${status}`;
-type InvestigationV2 = 'all' | 'below' | 'incomplete';
+type InvestigationV2 = 'all' | 'below' | 'partial' | 'total';
 const INVESTIGATIONS_V2 = [
   { id: 'all', label: 'Todos', icon: <ListChecks size={13} aria-hidden /> },
   { id: 'below', label: 'Abaixo do limite', icon: <CircleAlert size={13} aria-hidden /> },
-  { id: 'incomplete', label: 'Incompletos', icon: <CircleDashed size={13} aria-hidden /> },
+  { id: 'partial', label: 'Realização parcial', icon: <CircleDashed size={13} aria-hidden /> },
+  { id: 'total', label: 'Realização total', icon: <CircleCheck size={13} aria-hidden /> },
 ] as const;
 
 export function PerformanceResultMatrixV2({
@@ -42,19 +43,21 @@ export function PerformanceResultMatrixV2({
   const rows = value.rows
     .filter((row) => statuses.includes(row.student.status))
     .filter((row) => allowedIds === null || allowedIds.has(row.student.id))
-    .filter(
-      (row) =>
-        investigation === 'all' ||
-        (row.student.indicatorEligible &&
-          row.cells.some((cell) =>
-            investigation === 'below'
-              ? cell.level === 'below'
-              : cell.state !== 'complete' &&
-                cell.state !== 'no-show' &&
-                cell.state !== 'repeat-failure' &&
-                (value.mode === 'regular' || cell.recoveryApplicable === true),
-          )),
-    );
+    .filter((row) => {
+      if (investigation === 'all') return true;
+      if (!row.student.indicatorEligible) return false;
+      if (investigation === 'below') return row.cells.some((cell) => cell.level === 'below');
+      // Something left undone: a blank activity, a mark not yet entered or a pending recovery.
+      const undone = row.cells.some(
+        (cell) =>
+          cell.state !== 'complete' &&
+          cell.state !== 'no-show' &&
+          cell.state !== 'repeat-failure' &&
+          (value.mode === 'regular' || cell.recoveryApplicable === true),
+      );
+      // Partial and total split the eligible students in two: some activity undone, or all done.
+      return investigation === 'partial' ? undone : !undone;
+    });
   const statusTags = useMemo(
     () => statusOptions.map((option) => ({ id: statusKey(option.value), label: option.label })),
     [statusOptions],
