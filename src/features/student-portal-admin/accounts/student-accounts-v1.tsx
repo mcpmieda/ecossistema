@@ -11,7 +11,8 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Card, Checkbox, Tooltip, SearchField, Table } from '@heroui/react';
+import { Button, Card, Checkbox, SearchField, Table } from '@heroui/react';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import { ArrowDownAZ, Clock, Star } from 'lucide-react';
 import {
   sealLabelV1,

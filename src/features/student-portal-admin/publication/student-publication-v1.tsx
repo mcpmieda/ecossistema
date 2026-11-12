@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button, Card, Chip, Modal, Spinner, Tooltip } from '@heroui/react';
+import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import { StableReadStatusV1 } from '../../../shared/live-data/stable-read-status-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';

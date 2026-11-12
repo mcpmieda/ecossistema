@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Button, Card, Chip, Input, Table, Tooltip } from '@heroui/react';
+import { Button, Card, Chip, Input, Table } from '@heroui/react';
+import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
 import { Pencil, Trash2 } from 'lucide-react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { CustomizationRowV1 } from '../../../../shared/student-portal-contracts/customizations-v1';
