@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Chip, Surface } from '@heroui/react';
-import { CircleAlert, CircleDashed, ListChecks, Table2 } from 'lucide-react';
+import { Button, Chip, Popover, Surface } from '@heroui/react';
+import { ChevronDown, CircleAlert, CircleDashed, ListChecks, Table2 } from 'lucide-react';
 import type {
   PerformanceMatrixV2,
   PerformanceStatusV2,
@@ -61,6 +61,12 @@ export function PerformanceResultMatrixV2({
   );
   const selectedStatuses = useMemo(() => new Set(statuses.map(statusKey)), [statuses]);
   const selectedInvestigation = useMemo(() => new Set<string>([investigation]), [investigation]);
+  // The situations live behind one button, so the title and filters share a single line.
+  const shown = statusOptions.filter((option) => statuses.includes(option.value));
+  const statusSummary =
+    shown.length === statusOptions.length
+      ? 'Todas'
+      : `${shown[0]?.label ?? ''}${shown.length > 1 ? ` +${shown.length - 1}` : ''}`;
   return (
     <Surface variant="default" className="performance-widget grid min-w-0 gap-3">
       <header className="performance-widget__header performance-matrix-header">
@@ -73,33 +79,42 @@ export function PerformanceResultMatrixV2({
             {rows.length}
           </Chip>
         </span>
+        <div className="performance-matrix-filters">
+          <FilterTagsV1
+            inline
+            single
+            label="Filtros rápidos"
+            selected={selectedInvestigation}
+            options={INVESTIGATIONS_V2}
+            onChange={(keys) => {
+              const next = INVESTIGATIONS_V2.find((item) => keys.has(item.id));
+              if (next) setInvestigation(next.id);
+            }}
+          />
+          <Popover>
+            <Button size="sm" variant="secondary" aria-label={`Situações exibidas: ${statusSummary}`}>
+              Situações: {statusSummary}
+              <ChevronDown size={14} aria-hidden="true" />
+            </Button>
+            <Popover.Content placement="bottom end">
+              <Popover.Dialog aria-label="Situações exibidas" className="performance-matrix-statuses">
+                <FilterTagsV1
+                  label="Situações exibidas"
+                  selected={selectedStatuses}
+                  options={statusTags}
+                  onChange={(keys) => {
+                    // At least one situation stays shown; an emptied group keeps the last reading.
+                    const selected = statusOptions
+                      .filter((option) => keys.has(statusKey(option.value)))
+                      .map((option) => option.value);
+                    if (selected.length > 0) onStatusesChange(selected);
+                  }}
+                />
+              </Popover.Dialog>
+            </Popover.Content>
+          </Popover>
+        </div>
       </header>
-      <div className="performance-matrix-filters">
-        <FilterTagsV1
-          inline
-          label="Situações exibidas"
-          selected={selectedStatuses}
-          options={statusTags}
-          onChange={(keys) => {
-            // At least one situation stays shown; an emptied group keeps the last reading.
-            const selected = statusOptions
-              .filter((option) => keys.has(statusKey(option.value)))
-              .map((option) => option.value);
-            if (selected.length > 0) onStatusesChange(selected);
-          }}
-        />
-        <FilterTagsV1
-          inline
-          single
-          label="Filtros rápidos"
-          selected={selectedInvestigation}
-          options={INVESTIGATIONS_V2}
-          onChange={(keys) => {
-            const next = INVESTIGATIONS_V2.find((item) => keys.has(item.id));
-            if (next) setInvestigation(next.id);
-          }}
-        />
-      </div>
       <PerformanceGridV2
         label="Matriz de Desempenho"
         columns={value.offers.map((offer) => ({

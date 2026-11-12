@@ -1628,7 +1628,21 @@ button.performance-kpi__button:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1.1rem;
+  gap: 0.5rem 0.75rem;
+  margin-left: auto;
+}
+/* The tags say what they filter; the label stays for screen readers only. */
+.performance-matrix-filters .filter-tags-v1--inline > .label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.performance-matrix-statuses {
+  max-width: 22rem;
+  padding: 0.75rem;
 }
 
 /* Student detail: an easier close target, and on a phone the term table fits the screen
