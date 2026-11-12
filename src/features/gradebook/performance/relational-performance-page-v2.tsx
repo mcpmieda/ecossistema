@@ -374,11 +374,26 @@ export function RelationalPerformancePageV2({
   const [openingId, setOpeningId] = useState<number | null>(null);
   // A mark clicked inside the student detail opens its breakdown on that trimester.
   const [focusTerm, setFocusTerm] = useState<1 | 2 | 3 | null>(null);
+  // What the side panel shows now and what it showed before, so "Voltar" walks back step by step
+  // (a mark's breakdown → the student's year notes) instead of closing everything.
+  type DetailStepV2 = { studentId: number; offerId?: number; term?: 1 | 2 | 3 };
+  const current = useRef<DetailStepV2 | null>(null);
+  const [history, setHistory] = useState<DetailStepV2[]>([]);
+  const show = (step: DetailStepV2) => {
+    current.current = step;
+    setOpeningId(step.studentId);
+    setFocusTerm(step.term ?? null);
+    void state.open(step.studentId, step.offerId);
+  };
   const open = (studentId: number, offerId?: number, term?: 1 | 2 | 3) => {
-    if (!state.detailOpen) lastFocus.current = document.activeElement as HTMLElement;
-    setOpeningId(studentId);
-    setFocusTerm(term ?? null);
-    void state.open(studentId, offerId);
+    if (!state.detailOpen) {
+      lastFocus.current = document.activeElement as HTMLElement;
+      setHistory([]);
+    } else if (current.current) {
+      const previous = current.current;
+      setHistory((steps) => [...steps, previous]);
+    }
+    show({ studentId, offerId, term });
   };
   // Where the detail was opened from, when that place can be reopened (the overview's student list).
   const [back, setBack] = useState<(() => void) | null>(null);
@@ -388,6 +403,8 @@ export function RelationalPerformancePageV2({
   };
   const close = () => {
     setBack(null);
+    setHistory([]);
+    current.current = null;
     setFocusTerm(null);
     state.closeDetail();
     lastFocus.current?.focus();
@@ -669,19 +686,31 @@ export function RelationalPerformancePageV2({
             <Drawer.CloseTrigger aria-label="Fechar detalhe" className="performance-detail-close" />
             {/* Back to the screen behind (or to the indicator list it came from), at the top so it is
                 always in reach without scrolling the detail. */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="-ml-2 mb-1 self-start"
-              onPress={() => {
-                const from = back;
-                close();
-                from?.();
-              }}
-            >
-              <ArrowLeft size={16} aria-hidden="true" />
-              {back ? 'Voltar à lista' : 'Voltar'}
-            </Button>
+            {history.length || back ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="-ml-2 mb-1 self-start"
+                onPress={() => {
+                  const previous = history.at(-1);
+                  if (previous) {
+                    setHistory((steps) => steps.slice(0, -1));
+                    show(previous);
+                    return;
+                  }
+                  const from = back;
+                  close();
+                  from?.();
+                }}
+              >
+                <ArrowLeft size={16} aria-hidden="true" />
+                {history.length
+                  ? history.at(-1)?.offerId === undefined
+                    ? 'Voltar às notas do ano'
+                    : 'Voltar'
+                  : 'Voltar à lista'}
+              </Button>
+            ) : null}
             {detail ? (
               <PerformanceStudentDetailV2
                 detail={detail}
