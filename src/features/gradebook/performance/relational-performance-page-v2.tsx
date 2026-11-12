@@ -25,7 +25,7 @@ import type {
   PerformanceStatusV2,
 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useRelationalPerformanceV2 } from './use-relational-performance-v2';
-import { ChartColumn } from 'lucide-react';
+import { ArrowLeft, ChartColumn } from 'lucide-react';
 import { GradebookYearContextBanner } from '../../../platform/gradebook-year-provider';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
@@ -322,6 +322,82 @@ function DetailPlaceholderV2({
   );
 }
 
+type DetailStepV2 = { studentId: number; offerId?: number; term?: 1 | 2 | 3 };
+
+/** What "Voltar" says: back to the year notes, to the previous detail, to the indicator list it
+ * came from, or nothing when the first step was opened from the page itself. */
+function backLabelV2(previous: DetailStepV2 | undefined, hasOrigin: boolean) {
+  if (previous) return previous.offerId === undefined ? 'Voltar às notas do ano' : 'Voltar';
+  return hasOrigin ? 'Voltar à lista' : null;
+}
+
+/** The steps opened inside the student side panel, so "Voltar" walks back one step at a time
+ * (a mark's breakdown → the student's year notes) and closing clears them all. */
+function useDetailStepsV2(detail: {
+  isOpen: boolean;
+  open: (studentId: number, offerId?: number) => void;
+  close: () => void;
+}) {
+  const lastFocus = useRef<HTMLElement | null>(null);
+  // The student whose detail was asked for: the name already on screen heads the drawer at once.
+  const [openingId, setOpeningId] = useState<number | null>(null);
+  // A mark clicked inside the student detail opens its breakdown on that trimester.
+  const [focusTerm, setFocusTerm] = useState<1 | 2 | 3 | null>(null);
+  const current = useRef<DetailStepV2 | null>(null);
+  const [history, setHistory] = useState<DetailStepV2[]>([]);
+  // Where the detail was opened from, when that place can be reopened (the overview's list).
+  const [origin, setOrigin] = useState<(() => void) | null>(null);
+  const show = (step: DetailStepV2) => {
+    current.current = step;
+    setOpeningId(step.studentId);
+    setFocusTerm(step.term ?? null);
+    detail.open(step.studentId, step.offerId);
+  };
+  const open = (studentId: number, offerId?: number, term?: 1 | 2 | 3) => {
+    const previous = current.current;
+    if (!detail.isOpen) {
+      lastFocus.current = document.activeElement as HTMLElement;
+      setHistory([]);
+      setOrigin(null);
+    } else if (previous) {
+      setHistory((steps) => [...steps, previous]);
+    }
+    show({ studentId, offerId, term });
+  };
+  const openFromAnalytics = (studentId: number, offerId?: number, from?: () => void) => {
+    open(studentId, offerId);
+    setOrigin(() => from ?? null);
+  };
+  const close = () => {
+    setOrigin(null);
+    setHistory([]);
+    current.current = null;
+    setFocusTerm(null);
+    detail.close();
+    lastFocus.current?.focus();
+  };
+  const previous = history.at(-1);
+  const goBack = () => {
+    if (previous) {
+      setHistory((steps) => steps.slice(0, -1));
+      show(previous);
+      return;
+    }
+    const from = origin;
+    close();
+    from?.();
+  };
+  return {
+    openingId,
+    focusTerm,
+    open,
+    openFromAnalytics,
+    close,
+    goBack,
+    backLabel: backLabelV2(previous, origin !== null),
+  };
+}
+
 export function RelationalPerformancePageV2({
   isActive = true,
 }: { readonly isActive?: boolean } = {}) {
@@ -358,7 +434,6 @@ export function RelationalPerformancePageV2({
     void state.select({ lens: 'assessments', offerId, mode: 'regular', statuses: [null, 7] }, true);
   }
   const [openSelect, setOpenSelect] = useState<PerformanceSelectId | null>(null);
-  const lastFocus = useRef<HTMLElement | null>(null);
   const changeOpenSelect = useCallback((id: PerformanceSelectId, isOpen: boolean) => {
     setOpenSelect((current) => {
       if (isOpen) {
@@ -370,21 +445,19 @@ export function RelationalPerformancePageV2({
       return current;
     });
   }, []);
-  // The student whose detail was asked for: the name already on screen heads the drawer at once.
-  const [openingId, setOpeningId] = useState<number | null>(null);
-  // A mark clicked inside the student detail opens its breakdown on that trimester.
-  const [focusTerm, setFocusTerm] = useState<1 | 2 | 3 | null>(null);
-  const open = (studentId: number, offerId?: number, term?: 1 | 2 | 3) => {
-    if (!state.detailOpen) lastFocus.current = document.activeElement as HTMLElement;
-    setOpeningId(studentId);
-    setFocusTerm(term ?? null);
-    void state.open(studentId, offerId);
-  };
-  const close = () => {
-    setFocusTerm(null);
-    state.closeDetail();
-    lastFocus.current?.focus();
-  };
+  const {
+    openingId,
+    focusTerm,
+    open,
+    openFromAnalytics,
+    close,
+    goBack,
+    backLabel,
+  } = useDetailStepsV2({
+    isOpen: state.detailOpen,
+    open: (studentId, offerId) => void state.open(studentId, offerId),
+    close: state.closeDetail,
+  });
   const lensLabel: Record<PerformanceLensV3, string> = {
     result: 'Resultado',
     quantitative: 'Quantitativo',
@@ -633,7 +706,7 @@ export function RelationalPerformancePageV2({
                   onSelection={(next) => setSelection((previous) => ({ ...previous, ...next }))}
                   onNavigate={navigate}
                   onPeriod={(period) => void state.select({ period })}
-                  onCell={open}
+                  onCell={openFromAnalytics}
                   onNotes={openAssessmentNotes}
                   classChosen={state.filters.classId !== null}
                 />
@@ -660,6 +733,14 @@ export function RelationalPerformancePageV2({
         <Drawer.Content placement="right">
           <Drawer.Dialog className="w-full max-w-full sm:w-[min(52rem,90vw)]">
             <Drawer.CloseTrigger aria-label="Fechar detalhe" className="performance-detail-close" />
+            {/* Back to the screen behind (or to the indicator list it came from), at the top so it is
+                always in reach without scrolling the detail. */}
+            {backLabel ? (
+              <Button variant="ghost" size="sm" className="-ml-2 mb-1 self-start" onPress={goBack}>
+                <ArrowLeft size={16} aria-hidden="true" />
+                {backLabel}
+              </Button>
+            ) : null}
             {detail ? (
               <PerformanceStudentDetailV2
                 detail={detail}

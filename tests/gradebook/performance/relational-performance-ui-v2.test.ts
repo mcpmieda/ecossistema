@@ -510,7 +510,15 @@ describe('real shell, shared year and rendered performance journey', () => {
   );
   it('updates the matrix immediately from the multiple status tags', async () => {
     await loaded();
-    const group = host.querySelector('[data-slot="tag-group"]');
+    // The situations sit behind the filter icon at the end of the quick filters.
+    const trigger = host.querySelector<HTMLElement>('[aria-label^="Situações exibidas"]');
+    expect(trigger).not.toBeNull();
+    await act(async () => {
+      trigger!.click();
+    });
+    const menu = '[role="dialog"] [data-slot="tag-group"]';
+    await waitFor(() => Boolean(document.querySelector(menu)));
+    const group = document.querySelector(menu);
     expect(group?.textContent).toContain('Situações exibidas');
     const labelledBy = group
       ?.querySelector('[data-slot="tag-group-list"]')

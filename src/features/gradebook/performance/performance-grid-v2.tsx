@@ -307,7 +307,7 @@ export function PerformanceGridV2({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="min-h-6 h-auto min-w-0 flex-1 justify-start whitespace-normal break-words px-0 py-0 text-left text-xs leading-4"
+                            className="min-h-6 h-auto min-w-0 flex-1 justify-start whitespace-normal break-words px-1.5 py-0 text-left text-xs leading-4"
                             onPress={() => open(row.student.id)}
                           >
                             {row.student.name}

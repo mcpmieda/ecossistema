@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Chip, SearchField, Surface } from '@heroui/react';
-import { CircleAlert, CircleDashed, ListChecks, Table2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Button, Chip, Popover, Surface } from '@heroui/react';
+import { CircleAlert, CircleCheck, CircleDashed, ListFilter, ListChecks, Table2 } from 'lucide-react';
 import type {
   PerformanceMatrixV2,
   PerformanceStatusV2,
@@ -11,12 +11,20 @@ import { PerformanceGridV2 } from './performance-grid-v2';
 
 const statusKey = (status: PerformanceStatusV2) =>
   status === null ? 'status-current' : `status-${status}`;
-type InvestigationV2 = 'all' | 'below' | 'incomplete';
+type InvestigationV2 = 'all' | 'below' | 'partial' | 'total';
 const INVESTIGATIONS_V2 = [
   { id: 'all', label: 'Todos', icon: <ListChecks size={13} aria-hidden /> },
   { id: 'below', label: 'Abaixo do limite', icon: <CircleAlert size={13} aria-hidden /> },
-  { id: 'incomplete', label: 'Incompletos', icon: <CircleDashed size={13} aria-hidden /> },
+  { id: 'partial', label: 'Realização parcial', icon: <CircleDashed size={13} aria-hidden /> },
+  { id: 'total', label: 'Realização total', icon: <CircleCheck size={13} aria-hidden /> },
 ] as const;
+
+/** The situations shown, in a few words: "Todas", or the first one and how many more. */
+function statusSummaryV2(shown: readonly string[], total: number) {
+  if (shown.length === total) return 'Todas';
+  const more = shown.length > 1 ? ' +' + String(shown.length - 1) : '';
+  return (shown[0] ?? '') + more;
+}
 
 export function PerformanceResultMatrixV2({
   value,
@@ -39,47 +47,37 @@ export function PerformanceResultMatrixV2({
   readonly onStatusesChange: (statuses: PerformanceStatusV2[]) => void;
 }) {
   const [investigation, setInvestigation] = useState<InvestigationV2>('all');
-  const [query, setQuery] = useState('');
-  // The search field is hidden on phones (styles.css, up to 640px); a search typed on a wider
-  // screen is dropped when the field goes away, so no filter stays on without a way to clear it.
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const narrow = window.matchMedia('(max-width: 640px)');
-    const drop = () => {
-      if (narrow.matches) setQuery('');
-    };
-    drop();
-    narrow.addEventListener('change', drop);
-    return () => narrow.removeEventListener('change', drop);
-  }, []);
-  const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const rows = value.rows
     .filter((row) => statuses.includes(row.student.status))
     .filter((row) => allowedIds === null || allowedIds.has(row.student.id))
-    .filter(
-      (row) =>
-        investigation === 'all' ||
-        (row.student.indicatorEligible &&
-          row.cells.some((cell) =>
-            investigation === 'below'
-              ? cell.level === 'below'
-              : cell.state !== 'complete' &&
-                cell.state !== 'no-show' &&
-                cell.state !== 'repeat-failure' &&
-                (value.mode === 'regular' || cell.recoveryApplicable === true),
-          )),
-    );
-  const visibleRows = normalizedQuery
-    ? rows.filter((row) => row.student.name.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
-    : rows;
+    .filter((row) => {
+      if (investigation === 'all') return true;
+      if (!row.student.indicatorEligible) return false;
+      if (investigation === 'below') return row.cells.some((cell) => cell.level === 'below');
+      // Something left undone: a blank activity, a mark not yet entered or a pending recovery.
+      const undone = row.cells.some(
+        (cell) =>
+          cell.state !== 'complete' &&
+          cell.state !== 'no-show' &&
+          cell.state !== 'repeat-failure' &&
+          (value.mode === 'regular' || cell.recoveryApplicable === true),
+      );
+      // Partial and total split the eligible students in two: some activity undone, or all done.
+      return investigation === 'partial' ? undone : !undone;
+    });
   const statusTags = useMemo(
     () => statusOptions.map((option) => ({ id: statusKey(option.value), label: option.label })),
     [statusOptions],
   );
   const selectedStatuses = useMemo(() => new Set(statuses.map(statusKey)), [statuses]);
   const selectedInvestigation = useMemo(() => new Set<string>([investigation]), [investigation]);
+  // The situations live behind one button, so the title and filters share a single line.
+  const statusSummary = statusSummaryV2(
+    statusOptions.filter((option) => statuses.includes(option.value)).map((option) => option.label),
+    statusOptions.length,
+  );
   return (
-    <Surface variant="default" className="performance-widget grid min-w-0 gap-3">
+    <Surface variant="default" className="performance-widget grid min-w-0 gap-2">
       <header className="performance-widget__header performance-matrix-header">
         <span className="performance-widget__icon performance-widget__icon--accent">
           <Table2 size={18} />
@@ -87,43 +85,49 @@ export function PerformanceResultMatrixV2({
         <span className="flex shrink-0 items-center gap-2">
           <h3 className="text-sm font-semibold">Matriz de resultados</h3>
           <Chip size="sm" variant="soft">
-            {visibleRows.length}
+            {rows.length}
           </Chip>
         </span>
+        <div className="performance-matrix-filters">
+          <FilterTagsV1
+            inline
+            single
+            label="Filtros rápidos"
+            selected={selectedInvestigation}
+            options={INVESTIGATIONS_V2}
+            onChange={(keys) => {
+              const next = INVESTIGATIONS_V2.find((item) => keys.has(item.id));
+              if (next) setInvestigation(next.id);
+            }}
+          />
+          <Popover>
+            <Button
+              size="sm"
+              isIconOnly
+              variant={statusSummary === 'Todas' ? 'ghost' : 'secondary'}
+              aria-label={`Situações exibidas: ${statusSummary}`}
+            >
+              <ListFilter size={15} aria-hidden="true" />
+            </Button>
+            <Popover.Content placement="bottom end">
+              <Popover.Dialog aria-label="Situações exibidas" className="performance-matrix-statuses">
+                <FilterTagsV1
+                  label="Situações exibidas"
+                  selected={selectedStatuses}
+                  options={statusTags}
+                  onChange={(keys) => {
+                    // At least one situation stays shown; an emptied group keeps the last reading.
+                    const selected = statusOptions
+                      .filter((option) => keys.has(statusKey(option.value)))
+                      .map((option) => option.value);
+                    if (selected.length > 0) onStatusesChange(selected);
+                  }}
+                />
+              </Popover.Dialog>
+            </Popover.Content>
+          </Popover>
+        </div>
       </header>
-      <div className="performance-matrix-filters">
-        <FilterTagsV1
-          inline
-          label="Situações exibidas"
-          selected={selectedStatuses}
-          options={statusTags}
-          onChange={(keys) => {
-            // At least one situation stays shown; an emptied group keeps the last reading.
-            const selected = statusOptions
-              .filter((option) => keys.has(statusKey(option.value)))
-              .map((option) => option.value);
-            if (selected.length > 0) onStatusesChange(selected);
-          }}
-        />
-        <FilterTagsV1
-          inline
-          single
-          label="Filtros rápidos"
-          selected={selectedInvestigation}
-          options={INVESTIGATIONS_V2}
-          onChange={(keys) => {
-            const next = INVESTIGATIONS_V2.find((item) => keys.has(item.id));
-            if (next) setInvestigation(next.id);
-          }}
-        />
-        <SearchField aria-label="Buscar estudante" value={query} onChange={setQuery}>
-          <SearchField.Group>
-            <SearchField.SearchIcon />
-            <SearchField.Input placeholder="Buscar estudante" />
-            <SearchField.ClearButton aria-label="Limpar busca" />
-          </SearchField.Group>
-        </SearchField>
-      </div>
       <PerformanceGridV2
         label="Matriz de Desempenho"
         columns={value.offers.map((offer) => ({
@@ -132,7 +136,7 @@ export function PerformanceResultMatrixV2({
           title: offer.subject.label,
           offerId: offer.id,
         }))}
-        rows={visibleRows.map((row) => ({
+        rows={rows.map((row) => ({
           student: row.student,
           values: row.cells.map((cell) => (
             <GradeValue key={cell.offerId} cell={cell} partialAsMarker />

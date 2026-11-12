@@ -146,11 +146,4 @@ describe('shell with a side column and a top bar', () => {
       /\.platform-shell--v2 \.shell-aside \{\n\s+position: relative;\n\s+top: auto;\n\s+grid-row: 1 \/ span 3;/u,
     );
   });
-
-  it('drops a matrix search when its field is hidden on phones', () => {
-    const matrix = read('src/features/gradebook/performance/performance-result-matrix-v2.tsx');
-    expect(styles).toContain('.performance-matrix-filters .search-field {\n    display: none;');
-    expect(matrix).toContain("window.matchMedia('(max-width: 640px)')");
-    expect(matrix).toContain("if (narrow.matches) setQuery('');");
-  });
 });

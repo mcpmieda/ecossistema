@@ -39,7 +39,7 @@ it('filters from the KPI, searches and opens the existing student detail without
   expect(screen.getByRole('heading', { name: 'Maiores evoluções' })).toBeTruthy();
   const table = screen.getByRole('grid', { name: 'Maiores evoluções' });
   await user.click(within(table).getByRole('button', { name: 'Ver notas de Aluno exemplo 02' }));
-  expect(model.onCell).toHaveBeenCalledWith(2, undefined);
+  expect(model.onCell).toHaveBeenCalledWith(2, undefined, expect.any(Function));
   await user.type(screen.getByRole('searchbox'), 'não existe');
   expect(screen.getByText('Nenhum aluno encontrado nesta busca.')).toBeTruthy();
   // Student photos are the only requests; no academic data is asked for again.
@@ -51,7 +51,7 @@ it('shows all participation students and their existing granular-detail entry po
   const table = screen.getByRole('grid', { name: 'Participação por aluno' });
   expect(within(table).getAllByRole('button', { name: /Ver notas de/ })).toHaveLength(4);
   await userEvent.setup().click(within(table).getByRole('button', { name: 'Ver notas de Aluno exemplo 01' }));
-  expect(model.onCell).toHaveBeenCalledWith(1, undefined);
+  expect(model.onCell).toHaveBeenCalledWith(1, undefined, expect.any(Function));
 });
 it('reuses period and component navigation and opens activity notes', async () => {
   const model = props(); render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
@@ -131,4 +131,19 @@ it('keeps responsive width guards and removes entrance motion when reduced motio
   expect(css).toContain('140ms');
   const source = readFileSync('src/features/gradebook/performance/performance-analytics-workspace-v6.tsx', 'utf8');
   expect(source).not.toMatch(/key=\{[^}]*readAt/);
+});
+it('opens the indicator list in a side panel over the page and closes it before the student detail', async () => {
+  const model = props(); render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Ver alunos: Alunos em evolução' }));
+  const panel = await screen.findByRole('dialog');
+  expect(within(panel).getByRole('heading', { name: 'Maiores evoluções' })).toBeTruthy();
+  await user.click(within(panel).getByRole('button', { name: 'Quedas' }));
+  expect(within(panel).getByRole('heading', { name: 'Maiores quedas' })).toBeTruthy();
+  await user.click(within(panel).getByRole('button', { name: 'Evoluções' }));
+  await user.click(within(panel).getByRole('button', { name: 'Ver notas de Aluno exemplo 02' }));
+  expect(model.onCell).toHaveBeenCalledWith(2, undefined, expect.any(Function));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  // The list at the bottom of the page keeps its own group.
+  expect(screen.getByRole('heading', { name: 'Atenção recorrente' })).toBeTruthy();
 });

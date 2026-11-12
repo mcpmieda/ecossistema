@@ -186,7 +186,8 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
   onSelection: (selection: Partial<PerformanceSelectionV6>) => void;
   onNavigate: (tab: PerformancePerspectiveV6) => void;
   onPeriod: (period: 1 | 2 | 3) => void;
-  onCell: (studentId: number, offerId?: number) => void;
+  /** `back` reopens where the click came from, offered as a button in the student detail. */
+  onCell: (studentId: number, offerId?: number, back?: () => void) => void;
   onNotes: (offerId: number) => void;
 }>) {
   const student = value.students.find((item) => item.student.id === selection.studentId) ?? value.students[0];
