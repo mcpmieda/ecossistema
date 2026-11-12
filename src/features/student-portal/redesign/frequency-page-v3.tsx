@@ -929,6 +929,20 @@ function lessonInfoV3(
   return { time: time ? `${time.start}–${time.end}` : null, subject: official };
 }
 
+/** The day picked on the calendar: its lessons, its reading, why it had no school, its marks. */
+function selectedDayV3(
+  monthDays: ReturnType<typeof useMonthDaysV3>,
+  offByDate: ReadonlyMap<string, SchoolDayOffV1>,
+  selected: string | null,
+) {
+  const { lessonsAt, dayAt, marksByDay } = monthDays;
+  const selectedLessons = selected ? (lessonsAt(selected) ?? []) : [];
+  const selectedDay = selected ? dayAt(selected) : null;
+  const selectedOff = selected && !selectedDay ? (offByDate.get(selected) ?? null) : null;
+  const markAt = new Map((selected ? (marksByDay.get(selected) ?? []) : []).map((mark) => [lessonKey(mark.shift, mark.slot), mark]));
+  return { selectedLessons, selectedDay, selectedOff, markAt };
+}
+
 /** One month, drawn from the server's answer. */
 function FrequencyMonthV3({
   data,
@@ -971,7 +985,7 @@ function FrequencyMonthV3({
   const lessonInfo = (date: string, shift: string, slot: number) =>
     lessonInfoV3({ bells, bellsValidFrom, grid }, date, shift, slot);
   const monthDays = useMonthDaysV3(data, today, offByDate);
-  const { lessonsAt, marksByDay, dayAt, stateOf } = monthDays;
+  const { marksByDay, stateOf } = monthDays;
   const [picked, setPicked] = useState<string | null>(null);
   const go = (step: number) => {
     onMonth(shiftMonth(month, step));
@@ -1017,10 +1031,7 @@ function FrequencyMonthV3({
       .sort((a, b) => b.localeCompare(a))
       .find((date) => date <= today && isPickableV3(stateOf(date))) ?? null;
   const selected = picked?.startsWith(month) ? picked : firstPick;
-  const selectedLessons = selected ? (lessonsAt(selected) ?? []) : [];
-  const selectedDay = selected ? dayAt(selected) : null;
-  const selectedOff = selected && !selectedDay ? (offByDate.get(selected) ?? null) : null;
-  const markAt = new Map((selected ? (marksByDay.get(selected) ?? []) : []).map((mark) => [lessonKey(mark.shift, mark.slot), mark]));
+  const { selectedLessons, selectedDay, selectedOff, markAt } = selectedDayV3(monthDays, offByDate, selected);
   const isToday = selected === today;
   // Today, or a past day not read in full: more marks may still come, so nothing is final yet.
   const isOpen = isToday || !selectedLessons.every((group) => group.complete);

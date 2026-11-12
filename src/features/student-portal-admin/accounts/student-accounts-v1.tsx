@@ -606,6 +606,23 @@ function NoAccountsNoticeV1() {
   );
 }
 
+/** The data of a finished read, or none. */
+function readyDataV1<T>(state: { state: string; data?: T }): T | null {
+  return state.state === 'ready' ? (state.data ?? null) : null;
+}
+
+/** What narrows the list (class, search, situations, blocks), as one key. */
+function narrowedKeyV1(view: {
+  classId: number | null;
+  withoutClass: boolean;
+  search: string;
+  states: Set<string>;
+  blocks: Set<string>;
+}): string {
+  const place = view.withoutClass ? 'sem-turma' : '';
+  return [view.classId ?? place, view.search, ...view.states, '', ...view.blocks].join('|');
+}
+
 /** Thumbnail maintenance asks for every listed account's photo. */
 function photoSubjectsV1(items: readonly { accountId: string }[]) {
   return items.map((item) => ({ source: 'portal' as const, academicYear: 2026, accountIds: [item.accountId] }));
@@ -661,13 +678,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
         : props.query.scope,
     [props.query.scope, props.classId],
   );
-  const narrowed = [
-    props.classId ?? (props.withoutClass ? 'sem-turma' : ''),
-    props.search,
-    ...props.states,
-    '',
-    ...props.blocks,
-  ].join('|');
+  const narrowed = narrowedKeyV1(props);
   // A new order or filter starts again from the first rows.
   const view = props.order + '|' + narrowed;
   const [shown, setShown] = useState({ view, limit: rowWindow });
@@ -755,7 +766,8 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   );
   const reloadList = useRef(read.reloadNow);
   reloadList.current = read.reloadNow;
-  const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
+  // A session that lost access shows no rows, even ones already read.
+  const current = authorizationError ? null : readyDataV1(read.state);
   // A row hidden by a filter never stays selected for a QR or bulk operation.
   const selectionOwner = (current?.scopeVersion ?? '') + '|' + narrowed;
   const [selectedQr, setSelectedQr] = useOwnedSelectionV1(selectionOwner);
