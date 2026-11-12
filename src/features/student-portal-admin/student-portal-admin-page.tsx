@@ -428,7 +428,7 @@ function PortalWorkspace({
     'panel-scope',
     { turma: selectedClass?.id ?? null, turno: selectedShift, ficha: openedAccount?.id ?? null },
     (restored) => {
-      if (!allowDraftNavigationV1()) return;
+      if (!allowDraftNavigationV1()) return false;
       setSelectedShift(restored.turno);
       setSelectedClass(
         restored.turma === null

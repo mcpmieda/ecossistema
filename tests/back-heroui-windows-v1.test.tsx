@@ -1,0 +1,141 @@
+import { Button, Drawer } from '@heroui/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { useBackClosesOverlayV1 } from '../src/platform/back-closes-overlay-v1';
+import { useHistoryStepV1 } from '../src/shared/ui/history-step-v1';
+
+const tick = (ms = 0) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
+async function phoneBack() {
+  window.history.back();
+  await tick(80);
+}
+
+beforeEach(() => {
+  window.history.replaceState(null, '', '/');
+  document.body.innerHTML = '';
+});
+afterEach(cleanup);
+
+const parseTab = (value: unknown) =>
+  value !== null &&
+  typeof value === 'object' &&
+  typeof (value as { tab?: unknown }).tab === 'string'
+    ? { tab: (value as { tab: string }).tab }
+    : null;
+
+/** The Desempenho case: a tab chosen before, a HeroUI side panel with steps inside. */
+function Screen() {
+  useBackClosesOverlayV1();
+  const [view, setView] = useState({ tab: 'overview' });
+  useHistoryStepV1('test-tabs', view, setView, parseTab);
+  const [open, setOpen] = useState(false);
+  const [steps, setSteps] = useState<string[]>([]);
+  const back = () => setSteps((current) => current.slice(0, -1));
+  return (
+    <>
+      <p data-testid="tab">{view.tab}</p>
+      <button type="button" onClick={() => setView({ tab: 'notes' })}>
+        Notas
+      </button>
+      <button type="button" onClick={() => setOpen(true)}>
+        Abrir aluno
+      </button>
+      <Drawer.Backdrop
+        isOpen={open}
+        onOpenChange={(next) => {
+          if (!next) {
+            setOpen(false);
+            setSteps([]);
+          }
+        }}
+      >
+        <Drawer.Content placement="right">
+          <Drawer.Dialog aria-label="Aluno">
+            {steps.length ? (
+              <Button onPress={back} data-back-step="">
+                Voltar às notas do ano
+              </Button>
+            ) : null}
+            <p data-testid="step">{steps.at(-1) ?? 'ano'}</p>
+            <Button onPress={() => setSteps((current) => [...current, 'trimestre'])}>
+              Ver trimestre
+            </Button>
+            <Drawer.Footer>
+              {steps.length ? (
+                <Button isIconOnly aria-label="Voltar às notas do ano" onPress={back}>
+                  ←
+                </Button>
+              ) : null}
+              <Button onPress={() => setOpen(false)}>Fechar</Button>
+            </Drawer.Footer>
+          </Drawer.Dialog>
+        </Drawer.Content>
+      </Drawer.Backdrop>
+    </>
+  );
+}
+
+const panel = () => document.querySelector('[data-slot="drawer-dialog"]:not([data-exiting])');
+
+describe('phone back with HeroUI windows v1', () => {
+  it('closes a HeroUI side panel instead of undoing the tab chosen before it', async () => {
+    render(<Screen />);
+    await tick(450);
+    act(() => screen.getByText('Notas').click());
+    await tick(200);
+    act(() => screen.getByText('Abrir aluno').click());
+    await waitFor(() => expect(panel()).not.toBeNull());
+    await tick(50);
+    await phoneBack();
+    await waitFor(() => expect(panel()).toBeNull());
+    expect(screen.getByTestId('tab').textContent).toBe('notes');
+  });
+
+  it('walks the steps inside the panel back one at a time before closing it', async () => {
+    render(<Screen />);
+    await tick(450);
+    act(() => screen.getByText('Notas').click());
+    await tick(200);
+    act(() => screen.getByText('Abrir aluno').click());
+    await waitFor(() => expect(panel()).not.toBeNull());
+    await tick(50);
+    act(() => screen.getByText('Ver trimestre').click());
+    expect(screen.getByTestId('step').textContent).toBe('trimestre');
+    await phoneBack();
+    await waitFor(() => expect(screen.getByTestId('step').textContent).toBe('ano'));
+    expect(panel()).not.toBeNull();
+    await phoneBack();
+    await waitFor(() => expect(panel()).toBeNull());
+    expect(screen.getByTestId('tab').textContent).toBe('notes');
+  });
+
+  it('the button at the bottom takes the same step back as the one at the top', async () => {
+    render(<Screen />);
+    await tick(450);
+    act(() => screen.getByText('Abrir aluno').click());
+    await waitFor(() => expect(panel()).not.toBeNull());
+    act(() => screen.getByText('Ver trimestre').click());
+    const bottom = screen
+      .getAllByRole('button', { name: 'Voltar às notas do ano' })
+      .find((button) => button.closest('[data-slot="drawer-footer"]'));
+    expect(bottom).toBeDefined();
+    act(() => bottom!.click());
+    expect(screen.getByTestId('step').textContent).toBe('ano');
+    expect(screen.queryAllByRole('button', { name: 'Voltar às notas do ano' })).toHaveLength(0);
+  });
+
+  it('closing with Fechar leaves the history as it was before the panel', async () => {
+    render(<Screen />);
+    await tick(450);
+    const length = window.history.length;
+    act(() => screen.getByText('Abrir aluno').click());
+    await waitFor(() => expect(panel()).not.toBeNull());
+    await tick(50);
+    act(() => screen.getByText('Fechar').click());
+    await waitFor(() => expect(panel()).toBeNull());
+    await tick(120);
+    expect(JSON.stringify(window.history.state ?? {})).not.toContain('__centroOverlayV1');
+    expect(window.history.length).toBeGreaterThanOrEqual(length);
+  });
+});

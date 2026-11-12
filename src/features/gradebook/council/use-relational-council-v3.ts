@@ -149,7 +149,10 @@ export function useRelationalCouncilV3() {
     `gradebook-council-class:${year ?? 0}`,
     { classId },
     (restored) => {
-      if (restored.classId !== classId && allowDraftNavigationV1()) void selectClass(restored.classId);
+      if (restored.classId === classId) return;
+      // A deliberation being typed stays, as it does when another class is tapped.
+      if (draftProtected.current || !allowDraftNavigationV1()) return false;
+      void selectClass(restored.classId);
     },
     (value) =>
       value !== null && typeof value === 'object' && 'classId' in value

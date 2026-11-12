@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { Button, Card, SearchField, Table } from '@heroui/react';
+import { ArrowLeft } from 'lucide-react';
 import type {
   ReconciliationContextV1,
   ReconciliationListItemV1,
@@ -21,6 +22,8 @@ import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 import { AccountCloseV1 } from './account-close-v1';
 import { readReconciliationListV1 } from './reconciliation-list-read-v1';
 import { PreparedReportV1 } from '../../gradebook/import/student-report-import-v1';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
+import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 
 type CatalogV1 = Extract<ReconciliationResponseV1, { operation: 'catalog' }>;
 type DetailV1 = Extract<ReconciliationResponseV1, { operation: 'detail' }>;
@@ -433,6 +436,21 @@ export function StudentReconciliationV1({
     setPendingBatch(null);
     setBusy(false);
   };
+  // The phone's back button returns from a student to the list (or reopens the one seen before).
+  useHistoryStepV1(
+    'reconciliation-item',
+    { item: selected ? itemKeyV1(selected) : null },
+    (restored) => {
+      if (locked || !allowDraftNavigationV1()) return false;
+      const item = restored.item === null ? undefined : items.find((row) => itemKeyV1(row) === restored.item);
+      if (item) void open(item);
+      else back();
+    },
+    (value) =>
+      value !== null && typeof value === 'object' && 'item' in value
+        ? { item: typeof (value as { item: unknown }).item === 'string' ? (value as { item: string }).item : null }
+        : null,
+  );
   function selectedContent(current: ReconciliationListItemV1) {
     if (prepared)
       return (
@@ -505,6 +523,16 @@ export function StudentReconciliationV1({
             />
           ) : null}
           {selectedContent(current)}
+          {/* The same way back, where the thumb is on a phone. */}
+          <Button
+            isIconOnly
+            variant="secondary"
+            aria-label="Voltar aos alunos"
+            isDisabled={locked}
+            onPress={back}
+          >
+            <ArrowLeft size={18} aria-hidden="true" />
+          </Button>
         </Card.Content>
       </Card>
     );

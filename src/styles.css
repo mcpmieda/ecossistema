@@ -3420,9 +3420,20 @@ button.performance-kpi__button:hover {
   font-size: 0.75rem;
 }
 .performance-ranking__note {
-  padding: 0.4rem 1rem 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0.8rem 0.6rem 1rem;
   color: var(--muted);
   font-size: 0.62rem;
+}
+/* The way back at the foot of a card's list, where the thumb is on a phone. */
+.performance-bars__detail-footer {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--separator);
+  padding: 0.5rem 0.8rem;
 }
 
 .performance-bars__student-group--ranking li > button {

@@ -696,7 +696,8 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
     'panel-student',
     { aluno: selectedId },
     (restored) => {
-      if (allowDraftNavigationV1()) setSelectedId(restored.aluno);
+      if (!allowDraftNavigationV1()) return false;
+      setSelectedId(restored.aluno);
     },
     studentStepV1,
   );

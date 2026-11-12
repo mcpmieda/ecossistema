@@ -17,6 +17,7 @@ import {
 import type { PerformanceDashboardV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { dashboardAnalysisV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { gradeText, subjectText } from './performance-display-v2';
+import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 
 export type PerformanceDashboardSelectionV5 =
   | { readonly kind: 'column'; readonly key: string; readonly bucket: 'above' | 'below' }
@@ -171,6 +172,8 @@ function ComponentBarsV5({ value, previous, selection, onSelectionChange, open }
       <div className="performance-bars__student-groups"><section className={`performance-bars__student-group performance-bars__student-group--${selectedBucket}`} aria-label={`${selectedStudents.length} estudante(s) ${bucketText}`}>
         {selectedStudents.length > 0 ? <ul>{selectedStudents.map((student) => <li key={student.id}><button type="button" onClick={() => open(student.id, selectedColumn.offerId)}><small>{student.number}</small><span className="truncate">{student.name}</span></button></li>)}</ul> : <p>Nenhum estudante {bucketText} neste componente.</p>}
       </section></div>
+      {/* The same way back, where the thumb is on a phone. */}
+      <footer className="performance-bars__detail-footer"><Button isIconOnly size="sm" variant="secondary" aria-label="Voltar ao gráfico" onPress={() => { setBack(true); onSelectionChange(null); }}><ArrowLeft size={16} aria-hidden="true"/></Button></footer>
     </section> : (
       <fieldset className="min-w-auto performance-bars" aria-label="Barras por componente curricular">
         {value.overview.columns.map((column, index) => {
@@ -237,6 +240,14 @@ function ClassPanoramaV5({ value, previous, selection, onSelectionChange, open }
     if (rankingOpen) card.current?.querySelector<HTMLElement>('.performance-bars__detail-header button')?.focus();
     else if (back) card.current?.querySelector<HTMLElement>('.performance-ranking__open')?.focus();
   }, [rankingOpen, back]);
+  // The phone's back button closes the ranking, as "Voltar ao gráfico" does.
+  useHistoryStepV1(
+    'performance-ranking',
+    { open: rankingOpen },
+    (restored) => { setBack(!restored.open); setRankingOpen(restored.open); },
+    (stored) => stored !== null && typeof stored === 'object' && typeof (stored as { open?: unknown }).open === 'boolean'
+      ? { open: (stored as { open: boolean }).open } : null,
+  );
   const partial = value.overview.ranking.some((entry) => entry.partial);
   if (rankingOpen) return <Surface ref={card} variant="default" className="performance-widget performance-widget--detail min-w-0">
     <section className="performance-bars__detail" aria-label="Classificação da turma" aria-live="polite">
@@ -250,7 +261,7 @@ function ClassPanoramaV5({ value, previous, selection, onSelectionChange, open }
           </button></li>;
         })}</ul> : <p>Nenhum estudante tem valor numérico em todos os componentes deste recorte.</p>}
       </section></div>
-      <footer className="performance-ranking__note">{totalLabel}{partial ? ' · * soma com componente parcial' : ''}</footer>
+      <footer className="performance-ranking__note"><span>{totalLabel}{partial ? ' · * soma com componente parcial' : ''}</span><Button isIconOnly size="sm" variant="secondary" aria-label="Voltar ao gráfico" onPress={() => { setBack(true); setRankingOpen(false); }}><ArrowLeft size={16} aria-hidden="true"/></Button></footer>
     </section>
   </Surface>;
   const choose = (group: 'allAtOrAbove' | 'withBelow' | 'pending') => {

@@ -797,7 +797,20 @@ export function RelationalBulletinPageV2() {
       setPeriod(periodOfTermV2(restored.term));
       setDetail(restored.detail);
       setArtifact(null);
-      if (restored.classId !== null && restored.classId !== classId) void loadStudents(restored.classId);
+      if (restored.classId === classId) return;
+      if (restored.classId !== null) {
+        void loadStudents(restored.classId);
+        return;
+      }
+      // Back to before any class was chosen: the class read in progress is dropped too.
+      sequence.current += 1;
+      setClassId(null);
+      setStudents(null);
+      setSelectedIds([]);
+      setPreviewStudentId(null);
+      setHistory([]);
+      setHistoryRead(false);
+      setBusy(null);
     },
     stepViewV2,
   );
