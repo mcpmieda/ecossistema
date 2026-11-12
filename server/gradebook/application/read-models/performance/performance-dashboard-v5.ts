@@ -3,6 +3,7 @@ import {
   performanceDashboardMatchesV5,
   performanceDashboardRequestSchemaV5,
   performanceDashboardResponseSchemaV5,
+  rankingCutV5,
   type PerformanceDashboardResponseV5,
   type PerformanceDashboardV5,
 } from '../../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
@@ -36,7 +37,7 @@ export function buildPerformanceDashboardOverviewV5(
       groups.allAtOrAbove.push(studentId);
     } else groups.pending.push(studentId);
   }
-  const ranking = analysis.matrix.rows
+  const sorted = analysis.matrix.rows
     .filter((row) =>
       row.student.indicatorEligible &&
       row.cells.length > 0 &&
@@ -52,8 +53,9 @@ export function buildPerformanceDashboardOverviewV5(
         number: row.student.number,
       };
     })
-    .sort((left, right) => right.totalMilli - left.totalMilli || left.number - right.number || left.studentId - right.studentId)
-    .slice(0, 10)
+    .sort((left, right) => right.totalMilli - left.totalMilli || left.number - right.number || left.studentId - right.studentId);
+  // The first ten places; equal totals share a place, so a tie at the tenth keeps all of them.
+  const ranking = rankingCutV5(sorted, (entry) => entry.totalMilli)
     .map((entry) => ({ studentId: entry.studentId, totalMilli: entry.totalMilli, partial: entry.partial }));
   return {
     denominator: 'eligible-students-in-current-scope',
