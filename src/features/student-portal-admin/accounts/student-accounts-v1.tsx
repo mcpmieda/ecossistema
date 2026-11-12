@@ -606,11 +606,9 @@ function NoAccountsNoticeV1() {
   );
 }
 
-/** Thumbnail maintenance asks for every listed account's photo; otherwise none. */
-function photoSubjectsV1(maintenance: boolean, items: readonly { accountId: string }[]) {
-  return maintenance
-    ? items.map((item) => ({ source: 'portal' as const, academicYear: 2026, accountIds: [item.accountId] }))
-    : [];
+/** Thumbnail maintenance asks for every listed account's photo. */
+function photoSubjectsV1(items: readonly { accountId: string }[]) {
+  return items.map((item) => ({ source: 'portal' as const, academicYear: 2026, accountIds: [item.accountId] }));
 }
 
 /**
@@ -783,7 +781,10 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
       loadMore();
   }, [wholeCollection, authorizationError, more, refreshing, read.refreshError, loadMore]);
   const sealAccountIds = useMemo(() => classItems.map((item) => item.accountId), [classItems]);
-  const photoSubjects = useMemo(() => photoSubjectsV1(maintenance, classItems), [maintenance, classItems]);
+  const photoSubjects = useMemo(
+    () => (maintenance ? photoSubjectsV1(classItems) : []),
+    [maintenance, classItems],
+  );
   const seals = useSealCountsV1(
     props.reader,
     sealTargetV1(props.order, current !== null, sealAccountIds),
