@@ -193,8 +193,12 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     // this is not permission to bypass checks or academic acceptance.
     expect(integrationGate).toContain("production-inputs/dist/_routes.json");
     expect(integrationGate).toContain('/frequency-collector/*');
+    // The checks run side by side (lint/types, four unit-test parts, build); the final
+    // "Lint, types, tests and build" gate still fails unless every part passed.
+    expect(integrationGate).toContain('needs: [scope, static, unit-tests, verify]');
+    expect(integrationGate).toContain('run: npx vitest run --shard=${{ matrix.shard }}/4');
     expect(blobHash('.github/workflows/validate-pull-request.yml'))
-      .toBe('0d3f0a6ef1a3d8287ca21e2f60f285001fe83137');
+      .toBe('3bb2ede543cdd5e5263e3f2d8e516c6bcab917a0');
   });
   it('keeps the canonical local documentation links resolvable', () => {
     const pages = [
