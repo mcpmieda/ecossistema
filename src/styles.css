@@ -1630,12 +1630,6 @@ button.performance-kpi__button:hover {
   align-items: center;
   gap: 0.5rem 1.1rem;
 }
-.performance-matrix-filters .search-field {
-  flex: 1 1 12rem;
-  min-width: 10rem;
-  max-width: 20rem;
-  margin-left: auto;
-}
 
 /* Student detail: an easier close target, and on a phone the term table fits the screen
    width instead of scrolling sideways. */
@@ -2157,9 +2151,6 @@ button.performance-kpi__button:hover {
   }
   .performance-matrix-filters .filter-tags-v1--inline .tag {
     flex: none;
-  }
-  .performance-matrix-filters .search-field {
-    display: none;
   }
 }
 @media (max-width: 640px) {

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Chip, SearchField, Surface } from '@heroui/react';
+import { useMemo, useState } from 'react';
+import { Chip, Surface } from '@heroui/react';
 import { CircleAlert, CircleDashed, ListChecks, Table2 } from 'lucide-react';
 import type {
   PerformanceMatrixV2,
@@ -39,20 +39,6 @@ export function PerformanceResultMatrixV2({
   readonly onStatusesChange: (statuses: PerformanceStatusV2[]) => void;
 }) {
   const [investigation, setInvestigation] = useState<InvestigationV2>('all');
-  const [query, setQuery] = useState('');
-  // The search field is hidden on phones (styles.css, up to 640px); a search typed on a wider
-  // screen is dropped when the field goes away, so no filter stays on without a way to clear it.
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const narrow = window.matchMedia('(max-width: 640px)');
-    const drop = () => {
-      if (narrow.matches) setQuery('');
-    };
-    drop();
-    narrow.addEventListener('change', drop);
-    return () => narrow.removeEventListener('change', drop);
-  }, []);
-  const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const rows = value.rows
     .filter((row) => statuses.includes(row.student.status))
     .filter((row) => allowedIds === null || allowedIds.has(row.student.id))
@@ -69,9 +55,6 @@ export function PerformanceResultMatrixV2({
                 (value.mode === 'regular' || cell.recoveryApplicable === true),
           )),
     );
-  const visibleRows = normalizedQuery
-    ? rows.filter((row) => row.student.name.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
-    : rows;
   const statusTags = useMemo(
     () => statusOptions.map((option) => ({ id: statusKey(option.value), label: option.label })),
     [statusOptions],
@@ -87,7 +70,7 @@ export function PerformanceResultMatrixV2({
         <span className="flex shrink-0 items-center gap-2">
           <h3 className="text-sm font-semibold">Matriz de resultados</h3>
           <Chip size="sm" variant="soft">
-            {visibleRows.length}
+            {rows.length}
           </Chip>
         </span>
       </header>
@@ -116,13 +99,6 @@ export function PerformanceResultMatrixV2({
             if (next) setInvestigation(next.id);
           }}
         />
-        <SearchField aria-label="Buscar estudante" value={query} onChange={setQuery}>
-          <SearchField.Group>
-            <SearchField.SearchIcon />
-            <SearchField.Input placeholder="Buscar estudante" />
-            <SearchField.ClearButton aria-label="Limpar busca" />
-          </SearchField.Group>
-        </SearchField>
       </div>
       <PerformanceGridV2
         label="Matriz de Desempenho"
@@ -132,7 +108,7 @@ export function PerformanceResultMatrixV2({
           title: offer.subject.label,
           offerId: offer.id,
         }))}
-        rows={visibleRows.map((row) => ({
+        rows={rows.map((row) => ({
           student: row.student,
           values: row.cells.map((cell) => (
             <GradeValue key={cell.offerId} cell={cell} partialAsMarker />
