@@ -801,7 +801,7 @@ button.performance-kpi__button:hover {
 
 .performance-matrix-header {
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .performance-lens-tabs > .tabs__list-container,
@@ -1626,9 +1626,13 @@ button.performance-kpi__button:hover {
 }
 .performance-matrix-filters {
   display: flex;
+  flex: 1 1 0;
+  min-width: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem 0.4rem;
+  /* Beside the title; on narrower screens the filters wrap inside this space, not under it. */
+  margin-left: 0.5rem;
 }
 .performance-matrix-filters .tag {
   padding-inline: 0.4rem;
@@ -2155,7 +2159,12 @@ button.performance-kpi__button:hover {
     min-width: 0;
   }
   /* Matrix filters: label above, tags in one row that slides; no search field. */
+  .performance-matrix-header {
+    flex-wrap: wrap;
+  }
   .performance-matrix-filters {
+    flex-basis: 100%;
+    margin-left: 0;
     gap: 0.6rem;
   }
   .performance-matrix-filters .filter-tags-v1--inline {
