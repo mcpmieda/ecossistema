@@ -397,6 +397,8 @@ function useDetailStepsV2(detail: {
     close,
     goBack,
     backLabel: backLabelV2(previous, origin !== null),
+    /** Steps open inside the panel; each one is an entry the phone's back takes away. */
+    depth: history.length,
   };
 }
 
@@ -467,6 +469,7 @@ export function RelationalPerformancePageV2({
     close,
     goBack,
     backLabel,
+    depth,
   } = useDetailStepsV2({
     isOpen: state.detailOpen,
     open: (studentId, offerId) => void state.open(studentId, offerId),
@@ -755,7 +758,7 @@ export function RelationalPerformancePageV2({
                 size="sm"
                 className="-ml-2 mb-1 self-start"
                 onPress={goBack}
-                data-back-step=""
+                data-back-step={String(depth)}
               >
                 <ArrowLeft size={16} aria-hidden="true" />
                 {backLabel}

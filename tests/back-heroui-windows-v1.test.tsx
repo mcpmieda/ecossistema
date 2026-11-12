@@ -1,7 +1,7 @@
 import { Button, Drawer } from '@heroui/react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBackClosesOverlayV1 } from '../src/platform/back-closes-overlay-v1';
 import { useHistoryStepV1 } from '../src/shared/ui/history-step-v1';
 
@@ -15,7 +15,10 @@ beforeEach(() => {
   window.history.replaceState(null, '', '/');
   document.body.innerHTML = '';
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const parseTab = (value: unknown) =>
   value !== null &&
@@ -53,7 +56,7 @@ function Screen() {
         <Drawer.Content placement="right">
           <Drawer.Dialog aria-label="Aluno">
             {steps.length ? (
-              <Button onPress={back} data-back-step="">
+              <Button onPress={back} data-back-step={String(steps.length)}>
                 Voltar às notas do ano
               </Button>
             ) : null}
@@ -102,6 +105,8 @@ describe('phone back with HeroUI windows v1', () => {
     await tick(50);
     act(() => screen.getByText('Ver trimestre').click());
     expect(screen.getByTestId('step').textContent).toBe('trimestre');
+    // The tap's work (its history entry) ends before a finger can press back.
+    await tick(20);
     await phoneBack();
     await waitFor(() => expect(screen.getByTestId('step').textContent).toBe('ano'));
     expect(panel()).not.toBeNull();
@@ -137,5 +142,61 @@ describe('phone back with HeroUI windows v1', () => {
     await tick(120);
     expect(JSON.stringify(window.history.state ?? {})).not.toContain('__centroOverlayV1');
     expect(window.history.length).toBeGreaterThanOrEqual(length);
+  });
+});
+
+describe('phone back without entries Chrome would skip v1', () => {
+  it('each step inside the panel gets its entry at the tap, and back never adds one', async () => {
+    render(<Screen />);
+    await tick(450);
+    act(() => screen.getByText('Notas').click());
+    await tick(200);
+    act(() => screen.getByText('Abrir aluno').click());
+    await waitFor(() => expect(panel()).not.toBeNull());
+    await tick(50);
+    const length = window.history.length;
+    act(() => screen.getByText('Ver trimestre').click());
+    await tick(50);
+    // The step opened by the tap has an entry of its own.
+    expect(window.history.length).toBe(length + 1);
+    const push = vi.spyOn(window.history, 'pushState');
+    await phoneBack();
+    await waitFor(() => expect(screen.getByTestId('step').textContent).toBe('ano'));
+    expect(panel()).not.toBeNull();
+    await phoneBack();
+    await waitFor(() => expect(panel()).toBeNull());
+    await tick(450);
+    expect(screen.getByTestId('tab').textContent).toBe('notes');
+    // Going back added nothing: an entry added without a tap is one Chrome skips later.
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("the panel's own Voltar takes the step's entry away", async () => {
+    render(<Screen />);
+    await tick(450);
+    act(() => screen.getByText('Abrir aluno').click());
+    await waitFor(() => expect(panel()).not.toBeNull());
+    await tick(50);
+    act(() => screen.getByText('Ver trimestre').click());
+    await tick(50);
+    act(() => screen.getAllByRole('button', { name: 'Voltar às notas do ano' })[0]!.click());
+    await tick(120);
+    expect(screen.getByTestId('step').textContent).toBe('ano');
+    // The next back closes the panel instead of landing on the step just left.
+    await phoneBack();
+    await waitFor(() => expect(panel()).toBeNull());
+  });
+
+  it("with the browser's activation state, a change without a new tap adds no entry", async () => {
+    vi.stubGlobal('navigator', { ...navigator, userActivation: { isActive: true } });
+    render(<Screen />);
+    await tick(450);
+    const push = vi.spyOn(window.history, 'pushState');
+    act(() => screen.getByText('Notas').click());
+    await tick(200);
+    // No real tap was counted here (a synthetic click is not trusted): the step replaced the entry.
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByTestId('tab').textContent).toBe('notes');
+    vi.unstubAllGlobals();
   });
 });

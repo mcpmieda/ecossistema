@@ -14,7 +14,12 @@
  */
 import { useEffect } from 'react';
 import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
-import { OVERLAY_ENTRY_V1 as MARK_V1, RELEASED_ENTRY_V1 } from '../shared/ui/history-step-v1';
+import {
+  addEntryV1,
+  mayAddEntryV1,
+  OVERLAY_ENTRY_V1 as MARK_V1,
+  RELEASED_ENTRY_V1,
+} from '../shared/ui/history-step-v1';
 
 /** Time for a window to close on Escape before it is taken as one that refuses to. */
 const REFUSED_MS_V1 = 350;
@@ -33,16 +38,19 @@ const OPEN_SELECTOR_V1 = [
   // A panel of the page's own that closes on Escape (the phone search).
   '[data-back-layer]',
 ].join(', ');
-/** The step back of a window with steps; the first one marked in the window is pressed. */
+/**
+ * The step back of a window with steps; the first one marked in the window is pressed. Its value
+ * is how many steps are open inside the window, so each step gets an entry of its own.
+ */
 export const BACK_STEP_ATTRIBUTE_V1 = 'data-back-step';
 
-function topLayer(): HTMLElement | null {
-  // A window playing its closing animation is already closed.
-  const open = [...document.querySelectorAll<HTMLElement>(OPEN_SELECTOR_V1)].filter(
+/** The open layers, bottom to top. A window playing its closing animation is already closed. */
+function openLayers(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>(OPEN_SELECTOR_V1)].filter(
     (layer) => !layer.closest('[data-exiting]'),
   );
-  return open.at(-1) ?? null;
 }
+const topLayer = () => openLayers().at(-1) ?? null;
 
 function stateRecord(): Record<string, unknown> | null {
   const state: unknown = window.history.state;
@@ -67,6 +75,12 @@ function backStep(layer: HTMLElement): HTMLElement | null {
   return disabled ? null : step;
 }
 
+/** How many steps deep the window is: the number its "Voltar" carries (0 for a way out). */
+function stepDepth(layer: HTMLElement): number {
+  const value = Number(backStep(layer)?.getAttribute(BACK_STEP_ATTRIBUTE_V1));
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
 /** Goes to another address of the Centro; from inside a layer, in place of the layer's entry. */
 export function goToHashV1(hash: string): void {
   if (window.location.hash === hash) return;
@@ -76,57 +90,105 @@ export function goToHashV1(hash: string): void {
 
 export function useBackClosesOverlayV1(): void {
   useEffect(() => {
-    let pushed = false;
-    let closingByBack = false;
+    /** The open layers that have entries, bottom to top, with the steps open inside each. */
+    const stack: { layer: HTMLElement; depth: number }[] = [];
+    /** Layers opened without a tap of their own: they get no entry (Chrome would skip it). */
+    const unentered = new WeakSet<HTMLElement>();
+    /** Moves through the history made here, which the page must not take as the user's back. */
+    let ownMoves = 0;
+    /** A layer that refused to close, waiting for its entry to come back by going forward. */
+    let restoring: { layer: HTMLElement; depth: number } | null = null;
     let releaseTimer = 0;
-    const push = () => {
+    const markedEntry = () => {
       const { [RELEASED_ENTRY_V1]: _released, ...current } = stateRecord() ?? {};
-      const entry = { ...current, [MARK_V1]: true };
-      if (released()) window.history.replaceState(entry, '');
-      else window.history.pushState(entry, '');
-      pushed = true;
+      return { ...current, [MARK_V1]: true };
+    };
+    const enter = (layer: HTMLElement) => {
+      if (released()) window.history.replaceState(markedEntry(), '');
+      else if (!mayAddEntryV1() || !addEntryV1(markedEntry())) {
+        unentered.add(layer);
+        return;
+      }
+      stack.push({ layer, depth: 0 });
     };
     const release = () => {
       const { [MARK_V1]: _mark, ...current } = stateRecord() ?? {};
       window.history.replaceState({ ...current, [RELEASED_ENTRY_V1]: true }, '');
       window.clearTimeout(releaseTimer);
       releaseTimer = window.setTimeout(() => {
-        if (released() && !pushed) window.history.back();
+        if (released() && stack.length === 0) {
+          ownMoves += 1;
+          window.history.back();
+        }
       }, RELEASE_MS_V1);
     };
+    const goBackOwn = (entries: number) => {
+      ownMoves += 1;
+      window.history.go(-entries);
+    };
     const sync = () => {
-      const layer = topLayer();
-      if (layer && !pushed) push();
-      else if (!layer && pushed) {
-        pushed = false;
-        // Closed on the page: its entry is released, unless the page already moved on.
-        if (!closingByBack && marked()) release();
+      const open = openLayers();
+      // Layers closed on the page (Fechar, an option picked) take their entries away.
+      let closed = 0;
+      for (let index = stack.length - 1; index >= 0; index -= 1)
+        if (!open.includes(stack[index]!.layer)) closed += 1 + stack.splice(index, 1)[0]!.depth;
+      // A single plain layer releases its entry: going back at once could undo a choice just made.
+      if (closed === 1 && marked()) release();
+      else if (closed > 1 && marked()) goBackOwn(closed);
+      for (const layer of open)
+        if (!unentered.has(layer) && !stack.some((item) => item.layer === layer)) enter(layer);
+      const top = stack.at(-1);
+      if (!top || top.layer !== open.at(-1)) return;
+      const wanted = stepDepth(top.layer);
+      // A step opened by a tap gets its entry at once, while the tap still counts as the user's.
+      if (wanted > top.depth && mayAddEntryV1() && addEntryV1(markedEntry())) top.depth += 1;
+      else if (wanted < top.depth) {
+        // Stepped back with the window's own "Voltar": the entries of those steps go too.
+        goBackOwn(top.depth - wanted);
+        top.depth = wanted;
       }
-      closingByBack = false;
     };
     const onPopState = () => {
-      if (!pushed) return;
-      pushed = false;
-      const layer = topLayer();
-      if (!layer) return;
-      const step = backStep(layer);
-      if (step) {
-        // One step back inside the window, which stays open with its entry; if that step was the
-        // way out (back to a list behind it), the window closes and the entry is released.
-        step.click();
-        push();
+      if (restoring) {
+        stack.push(restoring);
+        restoring = null;
         return;
       }
-      closingByBack = true;
-      pressEscape(layer);
-      // A layer that refuses Escape (a confirmation in progress) keeps its entry.
+      if (ownMoves > 0) {
+        ownMoves -= 1;
+        return;
+      }
+      const top = stack.at(-1);
+      if (!top) return;
+      if (!openLayers().includes(top.layer)) {
+        stack.pop();
+        return;
+      }
+      if (top.depth > 0) {
+        // The entry of the last step inside the window: one step back, the window stays.
+        top.depth -= 1;
+        backStep(top.layer)?.click();
+        return;
+      }
+      stack.pop();
+      const step = backStep(top.layer);
+      if (step) {
+        // The way out of a window opened from a list ("Voltar à lista") reopens that list.
+        step.click();
+        return;
+      }
+      pressEscape(top.layer);
+      // A layer that refuses Escape (a confirmation in progress) gets its entry back by going
+      // forward to it; adding a new one without a tap would make Chrome skip entries.
       window.setTimeout(() => {
-        closingByBack = false;
-        if (topLayer() === layer && !pushed) push();
+        if (openLayers().includes(top.layer)) {
+          restoring = top;
+          window.history.forward();
+        }
       }, REFUSED_MS_V1);
     };
     const onClick = (event: MouseEvent) => {
-      if (!pushed || event.defaultPrevented || event.button !== 0) return;
+      if (stack.length === 0 || event.defaultPrevented || event.button !== 0) return;
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const anchor =
         event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href^="#"]') : null;
@@ -142,7 +204,7 @@ export function useBackClosesOverlayV1(): void {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['aria-modal', 'role', 'data-exiting', 'data-back-layer'],
+      attributeFilter: ['aria-modal', 'role', 'data-exiting', 'data-back-layer', BACK_STEP_ATTRIBUTE_V1],
     });
     window.addEventListener('popstate', onPopState);
     document.addEventListener('click', onClick);
