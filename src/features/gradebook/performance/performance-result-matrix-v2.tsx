@@ -19,6 +19,13 @@ const INVESTIGATIONS_V2 = [
   { id: 'total', label: 'Realização total', icon: <CircleCheck size={13} aria-hidden /> },
 ] as const;
 
+/** The situations shown, in a few words: "Todas", or the first one and how many more. */
+function statusSummaryV2(shown: readonly string[], total: number) {
+  if (shown.length === total) return 'Todas';
+  const more = shown.length > 1 ? ' +' + String(shown.length - 1) : '';
+  return (shown[0] ?? '') + more;
+}
+
 export function PerformanceResultMatrixV2({
   value,
   open,
@@ -65,11 +72,10 @@ export function PerformanceResultMatrixV2({
   const selectedStatuses = useMemo(() => new Set(statuses.map(statusKey)), [statuses]);
   const selectedInvestigation = useMemo(() => new Set<string>([investigation]), [investigation]);
   // The situations live behind one button, so the title and filters share a single line.
-  const shown = statusOptions.filter((option) => statuses.includes(option.value));
-  const statusSummary =
-    shown.length === statusOptions.length
-      ? 'Todas'
-      : `${shown[0]?.label ?? ''}${shown.length > 1 ? ` +${shown.length - 1}` : ''}`;
+  const statusSummary = statusSummaryV2(
+    statusOptions.filter((option) => statuses.includes(option.value)).map((option) => option.label),
+    statusOptions.length,
+  );
   return (
     <Surface variant="default" className="performance-widget grid min-w-0 gap-2">
       <header className="performance-widget__header performance-matrix-header">
@@ -98,7 +104,7 @@ export function PerformanceResultMatrixV2({
             <Button
               size="sm"
               isIconOnly
-              variant={shown.length === statusOptions.length ? 'ghost' : 'secondary'}
+              variant={statusSummary === 'Todas' ? 'ghost' : 'secondary'}
               aria-label={`Situações exibidas: ${statusSummary}`}
             >
               <ListFilter size={15} aria-hidden="true" />
