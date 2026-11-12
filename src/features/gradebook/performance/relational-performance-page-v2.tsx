@@ -25,7 +25,7 @@ import type {
   PerformanceStatusV2,
 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useRelationalPerformanceV2 } from './use-relational-performance-v2';
-import { ChartColumn } from 'lucide-react';
+import { ArrowLeft, ChartColumn } from 'lucide-react';
 import { GradebookYearContextBanner } from '../../../platform/gradebook-year-provider';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
@@ -380,7 +380,14 @@ export function RelationalPerformancePageV2({
     setFocusTerm(term ?? null);
     void state.open(studentId, offerId);
   };
+  // Where the detail was opened from, when that place can be reopened (the overview's student list).
+  const [back, setBack] = useState<(() => void) | null>(null);
+  const openFromAnalytics = (studentId: number, offerId?: number, from?: () => void) => {
+    setBack(() => from ?? null);
+    open(studentId, offerId);
+  };
   const close = () => {
+    setBack(null);
     setFocusTerm(null);
     state.closeDetail();
     lastFocus.current?.focus();
@@ -633,7 +640,7 @@ export function RelationalPerformancePageV2({
                   onSelection={(next) => setSelection((previous) => ({ ...previous, ...next }))}
                   onNavigate={navigate}
                   onPeriod={(period) => void state.select({ period })}
-                  onCell={open}
+                  onCell={openFromAnalytics}
                   onNotes={openAssessmentNotes}
                   classChosen={state.filters.classId !== null}
                 />
@@ -660,6 +667,21 @@ export function RelationalPerformancePageV2({
         <Drawer.Content placement="right">
           <Drawer.Dialog className="w-full max-w-full sm:w-[min(52rem,90vw)]">
             <Drawer.CloseTrigger aria-label="Fechar detalhe" className="performance-detail-close" />
+            {/* Back to the screen behind (or to the indicator list it came from), at the top so it is
+                always in reach without scrolling the detail. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-2 mb-1 self-start"
+              onPress={() => {
+                const from = back;
+                close();
+                from?.();
+              }}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              {back ? 'Voltar à lista' : 'Voltar'}
+            </Button>
             {detail ? (
               <PerformanceStudentDetailV2
                 detail={detail}

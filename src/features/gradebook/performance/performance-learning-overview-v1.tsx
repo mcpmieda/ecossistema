@@ -166,7 +166,7 @@ function learningKpisV1({
 
 export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, onPeriod, onNotes }: Readonly<{
   value: PerformanceAnalyticsV6;
-  onStudent: (id: number, offerId?: number) => void;
+  onStudent: (id: number, offerId?: number, back?: () => void) => void;
   onComponent: (offerId: number) => void;
   onPeriod: (term: 1 | 2 | 3) => void;
   onNotes: (offerId: number) => void;
@@ -182,8 +182,13 @@ export function PerformanceLearningOverviewV1({ value, onStudent, onComponent, o
   const reference = value.summary.movement.reference;
   const count = (selected: Filter) => rows.filter((row) => matchesFilterV1(row, selected)).length;
   const select = (selected: Filter) => setPanel(selected);
-  // Close the list first so the student's detail opens alone, over the same spot of the page.
-  const openStudentFromPanel = (id: number, offerId?: number) => { setPanel(null); onStudent(id, offerId); };
+  // Close the list first so the student's detail opens alone, over the same spot of the page; its
+  // "Voltar à lista" button reopens this same group.
+  const openStudentFromPanel = (id: number, offerId?: number) => {
+    const group = panel;
+    setPanel(null);
+    onStudent(id, offerId, group === null ? undefined : () => setPanel(group));
+  };
   const assessed = learning?.students.filter((item) => item.recurrenceAssessed).length ?? 0;
   const componentLabels = new Map<number, string>(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
   const instruments = new Map(value.components.flatMap((component) => component.instruments.map((instrument) => [instrument.key, { ...instrument, offerId: component.offer.id, subject: component.offer.subject.label }] as const)));
