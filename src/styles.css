@@ -1638,9 +1638,10 @@ button.performance-kpi__button:hover {
   padding-inline: 0.4rem;
 }
 .performance-matrix-filters > .button {
+  width: 1.6rem;
+  min-width: 1.6rem;
   height: 1.6rem;
-  padding-inline: 0.55rem;
-  font-size: 0.75rem;
+  padding: 0;
 }
 /* The tags say what they filter; the label stays for screen readers only. */
 .performance-matrix-filters .filter-tags-v1--inline > .label {

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, Chip, Popover, Surface } from '@heroui/react';
-import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, ListChecks, Table2 } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleDashed, ListFilter, ListChecks, Table2 } from 'lucide-react';
 import type {
   PerformanceMatrixV2,
   PerformanceStatusV2,
@@ -95,9 +95,13 @@ export function PerformanceResultMatrixV2({
             }}
           />
           <Popover>
-            <Button size="sm" variant="secondary" aria-label={`Situações exibidas: ${statusSummary}`}>
-              Situações: {statusSummary}
-              <ChevronDown size={14} aria-hidden="true" />
+            <Button
+              size="sm"
+              isIconOnly
+              variant={shown.length === statusOptions.length ? 'ghost' : 'secondary'}
+              aria-label={`Situações exibidas: ${statusSummary}`}
+            >
+              <ListFilter size={15} aria-hidden="true" />
             </Button>
             <Popover.Content placement="bottom end">
               <Popover.Dialog aria-label="Situações exibidas" className="performance-matrix-statuses">
