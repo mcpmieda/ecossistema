@@ -22,7 +22,7 @@ it('the pinned header follows the scroll without rebuilding the table', async ()
   const { matrix } = learningFixtureV1({ period: 2 });
   const topbar = document.createElement('header');
   topbar.className = 'shell-topbar';
-  document.body.append(topbar);
+  document.body.appendChild(topbar);
   let headTop = 200;
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
     if (this === topbar) return rect(0, 56);
