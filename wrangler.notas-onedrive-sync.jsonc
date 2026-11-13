@@ -1,8 +1,9 @@
 {
-  // Notas OneDrive sync: reads the teachers' workbooks from the secretaria's OneDrive.
-  // PR 1 of 3 — connection and read only; nothing is written to the database yet.
-  // Secrets (set outside the repository): GRAPH_CREDENTIAL_A, GRAPH_CREDENTIAL_B,
-  // NOTAS_SYNC_CLIENT_STATE, NOTAS_SYNC_PROBE_TOKEN.
+  // Notas OneDrive sync: reads the teachers' grade workbooks from the secretaria's OneDrive and
+  // writes what changed through the existing import, Auditoria and persistence services.
+  // Starts disabled: nothing is read or written until an operator enables it.
+  // Secrets (set outside the repository): GRAPH_CREDENTIAL_A, GRAPH_CREDENTIAL_B (written by
+  // entra-maintenance.yml), NOTAS_SYNC_CLIENT_STATE, NOTAS_SYNC_PROBE_TOKEN.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "notas-onedrive-sync",
   "main": "workers/notas-onedrive-sync/index.ts",
@@ -12,17 +13,29 @@
   "preview_urls": false,
   "send_metrics": false,
   "limits": { "cpu_ms": 30000 },
+  "placement": { "mode": "smart" },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
     "logs": { "enabled": true, "invocation_logs": false },
     "traces": { "enabled": false }
   },
+  "triggers": { "crons": ["* * * * *"] },
+  "durable_objects": {
+    "bindings": [{ "name": "NOTAS_SYNC", "class_name": "NotasSyncCoordinatorV1" }]
+  },
+  "migrations": [{ "tag": "notas-sync-v1", "new_sqlite_classes": ["NotasSyncCoordinatorV1"] }],
+  "services": [
+    { "binding": "SELF", "service": "notas-onedrive-sync", "entrypoint": "NotasSyncReaderV1" },
+    { "binding": "PORTAL_SERVICE", "service": "student-portal-production", "entrypoint": "PortalAdminEntrypoint" }
+  ],
+  "hyperdrive": [{ "binding": "PROD_DB", "id": "476b417597c84b4c994bd36f1a65cb70" }],
   "vars": {
     "TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188",
     "GRAPH_CLIENT_ID": "7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c",
     "NOTAS_SITE_ID": "eduieda-my.sharepoint.com,21cc7df6-66bb-450b-8816-743a7b746659,f45d15ef-de61-4df6-aa15-5c47a2edd5a6",
     "NOTAS_FOLDER_PATH": "PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026",
-    "NOTAS_MAX_WORKBOOK_BYTES": "8388608"
+    "NOTAS_MAX_WORKBOOK_BYTES": "8388608",
+    "NOTAS_SYNC_PUBLIC_URL": "https://notas-onedrive-sync.adminn-40c.workers.dev"
   }
 }
