@@ -29,13 +29,15 @@ export function preloadedSectionV1<P extends object>(load: () => Promise<Compone
 /** Brings the other areas while the browser is idle, so opening them waits for no download. */
 export function usePreloadedSectionsV1(sections: readonly PreloadableSectionV1[]) {
   useEffect(() => {
-    if (typeof window.requestIdleCallback !== 'function') return;
-    const idle = window.requestIdleCallback(
-      () => {
-        for (const section of sections) section.preload();
-      },
-      { timeout: 4000 },
-    );
+    const preloadAll = () => {
+      for (const section of sections) section.preload();
+    };
+    // Safari on the iPhone has no idle callback: the areas come a moment after the page instead.
+    if (typeof window.requestIdleCallback !== 'function') {
+      const timer = window.setTimeout(preloadAll, 2000);
+      return () => window.clearTimeout(timer);
+    }
+    const idle = window.requestIdleCallback(preloadAll, { timeout: 4000 });
     return () => window.cancelIdleCallback(idle);
   }, [sections]);
 }

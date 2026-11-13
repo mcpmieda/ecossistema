@@ -71,6 +71,8 @@ export function usePlatformIdentityV1() {
       if (!mounted.current || current !== generation.current) return;
       if (result.authenticated && result.expiresAt && Date.parse(result.expiresAt) <= Date.now())
         throw FORBIDDEN;
+      // The same identity keeps the object already shown, so the Centro does not render again.
+      if (JSON.stringify(known.current) === JSON.stringify(result)) return;
       known.current = result;
       setIdentity(result);
     } catch (error) {

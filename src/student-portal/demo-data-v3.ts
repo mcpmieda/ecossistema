@@ -193,7 +193,7 @@ function demoFrequencyYearV3(today: string): FrequencyYearSummaryV2 {
     bells: officialBells2026V1(),
     // The bells the system saved: the official sheets' day.
     bellsValidFrom: BELLS_VALID_FROM_V1,
-    grid: [{ shift: 'vespertino', lessons: demoScheduleV3()[0]!.lessons }],
+    grid: [{ shift: 'vespertino', validFrom: BELLS_VALID_FROM_V1, lessons: demoScheduleV3()[0]!.lessons }],
     months: answers.map(({ today: _today, year: _year, lastReadAt: _read, ...month }) => month),
   };
 }

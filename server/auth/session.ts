@@ -1,12 +1,14 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
+import { capabilitiesForRoles } from './capabilities';
 import { readCookie } from './cookies';
 import type { Role } from './roles';
 import { unseal } from './sealed';
 import {
   DEFAULT_SESSION_DURATION_HOURS,
   isSessionDurationHours,
+  SESSION_DURATION_OPTIONS_HOURS,
   type SessionDurationHours,
 } from './session-policy';
 
@@ -26,16 +28,34 @@ export type Session = z.infer<typeof sessionSchema> & { roles: Role[] };
 
 type SessionIdentity = Pick<Session, 'oid' | 'name' | 'username' | 'roles'>;
 
+/** The sealed cookie cannot be revoked on the server: leaving the admin group in Entra, or a
+ * copy of the cookie kept after "Sair", only stops at exp. A session that can change data
+ * therefore lasts at most this long, whatever length was chosen. */
+export const WRITE_SESSION_MAX_HOURS: SessionDurationHours = 8;
+
+/** The lengths this identity may choose: a session with write power never above the cap. */
+export function sessionDurationOptionsFor(roles: readonly Role[]): SessionDurationHours[] {
+  const writes = capabilitiesForRoles(roles).length > 0;
+  return SESSION_DURATION_OPTIONS_HOURS.filter((hours) => !writes || hours <= WRITE_SESSION_MAX_HOURS);
+}
+
+function cappedDurationHours(roles: readonly Role[], durationHours: SessionDurationHours): SessionDurationHours {
+  return capabilitiesForRoles(roles).length > 0 && durationHours > WRITE_SESSION_MAX_HOURS
+    ? WRITE_SESSION_MAX_HOURS
+    : durationHours;
+}
+
 export function createApplicationSession(
   identity: SessionIdentity,
   durationHours: SessionDurationHours = DEFAULT_SESSION_DURATION_HOURS,
   authenticatedAt = Math.floor(Date.now() / 1000),
 ): Session {
+  const hours = cappedDurationHours(identity.roles, durationHours);
   return {
     ...identity,
     authenticatedAt,
-    durationHours,
-    exp: authenticatedAt + durationHours * 60 * 60,
+    durationHours: hours,
+    exp: authenticatedAt + hours * 60 * 60,
   };
 }
 
@@ -84,7 +104,15 @@ export async function readSession(request: Request, env: RuntimeEnv): Promise<Se
   }
   if (scope) scope.verification = cached;
   const session = await cached.session;
-  if (!session || session.exp <= Math.floor(Date.now() / 1000)) return null;
+  if (!session) return null;
+  // Cookies sealed before the cap (12 h with write power) end at the cap too.
+  const exp =
+    session.authenticatedAt !== undefined && capabilitiesForRoles(session.roles).length > 0
+      ? Math.min(session.exp, session.authenticatedAt + WRITE_SESSION_MAX_HOURS * 60 * 60)
+      : session.exp;
+  if (exp <= Math.floor(Date.now() / 1000)) return null;
+  if (exp !== session.exp)
+    return { ...session, exp, durationHours: WRITE_SESSION_MAX_HOURS, roles: [...session.roles] };
   // Do not expose the memoized roles object to a handler that could mutate it.
   return { ...session, roles: [...session.roles] };
 }

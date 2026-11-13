@@ -7,7 +7,11 @@ import { Chip } from '@heroui/react/chip';
 import { Spinner } from '@heroui/react/spinner';
 import type { StudentIncidentV1, StudentIncidentsClientV1 } from '../incidents/client-v1';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
-import { usePortalPageActiveV3, useReportOpenIncidentsV3 } from './portal-pages-v3';
+import {
+  usePortalPageActiveV3,
+  useReportIncidentsTurnedOffV3,
+  useReportOpenIncidentsV3,
+} from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 
 /*
@@ -176,6 +180,13 @@ function IncidentCardV3({
   );
 }
 
+/** The failed read in words, as on Frequência and Horário. */
+function incidentsErrorV3(error: string) {
+  if (error === 'unauthenticated') return 'Sua sessão expirou. Entre novamente para ver as ocorrências.';
+  if (error === 'forbidden') return 'As ocorrências não estão disponíveis no momento.';
+  return 'Não foi possível carregar as ocorrências agora.';
+}
+
 export function IncidentsPageV3({
   client,
   onAuthenticationLost,
@@ -190,6 +201,7 @@ export function IncidentsPageV3({
     .map((item) => ({ ...item, acknowledgedAt: item.acknowledgedAt ?? seen[item.id] ?? null }))
     .sort((a, b) => b.date.localeCompare(a.date));
   useReportOpenIncidentsV3(load.data ? incidents.filter((item) => !item.acknowledgedAt).length : null);
+  useReportIncidentsTurnedOffV3(load.error === 'forbidden');
   // Read again and nothing is left to confirm (the record was removed): the warning goes too.
   if (changed && load.data && !incidents.some((item) => !item.acknowledgedAt)) setChanged(false);
   const acknowledge = async (id: string) => {
@@ -230,10 +242,10 @@ export function IncidentsPageV3({
       {load.data ? null : (
         <Card className="pa3-card pa3-status" role={load.error ? 'alert' : undefined}>
           {load.error ? (
-            <Alert status="danger">
+            <Alert status={load.error === 'unauthenticated' ? 'warning' : 'danger'}>
               <Alert.Indicator />
               <Alert.Content>
-                <Alert.Description>Não foi possível carregar as ocorrências agora.</Alert.Description>
+                <Alert.Description>{incidentsErrorV3(load.error)}</Alert.Description>
               </Alert.Content>
             </Alert>
           ) : (
@@ -241,7 +253,8 @@ export function IncidentsPageV3({
               <Spinner size="sm" /> Carregando as ocorrências…
             </output>
           )}
-          {load.error ? (
+          {/* Asking again cannot help an expired session or a page the school turned off. */}
+          {load.error && load.error !== 'unauthenticated' && load.error !== 'forbidden' ? (
             <Button size="sm" variant="secondary" className="pa3-status-action" onPress={load.retry}>
               Tentar de novo
             </Button>

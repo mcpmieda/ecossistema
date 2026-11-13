@@ -1,6 +1,7 @@
 import { STUDENT_PHOTO_META_PATH_V1, STUDENT_PHOTO_CONTENT_PATH_V1,
   photoRevisionV1 } from '../../../shared/student-photos/portrait-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
+import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { portalKeysV1, type PortalCompositionEnvV1 } from '../composition/config-v1';
@@ -68,7 +69,7 @@ export async function servePortalPhotoV1(request: Request, env: PhotoEnvV1,
   try {
     const token = sessionCookieTokenV1(request);
     if (!token) return reply(401);
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'photo-entry', 'public');
+    await checkPortalAnonymousV1(env, 'photo-entry', request);
     const result = await read(token, validation.target.revision);
     return photoReadResponseV1(result, validation.target);
   } catch (error) {

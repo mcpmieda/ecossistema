@@ -146,21 +146,55 @@ describe('a page behind the menu', () => {
 });
 
 describe('"Vamos tentar de novo em instantes"', () => {
-  it('does try again, a limited number of times, and stops once it works', async () => {
+  it('does try again, waiting longer each time up to 5 minutes, and never gives up while it fails', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const readYear = vi.fn(async () => {
       throw new FrequencyClientErrorV2('unavailable');
     });
     render(<FrequencyPageV3 client={{ readYear }} />);
     expect(await screen.findByText(/Vamos tentar de novo em instantes/u)).toBeTruthy();
+    // 30 s, 1, 2, 4 min, then every 5 min.
+    for (const [wait, calls] of [[30_000, 2], [60_000, 3], [120_000, 4], [240_000, 5], [300_000, 6], [300_000, 7]] as const) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(wait - 1_000);
+      });
+      expect(readYear).toHaveBeenCalledTimes(calls - 1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      expect(readYear).toHaveBeenCalledTimes(calls);
+    }
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(3_000_000);
     });
-    expect(readYear).toHaveBeenCalledTimes(2);
+    expect(readYear).toHaveBeenCalledTimes(17);
+  });
+
+  it('leaves the error by itself when the server is back, even after many failed tries', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let down = true;
+    const year = portalFrequencyYearV2({
+      today: '2026-10-21',
+      lastReadAt: '2026-10-21T10:00:00Z',
+      days: [{ date: '2026-10-20', shift: 'MATUTINO', slots_json: [1, 2, 3, 4, 5], complete: true }],
+      origins: [],
+    } as never);
+    const readYear = vi.fn(async () => {
+      if (down) throw new FrequencyClientErrorV2('unavailable');
+      return year;
+    });
+    render(<FrequencyPageV3 client={{ readYear }} />);
+    expect(await screen.findByText(/Vamos tentar de novo em instantes/u)).toBeTruthy();
+    // Past the five tries the page used to stop at (about 2,5 minutes).
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3_600_000);
+      await vi.advanceTimersByTimeAsync(20 * 60_000);
     });
-    expect(readYear).toHaveBeenCalledTimes(6);
+    expect(readYear.mock.calls.length).toBeGreaterThan(6);
+    down = false;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300_000);
+    });
+    expect(screen.queryByText(/Vamos tentar de novo em instantes/u)).toBeNull();
   });
 
   it('does not try again after a policy turned off', async () => {

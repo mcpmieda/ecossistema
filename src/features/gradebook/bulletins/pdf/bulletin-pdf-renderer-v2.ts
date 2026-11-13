@@ -118,9 +118,13 @@ type BulletinAnnualV2 = NonNullable<
   RelationalBulletinSnapshotV2['model']['subjects'][number]['annual']
 >;
 
-/** An instrument as the bulletin table shows it: blank is "Não fez", a numeric 0 is "Tirou zero". */
+/**
+ * An instrument as the bulletin table shows it: blank is "Não fez", a numeric 0 is "Tirou zero",
+ * and no row of the student for it at all is "Sem registro".
+ */
 function instrumentShownV2(instrument: BulletinTermV2['instruments'][number]) {
   if (instrument.notDone) return 'Não fez';
+  if (instrument.valueMilli === null) return 'Sem registro';
   if (instrument.valueMilli === 0) return 'Tirou zero';
   return 'nota ' + grade(instrument.valueMilli);
 }
