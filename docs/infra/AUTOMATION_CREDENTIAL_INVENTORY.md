@@ -46,6 +46,8 @@ Cloudflare Pages production keeps the private A/B credential envelopes:
 - `GRAPH_CREDENTIAL_A`
 - `GRAPH_CREDENTIAL_B`
 
+The Worker `notas-onedrive-sync` (leitura das planilhas de notas no OneDrive) uses the same Graph application and keeps its own copy of `GRAPH_CREDENTIAL_A` / `GRAPH_CREDENTIAL_B`. `entra-maintenance.yml` writes the rotated Graph slot to Pages and then to this Worker; the Worker itself is published only by `deploy-cloudflare-pages.yml`. Its other secrets, `NOTAS_SYNC_CLIENT_STATE` and `NOTAS_SYNC_PROBE_TOKEN`, are random values set once on the Worker.
+
 The matching public certificates are stored on the two Entra Application objects. Runtime selection prefers the newest valid `createdAt` value and can fall back only to the opposite A/B slot. There is no legacy single-certificate fallback.
 
 ## Authority matrix
