@@ -207,7 +207,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
           this.recordFailure(now);
         }
       }
-      this.dispatch(now);
+      // The alarm waits for its reads: a read left running after the alarm ends can be lost.
+      await this.dispatch(now);
     }
     await this.scheduleNext();
   }
@@ -265,28 +266,27 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.event('full-check', { files: listed.length });
   }
 
-  private dispatch(now: number): void {
-    const breakerUntil = this.meta<number | null>('breakerUntil', null);
+  /** Starts every read that may start now and waits for them; each finished read starts the next. */
+  private async dispatch(now: number): Promise<void> {
     const location = this.meta<{ driveId: string } | null>('location', null);
     if (!location) return;
+    const breakerUntil = this.meta<number | null>('breakerUntil', null);
     const maxBytes = Number(this.env.NOTAS_MAX_WORKBOOK_BYTES) || DEFAULT_MAX_BYTES;
-    for (const file of filesToStartV1(this.files(), now, this.settings(), breakerUntil)) {
+    const reads = filesToStartV1(this.files(), now, this.settings(), breakerUntil).map(async (file) => {
       const lease = crypto.randomUUID();
       this.saveFile(startReadingV1(file, lease, now));
       const input: ProcessWorkbookInputV1 = {
         driveId: location.driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
         expectedYear: this.activeFolder()?.year ?? null,
       };
-      this.ctx.waitUntil(
-        this.env.SELF.processFile(input)
-          .catch((): ReadResultV1 => ({ outcome: 'failed', code: 'READER-UNREACHABLE', readHash: null, readMs: 0, savedToWrittenMs: null }))
-          .then(async (result) => {
-            await this.finish(file.id, lease, result);
-            this.dispatch(Date.now());
-            await this.scheduleNext();
-          }),
-      );
-    }
+      const result = await this.env.SELF.processFile(input).catch((cause: unknown): ReadResultV1 => {
+        console.error(JSON.stringify({ event: 'notas-sync-reader-unreachable', error: String(cause).slice(0, 300) }));
+        return { outcome: 'failed', code: 'READER-UNREACHABLE', readHash: null, readMs: 0, savedToWrittenMs: null };
+      });
+      await this.finish(file.id, lease, result);
+      if (this.settings().enabled) await this.dispatch(Date.now());
+    });
+    await Promise.all(reads);
   }
 
   private async finish(id: string, lease: string, result: ReadResultV1): Promise<void> {
