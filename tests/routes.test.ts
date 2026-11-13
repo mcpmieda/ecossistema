@@ -239,7 +239,7 @@ describe('administrative session settings', () => {
       version: 1,
       policy: 'absolute',
       defaultDurationHours: 8,
-      allowedDurationsHours: [4, 8, 12],
+      allowedDurationsHours: [4, 8],
       currentDurationHours: 8,
       configured: false,
     });
@@ -253,7 +253,7 @@ describe('administrative session settings', () => {
       new Request(`${testEnv.OFFICIAL_ORIGIN}/api/platform/settings/session`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ durationHours: 12 }),
+        body: JSON.stringify({ durationHours: 4 }),
       }),
     );
     const session = await unseal<{
@@ -264,8 +264,8 @@ describe('administrative session settings', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Set-Cookie')).toContain('__Host-ecossistema_session_policy=');
-    expect(session?.durationHours).toBe(12);
-    expect(session?.exp).toBe(session!.authenticatedAt + 12 * 60 * 60);
+    expect(session?.durationHours).toBe(4);
+    expect(session?.exp).toBe(session!.authenticatedAt + 4 * 60 * 60);
   });
 
   it('rejects invalid duration, cross-origin writes and non-administrative access', async () => {

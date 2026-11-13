@@ -6,6 +6,7 @@ import { SessionServiceV1 } from '../auth/session-service-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
+import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 import { portalFrequencySummaryV2, portalFrequencyYearV2 } from '../../attendance/service-v2';
 import { schoolCalendarDaysV1, schoolDaysOfV1, schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
 import { bellShiftOfLabelV1 } from '../../../shared/student-portal-contracts/school-bells-v1';
@@ -36,7 +37,7 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
   if(env.PORTAL_SERVING_ENABLED!=='true')return fail('unavailable',503);
   const token=sessionCookieTokenV1(request);if(!token)return fail('unauthenticated',401);
   try{
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'frequency-entry','public');
+    await checkPortalAnonymousV1(env, 'frequency-entry', request);
     const keys=portalKeysV1(env);
     const summary=await portalDatabaseV1(env,'self',sql=>new SessionServiceV1(sql,keys.cryptoPort,undefined,true,
       accountId=>checkPortalOperationV1(env.PORTAL_SESSION_ACCOUNT,'session',accountId)).withAuthorized(token,async(context,tx,session)=>{
