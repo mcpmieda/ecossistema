@@ -277,5 +277,9 @@ it('sends the school day the current grid was first read, never the last collect
   expect((await read({ classes: [current] })).grid).toEqual([{ shift: 'matutino', validFrom: '2026-08-03', lessons }]);
   // Before the migration the reader has no validFrom: unknown, so no subject is named for any day.
   const { validFrom: _validFrom, ...old } = current;
-  expect((await read({ classes: [old] })).grid).toEqual([{ shift: 'matutino', validFrom: null, lessons }]);
+  // The key is left out (not null): a page open with the bundle from before rejects an unknown key.
+  const before = (await read({ classes: [old] })).grid as object[];
+  expect(before).toEqual([{ shift: 'matutino', lessons }]);
+  expect(Object.keys(before[0]!)).not.toContain('validFrom');
+  expect((await read({ classes: [{ ...current, validFrom: null }] })).grid).toEqual([{ shift: 'matutino', lessons }]);
 });

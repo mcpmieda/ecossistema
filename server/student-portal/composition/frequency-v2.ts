@@ -62,12 +62,14 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         // and, when the Horário is on for this student, the subject of each position of the week
         // (owner decision 23/10/2026: "Faltou na 3ª aula (08:50–09:45), MATEMATICA").
         const{bells,bellsValidFrom,daysOff}=await schoolBellsAndCalendarV1(tx);
-        let grid:{shift:'matutino'|'vespertino';validFrom:string|null;lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
+        let grid:{shift:'matutino'|'vespertino';validFrom?:string;lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
         if(context.policy.enforcedValue.showSchedule){
           const found=await tx.unsafe('SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule',[context.account.id,session.id]);
           const rawGrid=found[0]?.schedule;
           if(rawGrid!=null)grid=gridSchema.parse(typeof rawGrid==='string'?JSON.parse(rawGrid):rawGrid).classes.flatMap(item=>{
-            const shift=bellShiftOfLabelV1(item.label);return shift?[{shift,validFrom:item.validFrom??null,lessons:item.lessons}]:[];});
+            const shift=bellShiftOfLabelV1(item.label);// The key only when known: a page still open with the bundle from before (strict grid)
+            // would reject it; absent means unknown, as null does (no subject is named).
+            return shift?[{shift,...(item.validFrom?{validFrom:item.validFrom}:{}),lessons:item.lessons}]:[];});
         }
         return {...portalFrequencyYearV2(read,schoolDays,schoolYear?.remaining??0),schoolYear,daysOff,bells,bellsValidFrom,grid};
       }));

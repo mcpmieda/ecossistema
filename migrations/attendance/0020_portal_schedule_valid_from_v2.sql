@@ -4,6 +4,11 @@
 -- the school day (America/Bahia) its version was first observed (schedule_version_v2.observed_at, not
 -- the state's last_observed_at, which moves on every collection). The Portal names the subject only
 -- from that day on. 'observedAt' (the Horário's "Atualizado em") is unchanged; same checks and grants.
+-- DEPLOY ORDER: apply AFTER the server is published. The server before this change checks the
+-- reader's answer with a strict schema (frequency-v2 gridSchema, schedule-v1 readSchema): applied
+-- first, 'validFrom' is rejected, the Horário answers 503 and the Frequência's year read fails for
+-- every student with the Horário on. Pages still open with the bundle from before also reject the
+-- key in the Frequência (strict grid) until reloaded: apply it out of school hours.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
