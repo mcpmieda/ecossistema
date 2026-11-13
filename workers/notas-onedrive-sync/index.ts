@@ -202,7 +202,8 @@ export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
       openDatabase: () => {
         const connectionString = env.PROD_DB?.connectionString;
         if (!connectionString) throw new Error('notas-sync-database-binding-missing');
-        return createGradebookPostgresDatabaseV1(connectionString);
+        // A read is far from the database and runs each query once: unnamed statements save a round trip each.
+        return createGradebookPostgresDatabaseV1(connectionString, { prepare: false });
       },
       notifyPortal: async () => {
         // The app identity is the technical author of the sync; the Portal outbox stays authoritative.
