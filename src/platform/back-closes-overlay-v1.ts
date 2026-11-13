@@ -92,8 +92,11 @@ export function useBackClosesOverlayV1(): void {
   useEffect(() => {
     /** The open layers that have entries, bottom to top, with the steps open inside each. */
     const stack: { layer: HTMLElement; depth: number }[] = [];
-    /** Layers opened without a tap of their own: they get no entry (Chrome would skip it). */
-    const unentered = new WeakSet<HTMLElement>();
+    /**
+     * Layers open without a tap of their own: they get no entry (Chrome would skip it). Only for
+     * that opening: a layer kept in the page (the phone menu) gets its entry when opened by a tap.
+     */
+    const unentered = new Set<HTMLElement>();
     /** Moves through the history made here, which the page must not take as the user's back. */
     let ownMoves = 0;
     /** A layer that refused to close, waiting for its entry to come back by going forward. */
@@ -128,6 +131,7 @@ export function useBackClosesOverlayV1(): void {
     };
     const sync = () => {
       const open = openLayers();
+      for (const layer of [...unentered]) if (!open.includes(layer)) unentered.delete(layer);
       // Layers closed on the page (Fechar, an option picked) take their entries away.
       let closed = 0;
       for (let index = stack.length - 1; index >= 0; index -= 1)
@@ -188,13 +192,16 @@ export function useBackClosesOverlayV1(): void {
       }, REFUSED_MS_V1);
     };
     const onClick = (event: MouseEvent) => {
-      if (stack.length === 0 || event.defaultPrevented || event.button !== 0) return;
+      if (event.defaultPrevented || event.button !== 0) return;
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const anchor =
         event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href^="#"]') : null;
-      const layer = topLayer();
       const hash = anchor?.getAttribute('href');
-      if (!anchor || !layer?.contains(anchor) || !hash || anchor.target === '_blank') return;
+      if (!anchor || !hash || anchor.target === '_blank') return;
+      // From inside a layer, or on the entry a layer just released (the search closed by this
+      // very tap): the link takes that entry's place, so no back is pressed in vain.
+      const fromLayer = stack.length > 0 && topLayer()?.contains(anchor) === true;
+      if (!fromLayer && !released()) return;
       if (hash === window.location.hash || !allowDraftNavigationV1()) return;
       event.preventDefault();
       goToHashV1(hash);

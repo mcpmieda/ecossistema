@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { platformSnapshotSchemaV2, type PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
 
 export type PlatformAuxiliaryStateV2 = 'loading' | 'ready' | 'partial' | 'error';
@@ -25,6 +25,28 @@ async function takeEarlyReadV1(path: string, now: () => number): Promise<Respons
   if (!early || now() - early.at > EARLY_READ_TTL_MS_V1) return undefined;
   try { const response = await early.response; return response.ok ? response : undefined; } catch { return undefined; }
 }
+/** What a reading says, without what every reading changes (its time and its correlation). */
+function snapshotContentV2(snapshot: PlatformSnapshotV2 | undefined): string {
+  if (!snapshot) return '';
+  const { generatedAt: _generatedAt, correlationId: _correlationId, ...content } = snapshot;
+  return JSON.stringify(content);
+}
+/** When the Centro last read the platform data successfully, even if nothing changed. Only the footer
+ * listens, so a reading with the same content does not render the screens again. */
+let checkedAtV2 = '';
+const checkedListenersV2 = new Set<() => void>();
+function markCheckedV2(at: string) {
+  if (at === checkedAtV2) return;
+  checkedAtV2 = at;
+  for (const listener of checkedListenersV2) listener();
+}
+export function usePlatformCheckedAtV2(): string {
+  return useSyncExternalStore(
+    (listener) => { checkedListenersV2.add(listener); return () => { checkedListenersV2.delete(listener); }; },
+    () => checkedAtV2,
+    () => checkedAtV2,
+  );
+}
 class ReadError extends Error {
   constructor(readonly status: number, readonly retryAt = 0) { super('Platform data unavailable'); }
 }
@@ -38,8 +60,13 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
   let complete: PlatformSnapshotV2 | undefined;
   let auxiliary: PlatformAuxiliaryStateV2 = 'loading';
   let coreAbort: AbortController | undefined, auxiliaryAbort: AbortController | undefined;
+  /** What was last published: a reading that says the same is not published again. */
+  let published = '';
   const emit = () => {
     if (stopped || !core) return;
+    const shown = `${auxiliary}:${complete ? 'complete' : 'core'}:${snapshotContentV2(complete ?? core)}`;
+    if (shown === published) return;
+    published = shown;
     publish({ status: 'ready', snapshot: complete ?? core, auxiliary,
       ...(['error', 'partial'].includes(auxiliary) ? {
         auxiliaryMessage: 'Parte das informações Microsoft está indisponível. As áreas independentes continuam acessíveis.',
@@ -96,7 +123,9 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
     try {
       const value = await read('/api/platform/snapshot-v2', controller.signal, PLATFORM_AUXILIARY_TIMEOUT_MS_V2);
       if (controller.signal.aborted || own !== generation || stopped) return;
-      complete = value;
+      // The same content keeps the object already shown, so the screens do not render again.
+      if (snapshotContentV2(value) !== snapshotContentV2(complete)) complete = value;
+      markCheckedV2(value.generatedAt);
       auxiliary = value.unavailableSections?.length ? 'partial' : 'ready';
       // A focus storm is not a reason to repeat an identical external request.
       retryAt = now() + Math.max(30, value.retryAfterSeconds ?? 0) * 1000;
@@ -110,13 +139,14 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
   }
   async function start() {
     generation++; stopped = false; core = undefined; complete = undefined; pending = false; retryAt = 0; auxiliary = 'loading';
+    published = '';
     coreAbort?.abort(); auxiliaryAbort?.abort(); publish({ status: 'loading' });
     const own = generation, controller = new AbortController(); coreAbort = controller;
     void refreshAuxiliary();
     try {
       const value = await read('/api/platform/bootstrap', controller.signal, PLATFORM_BOOTSTRAP_TIMEOUT_MS_V2);
       if (controller.signal.aborted || own !== generation || stopped) return;
-      core = value; emit();
+      core = value; markCheckedV2(value.generatedAt); emit();
     } catch (error) {
       if (controller.signal.aborted || own !== generation || stopped) return;
       if (failAuthorization(error)) return;
@@ -134,12 +164,12 @@ export function usePlatformDataV2() {
   const current = useRef<ReturnType<typeof createPlatformDataV2> | null>(null);
   useEffect(() => {
     const controller = createPlatformDataV2(setLoadState); current.current = controller;
+    // No clock (ADMIN_AUTOMATIC_READS_V1 is off): read again only when the window comes back.
     const refresh = () => { if (document.visibilityState !== 'hidden') void controller.refresh(); };
-    const timer = setInterval(refresh, 60_000);
     window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh);
     void controller.start();
     return () => {
-      clearInterval(timer); controller.dispose(); current.current = null;
+      controller.dispose(); current.current = null;
       window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh);
     };
   }, []);
