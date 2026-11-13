@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { Button, Drawer, Table } from '@heroui/react';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
 import '../../student-portal-admin/shared/student-avatar-v1.css';
-import { StudentPhotoPanelV1 } from '../../student-photos/student-photo-panel-v1';
 import type {
   PerformancePeriodV2,
   PerformanceReadyV2,
@@ -92,14 +91,8 @@ export function PerformanceStudentDetailV2({
             </p>
           </div>
         </div>
-        <StudentPhotoPanelV1
-          showAvatar={false}
-          subject={{
-            source: 'gradebook',
-            academicYear: detail.context.year,
-            studentIds: [student.id],
-          }}
-        />
+        {/* The photo is only changed on the student's record in Painel do Aluno (owner request
+            12/11/2026); the Banco de notas shows it. */}
       </Drawer.Header>
       <Drawer.Body ref={drawerBody} className="flex min-w-0 flex-col gap-5 pt-5">
         {detail.operation === 'student-detail' ? (
