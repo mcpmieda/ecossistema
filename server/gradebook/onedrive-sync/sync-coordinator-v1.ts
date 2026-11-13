@@ -275,6 +275,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       this.saveFile(startReadingV1(file, lease, now));
       const input: ProcessWorkbookInputV1 = {
         driveId: location.driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
+        expectedYear: this.activeFolder()?.year ?? null,
       };
       this.ctx.waitUntil(
         this.env.SELF.processFile(input)

@@ -4,6 +4,7 @@ import type { GradebookImportPersistenceResponseV9 } from '../../../shared/grade
 import type { GradebookPostgresDatabaseV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { WorkbookTooLargeError } from '../../../server/gradebook/onedrive-sync/graph-drive-v1';
 import { processWorkbookV1, type ProcessWorkbookPortsV1 } from '../../../server/gradebook/onedrive-sync/process-workbook-v1';
+import { prepareTeacherWorkbookV1 } from '../../../server/gradebook/onedrive-sync/teacher-workbook-preparation-v1';
 import { loadRealSheetJsV1, writeRealWorkbookV1, type RealSheetJsV1 } from '../fixtures/sheetjs-real-v1';
 import { WORKBOOK_READER_EQUIVALENCE_CASES_V1 } from '../fixtures/workbook-reader-equivalence-v1';
 
@@ -11,15 +12,20 @@ let xlsx: RealSheetJsV1;
 beforeAll(async () => {
   xlsx = await loadRealSheetJsV1();
 });
-const input = { driveId: 'd', itemId: 'i', name: 'SINTETICO.xlsb', hash: 'h1', modifiedAt: '2026-11-13T10:00:00.000Z', maxBytes: 8 << 20 };
+const input = {
+  driveId: 'd', itemId: 'i', name: 'SINTETICO.xlsb', hash: 'h1', modifiedAt: '2026-11-13T10:00:00.000Z', maxBytes: 8 << 20,
+  expectedYear: null as number | null,
+};
 const bytesOf = (id: string) =>
   writeRealWorkbookV1(xlsx, WORKBOOK_READER_EQUIVALENCE_CASES_V1.find((item) => item.id === id)!.workbook, 'xlsb');
 
 function portsV1(options: {
   bytes?: ArrayBuffer; download?: () => Promise<ArrayBuffer>; persistState?: GradebookImportPersistenceResponseV9['state'];
-  persistThrows?: boolean; openFails?: boolean;
+  persistThrows?: boolean; openFails?: boolean; relation?: ReadonlyMap<string, string>;
 }) {
   const calls: string[] = [];
+  const audits: Array<{ academicYear: number | null; diagnostics: ReadonlyArray<{ code: string }> }> = [];
+  const persisted: unknown[] = [];
   const database = { close: vi.fn(async () => undefined) } as unknown as GradebookPostgresDatabaseV1;
   const ports: ProcessWorkbookPortsV1 = {
     env: { TENANT_ID: 't', GRAPH_CLIENT_ID: 'c' },
@@ -33,15 +39,17 @@ function portsV1(options: {
     now: () => 0,
     download: options.download ?? (async () => options.bytes!),
     services: {
-      recordAudit: async () => { calls.push('audit'); },
-      persist: async () => {
+      recordAudit: async (_database, audit) => { calls.push('audit'); audits.push(audit); },
+      persist: async (_database, request) => {
         calls.push('persist');
+        persisted.push(request);
         if (options.persistThrows) throw new Error('write failed');
         return { transportVersion: 9, state: options.persistState ?? 'applied' } as GradebookImportPersistenceResponseV9;
       },
+      relationNames: async () => options.relation ?? new Map(),
     },
   };
-  return { ports, calls, database };
+  return { ports, calls, database, audits, persisted };
 }
 
 describe('one sync read', () => {
@@ -84,6 +92,37 @@ describe('one sync read', () => {
     expect((await processWorkbookV1(input, portsV1({ bytes: bytesOf('teacher'), persistState: 'unavailable' }).ports)).outcome).toBe('failed');
     expect((await processWorkbookV1(input, portsV1({ bytes: bytesOf('teacher'), persistThrows: true }).ports)).outcome).toBe('failed');
     expect((await processWorkbookV1(input, portsV1({ bytes: bytesOf('teacher'), openFails: true }).ports)).outcome).toBe('failed');
+  });
+
+  it('rule 3: a workbook of another year writes nothing and is reported under the folder year', async () => {
+    const probe = portsV1({ bytes: bytesOf('teacher') });
+    await processWorkbookV1(input, probe.ports);
+    const year = probe.audits[0]!.academicYear!;
+    const wrong = portsV1({ bytes: bytesOf('teacher') });
+    expect(await processWorkbookV1({ ...input, expectedYear: year + 1 }, wrong.ports)).toMatchObject({ outcome: 'blocked', code: 'WRONG-YEAR' });
+    expect(wrong.calls).not.toContain('persist');
+    expect(wrong.audits[0]!.academicYear).toBe(year + 1);
+    expect(wrong.audits[0]!.diagnostics.map((item) => item.code)).toContain('wrong-year');
+    expect((await processWorkbookV1({ ...input, expectedYear: year }, portsV1({ bytes: bytesOf('teacher') }).ports)).outcome).toBe('applied');
+  });
+
+  it('rule 14: a student whose name differs from the Relação is held; a matching one is written', async () => {
+    const prepared = await prepareTeacherWorkbookV1({ bytes: bytesOf('teacher'), fileName: 'SINTETICO.xlsb', lastModified: 0, xlsx });
+    if (prepared.outcome !== 'ready') throw new Error('unexpected');
+    const [key, name] = [...prepared.studentNames.entries()][0]!;
+    const numero = Number(key.split('|')[1]);
+    const studentRow = (request: unknown) => (request as { ofertas: Array<{ trimestres: Array<{ alunos: Array<[number, unknown[], unknown]> }> }> })
+      .ofertas[0]!.trimestres[0]!.alunos.find(([number]) => number === numero)!;
+
+    const other = portsV1({ bytes: bytesOf('teacher'), relation: new Map([[key, 'PESSOA SINTÉTICA DIFERENTE']]) });
+    await processWorkbookV1(input, other.ports);
+    expect(studentRow(other.persisted[0])[2]).toEqual(['u']);
+    expect(studentRow(other.persisted[0])[1].every((cell) => Array.isArray(cell))).toBe(true);
+    expect(other.audits[0]!.diagnostics.map((item) => item.code)).toContain('student-name-mismatch');
+
+    const same = portsV1({ bytes: bytesOf('teacher'), relation: new Map([[key, name]]) });
+    await processWorkbookV1(input, same.ports);
+    expect(same.audits[0]!.diagnostics.map((item) => item.code)).not.toContain('student-name-mismatch');
   });
 
   it('separates a download failure, a file too large and an unreadable file', async () => {

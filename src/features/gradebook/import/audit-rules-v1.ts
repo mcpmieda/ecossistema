@@ -147,6 +147,9 @@ function auditTermSheet(sheet: GradeSheetRecognition, findings: AuditFindingV1[]
   }
 
   const oneAssessment = normalized(facts?.assessmentMode ?? '').startsWith('1 AVALIA');
+  // A typed AM is a deleted formula only where the sheet's other AMs are formulas.
+  const resultsAreFormulas = sheet.students.some((student) =>
+    student.termResultObservations?.officialTermGrade.classification.startsWith('formula'));
   const workRows = new Set(facts?.workRows ?? []);
   const workOff = !positive(facts?.workCeiling ?? null);
   for (const student of sheet.students) {
@@ -173,7 +176,7 @@ function auditTermSheet(sheet: GradeSheetRecognition, findings: AuditFindingV1[]
     }
     // 12. The term result typed by hand instead of the sheet's formula.
     const result = student.termResultObservations?.officialTermGrade;
-    if (result && MANUAL_RESULT_V1.has(result.classification)) {
+    if (resultsAreFormulas && result && MANUAL_RESULT_V1.has(result.classification)) {
       holdResult(student.row);
       findings.push({ code: 'manual-term-result', blocking: true, sheet, student, cellAddress: `AM${student.row}`,
         foundValue: 'rawValue' in result ? String(result.rawValue) : undefined });

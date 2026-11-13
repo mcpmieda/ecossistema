@@ -9,6 +9,7 @@ import {
 } from '../../../src/features/gradebook/import/import-diagnostics-v1';
 import type { SheetJs } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
 import { createFastTeacherSheetJsV1 } from '../../../src/features/gradebook/import/workbook-fast-read-v1';
+import { studentKeyV1 } from './server-audit-v1';
 
 /**
  * Server-side preparation of one teacher workbook, through the browser's own import path
@@ -22,6 +23,8 @@ export type TeacherWorkbookPreparationV1 =
       readonly request: GradebookImportPersistenceRequestV9;
       readonly audit: GradebookImportDiagnosticsAuditRequestV1;
       readonly summary: PreparationSummaryV1;
+      /** Sheet name of each student by `TURMA|número`, for the Relação check (BN-DEC-046 rule 14). */
+      readonly studentNames: ReadonlyMap<string, string>;
     }
   | {
       readonly outcome: 'blocked';
@@ -73,10 +76,19 @@ export async function prepareTeacherWorkbookV1(input: {
     if (blocking > 0) return { outcome: 'blocked', audit, summary };
     return { outcome: 'unreadable', code: 'CANONICAL-REJECTED', summary };
   }
+  const studentNames = new Map<string, string>();
+  for (const sheet of success.summary.gradeSheets) {
+    if (!sheet.stage.startsWith('trimester-')) continue;
+    for (const student of sheet.students) {
+      const number = Number(student.number.trim());
+      if (Number.isSafeInteger(number) && number > 0) studentNames.set(studentKeyV1(sheet.className, number), student.name);
+    }
+  }
   return {
     outcome: 'ready',
     request,
     audit,
+    studentNames,
     summary: {
       ...base,
       diagnostics: diagnostics.length,
