@@ -14,7 +14,8 @@
   "preview_urls": false,
   "send_metrics": false,
   "limits": { "cpu_ms": 30000 },
-  "placement": { "mode": "smart" },
+  // Next to the database (Supabase, São Paulo): every read talks to it many times.
+  "placement": { "mode": "targeted", "region": "aws:sa-east-1" },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
@@ -34,7 +35,7 @@
   "vars": {
     "TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188",
     "GRAPH_CLIENT_ID": "7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c",
-    "NOTAS_SITE_ID": "eduieda-my.sharepoint.com,21cc7df6-66bb-450b-8816-743a7b746659,f45d15ef-de61-4df6-aa15-5c47a2edd5a6",
+    "NOTAS_SITE_ID": "eduieda-my.sharepoint.com,21cc7df6-66bb-450b-8816-743a7b746659,f45d15ef-de61-4df6-aa15-5c47a2edd5a6",
     "NOTAS_MAX_WORKBOOK_BYTES": "8388608",
     "NOTAS_SYNC_PUBLIC_URL": "https://notas-onedrive-sync.adminn-40c.workers.dev"
   }

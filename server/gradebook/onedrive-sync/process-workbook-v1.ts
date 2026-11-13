@@ -35,6 +35,8 @@ export type ProcessWorkbookPortsV1 = {
   /** Hint to the Portal after grades are written; the Portal's outbox stays authoritative. */
   readonly notifyPortal: () => Promise<void>;
   readonly now: () => number;
+  /** Waits between write retries; tests pass an instant one. */
+  readonly sleep?: (ms: number) => Promise<void>;
   /** Defaults to the Graph download; tests pass synthetic bytes. */
   readonly download?: (input: ProcessWorkbookInputV1) => Promise<ArrayBuffer>;
   /** Defaults to the official Auditoria and import services. */
@@ -77,6 +79,26 @@ async function fingerprintV1(value: unknown): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)));
   return [...new Uint8Array(digest).slice(0, 16)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
+
+/** Lock wait, deadlock and serialization failures: another read of the same year is writing. */
+const LOCK_CONTENTION_CODES_V1 = new Set(['55P03', '40P01', '40001']);
+const LOCK_RETRY_DELAYS_MS_V1 = [500, 1_000, 2_000, 3_000, 4_000, 5_000] as const;
+
+/** Reads run side by side; their writes take turns. Each write is a whole transaction, so retrying is safe. */
+async function withLockRetryV1<T>(write: () => Promise<T>, sleep: (ms: number) => Promise<void> = defaultSleepV1): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await write();
+    } catch (cause) {
+      const code = (cause as { code?: unknown } | null)?.code;
+      const delay = LOCK_RETRY_DELAYS_MS_V1[attempt];
+      if (typeof code !== 'string' || !LOCK_CONTENTION_CODES_V1.has(code) || delay === undefined) throw cause;
+      await sleep(delay + Math.floor(Math.random() * 500));
+    }
+  }
+}
+
+const defaultSleepV1 = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); });
 
 const HEADER_KEY_V1 = '#header';
 const offerKeyV1 = (offer: { readonly turmaCodigo: string; readonly disciplina: string }) =>
@@ -125,7 +147,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
       // The Auditoria snapshot is written only when it differs from the last one written.
       const writeAudit = async (audit: GradebookImportDiagnosticsAuditRequestV1): Promise<string> => {
         const print = await fingerprintV1([audit.academicYear, audit.fileName, audit.diagnostics]);
-        if (previous?.audit !== print) await services.recordAudit(database, audit);
+        if (previous?.audit !== print) await withLockRetryV1(() => services.recordAudit(database, audit), ports.sleep);
         stage('audit');
         return print;
       };
@@ -164,7 +186,8 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
         if (changed.length === 0) return result('no-changes', null, null, { audit: auditPrint, offers });
         request = { ...request, ofertas: changed };
       }
-      const response = await services.persist(database, request);
+      const sent = request;
+      const response = await withLockRetryV1(() => services.persist(database, sent), ports.sleep);
       stage('persist');
       if (response.state === 'unavailable') return result('failed', 'DATABASE-UNAVAILABLE');
       if (REJECTED_STATES_V1.has(response.state)) {
