@@ -1,5 +1,6 @@
 import { emitPortalOperationBurstMetricV1 } from './metrics-v1';
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import { cloudflareClientIpV1 } from './audit-context-v1';
 import { portalJsonV1 } from '../runtime/http-v1';
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
@@ -38,12 +39,27 @@ export async function checkPortalOperationV1(binding: Pick<RateLimit, 'limit'> |
   }
 }
 
+export type AnonymousPeerSourceV1 = 'cf' | 'header' | 'unknown';
+const peerIpV1 = z.union([z.ipv4(), z.ipv6()]);
+
+/** Where the peer address came from. Self is reachable only through the edge service binding
+ * (workers_dev false, no routes), so the cf-connecting-ip header Cloudflare set at the edge is
+ * kept even if request.cf does not survive the binding. Never an identity, only a budget key. */
+export function portalAnonymousPeerIpV1(request: Request): { ip: string | null; source: AnonymousPeerSourceV1 } {
+  const proven = cloudflareClientIpV1(request);
+  if (proven) return { ip: proven, source: 'cf' };
+  const header = peerIpV1.safeParse(request.headers.get('cf-connecting-ip'));
+  return header.success ? { ip: header.data, source: 'header' } : { ip: null, source: 'unknown' };
+}
+
 /** The anonymous subject before a session or credential is proven: the network peer (an IPv6
  * /64 counts as one), never one shared key, so one client cannot spend every family's entry
  * budget. After the session is found, the per-account limits stay the main ones. */
 export function portalAnonymousSubjectV1(request: Request): string {
-  const ip = cloudflareClientIpV1(request);
+  const { ip } = portalAnonymousPeerIpV1(request);
   if (!ip) return 'ip:unknown';
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/iu.exec(ip);
+  if (mapped) return `ip4:${mapped[1]}`;
   return ip.includes(':') ? `ip6:${ipv6Prefix64V1(ip)}` : `ip4:${ip}`;
 }
 

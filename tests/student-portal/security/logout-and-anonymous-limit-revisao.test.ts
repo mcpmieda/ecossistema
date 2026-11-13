@@ -93,7 +93,7 @@ describe('A9: the anonymous entry limit is per network peer, never one shared ke
     expect(subject('2001:db8:1:2:aaaa::1')).toBe(subject('2001:0db8:0001:0002:bbbb:cccc:dddd:2'));
     expect(subject('2001:db8:1:2::')).toBe('ip6:2001:db8:1:2');
     expect(subject('2001:db8:1:3::1')).not.toBe(subject('2001:db8:1:2::1'));
-    expect(subject('::ffff:192.0.2.1')).toBe('ip6:0:0:0:0');
+    expect(subject('::ffff:192.0.2.1')).toBe('ip4:192.0.2.1');
     expect(subject('fe80::1')).toBe('ip6:fe80:0:0:0');
     expect(subject(null)).toBe('ip:unknown');
     expect(subject('203.0.113.9')).not.toBe('public');

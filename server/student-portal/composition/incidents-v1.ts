@@ -5,7 +5,8 @@ import { portalDatabaseV1 } from './database-v1';
 import { SessionServiceV1 } from '../auth/session-service-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
-import { checkPortalOperationV1, portalAnonymousSubjectV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
+import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
+import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 
 // The student's own Smecel records and the family's "Estou ciente" (owner decisions 29/10/2026;
 // attendance 0016). The whole description, as the Smecel has it; the session decides the student.
@@ -54,7 +55,7 @@ export async function servePortalIncidentsV1(request:Request,env:PortalCompositi
   const version=acknowledging?await acknowledgedIdOf(request):null;
   if(acknowledging&&!version)return fail('invalid-request',400);
   try{
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'incidents-entry',portalAnonymousSubjectV1(request));
+    await checkPortalAnonymousV1(env, 'incidents-entry', request);
     const keys=portalKeysV1(env);
     // A confirmation writes, so it runs in the account's locked transaction; the list is a snapshot.
     const result=await portalDatabaseV1(env,'self',sql=>new SessionServiceV1(sql,keys.cryptoPort,undefined,!acknowledging,
