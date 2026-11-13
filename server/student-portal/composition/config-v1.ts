@@ -27,6 +27,8 @@ export interface PortalCompositionEnvV1 extends PortalLiveEnvV1 {
   PORTAL_ADMIN_EXPORT?: Pick<RateLimit, 'limit'>;
   PORTAL_ADMIN_LIVE?: Pick<RateLimit, 'limit'>;
   PORTAL_ADMIN_REVOKE?: Pick<RateLimit, 'limit'>;
+  /** Anonymous requests that arrive with no peer address at all; never the families' budget. */
+  PORTAL_UNKNOWN_PEER?: Pick<RateLimit, 'limit'>;
 
 }
 

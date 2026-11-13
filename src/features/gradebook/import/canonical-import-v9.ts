@@ -36,9 +36,52 @@ export interface CanonicalImportWarningV9 {
   readonly maximum: number;
 }
 
+/**
+ * Partial hold (BN-DEC-045): a problem holds only what it affects. A held cell travels as
+ * unavailable (`['u']`), so the database keeps its last good value; the student's term result
+ * (AM) or final result (U) computed from it is held too. A problem that makes a whole
+ * class/subject unreadable (duplicate number, invalid AV1/AV2 maximum, missing term…) holds
+ * that offer, which is left out and stays as it is. Everything else is written.
+ */
+export type CanonicalImportHeldV9 =
+  | {
+      readonly kind: 'cell';
+      readonly sheetName: string;
+      readonly cellAddress: string;
+      readonly reason: 'invalid-cell' | 'depends-on-held-cell';
+    }
+  | { readonly kind: 'offer'; readonly sheetNames: readonly string[]; readonly reason: string };
+
 interface CanonicalImportRuntimeV9 {
   readonly onProgress?: (progress: CanonicalImportProgressV9) => void;
   readonly onWarning?: (warning: CanonicalImportWarningV9) => void;
+  readonly onHeld?: (held: CanonicalImportHeldV9) => void;
+}
+
+const HELD_CELL_V9: readonly ['u'] = ['u'];
+
+/** Reads one cell; a value the import cannot accept is held instead of stopping the file. */
+function holdableCellV9<T>(
+  runtime: CanonicalImportRuntimeV9,
+  sheet: GradeSheetRecognition,
+  address: string,
+  read: () => T,
+): { readonly value: T | readonly ['u']; readonly held: boolean } {
+  try {
+    return { value: read(), held: false };
+  } catch {
+    runtime.onHeld?.({ kind: 'cell', sheetName: sheet.name, cellAddress: address, reason: 'invalid-cell' });
+    return { value: HELD_CELL_V9, held: true };
+  }
+}
+
+function heldResultV9(
+  runtime: CanonicalImportRuntimeV9,
+  sheet: GradeSheetRecognition,
+  address: string,
+): readonly ['u'] {
+  runtime.onHeld?.({ kind: 'cell', sheetName: sheet.name, cellAddress: address, reason: 'depends-on-held-cell' });
+  return HELD_CELL_V9;
 }
 
 type SummaryWithRelationV9 = WorkbookSummary & {
@@ -344,6 +387,7 @@ function term(
   sheet: GradeSheetRecognition,
   trimester: 1 | 2 | 3,
   runtime: CanonicalImportRuntimeV9,
+  heldStudents: Set<number> = new Set(),
 ): GradebookImportTermV9 {
   const definitionSnapshot = definitionSnapshotV1(sheet);
   const definitions = definitionSnapshot.instrumentos;
@@ -354,9 +398,12 @@ function term(
       if (seen.has(numero))
         throw new Error(`Número de aluno duplicado em ${sheet.name}: ${numero}.`);
       seen.add(numero);
+      let gradeHeld = false;
       const valores = definitions.map(([slot, max]) => {
         const address = addressForSlot(slot, student.row);
-        const value = cellFromSnapshot(sheet, address);
+        const read = holdableCellV9(runtime, sheet, address, () => cellFromSnapshot(sheet, address));
+        gradeHeld ||= read.held;
+        const value = read.value;
         if (typeof value === 'number' && max !== null && value > max) {
           runtime.onWarning?.({
             code: 'above-maximum',
@@ -371,12 +418,19 @@ function term(
       const observations = student.termResultObservations;
       if (!observations)
         throw new Error(`Resultado trimestral ausente em ${sheet.name}, aluno ${numero}.`);
-      const am = cellFromObservation(
-        sheet,
-        `AM${student.row}`,
-        observations.officialTermGrade,
-        false,
-      ) as GradebookImportCellV9;
+      const amAddress = `AM${student.row}`;
+      // A term result computed from a held grade could be wrong: it is held with it.
+      let am: GradebookImportCellV9;
+      if (gradeHeld) {
+        am = heldResultV9(runtime, sheet, amAddress);
+      } else {
+        const read = holdableCellV9(runtime, sheet, amAddress, () =>
+          cellFromObservation(sheet, amAddress, observations.officialTermGrade, false),
+        );
+        am = read.value as GradebookImportCellV9;
+        gradeHeld = read.held;
+      }
+      if (gradeHeld) heldStudents.add(numero);
       return [numero, valores, am] as const;
     });
   return {
@@ -430,12 +484,13 @@ function offer(
       .map((sheet) => [Number(sheet.stage.at(-1)), sheet]),
   );
   if (termSheets.size !== 3) throw new Error('Conjunto de disciplina sem os três trimestres.');
+  const heldStudents = new Set<number>();
   const first = termSheets.get(1);
   if (!first) throw new Error('1º trimestre ausente.');
   const trimestres = [
-    term(termSheets.get(1)!, 1, runtime),
-    term(termSheets.get(2)!, 2, runtime),
-    term(termSheets.get(3)!, 3, runtime),
+    term(termSheets.get(1)!, 1, runtime, heldStudents),
+    term(termSheets.get(2)!, 2, runtime, heldStudents),
+    term(termSheets.get(3)!, 3, runtime, heldStudents),
   ] as const;
   if (!sameNumbers(trimestres)) {
     throw new Error(
@@ -450,32 +505,28 @@ function offer(
         .map((student) => {
           const numero = studentNumber(student, recovery);
           const observations = student.recovery!.resultObservations;
+          const recoveryCell = (column: 'R' | 'S' | 'T', observation: typeof observations.trimester1) =>
+            holdableCellV9(runtime, recovery, `${column}${student.row}`, () =>
+              cellFromObservation(recovery, `${column}${student.row}`, observation, true),
+            );
+          const rec = [
+            recoveryCell('R', observations.trimester1),
+            recoveryCell('S', observations.trimester2),
+            recoveryCell('T', observations.trimester3),
+          ];
+          const uAddress = `U${student.row}`;
+          // U is computed from the AMs and the recoveries: a held one holds U too.
+          const u = rec.some((cell) => cell.held) || heldStudents.has(numero)
+            ? heldResultV9(runtime, recovery, uAddress)
+            : (holdableCellV9(runtime, recovery, uAddress, () =>
+                cellFromObservation(recovery, uAddress, observations.totalAfterRecovery, false),
+              ).value as GradebookImportCellV9);
           return [
             numero,
-            cellFromObservation(
-              recovery,
-              `R${student.row}`,
-              observations.trimester1,
-              true,
-            ) as GradebookImportRecoveryCellV9,
-            cellFromObservation(
-              recovery,
-              `S${student.row}`,
-              observations.trimester2,
-              true,
-            ) as GradebookImportRecoveryCellV9,
-            cellFromObservation(
-              recovery,
-              `T${student.row}`,
-              observations.trimester3,
-              true,
-            ) as GradebookImportRecoveryCellV9,
-            cellFromObservation(
-              recovery,
-              `U${student.row}`,
-              observations.totalAfterRecovery,
-              false,
-            ) as GradebookImportCellV9,
+            rec[0]!.value as GradebookImportRecoveryCellV9,
+            rec[1]!.value as GradebookImportRecoveryCellV9,
+            rec[2]!.value as GradebookImportRecoveryCellV9,
+            u,
           ] as const;
         })
     : null;
@@ -525,11 +576,21 @@ export function createGradebookCanonicalImportRequestV9(
   const groups = courseGroups(summary);
   if (groups.length === 0) throw new Error('Nenhuma oferta acadêmica reconhecida.');
   runtime.onProgress?.({ stage: 'grades', current: 0, total: groups.length });
-  const ofertas = groups.map((sheets, index) => {
-    const value = offer(sheets, runtime);
+  const ofertas: GradebookImportOfferV9[] = [];
+  const heldReasons: string[] = [];
+  for (const [index, sheets] of groups.entries()) {
+    // An offer the import cannot read as a whole is held: left out, it stays as it is.
+    try {
+      ofertas.push(offer(sheets, runtime));
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : 'Turma/disciplina ilegível.';
+      heldReasons.push(reason);
+      runtime.onHeld?.({ kind: 'offer', sheetNames: sheets.map((sheet) => sheet.name), reason });
+    }
     runtime.onProgress?.({ stage: 'grades', current: index + 1, total: groups.length });
-    return value;
-  });
+  }
+  if (ofertas.length === 0)
+    throw new Error(`Nenhuma turma desta planilha pôde ser lançada. ${heldReasons[0] ?? ''}`.trim());
   const logical = new Set<string>();
   for (const item of ofertas) {
     const key = JSON.stringify([

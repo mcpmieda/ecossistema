@@ -1052,7 +1052,10 @@ describe('Bounded per-file canonical queue (V9)', () => {
     mocks.blocking.mockImplementation((diagnostics) =>
       diagnostics.filter((value: typeof diagnostic) => value.severity === 'blocking-error'),
     );
+    // file:2 carries a blocking diagnostic and nothing in it can be written (BN-DEC-045: only then
+    // is a file blocked); file:3 fails locally without diagnostics.
     mocks.compact.mockImplementation((value) => {
+      if (value.id === 'file:2') throw new Error('synthetic: no class can be written');
       if (value.id === 'file:3') throw new Error('synthetic canonical failure');
       return request(value);
     });

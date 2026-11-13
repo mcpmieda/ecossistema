@@ -142,16 +142,16 @@ export const WORKBOOK_READER_EQUIVALENCE_CASES_V1: readonly WorkbookReaderEquiva
     (workbook) => {
       workbook.Sheets['6A1º']!.AA5 = { t: 'n', v: -1 };
     },
-    'canonical-error',
-    'Nota negativa em 6A1º!AA5.',
+    // Partial hold (BN-DEC-045): the cell and the student's AM are held; the rest is written.
+    'request',
   ),
   teacherCase(
     'invalid-text',
     (workbook) => {
       workbook.Sheets['6A1º']!.R5 = { t: 's', v: 'texto inválido sintético' };
     },
-    'canonical-error',
-    'Texto inválido em 6A1º!R5.',
+    // Partial hold (BN-DEC-045): the cell and the student's AM are held; the rest is written.
+    'request',
   ),
   teacherCase('formula-caches', (workbook) => {
     Object.assign(workbook.Sheets['6A1º']!, {
@@ -197,7 +197,8 @@ export const WORKBOOK_READER_EQUIVALENCE_CASES_V1: readonly WorkbookReaderEquiva
       delete workbook.Sheets['6A1º']!['!ref'];
     },
     'canonical-error',
-    'Os números dos alunos divergem entre trimestres em 6A / Matemática Sintética.',
+    // The only offer is held, so nothing in the file can be written.
+    'Nenhuma turma desta planilha pôde ser lançada. Os números dos alunos divergem entre trimestres em 6A / Matemática Sintética.',
   ),
   teacherCase('last-student-row', (workbook) => {
     for (const name of ['6A1º', '6A2º', '6A3º']) {
