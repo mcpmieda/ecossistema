@@ -54,6 +54,29 @@ export const schoolCalendarDaysV1 = z
       ctx.addIssue({ code: 'custom', message: 'More school days than the rule' });
   });
 
+/**
+ * A plain school day falls Monday to Friday, a "sábado letivo" on a Saturday and an "evento com
+ * aula" on any day but Sunday (on a Saturday it may be a real one); the days without school may
+ * fall on any day.
+ */
+export function schoolDayFitsWeekdayV1(day: Pick<SchoolCalendarDayV1, 'date' | 'kind'>): boolean {
+  const weekday = new Date(`${day.date}T12:00:00Z`).getUTCDay();
+  if (day.kind === 'letivo') return weekday >= 1 && weekday <= 5;
+  if (day.kind === 'sabado-letivo') return weekday === 6;
+  if (day.kind === 'evento-letivo') return weekday !== 0;
+  return true;
+}
+
+/**
+ * The days an admin saves: besides the rules above, no "dia letivo" on a weekend and no "sábado
+ * letivo" on another day. Only the write checks it, so a calendar saved before still reads.
+ */
+export const schoolCalendarDaysInputV1 = schoolCalendarDaysV1.superRefine((days, ctx) => {
+  for (const day of days)
+    if (!schoolDayFitsWeekdayV1(day))
+      ctx.addIssue({ code: 'custom', message: 'School day on the wrong weekday' });
+});
+
 export const schoolCalendarV1 = z
   .object({
     academicYear: z.literal(2026),
@@ -63,10 +86,13 @@ export const schoolCalendarV1 = z
   .strict();
 export type SchoolCalendarV1 = z.infer<typeof schoolCalendarV1>;
 
-/** The school days marked, in date order. */
+/**
+ * The school days marked, in date order. A day saved on the wrong weekday before the rule (a
+ * "dia letivo" on a Sunday) is not a school day: the Portal never counts it.
+ */
 export const schoolDaysOfV1 = (days: readonly SchoolCalendarDayV1[]) =>
   days
-    .filter((day) => SCHOOL_DAY_COUNTS_V1[day.kind])
+    .filter((day) => SCHOOL_DAY_COUNTS_V1[day.kind] && schoolDayFitsWeekdayV1(day))
     .map((day) => day.date)
     // ISO dates: code-unit order is the calendar order.
     .sort((a, b) => Number(a > b) - Number(a < b));

@@ -81,9 +81,12 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const [shift, setShift] = useState<BellShiftV1>('matutino');
+  // Saved, but reading it back failed: the editor stays, with a warning apart from "Horários salvos.".
+  const [refreshFailed, setRefreshFailed] = useState(false);
 
+  /** Reads the bells; after a save (keepOnFailure), a failure keeps the editor on screen. */
   const load = useCallback(
-    async (signal?: AbortSignal) => {
+    async (signal?: AbortSignal, keepOnFailure = false) => {
       setState('loading');
       try {
         const result = await client.query(
@@ -96,8 +99,10 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
         // Nothing saved yet: the school's official sheets of 2026 are already on screen, to save.
         setDraft(structuredClone(bells));
         setState('ready');
+        return true;
       } catch {
-        if (!signal?.aborted) setState('error');
+        if (!signal?.aborted) setState(keepOnFailure ? 'ready' : 'error');
+        return false;
       }
     },
     [client],
@@ -135,8 +140,9 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
     if (!draft || !saved || invalid.size) return;
     setState('saving');
     setMessage(null);
+    setRefreshFailed(false);
     try {
-      await client.command({
+      const result = await client.command({
         contractVersion: 1,
         operation: 'school-bells-set',
         academicYear: 2026,
@@ -144,8 +150,10 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
         idempotencyKey: crypto.randomUUID(),
         bells: draft,
       });
-      await load();
+      // Saved: if reading it back fails, the screen still knows what was saved.
+      if (result.state === 'committed') setSaved({ version: result.version, bells: structuredClone(draft) });
       setMessage('Horários salvos.');
+      if (!(await load(undefined, true))) setRefreshFailed(true);
     } catch (error) {
       setState('ready');
       setMessage(
@@ -230,6 +238,16 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Description>{message}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+          {refreshFailed ? (
+            <Alert status="warning">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>
+                  Salvo, mas não foi possível atualizar a tela. Recarregue a página para conferir.
+                </Alert.Description>
               </Alert.Content>
             </Alert>
           ) : null}

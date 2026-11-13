@@ -3,7 +3,7 @@ import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity
 import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageCursorV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1, policyScopeV1 } from './core-v1';
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, policyFieldV1, POLICY_FIELDS_V1, settingsOverrideV1 } from './policy-v1';
-import { schoolCalendarDaysV1, schoolCalendarV1 } from './school-calendar-v1';
+import { schoolCalendarDaysInputV1, schoolCalendarV1 } from './school-calendar-v1';
 import { schoolBellsDaysV1, schoolBellsV1 } from './school-bells-v1';
 import { publicationInheritCommandV1 } from './customizations-v1';
 import { bulkActionV1, bulkCursorV1, bulkExecuteCommandV1, bulkPreviewQueryV1, bulkPreviewResponseV1 } from './bulk-v1';
@@ -44,7 +44,7 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...commandMetaV1, operation: z.literal('links-close'), academicYear: z.literal(2026), previewToken: opaqueV1, expectedCount: z.number().int().nonnegative(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('population-start'), academicYear: z.literal(2026), clearOverrides: z.literal(true), confirmed: z.literal(true) }).strict(),
   // Calendário escolar (owner decision 22/10/2026): the whole year's marked days, school-wide.
-  z.object({ ...commandMetaV1, operation: z.literal('school-calendar-set'), academicYear: z.literal(2026), days: schoolCalendarDaysV1 }).strict(),
+  z.object({ ...commandMetaV1, operation: z.literal('school-calendar-set'), academicYear: z.literal(2026), days: schoolCalendarDaysInputV1 }).strict(),
   // Horário das aulas (owner decision 23/10/2026): each lesson's and the break's time, school-wide.
   z.object({ ...commandMetaV1, operation: z.literal('school-bells-set'), academicYear: z.literal(2026), bells: schoolBellsDaysV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('qr-batch'), classId: z.number().int().positive(), accountIds: z.array(portalIdV1).min(1).max(100), mode: printModeV1.default('qr-name-class'), confirmed: z.literal(true) }).strict(),
