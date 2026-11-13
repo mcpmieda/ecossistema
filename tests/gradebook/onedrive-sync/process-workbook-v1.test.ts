@@ -59,11 +59,24 @@ describe('one sync read', () => {
     expect(calls).not.toContain('portal');
   });
 
-  it('a workbook the canonical builder rejects is never written', async () => {
+  it('an invalid grade is never written', async () => {
+    const written: string[] = [];
     const { ports, calls } = portsV1({ bytes: bytesOf('negative-grade') });
-    const result = await processWorkbookV1(input, ports);
-    expect(['blocked', 'unreadable']).toContain(result.outcome);
-    expect(calls).not.toContain('persist');
+    const services = ports.services!;
+    const result = await processWorkbookV1(input, {
+      ...ports,
+      services: { ...services, persist: async (database, request) => {
+        written.push(JSON.stringify(request));
+        return services.persist(database, request);
+      } },
+    });
+    // Before BN-DEC-045 the whole file is blocked; with it, only that grade and its AM are held.
+    if (!calls.includes('persist')) {
+      expect(result.outcome).toBe('blocked');
+      return;
+    }
+    expect(written[0]).not.toContain('-1000');
+    expect(written[0]).toContain('["u"]');
   });
 
   it('maps service refusals and failures', async () => {
