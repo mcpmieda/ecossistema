@@ -57,7 +57,7 @@ type Students = Extract<
 type Artifact =
   | { readonly mode: 'preview'; readonly model: RelationalBulletinModelV2 }
   | { readonly mode: 'emission' | 'reprint'; readonly snapshot: RelationalBulletinSnapshotV2 };
-type Busy = 'catalog' | 'students' | 'artifact' | 'batch' | 'history' | null;
+type Busy = 'catalog' | 'students' | 'artifact' | 'emission' | 'batch' | 'history' | null;
 /** Class, period and detail kept for the tab across a reload. */
 const VIEW_KEY_V2 = 'gradebook-bulletins-view';
 function readStoredViewV2() {
@@ -161,6 +161,15 @@ function readinessLabel(reason: string): string {
   if (reason === 'council-decision-pending') return 'Decisão de Conselho pendente';
   if (reason === 'no-current-offers') return 'Turma sem ofertas atuais';
   return reason;
+}
+type BulletinInstrumentV2 =
+  RelationalBulletinModelV2['subjects'][number]['terms'][number]['instruments'][number];
+/** An instrument on screen: "Não fez", "Tirou zero", "Sem registro" (no row of the student) or its grade. */
+function InstrumentShownV2({ instrument }: { readonly instrument: BulletinInstrumentV2 }) {
+  if (instrument.notDone || instrument.valueMilli === 0)
+    return <GranularStatusV1 notDone={instrument.notDone} zero={instrument.valueMilli === 0} />;
+  if (instrument.valueMilli === null) return <span className="text-muted">Sem registro</span>;
+  return <>Nota {grade(instrument.valueMilli)}</>;
 }
 function ComparisonChip({ value }: { readonly value: 'match' | 'mismatch' | 'unavailable' }) {
   let label: 'Confere' | 'Diverge' | 'Sem comparação';
@@ -314,11 +323,7 @@ function SubjectDetails({ model }: { readonly model: RelationalBulletinModelV2 }
             </div>
             <strong className="mt-2 block text-sm">{instrument.label}</strong>
             <p className="mt-1 text-sm tabular-nums">
-              {instrument.notDone || instrument.valueMilli === 0 ? (
-                <GranularStatusV1 notDone={instrument.notDone} zero={instrument.valueMilli === 0} />
-              ) : (
-                <>Nota {grade(instrument.valueMilli)}</>
-              )}{' '}
+              <InstrumentShownV2 instrument={instrument} />{' '}
               <span className="text-muted">/ {grade(instrument.maximumMilli)}</span>
             </p>
           </div>
@@ -698,7 +703,15 @@ export function RelationalBulletinPageV2() {
   const [stale, setStale] = useState(false);
   const sequence = useRef(0);
   const artifactHeading = useRef<HTMLHeadingElement | null>(null);
-  const safely = async <T,>(operation: () => Promise<T>, background = false): Promise<T | null> => {
+  /**
+   * Runs a request and shows its failure. With a ticket, a failure that arrives after the choice
+   * changed belongs to the choice before and is not shown.
+   */
+  const safely = async <T,>(
+    operation: () => Promise<T>,
+    background = false,
+    ticket?: number,
+  ): Promise<T | null> => {
     if (!background) {
       setFailure(null);
       setFailureReasons([]);
@@ -706,6 +719,7 @@ export function RelationalBulletinPageV2() {
     try {
       return await operation();
     } catch (cause) {
+      if (ticket !== undefined && ticket !== sequence.current) return null;
       if (background) setStale(true);
       else {
         setFailure(cause instanceof RelationalBulletinClientErrorV2 ? cause.code : 'unavailable');
@@ -754,15 +768,33 @@ export function RelationalBulletinPageV2() {
     return () => controller.abort();
   }, [year]);
   /**
-   * A new class, period, detail or student drops the bulletin on screen, and a preview or emission
-   * still on its way is let go: its answer belongs to the choice before.
+   * A new class, period, detail or student drops the bulletin on screen, and a preview still on
+   * its way is let go: its answer belongs to the choice before. An emission keeps the page busy
+   * until it answers (the filters are locked meanwhile; only the phone's back button gets here),
+   * and then says what was recorded instead of showing it under the new choice.
    */
   const dropArtifact = () => {
     setArtifact(null);
-    if (busy === 'artifact' || busy === 'batch') {
+    if (busy === 'artifact') {
       sequence.current += 1;
       setBusy(null);
-    }
+    } else if (busy === 'emission' || busy === 'batch') sequence.current += 1;
+  };
+  const emitting = busy === 'emission' || busy === 'batch';
+  const currentClass = useRef<number | null>(null);
+  useEffect(() => {
+    currentClass.current = classId;
+  }, [classId]);
+  /** An emission answered after the choice changed: it is told, never shown, and the history is read again. */
+  const emissionOutdated = (emittedClassId: number, recorded: string | null) => {
+    setNotice(
+      recorded === null
+        ? 'A emissão pedida antes da troca de filtros não foi confirmada; confira o histórico antes de emitir de novo.'
+        : `${recorded} Ela foi pedida antes da troca de filtros e não aparece nesta seleção; confira o histórico.`,
+    );
+    // Only the emission's own busy ends here; a class read that started meanwhile keeps its own.
+    setBusy((current) => (current === 'emission' || current === 'batch' ? null : current));
+    if (currentClass.current === emittedClassId) void loadHistory(emittedClassId, true);
   };
   const loadStudents = async (nextClassId: number) => {
     const ticket = ++sequence.current;
@@ -857,6 +889,8 @@ export function RelationalBulletinPageV2() {
         operation: 'preview',
         selection: selection(previewStudentId),
       }),
+      false,
+      ticket,
     );
     if (ticket !== sequence.current) return;
     if (response?.state === 'ready' && response.operation === 'preview')
@@ -869,25 +903,33 @@ export function RelationalBulletinPageV2() {
   const emit = async () => {
     if (classId === null || previewStudentId === null) return;
     const ticket = sequence.current;
-    setBusy('artifact');
-    const response = await safely(() =>
-      requestRelationalBulletinV2({
-        contractVersion: 2,
-        operation: 'emit',
-        selection: selection(previewStudentId),
-      }),
+    const emittedClassId = classId;
+    setBusy('emission');
+    const response = await safely(
+      () =>
+        requestRelationalBulletinV2({
+          contractVersion: 2,
+          operation: 'emit',
+          selection: selection(previewStudentId),
+        }),
+      false,
+      ticket,
     );
-    if (ticket !== sequence.current) return;
-    if (response?.state === 'ready' && response.operation === 'emit')
-      show(
-        { mode: 'emission', snapshot: response.snapshot },
-        `Emissão preservada no snapshot ${response.snapshot.snapshotId} · versão ${response.snapshot.snapshotVersion}.`,
-      );
+    const emitted = response?.state === 'ready' && response.operation === 'emit' ? response : null;
+    const recorded = emitted
+      ? `Emissão preservada no snapshot ${emitted.snapshot.snapshotId} · versão ${emitted.snapshot.snapshotVersion}.`
+      : null;
+    if (ticket !== sequence.current) {
+      emissionOutdated(emittedClassId, recorded);
+      return;
+    }
+    if (emitted && recorded) show({ mode: 'emission', snapshot: emitted.snapshot }, recorded);
     setBusy(null);
   };
   const emitBatch = async () => {
     if (classId === null || selectedIds.length === 0) return;
     const ticket = sequence.current;
+    const emittedClassId = classId;
     setBusy('batch');
     const response = await safely(() =>
       requestRelationalBulletinV2({
@@ -902,12 +944,19 @@ export function RelationalBulletinPageV2() {
           presentation: { locale: 'pt-BR', dateStyle: 'long' },
         },
       }),
+      false,
+      ticket,
     );
-    if (ticket !== sequence.current) return;
+    const recorded =
+      response?.state === 'ready' && response.operation === 'emit-batch'
+        ? `${response.ready.length} boletim(ns) emitido(s); ${response.blocked.length} protegido(s) por dados insuficientes.`
+        : null;
+    if (ticket !== sequence.current) {
+      emissionOutdated(emittedClassId, recorded);
+      return;
+    }
     if (response?.state === 'ready' && response.operation === 'emit-batch') {
-      setNotice(
-        `${response.ready.length} boletim(ns) emitido(s); ${response.blocked.length} protegido(s) por dados insuficientes.`,
-      );
+      setNotice(recorded ?? '');
       if (response.ready[0])
         setArtifact({ mode: 'emission', snapshot: response.ready[0].snapshot });
     }
@@ -1118,7 +1167,7 @@ export function RelationalBulletinPageV2() {
         <BulletinSelect
           label="Turma"
           value={classId === null ? 'none' : String(classId)}
-          disabled={busy === 'catalog'}
+          disabled={busy === 'catalog' || emitting}
           items={[
             { id: 'none', label: 'Selecione a turma' },
             ...(catalog?.classes.map((item) => ({
@@ -1134,6 +1183,7 @@ export function RelationalBulletinPageV2() {
         <BulletinSelect
           label="Período"
           value={period.kind === 'annual' ? 'annual' : String(period.term)}
+          disabled={emitting}
           items={[
             { id: '1', label: '1º trimestre' },
             { id: '2', label: '2º trimestre' },
@@ -1152,6 +1202,7 @@ export function RelationalBulletinPageV2() {
         <BulletinSelect
           label="Detalhamento"
           value={detail}
+          disabled={emitting}
           items={[
             { id: 'summary', label: 'Resumo institucional' },
             { id: 'detailed', label: 'Com instrumentos' },
@@ -1164,7 +1215,7 @@ export function RelationalBulletinPageV2() {
         <BulletinSelect
           label="Aluno da prévia"
           value={previewStudentId === null ? 'none' : String(previewStudentId)}
-          disabled={!students || busy === 'students'}
+          disabled={!students || busy === 'students' || emitting}
           items={[
             { id: 'none', label: 'Selecione um aluno' },
             ...(students?.students.map((item) => ({

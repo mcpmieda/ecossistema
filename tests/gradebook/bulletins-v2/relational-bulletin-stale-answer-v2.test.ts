@@ -76,6 +76,10 @@ let requests: Record<string, unknown>[];
 /** Answers held back by operation (and class), released by the test. */
 let held: Map<string, () => void>;
 let holding: Set<string>;
+/** Operations answered with a refusal (state and reasons) instead of their ready answer. */
+let refusing: Map<string, { state: string; reasons: string[] }>;
+/** The model the preview answers with. */
+let previewModel: RelationalBulletinModelV2;
 
 function reply(value: unknown): Response {
   return Response.json(value);
@@ -112,7 +116,7 @@ function answer(body: Record<string, unknown>): unknown {
   if (body.operation === 'history')
     return { contractVersion: 2, operation: 'history', state: 'ready', items: [] };
   if (body.operation === 'preview')
-    return { contractVersion: 2, operation: 'preview', state: 'ready', model };
+    return { contractVersion: 2, operation: 'preview', state: 'ready', model: previewModel };
   if (body.operation === 'emit')
     return { contractVersion: 2, operation: 'emit', state: 'ready', snapshot };
   throw new Error(`unexpected-operation:${String(body.operation)}`);
@@ -144,6 +148,8 @@ beforeEach(() => {
   requests = [];
   held = new Map();
   holding = new Set();
+  refusing = new Map();
+  previewModel = model;
   vi.stubGlobal(
     'fetch',
     vi.fn<typeof fetch>(async (_url, init) => {
@@ -154,6 +160,8 @@ beforeEach(() => {
         holding.delete(key);
         await new Promise<void>((resolve) => held.set(key, resolve));
       }
+      const refusal = refusing.get(key);
+      if (refusal) return reply({ contractVersion: 2, operation: body.operation, ...refusal });
       return reply(answer(body));
     }),
   );
@@ -212,6 +220,27 @@ async function select(label: string, value: string): Promise<void> {
   await settle();
 }
 
+const selectControl = (label: string) =>
+  [...host.querySelectorAll<HTMLElement>('[data-slot="select"]')]
+    .find((element) => element.querySelector('[data-slot="label"]')?.textContent === label)
+    ?.querySelector<HTMLElement>('select') ?? null;
+const buttonOf = (label: string) =>
+  [...host.querySelectorAll('button')].find((item) => item.textContent?.includes(label));
+const isDisabled = (element: HTMLElement | null | undefined) =>
+  element?.hasAttribute('disabled') === true || element?.getAttribute('data-disabled') === 'true';
+
+/** The phone's back button bringing back a view of the bulletins (another detail, here). */
+async function backTo(view: { classId: number; term: 1 | 2 | 3 | 'annual'; detail: string }) {
+  await act(async () => {
+    window.history.replaceState(
+      { 'step-v1:gradebook-bulletins-view:2026': { year: 2026, ...view } },
+      '',
+    );
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await settle();
+}
+
 async function click(label: string): Promise<void> {
   const button = [...host.querySelectorAll('button')].find((item) =>
     item.textContent?.includes(label),
@@ -241,14 +270,54 @@ describe('a preview or emission answered after the choice changed (A13)', () => 
     expect(button?.hasAttribute('disabled')).toBe(false);
   });
 
-  it('drops an emission whose detail was changed before it arrived', async () => {
+  it('locks the filters and both emit buttons while an emission is on its way', async () => {
     await readyToPreview();
     holding.add('emit');
     await click('Emitir individual');
-    await select('Detalhamento', 'detailed');
+    for (const label of ['Turma', 'Período', 'Detalhamento', 'Aluno da prévia'])
+      expect(isDisabled(selectControl(label)), label).toBe(true);
+    expect(isDisabled(buttonOf('Emitir individual'))).toBe(true);
+    expect(isDisabled(buttonOf('Emitir lote'))).toBe(true);
     await release('emit');
-    expect(host.textContent).not.toContain('Emitido · v1');
+    expect(host.textContent).toContain('Emissão preservada no snapshot');
+    expect(isDisabled(selectControl('Detalhamento'))).toBe(false);
+  });
+
+  it('tells about an emission answered after the back button changed the detail', async () => {
+    await readyToPreview();
+    holding.add('emit');
+    await click('Emitir individual');
+    const historyReads = requests.filter((request) => request.operation === 'history').length;
+    await backTo({ classId: 10, term: 1, detail: 'detailed' });
+    // The emission is still running: emitting again stays locked.
+    expect(isDisabled(buttonOf('Emitir individual'))).toBe(true);
+    await release('emit');
     expect(host.textContent).not.toContain('Baixar PDF oficial');
+    expect(host.textContent).toContain('Emissão preservada no snapshot');
+    expect(host.textContent).toContain('não aparece nesta seleção');
+    await waitFor(
+      () => requests.filter((request) => request.operation === 'history').length > historyReads,
+    );
+    expect(isDisabled(buttonOf('Emitir individual'))).toBe(false);
+  });
+
+  it('hides the refusal of a preview whose period was changed before it arrived', async () => {
+    await readyToPreview();
+    holding.add('preview');
+    refusing.set('preview', { state: 'insufficient-data', reasons: ['council-decision-pending'] });
+    await click('Gerar prévia');
+    await select('Período', 'annual');
+    await release('preview');
+    expect(host.textContent).not.toContain('Operação não concluída');
+    expect(host.textContent).not.toContain('Decisão de Conselho pendente');
+  });
+
+  it('still shows the refusal of a preview for the choice on screen', async () => {
+    await readyToPreview();
+    refusing.set('preview', { state: 'insufficient-data', reasons: ['council-decision-pending'] });
+    await click('Gerar prévia');
+    await waitFor(() => host.textContent?.includes('Operação não concluída') === true);
+    expect(host.textContent).toContain('Decisão de Conselho pendente');
   });
 
   it('keeps the new class loading when an old preview arrives', async () => {
@@ -262,5 +331,49 @@ describe('a preview or emission answered after the choice changed (A13)', () => 
     expect(host.textContent).toContain('Carregando alunos…');
     await release('students:11');
     expect(host.textContent).not.toContain('Carregando alunos…');
+  });
+});
+
+describe('the detailed preview on screen (A23)', () => {
+  it('shows "Sem registro" for an instrument without the student row, apart from "Não fez" and zero', async () => {
+    const base = { term: 1 as const, maximumMilli: 5_000 };
+    const subject = model.subjects[0]!;
+    previewModel = {
+      ...model,
+      detail: 'detailed',
+      subjects: [
+        {
+          ...subject,
+          terms: [
+            {
+              ...subject.terms[0]!,
+              instruments: [
+                { ...base, id: 61, slot: 2, label: 'AV2', valueMilli: null },
+                { ...base, id: 62, slot: 3, label: 'AV3', valueMilli: null, notDone: true },
+                { ...base, id: 63, slot: 4, label: 'AV4', valueMilli: 0 },
+                { ...base, id: 64, slot: 5, label: 'AV5', valueMilli: 4_000 },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    await mount();
+    await select('Turma', '10');
+    await waitFor(() => host.textContent?.includes('ALUNO SINTÉTICO') === true);
+    await select('Detalhamento', 'detailed');
+    await select('Aluno da prévia', '20');
+    await click('Gerar prévia');
+    await waitFor(() => host.textContent?.includes('Composição detalhada') === true);
+    const cards = [...host.querySelectorAll('strong')]
+      .filter((item) => /^AV\d$/u.test(item.textContent ?? ''))
+      .map((item) => `${item.textContent}: ${item.nextElementSibling?.textContent ?? ''}`);
+    expect(cards).toEqual([
+      'AV2: Sem registro / 5',
+      'AV3: Não fez / 5',
+      'AV4: Tirou zero / 5',
+      'AV5: Nota 4 / 5',
+    ]);
+    expect(host.textContent).not.toContain('Nota —');
   });
 });

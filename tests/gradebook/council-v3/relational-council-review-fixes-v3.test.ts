@@ -345,6 +345,9 @@ describe('Council decision chosen explicitly (A3)', () => {
       decision: 2,
       justification: 'Reprovado pela maioria.',
     });
+    // One's own save is not someone else's change.
+    await waitFor(() => host.textContent?.includes('Decisão humana registrada') === true);
+    expect(host.textContent).not.toContain('Outra pessoa alterou este aluno');
   }, 15_000);
 });
 
@@ -370,5 +373,91 @@ describe('Council refusal after another save (A12)', () => {
     expect(host.textContent).toContain('Outra alteração foi salva antes desta.');
     expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe('Rascunho que não pode sumir.');
     expect(nativeDecision()?.value).toBe('3');
+  }, 15_000);
+
+  /** Another person records a decision for the same student, as the server would keep it. */
+  function decidedElsewhere() {
+    current = workspace({
+      ...current,
+      session: { ...current.session, version: 2, reviewReference: 'council-review:2026:10:2' },
+      summary: { ...current.summary, decided: 1, pending: 0, rejected: 1 },
+      students: [
+        {
+          ...current.students[0]!,
+          decision: {
+            code: 2,
+            label: 'REPROVADO PELO CONSELHO',
+            justification: 'Decisão gravada por outra pessoa.',
+            version: 2,
+            updatedAt: '2026-09-11T04:02:00.000Z',
+          },
+        },
+        nonEligible,
+      ],
+    });
+  }
+
+  it('keeps the draft and warns when the conflict is on the same student', async () => {
+    let conflict = false;
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (conflict && body.operation === 'decision') {
+        requests.push(body);
+        return reply({ contractVersion: 3, state: 'version-conflict' }, 409);
+      }
+      return fetchMock(url, init);
+    }));
+    await openMeeting();
+    await select('Situação após o Conselho', '3');
+    await fill('#decision-reason-1', 'Meu rascunho do mesmo aluno.');
+    decidedElsewhere();
+    conflict = true;
+    const before = requests.length;
+    await click('Registrar decisão');
+    await waitFor(() => requests.slice(before).some((request) => request.operation === 'workspace'));
+    await settle();
+    expect(host.textContent).toContain('Outra alteração foi salva antes desta.');
+    expect(host.textContent).toContain('Outra pessoa alterou este aluno');
+    expect(host.textContent).toContain('REPROVADO PELO CONSELHO (Decisão gravada por outra pessoa.)');
+    expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe('Meu rascunho do mesmo aluno.');
+    expect(nativeDecision()?.value).toBe('3');
+    // Recording the draft afterwards is a choice made knowing the current record.
+    conflict = false;
+    await click('Atualizar decisão');
+    await waitFor(() => host.textContent?.includes('Decisão humana registrada') === true);
+    expect(requests.filter((request) => request.operation === 'decision').at(-1)).toMatchObject({
+      decision: 3,
+      justification: 'Meu rascunho do mesmo aluno.',
+    });
+  }, 15_000);
+
+  it('shows the new decision without a warning when only the count had a draft', async () => {
+    let conflict = false;
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (conflict && body.operation === 'vote') {
+        requests.push(body);
+        return reply({ contractVersion: 3, state: 'version-conflict' }, 409);
+      }
+      return fetchMock(url, init);
+    }));
+    await openMeeting();
+    await fill('#votes-for-1', '4');
+    await fill('#votes-against-1', '2');
+    await fill('#vote-reason-1', 'Contagem ainda não gravada.');
+    decidedElsewhere();
+    conflict = true;
+    const before = requests.length;
+    await click('Registrar contagem');
+    await waitFor(() => requests.slice(before).some((request) => request.operation === 'workspace'));
+    await settle();
+    expect(host.textContent).toContain('Outra alteração foi salva antes desta.');
+    expect(host.textContent).not.toContain('Outra pessoa alterou este aluno');
+    // Nothing typed in the decision: it now shows the record of the other person.
+    expect(nativeDecision()?.value).toBe('2');
+    expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe('Decisão gravada por outra pessoa.');
+    // The count, whose record did not change, keeps what was typed.
+    expect(host.querySelector<HTMLInputElement>('#votes-for-1')?.value).toBe('4');
+    expect(host.querySelector<HTMLTextAreaElement>('#vote-reason-1')?.value).toBe('Contagem ainda não gravada.');
   }, 15_000);
 });

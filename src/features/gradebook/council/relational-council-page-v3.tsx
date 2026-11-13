@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Card, Chip, Label, ListBox, Select, Spinner, Surface, Table } from '@heroui/react';
 import {
   Archive,
@@ -113,6 +113,12 @@ const voteCountTextV3 = (student: RelationalCouncilStudentV3, side: 'favoraveis'
 const decisionCodeTextV3 = (student: RelationalCouncilStudentV3) =>
   student.decision ? String(student.decision.code) : '';
 
+/** The recorded decision and count as comparable text, to tell a real change from a reread. */
+const recordedDecisionKeyV3 = (student: RelationalCouncilStudentV3) =>
+  JSON.stringify([decisionCodeTextV3(student), student.decision?.justification ?? '']);
+const recordedVoteKeyV3 = (student: RelationalCouncilStudentV3) =>
+  JSON.stringify([voteCountTextV3(student, 'favoraveis'), voteCountTextV3(student, 'contrarios'), student.vote?.justification ?? '']);
+
 /** Both counts as whole numbers, and who was present (their sum) once both are given. */
 function voteNumbersV3(favoraveis: string, contrarios: string) {
   const favorableNumber = /^\d+$/u.test(favoraveis) ? Number(favoraveis) : null;
@@ -136,13 +142,30 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
   const [contrarios, setContrarios] = useState(voteCountTextV3(student, 'contrarios'));
   const [voteReason, setVoteReason] = useState(student.vote?.justification ?? '');
   // A reread brings new objects with the same content; only a real change replaces what is typed.
-  const recordedKey = JSON.stringify([student.id, student.decision, student.vote]);
+  // When someone else changed this student while a draft was open, the draft is kept and a warning
+  // shows what is recorded now. The panel is keyed by student, so the id never changes here.
+  const recordedDecision = recordedDecisionKeyV3(student);
+  const recordedVote = recordedVoteKeyV3(student);
+  const recordedBefore = useRef({ decision: recordedDecision, vote: recordedVote });
+  const [changedElsewhere, setChangedElsewhere] = useState(false);
   useEffect(() => {
-    setDecision(decisionCodeTextV3(student)); setDecisionReason(student.decision?.justification ?? '');
-    setFavoraveis(voteCountTextV3(student, 'favoraveis')); setContrarios(voteCountTextV3(student, 'contrarios'));
-    setVoteReason(student.vote?.justification ?? '');
-    onDirtyChange(false);
-  }, [recordedKey, onDirtyChange]);
+    const before = recordedBefore.current;
+    recordedBefore.current = { decision: recordedDecision, vote: recordedVote };
+    // A draft is what differs from both the record it started from and the record now.
+    const decisionDraft = JSON.stringify([decision, decisionReason.trim()]);
+    const voteDraft = JSON.stringify([favoraveis, contrarios, voteReason.trim()]);
+    const decisionChanged = before.decision !== recordedDecision;
+    const voteChanged = before.vote !== recordedVote;
+    const keepDecision = decisionChanged && decisionDraft !== before.decision && decisionDraft !== recordedDecision;
+    const keepVote = voteChanged && voteDraft !== before.vote && voteDraft !== recordedVote;
+    if (decisionChanged && !keepDecision) { setDecision(decisionCodeTextV3(student)); setDecisionReason(student.decision?.justification ?? ''); }
+    if (voteChanged && !keepVote) { setFavoraveis(voteCountTextV3(student, 'favoraveis')); setContrarios(voteCountTextV3(student, 'contrarios')); setVoteReason(student.vote?.justification ?? ''); }
+    setChangedElsewhere(keepDecision || keepVote);
+    // A section whose record did not change keeps its draft, and so its dirty mark.
+    const decisionDirty = keepDecision || (!decisionChanged && decisionDraft !== recordedDecision);
+    const voteDirty = keepVote || (!voteChanged && voteDraft !== recordedVote);
+    onDirtyChange(decisionDirty || voteDirty);
+  }, [recordedDecision, recordedVote, onDirtyChange]);
   const { favorableNumber, contraryNumber, present } = voteNumbersV3(favoraveis, contrarios);
   return <div className="grid min-w-0 gap-4">
     <Card className="overflow-hidden">
@@ -152,6 +175,8 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
         <Chip className="sm:ml-auto" color={student.eligibility.eligible ? 'success' : 'default'} variant="soft"><Chip.Label>{student.eligibility.eligible ? 'Elegível' : 'Não elegível'}</Chip.Label></Chip>
       </Card.Header>
       <Card.Content className="grid gap-4 pt-4">
+        {changedElsewhere ? <Alert status="warning"><Alert.Indicator/><Alert.Content><Alert.Title>Outra pessoa alterou este aluno</Alert.Title>
+          <Alert.Description>O que você digitou foi mantido e não foi gravado. Registro atual: {student.decision ? `${RELATIONAL_COUNCIL_DECISIONS_V3[student.decision.code]} (${student.decision.justification})` : 'sem decisão'}{student.vote ? ` · contagem ${student.vote.favoraveis} × ${student.vote.contrarios}` : ''}. Confira antes de gravar de novo.</Alert.Description></Alert.Content></Alert> : null}
         <Alert status={student.eligibility.eligible ? 'success' : 'default'}><Alert.Indicator/><Alert.Content><Alert.Title>{student.eligibility.label}</Alert.Title>
           <Alert.Description>{student.calculatedResult ?? 'O resultado calculado ainda não emite decisão humana.'}</Alert.Description></Alert.Content></Alert>
         <Table><Table.ScrollContainer className="max-w-full overflow-x-auto"><Table.Content aria-label={`Resultado anual de ${student.name}`} className="min-w-[760px]">
