@@ -7,7 +7,11 @@ import { Chip } from '@heroui/react/chip';
 import { Spinner } from '@heroui/react/spinner';
 import type { StudentIncidentV1, StudentIncidentsClientV1 } from '../incidents/client-v1';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
-import { usePortalPageActiveV3, useReportOpenIncidentsV3 } from './portal-pages-v3';
+import {
+  usePortalPageActiveV3,
+  useReportIncidentsTurnedOffV3,
+  useReportOpenIncidentsV3,
+} from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 
 /*
@@ -197,6 +201,7 @@ export function IncidentsPageV3({
     .map((item) => ({ ...item, acknowledgedAt: item.acknowledgedAt ?? seen[item.id] ?? null }))
     .sort((a, b) => b.date.localeCompare(a.date));
   useReportOpenIncidentsV3(load.data ? incidents.filter((item) => !item.acknowledgedAt).length : null);
+  useReportIncidentsTurnedOffV3(load.error === 'forbidden');
   // Read again and nothing is left to confirm (the record was removed): the warning goes too.
   if (changed && load.data && !incidents.some((item) => !item.acknowledgedAt)) setChanged(false);
   const acknowledge = async (id: string) => {
