@@ -69,16 +69,6 @@ export async function graphDriveIdV1(env: GraphAppEnvV1, siteId: string, depende
   return data.id;
 }
 
-/** The folder's stable Graph id from its path, so a later rename does not break the sync. */
-export async function graphFolderIdByPathV1(env: GraphAppEnvV1, driveId: string, path: string,
-  dependencies?: GraphDependencies): Promise<string> {
-  const encoded = path.split('/').filter(Boolean).map(encodeURIComponent).join('/');
-  const { data, correlationId } = await graphRequest<GraphDriveItemV1>({
-    env: asEnvV1(env), path: `/drives/${encodeURIComponent(driveId)}/root:/${encoded}?$select=id,folder`, dependencies });
-  if (typeof data?.id !== 'string' || !data.folder) throw new GraphError(502, correlationId);
-  return data.id;
-}
-
 export async function graphFolderWorkbooksV1(env: GraphAppEnvV1, driveId: string, folderId: string,
   dependencies: GraphDependencies = graphDefaultsV1): Promise<DriveWorkbookV1[]> {
   const token = await getGraphToken(asEnvV1(env), dependencies);
@@ -100,6 +90,31 @@ export async function graphFolderWorkbooksV1(env: GraphAppEnvV1, driveId: string
     next = typeof data['@odata.nextLink'] === 'string' ? data['@odata.nextLink'] : null;
   }
   return files;
+}
+
+/** Sub-folders of a folder (the drive root when `parentId` is null), for the admin folder picker. */
+export async function graphChildFoldersV1(env: GraphAppEnvV1, driveId: string, parentId: string | null,
+  dependencies: GraphDependencies = graphDefaultsV1): Promise<Array<{ id: string; name: string; childFolders: number }>> {
+  const token = await getGraphToken(asEnvV1(env), dependencies);
+  const parent = parentId === null ? 'root' : `items/${encodeURIComponent(parentId)}`;
+  const folders: Array<{ id: string; name: string; childFolders: number }> = [];
+  let next: string | null = `/drives/${encodeURIComponent(driveId)}/${parent}/children?$select=id,name,folder&$top=200`;
+  const seen = new Set<string>();
+  while (next) {
+    const url = graphUrlV1(next);
+    if (seen.has(url) || seen.size >= 20) throw new Error('Graph folder pagination capacity exceeded');
+    seen.add(url);
+    const { data, correlationId } = await graphRequest<{
+      value?: Array<{ id?: unknown; name?: unknown; folder?: { childCount?: unknown } }>; '@odata.nextLink'?: unknown;
+    }>({ env: asEnvV1(env), path: url, token, dependencies });
+    if (!Array.isArray(data?.value)) throw new GraphError(502, correlationId);
+    for (const item of data.value) {
+      if (!item.folder || typeof item.id !== 'string' || typeof item.name !== 'string') continue;
+      folders.push({ id: item.id, name: item.name, childFolders: typeof item.folder.childCount === 'number' ? item.folder.childCount : 0 });
+    }
+    next = typeof data['@odata.nextLink'] === 'string' ? data['@odata.nextLink'] : null;
+  }
+  return folders.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
 /**

@@ -1,27 +1,30 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import * as XLSX from 'xlsx';
-import type { SheetJs } from '../../src/features/gradebook/import/spreadsheet-recognizer';
-import type { PortalAdminServiceBindingV1 } from '../../shared/student-portal-contracts/ports-v1';
-import { createGradebookPostgresDatabaseV1 } from '../../server/gradebook/persistence/postgres/postgres-database-v1';
 import {
-  DRIVE_SUBSCRIPTION_MAX_MINUTES_V1,
+  ONEDRIVE_SYNC_CONTRACT_VERSION_V1,
+  oneDriveSyncRequestSchemaV1,
+  type OneDriveSyncActorV1,
+  type OneDriveSyncResponseV1,
+} from '../../shared/gradebook-contracts/onedrive-sync/onedrive-sync-contract-v1';
+import type { PortalAdminServiceBindingV1 } from '../../shared/student-portal-contracts/ports-v1';
+import type { SheetJs } from '../../src/features/gradebook/import/spreadsheet-recognizer';
+import {
+  graphChildFoldersV1,
   graphCreateDriveSubscriptionV1,
   graphDeleteSubscriptionV1,
   graphDownloadWorkbookV1,
-  graphDriveDeltaV1,
   graphDriveIdV1,
-  graphFolderIdByPathV1,
   graphFolderWorkbooksV1,
   WorkbookTooLargeError,
 } from '../../server/gradebook/onedrive-sync/graph-drive-v1';
 import { processWorkbookV1, type ProcessWorkbookInputV1 } from '../../server/gradebook/onedrive-sync/process-workbook-v1';
 import {
   NotasSyncCoordinatorV1,
-  type SyncControlV1,
   type SyncCoordinatorEnvV1,
 } from '../../server/gradebook/onedrive-sync/sync-coordinator-v1';
 import type { ReadResultV1 } from '../../server/gradebook/onedrive-sync/sync-rules-v1';
 import { prepareTeacherWorkbookV1 } from '../../server/gradebook/onedrive-sync/teacher-workbook-preparation-v1';
+import { createGradebookPostgresDatabaseV1 } from '../../server/gradebook/persistence/postgres/postgres-database-v1';
 
 export { NotasSyncCoordinatorV1 };
 
@@ -30,13 +33,12 @@ export { NotasSyncCoordinatorV1 };
  * writes what changed, through the same import, Auditoria and persistence as the browser.
  *
  * - `POST /graph/notificacoes`: Graph change notifications; a valid one wakes the coordinator.
- * - `GET /status`, `POST /controle`, `POST /sonda`: bearer-protected operation (PR 3 moves the
- *   panel into the admin centre). Answers carry file names and counts, never grades.
  * - cron (every minute): safety-net delta, nightly full check and webhook renewal.
+ * - `NotasSyncAdminV1.handle`: the admin panel, reached only through the Pages service binding
+ *   after the admin session is checked there. No public route operates the sync.
  * - `NotasSyncReaderV1.processFile`: one read, in its own invocation, called by the coordinator.
  */
 export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
-  NOTAS_SYNC_PROBE_TOKEN?: string;
   NOTAS_SYNC?: DurableObjectNamespace<NotasSyncCoordinatorV1>;
   SELF?: SyncCoordinatorEnvV1['SELF'];
   PROD_DB?: { readonly connectionString: string };
@@ -46,13 +48,7 @@ export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
 const NOTIFICATION_PATH = '/graph/notificacoes';
 const DEFAULT_MAX_WORKBOOK_BYTES = 8 * 1024 * 1024;
 const COORDINATOR_NAME = 'notas-onedrive-sync';
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-  });
-}
+const PREVIEW_NAMES_LIMIT = 60;
 
 function coordinatorV1(env: NotasSyncEnvV1) {
   if (!env.NOTAS_SYNC) throw new Error('notas-sync-coordinator-binding-missing');
@@ -66,12 +62,6 @@ export function sameSecretV1(given: string, expected: string): boolean {
   let difference = a.length ^ b.length;
   for (let index = 0; index < Math.max(a.length, b.length); index++) difference |= (a[index] ?? 0) ^ (b[index] ?? 0);
   return difference === 0 && expected.length > 0;
-}
-
-function authorizedV1(request: Request, env: NotasSyncEnvV1): boolean {
-  const header = request.headers.get('Authorization') ?? '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  return Boolean(env.NOTAS_SYNC_PROBE_TOKEN) && sameSecretV1(token, env.NOTAS_SYNC_PROBE_TOKEN ?? '');
 }
 
 /** Graph handshake: echo `validationToken` as text/plain within 10 s; otherwise acknowledge. */
@@ -103,98 +93,85 @@ function maxWorkbookBytesV1(env: NotasSyncEnvV1): number {
   return Number.isSafeInteger(configured) && configured > 0 ? configured : DEFAULT_MAX_WORKBOOK_BYTES;
 }
 
-async function probeWebhookV1(env: NotasSyncEnvV1, driveId: string, origin: string) {
-  if (!env.NOTAS_SYNC_CLIENT_STATE) return { tested: false, reason: 'client-state-missing' };
+async function webhookAcceptedV1(env: NotasSyncEnvV1, driveId: string): Promise<boolean | null> {
+  if (!env.NOTAS_SYNC_CLIENT_STATE || !env.NOTAS_SYNC_PUBLIC_URL) return null;
   try {
     const subscription = await graphCreateDriveSubscriptionV1(env, {
       driveId,
-      notificationUrl: `${origin}${NOTIFICATION_PATH}`,
+      notificationUrl: `${env.NOTAS_SYNC_PUBLIC_URL.replace(/\/+$/u, '')}${NOTIFICATION_PATH}`,
       clientState: env.NOTAS_SYNC_CLIENT_STATE,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
     await graphDeleteSubscriptionV1(env, subscription.id);
-    return { tested: true, accepted: true, maxMinutes: DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 };
-  } catch (cause) {
-    const status = typeof cause === 'object' && cause && 'status' in cause ? Number(cause.status) : null;
-    return { tested: true, accepted: false, status };
+    return true;
+  } catch {
+    return false;
   }
 }
 
-/** Read-only probe of the folder: lists, reads one workbook without writing, optionally tests the webhook. */
-export async function handleProbeV1(request: Request, env: NotasSyncEnvV1): Promise<Response> {
-  if (!authorizedV1(request, env)) return json({ error: 'unauthorized' }, 401);
-  const url = new URL(request.url);
-  const started = Date.now();
+/** Read-only look at a folder before it is used: its workbooks, one read without writing, the webhook. */
+async function previewV1(env: NotasSyncEnvV1, folderId: string, testWebhook: boolean) {
   const driveId = await graphDriveIdV1(env, env.NOTAS_SITE_ID);
-  const folderId = await graphFolderIdByPathV1(env, driveId, env.NOTAS_FOLDER_PATH);
   const workbooks = await graphFolderWorkbooksV1(env, driveId, folderId);
-  const delta = await graphDriveDeltaV1(env, driveId, null);
-  const inFolder = delta.changes.filter((item) => item.parentId === folderId && !item.deleted).length;
-  const index = Math.min(Math.max(Number(url.searchParams.get('arquivo') ?? 1), 1), Math.max(workbooks.length, 1)) - 1;
-  const sample = workbooks[index];
-  let read: Record<string, unknown> = { tested: false };
+  const sample = workbooks[0];
+  let result: { outcome: 'ready' | 'blocked' | 'unreadable' | 'too-large' | 'failed' | 'none'; code: string | null;
+    readMs: number | null; diagnostics: number | null } = { outcome: 'none', code: null, readMs: null, diagnostics: null };
   if (sample) {
-    const downloadStarted = Date.now();
     try {
       const bytes = await graphDownloadWorkbookV1(env, driveId, sample.id, maxWorkbookBytesV1(env));
-      const downloadMs = Date.now() - downloadStarted;
       const prepared = await prepareTeacherWorkbookV1({
-        bytes,
-        fileName: sample.name,
-        lastModified: Date.parse(sample.lastModifiedDateTime),
-        xlsx: XLSX as unknown as SheetJs,
-        now: () => Date.now(),
+        bytes, fileName: sample.name, lastModified: Date.parse(sample.lastModifiedDateTime) || 0,
+        xlsx: XLSX as unknown as SheetJs, now: () => Date.now(),
       });
-      read = {
-        tested: true,
-        file: index + 1,
+      result = {
         outcome: prepared.outcome,
-        ...(prepared.outcome === 'unreadable' ? { code: prepared.code } : {}),
-        downloadMs,
-        ...prepared.summary,
+        code: prepared.outcome === 'unreadable' ? prepared.code : null,
+        readMs: Math.round(prepared.summary.prepareMs),
+        diagnostics: prepared.summary.diagnostics,
       };
     } catch (cause) {
-      read = { tested: true, file: index + 1, outcome: cause instanceof WorkbookTooLargeError ? 'too-large' : 'failed' };
+      result = { outcome: cause instanceof WorkbookTooLargeError ? 'too-large' : 'failed', code: null, readMs: null, diagnostics: null };
     }
   }
-  const webhook = url.searchParams.get('webhook') === '1' ? await probeWebhookV1(env, driveId, url.origin) : { tested: false };
-  return json({
-    drive: true,
-    folder: true,
+  return {
     workbooks: workbooks.length,
     workbookBytes: workbooks.reduce((total, item) => total + item.size, 0),
-    withQuickXorHash: workbooks.filter((item) => item.quickXorHash !== null).length,
-    deltaWorkbooksInFolder: inFolder,
-    read,
-    webhook,
-    totalMs: Date.now() - started,
-  });
+    names: workbooks.slice(0, PREVIEW_NAMES_LIMIT).map((item) => item.name),
+    sample: result,
+    webhook: testWebhook ? { tested: true, accepted: await webhookAcceptedV1(env, driveId) } : { tested: false, accepted: null },
+  };
 }
 
-const CONTROL_ACTIONS_V1 = new Set(['enable', 'disable', 'pause', 'resume', 'read-all', 'set-wait', 'set-parallel', 'read-now']);
-
-/** Validates a control command from the bearer-protected route. */
-export function parseControlV1(value: unknown): SyncControlV1 | null {
-  if (typeof value !== 'object' || value === null) return null;
-  const command = value as Record<string, unknown>;
-  if (typeof command.action !== 'string' || !CONTROL_ACTIONS_V1.has(command.action)) return null;
-  if (command.action === 'set-wait') return typeof command.seconds === 'number' ? { action: 'set-wait', seconds: command.seconds } : null;
-  if (command.action === 'set-parallel') return typeof command.count === 'number' ? { action: 'set-parallel', count: command.count } : null;
-  if (command.action === 'read-now') return typeof command.fileId === 'string' && command.fileId ? { action: 'read-now', fileId: command.fileId } : null;
-  return { action: command.action as 'enable' | 'disable' | 'pause' | 'resume' | 'read-all' };
-}
-
-async function handleOperationV1(request: Request, env: NotasSyncEnvV1, pathname: string): Promise<Response> {
-  if (!authorizedV1(request, env)) return json({ error: 'unauthorized' }, 401);
-  if (pathname === '/status') return json(await coordinatorV1(env).status());
-  let command: SyncControlV1 | null;
+/** The admin panel's single entry. The caller (Pages) has already checked the admin session. */
+export async function handleAdminV1(env: NotasSyncEnvV1, actor: OneDriveSyncActorV1, input: unknown): Promise<OneDriveSyncResponseV1> {
+  const version = ONEDRIVE_SYNC_CONTRACT_VERSION_V1;
+  const parsed = oneDriveSyncRequestSchemaV1.safeParse(input);
+  if (!parsed.success || !actor.id || !actor.name) return { contractVersion: version, state: 'invalid-request' };
+  const request = parsed.data;
   try {
-    command = parseControlV1(await request.json());
+    switch (request.action) {
+      case 'status':
+        return { contractVersion: version, state: 'status', status: await coordinatorV1(env).status() };
+      case 'folders': {
+        const driveId = await graphDriveIdV1(env, env.NOTAS_SITE_ID);
+        return { contractVersion: version, state: 'folders', parentId: request.parentId,
+          folders: await graphChildFoldersV1(env, driveId, request.parentId) };
+      }
+      case 'preview':
+        return { contractVersion: version, state: 'preview', preview: await previewV1(env, request.folderId, request.testWebhook) };
+      default:
+        return { contractVersion: version, state: 'status', status: await coordinatorV1(env).control(request, actor) };
+    }
   } catch {
-    command = null;
+    return { contractVersion: version, state: 'unavailable' };
   }
-  if (!command) return json({ error: 'invalid-command' }, 400);
-  return json(await coordinatorV1(env).control(command, 'token-de-operacao'));
+}
+
+/** Reached only through the Pages service binding (`NOTAS_SYNC_SERVICE`). */
+export class NotasSyncAdminV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
+  async handle(actor: OneDriveSyncActorV1, input: unknown): Promise<OneDriveSyncResponseV1> {
+    return handleAdminV1(this.env, actor, input);
+  }
 }
 
 /** One read, in its own invocation: called by the coordinator through the SELF binding. */
@@ -226,14 +203,6 @@ export default {
     const { pathname } = new URL(request.url);
     if (request.method === 'POST' && pathname === NOTIFICATION_PATH)
       return handleNotificationV1(request, env, (work) => ctx?.waitUntil(work));
-    try {
-      if (request.method === 'POST' && pathname === '/sonda') return await handleProbeV1(request, env);
-      if ((request.method === 'GET' && pathname === '/status') || (request.method === 'POST' && pathname === '/controle'))
-        return await handleOperationV1(request, env, pathname);
-    } catch (cause) {
-      const status = typeof cause === 'object' && cause && 'status' in cause ? Number(cause.status) : null;
-      return json({ error: 'operation-failed', graphStatus: status }, 502);
-    }
     return new Response('Not found', { status: 404 });
   },
   async scheduled(_controller, env, ctx) {

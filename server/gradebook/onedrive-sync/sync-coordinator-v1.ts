@@ -1,11 +1,15 @@
 import { DurableObject } from 'cloudflare:workers';
+import type {
+  OneDriveSyncActorV1,
+  OneDriveSyncCommandV1,
+  OneDriveSyncStatusV1,
+} from '../../../shared/gradebook-contracts/onedrive-sync/onedrive-sync-contract-v1';
 import {
   DRIVE_SUBSCRIPTION_MAX_MINUTES_V1,
   graphCreateDriveSubscriptionV1,
   graphDeleteSubscriptionV1,
   graphDriveDeltaV1,
   graphDriveIdV1,
-  graphFolderIdByPathV1,
   graphFolderWorkbooksV1,
   type DriveWorkbookV1,
   type GraphAppEnvV1,
@@ -30,28 +34,19 @@ export interface SyncReaderV1 {
 }
 
 export interface SyncCoordinatorEnvV1 extends GraphAppEnvV1 {
+  /** The secretaria's OneDrive site; the folder of each academic year is chosen in the admin panel. */
   NOTAS_SITE_ID: string;
-  NOTAS_FOLDER_PATH: string;
   NOTAS_SYNC_PUBLIC_URL?: string;
   NOTAS_SYNC_CLIENT_STATE?: string;
   NOTAS_MAX_WORKBOOK_BYTES?: string;
   SELF: SyncReaderV1;
 }
 
-export type SyncControlV1 =
-  | { readonly action: 'enable' | 'disable' | 'pause' | 'resume' | 'read-all' }
-  | { readonly action: 'set-wait'; readonly seconds: number }
-  | { readonly action: 'set-parallel'; readonly count: number }
-  | { readonly action: 'read-now'; readonly fileId: string };
+export type SyncControlV1 = OneDriveSyncCommandV1;
 
-export type SyncStatusV1 = {
-  readonly settings: SyncSettingsV1;
-  readonly breakerUntil: number | null;
-  readonly webhook: { readonly active: boolean; readonly expiresAt: string | null };
-  readonly lastDeltaAt: number | null;
-  readonly files: readonly SyncFileV1[];
-  readonly events: readonly { readonly at: number; readonly kind: string; readonly detail: string }[];
-};
+type FolderConfigV1 = OneDriveSyncStatusV1['folders'][number];
+
+export type SyncStatusV1 = OneDriveSyncStatusV1;
 
 const META_DEFAULTS_V1 = { settings: DEFAULT_SYNC_SETTINGS_V1 };
 const DELTA_INTERVAL_WITH_WEBHOOK_MS = 60 * 60_000;
@@ -73,7 +68,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
       this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
       this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
-        at INTEGER NOT NULL, kind TEXT NOT NULL, detail TEXT NOT NULL)`);
+        at INTEGER NOT NULL, kind TEXT NOT NULL, actor TEXT, detail TEXT NOT NULL)`);
     });
   }
 
@@ -97,8 +92,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.ctx.storage.sql.exec('INSERT INTO files (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data',
       file.id, JSON.stringify(file));
   }
-  private event(kind: string, detail: Record<string, unknown> = {}): void {
-    this.ctx.storage.sql.exec('INSERT INTO events (at, kind, detail) VALUES (?, ?, ?)', Date.now(), kind, JSON.stringify(detail));
+  private event(kind: string, detail: Record<string, unknown> = {}, actor: string | null = null): void {
+    this.ctx.storage.sql.exec('INSERT INTO events (at, kind, actor, detail) VALUES (?, ?, ?, ?)',
+      Date.now(), kind, actor, JSON.stringify(detail));
     this.ctx.storage.sql.exec('DELETE FROM events WHERE id <= (SELECT max(id) FROM events) - ?', EVENT_LIMIT);
   }
   private settings(): SyncSettingsV1 {
@@ -129,9 +125,28 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     await this.wakeAt(now);
   }
 
-  async control(command: SyncControlV1, actor: string): Promise<SyncStatusV1> {
+  async control(command: SyncControlV1, actor: OneDriveSyncActorV1): Promise<SyncStatusV1> {
     const settings = this.settings();
     switch (command.action) {
+      case 'set-folder': {
+        // One folder per academic year; the year chosen last is the one read.
+        const folders = this.meta<Record<string, FolderConfigV1>>('folders', {});
+        const current = this.meta<number | null>('activeYear', null);
+        const previous = current === null ? null : folders[String(current)] ?? null;
+        folders[String(command.year)] = {
+          year: command.year, folderId: command.folderId, folderPath: command.folderPath, setBy: actor.name, setAt: Date.now(),
+        };
+        this.setMeta('folders', folders);
+        this.setMeta('activeYear', command.year);
+        if (previous?.folderId !== command.folderId) {
+          // Another folder: start its status from scratch; grades already written stay as they are.
+          this.ctx.storage.sql.exec('DELETE FROM files');
+          this.setMeta('location', null);
+          this.setMeta('deltaLink', null);
+          this.setMeta('deltaRequested', true);
+        }
+        break;
+      }
       case 'enable': this.setMeta('settings', { ...settings, enabled: true }); this.setMeta('deltaRequested', true); break;
       case 'disable': this.setMeta('settings', { ...settings, enabled: false }); break;
       case 'pause': this.setMeta('settings', { ...settings, paused: true }); break;
@@ -145,7 +160,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         break;
       }
     }
-    this.event('control', { actor, ...command });
+    this.event('control', { ...command }, actor.name);
     if (command.action === 'disable') await this.removeSubscription();
     await this.wakeAt(Date.now());
     return this.status();
@@ -155,12 +170,18 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const subscription = this.meta<{ id: string; expiresAt: string } | null>('subscription', null);
     return {
       settings: this.settings(),
+      activeYear: this.meta<number | null>('activeYear', null),
+      folders: Object.values(this.meta<Record<string, FolderConfigV1>>('folders', {})).sort((a, b) => b.year - a.year),
       breakerUntil: this.meta<number | null>('breakerUntil', null),
       webhook: { active: subscription !== null, expiresAt: subscription?.expiresAt ?? null },
       lastDeltaAt: this.meta<number | null>('lastDeltaAt', null),
-      files: this.files().sort((a, b) => a.name.localeCompare(b.name)),
-      events: this.ctx.storage.sql.exec<{ at: number; kind: string; detail: string }>(
-        'SELECT at, kind, detail FROM events ORDER BY id DESC LIMIT 50').toArray(),
+      files: this.files().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map((file) => ({
+        id: file.id, name: file.name, size: file.size, modifiedAt: file.modifiedAt, state: file.state, removed: file.removed,
+        lastOutcome: file.lastOutcome, lastCode: file.lastCode, lastReadAt: file.lastReadAt, lastReadMs: file.lastReadMs,
+        lastSavedToWrittenMs: file.lastSavedToWrittenMs,
+      })),
+      events: this.ctx.storage.sql.exec<{ at: number; kind: string; actor: string | null; detail: string }>(
+        'SELECT at, kind, actor, detail FROM events ORDER BY id DESC LIMIT 50').toArray(),
     };
   }
 
@@ -177,23 +198,35 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         if (graphAllowed && this.meta('nightlyRequested', false)) await this.fullCheck(now);
         else if (graphAllowed && this.meta('deltaRequested', false)) await this.deltaCheck(now);
       } catch (cause) {
-        this.event('graph-error', { status: graphStatusV1(cause) });
-        this.setMeta('graphBackoffUntil', now + 60_000);
-        this.recordFailure(now);
+        if (cause instanceof NoFolderConfiguredError) {
+          this.setMeta('deltaRequested', false);
+          this.setMeta('nightlyRequested', false);
+        } else {
+          this.event('graph-error', { status: graphStatusV1(cause) });
+          this.setMeta('graphBackoffUntil', now + 60_000);
+          this.recordFailure(now);
+        }
       }
       this.dispatch(now);
     }
     await this.scheduleNext();
   }
 
+  /** The active year's folder (by its Graph id, so a rename does not break it), or null if none is set. */
+  private activeFolder(): FolderConfigV1 | null {
+    const year = this.meta<number | null>('activeYear', null);
+    return year === null ? null : this.meta<Record<string, FolderConfigV1>>('folders', {})[String(year)] ?? null;
+  }
+
   private async location(): Promise<{ driveId: string; folderId: string }> {
-    const known = this.meta<{ driveId: string; folderId: string; path: string } | null>('location', null);
-    if (known && known.path === this.env.NOTAS_FOLDER_PATH) return known;
+    const folder = this.activeFolder();
+    if (!folder) throw new NoFolderConfiguredError();
+    const known = this.meta<{ driveId: string; folderId: string } | null>('location', null);
+    if (known && known.folderId === folder.folderId) return known;
     const driveId = await graphDriveIdV1(this.env, this.env.NOTAS_SITE_ID);
-    const folderId = await graphFolderIdByPathV1(this.env, driveId, this.env.NOTAS_FOLDER_PATH);
-    this.setMeta('location', { driveId, folderId, path: this.env.NOTAS_FOLDER_PATH });
+    this.setMeta('location', { driveId, folderId: folder.folderId });
     this.setMeta('deltaLink', null);
-    return { driveId, folderId };
+    return { driveId, folderId: folder.folderId };
   }
 
   private observe(items: readonly DriveWorkbookV1[], now: number): void {
@@ -281,7 +314,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   private async ensureSubscription(now: number): Promise<void> {
     const current = this.meta<{ id: string; expiresAt: string } | null>('subscription', null);
     if (current && Date.parse(current.expiresAt) - now > SUBSCRIPTION_RENEW_BEFORE_MS) return;
-    if (!this.env.NOTAS_SYNC_PUBLIC_URL || !this.env.NOTAS_SYNC_CLIENT_STATE) return;
+    if (!this.env.NOTAS_SYNC_PUBLIC_URL || !this.env.NOTAS_SYNC_CLIENT_STATE || !this.activeFolder()) return;
     const lastTry = this.meta<number | null>('subscriptionTriedAt', null);
     if (lastTry !== null && now - lastTry < 60 * 60_000) return;
     this.setMeta('subscriptionTriedAt', now);
@@ -321,6 +354,13 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const graphReadyAt = Math.max(now + 5_000, this.meta('graphBackoffUntil', 0), this.meta<number | null>('breakerUntil', null) ?? 0);
     const candidates = [next, pendingWork && this.settings().enabled ? graphReadyAt : null].filter((value): value is number => value !== null);
     if (candidates.length > 0) await this.wakeAt(Math.min(...candidates));
+  }
+}
+
+/** Nothing to read until an admin chooses the folder of an academic year. */
+class NoFolderConfiguredError extends Error {
+  constructor() {
+    super('No OneDrive folder configured');
   }
 }
 

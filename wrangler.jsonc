@@ -33,6 +33,10 @@
     "binding": "PUBLIC_DEMO_CONTROL",
     "service": "portal-aluno-demo-publica",
     "entrypoint": "DemoControl"
+  }, {
+    "binding": "NOTAS_SYNC_SERVICE",
+    "service": "notas-onedrive-sync",
+    "entrypoint": "NotasSyncAdminV1"
   }],
   "hyperdrive": [
     {

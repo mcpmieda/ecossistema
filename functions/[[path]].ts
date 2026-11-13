@@ -45,6 +45,7 @@ import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance
 import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessment-names-routes-v1';
 import { handleViewPreferencesRequestV1 } from '../server/gradebook/http/view-preferences-routes-v1';
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
+import { handleOneDriveSyncRequestV1 } from '../server/gradebook/http/onedrive-sync-routes-v1';
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { handleCollectorRequestV1 } from '../server/collector/routes-v1';
 import { handleFrequencyAdminRequestV2 } from '../server/collector/frequency-http-v2';
@@ -182,6 +183,9 @@ async function routeOfficialGradebookRequestV1(
 
   const yearResetResponse = await handleYearResetRequestV1(request, env, afterCommit);
   if (yearResetResponse) return yearResetResponse;
+
+  const oneDriveSyncResponse = await handleOneDriveSyncRequestV1(request, env);
+  if (oneDriveSyncResponse) return oneDriveSyncResponse;
 
   const operationalWorkspaceResponse = await handleOperationalWorkspaceRequestV1(request, env);
   if (operationalWorkspaceResponse) return operationalWorkspaceResponse;
