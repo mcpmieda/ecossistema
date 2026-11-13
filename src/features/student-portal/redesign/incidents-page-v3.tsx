@@ -176,6 +176,13 @@ function IncidentCardV3({
   );
 }
 
+/** The failed read in words, as on Frequência and Horário. */
+function incidentsErrorV3(error: string) {
+  if (error === 'unauthenticated') return 'Sua sessão expirou. Entre novamente para ver as ocorrências.';
+  if (error === 'forbidden') return 'As ocorrências não estão disponíveis no momento.';
+  return 'Não foi possível carregar as ocorrências agora.';
+}
+
 export function IncidentsPageV3({
   client,
   onAuthenticationLost,
@@ -230,10 +237,10 @@ export function IncidentsPageV3({
       {load.data ? null : (
         <Card className="pa3-card pa3-status" role={load.error ? 'alert' : undefined}>
           {load.error ? (
-            <Alert status="danger">
+            <Alert status={load.error === 'unauthenticated' ? 'warning' : 'danger'}>
               <Alert.Indicator />
               <Alert.Content>
-                <Alert.Description>Não foi possível carregar as ocorrências agora.</Alert.Description>
+                <Alert.Description>{incidentsErrorV3(load.error)}</Alert.Description>
               </Alert.Content>
             </Alert>
           ) : (
@@ -241,7 +248,8 @@ export function IncidentsPageV3({
               <Spinner size="sm" /> Carregando as ocorrências…
             </output>
           )}
-          {load.error ? (
+          {/* Asking again cannot help an expired session or a page the school turned off. */}
+          {load.error && load.error !== 'unauthenticated' && load.error !== 'forbidden' ? (
             <Button size="sm" variant="secondary" className="pa3-status-action" onPress={load.retry}>
               Tentar de novo
             </Button>
