@@ -62,6 +62,13 @@ export const notesSections: NotesSection[] = [
     searchTerms: 'auditoria ocorrência reconciliação resolução divergência histórico',
   },
   {
+    id: 'onedrive',
+    label: 'OneDrive',
+    description: 'Leitura automática das planilhas salvas na pasta do OneDrive da secretaria.',
+    href: notesAreaHref('onedrive'),
+    searchTerms: 'onedrive leitura automática sincronização pasta planilhas professores lançamento',
+  },
+  {
     id: 'settings',
     label: 'Configurações',
     description: 'Administrar o ciclo de vida dos anos letivos do Banco de Notas.',

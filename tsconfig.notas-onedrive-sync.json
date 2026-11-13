@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.server.json",
+  "include": ["workers/notas-onedrive-sync", "server/gradebook/onedrive-sync", "worker-configuration.d.ts"],
+  "exclude": [],
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "node"],
+    "tsBuildInfoFile": "./node_modules/.cache/notas-onedrive-sync.tsbuildinfo"
+  }
+}

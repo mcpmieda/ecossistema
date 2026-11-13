@@ -29,10 +29,12 @@ describe('shell navigation of 07/10/2026', () => {
       'council',
       'settings',
     ]);
-    // Auditoria of the Banco de notas sits under Importação, at its unchanged address.
+    // Auditoria of the Banco de notas sits under Importação, at its unchanged address, and so
+    // does the OneDrive automatic read.
     expect(importAreaSectionsV1().map((section) => [section.label, section.href])).toEqual([
       ['Importação', '#/banco-de-notas?area=importacao'],
       ['Auditoria', '#/banco-de-notas?area=audit'],
+      ['OneDrive', '#/banco-de-notas?area=onedrive'],
     ]);
     expect(serviceSectionsV2('banco-de-notas').some((section) => section.id === 'reports')).toBe(
       false,

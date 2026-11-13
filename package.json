@@ -15,16 +15,17 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -b tsconfig.app.json tsconfig.server.json --pretty false && tsc -b tsconfig.student-portal.json --pretty false && tsc -b tsconfig.student-portal-ui.json --pretty false",
+    "typecheck": "tsc -b tsconfig.app.json tsconfig.server.json --pretty false && tsc -b tsconfig.student-portal.json --pretty false && tsc -b tsconfig.student-portal-ui.json --pretty false && tsc -b tsconfig.notas-onedrive-sync.json --pretty false",
     "verify": "npm run lint && npm run typecheck && npm test && npm run verify:build",
-    "verify:build": "npm run build && npm run build:student-portal && npm run test:student-portal-runtime && npm run build:public-demo && npm run test:public-demo-runtime",
+    "verify:build": "npm run build && npm run build:student-portal && npm run test:student-portal-runtime && npm run build:public-demo && npm run test:public-demo-runtime && npm run build:notas-onedrive-sync",
     "build:student-portal": "npm run build:student-portal-ui && tsc -b tsconfig.student-portal.json && wrangler deploy --config wrangler.student-portal.jsonc --env preview --dry-run --outdir node_modules/.cache/student-portal && node workers/student-portal/build-edge.mjs",
     "test:student-portal-runtime": "vitest run --config tests/student-portal/runtime/vitest.runtime.config.ts && vitest run --config tests/student-portal/frontend-foundation/vitest.edge.config.ts",
     "test:student-portal-postgres": "npm run build:student-portal && vitest run --config tests/student-portal/runtime/vitest.postgres.config.ts && vitest run --config tests/student-portal/smoke/vitest.smoke.config.ts && vitest run --config tests/student-portal/frontend-foundation/vitest.postgres.config.ts && vitest run --config tests/student-portal/admin/vitest.postgres.config.ts && vitest run --config tests/student-portal/frontend-integration/vitest.postgres.config.ts && vitest run --config tests/student-portal/e2e/vitest.postgres.config.ts",
     "dev:student-portal": "vite --config vite.student-portal.config.ts",
     "build:student-portal-ui": "tsc -b tsconfig.student-portal-ui.json && vite build --config vite.student-portal.config.ts",
     "build:public-demo": "tsc -b tsconfig.public-demo.json && vite build --config vite.public-demo.config.ts && wrangler deploy --config wrangler.public-demo.jsonc --dry-run --outdir node_modules/.cache/public-demo-worker",
-    "test:public-demo-runtime": "vitest run --config tests/public-demo/vitest.runtime.config.ts"
+    "test:public-demo-runtime": "vitest run --config tests/public-demo/vitest.runtime.config.ts",
+    "build:notas-onedrive-sync": "tsc -b tsconfig.notas-onedrive-sync.json && wrangler deploy --config wrangler.notas-onedrive-sync.jsonc --dry-run --outdir node_modules/.cache/notas-onedrive-sync"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",
@@ -41,6 +42,7 @@
     "react-aria-components": "1.20.0",
     "react-dom": "latest",
     "vite": "latest",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.6.7"
   },
   "devDependencies": {

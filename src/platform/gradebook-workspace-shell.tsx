@@ -46,6 +46,11 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
       'Entenda pendências atuais da fonte e as ações sugeridas, sem correção automática.',
   },
   {
+    id: 'onedrive',
+    label: 'OneDrive',
+    description: 'Leitura automática das planilhas salvas na pasta do OneDrive da secretaria.',
+  },
+  {
     id: 'settings',
     label: 'Configurações',
     description: 'Administre com segurança o ciclo de vida dos anos letivos materializados.',
@@ -110,10 +115,17 @@ const SettingsPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
   ),
 );
 
+const OneDriveSyncPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
+  import('../features/gradebook/onedrive-sync/onedrive-sync-page-v1').then(
+    (module) => module.OneDriveSyncPageV1,
+  ),
+);
+
 // The area in the address is the first one shown: ask for it at once.
 if (typeof window !== 'undefined') {
   const opened = workspaceSurfaceFromHash();
-  if (opened === 'audit') GradebookAuditSurface.preload();
+  if (opened === 'onedrive') OneDriveSyncPage.preload();
+  else if (opened === 'audit') GradebookAuditSurface.preload();
   else if (opened === 'performance') PerformancePage.preload();
   else if (opened === 'bulletins') BulletinPage.preload();
   else if (opened === 'council') CouncilWorkspaceSurface.preload();
@@ -126,6 +138,7 @@ const WORKSPACE_SECTIONS_V1 = [
   BulletinPage,
   CouncilWorkspaceSurface,
   SettingsPage,
+  OneDriveSyncPage,
 ];
 const SURFACE_COMPONENTS: Record<
   Exclude<GradebookWorkspaceSurfaceId, 'importacao'>,
@@ -136,6 +149,7 @@ const SURFACE_COMPONENTS: Record<
   bulletins: BulletinPage,
   council: CouncilWorkspaceSurface,
   settings: SettingsPage,
+  onedrive: OneDriveSyncPage,
 };
 
 type SurfaceBoundaryProps = {
@@ -395,6 +409,8 @@ function GradebookWorkspaceShellContent() {
                         return <PerformancePage key={scopeKey} isActive={active} />;
                       if (surface.id === 'settings')
                         return <SettingsPage key={scopeKey} isActive={active} />;
+                      if (surface.id === 'onedrive')
+                        return <OneDriveSyncPage key={scopeKey} isActive={active} />;
                       return <SurfaceComponent key={scopeKey} />;
                     })()}
                   </Suspense>
