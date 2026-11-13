@@ -132,6 +132,39 @@ describe('one sync read', () => {
     expect((await processWorkbookV1(input, large.ports)).outcome).toBe('too-large');
     const junk = portsV1({ bytes: new Uint8Array([1, 2, 3]).buffer });
     expect((await processWorkbookV1(input, junk.ports)).outcome).toBe('unreadable');
-    expect(junk.calls).toEqual([]);
+    // The connection is opened early (alongside the download), but nothing is written.
+    expect(junk.calls).toEqual(['open']);
+    expect(junk.database.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe('memory of the last write (speed)', () => {
+  it('a save with nothing new touches neither the Auditoria nor the grades', async () => {
+    const first = portsV1({ bytes: bytesOf('teacher') });
+    const written = await processWorkbookV1(input, first.ports);
+    expect(written.memory?.audit).toMatch(/^[0-9a-f]{32}$/u);
+    const again = portsV1({ bytes: bytesOf('teacher') });
+    const result = await processWorkbookV1({ ...input, memory: written.memory }, again.ports);
+    expect(result.outcome).toBe('no-changes');
+    expect(again.calls).toEqual(['open']);
+  });
+
+  it('only the classes/subjects that changed are sent', async () => {
+    const first = portsV1({ bytes: bytesOf('teacher') });
+    const written = await processWorkbookV1(input, first.ports);
+    const offers = (first.persisted[0] as { ofertas: Array<{ turmaCodigo: string; disciplina: string }> }).ofertas;
+    const [kept] = offers;
+    const stale = { ...written.memory!, offers: { ...written.memory!.offers, [`${kept!.turmaCodigo}|${kept!.disciplina}`]: 'old' } };
+    const next = portsV1({ bytes: bytesOf('teacher') });
+    await processWorkbookV1({ ...input, memory: stale }, next.ports);
+    expect(next.calls).toEqual(['open', 'persist', 'portal']);
+    expect((next.persisted[0] as { ofertas: unknown[] }).ofertas).toHaveLength(1);
+  });
+
+  it('a failed write keeps the old memory, so the next read writes again', async () => {
+    const failing = portsV1({ bytes: bytesOf('teacher'), persistThrows: true });
+    const result = await processWorkbookV1(input, failing.ports);
+    expect(result.outcome).toBe('failed');
+    expect(result.memory).toBeUndefined();
   });
 });

@@ -156,7 +156,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'read-all': this.setMeta('nightlyRequested', true); break;
       case 'read-now': {
         const file = this.file(command.fileId);
-        if (file && file.state !== 'reading') this.saveFile({ ...file, state: 'pending', dueAt: Date.now(), processedHash: null });
+        if (file && file.state !== 'reading') this.saveFile({ ...file, state: 'pending', dueAt: Date.now(), processedHash: null, memory: null });
         break;
       }
     }
@@ -257,6 +257,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.observe(listed, now);
     for (const file of this.files()) {
       if (!present.has(file.id) && !file.removed) this.saveFile({ ...file, removed: true, state: file.state === 'reading' ? 'reading' : 'idle', dueAt: null });
+      // Once a day the next read of each file writes everything again (memory forgotten).
+      else if (file.memory) this.saveFile({ ...file, memory: null });
     }
     const delta = await graphDriveDeltaV1(this.env, driveId, null);
     this.setMeta('deltaLink', delta.deltaLink);
@@ -277,7 +279,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       this.saveFile(startReadingV1(file, lease, now));
       const input: ProcessWorkbookInputV1 = {
         driveId: location.driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
-        expectedYear: this.activeFolder()?.year ?? null,
+        expectedYear: this.activeFolder()?.year ?? null, memory: file.memory ?? null,
       };
       const result = await this.env.SELF.processFile(input).catch((cause: unknown): ReadResultV1 => {
         console.error(JSON.stringify({ event: 'notas-sync-reader-unreachable', error: String(cause).slice(0, 300) }));

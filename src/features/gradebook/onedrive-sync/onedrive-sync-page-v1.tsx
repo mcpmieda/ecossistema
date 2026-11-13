@@ -122,6 +122,8 @@ function FolderPicker({ year, onChosen, onCancel }: {
   const [preview, setPreview] = useState<PreviewV1 | null>(null);
   const [busy, setBusy] = useState<'list' | 'preview' | 'save' | null>('list');
   const [failure, setFailure] = useState<string | null>(null);
+  const [listFailed, setListFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const current = trail.at(-1) ?? null;
   const path = trail.map((item) => item.name).join('/');
 
@@ -129,15 +131,21 @@ function FolderPicker({ year, onChosen, onCancel }: {
     const controller = new AbortController();
     setBusy('list');
     setPreview(null);
+    setFailure(null);
+    setListFailed(false);
     void requestOneDriveSyncV1({ action: 'folders', parentId: current?.id ?? null }, controller.signal)
       .then((answer) => {
-        if (answer.state === 'folders') setFolders(answer.folders);
-        else setFailure('Não foi possível listar as pastas do OneDrive.');
+        // A failed list never leaves the previous folder's list on screen under the new path.
+        setFolders(answer.state === 'folders' ? answer.folders : []);
+        if (answer.state !== 'folders') {
+          setFailure('Não foi possível listar as pastas do OneDrive.');
+          setListFailed(true);
+        }
       })
       .catch(() => undefined)
       .finally(() => { if (!controller.signal.aborted) setBusy(null); });
     return () => controller.abort();
-  }, [current?.id]);
+  }, [current?.id, attempt]);
 
   const runPreview = async () => {
     if (!current) return;
@@ -178,7 +186,7 @@ function FolderPicker({ year, onChosen, onCancel }: {
           <strong>{preview.workbooks} planilha(s) · {(preview.workbookBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB</strong>
           <span className="text-muted">
             Leitura de teste (sem gravar): {preview.sample.outcome === 'ready' ? 'reconhecida' : preview.sample.outcome === 'none' ? 'nenhuma planilha' : preview.sample.outcome}
-            {preview.sample.readMs !== null ? ` em ${seconds(preview.sample.readMs)}` : ''}
+            {preview.sample.readMs !== null && preview.sample.readMs > 0 ? ` em ${seconds(preview.sample.readMs)}` : ''}
           </span>
           <span className="text-muted">
             Aviso da Graph: {preview.webhook.accepted === true ? 'aceito' : preview.webhook.accepted === false ? 'recusado — a pasta será conferida a cada minuto' : 'não testado'}
@@ -186,7 +194,12 @@ function FolderPicker({ year, onChosen, onCancel }: {
           {preview.names.length > 0 ? <span className="text-xs text-muted">{preview.names.join(' · ')}</span> : null}
         </div>
       ) : null}
-      {failure ? <p className="text-sm text-danger" role="alert">{failure}</p> : null}
+      {failure ? (
+        <p className="flex flex-wrap items-center gap-2 text-sm text-danger" role="alert">
+          {failure}
+          {listFailed ? <Button size="sm" variant="ghost" onPress={() => setAttempt((value) => value + 1)}>Tentar de novo</Button> : null}
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" isDisabled={!current || busy !== null} isPending={busy === 'preview'} onPress={() => void runPreview()}>
           Ver prévia desta pasta
