@@ -32,6 +32,11 @@ export interface GradebookPostgresDatabaseOptionsV1 {
   readonly statementTimeoutMilliseconds?: number;
   readonly lockTimeoutMilliseconds?: number;
   readonly idleInTransactionTimeoutMilliseconds?: number;
+  /**
+   * Named prepared statements (default). Off, each query goes as one unnamed statement:
+   * one round trip instead of two for a query the connection has not seen yet.
+   */
+  readonly prepare?: boolean;
 }
 
 /**
@@ -256,7 +261,7 @@ export async function createGradebookPostgresDatabaseV1(
   const sql: GradebookPostgresSqlV1 = postgres(connectionString, {
     max: options.maximumConnections ?? 5,
     fetch_types: false,
-    prepare: true,
+    prepare: options.prepare ?? true,
     connect_timeout: options.connectTimeoutSeconds ?? 10,
     idle_timeout: options.idleTimeoutSeconds ?? 2,
     max_lifetime: options.maximumLifetimeSeconds ?? 60,

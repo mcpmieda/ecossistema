@@ -14,9 +14,7 @@
   "preview_urls": false,
   "send_metrics": false,
   "limits": { "cpu_ms": 30000 },
-  // Next to the database (Supabase, São Paulo). Applies to requests, so the coordinator
-  // calls the reader with fetch, not RPC.
-  "placement": { "mode": "targeted", "region": "aws:sa-east-1" },
+  "placement": { "mode": "smart" },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
