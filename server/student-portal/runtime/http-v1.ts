@@ -67,14 +67,16 @@ export function portalRequestOriginAllowedV1(
  * Google, the school site), which send `Sec-Fetch-Site: cross-site` and often add tracking
  * parameters such as `?fbclid=`. Those must open the page. The same host/forwarding checks still
  * apply, and framing stays refused (clickjacking). API routes keep portalRequestOriginAllowedV1.
+ * `anyPath` is for the "Página não encontrada" page the edge serves on a wrong address.
  */
 export function portalDocumentNavigationAllowedV1(
   request: Request,
   environment: string,
   origin: string,
+  anyPath = false,
 ): boolean {
   const url = new URL(request.url);
-  if (url.pathname !== '/' && url.pathname !== '/access') return false;
+  if (!anyPath && url.pathname !== '/' && url.pathname !== '/access') return false;
   if (environment === 'production' && origin !== 'https://aluno.escolaieda.com') return false;
   if (environment !== 'local' && environment !== 'production') return false;
   if (environment === 'local' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))

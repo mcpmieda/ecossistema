@@ -22,6 +22,15 @@ export const PUBLICATION_LABELS_V1 = {
   published: 'Publicada',
   'update-pending': 'Há notas novas no Banco',
 } as const;
+/**
+ * A7: a release of another scope (a class, one student) covers only some students of this one.
+ * Returns how many are published, or null when the period is fully published or not at all.
+ */
+export function publicationPartialV1(item: PublicationItemV1) {
+  const { publishedCount, targetCount } = item;
+  if (item.publishedRevision === null || publishedCount === undefined || targetCount === undefined) return null;
+  return publishedCount < targetCount ? { published: publishedCount, total: targetCount } : null;
+}
 export function publicationSnapshotV1(
   scope: ScopeV1,
   publication: AdminResponseV1,

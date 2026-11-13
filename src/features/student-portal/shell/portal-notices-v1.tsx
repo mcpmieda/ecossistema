@@ -116,18 +116,21 @@ function FlipCardV1({ value }: Readonly<{ value: string }>) {
   );
 }
 
-/** Days/hours/minutes/seconds to `at`; at zero it asks the student to refresh the page. */
+/** Days/hours/minutes/seconds to `at`; at zero it asks the student to refresh the page, unless
+ * `reload` is false (nothing new comes with a refresh: the school year's end). */
 export function PortalCountdownV1({
   at,
   title,
   done,
   when,
+  reload = true,
 }: Readonly<{
   at: string;
   title: string;
   done: string;
   /** What follows the title instead of "dd/mm às hh:mm" (the school year's end says only the day). */
   when?: string;
+  reload?: boolean;
 }>) {
   const target = Date.parse(at);
   const now = useNowV1(target);
@@ -136,11 +139,15 @@ export function PortalCountdownV1({
     return (
       <output className="block pa-countdown pa-countdown--done">
         <b>{done}</b>
-        <span>Atualize a página para ver.</span>
-        <Button size="sm" onPress={() => window.location.reload()}>
-          <RefreshCw size={16} aria-hidden="true" />
-          Atualizar página
-        </Button>
+        {reload && (
+          <>
+            <span>Atualize a página para ver.</span>
+            <Button size="sm" onPress={() => window.location.reload()}>
+              <RefreshCw size={16} aria-hidden="true" />
+              Atualizar página
+            </Button>
+          </>
+        )}
       </output>
     );
   const units = [

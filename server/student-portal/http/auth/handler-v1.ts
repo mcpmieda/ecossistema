@@ -72,7 +72,7 @@ async function serveSessionReadV1(
   return result ? portalJsonV1(result, 200) : fail('unauthenticated');
 }
 
-/** Logout: revokes the session it names, and always clears the cookie. */
+/** Logout: revokes the session it names. The caller clears the cookie on every answer. */
 async function serveLogoutV1(
   request: Request,
   sessions: Pick<SessionServiceV1, 'logout'>,
@@ -83,9 +83,7 @@ async function serveLogoutV1(
   const token = sessionCookieTokenV1(request);
   // No plausible token means there is nothing to revoke; keep logout idempotent and clear it.
   if (token) await sessions.logout(token, requestId);
-  const response = portalJsonV1(logoutResponseV1.parse({ contractVersion: 1, requestId, state: 'logged-out' }), 200);
-  response.headers.set('Set-Cookie', `${COOKIE}${FLAGS}; Max-Age=0`);
-  return response;
+  return portalJsonV1(logoutResponseV1.parse({ contractVersion: 1, requestId, state: 'logged-out' }), 200);
 }
 
 /** A sign-in step's answer: the session cookie when it ends signed in, a failure with its status. */
@@ -125,6 +123,20 @@ export async function servePortalAuthV1(request: Request, environment: string, o
   if (!route) return portalJsonV1({ contractVersion: 1, requestId, state: 'unavailable' }, 404);
   if (request.method !== (route === 'session' ? 'GET' : 'POST')) return fail('invalid-request');
   const acceptAccessClosed = request.headers.get(ACCESS_CLOSED_ACCEPT_HEADER_V1) === 'v1';
+  const response = await serveRouteV1(request, route, { requestId, acceptAccessClosed, fail }, auth, sessions);
+  // Sair clears this device's cookie on every answer, also when revocation fails (database,
+  // maintenance or a rate limit): a shared phone must never stay signed in.
+  if (route === 'logout') response.headers.set('Set-Cookie', `${COOKIE}${FLAGS}; Max-Age=0`);
+  return response;
+}
+
+async function serveRouteV1(
+  request: Request,
+  route: 'challenge' | 'activate' | 'login' | 'logout' | 'session',
+  { requestId, acceptAccessClosed, fail }: { requestId: RequestIdV1; acceptAccessClosed: boolean; fail: FailV1 },
+  auth: Pick<AuthServiceV1, 'challenge' | 'activate' | 'login'>,
+  sessions: Pick<SessionServiceV1, 'read' | 'logout'>,
+): Promise<Response> {
   try {
     if (route === 'session') return await serveSessionReadV1(request, sessions, { requestId, acceptAccessClosed, fail });
     if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return fail('invalid-request');

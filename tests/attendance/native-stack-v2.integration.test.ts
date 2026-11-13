@@ -345,7 +345,7 @@ native('frequency V2 complete native migration stack', () => {
         tx.unsafe(`SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule`, [who, session]),
       );
     expect((await scheduleRead())[0]!.schedule).toEqual({
-      classes: [{ label: '6A', observedAt: expect.any(String), lessons: lessonsOfGrid }],
+      classes: [{ label: '6A', observedAt: expect.any(String), validFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u), lessons: lessonsOfGrid }],
     });
     expect((await scheduleRead(crypto.randomUUID()))[0]!.schedule).toBeNull();
     // A later reading in which this student's diary did not change stores no row for them (only what
@@ -358,7 +358,7 @@ native('frequency V2 complete native migration stack', () => {
  WHERE b.id='${kept!.id}' RETURNING id,observed_at)
  UPDATE attendance.class_state_v2 cs SET last_batch_id=later.id,last_observed_at=later.observed_at FROM later WHERE cs.class_id=101`);
     expect((await scheduleRead())[0]!.schedule).toEqual({
-      classes: [{ label: '6A', observedAt: expect.any(String), lessons: lessonsOfGrid }],
+      classes: [{ label: '6A', observedAt: expect.any(String), validFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u), lessons: lessonsOfGrid }],
     });
     expect(new Date(((await yearRead())[0]!.frequency as PortalFrequencyYearReadV2).lastReadAt!).toISOString()).toBe(
       '2026-01-10T13:00:00.000Z',

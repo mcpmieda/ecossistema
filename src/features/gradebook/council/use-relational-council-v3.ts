@@ -180,8 +180,11 @@ export function useRelationalCouncilV3() {
       const response = await requestRelationalCouncilV3(commandRequest);
       if (response.state === 'not-authorized') { loseAccess(); return response; }
       if (response.state !== 'ready' || response.operation === 'classes') {
-        setFailure(response.state === 'ready' ? 'unavailable' : response.state);
-        if (response.state === 'version-conflict' || response.state === 'review-conflict' || response.state === 'session-closed') await loadWorkspace(classId);
+        const refused = response.state === 'ready' ? 'unavailable' : response.state;
+        const reread = refused === 'version-conflict' || refused === 'review-conflict' || refused === 'session-closed';
+        // The reread clears the last failure, so the refusal is shown again once it succeeds;
+        // a reread that failed keeps its own failure (a lost access among them).
+        if (!reread || await loadWorkspace(classId) === true) setFailure(refused);
         return response;
       }
       setWorkspace(response.workspace);

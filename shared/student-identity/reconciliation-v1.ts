@@ -2,6 +2,14 @@ import { z } from 'zod';
 import { studentUidV1, STUDENT_NAME_MAX_LENGTH_V1 } from './student-identity-v1';
 
 export const RECONCILIATION_ROUTE_V1 = '/api/student-reconciliation/v1';
+/** Operations that only read; the ADM limiter and the handler both use this list. */
+export const RECONCILIATION_READ_OPERATIONS_V1: readonly string[] = [
+  'catalog',
+  'pending-count',
+  'automatic-report',
+  'list',
+  'detail',
+];
 /** The pending count stops one past this; the Centro shows it as "50+". */
 export const RECONCILIATION_PENDING_CAP_V1 = 50;
 export const REPORT_MAX_ROWS_V1 = 10000;
