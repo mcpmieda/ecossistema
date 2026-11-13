@@ -753,6 +753,17 @@ export function RelationalBulletinPageV2() {
       });
     return () => controller.abort();
   }, [year]);
+  /**
+   * A new class, period, detail or student drops the bulletin on screen, and a preview or emission
+   * still on its way is let go: its answer belongs to the choice before.
+   */
+  const dropArtifact = () => {
+    setArtifact(null);
+    if (busy === 'artifact' || busy === 'batch') {
+      sequence.current += 1;
+      setBusy(null);
+    }
+  };
   const loadStudents = async (nextClassId: number) => {
     const ticket = ++sequence.current;
     setClassId(nextClassId);
@@ -796,7 +807,7 @@ export function RelationalBulletinPageV2() {
     (restored) => {
       setPeriod(periodOfTermV2(restored.term));
       setDetail(restored.detail);
-      setArtifact(null);
+      dropArtifact();
       if (restored.classId === classId) return;
       if (restored.classId !== null) {
         void loadStudents(restored.classId);
@@ -838,6 +849,7 @@ export function RelationalBulletinPageV2() {
   };
   const preview = async () => {
     if (classId === null || previewStudentId === null) return;
+    const ticket = sequence.current;
     setBusy('artifact');
     const response = await safely(() =>
       requestRelationalBulletinV2({
@@ -846,6 +858,7 @@ export function RelationalBulletinPageV2() {
         selection: selection(previewStudentId),
       }),
     );
+    if (ticket !== sequence.current) return;
     if (response?.state === 'ready' && response.operation === 'preview')
       show(
         { mode: 'preview', model: response.model },
@@ -855,6 +868,7 @@ export function RelationalBulletinPageV2() {
   };
   const emit = async () => {
     if (classId === null || previewStudentId === null) return;
+    const ticket = sequence.current;
     setBusy('artifact');
     const response = await safely(() =>
       requestRelationalBulletinV2({
@@ -863,6 +877,7 @@ export function RelationalBulletinPageV2() {
         selection: selection(previewStudentId),
       }),
     );
+    if (ticket !== sequence.current) return;
     if (response?.state === 'ready' && response.operation === 'emit')
       show(
         { mode: 'emission', snapshot: response.snapshot },
@@ -872,6 +887,7 @@ export function RelationalBulletinPageV2() {
   };
   const emitBatch = async () => {
     if (classId === null || selectedIds.length === 0) return;
+    const ticket = sequence.current;
     setBusy('batch');
     const response = await safely(() =>
       requestRelationalBulletinV2({
@@ -887,6 +903,7 @@ export function RelationalBulletinPageV2() {
         },
       }),
     );
+    if (ticket !== sequence.current) return;
     if (response?.state === 'ready' && response.operation === 'emit-batch') {
       setNotice(
         `${response.ready.length} boletim(ns) emitido(s); ${response.blocked.length} protegido(s) por dados insuficientes.`,
@@ -1129,7 +1146,7 @@ export function RelationalBulletinPageV2() {
                 ? { kind: 'annual' }
                 : { kind: 'term', term: Number(value) as 1 | 2 | 3 },
             );
-            setArtifact(null);
+            dropArtifact();
           }}
         />
         <BulletinSelect
@@ -1141,7 +1158,7 @@ export function RelationalBulletinPageV2() {
           ]}
           onChange={(value) => {
             setDetail(value as RelationalBulletinDetailV2);
-            setArtifact(null);
+            dropArtifact();
           }}
         />
         <BulletinSelect
@@ -1159,7 +1176,7 @@ export function RelationalBulletinPageV2() {
           onChange={(value) => {
             const id = value === 'none' ? null : Number(value);
             setPreviewStudentId(id);
-            setArtifact(null);
+            dropArtifact();
           }}
         />
         <Button
