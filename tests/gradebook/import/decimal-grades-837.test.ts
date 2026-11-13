@@ -94,6 +94,12 @@ it('retains positive decimals and counts a result with a pending eligible PARA a
 it('applies the ordinary precision and maximum diagnostics to 0.1 as to any grade', () => {
   const diagnostics = collectGradebookImportDiagnosticsV1(decimalGradeBatch837({ AA3: { v: 0.05 }, AA5: { v: 0.1 } }));
   expect(diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'above-maximum', cellAddress: 'AA5' })]));
-  expect(() => request(decimalGradeBatch837({ R5: { v: 0.1001 } }))).toThrow(/3 casas/);
-  expect(() => request(decimalGradeBatch837({ R5: { v: -0.1 } }))).toThrow(/negativa/);
+  // BN-DEC-045: the invalid grade and the student's AM are held (unavailable); nothing else changes.
+  for (const value of [0.1001, -0.1]) {
+    const held = request(decimalGradeBatch837({ R5: { v: value } }));
+    if (held.operation !== 'persist-notas') throw new Error('unexpected operation');
+    const [, values, am] = held.ofertas[0]!.trimestres[0].alunos[0]!;
+    expect(values[0]).toEqual(['u']);
+    expect(am).toEqual(['u']);
+  }
 });

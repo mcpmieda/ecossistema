@@ -186,19 +186,22 @@ function prepareLocalPersistenceV9(
     unavailableCells = sourceUnavailableGradebookImportDiagnosticsV1(diagnostics).length;
     auditRequest = gradebookImportDiagnosticsAuditRequestV1(result, diagnostics);
     diagnosticLocalMs = elapsedMs(started);
-    if (blocking.length > 0)
-      return {
-        ...base(),
-        kind: 'blocked',
-        blockingCount: blocking.length,
-        message: `${blocking.length} problema(s) precisam ser corrigidos antes de enviar esta planilha.`,
-      };
+    // Partial hold (BN-DEC-045): problems hold only the cells, results or classes they affect;
+    // the rest of the workbook is written. The file is blocked only when nothing can be written.
     const canonicalStarted = nowMs();
     let request: GradebookImportPersistenceRequestV9;
     try {
       request = createGradebookCanonicalImportRequestV9(result, {
         onWarning: (warning) => maximumWarnings.push(warning),
       });
+    } catch (cause) {
+      if (blocking.length === 0) throw cause;
+      return {
+        ...base(),
+        kind: 'blocked',
+        blockingCount: blocking.length,
+        message: `${blocking.length} problema(s) impedem lançar qualquer turma desta planilha.`,
+      };
     } finally {
       canonicalBuildMs = elapsedMs(canonicalStarted);
     }
