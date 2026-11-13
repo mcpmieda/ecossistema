@@ -20,6 +20,12 @@ const absenceLimitDaysV2 = (schoolDays: number) => schoolDays / 4;
 const NEAR_LIMIT_SHARE = 0.6;
 /** The last four weeks: the twenty most recent weekdays with lessons. */
 const RECENT_WEEKDAYS = 20;
+/**
+ * A day not read in full (or with a mark in conflict) holds back the green sentences only while it
+ * can still be read again or resolved: the last 30 days. An older one is a gap that never closes, and
+ * it would take the praise away for the rest of the year (owner decision 13/11/2026).
+ */
+const OPEN_DAY_WINDOW_DAYS = 30;
 
 export type FrequencyCommentKindV2 =
   | 'over-limit'
@@ -39,13 +45,15 @@ const dateLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
 
 /** Each day already over: its lessons (every shift's positions) and its absences without
  * justification, most recent first; days without lessons are left out. `open`: some shift of the day
- * was not read in full (or had a mark in conflict), as the ring and the calendar show it. */
+ * was not read in full (or had a mark in conflict) in the last 30 days, as the ring and the calendar
+ * show it. */
 function pastSchoolDaysV2(months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[], today: string) {
   const lessons = new Map<string, Set<string>>();
   const open = new Set<string>();
+  const openSince = new Date(Date.parse(`${today}T12:00:00Z`) - OPEN_DAY_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
   for (const day of months.flatMap((month) => month.days ?? []) as FrequencyDayV2[]) {
     if (day.date >= today) continue;
-    if (day.complete === false) open.add(day.date);
+    if (day.complete === false && day.date >= openSince) open.add(day.date);
     const set = lessons.get(day.date) ?? new Set<string>();
     for (const slot of day.slots) set.add(`${day.shift}:${slot}`);
     lessons.set(day.date, set);
@@ -134,7 +142,7 @@ export function frequencyCommentV2({
   if (before.length && beforeRate >= 0.1 && recentRate < 0.5 * beforeRate)
     return good('improving', 'Está faltando menos dias. Continue assim!');
   // "Nenhuma falta" is for who never missed: a justified absence is still an absence (owner request 01/11/2026).
-  // A day not read in full (or with a mark in conflict) may hide one, so it never counts as "sem falta".
+  // A recent day not read in full (or with a mark in conflict) may hide one: it never counts as "sem falta".
   if (all.every((day) => !day.marked && !day.open)) return good('none-this-year', 'Nenhuma falta este ano. Parabéns!');
   if (recent.length && recent.every((day) => !day.marked && !day.open))
     return good('none-recently', 'Nenhuma falta nas últimas 4 semanas. Muito bem!');
