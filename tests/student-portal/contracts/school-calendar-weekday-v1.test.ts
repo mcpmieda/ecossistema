@@ -5,6 +5,8 @@ import {
   schoolCalendarDaysInputV1,
   schoolCalendarDaysV1,
   schoolDayFitsWeekdayV1,
+  schoolDaysOfV1,
+  schoolYearProgressOfV1,
 } from '../../../shared/student-portal-contracts/school-calendar-v1';
 
 /*
@@ -38,4 +40,31 @@ it('keeps the right weekdays, an evento com aula on a Saturday and the official 
 
 it('still reads a calendar saved before the rule', () => {
   expect(schoolCalendarDaysV1.safeParse([{ date: '2026-06-07', kind: 'letivo' }]).success).toBe(true);
+});
+
+it('refuses an evento com aula on a Sunday', () => {
+  expect(schoolDayFitsWeekdayV1({ date: '2026-06-07', kind: 'evento-letivo' })).toBe(false);
+  expect(schoolCalendarDaysInputV1.safeParse([{ date: '2026-06-07', kind: 'evento-letivo' }]).success).toBe(false);
+  expect(schoolCalendarDaysInputV1.safeParse([{ date: '2026-06-10', kind: 'evento-letivo' }]).success).toBe(true);
+});
+
+it('never counts for the Portal a school day saved on the wrong weekday', () => {
+  const days = [
+    { date: '2026-06-07', kind: 'letivo' as const }, // Sunday
+    { date: '2026-06-14', kind: 'evento-letivo' as const }, // Sunday
+    { date: '2026-06-10', kind: 'sabado-letivo' as const }, // Wednesday
+    { date: '2026-06-13', kind: 'sabado-letivo' as const }, // Saturday
+    { date: '2026-06-15', kind: 'letivo' as const }, // Monday
+  ];
+  expect(schoolDaysOfV1(days)).toEqual(['2026-06-13', '2026-06-15']);
+  expect(schoolYearProgressOfV1(days, '2026-06-01')).toEqual({
+    schoolDays: 2,
+    remaining: 2,
+    firstDay: '2026-06-13',
+    lastDay: '2026-06-15',
+  });
+});
+
+it('keeps every day of the official calendar (the demo uses it too) where it is', () => {
+  expect(officialCalendar2026V1().every((day) => schoolDayFitsWeekdayV1(day))).toBe(true);
 });

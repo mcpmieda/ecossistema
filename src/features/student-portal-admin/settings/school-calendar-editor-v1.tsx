@@ -180,6 +180,7 @@ function outOfOrderV1(markers: MarkersV1 | null): string | null {
 const WEEKDAY_MESSAGE_V1: Partial<Record<SchoolDayKindV1, string>> = {
   letivo: 'Dia letivo só de segunda a sexta. Para sábado com aula, use Sábado letivo.',
   'sabado-letivo': 'Sábado letivo só pode ser num sábado.',
+  'evento-letivo': 'Evento com aula não pode ser num domingo.',
 };
 
 /** The days with one more painted, or why not: past the 200 school days, or the wrong weekday. */
