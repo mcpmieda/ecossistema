@@ -8,29 +8,46 @@ import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy
 import { PARALLEL_ACCOUNT_848, PARALLEL_VERSION_848, parallelFixture848 } from '../../gradebook/performance/parallel-visibility-fixture-848';
 
 const NEWER_848 = `${'8'.repeat(32)}:2`;
+const NEWEST_848 = `${'8'.repeat(32)}:3`;
+type PeriodA2 = (typeof PERIODS_V1)[number];
+type TermA2 = 1 | 2 | 3;
+/** AV1/AV2 per term: 2000 → term at 14 (T3 14/40); 10000 → term at 30. A missing term has no marks. */
+type TermsA2 = Partial<Record<TermA2, number>>;
+/** `rec1`: REC1 mark already entered in that edition (the student recovered the 1º trimestre). */
+type PublishedA2 = { revision: string; terms: TermsA2; rec1?: number; rec2?: number };
 
-/** Low edition: every term at 14 (T3 14/40, in recovery). High edition: every term at 30. `swap` puts the high one first. */
-function sources848(swap: boolean) {
+const LOW_A2: TermsA2 = { 1: 2000, 2: 2000, 3: 2000 };
+const HIGH_A2: TermsA2 = { 1: 10000, 2: 10000, 3: 10000 };
+
+function editionA2({ terms, rec1, rec2 }: Omit<PublishedA2, 'revision'>) {
   const fixture = parallelFixture848();
-  const edition = (value: number, am: number) => ({ ...fixture.portalSource, offers: fixture.portalSource.offers.map((offer) => ({
+  const am = (term: TermA2) => {
+    const value = terms[term];
+    if (value === undefined) return null;
+    return value === 2000 ? 14000 : 30000;
+  };
+  const [am1, am2, am3] = [am(1), am(2), am(3)];
+  const annual = am1 !== null && am2 !== null && am3 !== null ? am1 + am2 + am3 : null;
+  return { ...fixture.portalSource, offers: fixture.portalSource.offers.map((offer) => ({
     ...offer,
-    instruments: offer.instruments.map((item) => ({ ...item, value: item.slot === 3 ? null : item.slot === 11 ? 10000 : value })),
-    closure: { am1: am, am2: am, am3: am, rec1: null, rec2: null, rec3: null, nc: 0, rr: 0, annual: am * 3 },
-  })) });
-  const low = edition(2000, 14000);
-  const high = edition(10000, 30000);
-  return { link: fixture.link, older: swap ? high : low, newer: swap ? low : high };
+    instruments: offer.instruments.map((item) => {
+      const value = terms[item.term as TermA2];
+      if (value === undefined || item.slot === 3) return { ...item, value: null };
+      return { ...item, value: item.slot === 11 ? 10000 : value };
+    }),
+    closure: { am1, am2, am3, rec1: rec1 ?? null, rec2: rec2 ?? null, rec3: null, nc: 0, rr: 0, annual },
+  })) };
 }
 
-async function selfA2(revisions: Partial<Record<(typeof PERIODS_V1)[number], 'older' | 'newer'>>, swap = false) {
-  const { link, older, newer } = sources848(swap);
+async function selfEditionsA2(published: Partial<Record<PeriodA2, PublishedA2>>) {
+  const { link } = parallelFixture848();
   const rows = PERIODS_V1.map((period, index) => {
-    const which = revisions[period];
-    const revision = which === 'newer' ? NEWER_848 : which === 'older' ? PARALLEL_VERSION_848 : null;
+    const edition = published[period];
+    const revision = edition?.revision ?? null;
     return {
       period, mask: 1 << index, decision_version: 1, approved_revision: revision, target_revision: revision,
-      payload_json: which === 'newer' ? newer : which === 'older' ? older : null, edition_class_id: 848001,
-      edition_revision: which === 'newer' ? '2' : '1', available_mask: 63, latest_revision: '2',
+      payload_json: edition ? editionA2(edition) : null, edition_class_id: 848001,
+      edition_revision: revision?.split(':')[1] ?? '1', available_mask: 63, latest_revision: '3',
     };
   });
   const defaults = initialPolicyDefaultsV1();
@@ -60,8 +77,19 @@ async function selfA2(revisions: Partial<Record<(typeof PERIODS_V1)[number], 'ol
   });
 }
 
-const t3Of = (self: Awaited<ReturnType<typeof selfA2>>) =>
+/** Low edition: every term at 14 (T3 14/40, in recovery). High edition: every term at 30. `swap` puts the high one first. */
+function selfA2(revisions: Partial<Record<PeriodA2, 'older' | 'newer'>>, swap = false) {
+  const editions = { older: swap ? HIGH_A2 : LOW_A2, newer: swap ? LOW_A2 : HIGH_A2 };
+  const published: Partial<Record<PeriodA2, PublishedA2>> = {};
+  for (const [period, which] of Object.entries(revisions) as [PeriodA2, 'older' | 'newer'][])
+    published[period] = { revision: which === 'newer' ? NEWER_848 : PARALLEL_VERSION_848, terms: editions[which] };
+  return selfEditionsA2(published);
+}
+
+const t3Of = (self: Awaited<ReturnType<typeof selfEditionsA2>>) =>
   self.subjects[0]!.periods.find((period) => period.period === 'T3')!.final;
+const showsRec1 = (self: Awaited<ReturnType<typeof selfEditionsA2>>) =>
+  self.subjects[0]!.periods.some((period) => period.period === 'REC1');
 
 it('A2: keeps EM RECUPERAÇÃO from the shown T3 edition when T1 is republished on a newer revision', async () => {
   const baseline = await selfA2({ T1: 'older', T2: 'older', T3: 'older' });
@@ -80,4 +108,27 @@ it('A2: never shows EM RECUPERAÇÃO beside a published T3 above the minimum', a
   expect(t3Of(self)).toMatchObject({ value: 30, maximum: 40, meetsMinimum: true });
   expect(self.profile.annualSituation).not.toBe('in-recovery');
   expect(self.subjects[0]!.annualSituation).not.toBe('recovery-pending');
+});
+
+it('A2: a REC1 published in May (older revision) does not outrank the T3 published later', async () => {
+  // May edition: only the T1 (14/30) and its REC1; read with the T3 published, it still says
+  // EM RECUPERAÇÃO. December edition: T1 recovered, T2 30/30 and T3 30/40, nothing left to recover.
+  const may: PublishedA2 = { revision: PARALLEL_VERSION_848, terms: { 1: 2000 }, rec1: 25000 };
+  const december: PublishedA2 = { revision: NEWEST_848, terms: { 1: 2000, 2: 10000, 3: 10000 }, rec1: 25000 };
+  const self = await selfEditionsA2({ T1: may, REC1: may, T2: december, T3: december });
+  expect(showsRec1(self)).toBe(true);
+  expect(t3Of(self)).toMatchObject({ value: 30, maximum: 40, meetsMinimum: true });
+  expect(self.profile.annualSituation).not.toBe('in-recovery');
+  expect(self.subjects[0]!.annualSituation).not.toBe('recovery-pending');
+});
+
+it('A2 passo 4: a REC1 published on a newer revision keeps EM RECUPERAÇÃO from the shown T3', async () => {
+  const t3: PublishedA2 = { revision: PARALLEL_VERSION_848, terms: LOW_A2 };
+  // Revision 12: the teacher corrected the T3 to 30/40 (still update-pending) and the REC1 was entered.
+  const rec1: PublishedA2 = { revision: NEWER_848, terms: { 1: 2000, 2: 2000, 3: 10000 }, rec1: 25000, rec2: 25000 };
+  const self = await selfEditionsA2({ T1: t3, T2: t3, T3: t3, REC1: rec1 });
+  expect(showsRec1(self)).toBe(true);
+  expect(t3Of(self)).toMatchObject({ value: 14, maximum: 40, meetsMinimum: false });
+  expect(self.profile.annualSituation).toBe('in-recovery');
+  expect(self.subjects[0]!.annualSituation).toBe('recovery-pending');
 });

@@ -48,6 +48,14 @@ function periodShownV2(available: readonly SubjectV2[], period: (typeof PERIODS_
   );
 }
 
+/**
+ * School-calendar order (T1, REC1, T2, REC2, T3, REC3). PERIODS_V1 lists the recoveries last, but a
+ * REC1/REC2 happens before the T3: it must never outrank the T3 as the final/annual source.
+ */
+const CALENDAR_RANK_V2: Readonly<Record<(typeof PERIODS_V1)[number], number>> = {
+  T1: 0, REC1: 1, T2: 2, REC2: 3, T3: 4, REC3: 5,
+};
+
 const preparedPayloadV2 = z.record(z.string(), z.unknown());
 
 function preparedSourceV2(
@@ -189,10 +197,12 @@ export async function scopedSelfV2(
   const reader = new AcademicStudentReaderPostgresV1(tx);
   const decoded = new Map<string, SourceV2>();
   // A2: the annual situation, officialOutcome and result come from the edition the family sees for
-  // the most advanced displayed period (T3, or the last published recovery), never from whichever
-  // period happens to point at the newest revision.
+  // the period that is latest in the school calendar (T3, or REC3 after it), never from whichever
+  // period happens to point at the newest revision, nor from a REC1/REC2 that precedes the T3.
   let finalSource: SourceV2 | undefined;
   let shownSource: SourceV2 | undefined;
+  let finalRank = -1;
+  let shownRank = -1;
   let explicitWithdrawal = false;
 
   for (const [index, period] of PERIODS_V1.entries()) {
@@ -200,9 +210,14 @@ export async function scopedSelfV2(
     if (!row) throw new Error('student-portal-preparation-unavailable');
     const selected = selectPeriodV2(row, context, reader, decoded);
     accepted[index] = selected.acceptedRevision;
-    if (selected.source) {
+    const rank = CALENDAR_RANK_V2[period];
+    if (selected.source && rank > finalRank) {
       finalSource = selected.source;
-      if (periodShownV2(selected.available, period)) shownSource = selected.source;
+      finalRank = rank;
+    }
+    if (selected.source && rank > shownRank && periodShownV2(selected.available, period)) {
+      shownSource = selected.source;
+      shownRank = rank;
     }
     explicitWithdrawal ||= selected.explicitWithdrawal;
     mergePeriodSubjectsV2(subjects, selected.available, period);
