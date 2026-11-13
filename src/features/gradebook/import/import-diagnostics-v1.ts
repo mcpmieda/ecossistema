@@ -16,6 +16,7 @@ import type {
 } from './spreadsheet-recognizer';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
 import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
+import { auditWorkbookV1 } from './audit-rules-v1';
 
 export interface GradebookImportDiagnosticV1 extends GradebookImportDiagnosticAuditItemV1 {
   readonly studentName?: string;
@@ -222,11 +223,12 @@ function inspectCell(input: {
     return [
       diagnostic({
         ...base,
-        severity: 'warning',
+        // BN-DEC-046: a grade above its maximum is held with the student's result.
+        severity: 'blocking-error',
         code: 'above-maximum',
         message: 'A nota lançada está acima do máximo configurado para esta avaliação.',
         recommendedAction:
-          'Confira o lançamento na planilha. O valor é preservado como foi informado e não bloqueia os demais dados válidos.',
+          'Corrija a nota ou o máximo na planilha. Essa nota e o resultado do aluno não foram lançados.',
         foundValue: displayValue(raw),
         cause: `Máximo configurado: ${new Intl.NumberFormat('pt-BR', {
           maximumFractionDigits: 3,
@@ -598,6 +600,44 @@ function inspectRecoverySheet(
   return diagnostics;
 }
 
+const AUDIT_TEXT_V1: Partial<Record<GradebookImportDiagnosticCodeV1, readonly [string, string, GradebookImportDiagnosticFieldKindV1]>> = {
+  'activity-without-description': ['Atividade com notas e sem descrição.', 'Preencha a descrição da atividade (linha 4). A coluna não foi lançada.', 'configuration'],
+  'activity-without-maximum': ['Atividade com notas e sem máximo válido.', 'Informe o máximo da atividade (linha 3). A coluna não foi lançada.', 'configuration'],
+  'qualitative-over-ceiling': ['Atividades do aluno somam mais que o teto qualitativo.', 'Confira as notas do aluno. As atividades e o resultado dele não foram lançados.', 'assessment'],
+  'qualitative-maxima-over-ceiling': ['Máximos das atividades somam mais que o teto qualitativo.', 'Ajuste os máximos (linha 3). Os resultados desta guia não foram lançados.', 'configuration'],
+  'header-mismatch': ['Turma ou trimestre do cabeçalho diferente da guia.', 'Confira K3 e K4. Esta turma e disciplina não foram lançadas.', 'configuration'],
+  'recovery-above-maximum': ['Recuperação acima do máximo do trimestre.', 'Corrija a nota. Ela e o resultado final do aluno não foram lançados.', 'recovery'],
+  'work-without-weight': ['Trabalho lançado com o bloco de trabalho desligado.', 'Informe o máximo do trabalho (Y3) ou apague as notas. O resultado do aluno não foi lançado.', 'term-result'],
+  'one-assessment-mode': ['AV2 preenchida no modo de uma avaliação.', 'Confira L1 ou a AV2. O resultado do aluno não foi lançado.', 'term-result'],
+  'manual-term-result': ['Resultado do trimestre digitado à mão.', 'Restaure a fórmula do AM. O resultado do aluno não foi lançado.', 'term-result'],
+  'grade-without-student': ['Nota em linha sem aluno.', 'Confira o número e o nome da linha.', 'student'],
+};
+
+/** BN-DEC-046 findings as Auditoria items; the canonical builder holds exactly these. */
+function auditRuleDiagnosticsV1(summary: WorkbookSummary): GradebookImportDiagnosticV1[] {
+  return auditWorkbookV1(summary).findings.map((finding) => {
+    const [message, recommendedAction, fieldKind] = AUDIT_TEXT_V1[finding.code] ?? ['Problema na planilha.', 'Confira a planilha.', 'file'];
+    const number = finding.student ? studentNumber(finding.student) : undefined;
+    return diagnostic({
+      severity: finding.blocking ? 'blocking-error' : 'warning',
+      code: finding.code,
+      message,
+      recommendedAction,
+      classCode: finding.sheet.className.trim().toUpperCase() || undefined,
+      subject: finding.sheet.discipline.trim() || undefined,
+      period: periodLabel(finding.sheet),
+      ...(number === undefined ? {} : { studentNumber: number }),
+      ...(finding.student ? { studentName: finding.student.name } : {}),
+      fieldKind,
+      ...(finding.slot === undefined ? {} : { slot: finding.slot }),
+      ...(finding.foundValue === undefined ? {} : { foundValue: bounded(finding.foundValue, 240) }),
+      ...(finding.cause === undefined ? {} : { cause: finding.cause }),
+      sheetName: finding.sheet.name,
+      ...(finding.cellAddress === undefined ? {} : { cellAddress: finding.cellAddress }),
+    });
+  });
+}
+
 export function collectGradebookImportDiagnosticsV1(
   result: BatchSuccess,
 ): readonly GradebookImportDiagnosticV1[] {
@@ -615,6 +655,7 @@ export function collectGradebookImportDiagnosticsV1(
       diagnostics.push(...inspectRecoverySheet(sheet));
     }
   }
+  diagnostics.push(...auditRuleDiagnosticsV1(summary));
   return diagnostics;
 }
 

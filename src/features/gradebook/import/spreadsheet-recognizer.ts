@@ -154,6 +154,23 @@ export type GradeSheetRecognition = {
   students: StudentRecognition[];
   formulas: number;
   officialZeros: number;
+  /** Header and row facts the audit rules (BN-DEC-046) read; nothing else uses them. */
+  auditV1?: SheetAuditFactsV1;
+};
+
+export type SheetAuditFactsV1 = {
+  /** The class in the sheet name, to compare with K3. */
+  readonly sheetClass: string;
+  /** L1: "1 AVALIAÇÃO" or "2 AVALIAÇÕES". */
+  readonly assessmentMode: string;
+  /** T3 / Y3 / AK3: quantitative, work and qualitative ceilings of the term. */
+  readonly quantitativeCeiling: number | null;
+  readonly workCeiling: number | null;
+  readonly qualitativeCeiling: number | null;
+  /** Student rows with a work grade (U:X). */
+  readonly workRows: readonly number[];
+  /** Rows 5–50 with a typed grade but no student number or name. */
+  readonly orphanRows: readonly number[];
 };
 
 export type ClassRecognition = {
@@ -663,6 +680,39 @@ function recognitionValues(student: StudentRecognition): Array<NoteValue | null>
   return values;
 }
 
+const WORK_COLUMNS_V1 = ['U', 'V', 'W', 'X'] as const;
+const TERM_GRADE_COLUMNS_V1 = ['R', 'S', 'Z', ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) => slot.sourceSlot)];
+const RECOVERY_GRADE_COLUMNS_V1 = ['R', 'S', 'T'];
+
+/** A number typed in the cell (not a formula result), other than zero. */
+function typedNumberAt(sheet: Worksheet, address: string): boolean {
+  const cell = cellAt(sheet, address);
+  return Boolean(cell && !cell.f && typeof cell.v === 'number' && Number.isFinite(cell.v) && cell.v !== 0);
+}
+
+function sheetAuditFactsV1(sheet: Worksheet, stage: GradeStage, sheetClass: string,
+  students: readonly StudentRecognition[]): SheetAuditFactsV1 {
+  const studentRows = new Set(students.map((student) => student.row));
+  const gradeColumns = stage === 'recovery' ? RECOVERY_GRADE_COLUMNS_V1 : TERM_GRADE_COLUMNS_V1;
+  const orphanRows: number[] = [];
+  for (let row = 5; row <= 50; row += 1) {
+    if (!studentRows.has(row) && gradeColumns.some((column) => typedNumberAt(sheet, `${column}${row}`))) orphanRows.push(row);
+  }
+  const isTerm = stage !== 'recovery' && stage !== 'overview';
+  return {
+    sheetClass,
+    assessmentMode: textAt(sheet, 'L1'),
+    quantitativeCeiling: numberAt(sheet, 'T3'),
+    workCeiling: numberAt(sheet, 'Y3'),
+    qualitativeCeiling: numberAt(sheet, 'AK3'),
+    workRows: isTerm
+      ? students.filter((student) => WORK_COLUMNS_V1.some((column) => (numberAt(sheet, `${column}${student.row}`) ?? 0) !== 0))
+        .map((student) => student.row)
+      : [],
+    orphanRows,
+  };
+}
+
 function recognizeGradeSheet(
   fileName: string,
   fileSha256: string,
@@ -714,6 +764,7 @@ function recognizeGradeSheet(
     students,
     formulas,
     officialZeros,
+    auditV1: sheetAuditFactsV1(sheet, pattern.stage, pattern.className, students),
   };
 }
 

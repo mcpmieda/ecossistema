@@ -15,6 +15,19 @@ export const GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1 = [
   'duplicate-student-number',
   'source-unavailable',
   'above-maximum',
+  // BN-DEC-046 audit rules.
+  'activity-without-description',
+  'activity-without-maximum',
+  'qualitative-over-ceiling',
+  'qualitative-maxima-over-ceiling',
+  'header-mismatch',
+  'recovery-above-maximum',
+  'work-without-weight',
+  'one-assessment-mode',
+  'manual-term-result',
+  'grade-without-student',
+  'wrong-year',
+  'student-name-mismatch',
 ] as const;
 export type GradebookImportDiagnosticCodeV1 =
   (typeof GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1)[number];

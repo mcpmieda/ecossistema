@@ -20,6 +20,7 @@ import type {
   WorkbookSummary,
 } from './spreadsheet-recognizer';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
+import { EMPTY_HOLDS_V1, auditWorkbookV1, type AuditHoldsV1 } from './audit-rules-v1';
 
 type CanonicalImportProgressStageV9 = 'roster' | 'grades' | 'recovery' | 'compacting';
 interface CanonicalImportProgressV9 {
@@ -388,9 +389,19 @@ function term(
   trimester: 1 | 2 | 3,
   runtime: CanonicalImportRuntimeV9,
   heldStudents: Set<number> = new Set(),
+  holds: AuditHoldsV1 = EMPTY_HOLDS_V1,
 ): GradebookImportTermV9 {
   const definitionSnapshot = definitionSnapshotV1(sheet);
   const definitions = definitionSnapshot.instrumentos;
+  // BN-DEC-046: columns, rows and results the audit rules hold travel as unavailable.
+  const heldColumns = holds.columns.get(sheet.name) ?? new Set<number>();
+  const heldResults = holds.results.get(sheet.name) ?? new Set<number>();
+  const heldQualitative = holds.qualitativeRows.get(sheet.name) ?? new Set<number>();
+  const withHeld = (slots: readonly GradebookImportInstrumentV9[0][]) =>
+    [...new Set([...slots, ...([...heldColumns] as GradebookImportInstrumentV9[0][])])];
+  const unavailableMaximumSlots = withHeld(definitionSnapshot.unavailableMaximumSlots);
+  const unavailableDescriptionSlots = withHeld(definitionSnapshot.unavailableDescriptionSlots);
+  const unavailableValueSlots = withHeld(definitionSnapshot.unavailableValueSlots);
   const seen = new Set<number>();
   const alunos = templateStudentsV9(sheet)
     .map((student) => {
@@ -401,10 +412,12 @@ function term(
       let gradeHeld = false;
       const valores = definitions.map(([slot, max]) => {
         const address = addressForSlot(slot, student.row);
+        if (heldColumns.has(slot) || (slot >= 11 && heldQualitative.has(student.row))) return HELD_CELL_V9;
         const read = holdableCellV9(runtime, sheet, address, () => cellFromSnapshot(sheet, address));
         gradeHeld ||= read.held;
         const value = read.value;
         if (typeof value === 'number' && max !== null && value > max) {
+          // A grade above its maximum is held with the student's result (BN-DEC-046).
           runtime.onWarning?.({
             code: 'above-maximum',
             sheetName: sheet.name,
@@ -412,9 +425,13 @@ function term(
             value,
             maximum: max,
           });
+          runtime.onHeld?.({ kind: 'cell', sheetName: sheet.name, cellAddress: address, reason: 'invalid-cell' });
+          gradeHeld = true;
+          return HELD_CELL_V9;
         }
         return value;
       });
+      if (heldResults.has(student.row)) gradeHeld = true;
       const observations = student.termResultObservations;
       if (!observations)
         throw new Error(`Resultado trimestral ausente em ${sheet.name}, aluno ${numero}.`);
@@ -436,15 +453,9 @@ function term(
   return {
     trimestre: trimester,
     definitionSnapshotVersion: 1,
-    ...(definitionSnapshot.unavailableMaximumSlots.length === 0
-      ? {}
-      : { unavailableMaximumSlots: definitionSnapshot.unavailableMaximumSlots }),
-    ...(definitionSnapshot.unavailableDescriptionSlots.length === 0
-      ? {}
-      : { unavailableDescriptionSlots: definitionSnapshot.unavailableDescriptionSlots }),
-    ...(definitionSnapshot.unavailableValueSlots.length === 0
-      ? {}
-      : { unavailableValueSlots: definitionSnapshot.unavailableValueSlots }),
+    ...(unavailableMaximumSlots.length === 0 ? {} : { unavailableMaximumSlots }),
+    ...(unavailableDescriptionSlots.length === 0 ? {} : { unavailableDescriptionSlots }),
+    ...(unavailableValueSlots.length === 0 ? {} : { unavailableValueSlots }),
     instrumentos: definitions,
     alunos,
   };
@@ -477,7 +488,10 @@ function courseGroups(summary: WorkbookSummary): readonly GradeSheetRecognition[
 function offer(
   sheets: readonly GradeSheetRecognition[],
   runtime: CanonicalImportRuntimeV9,
+  holds: AuditHoldsV1,
 ): GradebookImportOfferV9 {
+  const heldOffer = sheets.map((sheet) => holds.offers.get(sheet.name)).find((reason) => reason !== undefined);
+  if (heldOffer) throw new Error(heldOffer);
   const termSheets = new Map(
     sheets
       .filter((sheet) => sheet.stage.startsWith('trimester-'))
@@ -488,9 +502,9 @@ function offer(
   const first = termSheets.get(1);
   if (!first) throw new Error('1º trimestre ausente.');
   const trimestres = [
-    term(termSheets.get(1)!, 1, runtime, heldStudents),
-    term(termSheets.get(2)!, 2, runtime, heldStudents),
-    term(termSheets.get(3)!, 3, runtime, heldStudents),
+    term(termSheets.get(1)!, 1, runtime, heldStudents, holds),
+    term(termSheets.get(2)!, 2, runtime, heldStudents, holds),
+    term(termSheets.get(3)!, 3, runtime, heldStudents, holds),
   ] as const;
   if (!sameNumbers(trimestres)) {
     throw new Error(
@@ -505,10 +519,13 @@ function offer(
         .map((student) => {
           const numero = studentNumber(student, recovery);
           const observations = student.recovery!.resultObservations;
+          const heldRecovery = holds.recoveryCells.get(recovery.name);
           const recoveryCell = (column: 'R' | 'S' | 'T', observation: typeof observations.trimester1) =>
-            holdableCellV9(runtime, recovery, `${column}${student.row}`, () =>
-              cellFromObservation(recovery, `${column}${student.row}`, observation, true),
-            );
+            heldRecovery?.has(`${column}${student.row}`)
+              ? { value: HELD_CELL_V9, held: true }
+              : holdableCellV9(runtime, recovery, `${column}${student.row}`, () =>
+                  cellFromObservation(recovery, `${column}${student.row}`, observation, true),
+                );
           const rec = [
             recoveryCell('R', observations.trimester1),
             recoveryCell('S', observations.trimester2),
@@ -578,10 +595,11 @@ export function createGradebookCanonicalImportRequestV9(
   runtime.onProgress?.({ stage: 'grades', current: 0, total: groups.length });
   const ofertas: GradebookImportOfferV9[] = [];
   const heldReasons: string[] = [];
+  const { holds } = auditWorkbookV1(summary);
   for (const [index, sheets] of groups.entries()) {
     // An offer the import cannot read as a whole is held: left out, it stays as it is.
     try {
-      ofertas.push(offer(sheets, runtime));
+      ofertas.push(offer(sheets, runtime, holds));
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : 'Turma/disciplina ilegível.';
       heldReasons.push(reason);
