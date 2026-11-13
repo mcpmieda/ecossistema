@@ -138,6 +138,34 @@ describe('one sync read', () => {
   });
 });
 
+describe('writes taking turns', () => {
+  it('a write that met another read holding the year lock is tried again', async () => {
+    const { ports, calls } = portsV1({ bytes: bytesOf('teacher') });
+    let busy = 2;
+    const services = ports.services!;
+    const result = await processWorkbookV1(input, {
+      ...ports, sleep: async () => undefined,
+      services: { ...services, persist: async (database, request) => {
+        if (busy-- > 0) throw Object.assign(new Error('lock'), { code: '55P03' });
+        return services.persist(database, request);
+      } },
+    });
+    expect(result.outcome).toBe('applied');
+    expect(calls.filter((call) => call === 'persist')).toHaveLength(1);
+  });
+
+  it('any other database error is not retried', async () => {
+    const { ports } = portsV1({ bytes: bytesOf('teacher') });
+    let attempts = 0;
+    const result = await processWorkbookV1(input, {
+      ...ports, sleep: async () => undefined,
+      services: { ...ports.services!, persist: async () => { attempts += 1; throw Object.assign(new Error('x'), { code: '23505' }); } },
+    });
+    expect(result.outcome).toBe('failed');
+    expect(attempts).toBe(1);
+  });
+});
+
 describe('memory of the last write (speed)', () => {
   it('a save with nothing new touches neither the Auditoria nor the grades', async () => {
     const first = portsV1({ bytes: bytesOf('teacher') });
