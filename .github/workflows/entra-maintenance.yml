@@ -78,7 +78,7 @@ jobs:
           grep -Fq 'id-token: write' .github/workflows/entra-maintenance.yml
           grep -Fq 'Application.ReadWrite.OwnedBy' docs/infra/ENTRA_MAINTENANCE_OIDC.md
           grep -Fq 'pages secret put' .github/workflows/entra-maintenance.yml
-          grep -Fq -- '--name notas-onedrive-sync' .github/workflows/entra-maintenance.yml
+          grep -Fq -- 'secret put "$SECRET_NAME"                 --config wrangler.notas-onedrive-sync.jsonc' .github/workflows/entra-maintenance.yml
           grep -Fq 'deploy-cloudflare-pages.yml' .github/workflows/entra-maintenance.yml
           grep -Fq 'repair-orphan' .github/workflows/entra-maintenance.yml
           node --experimental-strip-types -e "import('./scripts/entra/validate-runtime-credential.ts')"
@@ -437,8 +437,8 @@ jobs:
           # The Notas OneDrive sync Worker uses the same Graph application: give it the same slot.
           # It is published by deploy-cloudflare-pages.yml; never create it from here.
           if [ "$TARGET" = "graph" ]; then
-            if ./node_modules/.bin/wrangler deployments list --name notas-onedrive-sync >/dev/null 2>&1; then
-              cat "$dir/credential.json" | ./node_modules/.bin/wrangler secret put "$SECRET_NAME"                 --name notas-onedrive-sync >/dev/null
+            if ./node_modules/.bin/wrangler deployments list --config wrangler.notas-onedrive-sync.jsonc >/dev/null 2>&1; then
+              cat "$dir/credential.json" | ./node_modules/.bin/wrangler secret put "$SECRET_NAME"                 --config wrangler.notas-onedrive-sync.jsonc >/dev/null
             else
               echo "::warning::Worker notas-onedrive-sync not found; its $SECRET_NAME was not updated."
             fi
