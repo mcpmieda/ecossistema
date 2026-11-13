@@ -91,12 +91,12 @@ describe('sealed cookies and sessions', () => {
         name: 'Pessoa',
         roles: ['ADMINISTRADOR'],
       },
-      8,
+      4,
       authenticatedAt,
     );
 
-    expect(reconfigureApplicationSession(original, 12, authenticatedAt + 3_600)?.exp).toBe(
-      authenticatedAt + 12 * 60 * 60,
+    expect(reconfigureApplicationSession(original, 8, authenticatedAt + 3_600)?.exp).toBe(
+      authenticatedAt + 8 * 60 * 60,
     );
     expect(reconfigureApplicationSession(original, 4, authenticatedAt + 5 * 60 * 60)).toBeNull();
   });
