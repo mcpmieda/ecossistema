@@ -199,14 +199,17 @@ jobs:
           }
           const services = config.services;
           if (
-            !Array.isArray(services) || services.length !== 2 ||
+            !Array.isArray(services) || services.length !== 3 ||
             services[0]?.binding !== 'PORTAL_SERVICE' ||
             services[0]?.service !== 'student-portal-production' ||
             services[0]?.entrypoint !== 'PortalAdminEntrypoint' ||
             services[1]?.binding !== 'PUBLIC_DEMO_CONTROL' ||
             services[1]?.service !== 'portal-aluno-demo-publica' ||
-            services[1]?.entrypoint !== 'DemoControl'
-          ) throw new Error('Private Portal/demo entrypoint bindings are invalid.');
+            services[1]?.entrypoint !== 'DemoControl' ||
+            services[2]?.binding !== 'NOTAS_SYNC_SERVICE' ||
+            services[2]?.service !== 'notas-onedrive-sync' ||
+            services[2]?.entrypoint !== 'NotasSyncAdminV1'
+          ) throw new Error('Private Portal/demo/notas-sync entrypoint bindings are invalid.');
 
           config.env ??= {};
           config.env.production = {

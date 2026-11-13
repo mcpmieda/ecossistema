@@ -6,7 +6,7 @@ O Worker `notas-onedrive-sync` lê as planilhas de notas dos professores na past
 
 1. A Graph avisa (webhook) que algo mudou no OneDrive; a consulta *delta* diz quais arquivos da pasta mudaram.
 2. Cada arquivo tem uma leitura por vez. Um salvamento durante a leitura faz o arquivo ser relido logo depois. Arquivo com o mesmo *hash* da última leitura é pulado sem download.
-3. A leitura grava primeiro a Auditoria e depois as notas, quando nada bloqueia. Arquivo com erro de auditoria não é lançado.
+3. A leitura grava primeiro a Auditoria e depois as notas. Pelo bloqueio parcial (BN-DEC-045), um problema segura só a nota, o resultado ou a turma afetada; o resto é lançado.
 4. Depois de gravar, o Portal recebe o aviso ao vivo; a publicação continua sendo decidida na tela de publicação.
 5. Rede de segurança: *delta* de hora em hora (a cada minuto se o webhook não estiver ativo) e conferência completa da pasta às 03:00.
 6. Disjuntor: 5 falhas seguidas pausam a leitura por 15 minutos.
@@ -19,19 +19,21 @@ O estado operacional (configuração, status por arquivo, posição do *delta*, 
 
 ## Operação
 
-O Worker começa **desligado**. Até o painel do Centro de Administração (PR 3), a operação usa rotas protegidas por `NOTAS_SYNC_PROBE_TOKEN` (`Authorization: Bearer …`):
+O Worker começa **desligado**. Toda a operação fica no Centro de Administração, em **Banco de notas › Importação › OneDrive**, só para administradores:
 
-| Rota | Uso |
-| --- | --- |
-| `POST /sonda` | Lista a pasta e lê uma planilha sem gravar; `?webhook=1` testa a assinatura; `?arquivo=N` escolhe a planilha |
-| `GET /status` | Configuração, disjuntor, webhook e status de cada arquivo |
-| `POST /controle` | `{"action":"enable"}`, `disable`, `pause`, `resume`, `read-all`, `{"action":"set-wait","seconds":0}`, `{"action":"set-parallel","count":6}`, `{"action":"read-now","fileId":"…"}` |
+1. **Escolher a pasta do ano letivo:** navegar no OneDrive da secretaria, ver a prévia (quantas planilhas, uma leitura de teste sem gravar e o teste do aviso da Graph) e confirmar. A pasta é guardada pelo ID da Graph, então renomeá-la não quebra nada. A pasta escolhida por último é a lida.
+2. **Ligar, desligar, pausar, retomar e "Conferir tudo agora".**
+3. **Ajustes:** espera depois do salvamento (padrão 0 s) e arquivos em paralelo (padrão 6).
+4. **Planilhas:** situação de cada arquivo, horários, tempo de leitura, tempo do salvamento ao lançamento e "Ler de novo".
+5. **Histórico de alterações:** quem mudou o quê e quando.
 
-Ao ligar pela primeira vez, todas as planilhas da pasta são lidas e lançadas uma vez (como uma importação completa).
+O Pages confere a sessão de administrador e chama o Worker pela ligação `NOTAS_SYNC_SERVICE` (entrada `NotasSyncAdminV1`). O Worker não tem nenhuma rota pública de operação; a única rota pública recebe os avisos da Graph.
+
+Ao ligar pela primeira vez, ou depois de trocar a pasta, todas as planilhas da pasta são lidas e lançadas uma vez (como uma importação completa).
 
 ## Segredos
 
-`GRAPH_CREDENTIAL_A`/`B` são gravados pelo `entra-maintenance.yml` ao rotacionar a Graph. `NOTAS_SYNC_CLIENT_STATE` e `NOTAS_SYNC_PROBE_TOKEN` são valores aleatórios definidos uma vez no Worker. O Worker é publicado pelo `deploy-cloudflare-pages.yml`.
+`GRAPH_CREDENTIAL_A`/`B` são gravados pelo `entra-maintenance.yml` ao rotacionar a Graph. `NOTAS_SYNC_CLIENT_STATE` é um valor aleatório definido uma vez no Worker. O Worker é publicado pelo `deploy-cloudflare-pages.yml`.
 
 ## Privacidade
 

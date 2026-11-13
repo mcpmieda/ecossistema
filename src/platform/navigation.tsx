@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import {
   ChartColumn,
   Circle,
+  CloudCog,
   FileText,
   Gavel,
   HeartPulse,
@@ -48,10 +49,11 @@ const NOTES_SECTION_ICONS_V2: Record<string, LucideIcon> = {
   bulletins: FileText,
   council: Gavel,
   settings: Settings2,
+  onedrive: CloudCog,
 };
-/** Sections of the Banco de notas shown under the area Importação: the import itself and its
- * Auditoria (owner request of 13/10/2026). Their addresses did not change. */
-const IMPORT_AREA_SECTIONS_V1: ReadonlySet<string> = new Set([defaultNotesSectionId, 'audit']);
+/** Sections of the Banco de notas shown under the area Importação: the import itself, its
+ * Auditoria (owner request of 13/10/2026) and the OneDrive automatic read. Addresses unchanged. */
+const IMPORT_AREA_SECTIONS_V1: ReadonlySet<string> = new Set([defaultNotesSectionId, 'audit', 'onedrive']);
 export function importAreaSectionsV1(): ServiceSectionV2[] {
   return notesSections
     .filter((section) => IMPORT_AREA_SECTIONS_V1.has(section.id))

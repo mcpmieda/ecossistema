@@ -11,15 +11,17 @@ vi.mock('cloudflare:workers', () => ({
   DurableObject: class {},
 }));
 
-const { default: worker, handleNotificationV1, parseControlV1, sameSecretV1 } = await import('../../../workers/notas-onedrive-sync/index');
+const { default: worker, handleAdminV1, handleNotificationV1, sameSecretV1 } = await import('../../../workers/notas-onedrive-sync/index');
 type Env = Parameters<typeof handleNotificationV1>[1];
 
 function coordinatorMock() {
+  const status = { settings: { enabled: false, paused: false, waitSeconds: 0, maxParallel: 6 }, activeYear: null, folders: [],
+    breakerUntil: null, webhook: { active: false, expiresAt: null }, lastDeltaAt: null, files: [], events: [] };
   const stub = {
     notify: vi.fn(async () => undefined),
     tick: vi.fn(async () => undefined),
-    status: vi.fn(async () => ({ files: [] })),
-    control: vi.fn(async () => ({ files: [] })),
+    status: vi.fn(async () => status),
+    control: vi.fn(async () => status),
   };
   const namespace = { idFromName: vi.fn(() => 'id'), get: vi.fn(() => stub) };
   return { stub, namespace };
@@ -30,9 +32,7 @@ function envV1(extra: Partial<Env> = {}): Env {
     TENANT_ID: '00000000-0000-4000-8000-000000000001',
     GRAPH_CLIENT_ID: '00000000-0000-4000-8000-000000000002',
     NOTAS_SITE_ID: 'synthetic-site',
-    NOTAS_FOLDER_PATH: 'PASTA SINTÉTICA',
     NOTAS_SYNC_CLIENT_STATE: 'synthetic-client-state',
-    NOTAS_SYNC_PROBE_TOKEN: 'synthetic-probe-token',
     ...extra,
   };
 }
@@ -43,7 +43,7 @@ const context = () => {
 };
 const call = (request: Request, env: Env, ctx = context().ctx) =>
   worker.fetch(request as Request<unknown, IncomingRequestCfProperties>, env, ctx);
-const bearer = { Authorization: 'Bearer synthetic-probe-token' };
+const admin = { id: '00000000-0000-4000-8000-000000000003', name: 'Administração Sintética' };
 
 describe('Notas OneDrive sync Worker', () => {
   it('answers the Graph validation handshake with the token as plain text', async () => {
@@ -67,33 +67,27 @@ describe('Notas OneDrive sync Worker', () => {
     }
   });
 
-  it('refuses probe, status and control without the bearer token', async () => {
-    for (const [method, path] of [['POST', '/sonda'], ['GET', '/status'], ['POST', '/controle']] as const) {
-      for (const authorization of [undefined, 'Bearer wrong', 'synthetic-probe-token']) {
-        const headers = authorization ? { Authorization: authorization } : undefined;
-        const response = await call(new Request(`${origin}${path}`, { method, headers }), envV1());
-        expect(response.status, `${method} ${path}`).toBe(401);
-      }
+  it('has no public route to operate the sync', async () => {
+    for (const [method, path] of [['POST', '/sonda'], ['GET', '/status'], ['POST', '/controle'], ['GET', '/']] as const) {
+      expect((await call(new Request(`${origin}${path}`, { method }), envV1())).status, `${method} ${path}`).toBe(404);
     }
   });
 
-  it('serves status and validated control commands to the operator', async () => {
+  it('admin entry: validates the request and records who changed what', async () => {
     const { stub, namespace } = coordinatorMock();
     const env = envV1({ NOTAS_SYNC: namespace as never });
-    expect((await call(new Request(`${origin}/status`, { headers: bearer }), env)).status).toBe(200);
-    const ok = await call(new Request(`${origin}/controle`, { method: 'POST', headers: bearer, body: JSON.stringify({ action: 'pause' }) }), env);
-    expect(ok.status).toBe(200);
-    expect(stub.control).toHaveBeenCalledWith({ action: 'pause' }, 'token-de-operacao');
-    const bad = await call(new Request(`${origin}/controle`, { method: 'POST', headers: bearer, body: JSON.stringify({ action: 'drop' }) }), env);
-    expect(bad.status).toBe(400);
+    expect(await handleAdminV1(env, admin, { action: 'status' })).toMatchObject({ state: 'status' });
+    expect(await handleAdminV1(env, admin, { action: 'pause' })).toMatchObject({ state: 'status' });
+    expect(stub.control).toHaveBeenCalledWith({ action: 'pause' }, admin);
+    expect(await handleAdminV1(env, admin, { action: 'drop' })).toMatchObject({ state: 'invalid-request' });
+    expect(await handleAdminV1(env, admin, { action: 'set-wait', seconds: 9999 })).toMatchObject({ state: 'invalid-request' });
+    expect(await handleAdminV1(env, { id: '', name: '' }, { action: 'status' })).toMatchObject({ state: 'invalid-request' });
   });
 
-  it('parses only known commands with valid arguments', () => {
-    expect(parseControlV1({ action: 'enable' })).toEqual({ action: 'enable' });
-    expect(parseControlV1({ action: 'set-wait', seconds: 10 })).toEqual({ action: 'set-wait', seconds: 10 });
-    expect(parseControlV1({ action: 'set-wait' })).toBeNull();
-    expect(parseControlV1({ action: 'read-now', fileId: '' })).toBeNull();
-    expect(parseControlV1(null)).toBeNull();
+  it('admin entry: a coordinator failure is reported as unavailable', async () => {
+    const { stub, namespace } = coordinatorMock();
+    stub.status.mockRejectedValueOnce(new Error('down'));
+    expect(await handleAdminV1(envV1({ NOTAS_SYNC: namespace as never }), admin, { action: 'status' })).toMatchObject({ state: 'unavailable' });
   });
 
   it('runs the coordinator tick on the cron', async () => {
@@ -102,11 +96,6 @@ describe('Notas OneDrive sync Worker', () => {
     await worker.scheduled({} as ScheduledController, envV1({ NOTAS_SYNC: namespace as never }), ctx);
     await Promise.all(work);
     expect(stub.tick).toHaveBeenCalledOnce();
-  });
-
-  it('serves nothing else', async () => {
-    expect((await call(new Request(`${origin}/`), envV1())).status).toBe(404);
-    expect((await call(new Request(`${origin}/sonda`), envV1())).status).toBe(404);
   });
 
   it('compares secrets without accepting an empty expected value', () => {
