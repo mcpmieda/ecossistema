@@ -174,17 +174,30 @@ export class NotasSyncAdminV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
   }
 }
 
+/** Where the reader runs (Cloudflare data center), logged once per isolate: the database is in São Paulo. */
+let placementLogged = false;
+function logPlacementOnceV1(): void {
+  if (placementLogged) return;
+  placementLogged = true;
+  void fetch('https://www.cloudflare.com/cdn-cgi/trace').then((response) => response.text()).then((text) => {
+    console.log(JSON.stringify({ event: 'notas-sync-placement', colo: /^colo=(\w+)$/mu.exec(text)?.[1] ?? null }));
+  }).catch(() => undefined);
+}
+
 /** One read, in its own invocation: called by the coordinator through the SELF binding. */
 export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
   async processFile(input: ProcessWorkbookInputV1): Promise<ReadResultV1> {
     const env = this.env;
+    logPlacementOnceV1();
     return processWorkbookV1(input, {
       env,
       xlsx: XLSX as unknown as SheetJs,
       openDatabase: () => {
         const connectionString = env.PROD_DB?.connectionString;
         if (!connectionString) throw new Error('notas-sync-database-binding-missing');
-        return createGradebookPostgresDatabaseV1(connectionString);
+        // Reads run side by side; their writes wait their turn on the database's year lock
+        // instead of failing after the default 5 s.
+        return createGradebookPostgresDatabaseV1(connectionString, { lockTimeoutMilliseconds: 30_000, statementTimeoutMilliseconds: 60_000 });
       },
       notifyPortal: async () => {
         // The app identity is the technical author of the sync; the Portal outbox stays authoritative.

@@ -37,6 +37,17 @@ export type SyncFileV1 = {
   readonly lastReadMs: number | null;
   readonly lastSavedToWrittenMs: number | null;
   readonly removed: boolean;
+  /** What was last written for this file, so an unchanged part is not written again. */
+  readonly memory?: SyncMemoryV1 | null;
+};
+
+/**
+ * Fingerprints of the last successful write of a file: its Auditoria and each class/subject
+ * (plus the request header). Cleared by "ler agora" and by the nightly check (full write).
+ */
+export type SyncMemoryV1 = {
+  readonly audit: string | null;
+  readonly offers: Readonly<Record<string, string>>;
 };
 
 export type SyncSettingsV1 = {
@@ -114,6 +125,8 @@ export type ReadResultV1 = {
   readonly readHash: string | null;
   readonly readMs: number;
   readonly savedToWrittenMs: number | null;
+  /** The new memory after this read; absent when the read did not change it. */
+  readonly memory?: SyncMemoryV1 | null;
 };
 
 /** Applies a finished read. Returns null when the lease is stale (another read owns the file). */
@@ -126,6 +139,7 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
     lastOutcome: result.outcome, lastCode: result.code, lastReadAt: now, lastReadMs: result.readMs,
     lastSavedToWrittenMs: result.savedToWrittenMs ?? file.lastSavedToWrittenMs,
     processedHash: transient ? file.processedHash : (result.readHash ?? file.processedHash),
+    memory: result.memory === undefined ? (file.memory ?? null) : result.memory,
   };
   if (file.removed) return { ...finished, state: 'idle', dirty: false, dueAt: null };
   if (file.dirty) return { ...finished, state: 'pending', dirty: false, dueAt: now };

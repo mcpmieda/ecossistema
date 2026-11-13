@@ -38,3 +38,12 @@ Ao ligar pela primeira vez, ou depois de trocar a pasta, todas as planilhas da p
 ## Privacidade
 
 Logs e respostas de status têm só contagens, tempos, códigos e nomes de arquivo; nunca nomes de alunos ou notas.
+
+## Velocidade (13/11/2026)
+
+Medido em produção: uma leitura gastava 11–15 s, sendo mais de 70% no banco (Auditoria ~3,5 s, gravação ~6,5 s).
+
+- **Memória da última gravação:** o coordenador guarda, por planilha, uma impressão digital da Auditoria e de cada turma/disciplina gravada. A Auditoria só é regravada se mudou, e só as turmas/disciplinas que mudaram são enviadas (no V9, uma oferta fora do pedido fica como está). Sem mudança, o banco nem é tocado. "Ler agora" e a conferência noturna apagam a memória: a próxima leitura grava tudo.
+- **Relação em paralelo:** a conexão e a consulta da Relação começam junto com o download.
+- **Gravações em fila:** a Auditoria usa um bloqueio por ano no banco. O worker espera até 30 s por ele (padrão do sistema: 5 s), então várias leituras podem correr juntas e as gravações entram em fila sem falhar.
+- O log `notas-sync-stages` mostra o tempo de cada etapa; `notas-sync-placement` mostra o data center onde o leitor roda.
