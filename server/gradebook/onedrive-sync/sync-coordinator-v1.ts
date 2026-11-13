@@ -40,7 +40,15 @@ export interface SyncCoordinatorEnvV1 extends GraphAppEnvV1 {
   NOTAS_SYNC_CLIENT_STATE?: string;
   NOTAS_MAX_WORKBOOK_BYTES?: string;
   SELF: SyncReaderV1;
+  /** The coordinator namespace, used only to recognise the retired first coordinator. */
+  NOTAS_SYNC?: { idFromName(name: string): { equals(other: DurableObjectId): boolean } };
 }
+
+/**
+ * The first coordinator (created in the United States, far from the database in São Paulo).
+ * Replaced by one created in South America; when it wakes it erases itself and does nothing.
+ */
+export const RETIRED_COORDINATOR_NAME_V1 = 'notas-onedrive-sync';
 
 export type SyncControlV1 = OneDriveSyncCommandV1;
 
@@ -62,9 +70,17 @@ const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
  * separate Worker invocations through `SELF.processFile`, at most `maxParallel` at once.
  */
 export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> {
+  private readonly retired: boolean;
+
   constructor(ctx: DurableObjectState, env: SyncCoordinatorEnvV1) {
     super(ctx, env);
+    this.retired = env.NOTAS_SYNC?.idFromName(RETIRED_COORDINATOR_NAME_V1).equals(ctx.id) ?? false;
     void ctx.blockConcurrencyWhile(async () => {
+      if (this.retired) {
+        await ctx.storage.deleteAlarm();
+        await ctx.storage.deleteAll();
+        return;
+      }
       this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
       this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
       this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,7 +126,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   /** Called every minute by the cron: safety-net delta, nightly check, webhook renewal. */
   async tick(): Promise<void> {
-    if (!this.settings().enabled) return;
+    if (this.retired || !this.settings().enabled) return;
     const now = Date.now();
     const webhookActive = this.meta<{ id: string } | null>('subscription', null) !== null;
     const lastDelta = this.meta<number | null>('lastDeltaAt', null);
@@ -187,6 +203,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   // ---- alarm: the work loop --------------------------------------------------------
   override async alarm(): Promise<void> {
+    if (this.retired) return;
     const now = Date.now();
     for (const file of expiredLeasesV1(this.files(), now)) {
       await this.finish(file.id, file.lease ?? '', { outcome: 'failed', code: 'LEASE-EXPIRED', readHash: null, readMs: 0, savedToWrittenMs: null });
@@ -353,7 +370,11 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   private async scheduleNext(): Promise<void> {
     const now = Date.now();
     const pendingWork = this.meta('deltaRequested', false) || this.meta('nightlyRequested', false);
-    const next = nextWakeV1(this.files(), this.meta<number | null>('breakerUntil', null), now);
+    // Off or paused, waiting files do not wake it (only reads still running do).
+    const settings = this.settings();
+    const active = settings.enabled && !settings.paused;
+    const files = active ? this.files() : this.files().filter((file) => file.state === 'reading');
+    const next = nextWakeV1(files, this.meta<number | null>('breakerUntil', null), now);
     const graphReadyAt = Math.max(now + 5_000, this.meta('graphBackoffUntil', 0), this.meta<number | null>('breakerUntil', null) ?? 0);
     const candidates = [next, pendingWork && this.settings().enabled ? graphReadyAt : null].filter((value): value is number => value !== null);
     if (candidates.length > 0) await this.wakeAt(Math.min(...candidates));

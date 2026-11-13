@@ -47,12 +47,13 @@ export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
 
 const NOTIFICATION_PATH = '/graph/notificacoes';
 const DEFAULT_MAX_WORKBOOK_BYTES = 8 * 1024 * 1024;
-const COORDINATOR_NAME = 'notas-onedrive-sync';
+// Created in South America, next to the database (São Paulo): the reads it starts run there too.
+const COORDINATOR_NAME = 'notas-onedrive-sync-sam';
 const PREVIEW_NAMES_LIMIT = 60;
 
 function coordinatorV1(env: NotasSyncEnvV1) {
   if (!env.NOTAS_SYNC) throw new Error('notas-sync-coordinator-binding-missing');
-  return env.NOTAS_SYNC.get(env.NOTAS_SYNC.idFromName(COORDINATOR_NAME));
+  return env.NOTAS_SYNC.get(env.NOTAS_SYNC.idFromName(COORDINATOR_NAME), { locationHint: 'sam' });
 }
 
 /** Constant-time comparison of two secrets of any length. */
