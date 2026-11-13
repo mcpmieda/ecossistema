@@ -2,7 +2,10 @@ import type { RuntimeEnv } from '../env';
 import { readSession } from '../auth/session';
 import { capabilitiesForRoles } from '../auth/capabilities';
 import { failureV1 } from '../../shared/student-portal-contracts/core-v1';
-import { RECONCILIATION_ROUTE_V1 } from '../../shared/student-identity/reconciliation-v1';
+import {
+  RECONCILIATION_READ_OPERATIONS_V1,
+  RECONCILIATION_ROUTE_V1,
+} from '../../shared/student-identity/reconciliation-v1';
 import type {
   AdminOperationV1,
   PortalAdminServiceBindingV1,
@@ -121,7 +124,10 @@ export function classifyAdminOperationV1(
     ['classes', 'workspace'].includes(String(operation))
   )
     return 'read';
-  if (path === RECONCILIATION_ROUTE_V1 && ['catalog', 'list', 'detail'].includes(String(operation)))
+  if (
+    path === RECONCILIATION_ROUTE_V1 &&
+    RECONCILIATION_READ_OPERATIONS_V1.includes(String(operation))
+  )
     return 'read';
   if (path === '/api/gradebook/assessment-names' && operation === 'read') return 'read';
   if (path === '/api/gradebook/year-reset' && operation === 'preview') return 'read';

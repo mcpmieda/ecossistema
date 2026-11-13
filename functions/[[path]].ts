@@ -13,14 +13,16 @@ import {
   requireAuth,
   AuthenticationError,
   createApplicationSession,
+  readSession,
   reconfigureApplicationSession,
+  sessionDurationOptionsFor,
 } from '../server/auth/session';
+import { revokeSessionV1 } from '../server/auth/session-revocation-v1';
 import {
   createSessionDurationPreferenceCookie,
   DEFAULT_SESSION_DURATION_HOURS,
   isSessionDurationHours,
   readSessionDurationPreference,
-  SESSION_DURATION_OPTIONS_HOURS,
 } from '../server/auth/session-policy';
 import {
   authorizationUrl,
@@ -80,7 +82,7 @@ function sessionPolicyPayload(
     version: 1,
     policy: 'absolute' as const,
     defaultDurationHours: DEFAULT_SESSION_DURATION_HOURS,
-    allowedDurationsHours: SESSION_DURATION_OPTIONS_HOURS,
+    allowedDurationsHours: sessionDurationOptionsFor(session.roles),
     currentDurationHours: session.durationHours ?? DEFAULT_SESSION_DURATION_HOURS,
     configured: session.durationHours !== undefined,
     authenticatedAt: new Date((session.authenticatedAt ?? now) * 1000).toISOString(),
@@ -336,7 +338,7 @@ async function serveAuthCallbackV1(request: Request, env: ValidEnvV1, url: URL, 
   const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
   headers.append(
     'Set-Cookie',
-    secureCookie(SESSION_COOKIE, session, { maxAge: durationHours * 60 * 60 }),
+    secureCookie(SESSION_COOKIE, session, { maxAge: applicationSession.exp - authenticatedAt }),
   );
   headers.append('Set-Cookie', remainingAuthCookie);
   return new Response(null, { status: 302, headers });
@@ -345,6 +347,9 @@ async function serveAuthCallbackV1(request: Request, env: ValidEnvV1, url: URL, 
 async function serveAuthLogoutV1(request: Request, env: ValidEnvV1): Promise<Response> {
   method(request, ['POST']);
   enforceWriteOrigin(request, env);
+  // The session ends on the server too: a copy of this cookie stops working (owner decision 13/11/2026).
+  const session = await readSession(request, env).catch(() => null);
+  if (session?.sid) await revokeSessionV1(env, session.sid, session.exp);
   const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
   headers.append('Set-Cookie', clearCookie(SESSION_COOKIE));
   headers.append('Set-Cookie', clearCookie(AUTH_COOKIE));
@@ -378,7 +383,10 @@ async function serveSessionSettingsV1(request: Request, env: ValidEnvV1, correla
   enforceWriteOrigin(request, env);
   requireCapability(capabilities, 'platform.settings.write');
   const input = (await request.json().catch(() => null)) as { durationHours?: unknown } | null;
-  if (!isSessionDurationHours(input?.durationHours)) {
+  if (
+    !isSessionDurationHours(input?.durationHours) ||
+    !sessionDurationOptionsFor(currentSession.roles).includes(input.durationHours)
+  ) {
     throw new HttpError(400, 'Invalid session duration');
   }
 

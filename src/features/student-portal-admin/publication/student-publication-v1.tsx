@@ -19,6 +19,7 @@ import {
   disclosureAtV1,
   publicationRestrictionV1,
   publicationCommandV1,
+  publicationPartialV1,
   type PublicationCommandV1,
   type PublicationItemV1,
   type PublicationSnapshotV1,
@@ -73,9 +74,15 @@ function confirmationLabel(command: PublicationCommandV1) {
 }
 
 function publicationColorV1(item: PublicationItemV1) {
-  if (item.state === 'update-pending') return 'warning' as const;
+  if (item.state === 'update-pending' || publicationPartialV1(item)) return 'warning' as const;
   if (item.state === 'published') return 'success' as const;
   return 'default' as const;
+}
+/** A7: never "Publicada" when only some students have it; `detailed` names how many. */
+function publicationLabelV1(item: PublicationItemV1, detailed = false) {
+  const partial = publicationPartialV1(item);
+  if (!partial) return PUBLICATION_LABELS_V1[item.state];
+  return detailed ? `Publicada para ${partial.published} de ${partial.total} alunos` : 'Publicada em parte';
 }
 function PublicationActionsV1({
   item,
@@ -90,10 +97,12 @@ function PublicationActionsV1({
 }>) {
   const hasData = item.state !== 'no-data' && item.availableRevision !== null;
   const published = item.publishedRevision !== null;
+  const partial = publicationPartialV1(item) !== null;
   // First publication is always explicit. After that, auto-update owns newer revisions.
-  const canPublishFirst = hasData && !published;
+  // A7: a partial publication is published again for everyone; an update needs all published.
+  const canPublishFirst = hasData && (!published || partial);
   const canPublishManualUpdate =
-    hasData && published && !autoUpdate && item.state === 'update-pending';
+    hasData && published && !partial && !autoUpdate && item.state === 'update-pending';
   return (
     <Card.Footer className="pa-publication-actions">
       {canPublishFirst ? (
@@ -101,10 +110,10 @@ function PublicationActionsV1({
           size="sm"
           variant="primary"
           isDisabled={disabled}
-          aria-label={`Publicar as notas novas de ${termLabel(item.period)}`}
+          aria-label={`${partial ? 'Publicar para todos' : 'Publicar as notas novas'} de ${termLabel(item.period)}`}
           onPress={() => review(item, 'publish')}
         >
-          Publicar as notas novas
+          {partial ? 'Publicar para todos' : 'Publicar as notas novas'}
         </Button>
       ) : null}
       {canPublishManualUpdate ? (
@@ -135,6 +144,8 @@ function PublicationActionsV1({
 function publicationStepTextV1(item: PublicationItemV1, autoUpdate: boolean) {
   if (item.state === 'no-data') return 'Ainda não há notas deste período no Banco.';
   if (item.state === 'available') return 'Há notas no Banco prontas para publicar.';
+  const partial = publicationPartialV1(item);
+  if (partial) return `Publicada para ${partial.published} de ${partial.total} alunos.`;
   if (item.state === 'update-pending')
     return autoUpdate
       ? 'Publicada. As notas novas do Banco serão publicadas sozinhas.'
@@ -188,7 +199,7 @@ function PublicationPeriodV1({
               <p className="pa-grade-step-title">1 · Publicação</p>
               <p className="pa-grade-step-text">
                 <Chip size="sm" variant="soft" color={publicationColorV1(item)}>
-                  {PUBLICATION_LABELS_V1[item.state]}
+                  {publicationLabelV1(item)}
                 </Chip>{' '}
                 {publicationStepTextV1(item, data.settings.value.autoUpdate)}
               </p>
@@ -217,7 +228,7 @@ function PublicationPeriodV1({
         <div className="pa-publication-heading">
           <h3>{termLabel(item.period)}</h3>
           <Chip size="sm" variant="soft" color={publicationColorV1(item)}>
-            {PUBLICATION_LABELS_V1[item.state]}
+            {publicationLabelV1(item, true)}
           </Chip>
         </div>
       </Card.Header>

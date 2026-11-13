@@ -6,6 +6,7 @@ import { SessionServiceV1 } from '../auth/session-service-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
+import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 import { bellShiftOfLabelV1, bellsValidFromV1, schoolBellsDaysV1 } from '../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolCalendarDaysV1, schoolDaysOffOfV1, schoolYearSpanOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
@@ -13,7 +14,7 @@ import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persi
 // The weekly grid of the student's own class(es) (owner decision 22/10/2026; attendance 0011).
 // The subject exactly as the Smecel names it; no teacher; a free position is absent.
 const lessonSchema=z.object({weekday:z.number().int().min(1).max(5),slot:z.number().int().min(1).max(6),subject:z.string().min(1).max(120)}).strict();
-const readSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string().refine(value=>!Number.isNaN(Date.parse(value))),lessons:z.array(lessonSchema).max(30)}).strict()).max(8)}).strict();
+const readSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string().refine(value=>!Number.isNaN(Date.parse(value))),validFrom:z.iso.date().nullable().optional(),lessons:z.array(lessonSchema).max(30)}).strict()).max(8)}).strict();
 const HIDDEN=Symbol('schedule-hidden');
 const jsonOf=(raw:unknown)=>typeof raw==='string'?JSON.parse(raw):raw;
 /**
@@ -46,7 +47,7 @@ export async function servePortalScheduleV1(request:Request,env:PortalCompositio
   if(env.PORTAL_SERVING_ENABLED!=='true')return fail('unavailable',503);
   const token=sessionCookieTokenV1(request);if(!token)return fail('unauthenticated',401);
   try{
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'schedule-entry','public');
+    await checkPortalAnonymousV1(env, 'schedule-entry', request);
     const keys=portalKeysV1(env);
     const read=await portalDatabaseV1(env,'self',sql=>new SessionServiceV1(sql,keys.cryptoPort,undefined,true,
       accountId=>checkPortalOperationV1(env.PORTAL_SESSION_ACCOUNT,'session',accountId)).withAuthorized(token,async(context,tx,session)=>{
@@ -64,7 +65,7 @@ export async function servePortalScheduleV1(request:Request,env:PortalCompositio
           // Each class with its shift's bells (the shift named in its label), or null. The reading's
           // moment as ISO: Postgres text ("2026-10-30 07:34:38.049-03") is not a format every
           // browser parses (Safari).
-          classes:value.classes.map(item=>{const shift=bellShiftOfLabelV1(item.label);
+          classes:value.classes.map(({validFrom:_validFrom,...item})=>{const shift=bellShiftOfLabelV1(item.label);
             return{...item,observedAt:new Date(item.observedAt).toISOString(),bells:shift&&bells?bells[shift]:null};}),
           today:String(clock[0]!.today),
           now:new Date(clock[0]!.now as string|Date).toISOString(),

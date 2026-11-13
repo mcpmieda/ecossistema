@@ -67,7 +67,8 @@
         { "name": "PORTAL_ADMIN_WRITE", "namespace_id": "3101256", "simple": { "limit": 120, "period": 60 } },
         { "name": "PORTAL_ADMIN_EXPORT", "namespace_id": "3101257", "simple": { "limit": 60, "period": 60 } },
         { "name": "PORTAL_ADMIN_LIVE", "namespace_id": "3101258", "simple": { "limit": 60, "period": 60 } },
-        { "name": "PORTAL_ADMIN_REVOKE", "namespace_id": "3101259", "simple": { "limit": 120, "period": 60 } }
+        { "name": "PORTAL_ADMIN_REVOKE", "namespace_id": "3101259", "simple": { "limit": 120, "period": 60 } },
+        { "name": "PORTAL_UNKNOWN_PEER", "namespace_id": "3101260", "simple": { "limit": 20000, "period": 60 } }
       ],
       "triggers": { "crons": ["* * * * *"] }
     }

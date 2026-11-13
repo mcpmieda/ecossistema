@@ -3,7 +3,7 @@ import { STUDENT_NAME_MAX_LENGTH_V1 } from '../student-identity/student-identity
 import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageCursorV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1, policyScopeV1 } from './core-v1';
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, policyFieldV1, POLICY_FIELDS_V1, settingsOverrideV1 } from './policy-v1';
-import { schoolCalendarDaysV1, schoolCalendarV1 } from './school-calendar-v1';
+import { schoolCalendarDaysInputV1, schoolCalendarV1 } from './school-calendar-v1';
 import { schoolBellsDaysV1, schoolBellsV1 } from './school-bells-v1';
 import { publicationInheritCommandV1 } from './customizations-v1';
 import { bulkActionV1, bulkCursorV1, bulkExecuteCommandV1, bulkPreviewQueryV1, bulkPreviewResponseV1 } from './bulk-v1';
@@ -44,7 +44,7 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...commandMetaV1, operation: z.literal('links-close'), academicYear: z.literal(2026), previewToken: opaqueV1, expectedCount: z.number().int().nonnegative(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('population-start'), academicYear: z.literal(2026), clearOverrides: z.literal(true), confirmed: z.literal(true) }).strict(),
   // Calendário escolar (owner decision 22/10/2026): the whole year's marked days, school-wide.
-  z.object({ ...commandMetaV1, operation: z.literal('school-calendar-set'), academicYear: z.literal(2026), days: schoolCalendarDaysV1 }).strict(),
+  z.object({ ...commandMetaV1, operation: z.literal('school-calendar-set'), academicYear: z.literal(2026), days: schoolCalendarDaysInputV1 }).strict(),
   // Horário das aulas (owner decision 23/10/2026): each lesson's and the break's time, school-wide.
   z.object({ ...commandMetaV1, operation: z.literal('school-bells-set'), academicYear: z.literal(2026), bells: schoolBellsDaysV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('qr-batch'), classId: z.number().int().positive(), accountIds: z.array(portalIdV1).min(1).max(100), mode: printModeV1.default('qr-name-class'), confirmed: z.literal(true) }).strict(),
@@ -112,7 +112,7 @@ export const adminResponseV1 = z.discriminatedUnion('state', [
   z.object({ ...base, state: z.literal('sessions'), version: versionV1, items: z.array(z.object({ sessionId: portalIdV1, accountId: portalIdV1, expiresAt: instantV1, revokedAt: instantV1.nullable() }).strict()).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('birth-years'), scopeVersion: versionV1, accountsScopeVersion: versionV1.optional(), items: z.array(z.object({ accountId: portalIdV1, accountVersion: versionV1, year: birthYearV1.nullable(), confirmation: z.enum(['confirmed', 'unconfirmed-test']).nullable(), version: versionV1 }).strict()).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('settings'), settings: effectiveSettingsV1 }).strict(),
-  z.object({ ...base, state: z.literal('publication'), items: z.array(z.object({ period: periodV1, state: publicationStateV1, availableRevision: revisionV1.nullable(), publishedRevision: revisionV1.nullable(), version: versionV1 }).strict()).max(6) }).strict(),
+  z.object({ ...base, state: z.literal('publication'), items: z.array(z.object({ period: periodV1, state: publicationStateV1, availableRevision: revisionV1.nullable(), publishedRevision: revisionV1.nullable(), version: versionV1, publishedCount: z.number().int().nonnegative().optional(), targetCount: z.number().int().nonnegative().optional() }).strict()).max(6) }).strict(),
   z.object({ ...base, state: z.literal('audit'), items: z.array(auditEventV1).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('audit-detail'), observedAt: instantV1.optional(), event: auditEventV1, ip: z.union([z.ipv4(), z.ipv6()]).nullable(), ipExpiresAt: instantV1.nullable() }).strict(),
   z.object({ ...base, state: z.literal('presence'), connectedStudents: z.number().int().nonnegative().safe(), observedAt: instantV1, windowSeconds: z.literal(60) }).strict(),

@@ -84,7 +84,7 @@ export const portalEdgeResultMetricV1 = z.object({
   family: z.enum(['document', 'asset', 'icon-probe', 'health', 'diagnostic', 'api', 'other']),
   result: z.enum([
     'origin-rejected', 'method-rejected', 'binding-missing', 'asset-miss', 'document-miss',
-    'route-miss', 'upstream-error', 'forwarded', 'served',
+    'route-miss', 'upstream-error', 'forwarded', 'served', 'redirected',
   ]),
   status: z.number().int().min(100).max(599),
 }).strict();

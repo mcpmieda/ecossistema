@@ -6,11 +6,13 @@ import { SessionServiceV1 } from '../auth/session-service-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
+import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 import { portalFrequencySummaryV2, portalFrequencyYearV2 } from '../../attendance/service-v2';
 import { schoolCalendarDaysV1, schoolDaysOfV1, schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
 import { bellShiftOfLabelV1 } from '../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolBellsAndCalendarV1 } from './schedule-v1';
-const gridSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string(),
+// validFrom (attendance 0020): the school day the current grid was first read; absent before it.
+const gridSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string(),validFrom:z.iso.date().nullable().optional(),
   lessons:z.array(z.object({weekday:z.number().int().min(1).max(5),slot:z.number().int().min(1).max(6),subject:z.string().min(1).max(120)}).strict()).max(30)}).strict()).max(8)}).strict();
 
 const originsSchema=z.array(z.object({occurrence_id:z.uuid(),date:z.iso.date(),slot:z.number().int().min(1).max(6),shift:z.string().max(80),
@@ -35,7 +37,7 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
   if(env.PORTAL_SERVING_ENABLED!=='true')return fail('unavailable',503);
   const token=sessionCookieTokenV1(request);if(!token)return fail('unauthenticated',401);
   try{
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL,'frequency-entry','public');
+    await checkPortalAnonymousV1(env, 'frequency-entry', request);
     const keys=portalKeysV1(env);
     const summary=await portalDatabaseV1(env,'self',sql=>new SessionServiceV1(sql,keys.cryptoPort,undefined,true,
       accountId=>checkPortalOperationV1(env.PORTAL_SESSION_ACCOUNT,'session',accountId)).withAuthorized(token,async(context,tx,session)=>{
@@ -61,12 +63,14 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         // and, when the Horário is on for this student, the subject of each position of the week
         // (owner decision 23/10/2026: "Faltou na 3ª aula (08:50–09:45), MATEMATICA").
         const{bells,bellsValidFrom,daysOff}=await schoolBellsAndCalendarV1(tx);
-        let grid:{shift:'matutino'|'vespertino';lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
+        let grid:{shift:'matutino'|'vespertino';validFrom?:string;lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
         if(context.policy.enforcedValue.showSchedule){
           const found=await tx.unsafe('SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule',[context.account.id,session.id]);
           const rawGrid=found[0]?.schedule;
           if(rawGrid!=null)grid=gridSchema.parse(typeof rawGrid==='string'?JSON.parse(rawGrid):rawGrid).classes.flatMap(item=>{
-            const shift=bellShiftOfLabelV1(item.label);return shift?[{shift,lessons:item.lessons}]:[];});
+            const shift=bellShiftOfLabelV1(item.label);// The key only when known: a page still open with the bundle from before (strict grid)
+            // would reject it; absent means unknown, as null does (no subject is named).
+            return shift?[{shift,...(item.validFrom?{validFrom:item.validFrom}:{}),lessons:item.lessons}]:[];});
         }
         return {...portalFrequencyYearV2(read,schoolDays,schoolYear?.remaining??0),schoolYear,daysOff,bells,bellsValidFrom,grid};
       }));
