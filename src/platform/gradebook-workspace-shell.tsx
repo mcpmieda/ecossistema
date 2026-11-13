@@ -15,6 +15,9 @@ import { GradebookYearContextBanner, GradebookYearProvider } from './gradebook-y
 import { useGradebookYear } from './gradebook-year-context';
 import { NotesImportPanel } from '../features/gradebook/import/import-panel';
 import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
+import { shouldReloadFailedModuleV1 } from '../shared/live-data/route-load-failure-v1';
+
+export { shouldReloadFailedModuleV1 };
 
 export const GRADEBOOK_WORKSPACE_SURFACES = [
   {
@@ -145,36 +148,6 @@ type SurfaceBoundaryProps = {
 };
 
 type SurfaceBoundaryState = { readonly failed: boolean };
-
-const STALE_MODULE_RELOAD_KEY = '__gradebookStaleModuleReloadAt';
-const STALE_MODULE_RELOAD_WINDOW_MS = 60_000;
-
-export function shouldReloadFailedModuleV1(
-  error: unknown,
-  navigation: Pick<History, 'state' | 'replaceState'>,
-  now: number,
-): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  if (
-    !/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(
-      message,
-    )
-  )
-    return false;
-  try {
-    const previousState = navigation.state;
-    const state: Record<string, unknown> =
-      previousState && typeof previousState === 'object' && !Array.isArray(previousState)
-        ? (previousState as Record<string, unknown>)
-        : {};
-    const last = Number(state[STALE_MODULE_RELOAD_KEY]);
-    if (last > 0 && now - last >= 0 && now - last < STALE_MODULE_RELOAD_WINDOW_MS) return false;
-    navigation.replaceState({ ...state, [STALE_MODULE_RELOAD_KEY]: now }, '');
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 class GradebookSurfaceBoundary extends Component<SurfaceBoundaryProps, SurfaceBoundaryState> {
   override state: SurfaceBoundaryState = { failed: false };
