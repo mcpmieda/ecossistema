@@ -72,9 +72,14 @@ const REJECTED_STATES_V1 = new Set<GradebookImportPersistenceResponseV9['state']
  */
 export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: ProcessWorkbookPortsV1): Promise<ReadResultV1> {
   const started = ports.now();
-  const result = (outcome: ReadResultV1['outcome'], code: string | null, savedToWrittenMs: number | null = null): ReadResultV1 => ({
-    outcome, code, readHash: outcome === 'failed' ? null : input.hash, readMs: ports.now() - started, savedToWrittenMs,
-  });
+  // Time per stage (milliseconds only): where a read spends its time.
+  const stages: Record<string, number> = {};
+  let mark = started;
+  const stage = (name: string) => { const at = ports.now(); stages[name] = Math.round(at - mark); mark = at; };
+  const result = (outcome: ReadResultV1['outcome'], code: string | null, savedToWrittenMs: number | null = null): ReadResultV1 => {
+    console.log(JSON.stringify({ event: 'notas-sync-stages', outcome, ...stages }));
+    return { outcome, code, readHash: outcome === 'failed' ? null : input.hash, readMs: ports.now() - started, savedToWrittenMs };
+  };
   let bytes: ArrayBuffer;
   try {
     bytes = ports.download
@@ -83,6 +88,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   } catch (cause) {
     return cause instanceof WorkbookTooLargeError ? result('too-large', 'FILE-TOO-LARGE') : result('failed', 'GRAPH-DOWNLOAD');
   }
+  stage('download');
   const prepared = await prepareTeacherWorkbookV1({
     bytes, fileName: input.name, lastModified: Date.parse(input.modifiedAt) || 0, xlsx: ports.xlsx, now: ports.now,
   });
@@ -91,7 +97,9 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
 
   let database: GradebookPostgresDatabaseV1;
   try {
+    stage('prepare');
     database = await ports.openDatabase();
+    stage('open');
   } catch {
     return result('failed', 'DATABASE-UNAVAILABLE');
   }
@@ -112,16 +120,20 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
     let audit = prepared.audit;
     if (request.operation === 'persist-notas') {
       const checked = holdNameMismatchesV1(request, prepared.studentNames, await services.relationNames(database, request.ano));
+      stage('relation');
       request = checked.request;
       audit = { ...audit, diagnostics: [...audit.diagnostics, ...checked.items] };
     }
     await services.recordAudit(database, audit);
+    stage('audit');
     const response = await services.persist(database, request);
+    stage('persist');
     if (response.state === 'unavailable') return result('failed', 'DATABASE-UNAVAILABLE');
     if (REJECTED_STATES_V1.has(response.state)) return result('rejected', response.state.toUpperCase());
     if (response.state === 'no-changes') return result('no-changes', null);
     const savedAt = Date.parse(input.modifiedAt);
     await ports.notifyPortal().catch(() => undefined);
+    stage('notify');
     return result('applied', null, Number.isFinite(savedAt) ? Math.max(0, Date.now() - savedAt) : null);
   } catch (cause) {
     // A snapshot the contract refuses is deterministic: retrying the same bytes cannot help.
