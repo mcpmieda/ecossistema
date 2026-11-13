@@ -13,9 +13,11 @@ import {
   requireAuth,
   AuthenticationError,
   createApplicationSession,
+  readSession,
   reconfigureApplicationSession,
   sessionDurationOptionsFor,
 } from '../server/auth/session';
+import { revokeSessionV1 } from '../server/auth/session-revocation-v1';
 import {
   createSessionDurationPreferenceCookie,
   DEFAULT_SESSION_DURATION_HOURS,
@@ -341,6 +343,9 @@ async function serveAuthCallbackV1(request: Request, env: ValidEnvV1, url: URL, 
 async function serveAuthLogoutV1(request: Request, env: ValidEnvV1): Promise<Response> {
   method(request, ['POST']);
   enforceWriteOrigin(request, env);
+  // The session ends on the server too: a copy of this cookie stops working (owner decision 13/11/2026).
+  const session = await readSession(request, env).catch(() => null);
+  if (session?.sid) await revokeSessionV1(env, session.sid, session.exp);
   const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
   headers.append('Set-Cookie', clearCookie(SESSION_COOKIE));
   headers.append('Set-Cookie', clearCookie(AUTH_COOKIE));
