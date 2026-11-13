@@ -117,6 +117,7 @@ describe('actual workbook observation #819', () => {
       ...term,
       name: `6A${n}º`,
       stage: `trimester-${n}`,
+      declaredStage: `${n}º trimestre`,
       students: term.students.filter((s) => s.row === 5),
     }));
     const result = {
