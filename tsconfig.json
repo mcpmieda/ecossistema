@@ -12,6 +12,9 @@
     },
     {
       "path": "./tsconfig.public-demo.json"
+    },
+    {
+      "path": "./tsconfig.notas-onedrive-sync.json"
     }
   ],
   "compilerOptions": {
