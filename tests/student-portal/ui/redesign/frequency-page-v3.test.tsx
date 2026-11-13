@@ -263,7 +263,7 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
   const daysOff = [{ date: '2026-10-12', kind: 'feriado' as const, note: 'Nossa Senhora Aparecida' }];
   const bells = officialBells2026V1();
   // The Smecel's name; the tile shows the official one (owner decision 23/10/2026).
-  const grid = [{ shift: 'matutino' as const, lessons: [{ weekday: 4, slot: 3, subject: 'MATEMATICA' }] }];
+  const grid = [{ shift: 'matutino' as const, validFrom: '2026-06-22', lessons: [{ weekday: 4, slot: 3, subject: 'MATEMATICA' }] }];
 
   it('marks a holiday on the calendar and says why when it is opened', async () => {
     const months = { '2026-10': summary('2026-10', [lessonDay('2026-10-13')]) };
@@ -308,6 +308,31 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
     await ready();
     fireEvent.click(dayButton(15));
     expect(tiles()[2]).toBe('3ª aulaFaltou');
+  });
+
+  it('names the subject only from the day the current grid was first read; before it, the time alone', async () => {
+    // A lesson swapped in the Horário in August: the grid of today only says what holds from 03/08 on.
+    const swapped = [{ ...grid[0]!, validFrom: '2026-08-03' }];
+    const months = {
+      '2026-07': summary('2026-07', [lessonDay('2026-07-16', 6)], [{ date: '2026-07-16', slot: 3, mark: 'X' }]),
+      '2026-10': october()['2026-10'],
+    };
+    render(<FrequencyPageV3 client={clientOf(months, { extra: { bells, bellsValidFrom: '2026-06-22', grid: swapped } })} />);
+    await ready();
+    fireEvent.click(dayButton(15));
+    expect(tiles()[2]).toBe('3ª aula08:30–09:15MATEMÁTICAFaltou');
+    for (let step = 0; step < 3; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    await screen.findByRole('heading', { level: 3, name: 'Julho de 2026' });
+    fireEvent.click(dayButton(16));
+    expect(tiles()[2]).toBe('3ª aula08:30–09:15Faltou');
+  });
+
+  it('names no subject when the day the grid was first read is unknown', async () => {
+    const unknown = [{ ...grid[0]!, validFrom: null }];
+    render(<FrequencyPageV3 client={clientOf(october(), { extra: { bells, bellsValidFrom: '2026-06-22', grid: unknown } })} />);
+    await ready();
+    fireEvent.click(dayButton(15));
+    expect(tiles()[2]).toBe('3ª aula08:30–09:15Faltou');
   });
 });
 

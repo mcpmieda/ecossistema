@@ -42,12 +42,24 @@ export const onRequest: PagesFunction<PortalEdgeEnv> = async ({ request, env }) 
 
 async function routeEdgeV1(request: Request, env: PortalEdgeEnv): Promise<[Response, EdgeResultV1]> {
   const url = new URL(request.url);
+  const page = request.method === 'GET' || request.method === 'HEAD';
+  // A trailing slash (a link typed or shared as /access/) opens the access page; the hash stays.
+  if (url.pathname === '/access/' && page)
+    return [new Response(null, { status: 308, headers: { Location: '/access' + url.search } }), 'redirected'];
   const document = url.pathname === '/' || url.pathname === '/access';
+  // A wrong address opened in the browser gets the app's "Página não encontrada", not raw JSON.
+  const notFoundPage = !document && request.method === 'GET'
+    && request.headers.get('sec-fetch-dest') === 'document' && edgeFamilyV1(url.pathname) === 'other';
   // The page itself opens from links in other sites/apps; everything else keeps the strict check.
-  const allowed = document
-    ? portalDocumentNavigationAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN)
+  const allowed = document || notFoundPage
+    ? portalDocumentNavigationAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN, notFoundPage)
     : portalRequestOriginAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN);
   if (!allowed) return [portalJsonV1(portalFailureV1('forbidden'), 403), 'origin-rejected'];
+  if (notFoundPage) {
+    const [response, result] = await serveStaticV1(request, env, url, true);
+    if (result !== 'served') return [response, result];
+    return [new Response(response.body, { status: 404, headers: response.headers }), 'route-miss'];
+  }
   if (document || ASSET_PATH_V1.test(url.pathname)) return serveStaticV1(request, env, url, document);
   return forwardToSelfV1(request, env, url.pathname);
 }

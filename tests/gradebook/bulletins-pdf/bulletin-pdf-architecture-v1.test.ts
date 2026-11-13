@@ -19,7 +19,7 @@ describe('Boletins PDF arquitetura V1', () => {
   it('ancora PDF oficial no snapshot V2 recebido da emissão relacional', () => {
     expect(service).toContain('snapshot: RelationalBulletinSnapshotV2');
     expect(snapshots).toContain('snapshot_json AS payload_json');
-    expect(page).toContain("{ mode: 'emission', snapshot: response.snapshot }");
+    expect(page).toContain("{ mode: 'emission', snapshot: emitted.snapshot }");
     expect(page).toContain("runPdf('download')");
     expect(page).toContain("runPdf('print')");
     expect(actions).toContain('runRelationalBulletinPdfActionV2');

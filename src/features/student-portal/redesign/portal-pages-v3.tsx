@@ -45,6 +45,17 @@ export function useReportOpenIncidentsV3(open: number | null) {
   useEffect(() => report(open), [report, open]);
 }
 
+/**
+ * Ocorrências turned off by the school while the portal is open (the page's read answers 403): its
+ * item leaves the menu once the reader is on another page, so it is not offered again; while they
+ * are on it, it stays with the page's message. A later read that works brings it back.
+ */
+const IncidentsTurnedOffReportV3 = createContext<(off: boolean) => void>(() => {});
+export function useReportIncidentsTurnedOffV3(off: boolean) {
+  const report = useContext(IncidentsTurnedOffReportV3);
+  useEffect(() => report(off), [report, off]);
+}
+
 /** A menu item's icon: Frequência's calendar says how it is going, Horário's clock tells the time. */
 function NavIconV3({ id, frequencyTone }: Readonly<{ id: PortalPageIdV3; frequencyTone: FrequencyToneV3 }>) {
   if (id === 'frequency') return <FrequencyIconV3 tone={frequencyTone} size={22} />;
@@ -149,7 +160,7 @@ export const reducedMotionV3 = () =>
   globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /** The menu's highlight: one pill that glides under the chosen icon. */
-function useNavHighlightV3(page: PortalPageIdV3) {
+function useNavHighlightV3(page: PortalPageIdV3, items: number) {
   const nav = useRef<HTMLElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
@@ -169,7 +180,8 @@ function useNavHighlightV3(page: PortalPageIdV3) {
     const resize = () => place(false);
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
-  }, [page]);
+    // An item leaving the menu moves the others: placed again, without the glide.
+  }, [page, items]);
   return { nav, pill };
 }
 
@@ -223,9 +235,11 @@ function PortalMenuPagesV3({
   const stage = useRef<HTMLDivElement>(null);
   const panels = useRef<Partial<Record<PortalPageIdV3, HTMLElement | null>>>({});
   const entering = useRef<SlideV3 | null>(null);
-  const highlight = useNavHighlightV3(page);
   const [frequencyTone, setFrequencyTone] = useState<FrequencyToneV3>(null);
   const [openIncidents, setOpenIncidents] = useState<number | null>(null);
+  const [incidentsOff, setIncidentsOff] = useState(false);
+  const menu = pages.filter((item) => item.id !== 'incidents' || !incidentsOff || page === 'incidents');
+  const highlight = useNavHighlightV3(page, menu.length);
   const elementOf = (id: PortalPageIdV3) => panels.current[id] ?? null;
   // Set by a switch the reader asked for (menu or Back), never by the first render.
   const switched = useRef(false);
@@ -320,6 +334,7 @@ function PortalMenuPagesV3({
       <div className="pa3-page">
         <FrequencyToneReportV3 value={setFrequencyTone}>
         <OpenIncidentsReportV3 value={setOpenIncidents}>
+        <IncidentsTurnedOffReportV3 value={setIncidentsOff}>
         <StudentPortalShellV1 {...shell} hero={hero}>
           <div ref={stage} className="pa3-stage">
             {pages.map(({ id, label }) => (
@@ -339,6 +354,7 @@ function PortalMenuPagesV3({
             ))}
           </div>
         </StudentPortalShellV1>
+        </IncidentsTurnedOffReportV3>
         </OpenIncidentsReportV3>
         </FrequencyToneReportV3>
       </div>
@@ -347,7 +363,7 @@ function PortalMenuPagesV3({
           stop of the keyboard; the bar is fixed, so it shows in the same place. */}
       <nav ref={highlight.nav} className="pa3-nav" aria-label="Menu do Portal">
         <span ref={highlight.pill} className="pa3-nav-highlight" aria-hidden="true" />
-        {pages.map(({ id, label }) => (
+        {menu.map(({ id, label }) => (
           <button
             key={id}
             type="button"

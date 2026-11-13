@@ -3,9 +3,10 @@ import { FrequencyClientErrorV2 } from '../frequency/client-v2';
 
 /** A page's data older than this is read again when the page is opened (or the phone comes back). */
 const STALE_AFTER_MS_V3 = 10 * 60_000;
-/** A failed read tries again by itself a few times; after that, the page's own button remains. */
+/** A failed read tries again by itself while the page is open, waiting longer each time (30 s,
+ * 1, 2, 4 min, then every 5 min), as useFrequencyReadV2: the page keeps its promise to try again. */
 const RETRY_AFTER_MS_V3 = 30_000;
-const RETRIES_V3 = 5;
+const RETRY_MAX_MS_V3 = 300_000;
 
 /**
  * One read with the sign-in, kept on screen (owner request 22/10/2026: "não pode piscar"). The
@@ -48,9 +49,10 @@ export function useCachedReadV3<T>(
       const blocked = code === 'unauthenticated' || code === 'forbidden';
       setState((current) => ({ data: blocked ? null : current.data, error: code }));
       if (code === 'unauthenticated') lost.current?.();
-      if (!blocked && retries.current < RETRIES_V3) {
+      if (!blocked) {
+        const delay = Math.min(RETRY_MAX_MS_V3, RETRY_AFTER_MS_V3 * 2 ** Math.min(retries.current, 4));
         retries.current += 1;
-        retryTimer.current = setTimeout(() => void runAgain.current(), RETRY_AFTER_MS_V3);
+        retryTimer.current = setTimeout(() => void runAgain.current(), delay);
       }
     } finally {
       if (running.current === controller) running.current = null;

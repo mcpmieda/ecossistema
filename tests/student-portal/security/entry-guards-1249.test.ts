@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { servePortalSelfV1 } from '../../../server/student-portal/composition/self-v1';
 import { portalDatabaseV1 } from '../../../server/student-portal/composition/database-v1';
@@ -82,9 +83,10 @@ it('canonicalizes signed QR aliases and rejects unknown key versions before prov
 it('keeps a signed QR out of the anonymous budget that forged QRs can exhaust', async () => {
   const credential = 'a'.repeat(43), signature = await portalKeysV1(env).cryptoPort.signQr(credential, 1);
   vi.mocked(portalDatabaseV1).mockRejectedValue(new Error('synthetic-database-not-configured'));
-  // Only the proven-credential key still has room: the anonymous 'auth-entry' budget is spent.
+  // Only the anonymous 'auth-entry' key is spent; the proven-credential key (per peer) has room.
+  const authEntry = createHash('sha256').update('student-portal:operation:v1\0auth-entry\0ip:unknown').digest('hex');
   const exhausted = { ...env, PORTAL_AUTH_GLOBAL: { limit: vi.fn(async ({ key }: { key: string }) =>
-    ({ success: key === 'student-portal-auth-v1' })) } };
+    ({ success: key !== authEntry })) } };
   const login = (sig: string) => servePortalSelfV1(request('/api/student/auth/login', '', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ contractVersion: 1, qr: `${origin}/access#v1.${credential}.1.${sig}`, password: '123456', keepConnected: false }),

@@ -191,10 +191,13 @@ describe('private administrative API with real persistence', () => {
     });
     // A write from an older reading is refused (two admins never overwrite each other).
     expect((await api.command(context(), command('school-calendar-set', 1, { academicYear: 2026, days: [] }))).state).toBe('conflict');
-    // 201 school days are refused before anything is written.
-    const many = Array.from({ length: 201 }, (_, index) =>
-      day(new Date(Date.UTC(2026, 0, 1 + index)).toISOString().slice(0, 10)),
-    );
+    // 201 school days are refused before anything is written (Monday to Friday only, so the
+    // weekday rule never refuses them first).
+    const many = Array.from({ length: 300 }, (_, index) => new Date(Date.UTC(2026, 0, 1 + index)))
+      .filter((date) => date.getUTCDay() >= 1 && date.getUTCDay() <= 5)
+      .slice(0, 201)
+      .map((date) => day(date.toISOString().slice(0, 10)));
+    expect(many).toHaveLength(201);
     expect((await api.command(context(), command('school-calendar-set', 2, { academicYear: 2026, days: many }))).state).toBe('invalid-request');
     expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({ calendar: { version: 2 } });
     // Exactly 200 is the rule and is accepted.

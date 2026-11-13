@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   reconciliationRequestV1,
   reconciliationResponseV1,
+  RECONCILIATION_READ_OPERATIONS_V1,
   RECONCILIATION_ROUTE_V1,
   REPORT_BODY_BYTES_V1,
   type ReconciliationResponseV1,
@@ -119,7 +120,7 @@ export async function handleStudentReconciliationRequestV1(
     );
     if (!parsed.success) return responseV1({ contractVersion: 1, state: 'invalid-request' });
     const input = parsed.data;
-    const write = !['catalog', 'pending-count', 'automatic-report', 'list', 'detail'].includes(input.operation);
+    const write = !RECONCILIATION_READ_OPERATIONS_V1.includes(input.operation);
     const context = write
       ? await verifiedPagesContextV1(request, env, true, readContext.requestId)
       : readContext;

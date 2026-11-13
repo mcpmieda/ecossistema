@@ -180,7 +180,7 @@ function inspectCell(input: {
         code: 'invalid-text',
         message: 'Existe texto onde uma nota é esperada.',
         recommendedAction:
-          'Informe uma nota válida ou apague esse lançamento e importe a planilha novamente.',
+          'Informe uma nota válida ou apague esse lançamento e salve a planilha novamente. Essa nota e o resultado do aluno não foram lançados; o restante da planilha foi.',
         foundValue: displayValue(raw),
       }),
     ];
@@ -194,7 +194,7 @@ function inspectCell(input: {
         code: 'negative-grade',
         message: 'Existe uma nota negativa onde uma nota válida é esperada.',
         recommendedAction:
-          'Corrija ou apague o lançamento negativo e importe a planilha novamente.',
+          'Corrija ou apague o lançamento negativo e salve a planilha novamente. Essa nota e o resultado do aluno não foram lançados; o restante da planilha foi.',
         foundValue: displayValue(raw),
       }),
     ];
@@ -208,7 +208,7 @@ function inspectCell(input: {
         code: 'invalid-precision',
         message: 'Existe uma nota com mais de três casas decimais.',
         recommendedAction:
-          'Corrija o lançamento para no máximo três casas decimais. O Banco não arredonda notas silenciosamente durante a importação.',
+          'Corrija o lançamento para no máximo três casas decimais. O Banco não arredonda notas silenciosamente durante a importação. Essa nota e o resultado do aluno não foram lançados; o restante da planilha foi.',
         foundValue: displayValue(raw),
       }),
     ];
@@ -273,7 +273,7 @@ function inspectRequiredMaximum(
       code: 'invalid-maximum',
       message: `O valor máximo de ${label.toLowerCase()} está ausente ou inválido.`,
       recommendedAction:
-        'Informe um máximo numérico positivo na configuração da avaliação e importe novamente.',
+        'Informe um máximo numérico positivo na configuração da avaliação e salve novamente. Esta turma e disciplina não foram lançadas; as demais foram.',
       classCode: sheet.className.trim().toUpperCase(),
       subject: sheet.discipline.trim() || undefined,
       period: periodLabel(sheet),
@@ -464,7 +464,7 @@ function inspectDuplicateStudentNumbers(
         severity: 'blocking-error',
         code: 'duplicate-student-number',
         message: 'O mesmo número de aluno aparece mais de uma vez nesta turma e período.',
-        recommendedAction: 'Corrija a duplicidade na planilha e importe novamente.',
+        recommendedAction: 'Corrija a duplicidade na planilha e salve novamente. Esta turma e disciplina não foram lançadas; as demais foram.',
         classCode: sheet.className.trim().toUpperCase(),
         subject: sheet.discipline.trim() || undefined,
         period: periodLabel(sheet),

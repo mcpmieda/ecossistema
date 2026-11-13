@@ -618,20 +618,25 @@ function SchoolYearCountdownV3({
         <p className="pa3-countdown-days">{plural(schoolYear.schoolDays, 'dia letivo', 'dias letivos')} no ano.</p>
       </Card>
     );
+  // After the last school day only the day it ended: a refresh brings nothing new until the next
+  // year's calendar, so it never asks for one.
   return (
     <Card className="pa3-card pa3-countdown">
       <PortalCountdownV1
         at={`${schoolYear.lastDay}T23:59:59-03:00`}
         title="O ano letivo termina em"
         when={dateLabelV3(schoolYear.lastDay)}
-        done="O ano letivo terminou."
+        done={`O ano letivo terminou em ${dateLabelV3(schoolYear.lastDay).slice(0, 5)}.`}
+        reload={false}
       />
-      <p className="pa3-countdown-days">
-        {schoolYear.remaining === 1
-          ? 'Resta 1 dia letivo'
-          : `Restam ${schoolYear.remaining} dias letivos`}{' '}
-        de {schoolYear.schoolDays}.
-      </p>
+      {today <= schoolYear.lastDay && (
+        <p className="pa3-countdown-days">
+          {schoolYear.remaining === 1
+            ? 'Resta 1 dia letivo'
+            : `Restam ${schoolYear.remaining} dias letivos`}{' '}
+          de {schoolYear.schoolDays}.
+        </p>
+      )}
     </Card>
   );
 }
@@ -903,7 +908,8 @@ function MonthPeekV3({
 /**
  * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula
  * (08:50–09:45), MATEMATICA"): only from the day the current bells hold, never for an older day
- * whose times or grid may have been different.
+ * whose times may have been different; the subject only from the day the current grid was first
+ * read (a lesson swapped in the Horário must not rename an older absence), else the time alone.
  */
 function lessonInfoV3(
   school: {
@@ -920,10 +926,11 @@ function lessonInfoV3(
   const bellShift = bellShiftOfLabelV1(shift);
   if (!bellsValidFrom || date < bellsValidFrom || weekday < 1 || weekday > 5 || !bellShift) return null;
   const time = bells ? bellLessonV1(bells[bellShift][weekday as 1 | 2 | 3 | 4 | 5], slot) : null;
+  const week = grid.find((item) => item.shift === bellShift);
   const subject =
-    grid
-      .find((item) => item.shift === bellShift)
-      ?.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null;
+    week?.validFrom && date >= week.validFrom
+      ? (week.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null)
+      : null;
   const official = subject ? officialSubjectV1(subject) : null;
   if (!time && !official) return null;
   return { time: time ? `${time.start}–${time.end}` : null, subject: official };

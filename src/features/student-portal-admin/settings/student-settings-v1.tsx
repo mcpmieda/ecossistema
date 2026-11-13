@@ -48,7 +48,7 @@ import {
   GradesScopeNoteV1,
   type GradeReviewIntentV1,
 } from './grades-tab-v1';
-import type { PublicationItemV1 } from '../publication/publication-values-v1';
+import { publicationPartialV1, type PublicationItemV1 } from '../publication/publication-values-v1';
 import { accessOpenAtV1 } from '../../../../shared/student-portal-contracts/access-schedule-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
@@ -581,7 +581,14 @@ function publicationSlotsV1({
   onDirtyChange: (key: string, dirty: boolean) => void;
 }): PublicationSlotsV1 {
   return {
-    periodStatus: (item) => <GradeStatusChipV1 settings={data} period={item.period} state={item.state} />,
+    periodStatus: (item) => (
+      <GradeStatusChipV1
+        settings={data}
+        period={item.period}
+        state={item.state}
+        partial={publicationPartialV1(item)}
+      />
+    ),
     periodExtra: (item) => (
       <GradeShowV1
         key={`${discardVersion}:${item.period}:${fieldVersions['grades:' + item.period] ?? 0}`}
