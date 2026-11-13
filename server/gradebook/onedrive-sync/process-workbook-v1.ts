@@ -126,6 +126,10 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   } catch (cause) {
     // A snapshot the contract refuses is deterministic: retrying the same bytes cannot help.
     if (cause instanceof InvalidImportDiagnosticsSnapshotV1) return result('rejected', 'AUDIT-INVALID');
+    // Only the error kind and Postgres code: a database message can carry values, never logged.
+    const failure = cause as { name?: unknown; code?: unknown } | null;
+    console.error(JSON.stringify({ event: 'notas-sync-database-write', name: String(failure?.name ?? 'unknown').slice(0, 60),
+      code: typeof failure?.code === 'string' ? failure.code.slice(0, 10) : null }));
     return result('failed', 'DATABASE-WRITE');
   } finally {
     await database.close().catch(() => undefined);
