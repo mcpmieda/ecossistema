@@ -7,6 +7,7 @@ import {
   previewFetch,
   previewReconciliationV1,
 } from '../student-portal-admin-preview/preview-fetch-v1';
+import { previewAuditV1 } from './audit-preview-v1';
 import { previewOneDriveSyncV1 } from './onedrive-sync-preview-v1';
 
 /*
@@ -121,6 +122,7 @@ function answerV1(request: PreviewRequestV1): Promise<Response> | Response | nul
   if (path === '/api/gradebook/view-preferences') return viewPreferencesV1(init);
   if (path === '/api/gradebook/onedrive-sync' && typeof init?.body === 'string')
     return json(previewOneDriveSyncV1(init.body));
+  if (path === '/api/gradebook/import-diagnostics' && (init?.method ?? 'GET') === 'GET') return json(previewAuditV1());
   if (path.startsWith('/api/gradebook/')) return gradebookV1(request);
   // A healthy system; `?saude=attention` or `?saude=critical` in the address shows the others.
   if (path === '/api/platform/system-health') return json(syntheticHealth());

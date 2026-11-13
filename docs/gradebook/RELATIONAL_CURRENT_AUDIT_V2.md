@@ -22,7 +22,7 @@ A sucessora #674 contrata e prepara essa durabilidade em uma relação privada, 
 
 ## Interface e isolamento
 
-`GradebookAuditSurface` monta somente `RelationalCurrentAuditPageV2`. A página usa componentes HeroUI, cabeçalho compacto, estado fixo de 2026, KPIs identificados como contagens carregadas na sessão, filtros estáveis por gravidade, paginação limitada e uma timeline dos achados. Os detalhes técnicos ficam recolhidos e o texto principal usa linguagem escolar.
+`GradebookAuditSurface` monta somente `RelationalCurrentAuditPageV2`. Desde a BN-DEC-046 a página é só leitura: lê todos os achados do ano, mostra uma aba por problema com a contagem, e lista cada achado numa linha curta agrupada por planilha. Não há ação de correção nem tratamento humano na tela; a próxima importação tira o problema da lista.
 
 Na entrega original #658, `AuditWorkspacePage`, `ImportDiagnosticsAuditPanelV1` e `/api/gradebook/audit-workspace` permaneceram apenas para investigação de dependências. A #664 comprovou que esses entrypoints não possuíam consumidor ativo e os retirou. O núcleo Audit Workspace V1, seu contrato e source D1 continuam preservados porque Relatórios V1 ainda os usa internamente; eles não são fallback da superfície atual. Detalhes em [retirada seletiva #664](LEGACY_AUDIT_RETIREMENT_664.md).
 

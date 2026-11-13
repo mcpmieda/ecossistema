@@ -271,17 +271,18 @@ describe('import diagnostics v1', () => {
       ),
     ).toBe(false);
     expect(visible).toContainEqual(
-      expect.objectContaining({ code: 'above-maximum', severity: 'warning' }),
+      // BN-DEC-046: a grade above its maximum is held, so it is a blocking item.
+      expect.objectContaining({ code: 'above-maximum', severity: 'blocking-error' }),
     );
     expect(visible).toContainEqual(
       expect.objectContaining({ code: 'invalid-text', severity: 'blocking-error' }),
     );
   });
 
-  it('keeps above-maximum as a warning with functional location', () => {
+  it('reports above-maximum as blocking (BN-DEC-046) with functional location', () => {
     const diagnostics = collectGradebookImportDiagnosticsV1(syntheticResult());
     expect(diagnostics.find((value) => value.code === 'above-maximum')).toMatchObject({
-      severity: 'warning',
+      severity: 'blocking-error',
       fieldLabel: 'Avaliação quantitativa 1',
       studentNumber: 17,
       foundValue: '7.25',

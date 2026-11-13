@@ -33,6 +33,12 @@ const manifest: SourceFileManifestV1 = {
 
 function teacher(mutate: (workbook: WorkbookFixtureV1) => void = () => {}): WorkbookFixtureV1 {
   const workbook = structuredClone(WORKBOOK_READER_EQUIVALENCE_CASES_V1.find((item) => item.id === 'teacher')!.workbook);
+  // The fixture's 6A3º has graded activities without a valid maximum (held by BN-DEC-046 rule 2);
+  // give them one so these cases start from a workbook with nothing held.
+  Object.assign(workbook.Sheets['6A3º']!, {
+    AA3: { t: 'n', v: 10 }, AE3: { t: 'n', v: 10 },
+    AA4: { t: 's', v: 'Atividade sintética A' }, AE4: { t: 's', v: 'Atividade sintética E' },
+  });
   mutate(workbook);
   return workbook;
 }

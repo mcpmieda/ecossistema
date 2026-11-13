@@ -214,7 +214,7 @@ describe('gradebook relational import v9', () => {
     expect(() => canonicalMilliV9(7.2501)).toThrow(/3 casas/iu);
   });
 
-  it('keeps a grade above the configured maximum and emits a non-blocking warning', () => {
+  it('holds a grade above the configured maximum with the student result (BN-DEC-046)', () => {
     const warnings: Array<{
       code: string;
       sheetName: string;
@@ -227,7 +227,8 @@ describe('gradebook relational import v9', () => {
     });
     expect(request.operation).toBe('persist-notas');
     if (request.operation !== 'persist-notas') throw new Error('expected-notes-request');
-    expect(request.ofertas[0]?.trimestres[0].alunos[0]?.[1][0]).toBe(4500);
+    expect(request.ofertas[0]?.trimestres[0].alunos[0]?.[1][0]).toEqual(['u']);
+    expect(request.ofertas[0]?.trimestres[0].alunos[0]?.[2]).toEqual(['u']);
     expect(warnings).toEqual([
       {
         code: 'above-maximum',

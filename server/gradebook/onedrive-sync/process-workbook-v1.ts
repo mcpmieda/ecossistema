@@ -13,6 +13,7 @@ import type { GradebookPostgresDatabaseV1 } from '../persistence/postgres/postgr
 import { graphDownloadWorkbookV1, WorkbookTooLargeError, type GraphAppEnvV1 } from './graph-drive-v1';
 import type { ReadResultV1 } from './sync-rules-v1';
 import { prepareTeacherWorkbookV1 } from './teacher-workbook-preparation-v1';
+import { holdNameMismatchesV1, studentKeyV1, wrongYearAuditV1 } from './server-audit-v1';
 
 export type ProcessWorkbookInputV1 = {
   readonly driveId: string;
@@ -21,6 +22,8 @@ export type ProcessWorkbookInputV1 = {
   readonly hash: string | null;
   readonly modifiedAt: string;
   readonly maxBytes: number;
+  /** The academic year of the folder; a workbook of another year is not written (BN-DEC-046 rule 3). */
+  readonly expectedYear: number | null;
 };
 
 export type ProcessWorkbookPortsV1 = {
@@ -36,12 +39,27 @@ export type ProcessWorkbookPortsV1 = {
   readonly services?: {
     readonly recordAudit: (database: GradebookPostgresDatabaseV1, audit: GradebookImportDiagnosticsAuditRequestV1) => Promise<unknown>;
     readonly persist: (database: GradebookPostgresDatabaseV1, request: GradebookImportPersistenceRequestV9) => Promise<GradebookImportPersistenceResponseV9>;
+    /** Name of each student in the system's Relação, by `TURMA|número`. */
+    readonly relationNames: (database: GradebookPostgresDatabaseV1, year: number) => Promise<ReadonlyMap<string, string>>;
   };
 };
+
+async function relationNamesV1(database: GradebookPostgresDatabaseV1, year: number): Promise<ReadonlyMap<string, string>> {
+  const rows = await database.query<{ codigo: string; numero: number; nome: string }>(
+    `SELECT t.codigo, v.numero, a.nome
+       FROM gradebook.vinculo v
+       JOIN gradebook.turma t ON t.id = v.turma_id
+       JOIN gradebook.aluno a ON a.id = v.aluno_id
+      WHERE v.ano = $1`,
+    [year],
+  );
+  return new Map(rows.map((row) => [studentKeyV1(String(row.codigo), Number(row.numero)), String(row.nome)]));
+}
 
 const OFFICIAL_SERVICES_V1: NonNullable<ProcessWorkbookPortsV1['services']> = {
   recordAudit: (database, audit) => replaceGradebookImportDiagnosticsSnapshotV1(database, audit),
   persist: (database, request) => createGradebookRelationalImportServiceV11(database).execute(request),
+  relationNames: relationNamesV1,
 };
 
 const REJECTED_STATES_V1 = new Set<GradebookImportPersistenceResponseV9['state']>([
@@ -79,9 +97,26 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   }
   const services = ports.services ?? OFFICIAL_SERVICES_V1;
   try {
-    await services.recordAudit(database, prepared.audit);
-    if (prepared.outcome === 'blocked') return result('blocked', 'AUDIT-BLOCKING');
-    const response = await services.persist(database, prepared.request);
+    // Rule 3: a workbook of another year writes nothing; the Auditoria shows it under the folder's year.
+    const foundYear = prepared.audit.academicYear;
+    if (input.expectedYear !== null && foundYear !== input.expectedYear) {
+      await services.recordAudit(database, wrongYearAuditV1(prepared.audit, input.expectedYear, foundYear));
+      return result('blocked', 'WRONG-YEAR');
+    }
+    if (prepared.outcome === 'blocked') {
+      await services.recordAudit(database, prepared.audit);
+      return result('blocked', 'AUDIT-BLOCKING');
+    }
+    // Rule 14: a student whose sheet name is not the Relação's name for that number is held.
+    let request = prepared.request;
+    let audit = prepared.audit;
+    if (request.operation === 'persist-notas') {
+      const checked = holdNameMismatchesV1(request, prepared.studentNames, await services.relationNames(database, request.ano));
+      request = checked.request;
+      audit = { ...audit, diagnostics: [...audit.diagnostics, ...checked.items] };
+    }
+    await services.recordAudit(database, audit);
+    const response = await services.persist(database, request);
     if (response.state === 'unavailable') return result('failed', 'DATABASE-UNAVAILABLE');
     if (REJECTED_STATES_V1.has(response.state)) return result('rejected', response.state.toUpperCase());
     if (response.state === 'no-changes') return result('no-changes', null);
