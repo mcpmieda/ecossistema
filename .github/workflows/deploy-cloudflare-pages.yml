@@ -254,6 +254,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Deploy Notas OneDrive sync Worker
+        run: ./node_modules/.bin/wrangler deploy --config wrangler.notas-onedrive-sync.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Deploy Portal HTTPS self entrypoint
         run: >-
           ./node_modules/.bin/wrangler pages deploy
