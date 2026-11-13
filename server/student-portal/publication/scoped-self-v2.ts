@@ -41,14 +41,11 @@ const hasFacts = (period: SubjectV2['periods'][number]) =>
     period.partials?.some((partial) => partial.mark.kind === 'score' || partial.notDone === true),
   );
 
-function sourceRevisionV2(source: SourceV2) {
-  return BigInt(source.student.dataVersion.split(':')[1]!);
-}
-
-function newestSourceV2(current: SourceV2 | undefined, candidate: SourceV2 | undefined) {
-  if (!candidate) return current;
-  if (!current || sourceRevisionV2(candidate) > sourceRevisionV2(current)) return candidate;
-  return current;
+/** Whether the family sees any mark of `period` in this selection (same test as the merge). */
+function periodShownV2(available: readonly SubjectV2[], period: (typeof PERIODS_V1)[number]) {
+  return available.some((subject) =>
+    subject.periods.some((item) => item.period === period && hasFacts(item)),
+  );
 }
 
 const preparedPayloadV2 = z.record(z.string(), z.unknown());
@@ -191,7 +188,11 @@ export async function scopedSelfV2(
   const subjects = new Map<number, SubjectV2>();
   const reader = new AcademicStudentReaderPostgresV1(tx);
   const decoded = new Map<string, SourceV2>();
+  // A2: the annual situation, officialOutcome and result come from the edition the family sees for
+  // the most advanced displayed period (T3, or the last published recovery), never from whichever
+  // period happens to point at the newest revision.
   let finalSource: SourceV2 | undefined;
+  let shownSource: SourceV2 | undefined;
   let explicitWithdrawal = false;
 
   for (const [index, period] of PERIODS_V1.entries()) {
@@ -199,11 +200,15 @@ export async function scopedSelfV2(
     if (!row) throw new Error('student-portal-preparation-unavailable');
     const selected = selectPeriodV2(row, context, reader, decoded);
     accepted[index] = selected.acceptedRevision;
-    finalSource = newestSourceV2(finalSource, selected.source);
+    if (selected.source) {
+      finalSource = selected.source;
+      if (periodShownV2(selected.available, period)) shownSource = selected.source;
+    }
     explicitWithdrawal ||= selected.explicitWithdrawal;
     mergePeriodSubjectsV2(subjects, selected.available, period);
   }
 
+  finalSource = shownSource ?? finalSource;
   const finalAuthority = finalAuthorityV2(context, finalSource, explicitWithdrawal);
   const published = PERIODS_V1.filter((_, index) => accepted[index] !== null);
   const t3Published = published.includes('T3');
