@@ -1,5 +1,6 @@
 import { emitPortalOperationBurstMetricV1 } from './metrics-v1';
 import { createHash } from 'node:crypto';
+import { cloudflareClientIpV1 } from './audit-context-v1';
 import { portalJsonV1 } from '../runtime/http-v1';
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
 
@@ -35,6 +36,28 @@ export async function checkPortalOperationV1(binding: Pick<RateLimit, 'limit'> |
     emitPortalOperationBurstMetricV1({ event: 'student-portal-operation-burst-v1', operation, outcome,
       elapsedMs: Math.max(0, Date.now() - started) });
   }
+}
+
+/** The anonymous subject before a session or credential is proven: the network peer (an IPv6
+ * /64 counts as one), never one shared key, so one client cannot spend every family's entry
+ * budget. After the session is found, the per-account limits stay the main ones. */
+export function portalAnonymousSubjectV1(request: Request): string {
+  const ip = cloudflareClientIpV1(request);
+  if (!ip) return 'ip:unknown';
+  return ip.includes(':') ? `ip6:${ipv6Prefix64V1(ip)}` : `ip4:${ip}`;
+}
+
+function ipv6Prefix64V1(ip: string): string {
+  const [head = '', tail] = ip.toLowerCase().split('::');
+  const groups = (part: string) => (part ? part.split(':') : []);
+  const left = groups(head);
+  const right = groups(tail ?? '');
+  // An embedded IPv4 (::ffff:1.2.3.4) fills two groups.
+  const extra = right.at(-1)?.includes('.') ? 1 : 0;
+  const full = tail === undefined
+    ? left
+    : [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length - extra)).fill('0'), ...right];
+  return full.slice(0, 4).map((group) => group.replace(/^0+(?=.)/u, '')).join(':');
 }
 
 export function portalRateLimitResponseV1(error: PortalRateLimitErrorV1, requestId = crypto.randomUUID()): Response {

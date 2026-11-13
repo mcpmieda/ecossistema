@@ -15,7 +15,7 @@ import { TurnstileVerifierV1 } from '../auth/turnstile-v1';
 import { servePortalAuthV1, sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalServingGateV1 } from '../maintenance/serving-gate-v1';
 import { cloudflareClientIpV1 } from '../observability/audit-context-v1';
-import { checkPortalOperationV1, PortalRateLimitErrorV1, portalRateLimitResponseV1 } from '../observability/operation-burst-v1';
+import { checkPortalOperationV1, portalAnonymousSubjectV1, PortalRateLimitErrorV1, portalRateLimitResponseV1 } from '../observability/operation-burst-v1';
 import { portalAuthBurstV1 } from '../observability/auth-burst-v1';
 import { SelfProjectionReaderV1 } from '../publication/self-projection-reader-v1';
 import { scopedPublicationEnabledV2 } from '../publication/scoped-source-v2';
@@ -85,16 +85,16 @@ async function invokeAuthV1<T>(
   if (hasQr) {
     const qr = parseQrV1(subject);
     if (!(await keys.cryptoPort.verifyQr(qr.credentialId, qr.keyVersion, qr.signature))) {
-      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'auth-entry', 'public');
+      await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'auth-entry', portalAnonymousSubjectV1(request));
       return { contractVersion: 1, requestId, state: 'unauthenticated' };
     }
     verifiedSubject = `qr:${qr.keyVersion}:${qr.credentialId}`;
   }
   if (!hasQr) {
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'auth-entry', 'public');
+    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'auth-entry', portalAnonymousSubjectV1(request));
     // A challenge is opaque until its existing database preflight verifies it. Keep its
     // budget separate from signed QRs; the durable account counter remains authoritative.
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'activation', 'public');
+    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'activation', portalAnonymousSubjectV1(request));
     await checkPortalOperationV1(env.PORTAL_AUTH_SUBJECT, 'activation', subject);
   }
   if (hasQr && !(await portalAuthBurstV1(env.PORTAL_AUTH_GLOBAL, env.PORTAL_AUTH_SUBJECT)(verifiedSubject)))
@@ -122,11 +122,11 @@ async function invokeAuthV1<T>(
 
 /** The session read, renewing the live security channel when a connection asks for it. */
 function readSessionV1(self: SelfContextV1): SessionServiceV1['read'] {
-  const { env, clientIp, snapshotReads, connectionId } = self;
+  const { request, env, clientIp, snapshotReads, connectionId } = self;
   return async (token, requestId, expectedAccountId, includeClosed) => {
     if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
       throw new Error('student-portal-maintenance');
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'session-entry', 'public');
+    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'session-entry', portalAnonymousSubjectV1(request));
     const keys = portalKeysV1(env);
     const verifiedAt = Date.now();
     let renewal: SecurityRenewalV1 | undefined;
@@ -174,7 +174,7 @@ async function serveLiveV1(self: SelfContextV1): Promise<Response> {
   const token = sessionCookieTokenV1(request);
   if (!token) return portalJsonV1(portalFailureV1('unauthenticated'), 401);
   const keys = portalKeysV1(env);
-  await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'live-entry', 'public');
+  await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'live-entry', portalAnonymousSubjectV1(request));
   const identity = await portalDatabaseV1(env, 'live', (sql) =>
     new SessionServiceV1(sql, keys.cryptoPort, undefined, true,
       accountId => checkPortalOperationV1(env.PORTAL_LIVE_ACCOUNT, 'live', accountId)).withAuthorized(
@@ -215,12 +215,12 @@ async function serveLiveV1(self: SelfContextV1): Promise<Response> {
 }
 
 function logoutV1(self: SelfContextV1): SessionServiceV1['logout'] {
-  const { env, clientIp } = self;
+  const { request, env, clientIp } = self;
   return async (token, requestId) => {
     if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
       throw new Error('student-portal-maintenance');
     const keys = portalKeysV1(env);
-    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'logout-entry', 'public');
+    await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'logout-entry', portalAnonymousSubjectV1(request));
     return portalDatabaseV1(env, 'auth', (sql) =>
       new SessionServiceV1(sql, keys.cryptoPort, clientIp).logout(token, requestId,
         accountId => checkPortalOperationV1(env.PORTAL_AUTH_SUBJECT, 'logout', accountId)),
@@ -239,7 +239,7 @@ async function serveStatusV1(self: SelfContextV1): Promise<Response> {
   if (closed) return closed;
   const keys = portalKeysV1(env);
   const token = sessionCookieTokenV1(request);
-  await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'status-entry', 'public');
+  await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'status-entry', portalAnonymousSubjectV1(request));
   const status = await portalDatabaseV1(env, 'self', async (sql) => {
     const policies = new PolicyServiceV1(sql);
     const now = new Date();
@@ -288,7 +288,7 @@ async function serveMeV1(self: SelfContextV1): Promise<Response> {
   const token = sessionCookieTokenV1(request);
   if (!token) return portalJsonV1(portalFailureV1('unauthenticated'), 401);
   const keys = portalKeysV1(env);
-  await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'read-entry', 'public');
+  await checkPortalOperationV1(env.PORTAL_AUTH_GLOBAL, 'read-entry', portalAnonymousSubjectV1(request));
   const result = await portalDatabaseV1(env, 'self', (sql) =>
     new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads,
       accountId => checkPortalOperationV1(env.PORTAL_READ_ACCOUNT, 'read', accountId)).withAuthorized(
