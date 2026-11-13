@@ -176,16 +176,6 @@ export class NotasSyncAdminV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
   }
 }
 
-/** Where the reader runs (Cloudflare data center), logged once per isolate: the database is in São Paulo. */
-let placementLogged = false;
-function logPlacementOnceV1(): void {
-  if (placementLogged) return;
-  placementLogged = true;
-  void fetch('https://www.cloudflare.com/cdn-cgi/trace').then((response) => response.text()).then((text) => {
-    console.log(JSON.stringify({ event: 'notas-sync-placement', colo: /^colo=(\w+)$/mu.exec(text)?.[1] ?? null }));
-  }).catch(() => undefined);
-}
-
 /** One read, in its own invocation: requested by the coordinator through the SELF binding only. */
 export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
   override async fetch(request: Request): Promise<Response> {
@@ -195,15 +185,13 @@ export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
 
   private async processFile(input: ProcessWorkbookInputV1): Promise<ReadResultV1> {
     const env = this.env;
-    logPlacementOnceV1();
     return processWorkbookV1(input, {
       env,
       xlsx: XLSX as unknown as SheetJs,
       openDatabase: () => {
         const connectionString = env.PROD_DB?.connectionString;
         if (!connectionString) throw new Error('notas-sync-database-binding-missing');
-        // A read is far from the database and runs each query once: unnamed statements save a round trip each.
-        return createGradebookPostgresDatabaseV1(connectionString, { prepare: false });
+        return createGradebookPostgresDatabaseV1(connectionString);
       },
       notifyPortal: async () => {
         // The app identity is the technical author of the sync; the Portal outbox stays authoritative.

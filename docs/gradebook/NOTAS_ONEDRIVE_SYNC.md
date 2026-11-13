@@ -47,6 +47,6 @@ Medido em produção: uma leitura gastava 11–15 s, sendo mais de 70% no banco 
 - **Relação em paralelo:** a conexão e a consulta da Relação começam junto com o download.
 - **Gravações em fila:** a Auditoria usa um bloqueio por ano no banco. Pelo Hyperdrive, o tempo de espera pedido na conexão não vale, então a gravação que encontra o bloqueio ocupado (`55P03`, `40P01`, `40001`) é repetida até 6 vezes com espera crescente. Cada gravação é uma transação inteira, então repetir é seguro.
 - **Distância do banco:** o banco fica em São Paulo. O leitor roda onde o coordenador está: o primeiro coordenador nasceu em San José (EUA); o atual (`notas-onedrive-sync-sam`, `locationHint: "sam"`) ficou em Miami. Fixar a região do worker (`placement targeted`) não valeu nem por RPC nem por `SELF.fetch` (medido em 13/11/2026). O primeiro coordenador (`notas-onedrive-sync`) se apaga sozinho ao acordar; a constante que o reconhece pode sair depois que ele sumir.
-- **Uma ida ao banco por consulta:** a conexão do leitor usa comandos sem nome (`prepare: false`), que vão numa ida só; com nome, cada consulta nova custava duas.
+- **Testado sem ganho (desfeito):** comandos sem nome no banco (`prepare: false`) e região fixa do worker.
 - **Desligado ou pausado:** arquivos pendentes não acordam mais o coordenador.
-- O log `notas-sync-stages` mostra o tempo de cada etapa; `notas-sync-placement` mostra o data center onde o leitor roda.
+- O log `notas-sync-stages` mostra o tempo de cada etapa.
