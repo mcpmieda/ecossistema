@@ -118,6 +118,7 @@ describe('platform search model', () => {
       'notes:bulletins',
       'notes:council',
       'notes:audit',
+      'notes:onedrive',
       'notes:settings',
       'health:audit',
       'config:config-1',
