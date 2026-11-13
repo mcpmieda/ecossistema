@@ -22,6 +22,7 @@ export type RuntimeEnv = Omit<
   | 'PROD_DB'
   | 'PORTAL_SERVICE'
   | 'PUBLIC_DEMO_CONTROL'
+  | 'NOTAS_SYNC_SERVICE'
   | 'RUNTIME_ENVIRONMENT'
 > &
   RuntimeSecrets & {
@@ -34,6 +35,7 @@ export type RuntimeEnv = Omit<
     PROD_DB?: unknown;
     PORTAL_SERVICE?: unknown;
     PUBLIC_DEMO_CONTROL?: unknown;
+    NOTAS_SYNC_SERVICE?: unknown;
     COLLECTOR_ENABLED?: 'true'|'false';
     COLLECTOR_DB?: unknown;
   };
@@ -66,6 +68,7 @@ const envSchema = z
     PROD_DB: z.unknown().optional(),
     PORTAL_SERVICE: z.unknown().optional(),
     PUBLIC_DEMO_CONTROL: z.unknown().optional(),
+    NOTAS_SYNC_SERVICE: z.unknown().optional(),
     COLLECTOR_ENABLED: z.enum(['true','false']).optional(),
     COLLECTOR_DB: z.unknown().optional(),
     COLLECTOR_REFRESH_KEY: z.string().optional(),

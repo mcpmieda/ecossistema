@@ -61,7 +61,7 @@ export async function handleOneDriveSyncRequestV1(request: Request, env: Runtime
   const parsed = oneDriveSyncRequestSchemaV1.safeParse(payload);
   if (!parsed.success) return failure('invalid-request', 400);
 
-  const service = (env as { NOTAS_SYNC_SERVICE?: OneDriveSyncServiceBindingV1 }).NOTAS_SYNC_SERVICE;
+  const service = env.NOTAS_SYNC_SERVICE as OneDriveSyncServiceBindingV1 | undefined;
   if (!service) return failure('unavailable', 503);
   try {
     const answer = oneDriveSyncResponseSchemaV1.safeParse(await service.handle(actor, parsed.data));
