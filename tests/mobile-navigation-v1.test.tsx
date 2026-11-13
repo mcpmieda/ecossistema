@@ -164,13 +164,16 @@ describe('drawer follows the finger v1', () => {
     touch('touchstart', page, 20);
     const move = touch('touchmove', page, 40);
     touch('touchmove', page, 160);
-    expect(move.defaultPrevented).toBe(true);
+    // The move listener is passive (it never holds up a scroll): the page is held still instead.
+    expect(move.defaultPrevented).toBe(false);
+    expect(document.documentElement.style.overflow).toBe('hidden');
     expect(drawer.style.transform).toBe('translateX(-50%)');
     expect(screen.getByTestId('shade').style.opacity).toBe('0.5');
     await tick(40);
     act(() => void touch('touchend', page, 160));
     expect(drawer.getAttribute('data-open')).toBe('true');
     expect(drawer.style.transform).toBe('');
+    expect(document.documentElement.style.overflow).toBe('');
   });
 
   it('slides back shut when let go early, and leaves a drag on the right half to the page', async () => {

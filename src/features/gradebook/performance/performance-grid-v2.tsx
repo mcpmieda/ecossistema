@@ -5,7 +5,6 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
   type PointerEvent,
   type ReactNode,
 } from 'react';
@@ -101,7 +100,8 @@ export function PerformanceGridV2({
 
   const root = useRef<HTMLDivElement | null>(null);
   const pin = useRef<HTMLDivElement | null>(null);
-  const [pinned, setPinned] = useState(false);
+  /** Whether the pinned copy is on screen. Kept out of React: a scroll never re-renders the grid. */
+  const pinned = useRef(false);
   const hovered = useRef<{ row: string | null; column: number }>({ row: null, column: -1 });
 
   /** The header cells of one column: the table's own and the pinned copy's. */
@@ -142,56 +142,86 @@ export function PerformanceGridV2({
     markColumn(-1);
   };
 
-  /** Places the pinned copy over the table, column by column, under the shell's top bar. */
-  const align = () => {
+  /** Gives each column of the pinned copy the width of the table's own: all reads, then writes. */
+  const measure = () => {
+    const head = root.current?.querySelector('.table__scroll-container thead');
+    const track = pin.current?.firstElementChild as HTMLElement | null | undefined;
+    if (!head || !track) return;
+    const cells = [...(head.querySelector('tr')?.children ?? [])];
+    const widths = cells.map((cell) => cell.getBoundingClientRect().width);
+    track.style.width = `${head.getBoundingClientRect().width}px`;
+    [...track.children].forEach((item, index) => {
+      (item as HTMLElement).style.width = `${widths[index] ?? 0}px`;
+    });
+  };
+  /** Places the pinned copy over the table under the shell's top bar, or hides it. */
+  const align = (remeasure: boolean) => {
     const scroller = root.current?.querySelector<HTMLElement>('.table__scroll-container');
     const head = scroller?.querySelector('thead');
-    if (!scroller || !head) return false;
+    const copy = pin.current;
+    if (!scroller || !head || !copy) return;
+    // Under whatever stays on top of the page: the shell's top bar and, under it, the area's tabs.
     const top = Math.max(
       0,
-      document.querySelector('.shell-topbar')?.getBoundingClientRect().bottom ?? 0,
+      ...[...document.querySelectorAll('.shell-topbar, .shell-areabar:not(:empty)')].map(
+        (bar) => bar.getBoundingClientRect().bottom,
+      ),
     );
     const box = scroller.getBoundingClientRect();
     const line = head.getBoundingClientRect();
     const shown = line.height > 0 && line.top < top && box.bottom - line.height * 2 > top;
-    const copy = pin.current;
-    const track = copy?.firstElementChild as HTMLElement | null | undefined;
-    if (shown && copy && track) {
-      copy.style.top = `${top}px`;
-      copy.style.left = `${box.left}px`;
-      copy.style.width = `${box.width}px`;
-      track.style.width = `${line.width}px`;
-      track.style.transform = `translateX(${-scroller.scrollLeft}px)`;
-      const cells = head.querySelector('tr')?.children ?? [];
-      [...track.children].forEach((item, index) => {
-        (item as HTMLElement).style.width = `${cells[index]?.getBoundingClientRect().width ?? 0}px`;
-      });
-    }
-    return shown;
+    const appearing = shown && !pinned.current;
+    pinned.current = shown;
+    copy.hidden = !shown;
+    if (!shown) return;
+    if (appearing || remeasure) measure();
+    copy.style.top = `${top}px`;
+    copy.style.left = `${box.left}px`;
+    copy.style.width = `${box.width}px`;
+    (copy.firstElementChild as HTMLElement | null)?.style.setProperty(
+      'transform',
+      `translateX(${-scroller.scrollLeft}px)`,
+    );
+    if (appearing) markBelow(hovered.current.row);
   };
   const alignLatest = useRef(align);
   useEffect(() => {
     alignLatest.current = align;
   });
   useEffect(() => {
-    const update = () => setPinned(alignLatest.current());
+    // At most once a frame, however many scroll events the phone sends.
+    let frame = 0;
+    let remeasure = false;
+    const schedule = (sizes: boolean) => {
+      remeasure ||= sizes;
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const sized = remeasure;
+        remeasure = false;
+        alignLatest.current(sized);
+      });
+    };
+    const onScroll = () => schedule(false);
+    const onResize = () => schedule(true);
     const scroller = root.current?.querySelector('.table__scroll-container');
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onResize);
     if (scroller) observer?.observe(scroller);
-    window.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-    scroller?.addEventListener('scroll', update, { passive: true });
-    update();
+    // Captured: on a computer the page scrolls inside the sheet, not the window.
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    window.addEventListener('resize', onResize);
+    alignLatest.current(true);
     return () => {
+      window.cancelAnimationFrame(frame);
       observer?.disconnect();
-      window.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
-      scroller?.removeEventListener('scroll', update);
+      window.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onResize);
     };
   }, []);
+  // New columns or labels: the copy on screen takes their widths again.
   useLayoutEffect(() => {
-    if (!pinned) return;
-    align();
+    if (!pinned.current) return;
+    align(true);
     markBelow(hovered.current.row);
   });
 
@@ -202,9 +232,10 @@ export function PerformanceGridV2({
       onPointerOver={point}
       onPointerLeave={leave}
     >
-      {pinned
-        ? createPortal(
-            <div ref={pin} className="performance-grid-pin" aria-hidden="true">
+      {typeof document === 'undefined'
+        ? null
+        : createPortal(
+            <div ref={pin} className="performance-grid-pin" aria-hidden="true" hidden>
               <div className="performance-grid-pin__track">
                 {headers.map((header) => (
                   <span
@@ -219,8 +250,7 @@ export function PerformanceGridV2({
               </div>
             </div>,
             document.body,
-          )
-        : null}
+          )}
       <Table className="min-w-0">
         <Table.ScrollContainer className="max-w-full overflow-x-auto rounded-xl border border-separator">
           <Table.Content
