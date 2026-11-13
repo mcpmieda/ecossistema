@@ -59,7 +59,14 @@ export function GradeStatusChipV1({
   settings,
   period,
   state,
-}: Readonly<{ settings: EffectiveSettingsV1; period: GradePeriodV1; state: PublicationStateV1 }>) {
+  partial = null,
+}: Readonly<{
+  settings: EffectiveSettingsV1;
+  period: GradePeriodV1;
+  state: PublicationStateV1;
+  /** A7: the period reaches only `published` of the `total` students of this scope. */
+  partial?: { published: number; total: number } | null;
+}>) {
   const now = useScheduleClockV1();
   const plan = gradePlanOfV1(settings.value, period);
   if (state === 'no-data')
@@ -75,7 +82,11 @@ export function GradeStatusChipV1({
       </Chip>
     );
   if (accessOpenAtV1(plan, now))
-    return (
+    return partial ? (
+      <Chip size="sm" variant="soft" color="warning">
+        <Eye size={14} aria-hidden="true" /> Só {partial.published} de {partial.total} alunos veem agora
+      </Chip>
+    ) : (
       <Chip size="sm" variant="soft" color="success">
         <Eye size={14} aria-hidden="true" /> Os alunos veem agora
       </Chip>
