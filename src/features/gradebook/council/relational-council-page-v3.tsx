@@ -109,6 +109,10 @@ function Grade({ value, state }: { readonly value: number | null; readonly state
 const voteCountTextV3 = (student: RelationalCouncilStudentV3, side: 'favoraveis' | 'contrarios') =>
   student.vote ? String(student.vote[side]) : '';
 
+/** The recorded decision code as the field shows it; empty when nothing was decided yet. */
+const decisionCodeTextV3 = (student: RelationalCouncilStudentV3) =>
+  student.decision ? String(student.decision.code) : '';
+
 /** Both counts as whole numbers, and who was present (their sum) once both are given. */
 function voteNumbersV3(favoraveis: string, contrarios: string) {
   const favorableNumber = /^\d+$/u.test(favoraveis) ? Number(favoraveis) : null;
@@ -125,17 +129,20 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
   readonly onMessage: (message: string) => void;
   readonly onDirtyChange: (dirty: boolean) => void;
 }) {
-  const [decision, setDecision] = useState(String(student.decision?.code ?? 1));
+  // No decision yet starts empty: the deliberation is chosen, never preselected.
+  const [decision, setDecision] = useState(decisionCodeTextV3(student));
   const [decisionReason, setDecisionReason] = useState(student.decision?.justification ?? '');
   const [favoraveis, setFavoraveis] = useState(voteCountTextV3(student, 'favoraveis'));
   const [contrarios, setContrarios] = useState(voteCountTextV3(student, 'contrarios'));
   const [voteReason, setVoteReason] = useState(student.vote?.justification ?? '');
+  // A reread brings new objects with the same content; only a real change replaces what is typed.
+  const recordedKey = JSON.stringify([student.id, student.decision, student.vote]);
   useEffect(() => {
-    setDecision(String(student.decision?.code ?? 1)); setDecisionReason(student.decision?.justification ?? '');
+    setDecision(decisionCodeTextV3(student)); setDecisionReason(student.decision?.justification ?? '');
     setFavoraveis(voteCountTextV3(student, 'favoraveis')); setContrarios(voteCountTextV3(student, 'contrarios'));
     setVoteReason(student.vote?.justification ?? '');
     onDirtyChange(false);
-  }, [student.id, student.decision, student.vote, onDirtyChange]);
+  }, [recordedKey, onDirtyChange]);
   const { favorableNumber, contraryNumber, present } = voteNumbersV3(favoraveis, contrarios);
   return <div className="grid min-w-0 gap-4">
     <Card className="overflow-hidden">
@@ -162,13 +169,13 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
     {student.eligibility.eligible ? <div className="grid min-w-0 gap-4 xl:grid-cols-2">
       <Card><Card.Header><div><Card.Title>Decisão humana</Card.Title><Card.Description>O sistema registra a deliberação; não a infere pelas notas ou pelos votos.</Card.Description></div></Card.Header>
         <Card.Content className="grid gap-3">
-          <Select selectedKey={decision} isDisabled={!sessionOpen || busy} onSelectionChange={(key) => { if (key !== null) { onDirtyChange(true); setDecision(String(key)); } }}>
+          <Select selectedKey={decision || null} placeholder="Escolha a situação" isDisabled={!sessionOpen || busy} onSelectionChange={(key) => { if (key !== null) { onDirtyChange(true); setDecision(String(key)); } }}>
             <Label className="text-xs font-medium text-muted">Situação após o Conselho</Label><Select.Trigger><Select.Value/><Select.Indicator/></Select.Trigger>
             <Select.Popover><ListBox>{Object.entries(RELATIONAL_COUNCIL_DECISIONS_V3).map(([code, label]) => <ListBox.Item key={code} id={code} textValue={label}>{label}<ListBox.ItemIndicator/></ListBox.Item>)}</ListBox></Select.Popover>
           </Select>
           <div><Label htmlFor={`decision-reason-${student.id}`} className="mb-1.5 block text-xs font-medium text-muted">Justificativa da decisão</Label>
             <textarea id={`decision-reason-${student.id}`} value={decisionReason} onChange={(event) => { onDirtyChange(true); setDecisionReason(event.currentTarget.value); }} disabled={!sessionOpen || busy} rows={3} className="council-textarea"/></div>
-          <Button variant="primary" isDisabled={!sessionOpen || busy || decisionReason.trim().length < 3} onPress={async () => {
+          <Button variant="primary" isDisabled={!sessionOpen || busy || decision === '' || decisionReason.trim().length < 3} onPress={async () => {
             const response = await onCommand({ operation: 'decision', studentId: student.id, decision: Number(decision) as 1 | 2 | 3, justification: decisionReason.trim() });
             if (response?.state === 'ready') { onDirtyChange(false); onMessage('Decisão humana registrada com histórico.'); }
           }}><ShieldCheck size={17}/>{student.decision ? 'Atualizar decisão' : 'Registrar decisão'}</Button>
