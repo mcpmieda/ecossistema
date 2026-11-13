@@ -96,6 +96,7 @@ export function useDrawerSwipeV1(
     const phone = () => typeof window.matchMedia === 'function' && window.matchMedia(PHONE_V1).matches;
     const width = () => drawer.current?.getBoundingClientRect().width || 288;
     const release = () => {
+      document.documentElement.style.removeProperty('overflow');
       for (const element of [drawer.current, backdrop.current]) {
         element?.style.removeProperty('transform');
         element?.style.removeProperty('transition');
@@ -110,6 +111,9 @@ export function useDrawerSwipeV1(
       return Math.min(1, Math.max(0, open ? 1 + dx / width() : dx / width()));
     };
     const follow = (share: number) => {
+      // The page holds still under a drawer that follows the finger (the move listener is
+      // passive, so it cannot stop the scroll itself).
+      document.documentElement.style.overflow = 'hidden';
       const element = drawer.current;
       if (element) {
         element.dataset.dragging = 'true';
@@ -178,7 +182,6 @@ export function useDrawerSwipeV1(
           from.mode = allowed(from, dx) ? 'drag' : 'ignore';
         if (from.mode !== 'drag') return;
       }
-      if (event.cancelable) event.preventDefault();
       follow(shown(from, touch.clientX));
     };
     const onEnd = (event: TouchEvent) => {
@@ -209,8 +212,9 @@ export function useDrawerSwipeV1(
       gesture = null;
     };
     window.addEventListener('touchstart', onStart, { passive: true });
-    // Not passive: while the drawer follows the finger the page must not scroll under it.
-    window.addEventListener('touchmove', onMove, { passive: false });
+    // Passive: a listener that may cancel the move makes the phone wait for the page's script
+    // before every scroll, a small hitch each time (owner report of 12/11/2026).
+    window.addEventListener('touchmove', onMove, { passive: true });
     window.addEventListener('touchend', onEnd, { passive: true });
     window.addEventListener('touchcancel', onCancel, { passive: true });
     return () => {

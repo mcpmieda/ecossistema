@@ -756,6 +756,10 @@ button.performance-kpi__button:hover {
 }
 
 /* The header again, under the top bar, once the table's own has scrolled away. */
+/* Hidden while the table's own header is in view (the copy stays mounted, out of React). */
+.performance-grid-pin[hidden] {
+  display: none;
+}
 .performance-grid-pin {
   position: fixed;
   z-index: 15;
@@ -763,8 +767,8 @@ button.performance-kpi__button:hover {
   border: 1px solid var(--separator);
   border-top: 0;
   border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
-  background: color-mix(in oklab, var(--default) 88%, transparent);
-  backdrop-filter: blur(10px);
+  /* Solid: a blur here would be redone on every frame while the table scrolls under it. */
+  background: var(--default);
   box-shadow: 0 10px 24px -18px rgb(0 0 0 / 0.55);
   color: var(--muted);
   font-size: 0.75rem;
@@ -2234,12 +2238,29 @@ button.performance-kpi__button:hover {
   --glass-edge: rgb(255 255 255 / 0.85);
   --glass-blur: saturate(180%) blur(20px);
   --glass-lift: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 8px 24px -14px rgb(30 41 59 / 0.28);
-  background: radial-gradient(60rem 40rem at 8% -10%, rgb(129 140 248 / 0.14), transparent 60%),
+  --shell-backdrop: radial-gradient(60rem 40rem at 8% -10%, rgb(129 140 248 / 0.14), transparent 60%),
     radial-gradient(50rem 36rem at 100% 0%, rgb(45 212 191 / 0.14), transparent 62%),
     radial-gradient(48rem 40rem at 70% 110%, rgb(56 189 248 / 0.12), transparent 60%),
     linear-gradient(170deg, #f7f8fa 0%, #eaeff2 52%, #e0e7ec 100%);
+  background: var(--shell-backdrop);
   background-attachment: fixed;
   timeline-scope: --sheet-scroll;
+}
+/* Phone: the window itself scrolls, and a fixed background makes the phone repaint it on every
+   frame of a scroll, a small hitch each time (owner report of 12/11/2026). The same soft page is
+   painted once on a layer that stays put instead. */
+@media (max-width: 900px) {
+  .platform-shell--v2 {
+    background: none;
+  }
+  .platform-shell--v2::after {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: var(--shell-backdrop);
+    pointer-events: none;
+    content: '';
+  }
 }
 
 /* The top of the site. */
@@ -2986,18 +3007,24 @@ button.performance-kpi__button:hover {
   }
 }
 @media (max-width: 900px) {
-  /* Phone: the top of the site and the tabs of the area stay in place as one glass band. */
+  /* Phone: the top of the site and the tabs of the area stay in place as one band. It is nearly
+     solid rather than blurred glass: a blur under what stays on screen is redone on every frame
+     of a scroll, a hitch the phone feels (owner report of 12/11/2026). */
   .platform-shell--v2 .shell-topbar {
     border-bottom-color: transparent;
-    background: var(--glass-strong);
-    backdrop-filter: var(--glass-blur);
+    background: rgb(250 251 252 / 0.98);
   }
   .platform-shell--v2 > .shell-areabar:not(:empty) {
     position: sticky;
     top: var(--shell-top);
     z-index: 29;
-    background: var(--glass-strong);
-    backdrop-filter: var(--glass-blur);
+    background: rgb(250 251 252 / 0.98);
+  }
+  /* The search and the account sit on that band: white pills, no blur of their own. */
+  .platform-shell--v2 .shell-tools .search-field__group,
+  .platform-shell--v2 .shell-tools .profile-menu-trigger {
+    background: #fff;
+    backdrop-filter: none;
   }
   .platform-shell--v2 .shell-aside {
     background: rgb(247 249 250 / 0.82);
@@ -3045,8 +3072,9 @@ button.performance-kpi__button:hover {
     inset: calc(-1 * var(--shell-top)) 0 0;
     z-index: -1;
     border-bottom: 1px solid rgb(15 23 42 / 0.07);
-    background: var(--glass-strong);
-    backdrop-filter: var(--glass-blur);
+    /* Nearly solid instead of blurred glass: a blur under a bar that stays on screen is redone
+       on every frame of a scroll, which the phone feels (owner report of 12/11/2026). */
+    background: rgb(250 251 252 / 0.98);
     pointer-events: none;
     content: '';
   }
