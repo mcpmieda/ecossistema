@@ -30,8 +30,18 @@ describe('frequency comment with a day not read in full', () => {
     expect(comment(weekdays, () => true)?.kind).toBe('none-this-year');
   });
 
-  it('an old day not read in full: no "Nenhuma falta este ano", still "nas últimas 4 semanas"', () => {
-    expect(comment(weekdays, (date) => date !== weekdays[3])?.kind).toBe('none-recently');
+  it('a day not read in full more than 30 days ago no longer takes the praise away (owner 13/11)', () => {
+    expect(comment(weekdays, (date) => date !== weekdays[3])?.kind).toBe('none-this-year');
+  });
+
+  it('a day not read in full 29 days ago: no "Nenhuma falta este ano", still "nas últimas 4 semanas"', () => {
+    // 2026-09-23 is 29 days before today and not among the twenty most recent weekdays.
+    expect(weekdays.slice(-20)).not.toContain('2026-09-23');
+    expect(comment(weekdays, (date) => date !== '2026-09-23')?.kind).toBe('none-recently');
+  });
+
+  it('a day not read in full 31 days ago does not hold it back', () => {
+    expect(comment(weekdays, (date) => date !== '2026-09-21')?.kind).toBe('none-this-year');
   });
 
   it('a recent day not read in full: no green sentence at all', () => {
