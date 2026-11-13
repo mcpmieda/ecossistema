@@ -28,11 +28,17 @@ describe('server-side teacher workbook preparation', () => {
     expect(prepared.summary.requestBytes).toBeGreaterThan(0);
   });
 
-  it('never prepares a request the canonical builder rejects', async () => {
+  it('never prepares an invalid grade for writing', async () => {
     const prepared = await prepareTeacherWorkbookV1({
       bytes: caseBytes('negative-grade'), fileName: 'SINTETICO.xlsb', lastModified: 0, xlsx,
     });
-    expect(prepared.outcome).not.toBe('ready');
+    // Before BN-DEC-045 the whole file is blocked; with it, only that grade and its AM are held.
+    if (prepared.outcome !== 'ready') {
+      expect(prepared.outcome).toBe('blocked');
+      return;
+    }
+    expect(JSON.stringify(prepared.request)).not.toContain('-1000');
+    expect(JSON.stringify(prepared.request)).toContain('["u"]');
   });
 
   it('reports a file it cannot read', async () => {

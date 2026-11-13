@@ -63,23 +63,15 @@ export async function prepareTeacherWorkbookV1(input: {
   const diagnostics = collectGradebookImportDiagnosticsV1(success);
   const blocking = blockingGradebookImportDiagnosticsV1(diagnostics).length;
   const audit = gradebookImportDiagnosticsAuditRequestV1(success, diagnostics);
-  if (blocking > 0) {
-    return {
-      outcome: 'blocked',
-      audit,
-      summary: { ...base, diagnostics: diagnostics.length, blocking, prepareMs: now() - started },
-    };
-  }
   let request: GradebookImportPersistenceRequestV9;
   try {
+    // BN-DEC-045: the builder holds only the cells, results or classes a problem affects.
     request = createGradebookCanonicalImportRequestV9(success);
   } catch {
-    // Same rule as the browser: a workbook the canonical builder rejects is never persisted.
-    return {
-      outcome: 'unreadable',
-      code: 'CANONICAL-REJECTED',
-      summary: { ...base, diagnostics: diagnostics.length, blocking, prepareMs: now() - started },
-    };
+    // Same rule as the browser: nothing that the builder refuses is ever persisted.
+    const summary = { ...base, diagnostics: diagnostics.length, blocking, prepareMs: now() - started };
+    if (blocking > 0) return { outcome: 'blocked', audit, summary };
+    return { outcome: 'unreadable', code: 'CANONICAL-REJECTED', summary };
   }
   return {
     outcome: 'ready',
