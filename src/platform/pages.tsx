@@ -476,7 +476,7 @@ export function PageContent({
     case 'configuracoes':
       return <AreaErrorBoundaryV1 key="configuracoes" label="Configurações"><SettingsPage snapshot={snapshot} auxiliary={auxiliary} /></AreaErrorBoundaryV1>;
     default:
-      return <NotesPage />;
+      return <AreaErrorBoundaryV1 key="banco-de-notas" label="Banco de notas"><NotesPage /></AreaErrorBoundaryV1>;
   }
 }
 

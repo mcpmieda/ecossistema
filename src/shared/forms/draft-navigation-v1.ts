@@ -40,6 +40,15 @@ const hashOf = (url: string) => {
   try { return new URL(url).hash; } catch { return window.location.hash; }
 };
 const allowLeaving = () => allowDraftNavigationV1() || window.confirm(DISCARD_DRAFT_PROMPT_V1);
+/**
+ * A move the Centro makes by itself to another address (a search result) asks the open edits once,
+ * before the address changes: refusing leaves the address and the history as they are.
+ */
+export function allowLeavingToV1(href: string): boolean {
+  if (!allowLeaving()) return false;
+  try { shownHash = new URL(href, window.location.href).hash; } catch { /* asked again on arrival */ }
+  return true;
+}
 /*
  * The phone's back (or forward) to another address of the Centro passes through the edits too:
  * if one refuses, no screen hears of it and the address goes forward again to the one shown. An

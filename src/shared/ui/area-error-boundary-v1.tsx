@@ -7,7 +7,12 @@ import {
   type RouteLoadFailureV1,
 } from '../live-data/route-load-failure-v1';
 
-type AreaErrorBoundaryPropsV1 = { readonly label: string; readonly children: ReactNode };
+type AreaErrorBoundaryPropsV1 = {
+  readonly label: string;
+  readonly children: ReactNode;
+  /** The whole Centro: there is no rest of the Centro left on screen. */
+  readonly whole?: boolean;
+};
 type AreaErrorBoundaryStateV1 = { readonly failure: RouteLoadFailureV1 | null };
 
 /**
@@ -35,14 +40,16 @@ export class AreaErrorBoundaryV1 extends Component<AreaErrorBoundaryPropsV1, Are
     if (this.state.failure === null) return this.props.children;
     const moduleFailure = this.state.failure === 'module-load';
     return (
-      <Alert status="danger" role="alert">
+      <Alert status="danger" role="alert" className={this.props.whole ? 'm-4' : undefined}>
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>{this.props.label} indisponível</Alert.Title>
           <Alert.Description>
             {moduleFailure
               ? 'Não foi possível carregar esta área. Recarregue a página para obter a versão atual.'
-              : 'Ocorreu um erro ao mostrar esta área. O restante do Centro continua disponível.'}
+              : this.props.whole
+                ? 'Ocorreu um erro ao mostrar o Centro. Recarregue a página para continuar.'
+                : 'Ocorreu um erro ao mostrar esta área. O restante do Centro continua disponível.'}
           </Alert.Description>
           <div className="mt-3">
             <Button

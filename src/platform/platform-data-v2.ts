@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { platformSnapshotSchemaV2, type PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
 
 export type PlatformAuxiliaryStateV2 = 'loading' | 'ready' | 'partial' | 'error';
@@ -30,6 +30,22 @@ function snapshotContentV2(snapshot: PlatformSnapshotV2 | undefined): string {
   if (!snapshot) return '';
   const { generatedAt: _generatedAt, correlationId: _correlationId, ...content } = snapshot;
   return JSON.stringify(content);
+}
+/** When the Centro last read the platform data successfully, even if nothing changed. Only the footer
+ * listens, so a reading with the same content does not render the screens again. */
+let checkedAtV2 = '';
+const checkedListenersV2 = new Set<() => void>();
+function markCheckedV2(at: string) {
+  if (at === checkedAtV2) return;
+  checkedAtV2 = at;
+  for (const listener of checkedListenersV2) listener();
+}
+export function usePlatformCheckedAtV2(): string {
+  return useSyncExternalStore(
+    (listener) => { checkedListenersV2.add(listener); return () => { checkedListenersV2.delete(listener); }; },
+    () => checkedAtV2,
+    () => checkedAtV2,
+  );
 }
 class ReadError extends Error {
   constructor(readonly status: number, readonly retryAt = 0) { super('Platform data unavailable'); }
@@ -109,6 +125,7 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
       if (controller.signal.aborted || own !== generation || stopped) return;
       // The same content keeps the object already shown, so the screens do not render again.
       if (snapshotContentV2(value) !== snapshotContentV2(complete)) complete = value;
+      markCheckedV2(value.generatedAt);
       auxiliary = value.unavailableSections?.length ? 'partial' : 'ready';
       // A focus storm is not a reason to repeat an identical external request.
       retryAt = now() + Math.max(30, value.retryAfterSeconds ?? 0) * 1000;
@@ -129,7 +146,7 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
     try {
       const value = await read('/api/platform/bootstrap', controller.signal, PLATFORM_BOOTSTRAP_TIMEOUT_MS_V2);
       if (controller.signal.aborted || own !== generation || stopped) return;
-      core = value; emit();
+      core = value; markCheckedV2(value.generatedAt); emit();
     } catch (error) {
       if (controller.signal.aborted || own !== generation || stopped) return;
       if (failAuthorization(error)) return;
