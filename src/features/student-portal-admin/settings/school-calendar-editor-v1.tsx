@@ -17,6 +17,7 @@ import { Flag } from 'lucide-react';
 import {
   SCHOOL_DAY_COUNTS_V1,
   SCHOOL_DAYS_REQUIRED_V1,
+  schoolDayFitsWeekdayV1,
   type SchoolCalendarDayV1,
   type SchoolDayKindV1,
 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
@@ -175,24 +176,40 @@ function outOfOrderV1(markers: MarkersV1 | null): string | null {
   return null;
 }
 
-/** The days with one more painted, or null when it would pass the 200 school days. */
+/** A school day on the wrong weekday: a "dia letivo" on a weekend, a "sábado letivo" on a weekday. */
+const WEEKDAY_MESSAGE_V1: Partial<Record<SchoolDayKindV1, string>> = {
+  letivo: 'Dia letivo só de segunda a sexta. Para sábado com aula, use Sábado letivo.',
+  'sabado-letivo': 'Sábado letivo só pode ser num sábado.',
+};
+
+/** The days with one more painted, or why not: past the 200 school days, or the wrong weekday. */
 function paintedDraftV1(
   current: ReadonlyMap<string, DayV1>,
   date: string,
   brush: BrushV1,
   note: string,
-): Map<string, DayV1> | null {
+): Map<string, DayV1> | 'limit' | 'weekday' {
   const next = new Map(current);
   if (brush === 'clear') {
     next.delete(date);
     return next;
   }
+  if (!schoolDayFitsWeekdayV1({ date, kind: brush })) return 'weekday';
   const before = next.get(date);
   const counts = SCHOOL_DAY_COUNTS_V1[brush] && !(before && SCHOOL_DAY_COUNTS_V1[before.kind]);
   // The rule: never more than 200 school days.
-  if (counts && schoolDaysIn(current) >= SCHOOL_DAYS_REQUIRED_V1) return null;
+  if (counts && schoolDaysIn(current) >= SCHOOL_DAYS_REQUIRED_V1) return 'limit';
   next.set(date, paintedDayV1(brush, note));
   return next;
+}
+
+/** The first day marked on the wrong weekday (a calendar saved before the rule), or null. */
+function misplacedDayV1(days: ReadonlyMap<string, DayV1>): string | null {
+  const wrong = [...days.entries()]
+    .filter(([date, day]) => !schoolDayFitsWeekdayV1({ date, kind: day.kind }))
+    .map(([date]) => date)
+    .sort((left, right) => left.localeCompare(right));
+  return wrong[0] ?? null;
 }
 
 /** Main dates already reached that this save changes: they take effect at once. */
@@ -319,8 +336,12 @@ export function SchoolCalendarEditorV1({
   const [armed, setArmed] = useState<MarkerKeyV1 | null>(null);
   const [confirmingPast, setConfirmingPast] = useState(false);
 
+  // Saved, but reading it back failed: the editor stays, with a warning apart from "Calendário salvo.".
+  const [refreshFailed, setRefreshFailed] = useState(false);
+
+  /** Reads the calendar; after a save (keepOnFailure), a failure keeps the editor on screen. */
   const load = useCallback(
-    async (signal?: AbortSignal) => {
+    async (signal?: AbortSignal, keepOnFailure = false) => {
       setState('loading');
       try {
         const result = await client.query(
@@ -342,8 +363,10 @@ export function SchoolCalendarEditorV1({
         // Nothing saved yet: the official calendar of 2026 is already on screen, to check and save.
         setDraft(result.calendar ? new Map(days) : mapOf(officialCalendar2026V1()));
         setState('ready');
+        return true;
       } catch {
-        if (!signal?.aborted) setState('error');
+        if (!signal?.aborted) setState(keepOnFailure ? 'ready' : 'error');
+        return false;
       }
     },
     [client],
@@ -366,6 +389,8 @@ export function SchoolCalendarEditorV1({
     () => !!draft && !!saved && JSON.stringify(listOf(draft)) !== JSON.stringify(listOf(saved.days)),
     [draft, saved],
   );
+  // A calendar saved before the weekday rule may still have one: the server refuses it now.
+  const misplaced = useMemo(() => (draft ? misplacedDayV1(draft) : null), [draft]);
   const markersChanged = !!markers && !!policy && MARKERS.some(({ key }) => markers[key] !== policy.markers[key]);
   const changed = daysChanged || markersChanged;
   const pending = markers ? MARKERS.filter(({ key }) => !markers[key]) : [];
@@ -384,14 +409,19 @@ export function SchoolCalendarEditorV1({
     return true;
   };
 
-  const paint = (date: string) => {
+  /** A drag passes over the days of the wrong weekday (a weekend in a week of school days). */
+  const paint = (date: string, dragging = false) => {
     if (place(date)) return;
     if (!canWrite || state !== 'ready' || !date.startsWith('2026-')) return;
     setDraft((current) => {
       if (!current) return current;
       const next = paintedDraftV1(current, date, brush, note);
-      setMessage(next ? null : DAY_LIMIT_MESSAGE_V1);
-      return next ?? current;
+      if (next === 'weekday') {
+        if (!dragging && brush !== 'clear') setMessage(WEEKDAY_MESSAGE_V1[brush] ?? null);
+        return current;
+      }
+      setMessage(next === 'limit' ? DAY_LIMIT_MESSAGE_V1 : null);
+      return next === 'limit' ? current : next;
     });
   };
 
@@ -399,7 +429,7 @@ export function SchoolCalendarEditorV1({
   const pastMarkers = markers && policy && markersChanged ? pastMarkersV1(policy, markers) : [];
 
   const save = async (confirmedPast = false) => {
-    if (!draft || !saved || !markers || !policy || count > SCHOOL_DAYS_REQUIRED_V1 || outOfOrder) return;
+    if (!draft || !saved || !markers || !policy || count > SCHOOL_DAYS_REQUIRED_V1 || outOfOrder || misplaced) return;
     if (pastMarkers.length && !confirmedPast) {
       setConfirmingPast(true);
       return;
@@ -407,6 +437,7 @@ export function SchoolCalendarEditorV1({
     setConfirmingPast(false);
     setState('saving');
     setMessage(null);
+    setRefreshFailed(false);
     let daysSaved = false;
     try {
       if (daysChanged) {
@@ -426,10 +457,12 @@ export function SchoolCalendarEditorV1({
       }
       if (markersChanged) {
         await saveMarkersV1(client, policy.markers, markers);
+        // Saved: the next save reads the policy again, so only the dates on screen move here.
+        setPolicy({ ...policy, calendar: movedCalendarV1(policy, markers), markers: { ...markers } });
         onSaved?.();
       }
-      await load();
       setMessage('Calendário salvo.');
+      if (!(await load(undefined, true))) setRefreshFailed(true);
     } catch (error) {
       setState('ready');
       setMessage(saveFailureV1(error, daysSaved));
@@ -517,7 +550,7 @@ export function SchoolCalendarEditorV1({
                   paint(date);
                 }}
                 onPointerEnter={() => {
-                  if (painting.current) paint(date);
+                  if (painting.current) paint(date, true);
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -667,6 +700,14 @@ export function SchoolCalendarEditorV1({
           </TextField>
         ) : null}
         {message ? <CalendarMessageV1 message={message} /> : null}
+        {refreshFailed ? (
+          <CalendarMessageV1 message="Salvo, mas não foi possível atualizar a tela. Recarregue a página para conferir." />
+        ) : null}
+        {misplaced ? (
+          <CalendarMessageV1
+            message={`${dayLabel(misplaced)} está como ${KIND_LABELS[draft.get(misplaced)!.kind]} no dia da semana errado. Corrija para salvar.`}
+          />
+        ) : null}
 
         <div className="pa-school-calendar__months">
           {/* December of the year before: only the enrollment's start is marked there. */}
@@ -697,7 +738,9 @@ export function SchoolCalendarEditorV1({
           <Button
             variant="primary"
             onPress={() => void save()}
-            isDisabled={!changed || state === 'saving' || count > SCHOOL_DAYS_REQUIRED_V1 || !!outOfOrder}
+            isDisabled={
+              !changed || state === 'saving' || count > SCHOOL_DAYS_REQUIRED_V1 || !!outOfOrder || !!misplaced
+            }
           >
             <SaveLabelV1 saving={state === 'saving'} />
           </Button>
