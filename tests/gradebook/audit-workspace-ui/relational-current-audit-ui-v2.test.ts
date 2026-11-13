@@ -8,7 +8,6 @@ describe('relational current Audit UI V2', () => {
   const page = source(
     'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
   );
-  const pageText = page.replace(/\s+/gu, ' ');
 
   it('mounts only the current relational diagnostic experience', () => {
     expect(surface).toContain('<RelationalCurrentAuditPageV2 />');
@@ -20,31 +19,18 @@ describe('relational current Audit UI V2', () => {
     expect(page).toContain('useGradebookYear');
   });
 
-  it('keeps current findings separate from durable human treatment', () => {
-    expect(page).toContain('Achado atual e histórico continuam separados');
-    expect(pageText).toContain('nenhuma correção é executada automaticamente');
-    expect(page).toContain('requestImportDiagnosticTreatmentV1');
-    expect(page).toContain('Reconhecer');
-    expect(page).toContain('Adicionar anotação');
-    expect(page).toContain('Histórico de tratamento');
-    expect(page).toContain('historyNextCursor');
-    expect(page).toContain("historyState !== 'idle'");
-    expect(page).toContain("setHistoryState('ready')");
-    expect(page).not.toContain('historyNextOffset');
-    expect(page).toContain('nunca alteram notas ou escondem achados');
+  it('is read only: the next import clears a problem, the screen corrects nothing', () => {
+    expect(page).toContain('a próxima importação tira o problema da lista');
+    expect(page).not.toContain('requestImportDiagnosticTreatmentV1');
+    expect(page).not.toContain('Reconhecer');
     expect(page).not.toContain('requestAuditWorkspaceResolutionV1');
     expect(page).not.toContain('requestDeterministicCorrectionExecutionV2');
-    expect(page).not.toContain('Executar correção determinística');
     expect(page).not.toContain('Marcar como resolvido');
   });
 
-  it('uses HeroUI and stable filters without a native select or academic browser storage', () => {
+  it('uses HeroUI tabs without a native select or academic browser storage', () => {
     expect(page).toContain("from '@heroui/react'");
-    expect(page).toContain('<Card');
-    expect(page).toContain('<Alert');
-    expect(page).toContain('<Button');
-    expect(page).toContain('<TextArea');
-    expect(page).toContain('Carregar mais 50');
+    expect(page).toContain('<Tabs');
     expect(page).not.toMatch(/<select\b/u);
     expect(page).not.toContain('localStorage');
     expect(page).not.toContain('sessionStorage');

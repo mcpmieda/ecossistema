@@ -347,3 +347,29 @@ Sem alteração de regra acadêmica, de migrations já aplicadas ou de `PROJECT_
 **Auditoria.** Os diagnósticos continuam iguais e apontam guia, célula e causa; a orientação passa a dizer o que não foi lançado. Corrigida e salva a planilha, a nova leitura lança o valor e o diagnóstico some.
 
 Sem alteração de contrato HTTP, schema, migration, cálculo acadêmico ou publicação do Portal.
+
+## BN-DEC-046 - Regras de auditoria das planilhas e tela por problema
+
+**Data:** 2026-11-13. **Origem:** pedido do responsável a partir da skill "Auditoria planilha de notas": bloquear "a depender do aluno, grupo, etc.", com código simples e rápido. Vale para a importação pelo navegador e para a sincronização do OneDrive. Segue o bloqueio parcial da BN-DEC-045.
+
+| Regra | Fica segurado |
+| --- | --- |
+| 1. Notas numa atividade sem descrição | a coluna e o AM dos alunos com nota nela (substitui a regra antiga que lançava a coluna) |
+| 2. Notas numa atividade sem máximo válido | a coluna e o AM desses alunos |
+| 3. Ano da CONFIGURAÇÃO diferente da pasta (OneDrive) | o arquivo inteiro |
+| 4. Soma das atividades do aluno acima do teto qualitativo (AK3) | o AM do aluno |
+| 5. Nota acima do máximo (agora erro bloqueante) | a nota e o AM do aluno |
+| 6. Soma dos máximos das atividades acima do teto qualitativo | os AMs da guia |
+| 7. Cabeçalho K3/K4 que não bate com o nome da guia | a turma e disciplina |
+| 8. Recuperação acima do máximo do trimestre (T3+Y3+AK3) | a recuperação e o U do aluno |
+| 9. Nota de trabalho com o bloco de trabalho sem peso | o AM do aluno |
+| 10. Nota numa linha sem aluno | nada (só aviso) |
+| 11. AV2 preenchida com a guia em "1 AVALIAÇÃO" | o AM do aluno |
+| 12. AM digitado à mão numa guia de AMs por fórmula | aquele AM |
+| 14. Nome do aluno diferente da Relação (OneDrive) | as notas do aluno |
+
+Não entram: recalcular o AM (a planilha já calcula) e nota que sumiu (pode ser correção do professor).
+
+**Tela.** A Auditoria vira só leitura, com uma aba por problema, contagem em cada aba e lista curta por planilha. O Centro ADM não corrige nem trata achados: o professor corrige a planilha e a próxima importação, automática ou manual, tira o problema da lista. Os botões Reconhecer e Adicionar anotação saem da tela; a rota e a tabela de tratamento (#674) ficam sem uso pela interface.
+
+Sem alteração de contrato HTTP, schema, migration ou publicação do Portal.

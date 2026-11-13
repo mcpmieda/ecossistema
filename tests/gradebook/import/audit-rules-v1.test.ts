@@ -28,7 +28,7 @@ function run(mutate: (sheets: WorkbookFixtureV1['Sheets']) => void = () => {}) {
   mutate(workbook.Sheets);
   const result = syntheticResultV1(manifest, readWorkbookData(file, bytes, createFixtureSheetJsV1(workbook), manifest, undefined, true));
   const diagnostics = collectGradebookImportDiagnosticsV1(result);
-  let request: GradebookNotesImportRequestV9 | null = null;
+  let request: GradebookNotesImportRequestV9 | null;
   try {
     request = createGradebookCanonicalImportRequestV9(result) as GradebookNotesImportRequestV9;
   } catch {
