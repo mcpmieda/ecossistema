@@ -5,6 +5,7 @@ import { capabilitiesForRoles } from './capabilities';
 import { readCookie } from './cookies';
 import type { Role } from './roles';
 import { unseal } from './sealed';
+import { isSessionRevokedV1, newSessionIdV1, SESSION_ID_PATTERN_V1 } from './session-revocation-v1';
 import {
   DEFAULT_SESSION_DURATION_HOURS,
   isSessionDurationHours,
@@ -22,15 +23,17 @@ export const sessionSchema = z.object({
   roles: z.array(z.enum(['ADMINISTRADOR', 'PROFESSOR', 'ALUNO', 'APOIO', 'VISITANTE'])),
   authenticatedAt: z.number().int().positive().optional(),
   durationHours: z.number().int().refine(isSessionDurationHours).optional(),
+  /** Session id, recorded by "Sair" so a copy of the cookie stops working (cookies before 13/11 have none). */
+  sid: z.string().regex(SESSION_ID_PATTERN_V1).optional(),
   exp: z.number().int().positive(),
 });
 export type Session = z.infer<typeof sessionSchema> & { roles: Role[] };
 
-type SessionIdentity = Pick<Session, 'oid' | 'name' | 'username' | 'roles'>;
+type SessionIdentity = Pick<Session, 'oid' | 'name' | 'username' | 'roles'> & { readonly sid?: string };
 
-/** The sealed cookie cannot be revoked on the server: leaving the admin group in Entra, or a
- * copy of the cookie kept after "Sair", only stops at exp. A session that can change data
- * therefore lasts at most this long, whatever length was chosen. */
+/** "Sair" ends the session on the server (session-revocation-v1), but leaving the admin group in
+ * Entra only stops at exp. A session that can change data therefore lasts at most this long,
+ * whatever length was chosen. */
 export const WRITE_SESSION_MAX_HOURS: SessionDurationHours = 8;
 
 /** The lengths this identity may choose: a session with write power never above the cap. */
@@ -53,6 +56,8 @@ export function createApplicationSession(
   const hours = cappedDurationHours(identity.roles, durationHours);
   return {
     ...identity,
+    // A new sign-in gets a new id; changing the length keeps it (the same session).
+    sid: identity.sid ?? newSessionIdV1(),
     authenticatedAt,
     durationHours: hours,
     exp: authenticatedAt + hours * 60 * 60,
@@ -111,6 +116,7 @@ export async function readSession(request: Request, env: RuntimeEnv): Promise<Se
       ? Math.min(session.exp, session.authenticatedAt + WRITE_SESSION_MAX_HOURS * 60 * 60)
       : session.exp;
   if (exp <= Math.floor(Date.now() / 1000)) return null;
+  if (session.sid !== undefined && (await isSessionRevokedV1(env, session.sid, exp))) return null;
   if (exp !== session.exp)
     return { ...session, exp, durationHours: WRITE_SESSION_MAX_HOURS, roles: [...session.roles] };
   // Do not expose the memoized roles object to a handler that could mutate it.
