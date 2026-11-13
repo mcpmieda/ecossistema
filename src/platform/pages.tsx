@@ -28,6 +28,7 @@ import type { PlatformAuxiliaryStateV2 } from './platform-data-v2';
 import { MicrosoftSettingsSectionV1 } from './microsoft-settings-section-v1';
 import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
 import { NotesPage } from './notes-page';
+import { AreaErrorBoundaryV1 } from '../shared/ui/area-error-boundary-v1';
 import { GradebookYearProvider, GradebookYearSelectV1 } from './gradebook-year-provider';
 const SystemHealthPage = preloadedSectionV1(() =>
   import('./system-health-page-v1').then((module) => module.SystemHealthPageV1),
@@ -464,14 +465,18 @@ export function PageContent({
   usePreloadedSectionsV1(ROUTE_PAGES_V1);
   switch (route) {
     case 'painel-do-aluno':
-      return <Suspense fallback={<p><output className="contents">Carregando Painel do Aluno…</output></p>}><StudentPortalAdminPage /></Suspense>;
+      return <AreaErrorBoundaryV1 key="painel-do-aluno" label="Painel do Aluno">
+        <Suspense fallback={<p><output className="contents">Carregando Painel do Aluno…</output></p>}><StudentPortalAdminPage /></Suspense>
+      </AreaErrorBoundaryV1>;
     case 'operacao':
-      if (section === 'audit') return <AuditPage snapshot={snapshot} />;
-      return <Suspense fallback={<output className="block">Carregando Saúde…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>;
+      if (section === 'audit') return <AreaErrorBoundaryV1 key="auditoria" label="Auditoria"><AuditPage snapshot={snapshot} /></AreaErrorBoundaryV1>;
+      return <AreaErrorBoundaryV1 key="operacao" label="Saúde do Sistema">
+        <Suspense fallback={<output className="block">Carregando Saúde…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>
+      </AreaErrorBoundaryV1>;
     case 'configuracoes':
-      return <SettingsPage snapshot={snapshot} auxiliary={auxiliary} />;
+      return <AreaErrorBoundaryV1 key="configuracoes" label="Configurações"><SettingsPage snapshot={snapshot} auxiliary={auxiliary} /></AreaErrorBoundaryV1>;
     default:
-      return <NotesPage />;
+      return <AreaErrorBoundaryV1 key="banco-de-notas" label="Banco de notas"><NotesPage /></AreaErrorBoundaryV1>;
   }
 }
 

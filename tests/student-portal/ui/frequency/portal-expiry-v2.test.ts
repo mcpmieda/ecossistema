@@ -260,3 +260,26 @@ it("adds the days without school, each lesson's time and, with the Horário on, 
   expect(await read()).toMatchObject({ grid: [], bells: officialBells2026V1(), bellsValidFrom: '2026-10-25' });
   expect(mocks.unsafe.mock.calls.some(([query]) => query.includes('read_portal_schedule'))).toBe(false);
 });
+
+it('sends the school day the current grid was first read, never the last collection (attendance 0020)', async () => {
+  const frequency = { frequency: { today: '2026-10-22', lastReadAt: null, origins: [], days: [] } };
+  const calendar = { days_json: [{ date: '2026-10-13', kind: 'letivo' }] };
+  const lessons = [{ weekday: 1, slot: 3, subject: 'MATEMATICA' }];
+  const read = async (grid: unknown) => {
+    mocks.unsafe.mockReset()
+      .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
+      .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: true, saved_on: '2026-10-23' }]).mockResolvedValueOnce([calendar])
+      .mockResolvedValueOnce([{ schedule: grid }]);
+    return (await (await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency?year=2026'), env)).json()) as { grid: unknown };
+  };
+  mocks.showSchedule = true;
+  const current = { label: '6º ANO A - MATUTINO', observedAt: '2026-11-12 07:10:00-03', validFrom: '2026-08-03', lessons };
+  expect((await read({ classes: [current] })).grid).toEqual([{ shift: 'matutino', validFrom: '2026-08-03', lessons }]);
+  // Before the migration the reader has no validFrom: unknown, so no subject is named for any day.
+  const { validFrom: _validFrom, ...old } = current;
+  // The key is left out (not null): a page open with the bundle from before rejects an unknown key.
+  const before = (await read({ classes: [old] })).grid as object[];
+  expect(before).toEqual([{ shift: 'matutino', lessons }]);
+  expect(Object.keys(before[0]!)).not.toContain('validFrom');
+  expect((await read({ classes: [{ ...current, validFrom: null }] })).grid).toEqual([{ shift: 'matutino', lessons }]);
+});

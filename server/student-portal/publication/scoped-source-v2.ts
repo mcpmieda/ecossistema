@@ -140,6 +140,23 @@ export async function readClosingSourceBatchV2(
   );
 }
 
+/**
+ * A11: the part of a stored edition that the 1º/2º trimestre shows (its instruments and official
+ * total, the subject list, the approval minimum and the assessment names). An edition holds the whole
+ * report card, so a mark of another period writes a new edition without changing these. The 3º
+ * trimestre and the recoveries also carry the annual situation and result (A2), so they keep the
+ * whole edition: NULL here means "compare by revision".
+ */
+export function periodMarksSqlV2(payload: string, mask: string) {
+  return `CASE WHEN ${mask} IN(1,2) THEN jsonb_build_object(
+    'minimum',${payload}->'minimum_approval','names',${payload}->'assessment_names',
+    'offers',COALESCE((SELECT jsonb_agg(jsonb_build_object('offerId',o->'offerId','subjectId',o->'subjectId',
+      'label',o->'label','total',o->'closure'->('am'||${mask}::text),
+      'instruments',COALESCE((SELECT jsonb_agg(i ORDER BY n) FROM jsonb_array_elements(o->'instruments') WITH ORDINALITY x(i,n)
+        WHERE i->>'term'=${mask}::text),'[]'::jsonb)) ORDER BY k)
+      FROM jsonb_array_elements(${payload}->'offers') WITH ORDINALITY y(o,k)),'[]'::jsonb)) END`;
+}
+
 export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
   const scope = scopeV1.parse(input);
   const rows = await tx.unsafe(`WITH target AS (${TARGETS_V2}), head AS (
@@ -148,13 +165,22 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
       JOIN student_portal.academic_revision r ON r.academic_year=h.academic_year
         AND r.academic_generation=h.generation AND r.academic_counter=h.revision
       WHERE h.academic_year=2026 AND c.enabled
-    ), selected AS (SELECT t.student_id,t.class_id,s.* FROM target t CROSS JOIN head h
-      CROSS JOIN LATERAL (${SCOPED_SELECTION_V2}) s)
+    ), selected AS (SELECT t.student_id,t.class_id,s.*,
+        s.target_revision IS NOT NULL AND (s.edition_revision IS NULL OR (s.edition_revision<>s.latest_revision
+          AND (s.mask NOT IN(1,2) OR ${periodMarksSqlV2('s.payload_json', 's.mask')}
+            IS DISTINCT FROM ${periodMarksSqlV2('newest.payload_json', 's.mask')}))) AS changed
+      FROM target t CROSS JOIN head h
+      CROSS JOIN LATERAL (${SCOPED_SELECTION_V2}) s
+      LEFT JOIN LATERAL (SELECT payload_json FROM student_portal.publication_source_v2
+        WHERE academic_year=2026 AND student_id=t.student_id AND generation=h.generation
+          AND revision=s.latest_revision::numeric) newest
+        ON s.mask IN(1,2) AND s.target_revision IS NOT NULL AND s.edition_revision<>s.latest_revision)
     SELECT h.generation||':'||h.revision::text AS data_version,h.version::text,
       (SELECT count(*)::integer FROM target) AS targets,(SELECT min(class_id) FROM target) AS class_id,
       COALESCE((SELECT jsonb_agg(summary) FROM (SELECT period,
         bool_or((available_mask & mask)<>0) AS available,bool_and(target_revision IS NOT NULL) AS all_published,
-        bool_or(target_revision IS NOT NULL AND (edition_revision IS NULL OR edition_revision<>latest_revision)) AS pending,
+        count(*) FILTER(WHERE target_revision IS NOT NULL)::integer AS published_count,count(*)::integer AS target_count,
+        bool_or(changed) AS pending,
         COALESCE(jsonb_agg(DISTINCT target_revision) FILTER(WHERE target_revision IS NOT NULL),'[]'::jsonb) AS revisions
         FROM selected GROUP BY period) summary),'[]'::jsonb) AS periods
     FROM head h`, [scope.kind, scope.kind === 'account' ? scope.accountId : null, scope.kind === 'class' ? scope.classId : null]);
@@ -162,7 +188,9 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
   const row = rows[0]!;
   const dataVersion = academicVersionSchemaV1.parse(row.data_version);
   const version = versionV1.parse(Number(row.version));
+  const count = z.number().int().nonnegative();
   const periods = z.array(z.object({ period: z.enum(PERIODS_V1), available: z.boolean(), all_published: z.boolean(),
+    published_count: count.default(0), target_count: count.default(0),
     pending: z.boolean().nullable(), revisions: z.array(academicVersionSchemaV1) })).parse(row.periods);
   return {
     version, dataVersion, count: z.number().int().nonnegative().parse(row.targets),
@@ -180,7 +208,9 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
       else if (revisions.length > 1) publishedRevision = `mixed:${publicationDigestV1([...revisions].sort((left, right) => left.localeCompare(right)))}`;
       return { period, version, state,
         availableRevision: value?.available ? dataVersion : null,
-        publishedRevision };
+        publishedRevision,
+        // A7: a release of another scope can cover only some of these students.
+        publishedCount: value?.published_count ?? 0, targetCount: value?.target_count ?? 0 };
     }),
   };
 }

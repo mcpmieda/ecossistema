@@ -14,7 +14,7 @@ import { PlatformSearch } from './platform/search';
 import { useDrawerSwipeV1 } from './platform/drawer-swipe-v1';
 import { useBackClosesOverlayV1 } from './platform/back-closes-overlay-v1';
 import { withStudentPortalModule } from './platform/student-portal-module';
-import { usePlatformDataV2 } from './platform/platform-data-v2';
+import { usePlatformCheckedAtV2, usePlatformDataV2 } from './platform/platform-data-v2';
 import { usePlatformIdentityV1, type PlatformIdentityV1 as Identity } from './platform/platform-identity-v1';
 import { LiveRefreshAutomaticV1Provider } from './shared/live-data/live-refresh-scope-v1';
 import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
@@ -320,12 +320,18 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
           {showPage && loadState.status === 'ready' && <div key={route} className="route-stage">
             <PageContent route={route} section={section} snapshot={snapshot ?? loadState.snapshot} auxiliary={loadState.auxiliary} />
             <Separator className="mt-8" />
-            <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center"><span>Centro de Administração · {SCHOOL_NAME_V1}</span><span className="sm:text-right">Atualizado em {formatDate(loadState.snapshot.generatedAt)}</span></footer>
+            <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center"><span>Centro de Administração · {SCHOOL_NAME_V1}</span><PlatformCheckedAtV2 fallback={loadState.snapshot.generatedAt} /></footer>
           </div>}
         </main>
       </div>
     </div>
   );
+}
+
+/** The last successful reading, even one that changed nothing on screen. */
+function PlatformCheckedAtV2({ fallback }: { readonly fallback: string }) {
+  const checkedAt = usePlatformCheckedAtV2();
+  return <span className="sm:text-right">Atualizado em {formatDate(checkedAt || fallback)}</span>;
 }
 
 export function App() {
