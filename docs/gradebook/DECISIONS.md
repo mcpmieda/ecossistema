@@ -328,3 +328,22 @@ Sem alteração acadêmica, DDL/DML produtivo, exclusão de migrations aplicadas
 **Relação.** Um par único de `FOI PARA`/`ESTAVA NO` entre duas turmas, com grafia diferente, é ligado com aviso quando não há conflito ou rejeição. Mais de um par sem correspondência exige escolha explícita, sem pré-seleção, exibindo as grafias originais, turmas, posições e direções. A prévia e o cancelamento não gravam; o servidor vincula a conferência ao ator, ao arquivo e à geração/revisão da base, revalidando todas as pontas sob o lock anual antes da aplicação integral, inclusive dos registros independentes. Esta redação corrige a exigência de alterar a planilha e corresponde à seção 8 da #1269. Evidência de outra pessoa na mesma posição recusa o reuso. **Substitui o reparo automático de identidade dividida do importador V9:** nem a escolha explícita autoriza fundir cadastros existentes, contornar rejeições ou mover notas, fechamentos, Conselho, contas ou fotos entre identidades.
 
 Sem alteração de regra acadêmica, de migrations já aplicadas ou de `PROJECT_STATE.yaml`. Múltiplos anos, fusão de identidades, episódios de matrícula e frequência ficam fora desta decisão.
+
+## BN-DEC-045 - Bloqueio parcial: problema segura só o que afeta
+
+**Data:** 2026-11-13. **Origem:** pedido do responsável na conversa da leitura automática das planilhas do OneDrive (#1396): "bloquear só as notas, resultados, com problemas, e deixar passar os que estão ok". Vale para a importação pelo navegador e para a sincronização do OneDrive, que usam o mesmo montador canônico.
+
+**Substitui o bloqueio da planilha inteira por erro bloqueante.** Um erro bloqueante da Auditoria deixa de impedir o lançamento do arquivo todo. Cada problema segura só o que afeta:
+
+| Problema | Fica segurado | O resto |
+| --- | --- | --- |
+| Texto onde vai nota, nota negativa, mais de três casas decimais (trimestre) | a nota e o AM daquele aluno naquele trimestre; o U dele, se estiver na recuperação | lançado |
+| O mesmo na recuperação (REC1–3) | a nota de recuperação e o U daquele aluno | lançado |
+| AM ou U ilegível | só aquele resultado | lançado |
+| Número de aluno repetido ou inválido, máximo de AV1/AV2 ausente ou inválido, trimestre ausente, números divergentes entre trimestres, aluno abaixo da linha 50 | a turma e disciplina inteira | demais turmas e disciplinas lançadas |
+
+**Como.** A célula segurada vai como indisponível (`['u']`), contrato V9 já existente: o banco conserva o último valor bom, sem apagar e sem gravar valor errado (BN-DEC-038). O resultado calculado a partir de uma nota segurada é segurado junto, porque poderia estar errado. Uma turma e disciplina segurada fica fora do pacote e permanece como está. O arquivo só é recusado quando nenhuma turma pode ser lançada, ou por problema do arquivo todo (ano ou professor ausentes na CONFIGURAÇÃO, oferta duplicada).
+
+**Auditoria.** Os diagnósticos continuam iguais e apontam guia, célula e causa; a orientação passa a dizer o que não foi lançado. Corrigida e salva a planilha, a nova leitura lança o valor e o diagnóstico some.
+
+Sem alteração de contrato HTTP, schema, migration, cálculo acadêmico ou publicação do Portal.
