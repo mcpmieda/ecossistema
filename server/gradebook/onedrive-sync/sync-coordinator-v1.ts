@@ -29,8 +29,22 @@ import {
   type SyncSettingsV1,
 } from './sync-rules-v1';
 
+/**
+ * The reader is called as a request (not an RPC method): the Worker's placement next to the
+ * database applies only to requests, and RPC calls run where the caller is.
+ */
 export interface SyncReaderV1 {
-  processFile(input: ProcessWorkbookInputV1): Promise<ReadResultV1>;
+  fetch(input: string, init: RequestInit): Promise<Response>;
+}
+
+const READER_URL_V1 = 'https://notas-sync-reader.internal/ler';
+
+async function readFileV1(reader: SyncReaderV1, input: ProcessWorkbookInputV1): Promise<ReadResultV1> {
+  const response = await reader.fetch(READER_URL_V1, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`notas-sync-reader-http-${response.status}`);
+  return (await response.json()) as ReadResultV1;
 }
 
 export interface SyncCoordinatorEnvV1 extends GraphAppEnvV1 {
@@ -67,7 +81,7 @@ const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 /**
  * The single coordinator of the sync. State lives in this object's own SQLite storage
  * (operational status only; grades and the Auditoria stay in PostgreSQL). Reads run in
- * separate Worker invocations through `SELF.processFile`, at most `maxParallel` at once.
+ * separate Worker invocations through the `SELF` reader, at most `maxParallel` at once.
  */
 export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> {
   private readonly retired: boolean;
@@ -298,7 +312,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         driveId: location.driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
         expectedYear: this.activeFolder()?.year ?? null, memory: file.memory ?? null,
       };
-      const result = await this.env.SELF.processFile(input).catch((cause: unknown): ReadResultV1 => {
+      const result = await readFileV1(this.env.SELF, input).catch((cause: unknown): ReadResultV1 => {
         console.error(JSON.stringify({ event: 'notas-sync-reader-unreachable', error: String(cause).slice(0, 300) }));
         return { outcome: 'failed', code: 'READER-UNREACHABLE', readHash: null, readMs: 0, savedToWrittenMs: null };
       });
