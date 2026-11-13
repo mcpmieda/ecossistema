@@ -52,6 +52,7 @@ import {
   writePanelHashParamsV1,
 } from './shared/panel-hash-v1';
 import { LiveRefreshScopeV1 } from '../../shared/live-data/live-refresh-scope-v1';
+import { AreaErrorBoundaryV1 } from '../../shared/ui/area-error-boundary-v1';
 
 const StudentAccountsV1 = preloadedSectionV1(() =>
   import('./accounts/student-accounts-v1').then((module) => module.StudentAccountsV1),
@@ -533,7 +534,9 @@ function PortalWorkspace({
           )}
           <Suspense fallback={sectionFallback}>
             <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
-              <div key={section}>{content}</div>
+              <div key={section}>
+                <AreaErrorBoundaryV1 label="Área do Painel">{content}</AreaErrorBoundaryV1>
+              </div>
             </LiveRefreshScopeV1>
           </Suspense>
         </>
@@ -579,7 +582,9 @@ function PortalWorkspace({
           )}
           <Suspense fallback={sectionFallback}>
             <LiveRefreshScopeV1 active={!customizationTarget && !openedAccount}>
-              <div key={section}>{content}</div>
+              <div key={section}>
+                <AreaErrorBoundaryV1 label="Área do Painel">{content}</AreaErrorBoundaryV1>
+              </div>
             </LiveRefreshScopeV1>
           </Suspense>
         </PortalScopeTabsV1>
