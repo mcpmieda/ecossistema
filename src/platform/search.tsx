@@ -5,6 +5,7 @@ import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
 import { routeIcons } from './routes';
 import { goToHashV1 } from './back-closes-overlay-v1';
+import { allowLeavingToV1 } from '../shared/forms/draft-navigation-v1';
 
 function SearchResults({
   items,
@@ -131,6 +132,8 @@ export function PlatformSearch({
   };
 
   const navigateFromSearch = (href: string) => {
+    // An open edit decides first, asked once: refusing keeps the search and the address.
+    if (!allowLeavingToV1(href)) return;
     closeSearch();
     // From the open phone search, the result takes the search's place in the history.
     goToHashV1(href);

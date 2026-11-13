@@ -38,11 +38,14 @@ const days = (count: number) => (count === 1 ? '1 dia' : `${count} dias`);
 const dateLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
 
 /** Each day already over: its lessons (every shift's positions) and its absences without
- * justification, most recent first; days without lessons are left out. */
+ * justification, most recent first; days without lessons are left out. `open`: some shift of the day
+ * was not read in full (or had a mark in conflict), as the ring and the calendar show it. */
 function pastSchoolDaysV2(months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[], today: string) {
   const lessons = new Map<string, Set<string>>();
+  const open = new Set<string>();
   for (const day of months.flatMap((month) => month.days ?? []) as FrequencyDayV2[]) {
     if (day.date >= today) continue;
+    if (day.complete === false) open.add(day.date);
     const set = lessons.get(day.date) ?? new Set<string>();
     for (const slot of day.slots) set.add(`${day.shift}:${slot}`);
     lessons.set(day.date, set);
@@ -55,7 +58,7 @@ function pastSchoolDaysV2(months: readonly Pick<FrequencySummaryV2, 'marks' | 'd
     if (mark.mark === 'X') absent.set(mark.date, (absent.get(mark.date) ?? 0) + 1);
   }
   return [...lessons.entries()]
-    .map(([date, set]) => ({ date, lessons: set.size, absences: absent.get(date) ?? 0, marked: marked.has(date), weekday: new Date(`${date}T12:00:00Z`).getUTCDay() }))
+    .map(([date, set]) => ({ date, lessons: set.size, absences: absent.get(date) ?? 0, marked: marked.has(date), open: open.has(date), weekday: new Date(`${date}T12:00:00Z`).getUTCDay() }))
     .filter((day) => day.lessons > 0)
     .sort((left, right) => right.date.localeCompare(left.date));
 }
@@ -131,8 +134,9 @@ export function frequencyCommentV2({
   if (before.length && beforeRate >= 0.1 && recentRate < 0.5 * beforeRate)
     return good('improving', 'Está faltando menos dias. Continue assim!');
   // "Nenhuma falta" is for who never missed: a justified absence is still an absence (owner request 01/11/2026).
-  if (all.every((day) => !day.marked)) return good('none-this-year', 'Nenhuma falta este ano. Parabéns!');
-  if (recent.length && recent.every((day) => !day.marked))
+  // A day not read in full (or with a mark in conflict) may hide one, so it never counts as "sem falta".
+  if (all.every((day) => !day.marked && !day.open)) return good('none-this-year', 'Nenhuma falta este ano. Parabéns!');
+  if (recent.length && recent.every((day) => !day.marked && !day.open))
     return good('none-recently', 'Nenhuma falta nas últimas 4 semanas. Muito bem!');
   return null;
 }

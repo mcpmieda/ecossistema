@@ -178,6 +178,8 @@ const wholeYear = z
         z
           .object({
             shift: z.enum(BELL_SHIFTS_V1),
+            // The school day this grid was first read: the subject is named only from it on.
+            validFrom: z.iso.date().nullable().optional(),
             lessons: z
               .array(
                 z

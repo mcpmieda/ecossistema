@@ -162,3 +162,15 @@ it('rejects a query string and anything outside the recognized grid', async () =
   mocks.unsafe.mockResolvedValueOnce([{ schedule: { classes: [{ label: 'A', observedAt: 'ontem', lessons: [] }] } }]);
   expect((await servePortalScheduleV1(request(), env)).status).toBe(503);
 });
+
+it("reads the grid's first reading day (attendance 0020) but keeps it out of the Horário's answer", async () => {
+  mocks.unsafe
+    .mockResolvedValueOnce([{ schedule: { classes: [{ ...grid.classes[0]!, validFrom: '2026-08-03' }] } }])
+    .mockResolvedValueOnce([clock])
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([]);
+  const response = await servePortalScheduleV1(request(), env);
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as { classes: Record<string, unknown>[] };
+  expect(body.classes).toEqual([{ ...grid.classes[0], observedAt: '2026-10-22T11:00:00.123Z', bells: null }]);
+});

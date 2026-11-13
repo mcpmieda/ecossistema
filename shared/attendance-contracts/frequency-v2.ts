@@ -286,8 +286,9 @@ export type FrequencyYearSummaryV2 = {
     | { kind: 'intervalo' | 'parada'; start: string; end: string })[]>> | null;
   /** From when those times hold (school-bells-v1 bellsValidFromV1); null without bells. */
   bellsValidFrom?: string | null;
-  /** The subject of each position of the week by shift, only when the Horário is on for the student. */
-  grid?: { shift: 'matutino' | 'vespertino'; lessons: { weekday: number; slot: number; subject: string }[] }[];
+  /** The subject of each position of the week by shift, only when the Horário is on for the student;
+   * `validFrom`: the school day that grid was first read (attendance 0020), null when unknown. */
+  grid?: { shift: 'matutino' | 'vespertino'; validFrom?: string | null; lessons: { weekday: number; slot: number; subject: string }[] }[];
 };
 
 /** Lessons and absences (X) of the days already over; `reliable`: nothing of them is still unknown. */

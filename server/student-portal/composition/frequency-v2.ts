@@ -10,7 +10,8 @@ import { portalFrequencySummaryV2, portalFrequencyYearV2 } from '../../attendanc
 import { schoolCalendarDaysV1, schoolDaysOfV1, schoolYearProgressOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
 import { bellShiftOfLabelV1 } from '../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolBellsAndCalendarV1 } from './schedule-v1';
-const gridSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string(),
+// validFrom (attendance 0020): the school day the current grid was first read; absent before it.
+const gridSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string(),validFrom:z.iso.date().nullable().optional(),
   lessons:z.array(z.object({weekday:z.number().int().min(1).max(5),slot:z.number().int().min(1).max(6),subject:z.string().min(1).max(120)}).strict()).max(30)}).strict()).max(8)}).strict();
 
 const originsSchema=z.array(z.object({occurrence_id:z.uuid(),date:z.iso.date(),slot:z.number().int().min(1).max(6),shift:z.string().max(80),
@@ -61,12 +62,14 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         // and, when the Horário is on for this student, the subject of each position of the week
         // (owner decision 23/10/2026: "Faltou na 3ª aula (08:50–09:45), MATEMATICA").
         const{bells,bellsValidFrom,daysOff}=await schoolBellsAndCalendarV1(tx);
-        let grid:{shift:'matutino'|'vespertino';lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
+        let grid:{shift:'matutino'|'vespertino';validFrom?:string;lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
         if(context.policy.enforcedValue.showSchedule){
           const found=await tx.unsafe('SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule',[context.account.id,session.id]);
           const rawGrid=found[0]?.schedule;
           if(rawGrid!=null)grid=gridSchema.parse(typeof rawGrid==='string'?JSON.parse(rawGrid):rawGrid).classes.flatMap(item=>{
-            const shift=bellShiftOfLabelV1(item.label);return shift?[{shift,lessons:item.lessons}]:[];});
+            const shift=bellShiftOfLabelV1(item.label);// The key only when known: a page still open with the bundle from before (strict grid)
+            // would reject it; absent means unknown, as null does (no subject is named).
+            return shift?[{shift,...(item.validFrom?{validFrom:item.validFrom}:{}),lessons:item.lessons}]:[];});
         }
         return {...portalFrequencyYearV2(read,schoolDays,schoolYear?.remaining??0),schoolYear,daysOff,bells,bellsValidFrom,grid};
       }));

@@ -208,7 +208,7 @@ function trendV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): Tr
  * - below it: "Subiu, mas ainda precisa melhorar" / "Caiu em relação ao 1º" /
  *   "Se manteve igual ao 1º, mas precisa melhorar";
  * - "consideravelmente" only for a drop that worries: from the minimum to below it, or 10
- *   percentage points or more (`drop`, in points of the trimester's maximum).
+ *   percentage points or more (`steep`, in points of the trimester's maximum).
  * The 3rd trimester is worth 40, so trends compare percentages, never raw marks.
  */
 function trendTextV1(
@@ -216,7 +216,7 @@ function trendTextV1(
   reference: PeriodIdV1,
   current: boolean | null,
   previous: boolean | null,
-  drop = 0,
+  steep = false,
 ): string {
   const ref = reference === 'T1' ? '1º' : '2º';
   if (trend === 'higher')
@@ -226,14 +226,21 @@ function trendTextV1(
       ? `Se manteve igual ao ${ref}, mas precisa melhorar`
       : `Se manteve igual ao ${ref}`;
   if (current === true) return `Porém caiu em relação ao ${ref}`;
-  const worrying = (current === false && previous === true) || drop >= 10;
+  const worrying = (current === false && previous === true) || steep;
   return worrying ? `Caiu consideravelmente em relação ao ${ref}` : `Caiu em relação ao ${ref}`;
 }
 
-/** Percentage points lost from one trimester to the next (0 when it did not fall). */
-function trendDropV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): number {
-  if (!current?.maximum || !reference?.maximum) return 0;
-  return Math.max(0, (reference.value / reference.maximum - current.value / current.maximum) * 100);
+/**
+ * Whether the mark lost 10 percentage points or more since the reference trimester. Integer
+ * thousandths and cross-multiplication, like trendV1: 17/30 to 14/30 is exactly 10 points, which
+ * floating-point division reads as 9.999…
+ */
+function steepDropV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): boolean {
+  if (!current?.maximum || !reference?.maximum) return false;
+  const milli = (value: number) => BigInt(Math.round(value * 1000));
+  const lost =
+    milli(reference.value) * milli(current.maximum) - milli(current.value) * milli(reference.maximum);
+  return lost * 100n >= 10n * milli(reference.maximum) * milli(current.maximum);
 }
 
 function TrendLineV1({
@@ -241,13 +248,13 @@ function TrendLineV1({
   reference,
   current,
   previous,
-  drop,
+  steep,
 }: Readonly<{
   trend: TrendV1;
   reference: PeriodIdV1;
   current: boolean | null;
   previous: boolean | null;
-  drop: number;
+  steep: boolean;
 }>) {
   let Icon;
   if (trend === 'higher') {
@@ -257,7 +264,7 @@ function TrendLineV1({
   } else {
     Icon = MoveRight;
   }
-  const text = trendTextV1(trend, reference, current, previous, drop);
+  const text = trendTextV1(trend, reference, current, previous, steep);
   const line = useFitLineV1<HTMLSpanElement>(text, 10);
   return (
     <span ref={line} className={'pa-score-head-trend pa-score-head-trend--' + trend}>
@@ -460,7 +467,7 @@ function SummaryV1({
 
         {/* No column labels over the list (owner request 27/10/2026); the section heading stays
             for screen readers. */}
-        <h2 id="pa-summary-title" className="pa-visually-hidden">
+        <h2 id="pa-summary-title" className="pa-visually-hidden" tabIndex={-1}>
           Minhas notas
         </h2>
 
@@ -742,8 +749,12 @@ function StatusEmblemV1({ band }: Readonly<{ band: PartialBandV1 | null }>) {
 const METER_MINIMUM_PERCENT_V1 = 60;
 function ScoreMeterV1({ mark }: Readonly<{ mark: ScoreMarkV1 }>) {
   if (!mark.maximum || mark.meetsMinimum === null) return null;
-  // Floor, never round: 59,8% must not read as the minimum's 60%.
-  const percent = Math.max(0, Math.min(100, Math.floor((mark.value / mark.maximum) * 100)));
+  // Floor, never round: 59,8% must not read as the minimum's 60%. Integer thousandths, so 23,4 of
+  // 30 reads 78% and not the 77% of floating-point division.
+  const percent = Math.max(
+    0,
+    Math.min(100, Math.floor((Math.round(mark.value * 1000) * 100) / Math.round(mark.maximum * 1000))),
+  );
   // The minimum in points, named under the notch: 18,0 of 30, 24,0 of 40 (owner review 28/09/2026).
   // A mark that disagrees with the 60% line (another minimum) shows the share without a notch.
   const minimum = agreesWithSixtyPercentV1(mark)
@@ -782,6 +793,9 @@ function periodStatusV1(period: PeriodV1 | undefined) {
   const final = period?.final;
   if (!final || final.kind === 'absent') return { label: 'Ainda não lançada', band: null };
   if (final.kind === 'recovery-pending') return { label: 'Aguardando nota', band: null };
+  // N/C and R/R are final records, never "under review"; R/R reads as on the subject's situation.
+  if (final.kind === 'nc') return { label: 'Não compareceu à recuperação', band: null };
+  if (final.kind === 'rr') return { label: 'Reprovado', band: null };
   const band = markBandV1(final, true);
   if (!band) return { label: 'Nota em análise', band: null };
   return { label: PARTIAL_BANDS_V1[band].label, band };
@@ -1301,7 +1315,9 @@ function SubjectHeaderV1({
   const official = subjectSituationV1(subject);
   return (
     <div className="pa-subject-head">
-      <h2 className="pa-visually-hidden">{subject.label}</h2>
+      <h2 className="pa-visually-hidden" tabIndex={-1}>
+        {subject.label}
+      </h2>
       <div className="pa-subject-head-row">
         <Button
           isIconOnly
@@ -1435,7 +1451,7 @@ function ScoreHeadV1({
               reference={trendReference}
               current={mark?.meetsMinimum ?? null}
               previous={scoreOfV1(subjectPeriodV1(subject, trendReference))?.meetsMinimum ?? null}
-              drop={trendDropV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))}
+              steep={steepDropV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))}
             />
           ) : null}
         </div>
@@ -1744,9 +1760,13 @@ export function StudentPortalWorkspaceV1({
   // 'still': the area stays as it is (switching disciplines moves only the body below the header).
   const [areaSlide, setAreaSlide] = useState<SlideMotionV1>(null);
   const areaStage = useSlideStageV1(':scope > [role="tabpanel"] [data-area-live]');
+  // Set by a move the student made here: the next layout brings the top of the sheet into view
+  // ('area' also focuses the new title), as the Notas ⇄ Frequência menu does (PortalMenuPagesV3).
+  const pendingTop = useRef<'area' | 'subject' | null>(null);
   const goArea = (patch: Partial<WorkspaceEntryV1> & { area: WorkspaceAreaV1 }) => {
     const slide: SlideV1 = patch.area === 'subject' ? 'forward' : 'back';
     areaStage.leave(slide);
+    pendingTop.current = 'area';
     go(patch, slide, null, slide);
   };
   const previousArea = useRef<WorkspaceAreaV1>('summary');
@@ -1807,6 +1827,7 @@ export function StudentPortalWorkspaceV1({
     if (!selectedSubject || subjectId === selectedSubject.subjectId) return;
     const slide = orderOf(subjectId) < orderOf(selectedSubject.subjectId) ? 'back' : 'forward';
     subjectStage.leave(slide);
+    pendingTop.current = 'subject';
     // Only the body slides; the view around it must not replay its own entrance.
     go({ area: 'subject', subjectId }, slide, slide, 'still');
   };
@@ -1818,6 +1839,20 @@ export function StudentPortalWorkspaceV1({
     if (patch.period !== undefined) setSubjectPeriod(patch.period);
     if (patch.summary !== undefined) setSummaryTab(patch.summary);
   };
+
+  // Opening a discipline from the end of the Boletim (or back) must not land below its header: the
+  // window rises to the top of the sheet, instantly, when it is scrolled past it.
+  useLayoutEffect(() => {
+    const move = pendingTop.current;
+    pendingTop.current = null;
+    const stage = areaStage.stage.current;
+    if (!move || !stage) return;
+    const sheet = stage.closest<HTMLElement>('.pa-student-workspace') ?? stage;
+    const top = Math.max(0, sheet.getBoundingClientRect().top + window.scrollY - 16);
+    if (window.scrollY > top) window.scrollTo({ top, behavior: 'instant' });
+    if (move === 'area')
+      stage.querySelector<HTMLElement>(':scope > [role="tabpanel"] [data-area-live] h2')?.focus({ preventScroll: true });
+  }, [area, selectedSubjectId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
