@@ -618,20 +618,25 @@ function SchoolYearCountdownV3({
         <p className="pa3-countdown-days">{plural(schoolYear.schoolDays, 'dia letivo', 'dias letivos')} no ano.</p>
       </Card>
     );
+  // After the last school day only the day it ended: a refresh brings nothing new until the next
+  // year's calendar, so it never asks for one.
   return (
     <Card className="pa3-card pa3-countdown">
       <PortalCountdownV1
         at={`${schoolYear.lastDay}T23:59:59-03:00`}
         title="O ano letivo termina em"
         when={dateLabelV3(schoolYear.lastDay)}
-        done="O ano letivo terminou."
+        done={`O ano letivo terminou em ${dateLabelV3(schoolYear.lastDay).slice(0, 5)}.`}
+        reload={false}
       />
-      <p className="pa3-countdown-days">
-        {schoolYear.remaining === 1
-          ? 'Resta 1 dia letivo'
-          : `Restam ${schoolYear.remaining} dias letivos`}{' '}
-        de {schoolYear.schoolDays}.
-      </p>
+      {today <= schoolYear.lastDay && (
+        <p className="pa3-countdown-days">
+          {schoolYear.remaining === 1
+            ? 'Resta 1 dia letivo'
+            : `Restam ${schoolYear.remaining} dias letivos`}{' '}
+          de {schoolYear.schoolDays}.
+        </p>
+      )}
     </Card>
   );
 }
