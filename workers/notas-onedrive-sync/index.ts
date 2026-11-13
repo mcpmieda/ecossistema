@@ -36,7 +36,8 @@ export { NotasSyncCoordinatorV1 };
  * - cron (every minute): safety-net delta, nightly full check and webhook renewal.
  * - `NotasSyncAdminV1.handle`: the admin panel, reached only through the Pages service binding
  *   after the admin session is checked there. No public route operates the sync.
- * - `NotasSyncReaderV1.processFile`: one read, in its own invocation, called by the coordinator.
+ * - `NotasSyncReaderV1.fetch`: one read, in its own invocation, requested by the coordinator
+ *   through `SELF` (a request, so the Worker runs next to the database).
  */
 export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
   NOTAS_SYNC?: DurableObjectNamespace<NotasSyncCoordinatorV1>;
@@ -185,9 +186,14 @@ function logPlacementOnceV1(): void {
   }).catch(() => undefined);
 }
 
-/** One read, in its own invocation: called by the coordinator through the SELF binding. */
+/** One read, in its own invocation: requested by the coordinator through the SELF binding only. */
 export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
-  async processFile(input: ProcessWorkbookInputV1): Promise<ReadResultV1> {
+  override async fetch(request: Request): Promise<Response> {
+    if (request.method !== 'POST') return new Response(null, { status: 405 });
+    return Response.json(await this.processFile((await request.json()) as ProcessWorkbookInputV1));
+  }
+
+  private async processFile(input: ProcessWorkbookInputV1): Promise<ReadResultV1> {
     const env = this.env;
     logPlacementOnceV1();
     return processWorkbookV1(input, {
@@ -196,9 +202,7 @@ export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
       openDatabase: () => {
         const connectionString = env.PROD_DB?.connectionString;
         if (!connectionString) throw new Error('notas-sync-database-binding-missing');
-        // Reads run side by side; their writes wait their turn on the database's year lock
-        // instead of failing after the default 5 s.
-        return createGradebookPostgresDatabaseV1(connectionString, { lockTimeoutMilliseconds: 30_000, statementTimeoutMilliseconds: 60_000 });
+        return createGradebookPostgresDatabaseV1(connectionString);
       },
       notifyPortal: async () => {
         // The app identity is the technical author of the sync; the Portal outbox stays authoritative.
