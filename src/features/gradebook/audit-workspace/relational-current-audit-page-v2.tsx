@@ -24,7 +24,7 @@ const PROBLEMS: Readonly<Record<string, readonly [label: string, hint: string]>>
   'activity-without-description': ['Atividade sem descrição', 'Notas numa coluna sem descrição. A coluna não foi lançada.'],
   'activity-without-maximum': ['Atividade sem máximo', 'Notas numa coluna sem máximo. A coluna não foi lançada.'],
   'above-maximum': ['Nota acima do máximo', 'A nota e o resultado do aluno não foram lançados.'],
-  'qualitative-maxima-over-ceiling': ['Máximos acima do qualitativo', 'A soma dos máximos passa do qualitativo. Os resultados não foram lançados.'],
+  'qualitative-maxima-over-ceiling': ['Máximos acima do qualitativo', 'A soma dos máximos das atividades passa do qualitativo. Distribua os máximos corretamente. As notas foram lançadas.'],
   'qualitative-over-ceiling': ['Qualitativo estourado', 'A soma das atividades do aluno passa do qualitativo. O resultado não foi lançado.'],
   'recovery-above-maximum': ['Recuperação acima do máximo', 'A recuperação e o resultado final não foram lançados.'],
   'work-without-weight': ['Trabalho sem peso', 'Nota de trabalho com o bloco desligado. O resultado não foi lançado.'],

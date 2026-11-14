@@ -604,7 +604,7 @@ const AUDIT_TEXT_V1: Partial<Record<GradebookImportDiagnosticCodeV1, readonly [s
   'activity-without-description': ['Atividade com notas e sem descrição.', 'Preencha a descrição da atividade (linha 4). A coluna não foi lançada.', 'configuration'],
   'activity-without-maximum': ['Atividade com notas e sem máximo válido.', 'Informe o máximo da atividade (linha 3). A coluna não foi lançada.', 'configuration'],
   'qualitative-over-ceiling': ['Atividades do aluno somam mais que o teto qualitativo.', 'Confira as notas do aluno. As atividades e o resultado dele não foram lançados.', 'assessment'],
-  'qualitative-maxima-over-ceiling': ['Máximos das atividades somam mais que o teto qualitativo.', 'Ajuste os máximos (linha 3). Os resultados desta guia não foram lançados.', 'configuration'],
+  'qualitative-maxima-over-ceiling': ['Máximos das atividades somam mais que o teto qualitativo.', 'Distribua os máximos (linha 3) dentro do qualitativo. As notas foram lançadas; só fica segurado o aluno que passar do teto.', 'configuration'],
   'header-mismatch': ['Turma ou trimestre do cabeçalho diferente da guia.', 'Confira K3 e K4. Esta turma e disciplina não foram lançadas.', 'configuration'],
   'recovery-above-maximum': ['Recuperação acima do máximo do trimestre.', 'Corrija a nota. Ela e o resultado final do aluno não foram lançados.', 'recovery'],
   'work-without-weight': ['Trabalho lançado com o bloco de trabalho desligado.', 'Informe o máximo do trabalho (Y3) ou apague as notas. O resultado do aluno não foi lançado.', 'term-result'],
@@ -673,7 +673,8 @@ export function actionableGradebookImportDiagnosticsV1(
   diagnostics: readonly GradebookImportDiagnosticV1[],
 ): readonly GradebookImportDiagnosticV1[] {
   return diagnostics.filter(
-    (value) => value.severity === 'blocking-error' || value.code === 'above-maximum',
+    (value) => value.severity === 'blocking-error' || value.code === 'above-maximum'
+      || value.code === 'qualitative-maxima-over-ceiling',
   );
 }
 

@@ -138,11 +138,12 @@ function auditTermSheet(sheet: GradeSheetRecognition, findings: AuditFindingV1[]
       cause: `${graded.length} aluno(s) com nota nesta coluna.` });
   }
 
-  // 6. The activities' maxima add up to more than the qualitative ceiling: every AM is held.
+  // 6. The activities' maxima add up to more than the qualitative ceiling: the teacher's
+  // distribution is wrong and the Auditoria shows it, but nothing is held while no student's
+  // activities pass the ceiling (rule 4 holds those).
   const ceiling = facts?.qualitativeCeiling ?? null;
   if (positive(ceiling) && maximaSum > ceiling + 1e-9) {
-    for (const student of sheet.students) holdResult(student.row);
-    findings.push({ code: 'qualitative-maxima-over-ceiling', blocking: true, sheet, cellAddress: 'AK3',
+    findings.push({ code: 'qualitative-maxima-over-ceiling', blocking: false, sheet, cellAddress: 'AK3',
       foundValue: String(maximaSum), cause: `Teto qualitativo: ${ceiling}.` });
   }
 

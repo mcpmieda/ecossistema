@@ -74,6 +74,17 @@ describe('audit rules (BN-DEC-046)', () => {
     expect(firstStudent?.[2]).toEqual(['u']);
   });
 
+  it('6. maxima above the ceiling are reported, but hold nothing while no student passes it', () => {
+    // An extra activity whose maximum alone passes the ceiling, still without grades.
+    const { diagnostics, term1 } = run((sheets) => {
+      Object.assign(sheets['6A1º']!, { AK3: { t: 'n', v: 16.5 }, AJ3: { t: 'n', v: 20 }, AJ4: { t: 's', v: 'Atividade J' } });
+    });
+    const found = diagnostics.find((item) => item.code === 'qualitative-maxima-over-ceiling');
+    expect(found?.severity).toBe('warning');
+    expect(diagnostics.some((item) => item.code === 'qualitative-over-ceiling')).toBe(false);
+    expect(term1?.alunos.every(([, , am]) => !Array.isArray(am) || am[0] !== 'u')).toBe(true);
+  });
+
   it('5. a grade above its maximum is held with the student result', () => {
     const { codes, firstStudent } = run((sheets) => { sheets['6A1º']!.R5 = { t: 'n', v: 9 }; });
     expect(codes).toContain('above-maximum');
