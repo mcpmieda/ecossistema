@@ -294,7 +294,9 @@ export default {
     return new Response('Not found', { status: 404 });
   },
   async scheduled(controller, env, ctx) {
-    if (env.NOTAS_SYNC) ctx.waitUntil(coordinatorV1(env).tick());
+    // Its own code version goes along: a coordinator left on older code restarts (see tick).
+    const version = env.CF_VERSION_METADATA ? { id: env.CF_VERSION_METADATA.id, timestamp: env.CF_VERSION_METADATA.timestamp } : undefined;
+    if (env.NOTAS_SYNC) ctx.waitUntil(coordinatorV1(env).tick(version).catch(() => undefined));
     ctx.waitUntil(runPortalScheduledV1(env, controller.scheduledTime));
   },
 } satisfies ExportedHandler<NotasSyncEnvV1>;

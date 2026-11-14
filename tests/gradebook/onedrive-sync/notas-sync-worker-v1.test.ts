@@ -12,7 +12,7 @@ vi.mock('cloudflare:workers', () => ({
 }));
 
 const { default: worker, handleAdminV1, handleNotificationV1, handleReadRequestV1, handlePortalScheduledRequestV1, runPortalScheduledV1, sameSecretV1 } = await import('../../../workers/notas-onedrive-sync/index');
-const { readFileForTestsV1 } = await import('../../../server/gradebook/onedrive-sync/sync-coordinator-v1');
+const { readFileForTestsV1, runsOlderCodeV1 } = await import('../../../server/gradebook/onedrive-sync/sync-coordinator-v1');
 type Env = Parameters<typeof handleNotificationV1>[1];
 
 function coordinatorMock() {
@@ -97,6 +97,15 @@ describe('Notas OneDrive sync Worker', () => {
     await worker.scheduled({} as ScheduledController, envV1({ NOTAS_SYNC: namespace as never }), ctx);
     await Promise.all(work);
     expect(stub.tick).toHaveBeenCalledOnce();
+  });
+
+  it('the cron tells the coordinator its own code version', async () => {
+    const { stub, namespace } = coordinatorMock();
+    const { ctx, work } = context();
+    const version = { id: 'v2', tag: '', timestamp: '2026-11-14T16:00:00Z' };
+    await worker.scheduled({} as ScheduledController, envV1({ NOTAS_SYNC: namespace as never, CF_VERSION_METADATA: version }), ctx);
+    await Promise.all(work);
+    expect(stub.tick).toHaveBeenCalledWith({ id: 'v2', timestamp: '2026-11-14T16:00:00Z' });
   });
 
   it('compares secrets without accepting an empty expected value', () => {
@@ -201,5 +210,20 @@ describe('Student Portal minute of work, next to the database', () => {
     expect(portal.run).not.toHaveBeenCalled();
     expect((await handlePortalScheduledRequestV1(post(token, { scheduledTime: 120_000 }), env(portal))).status).toBe(204);
     expect(portal.run).toHaveBeenCalledWith(120_000);
+  });
+});
+
+describe('a coordinator left on older code after a deploy', () => {
+  const older = { id: 'v1', timestamp: '2026-11-14T14:00:00Z' };
+  const newer = { id: 'v2', timestamp: '2026-11-14T16:00:00Z' };
+  it('restarts only when the caller runs a later deploy', () => {
+    expect(runsOlderCodeV1(older, newer)).toBe(true);
+    expect(runsOlderCodeV1(newer, older)).toBe(false);
+    expect(runsOlderCodeV1(newer, newer)).toBe(false);
+  });
+  it('never restarts without both versions', () => {
+    expect(runsOlderCodeV1(undefined, newer)).toBe(false);
+    expect(runsOlderCodeV1(older, undefined)).toBe(false);
+    expect(runsOlderCodeV1({ id: 'x', timestamp: 'bad' }, newer)).toBe(false);
   });
 });
