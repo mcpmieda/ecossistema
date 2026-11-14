@@ -19,6 +19,20 @@ import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v
 import { connectPortalLiveV1 } from '../../server/student-portal/live/live-connect-v1';
 import { allowPortalLiveDrainV1 } from '../../server/student-portal/composition/live-drain-v1';
 import { dispatchPortalLiveEventsV1 } from '../../server/student-portal/live/live-outbox-v1';
+import {
+  PORTAL_SCHEDULED_PATH_V1,
+  runScheduledNearbyV1,
+  scheduledRequestTimeV1,
+  type PortalScheduledNearbyEnvV1,
+} from '../../server/student-portal/composition/scheduled-nearby-v1';
+
+type PortalEnvV1 = PortalWorkerEnv & PortalCompositionEnvV1 & PortalScheduledNearbyEnvV1;
+
+/** The minute's scheduled work; run by the cron or, next to the database, by its own request. */
+async function scheduledWorkV1(env: PortalEnvV1, scheduledTime: number): Promise<void> {
+  await Promise.all([portalScheduledV1(env), dispatchPortalLiveEventsV1(env).catch(() => 0),
+    portalHistoryScheduledV1(env, scheduledTime), portalSignalsScheduledV1(env, scheduledTime)]);
+}
 
 const selfMayEnqueueLiveV1 = (request: Request, response: Response): boolean => {
   if (request.method !== 'POST' || response.status !== 200) return false;
@@ -85,14 +99,20 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
 // No admin RPC on the default/self capability. Population remains an explicit, separate operation.
 export default {
   async fetch(request, env, ctx) {
+    if (request.method === 'POST' && new URL(request.url).pathname === PORTAL_SCHEDULED_PATH_V1) {
+      const asked = await scheduledRequestTimeV1(request, env);
+      if ('status' in asked) return new Response(null, { status: asked.status });
+      await scheduledWorkV1(env, asked.scheduledTime);
+      return new Response(null, { status: 204 });
+    }
     const response = await serveObservedPortalSelfV1(request, env, (promise) => ctx.waitUntil(promise));
     if (selfMayEnqueueLiveV1(request, response)) ctx.waitUntil(dispatchPortalLiveEventsV1(env).catch(() => undefined));
     return response;
   },
   async scheduled(controller, env) {
-    await Promise.all([portalScheduledV1(env), dispatchPortalLiveEventsV1(env).catch(() => 0),
-      portalHistoryScheduledV1(env, controller.scheduledTime), portalSignalsScheduledV1(env, controller.scheduledTime)]);
+    if (await runScheduledNearbyV1(env, controller.scheduledTime)) return;
+    await scheduledWorkV1(env, controller.scheduledTime);
   },
-} satisfies ExportedHandler<PortalWorkerEnv & PortalCompositionEnvV1>;
+} satisfies ExportedHandler<PortalEnvV1>;
 
 export {PortalLiveUpdatesV1} from '../../server/student-portal/live/live-updates-v1';
