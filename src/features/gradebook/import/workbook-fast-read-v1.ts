@@ -62,52 +62,74 @@ function readUInt32V1(bytes: Uint8Array, offset: number): number {
  * array-formula range already seen in the sheet; `BrtArrFmla`/`BrtShrFmla` mark their anchor.
  */
 export function scanFormulaCellsV1(bytes: Uint8Array): Set<number> {
-  const marked = new Set<number>();
-  const arrays: Array<readonly [number, number, number, number]> = [];
+  const state: FormulaScanStateV1 = { row: -1, column: -1, lastCell: -1, marked: new Set<number>(), arrays: [] };
   let position = 0;
-  let row = -1;
-  let column = -1;
-  let lastCell = -1;
   while (position < bytes.length) {
-    let type = bytes[position++]!;
-    if (type & 0x80) type = (type & 0x7f) | ((bytes[position++]! & 0x7f) << 7);
-    let size = 0;
-    let shift = 0;
-    let byte: number;
-    do {
-      byte = bytes[position++]!;
-      size += (byte & 0x7f) * 2 ** shift;
-      shift += 7;
-    } while (byte & 0x80 && shift < 28);
-    if (position + size > bytes.length) throw new Error('fast-read-truncated-record');
+    const { type, size, body } = readRecordHeaderV1(bytes, position);
     if (type === BRT_ROW_HDR) {
-      row = readUInt32V1(bytes, position);
-      column = -1;
+      state.row = readUInt32V1(bytes, body);
+      state.column = -1;
     } else if (isCellRecordV1(type)) {
-      if (row < 0) throw new Error('fast-read-cell-before-row');
-      column = isShortCellRecordV1(type) ? column + 1 : readUInt32V1(bytes, position);
-      lastCell = row * COLUMNS_PER_ROW + column;
-      const isFormula = type >= BRT_FMLA_FIRST && type <= BRT_FMLA_LAST;
-      const insideArray = arrays.some(
-        ([firstRow, lastRow, firstColumn, lastColumn]) =>
-          row >= firstRow && row <= lastRow && column >= firstColumn && column <= lastColumn,
-      );
-      if (isFormula && !insideArray) marked.add(lastCell);
+      scanCellRecordV1(state, bytes, type, body);
     } else if (type === BRT_ARR_FMLA || type === BRT_SHR_FMLA) {
-      if (lastCell < 0) throw new Error('fast-read-anchor-without-cell');
-      if (type === BRT_ARR_FMLA) {
-        arrays.push([
-          readUInt32V1(bytes, position),
-          readUInt32V1(bytes, position + 4),
-          readUInt32V1(bytes, position + 8),
-          readUInt32V1(bytes, position + 12),
-        ]);
-      }
-      marked.add(lastCell);
+      scanFormulaAnchorV1(state, bytes, type, body);
     }
-    position += size;
+    position = body + size;
   }
-  return marked;
+  return state.marked;
+}
+
+type FormulaScanStateV1 = {
+  row: number;
+  column: number;
+  lastCell: number;
+  readonly marked: Set<number>;
+  readonly arrays: Array<readonly [number, number, number, number]>;
+};
+
+/** One BIFF12 record header: variable-length type and size; `body` is where its data starts. */
+function readRecordHeaderV1(bytes: Uint8Array, start: number): { readonly type: number; readonly size: number; readonly body: number } {
+  let position = start;
+  let type = bytes[position++]!;
+  if (type & 0x80) type = (type & 0x7f) | ((bytes[position++]! & 0x7f) << 7);
+  let size = 0;
+  let shift = 0;
+  let byte: number;
+  do {
+    byte = bytes[position++]!;
+    size += (byte & 0x7f) * 2 ** shift;
+    shift += 7;
+  } while (byte & 0x80 && shift < 28);
+  if (position + size > bytes.length) throw new Error('fast-read-truncated-record');
+  return { type, size, body: position };
+}
+
+function insideArrayFormulaV1(arrays: FormulaScanStateV1['arrays'], row: number, column: number): boolean {
+  return arrays.some(([firstRow, lastRow, firstColumn, lastColumn]) =>
+    row >= firstRow && row <= lastRow && column >= firstColumn && column <= lastColumn);
+}
+
+/** A cell: its formula is marked unless it lies inside an array formula already seen. */
+function scanCellRecordV1(state: FormulaScanStateV1, bytes: Uint8Array, type: number, body: number): void {
+  if (state.row < 0) throw new Error('fast-read-cell-before-row');
+  state.column = isShortCellRecordV1(type) ? state.column + 1 : readUInt32V1(bytes, body);
+  state.lastCell = state.row * COLUMNS_PER_ROW + state.column;
+  const isFormula = type >= BRT_FMLA_FIRST && type <= BRT_FMLA_LAST;
+  if (isFormula && !insideArrayFormulaV1(state.arrays, state.row, state.column)) state.marked.add(state.lastCell);
+}
+
+/** BrtArrFmla / BrtShrFmla mark the cell just read (their anchor); an array also records its range. */
+function scanFormulaAnchorV1(state: FormulaScanStateV1, bytes: Uint8Array, type: number, body: number): void {
+  if (state.lastCell < 0) throw new Error('fast-read-anchor-without-cell');
+  if (type === BRT_ARR_FMLA) {
+    state.arrays.push([
+      readUInt32V1(bytes, body),
+      readUInt32V1(bytes, body + 4),
+      readUInt32V1(bytes, body + 8),
+      readUInt32V1(bytes, body + 12),
+    ]);
+  }
+  state.marked.add(state.lastCell);
 }
 
 function decodeAddressV1(address: string): number | null {

@@ -187,6 +187,47 @@ function incidentsErrorV3(error: string) {
   return 'Não foi possível carregar as ocorrências agora.';
 }
 
+/** The school edited or removed a record while it was on screen. */
+function IncidentChangedAlertV3() {
+  return (
+    <Alert status="warning">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Description>
+          A escola alterou uma ocorrência. Confira o texto atualizado antes de confirmar.
+        </Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+/** Before the first read arrives: loading, or why it failed (and a retry when one can help). */
+function IncidentsLoadStatusV3({ error, retry }: Readonly<{ error: string | null | undefined; retry: () => void }>) {
+  // Asking again cannot help an expired session or a page the school turned off.
+  const canRetry = !!error && error !== 'unauthenticated' && error !== 'forbidden';
+  return (
+    <Card className="pa3-card pa3-status" role={error ? 'alert' : undefined}>
+      {error ? (
+        <Alert status={error === 'unauthenticated' ? 'warning' : 'danger'}>
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>{incidentsErrorV3(error)}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      ) : (
+        <output className="pa3-status-loading">
+          <Spinner size="sm" /> Carregando as ocorrências…
+        </output>
+      )}
+      {canRetry ? (
+        <Button size="sm" variant="secondary" className="pa3-status-action" onPress={retry}>
+          Tentar de novo
+        </Button>
+      ) : null}
+    </Card>
+  );
+}
+
 export function IncidentsPageV3({
   client,
   onAuthenticationLost,
@@ -221,16 +262,7 @@ export function IncidentsPageV3({
   return (
     <div className="pa3-incidents">
       <h2 className="pa3-page-title">Ocorrências</h2>
-      {changed ? (
-        <Alert status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Description>
-              A escola alterou uma ocorrência. Confira o texto atualizado antes de confirmar.
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      ) : null}
+      {changed ? <IncidentChangedAlertV3 /> : null}
       {load.data && incidents.length
         ? incidents.map((item) => <IncidentCardV3 key={item.id} incident={item} onAcknowledge={acknowledge} />)
         : null}
@@ -239,28 +271,7 @@ export function IncidentsPageV3({
           <p className="pa3-incidents-empty">Nenhuma ocorrência registrada neste ano.</p>
         </Card>
       ) : null}
-      {load.data ? null : (
-        <Card className="pa3-card pa3-status" role={load.error ? 'alert' : undefined}>
-          {load.error ? (
-            <Alert status={load.error === 'unauthenticated' ? 'warning' : 'danger'}>
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Description>{incidentsErrorV3(load.error)}</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          ) : (
-            <output className="pa3-status-loading">
-              <Spinner size="sm" /> Carregando as ocorrências…
-            </output>
-          )}
-          {/* Asking again cannot help an expired session or a page the school turned off. */}
-          {load.error && load.error !== 'unauthenticated' && load.error !== 'forbidden' ? (
-            <Button size="sm" variant="secondary" className="pa3-status-action" onPress={load.retry}>
-              Tentar de novo
-            </Button>
-          ) : null}
-        </Card>
-      )}
+      {load.data ? null : <IncidentsLoadStatusV3 error={load.error} retry={load.retry} />}
     </div>
   );
 }

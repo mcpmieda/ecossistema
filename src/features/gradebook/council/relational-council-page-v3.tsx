@@ -127,6 +127,28 @@ function voteNumbersV3(favoraveis: string, contrarios: string) {
   return { favorableNumber, contraryNumber, present };
 }
 
+/**
+ * One section (decision or vote) after its record was read again. A draft is what differs from
+ * both the record it started from and the record now: it is kept when the record changed under it
+ * (someone else wrote), otherwise the section shows the new record. A section whose record did
+ * not change keeps its draft, and so its dirty mark.
+ */
+export function reconcileDraftV3(recordedBefore: string, recordedNow: string, draft: string):
+  { readonly reset: boolean; readonly kept: boolean; readonly dirty: boolean } {
+  const changed = recordedBefore !== recordedNow;
+  const kept = changed && draft !== recordedBefore && draft !== recordedNow;
+  return { reset: changed && !kept, kept, dirty: kept || (!changed && draft !== recordedNow) };
+}
+
+/** What the panel shows when someone else changed this student while a draft was open. */
+function changedElsewhereTextV3(student: RelationalCouncilStudentV3): string {
+  const decision = student.decision
+    ? `${RELATIONAL_COUNCIL_DECISIONS_V3[student.decision.code]} (${student.decision.justification})`
+    : 'sem decisão';
+  const vote = student.vote ? ` · contagem ${student.vote.favoraveis} × ${student.vote.contrarios}` : '';
+  return `O que você digitou foi mantido e não foi gravado. Registro atual: ${decision}${vote}. Confira antes de gravar de novo.`;
+}
+
 function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirtyChange }: {
   readonly student: RelationalCouncilStudentV3;
   readonly sessionOpen: boolean;
@@ -151,20 +173,12 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
   useEffect(() => {
     const before = recordedBefore.current;
     recordedBefore.current = { decision: recordedDecision, vote: recordedVote };
-    // A draft is what differs from both the record it started from and the record now.
-    const decisionDraft = JSON.stringify([decision, decisionReason.trim()]);
-    const voteDraft = JSON.stringify([favoraveis, contrarios, voteReason.trim()]);
-    const decisionChanged = before.decision !== recordedDecision;
-    const voteChanged = before.vote !== recordedVote;
-    const keepDecision = decisionChanged && decisionDraft !== before.decision && decisionDraft !== recordedDecision;
-    const keepVote = voteChanged && voteDraft !== before.vote && voteDraft !== recordedVote;
-    if (decisionChanged && !keepDecision) { setDecision(decisionCodeTextV3(student)); setDecisionReason(student.decision?.justification ?? ''); }
-    if (voteChanged && !keepVote) { setFavoraveis(voteCountTextV3(student, 'favoraveis')); setContrarios(voteCountTextV3(student, 'contrarios')); setVoteReason(student.vote?.justification ?? ''); }
-    setChangedElsewhere(keepDecision || keepVote);
-    // A section whose record did not change keeps its draft, and so its dirty mark.
-    const decisionDirty = keepDecision || (!decisionChanged && decisionDraft !== recordedDecision);
-    const voteDirty = keepVote || (!voteChanged && voteDraft !== recordedVote);
-    onDirtyChange(decisionDirty || voteDirty);
+    const decisionSection = reconcileDraftV3(before.decision, recordedDecision, JSON.stringify([decision, decisionReason.trim()]));
+    const voteSection = reconcileDraftV3(before.vote, recordedVote, JSON.stringify([favoraveis, contrarios, voteReason.trim()]));
+    if (decisionSection.reset) { setDecision(decisionCodeTextV3(student)); setDecisionReason(student.decision?.justification ?? ''); }
+    if (voteSection.reset) { setFavoraveis(voteCountTextV3(student, 'favoraveis')); setContrarios(voteCountTextV3(student, 'contrarios')); setVoteReason(student.vote?.justification ?? ''); }
+    setChangedElsewhere(decisionSection.kept || voteSection.kept);
+    onDirtyChange(decisionSection.dirty || voteSection.dirty);
   }, [recordedDecision, recordedVote, onDirtyChange]);
   const { favorableNumber, contraryNumber, present } = voteNumbersV3(favoraveis, contrarios);
   return <div className="grid min-w-0 gap-4">
@@ -176,7 +190,7 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
       </Card.Header>
       <Card.Content className="grid gap-4 pt-4">
         {changedElsewhere ? <Alert status="warning"><Alert.Indicator/><Alert.Content><Alert.Title>Outra pessoa alterou este aluno</Alert.Title>
-          <Alert.Description>O que você digitou foi mantido e não foi gravado. Registro atual: {student.decision ? `${RELATIONAL_COUNCIL_DECISIONS_V3[student.decision.code]} (${student.decision.justification})` : 'sem decisão'}{student.vote ? ` · contagem ${student.vote.favoraveis} × ${student.vote.contrarios}` : ''}. Confira antes de gravar de novo.</Alert.Description></Alert.Content></Alert> : null}
+          <Alert.Description>{changedElsewhereTextV3(student)}</Alert.Description></Alert.Content></Alert> : null}
         <Alert status={student.eligibility.eligible ? 'success' : 'default'}><Alert.Indicator/><Alert.Content><Alert.Title>{student.eligibility.label}</Alert.Title>
           <Alert.Description>{student.calculatedResult ?? 'O resultado calculado ainda não emite decisão humana.'}</Alert.Description></Alert.Content></Alert>
         <Table><Table.ScrollContainer className="max-w-full overflow-x-auto"><Table.Content aria-label={`Resultado anual de ${student.name}`} className="min-w-[760px]">
@@ -210,7 +224,7 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
         <Card.Content className="grid gap-3">
           <div className="grid grid-cols-2 gap-3"><div><Label htmlFor={`votes-for-${student.id}`} className="text-xs font-medium text-muted">Favoráveis</Label><input id={`votes-for-${student.id}`} inputMode="numeric" value={favoraveis} onChange={(event) => { onDirtyChange(true); setFavoraveis(event.currentTarget.value); }} disabled={!sessionOpen || busy} className="council-number-input"/></div>
             <div><Label htmlFor={`votes-against-${student.id}`} className="text-xs font-medium text-muted">Contrários</Label><input id={`votes-against-${student.id}`} inputMode="numeric" value={contrarios} onChange={(event) => { onDirtyChange(true); setContrarios(event.currentTarget.value); }} disabled={!sessionOpen || busy} className="council-number-input"/></div></div>
-          <div className="flex min-h-8 items-center gap-2 text-sm"><Users size={16}/><span>{present === null ? 'Informe as duas contagens' : `${present} presente(s)`}</span>{present !== null && favorableNumber === contraryNumber ? <Chip size="sm" color="warning" variant="soft"><Chip.Label>Empate · decisão fora do sistema</Chip.Label></Chip> : null}</div>
+          <PresentCountV3 present={present} tie={present !== null && favorableNumber === contraryNumber} />
           <div><Label htmlFor={`vote-reason-${student.id}`} className="mb-1.5 block text-xs font-medium text-muted">Justificativa do registro</Label><textarea id={`vote-reason-${student.id}`} value={voteReason} onChange={(event) => { onDirtyChange(true); setVoteReason(event.currentTarget.value); }} disabled={!sessionOpen || busy} rows={3} className="council-textarea"/></div>
           <Button variant="secondary" isDisabled={!sessionOpen || busy || present === null || voteReason.trim().length < 3} onPress={async () => {
             if (favorableNumber === null || contraryNumber === null) return;
@@ -221,6 +235,13 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage, onDirt
       </Card>
     </div> : null}
   </div>;
+}
+
+/** Present = favourable + contrary; a tie is decided outside the system. */
+function PresentCountV3({ present, tie }: Readonly<{ present: number | null; tie: boolean }>) {
+  return <div className="flex min-h-8 items-center gap-2 text-sm"><Users size={16}/>
+    <span>{present === null ? 'Informe as duas contagens' : `${present} presente(s)`}</span>
+    {tie ? <Chip size="sm" color="warning" variant="soft"><Chip.Label>Empate · decisão fora do sistema</Chip.Label></Chip> : null}</div>;
 }
 
 /** The reads in progress, the last failure, a stale live read and the last confirmation. */

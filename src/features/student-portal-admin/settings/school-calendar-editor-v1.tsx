@@ -183,6 +183,21 @@ const WEEKDAY_MESSAGE_V1: Partial<Record<SchoolDayKindV1, string>> = {
   'evento-letivo': 'Evento com aula não pode ser num domingo.',
 };
 
+/**
+ * One day painted on screen: the days to show and the message for it. A refused weekday says why
+ * only on a single click (a drag passes over weekends quietly); `message` undefined keeps the
+ * message shown.
+ */
+export function paintStepV1(current: Map<string, DayV1>, date: string, brush: BrushV1, note: string, dragging: boolean):
+  { readonly draft: Map<string, DayV1>; readonly message?: string | null } {
+  const next = paintedDraftV1(current, date, brush, note);
+  if (next === 'weekday') {
+    return dragging || brush === 'clear' ? { draft: current } : { draft: current, message: WEEKDAY_MESSAGE_V1[brush] ?? null };
+  }
+  if (next === 'limit') return { draft: current, message: DAY_LIMIT_MESSAGE_V1 };
+  return { draft: next, message: null };
+}
+
 /** The days with one more painted, or why not: past the 200 school days, or the wrong weekday. */
 function paintedDraftV1(
   current: ReadonlyMap<string, DayV1>,
@@ -416,13 +431,9 @@ export function SchoolCalendarEditorV1({
     if (!canWrite || state !== 'ready' || !date.startsWith('2026-')) return;
     setDraft((current) => {
       if (!current) return current;
-      const next = paintedDraftV1(current, date, brush, note);
-      if (next === 'weekday') {
-        if (!dragging && brush !== 'clear') setMessage(WEEKDAY_MESSAGE_V1[brush] ?? null);
-        return current;
-      }
-      setMessage(next === 'limit' ? DAY_LIMIT_MESSAGE_V1 : null);
-      return next === 'limit' ? current : next;
+      const painted = paintStepV1(current, date, brush, note, dragging);
+      if (painted.message !== undefined) setMessage(painted.message);
+      return painted.draft;
     });
   };
 
