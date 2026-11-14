@@ -83,7 +83,7 @@ function eventText(event: OneDriveSyncStatusV1['events'][number]): string {
   return event.kind;
 }
 
-function StateChip({ status }: { status: OneDriveSyncStatusV1 }) {
+function StateChip({ status }: Readonly<{ status: OneDriveSyncStatusV1 }>) {
   const { enabled, paused } = status.settings;
   let label = 'Desligada';
   let color: ChipColor = 'default';
@@ -99,7 +99,7 @@ function StateChip({ status }: { status: OneDriveSyncStatusV1 }) {
   );
 }
 
-function FileRow({ file, busy, onRead }: { file: FileV1; busy: boolean; onRead: () => void }) {
+function FileRow({ file, busy, onRead }: Readonly<{ file: FileV1; busy: boolean; onRead: () => void }>) {
   const outcome = file.lastOutcome ? OUTCOME_LABELS[file.lastOutcome] : null;
   let state: [string, ChipColor] | null = null;
   if (file.removed) state = ['Removido da pasta', 'default'];
@@ -264,34 +264,136 @@ function SourcePicker({ year, onChosen, onCancel }: Readonly<{
   );
 }
 
-export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } = {}) {
-  const year = useGradebookYear()?.year ?? null;
-  const [status, setStatus] = useState<OneDriveSyncStatusV1 | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+type SendV1 = (request: OneDriveSyncRequestV1) => Promise<void>;
+
+function SyncHeader({ status, sources, busy, send }: Readonly<{
+  status: OneDriveSyncStatusV1; sources: number; busy: boolean; send: SendV1;
+}>) {
+  const { enabled, paused } = status.settings;
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5">
+      <div className="flex min-w-0 gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+          <CloudCog className="size-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold">Leitura automática do OneDrive</h3>
+            <StateChip status={status} />
+          </div>
+          <p className="mt-1 max-w-3xl text-sm text-muted">
+            Cada planilha salva na pasta é lida e lançada com a mesma Auditoria da importação; problemas seguram só a nota, o resultado ou a turma afetada. Pelo Excel do computador a nota chega em cerca de meio minuto; pelo Excel online, em 1 a 3 minutos, porque ele demora a gravar o arquivo.
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {status.webhook.active ? `Aviso da Graph ativo até ${time(Date.parse(status.webhook.expiresAt ?? '') || null)}` : 'Sem aviso da Graph: a pasta é conferida a cada minuto'}
+            {sources > 0 ? ` · ${sources} fonte(s) de leitura` : ''}
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant={enabled ? 'secondary' : 'primary'} isDisabled={busy || (!enabled && status.activeYear === null)}
+          onPress={() => void send({ action: enabled ? 'disable' : 'enable' })}>
+          <Power className="size-4" aria-hidden="true" />
+          {enabled ? 'Desligar' : 'Ligar'}
+        </Button>
+        {enabled ? (
+          <Button variant="secondary" isDisabled={busy} onPress={() => void send({ action: paused ? 'resume' : 'pause' })}>
+            {paused ? <Play className="size-4" aria-hidden="true" /> : <Pause className="size-4" aria-hidden="true" />}
+            {paused ? 'Retomar' : 'Pausar'}
+          </Button>
+        ) : null}
+        <Button variant="ghost" isDisabled={busy || !enabled} onPress={() => void send({ action: 'read-all' })}>
+          <RefreshCcw className="size-4" aria-hidden="true" />
+          Conferir tudo agora
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** The folders and single workbooks read, each tied to its academic year; one is added at a time. */
+function SourcesSection({ sources, year, busy, send }: Readonly<{
+  sources: readonly SourceV1[]; year: number | null; busy: boolean; send: SendV1;
+}>) {
   const [picking, setPicking] = useState(false);
-  const [wait, setWait] = useState('');
-  const [parallel, setParallel] = useState('');
-  const loaded = useRef(false);
+  return (
+    <section className="grid gap-2" aria-labelledby="onedrive-sources-title">
+      <h4 id="onedrive-sources-title" className="font-semibold">Fontes de leitura</h4>
+      <p className="text-sm text-muted">
+        Pastas (todas as planilhas dentro) ou arquivos únicos, como a Relação. Cada fonte é lida no ano letivo dela.
+      </p>
+      {sources.length === 0 ? <p className="text-sm text-muted">Nenhuma fonte escolhida.</p> : (
+        <ul className="grid gap-1">
+          {sources.map((source) => (
+            <li key={source.itemId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                {source.kind === 'folder'
+                  ? <FolderOpen className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                  : <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />}
+                <Chip size="sm" variant="soft">{source.year}</Chip>
+                <span className="min-w-0 break-words">{source.path}</span>
+                <span className="text-xs text-muted">· {source.setBy} em {time(source.setAt)}</span>
+              </span>
+              <Button size="sm" variant="ghost" isDisabled={busy} aria-label={`Remover ${source.path}`}
+                onPress={() => void send({ action: 'remove-source', itemId: source.itemId })}>
+                <Trash2 className="size-4" aria-hidden="true" />
+                Remover
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {picking && year !== null ? (
+        <SourcePicker
+          year={year}
+          onCancel={() => setPicking(false)}
+          onChosen={async (source) => {
+            await send({ action: 'add-source', year, itemId: source.itemId, kind: source.kind, path: source.path.slice(0, 400) });
+            setPicking(false);
+          }}
+        />
+      ) : (
+        <div>
+          <Button variant="secondary" isDisabled={busy || year === null} onPress={() => setPicking(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            Adicionar fonte para {year ?? '—'}
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
 
-  const apply = useCallback((answer: OneDriveSyncResponseV1) => {
-    if (answer.state === 'status') {
-      setStatus(answer.status);
-      setFailure(null);
-      if (!loaded.current) {
-        setWait(String(answer.status.settings.waitSeconds));
-        setParallel(String(answer.status.settings.maxParallel));
-        loaded.current = true;
-      }
-    } else if (answer.state === 'not-authorized') setFailure('Sua sessão não possui autorização para esta área.');
-    else setFailure('A leitura automática não respondeu agora. Tente de novo em instantes.');
-  }, []);
+function SettingsSection({ busy, send, wait, setWait, parallel, setParallel }: Readonly<{
+  busy: boolean; send: SendV1; wait: string; setWait: (value: string) => void; parallel: string; setParallel: (value: string) => void;
+}>) {
+  return (
+    <section className="grid gap-2" aria-labelledby="onedrive-settings-title">
+      <h4 id="onedrive-settings-title" className="font-semibold">Ajustes</h4>
+      <div className="flex flex-wrap items-end gap-3">
+        <TextField className="w-40">
+          <Label className="text-sm">Espera após salvar (s)</Label>
+          <Input inputMode="numeric" value={wait} onChange={(event) => setWait(event.currentTarget.value)} />
+        </TextField>
+        <Button variant="secondary" isDisabled={busy || !/^\d{1,3}$/u.test(wait)}
+          onPress={() => void send({ action: 'set-wait', seconds: Number(wait) })}>Salvar espera</Button>
+        <TextField className="w-40">
+          <Label className="text-sm">Arquivos em paralelo</Label>
+          <Input inputMode="numeric" value={parallel} onChange={(event) => setParallel(event.currentTarget.value)} />
+        </TextField>
+        <Button variant="secondary" isDisabled={busy || !/^(?:[1-9]|10)$/u.test(parallel)}
+          onPress={() => void send({ action: 'set-parallel', count: Number(parallel) })}>Salvar paralelo</Button>
+      </div>
+    </section>
+  );
+}
 
-  const send = useCallback(async (request: OneDriveSyncRequestV1) => {
-    setBusy(true);
-    try { apply(await requestOneDriveSyncV1(request)); } finally { setBusy(false); }
-  }, [apply]);
-
+/**
+ * Reads the status every REFRESH_MS while the page is visible. A read made while the phone had the
+ * page in the background can fail on its own; only repeated failures of this refresh are shown.
+ */
+function useStatusRefreshV1(isActive: boolean, apply: (answer: OneDriveSyncResponseV1) => void,
+  loaded: { readonly current: boolean }): void {
   useEffect(() => {
     if (!isActive) return undefined;
     let controller = new AbortController();
@@ -325,7 +427,37 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
       window.clearTimeout(resume);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [apply, isActive]);
+  }, [apply, isActive, loaded]);
+}
+
+export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } = {}) {
+  const year = useGradebookYear()?.year ?? null;
+  const [status, setStatus] = useState<OneDriveSyncStatusV1 | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [wait, setWait] = useState('');
+  const [parallel, setParallel] = useState('');
+  const loaded = useRef(false);
+
+  const apply = useCallback((answer: OneDriveSyncResponseV1) => {
+    if (answer.state === 'status') {
+      setStatus(answer.status);
+      setFailure(null);
+      if (!loaded.current) {
+        setWait(String(answer.status.settings.waitSeconds));
+        setParallel(String(answer.status.settings.maxParallel));
+        loaded.current = true;
+      }
+    } else if (answer.state === 'not-authorized') setFailure('Sua sessão não possui autorização para esta área.');
+    else setFailure('A leitura automática não respondeu agora. Tente de novo em instantes.');
+  }, []);
+
+  const send = useCallback(async (request: OneDriveSyncRequestV1) => {
+    setBusy(true);
+    try { apply(await requestOneDriveSyncV1(request)); } finally { setBusy(false); }
+  }, [apply]);
+
+  useStatusRefreshV1(isActive, apply, loaded);
 
   if (!status) {
     return failure
@@ -336,113 +468,16 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
   // Before sources existed the status only had one folder per year.
   const sources: SourceV1[] = status.sources ?? status.folders.map((item) => ({
     itemId: item.folderId, kind: 'folder' as const, path: item.folderPath, year: item.year, setBy: item.setBy, setAt: item.setAt }));
-  const { enabled, paused } = status.settings;
-
   return (
     <div className="grid gap-4">
       <Surface className="overflow-hidden rounded-2xl border border-border bg-surface">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5">
-          <div className="flex min-w-0 gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
-              <CloudCog className="size-5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold">Leitura automática do OneDrive</h3>
-                <StateChip status={status} />
-              </div>
-              <p className="mt-1 max-w-3xl text-sm text-muted">
-                Cada planilha salva na pasta é lida e lançada com a mesma Auditoria da importação; problemas seguram só a nota, o resultado ou a turma afetada. Pelo Excel do computador a nota chega em cerca de meio minuto; pelo Excel online, em 1 a 3 minutos, porque ele demora a gravar o arquivo.
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                {status.webhook.active ? `Aviso da Graph ativo até ${time(Date.parse(status.webhook.expiresAt ?? '') || null)}` : 'Sem aviso da Graph: a pasta é conferida a cada minuto'}
-                {sources.length > 0 ? ` · ${sources.length} fonte(s) de leitura` : ''}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant={enabled ? 'secondary' : 'primary'} isDisabled={busy || (!enabled && status.activeYear === null)}
-              onPress={() => void send({ action: enabled ? 'disable' : 'enable' })}>
-              <Power className="size-4" aria-hidden="true" />
-              {enabled ? 'Desligar' : 'Ligar'}
-            </Button>
-            {enabled ? (
-              <Button variant="secondary" isDisabled={busy} onPress={() => void send({ action: paused ? 'resume' : 'pause' })}>
-                {paused ? <Play className="size-4" aria-hidden="true" /> : <Pause className="size-4" aria-hidden="true" />}
-                {paused ? 'Retomar' : 'Pausar'}
-              </Button>
-            ) : null}
-            <Button variant="ghost" isDisabled={busy || !enabled} onPress={() => void send({ action: 'read-all' })}>
-              <RefreshCcw className="size-4" aria-hidden="true" />
-              Conferir tudo agora
-            </Button>
-          </div>
-        </div>
+        <SyncHeader status={status} sources={sources.length} busy={busy} send={send} />
 
         <div className="grid gap-4 p-5">
           {failure ? <p className="text-sm text-danger" role="alert">{failure}</p> : null}
-          <section className="grid gap-2" aria-labelledby="onedrive-sources-title">
-            <h4 id="onedrive-sources-title" className="font-semibold">Fontes de leitura</h4>
-            <p className="text-sm text-muted">
-              Pastas (todas as planilhas dentro) ou arquivos únicos, como a Relação. Cada fonte é lida no ano letivo dela.
-            </p>
-            {sources.length === 0 ? <p className="text-sm text-muted">Nenhuma fonte escolhida.</p> : (
-              <ul className="grid gap-1">
-                {sources.map((source) => (
-                  <li key={source.itemId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">
-                    <span className="flex min-w-0 items-center gap-2">
-                      {source.kind === 'folder'
-                        ? <FolderOpen className="size-4 shrink-0 text-muted" aria-hidden="true" />
-                        : <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />}
-                      <Chip size="sm" variant="soft">{source.year}</Chip>
-                      <span className="min-w-0 break-words">{source.path}</span>
-                      <span className="text-xs text-muted">· {source.setBy} em {time(source.setAt)}</span>
-                    </span>
-                    <Button size="sm" variant="ghost" isDisabled={busy} aria-label={`Remover ${source.path}`}
-                      onPress={() => void send({ action: 'remove-source', itemId: source.itemId })}>
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      Remover
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {picking && year !== null ? (
-              <SourcePicker
-                year={year}
-                onCancel={() => setPicking(false)}
-                onChosen={async (source) => {
-                  await send({ action: 'add-source', year, itemId: source.itemId, kind: source.kind, path: source.path.slice(0, 400) });
-                  setPicking(false);
-                }}
-              />
-            ) : (
-              <div>
-                <Button variant="secondary" isDisabled={busy || year === null} onPress={() => setPicking(true)}>
-                  <Plus className="size-4" aria-hidden="true" />
-                  Adicionar fonte para {year ?? '—'}
-                </Button>
-              </div>
-            )}
-          </section>
+          <SourcesSection sources={sources} year={year} busy={busy} send={send} />
 
-          <section className="grid gap-2" aria-labelledby="onedrive-settings-title">
-            <h4 id="onedrive-settings-title" className="font-semibold">Ajustes</h4>
-            <div className="flex flex-wrap items-end gap-3">
-              <TextField className="w-40">
-                <Label className="text-sm">Espera após salvar (s)</Label>
-                <Input inputMode="numeric" value={wait} onChange={(event) => setWait(event.currentTarget.value)} />
-              </TextField>
-              <Button variant="secondary" isDisabled={busy || !/^\d{1,3}$/u.test(wait)}
-                onPress={() => void send({ action: 'set-wait', seconds: Number(wait) })}>Salvar espera</Button>
-              <TextField className="w-40">
-                <Label className="text-sm">Arquivos em paralelo</Label>
-                <Input inputMode="numeric" value={parallel} onChange={(event) => setParallel(event.currentTarget.value)} />
-              </TextField>
-              <Button variant="secondary" isDisabled={busy || !/^(?:[1-9]|10)$/u.test(parallel)}
-                onPress={() => void send({ action: 'set-parallel', count: Number(parallel) })}>Salvar paralelo</Button>
-            </div>
-          </section>
+          <SettingsSection busy={busy} send={send} wait={wait} setWait={setWait} parallel={parallel} setParallel={setParallel} />
         </div>
       </Surface>
 

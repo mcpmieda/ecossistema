@@ -129,19 +129,15 @@ export function useBackClosesOverlayV1(): void {
       ownMoves += 1;
       window.history.go(-entries);
     };
-    const sync = () => {
-      const open = openLayers();
-      // Deleting from a Set while iterating it is safe: removed entries are just not visited.
-      for (const layer of unentered) if (!open.includes(layer)) unentered.delete(layer);
-      // Layers closed on the page (Fechar, an option picked) take their entries away.
+    // Layers closed on the page (Fechar, an option picked) take their entries away.
+    const dropClosed = (open: readonly HTMLElement[]): number => {
       let closed = 0;
       for (let index = stack.length - 1; index >= 0; index -= 1)
         if (!open.includes(stack[index]!.layer)) closed += 1 + stack.splice(index, 1)[0]!.depth;
-      // A single plain layer releases its entry: going back at once could undo a choice just made.
-      if (closed === 1 && marked()) release();
-      else if (closed > 1 && marked()) goBackOwn(closed);
-      for (const layer of open)
-        if (!unentered.has(layer) && !stack.some((item) => item.layer === layer)) enter(layer);
+      return closed;
+    };
+    // The top layer's steps: one entry per step opened, and back with the window's own "Voltar".
+    const syncTopSteps = (open: readonly HTMLElement[]) => {
       const top = stack.at(-1);
       if (!top || top.layer !== open.at(-1)) return;
       const wanted = stepDepth(top.layer);
@@ -152,6 +148,18 @@ export function useBackClosesOverlayV1(): void {
         goBackOwn(top.depth - wanted);
         top.depth = wanted;
       }
+    };
+    const sync = () => {
+      const open = openLayers();
+      // Deleting from a Set while iterating it is safe: removed entries are just not visited.
+      for (const layer of unentered) if (!open.includes(layer)) unentered.delete(layer);
+      const closed = dropClosed(open);
+      // A single plain layer releases its entry: going back at once could undo a choice just made.
+      if (closed === 1 && marked()) release();
+      else if (closed > 1 && marked()) goBackOwn(closed);
+      for (const layer of open)
+        if (!unentered.has(layer) && !stack.some((item) => item.layer === layer)) enter(layer);
+      syncTopSteps(open);
     };
     const onPopState = () => {
       if (restoring) {
