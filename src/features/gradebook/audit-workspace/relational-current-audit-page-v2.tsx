@@ -21,6 +21,7 @@ const PROBLEMS: Readonly<Record<string, readonly [label: string, hint: string]>>
   'wrong-year': ['Ano errado', 'Planilha com outro ano em CONFIGURAÇÃO. Nada foi lançado.'],
   'header-mismatch': ['Cabeçalho trocado', 'O cabeçalho da guia não bate com o nome da guia. A turma não foi lançada.'],
   'student-name-mismatch': ['Aluno trocado', 'O nome na planilha não bate com a Relação. As notas do aluno não foram lançadas.'],
+  'class-move-review': ['Troca de turma a conferir', 'A Relação tem troca de turma com dúvida e não foi lançada. Confirme os pares na importação manual da Relação.'],
   'student-not-in-relation': ['Aluno fora da Relação', 'O aluno está na planilha, mas não na Relação do sistema. As notas dele não foram lançadas.'],
   'activity-without-description': ['Atividade sem descrição', 'Notas numa coluna sem descrição. A coluna não foi lançada.'],
   'activity-without-maximum': ['Atividade sem máximo', 'Notas numa coluna sem máximo. A coluna não foi lançada.'],

@@ -173,8 +173,12 @@ export async function handleAdminV1(env: NotasSyncEnvV1, actor: OneDriveSyncActo
         return { contractVersion: version, state: 'status', status: await coordinatorV1(env).status() };
       case 'folders': {
         const driveId = await graphDriveIdV1(env, env.NOTAS_SITE_ID);
-        return { contractVersion: version, state: 'folders', parentId: request.parentId,
-          folders: await graphChildFoldersV1(env, driveId, request.parentId) };
+        const [folders, workbooks] = await Promise.all([
+          graphChildFoldersV1(env, driveId, request.parentId),
+          graphFolderWorkbooksV1(env, driveId, request.parentId ?? 'root'),
+        ]);
+        return { contractVersion: version, state: 'folders', parentId: request.parentId, folders,
+          files: workbooks.slice(0, 500).map((workbook) => ({ id: workbook.id, name: workbook.name, size: workbook.size })) };
       }
       case 'preview':
         return { contractVersion: version, state: 'preview', preview: await previewV1(env, request.folderId, request.testWebhook) };
@@ -204,6 +208,7 @@ function readHereV1(env: NotasSyncEnvV1, input: ProcessWorkbookInputV1): Promise
       return createGradebookPostgresDatabaseV1(connectionString);
     },
     writeTurn: (work) => withWriteTurnV1(env, work),
+    actorId: env.GRAPH_CLIENT_ID,
     notifyPortal: async () => {
       // The app identity is the technical author of the sync; the Portal outbox stays authoritative.
       await env.PORTAL_SERVICE?.drainLive?.({

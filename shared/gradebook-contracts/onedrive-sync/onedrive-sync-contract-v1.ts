@@ -16,6 +16,14 @@ export const oneDriveSyncRequestSchemaV1 = z.discriminatedUnion('action', [
   z.object({ action: z.literal('set-wait'), seconds: z.number().int().min(0).max(600) }).strict(),
   z.object({ action: z.literal('set-parallel'), count: z.number().int().min(1).max(10) }).strict(),
   z.object({ action: z.literal('read-now'), fileId: graphIdV1 }).strict(),
+  // A source of an academic year: a whole folder (its workbooks) or one workbook (e.g. the Relação).
+  z.object({
+    action: z.literal('add-source'), year: yearV1, itemId: graphIdV1, kind: z.enum(['folder', 'file']),
+    path: z.string().min(1).max(400),
+  }).strict(),
+  z.object({ action: z.literal('remove-source'), itemId: graphIdV1 }).strict(),
+  // A Relação was applied elsewhere (manual import): the year's teacher workbooks are read again.
+  z.object({ action: z.literal('reread-year'), year: yearV1 }).strict(),
 ]);
 export type OneDriveSyncRequestV1 = z.infer<typeof oneDriveSyncRequestSchemaV1>;
 export type OneDriveSyncCommandV1 = Exclude<OneDriveSyncRequestV1, { action: 'status' | 'folders' | 'preview' }>;
@@ -47,6 +55,10 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
   folders: z.array(z.object({
     year: yearV1, folderId: z.string(), folderPath: z.string(), setBy: z.string(), setAt: z.number(),
   })),
+  /** Every folder or workbook read, each tied to its academic year (absent before sources existed). */
+  sources: z.array(z.object({
+    itemId: z.string(), kind: z.enum(['folder', 'file']), path: z.string(), year: yearV1, setBy: z.string(), setAt: z.number(),
+  })).optional(),
   breakerUntil: z.number().nullable(),
   webhook: z.object({ active: z.boolean(), expiresAt: z.string().nullable() }),
   lastDeltaAt: z.number().nullable(),
@@ -56,6 +68,7 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
 export type OneDriveSyncStatusV1 = z.infer<typeof oneDriveSyncStatusSchemaV1>;
 
 export const oneDriveSyncFolderSchemaV1 = z.object({ id: z.string(), name: z.string(), childFolders: z.number() });
+export const oneDriveSyncWorkbookEntrySchemaV1 = z.object({ id: z.string(), name: z.string(), size: z.number() });
 
 export const oneDriveSyncPreviewSchemaV1 = z.object({
   workbooks: z.number(),
@@ -75,6 +88,8 @@ export const oneDriveSyncResponseSchemaV1 = z.discriminatedUnion('state', [
   z.object({
     contractVersion: z.literal(1), state: z.literal('folders'), parentId: z.string().nullable(),
     folders: z.array(oneDriveSyncFolderSchemaV1),
+    /** The workbooks of that folder, to choose one file as a source. */
+    files: z.array(oneDriveSyncWorkbookEntrySchemaV1).optional(),
   }),
   z.object({ contractVersion: z.literal(1), state: z.literal('preview'), preview: oneDriveSyncPreviewSchemaV1 }),
   z.object({ contractVersion: z.literal(1), state: z.enum(['invalid-request', 'not-authorized', 'unavailable']) }),

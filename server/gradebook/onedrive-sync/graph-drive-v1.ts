@@ -92,6 +92,20 @@ export async function graphFolderWorkbooksV1(env: GraphAppEnvV1, driveId: string
   return files;
 }
 
+/** One workbook by its Graph id (a single-file source), or null when it is gone or not a workbook. */
+export async function graphWorkbookItemV1(env: GraphAppEnvV1, driveId: string, itemId: string,
+  dependencies: GraphDependencies = graphDefaultsV1): Promise<DriveWorkbookV1 | null> {
+  try {
+    const { data } = await graphRequest<GraphDriveItemV1>({ env: asEnvV1(env), dependencies,
+      path: `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}?$select=${ITEM_FIELDS_V1}` });
+    const workbook = data ? driveWorkbookFromItemV1(data) : null;
+    return workbook && !workbook.deleted ? workbook : null;
+  } catch (cause) {
+    if (cause instanceof GraphError && cause.status === 404) return null;
+    throw cause;
+  }
+}
+
 /** Sub-folders of a folder (the drive root when `parentId` is null), for the admin folder picker. */
 export async function graphChildFoldersV1(env: GraphAppEnvV1, driveId: string, parentId: string | null,
   dependencies: GraphDependencies = graphDefaultsV1): Promise<Array<{ id: string; name: string; childFolders: number }>> {

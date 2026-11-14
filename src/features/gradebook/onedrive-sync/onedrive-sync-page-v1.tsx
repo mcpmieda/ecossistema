@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Chip, Input, Label, Spinner, Surface, TextField } from '@heroui/react';
-import { ChevronRight, CloudCog, FolderOpen, Pause, Play, Power, RefreshCcw, RotateCw } from 'lucide-react';
+import { ChevronRight, CloudCog, FileSpreadsheet, FolderOpen, Pause, Play, Plus, Power, RefreshCcw, RotateCw, Trash2 } from 'lucide-react';
 import type {
   OneDriveSyncRequestV1,
   OneDriveSyncResponseV1,
@@ -12,6 +12,9 @@ import { requestOneDriveSyncV1 } from './onedrive-sync-client-v1';
 type FileV1 = OneDriveSyncStatusV1['files'][number];
 type PreviewV1 = Extract<OneDriveSyncResponseV1, { state: 'preview' }>['preview'];
 type FolderV1 = Extract<OneDriveSyncResponseV1, { state: 'folders' }>['folders'][number];
+type WorkbookEntryV1 = NonNullable<Extract<OneDriveSyncResponseV1, { state: 'folders' }>['files']>[number];
+type SourceV1 = NonNullable<OneDriveSyncStatusV1['sources']>[number];
+type ChosenSourceV1 = { readonly kind: 'folder' | 'file'; readonly itemId: string; readonly path: string };
 type ChipColor = 'accent' | 'success' | 'warning' | 'danger' | 'default';
 
 const REFRESH_MS = 10_000;
@@ -39,6 +42,16 @@ const ACTION_LABELS: Record<string, string> = {
   'set-parallel': 'mudou o paralelo',
   'read-now': 'pediu para ler um arquivo',
   'set-folder': 'escolheu a pasta',
+  'add-source': 'adicionou uma fonte',
+  'remove-source': 'removeu uma fonte',
+};
+
+/** What each control change shows after its label. */
+const CONTROL_DETAILS: Readonly<Record<string, (detail: Record<string, unknown>) => string>> = {
+  'set-folder': (detail) => ` (${String(detail.year)}: ${String(detail.folderPath)})`,
+  'add-source': (detail) => ` (${String(detail.year)}: ${String(detail.path)})`,
+  'set-wait': (detail) => ` (${String(detail.seconds)} s)`,
+  'set-parallel': (detail) => ` (${String(detail.count)})`,
 };
 
 function time(value: number | null): string {
@@ -59,9 +72,7 @@ function eventText(event: OneDriveSyncStatusV1['events'][number]): string {
   }
   if (event.kind === 'control') {
     const action = typeof detail.action === 'string' ? detail.action : '';
-    const extra = action === 'set-folder' ? ` (${String(detail.year)}: ${String(detail.folderPath)})`
-      : action === 'set-wait' ? ` (${String(detail.seconds)} s)`
-      : action === 'set-parallel' ? ` (${String(detail.count)})` : '';
+    const extra = CONTROL_DETAILS[action]?.(detail) ?? '';
     return `${ACTION_LABELS[action] ?? action}${extra}`;
   }
   if (event.kind === 'webhook-subscribed') return 'aviso da Graph ativado';
@@ -116,11 +127,57 @@ function FileRow({ file, busy, onRead }: { file: FileV1; busy: boolean; onRead: 
   );
 }
 
-function FolderPicker({ year, onChosen, onCancel }: {
-  year: number; onChosen: (folderId: string, folderPath: string) => Promise<void>; onCancel: () => void;
-}) {
+const SAMPLE_LABELS: Readonly<Record<string, string>> = { ready: 'reconhecida', none: 'nenhuma planilha' };
+
+function webhookLabelV1(accepted: boolean | null): string {
+  if (accepted === true) return 'aceito';
+  if (accepted === false) return 'recusado — a pasta será conferida a cada minuto';
+  return 'não testado';
+}
+
+function PreviewSummary({ preview }: Readonly<{ preview: PreviewV1 }>) {
+  const { sample } = preview;
+  return (
+    <div className="grid gap-1 rounded-xl border border-border/70 bg-surface p-3 text-sm">
+      <strong>{preview.workbooks} planilha(s) · {(preview.workbookBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB</strong>
+      <span className="text-muted">
+        Leitura de teste (sem gravar): {SAMPLE_LABELS[sample.outcome] ?? sample.outcome}
+        {sample.readMs !== null && sample.readMs > 0 ? ` em ${seconds(sample.readMs)}` : ''}
+      </span>
+      <span className="text-muted">Aviso da Graph: {webhookLabelV1(preview.webhook.accepted)}</span>
+      {preview.names.length > 0 ? <span className="text-xs text-muted">{preview.names.join(' · ')}</span> : null}
+    </div>
+  );
+}
+
+/** The workbooks of the folder shown, each one can be chosen as a source on its own (e.g. the Relação). */
+function WorkbookChoices({ workbooks, year, disabled, onChoose }: Readonly<{
+  workbooks: readonly WorkbookEntryV1[]; year: number; disabled: boolean; onChoose: (workbook: WorkbookEntryV1) => void;
+}>) {
+  return (
+    <>
+      {workbooks.map((workbook) => (
+        <li key={workbook.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1 text-sm">
+          <span className="flex min-w-0 items-center gap-2">
+            <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />
+            <span className="truncate">{workbook.name}</span>
+          </span>
+          <Button size="sm" variant="secondary" isDisabled={disabled} onPress={() => onChoose(workbook)}>
+            Ler só este arquivo em {year}
+          </Button>
+        </li>
+      ))}
+    </>
+  );
+}
+
+/** Navigates the secretaria's OneDrive and chooses a source: the folder shown or one of its workbooks. */
+function SourcePicker({ year, onChosen, onCancel }: Readonly<{
+  year: number; onChosen: (source: ChosenSourceV1) => Promise<void>; onCancel: () => void;
+}>) {
   const [trail, setTrail] = useState<Array<{ id: string; name: string }>>([]);
   const [folders, setFolders] = useState<FolderV1[] | null>(null);
+  const [workbooks, setWorkbooks] = useState<WorkbookEntryV1[]>([]);
   const [preview, setPreview] = useState<PreviewV1 | null>(null);
   const [busy, setBusy] = useState<'list' | 'preview' | 'save' | null>('list');
   const [failure, setFailure] = useState<string | null>(null);
@@ -139,6 +196,7 @@ function FolderPicker({ year, onChosen, onCancel }: {
       .then((answer) => {
         // A failed list never leaves the previous folder's list on screen under the new path.
         setFolders(answer.state === 'folders' ? answer.folders : []);
+        setWorkbooks(answer.state === 'folders' ? answer.files ?? [] : []);
         if (answer.state !== 'folders') {
           setFailure('Não foi possível listar as pastas do OneDrive.');
           setListFailed(true);
@@ -172,7 +230,7 @@ function FolderPicker({ year, onChosen, onCancel }: {
       </nav>
       {busy === 'list' ? <Spinner size="sm" /> : (
         <ul className="grid max-h-64 gap-1 overflow-auto">
-          {(folders ?? []).length === 0 ? <li className="text-sm text-muted">Nenhuma subpasta aqui.</li> : null}
+          {(folders ?? []).length === 0 && workbooks.length === 0 ? <li className="text-sm text-muted">Nada aqui.</li> : null}
           {(folders ?? []).map((folder) => (
             <li key={folder.id}>
               <Button size="sm" variant="ghost" className="w-full justify-start" onPress={() => setTrail([...trail, { id: folder.id, name: folder.name }])}>
@@ -181,21 +239,11 @@ function FolderPicker({ year, onChosen, onCancel }: {
               </Button>
             </li>
           ))}
+          <WorkbookChoices workbooks={workbooks} year={year} disabled={busy !== null}
+            onChoose={(workbook) => { setBusy('save'); void onChosen({ kind: 'file', itemId: workbook.id, path: path ? `${path}/${workbook.name}` : workbook.name }).finally(() => setBusy(null)); }} />
         </ul>
       )}
-      {preview ? (
-        <div className="grid gap-1 rounded-xl border border-border/70 bg-surface p-3 text-sm">
-          <strong>{preview.workbooks} planilha(s) · {(preview.workbookBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB</strong>
-          <span className="text-muted">
-            Leitura de teste (sem gravar): {preview.sample.outcome === 'ready' ? 'reconhecida' : preview.sample.outcome === 'none' ? 'nenhuma planilha' : preview.sample.outcome}
-            {preview.sample.readMs !== null && preview.sample.readMs > 0 ? ` em ${seconds(preview.sample.readMs)}` : ''}
-          </span>
-          <span className="text-muted">
-            Aviso da Graph: {preview.webhook.accepted === true ? 'aceito' : preview.webhook.accepted === false ? 'recusado — a pasta será conferida a cada minuto' : 'não testado'}
-          </span>
-          {preview.names.length > 0 ? <span className="text-xs text-muted">{preview.names.join(' · ')}</span> : null}
-        </div>
-      ) : null}
+      {preview ? <PreviewSummary preview={preview} /> : null}
       {failure ? (
         <p className="flex flex-wrap items-center gap-2 text-sm text-danger" role="alert">
           {failure}
@@ -207,8 +255,8 @@ function FolderPicker({ year, onChosen, onCancel }: {
           Ver prévia desta pasta
         </Button>
         <Button variant="primary" isDisabled={!current || !preview || busy !== null} isPending={busy === 'save'}
-          onPress={() => { if (current) { setBusy('save'); void onChosen(current.id, path).finally(() => setBusy(null)); } }}>
-          Usar esta pasta para {year}
+          onPress={() => { if (current) { setBusy('save'); void onChosen({ kind: 'folder', itemId: current.id, path }).finally(() => setBusy(null)); } }}>
+          Ler esta pasta inteira em {year}
         </Button>
         <Button variant="ghost" onPress={onCancel}>Cancelar</Button>
       </div>
@@ -285,8 +333,9 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
       : <Spinner aria-label="Carregando a leitura automática" />;
   }
 
-  const folder = status.folders.find((item) => item.year === year) ?? null;
-  const active = status.activeYear !== null ? status.folders.find((item) => item.year === status.activeYear) : null;
+  // Before sources existed the status only had one folder per year.
+  const sources: SourceV1[] = status.sources ?? status.folders.map((item) => ({
+    itemId: item.folderId, kind: 'folder' as const, path: item.folderPath, year: item.year, setBy: item.setBy, setAt: item.setAt }));
   const { enabled, paused } = status.settings;
 
   return (
@@ -307,7 +356,7 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
               </p>
               <p className="mt-1 text-xs text-muted">
                 {status.webhook.active ? `Aviso da Graph ativo até ${time(Date.parse(status.webhook.expiresAt ?? '') || null)}` : 'Sem aviso da Graph: a pasta é conferida a cada minuto'}
-                {active ? ` · lendo ${active.year}: ${active.folderPath}` : ''}
+                {sources.length > 0 ? ` · ${sources.length} fonte(s) de leitura` : ''}
               </p>
             </div>
           </div>
@@ -332,25 +381,46 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
 
         <div className="grid gap-4 p-5">
           {failure ? <p className="text-sm text-danger" role="alert">{failure}</p> : null}
-          <section className="grid gap-2" aria-labelledby="onedrive-folder-title">
-            <h4 id="onedrive-folder-title" className="font-semibold">Pasta do ano letivo {year ?? '—'}</h4>
+          <section className="grid gap-2" aria-labelledby="onedrive-sources-title">
+            <h4 id="onedrive-sources-title" className="font-semibold">Fontes de leitura</h4>
             <p className="text-sm text-muted">
-              {folder ? `${folder.folderPath} — escolhida por ${folder.setBy} em ${time(folder.setAt)}` : 'Nenhuma pasta escolhida para este ano.'}
+              Pastas (todas as planilhas dentro) ou arquivos únicos, como a Relação. Cada fonte é lida no ano letivo dela.
             </p>
+            {sources.length === 0 ? <p className="text-sm text-muted">Nenhuma fonte escolhida.</p> : (
+              <ul className="grid gap-1">
+                {sources.map((source) => (
+                  <li key={source.itemId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 px-3 py-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-2">
+                      {source.kind === 'folder'
+                        ? <FolderOpen className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                        : <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />}
+                      <Chip size="sm" variant="soft">{source.year}</Chip>
+                      <span className="min-w-0 break-words">{source.path}</span>
+                      <span className="text-xs text-muted">· {source.setBy} em {time(source.setAt)}</span>
+                    </span>
+                    <Button size="sm" variant="ghost" isDisabled={busy} aria-label={`Remover ${source.path}`}
+                      onPress={() => void send({ action: 'remove-source', itemId: source.itemId })}>
+                      <Trash2 className="size-4" aria-hidden="true" />
+                      Remover
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
             {picking && year !== null ? (
-              <FolderPicker
+              <SourcePicker
                 year={year}
                 onCancel={() => setPicking(false)}
-                onChosen={async (folderId, folderPath) => {
-                  await send({ action: 'set-folder', year, folderId, folderPath });
+                onChosen={async (source) => {
+                  await send({ action: 'add-source', year, itemId: source.itemId, kind: source.kind, path: source.path.slice(0, 400) });
                   setPicking(false);
                 }}
               />
             ) : (
               <div>
                 <Button variant="secondary" isDisabled={busy || year === null} onPress={() => setPicking(true)}>
-                  <FolderOpen className="size-4" aria-hidden="true" />
-                  {folder ? 'Trocar pasta' : 'Escolher pasta'}
+                  <Plus className="size-4" aria-hidden="true" />
+                  Adicionar fonte para {year ?? '—'}
                 </Button>
               </div>
             )}

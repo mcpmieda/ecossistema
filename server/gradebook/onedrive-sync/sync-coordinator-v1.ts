@@ -11,6 +11,7 @@ import {
   graphDriveDeltaV1,
   graphDriveIdV1,
   graphFolderWorkbooksV1,
+  graphWorkbookItemV1,
   type DriveWorkbookV1,
   type GraphAppEnvV1,
 } from './graph-drive-v1';
@@ -23,6 +24,8 @@ import {
   nextBreakerV1,
   nextWakeV1,
   observeFileV1,
+  placeFileV1,
+  rereadFileV1,
   startReadingV1,
   type ReadResultV1,
   type SyncFileV1,
@@ -88,6 +91,7 @@ export const RETIRED_COORDINATOR_NAME_V1 = 'notas-onedrive-sync';
 export type SyncControlV1 = OneDriveSyncCommandV1;
 
 type FolderConfigV1 = OneDriveSyncStatusV1['folders'][number];
+type SourceV1 = NonNullable<OneDriveSyncStatusV1['sources']>[number];
 
 export type SyncStatusV1 = OneDriveSyncStatusV1;
 
@@ -216,27 +220,14 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   }
 
   async control(command: SyncControlV1, actor: OneDriveSyncActorV1): Promise<SyncStatusV1> {
+    // State from before sources existed is migrated first (files get their source and year).
+    this.sources();
     const settings = this.settings();
     switch (command.action) {
-      case 'set-folder': {
-        // One folder per academic year; the year chosen last is the one read.
-        const folders = this.meta<Record<string, FolderConfigV1>>('folders', {});
-        const current = this.meta<number | null>('activeYear', null);
-        const previous = current === null ? null : folders[String(current)] ?? null;
-        folders[String(command.year)] = {
-          year: command.year, folderId: command.folderId, folderPath: command.folderPath, setBy: actor.name, setAt: Date.now(),
-        };
-        this.setMeta('folders', folders);
-        this.setMeta('activeYear', command.year);
-        if (previous?.folderId !== command.folderId) {
-          // Another folder: start its status from scratch; grades already written stay as they are.
-          this.ctx.storage.sql.exec('DELETE FROM files');
-          this.setMeta('location', null);
-          this.setMeta('deltaLink', null);
-          this.setMeta('deltaRequested', true);
-        }
-        break;
-      }
+      // The older panel chose one folder per year; it is now one more source.
+      case 'set-folder': this.addSource({ itemId: command.folderId, kind: 'folder', path: command.folderPath, year: command.year }, actor); break;
+      case 'add-source': this.addSource({ itemId: command.itemId, kind: command.kind, path: command.path, year: command.year }, actor); break;
+      case 'remove-source': this.removeSource(command.itemId); break;
       case 'enable': this.setMeta('settings', { ...settings, enabled: true }); this.setMeta('deltaRequested', true); break;
       case 'disable': this.setMeta('settings', { ...settings, enabled: false }); break;
       case 'pause': this.setMeta('settings', { ...settings, paused: true }); break;
@@ -244,6 +235,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'set-wait': this.setMeta('settings', { ...settings, waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600) }); break;
       case 'set-parallel': this.setMeta('settings', { ...settings, maxParallel: Math.min(Math.max(Math.round(command.count), 1), 10) }); break;
       case 'read-all': this.setMeta('nightlyRequested', true); break;
+      case 'reread-year': this.rereadYear(command.year); break;
       case 'read-now': {
         const file = this.file(command.fileId);
         if (file && file.state !== 'reading') this.saveFile({ ...file, state: 'pending', dueAt: Date.now(), processedHash: null, memory: null });
@@ -256,12 +248,68 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     return this.status();
   }
 
+  /** Its files leave the list (a read in progress ends as removed); grades already written stay. */
+  private removeSource(itemId: string): void {
+    const sources = this.sources();
+    delete sources[itemId];
+    this.setMeta('sources', sources);
+    this.setMeta('activeYear', latestYearV1(sources));
+    for (const file of this.files()) {
+      if (file.sourceId !== itemId) continue;
+      if (file.state === 'reading') this.saveFile({ ...file, removed: true, dirty: false });
+      else this.ctx.storage.sql.exec('DELETE FROM files WHERE id = ?', file.id);
+    }
+    // A file may still belong to another source (its folder): the full check finds it again.
+    this.setMeta('nightlyRequested', true);
+  }
+
+  /** A Relação was applied: the year's teacher workbooks are read again, whole. */
+  private rereadYear(year: number): void {
+    const now = Date.now();
+    for (const file of this.files()) {
+      if (file.year === year && file.workbook !== 'relacao') this.saveFile(rereadFileV1(file, now));
+    }
+  }
+
+  /** A folder or one workbook of an academic year; the next check lists it whole. */
+  private addSource(source: Pick<SourceV1, 'itemId' | 'kind' | 'path' | 'year'>, actor: OneDriveSyncActorV1): void {
+    const sources = this.sources();
+    sources[source.itemId] = { ...source, setBy: actor.name, setAt: Date.now() };
+    this.setMeta('sources', sources);
+    this.setMeta('activeYear', latestYearV1(sources));
+    this.setMeta('nightlyRequested', true);
+  }
+
+  /**
+   * Every source by Graph id. Before sources existed, the active year's folder was the only one
+   * read: the first time, it becomes a stored source and the files already known are tied to it.
+   */
+  private sources(): Record<string, SourceV1> {
+    const stored = this.meta<Record<string, SourceV1> | null>('sources', null);
+    if (stored) return stored;
+    const folder = this.activeFolder();
+    const migrated: Record<string, SourceV1> = folder ? { [folder.folderId]: { itemId: folder.folderId, kind: 'folder',
+      path: folder.folderPath, year: folder.year, setBy: folder.setBy, setAt: folder.setAt } } : {};
+    this.setMeta('sources', migrated);
+    if (folder) {
+      for (const file of this.files()) {
+        if (file.sourceId !== undefined) continue;
+        const tied = { ...file, sourceId: folder.folderId, year: file.year ?? folder.year };
+        this.saveFile(file.lastOutcome === 'ignored' ? rereadFileV1(tied, Date.now()) : tied);
+      }
+    }
+    return migrated;
+  }
+
   status(): SyncStatusV1 {
     const subscription = this.meta<{ id: string; expiresAt: string } | null>('subscription', null);
+    const sources = Object.values(this.sources()).sort((a, b) => b.year - a.year || a.path.localeCompare(b.path, 'pt-BR'));
     return {
       settings: this.settings(),
       activeYear: this.meta<number | null>('activeYear', null),
-      folders: Object.values(this.meta<Record<string, FolderConfigV1>>('folders', {})).sort((a, b) => b.year - a.year),
+      folders: sources.filter((source) => source.kind === 'folder').map((source) => ({
+        year: source.year, folderId: source.itemId, folderPath: source.path, setBy: source.setBy, setAt: source.setAt })),
+      sources,
       breakerUntil: this.meta<number | null>('breakerUntil', null),
       webhook: { active: subscription !== null, expiresAt: subscription?.expiresAt ?? null },
       lastDeltaAt: this.meta<number | null>('lastDeltaAt', null),
@@ -311,7 +359,12 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const graphAllowed = now >= this.meta('graphBackoffUntil', 0) && (breakerUntil === null || breakerUntil <= now);
     if (!graphAllowed) return;
     try {
-      if (this.meta('nightlyRequested', false)) await this.fullCheck(now);
+      if (this.meta('nightlyRequested', false)) {
+        await this.fullCheck(now).catch((cause: unknown) => {
+          this.setMeta('nightlyRequested', true);
+          throw cause;
+        });
+      }
       else if (this.meta('deltaRequested', false) || this.pollDue(now)) await this.deltaCheck(now);
     } catch (cause) {
       if (cause instanceof NoFolderConfiguredError) {
@@ -325,46 +378,67 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     }
   }
 
-  /** The active year's folder (by its Graph id, so a rename does not break it), or null if none is set. */
+  /** The folder chosen before sources existed (by its Graph id, so a rename does not break it). */
   private activeFolder(): FolderConfigV1 | null {
     const year = this.meta<number | null>('activeYear', null);
     return year === null ? null : this.meta<Record<string, FolderConfigV1>>('folders', {})[String(year)] ?? null;
   }
 
-  private async location(): Promise<{ driveId: string; folderId: string }> {
-    const folder = this.activeFolder();
-    if (!folder) throw new NoFolderConfiguredError();
-    const known = this.meta<{ driveId: string; folderId: string } | null>('location', null);
-    if (known && known.folderId === folder.folderId) return known;
+  /** The secretaria's drive (every source lives in it); nothing to look at without a source. */
+  private async driveId(): Promise<string> {
+    if (Object.keys(this.sources()).length === 0) throw new NoFolderConfiguredError();
+    const known = this.meta<string | null>('driveId', null) ?? this.meta<{ driveId: string } | null>('location', null)?.driveId ?? null;
+    if (known) return known;
     const driveId = await graphDriveIdV1(this.env, this.env.NOTAS_SITE_ID);
-    this.setMeta('location', { driveId, folderId: folder.folderId });
-    this.setMeta('deltaLink', null);
-    return { driveId, folderId: folder.folderId };
+    this.setMeta('driveId', driveId);
+    return driveId;
   }
 
+  /** Changes of the sources' workbooks (anything else in the drive is ignored), tagged with their year. */
   private observe(items: readonly DriveWorkbookV1[], now: number): void {
     const settings = this.settings();
+    const sources = this.sources();
     for (const item of items) {
-      const next = observeFileV1(this.file(item.id), {
+      const source = sourceOfV1(item, sources);
+      const current = this.file(item.id);
+      if (!source && !(item.deleted && current)) continue;
+      const next = observeFileV1(current, {
         id: item.id, name: item.name, size: item.size, modifiedAt: item.lastModifiedDateTime, hash: item.quickXorHash, deleted: item.deleted,
       }, now, settings);
-      if (next) this.saveFile(next);
+      const file = next ?? current;
+      if (!file) continue;
+      const placed = placeFileV1(file, source, now);
+      if (next || placed !== file) this.saveFile(placed);
     }
   }
 
   private async deltaCheck(now: number): Promise<void> {
-    const { driveId, folderId } = await this.location();
+    const driveId = await this.driveId();
     const delta = await graphDriveDeltaV1(this.env, driveId, this.meta<string | null>('deltaLink', null));
-    this.observe(delta.changes.filter((item) => item.parentId === folderId), now);
+    this.observe(delta.changes, now);
     this.setMeta('deltaLink', delta.deltaLink);
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
   }
 
-  /** Nightly safety net: the whole folder against what was processed, plus a fresh delta cursor. */
+  /** Nightly safety net: every source against what was processed, plus a fresh delta cursor. */
   private async fullCheck(now: number): Promise<void> {
-    const { driveId, folderId } = await this.location();
-    const listed = await graphFolderWorkbooksV1(this.env, driveId, folderId);
+    // Taken now: a request made while this check awaits Graph (a source added) stays for the next one.
+    this.setMeta('nightlyRequested', false);
+    const driveId = await this.driveId();
+    const listed: DriveWorkbookV1[] = [];
+    for (const source of Object.values(this.sources())) {
+      if (source.kind === 'folder') {
+        // A folder deleted in OneDrive: its files are marked removed below; the other sources go on.
+        listed.push(...await graphFolderWorkbooksV1(this.env, driveId, source.itemId).catch((cause: unknown) => {
+          if (graphStatusV1(cause) === 404) return [];
+          throw cause;
+        }));
+      } else {
+        const workbook = await graphWorkbookItemV1(this.env, driveId, source.itemId);
+        if (workbook) listed.push(workbook);
+      }
+    }
     const present = new Set(listed.map((item) => item.id));
     this.observe(listed, now);
     for (const file of this.files()) {
@@ -374,7 +448,6 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     }
     const delta = await graphDriveDeltaV1(this.env, driveId, null);
     this.setMeta('deltaLink', delta.deltaLink);
-    this.setMeta('nightlyRequested', false);
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
     this.event('full-check', { files: listed.length });
@@ -382,16 +455,19 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   /** Starts every read that may start now; the alarm loop awaits them. */
   private startReads(now: number): void {
-    const location = this.meta<{ driveId: string } | null>('location', null);
-    if (!location) return;
+    const driveId = this.meta<string | null>('driveId', null) ?? this.meta<{ driveId: string } | null>('location', null)?.driveId ?? null;
+    if (!driveId) return;
     const breakerUntil = this.meta<number | null>('breakerUntil', null);
     const maxBytes = Number(this.env.NOTAS_MAX_WORKBOOK_BYTES) || DEFAULT_MAX_BYTES;
-    for (const file of filesToStartV1(this.files(), now, this.settings(), breakerUntil)) {
+    // Only files of a source still chosen are read.
+    const sources = this.sources();
+    const files = this.files().filter((file) => file.sourceId !== undefined && sources[file.sourceId] !== undefined);
+    for (const file of filesToStartV1(files, now, this.settings(), breakerUntil)) {
       const lease = crypto.randomUUID();
       this.saveFile(startReadingV1(file, lease, now));
       const input: ProcessWorkbookInputV1 = {
-        driveId: location.driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
-        expectedYear: this.activeFolder()?.year ?? null, memory: file.memory ?? null,
+        driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
+        expectedYear: file.year ?? this.activeFolder()?.year ?? null, memory: file.memory ?? null,
       };
       const read = readFileV1(this.env, input)
         .catch((cause: unknown): ReadResultV1 => {
@@ -414,6 +490,13 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const finished = finishReadingV1(file, lease, result, now);
     if (!finished) return;
     this.saveFile(finished);
+    if (result.relationChanged) {
+      // New students may have been left out of workbooks read before: the year's are read again.
+      const others = this.files().filter((other) => other.id !== id && !other.removed && other.workbook !== 'relacao'
+        && (file.year === undefined || other.year === file.year));
+      for (const other of others) this.saveFile(rereadFileV1(other, now));
+      this.event('relation-changed', { reread: others.length });
+    }
     const breaker = nextBreakerV1(this.meta('consecutiveFailures', 0), result.outcome, now);
     this.setMeta('consecutiveFailures', breaker.consecutiveFailures);
     if (breaker.breakerUntil !== null) {
@@ -433,12 +516,12 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   private async ensureSubscription(now: number): Promise<void> {
     const current = this.meta<{ id: string; expiresAt: string } | null>('subscription', null);
     if (current && Date.parse(current.expiresAt) - now > SUBSCRIPTION_RENEW_BEFORE_MS) return;
-    if (!this.env.NOTAS_SYNC_PUBLIC_URL || !this.env.NOTAS_SYNC_CLIENT_STATE || !this.activeFolder()) return;
+    if (!this.env.NOTAS_SYNC_PUBLIC_URL || !this.env.NOTAS_SYNC_CLIENT_STATE || Object.keys(this.sources()).length === 0) return;
     const lastTry = this.meta<number | null>('subscriptionTriedAt', null);
     if (lastTry !== null && now - lastTry < 60 * 60_000) return;
     this.setMeta('subscriptionTriedAt', now);
     try {
-      const { driveId } = await this.location();
+      const driveId = await this.driveId();
       const created = await graphCreateDriveSubscriptionV1(this.env, {
         driveId,
         notificationUrl: `${this.env.NOTAS_SYNC_PUBLIC_URL.replace(/\/+$/u, '')}/graph/notificacoes`,
@@ -483,7 +566,20 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   }
 }
 
-/** Nothing to read until an admin chooses the folder of an academic year. */
+/** The source a workbook belongs to: itself (a single-file source) or its folder; null for anything else. */
+export function sourceOfV1(item: Pick<DriveWorkbookV1, 'id' | 'parentId'>, sources: Record<string, SourceV1>): SourceV1 | null {
+  const own = sources[item.id];
+  if (own?.kind === 'file') return own;
+  const folder = item.parentId === null ? undefined : sources[item.parentId];
+  return folder?.kind === 'folder' ? folder : null;
+}
+
+function latestYearV1(sources: Record<string, SourceV1>): number | null {
+  const years = Object.values(sources).map((source) => source.year);
+  return years.length === 0 ? null : Math.max(...years);
+}
+
+/** Nothing to read until an admin chooses a source of an academic year. */
 class NoFolderConfiguredError extends Error {
   constructor() {
     super('No OneDrive folder configured');

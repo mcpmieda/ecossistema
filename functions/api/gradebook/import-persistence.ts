@@ -9,6 +9,7 @@ import { AuthorizationError } from '../../../server/auth/roles';
 import { authorizeGradebookRuntimeV1 } from '../../../server/gradebook/authorization-v1';
 import type { GradebookPostgresWritePortV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
+import type { OneDriveSyncServiceBindingV1 } from '../../../server/gradebook/http/onedrive-sync-routes-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import { dropUnboundStudentsV1, isNotesRequestV1, loadBoundStudentsV1, withUnboundWarningsV1 } from '../../../server/gradebook/application/import/unbound-students-v1';
 import {
@@ -112,6 +113,7 @@ async function handle(
   env: RuntimeEnv,
   afterCommit: GradebookAfterCommitV1,
   observation: ImportObservationV1,
+  waitUntil: (work: Promise<unknown>) => void = () => undefined,
 ): Promise<Response> {
   const started = performance.now();
   if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
@@ -161,6 +163,13 @@ async function handle(
     ).execute(sent), unbound);
     observation.outcome = result.state;
     if (result.state === 'applied') afterCommit(session);
+    // A Relação applied here: the OneDrive sync reads that year's teacher workbooks again, so a
+    // student added now gets the grades the workbooks already had.
+    if (result.state === 'applied' && sent.operation === 'persist-relacao') {
+      const sync = env.NOTAS_SYNC_SERVICE as OneDriveSyncServiceBindingV1 | undefined;
+      const actor = { id: session.oid, name: session.name || session.username || session.oid };
+      if (sync) waitUntil(Promise.resolve().then(() => sync.handle(actor, { action: 'reread-year', year: sent.ano })).catch(() => undefined));
+    }
     return response(result, performance.now() - started);
   } finally {
     observation.handlerMs = performance.now() - started;
@@ -185,6 +194,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
         executionEnv,
         gradebookAfterCommitV1(env, (work) => context.waitUntil(work)),
         observation,
+        (work) => context.waitUntil(work),
       ),
     );
     // The official wrapper has now finished its close boundary as well as the outer commit.
