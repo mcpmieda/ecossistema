@@ -236,6 +236,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
           if (file.state === 'reading') this.saveFile({ ...file, removed: true, dirty: false });
           else this.ctx.storage.sql.exec('DELETE FROM files WHERE id = ?', file.id);
         }
+        // A file may still belong to another source (its folder): the full check finds it again.
+        this.setMeta('nightlyRequested', true);
         break;
       }
       case 'enable': this.setMeta('settings', { ...settings, enabled: true }); this.setMeta('deltaRequested', true); break;
@@ -266,13 +268,23 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.setMeta('nightlyRequested', true);
   }
 
-  /** Every source by Graph id. Before sources existed, the active year's folder was the only one read. */
+  /**
+   * Every source by Graph id. Before sources existed, the active year's folder was the only one
+   * read: the first time, it becomes a stored source and the files already known are tied to it.
+   */
   private sources(): Record<string, SourceV1> {
     const stored = this.meta<Record<string, SourceV1> | null>('sources', null);
     if (stored) return stored;
     const folder = this.activeFolder();
-    return folder ? { [folder.folderId]: { itemId: folder.folderId, kind: 'folder', path: folder.folderPath,
-      year: folder.year, setBy: folder.setBy, setAt: folder.setAt } } : {};
+    const migrated: Record<string, SourceV1> = folder ? { [folder.folderId]: { itemId: folder.folderId, kind: 'folder',
+      path: folder.folderPath, year: folder.year, setBy: folder.setBy, setAt: folder.setAt } } : {};
+    this.setMeta('sources', migrated);
+    if (folder) {
+      for (const file of this.files()) {
+        if (file.sourceId === undefined) this.saveFile({ ...file, sourceId: folder.folderId, year: file.year ?? folder.year });
+      }
+    }
+    return migrated;
   }
 
   status(): SyncStatusV1 {
@@ -430,7 +442,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     if (!driveId) return;
     const breakerUntil = this.meta<number | null>('breakerUntil', null);
     const maxBytes = Number(this.env.NOTAS_MAX_WORKBOOK_BYTES) || DEFAULT_MAX_BYTES;
-    for (const file of filesToStartV1(this.files(), now, this.settings(), breakerUntil)) {
+    // Only files of a source still chosen are read.
+    const sources = this.sources();
+    const files = this.files().filter((file) => file.sourceId !== undefined && sources[file.sourceId] !== undefined);
+    for (const file of filesToStartV1(files, now, this.settings(), breakerUntil)) {
       const lease = crypto.randomUUID();
       this.saveFile(startReadingV1(file, lease, now));
       const input: ProcessWorkbookInputV1 = {
