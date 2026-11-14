@@ -206,3 +206,33 @@ describe('memory of the last write (speed)', () => {
     expect(result.memory).toBeUndefined();
   });
 });
+
+describe('the Relação is asked for while the workbook downloads', () => {
+  it('with the official query (no services given), it starts before the download ends', async () => {
+    const query = vi.fn(async () => [{ codigo: '6A', numero: 1, nome: 'Aluno Sintético' }]);
+    const database = { query, close: vi.fn(async () => undefined) } as unknown as GradebookPostgresDatabaseV1;
+    const { ports } = portsV1({});
+    let queriedDuringDownload = false;
+    const result = await processWorkbookV1({ ...input, expectedYear: 2026 }, {
+      ...ports, services: undefined, openDatabase: async () => database,
+      download: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        queriedDuringDownload = query.mock.calls.length > 0;
+        throw new Error('stop after the download');
+      },
+    });
+    expect(result.code).toBe('GRAPH-DOWNLOAD');
+    expect(queriedDuringDownload).toBe(true);
+    expect((query.mock.calls[0] as unknown as [string, unknown[]])[1]).toEqual([2026]);
+    expect(database.close).toHaveBeenCalledOnce();
+  });
+
+  it('a folder without a year does not ask for it early', async () => {
+    const query = vi.fn(async () => []);
+    const database = { query, close: vi.fn(async () => undefined) } as unknown as GradebookPostgresDatabaseV1;
+    const { ports } = portsV1({});
+    await processWorkbookV1(input, { ...ports, services: undefined, openDatabase: async () => database,
+      download: async () => { throw new Error('stop'); } });
+    expect(query).not.toHaveBeenCalled();
+  });
+});

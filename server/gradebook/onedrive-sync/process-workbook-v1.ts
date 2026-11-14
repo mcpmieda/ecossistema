@@ -4,6 +4,7 @@ import { graphDownloadWorkbookV1, WorkbookTooLargeError, type GraphAppEnvV1 } fr
 import type { ReadResultV1, SyncMemoryV1 } from './sync-rules-v1';
 import { prepareTeacherWorkbookV1 } from './teacher-workbook-preparation-v1';
 import {
+  relationNamesV1,
   writePreparedWorkbookV1,
   type PreparedWorkbookV1,
   type WriteInputV1,
@@ -64,15 +65,19 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
     name: input.name, modifiedAt: input.modifiedAt, expectedYear: input.expectedYear, memory: input.memory ?? null,
   };
 
-  // The connection and the Relação are asked for while the workbook downloads.
+  // The connection and the Relação are asked for while the workbook downloads (the connection
+  // opens on its first query, so the Relação also pays for opening it, in parallel).
+  // relationReady: ms from the start of the read until the Relação arrived.
   let opening: Promise<GradebookPostgresDatabaseV1 | null> | null = null;
   let earlyRelation: Promise<ReadonlyMap<string, string> | null> | null = null;
   const openLocal = () => {
     opening ??= Promise.resolve().then(() => ports.openDatabase()).then((database) => database, () => null);
     const year = input.expectedYear;
-    if (!earlyRelation && year !== null && ports.services?.relationNames !== undefined) {
-      const relationNames = ports.services.relationNames;
-      earlyRelation = opening.then((database) => (database ? relationNames(database, year) : null)).catch(() => null);
+    if (!earlyRelation && year !== null) {
+      const relationNames = ports.services?.relationNames ?? relationNamesV1;
+      earlyRelation = opening.then((database) => (database ? relationNames(database, year) : null))
+        .then((relation) => { stages.relationReady = Math.round(ports.now() - started); return relation; })
+        .catch(() => null);
     }
     return opening;
   };

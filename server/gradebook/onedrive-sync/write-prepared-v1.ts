@@ -67,7 +67,8 @@ export type WritePortsV1 = {
   readonly source?: string;
 };
 
-async function relationNamesV1(database: GradebookPostgresDatabaseV1, year: number): Promise<ReadonlyMap<string, string>> {
+/** The system's Relação of a year: number in the class → the student's name. */
+export async function relationNamesV1(database: GradebookPostgresDatabaseV1, year: number): Promise<ReadonlyMap<string, string>> {
   const rows = await database.query<{ codigo: string; numero: number; nome: string }>(
     `SELECT t.codigo, v.numero, a.nome
        FROM gradebook.vinculo v
