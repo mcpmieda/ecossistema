@@ -15,6 +15,8 @@ type FolderV1 = Extract<OneDriveSyncResponseV1, { state: 'folders' }>['folders']
 type ChipColor = 'accent' | 'success' | 'warning' | 'danger' | 'default';
 
 const REFRESH_MS = 10_000;
+const RESUME_DELAY_MS = 1_000;
+const REFRESH_FAILURES_SHOWN = 3;
 
 const OUTCOME_LABELS: Record<NonNullable<FileV1['lastOutcome']>, [string, ChipColor]> = {
   applied: ['Lançado', 'success'],
@@ -245,14 +247,36 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
   useEffect(() => {
     if (!isActive) return undefined;
     let controller = new AbortController();
+    let misses = 0;
+    let resume: number | undefined;
+    // A read made while the phone had the page in the background can fail on its own; only
+    // repeated failures of the automatic refresh are shown (actions the user takes show at once).
+    const applyRefresh = (answer: OneDriveSyncResponseV1) => {
+      if (answer.state === 'unavailable' && loaded.current && ++misses < REFRESH_FAILURES_SHOWN) return;
+      if (answer.state !== 'unavailable') misses = 0;
+      apply(answer);
+    };
     const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
       controller.abort();
       controller = new AbortController();
-      void requestOneDriveSyncV1({ action: 'status' }, controller.signal).then(apply).catch(() => undefined);
+      void requestOneDriveSyncV1({ action: 'status' }, controller.signal).then(applyRefresh).catch(() => undefined);
+    };
+    // Back on the page: give the network a moment to wake up, then read.
+    const onVisibility = () => {
+      window.clearTimeout(resume);
+      if (document.visibilityState === 'visible') resume = window.setTimeout(refresh, RESUME_DELAY_MS);
+      else controller.abort();
     };
     refresh();
     const timer = window.setInterval(refresh, REFRESH_MS);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+      window.clearTimeout(resume);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [apply, isActive]);
 
   if (!status) {
