@@ -219,6 +219,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   }
 
   async control(command: SyncControlV1, actor: OneDriveSyncActorV1): Promise<SyncStatusV1> {
+    // State from before sources existed is migrated first (files get their source and year).
+    this.sources();
     const settings = this.settings();
     switch (command.action) {
       // The older panel chose one folder per year; it is now one more source.
