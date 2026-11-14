@@ -206,27 +206,3 @@ describe('memory of the last write (speed)', () => {
     expect(result.memory).toBeUndefined();
   });
 });
-
-describe('database half next to the database (Pages)', () => {
-  it('a read sends the database half to Pages and does not open the database here', async () => {
-    const { ports, calls } = portsV1({ bytes: bytesOf('teacher') });
-    const sent: unknown[] = [];
-    const result = await processWorkbookV1(input, {
-      ...ports,
-      remoteWrite: async (writeInput, prepared) => {
-        sent.push(prepared.outcome);
-        return { outcome: 'applied', code: null, savedToWrittenMs: 5, memory: { audit: 'a', offers: {} }, stages: { persist: 1 } };
-      },
-    });
-    expect(result).toMatchObject({ outcome: 'applied', memory: { audit: 'a', offers: {} } });
-    expect(sent).toEqual(['ready']);
-    expect(calls).toEqual([]);
-  });
-
-  it('when Pages cannot, the read writes here as before', async () => {
-    const { ports, calls } = portsV1({ bytes: bytesOf('teacher') });
-    const result = await processWorkbookV1(input, { ...ports, remoteWrite: async () => null });
-    expect(result.outcome).toBe('applied');
-    expect(calls).toEqual(['open', 'audit', 'persist', 'portal']);
-  });
-});

@@ -3,18 +3,20 @@
   // writes what changed through the existing import, Auditoria and persistence services.
   // Starts disabled: nothing is read or written until an operator enables it.
   // Secrets (set outside the repository): GRAPH_CREDENTIAL_A, GRAPH_CREDENTIAL_B (written by
-  // entra-maintenance.yml) and NOTAS_SYNC_CLIENT_STATE. Operated only from the admin centre
+  // entra-maintenance.yml), NOTAS_SYNC_CLIENT_STATE and NOTAS_SYNC_READ_TOKEN. Operated only from the admin centre
   // (Banco de notas > Importação > OneDrive) through the Pages service binding.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "notas-onedrive-sync",
   "main": "workers/notas-onedrive-sync/index.ts",
   "compatibility_date": "2026-08-24",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": true,
   "preview_urls": false,
   "send_metrics": false,
   "limits": { "cpu_ms": 30000 },
-  "placement": { "mode": "smart" },
+  // Requests (the Graph notices and the coordinator's POST /ler) run next to the database in
+  // São Paulo. Placement does not apply to the cron, the coordinator or the SELF binding.
+  "placement": { "region": "aws:sa-east-1" },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
@@ -36,7 +38,6 @@
     "GRAPH_CLIENT_ID": "7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c",
     "NOTAS_SITE_ID": "eduieda-my.sharepoint.com,21cc7df6-66bb-450b-8816-743a7b746659,f45d15ef-de61-4df6-aa15-5c47a2edd5a6",
     "NOTAS_MAX_WORKBOOK_BYTES": "8388608",
-    "NOTAS_SYNC_PUBLIC_URL": "https://notas-onedrive-sync.adminn-40c.workers.dev",
-    "NOTAS_SYNC_WRITE_URL": "https://admin.escolaieda.com/api/gradebook/onedrive-sync/gravar"
+    "NOTAS_SYNC_PUBLIC_URL": "https://notas-onedrive-sync.adminn-40c.workers.dev"
   }
 }

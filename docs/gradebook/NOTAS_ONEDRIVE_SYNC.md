@@ -33,7 +33,7 @@ Ao ligar pela primeira vez, ou depois de trocar a pasta, todas as planilhas da p
 
 ## Segredos
 
-`GRAPH_CREDENTIAL_A`/`B` são gravados pelo `entra-maintenance.yml` ao rotacionar a Graph. `NOTAS_SYNC_CLIENT_STATE` é um valor aleatório definido uma vez no Worker. `NOTAS_SYNC_WRITE_TOKEN` é um valor aleatório definido no Worker e no Pages (veja Gravação pelo Pages). O Worker é publicado pelo `deploy-cloudflare-pages.yml`.
+`GRAPH_CREDENTIAL_A`/`B` são gravados pelo `entra-maintenance.yml` ao rotacionar a Graph. `NOTAS_SYNC_CLIENT_STATE` é um valor aleatório definido uma vez no Worker. `NOTAS_SYNC_READ_TOKEN` é um valor aleatório definido uma vez no Worker (veja Leitura perto do banco). O Worker é publicado pelo `deploy-cloudflare-pages.yml`.
 
 ## Privacidade
 
@@ -66,6 +66,10 @@ Mudanças:
 - **Consulta direta a cada 10 s** das 06:00 às 23:00 (São Paulo), sem esperar o aviso da Microsoft.
 - O log `gradebook_import_performance` (`source: notas-sync`) mostra só números da gravação (comandos, linhas, milissegundos).
 
-## Gravação pelo Pages
+## Leitura perto do banco (14/11/2026)
 
-O Worker fica longe do banco (~250 ms por consulta). O Pages, com posicionamento inteligente, fica perto (~20–70 ms). Por isso a leitura baixa e lê a planilha no Worker e manda a metade do banco (Relação, Auditoria, notas) para `POST /api/gradebook/onedrive-sync/gravar` no Pages, com o segredo `NOTAS_SYNC_WRITE_TOKEN`. A fila de gravação continua no coordenador. Se o Pages não responder, faltar o segredo ou der erro, o Worker grava sozinho como antes. Os registros `notas-sync-remote-write` (Worker) e `gradebook_import_performance` com origem `notas-sync-pages` mostram os tempos.
+O banco fica em São Paulo. O coordenador (Durable Object) ficou em Miami, e uma leitura chamada por ele (`SELF`) também rodava lá: ~250 ms por consulta. Gravar pelo Pages não resolveu: chamado do Worker, o Pages também rodou em Miami (gravação 3,8 s em vez de 4,4 s).
+
+O que resolveu: o Worker tem posicionamento por região (`aws:sa-east-1`), que vale só para pedidos HTTP. O coordenador pede cada leitura pelo endereço público do próprio Worker (`POST /ler`, segredo `NOTAS_SYNC_READ_TOKEN`), e essa leitura roda em São Paulo (provado com um Worker de teste: chamado de Miami, rodou em GRU, `cf-placement: remote-GRU`). O flag `global_fetch_strictly_public` permite o Worker chamar o próprio endereço. Se `/ler` recusar antes de ler (401/404/405), o coordenador lê pelo `SELF` como antes.
+
+O Portal do aluno usa o mesmo caminho para o trabalho de cada minuto (limpezas, eventos ao vivo, histórico e sinais): o cron chama `POST /api/internal/agendado` no próprio endereço (segredo `PORTAL_SCHEDULED_TOKEN`) e o trabalho roda em São Paulo.

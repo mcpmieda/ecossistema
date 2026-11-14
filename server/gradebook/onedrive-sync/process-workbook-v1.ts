@@ -32,11 +32,6 @@ export type ProcessWorkbookPortsV1 = {
   readonly notifyPortal: () => Promise<void>;
   /** Runs the database writes in this file's turn (one file writes at a time); default: right away. */
   readonly writeTurn?: <T>(work: () => Promise<T>) => Promise<T>;
-  /**
-   * Writes next to the database (Pages) instead of here; null when it could not, and the read
-   * then writes from here as before.
-   */
-  readonly remoteWrite?: (input: WriteInputV1, prepared: PreparedWorkbookV1) => Promise<WriteOutcomeV1 | null>;
   readonly now: () => number;
   /** Waits between write retries; tests pass an instant one. */
   readonly sleep?: (ms: number) => Promise<void>;
@@ -47,8 +42,8 @@ export type ProcessWorkbookPortsV1 = {
 };
 
 /**
- * One sync read: download and read the workbook here, then the database half (Relação check,
- * Auditoria, grades) next to the database when possible. Only teacher grade workbooks are written.
+ * One sync read: download and read the workbook, then the database half (Relação check,
+ * Auditoria, grades). Only teacher grade workbooks are written.
  */
 export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: ProcessWorkbookPortsV1): Promise<ReadResultV1> {
   const started = ports.now();
@@ -69,7 +64,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
     name: input.name, modifiedAt: input.modifiedAt, expectedYear: input.expectedYear, memory: input.memory ?? null,
   };
 
-  // Writing from here: the connection and the Relação are asked for while the workbook downloads.
+  // The connection and the Relação are asked for while the workbook downloads.
   let opening: Promise<GradebookPostgresDatabaseV1 | null> | null = null;
   let earlyRelation: Promise<ReadonlyMap<string, string> | null> | null = null;
   const openLocal = () => {
@@ -81,7 +76,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
     }
     return opening;
   };
-  if (!ports.remoteWrite) void openLocal();
+  void openLocal();
   try {
     let bytes: ArrayBuffer;
     try {
@@ -102,11 +97,6 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
       : { outcome: 'blocked', audit: ready.audit };
     stage('prepare');
 
-    if (ports.remoteWrite) {
-      const remote = await ports.remoteWrite(writeInput, prepared).catch(() => null);
-      stage('remote');
-      if (remote) return fromWrite(remote);
-    }
     const database = await openLocal();
     stage('open');
     if (!database) return result('failed', 'DATABASE-UNAVAILABLE');

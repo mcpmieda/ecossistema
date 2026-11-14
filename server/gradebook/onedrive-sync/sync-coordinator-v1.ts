@@ -38,20 +38,41 @@ export interface SyncReaderV1 {
 }
 
 const READER_URL_V1 = 'https://notas-sync-reader.internal/ler';
+/** The read through the Worker's public address: only a request gets the region placement. */
+export const READ_PATH_V1 = '/ler';
+const PUBLIC_READ_TIMEOUT_MS_V1 = 170_000;
 
-async function readFileV1(reader: SyncReaderV1, input: ProcessWorkbookInputV1): Promise<ReadResultV1> {
-  const response = await reader.fetch(READER_URL_V1, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+type ReadEnvV1 = Pick<SyncCoordinatorEnvV1, 'SELF' | 'NOTAS_SYNC_PUBLIC_URL' | 'NOTAS_SYNC_READ_TOKEN'>;
+
+async function readFileV1(env: ReadEnvV1, input: ProcessWorkbookInputV1,
+  publicFetch: typeof fetch = fetch): Promise<ReadResultV1> {
+  const body = JSON.stringify(input);
+  if (env.NOTAS_SYNC_PUBLIC_URL && env.NOTAS_SYNC_READ_TOKEN) {
+    const response = await publicFetch(`${env.NOTAS_SYNC_PUBLIC_URL}${READ_PATH_V1}`, {
+      method: 'POST', body, signal: AbortSignal.timeout(PUBLIC_READ_TIMEOUT_MS_V1),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.NOTAS_SYNC_READ_TOKEN}` },
+    });
+    if (response.ok) return (await response.json()) as ReadResultV1;
+    // Refused before reading (route or secret not there yet): read through SELF instead.
+    if (![401, 404, 405].includes(response.status)) throw new Error(`notas-sync-reader-http-${response.status}`);
+    console.error(JSON.stringify({ event: 'notas-sync-public-read-refused', status: response.status }));
+  }
+  const response = await env.SELF.fetch(READER_URL_V1, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
   });
   if (!response.ok) throw new Error(`notas-sync-reader-http-${response.status}`);
   return (await response.json()) as ReadResultV1;
 }
+
+export const readFileForTestsV1 = readFileV1;
 
 export interface SyncCoordinatorEnvV1 extends GraphAppEnvV1 {
   /** The secretaria's OneDrive site; the folder of each academic year is chosen in the admin panel. */
   NOTAS_SITE_ID: string;
   NOTAS_SYNC_PUBLIC_URL?: string;
   NOTAS_SYNC_CLIENT_STATE?: string;
+  /** Secret of `POST /ler` (the read through the public address, next to the database). */
+  NOTAS_SYNC_READ_TOKEN?: string;
   NOTAS_MAX_WORKBOOK_BYTES?: string;
   SELF: SyncReaderV1;
   /** The coordinator namespace, used only to recognise the retired first coordinator. */
@@ -372,7 +393,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         driveId: location.driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
         expectedYear: this.activeFolder()?.year ?? null, memory: file.memory ?? null,
       };
-      const read = readFileV1(this.env.SELF, input)
+      const read = readFileV1(this.env, input)
         .catch((cause: unknown): ReadResultV1 => {
           console.error(JSON.stringify({ event: 'notas-sync-reader-unreachable', error: String(cause).slice(0, 300) }));
           return { outcome: 'failed', code: 'READER-UNREACHABLE', readHash: null, readMs: 0, savedToWrittenMs: null };
