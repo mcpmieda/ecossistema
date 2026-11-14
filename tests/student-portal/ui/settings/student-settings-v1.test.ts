@@ -213,7 +213,7 @@ describe('administrative settings UI', () => {
     expect(mock.writes[0]).toMatchObject({
       value: {
         calendar: {
-          timezone: 'America/Sao_Paulo',
+          timezone: 'America/Bahia', // saved as the school's zone (issue #1426, 41)
           yearStartsAt: '2026-02-23T11:00:00Z',
           t1EndsAt: null,
         },

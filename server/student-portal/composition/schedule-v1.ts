@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../shared/school-time-zone-v1';
 import { z } from 'zod';
 import type { PortalCompositionEnvV1 } from './config-v1';
 import { portalKeysV1 } from './config-v1';
@@ -27,7 +28,7 @@ const jsonOf=(raw:unknown)=>typeof raw==='string'?JSON.parse(raw):raw;
  */
 export async function schoolBellsAndCalendarV1(tx:StudentPortalPostgresQueryV1){
   // Saved by the system (student-portal 0030/0031, the official sheets) or by a person in the ADM.
-  const bells=await tx.unsafe(`SELECT bells_json,updated_by='00000000-0000-4000-8000-000000000000' AS by_system,(updated_at AT TIME ZONE 'America/Bahia')::date::text AS saved_on FROM student_portal.school_bells_v1 WHERE academic_year=2026`,[]);
+  const bells=await tx.unsafe(`SELECT bells_json,updated_by='00000000-0000-4000-8000-000000000000' AS by_system,(updated_at AT TIME ZONE '${SCHOOL_TIME_ZONE_V1}')::date::text AS saved_on FROM student_portal.school_bells_v1 WHERE academic_year=2026`,[]);
   const calendar=await tx.unsafe('SELECT days_json FROM student_portal.school_calendar_v1 WHERE academic_year=2026',[]);
   const bellsRow=bells?.[0],rawBells=bellsRow?.bells_json,rawDays=calendar?.[0]?.days_json;
   const days=rawDays==null?null:schoolCalendarDaysV1.parse(jsonOf(rawDays));
@@ -58,7 +59,7 @@ export async function servePortalScheduleV1(request:Request,env:PortalCompositio
         const value=readSchema.parse(jsonOf(raw));
         // The school's today and the database's clock (owner decision 23/10/2026: the lesson going
         // on now and its countdown run on the server's time, never on a phone with a wrong clock).
-        const clock=await tx.unsafe(`SELECT clock_timestamp() < $1::timestamptz AS active,(clock_timestamp() AT TIME ZONE 'America/Bahia')::date::text AS today,clock_timestamp() AS now`,[session.expiresAt]);
+        const clock=await tx.unsafe(`SELECT clock_timestamp() < $1::timestamptz AS active,(clock_timestamp() AT TIME ZONE '${SCHOOL_TIME_ZONE_V1}')::date::text AS today,clock_timestamp() AS now`,[session.expiresAt]);
         if(clock[0]?.active!==true)return null;
         const{bells,daysOff,schoolYear}=await schoolBellsAndCalendarV1(tx);
         return{

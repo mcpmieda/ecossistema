@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Table } from '@heroui/react';
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
@@ -68,7 +69,7 @@ function SignalReader({ onDenied }: Readonly<{ onDenied: () => void }>) {
           <Table.Header><Table.Column id="time" isRowHeader>Janela (Bahia)</Table.Column><Table.Column id="source">Etapa</Table.Column><Table.Column id="outcome">Resultado observado</Table.Column>
             <Table.Column id="samples">Observações</Table.Column><Table.Column id="max">Maior tempo</Table.Column><Table.Column id="slow">3 segundos ou mais</Table.Column></Table.Header>
           <Table.Body>{visible.map((point) => <Table.Row id={signalKeyV1(point)} key={signalKeyV1(point)}>
-            <Table.Cell className="whitespace-nowrap py-2">{new Date(point.bucketAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}</Table.Cell>
+            <Table.Cell className="whitespace-nowrap py-2">{new Date(point.bucketAt).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 })}</Table.Cell>
             <Table.Cell className="py-2">{names[point.source]}</Table.Cell><Table.Cell className="py-2">{point.source.startsWith('browser-') ? 'Relato do navegador' : outcomes[point.outcome]}</Table.Cell>
             <Table.Cell className="py-2">{point.samples}{point.capped ? '+' : ''}</Table.Cell>
             <Table.Cell className="py-2">{point.source.startsWith('browser-') ? '—' : maxMsText(point.maxMs)}</Table.Cell>

@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { calendarV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import {
   CALENDAR_LABELS_V1,
@@ -112,7 +113,7 @@ export function parseCalendarDraftV1(draft: CalendarDraftV1): CalendarV1 {
     if (dates[key] === null) delete dates[key];
   }
   return calendarV1.parse({
-    timezone: 'America/Sao_Paulo',
+    timezone: SCHOOL_TIME_ZONE_V1,
     ...dates,
     ...(draft.agenda?.finalAgenda ? { finalAgenda: draft.agenda.finalAgenda } : {}),
     disclosure: draftDisclosureV1(draft),

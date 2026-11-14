@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -98,7 +99,7 @@ const MARKERS = [
 ] as const;
 type MarkerKeyV1 = (typeof MARKERS)[number]['key'];
 type MarkersV1 = Record<MarkerKeyV1, string | null>;
-const LOCAL_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' });
+const LOCAL_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: SCHOOL_TIME_ZONE_V1 });
 /** The school day an instant names: an end is the day before its moment (its last day). */
 const dateOfInstant = (instant: string | null, end: boolean) =>
   instant ? LOCAL_DATE.format(new Date(Date.parse(instant) - Number(end))) : null;

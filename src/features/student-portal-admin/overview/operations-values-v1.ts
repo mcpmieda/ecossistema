@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useCallback, useEffect, useRef } from 'react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -15,7 +16,7 @@ export interface OperationsPropsV1 {
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
 }
 const operationDateFormatterV1 = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   dateStyle: 'short',
   timeStyle: 'medium',
 });

@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useMemo, useState, type ReactNode } from 'react';
 import { CalendarDateTime, parseDateTime, today } from '@internationalized/date';
 import { I18nProvider } from 'react-aria-components';
@@ -114,7 +115,7 @@ export function DateInputV1({
 }>) {
   const [isOpen, setOpen] = useState(false);
   const placeholder = useMemo(() => {
-    const date = today('America/Sao_Paulo');
+    const date = today(SCHOOL_TIME_ZONE_V1);
     return endOfDay
       ? new CalendarDateTime(date.year, date.month, date.day, 23, 59, 0)
       : new CalendarDateTime(date.year, date.month, date.day, 0, 0, 0);
@@ -381,7 +382,7 @@ export function SettingsEditorV1({
   );
 }
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   dateStyle: 'short',
   timeStyle: 'medium',
 });

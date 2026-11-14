@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../shared/school-time-zone-v1';
 import { cleanupPortalLiveEventsV1 } from '../live/live-outbox-v1';
 import { cleanupPortalV1 } from '../maintenance/retention-v1';
 import type { PortalCompositionEnvV1 } from './config-v1';
@@ -5,7 +6,7 @@ import { portalDatabaseV1 } from './database-v1';
 
 /** Midnight in Brasília: the scheduled work runs every minute, the pruning once a day. */
 const PRUNE_CLOCK_V1 = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  timeZone: SCHOOL_TIME_ZONE_V1, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 });
 
 /** Retention is the only scheduled work (privacy, reconciliation leftovers and publication editions

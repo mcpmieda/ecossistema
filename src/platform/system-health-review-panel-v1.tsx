@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
 import { HEALTH_REVIEW_BYTES_V1, HEALTH_REVIEW_ROUTE_V1, isHealthReviewV1, reviewGuidanceV1, reviewTotalsV1,
   type HealthReviewV1 } from '../../shared/health-review-v1';
 import { HealthOnDemandPanelV1 } from './system-health-on-demand-v1';
@@ -49,14 +50,14 @@ function ReviewContent({ data }: Readonly<{ data: HealthReviewV1 }>) {
           } else {
             color = 'bg-default';
           }
-          const label = `${new Date(h.startAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })}: ${status}; ${h.samples} de 12 coletas`;
+          const label = `${new Date(h.startAt).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 })}: ${status}; ${h.samples} de 12 coletas`;
           return <li key={h.startAt} aria-label={label} title={label} className={`h-5 rounded-sm ${color}`} />;
         })}
       </ul>
       <p className="mt-2 text-xs text-muted">24 faixas de coleta · cinza: sem confirmação completa · cores não representam disponibilidade</p>
     </div>
     <p className="text-sm">Recusas / sem sessão: <strong>{count(total.refused)}</strong> · Respostas ≥ 3 s: <strong>{count(total.slow)}</strong> · Relatos de navegador: <strong>{count(total.browser)}</strong></p>
-    <p className="text-xs text-muted">Período até {new Date(data.to).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })} (Bahia). Operações são observações parciais, não alunos nem todos os acessos.{total.capped ? ' * Houve limite de coleta; as contagens são parciais.' : ''}</p>
+    <p className="text-xs text-muted">Período até {new Date(data.to).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 })} (Bahia). Operações são observações parciais, não alunos nem todos os acessos.{total.capped ? ' * Houve limite de coleta; as contagens são parciais.' : ''}</p>
     {flags.length ? <details><summary className="cursor-pointer text-sm font-medium">Orientações para verificar ({flags.length})</summary>
       <div className="mt-3 space-y-2">{flags.map((key) => <p key={key} className="text-sm text-muted">{guidance[key]}</p>)}</div>
     </details> : <p className="text-sm text-muted">Nenhum alerta identificado nas amostras consultadas. Isso não confirma todo o funcionamento do Portal.</p>}

@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import {
   Fragment,
   useCallback,
@@ -75,7 +76,7 @@ type WeekdayV3 = (typeof DAYS)[number]['weekday'];
 type SwipeSideV3 = -1 | 1;
 
 const SCHOOL_TIME = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/Bahia',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
@@ -1127,7 +1128,7 @@ export function ScheduleWeekV3({
               {new Date(latest).toLocaleString('pt-BR', {
                 dateStyle: 'short',
                 timeStyle: 'short',
-                timeZone: 'America/Bahia',
+                timeZone: SCHOOL_TIME_ZONE_V1,
               })}
             </p>
           ) : null}

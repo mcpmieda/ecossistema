@@ -111,7 +111,7 @@ const META_DEFAULTS_V1 = { settings: DEFAULT_SYNC_SETTINGS_V1 };
 const DELTA_INTERVAL_WITH_WEBHOOK_MS = 60 * 60_000;
 const DELTA_INTERVAL_WITHOUT_WEBHOOK_MS = 60_000;
 const SUBSCRIPTION_RENEW_BEFORE_MS = 3 * 24 * 60 * 60_000;
-const NIGHTLY_UTC_HOUR = 6; // 03:00 in America/Sao_Paulo
+const NIGHTLY_UTC_HOUR = 6; // 03:00 at the school (America/Bahia)
 /** While reads run, the coordinator looks again this often (a Graph notice is picked up at once). */
 const LOOP_TICK_MS = 2_000;
 /**

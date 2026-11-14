@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Label, ListBox, Select } from '@heroui/react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -68,7 +69,7 @@ export function useScheduleClockV1() {
 }
 
 const whenFormat = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   weekday: 'short',
   day: '2-digit',
   month: '2-digit',
