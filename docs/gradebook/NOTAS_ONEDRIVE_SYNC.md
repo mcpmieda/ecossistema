@@ -50,3 +50,18 @@ Medido em produção: uma leitura gastava 11–15 s, sendo mais de 70% no banco 
 - **Testado sem ganho (desfeito):** comandos sem nome no banco (`prepare: false`) e região fixa do worker.
 - **Desligado ou pausado:** arquivos pendentes não acordam mais o coordenador.
 - O log `notas-sync-stages` mostra o tempo de cada etapa.
+
+## Teste real e fila de gravação (14/11/2026)
+
+Teste com planilhas reais (restauradas no fim, banco conferido igual ao de antes):
+
+- **Excel do computador:** 28–48 s do salvamento ao banco; ~33–36 s disso é o envio do OneDrive e o aviso da Microsoft.
+- **Excel online:** 25 s a 2,7 min; o Excel online demora a gravar o que foi digitado no arquivo. Abrir sem editar gera uma leitura que não grava nada (memória).
+- **Massivo:** gravações simultâneas disputavam o bloqueio do ano no banco (15–68 s) e algumas esgotavam as tentativas.
+
+Mudanças:
+
+- **Fila de gravação no coordenador:** as leituras correm em paralelo; cada uma pede a vez (`beginWrite`/`endWrite`) antes de gravar Auditoria e notas. Vez não devolvida em 2 min é retomada. A repetição em `55P03` continua como reserva (a importação manual também grava).
+- **O coordenador não fica preso esperando um lote:** enquanto as leituras rodam, ele olha o aviso da Microsoft a cada 2 s e dispara novas leituras.
+- **Consulta direta a cada 10 s** das 06:00 às 23:00 (São Paulo), sem esperar o aviso da Microsoft.
+- O log `gradebook_import_performance` (`source: notas-sync`) mostra só números da gravação (comandos, linhas, milissegundos).

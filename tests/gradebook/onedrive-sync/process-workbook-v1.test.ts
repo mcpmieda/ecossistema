@@ -139,6 +139,16 @@ describe('one sync read', () => {
 });
 
 describe('writes taking turns', () => {
+  it('the Auditoria and the grades are written inside the write turn of the file', async () => {
+    const { ports, calls } = portsV1({ bytes: bytesOf('teacher') });
+    const result = await processWorkbookV1(input, {
+      ...ports,
+      writeTurn: async (work) => { calls.push('turn'); const value = await work(); calls.push('end'); return value; },
+    });
+    expect(result.outcome).toBe('applied');
+    expect(calls).toEqual(['open', 'turn', 'audit', 'end', 'turn', 'persist', 'end', 'portal']);
+  });
+
   it('a write that met another read holding the year lock is tried again', async () => {
     const { ports, calls } = portsV1({ bytes: bytesOf('teacher') });
     let busy = 2;
