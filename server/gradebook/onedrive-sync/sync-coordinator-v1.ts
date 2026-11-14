@@ -372,6 +372,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         id: file.id, name: file.name, size: file.size, modifiedAt: file.modifiedAt, state: file.state, removed: file.removed,
         lastOutcome: file.lastOutcome, lastCode: file.lastCode, lastReadAt: file.lastReadAt, lastReadMs: file.lastReadMs,
         lastSavedToWrittenMs: file.lastSavedToWrittenMs,
+        ...(file.heldStudents ? { heldStudents: file.heldStudents } : {}),
       })),
       events: this.ctx.storage.sql.exec<{ at: number; kind: string; actor: string | null; detail: string }>(
         'SELECT at, kind, actor, detail FROM events ORDER BY id DESC LIMIT 50').toArray(),
@@ -417,12 +418,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const day = schoolDayOfV1(now);
     const cached = this.meta<PollWindowV1 | null>('pollWindow', null);
     if (cached?.day === day && (cached.retryAfter === null || cached.retryAfter > now)) return cached;
-    let read: SchoolDayWindowV1 | null = null;
-    try {
-      read = (await this.env.PORTAL_SCHEDULER?.pollWindow?.(day)) ?? null;
-    } catch {
-      read = null;
-    }
+    const read: SchoolDayWindowV1 | null = await Promise.resolve(this.env.PORTAL_SCHEDULER?.pollWindow?.(day))
+      .then((answer) => answer ?? null, () => null);
     const window = pollWindowV1(day, read, now);
     this.setMeta('pollWindow', window);
     return window;

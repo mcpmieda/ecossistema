@@ -80,4 +80,23 @@ describe('account views v1', () => {
       },
     });
   });
+
+  it('sends the address only with the next choice or when the tab is hidden (issue #1426, 12b)', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => ready({}));
+    vi.stubGlobal('fetch', fetchMock);
+    const views = await load();
+    await views.startAccountViewsV1('owner-a', false);
+    vi.useFakeTimers();
+    views.rememberAddressV1('#/banco-de-notas?area=performance');
+    views.rememberAddressV1('#/banco-de-notas?area=council');
+    views.rememberAddressV1('#/banco-de-notas?area=audit');
+    await vi.advanceTimersByTimeAsync(5000);
+    const puts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT');
+    expect(puts()).toHaveLength(0);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(puts()).toHaveLength(1);
+    expect(JSON.parse(String(puts()[0]?.[1]?.body))).toEqual({ views: { 'platform-address': '#/banco-de-notas?area=audit' } });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  });
 });

@@ -6,6 +6,8 @@ import {
   graphDownloadWorkbookV1,
   graphDriveDeltaV1,
   graphFolderWorkbooksV1,
+  graphLatestDeltaLinkV1,
+  graphRenewSubscriptionV1,
   WorkbookTooLargeError,
   type GraphAppEnvV1,
 } from '../../../server/gradebook/onedrive-sync/graph-drive-v1';
@@ -108,5 +110,17 @@ describe('Graph drive access for the Notas sync', () => {
     expect(created.id).toBe('sub-1');
     const body = JSON.parse(String(graph.dependencies.fetch.mock.calls.at(-1)![1]!.body));
     expect(body).toMatchObject({ changeType: 'updated', resource: '/drives/d/root', clientState: 'synthetic-state' });
+  });
+
+  it('starts the cursor at the latest state and renews the subscription in place (issue #1426, 1 and 12d)', async () => {
+    const env = await syntheticEnvV1();
+    const graph = graphMockV1({
+      'token=latest': () => Response.json({ value: [], '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/drives/d/root/delta?token=now' }),
+      '/subscriptions/alive': () => Response.json({ expirationDateTime: '2026-11-20T00:00:00Z' }),
+    });
+    expect(await graphLatestDeltaLinkV1(env, 'd', graph.dependencies)).toBe('https://graph.microsoft.com/v1.0/drives/d/root/delta?token=now');
+    expect(await graphRenewSubscriptionV1(env, 'alive', new Date('2026-11-20T00:00:00Z'), graph.dependencies)).toBe('2026-11-20T00:00:00Z');
+    expect(await graphRenewSubscriptionV1(env, 'gone', new Date('2026-11-20T00:00:00Z'), graph.dependencies)).toBeNull();
+    expect(graph.calls.filter((call) => call.startsWith('PATCH '))).toHaveLength(2);
   });
 });

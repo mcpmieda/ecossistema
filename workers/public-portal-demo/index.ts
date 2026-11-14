@@ -45,6 +45,21 @@ function secured(response: Response): Response {
 const unavailable = () => secured(new Response('Demonstração indisponível.', { status: 503 }));
 const stateOf = (env: DemoEnv) => env.DEMO_STATE.get(env.DEMO_STATE.idFromName('public-demo'));
 
+/**
+ * The gate's answer, kept 30 s per isolate (issue #1426, 23c): a visit asks for ~10 files and the
+ * single Durable Object sits in one place in the world. A change made through this isolate applies
+ * at once; elsewhere it takes up to 30 s, like a page already open in a visitor's browser.
+ */
+const DEMO_STATE_TTL_MS = 30_000;
+let cachedEnabled: { enabled: boolean; until: number } | null = null;
+async function demoEnabledV1(env: DemoEnv): Promise<boolean> {
+  const now = Date.now();
+  if (cachedEnabled && cachedEnabled.until > now) return cachedEnabled.enabled;
+  const { enabled } = await stateOf(env).getState();
+  cachedEnabled = { enabled, until: now + DEMO_STATE_TTL_MS };
+  return enabled;
+}
+
 /** Stores only the enabled flag and its concurrency revision. No visitor data. */
 export class DemoState extends DurableObject<DemoEnv> {
   async getState(): Promise<PublicDemoStateV1> {
@@ -89,7 +104,9 @@ export class DemoControl extends WorkerEntrypoint<DemoEnv> {
   }
   async setEnabled(authority: unknown, command: unknown) {
     this.authorize(authority, true);
-    return stateOf(this.env).setEnabled(command);
+    const result = await stateOf(this.env).setEnabled(command);
+    cachedEnabled = null;
+    return result;
   }
 }
 
@@ -97,7 +114,7 @@ export default {
   async fetch(request: Request, env: DemoEnv): Promise<Response> {
     try {
       // Every path/asset/alias/HEAD passes this same fail-closed gate.
-      if (!(await stateOf(env).getState()).enabled) return unavailable();
+      if (!(await demoEnabledV1(env))) return unavailable();
       const url = new URL(request.url);
       const html = url.pathname === '/' || url.pathname === '/index.html';
       if (

@@ -48,6 +48,8 @@ export type ProcessWorkbookPortsV1 = {
  * One sync read: download and read the workbook, then the database half (Relação check,
  * Auditoria, grades). Teacher grade workbooks and the Relação are written.
  */
+const RELATION_FILE_NAME_V1 = /^RELA[CÇ][AÃ]O\b/iu;
+
 export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: ProcessWorkbookPortsV1): Promise<ReadResultV1> {
   const started = ports.now();
   const stages: Record<string, number> = {};
@@ -61,7 +63,8 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   };
   const fromWrite = (written: WriteOutcomeV1) => {
     Object.assign(stages, written.stages);
-    const read: ReadResultV1 = { ...result(written.outcome, written.code, written.savedToWrittenMs, written.memory), workbook };
+    const read: ReadResultV1 = { ...result(written.outcome, written.code, written.savedToWrittenMs, written.memory), workbook,
+      ...(written.heldStudents === undefined ? {} : { heldStudents: written.heldStudents }) };
     return written.relationChanged ? { ...read, relationChanged: true } : read;
   };
   let workbook: ReadResultV1['workbook'];
@@ -77,7 +80,8 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   const openLocal = () => {
     opening ??= Promise.resolve().then(() => ports.openDatabase()).then((database) => database, () => null);
     const year = input.expectedYear;
-    if (!earlyRelation && year !== null) {
+    // The Relação file itself never needs the Relação read ahead (issue #1426, 12c).
+    if (!earlyRelation && year !== null && !RELATION_FILE_NAME_V1.test(input.name)) {
       const relationNames = ports.services?.relationNames ?? relationNamesV1;
       earlyRelation = opening.then((database) => (database ? relationNames(database, year) : null))
         .then((relation) => { stages.relationReady = Math.round(ports.now() - started); return relation; })

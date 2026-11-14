@@ -42,6 +42,8 @@ export const oneDriveSyncFileSchemaV1 = z.object({
   lastReadAt: z.number().nullable(),
   lastReadMs: z.number().nullable(),
   lastSavedToWrittenMs: z.number().nullable(),
+  /** Students the last read held by the Relação checks (absent when none). */
+  heldStudents: z.number().int().min(0).optional(),
 });
 
 export const oneDriveSyncStatusSchemaV1 = z.object({

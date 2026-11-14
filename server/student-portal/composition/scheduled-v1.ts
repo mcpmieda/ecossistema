@@ -10,10 +10,11 @@ const PRUNE_CLOCK_V1 = new Intl.DateTimeFormat('en-GB', {
 
 /** Retention is the only scheduled work (privacy, reconciliation leftovers and publication editions
  * no target can reach); scoped releases are read on demand. */
-export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<void> {
+export async function portalScheduledV1(env: PortalCompositionEnvV1, scheduledTime?: number): Promise<void> {
   if (env.PORTAL_ENVIRONMENT !== 'production' || env.PORTAL_SERVING_ENABLED !== 'true') return;
-  // Read when the run starts: the connection and the cleanups below may carry it past 00:01.
-  const pruneDue = PRUNE_CLOCK_V1.format(new Date()) === '00:00';
+  // The minute the cron was due, not when this run started: the request that carries the run
+  // (issue #1426, 32) or the connection may push it past 00:01 and skip the day's pruning.
+  const pruneDue = PRUNE_CLOCK_V1.format(new Date(scheduledTime ?? Date.now())) === '00:00';
   try {
     await portalDatabaseV1(env, 'cleanup', async (sql) => {
       // Each family is its own single-statement transaction; sent together they share the round
