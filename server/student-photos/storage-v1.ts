@@ -37,7 +37,9 @@ export type PhotoStorageActionV1 =
 export class PhotoStorageV1 {
   constructor(private readonly serviceKey: string | undefined,
     private readonly authorize: (action: PhotoStorageActionV1) => Promise<void>,
-    private readonly fetcher: typeof fetch = fetch) {
+    private readonly fetcher: typeof fetch = fetch,
+    /** Portal reads only (owner decision 14/11/2026): a copy kept by the Worker, see read(). */
+    private readonly cache?: Cache) {
     if (!serviceKey || serviceKey.length < 40) throw new Error('student-photo-storage-unavailable');
   }
 
@@ -63,7 +65,13 @@ export class PhotoStorageV1 {
     const asset = photoAssetV1.parse(assetInput);
     if (asset.driveId !== PHOTO_BUCKET_V1 || asset.etag !== asset.sha256)
       throw new PhotoWriteErrorV1('invalid');
-    const response = await this.request(this.objectUrl(asset.itemId, true), 'GET', signal);
+    const url = this.objectUrl(asset.itemId, true);
+    // Each Storage read takes ~270 ms (median; ~550 ms p90, Supabase edge logs 14/11/2026). The bytes are
+    // kept in the Worker's own cache, keyed by their SHA-256: never sent to a browser or shared cache,
+    // served only after the database authorized this very object, and verified again below.
+    const key = this.cache ? new Request(`https://student-photo-cache.invalid/${asset.sha256}`) : null;
+    const cached = key ? await this.cache!.match(key).catch(() => undefined) : undefined;
+    const response = cached ?? await this.request(url, 'GET', signal);
     if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 131072) {
       if (await missingObject(response)) throw new PhotoStorageAbsentV1('student-photo-storage-absent');
       throw new Error(`student-photo-storage-read-${response.status}`);
@@ -75,8 +83,14 @@ export class PhotoStorageV1 {
       const shape = probePhotoSourceV1(bytes);
       if (shape.type !== 'image/webp' || shape.width !== asset.width || shape.height !== asset.height)
         throw new Error('student-photo-storage-integrity');
+      if (key && !cached) await this.cache!.put(key, new Response(bytes.slice(), {
+        headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'max-age=86400' } })).catch(() => undefined);
       return bytes;
-    } catch (error) { bytes.fill(0); throw error; }
+    } catch (error) {
+      bytes.fill(0);
+      if (key && cached) await this.cache!.delete(key).catch(() => undefined);
+      throw error;
+    }
   }
   async upload(input: Parameters<PhotoWritePortsV1['upload']>[0]): Promise<PhotoAssetV1> {
     const { context, requestId, variant, metadata, signal } = input;
