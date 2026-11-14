@@ -208,6 +208,7 @@ function readHereV1(env: NotasSyncEnvV1, input: ProcessWorkbookInputV1): Promise
       return createGradebookPostgresDatabaseV1(connectionString);
     },
     writeTurn: (work) => withWriteTurnV1(env, work),
+    actorId: env.GRAPH_CLIENT_ID,
     notifyPortal: async () => {
       // The app identity is the technical author of the sync; the Portal outbox stays authoritative.
       await env.PORTAL_SERVICE?.drainLive?.({

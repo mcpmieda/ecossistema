@@ -67,6 +67,8 @@ export type WritePortsV1 = {
   readonly earlyRelation?: Promise<ReadonlyMap<string, string> | null> | null;
   /** Tag for the write metrics log. */
   readonly source?: string;
+  /** Technical author of the sync (the app identity): lets the database list each doubtful class move. */
+  readonly actorId?: string;
 };
 
 /** The system's Relação of a year: number in the class → the student's name. */
@@ -82,13 +84,13 @@ export async function relationNamesV1(database: GradebookPostgresDatabaseV1, yea
   return new Map(rows.map((row) => [studentKeyV1(String(row.codigo), Number(row.numero)), String(row.nome)]));
 }
 
-function officialServicesV1(source: string): WriteServicesV1 {
+function officialServicesV1(source: string, actorId?: string): WriteServicesV1 {
   return {
     recordAudit: (database, audit) => replaceGradebookImportDiagnosticsSnapshotV1(database, audit),
     persist: async (database, request) => {
       // Numbers only (statements, rows, milliseconds): where the write spends its time.
       const observer = createImportPerformanceObserverV1();
-      const response = await createGradebookRelationalImportServiceV11(observer.wrap(database), observer).execute(request);
+      const response = await createGradebookRelationalImportServiceV11(observer.wrap(database), observer, actorId).execute(request);
       emitImportPerformanceV1({ source, state: response.state, ...observer.snapshot() });
       return response;
     },
@@ -135,7 +137,9 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
   const stage = (name: string) => { const at = ports.now(); stages[name] = Math.round(at - mark); mark = at; };
   const done = (outcome: ReadResultV1['outcome'], code: string | null, savedToWrittenMs: number | null = null,
     memory?: SyncMemoryV1 | null): WriteOutcomeV1 => ({ outcome, code, savedToWrittenMs, stages, ...(memory === undefined ? {} : { memory }) });
-  const services = ports.services ?? officialServicesV1(ports.source ?? 'notas-sync');
+  const services = ports.services ?? officialServicesV1(ports.source ?? 'notas-sync', ports.actorId);
+  // A Relação already committed: even if a later step fails, the year's workbooks must be read again.
+  let relationCommitted = false;
   const { database } = ports;
   const previous = input.memory;
   const expectedYear = input.expectedYear;
@@ -162,7 +166,9 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
     // move the database cannot pair by itself holds this Relação and becomes an Auditoria finding.
     if (prepared.request.operation === 'persist-relacao') {
       const relation = prepared.request;
-      const print = await fingerprintV1(relation);
+      // Academic content only: a save that changes nothing but the file bytes is not written again.
+      const { manifest: _manifest, ...content } = relation;
+      const print = await fingerprintV1(content);
       if (previous?.offers[RELATION_KEY_V1] === print) {
         const auditPrint = await writeAudit(prepared.audit);
         return done('no-changes', null, null, { audit: auditPrint, offers: { [RELATION_KEY_V1]: print } });
@@ -170,6 +176,7 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
       const response = await turn(() => withLockRetryV1(() => services.persist(database, relation), ports.sleep));
       stage('persist');
       if (response.state === 'unavailable') return done('failed', 'DATABASE-UNAVAILABLE');
+      relationCommitted = response.state === 'applied';
       const review = response.state === 'review-required'
         ? relationReviewItemsV1(prepared.audit.fileName, response.reason, response.movementReview) : [];
       const auditPrint = await writeAudit({ ...prepared.audit, diagnostics: [...prepared.audit.diagnostics, ...review] });
@@ -225,6 +232,7 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
     const failure = cause as { name?: unknown; code?: unknown } | null;
     console.error(JSON.stringify({ event: 'notas-sync-database-write', name: String(failure?.name ?? 'unknown').slice(0, 60),
       code: typeof failure?.code === 'string' ? failure.code.slice(0, 10) : null }));
-    return done('failed', 'DATABASE-WRITE');
+    const failed = done('failed', 'DATABASE-WRITE');
+    return relationCommitted ? { ...failed, relationChanged: true } : failed;
   }
 }

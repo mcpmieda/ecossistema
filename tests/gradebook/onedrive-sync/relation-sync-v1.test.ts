@@ -77,6 +77,23 @@ describe('the Relação through the OneDrive sync', () => {
     expect(audits[0]!.diagnostics.map((item) => item.code)).toEqual(['class-move-review']);
   });
 
+  it('a save that changes only the file bytes (manifest) is not written again', async () => {
+    const first = portsV1({ transportVersion: 9, state: 'applied' } as GradebookImportPersistenceResponseV9);
+    const withManifest = { ...relation, manifest: { sha256: 'a' } } as unknown as GradebookImportPersistenceRequestV9;
+    const { memory } = await writePreparedWorkbookV1(input, { ...prepared, request: withManifest }, first.ports);
+    const again = portsV1({ transportVersion: 9, state: 'applied' } as GradebookImportPersistenceResponseV9);
+    const resaved = { ...relation, manifest: { sha256: 'b' } } as unknown as GradebookImportPersistenceRequestV9;
+    expect((await writePreparedWorkbookV1({ ...input, memory: memory! }, { ...prepared, request: resaved }, again.ports)).outcome).toBe('no-changes');
+    expect(again.persist).not.toHaveBeenCalled();
+  });
+
+  it('a Relação committed before a later failure still asks the year to be read again', async () => {
+    const { ports } = portsV1({ transportVersion: 9, state: 'applied' } as GradebookImportPersistenceResponseV9);
+    ports.services.recordAudit = async () => { throw Object.assign(new Error('down'), { code: '08006' }); };
+    const written = await writePreparedWorkbookV1(input, prepared, ports);
+    expect(written).toMatchObject({ outcome: 'failed', code: 'DATABASE-WRITE', relationChanged: true });
+  });
+
   it('findings follow the Auditoria contract, with or without the pairs', () => {
     const groups = [{ origins: [{ classCode: '7C', number: 2, name: 'X'.repeat(300) }], destinations: [{ classCode: '7D', number: 9, name: 'Y' }] }];
     for (const items of [relationReviewItemsV1('R.xlsb', 'Confira os alunos.', { digest: 'd', groups }), relationReviewItemsV1('R.xlsb', 'Confira.', undefined)]) {

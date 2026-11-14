@@ -231,7 +231,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         this.setMeta('activeYear', latestYearV1(sources));
         // Its files leave the list; grades already written stay as they are.
         for (const file of this.files()) {
-          if (file.sourceId === command.itemId && file.state !== 'reading') this.ctx.storage.sql.exec('DELETE FROM files WHERE id = ?', file.id);
+          if (file.sourceId !== command.itemId) continue;
+          // A read in progress ends as removed (never requeued); the rest leave at once.
+          if (file.state === 'reading') this.saveFile({ ...file, removed: true, dirty: false });
+          else this.ctx.storage.sql.exec('DELETE FROM files WHERE id = ?', file.id);
         }
         break;
       }
@@ -374,7 +377,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const file = next ?? current;
       if (!file) continue;
       const retag = source !== null && (file.sourceId !== source.itemId || file.year !== source.year);
-      if (next || retag) this.saveFile(source ? { ...file, sourceId: source.itemId, year: source.year } : file);
+      // Another year for a file already read (its source's year was corrected): read it again whole.
+      const yearChanged = source !== null && file.year !== undefined && file.year !== source.year;
+      const kept = yearChanged ? rereadFileV1(file, now) : file;
+      if (next || retag) this.saveFile(source ? { ...kept, sourceId: source.itemId, year: source.year } : kept);
     }
   }
 
@@ -392,8 +398,13 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const driveId = await this.driveId();
     const listed: DriveWorkbookV1[] = [];
     for (const source of Object.values(this.sources())) {
-      if (source.kind === 'folder') listed.push(...await graphFolderWorkbooksV1(this.env, driveId, source.itemId));
-      else {
+      if (source.kind === 'folder') {
+        // A folder deleted in OneDrive: its files are marked removed below; the other sources go on.
+        listed.push(...await graphFolderWorkbooksV1(this.env, driveId, source.itemId).catch((cause: unknown) => {
+          if (graphStatusV1(cause) === 404) return [];
+          throw cause;
+        }));
+      } else {
         const workbook = await graphWorkbookItemV1(this.env, driveId, source.itemId);
         if (workbook) listed.push(workbook);
       }
@@ -449,7 +460,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.saveFile(finished);
     if (result.relationChanged) {
       // New students may have been left out of workbooks read before: the year's are read again.
-      const others = this.files().filter((other) => other.id !== id && !other.removed && (file.year === undefined || other.year === file.year));
+      const others = this.files().filter((other) => other.id !== id && !other.removed && other.workbook !== 'relacao'
+        && (file.year === undefined || other.year === file.year));
       for (const other of others) this.saveFile(rereadFileV1(other, now));
       this.event('relation-changed', { reread: others.length });
     }

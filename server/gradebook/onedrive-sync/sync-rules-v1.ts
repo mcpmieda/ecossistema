@@ -44,6 +44,8 @@ export type SyncFileV1 = {
   readonly year?: number;
   /** Read again from scratch when the read in progress ends (the Relação changed meanwhile). */
   readonly forget?: boolean;
+  /** What the last read recognised: a teacher grade workbook or the Relação. */
+  readonly workbook?: 'notas' | 'relacao';
 };
 
 /**
@@ -134,6 +136,8 @@ export type ReadResultV1 = {
   readonly memory?: SyncMemoryV1 | null;
   /** A Relação was written with changes: the year's teacher workbooks are read again. */
   readonly relationChanged?: boolean;
+  /** What the read recognised, when it got that far. */
+  readonly workbook?: 'notas' | 'relacao';
 };
 
 /** Applies a finished read. Returns null when the lease is stale (another read owns the file). */
@@ -148,6 +152,7 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
     processedHash: transient ? file.processedHash : (result.readHash ?? file.processedHash),
     memory: file.forget ? null : result.memory === undefined ? (file.memory ?? null) : result.memory,
     ...(file.forget ? { processedHash: null, forget: false } : {}),
+    ...(result.workbook ? { workbook: result.workbook } : {}),
   };
   if (file.removed) return { ...finished, state: 'idle', dirty: false, dueAt: null };
   if (file.dirty) return { ...finished, state: 'pending', dirty: false, dueAt: now };

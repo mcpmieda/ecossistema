@@ -40,6 +40,8 @@ export type ProcessWorkbookPortsV1 = {
   readonly download?: (input: ProcessWorkbookInputV1) => Promise<ArrayBuffer>;
   /** Defaults to the official Auditoria and import services. */
   readonly services?: WriteServicesV1;
+  /** Technical author of the sync (the app identity). */
+  readonly actorId?: string;
 };
 
 /**
@@ -59,9 +61,10 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   };
   const fromWrite = (written: WriteOutcomeV1) => {
     Object.assign(stages, written.stages);
-    const read = result(written.outcome, written.code, written.savedToWrittenMs, written.memory);
+    const read: ReadResultV1 = { ...result(written.outcome, written.code, written.savedToWrittenMs, written.memory), workbook };
     return written.relationChanged ? { ...read, relationChanged: true } : read;
   };
+  let workbook: ReadResultV1['workbook'];
   const writeInput: WriteInputV1 = {
     name: input.name, modifiedAt: input.modifiedAt, expectedYear: input.expectedYear, memory: input.memory ?? null,
   };
@@ -97,6 +100,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
       bytes, fileName: input.name, lastModified: Date.parse(input.modifiedAt) || 0, xlsx: ports.xlsx, now: ports.now,
     });
     if (ready.outcome === 'unreadable') return result('unreadable', ready.code);
+    workbook = ready.outcome === 'ready' && ready.request.operation === 'persist-relacao' ? 'relacao' : 'notas';
     const prepared: PreparedWorkbookV1 = ready.outcome === 'ready'
       ? { outcome: 'ready', request: ready.request, audit: ready.audit, studentNames: [...ready.studentNames] }
       : { outcome: 'blocked', audit: ready.audit };
@@ -107,7 +111,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
     if (!database) return result('failed', 'DATABASE-UNAVAILABLE');
     return fromWrite(await writePreparedWorkbookV1(writeInput, prepared, {
       database, services: ports.services, notifyPortal: ports.notifyPortal, writeTurn: ports.writeTurn,
-      now: ports.now, sleep: ports.sleep, earlyRelation,
+      now: ports.now, sleep: ports.sleep, earlyRelation, actorId: ports.actorId,
     }));
   } finally {
     await (earlyRelation as Promise<unknown> | null);
