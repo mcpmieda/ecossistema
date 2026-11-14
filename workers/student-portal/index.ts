@@ -19,16 +19,12 @@ import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v
 import { connectPortalLiveV1 } from '../../server/student-portal/live/live-connect-v1';
 import { allowPortalLiveDrainV1 } from '../../server/student-portal/composition/live-drain-v1';
 import { dispatchPortalLiveEventsV1 } from '../../server/student-portal/live/live-outbox-v1';
-import {
-  PORTAL_SCHEDULED_PATH_V1,
-  runScheduledNearbyV1,
-  scheduledRequestTimeV1,
-  type PortalScheduledNearbyEnvV1,
-} from '../../server/student-portal/composition/scheduled-nearby-v1';
+type PortalEnvV1 = PortalWorkerEnv & PortalCompositionEnvV1 & {
+  /** 'notas-onedrive-sync': that Worker runs the minute's work next to the database; the cron here rests. */
+  readonly PORTAL_SCHEDULER?: string;
+};
 
-type PortalEnvV1 = PortalWorkerEnv & PortalCompositionEnvV1 & PortalScheduledNearbyEnvV1;
-
-/** The minute's scheduled work; run by the cron or, next to the database, by its own request. */
+/** The minute's scheduled work (retention, live outbox, health history and signals). */
 async function scheduledWorkV1(env: PortalEnvV1, scheduledTime: number): Promise<void> {
   await Promise.all([portalScheduledV1(env), dispatchPortalLiveEventsV1(env).catch(() => 0),
     portalHistoryScheduledV1(env, scheduledTime), portalSignalsScheduledV1(env, scheduledTime)]);
@@ -96,21 +92,27 @@ export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & Po
     return result;
   }
 }
+/**
+ * The minute's work, asked by the notas-onedrive-sync Worker from a request placed in São Paulo
+ * (next to the database): a cron runs wherever Cloudflare starts it and placement does not apply.
+ * Bound only to that Worker; it carries no data in or out.
+ */
+export class PortalSchedulerEntrypoint extends WorkerEntrypoint<PortalEnvV1> {
+  async run(scheduledTime: unknown): Promise<boolean> {
+    if (typeof scheduledTime !== 'number' || !Number.isFinite(scheduledTime)) return false;
+    await scheduledWorkV1(this.env, scheduledTime);
+    return true;
+  }
+}
 // No admin RPC on the default/self capability. Population remains an explicit, separate operation.
 export default {
   async fetch(request, env, ctx) {
-    if (request.method === 'POST' && new URL(request.url).pathname === PORTAL_SCHEDULED_PATH_V1) {
-      const asked = await scheduledRequestTimeV1(request, env);
-      if ('status' in asked) return new Response(null, { status: asked.status });
-      await scheduledWorkV1(env, asked.scheduledTime);
-      return new Response(null, { status: 204 });
-    }
     const response = await serveObservedPortalSelfV1(request, env, (promise) => ctx.waitUntil(promise));
     if (selfMayEnqueueLiveV1(request, response)) ctx.waitUntil(dispatchPortalLiveEventsV1(env).catch(() => undefined));
     return response;
   },
   async scheduled(controller, env) {
-    if (await runScheduledNearbyV1(env, controller.scheduledTime)) return;
+    if (env.PORTAL_SCHEDULER === 'notas-onedrive-sync') return;
     await scheduledWorkV1(env, controller.scheduledTime);
   },
 } satisfies ExportedHandler<PortalEnvV1>;

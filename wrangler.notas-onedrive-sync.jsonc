@@ -30,7 +30,8 @@
   "migrations": [{ "tag": "notas-sync-v1", "new_sqlite_classes": ["NotasSyncCoordinatorV1"] }],
   "services": [
     { "binding": "SELF", "service": "notas-onedrive-sync", "entrypoint": "NotasSyncReaderV1" },
-    { "binding": "PORTAL_SERVICE", "service": "student-portal-production", "entrypoint": "PortalAdminEntrypoint" }
+    { "binding": "PORTAL_SERVICE", "service": "student-portal-production", "entrypoint": "PortalAdminEntrypoint" },
+    { "binding": "PORTAL_SCHEDULER", "service": "student-portal-production", "entrypoint": "PortalSchedulerEntrypoint" }
   ],
   "hyperdrive": [{ "binding": "PROD_DB", "id": "476b417597c84b4c994bd36f1a65cb70" }],
   "vars": {

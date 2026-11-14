@@ -41,12 +41,15 @@ export { NotasSyncCoordinatorV1 };
  *   the public address, so the region placement (aws:sa-east-1) puts it next to the database.
  *   Placement does not apply to the coordinator, the cron or the `SELF` binding.
  * - `NotasSyncReaderV1.fetch`: the same read through `SELF`, used when `/ler` is not available.
+ * - `POST /portal-agendado` (same secret): the Student Portal's minute of work, asked by the cron
+ *   here so it runs in São Paulo too (`PORTAL_SCHEDULER`, see the Portal's PortalSchedulerEntrypoint).
  */
 export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
   NOTAS_SYNC?: DurableObjectNamespace<NotasSyncCoordinatorV1>;
   SELF?: SyncCoordinatorEnvV1['SELF'];
   PROD_DB?: { readonly connectionString: string };
   PORTAL_SERVICE?: PortalAdminServiceBindingV1;
+  PORTAL_SCHEDULER?: { run(scheduledTime: number): Promise<boolean> };
 }
 
 /** One database write at a time across reads (the coordinator keeps the turn). */
@@ -220,16 +223,59 @@ export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
   }
 }
 
+function internalAuthorizedV1(request: Request, env: NotasSyncEnvV1): boolean {
+  const secret = env.NOTAS_SYNC_READ_TOKEN ?? '';
+  const given = request.headers.get('Authorization')?.replace(/^Bearer\s+/u, '') ?? '';
+  return secret.length >= 32 && sameSecretV1(given, secret);
+}
+
 /** `POST /ler`: only the coordinator holds the secret; a wrong or missing one is 401. */
 export async function handleReadRequestV1(request: Request, env: NotasSyncEnvV1,
   read: (input: ProcessWorkbookInputV1) => Promise<ReadResultV1> = (input) => readHereV1(env, input)): Promise<Response> {
-  const secret = env.NOTAS_SYNC_READ_TOKEN ?? '';
-  const given = request.headers.get('Authorization')?.replace(/^Bearer\s+/u, '') ?? '';
-  if (secret.length < 32 || !sameSecretV1(given, secret)) return new Response(null, { status: 401 });
+  if (!internalAuthorizedV1(request, env)) return new Response(null, { status: 401 });
   const input = await request.json().catch(() => null) as ProcessWorkbookInputV1 | null;
   if (!input || typeof input.itemId !== 'string' || typeof input.driveId !== 'string' || typeof input.name !== 'string')
     return new Response(null, { status: 400 });
   return Response.json(await read(input));
+}
+
+const PORTAL_SCHEDULED_PATH_V1 = '/portal-agendado';
+const PORTAL_SCHEDULED_TIMEOUT_MS_V1 = 50_000;
+
+/** `POST /portal-agendado`: runs the Portal's minute here, under the region placement. */
+export async function handlePortalScheduledRequestV1(request: Request, env: NotasSyncEnvV1): Promise<Response> {
+  if (!internalAuthorizedV1(request, env)) return new Response(null, { status: 401 });
+  const body = await request.json().catch(() => null) as { scheduledTime?: unknown } | null;
+  const time = body?.scheduledTime;
+  if (typeof time !== 'number' || !Number.isFinite(time)) return new Response(null, { status: 400 });
+  if (!env.PORTAL_SCHEDULER) return new Response(null, { status: 503 });
+  return new Response(null, { status: (await env.PORTAL_SCHEDULER.run(time)) ? 204 : 400 });
+}
+
+/**
+ * Every minute, the Portal's work: asked through this Worker's public address so it runs next to
+ * the database; when that address refuses before working (401/404/405), asked from here, as far
+ * as the cron is. Any other failure waits for the next minute (it may have started).
+ */
+export async function runPortalScheduledV1(env: NotasSyncEnvV1, scheduledTime: number,
+  publicFetch: typeof fetch = fetch): Promise<'nearby' | 'here' | 'failed' | 'off'> {
+  if (!env.PORTAL_SCHEDULER) return 'off';
+  try {
+    if (env.NOTAS_SYNC_PUBLIC_URL && env.NOTAS_SYNC_READ_TOKEN) {
+      const response = await publicFetch(`${env.NOTAS_SYNC_PUBLIC_URL}${PORTAL_SCHEDULED_PATH_V1}`, {
+        method: 'POST', body: JSON.stringify({ scheduledTime }), signal: AbortSignal.timeout(PORTAL_SCHEDULED_TIMEOUT_MS_V1),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.NOTAS_SYNC_READ_TOKEN}` },
+      });
+      await response.body?.cancel();
+      if (response.ok) return 'nearby';
+      if (![401, 404, 405].includes(response.status)) throw new Error(`portal-scheduled-http-${response.status}`);
+    }
+    await env.PORTAL_SCHEDULER.run(scheduledTime);
+    return 'here';
+  } catch (cause) {
+    console.error(JSON.stringify({ event: 'notas-sync-portal-scheduled-failed', error: String(cause).slice(0, 200) }));
+    return 'failed';
+  }
 }
 
 export default {
@@ -238,9 +284,11 @@ export default {
     if (request.method === 'POST' && pathname === NOTIFICATION_PATH)
       return handleNotificationV1(request, env, (work) => ctx?.waitUntil(work));
     if (request.method === 'POST' && pathname === READ_PATH_V1) return handleReadRequestV1(request, env);
+    if (request.method === 'POST' && pathname === PORTAL_SCHEDULED_PATH_V1) return handlePortalScheduledRequestV1(request, env);
     return new Response('Not found', { status: 404 });
   },
-  async scheduled(_controller, env, ctx) {
+  async scheduled(controller, env, ctx) {
     if (env.NOTAS_SYNC) ctx.waitUntil(coordinatorV1(env).tick());
+    ctx.waitUntil(runPortalScheduledV1(env, controller.scheduledTime));
   },
 } satisfies ExportedHandler<NotasSyncEnvV1>;

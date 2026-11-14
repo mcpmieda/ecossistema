@@ -3,7 +3,7 @@
   "name": "student-portal",
   "main": "workers/student-portal/index.ts",
   "compatibility_date": "2026-09-15",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
   "send_metrics": false,
@@ -47,6 +47,9 @@
         "PORTAL_PHOTOS_ENABLED": "true",
         "PORTAL_PUBLICATION_MODE": "scoped-v2",
         "PORTAL_ORIGIN": "https://aluno.escolaieda.com",
+        // The minute's work is run by notas-onedrive-sync next to the database (PortalSchedulerEntrypoint);
+        // removing this line gives it back to the cron below.
+        "PORTAL_SCHEDULER": "notas-onedrive-sync",
         "PORTAL_ADMIN_TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188"
       },
       "services": [],
