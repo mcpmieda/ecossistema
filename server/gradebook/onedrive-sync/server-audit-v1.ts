@@ -144,14 +144,12 @@ export function relationReviewItemsV1(fileName: string, reason: string,
       fieldKind: 'file', foundValue: reason.slice(0, 240),
     }];
   }
-  return groups.map((group) => {
-    const origin = group.origins[0]!;
-    return {
-      key: `class-move-review|${origin.classCode}|${origin.number}|${group.destinations[0]?.classCode ?? ''}`.slice(0, 320),
-      severity: 'blocking-error' as const, code: 'class-move-review' as const,
-      message: 'Troca de turma que o sistema não conseguiu ligar sozinho.', recommendedAction: action,
-      classCode: origin.classCode.slice(0, 24), studentNumber: origin.number, fieldKind: 'student' as const,
-      foundValue: `${group.origins.map(endpointV1).join(', ')} → ${group.destinations.map(endpointV1).join(', ')}`.slice(0, 240),
-    };
-  });
+  return groups.flatMap((group) => group.origins.map((origin) => ({
+    key: `class-move-review|${origin.classCode}|${origin.number}|${group.destinations[0]?.classCode ?? ''}`.slice(0, 320),
+    severity: 'blocking-error' as const, code: 'class-move-review' as const,
+    message: 'Troca de turma que o sistema não conseguiu ligar sozinho.', recommendedAction: action,
+    classCode: origin.classCode.slice(0, 24), studentNumber: origin.number, fieldKind: 'student' as const,
+    // Where this student may have gone: the system does not guess which one.
+    foundValue: `${endpointV1(origin)} → ${group.destinations.map(endpointV1).join(' ou ')}`.slice(0, 240),
+  })));
 }

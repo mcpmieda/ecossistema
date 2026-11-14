@@ -22,6 +22,8 @@ export const oneDriveSyncRequestSchemaV1 = z.discriminatedUnion('action', [
     path: z.string().min(1).max(400),
   }).strict(),
   z.object({ action: z.literal('remove-source'), itemId: graphIdV1 }).strict(),
+  // A Relação was applied elsewhere (manual import): the year's teacher workbooks are read again.
+  z.object({ action: z.literal('reread-year'), year: yearV1 }).strict(),
 ]);
 export type OneDriveSyncRequestV1 = z.infer<typeof oneDriveSyncRequestSchemaV1>;
 export type OneDriveSyncCommandV1 = Exclude<OneDriveSyncRequestV1, { action: 'status' | 'folders' | 'preview' }>;

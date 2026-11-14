@@ -243,18 +243,31 @@ function pairedSpellingWarningV9(
 function pairUnnamedMovementsV9(
   unmatched: readonly RelationSourceBindingV9[],
   existingByNameClass: ReadonlyMap<string, readonly ExistingRelationBindingV9[]>,
+  existingByBinding: ReadonlyMap<string, ExistingRelationBindingV9>,
   links: MovementLinksV9,
 ): MovementReviewGroupV9[] {
   const reviewGroups = new Map<string, MovementReviewGroupV9>();
   const paired = new Set<number>();
+  // A pair already confirmed: the database binds the exit and the entry to the same student, so
+  // the next import of the same Relação does not ask again (identity checks still apply).
+  const studentAt = (item: RelationSourceBindingV9) => existingByBinding.get(relationBindingKeyV9(item.turmaId, item.numero))?.alunoId;
+  for (const item of unmatched) {
+    if (paired.has(item.index) || item.situacao !== 6 || studentAt(item) === undefined) continue;
+    const confirmed = unmatched.find((other) => !paired.has(other.index) && isReciprocalMovementV9(item, other)
+      && studentAt(other) === studentAt(item));
+    if (!confirmed) continue;
+    links.union.union(item.index, confirmed.index);
+    paired.add(item.index);
+    paired.add(confirmed.index);
+  }
   for (const item of unmatched) {
     if (paired.has(item.index)) continue;
-    const reciprocal = unmatched.filter((other) => isReciprocalMovementV9(item, other));
+    const reciprocal = unmatched.filter((other) => !paired.has(other.index) && isReciprocalMovementV9(item, other));
     if (reciprocal.length === 0) {
       links.externalSeed.set(item.index, externalMovementSeedV9(item, existingByNameClass));
       continue;
     }
-    const sameDirection = unmatched.filter((other) => isSameDirectionMovementV9(item, other));
+    const sameDirection = unmatched.filter((other) => !paired.has(other.index) && isSameDirectionMovementV9(item, other));
     if (reciprocal.length !== 1 || sameDirection.length !== 1) {
       const group = movementReviewGroupV9(item, reciprocal, sameDirection);
       reviewGroups.set(`${group.origins[0]!.turmaId}:${group.destinations[0]!.turmaId}`, group);
@@ -310,6 +323,7 @@ function linkMovementSourcesV9(
   source: readonly RelationSourceBindingV9[],
   sourceByNameClass: ReadonlyMap<string, readonly RelationSourceBindingV9[]>,
   existingByNameClass: ReadonlyMap<string, readonly ExistingRelationBindingV9[]>,
+  existingByBinding: ReadonlyMap<string, ExistingRelationBindingV9>,
   choices: readonly GradebookRelationMovementPairV9[] | undefined,
 ): MovementLinksV9 {
   const links: MovementLinksV9 = {
@@ -318,7 +332,7 @@ function linkMovementSourcesV9(
     warnings: [],
   };
   const unmatched = linkNamedMovementsV9(source, sourceByNameClass, links.union);
-  const groups = pairUnnamedMovementsV9(unmatched, existingByNameClass, links);
+  const groups = pairUnnamedMovementsV9(unmatched, existingByNameClass, existingByBinding, links);
   if (groups.length > 0 && choices === undefined) throw movementReviewErrorV9(groups);
   if (choices !== undefined) applyMovementChoicesV9(groups, choices, links);
   return links;
@@ -372,7 +386,7 @@ export function buildRelationPlanV9(
   const indexes = indexExistingBindingsV9(existing);
   const source = materializeSourceBindingsV9(request, classes);
   const sourceByNameClass = indexSourceByNameClassV9(source);
-  const linked = linkMovementSourcesV9(source, sourceByNameClass, indexes.byNameClass, request.movementReview?.pairs);
+  const linked = linkMovementSourcesV9(source, sourceByNameClass, indexes.byNameClass, indexes.byBinding, request.movementReview?.pairs);
   const components = [...groupComponentsV9(source, linked.union).values()].map((items) =>
     buildComponentV9(items, indexes.byBinding, linked.externalSeed),
   );

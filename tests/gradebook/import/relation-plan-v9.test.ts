@@ -217,6 +217,31 @@ describe('relation movement planner V9', () => {
     }));
   });
 
+  it('pairs already confirmed (both positions bound to one student) are not asked again', () => {
+    const bound = (turmaId: number, numero: number, alunoId: number, situacao: 6 | 7, nome: string): ExistingRelationBindingV9 =>
+      ({ turmaId, numero, alunoId, situacao, turmaRelacionadaId: turmaId === 10 ? 20 : 10, nome });
+    const existing = [bound(10, 1, 100, 6, 'SINTETICO UM'), bound(20, 4, 100, 7, 'SINTETICO CORRIGIDO UM'),
+      bound(10, 2, 200, 6, 'SINTETICO DOIS'), bound(20, 3, 200, 7, 'SINTETICO CORRIGIDO DOIS')];
+    const plan = buildRelationPlanV9(request(
+      [[1, 'SINTETICO UM', 6, '6B'], [2, 'SINTETICO DOIS', 6, '6B']],
+      [[3, 'SINTETICO CORRIGIDO DOIS', 7, '6A'], [4, 'SINTETICO CORRIGIDO UM', 7, '6A']],
+    ), classes, existing);
+    expect(plan.components.map((component) => [component.seedAlunoId, component.items.map((item) => item.numero)]))
+      .toEqual(expect.arrayContaining([[100, [1, 4]], [200, [2, 3]]]));
+    expect(plan.warnings).toEqual([]);
+  });
+
+  it('a new doubtful pair next to a confirmed one is still asked', () => {
+    const existing: ExistingRelationBindingV9[] = [
+      { turmaId: 10, numero: 1, alunoId: 100, situacao: 6, turmaRelacionadaId: 20, nome: 'SINTETICO UM' },
+      { turmaId: 20, numero: 4, alunoId: 100, situacao: 7, turmaRelacionadaId: 10, nome: 'SINTETICO CORRIGIDO UM' },
+    ];
+    expect(() => buildRelationPlanV9(request(
+      [[1, 'SINTETICO UM', 6, '6B'], [2, 'SINTETICO DOIS', 6, '6B'], [5, 'SINTETICO TRES', 6, '6B']],
+      [[3, 'SINTETICO CORRIGIDO DOIS', 7, '6A'], [4, 'SINTETICO CORRIGIDO UM', 7, '6A'], [6, 'SINTETICO CORRIGIDO TRES', 7, '6A']],
+    ), classes, existing)).toThrowError(expect.objectContaining({ state: 'review-required' }));
+  });
+
   it('never treats a nonreciprocal unmatched pair as evidence of movement', () => {
     expect(() => buildRelationPlanV9(request(
       [[1, 'SINTETICO ORIGEM', 6, '6B']], [[3, 'SINTETICO OUTRO', 0]],

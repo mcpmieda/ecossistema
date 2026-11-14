@@ -247,6 +247,13 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'set-wait': this.setMeta('settings', { ...settings, waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600) }); break;
       case 'set-parallel': this.setMeta('settings', { ...settings, maxParallel: Math.min(Math.max(Math.round(command.count), 1), 10) }); break;
       case 'read-all': this.setMeta('nightlyRequested', true); break;
+      case 'reread-year': {
+        const now = Date.now();
+        for (const file of this.files()) {
+          if (file.year === command.year && file.workbook !== 'relacao') this.saveFile(rereadFileV1(file, now));
+        }
+        break;
+      }
       case 'read-now': {
         const file = this.file(command.fileId);
         if (file && file.state !== 'reading') this.saveFile({ ...file, state: 'pending', dueAt: Date.now(), processedHash: null, memory: null });
@@ -281,7 +288,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.setMeta('sources', migrated);
     if (folder) {
       for (const file of this.files()) {
-        if (file.sourceId === undefined) this.saveFile({ ...file, sourceId: folder.folderId, year: file.year ?? folder.year });
+        if (file.sourceId !== undefined) continue;
+        const tied = { ...file, sourceId: folder.folderId, year: file.year ?? folder.year };
+        this.saveFile(file.lastOutcome === 'ignored' ? rereadFileV1(tied, Date.now()) : tied);
       }
     }
     return migrated;
@@ -345,7 +354,12 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const graphAllowed = now >= this.meta('graphBackoffUntil', 0) && (breakerUntil === null || breakerUntil <= now);
     if (!graphAllowed) return;
     try {
-      if (this.meta('nightlyRequested', false)) await this.fullCheck(now);
+      if (this.meta('nightlyRequested', false)) {
+        await this.fullCheck(now).catch((cause: unknown) => {
+          this.setMeta('nightlyRequested', true);
+          throw cause;
+        });
+      }
       else if (this.meta('deltaRequested', false) || this.pollDue(now)) await this.deltaCheck(now);
     } catch (cause) {
       if (cause instanceof NoFolderConfiguredError) {
@@ -391,8 +405,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const retag = source !== null && (file.sourceId !== source.itemId || file.year !== source.year);
       // Another year for a file already read (its source's year was corrected): read it again whole.
       const yearChanged = source !== null && file.year !== undefined && file.year !== source.year;
-      const kept = yearChanged ? rereadFileV1(file, now) : file;
-      if (next || retag) this.saveFile(source ? { ...kept, sourceId: source.itemId, year: source.year } : kept);
+      // A workbook the old reader skipped as "not a teacher's" (the Relação) is read for real once.
+      const kept = yearChanged || file.lastOutcome === 'ignored' ? rereadFileV1(file, now) : file;
+      if (next || retag || kept !== file) this.saveFile(source ? { ...kept, sourceId: source.itemId, year: source.year } : kept);
     }
   }
 
@@ -407,6 +422,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   /** Nightly safety net: every source against what was processed, plus a fresh delta cursor. */
   private async fullCheck(now: number): Promise<void> {
+    // Taken now: a request made while this check awaits Graph (a source added) stays for the next one.
+    this.setMeta('nightlyRequested', false);
     const driveId = await this.driveId();
     const listed: DriveWorkbookV1[] = [];
     for (const source of Object.values(this.sources())) {
@@ -430,7 +447,6 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     }
     const delta = await graphDriveDeltaV1(this.env, driveId, null);
     this.setMeta('deltaLink', delta.deltaLink);
-    this.setMeta('nightlyRequested', false);
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
     this.event('full-check', { files: listed.length });

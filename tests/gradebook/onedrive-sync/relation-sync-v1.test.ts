@@ -74,7 +74,8 @@ describe('the Relação through the OneDrive sync', () => {
     expect(written.relationChanged).toBeUndefined();
     expect(written.memory?.offers).toEqual({});
     expect(notifyPortal).not.toHaveBeenCalled();
-    expect(audits[0]!.diagnostics.map((item) => item.code)).toEqual(['class-move-review']);
+    expect(audits[0]!.diagnostics.map((item) => [item.code, (item as { studentNumber?: number }).studentNumber]))
+      .toEqual([['class-move-review', 12], ['class-move-review', 13]]);
   });
 
   it('a save that changes only the file bytes (manifest) is not written again', async () => {
