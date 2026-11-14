@@ -68,7 +68,7 @@ const OFFICIAL_SERVICES_V1: NonNullable<ProcessWorkbookPortsV1['services']> = {
   persist: async (database, request) => {
     // Numbers only (statements, rows, milliseconds): where the write spends its time.
     const observer = createImportPerformanceObserverV1();
-    const response = await createGradebookRelationalImportServiceV11(database, observer).execute(request);
+    const response = await createGradebookRelationalImportServiceV11(observer.wrap(database), observer).execute(request);
     emitImportPerformanceV1({ source: 'notas-sync', state: response.state, ...observer.snapshot() });
     return response;
   },
