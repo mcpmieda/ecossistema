@@ -326,6 +326,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       folders: sources.filter((source) => source.kind === 'folder').map((source) => ({
         year: source.year, folderId: source.itemId, folderPath: source.path, setBy: source.setBy, setAt: source.setAt })),
       sources,
+      codeVersion: this.env.CF_VERSION_METADATA?.id.slice(0, 8) ?? null,
       breakerUntil: this.meta<number | null>('breakerUntil', null),
       webhook: { active: subscription !== null, expiresAt: subscription?.expiresAt ?? null },
       lastDeltaAt: this.meta<number | null>('lastDeltaAt', null),

@@ -60,6 +60,8 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
     itemId: z.string(), kind: z.enum(['folder', 'file']), path: z.string(), year: yearV1, setBy: z.string(), setAt: z.number(),
   })).optional(),
   breakerUntil: z.number().nullable(),
+  /** The deployed code version the coordinator runs (first 8 characters), when known. */
+  codeVersion: z.string().max(64).nullable().optional(),
   webhook: z.object({ active: z.boolean(), expiresAt: z.string().nullable() }),
   lastDeltaAt: z.number().nullable(),
   files: z.array(oneDriveSyncFileSchemaV1),
