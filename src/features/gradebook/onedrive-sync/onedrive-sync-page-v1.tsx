@@ -287,6 +287,7 @@ function SyncHeader({ status, sources, busy, send }: Readonly<{
           <p className="mt-1 text-xs text-muted">
             {status.webhook.active ? `Aviso da Graph ativo até ${time(Date.parse(status.webhook.expiresAt ?? '') || null)}` : 'Sem aviso da Graph: a pasta é conferida a cada minuto'}
             {sources > 0 ? ` · ${sources} fonte(s) de leitura` : ''}
+            {status.codeVersion ? ` · versão ${status.codeVersion}` : ''}
           </p>
         </div>
       </div>
