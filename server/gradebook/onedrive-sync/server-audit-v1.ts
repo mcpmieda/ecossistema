@@ -65,6 +65,29 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
   const items: GradebookImportDiagnosticAuditItemV1[] = [];
   const ofertas = request.ofertas.map((offer) => {
     const held = new Set<number>();
+    // A student the system's Relação does not have for this class: the database would refuse
+    // the whole file, so only that student is left out (and shown in the Auditoria).
+    const missing = new Set<number>();
+    if (relationNames.size > 0) {
+      const numbers = new Set([...offer.trimestres.flatMap((term) => term.alunos.map(([numero]) => numero)),
+        ...(offer.recuperacao ?? []).map(([numero]) => numero)]);
+      for (const numero of numbers) {
+        if (relationNames.has(studentKeyV1(offer.turmaCodigo, numero))) continue;
+        missing.add(numero);
+        items.push({
+          key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(0, 320),
+          severity: 'blocking-error',
+          code: 'student-not-in-relation',
+          message: 'Aluno da planilha não está na Relação do sistema.',
+          recommendedAction: 'Envie a Relação atualizada ao sistema ou confira o número na planilha. As notas deste aluno não foram lançadas.',
+          classCode: offer.turmaCodigo,
+          subject: offer.disciplina,
+          studentNumber: numero,
+          fieldKind: 'student',
+          ...(sheetNames.get(studentKeyV1(offer.turmaCodigo, numero)) ? { foundValue: sheetNames.get(studentKeyV1(offer.turmaCodigo, numero))!.slice(0, 240) } : {}),
+        });
+      }
+    }
     for (const [numero] of offer.trimestres[0].alunos) {
       const key = studentKeyV1(offer.turmaCodigo, numero);
       const sheetName = sheetNames.get(key);
@@ -84,16 +107,17 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
         foundValue: sheetName.slice(0, 240),
       });
     }
-    if (held.size === 0) return offer;
+    if (held.size === 0 && missing.size === 0) return offer;
     const holdRow = <T extends readonly [number, ...unknown[]]>(row: T, hold: (row: T) => T) => (held.has(row[0]) ? hold(row) : row);
+    const present = <T extends readonly [number, ...unknown[]]>(row: T) => !missing.has(row[0]);
     return {
       ...offer,
       trimestres: offer.trimestres.map((term) => ({
         ...term,
-        alunos: term.alunos.map((row) => holdRow(row, ([numero, values]) =>
+        alunos: term.alunos.filter(present).map((row) => holdRow(row, ([numero, values]) =>
           [numero, values.map((): GradebookImportCellV9 => HELD), HELD] as unknown as typeof row)),
       })) as unknown as typeof offer.trimestres,
-      recuperacao: offer.recuperacao?.map((row) => holdRow(row, ([numero]) =>
+      recuperacao: offer.recuperacao?.filter(present).map((row) => holdRow(row, ([numero]) =>
         [numero, HELD, HELD, HELD, HELD] as unknown as typeof row)) ?? null,
     };
   });

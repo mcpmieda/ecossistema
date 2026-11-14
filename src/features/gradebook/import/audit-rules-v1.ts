@@ -139,11 +139,11 @@ function auditTermSheet(sheet: GradeSheetRecognition, findings: AuditFindingV1[]
   }
 
   // 6. The activities' maxima add up to more than the qualitative ceiling: the teacher's
-  // distribution is wrong and the Auditoria shows it, but nothing is held while no student's
-  // activities pass the ceiling (rule 4 holds those).
+  // distribution is wrong, so every AM of the sheet is held until the spreadsheet is fixed.
   const ceiling = facts?.qualitativeCeiling ?? null;
   if (positive(ceiling) && maximaSum > ceiling + 1e-9) {
-    findings.push({ code: 'qualitative-maxima-over-ceiling', blocking: false, sheet, cellAddress: 'AK3',
+    for (const student of sheet.students) holdResult(student.row);
+    findings.push({ code: 'qualitative-maxima-over-ceiling', blocking: true, sheet, cellAddress: 'AK3',
       foundValue: String(maximaSum), cause: `Teto qualitativo: ${ceiling}.` });
   }
 

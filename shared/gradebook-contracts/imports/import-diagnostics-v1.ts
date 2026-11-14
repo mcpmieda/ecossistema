@@ -38,6 +38,7 @@ export const GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1 = [
   'grade-without-student',
   'wrong-year',
   'student-name-mismatch',
+  'student-not-in-relation',
 ] as const;
 export type GradebookImportDiagnosticCodeV1 =
   (typeof GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1)[number];
