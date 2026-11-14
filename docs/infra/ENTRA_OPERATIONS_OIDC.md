@@ -86,7 +86,9 @@ Este repositório foi criado depois de 15/07/2026 e usa o formato OIDC imutável
 
 - **Issuer:** `https://token.actions.githubusercontent.com`
 - **Audience:** `api://AzureADTokenExchange`
-- **Subject:** `repo:mcpmieda@268288370/ecossistema-escola@1345061518:ref:refs/heads/main`
+- **Subject:** `repo:mcpmieda@268288370/ecossistema@1345061518:ref:refs/heads/main`
+
+O subject inclui o **nome** do repositório. Depois que o repositório foi renomeado de `ecossistema-escola` para `ecossistema`, a troca OIDC passou a falhar (401) até a credencial federada ser atualizada com o nome novo (os IDs não mudam).
 
 Criar essa Federated Credential no App Registration cujo Client ID está em `ENTRA_OPERATIONS_CLIENT_ID`.
 
