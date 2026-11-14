@@ -11,7 +11,7 @@ vi.mock('cloudflare:workers', () => ({
   DurableObject: class {},
 }));
 
-const { default: worker, handleAdminV1, handleNotificationV1, handleReadRequestV1, sameSecretV1 } = await import('../../../workers/notas-onedrive-sync/index');
+const { default: worker, handleAdminV1, handleNotificationV1, handleReadRequestV1, handlePortalScheduledRequestV1, runPortalScheduledV1, sameSecretV1 } = await import('../../../workers/notas-onedrive-sync/index');
 const { readFileForTestsV1 } = await import('../../../server/gradebook/onedrive-sync/sync-coordinator-v1');
 type Env = Parameters<typeof handleNotificationV1>[1];
 
@@ -153,5 +153,53 @@ describe('read through the public address (next to the database)', () => {
     await expect(readFileForTestsV1(env(self()), input, failed as unknown as typeof fetch)).rejects.toThrow('http-500');
     const noToken = self();
     expect((await readFileForTestsV1({ SELF: noToken }, input, refused as unknown as typeof fetch)).code).toBe('SELF');
+  });
+});
+
+describe('Student Portal minute of work, next to the database', () => {
+  const token = 'p'.repeat(40);
+  const scheduler = (ok = true) => ({ run: vi.fn(async () => ok) });
+  const env = (portal: ReturnType<typeof scheduler> | undefined, extra: Partial<Env> = {}) =>
+    envV1({ NOTAS_SYNC_PUBLIC_URL: origin, NOTAS_SYNC_READ_TOKEN: token, PORTAL_SCHEDULER: portal, ...extra });
+  const answer = (status: number) => vi.fn(async () => new Response(null, { status }));
+
+  it('asks its own address first; the Portal is not called from here', async () => {
+    const portal = scheduler();
+    const publicFetch = answer(204);
+    expect(await runPortalScheduledV1(env(portal), 60_000, publicFetch as unknown as typeof fetch)).toBe('nearby');
+    const [url, init] = publicFetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`${origin}/portal-agendado`);
+    expect(init.body).toBe(JSON.stringify({ scheduledTime: 60_000 }));
+    expect(portal.run).not.toHaveBeenCalled();
+  });
+
+  it('runs it from here when the address refuses before working or there is no secret', async () => {
+    for (const status of [401, 404, 405]) {
+      const portal = scheduler();
+      expect(await runPortalScheduledV1(env(portal), 1, answer(status) as unknown as typeof fetch)).toBe('here');
+      expect(portal.run).toHaveBeenCalledWith(1);
+    }
+    const portal = scheduler();
+    expect(await runPortalScheduledV1(env(portal, { NOTAS_SYNC_READ_TOKEN: undefined }), 2, answer(204) as unknown as typeof fetch)).toBe('here');
+    expect(await runPortalScheduledV1(env(undefined), 2, answer(204) as unknown as typeof fetch)).toBe('off');
+  });
+
+  it('does not repeat a minute that may have started', async () => {
+    const portal = scheduler();
+    expect(await runPortalScheduledV1(env(portal), 1, answer(500) as unknown as typeof fetch)).toBe('failed');
+    const thrown = vi.fn(async () => { throw new Error('timeout'); });
+    expect(await runPortalScheduledV1(env(portal), 1, thrown as unknown as typeof fetch)).toBe('failed');
+    expect(portal.run).not.toHaveBeenCalled();
+  });
+
+  it('the route needs the secret and a finite time', async () => {
+    const post = (auth: string, body: unknown) => new Request(`${origin}/portal-agendado`, {
+      method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${auth}` } });
+    const portal = scheduler();
+    expect((await handlePortalScheduledRequestV1(post('x'.repeat(40), { scheduledTime: 1 }), env(portal))).status).toBe(401);
+    expect((await handlePortalScheduledRequestV1(post(token, { scheduledTime: 'x' }), env(portal))).status).toBe(400);
+    expect(portal.run).not.toHaveBeenCalled();
+    expect((await handlePortalScheduledRequestV1(post(token, { scheduledTime: 120_000 }), env(portal))).status).toBe(204);
+    expect(portal.run).toHaveBeenCalledWith(120_000);
   });
 });
