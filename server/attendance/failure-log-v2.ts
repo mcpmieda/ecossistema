@@ -106,7 +106,8 @@ const FREQUENCY_OPERATIONAL_RECEIPT_DAYS_V2 = 8;
  * Bounded cleanup run by the active computer's heartbeat and by the admin panel,
  * so retention holds without new failures. Batch receipts stay with their evidence.
  * A purged requestId cannot be replayed: every request needs a fresh device proof,
- * and settings/conflict decisions keep their own revision checks.
+ * and settings/conflict decisions keep their own revision checks. The age compares with
+ * statement_timestamp() so the receipt age index is used (issue #1426, 17).
  */
 export async function purgeFrequencyOperationalRowsV2(
   tx: GradebookPostgresTransactionV1,
@@ -114,7 +115,7 @@ export async function purgeFrequencyOperationalRowsV2(
   await purgeFrequencyFailuresV2(tx);
   await tx.executeNative(
     `DELETE FROM attendance.receipt_v2 WHERE ctid IN (
-    SELECT r.ctid FROM attendance.receipt_v2 r WHERE r.recorded_at<clock_timestamp()-make_interval(days=>$1)
+    SELECT r.ctid FROM attendance.receipt_v2 r WHERE r.recorded_at<statement_timestamp()-make_interval(days=>$1)
     AND NOT EXISTS(SELECT 1 FROM attendance.batch_v2 b WHERE b.academic_year=r.academic_year AND b.id=r.request_id)
     LIMIT 500)`,
     [FREQUENCY_OPERATIONAL_RECEIPT_DAYS_V2],

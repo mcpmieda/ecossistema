@@ -15,6 +15,8 @@ beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
+  // Production has had it since migration 0007 (multiyear RR); the read uses the column directly.
+  await pg.exec('ALTER TABLE gradebook.fechamento ADD COLUMN IF NOT EXISTS rec_rr_mask SMALLINT NOT NULL DEFAULT 0;');
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES (1,2026,'A','TURMA SINTETICA',6,'M');

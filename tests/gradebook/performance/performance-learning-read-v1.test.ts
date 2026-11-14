@@ -15,6 +15,8 @@ beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
+  // Production has had it since migration 0007 (multiyear RR); the read uses the column directly.
+  await pg.exec('ALTER TABLE gradebook.fechamento ADD COLUMN IF NOT EXISTS rec_rr_mask SMALLINT NOT NULL DEFAULT 0;');
   // An isolated synthetic database, never production. Null represents an observed blank.
   await pg.exec(`
     ALTER TABLE gradebook.nota ALTER COLUMN valor DROP NOT NULL;

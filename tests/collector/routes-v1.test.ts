@@ -307,3 +307,33 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
     expect((await db.query('SELECT id FROM collector_auth.oauth_grants')).rows).toHaveLength(0);
   });
 });
+
+describe('collector request without maintenance on every call (issue #1426, 13)', () => {
+  it('checks the grants once per isolate and runs the retention cleanup at most once a minute', async () => {
+    const { resetCollectorRuntimeMemoryV1 } = await import('../../server/collector/runtime-v1');
+    resetCollectorRuntimeMemoryV1();
+    const seen: string[] = [];
+    let clock = 1_000_000;
+    const dependencies: CollectorRuntimeDependenciesV1 = {
+      assertion: async () => 'synthetic', now: () => clock,
+      database: async () => ({
+        query: async <T extends Record<string, unknown>>(text: string) => {
+          seen.push(text);
+          return [{ ready: true }] as unknown as T[];
+        },
+        close: async () => undefined,
+      }),
+    };
+    const count = (part: string) => seen.filter((text) => text.includes(part)).length;
+    for (let index = 0; index < 3; index += 1) await createCollectorRuntimeV1(env, dependencies);
+    expect(count('has_schema_privilege')).toBe(1);
+    expect(count('DELETE FROM collector_auth.challenges')).toBe(1);
+    expect(count('WITH expired AS MATERIALIZED')).toBe(3);
+    clock += 60_000;
+    await createCollectorRuntimeV1(env, dependencies);
+    expect(count('DELETE FROM collector_auth.challenges')).toBe(2);
+    await createCollectorRuntimeV1(env, dependencies, { pairingRoute: true });
+    expect(count('DELETE FROM collector_auth.challenges')).toBe(3);
+    resetCollectorRuntimeMemoryV1();
+  });
+});

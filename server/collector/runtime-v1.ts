@@ -41,9 +41,21 @@ export async function createCollectorWithdrawalStoreV1(env:RuntimeEnv,dependenci
     return null;
   }
 }
+/** Issue #1426, 13: the storage check and the cleanups ran before every collector request (5
+ * queries each, ~31 thousand times a day for two computers). The grants do not change between
+ * requests: once seen, they are not asked again in this isolate (if a migration took one away,
+ * the next real query fails and the request answers unavailable, as before). Retiring abandoned
+ * pairings stays on every request (it revokes credentials); the retention cleanup runs on the
+ * pairing pages and otherwise at most once a minute. */
+let collectorStorageReadyV1=false;
+let collectorMaintenanceAtV1=0;
+const COLLECTOR_MAINTENANCE_EVERY_MS_V1=60_000;
+/** For tests: forget what this isolate already checked. */
+export function resetCollectorRuntimeMemoryV1():void{collectorStorageReadyV1=false;collectorMaintenanceAtV1=0;}
 /** Dedicated optional binding/key. No fallback to PROD_DB, SESSION_SECRET,
  * Graph app permissions, browser access tokens or broad delegated scopes. */
-export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:CollectorRuntimeDependenciesV1={}):Promise<CollectorRuntimeV1|null>{
+export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:CollectorRuntimeDependenciesV1={},
+  options:{readonly pairingRoute?:boolean}={}):Promise<CollectorRuntimeV1|null>{
   if(env.COLLECTOR_ENABLED!=='true' || env.OFFICIAL_ORIGIN!=='https://admin.escolaieda.com')return null;
   let db:CollectorDatabaseV1|undefined;
   let stage='database-binding';
@@ -59,15 +71,23 @@ export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:Colle
     stage='database-connection';
     db=await (dependencies.database??database)(connection.connectionString);
     stage='database-privileges';
-    const ready=await db.query<{ready:boolean}>(`SELECT count(*)=4 AND bool_and(has_schema_privilege(current_user,n.oid,'USAGE')
-      AND has_table_privilege(current_user,c.oid,'SELECT') AND has_table_privilege(current_user,c.oid,'INSERT')
-      AND has_table_privilege(current_user,c.oid,'UPDATE')) AS ready FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='collector_auth' AND c.relkind='r' AND c.relname IN ('pairings','challenges','devices','oauth_grants')`,[]);
-    if(ready[0]?.ready!==true)throw new Error('storage-unavailable');
+    if(!collectorStorageReadyV1){
+      const ready=await db.query<{ready:boolean}>(`SELECT count(*)=4 AND bool_and(has_schema_privilege(current_user,n.oid,'USAGE')
+        AND has_table_privilege(current_user,c.oid,'SELECT') AND has_table_privilege(current_user,c.oid,'INSERT')
+        AND has_table_privilege(current_user,c.oid,'UPDATE')) AS ready FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname='collector_auth' AND c.relkind='r' AND c.relname IN ('pairings','challenges','devices','oauth_grants')`,[]);
+      if(ready[0]?.ready!==true)throw new Error('storage-unavailable');
+      collectorStorageReadyV1=true;
+    }
     stage='pairing-cleanup';
     const pairings=new CollectorPairingStoreV1(db),cipher=await CollectorRefreshCipherV1.fromDedicatedKey(key);
+    const now=(dependencies.now??Date.now)();
+    // Security first: an abandoned pairing loses its credentials on the very next request.
     await pairings.retireExpiredUnclaimed();
-    await pairings.purgeFinished();
+    if(options.pairingRoute===true||now-collectorMaintenanceAtV1>=COLLECTOR_MAINTENANCE_EVERY_MS_V1){
+      collectorMaintenanceAtV1=now;
+      await pairings.purgeFinished();
+    }
     // Workerd requires its global receiver when native fetch is stored on a
     // dependency object; calling that unbound method throws Illegal invocation.
     const directory={fetch:dependencies.fetch??globalThis.fetch.bind(globalThis),now:dependencies.now??Date.now,clientAssertion:dependencies.assertion??(()=>createClientAssertion({
