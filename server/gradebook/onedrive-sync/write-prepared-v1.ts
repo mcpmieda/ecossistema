@@ -233,7 +233,7 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
     services: ports.services ?? officialServicesV1(ports.source ?? 'notas-sync', ports.actorId),
     turn: ports.writeTurn ?? (<T,>(work: () => Promise<T>) => work()),
     stage: (name) => { const at = ports.now(); stages[name] = Math.round(at - mark); mark = at; },
-    done: (outcome, code, savedToWrittenMs = null, memory) => ({ outcome, code, savedToWrittenMs, stages, ...(memory === undefined ? {} : { memory }) }),
+    done: (outcome, code, savedToWrittenMs, memory) => ({ outcome, code, savedToWrittenMs: savedToWrittenMs ?? null, stages, ...(memory === undefined ? {} : { memory }) }),
     relationCommitted: false,
   };
   const keptOffers = () => input.memory?.offers ?? {};
