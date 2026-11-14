@@ -44,7 +44,7 @@ it('the ADM reads nothing on a clock (A27)', async () => {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(5 * 60_000);
   });
-  expect(fetcher.mock.calls.length).toBe(first);
+  expect(fetcher.mock.calls).toHaveLength(first);
 });
 
 it('a reading that says the same is not published again (A27)', async () => {

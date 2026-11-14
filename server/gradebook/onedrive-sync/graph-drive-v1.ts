@@ -106,6 +106,14 @@ export async function graphWorkbookItemV1(env: GraphAppEnvV1, driveId: string, i
   }
 }
 
+/** A folder of a children listing, or null for files and malformed items. */
+function childFolderV1(item: { id?: unknown; name?: unknown; folder?: { childCount?: unknown } }):
+  { id: string; name: string; childFolders: number } | null {
+  if (!item.folder || typeof item.id !== 'string' || typeof item.name !== 'string') return null;
+  const childFolders = typeof item.folder.childCount === 'number' ? item.folder.childCount : 0;
+  return { id: item.id, name: item.name, childFolders };
+}
+
 /** Sub-folders of a folder (the drive root when `parentId` is null), for the admin folder picker. */
 export async function graphChildFoldersV1(env: GraphAppEnvV1, driveId: string, parentId: string | null,
   dependencies: GraphDependencies = graphDefaultsV1): Promise<Array<{ id: string; name: string; childFolders: number }>> {
@@ -123,8 +131,8 @@ export async function graphChildFoldersV1(env: GraphAppEnvV1, driveId: string, p
     }>({ env: asEnvV1(env), path: url, token, dependencies });
     if (!Array.isArray(data?.value)) throw new GraphError(502, correlationId);
     for (const item of data.value) {
-      if (!item.folder || typeof item.id !== 'string' || typeof item.name !== 'string') continue;
-      folders.push({ id: item.id, name: item.name, childFolders: typeof item.folder.childCount === 'number' ? item.folder.childCount : 0 });
+      const folder = childFolderV1(item);
+      if (folder) folders.push(folder);
     }
     next = typeof data['@odata.nextLink'] === 'string' ? data['@odata.nextLink'] : null;
   }
@@ -183,6 +191,13 @@ export async function graphDownloadWorkbookV1(env: GraphAppEnvV1, driveId: strin
   const bytes = await response.arrayBuffer();
   if (bytes.byteLength > maxBytes) throw new WorkbookTooLargeError(bytes.byteLength);
   return bytes;
+}
+
+/** The address Graph posts its change notices to (the public URL without trailing slashes). */
+export function notificationUrlV1(publicUrl: string, path: string): string {
+  let end = publicUrl.length;
+  while (end > 0 && publicUrl[end - 1] === '/') end -= 1;
+  return `${publicUrl.slice(0, end)}${path}`;
 }
 
 /** Microsoft caps driveItem subscriptions at 42,300 minutes (~29 days). */

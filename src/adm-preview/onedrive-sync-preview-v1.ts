@@ -87,7 +87,7 @@ function control(command: Record<string, unknown>): void {
 export function previewOneDriveSyncV1(body: string): OneDriveSyncResponseV1 {
   const request = JSON.parse(body) as Record<string, unknown>;
   if (request.action === 'folders') {
-    const key = request.parentId === null ? 'root' : String(request.parentId);
+    const key = typeof request.parentId === 'string' ? request.parentId : 'root';
     return { contractVersion: 1, state: 'folders', parentId: request.parentId as string | null, folders: tree[key] ?? [],
       files: workbooksIn[key] ?? [] };
   }

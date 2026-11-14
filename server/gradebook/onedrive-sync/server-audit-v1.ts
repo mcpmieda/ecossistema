@@ -41,8 +41,9 @@ function nameTokens(name: string): string[] {
 
 function sameToken(a: string, b: string): boolean {
   const initial = (token: string) => token.length === 1 || (token.length === 2 && token.endsWith('.'));
-  if (initial(a) || initial(b)) return a[0] === b[0];
-  return a.replace(/\.$/u, '') === b.replace(/\.$/u, '');
+  if (initial(a) || initial(b)) return a.startsWith(b.charAt(0));
+  const bare = (token: string) => (token.endsWith('.') ? token.slice(0, -1) : token);
+  return bare(a) === bare(b);
 }
 
 /** Same person by first and last name; an abbreviated surname ("S.") matches by its initial. */
@@ -110,20 +111,35 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
       });
     }
     if (held.size === 0 && missing.size === 0) return offer;
-    const holdRow = <T extends readonly [number, ...unknown[]]>(row: T, hold: (row: T) => T) => (held.has(row[0]) ? hold(row) : row);
-    const present = <T extends readonly [number, ...unknown[]]>(row: T) => !missing.has(row[0]);
-    return {
-      ...offer,
-      trimestres: offer.trimestres.map((term) => ({
-        ...term,
-        alunos: term.alunos.filter(present).map((row) => holdRow(row, ([numero, values]) =>
-          [numero, values.map((): GradebookImportCellV9 => HELD), HELD] as unknown as typeof row)),
-      })) as unknown as typeof offer.trimestres,
-      recuperacao: offer.recuperacao?.filter(present).map((row) => holdRow(row, ([numero]) =>
-        [numero, HELD, HELD, HELD, HELD] as unknown as typeof row)) ?? null,
-    };
+    return withHeldAndMissingV1(offer, held, missing);
   });
   return { request: { ...request, ofertas }, items };
+}
+
+type OfferV1 = GradebookNotesImportRequestV9['ofertas'][number];
+type TermRowV1 = OfferV1['trimestres'][number]['alunos'][number];
+type RecoveryRowV1 = NonNullable<OfferV1['recuperacao']>[number];
+
+/** A held student's term row: every value and the result kept as they are in the database. */
+function heldTermRowV1([numero, values]: TermRowV1): TermRowV1 {
+  return [numero, values.map((): GradebookImportCellV9 => HELD), HELD] as unknown as TermRowV1;
+}
+
+function heldRecoveryRowV1([numero]: RecoveryRowV1): RecoveryRowV1 {
+  return [numero, HELD, HELD, HELD, HELD] as unknown as RecoveryRowV1;
+}
+
+/** Leaves out the students missing from the Relação and holds the ones whose name does not match. */
+function withHeldAndMissingV1(offer: OfferV1, held: ReadonlySet<number>, missing: ReadonlySet<number>): OfferV1 {
+  const present = (row: readonly [number, ...unknown[]]) => !missing.has(row[0]);
+  return {
+    ...offer,
+    trimestres: offer.trimestres.map((term) => ({
+      ...term,
+      alunos: term.alunos.filter(present).map((row) => (held.has(row[0]) ? heldTermRowV1(row) : row)),
+    })) as unknown as OfferV1['trimestres'],
+    recuperacao: offer.recuperacao?.filter(present).map((row) => (held.has(row[0]) ? heldRecoveryRowV1(row) : row)) ?? null,
+  };
 }
 
 const endpointV1 = (item: GradebookRelationMovementEndpointV9) => `${item.classCode} nº ${item.number} ${item.name}`.trim();

@@ -98,12 +98,12 @@ function groupByProblem(items: readonly Finding[]): readonly ProblemTab[] {
 }
 
 function StateAlert({ state, year }: { readonly state: 'empty' | 'not-authorized' | 'unavailable'; readonly year: number | null }) {
-  const [status, title, text] =
-    state === 'not-authorized'
-      ? (['warning', 'Acesso não autorizado', 'Sua sessão não pode consultar a Auditoria.'] as const)
-      : state === 'unavailable'
-        ? (['danger', 'Auditoria indisponível', 'Não foi possível ler os problemas agora.'] as const)
-        : (['success', 'Nenhum problema', `As planilhas de ${year ?? 'este ano'} estão sem pendências.`] as const);
+  const alerts = {
+    'not-authorized': ['warning', 'Acesso não autorizado', 'Sua sessão não pode consultar a Auditoria.'],
+    unavailable: ['danger', 'Auditoria indisponível', 'Não foi possível ler os problemas agora.'],
+    empty: ['success', 'Nenhum problema', `As planilhas de ${year ?? 'este ano'} estão sem pendências.`],
+  } as const;
+  const [status, title, text] = alerts[state];
   return (
     <Alert status={status}>
       <Alert.Indicator />

@@ -5,6 +5,7 @@ import type {
 import type {
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
+  GradebookNotesImportRequestV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import { createGradebookRelationalImportServiceV11 } from '../application/import/import-relational-service-v11';
 import {
@@ -105,7 +106,7 @@ const REJECTED_STATES_V1 = new Set<GradebookImportPersistenceResponseV9['state']
 /** A short, stable fingerprint of a JSON value (what was written last, never the value itself). */
 async function fingerprintV1(value: unknown): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)));
-  return [...new Uint8Array(digest).slice(0, 16)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(digest, 0, 16), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /** Lock wait, deadlock and serialization failures: another write of the same year is running. */
@@ -131,108 +132,135 @@ const HEADER_KEY_V1 = '#header';
 const RELATION_KEY_V1 = '#relacao';
 const offerKeyV1 = (offer: { readonly turmaCodigo: string; readonly disciplina: string }) => `${offer.turmaCodigo}|${offer.disciplina}`;
 
+/** What every step of one write shares: the ports, the memory of the last write and the timings. */
+type WriteContextV1 = {
+  readonly input: WriteInputV1;
+  readonly ports: WritePortsV1;
+  readonly services: WriteServicesV1;
+  readonly previous: SyncMemoryV1 | null;
+  readonly turn: <T>(work: () => Promise<T>) => Promise<T>;
+  readonly stage: (name: string) => void;
+  readonly done: (outcome: ReadResultV1['outcome'], code: string | null, savedToWrittenMs?: number | null,
+    memory?: SyncMemoryV1 | null) => WriteOutcomeV1;
+  /** A Relação already committed: even if a later step fails, the year's workbooks must be read again. */
+  relationCommitted: boolean;
+};
+
+/** The Auditoria snapshot is written only when it differs from the last one written. */
+async function writeAuditV1(context: WriteContextV1, audit: GradebookImportDiagnosticsAuditRequestV1): Promise<string> {
+  const print = await fingerprintV1([audit.academicYear, audit.fileName, audit.diagnostics]);
+  if (context.previous?.audit !== print) {
+    await context.turn(() => withLockRetryV1(() => context.services.recordAudit(context.ports.database, audit), context.ports.sleep));
+  }
+  context.stage('audit');
+  return print;
+}
+
+function savedToWrittenMsV1(input: WriteInputV1): number | null {
+  const savedAt = Date.parse(input.modifiedAt);
+  return Number.isFinite(savedAt) ? Math.max(0, Date.now() - savedAt) : null;
+}
+
+/** Applied, unchanged, refused or failed: the outcome of a persistence answer, with the memory to keep. */
+async function persistedOutcomeV1(context: WriteContextV1, response: GradebookImportPersistenceResponseV9,
+  memory: SyncMemoryV1): Promise<WriteOutcomeV1> {
+  if (response.state === 'unavailable') return context.done('failed', 'DATABASE-UNAVAILABLE');
+  if (REJECTED_STATES_V1.has(response.state)) {
+    return context.done('rejected', response.state.toUpperCase(), null, { audit: memory.audit, offers: {} });
+  }
+  if (response.state === 'no-changes') return context.done('no-changes', null, null, memory);
+  await context.ports.notifyPortal().catch(() => undefined);
+  context.stage('notify');
+  return context.done('applied', null, savedToWrittenMsV1(context.input), memory);
+}
+
+/**
+ * The Relação: written whole (it only adds and updates students, never removes them). A class
+ * move the database cannot pair by itself holds this Relação and becomes an Auditoria finding.
+ */
+async function writeRelationV1(context: WriteContextV1, audit: GradebookImportDiagnosticsAuditRequestV1,
+  relation: GradebookImportPersistenceRequestV9): Promise<WriteOutcomeV1> {
+  // Academic content only: a save that changes nothing but the file bytes is not written again.
+  const { manifest: _manifest, ...content } = relation;
+  const print = await fingerprintV1(content);
+  if (context.previous?.offers[RELATION_KEY_V1] === print) {
+    const auditPrint = await writeAuditV1(context, audit);
+    return context.done('no-changes', null, null, { audit: auditPrint, offers: { [RELATION_KEY_V1]: print } });
+  }
+  const { database, sleep } = context.ports;
+  const response = await context.turn(() => withLockRetryV1(() => context.services.persist(database, relation), sleep));
+  context.stage('persist');
+  if (response.state === 'unavailable') return context.done('failed', 'DATABASE-UNAVAILABLE');
+  context.relationCommitted = response.state === 'applied';
+  const review = response.state === 'review-required'
+    ? relationReviewItemsV1(audit.fileName, response.reason, response.movementReview) : [];
+  const auditPrint = await writeAuditV1(context, { ...audit, diagnostics: [...audit.diagnostics, ...review] });
+  if (response.state === 'review-required') return context.done('blocked', 'RELATION-REVIEW', null, { audit: auditPrint, offers: {} });
+  const written = await persistedOutcomeV1(context, response, { audit: auditPrint, offers: { [RELATION_KEY_V1]: print } });
+  return written.outcome === 'applied' ? { ...written, relationChanged: true } : written;
+}
+
+/** A teacher workbook: Relação check (rule 14), Auditoria, then only the classes/subjects that changed. */
+async function writeNotesV1(context: WriteContextV1, prepared: Extract<PreparedWorkbookV1, { outcome: 'ready' }>,
+  request: GradebookNotesImportRequestV9): Promise<WriteOutcomeV1> {
+  const { database, earlyRelation, sleep } = context.ports;
+  const relation = (request.ano === context.input.expectedYear ? await earlyRelation : null)
+    ?? await context.services.relationNames(database, request.ano);
+  const checked = holdNameMismatchesV1(request, new Map(prepared.studentNames), relation);
+  context.stage('relation');
+  const auditPrint = await writeAuditV1(context, {
+    ...prepared.audit, diagnostics: [...prepared.audit.diagnostics, ...checked.items] as GradebookImportDiagnosticAuditItemV1[],
+  });
+  // An offer left out of the request keeps what the database has (canonical V9).
+  const { manifest: _manifest, ofertas, ...header } = checked.request;
+  const offers: Record<string, string> = { [HEADER_KEY_V1]: await fingerprintV1(header) };
+  for (const offer of ofertas) offers[offerKeyV1(offer)] = await fingerprintV1(offer);
+  const previous = context.previous;
+  const known = previous && previous.offers[HEADER_KEY_V1] === offers[HEADER_KEY_V1] ? previous.offers : {};
+  const changed = ofertas.filter((offer) => known[offerKeyV1(offer)] !== offers[offerKeyV1(offer)]);
+  if (changed.length === 0) return context.done('no-changes', null, null, { audit: auditPrint, offers });
+  const sent: GradebookImportPersistenceRequestV9 = { ...checked.request, ofertas: changed };
+  const response = await context.turn(() => withLockRetryV1(() => context.services.persist(database, sent), sleep));
+  context.stage('persist');
+  return persistedOutcomeV1(context, response, { audit: auditPrint, offers });
+}
+
 export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: PreparedWorkbookV1, ports: WritePortsV1): Promise<WriteOutcomeV1> {
   const stages: Record<string, number> = {};
   let mark = ports.now();
-  const stage = (name: string) => { const at = ports.now(); stages[name] = Math.round(at - mark); mark = at; };
-  const done = (outcome: ReadResultV1['outcome'], code: string | null, savedToWrittenMs: number | null = null,
-    memory?: SyncMemoryV1 | null): WriteOutcomeV1 => ({ outcome, code, savedToWrittenMs, stages, ...(memory === undefined ? {} : { memory }) });
-  const services = ports.services ?? officialServicesV1(ports.source ?? 'notas-sync', ports.actorId);
-  // A Relação already committed: even if a later step fails, the year's workbooks must be read again.
-  let relationCommitted = false;
-  const { database } = ports;
-  const previous = input.memory;
-  const expectedYear = input.expectedYear;
-  const turn = ports.writeTurn ?? (<T,>(work: () => Promise<T>) => work());
+  const context: WriteContextV1 = {
+    input, ports, previous: input.memory,
+    services: ports.services ?? officialServicesV1(ports.source ?? 'notas-sync', ports.actorId),
+    turn: ports.writeTurn ?? (<T,>(work: () => Promise<T>) => work()),
+    stage: (name) => { const at = ports.now(); stages[name] = Math.round(at - mark); mark = at; },
+    done: (outcome, code, savedToWrittenMs, memory) => ({ outcome, code, savedToWrittenMs: savedToWrittenMs ?? null, stages, ...(memory === undefined ? {} : { memory }) }),
+    relationCommitted: false,
+  };
+  const keptOffers = () => input.memory?.offers ?? {};
   try {
-    // The Auditoria snapshot is written only when it differs from the last one written.
-    const writeAudit = async (audit: GradebookImportDiagnosticsAuditRequestV1): Promise<string> => {
-      const print = await fingerprintV1([audit.academicYear, audit.fileName, audit.diagnostics]);
-      if (previous?.audit !== print) await turn(() => withLockRetryV1(() => services.recordAudit(database, audit), ports.sleep));
-      stage('audit');
-      return print;
-    };
     // Rule 3: a workbook of another year writes nothing; the Auditoria shows it under the folder's year.
     const foundYear = prepared.audit.academicYear;
-    if (expectedYear !== null && foundYear !== expectedYear) {
-      const audit = await writeAudit(wrongYearAuditV1(prepared.audit, expectedYear, foundYear));
-      return done('blocked', 'WRONG-YEAR', null, { audit, offers: previous?.offers ?? {} });
+    if (input.expectedYear !== null && foundYear !== input.expectedYear) {
+      const audit = await writeAuditV1(context, wrongYearAuditV1(prepared.audit, input.expectedYear, foundYear));
+      return context.done('blocked', 'WRONG-YEAR', null, { audit, offers: keptOffers() });
     }
     if (prepared.outcome === 'blocked') {
-      const audit = await writeAudit(prepared.audit);
-      return done('blocked', 'AUDIT-BLOCKING', null, { audit, offers: previous?.offers ?? {} });
+      const audit = await writeAuditV1(context, prepared.audit);
+      return context.done('blocked', 'AUDIT-BLOCKING', null, { audit, offers: keptOffers() });
     }
-    // The Relação: written whole (it only adds and updates students, never removes them). A class
-    // move the database cannot pair by itself holds this Relação and becomes an Auditoria finding.
-    if (prepared.request.operation === 'persist-relacao') {
-      const relation = prepared.request;
-      // Academic content only: a save that changes nothing but the file bytes is not written again.
-      const { manifest: _manifest, ...content } = relation;
-      const print = await fingerprintV1(content);
-      if (previous?.offers[RELATION_KEY_V1] === print) {
-        const auditPrint = await writeAudit(prepared.audit);
-        return done('no-changes', null, null, { audit: auditPrint, offers: { [RELATION_KEY_V1]: print } });
-      }
-      const response = await turn(() => withLockRetryV1(() => services.persist(database, relation), ports.sleep));
-      stage('persist');
-      if (response.state === 'unavailable') return done('failed', 'DATABASE-UNAVAILABLE');
-      relationCommitted = response.state === 'applied';
-      const review = response.state === 'review-required'
-        ? relationReviewItemsV1(prepared.audit.fileName, response.reason, response.movementReview) : [];
-      const auditPrint = await writeAudit({ ...prepared.audit, diagnostics: [...prepared.audit.diagnostics, ...review] });
-      if (response.state === 'review-required') return done('blocked', 'RELATION-REVIEW', null, { audit: auditPrint, offers: {} });
-      if (REJECTED_STATES_V1.has(response.state)) return done('rejected', response.state.toUpperCase(), null, { audit: auditPrint, offers: {} });
-      const memory: SyncMemoryV1 = { audit: auditPrint, offers: { [RELATION_KEY_V1]: print } };
-      if (response.state === 'no-changes') return done('no-changes', null, null, memory);
-      await ports.notifyPortal().catch(() => undefined);
-      stage('notify');
-      const savedAt = Date.parse(input.modifiedAt);
-      return { ...done('applied', null, Number.isFinite(savedAt) ? Math.max(0, Date.now() - savedAt) : null, memory), relationChanged: true };
-    }
-    // Rule 14: a student whose sheet name is not the Relação's name for that number is held.
-    let request = prepared.request;
-    let audit = prepared.audit;
-    if (request.operation === 'persist-notas') {
-      const relation = (request.ano === expectedYear ? await ports.earlyRelation : null)
-        ?? await services.relationNames(database, request.ano);
-      const checked = holdNameMismatchesV1(request, new Map(prepared.studentNames), relation);
-      stage('relation');
-      request = checked.request;
-      audit = { ...audit, diagnostics: [...audit.diagnostics, ...checked.items] as GradebookImportDiagnosticAuditItemV1[] };
-    }
-    const auditPrint = await writeAudit(audit);
-
-    // Only the classes/subjects that changed since the last write are sent: an offer left out
-    // of the request keeps what the database has (canonical V9).
-    let offers: Record<string, string> = {};
-    if (request.operation === 'persist-notas') {
-      const { manifest: _manifest, ofertas, ...header } = request;
-      offers = { [HEADER_KEY_V1]: await fingerprintV1(header) };
-      for (const offer of ofertas) offers[offerKeyV1(offer)] = await fingerprintV1(offer);
-      const known = previous && previous.offers[HEADER_KEY_V1] === offers[HEADER_KEY_V1] ? previous.offers : {};
-      const changed = ofertas.filter((offer) => known[offerKeyV1(offer)] !== offers[offerKeyV1(offer)]);
-      if (changed.length === 0) return done('no-changes', null, null, { audit: auditPrint, offers });
-      request = { ...request, ofertas: changed };
-    }
-    const sent = request;
-    const response = await turn(() => withLockRetryV1(() => services.persist(database, sent), ports.sleep));
-    stage('persist');
-    if (response.state === 'unavailable') return done('failed', 'DATABASE-UNAVAILABLE');
-    if (REJECTED_STATES_V1.has(response.state)) return done('rejected', response.state.toUpperCase(), null, { audit: auditPrint, offers: {} });
-    const memory: SyncMemoryV1 = { audit: auditPrint, offers };
-    if (response.state === 'no-changes') return done('no-changes', null, null, memory);
-    const savedAt = Date.parse(input.modifiedAt);
-    await ports.notifyPortal().catch(() => undefined);
-    stage('notify');
-    return done('applied', null, Number.isFinite(savedAt) ? Math.max(0, Date.now() - savedAt) : null, memory);
+    const request = prepared.request;
+    return request.operation === 'persist-relacao'
+      ? await writeRelationV1(context, prepared.audit, request)
+      : await writeNotesV1(context, prepared, request);
   } catch (cause) {
     // A snapshot the contract refuses is deterministic: retrying the same bytes cannot help.
-    if (cause instanceof InvalidImportDiagnosticsSnapshotV1) return done('rejected', 'AUDIT-INVALID', null, null);
+    if (cause instanceof InvalidImportDiagnosticsSnapshotV1) return context.done('rejected', 'AUDIT-INVALID', null, null);
     // Only the error kind and Postgres code: a database message can carry values, never logged.
     const failure = cause as { name?: unknown; code?: unknown } | null;
-    console.error(JSON.stringify({ event: 'notas-sync-database-write', name: String(failure?.name ?? 'unknown').slice(0, 60),
+    console.error(JSON.stringify({ event: 'notas-sync-database-write',
+      name: typeof failure?.name === 'string' ? failure.name.slice(0, 60) : 'unknown',
       code: typeof failure?.code === 'string' ? failure.code.slice(0, 10) : null }));
-    const failed = done('failed', 'DATABASE-WRITE');
-    return relationCommitted ? { ...failed, relationChanged: true } : failed;
+    const failed = context.done('failed', 'DATABASE-WRITE');
+    return context.relationCommitted ? { ...failed, relationChanged: true } : failed;
   }
 }

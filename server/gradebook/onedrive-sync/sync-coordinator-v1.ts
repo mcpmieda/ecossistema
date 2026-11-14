@@ -12,6 +12,7 @@ import {
   graphDriveIdV1,
   graphFolderWorkbooksV1,
   graphWorkbookItemV1,
+  notificationUrlV1,
   type DriveWorkbookV1,
   type GraphAppEnvV1,
 } from './graph-drive-v1';
@@ -134,17 +135,18 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   constructor(ctx: DurableObjectState, env: SyncCoordinatorEnvV1) {
     super(ctx, env);
     this.retired = env.NOTAS_SYNC?.idFromName(RETIRED_COORDINATOR_NAME_V1).equals(ctx.id) ?? false;
-    void ctx.blockConcurrencyWhile(async () => {
-      if (this.retired) {
-        await ctx.storage.deleteAlarm();
-        await ctx.storage.deleteAll();
-        return;
-      }
-      this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
-      this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
-      this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
-        at INTEGER NOT NULL, kind TEXT NOT NULL, actor TEXT, detail TEXT NOT NULL)`);
-    });
+    // SQLite in a Durable Object is synchronous: the tables exist before any request runs.
+    if (this.retired) return;
+    this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
+    this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+    this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at INTEGER NOT NULL, kind TEXT NOT NULL, actor TEXT, detail TEXT NOT NULL)`);
+  }
+
+  /** The retired first coordinator erases itself when it wakes and does nothing else. */
+  private async eraseRetired(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
   }
 
   // ---- storage helpers -------------------------------------------------------------
@@ -204,7 +206,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   /** Called every minute by the cron: safety-net delta, nightly check, webhook renewal. */
   async tick(): Promise<void> {
-    if (this.retired || !this.settings().enabled) return;
+    if (this.retired) return this.eraseRetired();
+    if (!this.settings().enabled) return;
     const now = Date.now();
     const webhookActive = this.meta<{ id: string } | null>('subscription', null) !== null;
     const lastDelta = this.meta<number | null>('lastDeltaAt', null);
@@ -325,7 +328,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   // ---- alarm: the work loop --------------------------------------------------------
   override async alarm(): Promise<void> {
-    if (this.retired) return;
+    if (this.retired) return this.eraseRetired();
     const now = Date.now();
     for (const file of expiredLeasesV1(this.files(), now)) {
       await this.finish(file.id, file.lease ?? '', { outcome: 'failed', code: 'LEASE-EXPIRED', readHash: null, readMs: 0, savedToWrittenMs: null });
@@ -524,7 +527,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const driveId = await this.driveId();
       const created = await graphCreateDriveSubscriptionV1(this.env, {
         driveId,
-        notificationUrl: `${this.env.NOTAS_SYNC_PUBLIC_URL.replace(/\/+$/u, '')}/graph/notificacoes`,
+        notificationUrl: notificationUrlV1(this.env.NOTAS_SYNC_PUBLIC_URL, '/graph/notificacoes'),
         clientState: this.env.NOTAS_SYNC_CLIENT_STATE,
         expiresAt: new Date(now + (DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 - 60) * 60_000),
       });

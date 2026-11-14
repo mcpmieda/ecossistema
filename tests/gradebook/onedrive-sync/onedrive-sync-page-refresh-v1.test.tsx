@@ -45,9 +45,9 @@ it('does not read while the page is hidden, and reads again shortly after it com
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
   await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
   await advance(30_000);
-  expect(vi.mocked(requestOneDriveSyncV1).mock.calls.length).toBe(calls);
+  expect(vi.mocked(requestOneDriveSyncV1).mock.calls).toHaveLength(calls);
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
   await advance(1_100);
-  expect(vi.mocked(requestOneDriveSyncV1).mock.calls.length).toBe(calls + 1);
+  expect(vi.mocked(requestOneDriveSyncV1).mock.calls).toHaveLength(calls + 1);
 });

@@ -20,6 +20,13 @@ type AreaErrorBoundaryStateV1 = { readonly failure: RouteLoadFailureV1 | null };
  * the menu and the rest of the Centro remain, with a way to reload. A missing file reloads the
  * page once by itself, as the Banco de notas does.
  */
+/** What the area shows when it fails: an old module after a deploy, the whole Centre, or one area. */
+function failureTextV1(moduleFailure: boolean, whole: boolean): string {
+  if (moduleFailure) return 'Não foi possível carregar esta área. Recarregue a página para obter a versão atual.';
+  if (whole) return 'Ocorreu um erro ao mostrar o Centro. Recarregue a página para continuar.';
+  return 'Ocorreu um erro ao mostrar esta área. O restante do Centro continua disponível.';
+}
+
 export class AreaErrorBoundaryV1 extends Component<AreaErrorBoundaryPropsV1, AreaErrorBoundaryStateV1> {
   override state: AreaErrorBoundaryStateV1 = { failure: null };
 
@@ -45,11 +52,7 @@ export class AreaErrorBoundaryV1 extends Component<AreaErrorBoundaryPropsV1, Are
         <Alert.Content>
           <Alert.Title>{this.props.label} indisponível</Alert.Title>
           <Alert.Description>
-            {moduleFailure
-              ? 'Não foi possível carregar esta área. Recarregue a página para obter a versão atual.'
-              : this.props.whole
-                ? 'Ocorreu um erro ao mostrar o Centro. Recarregue a página para continuar.'
-                : 'Ocorreu um erro ao mostrar esta área. O restante do Centro continua disponível.'}
+            {failureTextV1(moduleFailure, this.props.whole === true)}
           </Alert.Description>
           <div className="mt-3">
             <Button
