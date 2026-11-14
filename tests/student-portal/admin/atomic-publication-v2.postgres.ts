@@ -104,6 +104,9 @@ beforeAll(async () => {
   owner = client();
   admin = owner as unknown as StudentPortalPostgresSqlV1;
   await installAdminReadFixtureV2({ exec: (sql) => owner.unsafe(sql, [], { prepare: false }) }, admin);
+  // Production has had it since student-portal 0018; the scoped source reads the column directly
+  // (issue #1426, 33), as it did through to_jsonb before.
+  await owner.unsafe('ALTER TABLE student_portal.account ADD COLUMN IF NOT EXISTS student_uid uuid', [], { prepare: false });
   await owner.unsafe(`INSERT INTO gradebook.professor(id,ano,nome) VALUES(803001,2026,'SYNTHETIC PRIVATE TEACHER');
     INSERT INTO gradebook.disciplina(id,ano,nome) VALUES(803001,2026,'MATEMATICA');
     INSERT INTO gradebook.oferta(id,ano,turma_id,professor_id,disciplina_id) VALUES(803001,2026,746001,803001,803001);
