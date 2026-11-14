@@ -27,24 +27,28 @@ function isoWeekdayV1(day: string): number {
   return weekday === 0 ? 7 : weekday;
 }
 
+const objectV1 = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+
+/** The lessons of one shift's weekday, as "HH:MM" pairs (anything malformed is skipped). */
+function lessonsV1(items: unknown): Array<{ start: string; end: string }> {
+  if (!Array.isArray(items)) return [];
+  return (items as BellItemShapeV1[]).flatMap((item) =>
+    item?.kind === 'aula' && typeof item.start === 'string' && typeof item.end === 'string'
+      && HHMM_V1.test(item.start) && HHMM_V1.test(item.end) ? [{ start: item.start, end: item.end }] : []);
+}
+
 /** The first lesson start and the last lesson end of the weekday (a school Saturday uses the widest of the week). */
 function lessonSpanV1(bells: unknown, weekday: number): { starts: string; ends: string } {
-  let starts: string | null = null;
-  let ends: string | null = null;
-  const shifts = bells && typeof bells === 'object' ? Object.values(bells as Record<string, unknown>) : [];
-  for (const days of shifts) {
-    if (!days || typeof days !== 'object') continue;
-    for (const [key, items] of Object.entries(days as Record<string, unknown>)) {
-      if (weekday !== 6 && key !== String(weekday)) continue;
-      for (const item of Array.isArray(items) ? (items as BellItemShapeV1[]) : []) {
-        if (item?.kind !== 'aula' || typeof item.start !== 'string' || typeof item.end !== 'string') continue;
-        if (!HHMM_V1.test(item.start) || !HHMM_V1.test(item.end)) continue;
-        if (starts === null || item.start < starts) starts = item.start;
-        if (ends === null || item.end > ends) ends = item.end;
-      }
-    }
-  }
-  return { starts: starts ?? DEFAULT_STARTS_V1, ends: ends ?? DEFAULT_ENDS_V1 };
+  const lessons = Object.values(objectV1(bells) ?? {}).flatMap((days) =>
+    Object.entries(objectV1(days) ?? {})
+      .filter(([key]) => weekday === 6 || key === String(weekday))
+      .flatMap(([, items]) => lessonsV1(items)));
+  if (lessons.length === 0) return { starts: DEFAULT_STARTS_V1, ends: DEFAULT_ENDS_V1 };
+  return {
+    starts: lessons.reduce((first, lesson) => (lesson.start < first ? lesson.start : first), lessons[0]!.start),
+    ends: lessons.reduce((last, lesson) => (lesson.end > last ? lesson.end : last), lessons[0]!.end),
+  };
 }
 
 /** The window of `day` from the calendar days and the bells as stored (either may be missing). */

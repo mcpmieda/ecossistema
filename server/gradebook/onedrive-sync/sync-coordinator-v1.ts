@@ -515,18 +515,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   private async resyncSources(now: number, driveId: string, nightly: boolean): Promise<void> {
     const deltaLink = await graphLatestDeltaLinkV1(this.env, driveId);
     const listed: DriveWorkbookV1[] = [];
-    for (const source of Object.values(this.sources())) {
-      if (source.kind === 'folder') {
-        // A folder deleted in OneDrive: its files are marked removed below; the other sources go on.
-        listed.push(...await graphFolderWorkbooksV1(this.env, driveId, source.itemId).catch((cause: unknown) => {
-          if (graphStatusV1(cause) === 404) return [];
-          throw cause;
-        }));
-      } else {
-        const workbook = await graphWorkbookItemV1(this.env, driveId, source.itemId);
-        if (workbook) listed.push(workbook);
-      }
-    }
+    for (const source of Object.values(this.sources())) listed.push(...await this.listSource(driveId, source));
     const present = new Set(listed.map((item) => item.id));
     this.observe(listed, now);
     for (const file of this.files()) {
@@ -538,6 +527,18 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
     this.event(nightly ? 'full-check' : 'source-listing', { files: listed.length });
+  }
+
+  /** The workbooks of one source; a folder deleted in OneDrive lists none (its files end up removed). */
+  private async listSource(driveId: string, source: { kind: string; itemId: string }): Promise<DriveWorkbookV1[]> {
+    if (source.kind !== 'folder') {
+      const workbook = await graphWorkbookItemV1(this.env, driveId, source.itemId);
+      return workbook ? [workbook] : [];
+    }
+    return graphFolderWorkbooksV1(this.env, driveId, source.itemId).catch((cause: unknown) => {
+      if (graphStatusV1(cause) === 404) return [];
+      throw cause;
+    });
   }
 
   /** Starts every read that may start now; the alarm loop awaits them. */
@@ -615,19 +616,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.setMeta('subscriptionTriedAt', now);
     const expiresAt = new Date(now + (DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 - 60) * 60_000);
     // Still there: its expiry moves forward (issue #1426, 12d); only a vanished one is created again.
-    if (current && Date.parse(current.expiresAt) > now) {
-      try {
-        const renewed = await graphRenewSubscriptionV1(this.env, current.id, expiresAt);
-        if (renewed !== null) {
-          this.setMeta('subscription', { id: current.id, expiresAt: renewed });
-          this.event('webhook-renewed', { expiresAt: renewed });
-          return;
-        }
-      } catch (cause) {
-        this.event('webhook-error', { status: graphStatusV1(cause) });
-        return;
-      }
-    }
+    if (current && Date.parse(current.expiresAt) > now && (await this.renewSubscription(current.id, expiresAt)) !== 'gone') return;
     try {
       const driveId = await this.driveId();
       const created = await graphCreateDriveSubscriptionV1(this.env, {
@@ -642,6 +631,20 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     } catch (cause) {
       if (current && Date.parse(current.expiresAt) <= now) this.setMeta('subscription', null);
       this.event('webhook-error', { status: graphStatusV1(cause) });
+    }
+  }
+
+  /** PATCH of the subscription's expiry; 'gone' when Graph no longer knows it (then it is created again). */
+  private async renewSubscription(id: string, expiresAt: Date): Promise<'renewed' | 'gone' | 'failed'> {
+    try {
+      const renewed = await graphRenewSubscriptionV1(this.env, id, expiresAt);
+      if (renewed === null) return 'gone';
+      this.setMeta('subscription', { id, expiresAt: renewed });
+      this.event('webhook-renewed', { expiresAt: renewed });
+      return 'renewed';
+    } catch (cause) {
+      this.event('webhook-error', { status: graphStatusV1(cause) });
+      return 'failed';
     }
   }
 
