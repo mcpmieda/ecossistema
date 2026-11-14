@@ -44,7 +44,7 @@ export type ProcessWorkbookPortsV1 = {
 
 /**
  * One sync read: download and read the workbook, then the database half (Relação check,
- * Auditoria, grades). Only teacher grade workbooks are written.
+ * Auditoria, grades). Teacher grade workbooks and the Relação are written.
  */
 export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: ProcessWorkbookPortsV1): Promise<ReadResultV1> {
   const started = ports.now();
@@ -59,7 +59,8 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   };
   const fromWrite = (written: WriteOutcomeV1) => {
     Object.assign(stages, written.stages);
-    return result(written.outcome, written.code, written.savedToWrittenMs, written.memory);
+    const read = result(written.outcome, written.code, written.savedToWrittenMs, written.memory);
+    return written.relationChanged ? { ...read, relationChanged: true } : read;
   };
   const writeInput: WriteInputV1 = {
     name: input.name, modifiedAt: input.modifiedAt, expectedYear: input.expectedYear, memory: input.memory ?? null,
@@ -96,7 +97,6 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
       bytes, fileName: input.name, lastModified: Date.parse(input.modifiedAt) || 0, xlsx: ports.xlsx, now: ports.now,
     });
     if (ready.outcome === 'unreadable') return result('unreadable', ready.code);
-    if (ready.outcome === 'ready' && ready.request.operation !== 'persist-notas') return result('ignored', 'NOT-A-TEACHER-WORKBOOK');
     const prepared: PreparedWorkbookV1 = ready.outcome === 'ready'
       ? { outcome: 'ready', request: ready.request, audit: ready.audit, studentNames: [...ready.studentNames] }
       : { outcome: 'blocked', audit: ready.audit };

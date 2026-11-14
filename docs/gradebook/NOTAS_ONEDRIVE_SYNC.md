@@ -21,7 +21,7 @@ O estado operacional (configuração, status por arquivo, posição do *delta*, 
 
 O Worker começa **desligado**. Toda a operação fica no Centro de Administração, em **Banco de notas › Importação › OneDrive**, só para administradores:
 
-1. **Escolher a pasta do ano letivo:** navegar no OneDrive da secretaria, ver a prévia (quantas planilhas, uma leitura de teste sem gravar e o teste do aviso da Graph) e confirmar. A pasta é guardada pelo ID da Graph, então renomeá-la não quebra nada. A pasta escolhida por último é a lida.
+1. **Fontes de leitura:** "Adicionar fonte" navega no OneDrive da secretaria e escolhe uma pasta inteira (com prévia: quantas planilhas, uma leitura de teste sem gravar e o teste do aviso da Graph) ou um arquivo só, como a Relação. Cada fonte fica ligada a um ano letivo e é guardada pelo ID da Graph (renomear não quebra nada). Todas as fontes são lidas do mesmo jeito; para um ano parar de ser lido, remova as fontes dele. Remover uma fonte não apaga notas.
 2. **Ligar, desligar, pausar, retomar e "Conferir tudo agora".**
 3. **Ajustes:** espera depois do salvamento (padrão 0 s) e arquivos em paralelo (padrão 6).
 4. **Planilhas:** situação de cada arquivo, horários, tempo de leitura, tempo do salvamento ao lançamento e "Ler de novo".
@@ -73,3 +73,12 @@ O banco fica em São Paulo. O coordenador (Durable Object) ficou em Miami, e uma
 O que resolveu: o Worker tem posicionamento por região (`aws:sa-east-1`), que vale só para pedidos HTTP. O coordenador pede cada leitura pelo endereço público do próprio Worker (`POST /ler`, segredo `NOTAS_SYNC_READ_TOKEN`), e essa leitura roda em São Paulo (provado com um Worker de teste: chamado de Miami, rodou em GRU, `cf-placement: remote-GRU`). O flag `global_fetch_strictly_public` permite o Worker chamar o próprio endereço. Se `/ler` recusar antes de ler (401/404/405), o coordenador lê pelo `SELF` como antes.
 
 O Portal do aluno aproveita o mesmo caminho para o trabalho de cada minuto (limpezas, eventos ao vivo, histórico e sinais). O endereço público do Portal passa pelo edge do aluno (com checagem de origem), então quem pede é este Worker: o cron daqui chama `POST /portal-agendado` no próprio endereço (mesmo segredo), que roda em São Paulo e aciona o Portal pela ligação `PORTAL_SCHEDULER` (entrada `PortalSchedulerEntrypoint`). Com `PORTAL_SCHEDULER=notas-onedrive-sync` nas variáveis do Portal, o cron do próprio Portal descansa; tirar essa variável devolve o trabalho a ele. Se o endereço recusar antes de trabalhar, o cron daqui aciona o Portal direto (longe do banco, como antes).
+
+## Relação pela leitura automática (14/11/2026)
+
+A Relação do ano (por exemplo `ADMINISTRATIVO/LINHA DO TEMPO/2026/RELAÇÃO 2026.xlsb`) entra como fonte de um arquivo só. Ela é gravada pela mesma importação canônica da importação manual, que só adiciona e atualiza alunos, nunca tira; o salvamento seguinte traz o que vier de novo.
+
+- **Troca de turma clara:** passa direto, mesmo várias no mesmo dia.
+- **Troca com dúvida** (o banco não consegue ligar saída e entrada sozinho, ou há sinal de outro aluno na posição): aquela Relação não é lançada e vira um achado `class-move-review` ("Troca de turma a conferir") na **Auditoria**, um por troca. A confirmação é a da importação manual da Relação. A aba OneDrive só recebe dados; nada é confirmado nela.
+- **Relação mudou:** as planilhas dos professores do mesmo ano são lidas de novo, inteiras, para entrar a nota de aluno novo que antes ficou de fora.
+- Relação igual à última gravada não toca o banco (memória por arquivo).

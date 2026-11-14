@@ -14,7 +14,7 @@ import {
 import { createImportPerformanceObserverV1, emitImportPerformanceV1 } from '../persistence/postgres/import-performance-observer-v1';
 import type { GradebookPostgresDatabaseV1 } from '../persistence/postgres/postgres-database-v1';
 import type { ReadResultV1, SyncMemoryV1 } from './sync-rules-v1';
-import { holdNameMismatchesV1, studentKeyV1, wrongYearAuditV1 } from './server-audit-v1';
+import { holdNameMismatchesV1, relationReviewItemsV1, studentKeyV1, wrongYearAuditV1 } from './server-audit-v1';
 
 /**
  * The database half of one OneDrive read: Relação check, Auditoria, grades, Portal hint.
@@ -43,6 +43,8 @@ export type WriteOutcomeV1 = {
   readonly savedToWrittenMs: number | null;
   readonly memory?: SyncMemoryV1 | null;
   readonly stages: Readonly<Record<string, number>>;
+  /** A Relação was written with changes: the teachers' workbooks of the year are read again. */
+  readonly relationChanged?: boolean;
 };
 
 export type WriteServicesV1 = {
@@ -124,6 +126,7 @@ async function withLockRetryV1<T>(write: () => Promise<T>, sleep: (ms: number) =
 }
 
 const HEADER_KEY_V1 = '#header';
+const RELATION_KEY_V1 = '#relacao';
 const offerKeyV1 = (offer: { readonly turmaCodigo: string; readonly disciplina: string }) => `${offer.turmaCodigo}|${offer.disciplina}`;
 
 export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: PreparedWorkbookV1, ports: WritePortsV1): Promise<WriteOutcomeV1> {
@@ -154,6 +157,30 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
     if (prepared.outcome === 'blocked') {
       const audit = await writeAudit(prepared.audit);
       return done('blocked', 'AUDIT-BLOCKING', null, { audit, offers: previous?.offers ?? {} });
+    }
+    // The Relação: written whole (it only adds and updates students, never removes them). A class
+    // move the database cannot pair by itself holds this Relação and becomes an Auditoria finding.
+    if (prepared.request.operation === 'persist-relacao') {
+      const relation = prepared.request;
+      const print = await fingerprintV1(relation);
+      if (previous?.offers[RELATION_KEY_V1] === print) {
+        const auditPrint = await writeAudit(prepared.audit);
+        return done('no-changes', null, null, { audit: auditPrint, offers: { [RELATION_KEY_V1]: print } });
+      }
+      const response = await turn(() => withLockRetryV1(() => services.persist(database, relation), ports.sleep));
+      stage('persist');
+      if (response.state === 'unavailable') return done('failed', 'DATABASE-UNAVAILABLE');
+      const review = response.state === 'review-required'
+        ? relationReviewItemsV1(prepared.audit.fileName, response.reason, response.movementReview) : [];
+      const auditPrint = await writeAudit({ ...prepared.audit, diagnostics: [...prepared.audit.diagnostics, ...review] });
+      if (response.state === 'review-required') return done('blocked', 'RELATION-REVIEW', null, { audit: auditPrint, offers: {} });
+      if (REJECTED_STATES_V1.has(response.state)) return done('rejected', response.state.toUpperCase(), null, { audit: auditPrint, offers: {} });
+      const memory: SyncMemoryV1 = { audit: auditPrint, offers: { [RELATION_KEY_V1]: print } };
+      if (response.state === 'no-changes') return done('no-changes', null, null, memory);
+      await ports.notifyPortal().catch(() => undefined);
+      stage('notify');
+      const savedAt = Date.parse(input.modifiedAt);
+      return { ...done('applied', null, Number.isFinite(savedAt) ? Math.max(0, Date.now() - savedAt) : null, memory), relationChanged: true };
     }
     // Rule 14: a student whose sheet name is not the Relação's name for that number is held.
     let request = prepared.request;

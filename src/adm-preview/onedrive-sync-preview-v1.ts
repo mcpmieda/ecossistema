@@ -35,6 +35,8 @@ const status: OneDriveSyncStatusV1 = {
   activeYear: empty ? null : 2026,
   folders: empty ? [] : [{ year: 2026, folderId: 'folder-2026', folderPath: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026',
     setBy: 'Preview Local', setAt: minutes(60 * 24) }],
+  sources: empty ? [] : [{ itemId: 'folder-2026', kind: 'folder', path: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026',
+    year: 2026, setBy: 'Preview Local', setAt: minutes(60 * 24) }],
   breakerUntil: null,
   webhook: { active: !empty, expiresAt: empty ? null : new Date(now + 20 * 86_400_000).toISOString() },
   lastDeltaAt: minutes(2),
@@ -48,9 +50,15 @@ const status: OneDriveSyncStatusV1 = {
 };
 
 const tree: Record<string, Array<{ id: string; name: string; childFolders: number }>> = {
-  root: [{ id: 'folder-ped', name: 'PEDAGÓGICO', childFolders: 1 }, { id: 'folder-adm', name: 'ADMINISTRATIVO', childFolders: 0 }],
+  root: [{ id: 'folder-ped', name: 'PEDAGÓGICO', childFolders: 1 }, { id: 'folder-adm', name: 'ADMINISTRATIVO', childFolders: 1 }],
+  'folder-adm': [{ id: 'folder-lt', name: 'LINHA DO TEMPO', childFolders: 1 }],
+  'folder-lt': [{ id: 'folder-lt-2026', name: '2026', childFolders: 0 }],
   'folder-ped': [{ id: 'folder-cn', name: 'CONTROLE DE NOTAS', childFolders: 2 }],
   'folder-cn': [{ id: 'folder-2025', name: 'CONTROLE DE NOTAS 2025', childFolders: 0 }, { id: 'folder-2026', name: 'CONTROLE DE NOTAS 2026', childFolders: 0 }],
+};
+
+const workbooksIn: Record<string, Array<{ id: string; name: string; size: number }>> = {
+  'folder-lt-2026': [{ id: 'file-relacao-2026', name: 'RELAÇÃO 2026.xlsb', size: 1_136_663 }],
 };
 
 function control(command: Record<string, unknown>): void {
@@ -67,6 +75,12 @@ function control(command: Record<string, unknown>): void {
     status.folders = [folder, ...status.folders.filter((item) => item.year !== folder.year)];
     status.activeYear = folder.year;
   }
+  if (action === 'add-source') {
+    const source = { itemId: String(command.itemId), kind: command.kind === 'file' ? 'file' as const : 'folder' as const,
+      path: String(command.path), year: Number(command.year), setBy: 'Preview Local', setAt: Date.now() };
+    status.sources = [...(status.sources ?? []).filter((item) => item.itemId !== source.itemId), source];
+  }
+  if (action === 'remove-source') status.sources = (status.sources ?? []).filter((item) => item.itemId !== command.itemId);
   status.events = [{ at: Date.now(), kind: 'control', actor: 'Preview Local', detail: JSON.stringify(command) }, ...status.events];
 }
 
@@ -74,7 +88,8 @@ export function previewOneDriveSyncV1(body: string): OneDriveSyncResponseV1 {
   const request = JSON.parse(body) as Record<string, unknown>;
   if (request.action === 'folders') {
     const key = request.parentId === null ? 'root' : String(request.parentId);
-    return { contractVersion: 1, state: 'folders', parentId: request.parentId as string | null, folders: tree[key] ?? [] };
+    return { contractVersion: 1, state: 'folders', parentId: request.parentId as string | null, folders: tree[key] ?? [],
+      files: workbooksIn[key] ?? [] };
   }
   if (request.action === 'preview') {
     const has = request.folderId === 'folder-2026' || request.folderId === 'folder-2025';

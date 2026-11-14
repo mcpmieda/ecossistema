@@ -39,6 +39,11 @@ export type SyncFileV1 = {
   readonly removed: boolean;
   /** What was last written for this file, so an unchanged part is not written again. */
   readonly memory?: SyncMemoryV1 | null;
+  /** The source (folder or workbook) this file was seen through, and that source's academic year. */
+  readonly sourceId?: string;
+  readonly year?: number;
+  /** Read again from scratch when the read in progress ends (the Relação changed meanwhile). */
+  readonly forget?: boolean;
 };
 
 /**
@@ -127,6 +132,8 @@ export type ReadResultV1 = {
   readonly savedToWrittenMs: number | null;
   /** The new memory after this read; absent when the read did not change it. */
   readonly memory?: SyncMemoryV1 | null;
+  /** A Relação was written with changes: the year's teacher workbooks are read again. */
+  readonly relationChanged?: boolean;
 };
 
 /** Applies a finished read. Returns null when the lease is stale (another read owns the file). */
@@ -139,7 +146,8 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
     lastOutcome: result.outcome, lastCode: result.code, lastReadAt: now, lastReadMs: result.readMs,
     lastSavedToWrittenMs: result.savedToWrittenMs ?? file.lastSavedToWrittenMs,
     processedHash: transient ? file.processedHash : (result.readHash ?? file.processedHash),
-    memory: result.memory === undefined ? (file.memory ?? null) : result.memory,
+    memory: file.forget ? null : result.memory === undefined ? (file.memory ?? null) : result.memory,
+    ...(file.forget ? { processedHash: null, forget: false } : {}),
   };
   if (file.removed) return { ...finished, state: 'idle', dirty: false, dueAt: null };
   if (file.dirty) return { ...finished, state: 'pending', dirty: false, dueAt: now };
@@ -148,6 +156,16 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
     return { ...finished, state: 'pending', dueAt: now + delay };
   }
   return { ...finished, state: 'idle', dirty: false, dueAt: null };
+}
+
+/**
+ * The Relação changed: a workbook read before it may have left students out, so it is read
+ * again, whole (memory forgotten). A read in progress is repeated when it ends.
+ */
+export function rereadFileV1(file: SyncFileV1, now: number): SyncFileV1 {
+  if (file.removed) return file;
+  if (file.state === 'reading') return { ...file, dirty: true, forget: true };
+  return { ...file, memory: null, processedHash: null, state: 'pending', dueAt: now, attempts: 0 };
 }
 
 /** Consecutive transient failures across files trip the breaker for a while. */

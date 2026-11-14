@@ -39,6 +39,8 @@ export const GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1 = [
   'wrong-year',
   'student-name-mismatch',
   'student-not-in-relation',
+  // OneDrive sync of the Relação: a class move the system cannot pair by itself.
+  'class-move-review',
 ] as const;
 export type GradebookImportDiagnosticCodeV1 =
   (typeof GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1)[number];

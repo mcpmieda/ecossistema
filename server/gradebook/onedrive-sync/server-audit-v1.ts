@@ -5,6 +5,8 @@ import type {
 import type {
   GradebookImportCellV9,
   GradebookNotesImportRequestV9,
+  GradebookRelationMovementEndpointV9,
+  GradebookRelationMovementReviewV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 
 /**
@@ -122,4 +124,34 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
     };
   });
   return { request: { ...request, ofertas }, items };
+}
+
+const endpointV1 = (item: GradebookRelationMovementEndpointV9) => `${item.classCode} nº ${item.number} ${item.name}`.trim();
+
+/**
+ * A Relação the database asks to review (a class move it cannot pair by itself, or a position
+ * with evidence of another student): nothing of it was written. One finding per doubtful move,
+ * so only that doubt needs a look; the confirmation is the manual import's movement review.
+ */
+export function relationReviewItemsV1(fileName: string, reason: string,
+  review: GradebookRelationMovementReviewV9 | undefined): GradebookImportDiagnosticAuditItemV1[] {
+  const action = 'Confirme os pares na importação manual da Relação (ela mostra a conferência). Nada desta Relação foi lançado.';
+  const groups = review?.groups ?? [];
+  if (groups.length === 0) {
+    return [{
+      key: `class-move-review|${fileName}`.slice(0, 320), severity: 'blocking-error', code: 'class-move-review',
+      message: 'A Relação tem aluno com dúvida de identidade ou de troca de turma.', recommendedAction: action,
+      fieldKind: 'file', foundValue: reason.slice(0, 240),
+    }];
+  }
+  return groups.map((group) => {
+    const origin = group.origins[0]!;
+    return {
+      key: `class-move-review|${origin.classCode}|${origin.number}|${group.destinations[0]?.classCode ?? ''}`.slice(0, 320),
+      severity: 'blocking-error' as const, code: 'class-move-review' as const,
+      message: 'Troca de turma que o sistema não conseguiu ligar sozinho.', recommendedAction: action,
+      classCode: origin.classCode.slice(0, 24), studentNumber: origin.number, fieldKind: 'student' as const,
+      foundValue: `${group.origins.map(endpointV1).join(', ')} → ${group.destinations.map(endpointV1).join(', ')}`.slice(0, 240),
+    };
+  });
 }
