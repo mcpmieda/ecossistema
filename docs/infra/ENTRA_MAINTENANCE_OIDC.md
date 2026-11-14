@@ -45,7 +45,9 @@ Audience:
 
 O job usa o GitHub Environment `maintenance`. Para este repositório, o subject imutável esperado é:
 
-`repo:mcpmieda@268288370/ecossistema-escola@1345061518:environment:maintenance`
+`repo:mcpmieda@268288370/ecossistema@1345061518:environment:maintenance`
+
+O subject inclui o **nome** do repositório. Depois que o repositório foi renomeado de `ecossistema-escola` para `ecossistema`, a troca OIDC passou a falhar (401) até a credencial federada ser atualizada com o nome novo (os IDs não mudam).
 
 O workflow também falha se não estiver executando sobre `refs/heads/main`.
 
