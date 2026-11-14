@@ -33,7 +33,7 @@ Ao ligar pela primeira vez, ou depois de trocar a pasta, todas as planilhas da p
 
 ## Segredos
 
-`GRAPH_CREDENTIAL_A`/`B` são gravados pelo `entra-maintenance.yml` ao rotacionar a Graph. `NOTAS_SYNC_CLIENT_STATE` é um valor aleatório definido uma vez no Worker. O Worker é publicado pelo `deploy-cloudflare-pages.yml`.
+`GRAPH_CREDENTIAL_A`/`B` são gravados pelo `entra-maintenance.yml` ao rotacionar a Graph. `NOTAS_SYNC_CLIENT_STATE` é um valor aleatório definido uma vez no Worker. `NOTAS_SYNC_WRITE_TOKEN` é um valor aleatório definido no Worker e no Pages (veja Gravação pelo Pages). O Worker é publicado pelo `deploy-cloudflare-pages.yml`.
 
 ## Privacidade
 
@@ -65,3 +65,7 @@ Mudanças:
 - **O coordenador não fica preso esperando um lote:** enquanto as leituras rodam, ele olha o aviso da Microsoft a cada 2 s e dispara novas leituras.
 - **Consulta direta a cada 10 s** das 06:00 às 23:00 (São Paulo), sem esperar o aviso da Microsoft.
 - O log `gradebook_import_performance` (`source: notas-sync`) mostra só números da gravação (comandos, linhas, milissegundos).
+
+## Gravação pelo Pages
+
+O Worker fica longe do banco (~250 ms por consulta). O Pages, com posicionamento inteligente, fica perto (~20–70 ms). Por isso a leitura baixa e lê a planilha no Worker e manda a metade do banco (Relação, Auditoria, notas) para `POST /api/gradebook/onedrive-sync/gravar` no Pages, com o segredo `NOTAS_SYNC_WRITE_TOKEN`. A fila de gravação continua no coordenador. Se o Pages não responder, faltar o segredo ou der erro, o Worker grava sozinho como antes. Os registros `notas-sync-remote-write` (Worker) e `gradebook_import_performance` com origem `notas-sync-pages` mostram os tempos.
