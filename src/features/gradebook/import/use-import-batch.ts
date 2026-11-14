@@ -26,6 +26,7 @@ import {
   collectGradebookImportDiagnosticsV1,
   gradebookImportDiagnosticsAuditRequestV1,
   sourceUnavailableGradebookImportDiagnosticsV1,
+  studentNotInRelationDiagnosticV1,
   type GradebookImportDiagnosticV1,
 } from './import-diagnostics-v1';
 import { persistGradebookImportDiagnosticsAuditV1 } from './import-diagnostics-client-v1';
@@ -983,6 +984,24 @@ export function useImportBatch() {
         year: request.ano,
       });
       if (stopped !== null) return stopped;
+    }
+    // Students the system's Relação does not have were left out by the database: the Auditoria
+    // of this file keeps them, as the OneDrive reading does (issue #1426, finding 31).
+    if (
+      request.operation === 'persist-notas' &&
+      (response.state === 'applied' || response.state === 'no-changes') &&
+      local.diagnostics !== null
+    ) {
+      const unbound = (response.warnings ?? []).filter((warning) => warning.code === 'student-not-in-relation');
+      if (unbound.length > 0) {
+        await auditDiagnostics(
+          result,
+          [...local.diagnostics, ...unbound.map((warning) => studentNotInRelationDiagnosticV1(warning.classCode, warning.number))],
+          observation,
+          undefined,
+          true,
+        );
+      }
     }
     return runResultOfV1(response.state);
   }

@@ -17,6 +17,7 @@ import type {
   GradebookImportTermResultObservationsV4,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
+import { classCodeV1 } from './class-code-v1';
 
 /** The error text a cell carries: its value, else its formatted text, when not blank. */
 function errorTextOf(cell: { v?: unknown; w?: unknown }) {
@@ -724,7 +725,9 @@ function recognizeGradeSheet(
   if (!pattern) return null;
 
   const dimensions = worksheetDimensions(sheet, xlsx);
-  const className = textAt(sheet, 'K3') || pattern.className;
+  // K3 is the class the grades are written to: "6ª SÉRIE A" or "6º ANO A" are the class 6A.
+  const declaredClass = textAt(sheet, 'K3');
+  const className = (declaredClass && classCodeV1(declaredClass)) || declaredClass || pattern.className;
   const discipline = textAt(sheet, 'K2');
   const declaredStage = textAt(sheet, 'K4');
   const declaredStudentsValue = numberAt(sheet, 'J1');

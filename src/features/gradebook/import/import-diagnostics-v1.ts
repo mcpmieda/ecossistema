@@ -1,3 +1,4 @@
+import { GRADEBOOK_IMPORT_DIAGNOSTIC_TEXTS_V1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostic-texts-v1';
 import {
   GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1,
   type GradebookImportDiagnosticAuditItemV1,
@@ -79,6 +80,18 @@ function stableKey(value: DiagnosticBase): string {
 
 function diagnostic(value: DiagnosticBase): GradebookImportDiagnosticV1 {
   return { ...value, key: stableKey(value) };
+}
+
+/**
+ * A student of the workbook the system's Relação does not have: the database leaves only that
+ * student out when writing and says so; the Auditoria keeps it, as the OneDrive reading does.
+ */
+export function studentNotInRelationDiagnosticV1(classCode: string, number: number): GradebookImportDiagnosticV1 {
+  const text = GRADEBOOK_IMPORT_DIAGNOSTIC_TEXTS_V1['student-not-in-relation'];
+  return diagnostic({
+    severity: 'blocking-error', code: 'student-not-in-relation', message: text.message, recommendedAction: text.action,
+    classCode, studentNumber: number, fieldKind: 'student',
+  });
 }
 
 function studentNumber(student: StudentRecognition): number | undefined {

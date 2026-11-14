@@ -1,3 +1,4 @@
+import { gradebookImportDiagnosticTextV1 } from '../../../shared/gradebook-contracts/imports/import-diagnostic-texts-v1';
 import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../../../server/gradebook/http/live-after-commit-v1';
 import type { RuntimeEnv } from '../../../server/env';
 import { validateEnv } from '../../../server/env';
@@ -51,7 +52,8 @@ function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
     fileName: String(row.arquivo), key: String(row.chave),
     severity: String(row.nivel) as GradebookImportDiagnosticsAuditRecordV1['severity'],
     code: String(row.codigo) as GradebookImportDiagnosticsAuditRecordV1['code'],
-    message: messageFor(String(row.codigo)), recommendedAction: actionFor(String(row.codigo)),
+    message: gradebookImportDiagnosticTextV1(String(row.codigo)).message,
+    recommendedAction: gradebookImportDiagnosticTextV1(String(row.codigo)).action,
     ...(row.turma_codigo === null ? {} : { classCode: scalarTextV1(row.turma_codigo) }),
     ...(row.disciplina === null ? {} : { subject: scalarTextV1(row.disciplina) }),
     ...(row.periodo === null ? {} : { period: scalarTextV1(row.periodo) }),
@@ -90,28 +92,6 @@ async function listDiagnostics(database: GradebookPostgresReadPortV1, academicYe
   const hasMore = result.length > limit;
   const page = hasMore ? result.slice(0,limit) : result;
   return { items: page.map(auditRecord), nextOffset: hasMore ? offset + limit : null };
-}
-function messageFor(code: string): string {
-  switch (code) {
-    case 'invalid-text': return 'Existe texto onde uma nota é esperada.';
-    case 'negative-grade': return 'Existe uma nota negativa onde uma nota válida é esperada.';
-    case 'invalid-precision': return 'Existe uma nota com mais de três casas decimais.';
-    case 'invalid-maximum': return 'O valor máximo de uma avaliação está ausente ou inválido.';
-    case 'duplicate-student-number': return 'O mesmo número de aluno aparece mais de uma vez na planilha.';
-    case 'above-maximum': return 'A nota lançada está acima do máximo configurado para esta avaliação.';
-    default: return 'Um valor de origem está indisponível.';
-  }
-}
-function actionFor(code: string): string {
-  switch (code) {
-    case 'invalid-text': return 'Informe uma nota válida ou apague o lançamento e importe novamente.';
-    case 'negative-grade': return 'Corrija ou apague o lançamento negativo e importe novamente.';
-    case 'invalid-precision': return 'Corrija o lançamento para no máximo três casas decimais.';
-    case 'invalid-maximum': return 'Informe um máximo numérico positivo na configuração da avaliação.';
-    case 'duplicate-student-number': return 'Corrija a duplicidade do número do aluno na planilha.';
-    case 'above-maximum': return 'Confira o lançamento; o aviso não bloqueia os demais dados válidos.';
-    default: return 'Recalcule e salve a planilha no Excel antes de reimportar.';
-  }
 }
 async function handle(request: Request, env: RuntimeEnv, afterCommit: GradebookAfterCommitV1): Promise<Response> {
   enforceOfficialOrigin(request, env);
