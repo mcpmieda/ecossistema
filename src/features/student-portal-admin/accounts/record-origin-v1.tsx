@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useCallback } from 'react';
 import { Button, Card } from '@heroui/react';
 import type {
@@ -13,7 +14,7 @@ const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
-  timeZone: 'America/Bahia',
+  timeZone: SCHOOL_TIME_ZONE_V1,
 });
 
 /** Short, ordered reasons from the records only (owner request 10/11/2026). */

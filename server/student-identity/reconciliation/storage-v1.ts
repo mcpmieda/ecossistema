@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../shared/school-time-zone-v1';
 import type { GradebookPostgresTransactionV1 } from '../../gradebook/persistence/postgres/postgres-database-v1';
 import { lockResetWriterV1 } from '../../student-portal/integration/year-reset/writer-v1';
 import { normalizeStudentNameV1 } from '../../../shared/student-identity/reconciliation-normalization-v1';
@@ -49,7 +50,7 @@ export function boolV1(v: unknown): boolean {
 }
 export async function clockV1(tx: TxV1) {
   const [r] = await tx.query(
-    `SELECT clock_timestamp()::text AS now, (clock_timestamp() AT TIME ZONE 'America/Sao_Paulo')::date::text AS today`,
+    `SELECT clock_timestamp()::text AS now, (clock_timestamp() AT TIME ZONE '${SCHOOL_TIME_ZONE_V1}')::date::text AS today`,
     [],
   );
   if (!r) throw new Error('reconciliation-clock-unavailable');

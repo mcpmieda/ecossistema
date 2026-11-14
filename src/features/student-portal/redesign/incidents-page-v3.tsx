@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useCallback, useState } from 'react';
 import { CalendarDays, CheckCircle2, CircleCheck, FileText, ShieldAlert, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { Alert } from '@heroui/react/alert';
@@ -29,12 +30,12 @@ import { useCachedReadV3 } from './use-cached-read-v3';
  */
 const DATE = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' });
 const READ_DATE = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: 'America/Bahia',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
 });
-const READ_TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Bahia', hour: '2-digit', minute: '2-digit' });
+const READ_TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1, hour: '2-digit', minute: '2-digit' });
 /** "30/10/2026, às 10:03", in the school's time. */
 const readMomentV3 = (value: string) => `${READ_DATE.format(new Date(value))}, às ${READ_TIME.format(new Date(value))}`;
 const civil = (value: string) => DATE.format(new Date(`${value}T00:00:00Z`));

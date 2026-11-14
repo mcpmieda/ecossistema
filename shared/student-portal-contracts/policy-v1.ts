@@ -1,3 +1,4 @@
+import { LEGACY_SCHOOL_TIME_ZONE_V1, SCHOOL_TIME_ZONE_V1 } from '../school-time-zone-v1';
 import { z } from 'zod';
 import { instantV1, periodV1, policyScopeV1, versionV1 } from './core-v1';
 import { accessScheduleV1 } from './access-schedule-v1';
@@ -84,7 +85,8 @@ export const calendarV1 = z
     finalDisclosureEndsAt: instantV1.nullable().optional(),
     // Resultado anual on the Notas tab: when present it replaces showFinalResult and the two dates.
     finalAgenda: agendaPlanV1.optional(),
-    timezone: z.literal('America/Sao_Paulo'),
+    // One source (issue #1426, 41): the value saved before 14/11/2026 reads as the school's zone.
+    timezone: z.enum([SCHOOL_TIME_ZONE_V1, LEGACY_SCHOOL_TIME_ZONE_V1]).transform(() => SCHOOL_TIME_ZONE_V1),
     enrollmentStartsAt: instantV1.nullable(),
     yearStartsAt: instantV1.nullable(),
     t1EndsAt: instantV1.nullable(),

@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
 import { Tooltip } from '../../../shared/ui/tap-tooltip-v1';
@@ -39,7 +40,7 @@ export interface StudentPublicationPropsV1 {
   readonly periodExtra?: (item: PublicationItemV1) => ReactNode;
 }
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   dateStyle: 'short',
   timeStyle: 'short',
 });

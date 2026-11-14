@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
 import {
   canonicalFrequencyJsonV2,
   frequencyClassKeyV2,
@@ -276,7 +277,7 @@ async function summaryInTx(
   const valid = await sourcesValid(tx, coverage);
   // The school's today, as the collector's clock check reads it (the agenda's timezone).
   const [clock] = await tx.query<Row>(
-    `SELECT (clock_timestamp() AT TIME ZONE COALESCE((SELECT schedule_json->>'timezone' FROM attendance.school_state_v2 WHERE academic_year=$1),'America/Bahia'))::date::text AS today`,
+    `SELECT (clock_timestamp() AT TIME ZONE COALESCE((SELECT schedule_json->>'timezone' FROM attendance.school_state_v2 WHERE academic_year=$1),'${SCHOOL_TIME_ZONE_V1}'))::date::text AS today`,
     [year],
   );
   return withLessonDaysV2(
@@ -829,8 +830,8 @@ async function followLatestReading(tx: Tx, year: number, classId: number, actorI
 async function checkCollectionClock(tx: Tx, input: FrequencyCollectionV2) {
   const [clock] = await tx.query<Row>(
     `SELECT clock_timestamp()::text AS now,
-      (clock_timestamp() AT TIME ZONE COALESCE(schedule_json->>'timezone','America/Bahia'))::date::text AS today,
-      ($2::timestamptz AT TIME ZONE COALESCE(schedule_json->>'timezone','America/Bahia'))::date::text AS observed_day
+      (clock_timestamp() AT TIME ZONE COALESCE(schedule_json->>'timezone','${SCHOOL_TIME_ZONE_V1}'))::date::text AS today,
+      ($2::timestamptz AT TIME ZONE COALESCE(schedule_json->>'timezone','${SCHOOL_TIME_ZONE_V1}'))::date::text AS observed_day
       FROM attendance.school_state_v2 WHERE academic_year=$1`,
     [input.academicYear, input.observedAt],
   );

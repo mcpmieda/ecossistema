@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Chip } from '@heroui/react';
 import type { AutomaticReportV1 } from '../../../../shared/student-identity/reconciliation-v1';
@@ -20,7 +21,7 @@ const when = (value: string) =>
   new Date(value).toLocaleString('pt-BR', {
     dateStyle: 'short',
     timeStyle: 'short',
-    timeZone: 'America/Sao_Paulo',
+    timeZone: SCHOOL_TIME_ZONE_V1,
   });
 
 /**

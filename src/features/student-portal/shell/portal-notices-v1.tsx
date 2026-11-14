@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useEffect, useRef, useState } from 'react';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
@@ -60,7 +61,7 @@ const periodNames = {
 } as const;
 
 const dateFormat = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   day: '2-digit',
   month: '2-digit',
   hour: '2-digit',

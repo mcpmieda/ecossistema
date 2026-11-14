@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Input, Label, TextField } from '@heroui/react';
 import type { AdminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';
@@ -13,7 +14,7 @@ type PreviewResponseV1 = Extract<AdminResponseV1, { state: 'links-preview' }>;
 type PreviewV1 = Pick<PreviewResponseV1, 'count' | 'version' | 'expiresAt'>;
 const CONFIRMATION = 'ENCERRAR VÍNCULOS 2026';
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
-  timeZone: 'America/Sao_Paulo',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   dateStyle: 'short',
   timeStyle: 'medium',
 });

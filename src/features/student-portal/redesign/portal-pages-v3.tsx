@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { FileWarning, NotebookPen } from 'lucide-react';
@@ -112,7 +113,7 @@ function FrequencyIconV3({ tone, size }: Readonly<{ tone: FrequencyToneV3; size:
  * clock (the server's time, Brasília), moved once a minute. Drawn like lucide's "clock".
  */
 const SCHOOL_HOUR_V3 = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'America/Bahia',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',

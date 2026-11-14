@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card } from '@heroui/react';
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
@@ -75,7 +76,7 @@ function CapacityReader({ onDenied }: Readonly<{ onDenied: () => void }>) {
       <p role={state.error ? 'alert' : 'status'} className="text-sm">{messageFor(state, fresh)}</p>
       <Button size="sm" variant="secondary" isDisabled={state.loading || denied.current} onPress={() => { void read(); }}>Atualizar medição</Button>
     </div>
-    {state.data?.state === 'ok' ? <p className="text-xs text-muted">Medição: {new Date(state.data.observedAt).toLocaleString('pt-BR', { timeZone: 'America/Bahia' })} (Bahia)</p> : null}
+    {state.data?.state === 'ok' ? <p className="text-xs text-muted">Medição: {new Date(state.data.observedAt).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 })} (Bahia)</p> : null}
     {metrics ? <><CapacityValues metrics={metrics} />
       <p className="text-xs text-muted">Conexões não são alunos online e incluem esta consulta. Limites configurados não indicam vagas livres ou cotas do plano.</p></> : null}
   </div>;

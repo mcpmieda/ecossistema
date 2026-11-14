@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { AdminCommandV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import { SHIFT_LABELS_V1, type PolicyScopeV1, type ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -129,7 +130,7 @@ export function accountPageMatchesV1(page: AccountsReadPageV2, scope: ScopeV1) {
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
   timeStyle: 'short',
-  timeZone: 'America/Sao_Paulo',
+  timeZone: SCHOOL_TIME_ZONE_V1,
 });
 export function lastAuthenticationLabelV1(at: string | null) {
   return at === null ? 'Nenhum em 12 meses' : dateFormatter.format(new Date(at));

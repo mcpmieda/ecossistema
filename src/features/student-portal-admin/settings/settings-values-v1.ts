@@ -1,3 +1,4 @@
+import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import type { z } from 'zod';
 import {
   policyScopeV1,
@@ -80,7 +81,7 @@ export function ownsSettingV1(settings: EffectiveSettingsV1, field: SettingsFiel
 }
 
 const formatter = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/Sao_Paulo',
+  timeZone: SCHOOL_TIME_ZONE_V1,
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
