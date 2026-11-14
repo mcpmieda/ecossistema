@@ -21,10 +21,11 @@ const PROBLEMS: Readonly<Record<string, readonly [label: string, hint: string]>>
   'wrong-year': ['Ano errado', 'Planilha com outro ano em CONFIGURAÇÃO. Nada foi lançado.'],
   'header-mismatch': ['Cabeçalho trocado', 'O cabeçalho da guia não bate com o nome da guia. A turma não foi lançada.'],
   'student-name-mismatch': ['Aluno trocado', 'O nome na planilha não bate com a Relação. As notas do aluno não foram lançadas.'],
+  'student-not-in-relation': ['Aluno fora da Relação', 'O aluno está na planilha, mas não na Relação do sistema. As notas dele não foram lançadas.'],
   'activity-without-description': ['Atividade sem descrição', 'Notas numa coluna sem descrição. A coluna não foi lançada.'],
   'activity-without-maximum': ['Atividade sem máximo', 'Notas numa coluna sem máximo. A coluna não foi lançada.'],
   'above-maximum': ['Nota acima do máximo', 'A nota e o resultado do aluno não foram lançados.'],
-  'qualitative-maxima-over-ceiling': ['Máximos acima do qualitativo', 'A soma dos máximos das atividades passa do qualitativo. Distribua os máximos corretamente. As notas foram lançadas.'],
+  'qualitative-maxima-over-ceiling': ['Máximos acima do qualitativo', 'A soma dos máximos das atividades passa do qualitativo. Distribua os máximos corretamente. Os resultados não foram lançados.'],
   'qualitative-over-ceiling': ['Qualitativo estourado', 'A soma das atividades do aluno passa do qualitativo. O resultado não foi lançado.'],
   'recovery-above-maximum': ['Recuperação acima do máximo', 'A recuperação e o resultado final não foram lançados.'],
   'work-without-weight': ['Trabalho sem peso', 'Nota de trabalho com o bloco desligado. O resultado não foi lançado.'],
@@ -35,7 +36,7 @@ const PROBLEMS: Readonly<Record<string, readonly [label: string, hint: string]>>
   'invalid-precision': ['Casas decimais', 'A nota e o resultado do aluno não foram lançados.'],
   'invalid-maximum': ['Máximo inválido', 'O máximo da atividade está vazio ou errado.'],
   'duplicate-student-number': ['Número repetido', 'Dois alunos com o mesmo número na guia.'],
-  'grade-without-student': ['Nota sem aluno', 'Nota numa linha sem aluno. Só aviso.'],
+  'grade-without-student': ['Nota sem aluno', 'Nota numa linha sem nome ou número de aluno: não foi lançada. Confira a digitação ou a Relação da planilha.'],
   'source-unavailable': ['Valor indisponível', 'A planilha não guardou o valor. O anterior foi mantido.'],
 };
 

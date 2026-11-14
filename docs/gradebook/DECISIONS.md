@@ -359,14 +359,15 @@ Sem alteração de contrato HTTP, schema, migration, cálculo acadêmico ou publ
 | 3. Ano da CONFIGURAÇÃO diferente da pasta (OneDrive) | o arquivo inteiro |
 | 4. Soma das atividades do aluno acima do teto qualitativo (AK3) | o AM do aluno |
 | 5. Nota acima do máximo (agora erro bloqueante) | a nota e o AM do aluno |
-| 6. Soma dos máximos das atividades acima do teto qualitativo | nada: aparece na Auditoria como erro de distribuição do professor (ajuste de 13/11/2026; só segura o aluno que passar do teto, pela regra 4) |
+| 6. Soma dos máximos das atividades acima do teto qualitativo | os AMs da guia, até a planilha ser corrigida: é erro de distribuição do professor (confirmado pelo responsável em 13/11/2026, mesmo sem aluno acima do teto) |
 | 7. Cabeçalho K3/K4 que não bate com o nome da guia | a turma e disciplina |
 | 8. Recuperação acima do máximo do trimestre (T3+Y3+AK3) | a recuperação e o U do aluno |
 | 9. Nota de trabalho com o bloco de trabalho sem peso | o AM do aluno |
-| 10. Nota numa linha sem aluno | nada (só aviso) |
 | 11. AV2 preenchida com a guia em "1 AVALIAÇÃO" | o AM do aluno |
 | 12. AM digitado à mão numa guia de AMs por fórmula | aquele AM |
 | 14. Nome do aluno diferente da Relação (OneDrive) | as notas do aluno |
+| 14b. Aluno da planilha que não está na Relação do sistema (OneDrive) | só esse aluno fica fora do envio; antes o banco recusava a planilha inteira |
+| 10. Nota numa linha sem nome ou sem número de aluno | a nota não vai para ninguém; aparece como aviso na Auditoria (digitação errada ou Relação da planilha desatualizada) |
 
 Não entram: recalcular o AM (a planilha já calcula) e nota que sumiu (pode ser correção do professor).
 
