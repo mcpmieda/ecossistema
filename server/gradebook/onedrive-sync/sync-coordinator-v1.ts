@@ -79,6 +79,8 @@ export interface SyncCoordinatorEnvV1 extends GraphAppEnvV1 {
   NOTAS_SYNC_READ_TOKEN?: string;
   NOTAS_MAX_WORKBOOK_BYTES?: string;
   SELF: SyncReaderV1;
+  /** The deployed version this code belongs to (binding `CF_VERSION_METADATA`). */
+  CF_VERSION_METADATA?: CodeVersionV1;
   /** The coordinator namespace, used only to recognise the retired first coordinator. */
   NOTAS_SYNC?: { idFromName(name: string): { equals(other: DurableObjectId): boolean } };
 }
@@ -204,9 +206,20 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     await this.wakeAt(Date.now());
   }
 
-  /** Called every minute by the cron: safety-net delta, nightly check, webhook renewal. */
-  async tick(): Promise<void> {
+  /**
+   * Called every minute by the cron: safety-net delta, nightly check, webhook renewal. `caller` is
+   * the cron's code version: a deploy does not always restart this object, so when the cron already
+   * runs newer code and nothing is being read or written here, the object restarts and the next
+   * call finds it on the new code.
+   */
+  async tick(caller?: CodeVersionV1): Promise<void> {
     if (this.retired) return this.eraseRetired();
+    if (runsOlderCodeV1(this.env.CF_VERSION_METADATA, caller) && this.inflight.size === 0 && this.writer === null) {
+      console.log(JSON.stringify({ event: 'notas-sync-coordinator-restart',
+        from: this.env.CF_VERSION_METADATA?.id.slice(0, 8), to: caller?.id.slice(0, 8) }));
+      this.ctx.abort('newer-code-deployed');
+      return;
+    }
     if (!this.settings().enabled) return;
     const now = Date.now();
     const webhookActive = this.meta<{ id: string } | null>('subscription', null) !== null;
@@ -575,6 +588,20 @@ export function sourceOfV1(item: Pick<DriveWorkbookV1, 'id' | 'parentId'>, sourc
   if (own?.kind === 'file') return own;
   const folder = item.parentId === null ? undefined : sources[item.parentId];
   return folder?.kind === 'folder' ? folder : null;
+}
+
+/** A deployed code version, as the version-metadata binding gives it. */
+export type CodeVersionV1 = { readonly id: string; readonly timestamp: string };
+
+/**
+ * True only when the caller's code is a later deploy than this object's: during a rollout an
+ * older caller never makes a newer object restart (no restart loop).
+ */
+export function runsOlderCodeV1(own: CodeVersionV1 | undefined, caller: CodeVersionV1 | undefined): boolean {
+  if (!own || !caller || own.id === caller.id) return false;
+  const ownAt = Date.parse(own.timestamp);
+  const callerAt = Date.parse(caller.timestamp);
+  return Number.isFinite(ownAt) && Number.isFinite(callerAt) && callerAt > ownAt;
 }
 
 function latestYearV1(sources: Record<string, SourceV1>): number | null {

@@ -82,3 +82,7 @@ A Relação do ano (por exemplo `ADMINISTRATIVO/LINHA DO TEMPO/2026/RELAÇÃO 20
 - **Troca com dúvida** (o banco não consegue ligar saída e entrada sozinho, ou há sinal de outro aluno na posição): aquela Relação não é lançada e vira um achado `class-move-review` ("Troca de turma a conferir") na **Auditoria**, um por troca. A confirmação é a da importação manual da Relação. A aba OneDrive só recebe dados; nada é confirmado nela.
 - **Relação mudou:** as planilhas dos professores do mesmo ano são lidas de novo, inteiras, para entrar a nota de aluno novo que antes ficou de fora.
 - Relação igual à última gravada não toca o banco (memória por arquivo).
+
+## Coordenador sempre no código novo (14/11/2026)
+
+Uma publicação nem sempre reinicia o Durable Object coordenador: em 14/11 ele ficou na versão anterior até a publicação ser refeita. Agora o Worker tem a ligação `CF_VERSION_METADATA`, e o cron de cada minuto manda ao coordenador a versão do próprio código. Se o cron já roda uma publicação **mais nova** (pela data da versão) e nada está sendo lido ou gravado, o coordenador chama `ctx.abort()` e volta no código novo na chamada seguinte. Um cron mais antigo nunca reinicia um coordenador mais novo, então não há laço durante a troca de versão. O registro `notas-sync-coordinator-restart` mostra quando isso acontece.
