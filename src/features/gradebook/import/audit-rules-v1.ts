@@ -1,5 +1,6 @@
 import { SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
 import type { GradebookImportDiagnosticCodeV1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+import { classCodeV1 } from './class-code-v1';
 import type { GradeSheetRecognition, StudentRecognition, WorkbookSummary } from './spreadsheet-recognizer';
 
 /**
@@ -63,12 +64,6 @@ function hasValue(sheet: GradeSheetRecognition, address: string): boolean {
 
 function positive(value: number | null | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
-}
-
-/** "6A", "6º ANO A", "6 A" → "6A"; null when the text has no class code. */
-function classCode(value: string): string | null {
-  const match = /(\d{1,2})\D*?([A-Z])\b/u.exec(normalized(value).replace(/\bANO\b/gu, ''));
-  return match ? `${match[1]}${match[2]}` : null;
 }
 
 const TERM_DIGITS_V1: Readonly<Record<string, number>> = { 1: 1, 2: 2, 3: 3 };
@@ -153,15 +148,15 @@ type TermAuditV1 = {
 function auditTermHeaderV1({ sheet, findings, holds }: TermAuditV1): void {
   const expectedTerm = termOf(sheet);
   const k4 = declaredTermV1(sheet.declaredStage);
-  const k3 = classCode(sheet.className);
-  const named = sheet.auditV1 ? classCode(sheet.auditV1.sheetClass) : null;
+  const k3 = classCodeV1(sheet.className);
+  const named = sheet.auditV1 ? classCodeV1(sheet.auditV1.sheetClass) : null;
   const termDiffers = k4 !== null && expectedTerm !== null && k4 !== expectedTerm;
   const classDiffers = k3 !== null && named !== null && k3 !== named;
   if (!termDiffers && !classDiffers) return;
   holds.offers.set(sheet.name, `Cabeçalho de ${sheet.name} não corresponde à guia.`);
-  const k4Cell = k4 !== expectedTerm;
-  findings.push({ code: 'header-mismatch', blocking: true, sheet, cellAddress: k4Cell ? 'K4' : 'K3',
-    foundValue: k4Cell ? sheet.declaredStage : sheet.className });
+  // One finding per wrong cell, so the teacher fixes the right one (both at once when both differ).
+  if (termDiffers) findings.push({ code: 'header-mismatch', blocking: true, sheet, cellAddress: 'K4', foundValue: sheet.declaredStage });
+  if (classDiffers) findings.push({ code: 'header-mismatch', blocking: true, sheet, cellAddress: 'K3', foundValue: sheet.className });
 }
 
 /** 1 and 2. Grades in an activity column without description or without a valid maximum; returns the maxima's sum. */
