@@ -15,6 +15,7 @@ import {
   graphDownloadWorkbookV1,
   graphDriveIdV1,
   graphFolderWorkbooksV1,
+  notificationUrlV1,
   WorkbookTooLargeError,
 } from '../../server/gradebook/onedrive-sync/graph-drive-v1';
 import { processWorkbookV1, type ProcessWorkbookInputV1 } from '../../server/gradebook/onedrive-sync/process-workbook-v1';
@@ -117,7 +118,7 @@ async function webhookAcceptedV1(env: NotasSyncEnvV1, driveId: string): Promise<
   try {
     const subscription = await graphCreateDriveSubscriptionV1(env, {
       driveId,
-      notificationUrl: `${env.NOTAS_SYNC_PUBLIC_URL.replace(/\/+$/u, '')}${NOTIFICATION_PATH}`,
+      notificationUrl: notificationUrlV1(env.NOTAS_SYNC_PUBLIC_URL, NOTIFICATION_PATH),
       clientState: env.NOTAS_SYNC_CLIENT_STATE,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });

@@ -12,6 +12,7 @@ import {
   graphDriveIdV1,
   graphFolderWorkbooksV1,
   graphWorkbookItemV1,
+  notificationUrlV1,
   type DriveWorkbookV1,
   type GraphAppEnvV1,
 } from './graph-drive-v1';
@@ -524,7 +525,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const driveId = await this.driveId();
       const created = await graphCreateDriveSubscriptionV1(this.env, {
         driveId,
-        notificationUrl: `${this.env.NOTAS_SYNC_PUBLIC_URL.replace(/\/+$/u, '')}/graph/notificacoes`,
+        notificationUrl: notificationUrlV1(this.env.NOTAS_SYNC_PUBLIC_URL, '/graph/notificacoes'),
         clientState: this.env.NOTAS_SYNC_CLIENT_STATE,
         expiresAt: new Date(now + (DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 - 60) * 60_000),
       });

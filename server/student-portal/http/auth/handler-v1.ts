@@ -86,9 +86,11 @@ async function serveLogoutV1(
   return portalJsonV1(logoutResponseV1.parse({ contractVersion: 1, requestId, state: 'logged-out' }), 200);
 }
 
+type SignInStepV1 = 'challenge' | 'activate' | 'login';
+
 /** A sign-in step's answer: the session cookie when it ends signed in, a failure with its status. */
 function authResponseV1(
-  result: Awaited<ReturnType<AuthServiceV1['challenge' | 'activate' | 'login']>>,
+  result: Awaited<ReturnType<AuthServiceV1[SignInStepV1]>>,
   acceptAccessClosed: boolean,
   fail: FailV1,
 ) {

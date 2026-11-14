@@ -185,6 +185,13 @@ export async function graphDownloadWorkbookV1(env: GraphAppEnvV1, driveId: strin
   return bytes;
 }
 
+/** The address Graph posts its change notices to (the public URL without trailing slashes). */
+export function notificationUrlV1(publicUrl: string, path: string): string {
+  let end = publicUrl.length;
+  while (end > 0 && publicUrl[end - 1] === '/') end -= 1;
+  return `${publicUrl.slice(0, end)}${path}`;
+}
+
 /** Microsoft caps driveItem subscriptions at 42,300 minutes (~29 days). */
 export const DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 = 42_300;
 

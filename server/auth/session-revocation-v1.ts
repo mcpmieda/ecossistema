@@ -20,7 +20,8 @@ export type SessionRevocationPortV1 = {
 /** A new random session id: 128 bits, base64url (22 characters). */
 export function newSessionIdV1(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '');
+  // Base64 padding ("=") only ever appears at the end.
+  return btoa(String.fromCodePoint(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
 type HyperdriveBindingV1 = { readonly connectionString: string };

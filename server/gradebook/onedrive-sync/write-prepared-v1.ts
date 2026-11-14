@@ -105,7 +105,7 @@ const REJECTED_STATES_V1 = new Set<GradebookImportPersistenceResponseV9['state']
 /** A short, stable fingerprint of a JSON value (what was written last, never the value itself). */
 async function fingerprintV1(value: unknown): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)));
-  return [...new Uint8Array(digest).slice(0, 16)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(digest, 0, 16), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /** Lock wait, deadlock and serialization failures: another write of the same year is running. */
@@ -230,7 +230,8 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
     if (cause instanceof InvalidImportDiagnosticsSnapshotV1) return done('rejected', 'AUDIT-INVALID', null, null);
     // Only the error kind and Postgres code: a database message can carry values, never logged.
     const failure = cause as { name?: unknown; code?: unknown } | null;
-    console.error(JSON.stringify({ event: 'notas-sync-database-write', name: String(failure?.name ?? 'unknown').slice(0, 60),
+    console.error(JSON.stringify({ event: 'notas-sync-database-write',
+      name: typeof failure?.name === 'string' ? failure.name.slice(0, 60) : 'unknown',
       code: typeof failure?.code === 'string' ? failure.code.slice(0, 10) : null }));
     const failed = done('failed', 'DATABASE-WRITE');
     return relationCommitted ? { ...failed, relationChanged: true } : failed;

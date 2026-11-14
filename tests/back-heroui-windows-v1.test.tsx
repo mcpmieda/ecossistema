@@ -158,7 +158,7 @@ describe('phone back without entries Chrome would skip v1', () => {
     act(() => screen.getByText('Ver trimestre').click());
     await tick(50);
     // The step opened by the tap has an entry of its own.
-    expect(window.history.length).toBe(length + 1);
+    expect(window.history).toHaveLength(length + 1);
     const push = vi.spyOn(window.history, 'pushState');
     await phoneBack();
     await waitFor(() => expect(screen.getByTestId('step').textContent).toBe('ano'));

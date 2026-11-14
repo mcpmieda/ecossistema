@@ -49,14 +49,14 @@ it('gives the phone menu its entry when opened by a tap after an opening without
   activation.isActive = false;
   fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
   await tick(20);
-  expect(window.history.length).toBe(start);
+  expect(window.history).toHaveLength(start);
   fireEvent.click(screen.getByRole('button', { name: 'Fora' }));
   await tick(20);
   // Opened again by the Menu button, now with a real tap.
   activation.isActive = true;
   fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
   await tick(20);
-  expect(window.history.length).toBe(start + 1);
+  expect(window.history).toHaveLength(start + 1);
   window.history.back();
   await tick(80);
   expect(screen.getByTestId('drawer').getAttribute('data-open')).toBeNull();
@@ -84,7 +84,7 @@ it('a link tapped as the search closes takes the released entry, so one back ret
   const start = window.history.length;
   fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
   await tick(20);
-  expect(window.history.length).toBe(start + 1);
+  expect(window.history).toHaveLength(start + 1);
   const link = screen.getByRole('link', { name: 'Centro de Administração' });
   fireEvent.pointerDown(link);
   await tick(20);
@@ -92,7 +92,7 @@ it('a link tapped as the search closes takes the released entry, so one back ret
   fireEvent.click(link);
   await tick(600);
   expect(window.location.hash).toBe('#/painel-do-aluno');
-  expect(window.history.length).toBe(start + 1);
+  expect(window.history).toHaveLength(start + 1);
   window.history.back();
   await tick(80);
   expect(window.location.hash).toBe('#/banco-de-notas');

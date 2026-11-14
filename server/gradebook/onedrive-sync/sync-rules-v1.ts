@@ -197,10 +197,16 @@ export function nextBreakerV1(consecutiveFailures: number, outcome: SyncOutcomeV
     : { consecutiveFailures: failures, breakerUntil: null };
 }
 
+/** When a file needs the coordinator: its due read, or the end of its read's lease. */
+function wakeMomentsV1(file: SyncFileV1): number[] {
+  if (file.state === 'pending' && file.dueAt !== null) return [file.dueAt];
+  if (file.state === 'reading' && file.leaseUntil !== null) return [file.leaseUntil];
+  return [];
+}
+
 /** The earliest moment the coordinator must wake up again. */
 export function nextWakeV1(files: readonly SyncFileV1[], breakerUntil: number | null, now: number): number | null {
-  const moments = files.flatMap((file) =>
-    file.state === 'pending' && file.dueAt !== null ? [file.dueAt] : file.state === 'reading' && file.leaseUntil !== null ? [file.leaseUntil] : []);
+  const moments = files.flatMap(wakeMomentsV1);
   if (breakerUntil !== null && breakerUntil > now) moments.push(breakerUntil);
   return moments.length === 0 ? null : Math.max(now, Math.min(...moments));
 }

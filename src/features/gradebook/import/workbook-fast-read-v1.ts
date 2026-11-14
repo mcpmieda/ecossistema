@@ -114,7 +114,7 @@ function decodeAddressV1(address: string): number | null {
   const match = /^([A-Z]{1,3})(\d+)$/u.exec(address);
   if (!match) return null;
   let column = 0;
-  for (const letter of match[1]!) column = column * 26 + (letter.charCodeAt(0) - 64);
+  for (const letter of match[1]!) column = column * 26 + (letter.codePointAt(0)! - 64);
   return (Number(match[2]) - 1) * COLUMNS_PER_ROW + (column - 1);
 }
 
@@ -140,7 +140,7 @@ function zipEntryV1(files: Record<string, ZipEntryV1>, path: string): Uint8Array
 function sheetPartPathsV1(workbook: FastWorkbookV1): Map<string, string> | null {
   const files = workbook.files;
   const sheets = workbook.Workbook?.Sheets;
-  if (!files || !sheets || sheets.length !== workbook.SheetNames.length) return null;
+  if (!files || sheets?.length !== workbook.SheetNames.length) return null;
   const rels = zipEntryV1(files, 'xl/_rels/workbook.bin.rels');
   if (!rels) return null;
   const targets = relationshipTargetsV1(new TextDecoder().decode(rels));

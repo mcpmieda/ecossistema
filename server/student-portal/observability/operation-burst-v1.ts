@@ -72,7 +72,7 @@ function ipv6Prefix64V1(ip: string): string {
   const extra = right.at(-1)?.includes('.') ? 1 : 0;
   const full = tail === undefined
     ? left
-    : [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length - extra)).fill('0'), ...right];
+    : [...left, ...new Array<string>(Math.max(0, 8 - left.length - right.length - extra)).fill('0'), ...right];
   return full.slice(0, 4).map((group) => group.replace(/^0+(?=.)/u, '')).join(':');
 }
 

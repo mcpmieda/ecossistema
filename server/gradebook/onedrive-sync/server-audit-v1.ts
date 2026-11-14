@@ -41,8 +41,9 @@ function nameTokens(name: string): string[] {
 
 function sameToken(a: string, b: string): boolean {
   const initial = (token: string) => token.length === 1 || (token.length === 2 && token.endsWith('.'));
-  if (initial(a) || initial(b)) return a[0] === b[0];
-  return a.replace(/\.$/u, '') === b.replace(/\.$/u, '');
+  if (initial(a) || initial(b)) return a.startsWith(b.charAt(0));
+  const bare = (token: string) => (token.endsWith('.') ? token.slice(0, -1) : token);
+  return bare(a) === bare(b);
 }
 
 /** Same person by first and last name; an abbreviated surname ("S.") matches by its initial. */

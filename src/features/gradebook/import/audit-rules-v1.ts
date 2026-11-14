@@ -73,7 +73,7 @@ function classCode(value: string): string | null {
 
 /** "II TRIMESTRE" → 2; null when K4 does not name a term. */
 function declaredTerm(value: string): number | null {
-  const match = /\b(III|II|I|[123])\s*(?:º|°|O)?\s*TRIM/u.exec(normalized(value));
+  const match = /\b(I{1,3}|[123])\s*[º°O]?\s*TRIM/u.exec(normalized(value));
   if (!match) return null;
   return ({ I: 1, II: 2, III: 3, 1: 1, 2: 2, 3: 3 } as Record<string, number>)[match[1]!] ?? null;
 }
@@ -89,10 +89,16 @@ function offerKey(sheet: GradeSheetRecognition): string {
   return JSON.stringify([normalized(sheet.className), normalized(sheet.discipline), sheet.disciplineIndex.trim().toUpperCase()]);
 }
 
+/** Why a graded activity column cannot be launched: no maximum, or no description; null when it can. */
+function unlaunchableColumnCodeV1(maximum: number | null, definition: GradeSheetRecognition['assessmentDefinitions'][number] | undefined) {
+  if (maximum === null) return 'activity-without-maximum' as const;
+  return described(definition) ? null : 'activity-without-description' as const;
+}
+
 const MANUAL_RESULT_V1 = new Set(['manual-positive-number', 'manual-negative-number', 'manual-official-zero-marker']);
 
 function described(definition: GradeSheetRecognition['assessmentDefinitions'][number] | undefined): boolean {
-  if (!definition || definition.kind !== 'qualitative-activity') return false;
+  if (definition?.kind !== 'qualitative-activity') return false;
   const name = definition.name;
   return name.state === 'text' && name.rawValue.trim().length > 0 && name.rawValue.trim() !== String(definition.order);
 }
@@ -130,7 +136,7 @@ function auditTermSheet(sheet: GradeSheetRecognition, findings: AuditFindingV1[]
     if (maximum !== null) maximaSum += maximum;
     const graded = sheet.students.filter((student) => hasValue(sheet, `${source.studentValueColumn}${student.row}`));
     if (graded.length === 0) continue;
-    const code = maximum === null ? 'activity-without-maximum' : !described(definition) ? 'activity-without-description' : null;
+    const code = unlaunchableColumnCodeV1(maximum, definition);
     if (!code) continue;
     add(holds.columns, sheet.name, slot);
     for (const student of graded) holdResult(student.row);

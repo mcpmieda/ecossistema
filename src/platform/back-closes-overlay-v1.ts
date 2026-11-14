@@ -70,7 +70,7 @@ function pressEscape(layer: HTMLElement): void {
 
 function backStep(layer: HTMLElement): HTMLElement | null {
   const step = layer.querySelector<HTMLElement>(`[${BACK_STEP_ATTRIBUTE_V1}]`);
-  if (!step || step.closest(OPEN_SELECTOR_V1) !== layer) return null;
+  if (step?.closest(OPEN_SELECTOR_V1) !== layer) return null;
   const disabled = step.hasAttribute('disabled') || step.getAttribute('aria-disabled') === 'true';
   return disabled ? null : step;
 }
@@ -131,7 +131,8 @@ export function useBackClosesOverlayV1(): void {
     };
     const sync = () => {
       const open = openLayers();
-      for (const layer of [...unentered]) if (!open.includes(layer)) unentered.delete(layer);
+      // Deleting from a Set while iterating it is safe: removed entries are just not visited.
+      for (const layer of unentered) if (!open.includes(layer)) unentered.delete(layer);
       // Layers closed on the page (Fechar, an option picked) take their entries away.
       let closed = 0;
       for (let index = stack.length - 1; index >= 0; index -= 1)
