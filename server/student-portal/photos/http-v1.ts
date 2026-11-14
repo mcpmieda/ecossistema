@@ -57,7 +57,7 @@ export async function servePortalPhotoV1(request: Request, env: PhotoEnvV1,
     readOwnPortraitV1(sql, portalKeysV1(env).cryptoPort, token, revision, async object => {
       const storage = new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, async () => {
         throw new Error('student-photo-storage-write-forbidden');
-      });
+      }, fetch, (globalThis as { caches?: { default?: Cache } }).caches?.default);
       return storage.read({ driveId: PHOTO_BUCKET_V1, itemId: object.path, etag: object.sha256,
         sha256: object.sha256, byteSize: object.byteSize, width: object.width, height: object.height }, request.signal);
     }, accountId => checkPortalOperationV1(env.PORTAL_PHOTO_ACCOUNT, 'photo', accountId)))): Promise<Response> {

@@ -87,3 +87,26 @@ it('does not interpret other Storage 400 responses as an absent object', async (
     variant: 'portrait', bytes, metadata, signal })).rejects.toThrow('student-photo-storage-read-400');
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+it('keeps a verified copy in the Worker cache and drops a copy that fails the check', async () => {
+  const store = new Map<string, Response>();
+  const cache = {
+    match: vi.fn(async (key: Request) => store.get(key.url)?.clone()),
+    put: vi.fn(async (key: Request, value: Response) => { store.set(key.url, value); }),
+    delete: vi.fn(async (key: Request) => store.delete(key.url)),
+  };
+  const fetcher = vi.fn(async () => new Response(bytes.slice(), { status: 200 }));
+  const storage = new PhotoStorageV1('k'.repeat(40), async () => undefined,
+    fetcher as unknown as typeof fetch, cache as unknown as Cache);
+  const asset = { ...metadata, driveId: 'student-photos',
+    itemId: `write/${uid}/${requestId}/portrait-${sha256}.webp`, etag: sha256 };
+  expect(await storage.read(asset, signal)).toEqual(bytes);
+  expect(await storage.read(asset, signal)).toEqual(bytes);
+  // The second read comes from the cache, keyed by content, never by student.
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect([...store.keys()]).toEqual([`https://student-photo-cache.invalid/${sha256}`]);
+  // A damaged copy is not served, and leaves the cache.
+  store.set(`https://student-photo-cache.invalid/${sha256}`, new Response(new Uint8Array(bytes.length)));
+  await expect(storage.read(asset, signal)).rejects.toThrow('student-photo-storage-integrity');
+  expect(store.size).toBe(0);
+});
