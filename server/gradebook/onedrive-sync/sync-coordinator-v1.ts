@@ -11,6 +11,8 @@ import {
   graphDriveDeltaV1,
   graphDriveIdV1,
   graphFolderWorkbooksV1,
+  graphLatestDeltaLinkV1,
+  graphRenewSubscriptionV1,
   graphWorkbookItemV1,
   notificationUrlV1,
   type DriveWorkbookV1,
@@ -24,11 +26,16 @@ import {
   finishReadingV1,
   nextBreakerV1,
   nextWakeV1,
+  fastPollActiveV1,
   observeFileV1,
   placeFileV1,
+  pollWindowV1,
+  schoolDayOfV1,
   rereadFileV1,
   startReadingV1,
+  type PollWindowV1,
   type ReadResultV1,
+  type SchoolDayWindowV1,
   type SyncFileV1,
   type SyncSettingsV1,
 } from './sync-rules-v1';
@@ -79,6 +86,8 @@ export interface SyncCoordinatorEnvV1 extends GraphAppEnvV1 {
   NOTAS_SYNC_READ_TOKEN?: string;
   NOTAS_MAX_WORKBOOK_BYTES?: string;
   SELF: SyncReaderV1;
+  /** The Portal's minute and its school hours (calendar and bells) for the 10 s poll. */
+  PORTAL_SCHEDULER?: { pollWindow?(day: string): Promise<SchoolDayWindowV1 | null> };
   /** The deployed version this code belongs to (binding `CF_VERSION_METADATA`). */
   CF_VERSION_METADATA?: CodeVersionV1;
   /** The coordinator namespace, used only to recognise the retired first coordinator. */
@@ -105,17 +114,14 @@ const SUBSCRIPTION_RENEW_BEFORE_MS = 3 * 24 * 60 * 60_000;
 const NIGHTLY_UTC_HOUR = 6; // 03:00 in America/Sao_Paulo
 /** While reads run, the coordinator looks again this often (a Graph notice is picked up at once). */
 const LOOP_TICK_MS = 2_000;
-/** In school hours the folder is also asked directly this often, without waiting for Microsoft's notice. */
+/**
+ * On school days, around the lessons (calendar and bells of the Portal), the folder is also asked
+ * this often, without waiting for Microsoft's notice. Outside, saves arrive by the notice and the
+ * safety delta, only without this acceleration (owner decision 14/11/2026, issue #1426, 29).
+ */
 const POLL_MS = 10_000;
-/** 06:00 to 23:00 in America/Sao_Paulo (UTC-3). */
-const POLL_LOCAL_HOURS: readonly [number, number] = [6, 23];
 /** A write turn not given back in this time is taken over (a reader that died mid-write). */
 const WRITE_TURN_MAX_MS = 120_000;
-
-function schoolHoursV1(now: number): boolean {
-  const hour = (new Date(now).getUTCHours() + 21) % 24;
-  return hour >= POLL_LOCAL_HOURS[0] && hour < POLL_LOCAL_HOURS[1];
-}
 
 const sleepV1 = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); });
 const EVENT_LIMIT = 500;
@@ -130,9 +136,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   private readonly retired: boolean;
   /** Reads in flight, each awaited by the alarm that started it (a read left alone can be lost). */
   private readonly inflight = new Set<Promise<void>>();
-  /** One database write at a time: reads run side by side, their writes take turns. */
+  /** One database write at a time: reads run side by side, their writes take turns in order. */
   private writer: { token: string; since: number } | null = null;
-  private readonly writeWaiters: Array<() => void> = [];
+  private readonly writeQueue: Array<(token: string) => void> = [];
 
   constructor(ctx: DurableObjectState, env: SyncCoordinatorEnvV1) {
     super(ctx, env);
@@ -181,23 +187,46 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   }
 
   // ---- RPC ----------------------------------------------------------------------------
-  /** A reader asks for the database: it waits for the write in progress, if any. */
+  /**
+   * A reader asks for the database and waits its turn, in order. A turn not given back in
+   * WRITE_TURN_MAX_MS (a reader that died mid-write) is taken over by the first one waiting
+   * (issue #1426, 30: a timed-out wait no longer leaves a ghost in the line).
+   */
   async beginWrite(): Promise<string> {
-    while (this.writer && Date.now() - this.writer.since < WRITE_TURN_MAX_MS) {
-      await new Promise<void>((resolve) => {
-        this.writeWaiters.push(resolve);
-        setTimeout(resolve, WRITE_TURN_MAX_MS);
-      });
-    }
+    if (!this.writer || Date.now() - this.writer.since >= WRITE_TURN_MAX_MS) return this.grantWriteV1();
+    return new Promise<string>((resolve) => {
+      this.writeQueue.push(resolve);
+      this.watchWriteTurnV1();
+    });
+  }
+
+  /** The reader is done: the turn goes straight to the next in line (no one can cut in between). */
+  endWrite(token: string): void {
+    if (this.writer?.token !== token) return;
+    this.writer = null;
+    const next = this.writeQueue.shift();
+    if (next) next(this.grantWriteV1());
+  }
+
+  private grantWriteV1(): string {
     const token = crypto.randomUUID();
     this.writer = { token, since: Date.now() };
     return token;
   }
 
-  /** The reader is done with the database: the next one in line goes. */
-  endWrite(token: string): void {
-    if (this.writer?.token === token) this.writer = null;
-    this.writeWaiters.shift()?.();
+  /** One timer for the line: when the current turn is overdue, the first in line takes it. */
+  private writeWatch: ReturnType<typeof setTimeout> | null = null;
+  private watchWriteTurnV1(): void {
+    if (this.writeWatch !== null || !this.writer) return;
+    const wait = Math.max(0, WRITE_TURN_MAX_MS - (Date.now() - this.writer.since));
+    this.writeWatch = setTimeout(() => {
+      this.writeWatch = null;
+      if (this.writer && Date.now() - this.writer.since < WRITE_TURN_MAX_MS) return this.watchWriteTurnV1();
+      const next = this.writeQueue.shift();
+      if (next) next(this.grantWriteV1());
+      else this.writer = null;
+      if (this.writeQueue.length > 0) this.watchWriteTurnV1();
+    }, wait);
   }
 
   /** A Graph change notification arrived: look at delta right away. */
@@ -232,7 +261,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       this.setMeta('nightlyOn', today);
     }
     await this.ensureSubscription(now);
-    await this.wakeAt(now);
+    // Only something due wakes the alarm now; otherwise the next one stays as scheduled (issue #1426, 2).
+    if (this.meta('deltaRequested', false) || this.meta('nightlyRequested', false)) await this.wakeAt(now);
+    else await this.scheduleNext();
   }
 
   async control(command: SyncControlV1, actor: OneDriveSyncActorV1): Promise<SyncStatusV1> {
@@ -250,7 +281,14 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'resume': this.setMeta('settings', { ...settings, paused: false }); this.setMeta('breakerUntil', null); break;
       case 'set-wait': this.setMeta('settings', { ...settings, waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600) }); break;
       case 'set-parallel': this.setMeta('settings', { ...settings, maxParallel: Math.min(Math.max(Math.round(command.count), 1), 10) }); break;
-      case 'read-all': this.setMeta('nightlyRequested', true); break;
+      case 'read-all': {
+        // "Conferir tudo agora": every file is read again, whole, even unchanged ones; the result
+        // also depends on the Relação and the folder's year (issue #1426, 16).
+        const now = Date.now();
+        for (const file of this.files()) this.saveFile(rereadFileV1(file, now));
+        this.setMeta('nightlyRequested', true);
+        break;
+      }
       case 'reread-year': this.rereadYear(command.year); break;
       case 'read-now': {
         const file = this.file(command.fileId);
@@ -363,11 +401,31 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     await this.scheduleNext();
   }
 
-  /** In school hours the folder is asked every POLL_MS even without a Microsoft notice. */
-  private pollDue(now: number): boolean {
+  /** Around the lessons of a school day the folder is asked every POLL_MS even without a Microsoft notice. */
+  private async pollDue(now: number): Promise<boolean> {
     const settings = this.settings();
-    if (!settings.enabled || settings.paused || !schoolHoursV1(now)) return false;
+    if (!settings.enabled || settings.paused || !(await this.fastPollActive(now))) return false;
     return now - (this.meta<number | null>('lastDeltaAt', null) ?? 0) >= POLL_MS;
+  }
+
+  private async fastPollActive(now: number): Promise<boolean> {
+    return fastPollActiveV1(await this.pollWindow(now), now);
+  }
+
+  /** Today's poll window, asked of the Portal once a day (again within the hour if it did not answer). */
+  private async pollWindow(now: number): Promise<PollWindowV1> {
+    const day = schoolDayOfV1(now);
+    const cached = this.meta<PollWindowV1 | null>('pollWindow', null);
+    if (cached?.day === day && (cached.retryAfter === null || cached.retryAfter > now)) return cached;
+    let read: SchoolDayWindowV1 | null = null;
+    try {
+      read = (await this.env.PORTAL_SCHEDULER?.pollWindow?.(day)) ?? null;
+    } catch {
+      read = null;
+    }
+    const window = pollWindowV1(day, read, now);
+    this.setMeta('pollWindow', window);
+    return window;
   }
 
   /** Nightly check, a requested delta, or the school-hours poll; Graph errors back off for a minute. */
@@ -382,7 +440,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
           throw cause;
         });
       }
-      else if (this.meta('deltaRequested', false) || this.pollDue(now)) await this.deltaCheck(now);
+      else if (this.meta('deltaRequested', false) || (await this.pollDue(now))) await this.deltaCheck(now);
     } catch (cause) {
       if (cause instanceof NoFolderConfiguredError) {
         this.setMeta('deltaRequested', false);
@@ -431,7 +489,13 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   private async deltaCheck(now: number): Promise<void> {
     const driveId = await this.driveId();
-    const delta = await graphDriveDeltaV1(this.env, driveId, this.meta<string | null>('deltaLink', null));
+    const link = this.meta<string | null>('deltaLink', null);
+    // No cursor yet: list the sources and start from the current cursor, never the whole drive.
+    if (link === null) {
+      await this.resyncSources(now, driveId, false);
+      return;
+    }
+    const delta = await graphDriveDeltaV1(this.env, driveId, link);
     this.observe(delta.changes, now);
     this.setMeta('deltaLink', delta.deltaLink);
     this.setMeta('deltaRequested', false);
@@ -443,6 +507,16 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     // Taken now: a request made while this check awaits Graph (a source added) stays for the next one.
     this.setMeta('nightlyRequested', false);
     const driveId = await this.driveId();
+    await this.resyncSources(now, driveId, true);
+  }
+
+  /**
+   * Every source listed against what is known, from the drive's current cursor (Graph
+   * `token=latest`, taken first so nothing saved meanwhile is lost): a few calls instead of
+   * enumerating the whole OneDrive (issue #1426, 1). `nightly` also forgets each file's memory.
+   */
+  private async resyncSources(now: number, driveId: string, nightly: boolean): Promise<void> {
+    const deltaLink = await graphLatestDeltaLinkV1(this.env, driveId);
     const listed: DriveWorkbookV1[] = [];
     for (const source of Object.values(this.sources())) {
       if (source.kind === 'folder') {
@@ -461,13 +535,12 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     for (const file of this.files()) {
       if (!present.has(file.id) && !file.removed) this.saveFile({ ...file, removed: true, state: file.state === 'reading' ? 'reading' : 'idle', dueAt: null });
       // Once a day the next read of each file writes everything again (memory forgotten).
-      else if (file.memory) this.saveFile({ ...file, memory: null });
+      else if (nightly && file.memory) this.saveFile({ ...file, memory: null });
     }
-    const delta = await graphDriveDeltaV1(this.env, driveId, null);
-    this.setMeta('deltaLink', delta.deltaLink);
+    this.setMeta('deltaLink', deltaLink);
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
-    this.event('full-check', { files: listed.length });
+    this.event(nightly ? 'full-check' : 'source-listing', { files: listed.length });
   }
 
   /** Starts every read that may start now; the alarm loop awaits them. */
@@ -480,6 +553,12 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const sources = this.sources();
     const files = this.files().filter((file) => file.sourceId !== undefined && sources[file.sourceId] !== undefined);
     for (const file of filesToStartV1(files, now, this.settings(), breakerUntil)) {
+      // Larger than allowed by the listing already: no download, no reader (issue #1426, 43).
+      if (file.size > maxBytes) {
+        this.saveFile({ ...file, state: 'idle', dueAt: null, dirty: false, lastOutcome: 'too-large', lastCode: 'FILE-TOO-LARGE',
+          lastReadAt: now, lastReadMs: 0, processedHash: file.hash });
+        continue;
+      }
       const lease = crypto.randomUUID();
       this.saveFile(startReadingV1(file, lease, now));
       const input: ProcessWorkbookInputV1 = {
@@ -504,7 +583,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const file = this.file(id);
     if (!file) return;
     const now = Date.now();
-    const finished = finishReadingV1(file, lease, result, now);
+    const finished = finishReadingV1(file, lease, result, now, this.settings().waitSeconds * 1000);
     if (!finished) return;
     this.saveFile(finished);
     if (result.relationChanged) {
@@ -537,13 +616,28 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const lastTry = this.meta<number | null>('subscriptionTriedAt', null);
     if (lastTry !== null && now - lastTry < 60 * 60_000) return;
     this.setMeta('subscriptionTriedAt', now);
+    const expiresAt = new Date(now + (DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 - 60) * 60_000);
+    // Still there: its expiry moves forward (issue #1426, 12d); only a vanished one is created again.
+    if (current && Date.parse(current.expiresAt) > now) {
+      try {
+        const renewed = await graphRenewSubscriptionV1(this.env, current.id, expiresAt);
+        if (renewed !== null) {
+          this.setMeta('subscription', { id: current.id, expiresAt: renewed });
+          this.event('webhook-renewed', { expiresAt: renewed });
+          return;
+        }
+      } catch (cause) {
+        this.event('webhook-error', { status: graphStatusV1(cause) });
+        return;
+      }
+    }
     try {
       const driveId = await this.driveId();
       const created = await graphCreateDriveSubscriptionV1(this.env, {
         driveId,
         notificationUrl: notificationUrlV1(this.env.NOTAS_SYNC_PUBLIC_URL, '/graph/notificacoes'),
         clientState: this.env.NOTAS_SYNC_CLIENT_STATE,
-        expiresAt: new Date(now + (DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 - 60) * 60_000),
+        expiresAt,
       });
       this.setMeta('subscription', { id: created.id, expiresAt: created.expirationDateTime });
       this.event('webhook-subscribed', { expiresAt: created.expirationDateTime });
@@ -575,7 +669,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const files = active ? this.files() : this.files().filter((file) => file.state === 'reading');
     const next = nextWakeV1(files, this.meta<number | null>('breakerUntil', null), now);
     const graphReadyAt = Math.max(now + 5_000, this.meta('graphBackoffUntil', 0), this.meta<number | null>('breakerUntil', null) ?? 0);
-    const pollAt = active && schoolHoursV1(now)
+    const pollAt = active && (await this.fastPollActive(now))
       ? Math.max(now + 1_000, (this.meta<number | null>('lastDeltaAt', null) ?? 0) + POLL_MS) : null;
     const candidates = [next, pendingWork && this.settings().enabled ? graphReadyAt : null, pollAt]
       .filter((value): value is number => value !== null);

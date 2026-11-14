@@ -46,6 +46,8 @@ export type SyncFileV1 = {
   readonly forget?: boolean;
   /** What the last read recognised: a teacher grade workbook or the Relação. */
   readonly workbook?: 'notas' | 'relacao';
+  /** Students the last read held (name or Relação check), 0 or absent when none. */
+  readonly heldStudents?: number;
 };
 
 /**
@@ -138,10 +140,13 @@ export type ReadResultV1 = {
   readonly relationChanged?: boolean;
   /** What the read recognised, when it got that far. */
   readonly workbook?: 'notas' | 'relacao';
+  /** Students held by the Relação checks (rule 14 and students missing from the Relação). */
+  readonly heldStudents?: number;
 };
 
 /** Applies a finished read. Returns null when the lease is stale (another read owns the file). */
-export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadResultV1, now: number): SyncFileV1 | null {
+export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadResultV1, now: number,
+  waitMs = 0): SyncFileV1 | null {
   if (file.state !== 'reading' || file.lease !== lease) return null;
   const transient = result.outcome === 'failed';
   const attempts = transient ? file.attempts + 1 : 0;
@@ -154,9 +159,11 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
     memory: file.forget ? null : memory,
     ...(file.forget ? { processedHash: null, forget: false } : {}),
     ...(result.workbook ? { workbook: result.workbook } : {}),
+    ...(result.heldStudents === undefined ? {} : { heldStudents: result.heldStudents }),
   };
   if (file.removed) return { ...finished, state: 'idle', dirty: false, dueAt: null };
-  if (file.dirty) return { ...finished, state: 'pending', dirty: false, dueAt: now };
+  // Saved again while it was read: read again after the same wait as any save (issue #1426, 7).
+  if (file.dirty) return { ...finished, state: 'pending', dirty: false, dueAt: now + waitMs };
   if (transient) {
     const delay = RETRY_DELAYS_MS_V1[Math.min(attempts - 1, RETRY_DELAYS_MS_V1.length - 1)]!;
     return { ...finished, state: 'pending', dueAt: now + delay };
@@ -185,6 +192,43 @@ export function placeFileV1(file: SyncFileV1, source: { readonly itemId: string;
   const kept = yearChanged || file.lastOutcome === 'ignored' ? rereadFileV1(file, now) : file;
   if (kept === file && file.sourceId === source.itemId && file.year === source.year) return file;
   return { ...kept, sourceId: source.itemId, year: source.year };
+}
+
+/** One day's school hours as the Portal knows them (calendar and bells), "HH:MM" in local time. */
+export type SchoolDayWindowV1 = { readonly schoolDay: boolean; readonly starts: string; readonly ends: string; readonly source: string };
+
+/** When the 10 s poll runs on `day`: from 30 min before the first lesson to 1 h after the last. */
+export type PollWindowV1 = {
+  readonly day: string; readonly schoolDay: boolean; readonly startsAt: number; readonly endsAt: number;
+  readonly source: string; readonly retryAfter: number | null;
+};
+const POLL_MARGIN_BEFORE_MS_V1 = 30 * 60_000;
+const POLL_MARGIN_AFTER_MS_V1 = 60 * 60_000;
+const HHMM_V1 = /^([01]\d|2[0-3]):([0-5]\d)$/u;
+
+/** The school's day (America/Bahia, UTC−3, no daylight saving) of an instant. */
+export function schoolDayOfV1(now: number): string {
+  return new Date(now - 3 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/**
+ * The poll window of `day` from what the Portal answered; without an answer (Portal unreachable),
+ * Monday to Friday 07:00–18:00, asked again within the hour (owner decision, issue #1426, 29).
+ */
+export function pollWindowV1(day: string, read: SchoolDayWindowV1 | null, now: number): PollWindowV1 {
+  const at = (time: string) => Date.parse(`${day}T${HHMM_V1.test(time) ? time : '07:00'}:00-03:00`);
+  if (read) {
+    const ends = HHMM_V1.test(read.ends) ? read.ends : '18:00';
+    return { day, schoolDay: read.schoolDay, startsAt: at(read.starts) - POLL_MARGIN_BEFORE_MS_V1,
+      endsAt: at(ends) + POLL_MARGIN_AFTER_MS_V1, source: read.source, retryAfter: null };
+  }
+  const weekday = new Date(`${day}T12:00:00-03:00`).getUTCDay();
+  return { day, schoolDay: weekday >= 1 && weekday <= 5, startsAt: at('07:00') - POLL_MARGIN_BEFORE_MS_V1,
+    endsAt: at('18:00') + POLL_MARGIN_AFTER_MS_V1, source: 'weekday-fallback', retryAfter: now + 60 * 60_000 };
+}
+
+export function fastPollActiveV1(window: PollWindowV1, now: number): boolean {
+  return window.schoolDay && now >= window.startsAt && now < window.endsAt;
 }
 
 /** Consecutive transient failures across files trip the breaker for a while. */
