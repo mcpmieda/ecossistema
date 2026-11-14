@@ -207,7 +207,7 @@ export function forgetPlatformSnapshotsV2(): void {
 export async function getPlatformSnapshotCachedV2(env: RuntimeEnv, capabilities: readonly PlatformCapability[],
   dependencies = sourceDependencies, now: () => number = Date.now): Promise<PlatformSnapshotV2> {
   requireCapability(capabilities, 'platform.snapshot.read');
-  const key = [...new Set(capabilities)].sort().join(',');
+  const key = [...new Set(capabilities)].sort((a, b) => a.localeCompare(b)).join(',');
   const entry = snapshotCacheV2.get(key) ?? { at: Number.NEGATIVE_INFINITY };
   if (entry.value && now() - entry.at < PLATFORM_SNAPSHOT_CACHE_MS_V2) return entry.value;
   // Shared by everyone waiting, so one caller giving up does not cancel the others' read.
