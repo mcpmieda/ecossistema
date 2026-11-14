@@ -127,8 +127,11 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
       if (snapshotContentV2(value) !== snapshotContentV2(complete)) complete = value;
       markCheckedV2(value.generatedAt);
       auxiliary = value.unavailableSections?.length ? 'partial' : 'ready';
-      // A focus storm is not a reason to repeat an identical external request.
-      retryAt = now() + Math.max(30, value.retryAfterSeconds ?? 0) * 1000;
+      // A focus storm is not a reason to repeat an identical external request: after a complete
+      // answer a return of focus reads again in 2 min at the soonest (issue #1426, 20); a partial
+      // one follows the server's Retry-After. "Recarregar" starts over at once.
+      const floor = value.unavailableSections?.length ? 30 : 120;
+      retryAt = now() + Math.max(floor, value.retryAfterSeconds ?? 0) * 1000;
       emit();
     } catch (error) {
       if (controller.signal.aborted || own !== generation || stopped) return;

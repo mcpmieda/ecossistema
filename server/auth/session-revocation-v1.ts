@@ -75,11 +75,20 @@ function portV1(env: RuntimeEnv): SessionRevocationPortV1 | null {
   return postgresRevocationV1(binding.connectionString);
 }
 
-/** Per instance: revoked ids stay revoked; "not revoked" is trusted for a short while. */
-const cacheV1 = new Map<string, { revoked: boolean; until: number }>();
-function remember(sid: string, revoked: boolean, until: number) {
-  if (cacheV1.size >= CACHE_LIMIT_V1) cacheV1.clear();
-  cacheV1.set(sid, { revoked, until });
+/** After a failed read, the session is let through without asking again for this long. */
+export const FAILURE_CACHE_MS_V1 = 15_000;
+
+/**
+ * Per instance: revoked ids stay revoked; "not revoked" is trusted for a short while. The entry
+ * holds the read itself while it runs, so the ADM's simultaneous requests of one session share a
+ * single database question (issue #1426, 3), and a failed read is remembered briefly, so a
+ * database outage does not slow every request by the connection timeout.
+ */
+type CacheEntryV1 = { readonly revoked: Promise<boolean>; readonly until: number; readonly settled: boolean };
+const cacheV1 = new Map<string, CacheEntryV1>();
+function remember(sid: string, entry: CacheEntryV1) {
+  if (cacheV1.size >= CACHE_LIMIT_V1 && !cacheV1.has(sid)) cacheV1.clear();
+  cacheV1.set(sid, entry);
 }
 
 /**
@@ -93,22 +102,31 @@ export async function isSessionRevokedV1(
   now = Date.now(),
 ): Promise<boolean> {
   const cached = cacheV1.get(sid);
-  if (cached && (cached.revoked || cached.until > now)) return cached.revoked;
+  if (cached && (!cached.settled || cached.until > now)) return cached.revoked;
   const port = portV1(env);
   if (!port) return false;
-  try {
-    const revoked = await port.isRevoked(sid);
-    remember(sid, revoked, revoked ? expiresAtSeconds * 1000 : now + NOT_REVOKED_CACHE_MS_V1);
-    return revoked;
-  } catch (cause) {
-    console.warn(JSON.stringify({ event: 'admin-session-revocation-read-failure-v1', error: cause instanceof Error ? cause.message.slice(0, 200) : 'unknown' }));
-    return false;
-  }
+  const read = port.isRevoked(sid).then(
+    (revoked) => {
+      // "Sair" during the read already stored the revocation: it is never overwritten.
+      if (cacheV1.get(sid)?.revoked === read)
+        remember(sid, { revoked: Promise.resolve(revoked), settled: true,
+          until: revoked ? expiresAtSeconds * 1000 : Date.now() + NOT_REVOKED_CACHE_MS_V1 });
+      return revoked;
+    },
+    (cause: unknown) => {
+      console.warn(JSON.stringify({ event: 'admin-session-revocation-read-failure-v1', error: cause instanceof Error ? cause.message.slice(0, 200) : 'unknown' }));
+      if (cacheV1.get(sid)?.revoked === read)
+        remember(sid, { revoked: Promise.resolve(false), settled: true, until: Date.now() + FAILURE_CACHE_MS_V1 });
+      return false;
+    },
+  );
+  remember(sid, { revoked: read, settled: false, until: Number.POSITIVE_INFINITY });
+  return read;
 }
 
 /** Records the session as ended. Never throws: "Sair" always clears the cookie. */
 export async function revokeSessionV1(env: RuntimeEnv, sid: string, expiresAtSeconds: number): Promise<boolean> {
-  remember(sid, true, expiresAtSeconds * 1000);
+  remember(sid, { revoked: Promise.resolve(true), settled: true, until: expiresAtSeconds * 1000 });
   const port = portV1(env);
   if (!port) return false;
   try {

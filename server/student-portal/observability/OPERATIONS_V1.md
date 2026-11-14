@@ -32,7 +32,7 @@ Depois da contenção, confirmar por agregados: acesso habilitado=0 no escopo, s
 
 P-10/P-11 adicionam dois eventos igualmente fechados:
 - `student-portal-auth-burst-v1`: somente `allowed | global-limited | subject-limited | invalid-subject | unavailable`; nunca inclui subject, QR, challenge, IP ou hash;
-- `student-portal-db-lifecycle-v1`: operação, outcome, `openRoleMs`, `applicationMs` e attempts (1–2). `openRoleMs` cobre a primeira consulta `SELECT current_user` **mais** eventual estabelecimento lazy da conexão postgres.js; não representa custo puro do SQL nem deve ser usado para remover a role check.
+- `student-portal-db-lifecycle-v1` (até 14/11/2026; desde a issue #1426, 22c, os campos vêm em `student-portal-operation-v1`): operação, outcome, `openRoleMs`, `applicationMs` e attempts (1–2). `openRoleMs` cobre a primeira consulta `SELECT current_user` **mais** eventual estabelecimento lazy da conexão postgres.js; não representa custo puro do SQL nem deve ser usado para remover a role check.
 
 Esses eventos servem para volume/correlação. Sem collector/dashboard/threshold externo, log emitido não equivale a alerta operacional.
 
