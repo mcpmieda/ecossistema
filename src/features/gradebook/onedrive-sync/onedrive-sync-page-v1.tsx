@@ -46,6 +46,14 @@ const ACTION_LABELS: Record<string, string> = {
   'remove-source': 'removeu uma fonte',
 };
 
+/** What each control change shows after its label. */
+const CONTROL_DETAILS: Readonly<Record<string, (detail: Record<string, unknown>) => string>> = {
+  'set-folder': (detail) => ` (${String(detail.year)}: ${String(detail.folderPath)})`,
+  'add-source': (detail) => ` (${String(detail.year)}: ${String(detail.path)})`,
+  'set-wait': (detail) => ` (${String(detail.seconds)} s)`,
+  'set-parallel': (detail) => ` (${String(detail.count)})`,
+};
+
 function time(value: number | null): string {
   if (value === null) return '—';
   return new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -64,10 +72,7 @@ function eventText(event: OneDriveSyncStatusV1['events'][number]): string {
   }
   if (event.kind === 'control') {
     const action = typeof detail.action === 'string' ? detail.action : '';
-    const extra = action === 'set-folder' ? ` (${String(detail.year)}: ${String(detail.folderPath)})`
-      : action === 'add-source' ? ` (${String(detail.year)}: ${String(detail.path)})`
-      : action === 'set-wait' ? ` (${String(detail.seconds)} s)`
-      : action === 'set-parallel' ? ` (${String(detail.count)})` : '';
+    const extra = CONTROL_DETAILS[action]?.(detail) ?? '';
     return `${ACTION_LABELS[action] ?? action}${extra}`;
   }
   if (event.kind === 'webhook-subscribed') return 'aviso da Graph ativado';
@@ -122,10 +127,54 @@ function FileRow({ file, busy, onRead }: { file: FileV1; busy: boolean; onRead: 
   );
 }
 
+const SAMPLE_LABELS: Readonly<Record<string, string>> = { ready: 'reconhecida', none: 'nenhuma planilha' };
+
+function webhookLabelV1(accepted: boolean | null): string {
+  if (accepted === true) return 'aceito';
+  if (accepted === false) return 'recusado — a pasta será conferida a cada minuto';
+  return 'não testado';
+}
+
+function PreviewSummary({ preview }: Readonly<{ preview: PreviewV1 }>) {
+  const { sample } = preview;
+  return (
+    <div className="grid gap-1 rounded-xl border border-border/70 bg-surface p-3 text-sm">
+      <strong>{preview.workbooks} planilha(s) · {(preview.workbookBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB</strong>
+      <span className="text-muted">
+        Leitura de teste (sem gravar): {SAMPLE_LABELS[sample.outcome] ?? sample.outcome}
+        {sample.readMs !== null && sample.readMs > 0 ? ` em ${seconds(sample.readMs)}` : ''}
+      </span>
+      <span className="text-muted">Aviso da Graph: {webhookLabelV1(preview.webhook.accepted)}</span>
+      {preview.names.length > 0 ? <span className="text-xs text-muted">{preview.names.join(' · ')}</span> : null}
+    </div>
+  );
+}
+
+/** The workbooks of the folder shown, each one can be chosen as a source on its own (e.g. the Relação). */
+function WorkbookChoices({ workbooks, year, disabled, onChoose }: Readonly<{
+  workbooks: readonly WorkbookEntryV1[]; year: number; disabled: boolean; onChoose: (workbook: WorkbookEntryV1) => void;
+}>) {
+  return (
+    <>
+      {workbooks.map((workbook) => (
+        <li key={workbook.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1 text-sm">
+          <span className="flex min-w-0 items-center gap-2">
+            <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />
+            <span className="truncate">{workbook.name}</span>
+          </span>
+          <Button size="sm" variant="secondary" isDisabled={disabled} onPress={() => onChoose(workbook)}>
+            Ler só este arquivo em {year}
+          </Button>
+        </li>
+      ))}
+    </>
+  );
+}
+
 /** Navigates the secretaria's OneDrive and chooses a source: the folder shown or one of its workbooks. */
-function SourcePicker({ year, onChosen, onCancel }: {
+function SourcePicker({ year, onChosen, onCancel }: Readonly<{
   year: number; onChosen: (source: ChosenSourceV1) => Promise<void>; onCancel: () => void;
-}) {
+}>) {
   const [trail, setTrail] = useState<Array<{ id: string; name: string }>>([]);
   const [folders, setFolders] = useState<FolderV1[] | null>(null);
   const [workbooks, setWorkbooks] = useState<WorkbookEntryV1[]>([]);
@@ -190,33 +239,11 @@ function SourcePicker({ year, onChosen, onCancel }: {
               </Button>
             </li>
           ))}
-          {workbooks.map((workbook) => (
-            <li key={workbook.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1 text-sm">
-              <span className="flex min-w-0 items-center gap-2">
-                <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />
-                <span className="truncate">{workbook.name}</span>
-              </span>
-              <Button size="sm" variant="secondary" isDisabled={busy !== null}
-                onPress={() => { setBusy('save'); void onChosen({ kind: 'file', itemId: workbook.id, path: path ? `${path}/${workbook.name}` : workbook.name }).finally(() => setBusy(null)); }}>
-                Ler só este arquivo em {year}
-              </Button>
-            </li>
-          ))}
+          <WorkbookChoices workbooks={workbooks} year={year} disabled={busy !== null}
+            onChoose={(workbook) => { setBusy('save'); void onChosen({ kind: 'file', itemId: workbook.id, path: path ? `${path}/${workbook.name}` : workbook.name }).finally(() => setBusy(null)); }} />
         </ul>
       )}
-      {preview ? (
-        <div className="grid gap-1 rounded-xl border border-border/70 bg-surface p-3 text-sm">
-          <strong>{preview.workbooks} planilha(s) · {(preview.workbookBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB</strong>
-          <span className="text-muted">
-            Leitura de teste (sem gravar): {preview.sample.outcome === 'ready' ? 'reconhecida' : preview.sample.outcome === 'none' ? 'nenhuma planilha' : preview.sample.outcome}
-            {preview.sample.readMs !== null && preview.sample.readMs > 0 ? ` em ${seconds(preview.sample.readMs)}` : ''}
-          </span>
-          <span className="text-muted">
-            Aviso da Graph: {preview.webhook.accepted === true ? 'aceito' : preview.webhook.accepted === false ? 'recusado — a pasta será conferida a cada minuto' : 'não testado'}
-          </span>
-          {preview.names.length > 0 ? <span className="text-xs text-muted">{preview.names.join(' · ')}</span> : null}
-        </div>
-      ) : null}
+      {preview ? <PreviewSummary preview={preview} /> : null}
       {failure ? (
         <p className="flex flex-wrap items-center gap-2 text-sm text-danger" role="alert">
           {failure}

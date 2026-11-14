@@ -24,6 +24,7 @@ import {
   nextBreakerV1,
   nextWakeV1,
   observeFileV1,
+  placeFileV1,
   rereadFileV1,
   startReadingV1,
   type ReadResultV1,
@@ -226,22 +227,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       // The older panel chose one folder per year; it is now one more source.
       case 'set-folder': this.addSource({ itemId: command.folderId, kind: 'folder', path: command.folderPath, year: command.year }, actor); break;
       case 'add-source': this.addSource({ itemId: command.itemId, kind: command.kind, path: command.path, year: command.year }, actor); break;
-      case 'remove-source': {
-        const sources = this.sources();
-        delete sources[command.itemId];
-        this.setMeta('sources', sources);
-        this.setMeta('activeYear', latestYearV1(sources));
-        // Its files leave the list; grades already written stay as they are.
-        for (const file of this.files()) {
-          if (file.sourceId !== command.itemId) continue;
-          // A read in progress ends as removed (never requeued); the rest leave at once.
-          if (file.state === 'reading') this.saveFile({ ...file, removed: true, dirty: false });
-          else this.ctx.storage.sql.exec('DELETE FROM files WHERE id = ?', file.id);
-        }
-        // A file may still belong to another source (its folder): the full check finds it again.
-        this.setMeta('nightlyRequested', true);
-        break;
-      }
+      case 'remove-source': this.removeSource(command.itemId); break;
       case 'enable': this.setMeta('settings', { ...settings, enabled: true }); this.setMeta('deltaRequested', true); break;
       case 'disable': this.setMeta('settings', { ...settings, enabled: false }); break;
       case 'pause': this.setMeta('settings', { ...settings, paused: true }); break;
@@ -249,13 +235,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'set-wait': this.setMeta('settings', { ...settings, waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600) }); break;
       case 'set-parallel': this.setMeta('settings', { ...settings, maxParallel: Math.min(Math.max(Math.round(command.count), 1), 10) }); break;
       case 'read-all': this.setMeta('nightlyRequested', true); break;
-      case 'reread-year': {
-        const now = Date.now();
-        for (const file of this.files()) {
-          if (file.year === command.year && file.workbook !== 'relacao') this.saveFile(rereadFileV1(file, now));
-        }
-        break;
-      }
+      case 'reread-year': this.rereadYear(command.year); break;
       case 'read-now': {
         const file = this.file(command.fileId);
         if (file && file.state !== 'reading') this.saveFile({ ...file, state: 'pending', dueAt: Date.now(), processedHash: null, memory: null });
@@ -266,6 +246,29 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     if (command.action === 'disable') await this.removeSubscription();
     await this.wakeAt(Date.now());
     return this.status();
+  }
+
+  /** Its files leave the list (a read in progress ends as removed); grades already written stay. */
+  private removeSource(itemId: string): void {
+    const sources = this.sources();
+    delete sources[itemId];
+    this.setMeta('sources', sources);
+    this.setMeta('activeYear', latestYearV1(sources));
+    for (const file of this.files()) {
+      if (file.sourceId !== itemId) continue;
+      if (file.state === 'reading') this.saveFile({ ...file, removed: true, dirty: false });
+      else this.ctx.storage.sql.exec('DELETE FROM files WHERE id = ?', file.id);
+    }
+    // A file may still belong to another source (its folder): the full check finds it again.
+    this.setMeta('nightlyRequested', true);
+  }
+
+  /** A Relação was applied: the year's teacher workbooks are read again, whole. */
+  private rereadYear(year: number): void {
+    const now = Date.now();
+    for (const file of this.files()) {
+      if (file.year === year && file.workbook !== 'relacao') this.saveFile(rereadFileV1(file, now));
+    }
   }
 
   /** A folder or one workbook of an academic year; the next check lists it whole. */
@@ -404,12 +407,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       }, now, settings);
       const file = next ?? current;
       if (!file) continue;
-      const retag = source !== null && (file.sourceId !== source.itemId || file.year !== source.year);
-      // Another year for a file already read (its source's year was corrected): read it again whole.
-      const yearChanged = source !== null && file.year !== undefined && file.year !== source.year;
-      // A workbook the old reader skipped as "not a teacher's" (the Relação) is read for real once.
-      const kept = yearChanged || file.lastOutcome === 'ignored' ? rereadFileV1(file, now) : file;
-      if (next || retag || kept !== file) this.saveFile(source ? { ...kept, sourceId: source.itemId, year: source.year } : kept);
+      const placed = placeFileV1(file, source, now);
+      if (next || placed !== file) this.saveFile(placed);
     }
   }
 

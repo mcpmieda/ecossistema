@@ -145,12 +145,13 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
   if (file.state !== 'reading' || file.lease !== lease) return null;
   const transient = result.outcome === 'failed';
   const attempts = transient ? file.attempts + 1 : 0;
+  const memory = result.memory === undefined ? (file.memory ?? null) : result.memory;
   const finished: SyncFileV1 = {
     ...file, lease: null, leaseUntil: null, attempts,
     lastOutcome: result.outcome, lastCode: result.code, lastReadAt: now, lastReadMs: result.readMs,
     lastSavedToWrittenMs: result.savedToWrittenMs ?? file.lastSavedToWrittenMs,
     processedHash: transient ? file.processedHash : (result.readHash ?? file.processedHash),
-    memory: file.forget ? null : result.memory === undefined ? (file.memory ?? null) : result.memory,
+    memory: file.forget ? null : memory,
     ...(file.forget ? { processedHash: null, forget: false } : {}),
     ...(result.workbook ? { workbook: result.workbook } : {}),
   };
@@ -171,6 +172,19 @@ export function rereadFileV1(file: SyncFileV1, now: number): SyncFileV1 {
   if (file.removed) return file;
   if (file.state === 'reading') return { ...file, dirty: true, forget: true };
   return { ...file, memory: null, processedHash: null, state: 'pending', dueAt: now, attempts: 0 };
+}
+
+/**
+ * Ties a file to its source and that source's year. A file whose year changed (the source's year
+ * was corrected) or that the old reader skipped as "not a teacher's" (the Relação) is read again whole.
+ */
+export function placeFileV1(file: SyncFileV1, source: { readonly itemId: string; readonly year: number } | null,
+  now: number): SyncFileV1 {
+  if (!source) return file;
+  const yearChanged = file.year !== undefined && file.year !== source.year;
+  const kept = yearChanged || file.lastOutcome === 'ignored' ? rereadFileV1(file, now) : file;
+  if (kept === file && file.sourceId === source.itemId && file.year === source.year) return file;
+  return { ...kept, sourceId: source.itemId, year: source.year };
 }
 
 /** Consecutive transient failures across files trip the breaker for a while. */
