@@ -71,11 +71,39 @@ function classCode(value: string): string | null {
   return match ? `${match[1]}${match[2]}` : null;
 }
 
+const TERM_DIGITS_V1: Readonly<Record<string, number>> = { 1: 1, 2: 2, 3: 3 };
+const ORDINAL_MARKS_V1 = new Set(['º', '°', 'O']);
+const isSpaceV1 = (char: string | undefined) => char !== undefined && /\s/u.test(char);
+const isWordCharV1 = (char: string | undefined) => char !== undefined && /\w/u.test(char);
+
+/**
+ * The term named right before "TRIM" at `at`: "I", "II", "III" or 1–3, optionally followed by an
+ * ordinal mark and spaces, starting at a word boundary. Same reading as the former expression
+ * /\b(I{1,3}|[123])\s*[º°O]?\s*TRIM/, scanned backwards in linear time.
+ */
+function termBeforeV1(text: string, at: number): number | null {
+  let index = at;
+  while (isSpaceV1(text[index - 1])) index -= 1;
+  if (ORDINAL_MARKS_V1.has(text[index - 1] ?? '')) {
+    index -= 1;
+    while (isSpaceV1(text[index - 1])) index -= 1;
+  }
+  const digit = TERM_DIGITS_V1[text[index - 1] ?? ''];
+  if (digit !== undefined) return isWordCharV1(text[index - 2]) ? null : digit;
+  let numeral = 0;
+  while (text[index - 1 - numeral] === 'I') numeral += 1;
+  if (numeral === 0 || numeral > 3 || isWordCharV1(text[index - 1 - numeral])) return null;
+  return numeral;
+}
+
 /** "II TRIMESTRE" → 2; null when K4 does not name a term. */
-function declaredTerm(value: string): number | null {
-  const match = /\b(I{1,3}|[123])\s*[º°O]?\s*TRIM/u.exec(normalized(value));
-  if (!match) return null;
-  return ({ I: 1, II: 2, III: 3, 1: 1, 2: 2, 3: 3 } as Record<string, number>)[match[1]!] ?? null;
+export function declaredTermV1(value: string): number | null {
+  const text = normalized(value);
+  for (let at = text.indexOf('TRIM'); at >= 0; at = text.indexOf('TRIM', at + 1)) {
+    const term = termBeforeV1(text, at);
+    if (term !== null) return term;
+  }
+  return null;
 }
 
 function termOf(sheet: GradeSheetRecognition): 1 | 2 | 3 | null {
@@ -108,26 +136,37 @@ function validMaximum(definition: GradeSheetRecognition['assessmentDefinitions']
   return configuration?.state === 'numeric' && positive(configuration.rawValue) ? configuration.rawValue : null;
 }
 
-function auditTermSheet(sheet: GradeSheetRecognition, findings: AuditFindingV1[], holds: {
+type TermHoldsV1 = {
   columns: Map<string, Set<number>>; results: Map<string, Set<number>>; qualitativeRows: Map<string, Set<number>>;
   offers: Map<string, string>;
-}): void {
-  const facts = sheet.auditV1;
-  const bySlot = new Map(sheet.assessmentDefinitions.map((definition) => [definition.sourceSlot, definition]));
-  const holdResult = (row: number) => add(holds.results, sheet.name, row);
+};
 
-  // 7. Header K3/K4 different from the sheet name: the whole class/subject is held.
+/** What every rule of one term sheet shares. */
+type TermAuditV1 = {
+  readonly sheet: GradeSheetRecognition;
+  readonly findings: AuditFindingV1[];
+  readonly holds: TermHoldsV1;
+  readonly holdResult: (row: number) => void;
+};
+
+/** 7. Header K3/K4 different from the sheet name: the whole class/subject is held. */
+function auditTermHeaderV1({ sheet, findings, holds }: TermAuditV1): void {
   const expectedTerm = termOf(sheet);
-  const k4 = declaredTerm(sheet.declaredStage);
+  const k4 = declaredTermV1(sheet.declaredStage);
   const k3 = classCode(sheet.className);
-  const named = facts ? classCode(facts.sheetClass) : null;
-  if ((k4 !== null && expectedTerm !== null && k4 !== expectedTerm) || (k3 !== null && named !== null && k3 !== named)) {
-    holds.offers.set(sheet.name, `Cabeçalho de ${sheet.name} não corresponde à guia.`);
-    findings.push({ code: 'header-mismatch', blocking: true, sheet, cellAddress: k4 !== expectedTerm ? 'K4' : 'K3',
-      foundValue: k4 !== expectedTerm ? sheet.declaredStage : sheet.className });
-  }
+  const named = sheet.auditV1 ? classCode(sheet.auditV1.sheetClass) : null;
+  const termDiffers = k4 !== null && expectedTerm !== null && k4 !== expectedTerm;
+  const classDiffers = k3 !== null && named !== null && k3 !== named;
+  if (!termDiffers && !classDiffers) return;
+  holds.offers.set(sheet.name, `Cabeçalho de ${sheet.name} não corresponde à guia.`);
+  const k4Cell = k4 !== expectedTerm;
+  findings.push({ code: 'header-mismatch', blocking: true, sheet, cellAddress: k4Cell ? 'K4' : 'K3',
+    foundValue: k4Cell ? sheet.declaredStage : sheet.className });
+}
 
-  // 1 and 2. Grades in an activity column without description or without a valid maximum.
+/** 1 and 2. Grades in an activity column without description or without a valid maximum; returns the maxima's sum. */
+function auditActivityColumnsV1({ sheet, findings, holds, holdResult }: TermAuditV1): number {
+  const bySlot = new Map(sheet.assessmentDefinitions.map((definition) => [definition.sourceSlot, definition]));
   let maximaSum = 0;
   for (const [index, source] of SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.entries()) {
     const slot = 11 + index;
@@ -135,59 +174,84 @@ function auditTermSheet(sheet: GradeSheetRecognition, findings: AuditFindingV1[]
     const maximum = validMaximum(definition);
     if (maximum !== null) maximaSum += maximum;
     const graded = sheet.students.filter((student) => hasValue(sheet, `${source.studentValueColumn}${student.row}`));
-    if (graded.length === 0) continue;
-    const code = unlaunchableColumnCodeV1(maximum, definition);
+    const code = graded.length === 0 ? null : unlaunchableColumnCodeV1(maximum, definition);
     if (!code) continue;
     add(holds.columns, sheet.name, slot);
     for (const student of graded) holdResult(student.row);
     findings.push({ code, blocking: true, sheet, slot, cellAddress: maximum === null ? source.maximumCell : source.nameCell,
       cause: `${graded.length} aluno(s) com nota nesta coluna.` });
   }
+  return maximaSum;
+}
+
+/** What the per-student rules of one sheet read once. */
+type StudentRulesV1 = {
+  readonly ceiling: number | null;
+  readonly oneAssessment: boolean;
+  readonly resultsAreFormulas: boolean;
+  readonly workRows: ReadonlySet<number>;
+  readonly workOff: boolean;
+};
+
+/** 4. The student's activities add up to more than the qualitative ceiling. */
+function auditQualitativeSumV1({ sheet, findings, holds, holdResult }: TermAuditV1, rules: StudentRulesV1,
+  student: StudentRecognition): void {
+  if (!positive(rules.ceiling)) return;
+  const sum = SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.reduce(
+    (total, source) => total + (snapshotNumber(sheet, `${source.studentValueColumn}${student.row}`) ?? 0), 0);
+  if (sum <= rules.ceiling + 1e-9) return;
+  add(holds.qualitativeRows, sheet.name, student.row);
+  holdResult(student.row);
+  findings.push({ code: 'qualitative-over-ceiling', blocking: true, sheet, student, cellAddress: `AA${student.row}:AJ${student.row}`,
+    foundValue: String(Math.round(sum * 1000) / 1000), cause: `Teto qualitativo: ${rules.ceiling}.` });
+}
+
+/** 9, 11 and 12: a work grade with the block off, AV2 in one-assessment mode, a typed term result. */
+function auditStudentEntriesV1({ sheet, findings, holdResult }: TermAuditV1, rules: StudentRulesV1,
+  student: StudentRecognition): void {
+  if (rules.workOff && rules.workRows.has(student.row)) {
+    holdResult(student.row);
+    findings.push({ code: 'work-without-weight', blocking: true, sheet, student, cellAddress: `U${student.row}:X${student.row}` });
+  }
+  if (rules.oneAssessment && hasValue(sheet, `S${student.row}`)) {
+    holdResult(student.row);
+    findings.push({ code: 'one-assessment-mode', blocking: true, sheet, student, cellAddress: `S${student.row}` });
+  }
+  const result = student.termResultObservations?.officialTermGrade;
+  if (rules.resultsAreFormulas && result && MANUAL_RESULT_V1.has(result.classification)) {
+    holdResult(student.row);
+    findings.push({ code: 'manual-term-result', blocking: true, sheet, student, cellAddress: `AM${student.row}`,
+      foundValue: 'rawValue' in result ? String(result.rawValue) : undefined });
+  }
+}
+
+function auditTermSheet(sheet: GradeSheetRecognition, findings: AuditFindingV1[], holds: TermHoldsV1): void {
+  const facts = sheet.auditV1;
+  const audit: TermAuditV1 = { sheet, findings, holds, holdResult: (row) => add(holds.results, sheet.name, row) };
+  auditTermHeaderV1(audit);
+  const maximaSum = auditActivityColumnsV1(audit);
 
   // 6. The activities' maxima add up to more than the qualitative ceiling: the teacher's
   // distribution is wrong, so every AM of the sheet is held until the spreadsheet is fixed.
   const ceiling = facts?.qualitativeCeiling ?? null;
   if (positive(ceiling) && maximaSum > ceiling + 1e-9) {
-    for (const student of sheet.students) holdResult(student.row);
+    for (const student of sheet.students) audit.holdResult(student.row);
     findings.push({ code: 'qualitative-maxima-over-ceiling', blocking: true, sheet, cellAddress: 'AK3',
       foundValue: String(maximaSum), cause: `Teto qualitativo: ${ceiling}.` });
   }
 
-  const oneAssessment = normalized(facts?.assessmentMode ?? '').startsWith('1 AVALIA');
-  // A typed AM is a deleted formula only where the sheet's other AMs are formulas.
-  const resultsAreFormulas = sheet.students.some((student) =>
-    student.termResultObservations?.officialTermGrade.classification.startsWith('formula'));
-  const workRows = new Set(facts?.workRows ?? []);
-  const workOff = !positive(facts?.workCeiling ?? null);
+  const rules: StudentRulesV1 = {
+    ceiling,
+    oneAssessment: normalized(facts?.assessmentMode ?? '').startsWith('1 AVALIA'),
+    // A typed AM is a deleted formula only where the sheet's other AMs are formulas.
+    resultsAreFormulas: sheet.students.some((student) =>
+      student.termResultObservations?.officialTermGrade.classification.startsWith('formula')),
+    workRows: new Set(facts?.workRows ?? []),
+    workOff: !positive(facts?.workCeiling ?? null),
+  };
   for (const student of sheet.students) {
-    // 4. The student's activities add up to more than the qualitative ceiling.
-    if (positive(ceiling)) {
-      const sum = SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.reduce(
-        (total, source) => total + (snapshotNumber(sheet, `${source.studentValueColumn}${student.row}`) ?? 0), 0);
-      if (sum > ceiling + 1e-9) {
-        add(holds.qualitativeRows, sheet.name, student.row);
-        holdResult(student.row);
-        findings.push({ code: 'qualitative-over-ceiling', blocking: true, sheet, student, cellAddress: `AA${student.row}:AJ${student.row}`,
-          foundValue: String(Math.round(sum * 1000) / 1000), cause: `Teto qualitativo: ${ceiling}.` });
-      }
-    }
-    // 9. A work grade (U:X) while the work block is off: the formula drops it.
-    if (workOff && workRows.has(student.row)) {
-      holdResult(student.row);
-      findings.push({ code: 'work-without-weight', blocking: true, sheet, student, cellAddress: `U${student.row}:X${student.row}` });
-    }
-    // 11. AV2 filled while the sheet is in "1 AVALIAÇÃO" mode.
-    if (oneAssessment && hasValue(sheet, `S${student.row}`)) {
-      holdResult(student.row);
-      findings.push({ code: 'one-assessment-mode', blocking: true, sheet, student, cellAddress: `S${student.row}` });
-    }
-    // 12. The term result typed by hand instead of the sheet's formula.
-    const result = student.termResultObservations?.officialTermGrade;
-    if (resultsAreFormulas && result && MANUAL_RESULT_V1.has(result.classification)) {
-      holdResult(student.row);
-      findings.push({ code: 'manual-term-result', blocking: true, sheet, student, cellAddress: `AM${student.row}`,
-        foundValue: 'rawValue' in result ? String(result.rawValue) : undefined });
-    }
+    auditQualitativeSumV1(audit, rules, student);
+    auditStudentEntriesV1(audit, rules, student);
   }
 }
 

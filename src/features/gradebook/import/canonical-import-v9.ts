@@ -555,49 +555,39 @@ function offer(
   };
 }
 
-export function createGradebookCanonicalImportRequestV9(
+/** The Relação: the roster of every class of the year, as read. */
+function relationRequestV9(
   result: BatchSuccess,
-  runtime: CanonicalImportRuntimeV9 = {},
+  relation: NonNullable<SummaryWithRelationV9['masterRelationV9']>,
+  runtime: CanonicalImportRuntimeV9,
 ): GradebookImportPersistenceRequestV9 {
-  const summary = result.summary as SummaryWithRelationV9;
-  if (summary.masterRelationV9) {
-    if (!isGradebookAcademicYearV2(summary.masterRelationV9.ano))
-      throw new Error('Ano letivo inválido na Relação.');
-    runtime.onProgress?.({
-      stage: 'roster',
-      current: 0,
-      total: summary.masterRelationV9.turmas.length,
-    });
-    const request = {
-      transportVersion: 9,
-      operation: 'persist-relacao',
-      manifest: manifest(result),
-      ano: summary.masterRelationV9.ano,
-      turmas: summary.masterRelationV9.turmas,
-    } as const;
-    runtime.onProgress?.({
-      stage: 'roster',
-      current: summary.masterRelationV9.turmas.length,
-      total: summary.masterRelationV9.turmas.length,
-    });
-    runtime.onProgress?.({ stage: 'compacting', current: 1, total: 1 });
-    if (!isGradebookImportPersistenceRequestV9(request))
-      throw new Error('Relação canônica não passou na validação local.');
-    return request;
-  }
+  if (!isGradebookAcademicYearV2(relation.ano)) throw new Error('Ano letivo inválido na Relação.');
+  const total = relation.turmas.length;
+  runtime.onProgress?.({ stage: 'roster', current: 0, total });
+  const request = {
+    transportVersion: 9,
+    operation: 'persist-relacao',
+    manifest: manifest(result),
+    ano: relation.ano,
+    turmas: relation.turmas,
+  } as const;
+  runtime.onProgress?.({ stage: 'roster', current: total, total });
+  runtime.onProgress?.({ stage: 'compacting', current: 1, total: 1 });
+  if (!isGradebookImportPersistenceRequestV9(request))
+    throw new Error('Relação canônica não passou na validação local.');
+  return request;
+}
 
-  if (!isGradebookAcademicYearV2(summary.academicYear))
-    throw new Error('Ano letivo ausente ou inválido em CONFIGURAÇÃO!C2.');
-  const professor = summary.teacherName?.trim();
-  if (!professor) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
-  const groups = courseGroups(summary);
-  if (groups.length === 0) throw new Error('Nenhuma oferta acadêmica reconhecida.');
-  runtime.onProgress?.({ stage: 'grades', current: 0, total: groups.length });
+/** Every class/subject the import can read as a whole; one it cannot is held (left out, it stays as it is). */
+function readableOffersV9(
+  summary: SummaryWithRelationV9,
+  groups: ReturnType<typeof courseGroups>,
+  runtime: CanonicalImportRuntimeV9,
+): GradebookImportOfferV9[] {
   const ofertas: GradebookImportOfferV9[] = [];
   const heldReasons: string[] = [];
   const { holds } = auditWorkbookV1(summary);
   for (const [index, sheets] of groups.entries()) {
-    // An offer the import cannot read as a whole is held: left out, it stays as it is.
     try {
       ofertas.push(offer(sheets, runtime, holds));
     } catch (cause) {
@@ -609,6 +599,11 @@ export function createGradebookCanonicalImportRequestV9(
   }
   if (ofertas.length === 0)
     throw new Error(`Nenhuma turma desta planilha pôde ser lançada. ${heldReasons[0] ?? ''}`.trim());
+  return ofertas;
+}
+
+/** One class and subject appears once per file. */
+function assertNoDuplicateOfferV9(ofertas: readonly GradebookImportOfferV9[]): void {
   const logical = new Set<string>();
   for (const item of ofertas) {
     const key = JSON.stringify([
@@ -622,6 +617,24 @@ export function createGradebookCanonicalImportRequestV9(
     }
     logical.add(key);
   }
+}
+
+export function createGradebookCanonicalImportRequestV9(
+  result: BatchSuccess,
+  runtime: CanonicalImportRuntimeV9 = {},
+): GradebookImportPersistenceRequestV9 {
+  const summary = result.summary as SummaryWithRelationV9;
+  if (summary.masterRelationV9) return relationRequestV9(result, summary.masterRelationV9, runtime);
+
+  if (!isGradebookAcademicYearV2(summary.academicYear))
+    throw new Error('Ano letivo ausente ou inválido em CONFIGURAÇÃO!C2.');
+  const professor = summary.teacherName?.trim();
+  if (!professor) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
+  const groups = courseGroups(summary);
+  if (groups.length === 0) throw new Error('Nenhuma oferta acadêmica reconhecida.');
+  runtime.onProgress?.({ stage: 'grades', current: 0, total: groups.length });
+  const ofertas = readableOffersV9(summary, groups, runtime);
+  assertNoDuplicateOfferV9(ofertas);
   runtime.onProgress?.({ stage: 'recovery', current: groups.length, total: groups.length });
   runtime.onProgress?.({ stage: 'compacting', current: 1, total: 1 });
   const request = {

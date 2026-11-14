@@ -180,31 +180,25 @@ function profileSituationV2(
   return finalAuthority || (situation === 'in-recovery' && t3Published) ? situation : undefined;
 }
 
-/** Auth/session/current-link validation is owned by the caller. Only this student's prepared rows are loaded. */
-export async function scopedSelfV2(
-  tx: StudentPortalPostgresQueryV1,
+/**
+ * Every period's edition the family may see, merged into `subjects`. A2: the annual situation,
+ * officialOutcome and result come from the edition the family sees for the period that is latest
+ * in the school calendar (T3, or REC3 after it), never from whichever period happens to point at
+ * the newest revision, nor from a REC1/REC2 that precedes the T3.
+ */
+function readPeriodsV2(
+  rows: Awaited<ReturnType<typeof readScopedSourcesV2>>,
   context: ContextV2,
-  requestId: string,
-  sources?: ScopedSelfSourceReaderV2,
-): Promise<SelfResponseV1> {
-  const accountId = context.account.id;
-  const link = context.account.link!;
-  const rows = sources ? await sources.scoped(context)
-    : await readScopedSourcesV2(tx, accountId, link.studentId, context.policy.classId!);
-  if (rows.length !== PERIODS_V1.length) throw new Error('student-portal-preparation-unavailable');
+  reader: AcademicStudentReaderPostgresV1,
+  decoded: Map<string, SourceV2>,
+  subjects: Map<number, SubjectV2>,
+): { accepted: (string | null)[]; finalSource: SourceV2 | undefined; explicitWithdrawal: boolean } {
   const accepted: (string | null)[] = PERIODS_V1.map(() => null);
-  const subjects = new Map<number, SubjectV2>();
-  const reader = new AcademicStudentReaderPostgresV1(tx);
-  const decoded = new Map<string, SourceV2>();
-  // A2: the annual situation, officialOutcome and result come from the edition the family sees for
-  // the period that is latest in the school calendar (T3, or REC3 after it), never from whichever
-  // period happens to point at the newest revision, nor from a REC1/REC2 that precedes the T3.
   let finalSource: SourceV2 | undefined;
   let shownSource: SourceV2 | undefined;
   let finalRank = -1;
   let shownRank = -1;
   let explicitWithdrawal = false;
-
   for (const [index, period] of PERIODS_V1.entries()) {
     const row = rows.find((item) => item.period === period);
     if (!row) throw new Error('student-portal-preparation-unavailable');
@@ -222,8 +216,25 @@ export async function scopedSelfV2(
     explicitWithdrawal ||= selected.explicitWithdrawal;
     mergePeriodSubjectsV2(subjects, selected.available, period);
   }
+  return { accepted, finalSource: shownSource ?? finalSource, explicitWithdrawal };
+}
 
-  finalSource = shownSource ?? finalSource;
+/** Auth/session/current-link validation is owned by the caller. Only this student's prepared rows are loaded. */
+export async function scopedSelfV2(
+  tx: StudentPortalPostgresQueryV1,
+  context: ContextV2,
+  requestId: string,
+  sources?: ScopedSelfSourceReaderV2,
+): Promise<SelfResponseV1> {
+  const accountId = context.account.id;
+  const link = context.account.link!;
+  const rows = sources ? await sources.scoped(context)
+    : await readScopedSourcesV2(tx, accountId, link.studentId, context.policy.classId!);
+  if (rows.length !== PERIODS_V1.length) throw new Error('student-portal-preparation-unavailable');
+  const subjects = new Map<number, SubjectV2>();
+  const reader = new AcademicStudentReaderPostgresV1(tx);
+  const decoded = new Map<string, SourceV2>();
+  const { accepted, finalSource, explicitWithdrawal } = readPeriodsV2(rows, context, reader, decoded, subjects);
   const finalAuthority = finalAuthorityV2(context, finalSource, explicitWithdrawal);
   const published = PERIODS_V1.filter((_, index) => accepted[index] !== null);
   const t3Published = published.includes('T3');
