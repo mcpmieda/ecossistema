@@ -116,7 +116,7 @@ export class CollectorPairingStoreV1 {
 
   async retireExpiredUnclaimed():Promise<void>{
     await this.sql.query(`WITH expired AS MATERIALIZED (
-      SELECT id,device_id FROM collector_auth.pairings WHERE expires_at<=clock_timestamp()
+      SELECT id,device_id FROM collector_auth.pairings WHERE expires_at<=statement_timestamp()
         AND claimed_at IS NULL AND state IN ('pending','confirmed','exchanging','completed') LIMIT 50 FOR UPDATE SKIP LOCKED
       ), revoked AS (
       UPDATE collector_auth.devices d SET revoked_at=clock_timestamp(),generation=generation+1 FROM expired p
@@ -134,7 +134,9 @@ export class CollectorPairingStoreV1 {
   /** Bounded retention (migration collector/0005). Only finished rows go: expired
    * challenges (anti-replay needs them only until expiry) and cancelled pairings
    * without a device. Completed pairings stay: authorization requires them.
-   * Skipped until the DELETE grant exists, so deploy order cannot break access. */
+   * Skipped until the DELETE grant exists, so deploy order cannot break access. The time ranges
+   * compare with statement_timestamp(): a volatile clock_timestamp() kept the expiry indexes
+   * unused (issue #1426, 17: 7.9 billion rows read in challenges in 67 days). */
   async purgeFinished():Promise<void>{
     const [grant]=await this.sql.query<{ready:boolean}>(`SELECT has_table_privilege(current_user,'collector_auth.challenges','DELETE')
       AND has_table_privilege(current_user,'collector_auth.pairings','DELETE') AS ready`,[]);
@@ -142,11 +144,11 @@ export class CollectorPairingStoreV1 {
     // Only the collector runtime sees these pseudonymous rate-limit scopes.
     await this.sql.query(`DELETE FROM collector_auth.pairing_rate_v1 WHERE ctid IN (
       SELECT ctid FROM collector_auth.pairing_rate_v1 WHERE scope<>'global'
-      AND window_started_at<clock_timestamp()-interval '2 days' LIMIT 500)`,[]).catch(()=>undefined);
+      AND window_started_at<statement_timestamp()-interval '2 days' LIMIT 500)`,[]).catch(()=>undefined);
     await this.sql.query(`WITH challenges AS (DELETE FROM collector_auth.challenges WHERE ctid IN (SELECT ctid FROM collector_auth.challenges
-      WHERE expires_at<clock_timestamp()-interval '1 hour' LIMIT 500) RETURNING 1
+      WHERE expires_at<statement_timestamp()-interval '1 hour' LIMIT 500) RETURNING 1
       ), pairings AS (DELETE FROM collector_auth.pairings WHERE ctid IN (SELECT ctid FROM collector_auth.pairings
-      WHERE state='cancelled' AND device_id IS NULL AND expires_at<clock_timestamp()-interval '1 day' LIMIT 500) RETURNING 1
+      WHERE state='cancelled' AND device_id IS NULL AND expires_at<statement_timestamp()-interval '1 day' LIMIT 500) RETURNING 1
       ) SELECT (SELECT count(*) FROM challenges)+(SELECT count(*) FROM pairings) AS removed`,[]);
   }
 }

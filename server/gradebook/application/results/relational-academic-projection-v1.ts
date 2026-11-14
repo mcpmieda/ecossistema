@@ -205,7 +205,7 @@ export function createRelationalAcademicProjectionServiceV1(database: GradebookP
                 i.trimestre, i.slot, i.maximo, n.valor,
                 f.am1_fonte, f.am2_fonte, f.am3_fonte,
                 f.rec1, f.rec2, f.rec3, f.rec_nc_mask,
-                COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint, 0) AS rec_rr_mask,
+                COALESCE(f.rec_rr_mask, 0) AS rec_rr_mask,
                 f.u_fonte
          FROM requested r
          JOIN gradebook.oferta o ON o.id = r.oferta_id

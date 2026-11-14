@@ -125,7 +125,7 @@ export async function readClosingSourceBatchV2(
     `WITH target AS (
       SELECT account_id,student_id FROM jsonb_to_recordset($1::text::jsonb)
         AS x(account_id uuid,student_id integer)
-    ) SELECT t.account_id,t.student_id,to_jsonb(a)->>'student_uid' AS uid,
+    ) SELECT t.account_id,t.student_id,a.student_uid::text AS uid,
       s.payload_json,s.class_id,h.generation||':'||s.revision::text AS revision
     FROM target t CROSS JOIN student_portal.publication_source_head_v2 h
     JOIN student_portal.account a ON a.id=t.account_id
@@ -230,7 +230,7 @@ export async function readLatestSourceV2(tx: StudentPortalPostgresQueryV1, stude
 /** Durable student key for stable phrase variants (spec decision 7). */
 export async function readStudentKeyV2(tx: StudentPortalPostgresQueryV1, accountId: string) {
   // to_jsonb keeps older disposable schemas (before 0018) readable; production always has the column.
-  const rows = await tx.unsafe("SELECT to_jsonb(a)->>'student_uid' AS uid FROM student_portal.account a WHERE a.id=$1::uuid", [accountId]);
+  const rows = await tx.unsafe("SELECT a.student_uid::text AS uid FROM student_portal.account a WHERE a.id=$1::uuid", [accountId]);
   const uid = rows[0]?.uid;
   return typeof uid === 'string' && uid.length > 0 ? uid : `account:${accountId}`;
 }

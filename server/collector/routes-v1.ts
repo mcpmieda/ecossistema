@@ -220,7 +220,9 @@ export async function handleCollectorRequestV1(request:Request,env:RuntimeEnv,de
     return request.method==='GET'?new Response(style,{headers:{'Content-Type':'text/css; charset=utf-8','Cache-Control':'no-store'}}):notAllowed();
   if(url.pathname==='/frequency-collector/revoke'||url.pathname===prefixPath('device-status'))
     return handleWithdrawalV1(request,url,env,dependencies);
-  const runtime=await createCollectorRuntimeV1(env,dependencies);
+  // Pairing pages and the sign-in callback keep the abandoned-pairing cleanup on every request.
+  const pairingRoute=callback||url.pathname.startsWith('/api/frequency-collector/pairings')||url.pathname==='/frequency-collector/connect';
+  const runtime=await createCollectorRuntimeV1(env,dependencies,{pairingRoute});
   if(!runtime)return json({error:'Collector access unavailable',code:'ACCESS_NOT_CONFIGURED'},503);
   try{
     return await runtimeRoute(request,url,env,runtime,callback);
