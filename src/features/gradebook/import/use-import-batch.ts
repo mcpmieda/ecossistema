@@ -818,12 +818,13 @@ export function useImportBatch() {
    * this file keeps them, as the OneDrive reading does (issue #1426, finding 31).
    */
   async function auditUnboundStudents(
+    operation: GradebookImportPersistenceRequestV9['operation'],
     local: LocalPreparationV9,
     result: BatchSuccess,
     response: GradebookImportPersistenceResponseV9,
     observation: BatchObservationV1,
   ): Promise<void> {
-    if ((response.state !== 'applied' && response.state !== 'no-changes') || local.diagnostics === null) return;
+    if (operation !== 'persist-notas' || (response.state !== 'applied' && response.state !== 'no-changes') || local.diagnostics === null) return;
     const unbound = (response.warnings ?? []).filter((warning) => warning.code === 'student-not-in-relation');
     if (unbound.length === 0) return;
     await auditDiagnostics(
@@ -1007,7 +1008,7 @@ export function useImportBatch() {
       });
       if (stopped !== null) return stopped;
     }
-    if (request.operation === 'persist-notas') await auditUnboundStudents(local, result, response, observation);
+    await auditUnboundStudents(request.operation, local, result, response, observation);
     return runResultOfV1(response.state);
   }
 
