@@ -193,6 +193,15 @@ export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
         if (!connectionString) throw new Error('notas-sync-database-binding-missing');
         return createGradebookPostgresDatabaseV1(connectionString);
       },
+      writeTurn: async (work) => {
+        const coordinator = coordinatorV1(env);
+        const token = await coordinator.beginWrite();
+        try {
+          return await work();
+        } finally {
+          await coordinator.endWrite(token).catch(() => undefined);
+        }
+      },
       notifyPortal: async () => {
         // The app identity is the technical author of the sync; the Portal outbox stays authoritative.
         await env.PORTAL_SERVICE?.drainLive?.({

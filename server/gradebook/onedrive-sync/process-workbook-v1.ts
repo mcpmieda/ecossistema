@@ -5,6 +5,7 @@ import type {
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type { SheetJs } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
 import { createGradebookRelationalImportServiceV11 } from '../application/import/import-relational-service-v11';
+import { createImportPerformanceObserverV1, emitImportPerformanceV1 } from '../persistence/postgres/import-performance-observer-v1';
 import {
   InvalidImportDiagnosticsSnapshotV1,
   replaceGradebookImportDiagnosticsSnapshotV1,
@@ -34,6 +35,8 @@ export type ProcessWorkbookPortsV1 = {
   readonly openDatabase: () => Promise<GradebookPostgresDatabaseV1>;
   /** Hint to the Portal after grades are written; the Portal's outbox stays authoritative. */
   readonly notifyPortal: () => Promise<void>;
+  /** Runs the database writes in this file's turn (one file writes at a time); default: right away. */
+  readonly writeTurn?: <T>(work: () => Promise<T>) => Promise<T>;
   readonly now: () => number;
   /** Waits between write retries; tests pass an instant one. */
   readonly sleep?: (ms: number) => Promise<void>;
@@ -62,7 +65,13 @@ async function relationNamesV1(database: GradebookPostgresDatabaseV1, year: numb
 
 const OFFICIAL_SERVICES_V1: NonNullable<ProcessWorkbookPortsV1['services']> = {
   recordAudit: (database, audit) => replaceGradebookImportDiagnosticsSnapshotV1(database, audit),
-  persist: (database, request) => createGradebookRelationalImportServiceV11(database).execute(request),
+  persist: async (database, request) => {
+    // Numbers only (statements, rows, milliseconds): where the write spends its time.
+    const observer = createImportPerformanceObserverV1();
+    const response = await createGradebookRelationalImportServiceV11(database, observer).execute(request);
+    emitImportPerformanceV1({ source: 'notas-sync', state: response.state, ...observer.snapshot() });
+    return response;
+  },
   relationNames: relationNamesV1,
 };
 
@@ -144,10 +153,12 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
     stage('open');
     if (!database) return result('failed', 'DATABASE-UNAVAILABLE');
     try {
+      // Database writes wait for this file's turn: reads run side by side, writes one at a time.
+      const turn = ports.writeTurn ?? (<T,>(work: () => Promise<T>) => work());
       // The Auditoria snapshot is written only when it differs from the last one written.
       const writeAudit = async (audit: GradebookImportDiagnosticsAuditRequestV1): Promise<string> => {
         const print = await fingerprintV1([audit.academicYear, audit.fileName, audit.diagnostics]);
-        if (previous?.audit !== print) await withLockRetryV1(() => services.recordAudit(database, audit), ports.sleep);
+        if (previous?.audit !== print) await turn(() => withLockRetryV1(() => services.recordAudit(database, audit), ports.sleep));
         stage('audit');
         return print;
       };
@@ -187,7 +198,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
         request = { ...request, ofertas: changed };
       }
       const sent = request;
-      const response = await withLockRetryV1(() => services.persist(database, sent), ports.sleep);
+      const response = await turn(() => withLockRetryV1(() => services.persist(database, sent), ports.sleep));
       stage('persist');
       if (response.state === 'unavailable') return result('failed', 'DATABASE-UNAVAILABLE');
       if (REJECTED_STATES_V1.has(response.state)) {

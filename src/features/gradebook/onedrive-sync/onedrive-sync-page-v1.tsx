@@ -303,7 +303,7 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
                 <StateChip status={status} />
               </div>
               <p className="mt-1 max-w-3xl text-sm text-muted">
-                Cada planilha salva na pasta é lida e lançada em segundos, com a mesma Auditoria da importação. Problemas seguram só a nota, o resultado ou a turma afetada.
+                Cada planilha salva na pasta é lida e lançada com a mesma Auditoria da importação; problemas seguram só a nota, o resultado ou a turma afetada. Pelo Excel do computador a nota chega em cerca de meio minuto; pelo Excel online, em 1 a 3 minutos, porque ele demora a gravar o arquivo.
               </p>
               <p className="mt-1 text-xs text-muted">
                 {status.webhook.active ? `Aviso da Graph ativo até ${time(Date.parse(status.webhook.expiresAt ?? '') || null)}` : 'Sem aviso da Graph: a pasta é conferida a cada minuto'}
