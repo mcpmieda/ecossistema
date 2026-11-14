@@ -16,6 +16,29 @@ describe('student name check against the Relação (rule 14)', () => {
     expect(sameStudentNameV1('MARIA SOUZA COSTA', 'MARIA SOUZA SILVA')).toBe(false);
   });
 
+  it('ignores generation suffixes, apostrophes and notes written after the name (issue #1426, 8 and 38)', () => {
+    const same: Array<[string, string]> = [
+      ['JOAO DA SILVA', 'JOÃO DA SILVA FILHO'], ['JOAO SILVA JR.', 'JOÃO SILVA JÚNIOR'], ['JOAO SILVA JUNIOR', 'JOÃO SILVA'],
+      ['MARIA SOUZA NETA', 'MARIA SOUZA'], ["MARIA SANT'ANA", 'MARIA SANTANA'], ['PEDRO D’ÁVILA', 'PEDRO DAVILA'],
+      ['JOÃO SILVA (AEE)', 'JOÃO SILVA'], ['JOÃO SILVA - TRANSFERIDO', 'JOÃO SILVA'], ['ANA LIMA *', 'ANA LIMA'],
+      ['MARIA-CLARA SOUZA', 'MARIA CLARA SOUZA'], ['ANA S.', 'ANA SOUZA'],
+    ];
+    for (const [sheet, relation] of same) expect(sameStudentNameV1(sheet, relation), `${sheet} × ${relation}`).toBe(true);
+    const other: Array<[string, string]> = [
+      ['ANA NETO', 'ANA SOUZA'], ['JOAO SILVA', 'JOAO SOUZA'], ['LUIZ SOUZA', 'LUÍS SOUZA'], ['MARIA SANTOS', 'PEDRO SANTOS'],
+      ['JOÃO PEREIRA (AEE)', 'JOÃO SILVA'],
+    ];
+    for (const [sheet, relation] of other) expect(sameStudentNameV1(sheet, relation), `${sheet} × ${relation}`).toBe(false);
+  });
+
+  it('accepts a name with words left out, in order, but not a different surname', () => {
+    expect(sameStudentNameV1('PEDRO HENRIQUE', 'PEDRO HENRIQUE ALVES')).toBe(true);
+    expect(sameStudentNameV1('PEDRO ALVES', 'PEDRO HENRIQUE ALVES')).toBe(true);
+    expect(sameStudentNameV1('PEDRO HENRIQUE ALVES', 'PEDRO ALVES')).toBe(true);
+    expect(sameStudentNameV1('PEDRO HENRIQUE COSTA', 'PEDRO HENRIQUE ALVES')).toBe(false);
+    expect(sameStudentNameV1('PEDRO COSTA', 'PEDRO HENRIQUE ALVES')).toBe(false);
+  });
+
   it('does not judge an empty name', () => {
     expect(sameStudentNameV1('', 'MARIA SOUZA SILVA')).toBe(true);
   });

@@ -55,6 +55,12 @@ function where(value: Finding): string {
     .join(' · ');
 }
 
+/** A finding about the file itself (no class or student): the tab and cell to look at, never a generic text. */
+function fileWideWhereV1(value: Finding): string {
+  if (!value.sheetName) return 'Planilha inteira';
+  return value.cellAddress ? `Guia ${value.sheetName}, célula ${value.cellAddress}` : `Guia ${value.sheetName}`;
+}
+
 function teacher(fileName: string): string {
   return fileName.replace(/\.(xlsb|xlsx|xlsm|xls)$/iu, '');
 }
@@ -140,7 +146,7 @@ function ProblemList({ tab }: { readonly tab: ProblemTab }) {
                     aria-hidden="true"
                     className={`mt-1.5 size-2 shrink-0 rounded-full ${item.severity === 'blocking-error' ? 'bg-danger' : 'bg-warning'}`}
                   />
-                  <span className="min-w-0 flex-1 break-words">{where(item) || item.message}</span>
+                  <span className="min-w-0 flex-1 break-words">{where(item) || fileWideWhereV1(item)}</span>
                   {item.foundValue && (
                     <span className="shrink-0 rounded-md bg-surface px-2 py-0.5 font-mono text-xs text-muted">
                       {item.foundValue}

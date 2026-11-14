@@ -51,3 +51,36 @@ it('does not read while the page is hidden, and reads again shortly after it com
   await advance(1_100);
   expect(vi.mocked(requestOneDriveSyncV1).mock.calls).toHaveLength(calls + 1);
 });
+
+const still = (() => {
+  if (ready.state !== 'status') throw new Error('preview status');
+  return { ...ready, status: { ...ready.status, files: ready.status.files.map((file) => ({ ...file, state: 'idle' as const })) } };
+})();
+
+it('reads every 60 s when nothing moves, and every 10 s while a file waits (issue #1426, 11)', async () => {
+  vi.mocked(requestOneDriveSyncV1).mockResolvedValue(still);
+  render(<OneDriveSyncPageV1 />);
+  await advance(10);
+  const calls = () => vi.mocked(requestOneDriveSyncV1).mock.calls.length;
+  const first = calls();
+  await advance(30_000);
+  expect(calls()).toBe(first);
+  await advance(30_000);
+  expect(calls()).toBe(first + 1);
+  vi.mocked(requestOneDriveSyncV1).mockResolvedValue(ready);
+  await advance(60_000);
+  await advance(10_000);
+  expect(calls()).toBe(first + 3);
+});
+
+it('stops reading after 10 min untouched and reads at once on the next click', async () => {
+  vi.mocked(requestOneDriveSyncV1).mockResolvedValue(still);
+  render(<OneDriveSyncPageV1 />);
+  await advance(11 * 60_000);
+  const paused = vi.mocked(requestOneDriveSyncV1).mock.calls.length;
+  await advance(5 * 60_000);
+  expect(vi.mocked(requestOneDriveSyncV1).mock.calls).toHaveLength(paused);
+  await act(async () => { window.dispatchEvent(new Event('pointerdown')); });
+  await advance(10);
+  expect(vi.mocked(requestOneDriveSyncV1).mock.calls).toHaveLength(paused + 1);
+});
