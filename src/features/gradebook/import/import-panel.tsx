@@ -180,12 +180,19 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
         <Alert.Description>{persistenceDescription(state)}</Alert.Description>
         {'warnings' in response && response.warnings?.length ? (
           <ul className="mt-2 space-y-1 text-sm">
-            {response.warnings.map((warning) => (
-              <li key={`${warning.classCode}:${warning.number}:${warning.relatedClassCode}`}>
-                Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira
-                a grafia.
-              </li>
-            ))}
+            {response.warnings.map((warning) =>
+              warning.code === 'student-not-in-relation' ? (
+                <li key={`fora:${warning.classCode}:${warning.number}`}>
+                  Aluno nº {warning.number} da {warning.classCode} não está na Relação do sistema: as notas
+                  dele não foram lançadas. Envie a Relação atualizada.
+                </li>
+              ) : (
+                <li key={`${warning.classCode}:${warning.number}:${warning.relatedClassCode}`}>
+                  Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira
+                  a grafia.
+                </li>
+              ),
+            )}
           </ul>
         ) : null}
       </Alert.Content>

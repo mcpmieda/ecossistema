@@ -10,6 +10,7 @@ import { authorizeGradebookRuntimeV1 } from '../../../server/gradebook/authoriza
 import type { GradebookPostgresWritePortV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { dropUnboundStudentsV1, isNotesRequestV1, loadBoundStudentsV1, withUnboundWarningsV1 } from '../../../server/gradebook/application/import/unbound-students-v1';
 import {
   createImportPerformanceObserverV1,
   emitImportPerformanceV1,
@@ -20,6 +21,7 @@ import {
   inspectGradebookImportPersistenceRequestV9,
   type GradebookImportPersistenceRequestV9,
   type GradebookImportPersistenceResponseV9,
+  type GradebookRelationWarningV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import {
   IMPORT_COMMIT_DIAGNOSTICS_HEADER_V1,
@@ -144,11 +146,19 @@ async function handle(
   // Diagnostics are replaced only by a complete diagnostic observation, including [].
   // Academic persistence must not clear another tab's newer evidence or erase it on failure.
   try {
-    const result = await createGradebookRelationalImportServiceV11(
+    // A student the system's Relação does not have is left out (and reported), not the whole file.
+    let sent: GradebookImportPersistenceRequestV9 = canonical;
+    let unbound: GradebookRelationWarningV9[] = [];
+    if (isNotesRequestV1(canonical)) {
+      const dropped = dropUnboundStudentsV1(canonical, await loadBoundStudentsV1(database, canonical.ano));
+      sent = dropped.request;
+      unbound = dropped.warnings;
+    }
+    const result = withUnboundWarningsV1(await createGradebookRelationalImportServiceV11(
       observer.wrap(database),
       observer,
       session.oid,
-    ).execute(canonical);
+    ).execute(sent), unbound);
     observation.outcome = result.state;
     if (result.state === 'applied') afterCommit(session);
     return response(result, performance.now() - started);
