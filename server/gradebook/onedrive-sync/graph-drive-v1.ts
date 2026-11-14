@@ -114,6 +114,20 @@ function childFolderV1(item: { id?: unknown; name?: unknown; folder?: { childCou
   return { id: item.id, name: item.name, childFolders };
 }
 
+/**
+ * The drive's current delta cursor without listing anything (Graph `token=latest`): the nightly
+ * check and a new source list their own folders, and the next delta starts from here (issue #1426,
+ * finding 1: asking for a cursor from scratch enumerated the whole OneDrive).
+ */
+export async function graphLatestDeltaLinkV1(env: GraphAppEnvV1, driveId: string,
+  dependencies: GraphDependencies = graphDefaultsV1): Promise<string> {
+  const { data, correlationId } = await graphRequest<{ '@odata.deltaLink'?: unknown }>({ env: asEnvV1(env), dependencies,
+    path: `/drives/${encodeURIComponent(driveId)}/root/delta?token=latest&$select=${ITEM_FIELDS_V1}` });
+  const link = data?.['@odata.deltaLink'];
+  if (typeof link !== 'string' || !link) throw new GraphError(502, correlationId);
+  return graphUrlV1(link);
+}
+
 /** Sub-folders of a folder (the drive root when `parentId` is null), for the admin folder picker. */
 export async function graphChildFoldersV1(env: GraphAppEnvV1, driveId: string, parentId: string | null,
   dependencies: GraphDependencies = graphDefaultsV1): Promise<Array<{ id: string; name: string; childFolders: number }>> {
@@ -188,9 +202,32 @@ export async function graphDownloadWorkbookV1(env: GraphAppEnvV1, driveId: strin
     await response.body?.cancel().catch(() => undefined);
     throw new WorkbookTooLargeError(declared);
   }
-  const bytes = await response.arrayBuffer();
-  if (bytes.byteLength > maxBytes) throw new WorkbookTooLargeError(bytes.byteLength);
-  return bytes;
+  return readBoundedV1(response, maxBytes);
+}
+
+/** The body, read up to `maxBytes`: without a Content-Length a huge file is refused, not held in memory. */
+async function readBoundedV1(response: Response, maxBytes: number): Promise<ArrayBuffer> {
+  const reader = response.body?.getReader();
+  if (!reader) return new ArrayBuffer(0);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new WorkbookTooLargeError(size);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
 }
 
 /** The address Graph posts its change notices to (the public URL without trailing slashes). */
@@ -218,6 +255,22 @@ export async function graphCreateDriveSubscriptionV1(env: GraphAppEnvV1, input: 
   });
   if (typeof data?.id !== 'string' || typeof data.expirationDateTime !== 'string') throw new GraphError(502, correlationId);
   return { id: data.id, expirationDateTime: data.expirationDateTime };
+}
+
+/** Moves a subscription's expiry (issue #1426, 12d): no new handshake, never two at once. Null when it is gone. */
+export async function graphRenewSubscriptionV1(env: GraphAppEnvV1, subscriptionId: string, expiresAt: Date,
+  dependencies?: GraphDependencies): Promise<string | null> {
+  try {
+    const { data, correlationId } = await graphRequest<{ expirationDateTime?: unknown }>({
+      env: asEnvV1(env), path: `/subscriptions/${encodeURIComponent(subscriptionId)}`, method: 'PATCH', dependencies,
+      body: { expirationDateTime: expiresAt.toISOString() },
+    });
+    if (typeof data?.expirationDateTime !== 'string') throw new GraphError(502, correlationId);
+    return data.expirationDateTime;
+  } catch (cause) {
+    if (cause instanceof GraphError && cause.status === 404) return null;
+    throw cause;
+  }
 }
 
 export async function graphDeleteSubscriptionV1(env: GraphAppEnvV1, subscriptionId: string,

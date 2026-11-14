@@ -16,12 +16,16 @@ export class GraphTokenError extends Error {
     super('Graph token preparation failed');
   }
 }
+type IssuedTokenV1 = { readonly token: string; readonly expiresIn: number };
+
 /** The issued token; null when this certificate was refused (the next one may be tried). */
 async function tokenOrRefusalV1(response: Response, slot: GraphCredentialSlot,
-  dependencies: GraphDependencies): Promise<string | null> {
+  dependencies: GraphDependencies): Promise<IssuedTokenV1 | null> {
   if (response.ok) {
-    try { return tokenSchema.parse(await response.json()).access_token; }
-    catch { throw new GraphTokenError('response-contract', slot); }
+    try {
+      const issued = tokenSchema.parse(await response.json());
+      return { token: issued.access_token, expiresIn: issued.expires_in };
+    } catch { throw new GraphTokenError('response-contract', slot); }
   }
   const wait = graphRetryAfterMsV1(response.headers.get('Retry-After'), (dependencies.now ?? Date.now)());
   await response.body?.cancel().catch(() => undefined);
@@ -30,8 +34,44 @@ async function tokenOrRefusalV1(response: Response, slot: GraphCredentialSlot,
     throw new GraphError(response.status, crypto.randomUUID(), wait === undefined ? undefined : Math.ceil(wait / 1000));
   return null;
 }
+/**
+ * Tokens issued in this isolate, reused until 5 minutes before they expire (issue #1426, finding
+ * 19): a sync read or a snapshot no longer signs a JWT and asks Microsoft for a token every time.
+ * Concurrent callers share the request in flight. Only the real dependencies are cached (tests that
+ * pass their own `fetch` see every request).
+ */
+const tokenCacheV1 = new Map<string, { readonly value: Promise<IssuedTokenV1>; until: number }>();
+const TOKEN_REUSE_MARGIN_S_V1 = 300;
+
+const tokenKeyV1 = (env: RuntimeEnv, slot?: GraphCredentialSlot) => `${env.TENANT_ID}|${env.GRAPH_CLIENT_ID}|${slot ?? '*'}`;
+
+/** A 401 from Graph: the next call asks for a fresh token. */
+export function forgetGraphTokensV1(env: RuntimeEnv): void {
+  const prefix = `${env.TENANT_ID}|${env.GRAPH_CLIENT_ID}|`;
+  for (const key of tokenCacheV1.keys()) if (key.startsWith(prefix)) tokenCacheV1.delete(key);
+}
+
 export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependencies = graphDefaultsV1,
   slot?: GraphCredentialSlot): Promise<string> {
+  if (dependencies !== graphDefaultsV1) return (await issueGraphTokenV1(env, dependencies, slot)).token;
+  const key = tokenKeyV1(env, slot);
+  const now = Date.now();
+  const hit = tokenCacheV1.get(key);
+  if (hit && hit.until > now) return (await hit.value).token;
+  const entry = { value: issueGraphTokenV1(env, dependencies, slot), until: now + 60_000 };
+  tokenCacheV1.set(key, entry);
+  try {
+    const issued = await entry.value;
+    entry.until = now + Math.max(0, issued.expiresIn - TOKEN_REUSE_MARGIN_S_V1) * 1000;
+    return issued.token;
+  } catch (cause) {
+    if (tokenCacheV1.get(key) === entry) tokenCacheV1.delete(key);
+    throw cause;
+  }
+}
+
+async function issueGraphTokenV1(env: RuntimeEnv, dependencies: GraphDependencies,
+  slot?: GraphCredentialSlot): Promise<IssuedTokenV1> {
   const endpoint = `https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/token`;
   let lastStatus = 0;
   let lastAssertionSlot: GraphCredentialSlot | undefined;
@@ -83,8 +123,15 @@ export async function graphRequest<T>(input: {
   if (input.body !== undefined) headers.set('Content-Type', 'application/json');
   if (input.etag) headers.set('If-Match', input.etag);
   if (input.prefer) headers.set('Prefer', input.prefer);
-  const response = await graphFetchV1({ url, dependencies, correlationId, signal: input.signal, budgetMs: input.budgetMs,
-    init: { method: input.method ?? 'GET', headers, body: input.body === undefined ? undefined : JSON.stringify(input.body) } });
+  let response: Response;
+  try {
+    response = await graphFetchV1({ url, dependencies, correlationId, signal: input.signal, budgetMs: input.budgetMs,
+      init: { method: input.method ?? 'GET', headers, body: input.body === undefined ? undefined : JSON.stringify(input.body) } });
+  } catch (cause) {
+    // A refused token is not reused by the next call.
+    if (cause instanceof GraphError && cause.status === 401) forgetGraphTokensV1(input.env);
+    throw cause;
+  }
   const data = response.status === 204 ? null : await response.json();
   return { data: data as T, etag: response.headers.get('ETag'), correlationId };
 }

@@ -46,6 +46,8 @@ export type WriteOutcomeV1 = {
   readonly stages: Readonly<Record<string, number>>;
   /** A Relação was written with changes: the teachers' workbooks of the year are read again. */
   readonly relationChanged?: boolean;
+  /** Students held by the Relação checks (different name, missing from the Relação). */
+  readonly heldStudents?: number;
 };
 
 export type WriteServicesV1 = {
@@ -218,11 +220,12 @@ async function writeNotesV1(context: WriteContextV1, prepared: Extract<PreparedW
   const previous = context.previous;
   const known = previous && previous.offers[HEADER_KEY_V1] === offers[HEADER_KEY_V1] ? previous.offers : {};
   const changed = ofertas.filter((offer) => known[offerKeyV1(offer)] !== offers[offerKeyV1(offer)]);
-  if (changed.length === 0) return context.done('no-changes', null, null, { audit: auditPrint, offers });
+  const heldStudents = new Set(checked.items.map((item) => `${item.classCode}|${item.studentNumber}`)).size;
+  if (changed.length === 0) return { ...context.done('no-changes', null, null, { audit: auditPrint, offers }), heldStudents };
   const sent: GradebookImportPersistenceRequestV9 = { ...checked.request, ofertas: changed };
   const response = await context.turn(() => withLockRetryV1(() => context.services.persist(database, sent), sleep));
   context.stage('persist');
-  return persistedOutcomeV1(context, response, { audit: auditPrint, offers });
+  return { ...(await persistedOutcomeV1(context, response, { audit: auditPrint, offers })), heldStudents };
 }
 
 export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: PreparedWorkbookV1, ports: WritePortsV1): Promise<WriteOutcomeV1> {

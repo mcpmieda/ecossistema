@@ -15,6 +15,7 @@ import {
   type ReadResultV1,
   type SyncFileV1,
 } from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
+import { fastPollActiveV1, pollWindowV1, schoolDayOfV1 } from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
 
 const on = { ...DEFAULT_SYNC_SETTINGS_V1, enabled: true };
 const seen = (id: string, hash: string | null = `h-${id}`, extra: Partial<ObservedFileV1> = {}): ObservedFileV1 => ({
@@ -118,5 +119,27 @@ describe('Notas sync rules', () => {
     expect(nextWakeV1([due, reading], null, 0)).toBe(500);
     expect(nextWakeV1([], 300, 0)).toBe(300);
     expect(nextWakeV1([], null, 0)).toBeNull();
+  });
+});
+
+describe('10 s poll window (issue #1426, 29)', () => {
+  const at = (iso: string) => Date.parse(iso);
+  it('runs from 30 min before the first lesson to 1 h after the last, on school days only', () => {
+    const now = at('2026-11-16T12:00:00-03:00');
+    expect(schoolDayOfV1(at('2026-11-17T01:00:00Z'))).toBe('2026-11-16');
+    const day = pollWindowV1('2026-11-16', { schoolDay: true, starts: '07:20', ends: '17:30', source: 'calendar' }, now);
+    expect(fastPollActiveV1(day, at('2026-11-16T06:49:00-03:00'))).toBe(false);
+    expect(fastPollActiveV1(day, at('2026-11-16T06:51:00-03:00'))).toBe(true);
+    expect(fastPollActiveV1(day, at('2026-11-16T18:29:00-03:00'))).toBe(true);
+    expect(fastPollActiveV1(day, at('2026-11-16T18:31:00-03:00'))).toBe(false);
+    const holiday = pollWindowV1('2026-11-16', { schoolDay: false, starts: '07:20', ends: '17:30', source: 'calendar' }, now);
+    expect(fastPollActiveV1(holiday, now)).toBe(false);
+    expect(day.retryAfter).toBeNull();
+  });
+  it('without the Portal answer, weekdays 07:00–18:00 and asks again within the hour', () => {
+    const now = at('2026-11-15T12:00:00-03:00');
+    const sunday = pollWindowV1('2026-11-15', null, now);
+    expect(sunday).toMatchObject({ schoolDay: false, source: 'weekday-fallback', retryAfter: now + 3_600_000 });
+    expect(pollWindowV1('2026-11-16', null, now).schoolDay).toBe(true);
   });
 });

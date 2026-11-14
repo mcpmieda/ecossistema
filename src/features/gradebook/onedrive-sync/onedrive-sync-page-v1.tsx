@@ -17,7 +17,11 @@ type SourceV1 = NonNullable<OneDriveSyncStatusV1['sources']>[number];
 type ChosenSourceV1 = { readonly kind: 'folder' | 'file'; readonly itemId: string; readonly path: string };
 type ChipColor = 'accent' | 'success' | 'warning' | 'danger' | 'default';
 
-const REFRESH_MS = 10_000;
+/** Reads while a file is being read or waits, after a failed read, and when nothing moves (issue #1426, 11). */
+const REFRESH_BUSY_MS = 10_000;
+const REFRESH_IDLE_MS = 60_000;
+/** No click, key or touch for this long: the page stops reading until the next one. */
+const REFRESH_PAUSE_AFTER_MS = 10 * 60_000;
 const RESUME_DELAY_MS = 1_000;
 const REFRESH_FAILURES_SHOWN = 3;
 
@@ -105,7 +109,13 @@ function FileRow({ file, busy, onRead }: Readonly<{ file: FileV1; busy: boolean;
   if (file.removed) state = ['Removido da pasta', 'default'];
   else if (file.state === 'reading') state = ['Lendo', 'accent'];
   else if (file.state === 'pending') state = ['Aguardando', 'accent'];
-  const [label, color] = state ?? outcome ?? ['Ainda não lido', 'default'];
+  let [label, color] = state ?? outcome ?? ['Ainda não lido', 'default'];
+  // Lançado, but some students waited for the Relação (different name, not in it): their notes
+  // arrive when the Relação is fixed (issue #1426, 16).
+  if (!state && file.lastOutcome === 'applied' && file.heldStudents) {
+    label = `Lançado · ${file.heldStudents} aluno(s) retido(s) — ver Auditoria`;
+    color = 'warning';
+  }
   return (
     <li className="grid gap-2 border-b border-border/60 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div className="min-w-0">
@@ -207,14 +217,23 @@ function SourcePicker({ year, onChosen, onCancel }: Readonly<{
     return () => controller.abort();
   }, [current?.id, attempt]);
 
+  // The folder on screen now: a preview that comes back after the user moved on is dropped, so
+  // "Usar esta pasta" never saves a folder with the preview of another (issue #1426, 12a).
+  const shown = useRef<string | null>(null);
+  shown.current = current?.id ?? null;
   const runPreview = async () => {
     if (!current) return;
+    const folderId = current.id;
     setBusy('preview');
     setFailure(null);
-    const answer = await requestOneDriveSyncV1({ action: 'preview', folderId: current.id, testWebhook: true });
-    if (answer.state === 'preview') setPreview(answer.preview);
-    else setFailure('Não foi possível ver a prévia desta pasta.');
-    setBusy(null);
+    try {
+      const answer = await requestOneDriveSyncV1({ action: 'preview', folderId, testWebhook: true });
+      if (shown.current !== folderId) return;
+      if (answer.state === 'preview') setPreview(answer.preview);
+      else setFailure('Não foi possível ver a prévia desta pasta.');
+    } finally {
+      if (shown.current === folderId) setBusy(null);
+    }
   };
 
   return (
@@ -389,9 +408,16 @@ function SettingsSection({ busy, send, wait, setWait, parallel, setParallel }: R
   );
 }
 
+/** A status with a file being read or waiting for its turn. */
+function statusMovingV1(answer: OneDriveSyncResponseV1): boolean {
+  return answer.state !== 'status' || answer.status.files.some((file) => file.state !== 'idle');
+}
+
 /**
- * Reads the status every REFRESH_MS while the page is visible. A read made while the phone had the
- * page in the background can fail on its own; only repeated failures of this refresh are shown.
+ * Reads the status while the page is visible: every 10 s while something moves (or the last read
+ * failed), every 60 s when everything is still, and not at all after 10 min without the user
+ * touching the page (the next click, key or touch reads at once). A read made while the phone had
+ * the page in the background can fail on its own; only repeated failures of this refresh are shown.
  */
 function useStatusRefreshV1(isActive: boolean, apply: (answer: OneDriveSyncResponseV1) => void,
   loaded: { readonly current: boolean }): void {
@@ -399,34 +425,56 @@ function useStatusRefreshV1(isActive: boolean, apply: (answer: OneDriveSyncRespo
     if (!isActive) return undefined;
     let controller = new AbortController();
     let misses = 0;
-    let resume: number | undefined;
-    // A read made while the phone had the page in the background can fail on its own; only
-    // repeated failures of the automatic refresh are shown (actions the user takes show at once).
+    let timer: number | undefined;
+    let moving = true;
+    let lastTouch = Date.now();
+    let paused = false;
     const applyRefresh = (answer: OneDriveSyncResponseV1) => {
+      moving = statusMovingV1(answer);
       if (answer.state === 'unavailable' && loaded.current && ++misses < REFRESH_FAILURES_SHOWN) return;
       if (answer.state !== 'unavailable') misses = 0;
       apply(answer);
     };
-    const refresh = () => {
+    const schedule = (ms: number) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(refresh, ms);
+    };
+    function refresh() {
       if (document.visibilityState === 'hidden') return;
+      if (Date.now() - lastTouch >= REFRESH_PAUSE_AFTER_MS) {
+        paused = true;
+        return;
+      }
       controller.abort();
       controller = new AbortController();
-      void requestOneDriveSyncV1({ action: 'status' }, controller.signal).then(applyRefresh).catch(() => undefined);
+      void requestOneDriveSyncV1({ action: 'status' }, controller.signal).then(applyRefresh).catch(() => undefined)
+        .finally(() => { if (!controller.signal.aborted) schedule(moving ? REFRESH_BUSY_MS : REFRESH_IDLE_MS); });
+    }
+    const onTouch = () => {
+      lastTouch = Date.now();
+      if (!paused) return;
+      paused = false;
+      refresh();
     };
     // Back on the page: give the network a moment to wake up, then read.
     const onVisibility = () => {
-      window.clearTimeout(resume);
-      if (document.visibilityState === 'visible') resume = window.setTimeout(refresh, RESUME_DELAY_MS);
-      else controller.abort();
+      if (document.visibilityState === 'visible') {
+        lastTouch = Date.now();
+        paused = false;
+        schedule(RESUME_DELAY_MS);
+      } else {
+        window.clearTimeout(timer);
+        controller.abort();
+      }
     };
     refresh();
-    const timer = window.setInterval(refresh, REFRESH_MS);
     document.addEventListener('visibilitychange', onVisibility);
+    for (const name of ['pointerdown', 'keydown'] as const) window.addEventListener(name, onTouch, { passive: true });
     return () => {
       controller.abort();
-      window.clearInterval(timer);
-      window.clearTimeout(resume);
+      window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
+      for (const name of ['pointerdown', 'keydown'] as const) window.removeEventListener(name, onTouch);
     };
   }, [apply, isActive, loaded]);
 }

@@ -24,7 +24,7 @@ import {
   READ_PATH_V1,
   type SyncCoordinatorEnvV1,
 } from '../../server/gradebook/onedrive-sync/sync-coordinator-v1';
-import type { ReadResultV1 } from '../../server/gradebook/onedrive-sync/sync-rules-v1';
+import type { ReadResultV1, SchoolDayWindowV1 } from '../../server/gradebook/onedrive-sync/sync-rules-v1';
 import { prepareTeacherWorkbookV1 } from '../../server/gradebook/onedrive-sync/teacher-workbook-preparation-v1';
 import { createGradebookPostgresDatabaseV1 } from '../../server/gradebook/persistence/postgres/postgres-database-v1';
 
@@ -50,7 +50,10 @@ export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
   SELF?: SyncCoordinatorEnvV1['SELF'];
   PROD_DB?: { readonly connectionString: string };
   PORTAL_SERVICE?: PortalAdminServiceBindingV1;
-  PORTAL_SCHEDULER?: { run(scheduledTime: number): Promise<boolean> };
+  PORTAL_SCHEDULER?: {
+    run(scheduledTime: number): Promise<boolean>;
+    pollWindow?(day: string): Promise<SchoolDayWindowV1 | null>;
+  };
 }
 
 /** One database write at a time across reads (the coordinator keeps the turn). */
@@ -85,26 +88,77 @@ export function sameSecretV1(given: string, expected: string): boolean {
 }
 
 /** Graph handshake: echo `validationToken` as text/plain within 10 s; otherwise acknowledge. */
-export async function handleNotificationV1(request: Request, env: NotasSyncEnvV1,
-  waitUntil: (work: Promise<unknown>) => void = () => undefined): Promise<Response> {
-  const validationToken = new URL(request.url).searchParams.get('validationToken');
-  if (validationToken !== null) {
-    return new Response(validationToken, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+const NOTIFICATION_MAX_BYTES_V1 = 64 * 1024;
+const NOTIFICATIONS_MAX_V1 = 100;
+const VALIDATION_TOKEN_MAX_V1 = 1024;
+
+/** The body as text, read up to `max` bytes; null when it is larger (the header may lie). */
+async function boundedTextV1(request: Request, max: number): Promise<string | null> {
+  const reader = request.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
   }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+/** Graph's handshake: echoed as plain text, only when it looks like one (issue #1426, 23b). */
+function validationAnswerV1(validationToken: string): Response {
+  // Graph's token is printable text with spaces ("Validation: Testing client application …").
+  if (validationToken.length > VALIDATION_TOKEN_MAX_V1 || !/^[\x20-\x7e]*$/u.test(validationToken)) {
+    return new Response(null, { status: 400 });
+  }
+  return new Response(validationToken, { status: 200, headers: {
+    'Content-Type': 'text/plain; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' } });
+}
+
+/** How many notices carry the right client state; null when the body is over the limit. */
+async function countNotificationsV1(request: Request, clientState: string | undefined):
+  Promise<{ accepted: number; rejected: number } | null> {
   let accepted = 0;
   let rejected = 0;
   try {
-    const body = (await request.json()) as { value?: Array<{ clientState?: unknown }> };
-    for (const notification of Array.isArray(body.value) ? body.value : []) {
+    const text = await boundedTextV1(request, NOTIFICATION_MAX_BYTES_V1);
+    if (text === null) return null;
+    const body = JSON.parse(text) as { value?: Array<{ clientState?: unknown }> };
+    const notifications = Array.isArray(body.value) ? body.value.slice(0, NOTIFICATIONS_MAX_V1) : [];
+    for (const notification of notifications) {
       const state = typeof notification.clientState === 'string' ? notification.clientState : '';
-      if (env.NOTAS_SYNC_CLIENT_STATE && sameSecretV1(state, env.NOTAS_SYNC_CLIENT_STATE)) accepted++;
+      if (clientState && sameSecretV1(state, clientState)) accepted++;
       else rejected++;
     }
   } catch {
     rejected++;
   }
-  console.log(JSON.stringify({ event: 'notas-sync-notification', accepted, rejected }));
-  if (accepted > 0 && env.NOTAS_SYNC) waitUntil(coordinatorV1(env).notify().catch(() => undefined));
+  return { accepted, rejected };
+}
+
+export async function handleNotificationV1(request: Request, env: NotasSyncEnvV1,
+  waitUntil: (work: Promise<unknown>) => void = () => undefined): Promise<Response> {
+  const validationToken = new URL(request.url).searchParams.get('validationToken');
+  if (validationToken !== null) return validationAnswerV1(validationToken);
+  // Graph's notices are a few KB: a larger body is refused before it is read (issue #1426, 23a).
+  const declared = Number(request.headers.get('Content-Length') ?? Number.NaN);
+  if (Number.isFinite(declared) && declared > NOTIFICATION_MAX_BYTES_V1) return new Response(null, { status: 413 });
+  const counted = await countNotificationsV1(request, env.NOTAS_SYNC_CLIENT_STATE);
+  if (counted === null) return new Response(null, { status: 413 });
+  console.log(JSON.stringify({ event: 'notas-sync-notification', ...counted }));
+  if (counted.accepted > 0 && env.NOTAS_SYNC) waitUntil(coordinatorV1(env).notify().catch(() => undefined));
   return new Response(null, { status: 202 });
 }
 
@@ -265,7 +319,11 @@ export async function handlePortalScheduledRequestV1(request: Request, env: Nota
  */
 export async function runPortalScheduledV1(env: NotasSyncEnvV1, scheduledTime: number,
   publicFetch: typeof fetch = fetch): Promise<'nearby' | 'here' | 'failed' | 'off'> {
-  if (!env.PORTAL_SCHEDULER) return 'off';
+  if (!env.PORTAL_SCHEDULER) {
+    // Without the binding the Portal's minute (privacy cleanup, live, health) would stop in silence.
+    console.error(JSON.stringify({ event: 'notas-sync-portal-scheduler-missing' }));
+    return 'off';
+  }
   try {
     if (env.NOTAS_SYNC_PUBLIC_URL && env.NOTAS_SYNC_READ_TOKEN) {
       const response = await publicFetch(`${env.NOTAS_SYNC_PUBLIC_URL}${PORTAL_SCHEDULED_PATH_V1}`, {

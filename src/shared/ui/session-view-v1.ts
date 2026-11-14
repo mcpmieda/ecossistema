@@ -82,6 +82,9 @@ export function writeSessionViewV1(key: string, value: unknown): void {
   if (text.length > VIEW_PREFERENCE_MAX_VALUE_CHARS_V1 || known.get(key) === text) return;
   known.set(key, text);
   pending[key] = value;
+  // The address changes on every screen and only the last one matters: it goes with the next
+  // filter change or when the tab is hidden or closed, never one PUT per navigation (issue #1426, 12b).
+  if (key === LAST_ADDRESS_KEY_V1) return;
   if (flushTimer !== null) clearTimeout(flushTimer);
   flushTimer = setTimeout(() => sendPending(), FLUSH_DELAY_MS_V1);
 }

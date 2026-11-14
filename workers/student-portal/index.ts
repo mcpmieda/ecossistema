@@ -13,6 +13,8 @@ import { portalSignalsRpcV1, portalSignalsScheduledV1 } from '../../server/stude
 import { portalCapacityRpcV1 } from '../../server/student-portal/composition/capacity-v1';
 import { portalHealthReviewRpcV1 } from '../../server/student-portal/composition/health-review-v1';
 import { portalScheduledV1 } from '../../server/student-portal/composition/scheduled-v1';
+import { readSchoolDayWindowV1, type SchoolDayWindowV1 } from '../../server/student-portal/composition/poll-window-v1';
+import { portalDatabaseV1 } from '../../server/student-portal/composition/database-v1';
 import type { PortalCompositionEnvV1 } from '../../server/student-portal/composition/config-v1';
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
 
@@ -26,7 +28,7 @@ type PortalEnvV1 = PortalWorkerEnv & PortalCompositionEnvV1 & {
 
 /** The minute's scheduled work (retention, live outbox, health history and signals). */
 async function scheduledWorkV1(env: PortalEnvV1, scheduledTime: number): Promise<void> {
-  await Promise.all([portalScheduledV1(env), dispatchPortalLiveEventsV1(env).catch(() => 0),
+  await Promise.all([portalScheduledV1(env, scheduledTime), dispatchPortalLiveEventsV1(env).catch(() => 0),
     portalHistoryScheduledV1(env, scheduledTime), portalSignalsScheduledV1(env, scheduledTime)]);
 }
 
@@ -103,6 +105,29 @@ export class PortalSchedulerEntrypoint extends WorkerEntrypoint<PortalEnvV1> {
     await scheduledWorkV1(this.env, scheduledTime);
     return true;
   }
+
+  /** The day's school hours (calendar and bells) for the OneDrive 10 s poll; null when unreadable. */
+  async pollWindow(day: unknown): Promise<SchoolDayWindowV1 | null> {
+    if (typeof day !== 'string') return null;
+    return readSchoolDayWindowV1(this.env, day).catch(() => null);
+  }
+}
+
+/**
+ * Safety net for the minute run by notas-onedrive-sync (issue #1426, 32): every 5 minutes the
+ * Portal's own cron looks at the last health sample that run writes; when it is older than 12
+ * minutes (that Worker stopped, lost its binding or slowed its cron), the cron here runs the minute.
+ */
+async function schedulerStalledV1(env: PortalEnvV1): Promise<boolean> {
+  try {
+    return await portalDatabaseV1(env, 'cleanup', async (sql) => {
+      const [row] = await sql.unsafe(`SELECT coalesce(max(bucket_at) < now() - interval '12 minutes', true) AS late
+        FROM system_health.portal_sample_v1`);
+      return (row as { late?: unknown } | undefined)?.late !== false;
+    });
+  } catch {
+    return true;
+  }
 }
 // No admin RPC on the default/self capability. Population remains an explicit, separate operation.
 export default {
@@ -112,7 +137,11 @@ export default {
     return response;
   },
   async scheduled(controller, env) {
-    if (env.PORTAL_SCHEDULER === 'notas-onedrive-sync') return;
+    if (env.PORTAL_SCHEDULER === 'notas-onedrive-sync') {
+      if (Math.floor(controller.scheduledTime / 60_000) % 5 !== 2) return;
+      if (!(await schedulerStalledV1(env))) return;
+      console.error(JSON.stringify({ event: 'portal-scheduler-fallback' }));
+    }
     await scheduledWorkV1(env, controller.scheduledTime);
   },
 } satisfies ExportedHandler<PortalEnvV1>;

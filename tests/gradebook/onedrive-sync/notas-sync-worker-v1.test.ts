@@ -12,7 +12,7 @@ vi.mock('cloudflare:workers', () => ({
 }));
 
 const { default: worker, handleAdminV1, handleNotificationV1, handleReadRequestV1, handlePortalScheduledRequestV1, runPortalScheduledV1, sameSecretV1 } = await import('../../../workers/notas-onedrive-sync/index');
-const { readFileForTestsV1, runsOlderCodeV1 } = await import('../../../server/gradebook/onedrive-sync/sync-coordinator-v1');
+const { NotasSyncCoordinatorV1, readFileForTestsV1, runsOlderCodeV1 } = await import('../../../server/gradebook/onedrive-sync/sync-coordinator-v1');
 type Env = Parameters<typeof handleNotificationV1>[1];
 
 function coordinatorMock() {
@@ -53,6 +53,19 @@ describe('Notas OneDrive sync Worker', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toContain('text/plain');
     expect(await response.text()).toBe('abc 123');
+  });
+
+  it('echoes only a short printable token and refuses oversized notifications (issue #1426, 23)', async () => {
+    const long = await call(new Request(`${origin}/graph/notificacoes?validationToken=${'a'.repeat(1025)}`, { method: 'POST' }), envV1());
+    expect(long.status).toBe(400);
+    const echoed = await call(new Request(`${origin}/graph/notificacoes?validationToken=ok`, { method: 'POST' }), envV1());
+    expect(echoed.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    const { stub, namespace } = coordinatorMock();
+    const big = await call(new Request(`${origin}/graph/notificacoes`, {
+      method: 'POST', body: JSON.stringify({ value: [{ clientState: 'synthetic-client-state', pad: 'x'.repeat(70_000) }] }),
+    }), envV1({ NOTAS_SYNC: namespace as never }));
+    expect(big.status).toBe(413);
+    expect(stub.notify).not.toHaveBeenCalled();
   });
 
   it('wakes the coordinator only for notifications with the right client state', async () => {
@@ -225,5 +238,50 @@ describe('a coordinator left on older code after a deploy', () => {
     expect(runsOlderCodeV1(undefined, newer)).toBe(false);
     expect(runsOlderCodeV1(older, undefined)).toBe(false);
     expect(runsOlderCodeV1({ id: 'x', timestamp: 'bad' }, newer)).toBe(false);
+  });
+});
+
+describe('database write line of the coordinator (issue #1426, 30)', () => {
+  type Line = { beginWrite(): Promise<string>; endWrite(token: string): void };
+  const line = (): Line => {
+    const proto = NotasSyncCoordinatorV1.prototype as unknown as Record<string, unknown>;
+    const self: Record<string, unknown> = { writer: null, writeQueue: [], writeWatch: null };
+    for (const name of ['beginWrite', 'endWrite', 'grantWriteV1', 'watchWriteTurnV1'])
+      self[name] = (proto[name] as (...args: unknown[]) => unknown).bind(self);
+    return self as unknown as Line;
+  };
+
+  it('hands the turn in order and nobody cuts in between', async () => {
+    const coordinator = line();
+    const first = await coordinator.beginWrite();
+    const order: string[] = [];
+    const second = coordinator.beginWrite().then((token) => { order.push('second'); return token; });
+    const third = coordinator.beginWrite().then((token) => { order.push('third'); return token; });
+    coordinator.endWrite(first);
+    coordinator.endWrite(await second);
+    await third;
+    expect(order).toEqual(['second', 'third']);
+  });
+
+  it('a turn never given back passes to the first waiting, and the late return is ignored', async () => {
+    vi.useFakeTimers();
+    try {
+      const coordinator = line();
+      const dead = await coordinator.beginWrite();
+      let taken: string | null = null;
+      void coordinator.beginWrite().then((token) => { taken = token; });
+      await vi.advanceTimersByTimeAsync(121_000);
+      expect(taken).not.toBeNull();
+      coordinator.endWrite(dead);
+      let next: string | null = null;
+      void coordinator.beginWrite().then((token) => { next = token; });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(next).toBeNull();
+      coordinator.endWrite(taken!);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(next).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
