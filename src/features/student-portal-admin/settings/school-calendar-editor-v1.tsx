@@ -229,6 +229,22 @@ function misplacedDayV1(days: ReadonlyMap<string, DayV1>): string | null {
 }
 
 /** Main dates already reached that this save changes: they take effect at once. */
+/**
+ * The main dates on screen against the policy as read: whether any changed, which are still
+ * unmarked, and the ones already reached that this save changes (they take effect at once, so the
+ * editor asks first).
+ */
+export function markerStateV1(
+  markers: MarkersV1 | null,
+  policy: { calendar: CalendarV1; markers: MarkersV1 } | null,
+): { readonly changed: boolean; readonly pending: (typeof MARKERS)[number][]; readonly past: string[] } {
+  if (!markers) return { changed: false, pending: [], past: [] };
+  const pending = MARKERS.filter(({ key }) => !markers[key]);
+  if (!policy) return { changed: false, pending, past: [] };
+  const changed = MARKERS.some(({ key }) => markers[key] !== policy.markers[key]);
+  return { changed, pending, past: changed ? pastMarkersV1(policy, markers) : [] };
+}
+
 function pastMarkersV1(policy: { calendar: CalendarV1; markers: MarkersV1 }, markers: MarkersV1) {
   return changedPastDatesV1(policy.calendar, movedCalendarV1(policy, markers), Date.now()).map(
     (key) => MARKERS.find((marker) => marker.key === key)?.label ?? calendarChangeLabelV1(key),
@@ -407,9 +423,8 @@ export function SchoolCalendarEditorV1({
   );
   // A calendar saved before the weekday rule may still have one: the server refuses it now.
   const misplaced = useMemo(() => (draft ? misplacedDayV1(draft) : null), [draft]);
-  const markersChanged = !!markers && !!policy && MARKERS.some(({ key }) => markers[key] !== policy.markers[key]);
+  const { changed: markersChanged, pending, past: pastMarkers } = markerStateV1(markers, policy);
   const changed = daysChanged || markersChanged;
-  const pending = markers ? MARKERS.filter(({ key }) => !markers[key]) : [];
   // In the year's order, as the server requires (an end may share the day of the next start).
   const outOfOrder = useMemo(() => outOfOrderV1(markers), [markers]);
   const markersAt = (date: string) => (markers ? MARKERS.filter(({ key }) => markers[key] === date) : []);
@@ -436,9 +451,6 @@ export function SchoolCalendarEditorV1({
       return painted.draft;
     });
   };
-
-  /** Main dates already reached that this save changes: they take effect at once, so ask first. */
-  const pastMarkers = markers && policy && markersChanged ? pastMarkersV1(policy, markers) : [];
 
   const save = async (confirmedPast = false) => {
     if (!draft || !saved || !markers || !policy || count > SCHOOL_DAYS_REQUIRED_V1 || outOfOrder || misplaced) return;
