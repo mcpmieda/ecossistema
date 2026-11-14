@@ -98,6 +98,23 @@ describe('audit rules (BN-DEC-046)', () => {
     expect(request).toBeNull();
   });
 
+  it('7. K3 written as "6ª SÉRIE A" or "6ANO A" is the same class (issue #1426, finding 4)', () => {
+    for (const k3 of ['6ª SÉRIE A', '6ANO A', '6º ANO - A']) {
+      const { codes, request } = run((sheets) => { sheets['6A1º']!.K3 = { t: 's', v: k3 }; });
+      expect(codes, k3).not.toContain('header-mismatch');
+      expect(request, k3).not.toBeNull();
+    }
+  });
+
+  it('7. another class in K3 with K4 empty points at K3, the cell to fix', () => {
+    const { diagnostics } = run((sheets) => {
+      sheets['6A1º']!.K3 = { t: 's', v: '6B' };
+      sheets['6A1º']!.K4 = { t: 's', v: '' };
+    });
+    const found = diagnostics.filter((item) => item.code === 'header-mismatch');
+    expect(found.map((item) => item.cellAddress)).toEqual(['K3']);
+  });
+
   it('8. a final recovery above the term maximum holds it and U', () => {
     const { codes, request } = run((sheets) => {
       Object.assign(sheets['6A1º']!, { T3: { t: 'n', v: 13.5 }, AK3: { t: 'n', v: 16.5 } });

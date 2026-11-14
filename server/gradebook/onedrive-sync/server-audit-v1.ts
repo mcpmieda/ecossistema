@@ -33,10 +33,26 @@ export function wrongYearAuditV1(audit: GradebookImportDiagnosticsAuditRequestV1
 }
 
 const PARTICLES = new Set(['DE', 'DA', 'DO', 'DAS', 'DOS', 'E']);
+/** Generation suffixes: often left out or abbreviated ("JR.") in a teacher's sheet. */
+const SUFFIXES = new Set(['FILHO', 'FILHA', 'JUNIOR', 'JR', 'NETO', 'NETA', 'SOBRINHO', 'SOBRINHA', 'SEGUNDO', 'TERCEIRO', 'II', 'III']);
+/** Notes a teacher writes after the name; never a surname. */
+const NOTES = new Set(['AEE', 'TRANSFERIDO', 'TRANSFERIDA', 'TRANSF', 'DESISTENTE', 'REMANEJADO', 'REMANEJADA',
+  'EVADIDO', 'EVADIDA', 'LAUDO', 'NOVATO', 'NOVATA']);
+const APOSTROPHES = ["'", '’', '`', '´'];
 
+/** The name's words: no accents, no particles, no notes ("(AEE)", "- TRANSFERIDO"), no generation suffix. */
 function nameTokens(name: string): string[] {
-  return name.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase().replace(/[^A-Z. ]/gu, ' ')
-    .split(/\s+/u).filter((token) => token && !PARTICLES.has(token));
+  let base = name.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase()
+    .replace(/\([^)]*\)/gu, ' ');
+  // "JOÃO SILVA - TRANSFERIDO": a dash between spaces starts a note (MARIA-CLARA has no spaces).
+  const note = /\s[-–]\s/u.exec(base);
+  if (note) base = base.slice(0, note.index);
+  for (const apostrophe of APOSTROPHES) base = base.replaceAll(apostrophe, ''); // SANT'ANA = SANTANA
+  const tokens = base.replace(/[^A-Z. ]/gu, ' ').split(/\s+/u).filter((token) => token && !PARTICLES.has(token));
+  while (tokens.length > 1 && NOTES.has(tokens.at(-1)!)) tokens.pop();
+  // "ANA NETO": with only two words the last one is the surname, kept.
+  while (tokens.length > 2 && SUFFIXES.has(tokens.at(-1)!.replace(/\.$/u, ''))) tokens.pop();
+  return tokens;
 }
 
 function sameToken(a: string, b: string): boolean {
@@ -46,14 +62,30 @@ function sameToken(a: string, b: string): boolean {
   return bare(a) === bare(b);
 }
 
-/** Same person by first and last name; an abbreviated surname ("S.") matches by its initial. */
+/** Every word of `short` appears in `long`, in order ("PEDRO HENRIQUE" in "PEDRO HENRIQUE ALVES"). */
+function wordsInOrder(short: readonly string[], long: readonly string[]): boolean {
+  let at = 0;
+  for (const word of short) {
+    while (at < long.length && !sameToken(word, long[at]!)) at += 1;
+    if (at === long.length) return false;
+    at += 1;
+  }
+  return true;
+}
+
+/**
+ * Same person: same first name and same last surname ("S." matches by its initial), or one name is
+ * the other with words left out ("PEDRO HENRIQUE" × "PEDRO HENRIQUE ALVES"). A different first or
+ * last name with nothing to explain it is held.
+ */
 export function sameStudentNameV1(sheetName: string, relationName: string): boolean {
   const a = nameTokens(sheetName);
   const b = nameTokens(relationName);
   if (a.length === 0 || b.length === 0) return true;
   if (!sameToken(a[0]!, b[0]!)) return false;
   if (a.length === 1 || b.length === 1) return true;
-  return sameToken(a.at(-1)!, b.at(-1)!);
+  if (sameToken(a.at(-1)!, b.at(-1)!)) return true;
+  return a.length <= b.length ? wordsInOrder(a, b) : wordsInOrder(b, a);
 }
 
 export const studentKeyV1 = (classCode: string, number: number) => `${classCode.trim().toUpperCase()}|${number}`;
