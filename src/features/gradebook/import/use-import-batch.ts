@@ -813,6 +813,28 @@ export function useImportBatch() {
     return { local, auditMs };
   }
 
+  /**
+   * Students the system's Relação does not have were left out by the database: the Auditoria of
+   * this file keeps them, as the OneDrive reading does (issue #1426, finding 31).
+   */
+  async function auditUnboundStudents(
+    local: LocalPreparationV9,
+    result: BatchSuccess,
+    response: GradebookImportPersistenceResponseV9,
+    observation: BatchObservationV1,
+  ): Promise<void> {
+    if ((response.state !== 'applied' && response.state !== 'no-changes') || local.diagnostics === null) return;
+    const unbound = (response.warnings ?? []).filter((warning) => warning.code === 'student-not-in-relation');
+    if (unbound.length === 0) return;
+    await auditDiagnostics(
+      result,
+      [...local.diagnostics, ...unbound.map((warning) => studentNotInRelationDiagnosticV1(warning.classCode, warning.number))],
+      observation,
+      undefined,
+      true,
+    );
+  }
+
   async function persistPreparedSingle(
     prepared: AuditedPreparationV9,
     index: number,
@@ -985,24 +1007,7 @@ export function useImportBatch() {
       });
       if (stopped !== null) return stopped;
     }
-    // Students the system's Relação does not have were left out by the database: the Auditoria
-    // of this file keeps them, as the OneDrive reading does (issue #1426, finding 31).
-    if (
-      request.operation === 'persist-notas' &&
-      (response.state === 'applied' || response.state === 'no-changes') &&
-      local.diagnostics !== null
-    ) {
-      const unbound = (response.warnings ?? []).filter((warning) => warning.code === 'student-not-in-relation');
-      if (unbound.length > 0) {
-        await auditDiagnostics(
-          result,
-          [...local.diagnostics, ...unbound.map((warning) => studentNotInRelationDiagnosticV1(warning.classCode, warning.number))],
-          observation,
-          undefined,
-          true,
-        );
-      }
-    }
+    if (request.operation === 'persist-notas') await auditUnboundStudents(local, result, response, observation);
     return runResultOfV1(response.state);
   }
 

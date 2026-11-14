@@ -40,10 +40,23 @@ const NOTES = new Set(['AEE', 'TRANSFERIDO', 'TRANSFERIDA', 'TRANSF', 'DESISTENT
   'EVADIDO', 'EVADIDA', 'LAUDO', 'NOVATO', 'NOVATA']);
 const APOSTROPHES = ["'", '’', '`', '´'];
 
+/** "JOÃO SILVA (AEE)" → "JOÃO SILVA  ": each "(...)" becomes a space, in one pass (an unclosed one stays). */
+function withoutParenthesesV1(text: string): string {
+  let out = '';
+  let index = 0;
+  while (index < text.length) {
+    const open = text.indexOf('(', index);
+    const close = open < 0 ? -1 : text.indexOf(')', open + 1);
+    if (close < 0) return out + text.slice(index);
+    out += `${text.slice(index, open)} `;
+    index = close + 1;
+  }
+  return out;
+}
+
 /** The name's words: no accents, no particles, no notes ("(AEE)", "- TRANSFERIDO"), no generation suffix. */
 function nameTokens(name: string): string[] {
-  let base = name.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase()
-    .replace(/\([^)]*\)/gu, ' ');
+  let base = withoutParenthesesV1(name.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase());
   // "JOÃO SILVA - TRANSFERIDO": a dash between spaces starts a note (MARIA-CLARA has no spaces).
   const note = /\s[-–]\s/u.exec(base);
   if (note) base = base.slice(0, note.index);
