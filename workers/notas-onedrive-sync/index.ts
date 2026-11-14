@@ -18,6 +18,7 @@ import {
   WorkbookTooLargeError,
 } from '../../server/gradebook/onedrive-sync/graph-drive-v1';
 import { processWorkbookV1, type ProcessWorkbookInputV1 } from '../../server/gradebook/onedrive-sync/process-workbook-v1';
+import type { PreparedWorkbookV1, WriteInputV1, WriteOutcomeV1 } from '../../server/gradebook/onedrive-sync/write-prepared-v1';
 import {
   NotasSyncCoordinatorV1,
   type SyncCoordinatorEnvV1,
@@ -44,6 +45,47 @@ export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
   SELF?: SyncCoordinatorEnvV1['SELF'];
   PROD_DB?: { readonly connectionString: string };
   PORTAL_SERVICE?: PortalAdminServiceBindingV1;
+  /** The Pages route that writes next to the database (see onedrive-sync-write-route-v1.ts). */
+  NOTAS_SYNC_WRITE_URL?: string;
+  NOTAS_SYNC_WRITE_TOKEN?: string;
+}
+
+/** One database write at a time across reads (the coordinator keeps the turn). */
+async function withWriteTurnV1<T>(env: NotasSyncEnvV1, work: () => Promise<T>): Promise<T> {
+  const coordinator = coordinatorV1(env);
+  const token = await coordinator.beginWrite();
+  try {
+    return await work();
+  } finally {
+    await coordinator.endWrite(token).catch(() => undefined);
+  }
+}
+
+const REMOTE_WRITE_TIMEOUT_MS = 90_000;
+
+/**
+ * Asks Pages (next to the database, in São Paulo) to do the database half of a read: here the
+ * Worker runs far from it (~250 ms a query). Null when it could not: the read then writes itself.
+ */
+async function remoteWriteV1(env: NotasSyncEnvV1, input: WriteInputV1, prepared: PreparedWorkbookV1): Promise<WriteOutcomeV1 | null> {
+  if (!env.NOTAS_SYNC_WRITE_URL || !env.NOTAS_SYNC_WRITE_TOKEN) return null;
+  const started = Date.now();
+  try {
+    const response = await fetch(env.NOTAS_SYNC_WRITE_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.NOTAS_SYNC_WRITE_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version: 1, input, prepared }),
+      signal: AbortSignal.timeout(REMOTE_WRITE_TIMEOUT_MS),
+    });
+    const answer = (await response.json().catch(() => null)) as { state?: unknown; outcome?: WriteOutcomeV1 } | null;
+    const ok = response.ok && answer?.state === 'written' && typeof answer.outcome?.outcome === 'string';
+    console.log(JSON.stringify({ event: 'notas-sync-remote-write', status: response.status, ok, elapsedMs: Date.now() - started,
+      ...(ok ? { outcome: answer!.outcome!.outcome, stages: answer!.outcome!.stages } : {}) }));
+    return ok ? answer!.outcome! : null;
+  } catch (cause) {
+    console.error(JSON.stringify({ event: 'notas-sync-remote-write', ok: false, error: String(cause).slice(0, 200), elapsedMs: Date.now() - started }));
+    return null;
+  }
 }
 
 const NOTIFICATION_PATH = '/graph/notificacoes';
@@ -193,15 +235,9 @@ export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
         if (!connectionString) throw new Error('notas-sync-database-binding-missing');
         return createGradebookPostgresDatabaseV1(connectionString);
       },
-      writeTurn: async (work) => {
-        const coordinator = coordinatorV1(env);
-        const token = await coordinator.beginWrite();
-        try {
-          return await work();
-        } finally {
-          await coordinator.endWrite(token).catch(() => undefined);
-        }
-      },
+      // The whole database half takes one write turn when it goes to Pages.
+      remoteWrite: (input, prepared) => withWriteTurnV1(env, () => remoteWriteV1(env, input, prepared)),
+      writeTurn: (work) => withWriteTurnV1(env, work),
       notifyPortal: async () => {
         // The app identity is the technical author of the sync; the Portal outbox stays authoritative.
         await env.PORTAL_SERVICE?.drainLive?.({

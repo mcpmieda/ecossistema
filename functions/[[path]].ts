@@ -48,6 +48,7 @@ import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessm
 import { handleViewPreferencesRequestV1 } from '../server/gradebook/http/view-preferences-routes-v1';
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
 import { handleOneDriveSyncRequestV1 } from '../server/gradebook/http/onedrive-sync-routes-v1';
+import { handleOneDriveSyncWriteRequestV1 } from '../server/gradebook/http/onedrive-sync-write-route-v1';
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { handleCollectorRequestV1 } from '../server/collector/routes-v1';
 import { handleFrequencyAdminRequestV2 } from '../server/collector/frequency-http-v2';
@@ -463,8 +464,10 @@ async function routeGradebookV1(context: Context, request: Request, env: ValidEn
   }
 
   if (url.pathname.startsWith('/api/gradebook/')) {
-    const gradebookResponse = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>
-      routeOfficialGradebookRequestV1(request, executionEnv, gradebookAfterCommitV1(env, (work) => context.waitUntil(work))),
+    const gradebookResponse = await withOfficialGradebookDatabaseV1(env, async (executionEnv) =>
+      // Server to server (notas-onedrive-sync Worker): written here, next to the database.
+      (await handleOneDriveSyncWriteRequestV1(request, executionEnv, (work) => context.waitUntil(work)))
+      ?? routeOfficialGradebookRequestV1(request, executionEnv, gradebookAfterCommitV1(env, (work) => context.waitUntil(work))),
     );
     if (gradebookResponse) return gradebookResponse;
   }
