@@ -34,6 +34,7 @@ import { resolveReconciledSourcesV2 } from '../student-identity/reconciliation/r
 import { lockYearResetSharedV1 } from '../student-portal/integration/year-reset/proof-v1';
 import { lockResetWriterV1 } from '../student-portal/integration/year-reset/writer-v1';
 import { recordFrequencyResetWriteV2 } from '../student-portal/integration/year-reset/frequency-writer-v2';
+import { onlineSecondsV2 } from './agenda-quiet-v2';
 import {
   FREQUENCY_FAILURE_RETENTION_DAYS_V2,
   insertFrequencyFailureV2,
@@ -636,12 +637,18 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
     LEFT JOIN attendance.class_state_v2 s ON s.academic_year=t.ano AND s.class_id=t.id WHERE c.academic_year=$1 AND NOT c.review_required ORDER BY t.id,c.label`,
     [year],
   );
+  const schedule = row.schedule_json === null ? null : json<FrequencyScheduleV2>(row.schedule_json);
+  const reportSchedule =
+    row.report_schedule_json === null || row.report_schedule_json === undefined
+      ? null
+      : json<FrequencyReportScheduleV2>(row.report_schedule_json);
+  // Away from the agenda the Coletor asks only every 15 min (issue #1426, 6B): it is still online.
   const devices = await tx.query<Row>(
     `SELECT p.device_id::text,p.revoked_at::text,p.grant_state,d.label,d.state,d.last_seen_at::text,d.class_id,d.code,d.last_collection_at::text,
-    d.last_seen_at>clock_timestamp()-interval '2 minutes' AS online
+    d.last_seen_at>clock_timestamp()-$3::integer*interval '1 second' AS online
     FROM collector_auth.device_public_v2 p LEFT JOIN attendance.device_status_v2 d ON d.device_id=p.device_id AND d.academic_year=$1
     WHERE p.tenant_id=$2::uuid ORDER BY d.label,p.device_id`,
-    [year, actor.tenantId],
+    [year, actor.tenantId, onlineSecondsV2(schedule, reportSchedule, Date.now())],
   );
   const collected = await tx.query<Row>(
     // The class's current state already points at its newest batch (the only batch insert sets
@@ -673,11 +680,8 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
     settings: {
       revision: Number(row.revision),
       paused,
-      schedule: row.schedule_json === null ? null : json<FrequencyScheduleV2>(row.schedule_json),
-      reportSchedule:
-        row.report_schedule_json === null || row.report_schedule_json === undefined
-          ? null
-          : json<FrequencyReportScheduleV2>(row.report_schedule_json),
+      schedule,
+      reportSchedule,
       preferredDeviceId: textOrNull(row.preferred_device ?? null),
     },
     studentReport: report ? studentReportView(report, actor.mode === 'admin') : null,
