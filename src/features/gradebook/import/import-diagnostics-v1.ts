@@ -1,4 +1,5 @@
 import {
+  GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1,
   type GradebookImportDiagnosticAuditItemV1,
   type GradebookImportDiagnosticCodeV1,
   type GradebookImportDiagnosticFieldKindV1,
@@ -673,8 +674,7 @@ export function actionableGradebookImportDiagnosticsV1(
   diagnostics: readonly GradebookImportDiagnosticV1[],
 ): readonly GradebookImportDiagnosticV1[] {
   return diagnostics.filter(
-    (value) => value.severity === 'blocking-error' || value.code === 'above-maximum'
-      || value.code === 'qualitative-maxima-over-ceiling',
+    (value) => value.severity === 'blocking-error' || GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1.has(value.code),
   );
 }
 

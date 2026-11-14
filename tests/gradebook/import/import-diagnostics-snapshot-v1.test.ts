@@ -249,7 +249,7 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
     expect((await state()).map((row)=>row.chave)).toEqual(['k1','k2']);
   });
 
-  it('persists only blocking findings and the actionable above-maximum warning', async () => {
+  it('persists only blocking findings and the actionable warnings', async () => {
     const mixed: GradebookImportDiagnosticsAuditRequestV1 = {
       ...observation([]),
       diagnostics: [
@@ -278,6 +278,14 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
           fieldKind:'recovery',
         },
         {
+          key:'maxima-over-ceiling',
+          severity:'warning',
+          code:'qualitative-maxima-over-ceiling',
+          message:'Máximos acima do teto qualitativo.',
+          recommendedAction:'Distribua os máximos.',
+          fieldKind:'configuration',
+        },
+        {
           key:'qualitative-star',
           severity:'warning',
           code:'invalid-maximum',
@@ -288,10 +296,11 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
         },
       ],
     };
-    expect(await replace(database,mixed)).toBe(2);
+    expect(await replace(database,mixed)).toBe(3);
     expect((await state()).map((row)=>({chave:row.chave,nivel:row.nivel,codigo:row.codigo}))).toEqual([
       {chave:'above-maximum',nivel:'warning',codigo:'above-maximum'},
       {chave:'blocking-invalid-maximum',nivel:'blocking-error',codigo:'invalid-maximum'},
+      {chave:'maxima-over-ceiling',nivel:'warning',codigo:'qualitative-maxima-over-ceiling'},
     ]);
   });
 
