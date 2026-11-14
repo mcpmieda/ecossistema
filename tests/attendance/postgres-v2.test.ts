@@ -53,6 +53,7 @@ interface TestPg {
 }
 let pg: TestPg;
 let nativeClient: ReturnType<typeof postgres> | undefined;
+let recorded: string[] | null = null;
 let failMarks = false,
   expireAfterSource = false;
 let service: ReturnType<typeof createFrequencyServiceV2>;
@@ -140,6 +141,7 @@ beforeAll(async () => {
         failMarks = false;
         await client.query('SELECT 1/0');
       }
+      recorded?.push(sql);
       const r = await client.query<Record<string, unknown>>(sql, [...params]);
       if (expireAfterSource && sql.includes('INSERT INTO attendance.source_row_v2')) {
         expireAfterSource = false;
@@ -168,6 +170,7 @@ beforeAll(async () => {
   service = createFrequencyServiceV2(database);
 }, 30000);
 beforeEach(async () => {
+  recorded = null;
   failMarks = false;
   expireAfterSource = false;
   await pg.exec(FREQUENCY_SYNTHETIC_SEED_SQL_V2);
@@ -1552,5 +1555,20 @@ describe('frequency V2 private PostgreSQL service', () => {
     await expect(
       database.executeNative("UPDATE attendance.source_mark_v2 SET mark='J'", []),
     ).rejects.toBeDefined();
+  });
+
+  it('a known computer status takes only the shared reset lock, never the year lock (issue #1426, 15)', async () => {
+    recorded = [];
+    await service.execute({ operation: 'status', academicYear: 2026 }, next);
+    // First sight of the computer: a write the reset must see, under the year's lock.
+    expect(recorded.some((sql) => sql.includes('pg_advisory_xact_lock(613,$1'))).toBe(true);
+    recorded = [];
+    const answer = (await service.execute({ operation: 'status', academicYear: 2026 }, next)) as FrequencyStatusV2;
+    expect(answer.state).toBe('ready');
+    expect(recorded.some((sql) => sql.includes('pg_advisory_xact_lock_shared(613,0)'))).toBe(true);
+    expect(recorded.some((sql) => sql.includes('pg_advisory_xact_lock(613,'))).toBe(false);
+    expect(recorded.some((sql) => sql.includes('ensure_year_coordination_v1'))).toBe(false);
+    expect(recorded.some((sql) => /school_state_v2 WHERE academic_year=\$1 FOR UPDATE/u.test(sql))).toBe(false);
+    recorded = null;
   });
 });

@@ -103,7 +103,7 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     SELECT DISTINCT scope_key,scope_kind,class_id,account_id FROM own_settings WHERE scope_kind IN('class','shift','account')
     UNION SELECT scope_key,scope_kind,class_id,account_id FROM student_portal.publication_release_v2 r
       WHERE academic_year=2026 AND scope_kind IN('class','account')
-        AND version>COALESCE((to_jsonb(r)->>'inherit_version')::bigint,0)
+        AND version>COALESCE(r.inherit_version,0)
     UNION SELECT 'account:2026:'||id::text,'account',NULL::integer,id FROM accounts WHERE blocked
     ${contextOwner}
   ), targets AS (

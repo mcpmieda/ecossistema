@@ -89,6 +89,28 @@ export async function contextV1(
     relationAvailable: boolV1(r.relation_available),
   };
 }
+/**
+ * The context for a read (issue #1426, 40): no lock and no write. The revision is the one the next
+ * write will store (one more when the academic revision moved since), so a cursor or a prepared
+ * decision read here still matches it. Null before the year's first write created the row.
+ */
+export async function readContextV1(tx: TxV1, year: number): Promise<ReconciliationContextV1 | null> {
+  const current = await academicRevisionV1(tx, year);
+  const [r] = await tx.query(
+    `SELECT generation::text,
+    (revision+CASE WHEN academic_revision IS NOT NULL AND academic_revision<>$2 THEN 1 ELSE 0 END)::text AS revision,
+    name_source,EXISTS(SELECT 1 FROM gradebook.ano_letivo WHERE ano=$1) AS relation_available
+    FROM gradebook.student_reconciliation_scope_v1 WHERE academic_year=$1`,
+    [year, current],
+  );
+  if (!r) return null;
+  return {
+    generation: String(r.generation),
+    revision: Number(r.revision),
+    nameSource: r.name_source as 'relation' | 'report',
+    relationAvailable: boolV1(r.relation_available),
+  };
+}
 export function assertContextV1(
   context: ReconciliationContextV1,
   request: Pick<ReconciliationMutationV1, 'generation' | 'expectedRevision'>,

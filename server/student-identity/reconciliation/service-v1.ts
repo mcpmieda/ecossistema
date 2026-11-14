@@ -1,4 +1,5 @@
 import {
+  RECONCILIATION_READ_OPERATIONS_V1,
   reconciliationRequestV1,
   type ReconciliationContextV1,
   type ReconciliationResponseV1,
@@ -12,6 +13,7 @@ import {
   contextV1,
   digestV1,
   nullableTextV1,
+  readContextV1,
   ReconciliationConflictV1,
   scalarTextV1,
   type TxV1,
@@ -143,13 +145,30 @@ export class StudentReconciliationServiceV1 {
     private readonly actorId: string,
     private readonly cursorSecret: string,
   ) {}
+  /**
+   * Reads (the sidebar count every 5 min, the lists) run in a read-only snapshot without the year's
+   * exclusive lock that the collector, the OneDrive reading and grade imports wait on (issue #1426,
+   * 40). Writes keep the lock. Before the year's first write the row is missing: that one read
+   * takes the write path, which creates it.
+   */
+  private async run<T>(request: { operation: string; academicYear: number },
+    work: (tx: TxV1, context: ReconciliationContextV1) => Promise<T>): Promise<T> {
+    if (RECONCILIATION_READ_OPERATIONS_V1.includes(request.operation)) {
+      const read = await this.database.transaction(async (tx) => {
+        await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
+        const context = await readContextV1(tx, request.academicYear);
+        return context ? { value: await work(tx, context) } : null;
+      });
+      if (read) return read.value;
+    }
+    return this.database.transaction(async (tx) => work(tx, await contextV1(tx, request.academicYear, true)));
+  }
   async execute(input: unknown): Promise<ReconciliationResponseV1> {
     const parsed = reconciliationRequestV1.safeParse(input);
     if (!parsed.success) return { contractVersion: 1, state: 'invalid-request' };
     const request = parsed.data;
     try {
-      return await this.database.transaction(async (tx) => {
-        const context = await contextV1(tx, request.academicYear, true);
+      return await this.run(request, async (tx, context) => {
         switch (request.operation) {
           case 'catalog':
             return catalogV1(tx, request.academicYear, context);

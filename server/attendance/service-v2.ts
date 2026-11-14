@@ -31,6 +31,7 @@ import { frequencyCommentV2 } from '../../shared/attendance-contracts/frequency-
 import { SCHOOL_DAYS_REQUIRED_V1 } from '../../shared/student-portal-contracts/school-calendar-v1';
 import { normalizeStudentNameV1 } from '../../shared/student-identity/reconciliation-normalization-v1';
 import { resolveReconciledSourcesV2 } from '../student-identity/reconciliation/resolve-source-batch-v2';
+import { lockYearResetSharedV1 } from '../student-portal/integration/year-reset/proof-v1';
 import { lockResetWriterV1 } from '../student-portal/integration/year-reset/writer-v1';
 import { recordFrequencyResetWriteV2 } from '../student-portal/integration/year-reset/frequency-writer-v2';
 import {
@@ -643,8 +644,11 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
     [year, actor.tenantId],
   );
   const collected = await tx.query<Row>(
-    `SELECT DISTINCT ON(b.class_id) b.class_id,COALESCE(s.last_observed_at,b.observed_at)::text AS observed_at,COALESCE(s.last_received_at,b.received_at)::text AS received_at,b.resolved_records,b.unresolved_records,b.conflicts
-    FROM attendance.batch_v2 b LEFT JOIN attendance.class_state_v2 s ON s.academic_year=b.academic_year AND s.class_id=b.class_id WHERE b.academic_year=$1 ORDER BY b.class_id,b.received_at DESC,b.id`,
+    // The class's current state already points at its newest batch (the only batch insert sets
+    // last_batch_id in the same transaction): ~15 rows by key instead of sorting every batch of the
+    // year on each 30 s status (issue #1426, 18). Same rows as the DISTINCT ON over batch_v2.
+    `SELECT s.class_id,COALESCE(s.last_observed_at,b.observed_at)::text AS observed_at,COALESCE(s.last_received_at,b.received_at)::text AS received_at,b.resolved_records,b.unresolved_records,b.conflicts
+    FROM attendance.class_state_v2 s JOIN attendance.batch_v2 b ON b.id=s.last_batch_id AND b.academic_year=s.academic_year WHERE s.academic_year=$1 ORDER BY s.class_id`,
     [year],
   );
   const diagnostics =
@@ -988,7 +992,10 @@ async function coverageDelta(
   cutoff: string,
 ) {
   const prior = await tx.query<Row>(
-    `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id DESC`,
+    // From the class's batches to each one's coverage by its key (issue #1426, 14): the plain join
+    // read the whole coverage table (1.6 s on the largest class, inside the school's lock);
+    // OFFSET 0 keeps the planner from folding it back into that join. Same rows.
+    `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.batch_v2 b CROSS JOIN LATERAL (SELECT c.record_key,c.date,c.slots_json,c.complete FROM attendance.coverage_v2 c WHERE c.batch_id=b.id OFFSET 0) c WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id DESC`,
     [input.academicYear, input.classId],
   );
   const previous = new Map(prior.map((c) => [`${text(c.record_key)}:${text(c.date)}`, c]));
@@ -1924,6 +1931,39 @@ function authorizeOperation(input: FrequencyRequestV2, actor: FrequencyActorV2) 
   )
     fail('not-authorized', 403);
 }
+/**
+ * The collector's 30 s status only reads the year (issue #1426, 15): it takes the shared reset lock
+ * (a reset in progress still waits for it) but not the year's exclusive lock that grade imports,
+ * the Auditoria and the OneDrive reading hold for seconds, and reads the school row without
+ * FOR UPDATE. Its one write that a reset must see, a device showing up for the first time, takes
+ * the year's lock first, before the device lock, in the same order as every writer.
+ */
+async function statusRead(tx: Tx, year: number, actor: FrequencyActorV2) {
+  const known =
+    actor.mode !== 'device' ||
+    (
+      await tx.query<Row>(
+        'SELECT 1 AS known FROM attendance.device_status_v2 WHERE academic_year=$1 AND device_id=$2::uuid',
+        [year, device(actor)],
+      )
+    ).length > 0;
+  const [state] = known
+    ? await tx.query<Row>('SELECT 1 AS present FROM attendance.school_state_v2 WHERE academic_year=$1', [year])
+    : [];
+  if (!known || !state) {
+    await lockResetWriterV1(tx, year);
+    await lockDevice(tx, actor);
+    return statusOperation(tx, await school(tx, year, actor.tenantId), actor, year);
+  }
+  await lockYearResetSharedV1(tx);
+  await lockDevice(tx, actor);
+  const [row] = await tx.query<Row>(
+    'SELECT *,clock_timestamp()::text AS server_time FROM attendance.school_state_v2 WHERE academic_year=$1',
+    [year],
+  );
+  if (row?.tenant_id !== actor.tenantId) fail('not-authorized', 403);
+  return statusOperation(tx, row!, actor, year);
+}
 async function statusOperation(tx: Tx, row: Row, actor: FrequencyActorV2, year: number) {
   if (actor.mode === 'device') {
     const [operational] = (
@@ -1934,9 +1974,9 @@ async function statusOperation(tx: Tx, row: Row, actor: FrequencyActorV2, year: 
     ).rows;
     if (truth(operational?.inserted)) await recordFrequencyResetWriteV2(tx, year);
   }
-  const result = await status(tx, row, actor);
-  await lockDevice(tx, actor);
-  return result;
+  // The device row is already locked for this transaction (lockDevice before the read): checking
+  // it again here only repeated the same query (issue #1426, 6).
+  return status(tx, row, actor);
 }
 async function priorReceipt(
   tx: Tx,
@@ -1997,10 +2037,10 @@ async function runOperation(
   actor: FrequencyActorV2,
   operation: (context: Context, input: Mutation) => Promise<Row> = mutate,
 ): Promise<Row | FrequencyStatusV2 | FrequencySummaryV2> {
+  if (input.operation === 'status') return statusRead(tx, input.academicYear, actor);
   await lockResetWriterV1(tx, input.academicYear);
   await lockDevice(tx, actor);
   const row = await school(tx, input.academicYear, actor.tenantId);
-  if (input.operation === 'status') return statusOperation(tx, row, actor, input.academicYear);
   if (input.operation === 'monthly-summary')
     return summaryInTx(tx, input.academicYear, input.studentUid, input.month);
   const receipt = await priorReceipt(tx, input, actor);

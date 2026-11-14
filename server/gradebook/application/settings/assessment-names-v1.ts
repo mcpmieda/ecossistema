@@ -37,7 +37,7 @@ export function createAssessmentNamesServiceV1(database: GradebookPostgresWriteP
           const row = (await db.query<{ ano: unknown; names: unknown; version: unknown }>(
               `SELECT ano,
           COALESCE(to_jsonb(y)->'nomes_avaliacoes','{}'::jsonb) AS names,
-          COALESCE((to_jsonb(y)->>'nomes_avaliacoes_versao')::bigint,0)::text AS version
+          COALESCE(y.nomes_avaliacoes_versao,0)::text AS version
           FROM gradebook.ano_letivo y WHERE ano=$1 ${request.operation === 'save' ? 'FOR UPDATE' : ''}`.trim(),
             [request.year],
           ))[0];
