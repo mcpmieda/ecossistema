@@ -147,3 +147,25 @@ describe('native bootstrap HTTP boundaries', () => {
     expect(network).not.toHaveBeenCalled();
   });
 });
+
+describe('platform snapshot cache (issue #1426, 20)', () => {
+  it('reuses a complete answer for 5 min, shares simultaneous reads and never keeps a partial one', async () => {
+    const { forgetPlatformSnapshotsV2, getPlatformSnapshotCachedV2, PLATFORM_SNAPSHOT_CACHE_MS_V2 } = await import('../server/platform/snapshot');
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    forgetPlatformSnapshotsV2();
+    let clock = 1_000_000;
+    const partial = dependencies('PLATAFORMA_AUDITORIA');
+    const read = (source: PlatformSnapshotDependenciesV2) => getPlatformSnapshotCachedV2(testEnv, PLATFORM_CAPABILITIES, source, () => clock);
+    expect((await read(partial)).unavailableSections).toContain('audit');
+    await read(partial);
+    expect(partial.token).toHaveBeenCalledTimes(2);
+    const healthy = dependencies();
+    await Promise.all([read(healthy), read(healthy), read(healthy)]);
+    await read(healthy);
+    expect(healthy.token).toHaveBeenCalledTimes(1);
+    clock += PLATFORM_SNAPSHOT_CACHE_MS_V2 + 1;
+    await read(healthy);
+    expect(healthy.token).toHaveBeenCalledTimes(2);
+    forgetPlatformSnapshotsV2();
+  });
+});

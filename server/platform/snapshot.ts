@@ -188,3 +188,36 @@ export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: reado
   unavailableSections.sort((left, right) => left.localeCompare(right));
   return { ...snapshot, unavailableSections, ...(retryAfterSeconds ? { retryAfterSeconds } : {}) };
 }
+
+/**
+ * The SharePoint platform lists (modules, settings, audit, migrations) barely change, and the ADM
+ * asked for them on every return of focus to the window: ~6 Microsoft calls each time (issue
+ * #1426, 20). Per instance and per set of capabilities, a complete answer is reused for 5 min and
+ * simultaneous requests share one read. An answer with an unavailable section is never kept. The
+ * caller's own authorization is still checked on every request before this.
+ */
+export const PLATFORM_SNAPSHOT_CACHE_MS_V2 = 5 * 60_000;
+type SnapshotCacheEntryV2 = { at: number; value?: PlatformSnapshotV2; pending?: Promise<PlatformSnapshotV2> };
+const snapshotCacheV2 = new Map<string, SnapshotCacheEntryV2>();
+
+export function forgetPlatformSnapshotsV2(): void {
+  snapshotCacheV2.clear();
+}
+
+export async function getPlatformSnapshotCachedV2(env: RuntimeEnv, capabilities: readonly PlatformCapability[],
+  dependencies = sourceDependencies, now: () => number = Date.now): Promise<PlatformSnapshotV2> {
+  requireCapability(capabilities, 'platform.snapshot.read');
+  const key = [...new Set(capabilities)].sort((a, b) => a.localeCompare(b)).join(',');
+  const entry = snapshotCacheV2.get(key) ?? { at: Number.NEGATIVE_INFINITY };
+  if (entry.value && now() - entry.at < PLATFORM_SNAPSHOT_CACHE_MS_V2) return entry.value;
+  // Shared by everyone waiting, so one caller giving up does not cancel the others' read.
+  entry.pending ??= getPlatformSnapshotV2(env, capabilities, dependencies)
+    .then((value) => {
+      if (value.unavailableSections?.length) entry.value = undefined;
+      else { entry.value = value; entry.at = now(); }
+      return value;
+    })
+    .finally(() => { entry.pending = undefined; });
+  snapshotCacheV2.set(key, entry);
+  return entry.pending;
+}

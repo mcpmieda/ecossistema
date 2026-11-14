@@ -16,8 +16,10 @@ it('serves real student HTML and hashed assets on root and access without exposi
   expect(access.status).toBe(200);
   expect(await access.text()).toBe(html);
   const paths = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/gu)].map((m) => m[1]!);
-  // Script, stylesheet, and the crest favicon + home-screen icon (hashed PNGs).
-  expect(paths).toHaveLength(4);
+  // Script, stylesheet, the crest favicon + home-screen icon (hashed PNGs), and the preloaded
+  // library pieces kept apart from the Portal's own code (issue #1426, 39).
+  expect(paths).toHaveLength(8);
+  for (const piece of ['react-', 'ui-', 'zod-']) expect(paths.some((path) => path.startsWith(`/assets/${piece}`))).toBe(true);
   expect(paths.filter((path) => path.endsWith('.png'))).toHaveLength(2);
   for (const path of paths) {
     const asset = await harness.fetch(origin + path);

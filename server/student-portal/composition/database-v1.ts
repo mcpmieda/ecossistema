@@ -3,10 +3,8 @@ import { failureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { withPortalSqlV1 } from '../runtime/database-v1';
 import {
-  emitPortalDbLifecycleMetricV1,
   emitPortalMetricV1,
   measurePortalSqlV1,
-  type PortalDbLifecycleMetricV1,
   type PortalMetricV1,
 } from '../observability/metrics-v1';
 import type { PortalSqlLifecycleSampleV1 } from '../runtime/database-v1';
@@ -44,17 +42,7 @@ export async function portalDatabaseV1<T>(env: PortalCompositionEnvV1, operation
       operation, outcome, elapsedMs: 0, queries: 0, rows: 0, lockTimeouts: 0, statementTimeouts: 0 };
     // The factory's role check succeeds before the instrumented callback starts.
     emitPortalMetricV1({ ...metric, elapsedMs: Math.max(0, Date.now() - started),
-      queries: metric.queries + (measured ? 1 : 0), rows: metric.rows + (measured ? 1 : 0) });
-    if (lifecycle) {
-      const dbMetric: PortalDbLifecycleMetricV1 = {
-        event: 'student-portal-db-lifecycle-v1',
-        operation,
-        outcome,
-        openRoleMs: lifecycle.openRoleMs,
-        applicationMs: lifecycle.applicationMs,
-        attempts: lifecycle.attempts,
-      };
-      emitPortalDbLifecycleMetricV1(dbMetric);
-    }
+      queries: metric.queries + (measured ? 1 : 0), rows: metric.rows + (measured ? 1 : 0),
+      ...(lifecycle ? { openRoleMs: lifecycle.openRoleMs, applicationMs: lifecycle.applicationMs, attempts: lifecycle.attempts } : {}) });
   }
 }

@@ -69,3 +69,19 @@ describe('production Hyperdrive safety and capacity #806', () => {
     expect(result.every((item) => item.state === 'unavailable')).toBe(true);
   });
 });
+
+describe('only the least-privilege Hyperdrives are bound (issue #1426, 36 and 37)', () => {
+  it('every wrangler file binds a known Hyperdrive and no D1 database', async () => {
+    const { readdirSync, readFileSync } = await import('node:fs');
+    // ADM and notes Worker (gradebook_app), Portal (student_portal_app), collector (collector_runtime).
+    const known = new Set([gradebook, portal, '74fa00272a0b420582ccb5e55be6356f']);
+    const files = readdirSync('.').filter((name) => /^wrangler(\..+)?\.jsonc$/u.test(name));
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8');
+      for (const [, block] of text.matchAll(/"hyperdrive"\s*:\s*\[([^\]]*)\]/gu))
+        for (const [, id] of block!.matchAll(/"id"\s*:\s*"([^"]+)"/gu)) expect(known.has(id!), `${file}: ${id}`).toBe(true);
+      expect(text, file).not.toContain('d1_databases');
+    }
+  });
+});

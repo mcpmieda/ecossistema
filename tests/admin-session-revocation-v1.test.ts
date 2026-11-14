@@ -9,6 +9,8 @@ import {
   SESSION_COOKIE,
 } from '../server/auth/session';
 import {
+  FAILURE_CACHE_MS_V1,
+  isSessionRevokedV1,
   NOT_REVOKED_CACHE_MS_V1,
   revokeSessionV1,
   SESSION_ID_PATTERN_V1,
@@ -108,6 +110,38 @@ describe('A25: "Sair" ends the ADM session on the server', () => {
     expect((await readSession(request(cookie), testEnv))?.oid).toBe(oid);
     await expect(revokeSessionV1(testEnv, session.sid!, session.exp)).resolves.toBe(false);
     expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('simultaneous requests of one session ask the database once (issue #1426, 3)', async () => {
+    const memory = memoryPort();
+    setSessionRevocationPortForTestsV1(memory.port);
+    const sid = 'a'.repeat(22);
+    const answers = await Promise.all(Array.from({ length: 5 }, () => isSessionRevokedV1(testEnv, sid, 2_000_000_000)));
+    expect(answers).toEqual([false, false, false, false, false]);
+    expect(memory.reads()).toBe(1);
+  });
+
+  it('a failed read is remembered for 15 s, and "Sair" during a read is never overwritten', async () => {
+    vi.useFakeTimers();
+    let reads = 0;
+    let release: (value: boolean) => void = () => undefined;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    setSessionRevocationPortForTestsV1({
+      isRevoked: () => { reads += 1; return reads === 1 ? Promise.reject(new Error('down')) : new Promise((resolve) => { release = resolve; }); },
+      revoke: async () => undefined,
+    });
+    const sid = 'b'.repeat(22);
+    await expect(isSessionRevokedV1(testEnv, sid, 2_000_000_000)).resolves.toBe(false);
+    await expect(isSessionRevokedV1(testEnv, sid, 2_000_000_000)).resolves.toBe(false);
+    expect(reads).toBe(1);
+    vi.advanceTimersByTime(FAILURE_CACHE_MS_V1 + 1);
+    const pending = isSessionRevokedV1(testEnv, sid, 2_000_000_000);
+    expect(reads).toBe(2);
+    await revokeSessionV1(testEnv, sid, 2_000_000_000);
+    release(false);
+    await pending;
+    await expect(isSessionRevokedV1(testEnv, sid, 2_000_000_000)).resolves.toBe(true);
     warn.mockRestore();
   });
 

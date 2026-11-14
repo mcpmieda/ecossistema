@@ -3,7 +3,7 @@ import { requireAuth, AuthenticationError } from '../../../server/auth/session';
 import { AuthorizationError } from '../../../server/auth/roles';
 import { capabilitiesForRoles, requireCapability } from '../../../server/auth/capabilities';
 import { enforceOfficialOrigin, HttpError, withSecurityHeaders } from '../../../server/http/security';
-import { getPlatformSnapshotV2 } from '../../../server/platform/snapshot';
+import { getPlatformSnapshotCachedV2 } from '../../../server/platform/snapshot';
 
 /** Legacy clients keep their all-or-nothing endpoint. V2 identifies unavailable sections
  * and preserves Retry-After without confusing an upstream failure with a user's permissions.
@@ -16,7 +16,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
     const session = await requireAuth(context.request, context.env);
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.snapshot.read');
-    const snapshot = await getPlatformSnapshotV2(context.env, capabilities, undefined, context.request.signal);
+    const snapshot = await getPlatformSnapshotCachedV2(context.env, capabilities);
     const headers = new Headers();
     if (snapshot.retryAfterSeconds !== undefined) headers.set('Retry-After', String(snapshot.retryAfterSeconds));
     return withSecurityHeaders(Response.json(snapshot, { headers }), true);
