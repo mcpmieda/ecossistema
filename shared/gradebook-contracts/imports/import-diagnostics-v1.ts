@@ -7,6 +7,16 @@ export const GRADEBOOK_IMPORT_DIAGNOSTIC_SEVERITIES_V1 = [
 export type GradebookImportDiagnosticSeverityV1 =
   (typeof GRADEBOOK_IMPORT_DIAGNOSTIC_SEVERITIES_V1)[number];
 
+/**
+ * Warnings that ask a person to act on the spreadsheet: kept in the Auditoria and shown in the
+ * import panel, unlike technical warnings (formula without cache, "*" maximum).
+ */
+export const GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1: ReadonlySet<string> = new Set([
+  'above-maximum',
+  'qualitative-maxima-over-ceiling',
+  'grade-without-student',
+]);
+
 export const GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1 = [
   'invalid-text',
   'negative-grade',

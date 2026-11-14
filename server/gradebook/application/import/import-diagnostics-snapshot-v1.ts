@@ -1,5 +1,6 @@
 import { recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
 import {
+  GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1,
   isGradebookImportDiagnosticsAuditRequestV1,
   type GradebookImportDiagnosticsAuditRequestV1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
@@ -43,11 +44,12 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
   const sha256 = request.sha256.toLowerCase();
   // The persistent Audit is intentionally narrower than the import preflight.
   // Keep only findings that require human action: all blocking errors plus the
-  // explicit above-maximum warning. Technical/expected warnings (for example
+  // actionable warnings (above-maximum, maxima over the qualitative ceiling, grade
+  // without a student). Technical/expected warnings (for example
   // REC formulas without a saved cache or qualitative "*" maxima) stay out of
   // the durable current snapshot.
   const rows = request.diagnostics
-    .filter((item) => item.severity === 'blocking-error' || item.code === 'above-maximum')
+    .filter((item) => item.severity === 'blocking-error' || GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1.has(item.code))
     .map((item) => ({
       ano: academicYear,
       arquivo: fileName,
