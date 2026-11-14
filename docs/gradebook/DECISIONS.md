@@ -366,7 +366,7 @@ Sem alteração de contrato HTTP, schema, migration, cálculo acadêmico ou publ
 | 11. AV2 preenchida com a guia em "1 AVALIAÇÃO" | o AM do aluno |
 | 12. AM digitado à mão numa guia de AMs por fórmula | aquele AM |
 | 14. Nome do aluno diferente da Relação (OneDrive) | as notas do aluno |
-| 14b. Aluno da planilha que não está na Relação do sistema (OneDrive) | só esse aluno fica fora do envio; antes o banco recusava a planilha inteira |
+| 14b. Aluno da planilha que não está na Relação do sistema (OneDrive e importação manual) | só esse aluno fica fora do envio, com aviso; antes o banco recusava a planilha inteira. Turma ausente da Relação continua recusada |
 | 10. Nota numa linha sem nome ou sem número de aluno | a nota não vai para ninguém; aparece como aviso na Auditoria (digitação errada ou Relação da planilha desatualizada) |
 
 Não entram: recalcular o AM (a planilha já calcula) e nota que sumiu (pode ser correção do professor).

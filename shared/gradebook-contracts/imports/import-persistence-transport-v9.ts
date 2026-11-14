@@ -157,12 +157,19 @@ export interface GradebookNotesImportRequestV9 {
 export type GradebookImportPersistenceRequestV9 =
   GradebookRelationImportRequestV9 | GradebookNotesImportRequestV9;
 
-export interface GradebookRelationWarningV9 {
-  readonly code: 'movement-spelling';
-  readonly classCode: string;
-  readonly number: number;
-  readonly relatedClassCode: string;
-}
+export type GradebookRelationWarningV9 =
+  | {
+      readonly code: 'movement-spelling';
+      readonly classCode: string;
+      readonly number: number;
+      readonly relatedClassCode: string;
+    }
+  | {
+      /** A student of the workbook the system's Relação does not have: left out, the rest written. */
+      readonly code: 'student-not-in-relation';
+      readonly classCode: string;
+      readonly number: number;
+    };
 
 export type GradebookImportPersistenceResponseV9 =
   | {
@@ -511,12 +518,13 @@ export function isGradebookImportPersistenceResponseV9(
           value.warnings.every(
             (warning) =>
               record(warning) &&
-              Object.keys(warning).length === 4 &&
-              warning.code === 'movement-spelling' &&
               nonEmptyText(warning.classCode, 32) &&
-              nonEmptyText(warning.relatedClassCode, 32) &&
               Number.isSafeInteger(warning.number) &&
-              Number(warning.number) > 0,
+              Number(warning.number) > 0 &&
+              ((Object.keys(warning).length === 4 &&
+                warning.code === 'movement-spelling' &&
+                nonEmptyText(warning.relatedClassCode, 32)) ||
+                (Object.keys(warning).length === 3 && warning.code === 'student-not-in-relation')),
           )))
     );
   }
