@@ -359,7 +359,7 @@ Sem alteração de contrato HTTP, schema, migration, cálculo acadêmico ou publ
 | 3. Ano da CONFIGURAÇÃO diferente da pasta (OneDrive) | o arquivo inteiro |
 | 4. Soma das atividades do aluno acima do teto qualitativo (AK3) | o AM do aluno |
 | 5. Nota acima do máximo (agora erro bloqueante) | a nota e o AM do aluno |
-| 6. Soma dos máximos das atividades acima do teto qualitativo | os AMs da guia |
+| 6. Soma dos máximos das atividades acima do teto qualitativo | nada: aparece na Auditoria como erro de distribuição do professor (ajuste de 13/11/2026; só segura o aluno que passar do teto, pela regra 4) |
 | 7. Cabeçalho K3/K4 que não bate com o nome da guia | a turma e disciplina |
 | 8. Recuperação acima do máximo do trimestre (T3+Y3+AK3) | a recuperação e o U do aluno |
 | 9. Nota de trabalho com o bloco de trabalho sem peso | o AM do aluno |
