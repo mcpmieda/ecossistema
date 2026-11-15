@@ -15,7 +15,7 @@ import {
   type ReadResultV1,
   type SyncFileV1,
 } from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
-import { fastPollActiveV1, pollWindowV1, schoolDayOfV1 } from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
+import { editPollUntilV1, pollWindowV1, safetyDeltaIntervalMsV1, schoolDayOfV1 } from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
 
 const on = { ...DEFAULT_SYNC_SETTINGS_V1, enabled: true };
 const seen = (id: string, hash: string | null = `h-${id}`, extra: Partial<ObservedFileV1> = {}): ObservedFileV1 => ({
@@ -128,18 +128,17 @@ describe('Notas sync rules', () => {
   });
 });
 
-describe('10 s poll window (issue #1426, 29)', () => {
+describe('10 s poll while someone edits (owner decision 15/11/2026)', () => {
   const at = (iso: string) => Date.parse(iso);
-  it('runs from 30 min before the first lesson to 1 h after the last, on school days only', () => {
+  it('lasts 25 min after a save on school days and 10 min otherwise; the safety delta is 15 min or 1 h', () => {
     const now = at('2026-11-16T12:00:00-03:00');
     expect(schoolDayOfV1(at('2026-11-17T01:00:00Z'))).toBe('2026-11-16');
     const day = pollWindowV1('2026-11-16', { schoolDay: true, starts: '07:20', ends: '17:30', source: 'calendar' }, now);
-    expect(fastPollActiveV1(day, at('2026-11-16T06:49:00-03:00'))).toBe(false);
-    expect(fastPollActiveV1(day, at('2026-11-16T06:51:00-03:00'))).toBe(true);
-    expect(fastPollActiveV1(day, at('2026-11-16T18:29:00-03:00'))).toBe(true);
-    expect(fastPollActiveV1(day, at('2026-11-16T18:31:00-03:00'))).toBe(false);
+    expect(editPollUntilV1(day, now)).toBe(now + 25 * 60_000);
+    expect(safetyDeltaIntervalMsV1(day)).toBe(15 * 60_000);
     const holiday = pollWindowV1('2026-11-16', { schoolDay: false, starts: '07:20', ends: '17:30', source: 'calendar' }, now);
-    expect(fastPollActiveV1(holiday, now)).toBe(false);
+    expect(editPollUntilV1(holiday, now)).toBe(now + 10 * 60_000);
+    expect(safetyDeltaIntervalMsV1(holiday)).toBe(60 * 60_000);
     expect(day.retryAfter).toBeNull();
   });
   it('without the Portal answer, weekdays 07:00–18:00 and asks again within the hour', () => {

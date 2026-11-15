@@ -30,7 +30,8 @@ import {
   nextParallelV1,
   SYNC_PARALLEL_MAX_V1,
   nextWakeV1,
-  fastPollActiveV1,
+  editPollUntilV1,
+  safetyDeltaIntervalMsV1,
   observeFileV1,
   placeFileV1,
   pollWindowV1,
@@ -115,16 +116,16 @@ type SourceV1 = NonNullable<OneDriveSyncStatusV1['sources']>[number];
 export type SyncStatusV1 = OneDriveSyncStatusV1;
 
 const META_DEFAULTS_V1 = { settings: DEFAULT_SYNC_SETTINGS_V1 };
-const DELTA_INTERVAL_WITH_WEBHOOK_MS = 60 * 60_000;
 const DELTA_INTERVAL_WITHOUT_WEBHOOK_MS = 60_000;
 const SUBSCRIPTION_RENEW_BEFORE_MS = 3 * 24 * 60 * 60_000;
 const NIGHTLY_UTC_HOUR = 6; // 03:00 at the school (America/Bahia)
 /** While reads run, the coordinator looks again this often (a Graph notice is picked up at once). */
 const LOOP_TICK_MS = 2_000;
 /**
- * On school days, around the lessons (calendar and bells of the Portal), the folder is also asked
- * this often, without waiting for Microsoft's notice. Outside, saves arrive by the notice and the
- * safety delta, only without this acceleration (owner decision 14/11/2026, issue #1426, 29).
+ * While someone is editing (a source workbook changed in the last 25 min on a school day, 10 min
+ * otherwise) the folder is asked this often, without waiting for Microsoft's notice; with nothing
+ * changing, only the notice and the safety delta (owner decision 15/11/2026, replaces the fixed
+ * school-hours poll of 14/11, issue #1426, 29).
  */
 const POLL_MS = 10_000;
 /** Graph notices that arrive together wait this long, so they become a single delta. */
@@ -267,7 +268,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const now = Date.now();
     const webhookActive = this.meta<{ id: string } | null>('subscription', null) !== null;
     const lastDelta = this.meta<number | null>('lastDeltaAt', null);
-    const interval = webhookActive ? DELTA_INTERVAL_WITH_WEBHOOK_MS : DELTA_INTERVAL_WITHOUT_WEBHOOK_MS;
+    const interval = webhookActive ? safetyDeltaIntervalMsV1(await this.pollWindow(now)) : DELTA_INTERVAL_WITHOUT_WEBHOOK_MS;
     if (lastDelta === null || now - lastDelta >= interval) this.setMeta('deltaRequested', true);
     const today = new Date(now).toISOString().slice(0, 10);
     if (new Date(now).getUTCHours() === NIGHTLY_UTC_HOUR && this.meta<string | null>('nightlyOn', null) !== today) {
@@ -418,15 +419,14 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     await this.scheduleNext();
   }
 
-  /** Around the lessons of a school day the folder is asked every POLL_MS even without a Microsoft notice. */
-  private async pollDue(now: number): Promise<boolean> {
-    const settings = this.settings();
-    if (!settings.enabled || settings.paused || !(await this.fastPollActive(now))) return false;
-    return now - (this.meta<number | null>('lastDeltaAt', null) ?? 0) >= POLL_MS;
+  /** While someone is editing, the folder is asked every POLL_MS even without a Microsoft notice. */
+  private pollDue(now: number): boolean {
+    return this.editPolling(now) && now - (this.meta<number | null>('lastDeltaAt', null) ?? 0) >= POLL_MS;
   }
 
-  private async fastPollActive(now: number): Promise<boolean> {
-    return fastPollActiveV1(await this.pollWindow(now), now);
+  private editPolling(now: number): boolean {
+    const settings = this.settings();
+    return settings.enabled && !settings.paused && now < (this.meta<number | null>('editPollUntil', null) ?? 0);
   }
 
   /** Today's poll window, asked of the Portal once a day (again within the hour if it did not answer). */
@@ -453,7 +453,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
           throw cause;
         });
       }
-      else if (this.meta('deltaRequested', false) || (await this.pollDue(now))) await this.deltaCheck(now);
+      else if (this.meta('deltaRequested', false) || this.pollDue(now)) await this.deltaCheck(now);
     } catch (cause) {
       if (cause instanceof NoFolderConfiguredError) {
         this.setMeta('deltaRequested', false);
@@ -482,14 +482,20 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     return driveId;
   }
 
-  /** Changes of the sources' workbooks (anything else in the drive is ignored), tagged with their year. */
-  private observe(items: readonly DriveWorkbookV1[], now: number): void {
+  /**
+   * Changes of the sources' workbooks (anything else in the drive is ignored), tagged with their year.
+   * True when a source workbook was saved since last seen (a new date or new content).
+   */
+  private observe(items: readonly DriveWorkbookV1[], now: number): boolean {
     const settings = this.settings();
     const sources = this.sources();
+    let saved = false;
     for (const item of items) {
       const source = sourceOfV1(item, sources);
       const current = this.file(item.id);
       if (!source && !(item.deleted && current)) continue;
+      if (source && !item.deleted && (current === null || current.modifiedAt !== item.lastModifiedDateTime
+        || current.hash !== item.quickXorHash)) saved = true;
       const next = observeFileV1(current, {
         id: item.id, name: item.name, size: item.size, modifiedAt: item.lastModifiedDateTime, hash: item.quickXorHash, deleted: item.deleted,
       }, now, settings);
@@ -498,6 +504,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const placed = placeFileV1(file, source, now);
       if (next || placed !== file) this.saveFile(placed);
     }
+    return saved;
   }
 
   private async deltaCheck(now: number): Promise<void> {
@@ -519,7 +526,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       await this.resyncSources(now, driveId, false);
       return;
     }
-    this.observe(delta.changes, now);
+    // A workbook saved opens (or extends) the 10 s poll: the next saves, and Excel Online's content
+    // written after the date it reports, arrive without waiting for Microsoft's notice.
+    if (this.observe(delta.changes, now)) this.setMeta('editPollUntil', editPollUntilV1(await this.pollWindow(now), now));
     this.setMeta('deltaLink', delta.deltaLink);
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
@@ -700,7 +709,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const files = active ? this.files() : this.files().filter((file) => file.state === 'reading');
     const next = nextWakeV1(files, this.meta<number | null>('breakerUntil', null), now);
     const graphReadyAt = Math.max(now + 5_000, this.meta('graphBackoffUntil', 0), this.meta<number | null>('breakerUntil', null) ?? 0);
-    const pollAt = active && (await this.fastPollActive(now))
+    const pollAt = active && this.editPolling(now)
       ? Math.max(now + 1_000, (this.meta<number | null>('lastDeltaAt', null) ?? 0) + POLL_MS) : null;
     const candidates = [next, pendingWork && this.settings().enabled ? graphReadyAt : null, pollAt]
       .filter((value): value is number => value !== null);
