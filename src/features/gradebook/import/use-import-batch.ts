@@ -8,7 +8,6 @@ import type {
 import type { GradebookImportDiagnosticsAuditRequestV1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import { isGradebookAcademicYearV2 } from '../../../../shared/gradebook-contracts/academic-year-v2';
 import {
-  countWorkbookOperationalClassesV1,
   importWorkbookBatch,
   validateBatchSize,
   type BatchFailureDetail,
@@ -374,7 +373,6 @@ export function useImportBatch() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BatchSuccess[]>([]);
   const [failures, setFailures] = useState<BatchFailureDetail[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportFlowProgressV9 | null>(null);
   const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV9>>({});
   const [sourceValueWarnings, setSourceValueWarnings] = useState<Record<string, number>>({});
@@ -526,34 +524,6 @@ export function useImportBatch() {
     );
     batchTiming.current = null;
   }
-
-  const selectedResult = useMemo(
-    () => results.find((result) => result.id === selectedId) ?? results[0] ?? null,
-    [results, selectedId],
-  );
-
-  const totals = useMemo(
-    () => ({
-      classes: results.reduce((sum, result) => {
-        const relation = (result.summary as SummaryWithRelationV9).masterRelationV9;
-        return sum + (relation?.turmas.length ?? countWorkbookOperationalClassesV1(result.summary));
-      }, 0),
-      students: results.reduce((sum, result) => {
-        const relation = (result.summary as SummaryWithRelationV9).masterRelationV9;
-        return (
-          sum +
-          (relation
-            ? relation.turmas.reduce((classSum, turma) => classSum + turma.alunos.length, 0)
-            : result.summary.classes.reduce(
-                (classSum, classroom) => classSum + classroom.students,
-                0,
-              ))
-        );
-      }, 0),
-      gradeSheets: results.reduce((sum, result) => sum + result.summary.gradeSheets.length, 0),
-    }),
-    [results],
-  );
 
   const authorizationRequired = useMemo(
     () =>
@@ -768,7 +738,6 @@ export function useImportBatch() {
         local.result,
       );
     } else {
-      setSelectedId(local.result.id);
       setPersistence((current) => ({
         ...current,
         [local.result.id]: {
@@ -981,7 +950,6 @@ export function useImportBatch() {
       const review = response.movementReview ?? null;
       const original = movementReviews.current.get(result.id)?.prepared ?? prepared;
       movementReviews.current.set(result.id, { prepared: original, review });
-      setSelectedId(result.id);
       setPersistence((current) => ({
         ...current,
         [result.id]: {
@@ -1264,7 +1232,6 @@ export function useImportBatch() {
     setError(null);
     setResults([]);
     setFailures([]);
-    setSelectedId(null);
     setPersistence({});
     setProgress(null);
     setSourceValueWarnings({});
@@ -1342,7 +1309,6 @@ export function useImportBatch() {
       }
       setResults(result.successes);
       setFailures(result.failureDetails);
-      setSelectedId(result.successes[0]?.id ?? null);
       setPersistence(
         Object.fromEntries(
           result.successes.map((success) => [success.id, { state: 'recognized' } as const]),
@@ -1481,15 +1447,11 @@ export function useImportBatch() {
     persistence,
     results,
     resumePendingPersistence,
-    selectedId,
-    selectedResult,
-    setSelectedId,
     sourceDiagnostics,
     sourceMaximumWarnings,
     sourceValueWarnings,
     timingRevision,
     timingReportSummary: timingSummary(),
     getTimingReport,
-    totals,
   };
 }
