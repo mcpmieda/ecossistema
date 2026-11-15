@@ -1,5 +1,7 @@
 # Auditoria e reconciliação V1 no D1 local
 
+> **Documento histórico.** O D1 acadêmico foi aposentado (#1079) e o código descrito aqui não existe mais. O estado atual está em [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md): produção usa PostgreSQL/Supabase via Hyperdrive `PROD_DB`.
+
 Este documento descreve `createGradebookD1AuditRepositoryV1`, implementado em
 `server/gradebook/persistence/d1/audit/`. O módulo fornece integralmente
 `AuditPersistenceRepositoryV1` sobre as migrations locais 0001–0003:

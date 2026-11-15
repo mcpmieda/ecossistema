@@ -1,5 +1,7 @@
 # Entidades acadêmicas V1 no D1 local
 
+> **Documento histórico.** O D1 acadêmico foi aposentado (#1079) e o código descrito aqui não existe mais. O estado atual está em [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md): produção usa PostgreSQL/Supabase via Hyperdrive `PROD_DB`.
+
 Este documento descreve o adaptador local de `AcademicEntityRepositoryV1` implementado em
 `server/gradebook/persistence/d1/entities/`. Ele completa a persistência versionada das entidades
 acadêmicas sem ativar D1 remoto, criar binding, executar migração remota ou alterar a autoridade dos
