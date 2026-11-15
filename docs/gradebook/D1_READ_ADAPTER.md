@@ -1,5 +1,7 @@
 # Adaptador D1 local de leitura V1
 
+> **Documento histórico.** O D1 acadêmico foi aposentado (#1079) e o código descrito aqui não existe mais. O estado atual está em [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md): produção usa PostgreSQL/Supabase via Hyperdrive `PROD_DB`.
+
 ## Escopo
 
 Este adaptador implementa somente as leituras necessárias ao planejamento idempotente de importação e reimportação. Ele recebe uma instância D1 por interface estrutural, não cria binding, banco ou recurso e não executa migrations em produção.
