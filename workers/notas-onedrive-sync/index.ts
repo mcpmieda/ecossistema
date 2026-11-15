@@ -26,6 +26,7 @@ import {
 } from '../../server/gradebook/onedrive-sync/sync-coordinator-v1';
 import type { ReadResultV1, SchoolDayWindowV1 } from '../../server/gradebook/onedrive-sync/sync-rules-v1';
 import { prepareTeacherWorkbookV1 } from '../../server/gradebook/onedrive-sync/teacher-workbook-preparation-v1';
+import { WriteQueueDeadlineErrorV1 } from '../../server/gradebook/onedrive-sync/write-prepared-v1';
 import { createGradebookPostgresDatabaseV1 } from '../../server/gradebook/persistence/postgres/postgres-database-v1';
 
 export { NotasSyncCoordinatorV1 };
@@ -56,10 +57,19 @@ export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
   };
 }
 
-/** One database write at a time across reads (the coordinator keeps the turn). */
-async function withWriteTurnV1<T>(env: NotasSyncEnvV1, work: () => Promise<T>): Promise<T> {
+/**
+ * One database write at a time across reads (the coordinator keeps the turn). Past `deadlineAt` the
+ * read gives up instead of taking the turn, so a read about to time out never holds the line
+ * (issue #1450, 4).
+ */
+async function withWriteTurnV1<T>(env: NotasSyncEnvV1, work: () => Promise<T>, deadlineAt?: number): Promise<T> {
+  if (deadlineAt !== undefined && Date.now() > deadlineAt) throw new WriteQueueDeadlineErrorV1();
   const coordinator = coordinatorV1(env);
   const token = await coordinator.beginWrite();
+  if (deadlineAt !== undefined && Date.now() > deadlineAt) {
+    await coordinator.endWrite(token).catch(() => undefined);
+    throw new WriteQueueDeadlineErrorV1();
+  }
   try {
     return await work();
   } finally {
@@ -262,7 +272,7 @@ function readHereV1(env: NotasSyncEnvV1, input: ProcessWorkbookInputV1): Promise
       if (!connectionString) throw new Error('notas-sync-database-binding-missing');
       return createGradebookPostgresDatabaseV1(connectionString);
     },
-    writeTurn: (work) => withWriteTurnV1(env, work),
+    writeTurn: (work) => withWriteTurnV1(env, work, input.writeDeadlineAt),
     actorId: env.GRAPH_CLIENT_ID,
     notifyPortal: async () => {
       // The app identity is the technical author of the sync; the Portal outbox stays authoritative.

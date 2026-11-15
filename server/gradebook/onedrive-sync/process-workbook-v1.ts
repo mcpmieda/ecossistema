@@ -23,7 +23,16 @@ export type ProcessWorkbookInputV1 = {
   readonly expectedYear: number | null;
   /** What was last written for this file; null writes everything. */
   readonly memory?: SyncMemoryV1 | null;
+  /** The kind of source the file came from; a Relação is written only from a single-file source. */
+  readonly sourceKind?: 'folder' | 'file' | null;
+  /** After this instant (ms) the read gives up instead of waiting for the write turn. */
+  readonly writeDeadlineAt?: number;
 };
+
+/** The read gave up waiting for the write turn: it is read again later, not counted as a failure. */
+export { WRITE_QUEUE_DEADLINE_CODE_V1 } from './write-prepared-v1';
+/** A Relação found in a folder of teacher workbooks (or any source but its own) is not written. */
+export const RELATION_OUTSIDE_SOURCE_CODE_V1 = 'RELATION-OUTSIDE-SOURCE';
 
 export type ProcessWorkbookPortsV1 = {
   readonly env: GraphAppEnvV1;
@@ -105,6 +114,8 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
     });
     if (ready.outcome === 'unreadable') return result('unreadable', ready.code);
     workbook = ready.outcome === 'ready' && ready.request.operation === 'persist-relacao' ? 'relacao' : 'notas';
+    // A copy of the Relação among the teachers' workbooks would rewrite the master roster (issue #1450, 9).
+    if (workbook === 'relacao' && input.sourceKind === 'folder') return { ...result('ignored', RELATION_OUTSIDE_SOURCE_CODE_V1), workbook };
     const prepared: PreparedWorkbookV1 = ready.outcome === 'ready'
       ? { outcome: 'ready', request: ready.request, audit: ready.audit, studentNames: [...ready.studentNames] }
       : { outcome: 'blocked', audit: ready.audit };

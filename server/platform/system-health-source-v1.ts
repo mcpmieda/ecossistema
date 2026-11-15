@@ -2,7 +2,11 @@ import { healthDeadlineV1 } from '../../shared/health-io-v1';
 import { isPortalMonitorSampleV1, sampleIsFreshV1, SYSTEM_HEALTH_TTL_MS_V1,
   type PortalMonitorSampleV1, type PublicEntrySampleV1, type SystemHealthSnapshotV1 } from '../../shared/system-health-v1';
 
+import { joinFlightV1 } from '../http/shared-flight-v1';
+
 const PUBLIC_ENTRY_V1 = 'https://aluno.escolaieda.com/';
+/** Longer than the read's own 12 s deadline, so a healthy read in flight is always joined. */
+const HEALTH_PENDING_SHARE_MS_V1 = 15_000;
 type HealthSourcesV1 = {
   production: boolean;
   readPortal?: () => Promise<unknown>;
@@ -53,12 +57,17 @@ export function createSystemHealthCacheV1(now: () => number = Date.now) {
   let saved: SystemHealthSnapshotV1 | undefined;
   let savedAt = -Infinity;
   let pending: Promise<SystemHealthSnapshotV1> | undefined;
+  let pendingSince = 0;
   return (load: () => Promise<SystemHealthSnapshotV1>): Promise<SystemHealthSnapshotV1> => {
     const age = now() - savedAt;
     if (saved && age >= 0 && age < SYSTEM_HEALTH_TTL_MS_V1) return Promise.resolve(saved);
-    if (pending) return pending;
-    pending = Promise.resolve().then(load).then((value) => { saved = value; savedAt = now(); return value; })
-      .finally(() => { pending = undefined; });
-    return pending;
+    // Joined only briefly: the read belongs to the request that started it (issue #1450, 2).
+    if (pending && now() - pendingSince < HEALTH_PENDING_SHARE_MS_V1)
+      return joinFlightV1(pending, HEALTH_PENDING_SHARE_MS_V1 - (now() - pendingSince), load);
+    const flight = Promise.resolve().then(load).then((value) => { saved = value; savedAt = now(); return value; })
+      .finally(() => { if (pending === flight) pending = undefined; });
+    pending = flight;
+    pendingSince = now();
+    return flight;
   };
 }
