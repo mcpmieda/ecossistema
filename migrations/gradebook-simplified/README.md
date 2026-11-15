@@ -57,3 +57,7 @@ A #662 restaurou o artefato lógico V2 em PostgreSQL local descartável: 28 rela
 ## 0017 — histórico das regras do ano (08/11/2026)
 
 `0017_drop_ano_letivo_historico_v1.sql` remove `gradebook.ano_letivo_historico`. Aplicada em produção como `gradebook_0017_drop_ano_letivo_historico_v1` (`20261108091103`), depois do deploy do código que deixou de usar a tabela; postflight: tabela ausente, 39 tabelas com RLS, Advisor de segurança limpo. Nenhuma tela ou função muda a nota mínima ou o limite do Conselho depois da importação da Relação, então a tabela nunca teve linha. Aborta se tiver qualquer linha. O artefato lógico V2 da #662 continua restaurável: ele recria a estrutura antiga pelas migrações da época.
+
+## 0019 — Auditoria por origem (15/11/2026)
+
+`0019_import_diagnostics_origin_v1.sql` acrescenta `origem` a `gradebook.importacao_diagnostico` (#1462, achado 16 da #1450): `manual` (navegador) ou `onedrive:<id do item na Graph>`. A foto de cada planilha é trocada por ano, origem e nome; duas planilhas do mesmo ano com o mesmo nome, de pastas diferentes ou do OneDrive e da importação manual, não apagam mais os achados uma da outra. A chave única passa a ser `(origem, hash, chave)`. As linhas anteriores ficam como `legacy` e são trocadas pela próxima foto do mesmo arquivo, de qualquer origem; a conferência noturna do OneDrive regrava todas em até um dia. Aplicar pelo conector antes do deploy do código que grava a origem.

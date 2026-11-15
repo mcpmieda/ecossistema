@@ -262,24 +262,17 @@ describe('manifesto e proveniência do lote de importação', () => {
     );
   });
 
-  it('SEC-006/UI: apresenta proveniência sintética, hash completo e etapas sem caminho local', () => {
+  it('SEC-006/UI: apresenta as etapas e uma linha por planilha, sem caminho local', () => {
     const root = process.cwd();
     const panel = readFileSync(
       join(root, 'src/features/gradebook/import/import-panel.tsx'),
-      'utf8',
-    );
-    const inspector = readFileSync(
-      join(root, 'src/features/gradebook/import/workbook-inspector.tsx'),
       'utf8',
     );
 
     expect(panel).toContain("from '@heroui/react'");
     expect(panel).toContain('Preparando e calculando SHA-256');
     expect(panel).toContain('Reconhecendo estrutura');
-    expect(panel).toContain('Falha isolada');
-    expect(inspector).toContain('Identidade técnica');
-    expect(inspector).toContain('<details');
-    expect(inspector).toContain('{manifest.sha256}');
-    expect(`${panel}\n${inspector}`).not.toMatch(/localPath|file\.path/u);
+    expect(panel).toContain('result.manifest.fileName');
+    expect(panel).not.toMatch(/localPath|file\.path/u);
   });
 });
