@@ -309,7 +309,7 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
 });
 
 describe('collector request without maintenance on every call (issue #1426, 13)', () => {
-  it('checks the grants once per isolate and runs the retention cleanup at most once a minute', async () => {
+  it('checks the grants once per isolate and runs the retention cleanup only on pairing routes (issue #1450, 7)', async () => {
     const { resetCollectorRuntimeMemoryV1 } = await import('../../server/collector/runtime-v1');
     resetCollectorRuntimeMemoryV1();
     const seen: string[] = [];
@@ -327,13 +327,14 @@ describe('collector request without maintenance on every call (issue #1426, 13)'
     const count = (part: string) => seen.filter((text) => text.includes(part)).length;
     for (let index = 0; index < 3; index += 1) await createCollectorRuntimeV1(env, dependencies);
     expect(count('has_schema_privilege')).toBe(1);
-    expect(count('DELETE FROM collector_auth.challenges')).toBe(1);
+    // The database job (pg_cron) does the retention; frequency requests never repeat it.
+    expect(count('DELETE FROM collector_auth.challenges')).toBe(0);
     expect(count('WITH expired AS MATERIALIZED')).toBe(3);
     clock += 60_000;
     await createCollectorRuntimeV1(env, dependencies);
-    expect(count('DELETE FROM collector_auth.challenges')).toBe(2);
+    expect(count('DELETE FROM collector_auth.challenges')).toBe(0);
     await createCollectorRuntimeV1(env, dependencies, { pairingRoute: true });
-    expect(count('DELETE FROM collector_auth.challenges')).toBe(3);
+    expect(count('DELETE FROM collector_auth.challenges')).toBe(1);
     resetCollectorRuntimeMemoryV1();
   });
 });

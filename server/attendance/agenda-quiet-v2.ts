@@ -1,14 +1,16 @@
 import type { FrequencyReportScheduleV2, FrequencyScheduleV2 } from '../../shared/attendance-contracts/frequency-v2';
 
 /**
- * Away from the agenda the Coletor asks only every 15 minutes (owner request 14/11/2026, issue #1426,
+ * Away from the agenda the Coletor asks only every 9 minutes (owner request 14/11/2026, issue #1426,
  * 6B); within 10 minutes before a collection or report time until 5 after it, every 30 s. Same numbers
  * as AGENDA_LEAD_SECONDS, AGENDA_TAIL_SECONDS and QUIET_REFRESH_SECONDS in the Coletor's
  * frequency_runtime.py.
  */
 export const AGENDA_LEAD_SECONDS_V2 = 600;
 export const AGENDA_TAIL_SECONDS_V2 = 300;
-export const QUIET_REFRESH_SECONDS_V2 = 900;
+// Shorter than the 10 min lead (issue #1450, finding 1): a collection time created or moved in the
+// ADM at least 10 min ahead is always seen before its near window starts.
+export const QUIET_REFRESH_SECONDS_V2 = 540;
 /** A computer is online when seen within this many seconds: 2 min near the agenda, one quiet refresh plus 2 min away from it. */
 export const ONLINE_NEAR_SECONDS_V2 = 120;
 export const ONLINE_QUIET_SECONDS_V2 = QUIET_REFRESH_SECONDS_V2 + ONLINE_NEAR_SECONDS_V2;
