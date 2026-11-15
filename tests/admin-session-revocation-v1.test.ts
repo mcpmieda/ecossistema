@@ -12,6 +12,7 @@ import {
   FAILURE_CACHE_MS_V1,
   isSessionRevokedV1,
   NOT_REVOKED_CACHE_MS_V1,
+  PENDING_SHARE_MS_V1,
   revokeSessionV1,
   SESSION_ID_PATTERN_V1,
   setSessionRevocationPortForTestsV1,
@@ -143,6 +144,25 @@ describe('A25: "Sair" ends the ADM session on the server', () => {
     await pending;
     await expect(isSessionRevokedV1(testEnv, sid, 2_000_000_000)).resolves.toBe(true);
     warn.mockRestore();
+  });
+
+  it('a read that never answers (its request was cancelled) does not hold the others (issue #1450, 2)', async () => {
+    vi.useFakeTimers();
+    let reads = 0;
+    setSessionRevocationPortForTestsV1({
+      isRevoked: () => { reads += 1; return reads === 1 ? new Promise<boolean>(() => undefined) : Promise.resolve(false); },
+      revoke: async () => undefined,
+    });
+    const sid = 'c'.repeat(22);
+    void isSessionRevokedV1(testEnv, sid, 2_000_000_000);
+    // A request at the same moment joins the read, and asks on its own once the wait is over.
+    const joined = isSessionRevokedV1(testEnv, sid, 2_000_000_000);
+    await vi.advanceTimersByTimeAsync(PENDING_SHARE_MS_V1 + 1);
+    await expect(joined).resolves.toBe(false);
+    expect(reads).toBe(2);
+    // A later request does not wait on the dead read at all.
+    await expect(isSessionRevokedV1(testEnv, sid, 2_000_000_000)).resolves.toBe(false);
+    expect(reads).toBe(3);
   });
 
   it('a cookie from before the change (no id) is never looked up', async () => {

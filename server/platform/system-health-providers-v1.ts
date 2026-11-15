@@ -1,6 +1,9 @@
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
 import { isPublicProviderHealthV1, PUBLIC_PROVIDERS_V1, type PublicProviderHealthV1,
   type PublicProviderPointV1 } from '../../shared/public-provider-health-v1';
+import { joinFlightV1 } from '../http/shared-flight-v1';
+/** The provider reads have short deadlines of their own; a read in flight is joined this long at most. */
+const PROVIDER_PENDING_SHARE_MS_V1 = 15_000;
 const URLS = { cloudflare: 'https://www.cloudflarestatus.com/api/v2/status.json',
   supabase: 'https://status.supabase.com/api/v2/status.json' } as const;
 const INDICATORS = new Set(['none', 'minor', 'major', 'critical']);
@@ -39,9 +42,13 @@ export async function collectPublicProviderHealthV1(fetcher: typeof fetch = fetc
 /** Public aggregate only. Failure is cached briefly too, so clicks never become a retry storm. */
 export function createPublicProviderCacheV1(now = Date.now) {
   let value: PublicProviderHealthV1 | null = null, until = 0, pending: Promise<PublicProviderHealthV1> | null = null;
+  let pendingSince = 0;
   return async (load: () => Promise<PublicProviderHealthV1> = () => collectPublicProviderHealthV1()): Promise<PublicProviderHealthV1> => {
     if (value && now() >= Date.parse(value.generatedAt) && now() < until) return value;
-    if (pending) return pending;
+    // Joined only briefly: the read belongs to the request that started it (issue #1450, 2).
+    if (pending && now() - pendingSince < PROVIDER_PENDING_SHARE_MS_V1)
+      return joinFlightV1(pending, PROVIDER_PENDING_SHARE_MS_V1 - (now() - pendingSince), load);
+    pendingSince = now();
     value = null;
     const task = Promise.resolve().then(load).then((sample) => {
       if (!isPublicProviderHealthV1(sample)) throw new Error('provider-status-invalid');

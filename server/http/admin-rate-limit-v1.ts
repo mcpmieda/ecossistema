@@ -50,6 +50,10 @@ const routes: Readonly<Record<string, RouteV1>> = {
   '/api/gradebook/assessment-names': { methods: ['POST'], operation: 'write', bodyBytes: 8192 },
   '/api/gradebook/year-reset': { methods: ['POST'], operation: 'write', bodyBytes: 2048 },
   '/api/gradebook/audit-treatment': { methods: ['POST'], operation: 'write', bodyBytes: 96000 },
+  // Admin routes added in October/November that had no quota (issue #1450, finding 20a).
+  '/api/gradebook/onedrive-sync': { methods: ['POST'], operation: 'write' },
+  '/api/gradebook/frequency/v2': { methods: ['POST'], operation: 'write' },
+  '/api/gradebook/view-preferences': { methods: ['GET', 'PUT'], operation: 'read' },
   [RECONCILIATION_ROUTE_V1]: { methods: ['POST'], operation: 'write', bodyBytes: 65536, upload: true },
   '/api/student-photos/admin/state': { methods: ['POST'], operation: 'read' },
   '/api/student-photos/admin/avatars': { methods: ['POST'], operation: 'read' },
@@ -188,6 +192,7 @@ function gradebookFailureBodyV1(
       return { contractVersion: 2, operation: payload.operation, state };
     return null;
   }
+  if (path === '/api/gradebook/frequency/v2') return { contractVersion: 2, state };
   if (path.startsWith('/api/gradebook/') && !path.includes('/admin/'))
     return { contractVersion: 1, state };
   return undefined;

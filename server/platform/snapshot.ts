@@ -8,6 +8,7 @@ import { getGraphToken, graphAllPages, GraphError, GraphTokenError } from '../gr
 import { resolveRegisteredModules } from '../modules/registry';
 import { coreModules } from './manifest';
 import { recoveryEvidence } from './recovery-evidence';
+import { joinFlightV1 } from '../http/shared-flight-v1';
 
 export const EXPECTED_PLATFORM_LISTS = ['PLATAFORMA_CONFIGURACOES', 'PLATAFORMA_MODULOS', 'PLATAFORMA_AUDITORIA', 'PLATAFORMA_MIGRACOES'] as const;
 const listSchema = z.object({ id: z.string(), displayName: z.string() });
@@ -197,7 +198,11 @@ export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: reado
  * caller's own authorization is still checked on every request before this.
  */
 export const PLATFORM_SNAPSHOT_CACHE_MS_V2 = 5 * 60_000;
-type SnapshotCacheEntryV2 = { at: number; value?: PlatformSnapshotV2; pending?: Promise<PlatformSnapshotV2> };
+type SnapshotCacheEntryV2 = {
+  at: number; value?: PlatformSnapshotV2; pending?: Promise<PlatformSnapshotV2>; pendingSince?: number;
+};
+/** A read in flight is shared only a little longer than its own 30 s limit (issue #1450, 2). */
+const SNAPSHOT_PENDING_SHARE_MS_V2 = 35_000;
 const snapshotCacheV2 = new Map<string, SnapshotCacheEntryV2>();
 
 export function forgetPlatformSnapshotsV2(): void {
@@ -210,14 +215,21 @@ export async function getPlatformSnapshotCachedV2(env: RuntimeEnv, capabilities:
   const key = [...new Set(capabilities)].sort((a, b) => a.localeCompare(b)).join(',');
   const entry = snapshotCacheV2.get(key) ?? { at: Number.NEGATIVE_INFINITY };
   if (entry.value && now() - entry.at < PLATFORM_SNAPSHOT_CACHE_MS_V2) return entry.value;
-  // Shared by everyone waiting, so one caller giving up does not cancel the others' read.
-  entry.pending ??= getPlatformSnapshotV2(env, capabilities, dependencies)
+  const read = () => getPlatformSnapshotV2(env, capabilities, dependencies);
+  // A read started by another request is joined only for a while: its I/O belongs to that request,
+  // and if that request is cancelled the answer never comes (issue #1450, 2).
+  const since = entry.pendingSince ?? 0;
+  if (entry.pending && now() - since < SNAPSHOT_PENDING_SHARE_MS_V2)
+    return joinFlightV1(entry.pending, SNAPSHOT_PENDING_SHARE_MS_V2 - (now() - since), read);
+  const pending = read()
     .then((value) => {
       if (value.unavailableSections?.length) entry.value = undefined;
       else { entry.value = value; entry.at = now(); }
       return value;
     })
-    .finally(() => { entry.pending = undefined; });
+    .finally(() => { if (entry.pending === pending) { entry.pending = undefined; entry.pendingSince = undefined; } });
+  entry.pending = pending;
+  entry.pendingSince = now();
   snapshotCacheV2.set(key, entry);
-  return entry.pending;
+  return pending;
 }
