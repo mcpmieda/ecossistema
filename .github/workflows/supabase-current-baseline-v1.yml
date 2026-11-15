@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: reconciliation-trial-${{ github.event.pull_request.number }}
+  group: current-baseline-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:

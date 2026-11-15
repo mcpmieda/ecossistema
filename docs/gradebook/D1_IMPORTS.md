@@ -1,5 +1,7 @@
 # Extensão local de importações V1 no D1
 
+> **Documento histórico.** O D1 acadêmico foi aposentado (#1079) e o código descrito aqui não existe mais. O estado atual está em [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md): produção usa PostgreSQL/Supabase via Hyperdrive `PROD_DB`.
+
 Este documento descreve o módulo independente em
 `server/gradebook/persistence/d1/imports/`. Ele completa três operações de
 `ImportPersistenceRepositoryV1` sobre as migrations locais 0001–0003:
