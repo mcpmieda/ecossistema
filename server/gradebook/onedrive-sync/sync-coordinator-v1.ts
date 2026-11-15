@@ -25,7 +25,10 @@ import {
   expiredLeasesV1,
   filesToStartV1,
   finishReadingV1,
+  INITIAL_SYNC_PARALLEL_V1,
   nextBreakerV1,
+  nextParallelV1,
+  SYNC_PARALLEL_MAX_V1,
   nextWakeV1,
   fastPollActiveV1,
   observeFileV1,
@@ -38,6 +41,7 @@ import {
   type ReadResultV1,
   type SchoolDayWindowV1,
   type SyncFileV1,
+  type SyncParallelV1,
   type SyncSettingsV1,
 } from './sync-rules-v1';
 
@@ -188,7 +192,11 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.ctx.storage.sql.exec('DELETE FROM events WHERE id <= (SELECT max(id) FROM events) - ?', EVENT_LIMIT);
   }
   private settings(): SyncSettingsV1 {
-    return { ...META_DEFAULTS_V1.settings, ...this.meta<Partial<SyncSettingsV1>>('settings', {}) };
+    // The reads at once are no longer a setting: the sync adjusts them (nextParallelV1).
+    return { ...META_DEFAULTS_V1.settings, ...this.meta<Partial<SyncSettingsV1>>('settings', {}), maxParallel: this.parallel().limit };
+  }
+  private parallel(): SyncParallelV1 {
+    return this.meta<SyncParallelV1>('parallel', INITIAL_SYNC_PARALLEL_V1);
   }
 
   // ---- RPC ----------------------------------------------------------------------------
@@ -287,7 +295,6 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'pause': this.setMeta('settings', { ...settings, paused: true }); break;
       case 'resume': this.setMeta('settings', { ...settings, paused: false }); this.setMeta('breakerUntil', null); break;
       case 'set-wait': this.setMeta('settings', { ...settings, waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600) }); break;
-      case 'set-parallel': this.setMeta('settings', { ...settings, maxParallel: Math.min(Math.max(Math.round(command.count), 1), 10) }); break;
       case 'read-all': {
         // "Conferir tudo agora": every file is read again, whole, even unchanged ones; the result
         // also depends on the Relação and the folder's year (issue #1426, 16).
@@ -372,6 +379,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         year: source.year, folderId: source.itemId, folderPath: source.path, setBy: source.setBy, setAt: source.setAt })),
       sources,
       codeVersion: this.env.CF_VERSION_METADATA?.id.slice(0, 8) ?? null,
+      parallelCeiling: SYNC_PARALLEL_MAX_V1,
       breakerUntil: this.meta<number | null>('breakerUntil', null),
       webhook: { active: subscription !== null, expiresAt: subscription?.expiresAt ?? null },
       lastDeltaAt: this.meta<number | null>('lastDeltaAt', null),
@@ -379,6 +387,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         id: file.id, name: file.name, size: file.size, modifiedAt: file.modifiedAt, state: file.state, removed: file.removed,
         lastOutcome: file.lastOutcome, lastCode: file.lastCode, lastReadAt: file.lastReadAt, lastReadMs: file.lastReadMs,
         lastSavedToWrittenMs: file.lastSavedToWrittenMs,
+        lastAppliedAt: file.lastAppliedAt ?? null,
         ...(file.heldStudents ? { heldStudents: file.heldStudents } : {}),
       })),
       events: this.ctx.storage.sql.exec<{ at: number; kind: string; actor: string | null; detail: string }>(
@@ -605,6 +614,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const finished = finishReadingV1(file, lease, result, now, this.settings().waitSeconds * 1000);
     if (!finished) return;
     this.saveFile(finished);
+    const parallel = this.parallel();
+    const nextParallel = nextParallelV1(parallel, result);
+    if (nextParallel.limit !== parallel.limit || nextParallel.clean !== parallel.clean) this.setMeta('parallel', nextParallel);
+    if (nextParallel.limit !== parallel.limit) this.event('parallel', { from: parallel.limit, to: nextParallel.limit, code: result.code });
     if (result.relationChanged) {
       // New students may have been left out of workbooks read before: the year's are read again.
       const others = this.files().filter((other) => other.id !== id && !other.removed && other.workbook !== 'relacao'

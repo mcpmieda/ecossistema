@@ -34,7 +34,7 @@ it('one failed automatic read (back from the background) shows nothing; three in
   vi.mocked(requestOneDriveSyncV1).mockResolvedValueOnce(reading).mockResolvedValue(down);
   render(<OneDriveSyncPageV1 />);
   await advance(10);
-  expect(screen.getByText('Leitura automática do OneDrive')).toBeTruthy();
+  expect(screen.getByText('Leitura automática')).toBeTruthy();
   await advance(10_000);
   await advance(10_000);
   expect(screen.queryByText(message)).toBeNull();

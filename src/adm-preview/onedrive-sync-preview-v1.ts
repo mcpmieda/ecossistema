@@ -10,7 +10,7 @@ import type {
 const now = Date.now();
 const minutes = (count: number) => now - count * 60_000;
 const syntheticFiles: OneDriveSyncStatusV1['files'] = [
-  ['Planilha Sintética Professora A 2026.xlsb', 'applied', 2, 1900, 6400, null],
+  ['Planilha Sintética Professora A 2026.xlsb', 'applied', 2, 1900, 102_000, null],
   ['Planilha Sintética Professor B 2026.xlsb', 'no-changes', 35, 1200, null, null],
   ['Planilha Sintética Professora C 2026.xlsb', 'blocked', 12, 1600, null, 'AUDIT-BLOCKING'],
   ['Planilha Sintética Professor D 2026.xlsb', 'failed', 4, 0, null, 'GRAPH-DOWNLOAD'],
@@ -27,6 +27,7 @@ const syntheticFiles: OneDriveSyncStatusV1['files'] = [
   lastReadAt: outcome === null ? null : minutes(age as number),
   lastReadMs: readMs as number | null,
   lastSavedToWrittenMs: saved as number | null,
+  lastAppliedAt: outcome === 'applied' ? minutes(age as number) : null,
 }));
 
 const empty = new URLSearchParams(window.location.search).get('onedrive') === 'vazio';
@@ -40,6 +41,7 @@ const status: OneDriveSyncStatusV1 = {
   breakerUntil: null,
   webhook: { active: !empty, expiresAt: empty ? null : new Date(now + 20 * 86_400_000).toISOString() },
   lastDeltaAt: minutes(2),
+  parallelCeiling: 6,
   files: empty ? [] : syntheticFiles,
   events: empty ? [] : [
     { at: minutes(3), kind: 'webhook-subscribed', actor: null, detail: '{}' },
@@ -68,7 +70,6 @@ function control(command: Record<string, unknown>): void {
   if (action === 'pause') status.settings.paused = true;
   if (action === 'resume') status.settings.paused = false;
   if (action === 'set-wait') status.settings.waitSeconds = Number(command.seconds);
-  if (action === 'set-parallel') status.settings.maxParallel = Number(command.count);
   if (action === 'set-folder') {
     const folder = { year: Number(command.year), folderId: String(command.folderId), folderPath: String(command.folderPath),
       setBy: 'Preview Local', setAt: Date.now() };

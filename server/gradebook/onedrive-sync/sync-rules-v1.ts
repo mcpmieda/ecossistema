@@ -36,6 +36,10 @@ export type SyncFileV1 = {
   readonly lastReadAt: number | null;
   readonly lastReadMs: number | null;
   readonly lastSavedToWrittenMs: number | null;
+  /** When grades of this file last went into the Banco (absent before 15/11/2026). */
+  readonly lastAppliedAt?: number | null;
+  /** Read again because the Relação changed, not because the teacher saved: no save-to-write time. */
+  readonly rereading?: boolean;
   readonly removed: boolean;
   /** What was last written for this file, so an unchanged part is not written again. */
   readonly memory?: SyncMemoryV1 | null;
@@ -66,7 +70,32 @@ export type SyncSettingsV1 = {
   readonly maxParallel: number;
 };
 
-export const DEFAULT_SYNC_SETTINGS_V1: SyncSettingsV1 = { enabled: false, paused: false, waitSeconds: 0, maxParallel: 6 };
+/** Most reads at once. Each read runs in its own Worker invocation; the Banco takes one write at a time. */
+export const SYNC_PARALLEL_MAX_V1 = 6;
+export const DEFAULT_SYNC_SETTINGS_V1: SyncSettingsV1 = { enabled: false, paused: false, waitSeconds: 0, maxParallel: SYNC_PARALLEL_MAX_V1 };
+
+/**
+ * The reads allowed at once, set by the sync itself (owner request of 15/11/2026): a read that shows
+ * congestion (the write turn ran out, the database, OneDrive or the reader did not answer in time, a
+ * read lost its lease or took over a minute) halves it; a run of clean reads as long as the limit
+ * adds one, up to SYNC_PARALLEL_MAX_V1.
+ */
+export type SyncParallelV1 = { readonly limit: number; readonly clean: number };
+export const INITIAL_SYNC_PARALLEL_V1: SyncParallelV1 = { limit: SYNC_PARALLEL_MAX_V1, clean: 0 };
+const CONGESTION_CODES_V1: ReadonlySet<string> = new Set([
+  'WRITE-QUEUE-DEADLINE', 'DATABASE-UNAVAILABLE', 'DATABASE-WRITE', 'READER-UNREACHABLE', 'LEASE-EXPIRED', 'GRAPH-DOWNLOAD',
+]);
+const SLOW_READ_MS_V1 = 60_000;
+
+export function nextParallelV1(current: SyncParallelV1, result: Pick<ReadResultV1, 'outcome' | 'code' | 'readMs'>): SyncParallelV1 {
+  const limit = Math.min(Math.max(Math.round(current.limit) || 1, 1), SYNC_PARALLEL_MAX_V1);
+  const congested = result.outcome === 'failed' || (result.code !== null && CONGESTION_CODES_V1.has(result.code))
+    || result.readMs > SLOW_READ_MS_V1;
+  if (congested) return { limit: Math.max(1, Math.floor(limit / 2)), clean: 0 };
+  if (limit >= SYNC_PARALLEL_MAX_V1) return { limit, clean: 0 };
+  const clean = current.clean + 1;
+  return clean >= limit ? { limit: limit + 1, clean: 0 } : { limit, clean };
+}
 export const SYNC_LEASE_MS_V1 = 3 * 60_000;
 export const SYNC_BREAKER_FAILURES_V1 = 5;
 export const SYNC_BREAKER_PAUSE_MS_V1 = 15 * 60_000;
@@ -159,7 +188,13 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
   const finished: SyncFileV1 = {
     ...file, lease: null, leaseUntil: null, attempts,
     lastOutcome: result.outcome, lastCode: result.code, lastReadAt: now, lastReadMs: result.readMs,
-    lastSavedToWrittenMs: result.savedToWrittenMs ?? file.lastSavedToWrittenMs,
+    // The arrival of grades and its time from the teacher's save go together: both change only
+    // when grades went in; a read caused by the Relação has no save to count from.
+    ...(result.outcome === 'applied'
+      ? { lastAppliedAt: now, lastSavedToWrittenMs: file.rereading ? null : result.savedToWrittenMs }
+      : {}),
+    // A reread asked during this read (forget) applies to the next one.
+    ...(transient ? {} : { rereading: Boolean(file.forget) }),
     processedHash: transient ? file.processedHash : (result.readHash ?? file.processedHash),
     memory: file.forget ? null : memory,
     ...(file.forget ? { processedHash: null, forget: false } : {}),
@@ -182,8 +217,8 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
  */
 export function rereadFileV1(file: SyncFileV1, now: number): SyncFileV1 {
   if (file.removed) return file;
-  if (file.state === 'reading') return { ...file, dirty: true, forget: true };
-  return { ...file, memory: null, processedHash: null, state: 'pending', dueAt: now, attempts: 0 };
+  if (file.state === 'reading') return { ...file, dirty: true, forget: true, rereading: true };
+  return { ...file, memory: null, processedHash: null, state: 'pending', dueAt: now, attempts: 0, rereading: true };
 }
 
 /**

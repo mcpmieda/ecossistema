@@ -14,7 +14,6 @@ export const oneDriveSyncRequestSchemaV1 = z.discriminatedUnion('action', [
   z.object({ action: z.literal('set-folder'), year: yearV1, folderId: graphIdV1, folderPath: z.string().min(1).max(400) }).strict(),
   z.object({ action: z.enum(['enable', 'disable', 'pause', 'resume', 'read-all']) }).strict(),
   z.object({ action: z.literal('set-wait'), seconds: z.number().int().min(0).max(600) }).strict(),
-  z.object({ action: z.literal('set-parallel'), count: z.number().int().min(1).max(10) }).strict(),
   z.object({ action: z.literal('read-now'), fileId: graphIdV1 }).strict(),
   // A source of an academic year: a whole folder (its workbooks) or one workbook (e.g. the Relação).
   z.object({
@@ -42,6 +41,8 @@ export const oneDriveSyncFileSchemaV1 = z.object({
   lastReadAt: z.number().nullable(),
   lastReadMs: z.number().nullable(),
   lastSavedToWrittenMs: z.number().nullable(),
+  /** When grades of the file last went into the Banco (absent before 15/11/2026). */
+  lastAppliedAt: z.number().nullable().optional(),
   /** Students the last read held by the Relação checks (absent when none). */
   heldStudents: z.number().int().min(0).optional(),
 });
@@ -64,6 +65,8 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
   breakerUntil: z.number().nullable(),
   /** The deployed code version the coordinator runs (first 8 characters), when known. */
   codeVersion: z.string().max(64).nullable().optional(),
+  /** Most reads at once; settings.maxParallel is the limit the sync uses now (absent before 15/11/2026). */
+  parallelCeiling: z.number().int().min(1).optional(),
   webhook: z.object({ active: z.boolean(), expiresAt: z.string().nullable() }),
   lastDeltaAt: z.number().nullable(),
   files: z.array(oneDriveSyncFileSchemaV1),
