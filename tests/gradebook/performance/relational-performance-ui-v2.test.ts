@@ -587,13 +587,9 @@ describe('real shell, shared year and rendered performance journey', () => {
       resolve(reply(dashboardFixture({ period: 2, referencePeriod: null })));
     });
     expect(selectedValue('Período')).toBe('3º trimestre');
-    // The current trimester, then the one before for the arrows of the chart.
-    expect(
-      requests
-        .filter((value) => value.operation === 'dashboard')
-        .slice(-2)
-        .map((value) => value.period),
-    ).toEqual([3, 2]);
+    // The current trimester, with the one before in the same read for the arrows (issue #1471).
+    const last = requests.filter((value) => value.operation === 'dashboard').at(-1);
+    expect([last?.period, last?.includePrevious]).toEqual([3, true]);
   });
   it('clears loaded student data after an authorization loss while keeping 2026 fixed', async () => {
     await loaded();

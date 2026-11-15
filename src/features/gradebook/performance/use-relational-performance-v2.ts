@@ -243,16 +243,14 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       previousPeriod = null;
     }
     try {
-      const [response, previous] = await Promise.all([
-        requestPerformanceDashboardV5(request, ticket.signal),
-        // A comparison already sets the two trimesters side by side; the arrows are not needed.
-        previousPeriod === null || request.lens === 'assessments' || request.referencePeriod !== null
-          ? null
-          : requestPerformanceDashboardV5(
-              { ...request, period: previousPeriod, referencePeriod: null },
-              ticket.signal,
-            ).catch(() => null),
-      ]);
+      // The arrows need the previous trimester; the server sends it in the same read (issue #1471).
+      // A comparison already sets the two trimesters side by side; the arrows are not needed.
+      const includePrevious =
+        previousPeriod !== null && request.lens !== 'assessments' && request.referencePeriod === null;
+      const response = await requestPerformanceDashboardV5(
+        includePrevious ? { ...request, includePrevious } : request,
+        ticket.signal,
+      );
       if (!ticket.isCurrent()) return;
       if (response.state === 'not-authorized') loseAccess();
       if (response.state !== 'ready') {
@@ -261,7 +259,7 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       }
       const current = dashboardAnalysisV5(response);
       setDashboard(response);
-      setPreviousDashboard(previous?.state === 'ready' ? previous : null);
+      setPreviousDashboard(response.previous ?? null);
       setMatrix(current.matrix);
       setAnalysis(current);
       setComparison(dashboardComparisonV5(response));
