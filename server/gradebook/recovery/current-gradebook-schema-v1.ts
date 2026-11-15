@@ -13,8 +13,8 @@ export interface CurrentGradebookRecoveryQueryV1 {
 
 export const GRADEBOOK_CURRENT_CATALOG_V1 = {
   tables: 29,
-  columns: 244,
-  constraints: 216,
+  columns: 245,
+  constraints: 217,
   indexes: 69,
   foreignKeys: 51,
   sequences: 13,
