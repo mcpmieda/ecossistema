@@ -116,6 +116,8 @@ export type GradebookImportDiagnosticsAuditListResponseV1 =
       readonly state: 'ready';
       readonly items: readonly GradebookImportDiagnosticsAuditRecordV1[];
       readonly nextOffset: number | null;
+      /** Current problems of the year, each once whatever the origin that read it (absent from older servers). */
+      readonly total?: number;
     }
   | {
       readonly version: typeof GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1;
@@ -247,7 +249,8 @@ export function isGradebookImportDiagnosticsAuditListResponseV1(
     return (
       Array.isArray(value.items) &&
       value.items.every(isAuditRecord) &&
-      (value.nextOffset === null || safeIntegerWithin(value.nextOffset, 1, Number.MAX_SAFE_INTEGER))
+      (value.nextOffset === null || safeIntegerWithin(value.nextOffset, 1, Number.MAX_SAFE_INTEGER)) &&
+      (value.total === undefined || safeIntegerWithin(value.total, 0, Number.MAX_SAFE_INTEGER))
     );
   }
   return ['not-authorized', 'invalid-request', 'unavailable'].includes(String(value.state));

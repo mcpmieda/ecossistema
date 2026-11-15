@@ -446,13 +446,13 @@ describe('diagnostic HTTP integration with synthetic identity and real SQL trans
     let result: Response;
     try {
       result=await request('GET',undefined,'https://school.test',query);
-      expect(nativeQuery).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(query.includes('ano=') ? 'WHERE d.ano = $1' : 'LIMIT $1 OFFSET $2'), query.includes('ano=') ? [2090,2,0] : [2,0]);
+      expect(nativeQuery).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(query.includes('ano=') ? 'WHERE x.ano = $1' : 'LIMIT $1 OFFSET $2'), query.includes('ano=') ? [2090,2,0] : [2,0]);
     } finally {
       nativeQuery.mockRestore();
     }
     expect(result.status).toBe(200);
     expect(result.headers.get('Cache-Control')).toContain('no-store');
-    expect(await result.json()).toMatchObject({version:1,state:'ready',nextOffset:1,items:[{academicYear:2090,fileName:'synthetic.xlsx',code:'invalid-text',studentName:null}]});
+    expect(await result.json()).toMatchObject({version:1,state:'ready',nextOffset:1,total:2,items:[{academicYear:2090,fileName:'synthetic.xlsx',code:'invalid-text',studentName:null}]});
     expect(queries).toHaveLength(1);
     expect(queries[0]).toMatch(/^SELECT/u);
     expect(await state()).toEqual(previous);
@@ -515,9 +515,10 @@ describe('one snapshot per origin (issue #1462)', () => {
       { origem: 'onedrive:SYN-ITEM-A', arquivo: 'synthetic.xlsx', chave: 'drive-a' },
       { origem: 'onedrive:SYN-ITEM-B', arquivo: 'synthetic.xlsx', chave: 'drive-b' },
     ]);
-    // An empty observation clears only its own origin.
+    // An empty OneDrive observation clears its own origin and the manual reading of that name,
+    // never another OneDrive item.
     await replace(database, { ...observation([]), origin: 'onedrive:SYN-ITEM-A' });
-    expect((await origins()).map((row) => row.origem)).toEqual(['manual', 'onedrive:SYN-ITEM-B']);
+    expect((await origins()).map((row) => row.origem)).toEqual(['onedrive:SYN-ITEM-B']);
   });
 
   it('keeps the same bytes from two origins, and replaces rows written before the origin existed', async () => {

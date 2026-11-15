@@ -6,6 +6,7 @@ import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { listGradebookImportDiagnosticsAuditV1 } from '../import/import-diagnostics-client-v1';
+import { publishAuditPendingV1 } from '../../../platform/audit-pending-v1';
 
 type LoadState = 'loading' | 'ready' | 'empty' | 'not-authorized' | 'unavailable';
 type Finding = GradebookImportDiagnosticsAuditRecordV1;
@@ -226,6 +227,7 @@ export function RelationalCurrentAuditPageV2() {
         }
         setItems(all);
         setTruncated(offset !== null);
+        if (offset === null) publishAuditPendingV1(year, all.length);
         setState(all.length === 0 ? 'empty' : 'ready');
         setStale(false);
         return true;

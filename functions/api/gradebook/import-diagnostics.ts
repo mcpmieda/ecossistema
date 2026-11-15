@@ -74,25 +74,42 @@ function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
 async function listDiagnostics(database: GradebookPostgresReadPortV1, academicYear: number | null, limit: number, offset: number): Promise<{
   readonly items: readonly GradebookImportDiagnosticsAuditRecordV1[];
   readonly nextOffset: number | null;
+  readonly total: number;
 }> {
   const parameters = createGradebookPostgresParametersV1();
-  const where = academicYear === null ? '' : `WHERE d.ano = ${parameters.param(academicYear)}`;
+  const where = academicYear === null ? '' : `WHERE x.ano = ${parameters.param(academicYear)}`;
   const fetchLimit = limit + 1;
+  // The same problem read by the OneDrive and by a manual import is one problem: the latest reading.
   const result = await database.query<Row>(
     `SELECT d.id,d.ano,d.arquivo,d.chave,d.nivel,d.codigo,d.turma_codigo,d.disciplina,
             d.periodo,d.aluno_numero,d.campo,d.rotulo,d.valor_encontrado,d.causa,d.guia,
-            d.celula,d.primeiro_em,d.ultimo_em,d.ocorrencias,a.nome AS aluno_nome
-     FROM gradebook.importacao_diagnostico d
+            d.celula,d.primeiro_em,d.ultimo_em,d.ocorrencias,a.nome AS aluno_nome,
+            count(*) OVER () AS total
+     FROM (
+       SELECT DISTINCT ON (x.ano,x.arquivo,x.chave) x.*
+       FROM gradebook.importacao_diagnostico x
+       ${where}
+       ORDER BY x.ano,x.arquivo,x.chave,x.ultimo_em DESC,x.id DESC
+     ) d
      LEFT JOIN gradebook.turma t ON t.ano=d.ano AND upper(btrim(t.codigo))=upper(btrim(d.turma_codigo))
      LEFT JOIN gradebook.vinculo v ON v.ano=d.ano AND v.turma_id=t.id AND v.numero=d.aluno_numero
      LEFT JOIN gradebook.aluno a ON a.id=v.aluno_id
-     ${where}
      ORDER BY d.ultimo_em DESC,d.id DESC LIMIT ${parameters.param(fetchLimit)} OFFSET ${parameters.param(offset)}`,
     parameters.values,
   );
   const hasMore = result.length > limit;
   const page = hasMore ? result.slice(0,limit) : result;
-  return { items: page.map(auditRecord), nextOffset: hasMore ? offset + limit : null };
+  const total = result[0] === undefined ? await countDiagnostics(database, academicYear) : asInteger(result[0].total);
+  return { items: page.map(auditRecord), nextOffset: hasMore ? offset + limit : null, total };
+}
+async function countDiagnostics(database: GradebookPostgresReadPortV1, academicYear: number | null): Promise<number> {
+  const parameters = createGradebookPostgresParametersV1();
+  const where = academicYear === null ? '' : `WHERE ano = ${parameters.param(academicYear)}`;
+  const rows = await database.query<Row>(
+    `SELECT count(*) AS total FROM (SELECT DISTINCT ano,arquivo,chave FROM gradebook.importacao_diagnostico ${where}) atual`,
+    parameters.values,
+  );
+  return asInteger(rows[0]?.total ?? 0);
 }
 async function handle(request: Request, env: RuntimeEnv, afterCommit: GradebookAfterCommitV1): Promise<Response> {
   enforceOfficialOrigin(request, env);
@@ -110,7 +127,7 @@ async function handle(request: Request, env: RuntimeEnv, afterCommit: GradebookA
     const offsetText = Number(url.searchParams.get('offset') ?? 0);
     if (!Number.isSafeInteger(offsetText) || offsetText < 0) return response({ version: 1, state:'invalid-request' },400);
     const page = await listDiagnostics(database,ano,limit,offsetText);
-    return response({ version: 1,state:'ready',items:page.items,nextOffset:page.nextOffset });
+    return response({ version: 1,state:'ready',items:page.items,nextOffset:page.nextOffset,total:page.total });
   }
   if (request.method !== 'POST') throw new HttpError(405,'Method not allowed');
   enforceWriteOrigin(request, env);

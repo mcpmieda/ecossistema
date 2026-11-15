@@ -8,6 +8,7 @@ import {
   useGradebookYear,
   type GradebookYearContextValue,
 } from './gradebook-year-context';
+import { publishAuditYearV1 } from './audit-pending-v1';
 
 /**
  * The effective year, kept for this visit only (no browser storage), so the settings and the
@@ -54,6 +55,7 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     // update the visit memory before another page can mount its provider.
     chosenYearV1 = nextYear;
     yearRef.current = nextYear;
+    publishAuditYearV1(nextYear);
     setYear(nextYear);
     if (nextYear !== previous) setEpoch((value) => value + 1);
   }, []);
