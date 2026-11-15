@@ -486,6 +486,28 @@ describe('performance dashboard V5', () => {
     expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(true);
     expect(performanceDashboardMatchesV5(request, result)).toBe(true);
   });
+  it.each([[2, 'result'], [3, 'quantitative'], [3, 'qualitative']] as const)(
+    'sends the T%s %s panel with the previous trimester from the same read (issue #1471)', async (period, lens) => {
+      const request = performanceDashboardRequestSchemaV5.parse(dashboardRequest({ period, lens, includePrevious: true }));
+      const result = await createPerformanceDashboardV5(database).execute(request);
+      if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
+      expect(queries).toHaveLength(6);
+      expect(performanceDashboardMatchesV5(request, result)).toBe(true);
+      queries.length = 0;
+      // The same panel a separate request returns, apart from the instant of the read.
+      const sameRead = (value: unknown) => JSON.parse(JSON.stringify(value).replace(/"readAt":"[^"]*"/gu, '"readAt":""'));
+      const separate = await createPerformanceDashboardV5(database).execute(dashboardRequest({ period: period - 1, lens }));
+      expect(sameRead(result.previous)).toEqual(sameRead(separate));
+      const alone = await createPerformanceDashboardV5(database).execute(dashboardRequest({ period, lens }));
+      expect(sameRead({ ...result, previous: undefined })).toEqual(sameRead(alone));
+    });
+  it('refuses the previous trimester where the arrows do not apply', async () => {
+    for (const extra of [{ period: 1 }, { period: 3, referencePeriod: 1 }, { period: 2, lens: 'assessments', offerId: 10 }, { period: 'annual' }]) {
+      expect(await createPerformanceDashboardV5(database).execute(dashboardRequest({ ...extra, includePrevious: true })))
+        .toEqual({ transportVersion: 5, state: 'invalid-request' });
+    }
+    expect(queries).toHaveLength(0);
+  });
   it.each(['result', 'quantitative', 'qualitative'])('reuses the current %s analysis for the same-snapshot comparison panorama', async (lens) => {
     const build = vi.spyOn(performanceAnalysisModuleV3, 'buildPerformanceAnalysisV3');
     try {

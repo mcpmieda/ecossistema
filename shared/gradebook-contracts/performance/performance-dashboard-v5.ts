@@ -42,9 +42,17 @@ export const performanceDashboardRequestSchemaV5 = matrixRequest
     lens,
     offerId: id.nullable(),
     referencePeriod: z.union([z.literal(1), z.literal(2)]).nullable(),
+    /** The previous trimester's panel in the same read, for the arrows (issue #1471). */
+    includePrevious: z.boolean().optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (
+      value.includePrevious === true &&
+      (value.lens === 'assessments' || value.referencePeriod !== null || (value.period !== 2 && value.period !== 3))
+    ) {
+      ctx.addIssue({ code: 'custom', message: 'previous trimester only for T2 or T3 without a comparison' });
+    }
     if ((value.lens === 'assessments') !== (value.offerId !== null)) {
       ctx.addIssue({ code: 'custom', message: 'assessment lens requires one offer' });
     }
@@ -112,16 +120,16 @@ const overview = z
 const analysisReady = performanceAnalysisResponseSchemaV3.options[0];
 const comparisonReady = performanceTermComparisonResponseSchemaV4.options[0];
 
-const ready = z
-  .object({
-    transportVersion: z.literal(5),
-    operation: z.literal('dashboard'),
-    state: z.literal('ready'),
-    view: z.union([analysisReady, comparisonReady]),
-    overview,
-  })
-  .strict()
-  .superRefine((value, ctx) => {
+const dashboardShape = {
+  transportVersion: z.literal(5),
+  operation: z.literal('dashboard'),
+  state: z.literal('ready'),
+  view: z.union([analysisReady, comparisonReady]),
+  overview,
+};
+const dashboardCore = z.object(dashboardShape).strict();
+
+function checkDashboardV5(value: z.infer<typeof dashboardCore>, ctx: z.RefinementCtx) {
     const fail = (message: string) => ctx.addIssue({ code: 'custom', message });
     const analysis = value.view.operation === 'analysis' ? value.view : value.view.analysis;
     const ids = analysis.matrix.rows
@@ -190,7 +198,18 @@ const ready = z
       })
     )
       fail('inconsistent overview columns');
-  });
+}
+
+/** The previous trimester's panel: the same checks, never a comparison and never nested. */
+const previousDashboard = dashboardCore.superRefine((value, ctx) => {
+  checkDashboardV5(value, ctx);
+  if (value.view.operation !== 'analysis') ctx.addIssue({ code: 'custom', message: 'previous panel is an analysis' });
+});
+
+const ready = z
+  .object({ ...dashboardShape, previous: previousDashboard.nullable().optional() })
+  .strict()
+  .superRefine(checkDashboardV5);
 
 const failure = z
   .object({
@@ -236,6 +255,21 @@ export function performanceDashboardMatchesV5(
   if (!parsed.success) return false;
   const analysis = dashboardAnalysisV5(response);
   const comparison = dashboardComparisonV5(response);
+  const previous = response.previous ?? null;
+  if (previous !== null) {
+    const before = dashboardAnalysisV5(previous);
+    if (
+      parsed.data.includePrevious !== true ||
+      typeof parsed.data.period !== 'number' ||
+      before.matrix.period !== parsed.data.period - 1 ||
+      before.lens !== parsed.data.lens ||
+      before.offerId !== null ||
+      before.matrix.context.year !== parsed.data.year ||
+      before.matrix.classGroup.id !== parsed.data.classId ||
+      before.matrix.mode !== parsed.data.mode
+    )
+      return false;
+  }
   return (
     analysis.lens === parsed.data.lens &&
     analysis.offerId === parsed.data.offerId &&
