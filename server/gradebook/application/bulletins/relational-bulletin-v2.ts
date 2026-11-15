@@ -268,7 +268,7 @@ async function readMaterializations(
   const classRows = await rows(
     database,
     `SELECT t.id, t.codigo, t.nome, y.minimo_aprovacao, y.max_componentes_conselho,
-            COALESCE(y.nomes_avaliacoes,'{}'::jsonb) AS assessment_names
+            COALESCE(to_jsonb(y)->'nomes_avaliacoes','{}'::jsonb) AS assessment_names
        FROM gradebook.turma t
        JOIN gradebook.ano_letivo y ON y.ano = t.ano
       WHERE t.ano = $1 AND t.id = $2`,
