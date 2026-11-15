@@ -265,19 +265,21 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
       ? await writeRelationV1(context, prepared.audit, request)
       : await writeNotesV1(context, prepared, request);
   } catch (cause) {
-    // A snapshot the contract refuses is deterministic: retrying the same bytes cannot help.
-    if (cause instanceof InvalidImportDiagnosticsSnapshotV1) return context.done('rejected', 'AUDIT-INVALID', null, null);
-    // No time left to wait for the write turn: read again later (issue #1450, 4).
-    if (cause instanceof WriteQueueDeadlineErrorV1) {
-      const late = context.done('failed', WRITE_QUEUE_DEADLINE_CODE_V1);
-      return context.relationCommitted ? { ...late, relationChanged: true } : late;
-    }
+    return failedWriteOutcomeV1(context, cause);
+  }
+}
+
+function failedWriteOutcomeV1(context: WriteContextV1, cause: unknown): WriteOutcomeV1 {
+  // A snapshot the contract refuses is deterministic: retrying the same bytes cannot help.
+  if (cause instanceof InvalidImportDiagnosticsSnapshotV1) return context.done('rejected', 'AUDIT-INVALID', null, null);
+  // No time left to wait for the write turn: read again later (issue #1450, 4).
+  if (!(cause instanceof WriteQueueDeadlineErrorV1)) {
     // Only the error kind and Postgres code: a database message can carry values, never logged.
     const failure = cause as { name?: unknown; code?: unknown } | null;
     console.error(JSON.stringify({ event: 'notas-sync-database-write',
       name: typeof failure?.name === 'string' ? failure.name.slice(0, 60) : 'unknown',
       code: typeof failure?.code === 'string' ? failure.code.slice(0, 10) : null }));
-    const failed = context.done('failed', 'DATABASE-WRITE');
-    return context.relationCommitted ? { ...failed, relationChanged: true } : failed;
   }
+  const failed = context.done('failed', cause instanceof WriteQueueDeadlineErrorV1 ? WRITE_QUEUE_DEADLINE_CODE_V1 : 'DATABASE-WRITE');
+  return context.relationCommitted ? { ...failed, relationChanged: true } : failed;
 }
