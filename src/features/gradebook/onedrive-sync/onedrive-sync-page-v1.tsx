@@ -310,6 +310,12 @@ function lastArrivalV1(files: readonly FileV1[]): FileV1 | null {
   return last;
 }
 
+/** Before the first arrival is known (kept since 15/11/2026): the last reading. */
+function lastReadTextV1(files: readonly FileV1[]): string | null {
+  const latest = Math.max(0, ...files.map((file) => file.lastReadAt ?? 0));
+  return latest > 0 ? `Última leitura: ${time(latest)}` : null;
+}
+
 function SyncHeader({ status, busy, send }: Readonly<{
   status: OneDriveSyncStatusV1; busy: boolean; send: SendV1;
 }>) {
@@ -327,7 +333,9 @@ function SyncHeader({ status, busy, send }: Readonly<{
             <StateChip status={status} />
           </div>
           <p className="mt-0.5 text-sm text-muted">
-            {last ? <>Última chegada de notas: <span className="text-foreground">{last.name.replace(/\.(xlsb|xlsx|xlsm|xls)$/iu, '')}</span> · {arrivalTextV1(last)}</> : 'Nenhuma nota chegou ainda.'}
+            {last
+              ? <>Última chegada de notas: <span className="text-foreground">{last.name.replace(/\.(xlsb|xlsx|xlsm|xls)$/iu, '')}</span> · {arrivalTextV1(last)}</>
+              : lastReadTextV1(status.files)}
           </p>
           {enabled && !status.webhook.active ? (
             <p className="mt-0.5 text-xs text-warning">Sem aviso do OneDrive: a pasta é conferida a cada minuto.</p>
