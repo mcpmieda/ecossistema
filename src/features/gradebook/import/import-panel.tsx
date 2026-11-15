@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Chip, ProgressBar, Surface, Tabs } from '@heroui/react';
-import { Check, FileSpreadsheet, Upload, Users } from 'lucide-react';
+import { Check, FileSpreadsheet, ShieldAlert, Upload, Users } from 'lucide-react';
 import { MAX_NOTES_IMPORT_FILES } from './import-batch';
 import {
   useImportBatch,
@@ -8,7 +8,6 @@ import {
   isMasterRelationResult,
   type ImportPersistenceStateV9,
 } from './use-import-batch';
-import { ImportDiagnosticsPanelV1 } from './import-diagnostics-panel-v1';
 import { actionableGradebookImportDiagnosticsV1 } from './import-diagnostics-v1';
 import type { ImportTimingSummaryV1 } from './import-timing-report-v1';
 import { StudentReportImportV1 } from './student-report-import-v1';
@@ -145,7 +144,8 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
   if (state.state !== 'completed') return null;
   const response = state.response;
   const success = response.state === 'applied' || response.state === 'no-changes';
-  const warned = 'warnings' in response && Boolean(response.warnings?.length);
+  const warnings = relationWarningsV1(response).filter((warning) => !AUDITED_WARNING_CODES_V1.has(warning.code));
+  const warned = warnings.length > 0;
   // A saved file says it all in its line; only a refusal or a warning needs more.
   if (success && !warned) return null;
   return (
@@ -154,9 +154,9 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
       <Alert.Content>
         {success ? null : <Alert.Title>{persistenceLabel(state)}</Alert.Title>}
         {'reason' in response ? <Alert.Description>{response.reason}</Alert.Description> : null}
-        {'warnings' in response && response.warnings?.length ? (
+        {warned ? (
           <ul className="mt-2 space-y-1 text-sm">
-            {response.warnings.map((warning) => (
+            {warnings.map((warning) => (
               <RelationWarningV1
                 key={`${warning.code}:${warning.classCode}:${warning.number}:${'relatedClassCode' in warning ? warning.relatedClassCode : ''}`}
                 warning={warning}
@@ -169,21 +169,16 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
   );
 }
 
+/** Students held by the Relação checks: they go to the Auditoria with the other problems. */
+const AUDITED_WARNING_CODES_V1: ReadonlySet<string> = new Set(['student-name-mismatch', 'student-not-in-relation']);
+
+function relationWarningsV1(response: { readonly warnings?: readonly GradebookRelationWarningV9[] } | object):
+  readonly GradebookRelationWarningV9[] {
+  return 'warnings' in response ? (response.warnings ?? []) : [];
+}
+
 function RelationWarningV1({ warning }: Readonly<{ warning: GradebookRelationWarningV9 }>) {
-  if (warning.code === 'student-name-mismatch')
-    return (
-      <li>
-        Aluno nº {warning.number} da {warning.classCode} com nome diferente da Relação: as notas
-        dele não foram lançadas. Confira o número e o nome na planilha.
-      </li>
-    );
-  if (warning.code === 'student-not-in-relation')
-    return (
-      <li>
-        Aluno nº {warning.number} da {warning.classCode} não está na Relação do sistema: as notas
-        dele não foram lançadas. Envie a Relação atualizada.
-      </li>
-    );
+  if (warning.code === 'student-name-mismatch' || warning.code === 'student-not-in-relation') return null;
   return (
     <li>
       Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira a grafia.
@@ -586,6 +581,33 @@ function resultChipV1(state: ImportPersistenceStateV9 | undefined): readonly [st
   return [grades > 0 ? `Notas novas (${grades})` : 'Dados atualizados', 'success'];
 }
 
+/** The problems of a file that the Auditoria keeps: the actionable findings and the held students. */
+function auditedProblemsV1(result: ImportResultV1, batch: ImportBatchV1): number {
+  const state = batch.persistence[result.id];
+  const held = state?.state === 'completed'
+    ? relationWarningsV1(state.response).filter((warning) => AUDITED_WARNING_CODES_V1.has(warning.code)).length
+    : 0;
+  return actionableGradebookImportDiagnosticsV1(batch.sourceDiagnostics[result.id] ?? []).length + held;
+}
+
+function AuditLinkV1({ problems, failed }: Readonly<{ problems: number; failed: boolean }>) {
+  if (problems === 0) return null;
+  const label = `${problems} problema${problems === 1 ? '' : 's'}`;
+  if (failed) {
+    return (
+      <Chip size="sm" color="danger" variant="soft">
+        {label} · Auditoria indisponível
+      </Chip>
+    );
+  }
+  return (
+    <a href="#/banco-de-notas?area=audit" className="import-audit-link no-underline">
+      <ShieldAlert className="size-3.5" aria-hidden="true" />
+      {label} · ver na Auditoria
+    </a>
+  );
+}
+
 function ImportResultRowV1({
   result,
   batch,
@@ -596,17 +618,15 @@ function ImportResultRowV1({
   return (
     <li className="py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="mr-auto break-all font-medium">{result.manifest.fileName}</p>
+        <p className="mr-auto min-w-0 break-all font-medium">{result.manifest.fileName}</p>
+        <AuditLinkV1
+          problems={auditedProblemsV1(result, batch)}
+          failed={Boolean(batch.diagnosticAuditFailures[result.id])}
+        />
         <Chip size="sm" color={color} variant="soft">
           {label}
         </Chip>
       </div>
-      <ImportDiagnosticsPanelV1
-        diagnostics={actionableGradebookImportDiagnosticsV1(
-          batch.sourceDiagnostics[result.id] ?? [],
-        )}
-        auditFailure={batch.diagnosticAuditFailures[result.id]}
-      />
       <PersistenceResult state={state} />
       {review?.review ? (
         <RelationMovementReviewV9

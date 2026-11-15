@@ -3577,3 +3577,24 @@ button.performance-kpi__button:hover {
     min-height: 100lvh;
   }
 }
+
+/* Import result: the file's problems live in the Auditoria; the row only links to it. */
+.import-audit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.5rem;
+  padding: 0 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--warning) 16%, transparent);
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.import-audit-link:hover {
+  background: color-mix(in oklab, var(--warning) 26%, transparent);
+}
+.import-audit-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
