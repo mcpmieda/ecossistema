@@ -30,6 +30,7 @@ import {
   type GradebookImportDiagnosticV1,
 } from './import-diagnostics-v1';
 import { persistGradebookImportDiagnosticsAuditV1 } from './import-diagnostics-client-v1';
+import { createFastTeacherSheetJsV1 } from './workbook-fast-read-v1';
 import { persistGradebookCanonicalImportV9 } from './import-persistence-client-v9';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
@@ -1307,7 +1308,7 @@ export function useImportBatch() {
       recognitionStartedAt = nowMs();
       const result = await importWorkbookBatch(
         selected,
-        xlsx,
+        createFastTeacherSheetJsV1(xlsx),
         (value) => {
           if (isCurrent(observation)) setProgress({ ...value, fileName: value.fileName });
         },
