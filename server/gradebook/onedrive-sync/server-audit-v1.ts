@@ -8,6 +8,7 @@ import type {
   GradebookRelationMovementEndpointV9,
   GradebookRelationMovementReviewV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import { gradebookImportDiagnosticTextV1 } from '../../../shared/gradebook-contracts/imports/import-diagnostic-texts-v1';
 
 /**
  * The two BN-DEC-046 rules that need context outside the workbook: the academic year of the
@@ -111,11 +112,30 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
   sheetNames: ReadonlyMap<string, string>, relationNames: ReadonlyMap<string, string>):
   { readonly request: GradebookNotesImportRequestV9; readonly items: GradebookImportDiagnosticAuditItemV1[] } {
   const items: GradebookImportDiagnosticAuditItemV1[] = [];
+  const classes = new Set([...relationNames.keys()].map((key) => key.slice(0, key.lastIndexOf('|'))));
+  const notInRelation = gradebookImportDiagnosticTextV1('student-not-in-relation');
+  const nameMismatch = gradebookImportDiagnosticTextV1('student-name-mismatch');
   const ofertas = request.ofertas.map((offer) => {
     const held = new Set<number>();
     // A student the system's Relação does not have for this class: the database would refuse
     // the whole file, so only that student is left out (and shown in the Auditoria).
     const missing = new Set<number>();
+    // A class the Relação does not have at all stays in the request, so the database refuses the
+    // file as in the manual import (BN-DEC-046, 14b): one finding for the class, not one per student.
+    if (relationNames.size > 0 && !classes.has(offer.turmaCodigo.trim().toUpperCase())) {
+      items.push({
+        key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}`.slice(0, 320),
+        severity: 'blocking-error',
+        code: 'student-not-in-relation',
+        message: notInRelation.message,
+        recommendedAction: notInRelation.action,
+        classCode: offer.turmaCodigo,
+        subject: offer.disciplina,
+        fieldKind: 'file',
+        foundValue: offer.turmaCodigo.slice(0, 240),
+      });
+      return offer;
+    }
     if (relationNames.size > 0) {
       const numbers = new Set([...offer.trimestres.flatMap((term) => term.alunos.map(([numero]) => numero)),
         ...(offer.recuperacao ?? []).map(([numero]) => numero)]);
@@ -126,8 +146,8 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
           key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(0, 320),
           severity: 'blocking-error',
           code: 'student-not-in-relation',
-          message: 'Aluno da planilha não está na Relação do sistema.',
-          recommendedAction: 'Envie a Relação atualizada ao sistema ou confira o número na planilha. As notas deste aluno não foram lançadas.',
+          message: notInRelation.message,
+          recommendedAction: notInRelation.action,
           classCode: offer.turmaCodigo,
           subject: offer.disciplina,
           studentNumber: numero,
@@ -146,8 +166,8 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
         key: `student-name-mismatch|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(0, 320),
         severity: 'blocking-error',
         code: 'student-name-mismatch',
-        message: 'Nome do aluno diferente da Relação para este número.',
-        recommendedAction: 'Confira o número e o nome do aluno na planilha. As notas dele nesta disciplina não foram lançadas.',
+        message: nameMismatch.message,
+        recommendedAction: nameMismatch.action,
         classCode: offer.turmaCodigo,
         subject: offer.disciplina,
         studentNumber: numero,
@@ -196,19 +216,20 @@ const endpointV1 = (item: GradebookRelationMovementEndpointV9) => `${item.classC
  */
 export function relationReviewItemsV1(fileName: string, reason: string,
   review: GradebookRelationMovementReviewV9 | undefined): GradebookImportDiagnosticAuditItemV1[] {
-  const action = 'Confirme os pares na importação manual da Relação (ela mostra a conferência). Nada desta Relação foi lançado.';
+  const text = gradebookImportDiagnosticTextV1('class-move-review');
+  const action = text.action;
   const groups = review?.groups ?? [];
   if (groups.length === 0) {
     return [{
       key: `class-move-review|${fileName}`.slice(0, 320), severity: 'blocking-error', code: 'class-move-review',
-      message: 'A Relação tem aluno com dúvida de identidade ou de troca de turma.', recommendedAction: action,
+      message: text.message, recommendedAction: action,
       fieldKind: 'file', foundValue: reason.slice(0, 240),
     }];
   }
   return groups.flatMap((group) => group.origins.map((origin) => ({
     key: `class-move-review|${origin.classCode}|${origin.number}|${group.destinations[0]?.classCode ?? ''}`.slice(0, 320),
     severity: 'blocking-error' as const, code: 'class-move-review' as const,
-    message: 'Troca de turma que o sistema não conseguiu ligar sozinho.', recommendedAction: action,
+    message: text.message, recommendedAction: action,
     classCode: origin.classCode.slice(0, 24), studentNumber: origin.number, fieldKind: 'student' as const,
     // Where this student may have gone: the system does not guess which one.
     foundValue: `${endpointV1(origin)} → ${group.destinations.map(endpointV1).join(' ou ')}`.slice(0, 240),
