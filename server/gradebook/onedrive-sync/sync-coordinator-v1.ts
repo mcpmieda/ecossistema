@@ -6,6 +6,7 @@ import type {
 } from '../../../shared/gradebook-contracts/onedrive-sync/onedrive-sync-contract-v1';
 import {
   DRIVE_SUBSCRIPTION_MAX_MINUTES_V1,
+  DeltaResyncRequiredError,
   graphCreateDriveSubscriptionV1,
   graphDeleteSubscriptionV1,
   graphDriveDeltaV1,
@@ -18,7 +19,7 @@ import {
   type DriveWorkbookV1,
   type GraphAppEnvV1,
 } from './graph-drive-v1';
-import type { ProcessWorkbookInputV1 } from './process-workbook-v1';
+import { WRITE_QUEUE_DEADLINE_CODE_V1, type ProcessWorkbookInputV1 } from './process-workbook-v1';
 import {
   DEFAULT_SYNC_SETTINGS_V1,
   expiredLeasesV1,
@@ -68,8 +69,10 @@ async function readFileV1(env: ReadEnvV1, input: ProcessWorkbookInputV1,
     if (![401, 404, 405].includes(response.status)) throw new Error(`notas-sync-reader-http-${response.status}`);
     console.error(JSON.stringify({ event: 'notas-sync-public-read-refused', status: response.status }));
   }
+  // Same limit as the public read: a read that never answers must not hold the alarm (issue #1450, 4).
   const response = await env.SELF.fetch(READER_URL_V1, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+    signal: AbortSignal.timeout(PUBLIC_READ_TIMEOUT_MS_V1),
   });
   if (!response.ok) throw new Error(`notas-sync-reader-http-${response.status}`);
   return (await response.json()) as ReadResultV1;
@@ -120,8 +123,10 @@ const LOOP_TICK_MS = 2_000;
  * safety delta, only without this acceleration (owner decision 14/11/2026, issue #1426, 29).
  */
 const POLL_MS = 10_000;
+/** Graph notices that arrive together wait this long, so they become a single delta. */
+const NOTIFY_DEBOUNCE_MS = 5_000;
 /** A write turn not given back in this time is taken over (a reader that died mid-write). */
-const WRITE_TURN_MAX_MS = 120_000;
+const WRITE_TURN_MAX_MS = 45_000;
 
 const sleepV1 = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); });
 const EVENT_LIMIT = 500;
@@ -232,7 +237,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /** A Graph change notification arrived: look at delta right away. */
   async notify(): Promise<void> {
     this.setMeta('deltaRequested', true);
-    await this.wakeAt(Date.now());
+    // A burst of notices (one save sends several) becomes one look at OneDrive (issue #1450, 8b).
+    await this.wakeAt(Date.now() + (this.inflight.size > 0 ? 0 : NOTIFY_DEBOUNCE_MS));
   }
 
   /**
@@ -275,7 +281,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'set-folder': this.addSource({ itemId: command.folderId, kind: 'folder', path: command.folderPath, year: command.year }, actor); break;
       case 'add-source': this.addSource({ itemId: command.itemId, kind: command.kind, path: command.path, year: command.year }, actor); break;
       case 'remove-source': this.removeSource(command.itemId); break;
-      case 'enable': this.setMeta('settings', { ...settings, enabled: true }); this.setMeta('deltaRequested', true); break;
+      // The cursor kept while off may be too old: start from the current one and list the sources.
+      case 'enable': this.setMeta('settings', { ...settings, enabled: true }); this.setMeta('deltaLink', null); this.setMeta('deltaRequested', true); break;
       case 'disable': this.setMeta('settings', { ...settings, enabled: false }); break;
       case 'pause': this.setMeta('settings', { ...settings, paused: true }); break;
       case 'resume': this.setMeta('settings', { ...settings, paused: false }); this.setMeta('breakerUntil', null); break;
@@ -443,9 +450,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         this.setMeta('deltaRequested', false);
         this.setMeta('nightlyRequested', false);
       } else {
+        // A listing error only waits (and honours Retry-After); the breaker is for reads that fail.
         this.event('graph-error', { status: graphStatusV1(cause) });
-        this.setMeta('graphBackoffUntil', now + 60_000);
-        this.recordFailure(now);
+        this.setMeta('graphBackoffUntil', now + Math.max(60, graphRetryAfterSecondsV1(cause)) * 1000);
       }
     }
   }
@@ -492,7 +499,17 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       await this.resyncSources(now, driveId, false);
       return;
     }
-    const delta = await graphDriveDeltaV1(this.env, driveId, link);
+    let delta: Awaited<ReturnType<typeof graphDriveDeltaV1>>;
+    try {
+      delta = await graphDriveDeltaV1(this.env, driveId, link);
+    } catch (cause) {
+      if (!(cause instanceof DeltaResyncRequiredError)) throw cause;
+      // Graph forgot the cursor (410) or it is too old: list the sources from the current one (issue #1450, 3).
+      this.event('delta-resync', {});
+      this.setMeta('deltaLink', null);
+      await this.resyncSources(now, driveId, false);
+      return;
+    }
     this.observe(delta.changes, now);
     this.setMeta('deltaLink', delta.deltaLink);
     this.setMeta('deltaRequested', false);
@@ -562,6 +579,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const input: ProcessWorkbookInputV1 = {
         driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
         expectedYear: file.year ?? this.activeFolder()?.year ?? null, memory: file.memory ?? null,
+        // A Relação is written only from a source of its own (issue #1450, 9); the write turn is taken
+        // only while there is still time to finish before this read times out (issue #1450, 4).
+        sourceKind: file.sourceId === undefined ? null : sources[file.sourceId]?.kind ?? null,
+        writeDeadlineAt: now + PUBLIC_READ_TIMEOUT_MS_V1 - WRITE_TURN_MAX_MS,
       };
       const read = readFileV1(this.env, input)
         .catch((cause: unknown): ReadResultV1 => {
@@ -591,7 +612,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       for (const other of others) this.saveFile(rereadFileV1(other, now));
       this.event('relation-changed', { reread: others.length });
     }
-    const breaker = nextBreakerV1(this.meta('consecutiveFailures', 0), result.outcome, now);
+    // Waiting too long for the write turn is not a failure of OneDrive or of the database.
+    const breaker = result.code === WRITE_QUEUE_DEADLINE_CODE_V1
+      ? { consecutiveFailures: this.meta('consecutiveFailures', 0), breakerUntil: null }
+      : nextBreakerV1(this.meta('consecutiveFailures', 0), result.outcome, now);
     this.setMeta('consecutiveFailures', breaker.consecutiveFailures);
     if (breaker.breakerUntil !== null) {
       this.setMeta('breakerUntil', breaker.breakerUntil);
@@ -599,12 +623,6 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     }
     console.log(JSON.stringify({ event: 'notas-sync-read', outcome: result.outcome, code: result.code,
       readMs: Math.round(result.readMs), savedToWrittenMs: result.savedToWrittenMs }));
-  }
-
-  private recordFailure(now: number): void {
-    const breaker = nextBreakerV1(this.meta('consecutiveFailures', 0), 'failed', now);
-    this.setMeta('consecutiveFailures', breaker.consecutiveFailures);
-    if (breaker.breakerUntil !== null) this.setMeta('breakerUntil', breaker.breakerUntil);
   }
 
   private async ensureSubscription(now: number): Promise<void> {
@@ -709,6 +727,11 @@ class NoFolderConfiguredError extends Error {
   constructor() {
     super('No OneDrive folder configured');
   }
+}
+
+function graphRetryAfterSecondsV1(cause: unknown): number {
+  const value = typeof cause === 'object' && cause !== null && 'retryAfterSeconds' in cause ? Number(cause.retryAfterSeconds) : 0;
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 function graphStatusV1(cause: unknown): number | null {

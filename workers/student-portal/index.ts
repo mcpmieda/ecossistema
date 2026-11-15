@@ -138,9 +138,13 @@ export default {
   },
   async scheduled(controller, env) {
     if (env.PORTAL_SCHEDULER === 'notas-onedrive-sync') {
-      if (Math.floor(controller.scheduledTime / 60_000) % 5 !== 2) return;
+      // This cron runs every 5 min (2-59/5) only as the safety net of the minute run by notas-onedrive-sync.
       if (!(await schedulerStalledV1(env))) return;
       console.error(JSON.stringify({ event: 'portal-scheduler-fallback' }));
+      // The work due at the last multiple of 5 min: the health sample, the signals, the cleanups and
+      // the midnight pruning all run on those minutes, never on the 2nd/7th (issue #1450, 6).
+      await scheduledWorkV1(env, Math.floor(controller.scheduledTime / 300_000) * 300_000);
+      return;
     }
     await scheduledWorkV1(env, controller.scheduledTime);
   },

@@ -300,9 +300,6 @@ function SyncHeader({ status, sources, busy, send }: Readonly<{
             <h3 className="text-base font-semibold">Leitura automática do OneDrive</h3>
             <StateChip status={status} />
           </div>
-          <p className="mt-1 max-w-3xl text-sm text-muted">
-            Cada planilha salva na pasta é lida e lançada com a mesma Auditoria da importação; problemas seguram só a nota, o resultado ou a turma afetada. Pelo Excel do computador a nota chega em cerca de meio minuto; pelo Excel online, em 1 a 3 minutos, porque ele demora a gravar o arquivo.
-          </p>
           <p className="mt-1 text-xs text-muted">
             {status.webhook.active ? `Aviso da Graph ativo até ${time(Date.parse(status.webhook.expiresAt ?? '') || null)}` : 'Sem aviso da Graph: a pasta é conferida a cada minuto'}
             {sources > 0 ? ` · ${sources} fonte(s) de leitura` : ''}
@@ -339,9 +336,6 @@ function SourcesSection({ sources, year, busy, send }: Readonly<{
   return (
     <section className="grid gap-2" aria-labelledby="onedrive-sources-title">
       <h4 id="onedrive-sources-title" className="font-semibold">Fontes de leitura</h4>
-      <p className="text-sm text-muted">
-        Pastas (todas as planilhas dentro) ou arquivos únicos, como a Relação. Cada fonte é lida no ano letivo dela.
-      </p>
       {sources.length === 0 ? <p className="text-sm text-muted">Nenhuma fonte escolhida.</p> : (
         <ul className="grid gap-1">
           {sources.map((source) => (
@@ -408,9 +402,10 @@ function SettingsSection({ busy, send, wait, setWait, parallel, setParallel }: R
   );
 }
 
-/** A status with a file being read or waiting for its turn. */
+/** A status with a file being read. */
 function statusMovingV1(answer: OneDriveSyncResponseV1): boolean {
-  return answer.state !== 'status' || answer.status.files.some((file) => file.state !== 'idle');
+  // A file waiting for a later retry is not moving: only a read in progress asks every 10 s (issue #1450, 12b).
+  return answer.state !== 'status' || answer.status.files.some((file) => file.state === 'reading');
 }
 
 /**
