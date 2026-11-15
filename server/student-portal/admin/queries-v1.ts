@@ -158,7 +158,7 @@ export async function readAuditV1(tx: StudentPortalPostgresQueryV1, query: Admin
     CASE WHEN e.ip_expires_at>statement_timestamp() AND e.occurred_at>statement_timestamp()-interval '90 days'
       THEN LEAST(e.ip_expires_at,e.occurred_at+interval '90 days') ELSE NULL END AS ip_expires_at` : '';
   const rows = await tx.unsafe(`SELECT e.event_id,e.occurred_at,to_char(e.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,e.actor_id,e.account_id,e.scope_json,e.kind,e.result,
-    e.request_id,e.version::text,e.masked_ip,to_jsonb(e)->'detail_json' AS detail_json ${query.includeEntities ? ',e.actor_name,e.subject_name,e.subject_class_id,e.subject_class_label' : ''} ${ipColumns}
+    e.request_id,e.version::text,e.masked_ip,e.detail_json ${query.includeEntities ? ',e.actor_name,e.subject_name,e.subject_class_id,e.subject_class_label' : ''} ${ipColumns}
     FROM student_portal.audit_event e WHERE ${predicates.join(' AND ')} ORDER BY e.occurred_at DESC,e.event_id DESC
     LIMIT ${bind(query.operation === 'audit-detail' ? 1 : query.page.limit + 1)}`, parameters);
   const event = (row: Record<string, unknown>) => auditEventV1.parse({ eventId: row.event_id, at: adminInstantV1(row.occurred_at),

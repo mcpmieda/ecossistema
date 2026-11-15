@@ -382,7 +382,7 @@ export async function readRelationalPerformanceV2(
   const [year] = await all(
     db,
     `SELECT ano, minimo_aprovacao, max_componentes_conselho,
-    COALESCE(to_jsonb(y)->'nomes_avaliacoes','{}'::jsonb) AS assessment_names,
+    COALESCE(y.nomes_avaliacoes,'{}'::jsonb) AS assessment_names,
     to_char(transaction_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS read_at
     FROM gradebook.ano_letivo y WHERE ano = ${yearQuery.param(request.year)}`,
     yearQuery.values,

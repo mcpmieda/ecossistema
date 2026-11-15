@@ -2,9 +2,10 @@ import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
 import { createClientAssertion } from '../auth/client-assertion';
 import { graphCredentials, type GraphCredentialSlot } from '../auth/technical-identity';
+import { joinFlightV1 } from '../http/shared-flight-v1';
 import { GraphError, graphDefaultsV1, graphFetchV1, graphRetryAfterMsV1, graphUrlV1, type GraphDependencies } from './request-policy-v1';
 export { GraphError } from './request-policy-v1';
-export type { GraphDependencies } from './request-policy-v1';
+export type { GraphDependencies } from './request-policy-v1';
 
 const tokenSchema = z.object({ access_token: z.string(), expires_in: z.number() });
 type GraphTokenFailureStage = 'assertion' | 'transport' | 'response-contract';
@@ -40,8 +41,11 @@ async function tokenOrRefusalV1(response: Response, slot: GraphCredentialSlot,
  * Concurrent callers share the request in flight. Only the real dependencies are cached (tests that
  * pass their own `fetch` see every request).
  */
-const tokenCacheV1 = new Map<string, { readonly value: Promise<IssuedTokenV1>; until: number }>();
+type TokenCacheEntryV1 = { readonly value: Promise<IssuedTokenV1>; until: number; issued: boolean };
+const tokenCacheV1 = new Map<string, TokenCacheEntryV1>();
 const TOKEN_REUSE_MARGIN_S_V1 = 300;
+/** A token request in flight is shared only this long; the issuance normally takes under 1 s. */
+const TOKEN_PENDING_SHARE_MS_V1 = 10_000;
 
 const tokenKeyV1 = (env: RuntimeEnv, slot?: GraphCredentialSlot) => `${env.TENANT_ID}|${env.GRAPH_CLIENT_ID}|${slot ?? '*'}`;
 
@@ -57,12 +61,19 @@ export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependen
   const key = tokenKeyV1(env, slot);
   const now = Date.now();
   const hit = tokenCacheV1.get(key);
-  if (hit && hit.until > now) return (await hit.value).token;
-  const entry = { value: issueGraphTokenV1(env, dependencies, slot), until: now + 60_000 };
+  if (hit && hit.until > now) {
+    if (hit.issued) return (await hit.value).token;
+    // Issued by another request still in flight: joined only briefly (issue #1450, 2).
+    return (await joinFlightV1(hit.value, Math.min(TOKEN_PENDING_SHARE_MS_V1, hit.until - now),
+      () => issueGraphTokenV1(env, dependencies, slot))).token;
+  }
+  const entry: TokenCacheEntryV1 = {
+    value: issueGraphTokenV1(env, dependencies, slot), until: now + TOKEN_PENDING_SHARE_MS_V1, issued: false };
   tokenCacheV1.set(key, entry);
   try {
     const issued = await entry.value;
     entry.until = now + Math.max(0, issued.expiresIn - TOKEN_REUSE_MARGIN_S_V1) * 1000;
+    entry.issued = true;
     return issued.token;
   } catch (cause) {
     if (tokenCacheV1.get(key) === entry) tokenCacheV1.delete(key);

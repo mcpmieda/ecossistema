@@ -43,7 +43,7 @@ const activeInstrument = ACTIVE_INSTRUMENT_PREDICATE_V1.replace(
 
 export const ACADEMIC_STUDENT_QUERY_V1 = `WITH context AS (
   SELECT a.id AS account_id,s.name,r.academic_generation||':'||r.academic_counter::text AS data_version,
-    y.minimum_approval,y.max_council_components,COALESCE(to_jsonb(y)->'assessment_names','{}'::jsonb) AS assessment_names,
+    y.minimum_approval,y.max_council_components,COALESCE(y.assessment_names,'{}'::jsonb) AS assessment_names,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('academicYear',b.academic_year,'studentId',b.student_id,
       'classId',b.class_id,'status',b.status,'classLabel',b.class_name)) FROM student_portal.academic_binding_v1 b
       WHERE b.academic_year=$1 AND b.student_id=$2 AND b.status IS DISTINCT FROM 6),'[]'::jsonb) AS bindings,

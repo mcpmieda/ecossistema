@@ -1,5 +1,6 @@
 import type { RuntimeEnv } from '../env';
 import { createGradebookPostgresDatabaseV1 } from '../gradebook/persistence/postgres/postgres-database-v1';
+import { joinFlightV1 } from '../http/shared-flight-v1';
 
 /**
  * "Sair" ends the ADM session on the server too (owner decision 13/11/2026): the sealed cookie
@@ -84,7 +85,11 @@ export const FAILURE_CACHE_MS_V1 = 15_000;
  * single database question (issue #1426, 3), and a failed read is remembered briefly, so a
  * database outage does not slow every request by the connection timeout.
  */
-type CacheEntryV1 = { readonly revoked: Promise<boolean>; readonly until: number; readonly settled: boolean };
+type CacheEntryV1 = {
+  readonly revoked: Promise<boolean>; readonly until: number; readonly settled: boolean; readonly startedAt?: number;
+};
+/** A read in flight is shared only this long (a little over the connection timeout, issue #1450, 2). */
+export const PENDING_SHARE_MS_V1 = 4_000;
 const cacheV1 = new Map<string, CacheEntryV1>();
 function remember(sid: string, entry: CacheEntryV1) {
   if (cacheV1.size >= CACHE_LIMIT_V1 && !cacheV1.has(sid)) cacheV1.clear();
@@ -102,9 +107,15 @@ export async function isSessionRevokedV1(
   now = Date.now(),
 ): Promise<boolean> {
   const cached = cacheV1.get(sid);
-  if (cached && (!cached.settled || cached.until > now)) return cached.revoked;
+  if (cached?.settled && cached.until > now) return cached.revoked;
   const port = portV1(env);
   if (!port) return false;
+  // Another request of this instance is asking already: wait for it, but only briefly. Its I/O
+  // belongs to that request, and if that one is cancelled the answer never comes (issue #1450, 2).
+  const startedAt = cached?.startedAt ?? 0;
+  if (cached && !cached.settled && now - startedAt < PENDING_SHARE_MS_V1)
+    return joinFlightV1(cached.revoked, PENDING_SHARE_MS_V1 - (now - startedAt), () =>
+      port.isRevoked(sid).catch(() => false));
   const read = port.isRevoked(sid).then(
     (revoked) => {
       // "Sair" during the read already stored the revocation: it is never overwritten.
@@ -120,7 +131,7 @@ export async function isSessionRevokedV1(
       return false;
     },
   );
-  remember(sid, { revoked: read, settled: false, until: Number.POSITIVE_INFINITY });
+  remember(sid, { revoked: read, settled: false, until: now + PENDING_SHARE_MS_V1, startedAt: now });
   return read;
 }
 

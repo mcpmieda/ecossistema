@@ -55,7 +55,7 @@ export async function sealContextsBatchV1(
           OR p.scope_key='class:2026:'||b.class_id::text OR p.scope_key='shift:2026:'||c.shift
           OR p.scope_key='account:2026:'||a.id::text),'[]'::jsonb) AS settings_rows,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('name',s.name,'class_name',pb.class_name,'status',pb.status,
-        'observed_class',l.class_id,'assessment_names',COALESCE(to_jsonb(y)->'assessment_names','{}'::jsonb),
+        'observed_class',l.class_id,'assessment_names',COALESCE(y.assessment_names,'{}'::jsonb),
         'assessments',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',i.assessment_id,'term',i.term,'slot',i.slot,'label',i.label))
           FROM student_portal.academic_offer_v1 o JOIN student_portal.academic_instrument_v1 i ON i.offer_id=o.offer_id
           WHERE o.academic_year=a.academic_year AND o.class_id=pb.class_id AND i.slot IN (1,2)), '[]'::jsonb)))
