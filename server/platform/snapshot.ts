@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { PlatformCapability, PlatformConfiguration } from '../../shared/platform-contract';
+import type { PlatformCapability } from '../../shared/platform-contract';
 import { PLATFORM_SOURCE_SECTIONS_V2, type PlatformSnapshotV2, type PlatformSourceSectionV2 } from '../../shared/platform-snapshot-v2';
 import { requireCapability } from '../auth/capabilities';
 import type { RuntimeEnv } from '../env';
@@ -7,25 +7,15 @@ import { TechnicalCredentialError } from '../auth/technical-identity';
 import { getGraphToken, graphAllPages, GraphError, GraphTokenError } from '../graph/client';
 import { resolveRegisteredModules } from '../modules/registry';
 import { coreModules } from './manifest';
-import { recoveryEvidence } from './recovery-evidence';
 import { joinFlightV1 } from '../http/shared-flight-v1';
 
-export const EXPECTED_PLATFORM_LISTS = ['PLATAFORMA_CONFIGURACOES', 'PLATAFORMA_MODULOS', 'PLATAFORMA_AUDITORIA', 'PLATAFORMA_MIGRACOES'] as const;
+/** The registered modules are the only SharePoint platform list still read (#1473). */
+export const EXPECTED_PLATFORM_LISTS = ['PLATAFORMA_MODULOS'] as const;
 const listSchema = z.object({ id: z.string(), displayName: z.string() });
 const graphItemSchema = z.object({ id: z.string(), fields: z.record(z.string(), z.unknown()).optional() });
-const configurationFieldsSchema = z.object({ Chave: z.string().optional(), Escopo: z.string().optional(), Versao: z.string().optional(),
-  Ativo: z.boolean().optional(), VigenciaInicioUTC: z.string().optional(), VigenciaFimUTC: z.string().optional(), AtualizadoEmUTC: z.string().optional() });
-const auditFieldsSchema = z.object({ EventoId: z.string().optional(), DataHoraUTC: z.string().optional(), Modulo: z.string().optional(),
-  Acao: z.string().optional(), EntidadeTipo: z.string().optional(), CorrelationId: z.string().optional(), Resultado: z.string().optional() });
-const migrationFieldsSchema = z.object({ Versao: z.string().optional(), Modulo: z.string().optional(), AplicadaEmUTC: z.string().optional(), Resultado: z.string().optional() });
 type PlatformList = z.infer<typeof listSchema>;
 type PlatformItem = { id: string; fields: Record<string, unknown> };
-type SnapshotSource = { lists: PlatformList[]; moduleItems: PlatformItem[]; configurationItems: PlatformItem[];
-  auditItems: PlatformItem[]; migrationItems: PlatformItem[]; correlationId: string; generatedAt?: string };
-export function isFailureResult(value: string): boolean {
-  const normalized = value.trim().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR');
-  return /^(erro|error|falha|falhou|failed|failure)(?:\b|[:_-])/u.test(normalized);
-}
+type SnapshotSource = { lists: PlatformList[]; moduleItems: PlatformItem[]; correlationId: string; generatedAt?: string };
 function hasCapability(capabilities: readonly PlatformCapability[], capability: PlatformCapability): boolean { return capabilities.includes(capability); }
 export interface PlatformSnapshotDependenciesV2 {
   token(env: RuntimeEnv): Promise<string>;
@@ -45,47 +35,22 @@ async function readListItems(env: RuntimeEnv, listId: string | undefined, select
     return { id: parsed.id, fields: parsed.fields ?? {} };
   });
 }
-function platformConfigurationsFromItems(items: readonly PlatformItem[]): PlatformConfiguration[] {
-  return items.flatMap((item) => {
-    const parsed = configurationFieldsSchema.safeParse(item.fields); if (!parsed.success) return [];
-    const fields = parsed.data;
-    return [{ id: item.id, key: fields.Chave ?? item.id, scope: fields.Escopo ?? 'global', version: fields.Versao ?? '',
-      active: fields.Ativo ?? false, effectiveFrom: fields.VigenciaInicioUTC ?? '', effectiveUntil: fields.VigenciaFimUTC ?? '', updatedAt: fields.AtualizadoEmUTC ?? '' }];
-  }).sort((left, right) => left.key.localeCompare(right.key, 'pt-BR'));
-}
 export function buildPlatformSnapshot(source: SnapshotSource, capabilities: readonly PlatformCapability[]) {
   const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
   const allRegisteredModules = resolveRegisteredModules(source.moduleItems, capabilities).filter((module) => module.contractVersion !== null);
-  const allConfigurations = platformConfigurationsFromItems(source.configurationItems);
-  const allRecentAudit = source.auditItems.flatMap((item) => {
-    const parsed = auditFieldsSchema.safeParse(item.fields); if (!parsed.success) return [];
-    const fields = parsed.data;
-    return [{ id: item.id, eventId: fields.EventoId ?? item.id, occurredAt: fields.DataHoraUTC ?? '', module: fields.Modulo ?? 'plataforma',
-      action: fields.Acao ?? 'evento', entityType: fields.EntidadeTipo ?? '', correlationId: fields.CorrelationId ?? '', result: fields.Resultado ?? '' }];
-  }).sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 20);
-  const allMigrations = source.migrationItems.flatMap((item) => {
-    const parsed = migrationFieldsSchema.safeParse(item.fields); if (!parsed.success) return [];
-    const fields = parsed.data;
-    return [{ id: item.id, version: fields.Versao ?? '', module: fields.Modulo ?? 'plataforma', appliedAt: fields.AplicadaEmUTC ?? '', result: fields.Resultado ?? '' }];
-  }).sort((left, right) => right.appliedAt.localeCompare(left.appliedAt));
   const missingPlatformLists = EXPECTED_PLATFORM_LISTS.filter((name) => !byName.has(name));
   const foundationStatus = missingPlatformLists.length === 0 ? 'ok' as const : 'degraded' as const;
-  const recentAuditFailureCount = allRecentAudit.filter((entry) => isFailureResult(entry.result)).length;
   const healthContractsConfigured = allRegisteredModules.filter((module) => module.healthEndpoint.trim().length > 0).length;
   const healthContractsMissing = allRegisteredModules.length - healthContractsConfigured;
-  const operationalStatus = foundationStatus === 'degraded' || recentAuditFailureCount > 0 ? 'attention' as const : 'nominal' as const;
+  const operationalStatus = foundationStatus === 'degraded' ? 'attention' as const : 'nominal' as const;
   return {
     version: '1.0.0', releaseState: 'production' as const, generatedAt: source.generatedAt ?? new Date().toISOString(), correlationId: source.correlationId,
     foundation: { status: foundationStatus, sharePointListCount: source.lists.length, expectedPlatformListsPresent: missingPlatformLists.length === 0, missingPlatformLists },
     operational: hasCapability(capabilities, 'platform.health.read') ? {
-      status: operationalStatus, recentAuditFailureCount, healthContractsConfigured, healthContractsMissing, lastAuditAt: allRecentAudit[0]?.occurredAt ?? '',
-      recoveryStatus: recoveryEvidence.status, recoveryVerifiedAt: recoveryEvidence.verifiedAt, recoveryEvidenceRef: recoveryEvidence.evidenceRef, recoveryScope: recoveryEvidence.scope,
+      status: operationalStatus, healthContractsConfigured, healthContractsMissing,
     } : null,
     coreModules: coreModules.filter((module) => module.capabilities.every((capability) => hasCapability(capabilities, capability))),
     registeredModules: hasCapability(capabilities, 'platform.modules.read') ? allRegisteredModules : [],
-    configurations: hasCapability(capabilities, 'platform.settings.read') ? allConfigurations : [],
-    recentAudit: hasCapability(capabilities, 'platform.audit.read') ? allRecentAudit : [],
-    migrations: hasCapability(capabilities, 'platform.settings.read') ? allMigrations : [],
   };
 }
 async function readLists(env: RuntimeEnv, token: string, dependencies = sourceDependencies, signal?: AbortSignal): Promise<PlatformList[]> {
@@ -142,7 +107,7 @@ export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: reado
   dependencies = sourceDependencies, requestSignal?: AbortSignal): Promise<PlatformSnapshotV2> {
   requireCapability(capabilities, 'platform.snapshot.read');
   const correlationId = crypto.randomUUID();
-  const source: SnapshotSource = { lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId };
+  const source: SnapshotSource = { lists: [], moduleItems: [], correlationId };
   const unavailableSections: PlatformSourceSectionV2[] = [];
   let retryAfterSeconds = 0;
   const timeout = AbortSignal.timeout(30_000);
@@ -166,13 +131,9 @@ export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: reado
   }
   const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
   const modules = hasCapability(capabilities, 'platform.modules.read') || hasCapability(capabilities, 'platform.health.read');
-  const audit = hasCapability(capabilities, 'platform.audit.read') || hasCapability(capabilities, 'platform.health.read');
-  const settings = hasCapability(capabilities, 'platform.settings.read');
+  // Only the registered modules: the settings, audit and migration lists were retired (#1473).
   const jobs = [
     { section: 'modules', key: 'moduleItems', enabled: modules, list: 'PLATAFORMA_MODULOS', fields: 'Chave,Nome,RotaBase,Versao,Status,Ordem,HealthEndpoint,AtualizadoEmUTC' },
-    { section: 'configurations', key: 'configurationItems', enabled: settings, list: 'PLATAFORMA_CONFIGURACOES', fields: 'Chave,Escopo,Versao,Ativo,VigenciaInicioUTC,VigenciaFimUTC,AtualizadoEmUTC' },
-    { section: 'audit', key: 'auditItems', enabled: audit, list: 'PLATAFORMA_AUDITORIA', fields: 'EventoId,DataHoraUTC,Modulo,Acao,EntidadeTipo,CorrelationId,Resultado' },
-    { section: 'migrations', key: 'migrationItems', enabled: settings, list: 'PLATAFORMA_MIGRACOES', fields: 'Versao,Modulo,AplicadaEmUTC,Resultado' },
   ] as const;
   await Promise.all(jobs.map(async (job) => {
     if (!job.enabled) return;

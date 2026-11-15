@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
@@ -7,8 +7,7 @@ import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
 import { buildPlatformSnapshot } from '../server/platform/snapshot';
 
 const snapshot = () => buildPlatformSnapshot({
-  lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [],
-  correlationId: 'synthetic',
+  lists: [], moduleItems: [], correlationId: 'synthetic',
 }, PLATFORM_CAPABILITIES);
 const years = {
   contractVersion: 2, state: 'ready', operation: 'bootstrap',
@@ -84,48 +83,16 @@ it('keeps native settings mounted during a Microsoft failure and carries the sel
   expect(within(view.container).queryByText('0 registro(s) encontrado(s).')).toBeNull();
 });
 
-it('keeps the selector usable while Microsoft is pending and does not remount it when Microsoft recovers', async () => {
-  let release!: (response: Response) => void;
-  const pending = new Promise<Response>((resolve) => { release = resolve; });
-  const fetcher = network(() => pending);
+it('opens the settings without asking Microsoft: the SharePoint registers were retired (#1473)', async () => {
+  const fetcher = network(async () => Response.json({}, { status: 503 }));
   const view = render(<App />);
   const trigger = await yearSelector(view.container);
   await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(false));
-  expect(within(view.container).getAllByText('Consultando informações Microsoft…')).toHaveLength(2);
-  expect(within(view.container).queryByText('Nenhuma configuração cadastrada')).toBeNull();
-  expect(within(view.container).queryByText('0 registro(s) encontrado(s).')).toBeNull();
-  const user = userEvent.setup();
-  await user.click(trigger);
-  await user.click(await screen.findByRole('option', { name: '2025' }));
-  expect(trigger.textContent).toContain('2025');
-  await act(async () => { release(Response.json(snapshot())); });
-  await within(view.container).findByText('Nenhuma configuração cadastrada');
-  expect(await yearSelector(view.container)).toBe(trigger);
-  expect(trigger.textContent).toContain('2025');
-  expect(bootstrapCalls(fetcher)).toBe(1);
-});
-
-it.each([
-  ['configurations', 'Nenhuma migração registrada', 'Nenhuma configuração cadastrada'],
-  ['migrations', 'Nenhuma configuração cadastrada', 'Nenhuma migração registrada'],
-])('isolates an unavailable %s card from the other Microsoft card and the year selector', async (section, present, absent) => {
-  network(async () => Response.json({ ...snapshot(), unavailableSections: [section], retryAfterSeconds: 90 }));
-  const view = render(<App />);
-  const trigger = await yearSelector(view.container);
-  await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(false));
-  expect(await within(view.container).findByText(present)).toBeTruthy();
-  expect(within(view.container).queryByText(absent)).toBeNull();
-  expect(within(view.container).getAllByText('Informações Microsoft temporariamente indisponíveis')).toHaveLength(1);
-});
-
-it('does not turn an unavailable list catalogue into empty external records', async () => {
-  network(async () => Response.json({ ...snapshot(), unavailableSections: ['lists'], retryAfterSeconds: 90 }));
-  const view = render(<App />);
-  await yearSelector(view.container);
-  expect(await within(view.container).findAllByText('Informações Microsoft temporariamente indisponíveis')).toHaveLength(2);
-  expect(within(view.container).queryByText('Nenhuma configuração cadastrada')).toBeNull();
-  expect(within(view.container).queryByText('Nenhuma migração registrada')).toBeNull();
-  expect(within(view.container).queryByText('0 registro(s) encontrado(s).')).toBeNull();
+  expect(within(view.container).queryByText('Consultando informações Microsoft…')).toBeNull();
+  expect(within(view.container).queryByText('Informações Microsoft temporariamente indisponíveis')).toBeNull();
+  expect(within(view.container).queryByText('Registro de configurações')).toBeNull();
+  expect(within(view.container).queryByText('Migrações registradas')).toBeNull();
+  expect(fetcher.mock.calls.some(([path]) => path === '/api/platform/settings/session')).toBe(true);
 });
 
 it.each([401, 403])('preserves the authoritative authorization boundary (%i)', async (status) => {
@@ -146,7 +113,7 @@ it('does not manufacture academic years when the PostgreSQL catalogue is unavail
   expect(trigger.hasAttribute('disabled')).toBe(true);
   expect(trigger.textContent).not.toContain('2025');
   expect(trigger.textContent).not.toContain('2026');
-  expect(await within(view.container).findByText('Nenhuma configuração cadastrada')).toBeTruthy();
+  expect(within(view.container).getByRole('heading', { name: 'Ano letivo' })).toBeTruthy();
 });
 
 it('does not bootstrap an academic catalogue merely to open a nonacademic area', async () => {

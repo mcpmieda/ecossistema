@@ -16,8 +16,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
     const session = await requireAuth(context.request, context.env);
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.snapshot.read');
-    const snapshot = buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [],
-      auditItems: [], migrationItems: [], correlationId }, capabilities);
+    const snapshot = buildPlatformSnapshot({ lists: [], moduleItems: [], correlationId }, capabilities);
     return withSecurityHeaders(Response.json({ ...snapshot, auxiliaryState: 'not-loaded' }), true);
   } catch (error) {
     const status = error instanceof HttpError || error instanceof AuthenticationError || error instanceof AuthorizationError ? error.status : 503;

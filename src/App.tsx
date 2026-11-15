@@ -42,8 +42,8 @@ function usePlatformRoute(): PlatformRoute {
     const onHashChange = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', onHashChange);
     if (!window.location.hash) window.history.replaceState(null, '', '#/banco-de-notas');
-    // Addresses saved before Auditoria moved into Saúde do Sistema.
-    if (/^#\/?auditoria\b/u.test(window.location.hash)) window.location.replace('#/operacao?area=audit');
+    // Addresses saved for the retired platform Auditoria (#1473) open Saúde.
+    if (/^#\/?auditoria\b/u.test(window.location.hash)) window.location.replace('#/operacao');
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
   return route;

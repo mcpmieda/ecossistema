@@ -5,7 +5,7 @@ import {
   type PlatformRoute, type PlatformSnapshotContract,
 } from './platform-contract';
 
-export const PLATFORM_SOURCE_SECTIONS_V2 = ['lists', 'modules', 'configurations', 'audit', 'migrations'] as const;
+export const PLATFORM_SOURCE_SECTIONS_V2 = ['lists', 'modules'] as const;
 export type PlatformSourceSectionV2 = (typeof PLATFORM_SOURCE_SECTIONS_V2)[number];
 const text = z.string();
 const count = z.number().int().nonnegative().safe();
@@ -24,10 +24,8 @@ export const platformSnapshotSchemaV2 = z.object({
     expectedPlatformListsPresent: z.boolean(), missingPlatformLists: z.array(text),
   }),
   operational: z.object({
-    status: z.enum(['nominal', 'attention']), recentAuditFailureCount: count,
-    healthContractsConfigured: count, healthContractsMissing: count, lastAuditAt: text,
-    recoveryStatus: z.enum(['not-verified', 'verified']), recoveryVerifiedAt: text,
-    recoveryEvidenceRef: text, recoveryScope: text,
+    status: z.enum(['nominal', 'attention']),
+    healthContractsConfigured: count, healthContractsMissing: count,
   }).nullable(),
   coreModules: z.array(z.object({
     id: text, name: text, description: text, route: z.enum(PLATFORM_ROUTES),
@@ -40,15 +38,6 @@ export const platformSnapshotSchemaV2 = z.object({
     integrationState: z.enum(MODULE_INTEGRATION_STATES),
     integrationIssues: z.array(z.enum(MODULE_INTEGRATION_ISSUES)), available: z.boolean(),
   })),
-  configurations: z.array(z.object({
-    id: text, key: text, scope: text, version: text, active: z.boolean(),
-    effectiveFrom: text, effectiveUntil: text, updatedAt: text,
-  })),
-  recentAudit: z.array(z.object({
-    id: text, eventId: text, occurredAt: text, module: text, action: text,
-    entityType: text, correlationId: text, result: text,
-  })),
-  migrations: z.array(z.object({ id: text, version: text, module: text, appliedAt: text, result: text })),
   unavailableSections: z.array(z.enum(PLATFORM_SOURCE_SECTIONS_V2)).optional(),
   retryAfterSeconds: count.optional(),
 });
@@ -57,17 +46,13 @@ export type PlatformSnapshotV2 = PlatformSnapshotContract & {
   retryAfterSeconds?: number;
 };
 
+/** No page reads the SharePoint platform lists any more (owner decision, #1473): the snapshot keeps
+ * only the registered modules, which the shell and Saúde use. */
 const dependencies: Record<PlatformRoute, readonly PlatformSourceSectionV2[]> = {
-  'banco-de-notas': [], 'painel-do-aluno': [],
-  operacao: [],
-  configuracoes: ['lists', 'configurations', 'migrations'],
+  'banco-de-notas': [], 'painel-do-aluno': [], operacao: [], configuracoes: [],
 };
-/** Auditoria is a section of Saúde do Sistema; only that section reads the audit lists. */
-const AUDIT_DEPENDENCIES_V2: readonly PlatformSourceSectionV2[] = ['lists', 'audit'];
-const dependenciesOf = (route: PlatformRoute, section?: string) =>
-  route === 'operacao' && section === 'audit' ? AUDIT_DEPENDENCIES_V2 : dependencies[route];
-export const platformRouteNeedsMicrosoftV2 = (route: PlatformRoute, section?: string): boolean =>
-  dependenciesOf(route, section).length > 0;
-export function platformRouteUnavailableV2(route: PlatformRoute, snapshot: PlatformSnapshotV2, section?: string): boolean {
-  return dependenciesOf(route, section).some((item) => snapshot.unavailableSections?.includes(item));
+export const platformRouteNeedsMicrosoftV2 = (route: PlatformRoute, _section?: string): boolean =>
+  dependencies[route].length > 0;
+export function platformRouteUnavailableV2(route: PlatformRoute, snapshot: PlatformSnapshotV2, _section?: string): boolean {
+  return dependencies[route].some((item) => snapshot.unavailableSections?.includes(item));
 }

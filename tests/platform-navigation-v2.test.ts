@@ -43,13 +43,12 @@ describe('shell navigation of 07/10/2026', () => {
       'importacao',
     );
     expect(serviceSectionsV2('configuracoes')).toEqual([]);
-    // Auditoria lives inside Saúde do Sistema (owner request of 08/10/2026).
+    // The platform's SharePoint Auditoria was retired (owner decision, #1473).
     expect(serviceSectionsV2('operacao').map((section) => [section.label, section.href])).toEqual([
       ['Saúde', '#/operacao'],
-      ['Auditoria', '#/operacao?area=audit'],
     ]);
     expect(serviceSectionFromHashV2('operacao', '#/operacao')).toBe('health');
-    expect(serviceSectionFromHashV2('operacao', '#/operacao?area=audit')).toBe('audit');
+    expect(serviceSectionFromHashV2('operacao', '#/operacao?area=audit')).toBe('health');
   });
 
   it('reads the section from the address and falls back to the first one of each service', () => {

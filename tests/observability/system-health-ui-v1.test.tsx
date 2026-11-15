@@ -22,8 +22,7 @@ const sample = (): SystemHealthSnapshotV1 => ({
     },
   },
 });
-const platform = () => buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [],
-  auditItems: [], migrationItems: [], correlationId: 'synthetic-health-ui' }, PLATFORM_CAPABILITIES);
+const platform = () => buildPlatformSnapshot({ lists: [], moduleItems: [], correlationId: 'synthetic-health-ui' }, PLATFORM_CAPABILITIES);
 const identity = (key = 'synthetic-health-admin') => ({
   authenticated: true, identityKey: key, capabilities: ['platform.health.read', 'platform.settings.read'],
 });
@@ -206,7 +205,7 @@ it.each(['hidden', 'offline'])('pauses reads while %s and resumes once when avai
 });
 
 it('renders independent monitoring while the administrative evidence is unavailable', async () => {
-  render(<SystemHealthPageV1 snapshot={{ ...platform(), operational: null, unavailableSections: ['lists', 'audit'] }} />); await flush();
+  render(<SystemHealthPageV1 snapshot={{ ...platform(), operational: null, unavailableSections: ['lists', 'modules'] }} />); await flush();
   expect(screen.getByRole('heading', { name: 'Verificações básicas normais' })).toBeTruthy();
   const details = screen.getByText('Evidências do Centro ADM').closest('details')!;
   details.open = true; fireEvent(details, new Event('toggle'));
@@ -221,8 +220,7 @@ it('expands real administrative evidence with accessible signals and registered 
       Chave: 'plataforma-base', Nome: 'SYNTHETIC HEALTH MODULE', RotaBase: '/', Versao: '1.0.0',
       Status: 'instalado', Ordem: 0, HealthEndpoint: '/api/health', AtualizadoEmUTC: at,
     } }],
-    auditItems: [{ id: 'synthetic-health-audit', fields: { DataHoraUTC: at, Resultado: 'sucesso' } }],
-    configurationItems: [], migrationItems: [], correlationId: 'synthetic-complete-evidence', generatedAt: at,
+    correlationId: 'synthetic-complete-evidence', generatedAt: at,
   }, PLATFORM_CAPABILITIES);
   expect(complete.registeredModules).toHaveLength(1);
   render(<SystemHealthPageV1 snapshot={complete} />); await flush();
@@ -235,7 +233,7 @@ it('expands real administrative evidence with accessible signals and registered 
   const evidence = within(details);
   expect(evidence.getByRole('heading', { name: 'Operação' })).toBeTruthy();
   const signals = within(evidence.getByRole('grid', { name: 'Sinais operacionais observados' }));
-  expect.soft(signals.queryAllByRole('rowheader')).toHaveLength(4);
+  expect.soft(signals.queryAllByRole('rowheader')).toHaveLength(2);
   expect.soft(signals.queryByRole('rowheader', { name: 'Estrutura da plataforma' })).toBeTruthy();
   const systems = within(evidence.getByRole('grid', { name: 'Cobertura operacional dos sistemas registrados' }));
   expect.soft(systems.queryByRole('rowheader', { name: 'SYNTHETIC HEALTH MODULE' })).toBeTruthy();

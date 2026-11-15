@@ -87,16 +87,13 @@ export function serviceSectionsV2(route: PlatformRoute): ServiceSectionV2[] {
   if (route === 'operacao')
     return [
       { id: 'health', label: 'Saúde', href: '#/operacao', icon: HeartPulse },
-      { id: 'audit', label: 'Auditoria', href: '#/operacao?area=audit', icon: ShieldCheck },
     ];
   return [];
 }
 /** The section in the address; each service falls back to its own first section. */
 export function serviceSectionFromHashV2(route: PlatformRoute, hash: string): string {
-  if (route === 'operacao')
-    return new URLSearchParams(hash.split('?')[1] ?? '').get('area') === 'audit'
-      ? 'audit'
-      : 'health';
+  // The platform's SharePoint Auditoria was retired (#1473): Saúde is the only section.
+  if (route === 'operacao') return 'health';
   if (route === 'painel-do-aluno') {
     const section = portalSectionFromHash(hash);
     return section === 'credentials' ? 'accounts' : section;

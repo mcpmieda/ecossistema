@@ -31,7 +31,7 @@ afterEach(() => {
 
 const snapshot = () =>
   buildPlatformSnapshot(
-    { lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId: 'synthetic' },
+    { lists: [], moduleItems: [], correlationId: 'synthetic' },
     ['platform.snapshot.read', 'platform.settings.read'],
   ) as unknown as PlatformSnapshotV2;
 

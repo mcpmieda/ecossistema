@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPlatformDataV2, prefetchPlatformDataV2, type PlatformLoadStateV2 } from '../src/platform/platform-data-v2';
 import { buildPlatformSnapshot } from '../server/platform/snapshot';
 
-const template = () => buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [],
-  correlationId: 'synthetic' }, ['platform.snapshot.read', 'platform.settings.read']);
+const template = () => buildPlatformSnapshot({ lists: [], moduleItems: [], correlationId: 'synthetic' }, ['platform.snapshot.read', 'platform.settings.read']);
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(body),
   { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers } });
 const flush = async () => { for (let index = 0; index < 20; index++) await Promise.resolve(); };

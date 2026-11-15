@@ -14,9 +14,6 @@ const template = () =>
     {
       lists: [],
       moduleItems: [],
-      configurationItems: [],
-      auditItems: [],
-      migrationItems: [],
       // Every reading has its own correlation and time, even with the same content.
       correlationId: `synthetic-${++reads}`,
       generatedAt: new Date(1_800_000_000_000 + reads * 1000).toISOString(),

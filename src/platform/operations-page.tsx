@@ -1,11 +1,9 @@
 import { Card, Chip, Label, ProgressBar, Surface, Table } from '@heroui/react';
 import {
-  Activity,
   CheckCircle2,
   Database,
   HeartPulse,
   PlugZap,
-  RotateCcw,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
@@ -44,19 +42,6 @@ function SignalChip({ status }: Readonly<{ status: SignalStatus }>) {
   );
 }
 
-function auditDescription(failures: number, lastAuditAt: string) {
-  if (failures > 0)
-    return `${failures} evento(s) recente(s) possuem resultado explicitamente iniciado por erro ou falha.`;
-  return lastAuditAt
-    ? `Nenhum resultado explicitamente classificado como erro/falha nos eventos carregados. Último evento: ${formatDate(lastAuditAt)}.`
-    : 'Nenhum evento recente foi carregado; não há evidência suficiente para inferir atividade.';
-}
-
-function auditStatus(failures: number, lastAuditAt: string) {
-  if (lastAuditAt === '') return 'unknown';
-  return failures > 0 ? 'attention' : 'ok';
-}
-
 export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapshotContract }>) {
   const operational = snapshot.operational;
 
@@ -66,7 +51,7 @@ export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapsh
         <PageHeader
           eyebrow="Confiabilidade"
           title="Operação"
-          description="Acompanhe a disponibilidade do núcleo, pontos de atenção e informações de recuperação."
+          description="Acompanhe a disponibilidade do núcleo e os pontos de atenção."
         />
         <Card variant="default">
           <Card.Content className="p-0">
@@ -103,28 +88,11 @@ export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapsh
       status: snapshot.foundation.status === 'ok' ? 'ok' : 'attention',
     },
     {
-      id: 'audit',
-      icon: Activity,
-      title: 'Auditoria recente',
-      description:
-        auditDescription(operational.recentAuditFailureCount, operational.lastAuditAt),
-      status:
-        auditStatus(operational.recentAuditFailureCount, operational.lastAuditAt),
-    },
-    {
       id: 'health',
       icon: PlugZap,
       title: 'Monitoramento dos sistemas',
       description: healthCoverageDescription,
       status: registeredCount === 0 || operational.healthContractsMissing > 0 ? 'unknown' : 'ok',
-    },
-    {
-      id: 'recovery',
-      icon: RotateCcw,
-      title: 'Recuperação e restore',
-      description:
-        'O estado atual não contém evidência de teste de restauração. A ausência dessa evidência não é tratada como falha ativa, mas permanece um ponto de atenção.',
-      status: 'unknown',
     },
   ];
 
@@ -133,7 +101,7 @@ export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapsh
       <PageHeader
         eyebrow="Confiabilidade"
         title="Operação"
-        description="Acompanhe a disponibilidade do núcleo, pontos de atenção e informações de recuperação."
+        description="Acompanhe a disponibilidade do núcleo e os pontos de atenção."
       />
 
       <Surface variant="default" className="platform-card-surface rounded-3xl p-6 sm:p-7">
@@ -155,8 +123,7 @@ export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapsh
               </h3>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
                 Este estado considera somente as informações disponíveis e autorizadas. Ele não
-                substitui verificações específicas dos sistemas externos nem os testes de
-                recuperação.
+                substitui verificações específicas dos sistemas externos.
               </p>
             </div>
             <Chip color={attention ? 'danger' : 'success'} variant="soft" size="sm">
@@ -164,7 +131,7 @@ export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapsh
             </Chip>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Card variant="default" className="stagger-item">
               <Card.Header>
                 <Card.Description>Estrutura obrigatória</Card.Description>
@@ -176,15 +143,6 @@ export function OperationsPage({ snapshot }: Readonly<{ snapshot: PlatformSnapsh
                 {snapshot.foundation.expectedPlatformListsPresent
                   ? 'Todas as listas estruturais foram encontradas.'
                   : `${snapshot.foundation.missingPlatformLists.length} lista(s) obrigatória(s) ausente(s).`}
-              </Card.Content>
-            </Card>
-            <Card variant="default" className="stagger-item">
-              <Card.Header>
-                <Card.Description>Falhas na auditoria recente</Card.Description>
-                <Card.Title className="text-xl">{operational.recentAuditFailureCount}</Card.Title>
-              </Card.Header>
-              <Card.Content className="text-xs leading-5 text-muted">
-                Entre os {snapshot.recentAudit.length} eventos recentes carregados.
               </Card.Content>
             </Card>
             <Card variant="default" className="stagger-item">

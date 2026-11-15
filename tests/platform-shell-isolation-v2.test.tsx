@@ -31,9 +31,6 @@ const snapshot = () =>
     {
       lists: [],
       moduleItems: [],
-      configurationItems: [],
-      auditItems: [],
-      migrationItems: [],
       correlationId: 'synthetic',
     },
     PLATFORM_CAPABILITIES,
@@ -163,7 +160,7 @@ it.each([503, 401])(
     expect(fetcher.mock.calls.filter(([, init]) => !init?.method || init.method === 'GET')).toHaveLength(4);
   },
 );
-it('limits a partial outage to pages that actually need the unavailable source', async () => {
+it('keeps every page open during a partial outage: no page reads the SharePoint registers any more (#1473)', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn<typeof fetch>(async (path) => {
@@ -172,21 +169,19 @@ it('limits a partial outage to pages that actually need the unavailable source',
       return Response.json(
         path === '/api/platform/bootstrap'
           ? snapshot()
-          : { ...snapshot(), unavailableSections: ['audit'], retryAfterSeconds: 90 },
+          : { ...snapshot(), unavailableSections: ['modules'], retryAfterSeconds: 90 },
       );
     }),
   );
   render(<App />);
   expect(await screen.findByRole('textbox', { name: 'workspace-banco-de-notas' })).toBeTruthy();
   await act(async () => {
-    window.location.hash = '#/operacao?area=audit';
+    window.location.hash = '#/operacao';
     window.dispatchEvent(new Event('hashchange'));
     await flush();
   });
-  expect(
-    await screen.findByText('Informações desta área temporariamente indisponíveis'),
-  ).toBeTruthy();
-  expect(screen.queryByRole('textbox', { name: 'workspace-operacao' })).toBeNull();
+  expect(await screen.findByRole('textbox', { name: 'workspace-operacao' })).toBeTruthy();
+  expect(screen.queryByText('Informações desta área temporariamente indisponíveis')).toBeNull();
   await act(async () => {
     window.location.hash = '#/configuracoes';
     window.dispatchEvent(new Event('hashchange'));
