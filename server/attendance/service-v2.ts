@@ -1671,11 +1671,9 @@ async function collectIncidents(
         last_received_at=EXCLUDED.last_received_at,incidents=EXCLUDED.incidents,unresolved_students=EXCLUDED.unresolved_students`,
       [input.academicYear, evidenceHash, input.observedAt, rows.length, unresolvedStudents],
     );
+  // The same report again: only the year's state records when it was seen. Rewriting every incident
+  // (last_seen_at, read by nothing) cost ~400 row updates per report (issue #1450, 13a).
   if (state && text(state.evidence_hash) === evidenceHash) {
-    await tx.executeNative(
-      `UPDATE attendance.incident_v2 SET last_seen_at=$2::timestamptz WHERE academic_year=$1 AND removed_at IS NULL`,
-      [input.academicYear, input.observedAt],
-    );
     await saveState();
     return { changed: false, changedIncidents: 0, removedIncidents: 0, ...summary };
   }
@@ -1692,7 +1690,12 @@ async function collectIncidents(
     ON CONFLICT(academic_year,source_incident_id) DO UPDATE SET source_student_id=EXCLUDED.source_student_id,
       student_name=EXCLUDED.student_name,student_uid=EXCLUDED.student_uid,class_id=EXCLUDED.class_id,
       source_ids_json=EXCLUDED.source_ids_json,observation_ids_json=EXCLUDED.observation_ids_json,
-      last_seen_at=EXCLUDED.last_seen_at,removed_at=NULL`,
+      last_seen_at=EXCLUDED.last_seen_at,removed_at=NULL
+    -- Only an incident whose identity changed, or that comes back, is written again (issue #1450, 13a).
+    WHERE (incident_v2.source_student_id,incident_v2.student_name,incident_v2.student_uid,incident_v2.class_id,
+      incident_v2.source_ids_json,incident_v2.observation_ids_json) IS DISTINCT FROM (EXCLUDED.source_student_id,
+      EXCLUDED.student_name,EXCLUDED.student_uid,EXCLUDED.class_id,EXCLUDED.source_ids_json,EXCLUDED.observation_ids_json)
+      OR incident_v2.removed_at IS NOT NULL`,
     [input.academicYear, payload, input.observedAt],
   );
   await tx.executeNative(

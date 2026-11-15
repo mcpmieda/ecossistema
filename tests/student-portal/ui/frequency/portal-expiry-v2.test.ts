@@ -242,7 +242,7 @@ it("adds the days without school, each lesson's time and, with the Horário on, 
   mocks.showSchedule = true;
   mocks.unsafe.mockReset()
     .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
-    .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: true, saved_on: '2026-10-23' }]).mockResolvedValueOnce([calendar])
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: true, saved_on: '2026-10-23' }])
     .mockResolvedValueOnce([{ schedule: grid }]);
   expect(await read()).toMatchObject({
     daysOff: [{ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' }],
@@ -255,7 +255,7 @@ it("adds the days without school, each lesson's time and, with the Horário on, 
   mocks.showSchedule = false;
   mocks.unsafe.mockReset()
     .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
-    .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: false, saved_on: '2026-10-25' }]).mockResolvedValueOnce([calendar]);
+    .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: false, saved_on: '2026-10-25' }]);
   // Bells saved by a person in the ADM: they hold from that day.
   expect(await read()).toMatchObject({ grid: [], bells: officialBells2026V1(), bellsValidFrom: '2026-10-25' });
   expect(mocks.unsafe.mock.calls.some(([query]) => query.includes('read_portal_schedule'))).toBe(false);
@@ -268,7 +268,7 @@ it('sends the school day the current grid was first read, never the last collect
   const read = async (grid: unknown) => {
     mocks.unsafe.mockReset()
       .mockResolvedValueOnce([frequency]).mockResolvedValueOnce([{ active: true }]).mockResolvedValueOnce([calendar])
-      .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: true, saved_on: '2026-10-23' }]).mockResolvedValueOnce([calendar])
+      .mockResolvedValueOnce([{ bells_json: officialBells2026V1(), by_system: true, saved_on: '2026-10-23' }])
       .mockResolvedValueOnce([{ schedule: grid }]);
     return (await (await servePortalFrequencyV2(new Request(env.PORTAL_ORIGIN + '/api/student/frequency?year=2026'), env)).json()) as { grid: unknown };
   };
