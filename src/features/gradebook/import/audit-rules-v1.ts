@@ -174,9 +174,16 @@ function auditActivityColumnsV1({ sheet, findings, holds, holdResult }: TermAudi
     add(holds.columns, sheet.name, slot);
     for (const student of graded) holdResult(student.row);
     findings.push({ code, blocking: true, sheet, slot, cellAddress: maximum === null ? source.maximumCell : source.nameCell,
-      cause: `${graded.length} aluno(s) com nota nesta coluna.` });
+      cause: gradedStudentsV1(graded) });
   }
   return maximaSum;
+}
+
+/** Who has a grade in a column that was not launched, so the teacher finds the cell. */
+export function gradedStudentsV1(graded: readonly StudentRecognition[]): string {
+  const names = graded.slice(0, 3).map((student) => `${student.number.trim()}. ${student.name.trim()}`.replace(/^\.\s*/u, ''));
+  const more = graded.length > 3 ? ` e mais ${graded.length - 3}` : '';
+  return `Nota de ${names.join(', ')}${more}`;
 }
 
 /** What the per-student rules of one sheet read once. */

@@ -7,6 +7,7 @@ import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1'
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { listGradebookImportDiagnosticsAuditV1 } from '../import/import-diagnostics-client-v1';
 import { publishAuditPendingV1 } from '../../../platform/audit-pending-v1';
+import { cellMeaningV1 } from './cell-meaning-v1';
 
 type LoadState = 'loading' | 'ready' | 'empty' | 'not-authorized' | 'unavailable';
 type Finding = GradebookImportDiagnosticsAuditRecordV1;
@@ -51,7 +52,8 @@ function where(value: Finding): string {
     value.studentNumber === undefined
       ? null
       : `${value.studentNumber}. ${value.studentName ?? 'Aluno não identificado'}`;
-  return [value.classCode, value.subject, value.period, student, value.fieldLabel]
+  const meaning = value.fieldLabel ?? cellMeaningV1(value.code, value.cellAddress);
+  return [value.classCode, value.subject, value.period, student, meaning]
     .filter(Boolean)
     .join(' · ');
 }
@@ -147,15 +149,18 @@ function ProblemList({ tab }: { readonly tab: ProblemTab }) {
                     aria-hidden="true"
                     className={`mt-1.5 size-2 shrink-0 rounded-full ${item.severity === 'blocking-error' ? 'bg-danger' : 'bg-warning'}`}
                   />
-                  <span className="min-w-0 flex-1 break-words">{where(item) || fileWideWhereV1(item)}</span>
+                  <span className="min-w-0 flex-1 break-words">
+                    {where(item) || fileWideWhereV1(item)}
+                    {item.cause && <span className="block text-xs text-muted">{item.cause}</span>}
+                  </span>
                   {item.foundValue && (
                     <span className="shrink-0 rounded-md bg-surface px-2 py-0.5 font-mono text-xs text-muted">
                       {item.foundValue}
                     </span>
                   )}
-                  {(item.sheetName || item.cellAddress) && (
-                    <span className="hidden shrink-0 text-xs text-muted sm:inline">
-                      {[item.sheetName, item.cellAddress].filter(Boolean).join('!')}
+                  {item.cellAddress && (
+                    <span className="hidden shrink-0 text-xs text-muted sm:inline" title={item.sheetName ? `Guia ${item.sheetName}` : undefined}>
+                      {item.cellAddress}
                     </span>
                   )}
                 </div>
