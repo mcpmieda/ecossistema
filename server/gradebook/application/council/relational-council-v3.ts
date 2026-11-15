@@ -14,6 +14,7 @@ import {
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { performanceCellV2, type PerformanceProjectionV2 } from '../results/relational-performance-facts-v2';
 import { readRelationalPerformanceV2 } from '../read-models/performance/relational-performance-v2';
+import { postgresJsonTextV1 } from '../../persistence/postgres/postgres-values-v1';
 import { type GradebookPostgresWritePortV1, type GradebookPostgresScalarV1, type GradebookPostgresTransactionV1  } from '../../persistence/postgres/postgres-database-v1';
 
 
@@ -326,8 +327,16 @@ async function closeSessionV3(
     workspace.summary.absence, workspace.summary.notEligible, request.justification, actorId, request.idempotencyKey]);
   if (!closure) throw new Error('council-closure-missing');
   const closureId = integer(closure.id);
-  for (const student of workspace.students) {
-    await db.executeNative(`INSERT INTO gradebook.conselho_fechamento_item (fechamento_id,aluno_id,elegivel,motivo_elegibilidade,decisao,favoraveis,contrarios) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [closureId, student.id, student.eligibility.eligible ? 1 : 0, student.eligibility.label, student.decision?.code ?? null, student.vote?.favoraveis ?? null, student.vote?.contrarios ?? null]);
+  // One statement for the whole class: the year's lock is held for one round trip, not one per student.
+  const items = workspace.students.map((student) => ({
+    aluno_id: student.id, elegivel: student.eligibility.eligible, motivo: student.eligibility.label,
+    decisao: student.decision?.code ?? null, favoraveis: student.vote?.favoraveis ?? null, contrarios: student.vote?.contrarios ?? null,
+  }));
+  if (items.length > 0) {
+    await db.executeNative(`INSERT INTO gradebook.conselho_fechamento_item (fechamento_id,aluno_id,elegivel,motivo_elegibilidade,decisao,favoraveis,contrarios)
+      SELECT $1, x.aluno_id, x.elegivel, x.motivo, x.decisao, x.favoraveis, x.contrarios
+      FROM jsonb_to_recordset($2::jsonb) AS x(aluno_id integer, elegivel boolean, motivo text, decisao smallint, favoraveis integer, contrarios integer)`,
+    [closureId, postgresJsonTextV1(JSON.stringify(items))]);
   }
   await db.executeNative(`INSERT INTO gradebook.conselho_sessao_historico (ano,turma_id,versao,evento,estado_anterior,estado_novo,justificativa,alterado_por,chave_idempotencia) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [request.year, request.classId, newVersion, SESSION_EVENT.close, SESSION_STATE.open, SESSION_STATE.closed, request.justification, actorId, request.idempotencyKey]);
   await db.executeNative('UPDATE gradebook.conselho_sessao SET fechamento_atual_id=$1 WHERE ano=$2 AND turma_id=$3', [closureId, request.year, request.classId]);

@@ -64,6 +64,12 @@ describe('student missing from the system Relação', () => {
     expect(offer.recuperacao).toEqual([]);
   });
 
+  it('keeps a class the Relação does not have, for the database to refuse as in the manual import', () => {
+    const { request: checked, items } = holdNameMismatchesV1(request, names, new Map([[studentKeyV1('6B', 1), 'ANA SINTETICA']]));
+    expect(checked.ofertas[0]).toBe(request.ofertas[0]);
+    expect(items.map((item) => [item.code, item.classCode, item.studentNumber, item.fieldKind])).toEqual([['student-not-in-relation', '6A', undefined, 'file']]);
+  });
+
   it('does nothing when the year has no Relação at all (the database explains it)', () => {
     expect(holdNameMismatchesV1(request, names, new Map()).items).toEqual([]);
   });
