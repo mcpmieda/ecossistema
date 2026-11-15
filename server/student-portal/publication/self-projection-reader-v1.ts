@@ -58,7 +58,7 @@ export async function publicationContextV1(
   const context = { account, eligibility, policy, now };
   const rows = await tx.unsafe(
     `SELECT s.name,b.class_name,b.status,l.class_id AS observed_class,
-    COALESCE(y.assessment_names,'{}'::jsonb) AS assessment_names,
+    COALESCE(to_jsonb(y)->'assessment_names','{}'::jsonb) AS assessment_names,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('id',i.assessment_id,'term',i.term,'slot',i.slot,'label',i.label))
       FROM student_portal.academic_offer_v1 o JOIN student_portal.academic_instrument_v1 i ON i.offer_id=o.offer_id
       WHERE o.academic_year=a.academic_year AND o.class_id=b.class_id AND i.slot IN (1,2)), '[]'::jsonb) AS assessments
