@@ -30,19 +30,26 @@ function Metric({ title, value, detail, state, icon: Icon }: Readonly<{
 function useMonitor(onDenied: () => void) {
   const monitor = useMemo(() => createHealthMonitorV1({ onDenied }), [onDenied]);
   const [now, setNow] = useState(Date.now);
-  const subscribe = useCallback((listener: () => void) => monitor.subscribe(() => { setNow(Date.now()); listener(); }), [monitor]);
+  // The state is judged when a reading arrives: with no clock, the screen does not age by itself.
+  const subscribe = useCallback((listener: () => void) => {
+    let seen = monitor.getState().snapshot;
+    return monitor.subscribe(() => {
+      const { snapshot, error } = monitor.getState();
+      if (snapshot !== seen || error !== null) { seen = snapshot; setNow(Date.now()); }
+      listener();
+    });
+  }, [monitor]);
   const state = useSyncExternalStore(subscribe, monitor.getState, monitor.getState);
   useEffect(() => {
     const available = () => document.visibilityState !== 'hidden' && navigator.onLine !== false;
-    const change = () => { monitor.setAvailable(available()); setNow(Date.now()); };
+    const change = () => monitor.setAvailable(available());
     const hide = () => monitor.stop(), show = () => { change(); monitor.start(); };
     monitor.setAvailable(available()); monitor.start();
     window.addEventListener('online', change); window.addEventListener('offline', change);
     window.addEventListener('pagehide', hide); window.addEventListener('pageshow', show);
     document.addEventListener('visibilitychange', change);
-    const clock = setInterval(() => { if (available()) setNow(Date.now()); }, 15_000);
     return () => {
-      monitor.stop(); clearInterval(clock);
+      monitor.stop();
       window.removeEventListener('online', change); window.removeEventListener('offline', change);
       window.removeEventListener('pagehide', hide); window.removeEventListener('pageshow', show);
       document.removeEventListener('visibilitychange', change);
@@ -75,7 +82,6 @@ function HealthSummary({ monitor, current }: Readonly<{ monitor: ReturnType<type
       <p className="mt-3 text-xs text-muted">{monitor.snapshot ? `Última coleta: ${date(monitor.snapshot.generatedAt)} (Bahia)` : 'Nenhuma coleta disponível.'}</p>
     </div><Button variant="secondary" onPress={() => { void monitor.refresh(); }} isDisabled={monitor.loading || monitor.paused || monitor.error === 'denied'}>
       <RefreshCw className="size-4" aria-hidden="true" />{monitor.loading ? 'Verificando…' : 'Atualizar'}</Button></div>
-    <p className="mt-3 text-xs text-muted">Atualização a cada 60 segundos enquanto esta área estiver aberta e visível. Dados com mais de 2 minutos deixam de confirmar o estado atual.</p>
   </Surface>
     {monitor.error === 'denied' ? <p role="alert" className="mt-4 text-danger">Acesso ao monitoramento não autorizado. Os dados foram removidos; reabra a área após verificar sua sessão.</p> : null}
     {monitor.error === 'unavailable' ? <p role="alert" className="mt-4 text-warning">Não foi possível atualizar. A última coleta não está sendo usada como confirmação de normalidade.</p> : null}
