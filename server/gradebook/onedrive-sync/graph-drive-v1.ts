@@ -1,5 +1,5 @@
 import type { RuntimeEnv } from '../../env';
-import { GraphError, getGraphToken, graphRequest, type GraphDependencies } from '../../graph/client';
+import { GraphError, forgetGraphTokensV1, getGraphToken, graphRequest, type GraphDependencies } from '../../graph/client';
 import { graphDefaultsV1, graphFetchV1, graphUrlV1 } from '../../graph/request-policy-v1';
 
 /** Only what the Graph app credential needs; the sync Worker carries nothing else of RuntimeEnv. */
@@ -165,11 +165,16 @@ export async function graphDriveDeltaV1(env: GraphAppEnvV1, driveId: string, del
   const seen = new Set<string>();
   for (;;) {
     const url = graphUrlV1(next);
-    if (seen.has(url) || seen.size >= 500) throw new Error('Graph delta pagination capacity exceeded');
+    // A cursor too old to page through is started over, like a 410 (issue #1450, 3).
+    if (seen.has(url) || seen.size >= 500) throw new DeltaResyncRequiredError();
     seen.add(url);
     const { data, correlationId } = await graphRequest<{
       value?: GraphDriveItemV1[]; '@odata.nextLink'?: unknown; '@odata.deltaLink'?: unknown;
-    }>({ env: asEnvV1(env), path: url, token, dependencies });
+    }>({ env: asEnvV1(env), path: url, token, dependencies }).catch((cause: unknown) => {
+      // Graph no longer knows the cursor (410 Gone, resyncRequired): it must be started over.
+      if (cause instanceof GraphError && cause.status === 410) throw new DeltaResyncRequiredError();
+      throw cause;
+    });
     if (!Array.isArray(data?.value)) throw new GraphError(502, correlationId);
     for (const item of data.value) {
       const workbook = driveWorkbookFromItemV1(item);
@@ -178,6 +183,13 @@ export async function graphDriveDeltaV1(env: GraphAppEnvV1, driveId: string, del
     if (typeof data['@odata.nextLink'] === 'string') { next = data['@odata.nextLink']; continue; }
     if (typeof data['@odata.deltaLink'] === 'string') return { changes, deltaLink: graphUrlV1(data['@odata.deltaLink']) };
     throw new GraphError(502, correlationId);
+  }
+}
+
+/** The delta cursor cannot be used any more: list the sources again from the current cursor. */
+export class DeltaResyncRequiredError extends Error {
+  constructor() {
+    super('Graph delta cursor must be started over');
   }
 }
 
@@ -196,6 +208,10 @@ export async function graphDownloadWorkbookV1(env: GraphAppEnvV1, driveId: strin
     url: graphUrlV1(`/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}/content`),
     init: { method: 'GET', headers: { Authorization: `Bearer ${token}`, 'client-request-id': correlationId } },
     correlationId, dependencies, allowContentRedirect: true, budgetMs: 30_000,
+  }).catch((cause: unknown) => {
+    // A refused token is not reused by the next download (issue #1450, 12a).
+    if (cause instanceof GraphError && cause.status === 401) forgetGraphTokensV1(asEnvV1(env));
+    throw cause;
   });
   const declared = Number(response.headers.get('Content-Length'));
   if (Number.isFinite(declared) && declared > maxBytes) {

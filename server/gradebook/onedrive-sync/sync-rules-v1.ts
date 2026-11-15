@@ -101,7 +101,12 @@ export function observeFileV1(current: SyncFileV1 | null, observed: ObservedFile
     hash: observed.hash, removed: false };
   const unchanged = observed.hash !== null && observed.hash === base.processedHash;
   if (unchanged && base.state !== 'reading') return { ...updated, state: 'idle', dueAt: null };
-  if (base.state === 'reading') return { ...updated, dirty: !unchanged || base.dirty };
+  // During a read, the hash being read is `base.hash`: a repeated notice of that same save is not a
+  // change (issue #1450, 14). Without a hash it is taken as a change.
+  if (base.state === 'reading') {
+    const sameAsReading = observed.hash !== null && observed.hash === base.hash;
+    return { ...updated, dirty: base.dirty || !sameAsReading };
+  }
   const due = now + settings.waitSeconds * 1000;
   // A later save pushes the wait forward: the read happens once the file settles.
   return { ...updated, state: 'pending', dueAt: Math.max(due, base.state === 'pending' ? (base.dueAt ?? due) : due), attempts: 0 };

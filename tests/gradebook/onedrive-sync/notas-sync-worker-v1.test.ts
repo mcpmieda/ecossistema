@@ -270,7 +270,8 @@ describe('database write line of the coordinator (issue #1426, 30)', () => {
       const dead = await coordinator.beginWrite();
       let taken: string | null = null;
       void coordinator.beginWrite().then((token) => { taken = token; });
-      await vi.advanceTimersByTimeAsync(121_000);
+      // The turn is taken over after 45 s without being given back (issue #1450, 4; was 120 s).
+      await vi.advanceTimersByTimeAsync(46_000);
       expect(taken).not.toBeNull();
       coordinator.endWrite(dead);
       let next: string | null = null;

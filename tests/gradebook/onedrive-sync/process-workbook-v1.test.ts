@@ -235,4 +235,18 @@ describe('the Relação is asked for while the workbook downloads', () => {
       download: async () => { throw new Error('stop'); } });
     expect(query).not.toHaveBeenCalled();
   });
+
+  it('a Relação found in a folder source is not written (issue #1450, 9)', async () => {
+    const { ports, persisted } = portsV1({ bytes: bytesOf('relation') });
+    const result = await processWorkbookV1({ ...input, expectedYear: 2026, sourceKind: 'folder' }, ports);
+    expect(result).toMatchObject({ outcome: 'ignored', code: 'RELATION-OUTSIDE-SOURCE', workbook: 'relacao' });
+    expect(persisted).toHaveLength(0);
+  });
+
+  it('the same Relação as a source of its own is written', async () => {
+    const { ports, persisted } = portsV1({ bytes: bytesOf('relation') });
+    const result = await processWorkbookV1({ ...input, expectedYear: 2026, sourceKind: 'file' }, ports);
+    expect(result.outcome).not.toBe('ignored');
+    expect(persisted).toHaveLength(1);
+  });
 });

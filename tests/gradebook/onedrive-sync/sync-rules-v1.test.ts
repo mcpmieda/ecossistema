@@ -54,6 +54,12 @@ describe('Notas sync rules', () => {
     });
   });
 
+  it('a repeated notice of the same save during its read is not a change (issue #1450, 14)', () => {
+    const reading = startReadingV1({ ...pending('a'), hash: 'h-a', processedHash: 'h-old' }, 'lease-1', 0);
+    expect(observeFileV1(reading, seen('a', 'h-a'), 10, on)).toMatchObject({ state: 'reading', dirty: false });
+    expect(observeFileV1(reading, seen('a', 'h-b'), 10, on)).toMatchObject({ state: 'reading', dirty: true });
+  });
+
   it('never runs two reads of one file and respects the parallel limit', () => {
     const files = ['a', 'b', 'c'].map((id) => pending(id));
     const started = filesToStartV1(files, 0, { ...on, maxParallel: 2 }, null);
