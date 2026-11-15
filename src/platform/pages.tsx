@@ -10,22 +10,14 @@ import {
   Skeleton,
   Spinner,
   Surface,
-  Table,
 } from '@heroui/react';
-import {
-  Activity,
-  Clock3,
-  Database,
-  Settings2,
-} from 'lucide-react';
+import { Clock3 } from 'lucide-react';
 import {
   normalizePlatformRoute,
   type PlatformRoute,
-  type PlatformSnapshotContract,
 } from '../../shared/platform-contract';
 import type { PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
 import type { PlatformAuxiliaryStateV2 } from './platform-data-v2';
-import { MicrosoftSettingsSectionV1 } from './microsoft-settings-section-v1';
 import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
 import { NotesPage } from './notes-page';
 import { AreaErrorBoundaryV1 } from '../shared/ui/area-error-boundary-v1';
@@ -46,68 +38,7 @@ if (typeof window !== 'undefined') {
   if (opened === 'painel-do-aluno') StudentPortalAdminPage.preload();
   if (opened === 'operacao') SystemHealthPage.preload();
 }
-import { EmptyState, formatDate, PageHeader, shortCorrelation } from './presentation';
-
-function AuditPage({ snapshot }: Readonly<{ snapshot: PlatformSnapshotContract }>) {
-  return (
-    <>
-      <PageHeader
-        eyebrow="Rastreabilidade"
-        title="Auditoria"
-        titleInBar
-        description="Eventos administrativos disponíveis para consulta, sem expor detalhes sensíveis no navegador."
-      />
-      <Card variant="default" className="overflow-hidden">
-        <Card.Header className="border-b border-border/60">
-          <Card.Title>Atividade recente</Card.Title>
-          <Card.Description>Consulta somente leitura.</Card.Description>
-        </Card.Header>
-        <Card.Content className="p-0">
-          {snapshot.recentAudit.length === 0 ? (
-            <EmptyState
-              icon={Activity}
-              title="Nenhum evento administrativo registrado"
-              description="A estrutura de auditoria está pronta; novos eventos aparecerão quando operações auditáveis forem ativadas."
-            />
-          ) : (
-            <Table variant="secondary">
-              <Table.ScrollContainer>
-                <Table.Content aria-label="Atividade administrativa recente">
-                  <Table.Header>
-                    <Table.Column id="when">Quando</Table.Column>
-                    <Table.Column id="module">Módulo</Table.Column>
-                    <Table.Column id="action">Ação</Table.Column>
-                    <Table.Column id="result">Resultado</Table.Column>
-                    <Table.Column id="correlation">Correlação</Table.Column>
-                  </Table.Header>
-                  <Table.Body>
-                    {snapshot.recentAudit.map((entry) => (
-                      <Table.Row id={entry.id} key={entry.id}>
-                        <Table.Cell className="whitespace-nowrap">
-                          {formatDate(entry.occurredAt)}
-                        </Table.Cell>
-                        <Table.Cell>{entry.module}</Table.Cell>
-                        <Table.Cell>{entry.action}</Table.Cell>
-                        <Table.Cell>
-                          <Chip variant="soft" size="sm">
-                            {entry.result || '—'}
-                          </Chip>
-                        </Table.Cell>
-                        <Table.Cell className="font-mono text-xs text-muted">
-                          {shortCorrelation(entry.correlationId)}
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Content>
-              </Table.ScrollContainer>
-            </Table>
-          )}
-        </Card.Content>
-      </Card>
-    </>
-  );
-}
+import { formatDate, PageHeader } from './presentation';
 
 type SessionPolicy = {
   version: 1;
@@ -311,17 +242,14 @@ function SessionDurationSetting() {
   );
 }
 
-function SettingsPage({ snapshot, auxiliary }: Readonly<{
-  snapshot: PlatformSnapshotV2;
-  auxiliary: PlatformAuxiliaryStateV2;
-}>) {
+function SettingsPage() {
   return (
     <>
       <PageHeader
         eyebrow="Governança"
         title="Configurações"
         titleInBar
-        description="Consulte as configurações administrativas e seu estado de vigência."
+        description="Ano letivo e duração da sessão do Centro."
       />
 
       <Card variant="default" className="mb-5 overflow-hidden">
@@ -336,128 +264,15 @@ function SettingsPage({ snapshot, auxiliary }: Readonly<{
       </Card>
 
       <SessionDurationSetting />
-
-      <MicrosoftSettingsSectionV1
-        title="Registro de configurações"
-        section="configurations"
-        snapshot={snapshot}
-        auxiliary={auxiliary}
-      >
-      <Card variant="default" className="mt-5 overflow-hidden">
-        <Card.Header className="border-b border-border/60">
-          <Card.Title>Registro de configurações</Card.Title>
-          <Card.Description>Chave, escopo, versão e estado de vigência.</Card.Description>
-        </Card.Header>
-        <Card.Content className="p-0">
-          {snapshot.configurations.length === 0 ? (
-            <EmptyState
-              icon={Settings2}
-              title="Nenhuma configuração cadastrada"
-              description="O registro institucional está disponível para receber parâmetros versionados quando suas regras forem definidas."
-            />
-          ) : (
-            <Table variant="secondary">
-              <Table.ScrollContainer>
-                <Table.Content aria-label="Configurações institucionais">
-                  <Table.Header>
-                    <Table.Column id="key">Chave</Table.Column>
-                    <Table.Column id="scope">Escopo</Table.Column>
-                    <Table.Column id="version">Versão</Table.Column>
-                    <Table.Column id="state">Estado</Table.Column>
-                  </Table.Header>
-                  <Table.Body>
-                    {snapshot.configurations.map((configuration) => (
-                      <Table.Row id={configuration.id} key={configuration.id}>
-                        <Table.Cell className="font-medium">{configuration.key}</Table.Cell>
-                        <Table.Cell className="text-muted">{configuration.scope}</Table.Cell>
-                        <Table.Cell>{configuration.version || '—'}</Table.Cell>
-                        <Table.Cell>
-                          <Chip
-                            color={configuration.active ? 'success' : 'default'}
-                            variant="soft"
-                            size="sm"
-                          >
-                            {configuration.active ? 'Ativa' : 'Inativa'}
-                          </Chip>
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Content>
-              </Table.ScrollContainer>
-            </Table>
-          )}
-        </Card.Content>
-      </Card>
-      </MicrosoftSettingsSectionV1>
-
-      <MicrosoftSettingsSectionV1
-        title="Migrações registradas"
-        section="migrations"
-        snapshot={snapshot}
-        auxiliary={auxiliary}
-      >
-      <Card variant="default" className="mt-5 overflow-hidden">
-        <Card.Header className="border-b border-border/60">
-          <Card.Title>Migrações registradas</Card.Title>
-          <Card.Description>
-            {snapshot.migrations.length} registro(s) encontrado(s).
-          </Card.Description>
-        </Card.Header>
-        <Card.Content className="p-0">
-          {snapshot.migrations.length === 0 ? (
-            <EmptyState
-              icon={Database}
-              title="Nenhuma migração registrada"
-              description="Nenhuma migração de módulo foi necessária até o momento."
-            />
-          ) : (
-            <Table variant="secondary">
-              <Table.ScrollContainer>
-                <Table.Content aria-label="Migrações registradas">
-                  <Table.Header>
-                    <Table.Column id="version">Versão</Table.Column>
-                    <Table.Column id="module">Módulo</Table.Column>
-                    <Table.Column id="applied">Aplicada em</Table.Column>
-                    <Table.Column id="result">Resultado</Table.Column>
-                  </Table.Header>
-                  <Table.Body>
-                    {snapshot.migrations.map((migration) => (
-                      <Table.Row id={migration.id} key={migration.id}>
-                        <Table.Cell className="font-medium">
-                          {migration.version || 'Versão não informada'}
-                        </Table.Cell>
-                        <Table.Cell className="text-muted">{migration.module}</Table.Cell>
-                        <Table.Cell className="whitespace-nowrap">
-                          {formatDate(migration.appliedAt)}
-                        </Table.Cell>
-                        <Table.Cell>
-                          <Chip variant="soft" size="sm">
-                            {migration.result || '—'}
-                          </Chip>
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Content>
-              </Table.ScrollContainer>
-            </Table>
-          )}
-        </Card.Content>
-      </Card>
-      </MicrosoftSettingsSectionV1>
     </>
   );
 }
 
 export function PageContent({
   route,
-  section,
   snapshot,
-  auxiliary = 'ready',
 }: Readonly<{
   route: PlatformRoute;
-  /** The section of the open service; Auditoria is a section of Saúde do Sistema. */
   section?: string;
   snapshot: PlatformSnapshotV2;
   auxiliary?: PlatformAuxiliaryStateV2;
@@ -469,12 +284,11 @@ export function PageContent({
         <Suspense fallback={<p><output className="contents">Carregando Painel do Aluno…</output></p>}><StudentPortalAdminPage /></Suspense>
       </AreaErrorBoundaryV1>;
     case 'operacao':
-      if (section === 'audit') return <AreaErrorBoundaryV1 key="auditoria" label="Auditoria"><AuditPage snapshot={snapshot} /></AreaErrorBoundaryV1>;
       return <AreaErrorBoundaryV1 key="operacao" label="Saúde do Sistema">
         <Suspense fallback={<output className="block">Carregando Saúde…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>
       </AreaErrorBoundaryV1>;
     case 'configuracoes':
-      return <AreaErrorBoundaryV1 key="configuracoes" label="Configurações"><SettingsPage snapshot={snapshot} auxiliary={auxiliary} /></AreaErrorBoundaryV1>;
+      return <AreaErrorBoundaryV1 key="configuracoes" label="Configurações"><SettingsPage /></AreaErrorBoundaryV1>;
     default:
       return <AreaErrorBoundaryV1 key="banco-de-notas" label="Banco de notas"><NotesPage /></AreaErrorBoundaryV1>;
   }

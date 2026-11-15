@@ -19,9 +19,6 @@ const template = () =>
     {
       lists: [],
       moduleItems: [],
-      configurationItems: [],
-      auditItems: [],
-      migrationItems: [],
       correlationId: `synthetic-${++reads}`,
       generatedAt: new Date(1_800_000_000_000 + reads * 1000).toISOString(),
     },
@@ -82,7 +79,7 @@ it('the whole Centro has a limit too: no white screen, a way to reload', () => {
 
 it('a failure in the Banco de notas page stays in its area', () => {
   const snapshot = buildPlatformSnapshot(
-    { lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId: 'synthetic' },
+    { lists: [], moduleItems: [], correlationId: 'synthetic' },
     ['platform.snapshot.read'],
   ) as unknown as PlatformSnapshotV2;
   render(<PageContent route="banco-de-notas" snapshot={snapshot} auxiliary="ready" />);

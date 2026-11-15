@@ -61,24 +61,6 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     route: notesModule.route,
   }));
 
-  // Auditoria is a section of Saúde do Sistema.
-  const health = snapshot.coreModules.some((module) => module.route === 'operacao')
-    ? [
-        {
-          id: 'health:audit',
-          label: 'Auditoria',
-          description: 'Saúde · Trilha administrativa',
-          category: 'Seção' as const,
-          href: '#/operacao?area=audit',
-          searchText: normalizeSearch(
-            'Saúde do Sistema Auditoria rastreabilidade trilha administrativa eventos',
-          ),
-          iconKind: 'route' as const,
-          route: 'operacao' as const,
-        },
-      ]
-    : [];
-
   const systems = snapshot.registeredModules.map((module) => ({
     id: `system:${module.id}`,
     label: module.name,
@@ -90,19 +72,6 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     ),
     iconKind: 'system' as const,
     route: 'operacao' as const,
-  }));
-
-  const configurations = snapshot.configurations.map((configuration) => ({
-    id: `config:${configuration.id}`,
-    label: configuration.key,
-    description: `Configuração ${configuration.scope}${configuration.version ? ' · v' + configuration.version : ''}`,
-    category: 'Configuração' as const,
-    href: platformHref('configuracoes'),
-    searchText: normalizeSearch(
-      `${configuration.key} ${configuration.scope} ${configuration.version} ${configuration.active ? 'ativa' : 'inativa'}`,
-    ),
-    iconKind: 'configuration' as const,
-    route: 'configuracoes' as const,
   }));
 
   const portal = snapshot.coreModules.some((module) => module.route === 'painel-do-aluno')
@@ -139,7 +108,7 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
         },
       ]
     : [];
-  return [...core, ...notes, ...students, ...portal, ...health, ...systems, ...configurations];
+  return [...core, ...notes, ...students, ...portal, ...systems];
 }
 
 export function filterSearchItems(

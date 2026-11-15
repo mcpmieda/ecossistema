@@ -16,14 +16,8 @@ const snapshot = {
   },
   operational: {
     status: 'nominal',
-    recentAuditFailureCount: 0,
     healthContractsConfigured: 0,
     healthContractsMissing: 0,
-    lastAuditAt: '2026-08-24T18:44:00.000Z',
-    recoveryStatus: 'not-verified',
-    recoveryVerifiedAt: '',
-    recoveryEvidenceRef: '',
-    recoveryScope: 'sharepoint-disposable-record-backup-restore-roundtrip',
   },
   coreModules: [
     {
@@ -46,39 +40,6 @@ const snapshot = {
     },
   ],
   registeredModules: [],
-  configurations: [
-    {
-      id: 'config-1',
-      key: 'PLATAFORMA.NAVEGACAO',
-      scope: 'GLOBAL',
-      version: '3',
-      active: true,
-      effectiveFrom: '',
-      effectiveUntil: '',
-      updatedAt: '2026-08-24T18:00:00.000Z',
-    },
-  ],
-  recentAudit: [
-    {
-      id: 'audit-1',
-      eventId: 'evt-1',
-      occurredAt: '2026-08-24T18:44:00.000Z',
-      module: 'Centro',
-      action: 'SEGREDO_NAO_INDEXAR',
-      entityType: 'SESSION',
-      correlationId: 'corr-audit',
-      result: 'OK',
-    },
-  ],
-  migrations: [
-    {
-      id: 'migration-1',
-      version: '0.2.0',
-      module: 'SEGREDO_MIGRACAO_NAO_INDEXAR',
-      appliedAt: '2026-08-24T17:00:00.000Z',
-      result: 'OK',
-    },
-  ],
 } satisfies PlatformSnapshotContract;
 
 describe('platform search model', () => {
@@ -106,7 +67,7 @@ describe('platform search model', () => {
     expect(normalizeSearch('AUDITORIA')).toBe('auditoria');
   });
 
-  it('indexes core areas, all gradebook entry points and configuration metadata', () => {
+  it('indexes core areas and all gradebook entry points', () => {
     const items = buildSearchItems(snapshot);
 
     expect(items.map((item) => item.id)).toEqual([
@@ -120,21 +81,18 @@ describe('platform search model', () => {
       'notes:audit',
       'notes:onedrive',
       'notes:settings',
-      'health:audit',
-      'config:config-1',
     ]);
     expect(items.some((item) => item.id === 'notes:operational')).toBe(false);
     expect(items.some((item) => item.href.includes('area=operational'))).toBe(false);
     expect(filterSearchItems(items, 'Centrais')).toEqual([]);
-    expect(filterSearchItems(items, 'SEGREDO_NAO_INDEXAR')).toEqual([]);
-    expect(filterSearchItems(items, 'SEGREDO_MIGRACAO_NAO_INDEXAR')).toEqual([]);
   });
 
   it('finds accent-insensitive matches and routes core areas correctly', () => {
     const items = buildSearchItems(snapshot);
 
     expect(filterSearchItems(items, 'configuracoes')[0]?.href).toBe('#/configuracoes');
-    expect(filterSearchItems(items, 'rastreabilidade')[0]?.href).toBe('#/operacao?area=audit');
+    // The platform's SharePoint audit was retired (#1473); nothing points to it.
+    expect(items.some((item) => item.href.includes('#/operacao?area=audit'))).toBe(false);
     expect(filterSearchItems(items, 'importar planilha')[0]?.href).toBe('#/banco-de-notas');
     expect(filterSearchItems(items, 'conselho classe')[0]?.id).toBe('notes:council');
     expect(filterSearchItems(items, 'desempenho resultado')[0]?.id).toBe('notes:performance');

@@ -24,9 +24,6 @@ describe('Centro de Administração production release', () => {
       {
         lists: [],
         moduleItems: [],
-        configurationItems: [],
-        auditItems: [],
-        migrationItems: [],
         correlationId: 'production-release-test',
         generatedAt: '2026-08-25T18:00:00.000Z',
       },

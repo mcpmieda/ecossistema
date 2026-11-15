@@ -25,7 +25,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
   {
     id: 'platform.operations',
     name: 'Saúde',
-    description: 'Disponibilidade, sinais operacionais do Portal do Aluno e trilha de auditoria.',
+    description: 'Disponibilidade e sinais operacionais do Portal do Aluno.',
     route: 'operacao',
     state: 'ready',
     requiredRole: 'ADMINISTRADOR',
