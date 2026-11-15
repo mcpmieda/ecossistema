@@ -6,12 +6,9 @@ import { describe, expect, it } from 'vitest';
 const pages = readFileSync(join(process.cwd(), 'src/platform/pages.tsx'), 'utf8');
 
 describe('administrative session settings UI', () => {
-  it('renders the session policy before the institutional configuration registry', () => {
-    const setting = pages.indexOf('<SessionDurationSetting />');
-    const registry = pages.indexOf('<Card.Title>Registro de configurações</Card.Title>');
-
-    expect(setting).toBeGreaterThan(-1);
-    expect(registry).toBeGreaterThan(setting);
+  it('renders the session policy and no SharePoint configuration register (#1473)', () => {
+    expect(pages).toContain('<SessionDurationSetting />');
+    expect(pages).not.toContain('Registro de configurações');
   });
 
   it('loads and updates the policy through the authenticated server route', () => {

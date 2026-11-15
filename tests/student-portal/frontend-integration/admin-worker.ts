@@ -96,10 +96,7 @@ export default {
         operational: null,
         coreModules,
         registeredModules: [],
-        configurations: [],
-        recentAudit: [],
-        migrations: [],
-      };
+        };
       return Response.json(snapshot, { headers: { 'Cache-Control': 'no-store' } });
     }
     return onRequest({

@@ -29,7 +29,7 @@ class Socket extends EventTarget {
   send() {}
   close() { this.closed = true; }
 }
-const snapshot = () => buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId: 'synthetic' }, PLATFORM_CAPABILITIES);
+const snapshot = () => buildPlatformSnapshot({ lists: [], moduleItems: [], correlationId: 'synthetic' }, PLATFORM_CAPABILITIES);
 let key: string;
 let status: number;
 let fetcher: ReturnType<typeof vi.fn<typeof fetch>>;

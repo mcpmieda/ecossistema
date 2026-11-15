@@ -148,7 +148,7 @@ function CleanupNotice({ maintenance }: Readonly<{ maintenance: PortalMaintenanc
 }
 function AdministrativeEvidence({ platform }: Readonly<{ platform: PlatformSnapshotV2 }>) {
   const [evidence, setEvidence] = useState(false);
-  const available = platform.operational !== null && !platform.unavailableSections?.some((section) => ['lists', 'modules', 'audit'].includes(section));
+  const available = platform.operational !== null && !platform.unavailableSections?.some((section) => ['lists', 'modules'].includes(section));
   let content = null;
   if (evidence) content = available
     ? <div className="mt-3"><Suspense fallback={<output className="block">Carregando evidências…</output>}><PlatformEvidence snapshot={platform} /></Suspense></div>

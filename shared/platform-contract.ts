@@ -39,7 +39,6 @@ export type ModuleIntegrationIssue = (typeof MODULE_INTEGRATION_ISSUES)[number];
 export type ModuleState = 'ready' | 'planned';
 export type FoundationStatus = 'ok' | 'degraded';
 type OperationalStatus = 'nominal' | 'attention';
-type RecoveryStatus = 'not-verified' | 'verified';
 
 export type CoreModuleContract = {
   id: string;
@@ -78,46 +77,10 @@ export type RegisteredModule = {
   available: boolean;
 };
 
-export type PlatformConfiguration = {
-  id: string;
-  key: string;
-  scope: string;
-  version: string;
-  active: boolean;
-  effectiveFrom: string;
-  effectiveUntil: string;
-  updatedAt: string;
-};
-
-export type AuditEntry = {
-  id: string;
-  eventId: string;
-  occurredAt: string;
-  module: string;
-  action: string;
-  entityType: string;
-  correlationId: string;
-  result: string;
-};
-
-export type MigrationEntry = {
-  id: string;
-  version: string;
-  module: string;
-  appliedAt: string;
-  result: string;
-};
-
 export type OperationalSummary = {
   status: OperationalStatus;
-  recentAuditFailureCount: number;
   healthContractsConfigured: number;
   healthContractsMissing: number;
-  lastAuditAt: string;
-  recoveryStatus: RecoveryStatus;
-  recoveryVerifiedAt: string;
-  recoveryEvidenceRef: string;
-  recoveryScope: string;
 };
 
 export type PlatformSnapshotContract = {
@@ -134,9 +97,6 @@ export type PlatformSnapshotContract = {
   operational: OperationalSummary | null;
   coreModules: CoreModuleContract[];
   registeredModules: RegisteredModule[];
-  configurations: PlatformConfiguration[];
-  recentAudit: AuditEntry[];
-  migrations: MigrationEntry[];
 };
 
 function isPlatformRoute(value: string): value is PlatformRoute {

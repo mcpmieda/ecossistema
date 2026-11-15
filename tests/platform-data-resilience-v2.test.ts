@@ -3,7 +3,7 @@ import { createPlatformDataV2, PLATFORM_AUXILIARY_TIMEOUT_MS_V2, PLATFORM_BOOTST
 import { buildPlatformSnapshot } from '../server/platform/snapshot';
 import { platformRouteUnavailableV2 } from '../shared/platform-snapshot-v2';
 
-const template = () => buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId: 'synthetic' }, ['platform.snapshot.read', 'platform.settings.read']);
+const template = () => buildPlatformSnapshot({ lists: [], moduleItems: [], correlationId: 'synthetic' }, ['platform.snapshot.read', 'platform.settings.read']);
 const flush = async () => { for (let index = 0; index < 20; index++) await Promise.resolve(); };
 afterEach(() => { vi.useRealTimers(); });
 
@@ -13,14 +13,14 @@ it('honors a partial response retry deadline while leaving unrelated sections us
   const controller = createPlatformDataV2((state) => states.push(state), async (path) => {
     if (String(path).endsWith('/bootstrap')) return Response.json(template());
     auxiliaryReads++;
-    return Response.json({ ...template(), unavailableSections: ['audit'], retryAfterSeconds: 90 });
+    return Response.json({ ...template(), unavailableSections: ['modules'], retryAfterSeconds: 90 });
   }, () => clock);
   try {
     await controller.start(); await flush();
     const state = states.at(-1)!;
     expect(state).toMatchObject({ status: 'ready', auxiliary: 'partial' });
     if (state.status !== 'ready') throw new Error('Expected native bootstrap');
-    expect(platformRouteUnavailableV2('operacao', state.snapshot, 'audit')).toBe(true);
+    expect(platformRouteUnavailableV2('operacao', state.snapshot)).toBe(false);
     expect(platformRouteUnavailableV2('configuracoes', state.snapshot)).toBe(false);
     clock = 89999; await controller.refresh(); expect(auxiliaryReads).toBe(1);
     clock = 90000; await controller.refresh(); expect(auxiliaryReads).toBe(2);
@@ -58,10 +58,10 @@ it('never uses auxiliary data as a substitute for a missing authenticated native
     expect(states.some((state) => state.status === 'ready')).toBe(false);
   } finally { controller.dispose(); }
 });
-it('rejects an invalid configuration item rather than letting the rendered page crash or claim an empty successful response', async () => {
+it('rejects an invalid registered module rather than letting the rendered page crash or claim an empty successful response', async () => {
   const states: PlatformLoadStateV2[] = [];
   const controller = createPlatformDataV2((state) => states.push(state), async (path) =>
-    Response.json(String(path).endsWith('/bootstrap') ? template() : { ...template(), configurations: [{}] }));
+    Response.json(String(path).endsWith('/bootstrap') ? template() : { ...template(), registeredModules: [{}] }));
   try {
     await controller.start(); await flush();
     expect(states.at(-1)).toMatchObject({ status: 'ready', auxiliary: 'error' });

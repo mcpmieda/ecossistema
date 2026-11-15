@@ -18,8 +18,6 @@ function dependencies(fail?: string) {
     if (path.includes('?$select=id,displayName')) return lists;
     const item = lists.find((list) => path.includes(`/lists/${list.id}/items`));
     if (item?.displayName === fail) throw new GraphError(429, 'synthetic', 90);
-    if (item?.displayName === 'PLATAFORMA_CONFIGURACOES')
-      return [{ id: 'config', fields: { Chave: 'SYNTHETIC CONFIG', Ativo: true, Versao: '1' } }];
     return [];
   });
   return { token, pages };
@@ -27,24 +25,23 @@ function dependencies(fail?: string) {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('section-aware Microsoft snapshot', () => {
-  it('does not let an audit failure discard healthy settings, modules or native application access', async () => {
+  it('does not let a module list failure close any page or the native application access', async () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const source = dependencies('PLATAFORMA_AUDITORIA');
+    const source = dependencies('PLATAFORMA_MODULOS');
     const snapshot = await getPlatformSnapshotV2(testEnv, PLATFORM_CAPABILITIES, source);
-    expect(snapshot.unavailableSections).toEqual(['audit']);
+    expect(snapshot.unavailableSections).toEqual(['modules']);
     expect(snapshot.retryAfterSeconds).toBe(90);
-    expect(snapshot.configurations[0]).toMatchObject({ key: 'SYNTHETIC CONFIG', active: true });
     expect(platformSnapshotSchemaV2.safeParse(snapshot).success).toBe(true);
-    expect(platformRouteUnavailableV2('operacao', snapshot, 'audit')).toBe(true);
     expect(platformRouteUnavailableV2('operacao', snapshot)).toBe(false);
     expect(platformRouteUnavailableV2('configuracoes', snapshot)).toBe(false);
     expect(platformRouteUnavailableV2('banco-de-notas', snapshot)).toBe(false);
     expect(platformRouteUnavailableV2('painel-do-aluno', snapshot)).toBe(false);
     expect(source.token).toHaveBeenCalledOnce();
-    expect(source.pages).toHaveBeenCalledTimes(5);
+    // The list catalogue and the module list: the settings, audit and migration lists are no longer read (#1473).
+    expect(source.pages).toHaveBeenCalledTimes(2);
     expect(warning).toHaveBeenCalledOnce();
     expect(JSON.parse(String(warning.mock.calls[0]?.[0]))).toMatchObject({
-      message: 'platform_microsoft_source_unavailable', stage: 'section', section: 'audit',
+      message: 'platform_microsoft_source_unavailable', stage: 'section', section: 'modules',
       failureKind: 'graph-response', providerStatus: 429, providerCorrelationId: 'synthetic',
       correlationId: snapshot.correlationId,
     });
@@ -56,7 +53,7 @@ describe('section-aware Microsoft snapshot', () => {
     const snapshot = await getPlatformSnapshotV2(testEnv, PLATFORM_CAPABILITIES, source);
     expect(snapshot.unavailableSections).toEqual([...PLATFORM_SOURCE_SECTIONS_V2]);
     expect(snapshot.retryAfterSeconds).toBe(30);
-    expect(platformRouteUnavailableV2('configuracoes', snapshot)).toBe(true);
+    expect(platformRouteUnavailableV2('configuracoes', snapshot)).toBe(false);
     expect(snapshot.coreModules.length).toBeGreaterThan(0);
     expect(JSON.stringify(snapshot)).not.toContain('synthetic-sensitive');
     expect(source.pages).not.toHaveBeenCalled();
@@ -96,7 +93,7 @@ describe('section-aware Microsoft snapshot', () => {
     expect(source.token).not.toHaveBeenCalled();
     const snapshot = await getPlatformSnapshotV2(testEnv, ['platform.snapshot.read'], source);
     expect(source.token).toHaveBeenCalledOnce(); expect(source.pages).toHaveBeenCalledOnce();
-    expect(snapshot.configurations).toEqual([]); expect(snapshot.recentAudit).toEqual([]);
+    expect(snapshot.registeredModules).toEqual([]); expect(snapshot.operational).toBeNull();
   });
   it('distinguishes missing lists from an unreadable list catalogue', async () => {
     const source = dependencies();
@@ -106,12 +103,12 @@ describe('section-aware Microsoft snapshot', () => {
     expect(snapshot.foundation).toMatchObject({ status: 'degraded', missingPlatformLists: EXPECTED_PLATFORM_LISTS });
   });
   it('rejects malformed nested data before rendering and keeps static planned pages independent', () => {
-    const snapshot = buildPlatformSnapshot({ lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId: 'synthetic' }, PLATFORM_CAPABILITIES);
-    expect(platformSnapshotSchemaV2.safeParse({ ...snapshot, configurations: [{}] }).success).toBe(false);
+    const snapshot = buildPlatformSnapshot({ lists: [], moduleItems: [], correlationId: 'synthetic' }, PLATFORM_CAPABILITIES);
+    expect(platformSnapshotSchemaV2.safeParse({ ...snapshot, registeredModules: [{}] }).success).toBe(false);
     expect(platformSnapshotSchemaV2.safeParse({ ...snapshot, unavailableSections: ['untrusted'] }).success).toBe(false);
     expect(platformRouteNeedsMicrosoftV2('banco-de-notas')).toBe(false);
     expect(platformRouteNeedsMicrosoftV2('painel-do-aluno')).toBe(false);
-    expect(platformRouteNeedsMicrosoftV2('operacao', 'audit')).toBe(true);
+    expect(platformRouteNeedsMicrosoftV2('configuracoes')).toBe(false);
     expect(platformRouteNeedsMicrosoftV2('operacao')).toBe(false);
     expect(platformRouteUnavailableV2('operacao', { ...snapshot, unavailableSections: [...PLATFORM_SOURCE_SECTIONS_V2] })).toBe(false);
   });
@@ -154,9 +151,9 @@ describe('platform snapshot cache (issue #1426, 20)', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     forgetPlatformSnapshotsV2();
     let clock = 1_000_000;
-    const partial = dependencies('PLATAFORMA_AUDITORIA');
+    const partial = dependencies('PLATAFORMA_MODULOS');
     const read = (source: PlatformSnapshotDependenciesV2) => getPlatformSnapshotCachedV2(testEnv, PLATFORM_CAPABILITIES, source, () => clock);
-    expect((await read(partial)).unavailableSections).toContain('audit');
+    expect((await read(partial)).unavailableSections).toContain('modules');
     await read(partial);
     expect(partial.token).toHaveBeenCalledTimes(2);
     const healthy = dependencies();
