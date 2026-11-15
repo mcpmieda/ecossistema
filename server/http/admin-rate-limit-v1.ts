@@ -178,25 +178,29 @@ function gradebookFailureBodyV1(
   payload: PayloadV1,
   state: ReturnType<typeof failureStateV1>,
 ) {
-  if (path === RECONCILIATION_ROUTE_V1) return { contractVersion: 1, state };
-  if (path === '/api/gradebook/import-persistence') return { transportVersion: 9, state };
-  if (path === '/api/gradebook/import-diagnostics') return { version: 1, state };
-  if (path === '/api/gradebook/performance')
-    return { transportVersion: performanceVersionV1(payload.transportVersion), state };
-  if (path === '/api/gradebook/operational-workspace')
-    return { contractVersion: payload.contractVersion === 2 ? 2 : 1, state };
-  if (path === '/api/gradebook/council-workspace')
-    return payload.contractVersion === 3 ? { contractVersion: 3, state } : null;
-  if (path === '/api/gradebook/bulletins') {
-    if (payload.contractVersion === 2)
-      return { contractVersion: 2, operation: payload.operation, state };
-    return null;
-  }
-  if (path === '/api/gradebook/frequency/v2') return { contractVersion: 2, state };
+  const shape = GRADEBOOK_FAILURE_SHAPES_V1[path];
+  if (shape) return shape(payload, state);
   if (path.startsWith('/api/gradebook/') && !path.includes('/admin/'))
     return { contractVersion: 1, state };
   return undefined;
 }
+
+type FailureShapeV1 = (payload: PayloadV1, state: ReturnType<typeof failureStateV1>) => object | null;
+
+const GRADEBOOK_FAILURE_SHAPES_V1: Readonly<Record<string, FailureShapeV1>> = {
+  [RECONCILIATION_ROUTE_V1]: (_payload, state) => ({ contractVersion: 1, state }),
+  '/api/gradebook/import-persistence': (_payload, state) => ({ transportVersion: 9, state }),
+  '/api/gradebook/import-diagnostics': (_payload, state) => ({ version: 1, state }),
+  '/api/gradebook/performance': (payload, state) =>
+    ({ transportVersion: performanceVersionV1(payload.transportVersion), state }),
+  '/api/gradebook/operational-workspace': (payload, state) =>
+    ({ contractVersion: payload.contractVersion === 2 ? 2 : 1, state }),
+  '/api/gradebook/council-workspace': (payload, state) =>
+    (payload.contractVersion === 3 ? { contractVersion: 3, state } : null),
+  '/api/gradebook/bulletins': (payload, state) =>
+    (payload.contractVersion === 2 ? { contractVersion: 2, operation: payload.operation, state } : null),
+  '/api/gradebook/frequency/v2': (_payload, state) => ({ contractVersion: 2, state }),
+};
 
 function failureBody(path: string, payload: PayloadV1, status: number) {
   const state = failureStateV1(status);
