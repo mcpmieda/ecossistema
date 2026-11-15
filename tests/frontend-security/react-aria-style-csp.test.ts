@@ -29,6 +29,8 @@ it("allows React Aria's injected pressable style by its exact hash, and nothing 
     'public/_headers': readFileSync('public/_headers', 'utf8'),
     'server/http/security.ts': SECURITY_HEADERS['Content-Security-Policy']!,
     'Portal edge': portal.match(/'Content-Security-Policy', "([^"]+)"/u)?.[1] ?? '',
+    // The Portal's hashed assets get the same policy from Pages (issue #1450, 17a).
+    'Portal assets (build-edge.mjs)': readFileSync('workers/student-portal/build-edge.mjs', 'utf8').match(/const ASSET_CSP_V1 = "([^"]+)"/u)?.[1] ?? '',
   };
   for (const [where, policy] of Object.entries(policies)) {
     expect(policy.match(/style-src ([^;]+)/u)?.[1], where).toBe(`'self' ${hash}`);
