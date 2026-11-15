@@ -106,13 +106,12 @@ it.each(['envelope', 'private source', 'public source', 'future envelope'])('doe
   expect(metric('Leitura técnica do banco').queryByText('20 ms')).toBeNull();
 });
 
-it('expires a previously normal sample without treating a repeated response as a new collection', async () => {
+it('reads only when Saúde opens or on Atualizar, never on a clock (owner decision 15/11/2026)', async () => {
   render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
   expect(screen.getByRole('heading', { name: 'Verificações básicas normais' })).toBeTruthy();
-  await advance(135_000);
-  expect(readHealth).toHaveBeenCalledTimes(3);
-  expect(screen.getByRole('heading', { name: 'Não há confirmação suficiente' })).toBeTruthy();
-  expect(screen.queryByText('Normal')).toBeNull();
+  await advance(600_000);
+  expect(readHealth).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('heading', { name: 'Verificações básicas normais' })).toBeTruthy();
   expect(screen.getByText('Última coleta: 21/09/2026, 15:00:00 (Bahia)')).toBeTruthy();
 });
 
@@ -185,7 +184,7 @@ it('discards the previous identity sample and rejects its late response', async 
   expect(readHealth).toHaveBeenCalledTimes(3);
 });
 
-it.each(['hidden', 'offline'])('pauses reads while %s and resumes once when available', async (condition) => {
+it.each(['hidden', 'offline'])('pauses while %s and does not read again on return', async (condition) => {
   render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
   if (condition === 'hidden') Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
   else Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
@@ -199,7 +198,8 @@ it.each(['hidden', 'offline'])('pauses reads while %s and resumes once when avai
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
   await act(async () => { window.dispatchEvent(new Event('online')); document.dispatchEvent(new Event('visibilitychange')); }); await flush();
-  expect(readHealth).toHaveBeenCalledTimes(2);
+  // Back on the window the screen keeps the reading it has: a new one only on Atualizar or F5.
+  expect(readHealth).toHaveBeenCalledTimes(1);
   expect(screen.queryByText('Atualização pausada.')).toBeNull();
   expect(screen.getByRole('heading', { name: 'Verificações básicas normais' })).toBeTruthy();
 });
