@@ -1,5 +1,6 @@
 import { gradebookImportDiagnosticTextV1 } from '../../../shared/gradebook-contracts/imports/import-diagnostic-texts-v1';
 import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../../../server/gradebook/http/live-after-commit-v1';
+import { readBoundedTextV1 } from '../../../server/http/bounded-text-v1';
 import type { RuntimeEnv } from '../../../server/env';
 import { validateEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
@@ -34,8 +35,8 @@ function response(value: GradebookImportDiagnosticsAuditWriteResponseV1 | Gradeb
   return Response.json(value, { status, headers: headers() });
 }
 async function readPayload(request: Request): Promise<unknown> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > GRADEBOOK_IMPORT_DIAGNOSTICS_BODY_BYTES_V1) throw new HttpError(413, 'Payload too large');
+  // Refused as soon as it passes the limit, never read whole first (issue #1450, 102).
+  const { text } = await readBoundedTextV1(request, GRADEBOOK_IMPORT_DIAGNOSTICS_BODY_BYTES_V1);
   try { return JSON.parse(text) as unknown; } catch { return null; }
 }
 function asInteger(value: unknown): number {
