@@ -494,7 +494,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const source = sourceOfV1(item, sources);
       const current = this.file(item.id);
       if (!source && !(item.deleted && current)) continue;
-      if (source && !item.deleted && (current === null || current.modifiedAt !== item.lastModifiedDateTime
+      if (source && !item.deleted && (current?.modifiedAt !== item.lastModifiedDateTime
         || current.hash !== item.quickXorHash)) saved = true;
       const next = observeFileV1(current, {
         id: item.id, name: item.name, size: item.size, modifiedAt: item.lastModifiedDateTime, hash: item.quickXorHash, deleted: item.deleted,
