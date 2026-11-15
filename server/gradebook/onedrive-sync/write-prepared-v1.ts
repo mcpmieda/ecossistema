@@ -13,7 +13,7 @@ import {
   replaceGradebookImportDiagnosticsSnapshotV1,
 } from '../application/import/import-diagnostics-snapshot-v1';
 import { createImportPerformanceObserverV1, emitImportPerformanceV1 } from '../persistence/postgres/import-performance-observer-v1';
-import type { GradebookPostgresDatabaseV1 } from '../persistence/postgres/postgres-database-v1';
+import type { GradebookPostgresDatabaseV1, GradebookPostgresReadPortV1 } from '../persistence/postgres/postgres-database-v1';
 import type { ReadResultV1, SyncMemoryV1 } from './sync-rules-v1';
 import { holdNameMismatchesV1, relationReviewItemsV1, studentKeyV1, wrongYearAuditV1 } from './server-audit-v1';
 
@@ -77,7 +77,7 @@ export type WritePortsV1 = {
 };
 
 /** The system's Relação of a year: number in the class → the student's name. */
-export async function relationNamesV1(database: GradebookPostgresDatabaseV1, year: number): Promise<ReadonlyMap<string, string>> {
+export async function relationNamesV1(database: GradebookPostgresReadPortV1, year: number): Promise<ReadonlyMap<string, string>> {
   const rows = await database.query<{ codigo: string; numero: number; nome: string }>(
     `SELECT t.codigo, v.numero, a.nome
        FROM gradebook.vinculo v

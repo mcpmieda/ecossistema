@@ -12,7 +12,14 @@ import type { GradebookPostgresWritePortV1 } from '../../../server/gradebook/per
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import type { OneDriveSyncServiceBindingV1 } from '../../../server/gradebook/http/onedrive-sync-routes-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
-import { dropUnboundStudentsV1, isNotesRequestV1, loadBoundStudentsV1, withUnboundWarningsV1 } from '../../../server/gradebook/application/import/unbound-students-v1';
+import {
+  boundStudentsFromNamesV1,
+  dropUnboundStudentsV1,
+  holdManualNameMismatchesV1,
+  isNotesRequestV1,
+  withUnboundWarningsV1,
+} from '../../../server/gradebook/application/import/unbound-students-v1';
+import { relationNamesV1 } from '../../../server/gradebook/onedrive-sync/write-prepared-v1';
 import {
   createImportPerformanceObserverV1,
   emitImportPerformanceV1,
@@ -151,9 +158,12 @@ async function handle(
     let sent: GradebookImportPersistenceRequestV9 = canonical;
     let unbound: GradebookRelationWarningV9[] = [];
     if (isNotesRequestV1(canonical)) {
-      const dropped = dropUnboundStudentsV1(canonical, await loadBoundStudentsV1(database, canonical.ano));
-      sent = dropped.request;
-      unbound = dropped.warnings;
+      // One read of the Relação, with names: the numbers it has and, for rule 14, who they are (#1477).
+      const relation = await relationNamesV1(database, canonical.ano);
+      const dropped = dropUnboundStudentsV1(canonical, boundStudentsFromNamesV1(relation));
+      const held = holdManualNameMismatchesV1(dropped.request, relation);
+      sent = held.request;
+      unbound = [...dropped.warnings, ...held.warnings];
     }
     const result = withUnboundWarningsV1(await createGradebookRelationalImportServiceV11(
       observer.wrap(database),

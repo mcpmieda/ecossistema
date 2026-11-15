@@ -9,6 +9,7 @@ import {
 } from '../../../src/features/gradebook/import/import-diagnostics-v1';
 import type { SheetJs } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
 import { createFastTeacherSheetJsV1 } from '../../../src/features/gradebook/import/workbook-fast-read-v1';
+import { gradebookSheetStudentNamesV1 } from '../../../src/features/gradebook/import/sheet-student-names-v1';
 import { studentKeyV1 } from './server-audit-v1';
 
 /**
@@ -76,14 +77,8 @@ export async function prepareTeacherWorkbookV1(input: {
     if (blocking > 0) return { outcome: 'blocked', audit, summary };
     return { outcome: 'unreadable', code: 'CANONICAL-REJECTED', summary };
   }
-  const studentNames = new Map<string, string>();
-  for (const sheet of success.summary.gradeSheets) {
-    if (!sheet.stage.startsWith('trimester-')) continue;
-    for (const student of sheet.students) {
-      const number = Number(student.number.trim());
-      if (Number.isSafeInteger(number) && number > 0) studentNames.set(studentKeyV1(sheet.className, number), student.name);
-    }
-  }
+  const studentNames = new Map(gradebookSheetStudentNamesV1(success)
+    .map(([classCode, number, name]) => [studentKeyV1(classCode, number), name] as const));
   return {
     outcome: 'ready',
     request,

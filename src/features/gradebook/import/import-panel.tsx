@@ -16,6 +16,7 @@ import { RelationMovementReviewV9 } from './relation-movement-review-v9';
 import { FrequencyPanelV2 } from './frequency-panel-v2';
 import type { FrequencyAdminClientV2 } from './frequency-client-v2';
 import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
+import type { GradebookRelationWarningV9 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 
 const PROGRESS_STAGE = {
   preparing: ['Preparando e calculando SHA-256', 10],
@@ -155,23 +156,38 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
         {'reason' in response ? <Alert.Description>{response.reason}</Alert.Description> : null}
         {'warnings' in response && response.warnings?.length ? (
           <ul className="mt-2 space-y-1 text-sm">
-            {response.warnings.map((warning) =>
-              warning.code === 'student-not-in-relation' ? (
-                <li key={`fora:${warning.classCode}:${warning.number}`}>
-                  Aluno nº {warning.number} da {warning.classCode} não está na Relação do sistema: as notas
-                  dele não foram lançadas. Envie a Relação atualizada.
-                </li>
-              ) : (
-                <li key={`${warning.classCode}:${warning.number}:${warning.relatedClassCode}`}>
-                  Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira
-                  a grafia.
-                </li>
-              ),
-            )}
+            {response.warnings.map((warning) => (
+              <RelationWarningV1
+                key={`${warning.code}:${warning.classCode}:${warning.number}:${'relatedClassCode' in warning ? warning.relatedClassCode : ''}`}
+                warning={warning}
+              />
+            ))}
           </ul>
         ) : null}
       </Alert.Content>
     </Alert>
+  );
+}
+
+function RelationWarningV1({ warning }: Readonly<{ warning: GradebookRelationWarningV9 }>) {
+  if (warning.code === 'student-name-mismatch')
+    return (
+      <li>
+        Aluno nº {warning.number} da {warning.classCode} com nome diferente da Relação: as notas
+        dele não foram lançadas. Confira o número e o nome na planilha.
+      </li>
+    );
+  if (warning.code === 'student-not-in-relation')
+    return (
+      <li>
+        Aluno nº {warning.number} da {warning.classCode} não está na Relação do sistema: as notas
+        dele não foram lançadas. Envie a Relação atualizada.
+      </li>
+    );
+  return (
+    <li>
+      Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira a grafia.
+    </li>
   );
 }
 
