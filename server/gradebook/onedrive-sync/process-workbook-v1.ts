@@ -79,6 +79,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   let workbook: ReadResultV1['workbook'];
   const writeInput: WriteInputV1 = {
     name: input.name, modifiedAt: input.modifiedAt, expectedYear: input.expectedYear, memory: input.memory ?? null,
+    origin: `onedrive:${input.itemId}`,
   };
 
   // The connection and the Relação are asked for while the workbook downloads (the connection

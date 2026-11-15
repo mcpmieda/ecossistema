@@ -58,6 +58,7 @@ beforeAll(async () => {
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql','utf8'));
   await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
   await pg.exec(readFileSync('migrations/gradebook-simplified/0006_import_diagnostic_treatment_v1.sql','utf8'));
+  await pg.exec(readFileSync('migrations/gradebook-simplified/0019_import_diagnostics_origin_v1.sql','utf8'));
   await installResetSchemaFixtureV1(pg);
   await pg.exec(`INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho)
     VALUES (2090,60000,2),(2091,60000,2)`);
@@ -498,5 +499,39 @@ describe('diagnostic HTTP integration with synthetic identity and real SQL trans
       expect(await state()).toEqual(previous);
       expect(log).toHaveBeenCalledWith(JSON.stringify({message:'gradebook_import_diagnostics_failed'}));
     } finally { log.mockRestore(); }
+  });
+});
+
+describe('one snapshot per origin (issue #1462)', () => {
+  const origins = async () => (await pg.query<Row>(
+    'SELECT origem,arquivo,chave FROM gradebook.importacao_diagnostico ORDER BY origem,chave')).rows;
+
+  it('keeps two workbooks with the same name from different origins', async () => {
+    await replace(database, { ...observation(['drive-a']), origin: 'onedrive:SYN-ITEM-A' });
+    await replace(database, { ...observation(['drive-b'], { hash: 'b' }), origin: 'onedrive:SYN-ITEM-B' });
+    await replace(database, observation(['manual'], { hash: 'c' }));
+    expect(await origins()).toEqual([
+      { origem: 'manual', arquivo: 'synthetic.xlsx', chave: 'manual' },
+      { origem: 'onedrive:SYN-ITEM-A', arquivo: 'synthetic.xlsx', chave: 'drive-a' },
+      { origem: 'onedrive:SYN-ITEM-B', arquivo: 'synthetic.xlsx', chave: 'drive-b' },
+    ]);
+    // An empty observation clears only its own origin.
+    await replace(database, { ...observation([]), origin: 'onedrive:SYN-ITEM-A' });
+    expect((await origins()).map((row) => row.origem)).toEqual(['manual', 'onedrive:SYN-ITEM-B']);
+  });
+
+  it('keeps the same bytes from two origins, and replaces rows written before the origin existed', async () => {
+    await pg.exec(`INSERT INTO gradebook.importacao_diagnostico (ano,origem,arquivo,hash,chave,nivel,codigo,campo)
+      VALUES (2090,'legacy','synthetic.xlsx',decode(repeat('a',64),'hex'),'old','blocking-error','invalid-text','assessment')`);
+    await replace(database, { ...observation(['same']), origin: 'onedrive:SYN-ITEM-A' });
+    await replace(database, observation(['same']));
+    expect(await origins()).toEqual([
+      { origem: 'manual', arquivo: 'synthetic.xlsx', chave: 'same' },
+      { origem: 'onedrive:SYN-ITEM-A', arquivo: 'synthetic.xlsx', chave: 'same' },
+    ]);
+  });
+
+  it('refuses an origin outside the contract', async () => {
+    await expect(replace(database, { ...observation(), origin: 'legacy' })).rejects.toThrow('invalid-import-diagnostics-snapshot');
   });
 });

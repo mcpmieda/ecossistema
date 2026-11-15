@@ -87,6 +87,7 @@ export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
   '0013_default_privileges_hardening_v1.sql',
   '0014_function_execute_hardening_v1.sql',
   '0017_drop_ano_letivo_historico_v1.sql',
+  '0019_import_diagnostics_origin_v1.sql',
   'current_cross_schema_indexes_v1.sql',
 ] as const;
 

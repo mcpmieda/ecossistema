@@ -33,6 +33,8 @@ export type PreparedWorkbookV1 =
 
 export type WriteInputV1 = {
   readonly name: string;
+  /** The Auditoria snapshot of this file: 'onedrive:<Graph item id>' (issue #1462). */
+  readonly origin?: string;
   readonly modifiedAt: string;
   readonly expectedYear: number | null;
   readonly memory: SyncMemoryV1 | null;
@@ -157,8 +159,9 @@ type WriteContextV1 = {
 };
 
 /** The Auditoria snapshot is written only when it differs from the last one written. */
-async function writeAuditV1(context: WriteContextV1, audit: GradebookImportDiagnosticsAuditRequestV1): Promise<string> {
-  const print = await fingerprintV1([audit.academicYear, audit.fileName, audit.diagnostics]);
+async function writeAuditV1(context: WriteContextV1, base: GradebookImportDiagnosticsAuditRequestV1): Promise<string> {
+  const audit = context.input.origin === undefined ? base : { ...base, origin: context.input.origin };
+  const print = await fingerprintV1([audit.academicYear, audit.origin ?? null, audit.fileName, audit.diagnostics]);
   if (context.previous?.audit !== print) {
     // The retry waits outside the write turn, so other workbooks write meanwhile (issue #1450, 4).
     await withLockRetryV1(() => context.turn(() => context.services.recordAudit(context.ports.database, audit)), context.ports.sleep);

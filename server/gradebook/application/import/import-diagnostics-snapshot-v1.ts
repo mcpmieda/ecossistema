@@ -42,6 +42,9 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
   // Capture all scalar input before the first await; later caller mutation is irrelevant.
   const { academicYear, fileName } = request;
   const sha256 = request.sha256.toLowerCase();
+  // Each origin keeps its own snapshot (issue #1462); 'legacy' rows predate the origin and are
+  // replaced by the next snapshot of the same file from any origin.
+  const origin = request.origin ?? 'manual';
   // The persistent Audit is intentionally narrower than the import preflight.
   // Keep only findings that require human action: all blocking errors plus the
   // actionable warnings (above-maximum, maxima over the qualitative ceiling, grade
@@ -52,6 +55,7 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
     .filter((item) => item.severity === 'blocking-error' || GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1.has(item.code))
     .map((item) => ({
       ano: academicYear,
+      origem: origin,
       arquivo: fileName,
       hash_hex: sha256,
       chave: item.key,
@@ -92,8 +96,8 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
             await transaction.query<{ ano: number }>(
                 `SELECT DISTINCT ano FROM gradebook.importacao_diagnostico
        WHERE ((ano IS NOT DISTINCT FROM $1 AND arquivo = $2) OR hash = decode($3, 'hex'))
-         AND ano IS NOT NULL ORDER BY ano`,
-              [academicYear, fileName, sha256],
+         AND origem IN ($4, 'legacy') AND ano IS NOT NULL ORDER BY ano`,
+              [academicYear, fileName, sha256, origin],
             )
           ).map((row) => row.ano);
         const years = [
@@ -136,8 +140,9 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
          || jsonb_build_object('hash_hex',encode(d.hash,'hex'))
          ORDER BY d.chave COLLATE "C"), '[]'::jsonb) = $1::jsonb AS unchanged
        FROM gradebook.importacao_diagnostico d
-       WHERE (ano IS NOT DISTINCT FROM $2 AND arquivo = $3) OR hash = decode($4, 'hex')`,
-          [postgresJsonTextV1(serialized), academicYear, fileName, sha256],
+       WHERE ((ano IS NOT DISTINCT FROM $2 AND arquivo = $3) OR hash = decode($4, 'hex'))
+         AND origem IN ($5, 'legacy')`,
+          [postgresJsonTextV1(serialized), academicYear, fileName, sha256, origin],
         )).rows[0];
         if (!current) throw new Error('import-diagnostics-snapshot-state-unavailable');
         const previousYears = JSON.parse(current.previous_years_json) as number[];
@@ -170,15 +175,22 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
            WHERE x.ano IS NOT DISTINCT FROM a.ano
              AND x.arquivo = a.arquivo
              AND x.chave = a.chave
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM gradebook.importacao_diagnostico other
+           WHERE other.origem NOT IN ($5, 'legacy')
+             AND other.ano IS NOT DISTINCT FROM a.ano
+             AND other.arquivo = a.arquivo
+             AND other.chave = a.chave
          )`,
-          [academicYear, fileName, sha256, postgresJsonTextV1(serialized)],
+          [academicYear, fileName, sha256, postgresJsonTextV1(serialized), origin],
         );
 
         const cleared = await transaction.executeNative(
             `DELETE FROM gradebook.importacao_diagnostico
-       WHERE (ano IS NOT DISTINCT FROM $1 AND arquivo = $2)
-          OR hash = decode($3, 'hex')`,
-          [academicYear, fileName, sha256],
+       WHERE ((ano IS NOT DISTINCT FROM $1 AND arquivo = $2) OR hash = decode($3, 'hex'))
+         AND origem IN ($4, 'legacy')`,
+          [academicYear, fileName, sha256, origin],
         );
         const clearedCount = cleared.changes;
         if (rows.length === 0) {
@@ -188,13 +200,13 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
 
         const inserted = await transaction.executeNative(
             `INSERT INTO gradebook.importacao_diagnostico
-        (ano,arquivo,hash,chave,nivel,codigo,turma_codigo,disciplina,periodo,
+        (ano,origem,arquivo,hash,chave,nivel,codigo,turma_codigo,disciplina,periodo,
          aluno_numero,campo,rotulo,valor_encontrado,causa,guia,celula)
-       SELECT x.ano,x.arquivo,decode(x.hash_hex,'hex'),x.chave,x.nivel,x.codigo,
+       SELECT x.ano,x.origem,x.arquivo,decode(x.hash_hex,'hex'),x.chave,x.nivel,x.codigo,
               x.turma_codigo,x.disciplina,x.periodo,x.aluno_numero,x.campo,x.rotulo,
               x.valor_encontrado,x.causa,x.guia,x.celula
        FROM jsonb_to_recordset($1::jsonb) AS x(
-         ano smallint,arquivo text,hash_hex text,chave text,nivel text,codigo text,
+         ano smallint,origem text,arquivo text,hash_hex text,chave text,nivel text,codigo text,
          turma_codigo text,disciplina text,periodo text,aluno_numero smallint,
          campo text,rotulo text,valor_encontrado text,causa text,guia text,celula text
        )`,

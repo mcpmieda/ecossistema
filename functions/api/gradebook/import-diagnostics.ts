@@ -116,7 +116,7 @@ async function handle(request: Request, env: RuntimeEnv, afterCommit: GradebookA
   enforceWriteOrigin(request, env);
   const payload = await readPayload(request);
   if (!isGradebookImportDiagnosticsAuditRequestV1(payload)) return response({version:1,state:'invalid-request'},400);
-  const affected = await replaceGradebookImportDiagnosticsSnapshotV1(database,payload);
+  const affected = await replaceGradebookImportDiagnosticsSnapshotV1(database,{ ...payload, origin: 'manual' });
   if (affected > 0) afterCommit(session);
   return response({version:1,state:'recorded',affected});
 }
