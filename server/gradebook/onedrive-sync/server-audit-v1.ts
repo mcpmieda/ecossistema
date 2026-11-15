@@ -113,7 +113,6 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
   { readonly request: GradebookNotesImportRequestV9; readonly items: GradebookImportDiagnosticAuditItemV1[] } {
   const items: GradebookImportDiagnosticAuditItemV1[] = [];
   const classes = new Set([...relationNames.keys()].map((key) => key.slice(0, key.lastIndexOf('|'))));
-  const notInRelation = gradebookImportDiagnosticTextV1('student-not-in-relation');
   const nameMismatch = gradebookImportDiagnosticTextV1('student-name-mismatch');
   const ofertas = request.ofertas.map((offer) => {
     const held = new Set<number>();
@@ -123,37 +122,13 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
     // A class the Relação does not have at all stays in the request, so the database refuses the
     // file as in the manual import (BN-DEC-046, 14b): one finding for the class, not one per student.
     if (relationNames.size > 0 && !classes.has(offer.turmaCodigo.trim().toUpperCase())) {
-      items.push({
-        key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}`.slice(0, 320),
-        severity: 'blocking-error',
-        code: 'student-not-in-relation',
-        message: notInRelation.message,
-        recommendedAction: notInRelation.action,
-        classCode: offer.turmaCodigo,
-        subject: offer.disciplina,
-        fieldKind: 'file',
-        foundValue: offer.turmaCodigo.slice(0, 240),
-      });
+      items.push(classNotInRelationItemV1(offer));
       return offer;
     }
     if (relationNames.size > 0) {
-      const numbers = new Set([...offer.trimestres.flatMap((term) => term.alunos.map(([numero]) => numero)),
-        ...(offer.recuperacao ?? []).map(([numero]) => numero)]);
-      for (const numero of numbers) {
-        if (relationNames.has(studentKeyV1(offer.turmaCodigo, numero))) continue;
-        missing.add(numero);
-        items.push({
-          key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(0, 320),
-          severity: 'blocking-error',
-          code: 'student-not-in-relation',
-          message: notInRelation.message,
-          recommendedAction: notInRelation.action,
-          classCode: offer.turmaCodigo,
-          subject: offer.disciplina,
-          studentNumber: numero,
-          fieldKind: 'student',
-          ...(sheetNames.get(studentKeyV1(offer.turmaCodigo, numero)) ? { foundValue: sheetNames.get(studentKeyV1(offer.turmaCodigo, numero))!.slice(0, 240) } : {}),
-        });
+      for (const item of studentsNotInRelationV1(offer, sheetNames, relationNames)) {
+        missing.add(item.studentNumber!);
+        items.push(item);
       }
     }
     for (const [numero] of offer.trimestres[0].alunos) {
@@ -182,6 +157,47 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
 }
 
 type OfferV1 = GradebookNotesImportRequestV9['ofertas'][number];
+
+/** A class the Relação does not have at all: one finding for the class (BN-DEC-046, 14b). */
+function classNotInRelationItemV1(offer: OfferV1): GradebookImportDiagnosticAuditItemV1 {
+  const text = gradebookImportDiagnosticTextV1('student-not-in-relation');
+  return {
+    key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}`.slice(0, 320),
+    severity: 'blocking-error',
+    code: 'student-not-in-relation',
+    message: text.message,
+    recommendedAction: text.action,
+    classCode: offer.turmaCodigo,
+    subject: offer.disciplina,
+    fieldKind: 'file',
+    foundValue: offer.turmaCodigo.slice(0, 240),
+  };
+}
+
+/** The students of a class the Relação has, whose number it does not have: one finding each. */
+function studentsNotInRelationV1(offer: OfferV1, sheetNames: ReadonlyMap<string, string>,
+  relationNames: ReadonlyMap<string, string>): GradebookImportDiagnosticAuditItemV1[] {
+  const text = gradebookImportDiagnosticTextV1('student-not-in-relation');
+  const numbers = new Set([...offer.trimestres.flatMap((term) => term.alunos.map(([numero]) => numero)),
+    ...(offer.recuperacao ?? []).map(([numero]) => numero)]);
+  return [...numbers]
+    .filter((numero) => !relationNames.has(studentKeyV1(offer.turmaCodigo, numero)))
+    .map((numero) => {
+      const sheetName = sheetNames.get(studentKeyV1(offer.turmaCodigo, numero));
+      return {
+        key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(0, 320),
+        severity: 'blocking-error' as const,
+        code: 'student-not-in-relation' as const,
+        message: text.message,
+        recommendedAction: text.action,
+        classCode: offer.turmaCodigo,
+        subject: offer.disciplina,
+        studentNumber: numero,
+        fieldKind: 'student' as const,
+        ...(sheetName ? { foundValue: sheetName.slice(0, 240) } : {}),
+      };
+    });
+}
 type TermRowV1 = OfferV1['trimestres'][number]['alunos'][number];
 type RecoveryRowV1 = NonNullable<OfferV1['recuperacao']>[number];
 
