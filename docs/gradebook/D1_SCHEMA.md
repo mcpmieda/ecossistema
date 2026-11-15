@@ -1,5 +1,7 @@
 # Schema D1 V1 do Banco de Notas
 
+> **Documento histórico.** O D1 acadêmico foi aposentado (#1079) e o código descrito aqui não existe mais. O estado atual está em [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md): produção usa PostgreSQL/Supabase via Hyperdrive `PROD_DB`.
+
 ## Estado e limite
 
 O catálogo canônico de código/local está integrado até a migration 0005. As migrations 0001–0005 resultam em schema version 5 / 27 tabelas em local/preview e testes sintéticos.

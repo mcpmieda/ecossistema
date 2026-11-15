@@ -1,5 +1,7 @@
 # Adaptador D1 local de escrita e promoção transacional V1
 
+> **Documento histórico.** O D1 acadêmico foi aposentado (#1079) e o código descrito aqui não existe mais. O estado atual está em [STORAGE_RUNTIME_MAP.md](STORAGE_RUNTIME_MAP.md): produção usa PostgreSQL/Supabase via Hyperdrive `PROD_DB`.
+
 ## Escopo
 
 O adaptador implementa localmente as escritas físicas exigidas por `executeImportChangePlan`, sem criar banco, binding, secret, endpoint, runner de migrations ou recurso remoto. O domínio e o executor continuam consumindo somente as portas públicas V1.
