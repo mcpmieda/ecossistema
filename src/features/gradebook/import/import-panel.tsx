@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Chip, ProgressBar, Surface, Tabs } from '@heroui/react';
 import { Check, FileSpreadsheet, Upload, Users } from 'lucide-react';
+import { MAX_NOTES_IMPORT_FILES } from './import-batch';
 import {
   useImportBatch,
   type ImportFlowProgressV9,
