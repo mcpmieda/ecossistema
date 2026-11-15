@@ -135,7 +135,7 @@ testes próprios; aplicada com postflight em 05/10/2026, 18:11 UTC. Ver [plano d
 Operador Cloudflare oficial de 05/10 às 14:25:21 UTC (run 37324541179) informa Worker/Pages
 presentes, deployment success e PORTAL_DB sem cache/limite de 8 conexões. Não coleta TLS,
 CA/hostname nem bindings de rate limit nessa versão anterior do diagnóstico.
-TLS Hyperdrive efetivo/verify-full e exposição Data API permanecem pendentes. ssl=on e TLS1.2
+TLS Hyperdrive: desde 15/11/2026, 14:52 UTC, os três Hyperdrive (gradebook-official-no-cache, student-portal-no-cache, ecossistema-collector-auth) usam `sslmode verify-full` com a CA `Supabase Root 2021 CA` enviada à Cloudflare (#1473); a Cloudflare validou cada conexão antes de salvar. Exposição Data API permanece pendente. ssl=on e TLS1.2
 no PostgreSQL não demonstram validação de hostname no Hyperdrive. Nenhum dado de aluno foi consultado e nenhuma carga produtiva foi executada.
 A única mudança SQL desta entrega é a ACL pontual documentada no postflight.
 
