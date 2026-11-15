@@ -30,6 +30,8 @@ A classificação visual é proporcional ao limite anual configurado e classific
 
 O dashboard V5 acrescenta um ranking descritivo produzido no servidor: no máximo dez estudantes elegíveis, com valor numérico em todos os componentes, ordenados pelo somatório decrescente e com desempate estável por número/ID. O campo `partial` preserva a incompletude de qualquer componente. O ranking não é calculado na interface, não decide aprovação e não persiste resultado.
 
+Com `includePrevious: true` (2º ou 3º trimestre, sem comparação e fora da lente de avaliações), a mesma resposta traz em `previous` o painel do trimestre anterior, montado das mesmas projeções na mesma transação, para as setas de variação. Antes eram dois pedidos que liam os mesmos fatos da turma (#1471, achado 100 da #1450).
+
 ## Consulta, tamanho e frescor
 
 Cada resposta usa uma conexão/transação `REPEATABLE READ, READ ONLY`. Catálogo: três instruções; matriz e detalhes: até seis, incluindo SET e excluindo BEGIN/COMMIT. Uma consulta de fatos por recorte, não uma por aluno/componente. Descrição de instrumentos só é lida no detalhe de componente. A consulta de fatos abrange os três períodos da turma para resolver elegibilidade/resultado pelo núcleo; a resposta da matriz contém apenas os valores do período selecionado, não todas as avaliações do ano.

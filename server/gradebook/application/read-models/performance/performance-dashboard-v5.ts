@@ -13,7 +13,7 @@ import type { PerformanceProjectionV2 } from '../../results/relational-performan
 import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../../persistence/postgres/postgres-database-v1';
 
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
-import { buildPerformanceTermComparisonV4 } from './performance-term-comparison-v4';
+import { buildPerformanceTermComparisonV4, projectReferenceMatrix } from './performance-term-comparison-v4';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
 
 export function buildPerformanceDashboardOverviewV5(
@@ -147,12 +147,31 @@ export function createPerformanceDashboardV5(database: GradebookPostgresWritePor
                 }),
               );
         const analysis = view.operation === 'term-comparison' ? view.analysis : view;
+        // The previous trimester from the same facts: no second request, no second read (issue #1471).
+        const previousPeriod = request.includePrevious === true && typeof request.period === 'number'
+          ? request.period - 1 : null;
+        let previous = null;
+        if (previousPeriod === 1 || previousPeriod === 2) {
+          const before = buildPerformanceAnalysisV3(
+            projectReferenceMatrix(matrix, projections, previousPeriod),
+            projections,
+            dashboardAnalysisRequestV3({ ...request, period: previousPeriod, referencePeriod: null }),
+          );
+          previous = {
+            transportVersion: 5,
+            operation: 'dashboard',
+            state: 'ready',
+            view: before,
+            overview: buildPerformanceDashboardOverviewV5(before),
+          };
+        }
         const response = performanceDashboardResponseSchemaV5.parse({
           transportVersion: 5,
           operation: 'dashboard',
           state: 'ready',
           view,
           overview: buildPerformanceDashboardOverviewV5(analysis),
+          ...(previous === null ? {} : { previous }),
         });
         if (!performanceDashboardMatchesV5(request, response)) {
           throw new Error('inconsistent-dashboard-response');

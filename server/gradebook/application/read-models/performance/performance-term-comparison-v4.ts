@@ -18,7 +18,8 @@ import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1 
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
 
-function projectReferenceMatrix(
+/** The same class read projected on another trimester; no query. */
+export function projectReferenceMatrix(
   matrix: PerformanceMatrixV2,
   projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]>,
   period: 1 | 2,
