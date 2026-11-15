@@ -9,7 +9,9 @@ O Worker `notas-onedrive-sync` lê as planilhas de notas dos professores na past
 3. A leitura grava primeiro a Auditoria e depois as notas. Pelo bloqueio parcial (BN-DEC-045), um problema segura só a nota, o resultado ou a turma afetada; o resto é lançado.
 4. Depois de gravar, o Portal recebe o aviso ao vivo; a publicação continua sendo decidida na tela de publicação.
 5. Rede de segurança: *delta* de hora em hora (a cada minuto se o webhook não estiver ativo) e conferência completa da pasta às 03:00.
-6. Disjuntor: 5 falhas seguidas pausam a leitura por 15 minutos.
+6. Disjuntor: 5 leituras de planilha com falha seguidas pausam a leitura por 15 minutos. Erro ao listar o OneDrive só espera 1 min (ou o `Retry-After`) e não conta para o disjuntor; uma leitura que desiste de esperar a vez de gravar (`WRITE-QUEUE-DEADLINE`) também não conta.
+7. Cursor do delta recusado pela Microsoft (410) ou antigo demais: a leitura volta a listar as fontes a partir do cursor atual (`delta-resync`). Religar a leitura também começa do cursor atual.
+8. A Relação só é gravada quando vem de uma fonte de arquivo único; uma Relação dentro de uma pasta de planilhas fica `ignored` com `RELATION-OUTSIDE-SOURCE`.
 
 Apagar um arquivo da pasta **não apaga notas**: o arquivo só fica marcado como removido.
 
@@ -63,7 +65,7 @@ Mudanças:
 
 - **Fila de gravação no coordenador:** as leituras correm em paralelo; cada uma pede a vez (`beginWrite`/`endWrite`) antes de gravar Auditoria e notas. Vez não devolvida em 2 min é retomada. A repetição em `55P03` continua como reserva (a importação manual também grava).
 - **O coordenador não fica preso esperando um lote:** enquanto as leituras rodam, ele olha o aviso da Microsoft a cada 2 s e dispara novas leituras.
-- **Consulta direta a cada 10 s** das 06:00 às 23:00 (São Paulo), sem esperar o aviso da Microsoft.
+- **Consulta direta a cada 10 s** em dia letivo, de 30 min antes da primeira aula até 1 h depois da última (calendário e sinais do Portal, fuso America/Bahia; sem resposta do Portal, seg–sex 07:00–18:00), sem esperar o aviso da Microsoft.
 - O log `gradebook_import_performance` (`source: notas-sync`) mostra só números da gravação (comandos, linhas, milissegundos).
 
 ## Leitura perto do banco (14/11/2026)

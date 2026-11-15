@@ -8,6 +8,7 @@ import {
   graphFolderWorkbooksV1,
   graphLatestDeltaLinkV1,
   graphRenewSubscriptionV1,
+  DeltaResyncRequiredError,
   WorkbookTooLargeError,
   type GraphAppEnvV1,
 } from '../../../server/gradebook/onedrive-sync/graph-drive-v1';
@@ -87,6 +88,12 @@ describe('Graph drive access for the Notas sync', () => {
     const result = await graphDriveDeltaV1(await syntheticEnvV1(), 'd', null, graph.dependencies);
     expect(result.changes.map((item) => [item.id, item.deleted])).toEqual([['a', false], ['gone', true]]);
     expect(result.deltaLink).toBe('https://graph.microsoft.com/v1.0/drives/d/root/delta?token=next');
+  });
+
+  it('a cursor Graph no longer knows (410) asks for the sources to be listed again (issue #1450, 3)', async () => {
+    const graph = graphMockV1({ '/root/delta': () => new Response(null, { status: 410 }) });
+    await expect(graphDriveDeltaV1(await syntheticEnvV1(), 'd', 'https://graph.microsoft.com/v1.0/drives/d/root/delta?token=old', graph.dependencies))
+      .rejects.toBeInstanceOf(DeltaResyncRequiredError);
   });
 
   it('downloads the bytes and refuses files over the limit', async () => {

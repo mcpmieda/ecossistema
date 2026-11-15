@@ -112,6 +112,14 @@ async function fingerprintV1(value: unknown): Promise<string> {
 }
 
 /** Lock wait, deadlock and serialization failures: another write of the same year is running. */
+/** Thrown by the write turn when the read has no time left to wait for it. */
+export class WriteQueueDeadlineErrorV1 extends Error {
+  constructor() {
+    super('write-queue-deadline');
+  }
+}
+export const WRITE_QUEUE_DEADLINE_CODE_V1 = 'WRITE-QUEUE-DEADLINE';
+
 const LOCK_CONTENTION_CODES_V1 = new Set(['55P03', '40P01', '40001']);
 const LOCK_RETRY_DELAYS_MS_V1 = [500, 1_000, 2_000, 3_000, 4_000, 5_000] as const;
 const defaultSleepV1 = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); });
@@ -152,7 +160,8 @@ type WriteContextV1 = {
 async function writeAuditV1(context: WriteContextV1, audit: GradebookImportDiagnosticsAuditRequestV1): Promise<string> {
   const print = await fingerprintV1([audit.academicYear, audit.fileName, audit.diagnostics]);
   if (context.previous?.audit !== print) {
-    await context.turn(() => withLockRetryV1(() => context.services.recordAudit(context.ports.database, audit), context.ports.sleep));
+    // The retry waits outside the write turn, so other workbooks write meanwhile (issue #1450, 4).
+    await withLockRetryV1(() => context.turn(() => context.services.recordAudit(context.ports.database, audit)), context.ports.sleep);
   }
   context.stage('audit');
   return print;
@@ -190,7 +199,7 @@ async function writeRelationV1(context: WriteContextV1, audit: GradebookImportDi
     return context.done('no-changes', null, null, { audit: auditPrint, offers: { [RELATION_KEY_V1]: print } });
   }
   const { database, sleep } = context.ports;
-  const response = await context.turn(() => withLockRetryV1(() => context.services.persist(database, relation), sleep));
+  const response = await withLockRetryV1(() => context.turn(() => context.services.persist(database, relation)), sleep);
   context.stage('persist');
   if (response.state === 'unavailable') return context.done('failed', 'DATABASE-UNAVAILABLE');
   context.relationCommitted = response.state === 'applied';
@@ -223,7 +232,7 @@ async function writeNotesV1(context: WriteContextV1, prepared: Extract<PreparedW
   const heldStudents = new Set(checked.items.map((item) => `${item.classCode}|${item.studentNumber}`)).size;
   if (changed.length === 0) return { ...context.done('no-changes', null, null, { audit: auditPrint, offers }), heldStudents };
   const sent: GradebookImportPersistenceRequestV9 = { ...checked.request, ofertas: changed };
-  const response = await context.turn(() => withLockRetryV1(() => context.services.persist(database, sent), sleep));
+  const response = await withLockRetryV1(() => context.turn(() => context.services.persist(database, sent)), sleep);
   context.stage('persist');
   return { ...(await persistedOutcomeV1(context, response, { audit: auditPrint, offers })), heldStudents };
 }
@@ -258,6 +267,11 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
   } catch (cause) {
     // A snapshot the contract refuses is deterministic: retrying the same bytes cannot help.
     if (cause instanceof InvalidImportDiagnosticsSnapshotV1) return context.done('rejected', 'AUDIT-INVALID', null, null);
+    // No time left to wait for the write turn: read again later (issue #1450, 4).
+    if (cause instanceof WriteQueueDeadlineErrorV1) {
+      const late = context.done('failed', WRITE_QUEUE_DEADLINE_CODE_V1);
+      return context.relationCommitted ? { ...late, relationChanged: true } : late;
+    }
     // Only the error kind and Postgres code: a database message can carry values, never logged.
     const failure = cause as { name?: unknown; code?: unknown } | null;
     console.error(JSON.stringify({ event: 'notas-sync-database-write',
