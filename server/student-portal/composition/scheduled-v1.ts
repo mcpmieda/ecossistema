@@ -4,7 +4,10 @@ import { cleanupPortalV1 } from '../maintenance/retention-v1';
 import type { PortalCompositionEnvV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 
-/** Midnight in Brasília: the scheduled work runs every minute, the pruning once a day. */
+/** The retention cleanups run every this many minutes (the scheduled minute itself runs every minute). */
+export const PORTAL_CLEANUP_EVERY_MINUTES_V1 = 10;
+
+/** Midnight at the school: the pruning runs once a day. */
 const PRUNE_CLOCK_V1 = new Intl.DateTimeFormat('en-GB', {
   timeZone: SCHOOL_TIME_ZONE_V1, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 });
@@ -15,7 +18,11 @@ export async function portalScheduledV1(env: PortalCompositionEnvV1, scheduledTi
   if (env.PORTAL_ENVIRONMENT !== 'production' || env.PORTAL_SERVING_ENABLED !== 'true') return;
   // The minute the cron was due, not when this run started: the request that carries the run
   // (issue #1426, 32) or the connection may push it past 00:01 and skip the day's pruning.
-  const pruneDue = PRUNE_CLOCK_V1.format(new Date(scheduledTime ?? Date.now())) === '00:00';
+  const at = scheduledTime ?? Date.now();
+  const pruneDue = PRUNE_CLOCK_V1.format(new Date(at)) === '00:00';
+  // The retention finds almost nothing from one minute to the next: every 10 min is enough, and the
+  // midnight pruning (00:00 at the school = 03:00 UTC, a multiple of 10) still runs (issue #1450, 5).
+  if (!pruneDue && Math.floor(at / 60_000) % PORTAL_CLEANUP_EVERY_MINUTES_V1 !== 0) return;
   try {
     await portalDatabaseV1(env, 'cleanup', async (sql) => {
       // Each family is its own single-statement transaction; sent together they share the round

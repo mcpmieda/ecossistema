@@ -38,8 +38,21 @@ it('refuses fake admin context and preview before SQL; unavailable maintenance d
 });
 it('schedules only privacy retention; no legacy publication loop opens a connection', async () => {
   database.mockImplementation(async (_env, _operation, run) => run({}));
-  await portalScheduledV1(env).catch(() => undefined);
+  // A minute on which the retention runs (every 10 min, issue #1450, 5).
+  await portalScheduledV1(env, Date.UTC(2026, 10, 15, 12, 0)).catch(() => undefined);
   expect(database.mock.calls.map(([, operation]) => operation)).toEqual(['cleanup']);
+});
+it('runs the retention every 10 min, and the midnight pruning at 00:00 at the school (issue #1450, 5 and 6)', async () => {
+  const statements: string[] = [];
+  database.mockReset();
+  database.mockImplementation(async (_env, _operation, run) => run({
+    unsafe: async (query: string) => { statements.push(query); return []; },
+    begin: async (work: (tx: unknown) => Promise<unknown>) => work({ unsafe: async (query: string) => { statements.push(query); return []; } }),
+  }));
+  await portalScheduledV1(env, Date.UTC(2026, 10, 15, 12, 13)).catch(() => undefined);
+  expect(database).not.toHaveBeenCalled();
+  await portalScheduledV1(env, Date.UTC(2026, 10, 15, 3, 0)).catch(() => undefined);
+  expect(statements.some((query) => query.includes('prune_publication_source_v1'))).toBe(true);
 });
 it('loads versioned synthetic keys, separates cursor signatures and refuses absent/malformed key material', async () => {
   expect(() => portalKeysV1(env)).toThrow();

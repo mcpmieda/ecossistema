@@ -131,7 +131,8 @@ it('executes the actual scheduled entrypoint and physically removes expired synt
     VALUES(${eventId},'admin','portal',2026,'1',statement_timestamp()-interval '9 days',
       statement_timestamp()-interval '8 days')`;
   const worker = await runtime.getWorker('portal');
-  await worker.scheduled({ cron: '* * * * *' });
+  // A minute on which the retention runs (every 10 min, issue #1450, 5).
+  await worker.scheduled({ cron: '* * * * *', scheduledTime: new Date(Math.floor(Date.now() / 600_000) * 600_000) });
   const rows = await sql`SELECT count(*)::integer AS count FROM student_portal.operation_receipt WHERE idempotency_key=${id}`;
   expect(rows[0]!.count).toBe(0);
   const expired = await sql`SELECT count(*)::integer AS count FROM student_portal.live_event_outbox_v1 WHERE source_event_id=${eventId}`;
