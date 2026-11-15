@@ -118,14 +118,10 @@ export function ImportDiagnosticsPanelV1({
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>
-              {blocking.length} problema(s) precisam ser corrigidos antes da importação
+              {blocking.length} problema(s) para corrigir
             </Alert.Title>
             <Alert.Description>
-              <p>
-                Esta planilha não foi enviada ao Banco. Corrija os itens abaixo e importe somente
-                este arquivo novamente. Todos os problemas encontrados nesta leitura são mostrados
-                de uma vez.
-              </p>
+              <p>Corrija os itens abaixo e importe este arquivo novamente.</p>
               <OccurrenceList values={blocking} />
             </Alert.Description>
           </Alert.Content>
