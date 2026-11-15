@@ -52,7 +52,3 @@ export async function createSourceFileManifest(
     readAt,
   };
 }
-
-export function abbreviateSha256(sha256: string): string {
-  return `${sha256.slice(0, 12)}…${sha256.slice(-8)}`;
-}

@@ -21,13 +21,9 @@ vi.mock('../../src/features/gradebook/import/use-import-batch', () => {
     persistence: {},
     results: [],
     resumePendingPersistence: vi.fn(),
-    selectedId: null,
-    selectedResult: null,
-    setSelectedId: vi.fn(),
     sourceDiagnostics: {},
     timingReportSummary: { runOrdinal: null },
     getTimingReport: () => '',
-    totals: { classes: 0, students: 0, gradeSheets: 0 },
   };
   return { isMasterRelationResult: () => false, useImportBatch: () => state };
 });
