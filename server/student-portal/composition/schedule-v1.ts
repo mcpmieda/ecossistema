@@ -26,11 +26,12 @@ const jsonOf=(raw:unknown)=>typeof raw==='string'?JSON.parse(raw):raw;
  * code). Nothing marked yet: null, an empty list and null (the Portal shows the grid without times
  * and without an end of the year).
  */
-export async function schoolBellsAndCalendarV1(tx:StudentPortalPostgresQueryV1){
+export async function schoolBellsAndCalendarV1(tx:StudentPortalPostgresQueryV1,known?:{readonly days:unknown}){
   // Saved by the system (student-portal 0030/0031, the official sheets) or by a person in the ADM.
   const bells=await tx.unsafe(`SELECT bells_json,updated_by='00000000-0000-4000-8000-000000000000' AS by_system,(updated_at AT TIME ZONE '${SCHOOL_TIME_ZONE_V1}')::date::text AS saved_on FROM student_portal.school_bells_v1 WHERE academic_year=2026`,[]);
-  const calendar=await tx.unsafe('SELECT days_json FROM student_portal.school_calendar_v1 WHERE academic_year=2026',[]);
-  const bellsRow=bells?.[0],rawBells=bellsRow?.bells_json,rawDays=calendar?.[0]?.days_json;
+  // A caller that already read the calendar passes its days: one query less per Portal entry (issue #1450, 8a).
+  const rawDays=known?known.days:(await tx.unsafe('SELECT days_json FROM student_portal.school_calendar_v1 WHERE academic_year=2026',[]))?.[0]?.days_json;
+  const bellsRow=bells?.[0],rawBells=bellsRow?.bells_json;
   const days=rawDays==null?null:schoolCalendarDaysV1.parse(jsonOf(rawDays));
   return{
     bells:rawBells==null?null:schoolBellsDaysV1.parse(jsonOf(rawBells)),

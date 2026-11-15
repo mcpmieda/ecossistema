@@ -62,7 +62,7 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         // The days without school with their description (Frequência calendar), each lesson's time
         // and, when the Horário is on for this student, the subject of each position of the week
         // (owner decision 23/10/2026: "Faltou na 3ª aula (08:50–09:45), MATEMATICA").
-        const{bells,bellsValidFrom,daysOff}=await schoolBellsAndCalendarV1(tx);
+        const{bells,bellsValidFrom,daysOff}=await schoolBellsAndCalendarV1(tx,{days:calendarDays});
         let grid:{shift:'matutino'|'vespertino';validFrom?:string;lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
         if(context.policy.enforcedValue.showSchedule){
           const found=await tx.unsafe('SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule',[context.account.id,session.id]);
