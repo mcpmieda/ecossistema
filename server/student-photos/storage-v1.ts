@@ -38,7 +38,7 @@ export class PhotoStorageV1 {
   constructor(private readonly serviceKey: string | undefined,
     private readonly authorize: (action: PhotoStorageActionV1) => Promise<void>,
     private readonly fetcher: typeof fetch = fetch,
-    /** Portal reads only (owner decision 14/11/2026): a copy kept by the Worker, see read(). */
+    /** Reads only, never writes: the Portal (owner decision 14/11/2026) and the ADM (#1473). See read(). */
     private readonly cache?: Cache) {
     if (!serviceKey || serviceKey.length < 40) throw new Error('student-photo-storage-unavailable');
   }
