@@ -141,6 +141,7 @@ beforeAll(async () => {
     'application_role_grants.sql', '0003_council_session_v3.sql',
     '0004_council_v3_least_privilege.sql', '0005_relational_bulletin_snapshot_v2.sql',
     '0006_import_diagnostic_treatment_v1.sql', '0007_multiyear_rr_v1.sql', '0008_year_reset_acl_v1.sql',
+    '0019_import_diagnostics_origin_v1.sql',
   ]) await admin.unsafe(readFileSync(`migrations/gradebook-simplified/${name}`, 'utf8'));
   await admin.unsafe(`
     GRANT CREATE ON DATABASE portal705_test TO portal_migration_admin;

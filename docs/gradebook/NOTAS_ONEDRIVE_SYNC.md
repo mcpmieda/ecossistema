@@ -6,7 +6,7 @@ O Worker `notas-onedrive-sync` lê as planilhas de notas dos professores na past
 
 1. A Graph avisa (webhook) que algo mudou no OneDrive; a consulta *delta* diz quais arquivos da pasta mudaram.
 2. Cada arquivo tem uma leitura por vez. Um salvamento durante a leitura faz o arquivo ser relido logo depois. Arquivo com o mesmo *hash* da última leitura é pulado sem download.
-3. A leitura grava primeiro a Auditoria e depois as notas. Pelo bloqueio parcial (BN-DEC-045), um problema segura só a nota, o resultado ou a turma afetada; o resto é lançado.
+3. A leitura grava primeiro a Auditoria (com a origem `onedrive:<id do item>`, para não apagar a de outra planilha de mesmo nome; #1462) e depois as notas. Pelo bloqueio parcial (BN-DEC-045), um problema segura só a nota, o resultado ou a turma afetada; o resto é lançado.
 4. Depois de gravar, o Portal recebe o aviso ao vivo; a publicação continua sendo decidida na tela de publicação.
 5. Rede de segurança: *delta* de hora em hora (a cada minuto se o webhook não estiver ativo) e conferência completa da pasta às 03:00.
 6. Disjuntor: 5 leituras de planilha com falha seguidas pausam a leitura por 15 minutos. Erro ao listar o OneDrive só espera 1 min (ou o `Retry-After`) e não conta para o disjuntor; uma leitura que desiste de esperar a vez de gravar (`WRITE-QUEUE-DEADLINE`) também não conta.

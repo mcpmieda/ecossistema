@@ -80,8 +80,13 @@ export interface GradebookImportDiagnosticsAuditRequestV1 {
   readonly academicYear: number | null;
   readonly fileName: string;
   readonly sha256: string;
+  /** Whose snapshot this is: 'manual' (default) or 'onedrive:<Graph item id>' (issue #1462). */
+  readonly origin?: string;
   readonly diagnostics: readonly GradebookImportDiagnosticAuditItemV1[];
 }
+
+/** 'manual' or 'onedrive:' and the Graph item id; the database checks the same rule. */
+export const GRADEBOOK_IMPORT_DIAGNOSTICS_ORIGIN_PATTERN_V1 = /^(?:manual|onedrive:[!-~]{1,200})$/u;
 
 export interface GradebookImportDiagnosticsAuditRecordV1
   extends GradebookImportDiagnosticAuditItemV1 {
@@ -203,6 +208,7 @@ export function isGradebookImportDiagnosticsAuditRequestV1(
   if (!nullableAcademicYear(value.academicYear)) return false;
   if (!stringWithin(value.fileName, 255)) return false;
   if (typeof value.sha256 !== 'string' || !/^[a-f0-9]{64}$/iu.test(value.sha256)) return false;
+  if (value.origin !== undefined && (typeof value.origin !== 'string' || !GRADEBOOK_IMPORT_DIAGNOSTICS_ORIGIN_PATTERN_V1.test(value.origin))) return false;
   if (
     !Array.isArray(value.diagnostics) ||
     value.diagnostics.length > GRADEBOOK_IMPORT_DIAGNOSTICS_MAX_ITEMS_V1

@@ -42,7 +42,7 @@ describe('current import diagnostics retention', () => {
   it('routes complete observations through the atomic snapshot service', () => {
     const route = source('functions/api/gradebook/import-diagnostics.ts');
     const service = source('server/gradebook/application/import/import-diagnostics-snapshot-v1.ts');
-    expect(route).toContain('replaceGradebookImportDiagnosticsSnapshotV1(database,payload)');
+    expect(route).toContain("replaceGradebookImportDiagnosticsSnapshotV1(database,{ ...payload, origin: 'manual' })");
     expect(service).toContain('.transaction(async (transaction)');
     expect(service).toContain('pg_advisory_xact_lock');
     expect(service).toContain('ano IS NOT DISTINCT FROM $1 AND arquivo = $2');
