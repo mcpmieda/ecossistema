@@ -156,7 +156,12 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
         {'warnings' in response && response.warnings?.length ? (
           <ul className="mt-2 space-y-1 text-sm">
             {response.warnings.map((warning) =>
-              warning.code === 'student-not-in-relation' ? (
+              warning.code === 'student-name-mismatch' ? (
+                <li key={`trocado:${warning.classCode}:${warning.number}`}>
+                  Aluno nº {warning.number} da {warning.classCode} com nome diferente da Relação: as notas
+                  dele não foram lançadas. Confira o número e o nome na planilha.
+                </li>
+              ) : warning.code === 'student-not-in-relation' ? (
                 <li key={`fora:${warning.classCode}:${warning.number}`}>
                   Aluno nº {warning.number} da {warning.classCode} não está na Relação do sistema: as notas
                   dele não foram lançadas. Envie a Relação atualizada.

@@ -25,11 +25,13 @@ import {
   collectGradebookImportDiagnosticsV1,
   gradebookImportDiagnosticsAuditRequestV1,
   sourceUnavailableGradebookImportDiagnosticsV1,
+  studentNameMismatchDiagnosticV1,
   studentNotInRelationDiagnosticV1,
   type GradebookImportDiagnosticV1,
 } from './import-diagnostics-v1';
 import { persistGradebookImportDiagnosticsAuditV1 } from './import-diagnostics-client-v1';
 import { createFastTeacherSheetJsV1 } from './workbook-fast-read-v1';
+import { gradebookSheetStudentNamesV1 } from './sheet-student-names-v1';
 import { persistGradebookCanonicalImportV9 } from './import-persistence-client-v9';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
@@ -215,6 +217,11 @@ function prepareLocalPersistenceV9(
       throw new Error('Ano letivo do pacote divergiu do ano reconhecido nesta planilha.');
     }
     unavailableCells = unavailableCellsV9(request);
+    // Rule 14 (BN-DEC-046) also in the manual import: the server compares these names with the Relação (#1477).
+    if (request.operation === 'persist-notas') {
+      const nomes = gradebookSheetStudentNamesV1(result);
+      if (nomes.length > 0) request = { ...request, nomes };
+    }
     return { ...base(), kind: 'ready', request };
   } catch (cause) {
     return {
@@ -795,11 +802,14 @@ export function useImportBatch() {
     observation: BatchObservationV1,
   ): Promise<void> {
     if (operation !== 'persist-notas' || (response.state !== 'applied' && response.state !== 'no-changes') || local.diagnostics === null) return;
-    const unbound = (response.warnings ?? []).filter((warning) => warning.code === 'student-not-in-relation');
+    const unbound = (response.warnings ?? []).filter((warning) =>
+      warning.code === 'student-not-in-relation' || warning.code === 'student-name-mismatch');
     if (unbound.length === 0) return;
     await auditDiagnostics(
       result,
-      [...local.diagnostics, ...unbound.map((warning) => studentNotInRelationDiagnosticV1(warning.classCode, warning.number))],
+      [...local.diagnostics, ...unbound.map((warning) => warning.code === 'student-name-mismatch'
+        ? studentNameMismatchDiagnosticV1(warning.classCode, warning.number)
+        : studentNotInRelationDiagnosticV1(warning.classCode, warning.number))],
       observation,
       undefined,
       true,

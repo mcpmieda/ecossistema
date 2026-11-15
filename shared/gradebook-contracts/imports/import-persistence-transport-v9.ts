@@ -143,6 +143,9 @@ export interface GradebookImportOfferV9 {
   readonly recuperacao: readonly GradebookImportRecoveryStudentV9[] | null;
 }
 
+/** [class code, number, name as the workbook has it] (#1477). */
+export type GradebookSheetStudentNameV9 = readonly [classCode: string, number: number, name: string];
+
 export interface GradebookNotesImportRequestV9 {
   readonly transportVersion: 9;
   readonly operation: 'persist-notas';
@@ -152,6 +155,8 @@ export interface GradebookNotesImportRequestV9 {
   readonly ano: number;
   readonly professor: string;
   readonly ofertas: readonly GradebookImportOfferV9[];
+  /** The workbook's student names, for rule 14 (BN-DEC-046) in the manual import (#1477). */
+  readonly nomes?: readonly GradebookSheetStudentNameV9[];
 }
 
 export type GradebookImportPersistenceRequestV9 =
@@ -167,6 +172,12 @@ export type GradebookRelationWarningV9 =
   | {
       /** A student of the workbook the system's Relação does not have: left out, the rest written. */
       readonly code: 'student-not-in-relation';
+      readonly classCode: string;
+      readonly number: number;
+    }
+  | {
+      /** Rule 14: the name in the workbook is not the Relação's for that number; the grades are held. */
+      readonly code: 'student-name-mismatch';
       readonly classCode: string;
       readonly number: number;
     };
@@ -475,7 +486,24 @@ function validNotes(value: Record<string, unknown>): boolean {
     return false;
 
   const offers = new Set<string>();
-  return value.ofertas.every((offer) => validOffer(offer, offers));
+  return value.ofertas.every((offer) => validOffer(offer, offers)) && validSheetNames(value.nomes);
+}
+
+function validSheetNames(value: unknown): boolean {
+  if (value === undefined) return true;
+  return (
+    Array.isArray(value) &&
+    value.length <= 4096 &&
+    value.every(
+      (item) =>
+        Array.isArray(item) &&
+        item.length === 3 &&
+        nonEmptyText(item[0], 32) &&
+        Number.isSafeInteger(item[1]) &&
+        Number(item[1]) > 0 &&
+        nonEmptyText(item[2], 240),
+    )
+  );
 }
 
 export function inspectGradebookImportPersistenceRequestV9(
@@ -524,7 +552,8 @@ export function isGradebookImportPersistenceResponseV9(
               ((Object.keys(warning).length === 4 &&
                 warning.code === 'movement-spelling' &&
                 nonEmptyText(warning.relatedClassCode, 32)) ||
-                (Object.keys(warning).length === 3 && warning.code === 'student-not-in-relation')),
+                (Object.keys(warning).length === 3 &&
+                  (warning.code === 'student-not-in-relation' || warning.code === 'student-name-mismatch'))),
           )))
     );
   }

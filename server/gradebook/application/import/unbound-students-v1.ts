@@ -4,7 +4,7 @@ import type {
   GradebookNotesImportRequestV9,
   GradebookRelationWarningV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import type { GradebookPostgresReadPortV1 } from '../../persistence/postgres/postgres-database-v1';
+import { holdNameMismatchesV1, studentKeyV1 } from '../../onedrive-sync/server-audit-v1';
 
 const keyV1 = (classCode: string, number: number) => `${classCode.trim().toUpperCase()}:${number}`;
 
@@ -39,21 +39,33 @@ export function dropUnboundStudentsV1(
   return { request: warnings.length === 0 ? request : { ...request, ofertas }, warnings };
 }
 
-/** Every `TURMA:número` the system's Relação has for the year (any situation). */
-export async function loadBoundStudentsV1(database: GradebookPostgresReadPortV1, year: number): Promise<ReadonlySet<string>> {
-  const rows = await database.query<{ turma_codigo: unknown; numero: unknown }>(
-    `SELECT t.codigo AS turma_codigo, v.numero
-     FROM gradebook.vinculo v
-     JOIN gradebook.turma t ON t.id = v.turma_id
-     WHERE v.ano = $1`,
-    [year],
-  );
-  const result = new Set<string>();
-  for (const row of rows) {
-    const numero = Number(row.numero);
-    if (Number.isSafeInteger(numero) && numero > 0 && typeof row.turma_codigo === 'string') result.add(keyV1(row.turma_codigo, numero));
-  }
-  return result;
+/**
+ * Rule 14 (BN-DEC-046) in the manual import (#1477): with the workbook's names, a student whose name
+ * is not the Relação's for that number is held, the same function as the OneDrive reading. Without
+ * names (an older tab), nothing changes.
+ */
+export function holdManualNameMismatchesV1(
+  request: GradebookNotesImportRequestV9,
+  relationNames: ReadonlyMap<string, string>,
+): { readonly request: GradebookNotesImportRequestV9; readonly warnings: GradebookRelationWarningV9[] } {
+  const { nomes, ...rest } = request;
+  if (!nomes || nomes.length === 0) return { request: rest, warnings: [] };
+  const sheetNames = new Map(nomes.map(([classCode, number, name]) => [studentKeyV1(classCode, number), name] as const));
+  const checked = holdNameMismatchesV1(rest, sheetNames, relationNames);
+  const warnings = checked.items
+    .filter((item) => item.code === 'student-name-mismatch' && item.classCode && item.studentNumber)
+    .map((item): GradebookRelationWarningV9 => ({
+      code: 'student-name-mismatch', classCode: item.classCode!.trim().toUpperCase(), number: item.studentNumber!,
+    }));
+  return { request: checked.request, warnings };
+}
+
+/** The bound students (`TURMA:número`) of a Relação read with names. */
+export function boundStudentsFromNamesV1(relationNames: ReadonlyMap<string, string>): ReadonlySet<string> {
+  return new Set([...relationNames.keys()].map((key) => {
+    const at = key.lastIndexOf('|');
+    return `${key.slice(0, at)}:${key.slice(at + 1)}`;
+  }));
 }
 
 /** Adds the left-out students to a written import's warnings. */

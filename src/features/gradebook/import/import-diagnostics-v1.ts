@@ -94,6 +94,15 @@ export function studentNotInRelationDiagnosticV1(classCode: string, number: numb
   });
 }
 
+/** Rule 14: the workbook's name is not the Relação's for that number; found by the server (#1477). */
+export function studentNameMismatchDiagnosticV1(classCode: string, number: number): GradebookImportDiagnosticV1 {
+  const text = GRADEBOOK_IMPORT_DIAGNOSTIC_TEXTS_V1['student-name-mismatch'];
+  return diagnostic({
+    severity: 'blocking-error', code: 'student-name-mismatch', message: text.message, recommendedAction: text.action,
+    classCode, studentNumber: number, fieldKind: 'student',
+  });
+}
+
 function studentNumber(student: StudentRecognition): number | undefined {
   const value = Number(student.number.trim());
   return Number.isSafeInteger(value) && value > 0 ? value : undefined;
