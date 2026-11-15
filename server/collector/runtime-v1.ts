@@ -45,13 +45,13 @@ export async function createCollectorWithdrawalStoreV1(env:RuntimeEnv,dependenci
  * queries each, ~31 thousand times a day for two computers). The grants do not change between
  * requests: once seen, they are not asked again in this isolate (if a migration took one away,
  * the next real query fails and the request answers unavailable, as before). Retiring abandoned
- * pairings stays on every request (it revokes credentials); the retention cleanup runs on the
- * pairing pages and otherwise at most once a minute. */
+ * pairings stays on every request (it revokes credentials). The retention cleanup runs only on the
+ * pairing pages: the database job collector-frequency-retention-v2 (pg_cron, every 15 min) does the
+ * same everywhere else. "At most once a minute" per isolate still meant ~12 runs a minute across
+ * the Pages instances (issue #1450, findings 7 and 18). */
 let collectorStorageReadyV1=false;
-let collectorMaintenanceAtV1=0;
-const COLLECTOR_MAINTENANCE_EVERY_MS_V1=60_000;
 /** For tests: forget what this isolate already checked. */
-export function resetCollectorRuntimeMemoryV1():void{collectorStorageReadyV1=false;collectorMaintenanceAtV1=0;}
+export function resetCollectorRuntimeMemoryV1():void{collectorStorageReadyV1=false;}
 /** Dedicated optional binding/key. No fallback to PROD_DB, SESSION_SECRET,
  * Graph app permissions, browser access tokens or broad delegated scopes. */
 export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:CollectorRuntimeDependenciesV1={},
@@ -81,13 +81,9 @@ export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:Colle
     }
     stage='pairing-cleanup';
     const pairings=new CollectorPairingStoreV1(db),cipher=await CollectorRefreshCipherV1.fromDedicatedKey(key);
-    const now=(dependencies.now??Date.now)();
     // Security first: an abandoned pairing loses its credentials on the very next request.
     await pairings.retireExpiredUnclaimed();
-    if(options.pairingRoute===true||now-collectorMaintenanceAtV1>=COLLECTOR_MAINTENANCE_EVERY_MS_V1){
-      collectorMaintenanceAtV1=now;
-      await pairings.purgeFinished();
-    }
+    if(options.pairingRoute===true)await pairings.purgeFinished();
     // Workerd requires its global receiver when native fetch is stored on a
     // dependency object; calling that unbound method throws Illegal invocation.
     const directory={fetch:dependencies.fetch??globalThis.fetch.bind(globalThis),now:dependencies.now??Date.now,clientAssertion:dependencies.assertion??(()=>createClientAssertion({

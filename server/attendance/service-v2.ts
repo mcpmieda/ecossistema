@@ -1281,7 +1281,7 @@ async function changeDevice(
   return { deviceId: input.deviceId };
 }
 /**
- * A reserve waits while the preferred computer is online (seen within 2 minutes, authorized, no
+ * A reserve waits while the preferred computer is online (seen within the same limit as the ADM, onlineSecondsV2, authorized, no
  * error of its own) unless it has been waiting for the grace period. Any lease granted clears every
  * wait, so a preferred computer that started the slot restarts it. The refusal is 'lease-busy', the
  * same routine wait of a busy school lease.
@@ -1290,7 +1290,7 @@ async function waitsForPreferred(tx: Tx, row: Row, year: number, deviceId: strin
   if (row.preferred_device === null || row.preferred_device === undefined) return false;
   if (text(row.preferred_device) === deviceId) return false;
   const [state] = await tx.query<Row>(
-    `SELECT p.last_seen_at>clock_timestamp()-interval '2 minutes' AND p.state NOT IN('error','login-required')
+    `SELECT p.last_seen_at>clock_timestamp()-$6::integer*interval '1 second' AND p.state NOT IN('error','login-required')
       AND d.revoked_at IS NULL AND d.grant_state='active' AS online,
      w.lease_waiting_since IS NOT NULL AND w.lease_waiting_since>clock_timestamp()-$4::integer*interval '1 second' AS waiting,
      w.lease_waiting_since<=clock_timestamp()-$3::integer*interval '1 second' AS lapsed
@@ -1298,7 +1298,10 @@ async function waitsForPreferred(tx: Tx, row: Row, year: number, deviceId: strin
     JOIN collector_auth.device_public_v2 d ON d.device_id=p.device_id
     LEFT JOIN attendance.device_status_v2 w ON w.academic_year=p.academic_year AND w.device_id=$2::uuid
     WHERE p.academic_year=$1 AND p.device_id=$5::uuid`,
-    [year, deviceId, PREFERRED_GRACE_SECONDS_V2, PREFERRED_WAIT_RESET_SECONDS_V2, text(row.preferred_device)],
+    // The same "online" as the ADM shows (issue #1450, 1): 2 min near the agenda, a quiet refresh plus 2 min away from it.
+    [year, deviceId, PREFERRED_GRACE_SECONDS_V2, PREFERRED_WAIT_RESET_SECONDS_V2, text(row.preferred_device),
+      onlineSecondsV2(row.schedule_json == null ? null : json<FrequencyScheduleV2>(row.schedule_json),
+        row.report_schedule_json == null ? null : json<FrequencyReportScheduleV2>(row.report_schedule_json), Date.now())],
   );
   if (!state || !truth(state.online)) return false;
   return !(truth(state.waiting) && truth(state.lapsed));
