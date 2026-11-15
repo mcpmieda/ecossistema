@@ -45,6 +45,9 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
   // Each origin keeps its own snapshot (issue #1462); 'legacy' rows predate the origin and are
   // replaced by the next snapshot of the same file from any origin.
   const origin = request.origin ?? 'manual';
+  // The OneDrive reading is the file as it is now: it also replaces what a manual import of the
+  // same file left, so a problem fixed in the spreadsheet leaves the Auditoria once.
+  const alsoReplaced = origin.startsWith('onedrive:') ? 'manual' : origin;
   // The persistent Audit is intentionally narrower than the import preflight.
   // Keep only findings that require human action: all blocking errors plus the
   // actionable warnings (above-maximum, maxima over the qualitative ceiling, grade
@@ -96,8 +99,8 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
             await transaction.query<{ ano: number }>(
                 `SELECT DISTINCT ano FROM gradebook.importacao_diagnostico
        WHERE ((ano IS NOT DISTINCT FROM $1 AND arquivo = $2) OR hash = decode($3, 'hex'))
-         AND origem IN ($4, 'legacy') AND ano IS NOT NULL ORDER BY ano`,
-              [academicYear, fileName, sha256, origin],
+         AND origem IN ($4, 'legacy', $5) AND ano IS NOT NULL ORDER BY ano`,
+              [academicYear, fileName, sha256, origin, alsoReplaced],
             )
           ).map((row) => row.ano);
         const years = [
@@ -141,8 +144,8 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
          ORDER BY d.chave COLLATE "C"), '[]'::jsonb) = $1::jsonb AS unchanged
        FROM gradebook.importacao_diagnostico d
        WHERE ((ano IS NOT DISTINCT FROM $2 AND arquivo = $3) OR hash = decode($4, 'hex'))
-         AND origem IN ($5, 'legacy')`,
-          [postgresJsonTextV1(serialized), academicYear, fileName, sha256, origin],
+         AND origem IN ($5, 'legacy', $6)`,
+          [postgresJsonTextV1(serialized), academicYear, fileName, sha256, origin, alsoReplaced],
         )).rows[0];
         if (!current) throw new Error('import-diagnostics-snapshot-state-unavailable');
         const previousYears = JSON.parse(current.previous_years_json) as number[];
@@ -178,19 +181,19 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
          )
          AND NOT EXISTS (
            SELECT 1 FROM gradebook.importacao_diagnostico other
-           WHERE other.origem NOT IN ($5, 'legacy')
+           WHERE other.origem NOT IN ($5, 'legacy', $6)
              AND other.ano IS NOT DISTINCT FROM a.ano
              AND other.arquivo = a.arquivo
              AND other.chave = a.chave
          )`,
-          [academicYear, fileName, sha256, postgresJsonTextV1(serialized), origin],
+          [academicYear, fileName, sha256, postgresJsonTextV1(serialized), origin, alsoReplaced],
         );
 
         const cleared = await transaction.executeNative(
             `DELETE FROM gradebook.importacao_diagnostico
        WHERE ((ano IS NOT DISTINCT FROM $1 AND arquivo = $2) OR hash = decode($3, 'hex'))
-         AND origem IN ($4, 'legacy')`,
-          [academicYear, fileName, sha256, origin],
+         AND origem IN ($4, 'legacy', $5)`,
+          [academicYear, fileName, sha256, origin, alsoReplaced],
         );
         const clearedCount = cleared.changes;
         if (rows.length === 0) {

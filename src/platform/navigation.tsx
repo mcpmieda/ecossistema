@@ -21,6 +21,7 @@ import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
 import { defaultNotesSectionId, notesSections, withNotesModule } from './notes-module';
 import { useSidebarHealthV1 } from './sidebar-health-v1';
 import { useSidebarPendingV1 } from './sidebar-reconciliation-v1';
+import { useAuditPendingV1 } from './audit-pending-v1';
 import {
   portalSectionFromHash,
   studentPortalHref,
@@ -281,7 +282,9 @@ export function ShellSectionTabsV1({
   modules: CoreModuleContract[];
 }>) {
   const area = mainNavigationAreasV1(modules, route, section).find((module) => module.open);
-  const sections = area?.sections ?? [];
+  const auditPending = useAuditPendingV1(area?.id === 'navigation.import', section);
+  const sections = (area?.sections ?? []).map((item) =>
+    item.id === 'audit' ? { ...item, count: auditPending } : item);
   if (!area || sections.length === 0) return null;
   return <SectionLinksV1 label={`Seções de ${area.name}`} section={section} sections={sections} />;
 }

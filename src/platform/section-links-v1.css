@@ -3,3 +3,20 @@
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
+
+/* Pending count beside a section name (the Auditoria): same badge as the side column. */
+.shell-sections__count {
+  display: inline-grid;
+  min-width: 1.35rem;
+  height: 1.25rem;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #451a03;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

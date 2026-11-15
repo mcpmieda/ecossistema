@@ -38,7 +38,12 @@ vi.mock('../../../src/features/gradebook/import/use-import-batch', () => {
     },
     results: [result('novas'), result('iguais'), result('fora')],
     resumePendingPersistence: vi.fn(),
-    sourceDiagnostics: {},
+    sourceDiagnostics: {
+      iguais: [
+        { severity: 'blocking-error', code: 'activity-without-maximum', key: 'k1' },
+        { severity: 'warning', code: 'source-unavailable', key: 'k2' },
+      ],
+    },
     timingReportSummary: { runOrdinal: null },
     getTimingReport: () => '',
   };
@@ -48,15 +53,21 @@ vi.mock('../../../src/features/gradebook/import/use-import-batch', () => {
 beforeEach(setupOperationsDomV1);
 afterEach(cleanup);
 
-it('shows one line per workbook: new grades, no change, an error, and only the warning that needs action', () => {
+it('shows one line per workbook and only a link to the Auditoria for its problems', () => {
   render(<NotesImportPanel frequencyClient={{ status: vi.fn(), mutate: vi.fn() } as never} />);
   const rows = Array.from(screen.getByRole('list', { name: 'Planilhas importadas' }).children);
   expect(rows).toHaveLength(4);
   expect(rows[0]?.textContent).toContain('novas.xlsb');
   expect(rows[0]?.textContent).toContain('Notas novas (12)');
+  expect(rows[0]?.textContent).not.toContain('Auditoria');
   expect(rows[1]?.textContent).toContain('Sem mudança');
+  // Only what the Auditoria keeps is counted: the technical warning is not.
+  expect(rows[1]?.textContent).toContain('1 problema · ver na Auditoria');
+  expect(rows[1]?.querySelector('a')?.getAttribute('href')).toBe('#/banco-de-notas?area=audit');
   expect(rows[2]?.textContent).toContain('Notas novas (3)');
-  expect(rows[2]?.textContent).toContain('Aluno nº 7 da SYN-A não está na Relação do sistema');
+  expect(rows[2]?.textContent).toContain('1 problema · ver na Auditoria');
+  expect(rows[2]?.textContent).not.toContain('Aluno nº 7');
+  expect(screen.queryByText(/precisam ser corrigidos|para corrigir/u)).toBeNull();
   expect(rows[3]?.textContent).toContain('quebrada.xlsx');
   expect(rows[3]?.textContent).toContain('Erro');
   expect(screen.queryByText(/SHA-256 /u)).toBeNull();

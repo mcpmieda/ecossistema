@@ -10,7 +10,7 @@ export function SectionLinksV1({
 }: {
   readonly label: string;
   readonly section: string;
-  readonly sections: readonly { id: string; label: string; href: string }[];
+  readonly sections: readonly { id: string; label: string; href: string; count?: string | null }[];
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const links = useRef(new Map<string, HTMLAnchorElement>());
@@ -75,6 +75,12 @@ export function SectionLinksV1({
                 onKeyDown={(event) => handleKeyDown(event, item.id)}
               >
                 {item.label}
+                {item.count ? (
+                  <span className="shell-sections__count">
+                    {item.count}
+                    <span className="sr-only"> pendências</span>
+                  </span>
+                ) : null}
                 {selected && <span className="tabs__indicator" aria-hidden="true" />}
               </a>
             );
