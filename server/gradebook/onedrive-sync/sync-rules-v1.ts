@@ -237,7 +237,7 @@ export function placeFileV1(file: SyncFileV1, source: { readonly itemId: string;
 /** One day's school hours as the Portal knows them (calendar and bells), "HH:MM" in local time. */
 export type SchoolDayWindowV1 = { readonly schoolDay: boolean; readonly starts: string; readonly ends: string; readonly source: string };
 
-/** When the 10 s poll runs on `day`: from 30 min before the first lesson to 1 h after the last. */
+/** Whether `day` is a school day (calendar of the Portal), and its lesson hours. */
 export type PollWindowV1 = {
   readonly day: string; readonly schoolDay: boolean; readonly startsAt: number; readonly endsAt: number;
   readonly source: string; readonly retryAfter: number | null;
@@ -267,8 +267,21 @@ export function pollWindowV1(day: string, read: SchoolDayWindowV1 | null, now: n
     endsAt: at('18:00') + POLL_MARGIN_AFTER_MS_V1, source: 'weekday-fallback', retryAfter: now + 60 * 60_000 };
 }
 
-export function fastPollActiveV1(window: PollWindowV1, now: number): boolean {
-  return window.schoolDay && now >= window.startsAt && now < window.endsAt;
+/**
+ * After a workbook of a source changes, the folder is asked every 10 s for this long after the last
+ * change, so the next saves of someone editing do not wait for Microsoft's notice; with nothing
+ * changing nothing is asked (owner decision 15/11/2026: 25 min on school days, 10 min otherwise).
+ */
+export const EDIT_POLL_SCHOOL_DAY_MS_V1 = 25 * 60_000;
+export const EDIT_POLL_OTHER_DAY_MS_V1 = 10 * 60_000;
+
+export function editPollUntilV1(window: PollWindowV1, now: number): number {
+  return now + (window.schoolDay ? EDIT_POLL_SCHOOL_DAY_MS_V1 : EDIT_POLL_OTHER_DAY_MS_V1);
+}
+
+/** With Microsoft's notice on, the safety delta in case a notice is lost: 15 min on school days, 1 h otherwise. */
+export function safetyDeltaIntervalMsV1(window: PollWindowV1): number {
+  return window.schoolDay ? 15 * 60_000 : 60 * 60_000;
 }
 
 /** Consecutive transient failures across files trip the breaker for a while. */
