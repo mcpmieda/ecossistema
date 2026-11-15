@@ -72,7 +72,6 @@ describe('gradebook importer structure', () => {
       'import-persistence-client-v9.ts',
       'import-diagnostics-client-v1.ts',
       'master-relation-v9.ts',
-      'workbook-inspector.tsx',
       'spreadsheet-recognizer.ts',
     ];
 
@@ -117,15 +116,12 @@ describe('gradebook importer structure', () => {
       sheetRows: 50,
     });
 
-    const presentation = [
-      source('src/features/gradebook/import/import-panel.tsx'),
-      source('src/features/gradebook/import/workbook-inspector.tsx'),
-    ].join('\n');
-    expect(presentation.match(/from '@heroui\/react'/gu)).toHaveLength(2);
-    expect(presentation).toContain('Q/T:');
-    expect(presentation).toContain('QL/AK:');
-    expect(presentation).toContain('Recuperação final');
-    expect(presentation).toContain('turma + componente D<n>');
+    // One line per workbook (issue #1450, 109): no per-student grade tables after an import.
+    const presentation = source('src/features/gradebook/import/import-panel.tsx');
+    expect(presentation.match(/from '@heroui\/react'/gu)).toHaveLength(1);
+    expect(existsSync(join(root, 'src/features/gradebook/import/workbook-inspector.tsx'))).toBe(false);
+    expect(presentation).toContain('Sem mudança');
+    expect(presentation).toContain('Notas novas');
   });
 
   it('uses the canonical V9 persistence path without exposing retired importer versions', () => {

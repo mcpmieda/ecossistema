@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, ProgressBar, Surface, Tabs } from '@heroui/react';
+import { Alert, Button, Chip, ProgressBar, Surface, Tabs } from '@heroui/react';
 import { Check, FileSpreadsheet, Upload, Users } from 'lucide-react';
-import { abbreviateSha256 } from './file-manifest';
-import { MAX_NOTES_IMPORT_FILES } from './import-batch';
 import {
   useImportBatch,
   type ImportFlowProgressV9,
@@ -11,24 +9,12 @@ import {
 } from './use-import-batch';
 import { ImportDiagnosticsPanelV1 } from './import-diagnostics-panel-v1';
 import { actionableGradebookImportDiagnosticsV1 } from './import-diagnostics-v1';
-import { WorkbookInspector } from './workbook-inspector';
 import type { ImportTimingSummaryV1 } from './import-timing-report-v1';
 import { StudentReportImportV1 } from './student-report-import-v1';
 import { RelationMovementReviewV9 } from './relation-movement-review-v9';
 import { FrequencyPanelV2 } from './frequency-panel-v2';
 import type { FrequencyAdminClientV2 } from './frequency-client-v2';
 import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
-
-function FileHash({ sha256 }: Readonly<{ sha256: string }>) {
-  return (
-    <details className="mt-2 text-xs text-muted">
-      <summary className="cursor-pointer">
-        SHA-256 <code>{abbreviateSha256(sha256)}</code>
-      </summary>
-      <code className="mt-2 block break-all">{sha256}</code>
-    </details>
-  );
-}
 
 const PROGRESS_STAGE = {
   preparing: ['Preparando e calculando SHA-256', 10],
@@ -99,21 +85,6 @@ function persistenceLabel(state: ImportPersistenceStateV9 | undefined): string {
   }
 }
 
-function persistenceDescription(
-  state: Extract<ImportPersistenceStateV9, { state: 'completed' }>,
-): string {
-  const response = state.response;
-  const issue = 'reason' in response ? ` Motivo técnico: ${response.reason}.` : '';
-  if (!('summary' in response)) return issue.trim();
-  if (response.state === 'no-changes') {
-    const auditWrites = response.summary.committedWrites.importBatchVersions;
-    return auditWrites > 0
-      ? `Nenhuma nota, resultado ou cadastro acadêmico foi alterado. ${auditWrites} registro(s) técnico(s) da tentativa foram gravados para auditoria.${issue}`
-      : `Nenhuma nota, resultado ou cadastro acadêmico foi alterado.${issue}`;
-  }
-  return `${response.summary.committedWrites.total} gravação(ões) confirmadas no lote atômico, incluindo registros técnicos de auditoria.${issue}`;
-}
-
 function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9 | undefined }>) {
   if (!state) return null;
   if (state.state === 'auth-required') {
@@ -172,12 +143,15 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
   if (state.state !== 'completed') return null;
   const response = state.response;
   const success = response.state === 'applied' || response.state === 'no-changes';
+  const warned = 'warnings' in response && Boolean(response.warnings?.length);
+  // A saved file says it all in its line; only a refusal or a warning needs more.
+  if (success && !warned) return null;
   return (
-    <Alert status={success ? 'success' : 'warning'} className="mt-5">
+    <Alert status="warning" className="mt-3">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>{persistenceLabel(state)}</Alert.Title>
-        <Alert.Description>{persistenceDescription(state)}</Alert.Description>
+        {success ? null : <Alert.Title>{persistenceLabel(state)}</Alert.Title>}
+        {'reason' in response ? <Alert.Description>{response.reason}</Alert.Description> : null}
         {'warnings' in response && response.warnings?.length ? (
           <ul className="mt-2 space-y-1 text-sm">
             {response.warnings.map((warning) =>
@@ -580,92 +554,36 @@ function ImportPausedV1({
   );
 }
 
-function ImportTotalsV1({ batch }: Readonly<{ batch: ImportBatchV1 }>) {
-  const { results, failures, totals } = batch;
-  const recognized = failures.length ? `${failures.length} com erro` : 'sem erros de leitura';
-  const cards = [
-    ['Arquivos', results.length + failures.length, `limite ${MAX_NOTES_IMPORT_FILES}`],
-    ['Reconhecidos', results.length, recognized],
-    ['Turmas', totals.classes, 'somadas no lote'],
-    ['Alunos', totals.students, `${totals.gradeSheets} guias reconhecidas`],
-  ] as const;
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {cards.map(([label, value, detail]) => (
-        <Surface key={label} variant="secondary" className="rounded-2xl p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">{label}</p>
-          <p className="mt-2 text-2xl font-semibold">{value}</p>
-          <p className="mt-1 text-xs text-muted">{detail}</p>
-        </Surface>
-      ))}
-    </div>
-  );
+type ChipColorV1 = 'default' | 'success' | 'warning' | 'danger';
+
+/** One word for each file: whether new grades went in, nothing changed, or what is missing. */
+function resultChipV1(state: ImportPersistenceStateV9 | undefined): readonly [string, ChipColorV1] {
+  if (!state || state.state === 'recognized') return ['Aguardando', 'default'];
+  if (state.state === 'processing' || state.state === 'persisting') return ['Salvando', 'default'];
+  if (state.state === 'failed') return [state.kind === 'validation' ? 'Bloqueado' : 'Erro', 'danger'];
+  if (state.state !== 'completed') return [persistenceLabel(state), 'warning'];
+  const response = state.response;
+  if (response.state === 'no-changes') return ['Sem mudança', 'default'];
+  if (response.state !== 'applied') return [persistenceLabel(state), 'danger'];
+  const grades = response.summary.committedWrites.academicRecordVersions;
+  return [grades > 0 ? `Notas novas (${grades})` : 'Dados atualizados', 'success'];
 }
 
-function ImportResultCardV1({
-  result,
-  batch,
-}: Readonly<{ result: ImportResultV1; batch: ImportBatchV1 }>) {
-  const diagnostics = actionableGradebookImportDiagnosticsV1(
-    batch.sourceDiagnostics[result.id] ?? [],
-  );
-  const blocking = diagnostics.filter((value) => value.severity === 'blocking-error').length;
-  const warnings = diagnostics.filter((value) => value.severity === 'warning').length;
-  return (
-    <Surface variant="secondary" className="rounded-2xl p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="mr-auto font-medium">{result.manifest.fileName}</p>
-        <span className="text-xs font-medium">
-          {persistenceLabel(batch.persistence[result.id])}
-        </span>
-      </div>
-      <FileHash sha256={result.manifest.sha256} />
-      <p className="mt-2 text-xs text-muted">
-        Vazio = Não fez · 0 = Tirou zero · 0,1 = nota numérica
-      </p>
-      {blocking > 0 && (
-        <p className="mt-2 text-xs font-semibold text-danger">
-          {blocking} problema(s) bloqueante(s) — corrigir antes de importar
-        </p>
-      )}
-      {warnings > 0 && (
-        <p className="mt-1 text-xs font-medium">
-          {warnings} aviso(s) de origem/lançamento — revisar
-        </p>
-      )}
-    </Surface>
-  );
-}
-
-function ImportFailureCardV1({ failure }: Readonly<{ failure: ImportFailureV1 }>) {
-  const stage = failure.stage === 'preparation' ? 'Preparação/hash' : 'Reconhecimento';
-  return (
-    <Surface variant="secondary" className="rounded-2xl p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="mr-auto font-medium">{failure.fileName}</p>
-        <span className="text-xs font-medium text-danger">Falha isolada</span>
-      </div>
-      {failure.manifest ? (
-        <FileHash sha256={failure.manifest.sha256} />
-      ) : (
-        <p className="mt-2 text-xs text-muted">Manifesto indisponível</p>
-      )}
-      <p className="mt-2 text-xs text-muted">
-        {stage} · {failure.diagnostic.code}: {failure.message}
-      </p>
-    </Surface>
-  );
-}
-
-function SelectedImportV1({
+function ImportResultRowV1({
   result,
   batch,
 }: Readonly<{ result: ImportResultV1; batch: ImportBatchV1 }>) {
   const state = batch.persistence[result.id];
   const review = state?.state === 'movement-review' ? state : null;
+  const [label, color] = resultChipV1(state);
   return (
-    <>
-      <WorkbookInspector result={result} />
+    <li className="py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="mr-auto break-all font-medium">{result.manifest.fileName}</p>
+        <Chip size="sm" color={color} variant="soft">
+          {label}
+        </Chip>
+      </div>
       <ImportDiagnosticsPanelV1
         diagnostics={actionableGradebookImportDiagnosticsV1(
           batch.sourceDiagnostics[result.id] ?? [],
@@ -683,7 +601,7 @@ function SelectedImportV1({
         />
       ) : null}
       {review && !review.review ? (
-        <Alert status="warning" className="mt-5">
+        <Alert status="warning" className="mt-3">
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>{persistenceLabel(review)}</Alert.Title>
@@ -699,53 +617,34 @@ function SelectedImportV1({
           </Alert.Content>
         </Alert>
       ) : null}
-    </>
+    </li>
+  );
+}
+
+function ImportFailureRowV1({ failure }: Readonly<{ failure: ImportFailureV1 }>) {
+  return (
+    <li className="py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="mr-auto break-all font-medium">{failure.fileName}</p>
+        <Chip size="sm" color="danger" variant="soft">
+          Erro
+        </Chip>
+      </div>
+      <p className="mt-1 text-sm text-muted">{failure.message}</p>
+    </li>
   );
 }
 
 function ImportResultsV1({ batch }: Readonly<{ batch: ImportBatchV1 }>) {
-  const { results, failures, selectedId, setSelectedId, selectedResult } = batch;
   return (
-    <div className="mt-6">
-      <ImportTotalsV1 batch={batch} />
-      {failures.length > 0 && (
-        <Alert status="warning" className="mt-4">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{failures.length} arquivo(s) não reconhecido(s)</Alert.Title>
-            <Alert.Description>
-              {failures.map((failure) => `${failure.fileName}: ${failure.message}`).join(' · ')}
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      )}
-      <div className="mt-5 grid gap-3 lg:grid-cols-2">
-        {results.map((result) => (
-          <ImportResultCardV1 key={result.id} result={result} batch={batch} />
-        ))}
-        {failures.map((failure) => (
-          <ImportFailureCardV1 key={failure.id} failure={failure} />
-        ))}
-      </div>
-      {results.length > 0 && (
-        <div className="mt-5 overflow-x-auto pb-1">
-          <div className="flex min-w-max gap-2">
-            {results.map((result) => (
-              <Button
-                key={result.id}
-                variant={selectedId === result.id ? 'secondary' : 'ghost'}
-                size="sm"
-                onPress={() => setSelectedId(result.id)}
-              >
-                <FileSpreadsheet className="size-4" />
-                {result.summary.fileName}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-      {selectedResult && <SelectedImportV1 result={selectedResult} batch={batch} />}
-    </div>
+    <ul className="mt-6 divide-y divide-border" aria-label="Planilhas importadas">
+      {batch.results.map((result) => (
+        <ImportResultRowV1 key={result.id} result={result} batch={batch} />
+      ))}
+      {batch.failures.map((failure) => (
+        <ImportFailureRowV1 key={failure.id} failure={failure} />
+      ))}
+    </ul>
   );
 }
 
