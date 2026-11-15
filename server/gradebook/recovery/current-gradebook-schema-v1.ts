@@ -13,8 +13,8 @@ export interface CurrentGradebookRecoveryQueryV1 {
 
 export const GRADEBOOK_CURRENT_CATALOG_V1 = {
   tables: 29,
-  columns: 244,
-  constraints: 216,
+  columns: 245,
+  constraints: 217,
   indexes: 69,
   foreignKeys: 51,
   sequences: 13,
@@ -87,6 +87,7 @@ export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
   '0013_default_privileges_hardening_v1.sql',
   '0014_function_execute_hardening_v1.sql',
   '0017_drop_ano_letivo_historico_v1.sql',
+  '0019_import_diagnostics_origin_v1.sql',
   'current_cross_schema_indexes_v1.sql',
 ] as const;
 
