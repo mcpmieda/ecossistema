@@ -3,6 +3,7 @@ import {
   type GradebookAfterCommitV1,
 } from '../../../server/gradebook/http/live-after-commit-v1';
 import type { RuntimeEnv } from '../../../server/env';
+import { readBoundedTextV1 } from '../../../server/http/bounded-text-v1';
 import { validateEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
 import { AuthorizationError } from '../../../server/auth/roles';
@@ -98,10 +99,8 @@ function response(value: GradebookImportPersistenceResponseV9, serverMs: number)
   return Response.json(value, { status: statusFor(value), headers });
 }
 async function readPayload(request: Request): Promise<{ value: unknown; bytes: number }> {
-  const text = await request.text();
-  const bytes = new TextEncoder().encode(text).byteLength;
-  if (bytes > GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9)
-    throw new HttpError(413, 'Payload too large');
+  // Refused as soon as it passes the limit, never read whole first (issue #1450, 102).
+  const { text, bytes } = await readBoundedTextV1(request, GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9);
   try {
     return { value: JSON.parse(text) as unknown, bytes };
   } catch {
