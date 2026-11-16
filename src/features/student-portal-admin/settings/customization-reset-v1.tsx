@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Modal } from '@heroui/react';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import type { CustomizationResetChoiceV1 } from './customization-values-v1';
 
@@ -25,7 +26,6 @@ export function CustomizationResetV1({ client, label, choices, canWrite, onClose
   const [selected, setSelected] = useState(choices.length === 1 ? choices[0]!.id : '');
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<PortalClientErrorV1 | null>(null);
-  const [clock, setClock] = useState(Date.now);
   const active = useRef<AbortController | null>(null);
   const prepared = useRef<ReturnType<PortalAdminClientV1['prepareCommand']> | null>(null);
   const retryAt = useRef(0);
@@ -35,11 +35,7 @@ export function CustomizationResetV1({ client, label, choices, canWrite, onClose
   const retryable = failure !== null && ['network-error', 'unavailable', 'invalid-response', 'rate-limited'].includes(failure.state);
   const denied = failure?.state === 'forbidden' || failure?.state === 'unauthenticated';
   useEffect(() => () => { active.current?.abort(); prepared.current = null; }, [client, canWrite]);
-  useEffect(() => {
-    if (!failure || Date.now() >= retryAt.current) return;
-    const timer = setInterval(() => setClock(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [failure]);
+  const retryReady = useRetryReadyV1(failure ? retryAt.current : 0);
   async function submit(retry = false) {
     if (!canWrite || busy || active.current || !choice || Date.now() < retryAt.current) return;
     if (retry && (!retryable || !prepared.current)) return;
@@ -59,7 +55,6 @@ export function CustomizationResetV1({ client, label, choices, canWrite, onClose
       if (controller.signal.aborted) return;
       const value = error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('network-error');
       retryAt.current = Date.now() + (value.retryAfterSeconds ?? 0) * 1000;
-      setClock(Date.now());
       setFailure(value);
     } finally {
       if (active.current === controller) active.current = null;
@@ -70,7 +65,7 @@ export function CustomizationResetV1({ client, label, choices, canWrite, onClose
   // One action button: retry the same request, or confirm while nothing has failed.
   let action: ReactNode = null;
   if (!denied && retryable)
-    action = <Button isDisabled={!canWrite || busy || clock < retryAt.current}
+    action = <Button isDisabled={!canWrite || busy || !retryReady}
       isPending={busy} onPress={() => void submit(true)}>Tentar novamente</Button>;
   else if (!failure)
     action = <Button variant="danger" isDisabled={!canWrite || !choice || busy}
