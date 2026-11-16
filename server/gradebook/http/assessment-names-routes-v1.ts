@@ -7,6 +7,7 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
+  NO_STORE_HEADERS_V1,
   readBoundedJson,
 } from '../../http/security';
 import { createAssessmentNamesServiceV1 } from '../application/settings/assessment-names-v1';
@@ -18,11 +19,7 @@ const ASSESSMENT_NAMES_ROUTE_V1 = '/api/gradebook/assessment-names';
 function response(value: AssessmentNamesResponseV1, status: number): Response {
   return Response.json(value, {
     status,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      Expires: '0',
-      Pragma: 'no-cache',
-    },
+    headers: NO_STORE_HEADERS_V1,
   });
 }
 

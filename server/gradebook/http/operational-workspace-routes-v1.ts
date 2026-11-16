@@ -6,6 +6,7 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
+  NO_STORE_HEADERS_V1,
   readBoundedJson,
 } from '../../http/security';
 import { createRelationalWorkspaceV2 } from '../application/operational-workspace/relational-workspace-v2';
@@ -23,11 +24,7 @@ export const GRADEBOOK_OPERATIONAL_WORKSPACE_ROUTE_V1 = '/api/gradebook/operatio
 function noStoreJson(value: unknown, status = 200): Response {
   return Response.json(value, {
     status,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      Expires: '0',
-      Pragma: 'no-cache',
-    },
+    headers: NO_STORE_HEADERS_V1,
   });
 }
 function unavailable(status = 503): Response {

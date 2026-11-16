@@ -14,6 +14,22 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'X-Frame-Options': 'DENY',
 };
 
+export const NO_STORE_HEADERS_V1: Readonly<Record<string, string>> = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+  Pragma: 'no-cache',
+  Expires: '0',
+};
+
+export function noStoreResponseV1(body: BodyInit | null, status: number, contentType?: string): Response {
+  const headers = new Headers(NO_STORE_HEADERS_V1);
+  if (contentType) headers.set('Content-Type', contentType);
+  return new Response(body, { status, headers });
+}
+
+export function noStoreJsonV1(value: unknown, status = 200): Response {
+  return noStoreResponseV1(JSON.stringify(value), status, 'application/json; charset=utf-8');
+}
+
 export function withSecurityHeaders(response: Response, protectedRoute = false): Response {
   // A WebSocket upgrade carries a runtime-owned socket. Reconstructing it as a regular
   // Response both drops that socket and is rejected by runtimes whose public constructor
@@ -22,9 +38,7 @@ export function withSecurityHeaders(response: Response, protectedRoute = false):
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
   if (protectedRoute) {
-    headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    headers.set('Pragma', 'no-cache');
-    headers.set('Expires', '0');
+    for (const [name, value] of Object.entries(NO_STORE_HEADERS_V1)) headers.set(name, value);
   }
   return new Response(response.body, {
     status: response.status,
