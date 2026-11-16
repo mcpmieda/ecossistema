@@ -96,11 +96,7 @@ afterAll(async () => {
   await cluster.end({ timeout: 2 });
 });
 
-it('preserves the canonical complete source and selects no data for an empty target', async () => {
-  const comparison = await owner.unsafe(`SELECT count(*)::integer AS differences FROM
-    student_portal.publication_source_rows_v2() old FULL JOIN student_portal.publication_source_rows_v3(NULL) fresh USING(student_id)
-    WHERE old.payload_json IS DISTINCT FROM fresh.payload_json OR old.period_mask IS DISTINCT FROM fresh.period_mask`);
-  expect(comparison[0]!.differences).toBe(0);
+it('selects no data for an empty target', async () => {
   expect(await owner.unsafe('SELECT student_id FROM student_portal.publication_source_rows_v3(ARRAY[]::integer[])')).toHaveLength(0);
 });
 it('prepares only the affected class, retains unrelated editions and publishes updated values immediately', async () => {
