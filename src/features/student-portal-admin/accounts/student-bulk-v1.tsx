@@ -3,6 +3,7 @@ import { Button, Chip, Input, Label, Modal, ProgressBar, TextField } from '@hero
 import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigation-v1';
 import type { BulkPreviewQueryV1 } from '../../../../shared/student-portal-contracts/bulk-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import {
   createStudentBulkControllerV1,
@@ -165,16 +166,15 @@ function BulkActionsV1({
   action,
   ready,
   targets,
-  clock,
   controller,
 }: Readonly<{
   state: BulkStateV1;
   action: BulkActionV1;
   ready: boolean;
   targets: number;
-  clock: number;
   controller: BulkControllerV1 | null;
 }>) {
+  const retryReady = useRetryReadyV1(state.retryAt ?? 0);
   return (
     <>
       {state.phase === 'loading' || state.phase === 'review' ? (
@@ -201,7 +201,7 @@ function BulkActionsV1({
         </>
       ) : null}
       {state.phase === 'unknown' ? (
-        <Button isDisabled={clock < (state.retryAt ?? 0)} onPress={() => void controller?.run()}>
+        <Button isDisabled={!retryReady} onPress={() => void controller?.run()}>
           Retentar mesma operação
         </Button>
       ) : null}
@@ -274,7 +274,6 @@ export function StudentBulkV1({
   const [confirmation, setConfirmation] = useState('');
   // The dialog names the target fixed by the preview, not a selection a re-read may clear.
   const [onlySelected, setOnlySelected] = useState(false);
-  const [clock, setClock] = useState(Date.now);
   const callback = useRef(onAuthorizationLost);
   callback.current = onAuthorizationLost;
   const controller = useRef<ReturnType<typeof createStudentBulkControllerV1> | null>(null);
@@ -292,11 +291,6 @@ export function StudentBulkV1({
       controller.current = null;
     };
   }, [client]);
-  useEffect(() => {
-    if (!state.retryAt) return;
-    const timer = setTimeout(() => setClock(Date.now()), Math.max(0, state.retryAt - Date.now()));
-    return () => clearTimeout(timer);
-  }, [state.retryAt]);
   // A run that stops with new writes asks the list to read again: automatic reads are paused.
   const stopped = ['paused', 'unknown', 'done'].includes(state.phase);
   const written = state.items.filter((item) => item.result === 'committed').length;
@@ -400,7 +394,6 @@ export function StudentBulkV1({
                   action={action}
                   ready={confirmation.trim().toLocaleUpperCase('pt-BR') === required}
                   targets={targets}
-                  clock={clock}
                   controller={controller.current}
                 />
               </Modal.Footer>

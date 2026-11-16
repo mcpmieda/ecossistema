@@ -10,6 +10,7 @@ import {
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { createSettingsMutationV1, type SettingsMutationStateV1 } from './settings-mutation-v1';
 import { SettingsCheckboxV1 } from './settings-editors-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 type PreviewResponseV1 = Extract<AdminResponseV1, { state: 'links-preview' }>;
 type PreviewV1 = Pick<PreviewResponseV1, 'count' | 'version' | 'expiresAt'>;
 const CONFIRMATION = 'ENCERRAR VÍNCULOS 2026';
@@ -46,8 +47,7 @@ export function LinkClosureV1({
   const [mutation, setMutation] = useState<SettingsMutationStateV1>({ state: 'idle' });
   const [text, setText] = useState(''),
     [understood, setUnderstood] = useState(false);
-  const [expired, setExpired] = useState(false),
-    [clock, setClock] = useState(Date.now);
+  const [expired, setExpired] = useState(false);
   const reader = useMemo(() => createLatestPortalRequestV1<PreviewV1>(setLoad), []);
   const writer = useMemo(() => createSettingsMutationV1(client, setMutation), [client]);
   const busy = load.state === 'loading' || mutation.state === 'pending';
@@ -74,12 +74,7 @@ export function LinkClosureV1({
     );
     return () => clearTimeout(timer);
   }, [load]);
-  useEffect(() => {
-    if (mutation.state !== 'error' || !mutation.retryable) return;
-    setClock(Date.now());
-    const timer = setInterval(() => setClock(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [mutation]);
+  const retryReady = useRetryReadyV1(mutation.state === 'error' ? mutation.retryAt : 0);
   useEffect(() => {
     if (mutation.state !== 'committed') return;
     proof.current = null;
@@ -227,7 +222,7 @@ export function LinkClosureV1({
               <Button
                 size="sm"
                 variant="secondary"
-                isDisabled={disabled || clock < mutation.retryAt}
+                isDisabled={disabled || !retryReady}
                 onPress={() => void writer.retry()}
               >
                 Repetir o mesmo encerramento
