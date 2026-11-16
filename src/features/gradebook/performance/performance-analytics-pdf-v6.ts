@@ -1,4 +1,4 @@
-import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
+import { schoolDateTimeTextV1 } from '../../../../shared/locale-format-v1';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import {
@@ -231,7 +231,7 @@ export async function buildPerformanceTeacherPdfV6(
     y -= 23;
   }
   const pages = document.getPages();
-  const readAt = new Date(value.readAt).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 });
+  const readAt = schoolDateTimeTextV1(value.readAt);
   for (const [index, current] of pages.entries()) {
     page = current;
     text(

@@ -11,6 +11,8 @@ import {CollectorAccessServiceV1} from './access-service-v1';
 import type {CollectorOAuthDependenciesV1} from './oauth-v1';
 
 export type CollectorDatabaseV1=CollectorSqlV1 & {close:()=>Promise<void>};
+/** Built once, not on every collector request (issue #1490, finding 12). */
+const databaseBindingSchema=z.object({connectionString:z.string().min(1)}),refreshKeySchema=z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
 type CollectorRuntimeV1={access:CollectorAccessServiceV1;pairings:CollectorPairingStoreV1;
   cipher:CollectorRefreshCipherV1;oauth:CollectorOAuthDependenciesV1;close:()=>Promise<void>};
 export type CollectorRuntimeDependenciesV1={database?:(connectionString:string)=>Promise<CollectorDatabaseV1>;
@@ -32,7 +34,7 @@ export async function createCollectorWithdrawalStoreV1(env:RuntimeEnv,dependenci
   let db:CollectorDatabaseV1|undefined;
   try{
     if(env.OFFICIAL_ORIGIN!=='https://admin.escolaieda.com')return null;
-    const connection=z.object({connectionString:z.string().min(1)}).parse(env.COLLECTOR_DB);
+    const connection=databaseBindingSchema.parse(env.COLLECTOR_DB);
     db=await (dependencies.database??database)(connection.connectionString);
     return {store:new CollectorAuthorizationStoreV1(db),close:()=>db!.close()};
   }catch{
@@ -60,9 +62,9 @@ export async function createCollectorRuntimeV1(env:RuntimeEnv,dependencies:Colle
   let db:CollectorDatabaseV1|undefined;
   let stage='database-binding';
   try{
-    const connection=z.object({connectionString:z.string().min(1)}).parse(env.COLLECTOR_DB);
+    const connection=databaseBindingSchema.parse(env.COLLECTOR_DB);
     stage='refresh-key';
-    const encoded=z.string().regex(/^[A-Za-z0-9_-]{43}$/u).parse(env.COLLECTOR_REFRESH_KEY);
+    const encoded=refreshKeySchema.parse(env.COLLECTOR_REFRESH_KEY);
     if(encoded===env.SESSION_SECRET)throw new Error('dedicated-key-required');
     const key=decodeBase64Url(encoded);
     if(key.byteLength!==32)throw new Error('dedicated-key-required');

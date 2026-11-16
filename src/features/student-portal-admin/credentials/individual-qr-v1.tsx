@@ -19,6 +19,7 @@ import {
 } from '../../student-photos/catalog-client-v1';
 import { photoSubjectKeyV1 } from '../../../../shared/student-photos/catalog-v1';
 import { PhotoAdminClientErrorV1 } from '../../student-photos/admin-client-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 
 /** After a ready QR: copied, copy unavailable, or a download that did not start. */
 function QrReadyNoticesV1({ state }: Readonly<{ state: QrOperationStateV1 }>) {
@@ -41,15 +42,14 @@ function QrReadyNoticesV1({ state }: Readonly<{ state: QrOperationStateV1 }>) {
 /** A failed QR read or render: retry the same QR, or read the current one again. */
 function QrErrorV1({
   state,
-  clock,
   onRetry,
   onReload,
 }: Readonly<{
   state: QrOperationStateV1;
-  clock: number;
   onRetry: () => void;
   onReload: () => void;
 }>) {
+  const retryReady = useRetryReadyV1(state.state === 'error' ? state.retryAt : 0);
   if (state.state !== 'error') return null;
   return (
     <div role="alert">
@@ -59,11 +59,11 @@ function QrErrorV1({
           : 'Não foi possível consultar o QR atual.'}
       </p>
       {state.retryable ? (
-        <Button variant="secondary" isDisabled={clock < state.retryAt} onPress={onRetry}>
+        <Button variant="secondary" isDisabled={!retryReady} onPress={onRetry}>
           Tentar novamente
         </Button>
       ) : (
-        <Button variant="secondary" isDisabled={clock < state.retryAt} onPress={onReload}>
+        <Button variant="secondary" isDisabled={!retryReady} onPress={onReload}>
           Recarregar QR atual
         </Button>
       )}
@@ -77,7 +77,6 @@ export function IndividualQrV1(
   const { client, reader, canWrite, scope, renderArtifact } = props;
   const [state, setState] = useState<QrOperationStateV1>({ state: 'idle' });
   const [notice, setNotice] = useState('');
-  const [clock, setClock] = useState(Date.now);
   const [cardState, setCardState] = useState<'idle' | 'rendering' | 'ready' | 'error'>('idle');
   const [cardCopy, setCardCopy] = useState<'none' | 'pending' | 'copied' | 'download-required'>(
     'none',
@@ -182,12 +181,6 @@ export function IndividualQrV1(
       'png',
     );
   }, [read.state, canWrite, operation, printer]);
-  useEffect(() => {
-    if (state.state !== 'error') return;
-    setClock(Date.now());
-    const timer = setTimeout(() => setClock(Date.now()), Math.max(0, state.retryAt - Date.now()));
-    return () => clearTimeout(timer);
-  }, [state]);
   const account = read.state.state === 'ready' ? read.state.data : null;
   useEffect(() => {
     card.current = null;
@@ -422,7 +415,6 @@ export function IndividualQrV1(
         <QrReadyNoticesV1 state={state} />
         <QrErrorV1
           state={state}
-          clock={clock}
           onRetry={() => void operation.retry()}
           onReload={() => {
             requested.current = null;

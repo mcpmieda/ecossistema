@@ -17,11 +17,21 @@ export const ONLINE_QUIET_SECONDS_V2 = QUIET_REFRESH_SECONDS_V2 + ONLINE_NEAR_SE
 
 const DAY_MS = 86_400_000;
 
+/** One formatter per zone, built once (issue #1490, finding 1): in practice only the school's zone. */
+const OFFSET_FORMAT_V2 = new Map<string, Intl.DateTimeFormat>();
+function offsetFormat(zone: string): Intl.DateTimeFormat {
+  let format = OFFSET_FORMAT_V2.get(zone);
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+    OFFSET_FORMAT_V2.set(zone, format);
+  }
+  return format;
+}
+
 /** The zone's offset from UTC at an instant, in ms. */
 function offsetMs(zone: string, at: number): number {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' })
-      .formatToParts(at).map((p) => [p.type, p.value]),
+    offsetFormat(zone).formatToParts(at).map((p) => [p.type, p.value]),
   );
   return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second)) - Math.floor(at / 1000) * 1000;
 }

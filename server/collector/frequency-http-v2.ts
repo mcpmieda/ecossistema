@@ -36,6 +36,9 @@ const proofSchema = z
     signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/u),
   })
   .strict();
+const collectorRequestSchema = z
+  .object({ proof: proofSchema, payload: frequencyRequestV2 })
+  .strict();
 /** Expected while a reserve computer waits or the school is paused: not failures. */
 // 'payload-required' is the expected answer to an unchanged diary the server cannot confirm.
 const ROUTINE = new Set(['lease-busy', 'paused', 'payload-required']);
@@ -119,10 +122,9 @@ export async function handleCollectorFrequencyRequestV2(
     const foreign =
       request.headers.has('Origin') && request.headers.get('Origin') !== env.OFFICIAL_ORIGIN;
     if (!official || foreign) return reply({ contractVersion: 2, state: 'not-authorized' }, 403);
-    const input = z
-      .object({ proof: proofSchema, payload: frequencyRequestV2 })
-      .strict()
-      .parse(await readBoundedJson(request, FREQUENCY_BODY_BYTES_V2));
+    const input = collectorRequestSchema.parse(
+      await readBoundedJson(request, FREQUENCY_BODY_BYTES_V2),
+    );
     const actor = await access.authorizeFrequency(input.proof, input.payload);
     return await execute(env, 'collector', input.payload, actor);
   } catch (error) {
