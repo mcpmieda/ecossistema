@@ -1,3 +1,5 @@
+import { PT_BR_COLLATOR_V1 } from '../../locale-format-v1';
+
 /**
  * Institutional labels transcribed from CONFIGURAÇÃO!H3:I16, inspected 2026-09-10.
  * Shared populated rows in the two inspected source templates agree; one template
@@ -24,7 +26,7 @@ export function compareSourceSubjectPresentationV1(left: string, right: string):
   const rightIndex = sourceSubjectPresentationOrderV1(right);
   return (
     (leftIndex ?? Number.MAX_SAFE_INTEGER) - (rightIndex ?? Number.MAX_SAFE_INTEGER) ||
-    left.localeCompare(right, 'pt-BR')
+    PT_BR_COLLATOR_V1.compare(left, right)
   );
 }
 export function sourceSubjectAbbreviationV1(name: string): string | null {

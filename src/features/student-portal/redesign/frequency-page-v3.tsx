@@ -1,4 +1,5 @@
 import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
+import { schoolShortDateTimeTextV1 } from '../../../../shared/locale-format-v1';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { CalendarOff, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, PartyPopper, TriangleAlert, X } from 'lucide-react';
 import {
@@ -1153,7 +1154,7 @@ function FrequencyMonthV3({
       {data.lastReadAt ? (
         <p className="pa3-footnote">
           Atualizado em{' '}
-          {new Date(data.lastReadAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: SCHOOL_TIME_ZONE_V1 })}
+          {schoolShortDateTimeTextV1(data.lastReadAt)}
         </p>
       ) : null}
     </>

@@ -1,4 +1,5 @@
 import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
+import { schoolShortDateTimeTextV1 } from '../../../../shared/locale-format-v1';
 import {
   Fragment,
   useCallback,
@@ -1125,11 +1126,7 @@ export function ScheduleWeekV3({
           {latest ? (
             <p className="pa3-footnote">
               Atualizado em{' '}
-              {new Date(latest).toLocaleString('pt-BR', {
-                dateStyle: 'short',
-                timeStyle: 'short',
-                timeZone: SCHOOL_TIME_ZONE_V1,
-              })}
+              {schoolShortDateTimeTextV1(latest)}
             </p>
           ) : null}
         </>
