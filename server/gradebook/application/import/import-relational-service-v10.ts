@@ -6,13 +6,9 @@ import type {
   GradebookImportTermV9,
   GradebookNotesImportRequestV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { type GradebookPostgresWritePortV1, type GradebookPostgresReadPortV1  } from '../../persistence/postgres/postgres-database-v1';
+import { requireTransactionDatabaseV1, type GradebookPostgresWritePortV1, type GradebookPostgresReadPortV1  } from '../../persistence/postgres/postgres-database-v1';
 
 import { createGradebookRelationalImportServiceV9 } from './import-relational-service-v9';
-
-interface TransactionDatabaseV10 extends GradebookPostgresWritePortV1 {
-  transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
-}
 
 type Row = Record<string, unknown>;
 
@@ -39,16 +35,6 @@ function classKey(value: string): string {
 
 function historicalBindingKey(turmaCodigo: string, numero: number): string {
   return `${classKey(turmaCodigo)}:${numero}`;
-}
-
-function transactionDatabase(database: GradebookPostgresWritePortV1): TransactionDatabaseV10 {
-  if (
-    !('transaction' in database) ||
-    typeof (database as { transaction?: unknown }).transaction !== 'function'
-  ) {
-    throw new Error('gradebook-relational-import-requires-postgres');
-  }
-  return database as TransactionDatabaseV10;
 }
 
 function filterTerm(
@@ -133,7 +119,7 @@ export function createGradebookRelationalImportServiceV10(database: GradebookPos
       }
 
       try {
-        return await transactionDatabase(database).transaction(async (transaction) => {
+        return await requireTransactionDatabaseV1(database).transaction(async (transaction) => {
           // Hold the same year lock used by V9 while selecting the current/historical
           // bindings, so a concurrent Relação import cannot change the movement state
           // between filtering and persistence. V9 reuses this transaction and lock.

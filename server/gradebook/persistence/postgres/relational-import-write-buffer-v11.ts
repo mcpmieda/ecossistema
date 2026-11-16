@@ -5,6 +5,7 @@ import {
   type SerializedJsonRecordV1,
 } from './json-record-chunks-v1';
 import {
+  requireTransactionDatabaseV1,
   type GradebookPostgresScalarV1,
   type GradebookPostgresExecutionV1,
   type GradebookPostgresWritePortV1,
@@ -19,10 +20,6 @@ import {
 } from './import-performance-observer-v1';
 
 type Row = Record<string, unknown>;
-
-interface TransactionDatabaseV11 extends GradebookPostgresWritePortV1 {
-  transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
-}
 
 export interface BufferedRelationalImportDatabaseV11 extends GradebookPostgresWritePortV1 {
   transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
@@ -97,16 +94,6 @@ function emptyBuffer(): BufferedWritesV11 {
     closingUpdate: [],
     closingDelete: [],
   };
-}
-
-function transactionDatabase(database: GradebookPostgresWritePortV1): TransactionDatabaseV11 {
-  if (
-    !('transaction' in database) ||
-    typeof (database as { transaction?: unknown }).transaction !== 'function'
-  ) {
-    throw new Error('gradebook-relational-import-requires-postgres');
-  }
-  return database as TransactionDatabaseV11;
 }
 
 function compactSql(query: string): string {
@@ -216,7 +203,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     operation: (database: GradebookPostgresWritePortV1) => Promise<T>,
   ): Promise<T> {
     await this.flush('transaction-end');
-    return transactionDatabase(this.underlying).transaction(async (transaction) => {
+    return requireTransactionDatabaseV1(this.underlying).transaction(async (transaction) => {
       const finalizers = this.finalizers ?? [];
       const nested = new BufferedDatabaseV11(transaction, finalizers, this.observer);
       const result = await operation(nested);
