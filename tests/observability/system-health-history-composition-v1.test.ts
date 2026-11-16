@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
 import { portalHistoryRpcV1, portalHistoryScheduledV1 } from '../../server/student-portal/composition/health-history-v1';
 import { portalDatabaseV1 } from '../../server/student-portal/composition/database-v1';

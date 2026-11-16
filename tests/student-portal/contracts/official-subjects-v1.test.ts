@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
   OFFICIAL_SUBJECTS_2026_V1,

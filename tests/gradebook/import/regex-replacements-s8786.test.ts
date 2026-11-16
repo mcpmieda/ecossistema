@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { parseRelationStatusV9 } from '../../../src/features/gradebook/import/master-relation-v9';
 import { withoutTrailingYearV1 } from '../../../src/features/gradebook/import/spreadsheet-recognizer';

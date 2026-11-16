@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
 import { servePortalSelfV1 } from '../../../server/student-portal/composition/self-v1';
 import { portalKeysV1, type PortalCompositionEnvV1 } from '../../../server/student-portal/composition/config-v1';

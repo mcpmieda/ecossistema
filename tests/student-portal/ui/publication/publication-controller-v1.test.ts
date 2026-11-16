@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import type {
   AdminCommandV1,

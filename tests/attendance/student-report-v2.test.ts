@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { applyStudentReportV2 } from '../../server/attendance/student-report-v2';
 import { StudentReportPendingV2, type StudentReportPreviousV2 } from '../../server/attendance/service-v2';

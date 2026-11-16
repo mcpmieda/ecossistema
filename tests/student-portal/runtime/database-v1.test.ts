@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { PortalRateLimitErrorV1 } from '../../../server/student-portal/observability/operation-burst-v1';
 import { describe, expect, it, vi } from 'vitest';
 import {

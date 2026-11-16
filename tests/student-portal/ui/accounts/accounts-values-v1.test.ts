@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { accountFixtureV1, accountPageV1, ACCOUNT_CLASS_V1 } from './fixtures-v1';
 import {

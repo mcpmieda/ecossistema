@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it, vi } from 'vitest';
 import { scopedSelfV2 } from '../../../server/student-portal/publication/scoped-self-v2';
 import { PERIODS_V1 } from '../../../server/student-portal/publication/state-v1';

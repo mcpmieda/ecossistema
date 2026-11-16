@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { createFrequencyAdminClientV2 } from '../../src/features/gradebook/import/frequency-client-v2';
 

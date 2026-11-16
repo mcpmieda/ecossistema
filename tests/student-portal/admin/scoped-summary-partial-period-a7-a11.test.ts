@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { scopedSummaryV2 } from '../../../server/student-portal/publication/scoped-source-v2';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { servePortalPhotoV1, type OwnPortraitReaderV1 } from '../../../server/student-portal/photos/http-v1';
 import { servePortalSelfV1 } from '../../../server/student-portal/composition/self-v1';

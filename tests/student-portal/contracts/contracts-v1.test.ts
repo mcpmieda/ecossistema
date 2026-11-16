@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { academicLinkV1, scopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { activateRequestV1, challengeRequestV1, challengeResponseV1, isWeakPasswordV1, loginRequestV1, logoutRequestV1, logoutResponseV1, passwordV1, pinV1, qrUrlV1, sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';

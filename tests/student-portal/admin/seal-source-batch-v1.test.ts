@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { readSealsV1 } from '../../../server/student-portal/admin/seals-read-v1';
 import {

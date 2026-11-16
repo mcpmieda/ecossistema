@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { trimCharsV1, trimEndCharsV1, trimStartCharsV1 } from '../../shared/trim-chars-v1';
 

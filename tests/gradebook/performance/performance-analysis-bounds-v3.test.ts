@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { createPerformanceAnalyticsV6 } from '../../../server/gradebook/application/read-models/performance/performance-analytics-v6';
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';

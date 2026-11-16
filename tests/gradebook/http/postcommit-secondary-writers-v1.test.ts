@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../../server/env';
 import { createAssessmentNamesRequestHandlerV1 } from '../../../server/gradebook/http/assessment-names-routes-v1';

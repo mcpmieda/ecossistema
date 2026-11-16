@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { annualGoalV1 } from '../../../../src/features/student-portal/workspace/annual-goal-v1';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';

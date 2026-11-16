@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { enforceSchoolAccessV1 } from '../../../server/student-portal/policies/school-access-v1';
 import { initialPolicyDefaultsV1 } from '../../../server/student-portal/policies/defaults-v1';

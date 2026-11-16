@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { cellMeaningV1 } from '../../../src/features/gradebook/audit-workspace/cell-meaning-v1';
 import { gradedStudentsV1 } from '../../../src/features/gradebook/import/audit-rules-v1';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { portalRequestOriginAllowedV1 } from '../../../server/student-portal/runtime/http-v1';
 
