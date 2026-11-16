@@ -6,7 +6,6 @@ interface __BaseEnv_Env {
 	TENANT_ID: "f04e0fa3-b8dc-4f77-be3c-7dfda0635188";
 	WEB_CLIENT_ID: "78185e20-c824-4acc-9ccd-41b9f7509a6f";
 	GRAPH_CLIENT_ID: "7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c";
-	SHAREPOINT_SITE_ID: "eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56";
 	GROUP_ADMIN_ID: "6b9be4a5-52a4-4e41-8654-1564f14e5ab5";
 	GROUP_PROFESSOR_ID: "96227794-63b1-421c-96f4-cd062fcdf00a";
 	GROUP_ALUNO_ID: "8255b76e-dd85-4d04-a360-8ce1baf6ce63";
@@ -25,7 +24,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "RUNTIME_ENVIRONMENT" | "TENANT_ID" | "WEB_CLIENT_ID" | "GRAPH_CLIENT_ID" | "SHAREPOINT_SITE_ID" | "GROUP_ADMIN_ID" | "GROUP_PROFESSOR_ID" | "GROUP_ALUNO_ID" | "GROUP_APOIO_ID" | "GROUP_VISITANTE_ID" | "OFFICIAL_ORIGIN" | "GRADEBOOK_STORAGE_PROVIDER">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "RUNTIME_ENVIRONMENT" | "TENANT_ID" | "WEB_CLIENT_ID" | "GRAPH_CLIENT_ID" | "GROUP_ADMIN_ID" | "GROUP_PROFESSOR_ID" | "GROUP_ALUNO_ID" | "GROUP_APOIO_ID" | "GROUP_VISITANTE_ID" | "OFFICIAL_ORIGIN" | "GRADEBOOK_STORAGE_PROVIDER">> {}
 }
 
 // Existing ADM runtime declarations retained; the Portal has separate runtime types.

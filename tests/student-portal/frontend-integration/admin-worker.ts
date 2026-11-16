@@ -64,7 +64,6 @@ export default {
       TENANT_ID: id,
       WEB_CLIENT_ID: id,
       GRAPH_CLIENT_ID: id,
-      SHAREPOINT_SITE_ID: 'synthetic-local-sharepoint-757',
       GROUP_ADMIN_ID: id,
       GROUP_PROFESSOR_ID: id,
       GROUP_ALUNO_ID: id,

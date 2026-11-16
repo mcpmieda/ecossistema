@@ -26,7 +26,6 @@ const env = {
   GROUP_ALUNO_ID: group,
   GROUP_APOIO_ID: group,
   GROUP_VISITANTE_ID: group,
-  SHAREPOINT_SITE_ID: 'synthetic-site-not-contacted',
   SESSION_SECRET: 's'.repeat(43),
   OFFICIAL_ORIGIN: 'https://admin.escolaieda.com',
 } as unknown as RuntimeEnv;
