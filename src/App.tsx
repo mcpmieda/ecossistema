@@ -19,10 +19,9 @@ import { LiveRefreshAutomaticV1Provider } from './shared/live-data/live-refresh-
 import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
 import { rememberAddressV1, startAccountViewsV1 } from './shared/ui/session-view-v1';
 
-/** Since 03/11/2026, when the owner asked whether the automatic refresh was needed (screens still
- * blinked): the ADM reads again when its window comes back, after each write and on F5, with no
- * clock and no live channel; a change made elsewhere shows then. Writes still check versions.
- * This flag turns the clock back on; the live channel of the ADM was removed on 08/11/2026. */
+/** No automatic refresh (it made screens blink): the ADM reads again when its window comes back,
+ * after each write and on F5, with no clock and no live channel; a change made elsewhere shows
+ * then. Writes still check versions. This flag turns the clock back on. */
 export const ADMIN_AUTOMATIC_READS_V1 = false;
 
 type AuthFailure = { correlationId?: string };
@@ -41,7 +40,7 @@ function usePlatformRoute(): PlatformRoute {
     const onHashChange = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', onHashChange);
     if (!window.location.hash) window.history.replaceState(null, '', '#/banco-de-notas');
-    // Addresses saved for the retired platform Auditoria (#1473) open Saúde.
+    // Addresses saved for the retired platform Auditoria open Saúde.
     if (/^#\/?auditoria\b/u.test(window.location.hash)) window.location.replace('#/operacao');
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -56,7 +55,7 @@ function useLocationHash(): string {
   }, []);
   return hash;
 }
-/** The side column collapsed to its icons, remembered in this browser (owner request of 13/10/2026). */
+/** The side column collapsed to its icons, remembered in this browser. */
 const SIDE_COLLAPSED_KEY_V1 = 'centro.side-collapsed.v1';
 function useSideCollapsedV1(): [boolean, () => void] {
   const [collapsed, setCollapsed] = useState(() => {

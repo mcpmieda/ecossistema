@@ -3,7 +3,7 @@ import { requestSignalV1 } from '../shared/request-signal-v1';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
 
 /*
- * The student's Smecel records and the family's "Estou ciente" (owner decisions 29/10/2026), from
+ * The student's Smecel records and the family's "Estou ciente", from
  * GET /api/student/incidents and POST /api/student/incidents/acknowledge
  * (server/student-portal/composition/incidents-v1.ts). Same-origin, private, no cache; the session
  * decides the student. A confirmation names the version read: one the school edited or removed since

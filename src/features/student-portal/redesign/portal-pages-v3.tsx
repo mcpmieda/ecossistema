@@ -9,12 +9,11 @@ import '../shell/student-shell-v1.css';
 import './redesign-v3.css';
 
 /*
- * The Portal's pages (owner request 20/10/2026, "caminho A"; PR 1317): the portal's own cover and
- * white sheet, shared by Notas, Frequência and Horário (owner decision 22/10/2026), and a menu of
- * icons at the bottom on a phone and at the side on a computer. Switching only changes what is
- * inside the sheet: the cover, the sheet and the menu stay still; the menu's highlight glides to
- * the chosen item. A page the school turned off in the ADM (Frequência, Horário, Ocorrências) has no menu item,
- * and with Notas alone the menu shows Notas only (owner decision 23/10/2026).
+ * The Portal's pages: the portal's own cover and white sheet, shared by Notas, Frequência and
+ * Horário, and a menu of icons at the bottom on a phone and at the side on a computer. Switching
+ * only changes what is inside the sheet: the cover, the sheet and the menu stay still; the menu's
+ * highlight glides to the chosen item. A page the school turned off in the ADM (Frequência,
+ * Horário, Ocorrências) has no menu item, and with Notas alone the menu shows Notas only.
  */
 type PortalPageIdV3 = 'grades' | 'frequency' | 'schedule' | 'incidents';
 /**
@@ -25,7 +24,7 @@ const PortalPageActiveV3 = createContext(true);
 export const usePortalPageActiveV3 = () => useContext(PortalPageActiveV3);
 
 /**
- * The Frequência item of the menu says how it is going (owner decision 23/10/2026): a red X on the
+ * The Frequência item of the menu says how it is going: a red X on the
  * calendar while the page has a red warning at the top (its approved sentences), a green check
  * otherwise. Unknown until the year is read (the plain check). The page reports it.
  */
@@ -38,7 +37,7 @@ export function useReportFrequencyToneV3(tone: FrequencyToneV3) {
 
 /**
  * The Ocorrências item shows, small at its top right, how many incidents the family has not yet
- * confirmed (owner decision 29/10/2026); nothing once all are confirmed. The page reports it.
+ * confirmed; nothing once all are confirmed. The page reports it.
  */
 const OpenIncidentsReportV3 = createContext<(open: number | null) => void>(() => {});
 export function useReportOpenIncidentsV3(open: number | null) {
@@ -73,7 +72,7 @@ const PAGES: readonly { id: PortalPageIdV3; label: string }[] = [
 ];
 
 /**
- * The Frequência item's calendar (owner request 27/10/2026): the calendar in the menu's own color,
+ * The Frequência item's calendar: the calendar in the menu's own color,
  * like Notas and Horário; only its mark is colored, a green check or a red X. Drawn like lucide's
  * "calendar-check-2" and "calendar-x-2".
  */
@@ -109,7 +108,7 @@ function FrequencyIconV3({ tone, size }: Readonly<{ tone: FrequencyToneV3; size:
 }
 
 /**
- * The Horário item's clock tells the time (owner request 23/10/2026): its hands follow the school's
+ * The Horário item's clock tells the time: its hands follow the school's
  * clock (the server's time, Brasília), moved once a minute. Drawn like lucide's "clock".
  */
 const SCHOOL_HOUR_V3 = new Intl.DateTimeFormat('en-GB', {
@@ -150,7 +149,7 @@ function LiveClockIconV3({ size }: Readonly<{ size: number }>) {
 }
 
 /*
- * Notas ⇄ Frequência (owner request 20/10/2026): the same move as between trimesters, inside the
+ * Notas ⇄ Frequência: the same move as between trimesters, inside the
  * sheet only. The content being left slides out to one side while the chosen one comes in from the
  * other; each page sits to the right of the one before it, as in the menu (Notas, Frequência, Horário, Ocorrências).
  */
@@ -188,7 +187,7 @@ function useNavHighlightV3(page: PortalPageIdV3, items: number) {
 
 /*
  * Notas ⇄ Frequência is a step of the browser's Back, kept beside the Notas workspace's own entry in
- * history.state (Copilot review of PR 1317): Back from Frequência returns to Notas as it was, and a
+ * history.state: Back from Frequência returns to Notas as it was, and a
  * Back inside Notas never changes the page hidden behind Frequência.
  */
 const PAGE_HISTORY_KEY_V3 = 'pa3Page';
@@ -213,7 +212,7 @@ type PortalPagesPropsV3 = Omit<StudentShellPropsV1, 'children' | 'hero' | 'busy'
 export function PortalPagesV3({ hero, grades, frequency, schedule, incidents, ...shell }: PortalPagesPropsV3) {
   const contentOf: Record<PortalPageIdV3, ReactNode> = { grades, frequency, schedule, incidents };
   const pages = PAGES.filter((item) => item.id === 'grades' || contentOf[item.id] != null);
-  // Notas alone (owner decision 23/10/2026: both keys off): the bottom bar stays, with Notas only.
+  // Notas alone (both keys off): the bottom bar stays, with Notas only.
   return <PortalMenuPagesV3 hero={hero} pages={pages} contentOf={contentOf} shell={shell} />;
 }
 
@@ -360,7 +359,7 @@ function PortalMenuPagesV3({
         </FrequencyToneReportV3>
       </div>
 
-      {/* After the page in the reading order (owner review 23/10/2026): the skip link stays the first
+      {/* After the page in the reading order: the skip link stays the first
           stop of the keyboard; the bar is fixed, so it shows in the same place. */}
       <nav ref={highlight.nav} className="pa3-nav" aria-label="Menu do Portal">
         <span ref={highlight.pill} className="pa3-nav-highlight" aria-hidden="true" />

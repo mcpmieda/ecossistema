@@ -82,7 +82,7 @@ export interface GradebookImportDiagnosticsAuditRequestV1 {
   readonly academicYear: number | null;
   readonly fileName: string;
   readonly sha256: string;
-  /** Whose snapshot this is: 'manual' (default) or 'onedrive:<Graph item id>' (issue #1462). */
+  /** Whose snapshot this is: 'manual' (default) or 'onedrive:<Graph item id>'. */
   readonly origin?: string;
   readonly diagnostics: readonly GradebookImportDiagnosticAuditItemV1[];
 }

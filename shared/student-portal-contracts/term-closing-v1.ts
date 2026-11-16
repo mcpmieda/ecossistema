@@ -2,9 +2,9 @@ import { z } from 'zod';
 import { TERM_CLOSING_CATALOG_V1 } from './term-closing-catalog-v1';
 
 /*
- * Fechamento do trimestre (#1132). Spec: docs/student-portal/TRIMESTER_CLOSING_SPEC.md.
+ * Fechamento do trimestre. Spec: docs/student-portal/TRIMESTER_CLOSING_SPEC.md.
  * The server emits only message codes and variant indices; this catalog is the single source of
- * wording for the student page and the admin preview. The school approved it on 2026-09-23 (D6); the
+ * wording for the student page and the admin preview. The school approved it (D6); the
  * feature stays behind the `showTermClosing` policy (off by default), which the school turns on.
  * R1: phrases never carry numbers, ranges or activity names; only `{disciplina}`, `{lista}` and
  * `{trimestre}` placeholders are filled at render time.
@@ -77,7 +77,7 @@ export type TermClosingSummaryV1 = z.infer<typeof termClosingSummaryV1>;
 const ORDINAL_V1: Record<TermClosingPeriodV1, string> = { T1: '1º', T2: '2º', T3: '3º' };
 /** "Fechamento do 1º trimestre" (D10), or "Acompanhamento do 2º trimestre" in progress mode. */
 export const termClosingLabelV1 = (period: TermClosingPeriodV1, mode: TermClosingModeV1 = 'conclusion') =>
-  // "Relatório" matches the admin tab name (Relatório de notas, 27/09/2026).
+  // "Relatório" matches the admin tab name (Relatório de notas).
   `${mode === 'progress' ? 'Acompanhamento' : 'Relatório'} do ${ORDINAL_V1[period]} trimestre`;
 
 /** Subject labels arrive upper-case from the BN; sentences use only the first letter capitalized. */

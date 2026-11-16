@@ -110,7 +110,7 @@ export function StudentAccountsV1(props: Readonly<StudentAccountsPropsV1>) {
     />
   );
 }
-/** Classificação da lista (owner request 29/09/2026). */
+/** Classificação da lista. */
 type AccountOrderV1 = 'name' | 'seals' | 'last-access';
 const ACCOUNT_ORDERS_V1: readonly { id: AccountOrderV1; label: string; icon: ReactNode }[] = [
   { id: 'name', label: 'Nome (A–Z)', icon: <ArrowDownAZ size={13} aria-hidden /> },

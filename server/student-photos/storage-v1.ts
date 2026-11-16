@@ -38,7 +38,7 @@ export class PhotoStorageV1 {
   constructor(private readonly serviceKey: string | undefined,
     private readonly authorize: (action: PhotoStorageActionV1) => Promise<void>,
     private readonly fetcher: typeof fetch = fetch,
-    /** Reads only, never writes: the Portal (owner decision 14/11/2026) and the ADM (#1473). See read(). */
+    /** Reads only, never writes: the Portal and the ADM. See read(). */
     private readonly cache?: Cache) {
     if (!serviceKey || serviceKey.length < 40) throw new Error('student-photo-storage-unavailable');
   }
@@ -66,7 +66,7 @@ export class PhotoStorageV1 {
     if (asset.driveId !== PHOTO_BUCKET_V1 || asset.etag !== asset.sha256)
       throw new PhotoWriteErrorV1('invalid');
     const url = this.objectUrl(asset.itemId, true);
-    // Each Storage read takes ~270 ms (median; ~550 ms p90, Supabase edge logs 14/11/2026). The bytes are
+    // Each Storage read takes ~270 ms (median; ~550 ms p90 in the Supabase edge logs). The bytes are
     // kept in the Worker's own cache, keyed by their SHA-256: never sent to a browser or shared cache,
     // served only after the database authorized this very object, and verified again below.
     const key = this.cache ? new Request(`https://student-photo-cache.invalid/${asset.sha256}`) : null;

@@ -5,7 +5,7 @@ import { bellDayV1 } from '../../../../shared/student-portal-contracts/school-be
 import { schoolDaysOffV1, schoolYearSpanV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 
 /*
- * The weekly grid of the student's own class(es) (owner decision 22/10/2026), from
+ * The weekly grid of the student's own class(es), from
  * GET /api/student/schedule (server/student-portal/composition/schedule-v1.ts). The subject exactly
  * as the Smecel names it, never a teacher; a free position is absent. Same-origin, private, no
  * cache; the student never asks for a class or a student (the session decides).

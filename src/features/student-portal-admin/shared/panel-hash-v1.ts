@@ -1,5 +1,5 @@
 /**
- * View state kept in the address (owner request 29/09/2026): with automatic reads paused the
+ * View state kept in the address: with automatic reads paused the
  * administrator reloads by hand, so the chosen class or shift and an open student record come
  * back after a reload. Only identifiers of the ADM's own view; never a mark or a credential.
  */

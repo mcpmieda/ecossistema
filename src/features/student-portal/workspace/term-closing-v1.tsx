@@ -12,7 +12,7 @@ import './term-closing-v1.css';
 import { usePortalPreferenceKeyV1 } from '../shell/preference-scope-v1';
 
 /*
- * Fechamento do trimestre (#1132). The server sends codes only; wording comes from the shared,
+ * Fechamento do trimestre. The server sends codes only; wording comes from the shared,
  * versioned catalog. Nothing here computes or shows a number (R1).
  */
 const SEEN_KEY_V1 = 'studentPortalTermClosingSeenV1';

@@ -1,8 +1,7 @@
 /*
- * The HeroUI tooltip, which also opens with a tap (owner report of 12/11/2026: the "i" did not
- * open on a phone). React Aria shows tooltips only on hover and keyboard focus, so a touch screen
- * never saw them. Here a tap on the trigger toggles the text and a tap anywhere else closes it;
- * hover and keyboard keep working as before.
+ * The HeroUI tooltip, which also opens with a tap. React Aria shows tooltips only on hover and
+ * keyboard focus, so a touch screen never saw them. Here a tap on the trigger toggles the text and
+ * a tap anywhere else closes it; hover and keyboard keep working as before.
  */
 import {
   createContext,

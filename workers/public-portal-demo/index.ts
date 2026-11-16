@@ -46,7 +46,7 @@ const unavailable = () => secured(new Response('Demonstração indisponível.', 
 const stateOf = (env: DemoEnv) => env.DEMO_STATE.get(env.DEMO_STATE.idFromName('public-demo'));
 
 /**
- * The gate's answer, kept 30 s per isolate (issue #1426, 23c): a visit asks for ~10 files and the
+ * The gate's answer, kept 30 s per isolate: a visit asks for ~10 files and the
  * single Durable Object sits in one place in the world. A change made through this isolate applies
  * at once; elsewhere it takes up to 30 s, like a page already open in a visitor's browser.
  */

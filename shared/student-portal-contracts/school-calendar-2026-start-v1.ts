@@ -2,8 +2,8 @@ import type { SchoolCalendarDayV1, SchoolDayKindV1 } from './school-calendar-v1'
 
 /*
  * The official "Calendário Escolar — Ano Letivo 2026" of the Secretaria Municipal de Educação de
- * Medeiros Neto (owner decision 22/10/2026: "seguir esse à risca"), 200 school days. The ADM starts
- * from it; from then on the ADM is the only source. Per month: Feb 6, Mar 23, Apr 20, May 21,
+ * Medeiros Neto, 200 school days. The ADM starts from it; from then on the ADM is the only source.
+ * Per month: Feb 6, Mar 23, Apr 20, May 21,
  * Jun 22, Jul 13, Aug 22, Sep 22, Oct 20, Nov 20, Dec 11. Trimesters: 23/02–15/05, 18/05–31/08,
  * 01/09–15/12; recovery studies 16–22/12. (The Smecel's own calendar had six more Saturdays: 18/04,
  * 09/05, 16/05, 27/06, 04/07 and 18/07, which are not school days.)

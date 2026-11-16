@@ -1,5 +1,5 @@
 .pa-shell {
-  /* Near-white page with only a whisper of cool light at the corners (owner review 28/09/2026). */
+  /* Near-white page with only a whisper of cool light at the corners. */
   --pa-page-bg: #f8f9fb;
   --pa-page-blue: rgb(37 99 235 / 0.05);
   --pa-page-cyan: rgb(6 182 212 / 0.04);
@@ -308,10 +308,10 @@
   color: #dbeafe;
   filter: drop-shadow(0 2px 6px rgb(2 30 74 / 0.2));
 }
-/* The year's situation ("Em curso", official result) sits under the class (27/09/2026). */
+/* The year's situation ("Em curso", official result) sits under the class. */
 .pa-profile-meta {
   display: flex;
-  /* One line: the seal counter sits beside "Em curso" (owner request 27/09/2026). */
+  /* One line: the seal counter sits beside "Em curso". */
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.3rem;
@@ -338,7 +338,7 @@
   overflow: hidden;
   isolation: isolate;
 }
-/* A discreet light crosses the seal counter every 12 s or so (owner request 28/09/2026); no pop. */
+/* A discreet light crosses the seal counter every 12 s or so; no pop. */
 .pa-seal-count::after {
   content: '';
   position: absolute;
@@ -386,7 +386,7 @@
   color: #ba7517;
 }
 /*
- * The star shines (owner request 30/10/2026), itself unchanged: a band of light crosses inside it,
+ * The star shines, itself unchanged: a band of light crosses inside it,
  * slowly and with a rest between passes, and five short beams leave it one after another, each
  * growing out from the star and fading. Transform and opacity only.
  */
@@ -525,8 +525,8 @@
   border: 1px solid rgb(226 232 240 / 0.9);
   border-bottom: 0;
   border-radius: 2.4rem 2.4rem 0 0;
-  /* Near-white, faintly cool (owner review 28/09/2026): the blue, red and gold of the marks stand
-     out on a quiet sheet instead of a blue one. */
+  /* Near-white, faintly cool: the blue, red and gold of the marks stand out on a quiet sheet
+     instead of a blue one. */
   background:
     radial-gradient(34rem 12rem at 50% 0%, rgb(241 245 249 / 0.6), transparent 72%),
     linear-gradient(180deg, #fdfdfe 0%, #f9fafb 18%, #f8f9fb 100%);
@@ -1028,8 +1028,8 @@
   }
 }
 
-/* Phone: content closer to the sheet's edge (owner review 20/10/2026), so cards and lists gain
-   width; the inner panels of the workspace add no side padding of their own there. */
+/* Phone: content closer to the sheet's edge, so cards and lists gain width; the inner panels of
+   the workspace add no side padding of their own there. */
 @media (max-width: 560px) {
   .pa-shell--with-hero .pa-shell-content {
     padding-inline: 0.55rem;

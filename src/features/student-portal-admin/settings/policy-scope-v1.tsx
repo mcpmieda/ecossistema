@@ -10,7 +10,7 @@ export function PolicyScopeV1({
 }: Readonly<{
   scope: PolicyScopeValueV1;
   label?: string;
-  /** A short warning about shift rules (owner decision 28/09/2026). */
+  /** A short warning about shift rules. */
   note?: ReactNode;
 }>) {
   let Icon;

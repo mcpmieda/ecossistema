@@ -147,9 +147,9 @@ export class StudentReconciliationServiceV1 {
   ) {}
   /**
    * Reads (the sidebar count every 5 min, the lists) run in a read-only snapshot without the year's
-   * exclusive lock that the collector, the OneDrive reading and grade imports wait on (issue #1426,
-   * 40). Writes keep the lock. Before the year's first write the row is missing: that one read
-   * takes the write path, which creates it.
+   * exclusive lock that the collector, the OneDrive reading and grade imports wait on. Writes keep
+   * the lock. Before the year's first write the row is missing: that one read takes the write path,
+   * which creates it.
    */
   private async run<T>(request: { operation: string; academicYear: number },
     work: (tx: TxV1, context: ReconciliationContextV1) => Promise<T>): Promise<T> {

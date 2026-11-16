@@ -11,7 +11,7 @@ export function birthStateLabelV1(birth: BirthValueV1): string {
   return birth.year ? 'Legado não confirmado' : 'Aguardando Relatório';
 }
 
-/** The record's birth year, one line under the name (owner request 10/11/2026: no tab). */
+/** The record's birth year, one line under the name (no tab). */
 export function RecordBirthV1({
   client,
   reader,

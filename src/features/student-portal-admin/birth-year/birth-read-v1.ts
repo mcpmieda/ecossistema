@@ -21,7 +21,7 @@ function snapshotStillCurrentV1(account: AdminAccountReadV2, birth: BirthRespons
 }
 
 /**
- * One student's birth year for the record (10/11/2026: the record reads one account only).
+ * One student's birth year for the record (the record reads one account only).
  * The independently authorized birth read confirms the account CAS before the record's account is
  * reused; a changed version falls back to a fresh account query, never an optimistic rebase.
  * Null when the account is no longer in its own scope.

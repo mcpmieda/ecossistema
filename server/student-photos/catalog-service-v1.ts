@@ -8,7 +8,7 @@ export class PhotoCatalogServiceV1 {
   private readonly storage: PhotoStorageV1;
   constructor(env: RuntimeEnv, readonly repository: PhotoCatalogRepositoryV1,
     private readonly authorize: (context: PhotoWriteContextV1) => Promise<void>) {
-    // Read-only, with the Worker's own cache by SHA-256 as in the Portal (owner decision, #1473).
+    // Read-only, with the Worker's own cache by SHA-256 as in the Portal.
     this.storage = new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, async () => {
       throw new PhotoWriteErrorV1('invalid');
     }, fetch, (globalThis as { caches?: { default?: Cache } }).caches?.default);

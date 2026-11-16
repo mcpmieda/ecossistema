@@ -106,7 +106,7 @@ function response(value: GradebookImportPersistenceResponseV9, serverMs: number)
   return Response.json(value, { status: statusFor(value), headers });
 }
 async function readPayload(request: Request): Promise<{ value: unknown; bytes: number }> {
-  // Refused as soon as it passes the limit, never read whole first (issue #1450, 102).
+  // Refused as soon as it passes the limit, never read whole first.
   const { text, bytes } = await readBoundedTextV1(request, GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9);
   try {
     return { value: JSON.parse(text) as unknown, bytes };
@@ -158,7 +158,7 @@ async function handle(
     let sent: GradebookImportPersistenceRequestV9 = canonical;
     let unbound: GradebookRelationWarningV9[] = [];
     if (isNotesRequestV1(canonical)) {
-      // One read of the Relação, with names: the numbers it has and, for rule 14, who they are (#1477).
+      // One read of the Relação, with names: the numbers it has and, for rule 14, who they are.
       const relation = await relationNamesV1(database, canonical.ano);
       const dropped = dropUnboundStudentsV1(canonical, boundStudentsFromNamesV1(relation));
       const held = holdManualNameMismatchesV1(dropped.request, relation);

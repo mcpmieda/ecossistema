@@ -8,7 +8,7 @@ import { adminInstantV1 } from './common-v1';
 import { ACCOUNT_JOIN_V1 } from './queries-v1';
 
 /** Additive, read-only listing. Inherited snapshots are not personalized settings. Shift rules
- * (owner decision 28/09/2026) are listed with the school, never under one class or account.
+ * are listed with the school, never under one class or account.
  * Authorization and repeatable-read transaction belong to the existing admin dispatcher. */
 export async function readSettingsOverridesV1(
   tx: StudentPortalPostgresQueryV1,

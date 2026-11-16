@@ -1,5 +1,5 @@
 /*
- * Preview only (owner request 02/11/2026): on a computer there is no finger, so dragging with the
+ * Preview only: on a computer there is no finger, so dragging with the
  * mouse sends the page the same touches a phone would. Never imported by the real portal.
  */
 const IDENTIFIER = 1;

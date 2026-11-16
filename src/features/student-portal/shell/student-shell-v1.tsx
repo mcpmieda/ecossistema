@@ -18,8 +18,8 @@ import { PortalPagesV3 } from '../redesign/portal-pages-v3';
 import { PageLoadingV3 } from '../redesign/page-loading-v3';
 import { markStudentModuleFailureV1 } from '../../../student-portal/diagnostics-v1';
 
-// Frequência, Horário and Ocorrências arrive on demand (issue #1490): with the school's key off they
-// are never downloaded, and Notas never waits for them. Every page is mounted behind the menu (each
+// Frequência, Horário and Ocorrências arrive on demand: with the school's key off they are never
+// downloaded, and Notas never waits for them. Every page is mounted behind the menu (each
 // reads with the sign-in), so a page that is on starts downloading as soon as the portal opens.
 const FrequencyPageV3 = lazy(() =>
   import('../redesign/frequency-page-v3')
@@ -149,7 +149,7 @@ const SEAL_BEAMS_V1 = [
 ] as const;
 
 /**
- * The seal's star, unchanged, shining (owner request 30/10/2026): a band of light crosses inside
+ * The seal's star, unchanged, shining: a band of light crosses inside
  * it now and then, and short beams leave it one after another (student-shell-v1.css).
  */
 function SealStarV1() {
@@ -168,8 +168,8 @@ function SealStarV1() {
 
 /**
  * "★ 2 selos Brilhante" in the hero. With none, the same pill shows "0 selos Brilhante", dimmed
- * and without shine (owner request 29/09/2026). "Brilhante" is the name of the seal's level, so it
- * stays capitalized and invariable (owner decision 20/10/2026).
+ * and without shine. "Brilhante" is the name of the seal's level, so it stays capitalized and
+ * invariable.
  */
 function SealCountV1({ count }: Readonly<{ count: number }>) {
   const empty = count <= 0;
@@ -266,7 +266,7 @@ export function StudentProfileV1({
               </p>
             </div>
 
-            {/* "Em curso" is not shown: it tells the student nothing (owner review 27/09/2026).
+            {/* "Em curso" is not shown: it tells the student nothing.
                 An official status (Aprovado, Em recuperação…) still is, after the seals. */}
             <div className="pa-profile-meta">
               <SealCountV1 count={seals} />
@@ -440,7 +440,7 @@ export function StudentPortalPageV1({
     ) : undefined;
   if (load.state === 'ready') {
     const data = load.data;
-    // Notas, Frequência, Horário (PR 1317) and Ocorrências: one page each behind the menu. All but
+    // Notas, Frequência, Horário and Ocorrências: one page each behind the menu. All but
     // Notas exist only when the school's ADM keys are on for this student (`showFrequency`,
     // `showSchedule`, `showIncidents` from /api/student/me); off, nothing of their APIs is asked for, and with Notas
     // alone the portal looks as it did. Each page is keyed by the account, so a new sign-in never

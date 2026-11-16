@@ -18,7 +18,7 @@ type SourceV1 = NonNullable<OneDriveSyncStatusV1['sources']>[number];
 type ChosenSourceV1 = { readonly kind: 'folder' | 'file'; readonly itemId: string; readonly path: string };
 type ChipColor = 'accent' | 'success' | 'warning' | 'danger' | 'default';
 
-/** Reads while a file is being read or waits, after a failed read, and when nothing moves (issue #1426, 11). */
+/** Reads while a file is being read or waits, after a failed read, and when nothing moves. */
 const REFRESH_BUSY_MS = 10_000;
 const REFRESH_IDLE_MS = 60_000;
 /** No click, key or touch for this long: the page stops reading until the next one. */
@@ -126,7 +126,7 @@ function FileRow({ file, busy, onRead }: Readonly<{ file: FileV1; busy: boolean;
   else if (file.state === 'pending') state = ['Aguardando', 'accent'];
   let [label, color] = state ?? outcome ?? ['Ainda não lido', 'default'];
   // Lançado, but some students waited for the Relação (different name, not in it): their notes
-  // arrive when the Relação is fixed (issue #1426, 16).
+  // arrive when the Relação is fixed.
   if (!state && file.lastOutcome === 'applied' && file.heldStudents) {
     label = `Lançado · ${file.heldStudents} aluno(s) retido(s) — ver Auditoria`;
     color = 'warning';
@@ -235,7 +235,7 @@ function SourcePicker({ year, onChosen, onCancel }: Readonly<{
   }, [current?.id, attempt]);
 
   // The folder on screen now: a preview that comes back after the user moved on is dropped, so
-  // "Usar esta pasta" never saves a folder with the preview of another (issue #1426, 12a).
+  // "Usar esta pasta" never saves a folder with the preview of another.
   const shown = useRef<string | null>(null);
   shown.current = current?.id ?? null;
   const runPreview = async () => {
@@ -311,7 +311,7 @@ function lastArrivalV1(files: readonly FileV1[]): FileV1 | null {
   return last;
 }
 
-/** Before the first arrival is known (kept since 15/11/2026): the last reading. */
+/** Before any file has an arrival (`lastAppliedAt`): the last reading. */
 function lastReadTextV1(files: readonly FileV1[]): string | null {
   const latest = Math.max(0, ...files.map((file) => file.lastReadAt ?? 0));
   return latest > 0 ? `Última leitura: ${time(latest)}` : null;
@@ -435,7 +435,7 @@ function SettingsSection({ status, busy, send, wait, setWait }: Readonly<{
 
 /** A status with a file being read. */
 function statusMovingV1(answer: OneDriveSyncResponseV1): boolean {
-  // A file waiting for a later retry is not moving: only a read in progress asks every 10 s (issue #1450, 12b).
+  // A file waiting for a later retry is not moving: only a read in progress asks every 10 s.
   return answer.state !== 'status' || answer.status.files.some((file) => file.state === 'reading');
 }
 

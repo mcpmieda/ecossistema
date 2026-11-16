@@ -33,7 +33,7 @@ function liveReadyStateV1(socket: LiveSocketV1): PortalLiveCloseMetricV1['readyS
 }
 
 /**
- * Hibernation close callback (#1207 L-01). Reserved codes (1005 no status, 1006 abnormal,
+ * Hibernation close callback. Reserved codes (1005 no status, 1006 abnormal,
  * 1015 TLS) cannot be sent back and throw; answering them with a normal close still completes
  * the handshake. The signal is emitted before close, so it does not prove the peer received it.
  */

@@ -286,7 +286,7 @@ function CalendarEditorV1({
             </div>
           </CalendarSectionV1>
         ))}
-        {/* Grade and annual result dates moved to the Notas tab (agendas), 27/09/2026. */}
+        {/* Grade and annual result dates live in the Notas tab (agendas). */}
       </Wrapper>
     </div>
   );

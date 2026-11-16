@@ -1,8 +1,8 @@
 /*
  * Each choice on a screen (a period, a class, a perspective) is a step of the browser history, so
- * the phone's back button undoes the last choice instead of leaving the Centro (owner report of
- * 12/11/2026). The step keeps only the screen's own view, the same identifiers already kept in
- * session-view-v1, inside history.state; the address does not change.
+ * the phone's back button undoes the last choice instead of leaving the Centro. The step keeps
+ * only the screen's own view, the same identifiers already kept in session-view-v1, inside
+ * history.state; the address does not change.
  */
 import { useEffect, useRef } from 'react';
 
@@ -25,7 +25,7 @@ export const RELEASED_ENTRY_V1 = 'step-v1:released';
 
 /*
  * Chrome on phones skips, on the back button, every entry a page added without a tap of its own
- * since the entry before (owner report of 12/11/2026: back went from the Centro to the login).
+ * since the entry before (back went from the Centro to the login).
  * So an entry is only added right after a real tap or key, one per tap; any other change takes the
  * place of the current entry instead.
  */

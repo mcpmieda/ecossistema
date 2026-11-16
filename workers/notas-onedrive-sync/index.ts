@@ -59,8 +59,7 @@ export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
 
 /**
  * One database write at a time across reads (the coordinator keeps the turn). Past `deadlineAt` the
- * read gives up instead of taking the turn, so a read about to time out never holds the line
- * (issue #1450, 4).
+ * read gives up instead of taking the turn, so a read about to time out never holds the line.
  */
 async function withWriteTurnV1<T>(env: NotasSyncEnvV1, work: () => Promise<T>, deadlineAt?: number): Promise<T> {
   if (deadlineAt !== undefined && Date.now() > deadlineAt) throw new WriteQueueDeadlineErrorV1();
@@ -127,7 +126,7 @@ async function boundedTextV1(request: Request, max: number): Promise<string | nu
   return new TextDecoder().decode(bytes);
 }
 
-/** Graph's handshake: echoed as plain text, only when it looks like one (issue #1426, 23b). */
+/** Graph's handshake: echoed as plain text, only when it looks like one. */
 function validationAnswerV1(validationToken: string): Response {
   // Graph's token is printable text with spaces ("Validation: Testing client application …").
   if (validationToken.length > VALIDATION_TOKEN_MAX_V1 || !/^[\x20-\x7e]*$/u.test(validationToken)) {
@@ -162,7 +161,7 @@ export async function handleNotificationV1(request: Request, env: NotasSyncEnvV1
   waitUntil: (work: Promise<unknown>) => void = () => undefined): Promise<Response> {
   const validationToken = new URL(request.url).searchParams.get('validationToken');
   if (validationToken !== null) return validationAnswerV1(validationToken);
-  // Graph's notices are a few KB: a larger body is refused before it is read (issue #1426, 23a).
+  // Graph's notices are a few KB: a larger body is refused before it is read.
   const declared = Number(request.headers.get('Content-Length') ?? Number.NaN);
   if (Number.isFinite(declared) && declared > NOTIFICATION_MAX_BYTES_V1) return new Response(null, { status: 413 });
   const counted = await countNotificationsV1(request, env.NOTAS_SYNC_CLIENT_STATE);

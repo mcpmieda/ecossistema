@@ -117,8 +117,8 @@ function childFolderV1(item: { id?: unknown; name?: unknown; folder?: { childCou
 
 /**
  * The drive's current delta cursor without listing anything (Graph `token=latest`): the nightly
- * check and a new source list their own folders, and the next delta starts from here (issue #1426,
- * finding 1: asking for a cursor from scratch enumerated the whole OneDrive).
+ * check and a new source list their own folders, and the next delta starts from here (asking for
+ * a cursor from scratch enumerates the whole OneDrive).
  */
 export async function graphLatestDeltaLinkV1(env: GraphAppEnvV1, driveId: string,
   dependencies: GraphDependencies = graphDefaultsV1): Promise<string> {
@@ -166,7 +166,7 @@ export async function graphDriveDeltaV1(env: GraphAppEnvV1, driveId: string, del
   const seen = new Set<string>();
   for (;;) {
     const url = graphUrlV1(next);
-    // A cursor too old to page through is started over, like a 410 (issue #1450, 3).
+    // A cursor too old to page through is started over, like a 410.
     if (seen.has(url) || seen.size >= 500) throw new DeltaResyncRequiredError();
     seen.add(url);
     const { data, correlationId } = await graphRequest<{
@@ -210,7 +210,7 @@ export async function graphDownloadWorkbookV1(env: GraphAppEnvV1, driveId: strin
     init: { method: 'GET', headers: { Authorization: `Bearer ${token}`, 'client-request-id': correlationId } },
     correlationId, dependencies, allowContentRedirect: true, budgetMs: 30_000,
   }).catch((cause: unknown) => {
-    // A refused token is not reused by the next download (issue #1450, 12a).
+    // A refused token is not reused by the next download.
     if (cause instanceof GraphError && cause.status === 401) forgetGraphTokensV1(asEnvV1(env));
     throw cause;
   });
@@ -274,7 +274,7 @@ export async function graphCreateDriveSubscriptionV1(env: GraphAppEnvV1, input: 
   return { id: data.id, expirationDateTime: data.expirationDateTime };
 }
 
-/** Moves a subscription's expiry (issue #1426, 12d): no new handshake, never two at once. Null when it is gone. */
+/** Moves a subscription's expiry: no new handshake, never two at once. Null when it is gone. */
 export async function graphRenewSubscriptionV1(env: GraphAppEnvV1, subscriptionId: string, expiresAt: Date,
   dependencies?: GraphDependencies): Promise<string | null> {
   try {

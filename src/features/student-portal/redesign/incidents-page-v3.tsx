@@ -17,13 +17,12 @@ import { useCachedReadV3 } from './use-cached-read-v3';
 import { PAGE_LOADING_V3 } from './page-loading-v3';
 
 /*
- * Ocorrências in a page of its own (owner decisions 29/10/2026): the student's records of the year
- * as the Smecel has them (advertência, suspensão, outras), read by the collector, newest first, each
- * with its whole description: the family needs to know. Under each one, "Toque aqui para
- * confirmar que leu" (plain words for every family, owner request 30/10/2026; on the right, where a
- * thumb reaches on a large phone): after a confirmation it becomes a check with the day and time,
- * kept for good (no undo), and the open count on the menu goes down. An incident the school edits in the Smecel is
- * open again.
+ * Ocorrências in a page of its own: the student's records of the year as the Smecel has them
+ * (advertência, suspensão, outras), read by the collector, newest first, each with its whole
+ * description: the family needs to know. Under each one, "Toque aqui para confirmar que leu" (plain
+ * words for every family; on the right, where a thumb reaches on a large phone): after a
+ * confirmation it becomes a check with the day and time, kept for good (no undo), and the open
+ * count on the menu goes down. An incident the school edits in the Smecel is open again.
  *
  * Data: GET /api/student/incidents and POST /api/student/incidents/acknowledge
  * (createStudentIncidentsClientV1), read with the sign-in and kept (useCachedReadV3); shown only when
@@ -43,7 +42,7 @@ const civil = (value: string) => DATE.format(new Date(`${value}T00:00:00Z`));
 
 /**
  * The Smecel's kind in capitals and its colour: a suspension red, a warning amber. A suspension
- * always reads "SUSPENSÃO SEM PREJUÍZO" on the Portal (owner requests 01/11/2026).
+ * always reads "SUSPENSÃO SEM PREJUÍZO" on the Portal.
  */
 function kindOfV3(kind: string): { label: string; color: 'danger' | 'warning' | 'default'; Icon: LucideIcon } {
   const key = kind.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase();
@@ -140,8 +139,7 @@ function IncidentCardV3({
   };
   return (
     <Card className={'pa3-card pa3-incident' + (incident.acknowledgedAt ? ' pa3-incident--seen' : '')}>
-      {/* The kind's icon in a round badge, the kind and, under it, the day (owner request 09/11/2026:
-          "cards mais bonitos"). */}
+      {/* The kind's icon in a round badge, the kind and, under it, the day. */}
       <div className="pa3-card-head pa3-incident-head">
         <span className="pa3-incident-icon" aria-hidden="true">
           <kind.Icon size={20} strokeWidth={2.2} />

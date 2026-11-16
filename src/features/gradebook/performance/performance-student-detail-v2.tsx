@@ -91,8 +91,8 @@ export function PerformanceStudentDetailV2({
             </p>
           </div>
         </div>
-        {/* The photo is only changed on the student's record in Painel do Aluno (owner request
-            12/11/2026); the Banco de notas shows it. */}
+        {/* The photo is only changed on the student's record in Painel do Aluno; the Banco de
+            notas shows it. */}
       </Drawer.Header>
       <Drawer.Body ref={drawerBody} className="flex min-w-0 flex-col gap-5 pt-5">
         {detail.operation === 'student-detail' ? (

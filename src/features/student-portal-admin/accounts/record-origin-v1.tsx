@@ -17,7 +17,7 @@ const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: SCHOOL_TIME_ZONE_V1,
 });
 
-/** Short, ordered reasons from the records only (owner request 10/11/2026). */
+/** Short, ordered reasons from the records only. */
 export function originLinesV1(origin: OriginV1) {
   const lines = [
     origin.classesThisYear === 0

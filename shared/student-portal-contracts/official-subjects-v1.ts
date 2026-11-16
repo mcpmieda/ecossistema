@@ -1,7 +1,7 @@
 /*
- * The school's official subject names (owner decision 23/10/2026: "consumir o nome das disciplinas
- * oficiais"), the same as gradebook.disciplina for 2026, the names the Notas show. The Smecel's grid
- * writes them its own way ("LINGUA PORTUGUESA", "INFORMATICA/COMPUTACAO", "ENSINO RELIGIOSO"); the
+ * The school's official subject names, the same as gradebook.disciplina for 2026, the names the
+ * Notas show. The Smecel's grid writes them its own way ("LINGUA PORTUGUESA",
+ * "INFORMATICA/COMPUTACAO", "ENSINO RELIGIOSO"); the
  * Portal shows the official one ("PORTUGUÊS", "COMPUTAÇÃO", "RELIGIÃO") and keeps the Smecel's name
  * only for a subject not on this list.
  */

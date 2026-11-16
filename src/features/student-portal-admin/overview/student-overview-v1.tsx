@@ -22,7 +22,7 @@ function healthColor(health: string) {
   return health === 'attention' ? 'warning' : 'danger';
 }
 
-/** The Visão geral reads the whole school, every class at once (owner request 10/11/2026).
+/** The Visão geral reads the whole school, every class at once.
  * classLabels is null while the class catalog loads or after it failed: no table then. */
 type OverviewPropsV1 = Omit<OperationsPropsV1, 'scope' | 'scopeLabel'> & {
   classLabels?: readonly ClassLabelV1[] | null;

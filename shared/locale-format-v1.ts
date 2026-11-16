@@ -1,7 +1,7 @@
 import { SCHOOL_TIME_ZONE_V1 } from './school-time-zone-v1';
 
 /**
- * pt-BR collators and formatters built once per load (issue #1490, finding 1). A call such as
+ * pt-BR collators and formatters built once per load. A call such as
  * `localeCompare(x, 'pt-BR', { numeric: true })` or `toLocaleString('pt-BR', { … })` builds a new
  * Intl object every time (~0.1 ms each); in a sort or a table that is up to 64× slower. Each constant
  * has exactly the options of the call it replaces, so the order and the text stay the same.

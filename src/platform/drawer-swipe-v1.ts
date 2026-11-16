@@ -78,8 +78,8 @@ type Gesture = {
 
 /**
  * On phones, the side drawer follows a finger dragged sideways: to the right it slides in, to the
- * left it slides out, and on release it settles open or closed by how far and how fast it went
- * (owner request of 12/11/2026). Opening starts only on the left half of the screen. Vertical
+ * left it slides out, and on release it settles open or closed by how far and how fast it went.
+ * Opening starts only on the left half of the screen. Vertical
  * scrolling, sideways-sliding content, text fields, any other open layer and a page enlarged by
  * zoom are left alone; the buttons keep working in every case.
  */
@@ -213,7 +213,7 @@ export function useDrawerSwipeV1(
     };
     window.addEventListener('touchstart', onStart, { passive: true });
     // Passive: a listener that may cancel the move makes the phone wait for the page's script
-    // before every scroll, a small hitch each time (owner report of 12/11/2026).
+    // before every scroll, a small hitch each time.
     window.addEventListener('touchmove', onMove, { passive: true });
     window.addEventListener('touchend', onEnd, { passive: true });
     window.addEventListener('touchcancel', onCancel, { passive: true });

@@ -147,7 +147,7 @@ export function createPerformanceDashboardV5(database: GradebookPostgresWritePor
                 }),
               );
         const analysis = view.operation === 'term-comparison' ? view.analysis : view;
-        // The previous trimester from the same facts: no second request, no second read (issue #1471).
+        // The previous trimester from the same facts: no second request, no second read.
         const previousPeriod = request.includePrevious === true && typeof request.period === 'number'
           ? request.period - 1 : null;
         let previous = null;

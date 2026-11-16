@@ -28,9 +28,9 @@ interface TermClosingTargetsV1 {
  * student is assisted/special (D9). `termClosingConclusive` on: every trimester whose official end
  * date has passed (D2, R3; retroactive, D15). Off: only the trimester in progress (its end date not
  * reached, its start reached or the previous trimester ended).
- * Owner decision 2026-09-24 (replaces R2): a trimester whose marks are not released for the class
- * (allowed periods + disclosure dates, the same rule as the marks) gets no reading at all, so an
- * unreleased trimester never shows up as a tab of its own.
+ * A trimester whose marks are not released for the class (allowed periods + disclosure dates, the
+ * same rule as the marks) gets no reading at all, so an unreleased trimester never shows up as a
+ * tab of its own.
  */
 export function termClosingTargetsV1(
   policy: PolicyValueV1,
@@ -58,8 +58,8 @@ export function termClosingTargetsV1(
 }
 
 /**
- * Trimesters whose end date in the student's calendar has passed (owner decision 28/09/2026):
- * seals from Brilhante assessments count only for these. Dates only, no marks or other students.
+ * Trimesters whose end date in the student's calendar has passed: seals from Brilhante assessments
+ * count only for these. Dates only, no marks or other students.
  */
 export function endedPeriodsV1(policy: PolicyValueV1, now: Date): TermClosingPeriodV1[] {
   const value = settingsValueV1.parse(policy);

@@ -30,7 +30,7 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...account, operation: z.literal('qr-regenerate'), confirmed: z.literal(true) }).strict(),
   z.object({ ...account, operation: z.literal('password-reset'), confirmed: z.literal(true) }).strict(),
   z.object({ ...account, operation: z.literal('account-reset'), confirmed: z.literal(true) }).strict(),
-  // Encerrar conta (owner request 10/11/2026): only a record with no class this year, never used.
+  // Encerrar conta: only a record with no class this year, never used.
   z.object({ ...account, operation: z.literal('account-close'), confirmed: z.literal(true) }).strict(),
   z.object({ ...account, operation: z.literal('block'), blocked: z.boolean(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('sessions-revoke'), scope: scopeV1, sessionId: portalIdV1.optional(), confirmed: z.literal(true) }).strict(),
@@ -43,9 +43,9 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...commandMetaV1, operation: z.literal('unpublish'), scope: scopeV1, period: periodV1, confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('links-close'), academicYear: z.literal(2026), previewToken: opaqueV1, expectedCount: z.number().int().nonnegative(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('population-start'), academicYear: z.literal(2026), clearOverrides: z.literal(true), confirmed: z.literal(true) }).strict(),
-  // Calendário escolar (owner decision 22/10/2026): the whole year's marked days, school-wide.
+  // Calendário escolar: the whole year's marked days, school-wide.
   z.object({ ...commandMetaV1, operation: z.literal('school-calendar-set'), academicYear: z.literal(2026), days: schoolCalendarDaysInputV1 }).strict(),
-  // Horário das aulas (owner decision 23/10/2026): each lesson's and the break's time, school-wide.
+  // Horário das aulas: each lesson's and the break's time, school-wide.
   z.object({ ...commandMetaV1, operation: z.literal('school-bells-set'), academicYear: z.literal(2026), bells: schoolBellsDaysV1 }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('qr-batch'), classId: z.number().int().positive(), accountIds: z.array(portalIdV1).min(1).max(100), mode: printModeV1.default('qr-name-class'), confirmed: z.literal(true) }).strict(),
 ]).superRefine((v, ctx) => {
@@ -74,8 +74,8 @@ export const printCardV1 = z.discriminatedUnion('mode', [
   z.object({ ...card, mode: z.literal('qr-name-class'), name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1), classLabel: z.string().min(1).max(80) }).strict(),
 ]);
 /**
- * Why a sign-in was refused and what helps support the family (owner request 29/09/2026). Only
- * operational facts about the attempt itself: never a secret, a mark or another student.
+ * Why a sign-in was refused and what helps support the family. Only operational facts about the
+ * attempt itself: never a secret, a mark or another student.
  */
 const AUDIT_REASONS_V1 = [
   'wrong-pin', 'wrong-password', 'temporarily-blocked', 'verification-required', 'access-closed',

@@ -641,7 +641,7 @@ body {
   }
 }
 
-/* #817: compact desktop data, preserving the native HeroUI table anatomy. */
+/* Compact desktop data, preserving the native HeroUI table anatomy. */
 :where(.pa-admin-page, .gradebook-workspace) .table__cell,
 :where(.pa-admin-page, .gradebook-workspace) .table__column {
   padding-block: 0.375rem;
@@ -660,7 +660,7 @@ body {
   --scroll-linear-gradient: 90deg, #000 calc(100% - var(--scroll-shadow-size)), transparent;
 }
 
-/* Shared class navigation (#819): horizontal, compact, and independent of Card's column flow. */
+/* Shared class navigation: horizontal, compact, and independent of Card's column flow. */
 .school-class-tabs {
   min-width: 0;
   width: 100%;
@@ -741,7 +741,7 @@ body {
 }
 
 /* Shell base. The services keep their own tab lists for standalone use; here they hide, because
-   the top bar shows the sections of the open area (composition of 13/10/2026, further down). */
+   the top bar shows the sections of the open area (see the composition further down). */
 .shell-topbar {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -894,8 +894,8 @@ body {
   }
 }
 
-/* Import steps (owner request 07/10/2026): green once sent in this tab; the step the import is
-   waiting for is the primary button with a light sweep and a nudging icon. */
+/* Import steps: green once sent in this tab; the step the import is waiting for is the primary
+   button with a light sweep and a nudging icon. */
 .button.import-step--done {
   color: var(--success-foreground);
   background: var(--success);
@@ -1144,7 +1144,7 @@ body {
   }
 }
 
-/* Phones (08/10/2026): the service menu shows when there is more to the side. */
+/* Phones: the service menu shows when there is more to the side. */
 @media (max-width: 640px) {
   .performance-matrix-filters .filter-tags-v1--inline .tag {
     flex: none;
@@ -1164,10 +1164,10 @@ body {
   }
 }
 
-/* Composition of 13/10/2026 (owner request and reference): the side column sits straight on a
-   soft page, with no frame of its own, and everything else is one sheet. The head of the sheet
-   is the top of the site (where one is, and the search) and, under it, the top of the open area
-   (its sections as tabs); the page scrolls inside the sheet. */
+/* Composition: the side column sits straight on a soft page, with no frame of its own, and
+   everything else is one sheet. The head of the sheet is the top of the site (where one is, and
+   the search) and, under it, the top of the open area (its sections as tabs); the page scrolls
+   inside the sheet. */
 .platform-shell--v2 {
   --sheet: #f6f7f9;
   --sheet-head: #fff;
@@ -1189,8 +1189,8 @@ body {
   timeline-scope: --sheet-scroll;
 }
 /* Phone: the window itself scrolls, and a fixed background makes the phone repaint it on every
-   frame of a scroll, a small hitch each time (owner report of 12/11/2026). The same soft page is
-   painted once on a layer that stays put instead. */
+   frame of a scroll, a small hitch each time. The same soft page is painted once on a layer that
+   stays put instead. */
 @media (max-width: 900px) {
   .platform-shell--v2 {
     background: none;
@@ -1271,7 +1271,7 @@ body {
   border-radius: 0.85rem;
   background: var(--sheet-head);
   box-shadow: none;
-  /* The search stands out while it is in use (owner request of 13/10/2026). */
+  /* The search stands out while it is in use. */
   transition:
     border-color 140ms ease,
     box-shadow 140ms ease,
@@ -1610,9 +1610,8 @@ body {
   }
 }
 
-/* Computer (owner request of 13/10/2026): the top of the site is not part of the sheet. It sits
-   on the page, above it: where one is on the left, the search on the right. The sheet starts
-   with the top of the open area. */
+/* Computer: the top of the site is not part of the sheet. It sits on the page, above it: where
+   one is on the left, the search on the right. The sheet starts with the top of the open area. */
 @media (min-width: 901px) {
   .platform-shell--v2 {
     padding-top: 0;
@@ -1668,8 +1667,8 @@ body {
     white-space: nowrap;
   }
 }
-/* The side column collapsed to its icons (owner request of 13/10/2026). Names stay for assistive
-   technology and as the native hint of each link. */
+/* The side column collapsed to its icons. Names stay for assistive technology and as the native
+   hint of each link. */
 .shell-collapse-button {
   display: none;
 }
@@ -1728,11 +1727,11 @@ body {
     }
   }
 }
-/* The crest of the school without its shadow, in the whole Centro (owner request of 13/10/2026). */
+/* The crest of the school without its shadow, in the whole Centro. */
 .platform-shell .school-mark {
   box-shadow: none;
 }
-/* Less room between the edges of the sheet and what is on the page (owner request of 13/10/2026). */
+/* Less room between the edges of the sheet and what is on the page. */
 @media (min-width: 901px) {
   .platform-shell--v2 .shell-main--service {
     padding: 0.75rem 0.4rem 0.75rem 0.6rem;
@@ -1744,7 +1743,7 @@ body {
     padding-right: 0.6rem;
   }
 }
-/* The account is the round picture at the top right of the page (owner request of 13/10/2026). */
+/* The account is the round picture at the top right of the page. */
 @media (min-width: 901px) {
   .platform-shell--v2 .shell-tools {
     gap: 0.6rem;
@@ -1767,7 +1766,7 @@ body {
     height: 2.4rem;
   }
 }
-/* The search shows no key hint; the shortcut itself keeps working (owner request of 13/10/2026). */
+/* The search shows no key hint; the shortcut itself keeps working. */
 .platform-shell--v2 .shell-tools .platform-search-desktop .platform-search-shortcut {
   display: none;
 }
@@ -1784,8 +1783,7 @@ body {
     transition: none;
   }
 }
-/* The top of the site is as tall as the collapsed side column is wide, with small type (owner
-   request of 13/10/2026). */
+/* The top of the site is as tall as the collapsed side column is wide, with small type. */
 @media (min-width: 901px) {
   .platform-shell--v2 > .shell-topbar {
     min-height: 3.5rem;
@@ -1917,7 +1915,7 @@ body {
 @media (max-width: 900px) {
   /* Phone: the top of the site and the tabs of the area stay in place as one band. It is nearly
      solid rather than blurred glass: a blur under what stays on screen is redone on every frame
-     of a scroll, a hitch the phone feels (owner report of 12/11/2026). */
+     of a scroll, a hitch the phone feels. */
   .platform-shell--v2 .shell-topbar {
     border-bottom-color: transparent;
     background: rgb(250 251 252 / 0.98);
@@ -1962,8 +1960,8 @@ body {
     transform: translate(-50%, -50%);
   }
 }
-/* Phone: the top and the tabs of the area are one piece of glass (owner request of 15/10/2026).
-   The glass is drawn once, behind both, so there is no seam or change of tone between them. */
+/* Phone: the top and the tabs of the area are one piece of glass. The glass is drawn once,
+   behind both, so there is no seam or change of tone between them. */
 @media (max-width: 900px) {
   .platform-shell--v2:has(> .shell-areabar:not(:empty)) .shell-topbar {
     background: transparent;
@@ -1981,7 +1979,7 @@ body {
     z-index: -1;
     border-bottom: 1px solid rgb(15 23 42 / 0.07);
     /* Nearly solid instead of blurred glass: a blur under a bar that stays on screen is redone
-       on every frame of a scroll, which the phone feels (owner report of 12/11/2026). */
+       on every frame of a scroll, which the phone feels. */
     background: rgb(250 251 252 / 0.98);
     pointer-events: none;
     content: '';
@@ -1997,7 +1995,7 @@ body {
 .shell-areabar .tabs__list-container::-webkit-scrollbar {
   display: none;
 }
-/* Side column (owner request of 15/10/2026): the icon of the open area takes the accent colour;
+/* Side column: the icon of the open area takes the accent colour;
    the group names are small and quiet, with more air between groups; Saúde do Sistema shows its
    overall state as a dot (green normal, amber attention, red critical; nothing while unknown). */
 .shell-side__area[data-open='true'] > svg {
@@ -2039,7 +2037,7 @@ body {
     margin: 0;
   }
 }
-/* The side column never scrolls sideways (owner request of 15/10/2026). */
+/* The side column never scrolls sideways. */
 .shell-side,
 .shell-side__groups,
 .platform-shell--v2 .shell-aside {
@@ -2069,7 +2067,7 @@ body {
     left: calc(50% + 0.3rem);
   }
 }
-/* Less room between the side column and the sheet (owner request of 15/10/2026). */
+/* Less room between the side column and the sheet. */
 @media (min-width: 901px) {
   .platform-shell--v2:not([data-side='collapsed']) .shell-side {
     padding-right: 0.35rem;
@@ -2112,7 +2110,7 @@ body {
   color: var(--muted);
 }
 
-/* Up is blue, down is red, whatever bar it sits on (owner request of 15/10/2026). */
+/* Up is blue, down is red, whatever bar it sits on. */
 .performance-delta[data-change='up'] {
   background: color-mix(in oklab, var(--performance-above) 14%, transparent);
   color: var(--performance-above);
@@ -2149,8 +2147,7 @@ body {
   white-space: nowrap;
 }
 
-/* The count reads in dark red below the minimum, dark blue at or above (owner request of
-   15/10/2026). */
+/* The count reads in dark red below the minimum, dark blue at or above. */
 .performance-bars__detail-title > .chip {
   color: #9f1239;
   font-weight: 600;
@@ -2177,8 +2174,8 @@ body {
   50% { scale: 1 1.03; }
 }
 
-/* Phone: the side drawer runs to the bottom of the screen whatever the browser bars do (owner
-   report of 16/10/2026: with the address bar hidden, 100svh stopped short of the bottom). */
+/* Phone: the side drawer runs to the bottom of the screen whatever the browser bars do (with the
+   address bar hidden, 100svh stops short of the bottom). */
 @media (max-width: 900px) {
   .platform-shell--v2 .shell-aside {
     top: 0;

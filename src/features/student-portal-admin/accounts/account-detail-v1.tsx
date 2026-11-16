@@ -55,7 +55,7 @@ export interface AccountSlotContextV1 {
   /** Grows after each confirmed action and each reload of the record: a slot whose read depends
    * on access or policies (the closing preview) reads again. */
   revision: number;
-  /** "Mudar QR" lives in the QR code tab (owner request 10/11/2026); it opens the record's review. */
+  /** "Mudar QR" lives in the QR code tab; it opens the record's review. */
   regenerateQr: { disabled: boolean; open: () => void };
 }
 export type AccountSlotsV1 = Partial<
@@ -512,8 +512,8 @@ function AccountDetailBodyV1({
           <>
             <ReadOnlyNoticesV1 account={account} canWrite={canWrite} />
             <fieldset className="pa-account-actions" aria-label="Ações de acesso">
-              {/* Order and colours chosen by the owner (10/11/2026): the everyday action first,
-                  in green; none in red. The QR actions live in the QR code tab. */}
+              {/* Order and colours: the everyday action first, in green; none in red. The QR
+                  actions live in the QR code tab. */}
               {actionButton(account, 'password-reset', 'primary', 'pa-action-success')}
               {actionButton(account, account.blocked ? 'unblock' : 'block')}
               {actionButton(account, 'account-reset')}
@@ -613,12 +613,12 @@ function AccountDetailBodyV1({
   );
 }
 
-/** Beside the profile: the Selos brilhantes the student sees on the Portal (29/09/2026). */
+/** Beside the profile: the Selos brilhantes the student sees on the Portal. */
 function RecordSealsV1({ reader, accountId }: Readonly<{ reader: AccountDetailPropsV1['reader']; accountId: string }>) {
   const seals = useSealCountsV1(reader, { accountId });
   const count = seals.state === 'ready' ? seals.counts.get(accountId) : undefined;
   if (count === undefined || count === null) return null;
-  // No seal yet: plain grey text, the gold is kept for a real seal (owner request 10/11/2026).
+  // No seal yet: plain grey text, the gold is kept for a real seal.
   if (count === 0) return <span className="pa-record-seals pa-record-seals--none">Sem selos</span>;
   return (
     <span className="pa-record-seals">

@@ -29,7 +29,7 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import './school-calendar-editor-v1.css';
 
 /*
- * Calendário escolar (owner decision 22/10/2026): the school's days of the year, marked by hand in
+ * Calendário escolar: the school's days of the year, marked by hand in
  * the ADM, one calendar for the whole school. Pick a brush, click a day or drag over several, and
  * the count of school days follows at once. The rule is 200 school days and the editor never goes
  * past it (the server refuses it too): at 200, a new school day is not marked until another one is
@@ -79,7 +79,7 @@ const schoolDaysIn = (days: ReadonlyMap<string, DayV1>) =>
   [...days.values()].filter((day) => SCHOOL_DAY_COUNTS_V1[day.kind]).length;
 
 /*
- * Datas principais (owner decision 23/10/2026): the year's main dates are marked on this calendar
+ * Datas principais: the year's main dates are marked on this calendar
  * instead of a separate form. They stay where the server reads them (the school's Calendário
  * policy: grades agenda, term closing, older access windows), as whole days in Brasília time: a
  * start at the day's first moment, an end ("Fim do 1º trimestre", its last day) at the next day's
@@ -643,7 +643,7 @@ export function SchoolCalendarEditorV1({
       <Card.Content className="pa-school-calendar__body">
         <OfficialCalendarNoticeV1 unsaved={saved.version === 0} />
 
-        {/* Datas principais (owner decision 23/10/2026): pick one, then click its day below. */}
+        {/* Datas principais: pick one, then click its day below. */}
         <Card variant="secondary" className="pa-school-marks">
           <Card.Header>
             <Card.Title>Datas principais</Card.Title>

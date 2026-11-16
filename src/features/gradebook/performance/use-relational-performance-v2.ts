@@ -243,7 +243,7 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
       previousPeriod = null;
     }
     try {
-      // The arrows need the previous trimester; the server sends it in the same read (issue #1471).
+      // The arrows need the previous trimester; the server sends it in the same read.
       // A comparison already sets the two trimesters side by side; the arrows are not needed.
       const includePrevious =
         previousPeriod !== null && request.lens !== 'assessments' && request.referencePeriod === null;

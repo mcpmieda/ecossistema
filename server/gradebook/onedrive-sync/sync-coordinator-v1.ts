@@ -75,7 +75,7 @@ async function readFileV1(env: ReadEnvV1, input: ProcessWorkbookInputV1,
     if (![401, 404, 405].includes(response.status)) throw new Error(`notas-sync-reader-http-${response.status}`);
     console.error(JSON.stringify({ event: 'notas-sync-public-read-refused', status: response.status }));
   }
-  // Same limit as the public read: a read that never answers must not hold the alarm (issue #1450, 4).
+  // Same limit as the public read: a read that never answers must not hold the alarm.
   const response = await env.SELF.fetch(READER_URL_V1, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
     signal: AbortSignal.timeout(PUBLIC_READ_TIMEOUT_MS_V1),
@@ -125,8 +125,7 @@ const LOOP_TICK_MS = 2_000;
 /**
  * While someone is editing (a source workbook changed in the last 25 min on a school day, 10 min
  * otherwise) the folder is asked this often, without waiting for Microsoft's notice; with nothing
- * changing, only the notice and the safety delta (owner decision 15/11/2026, replaces the fixed
- * school-hours poll of 14/11, issue #1426, 29).
+ * changing, only the notice and the safety delta.
  */
 const POLL_MS = 10_000;
 /** Graph notices that arrive together wait this long, so they become a single delta. */
@@ -205,7 +204,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /**
    * A reader asks for the database and waits its turn, in order. A turn not given back in
    * WRITE_TURN_MAX_MS (a reader that died mid-write) is taken over by the first one waiting
-   * (issue #1426, 30: a timed-out wait no longer leaves a ghost in the line).
+   * (a timed-out wait never leaves a ghost in the line).
    */
   async beginWrite(): Promise<string> {
     if (!this.writer || Date.now() - this.writer.since >= WRITE_TURN_MAX_MS) return this.grantWriteV1();
@@ -247,7 +246,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /** A Graph change notification arrived: look at delta right away. */
   async notify(): Promise<void> {
     this.setMeta('deltaRequested', true);
-    // A burst of notices (one save sends several) becomes one look at OneDrive (issue #1450, 8b).
+    // A burst of notices (one save sends several) becomes one look at OneDrive.
     await this.wakeAt(Date.now() + (this.inflight.size > 0 ? 0 : NOTIFY_DEBOUNCE_MS));
   }
 
@@ -277,7 +276,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       this.setMeta('nightlyOn', today);
     }
     await this.ensureSubscription(now);
-    // Only something due wakes the alarm now; otherwise the next one stays as scheduled (issue #1426, 2).
+    // Only something due wakes the alarm now; otherwise the next one stays as scheduled.
     if (this.meta('deltaRequested', false) || this.meta('nightlyRequested', false)) await this.wakeAt(now);
     else await this.scheduleNext();
   }
@@ -299,7 +298,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'set-wait': this.setMeta('settings', { ...settings, waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600) }); break;
       case 'read-all': {
         // "Conferir tudo agora": every file is read again, whole, even unchanged ones; the result
-        // also depends on the Relação and the folder's year (issue #1426, 16).
+        // also depends on the Relação and the folder's year.
         const now = Date.now();
         for (const file of this.files()) this.saveFile(rereadFileV1(file, now));
         this.setMeta('nightlyRequested', true);
@@ -521,7 +520,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       delta = await graphDriveDeltaV1(this.env, driveId, link);
     } catch (cause) {
       if (!(cause instanceof DeltaResyncRequiredError)) throw cause;
-      // Graph forgot the cursor (410) or it is too old: list the sources from the current one (issue #1450, 3).
+      // Graph forgot the cursor (410) or it is too old: list the sources from the current one.
       this.event('delta-resync', {});
       this.setMeta('deltaLink', null);
       await this.resyncSources(now, driveId, false);
@@ -546,7 +545,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /**
    * Every source listed against what is known, from the drive's current cursor (Graph
    * `token=latest`, taken first so nothing saved meanwhile is lost): a few calls instead of
-   * enumerating the whole OneDrive (issue #1426, 1). `nightly` also forgets each file's memory.
+   * enumerating the whole OneDrive. `nightly` also forgets each file's memory.
    */
   private async resyncSources(now: number, driveId: string, nightly: boolean): Promise<void> {
     const deltaLink = await graphLatestDeltaLinkV1(this.env, driveId);
@@ -587,7 +586,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const sources = this.sources();
     const files = this.files().filter((file) => file.sourceId !== undefined && sources[file.sourceId] !== undefined);
     for (const file of filesToStartV1(files, now, this.settings(), breakerUntil)) {
-      // Larger than allowed by the listing already: no download, no reader (issue #1426, 43).
+      // Larger than allowed by the listing already: no download, no reader.
       if (file.size > maxBytes) {
         this.saveFile({ ...file, state: 'idle', dueAt: null, dirty: false, lastOutcome: 'too-large', lastCode: 'FILE-TOO-LARGE',
           lastReadAt: now, lastReadMs: 0, processedHash: file.hash });
@@ -598,8 +597,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const input: ProcessWorkbookInputV1 = {
         driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
         expectedYear: file.year ?? this.activeFolder()?.year ?? null, memory: file.memory ?? null,
-        // A Relação is written only from a source of its own (issue #1450, 9); the write turn is taken
-        // only while there is still time to finish before this read times out (issue #1450, 4).
+        // A Relação is written only from a source of its own; the write turn is taken only while
+        // there is still time to finish before this read times out.
         sourceKind: file.sourceId === undefined ? null : sources[file.sourceId]?.kind ?? null,
         writeDeadlineAt: now + PUBLIC_READ_TIMEOUT_MS_V1 - WRITE_TURN_MAX_MS,
       };
@@ -656,7 +655,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     if (lastTry !== null && now - lastTry < 60 * 60_000) return;
     this.setMeta('subscriptionTriedAt', now);
     const expiresAt = new Date(now + (DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 - 60) * 60_000);
-    // Still there: its expiry moves forward (issue #1426, 12d); only a vanished one is created again.
+    // Still there: its expiry moves forward; only a vanished one is created again.
     if (current && Date.parse(current.expiresAt) > now && (await this.renewSubscription(current.id, expiresAt)) !== 'gone') return;
     try {
       const driveId = await this.driveId();

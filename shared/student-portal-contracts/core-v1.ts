@@ -17,7 +17,7 @@ export const scopeV1 = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('account'), academicYear: z.literal(PORTAL_YEAR_V1), accountId: portalIdV1 }).strict(),
 ]);
 /**
- * Turnos (owner decision 28/09/2026), from the Relação (INICIO!I7:I28 → gradebook.turma.turno).
+ * Turnos, from the Relação (INICIO!I7:I28 → gradebook.turma.turno).
  * The shift level exists only for policies: between the school and its classes, a shift rule wins
  * over its classes' rules for the same option, and an account rule still wins over both.
  */

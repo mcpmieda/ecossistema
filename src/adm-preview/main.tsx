@@ -92,7 +92,7 @@ const automaticReportV1 = () =>
       reason: 'nascimento ausente.' }] } });
 
 /** The Conciliação: rows waiting (`?pendencias=` changes the number), its records without a
- * class (the same accounts as the Painel, 11/11/2026) and the Coletor's report. */
+ * class (the same accounts as the Painel) and the Coletor's report. */
 function reconciliationV1(body: string): Response | null {
   if (body.includes('"operation":"pending-count"'))
     return json({ contractVersion: 1, state: 'ready', operation: 'pending-count',

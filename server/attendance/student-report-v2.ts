@@ -106,7 +106,7 @@ function sourceYearV2(rows: readonly ReportRowV1[]): number | null {
 /**
  * Prepares the report as the ADM's import does. A row with an invalid cell would reject the whole
  * report there (C3); here it is set aside and listed in the Conciliação, and the rest is prepared
- * (owner decision 29/10/2026: differences never hold back what is right).
+ * (differences never hold back what is right).
  */
 async function prepareV2(
   reconciliation: Reconciliation,
@@ -255,7 +255,7 @@ function trustedContextV2(actor: FrequencyActorV2): TrustedAdminContextV1 {
 }
 
 /**
- * The Coletor's automatic "Relatório de alunos" (owner decision 29/10/2026). Three steps, so that
+ * The Coletor's automatic "Relatório de alunos". Three steps, so that
  * no transaction holds the school's row while the report is applied (sqlstate 55P03 in concurrent
  * operations): a short check under the lease (an unchanged report ends there, dates refreshed),
  * the Conciliação's own catalog, prepare, credentials and apply, then a short record of the outcome

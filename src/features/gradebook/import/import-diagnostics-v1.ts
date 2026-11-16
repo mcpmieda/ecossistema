@@ -95,7 +95,7 @@ export function studentNotInRelationDiagnosticV1(classCode: string, number: numb
   });
 }
 
-/** Rule 14: the workbook's name is not the Relação's for that number; found by the server (#1477). */
+/** Rule 14: the workbook's name is not the Relação's for that number; found by the server. */
 export function studentNameMismatchDiagnosticV1(classCode: string, number: number): GradebookImportDiagnosticV1 {
   const text = GRADEBOOK_IMPORT_DIAGNOSTIC_TEXTS_V1['student-name-mismatch'];
   return diagnostic({

@@ -36,8 +36,8 @@ async function tokenOrRefusalV1(response: Response, slot: GraphCredentialSlot,
   return null;
 }
 /**
- * Tokens issued in this isolate, reused until 5 minutes before they expire (issue #1426, finding
- * 19): a sync read or a snapshot no longer signs a JWT and asks Microsoft for a token every time.
+ * Tokens issued in this isolate, reused until 5 minutes before they expire: a sync read or a
+ * snapshot does not sign a JWT and ask Microsoft for a token every time.
  * Concurrent callers share the request in flight. Only the real dependencies are cached (tests that
  * pass their own `fetch` see every request).
  */
@@ -63,7 +63,7 @@ export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependen
   const hit = tokenCacheV1.get(key);
   if (hit && hit.until > now) {
     if (hit.issued) return (await hit.value).token;
-    // Issued by another request still in flight: joined only briefly (issue #1450, 2).
+    // Issued by another request still in flight: joined only briefly.
     return (await joinFlightV1(hit.value, Math.min(TOKEN_PENDING_SHARE_MS_V1, hit.until - now),
       () => issueGraphTokenV1(env, dependencies, slot))).token;
   }

@@ -42,7 +42,7 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
   // Capture all scalar input before the first await; later caller mutation is irrelevant.
   const { academicYear, fileName } = request;
   const sha256 = request.sha256.toLowerCase();
-  // Each origin keeps its own snapshot (issue #1462); 'legacy' rows predate the origin and are
+  // Each origin keeps its own snapshot; 'legacy' rows predate the origin and are
   // replaced by the next snapshot of the same file from any origin.
   const origin = request.origin ?? 'manual';
   // The OneDrive reading is the file as it is now: it also replaces what a manual import of the

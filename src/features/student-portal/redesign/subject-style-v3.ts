@@ -16,9 +16,9 @@ import {
 } from './schedule-icons-v3';
 
 /*
- * Each subject with a colour and an icon of its own (owner decision 23/10/2026: "leitura mais
- * fácil"), the same on every day and in every tab (Notas too), so a parent finds Matemática at a
- * glance. Works with the official name ("CIÊNCIAS") and the Smecel's ("CIENCIAS"); a subject not
+ * Each subject with a colour and an icon of its own, for easier reading, the same on every day
+ * and in every tab (Notas too), so a parent finds Matemática at a glance. Works with the official
+ * name ("CIÊNCIAS") and the Smecel's ("CIENCIAS"); a subject not
  * listed here still gets a steady colour from its name and a plain book. The icons move while their lesson is going on
  * (schedule-icons-v3).
  */

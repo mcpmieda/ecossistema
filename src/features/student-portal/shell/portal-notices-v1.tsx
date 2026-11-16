@@ -180,8 +180,8 @@ export function PortalCountdownV1({
 }
 
 /**
- * The same split-flap clock, short (owner decision 23/10/2026: "Intervalo em", "Saída em" on the
- * Horário): minutes and seconds, hours only when there is at least one. The caller counts.
+ * The same split-flap clock, short ("Intervalo em", "Saída em" on the Horário): minutes and
+ * seconds, hours only when there is at least one. The caller counts.
  */
 export function PortalTimerV1({ seconds, label }: Readonly<{ seconds: number; label: string }>) {
   const left = Math.max(0, Math.floor(seconds));

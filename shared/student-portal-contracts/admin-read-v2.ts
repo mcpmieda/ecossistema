@@ -42,7 +42,7 @@ export const adminReadQueryV2 = z.object({
   sessionView: z.enum(['active', 'history']).optional(),
   accountIds: z.array(portalIdV1).min(1).max(ADMIN_ACCOUNTS_PAGE_SIZE_V2)
     .refine((ids) => new Set(ids.map((id) => id.toLowerCase())).size === ids.length).optional(),
-  // Visão geral (10/11/2026): only a client that asks gets the per-class totals, so a tab opened
+  // Visão geral: only a client that asks gets the per-class totals, so a tab opened
   // before the deploy keeps reading the summary it knows.
   byClass: z.literal(true).optional(),
 }).strict()
@@ -58,15 +58,15 @@ export const adminReadQueryV2 = z.object({
     [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined), 'Session scope must match the complete revocation scope')
   .refine((value) => value.operation !== 'customizations-read' ||
     (value.accountState === undefined && value.blocked === undefined && !value.nameSearch?.includes('\0')), 'Customization inventory accepts only scope and name search')
-  // Fechamento do trimestre preview (#1132 D12): one student's record only.
-  // Encerrar conta (owner request 10/11/2026): one record's own facts, no filters.
+  // Fechamento do trimestre preview (D12): one student's record only.
+  // Encerrar conta: one record's own facts, no filters.
   .refine((value) => value.operation !== 'account-origin' ||
     (value.scope.kind === 'account' && [value.accountState, value.blocked, value.nameSearch, value.sessionView, value.byClass].every((field) => field === undefined)),
   'Account origin is read for one account')
   .refine((value) => value.operation !== 'closing-preview' ||
     (value.scope.kind === 'account' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
   'Closing preview is read for one account')
-  // Turnos (owner decision 28/09/2026): the whole school's shifts, no filters.
+  // Turnos: the whole school's shifts, no filters.
   .refine((value) => value.operation !== 'shifts-read' ||
     (value.scope.kind === 'school' && [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined)),
   'Shifts are read for the school')
@@ -119,7 +119,7 @@ const overviewCountsV2 = z.object({ accounts: count, active: count, pendingActiv
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
   customizationsResponseV1,
   z.object({ ...base, state: z.literal('shifts-read'), items: z.array(shiftSummaryV1).max(3) }).strict(),
-  // Why a record has no class, from the records themselves (owner request 10/11/2026).
+  // Why a record has no class, from the records themselves.
   z.object({ ...base, state: z.literal('account-origin'), accountId: portalIdV1, version: versionV1,
     createdAt: instantV1, everAccessed: z.boolean(), classesThisYear: count, closable: z.boolean(),
     sameName: z.array(z.object({ classLabel: z.string().max(80), accountActive: z.boolean() }).strict()).max(10),
@@ -152,7 +152,7 @@ export const adminReadResponseV2 = z.discriminatedUnion('state', [
   }).strict(),
   z.object({ ...base, state: z.literal('overview'), scopeVersion: versionV1,
     counts: overviewCountsV2, health: z.enum(['normal', 'attention', 'intervention']),
-    // Visão geral (owner request 10/11/2026): every class read in the same school summary.
+    // Visão geral: every class read in the same school summary.
     classes: z.array(z.object({
       classId: z.number().int().positive().safe().nullable(), counts: overviewCountsV2,
     }).strict()).max(500).optional(),

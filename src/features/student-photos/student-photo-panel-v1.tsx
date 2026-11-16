@@ -27,7 +27,7 @@ function dispose(value: Confirmation | null) {
   if (value.portraitUrl) URL.revokeObjectURL(value.portraitUrl);
   if (value.avatarUrl) URL.revokeObjectURL(value.avatarUrl);
 }
-/** Opening the record never shows a write failure nobody asked for (owner request 10/11/2026). */
+/** Opening the record never shows a write failure nobody asked for. */
 const READ_FAILED_V1 = 'Não foi possível carregar a foto agora.';
 function messageFor(error: unknown) {
   if (error instanceof PhotoAdminClientErrorV1) {
@@ -160,7 +160,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
             new Uint8Array(result.images.portrait).buffer], { type: 'image/webp' }));
           if (result.images.avatar) candidate.avatarUrl = URL.createObjectURL(new Blob([
             new Uint8Array(result.images.avatar).buffer], { type: 'image/webp' }));
-          // The crop itself is the decision (owner request 29/09/2026): save without a second dialog.
+          // The crop itself is the decision: save without a second dialog.
           discard(); ownedConfirmation.current = candidate;
         } finally { clearPhotoBytesV1(result.images); }
         await persist(candidate, signal);
@@ -214,7 +214,7 @@ function PhotoPanelSessionV1({ subject, canWrite: allowedByParent = true, showAv
       {showAvatar ? <LinkedStudentPhotoAvatarV1 subject={subject} studentUid={catalog?.studentUid} revision={catalog?.revision} size="lg" /> : null}
       <div className="student-photo-panel__actions">
         {canWrite ? <>
-          {/* Straight to the explorer or gallery, with or without a current photo (29/09/2026). */}
+          {/* Straight to the explorer or gallery, with or without a current photo. */}
           <Button size="sm" variant="secondary" isDisabled={busy || !!catalog?.pendingRequest} onPress={() => picker.current?.click()}>
             <Pencil size={15} aria-hidden="true" /> {catalog?.hasPortrait ? 'Trocar foto' : 'Adicionar foto'}
           </Button>

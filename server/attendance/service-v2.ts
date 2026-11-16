@@ -299,12 +299,12 @@ const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c
     WHERE b.academic_year=$1 AND s.student_uid=$2::uuid AND c.date>=$3::date AND c.date<($3::date+interval '1 month')
     ORDER BY b.class_id,c.record_key,c.date,b.received_at DESC,b.id DESC`;
 /**
- * Adds the Smecel lesson days to a month's summary (owner decision 20/10/2026). The counts follow
- * the Smecel: lessons are the positions of the days, absences are X, justified are J (the yellow
- * icon and the blue X) and do not lower the attendance: 100 × (lessons − absences) / lessons.
- * TODAY never counts (owner decision 21/10/2026: its roll call may still be under way), so neither
- * its lessons nor its marks enter the totals, and its unfinished reading never makes the month
- * incomplete (frequencyCountV2). The totals are given only when every day already over was read
+ * Adds the Smecel lesson days to a month's summary. The counts follow the Smecel: lessons are the
+ * positions of the days, absences are X, justified are J (the yellow icon and the blue X) and do
+ * not lower the attendance: 100 × (lessons − absences) / lessons. TODAY never counts (its roll
+ * call may still be under way), so neither its lessons nor its marks enter the totals, and its
+ * unfinished reading never makes the month incomplete (frequencyCountV2). The totals are given
+ * only when every day already over was read
  * completely and nothing is in review; the marks and days are always given.
  */
 export function withLessonDaysV2(
@@ -378,7 +378,7 @@ export type PortalFrequencyYearReadV2 = {
   /** The database's clock at the read (0012), for the countdown. */
   now?: string;
 };
-/** One month of the year's read, by the owner's rule (today never counts). */
+/** One month of the year's read (today never counts). */
 function monthOfReadV2(read: PortalFrequencyYearReadV2, key: string): FrequencySummaryV2 {
   const origins = read.origins.filter((row) => text(row.date).startsWith(`${key}-`));
   // A mark under an open conflict is not shown: its day is "leitura incompleta", never "sem falta".
@@ -424,9 +424,9 @@ function yearOfMonthsV2(months: readonly FrequencySummaryV2[], today: string) {
 }
 const lastReadOfV2 = (read: PortalFrequencyYearReadV2) => (read.lastReadAt === null ? null : iso(read.lastReadAt));
 /**
- * Only the school days of the calendar marked in the ADM count (owner decision 22/10/2026): a day
- * the diary has lessons on but the official calendar does not (the six compensation Saturdays of
- * 2026 the Secretaria did not list) neither adds lessons nor shows. Without a calendar, the diary.
+ * Only the school days of the calendar marked in the ADM count: a day the diary has lessons on but
+ * the official calendar does not (the six compensation Saturdays of 2026 the Secretaria did not
+ * list) neither adds lessons nor shows. Without a calendar, the diary.
  */
 function onSchoolDaysV2(read: PortalFrequencyYearReadV2, schoolDays?: ReadonlySet<string>): PortalFrequencyYearReadV2 {
   if (!schoolDays) return read;
@@ -452,7 +452,7 @@ export function portalFrequencySummaryV2(
   };
 }
 /**
- * The whole year so far in one answer (GET ?year=2026, PR 1317): the Portal reads it with the
+ * The whole year so far in one answer (GET ?year=2026): the Portal reads it with the
  * sign-in, so changing months is instant and never asks the server again.
  */
 export function portalFrequencyYearV2(
@@ -644,7 +644,7 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
     row.report_schedule_json === null || row.report_schedule_json === undefined
       ? null
       : json<FrequencyReportScheduleV2>(row.report_schedule_json);
-  // Away from the agenda the Coletor asks only every 15 min (issue #1426, 6B): it is still online.
+  // Away from the agenda the Coletor asks only every 15 min: it is still online.
   const devices = await tx.query<Row>(
     `SELECT p.device_id::text,p.revoked_at::text,p.grant_state,d.label,d.state,d.last_seen_at::text,d.class_id,d.code,d.last_collection_at::text,
     d.last_seen_at>clock_timestamp()-$3::integer*interval '1 second' AS online
@@ -655,7 +655,7 @@ async function status(tx: Tx, row: Row, actor: FrequencyActorV2): Promise<Freque
   const collected = await tx.query<Row>(
     // The class's current state already points at its newest batch (the only batch insert sets
     // last_batch_id in the same transaction): ~15 rows by key instead of sorting every batch of the
-    // year on each 30 s status (issue #1426, 18). Same rows as the DISTINCT ON over batch_v2.
+    // year on each 30 s status. Same rows as the DISTINCT ON over batch_v2.
     `SELECT s.class_id,COALESCE(s.last_observed_at,b.observed_at)::text AS observed_at,COALESCE(s.last_received_at,b.received_at)::text AS received_at,b.resolved_records,b.unresolved_records,b.conflicts
     FROM attendance.class_state_v2 s JOIN attendance.batch_v2 b ON b.id=s.last_batch_id AND b.academic_year=s.academic_year WHERE s.academic_year=$1 ORDER BY s.class_id`,
     [year],
@@ -792,11 +792,11 @@ async function addOccurrences(
 }
 
 /**
- * Owner decisions (20/10/2026 and 23/10/2026): the Smecel's latest reading always prevails. When the
- * class's latest evidence of a lesson differs from the stored mark (X → J, J → X, or the absence
- * removed), the stored mark follows it without review: the open conflict is closed with a
- * correction row. The latest evidence is the class's newest batch that has the lesson; only when two
- * fichas of the student disagree in that same batch does the conflict stay open for a person.
+ * The Smecel's latest reading always prevails. When the class's latest evidence of a lesson differs
+ * from the stored mark (X → J, J → X, or the absence removed), the stored mark follows it without
+ * review: the open conflict is closed with a correction row. The latest evidence is the class's
+ * newest batch that has the lesson; only when two fichas of the student disagree in that same
+ * batch does the conflict stay open for a person.
  * An open conflict whose stored mark already matches the latest evidence is simply closed.
  */
 const FOLLOW_LATEST_READING_SQL = `WITH latest_batch AS (
@@ -998,8 +998,8 @@ async function coverageDelta(
   cutoff: string,
 ) {
   const prior = await tx.query<Row>(
-    // From the class's batches to each one's coverage by its key (issue #1426, 14): the plain join
-    // read the whole coverage table (1.6 s on the largest class, inside the school's lock);
+    // From the class's batches to each one's coverage by its key: the plain join read the whole
+    // coverage table (1.6 s on the largest class, inside the school's lock);
     // OFFSET 0 keeps the planner from folding it back into that join. Same rows.
     `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.batch_v2 b CROSS JOIN LATERAL (SELECT c.record_key,c.date,c.slots_json,c.complete FROM attendance.coverage_v2 c WHERE c.batch_id=b.id OFFSET 0) c WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id DESC`,
     [input.academicYear, input.classId],
@@ -1299,7 +1299,7 @@ async function waitsForPreferred(tx: Tx, row: Row, year: number, deviceId: strin
     JOIN collector_auth.device_public_v2 d ON d.device_id=p.device_id
     LEFT JOIN attendance.device_status_v2 w ON w.academic_year=p.academic_year AND w.device_id=$2::uuid
     WHERE p.academic_year=$1 AND p.device_id=$5::uuid`,
-    // The same "online" as the ADM shows (issue #1450, 1): 2 min near the agenda, a quiet refresh plus 2 min away from it.
+    // The same "online" as the ADM shows: 2 min near the agenda, a quiet refresh plus 2 min away from it.
     [year, deviceId, PREFERRED_GRACE_SECONDS_V2, PREFERRED_WAIT_RESET_SECONDS_V2, text(row.preferred_device),
       onlineSecondsV2(row.schedule_json == null ? null : json<FrequencyScheduleV2>(row.schedule_json),
         row.report_schedule_json == null ? null : json<FrequencyReportScheduleV2>(row.report_schedule_json), Date.now())],
@@ -1469,9 +1469,9 @@ async function resolveConflict(
   return { conflictId: input.conflictId, revision: Number(conflict.revision) + 1 };
 }
 /**
- * The diary did not change since the content the collector last sent (owner decision 22/10/2026):
- * it sends the students and the content's hash instead of coverage and marks. Every guard of a
- * collection still applies (lease, device, clock, class, revision, order). The students are
+ * The diary did not change since the content the collector last sent: it sends the students and
+ * the content's hash instead of coverage and marks. Every guard of a collection still applies
+ * (lease, device, clock, class, revision, order). The students are
  * resolved again, so a link made in the Centro since the last batch changes the evidence; only the
  * evidence the class already holds moves freshness, like a repeated payload. Anything else asks
  * for the whole diary ('payload-required'), so the collector's local copy never decides alone.
@@ -1497,9 +1497,9 @@ async function collectUnchanged(tx: Tx, input: FrequencyUnchangedV2, actor: Freq
   return repeatCollection(tx, collection, actor, classState, evidenceHash);
 }
 /**
- * The school's weekly grid (owner decision 22/10/2026): one capture of the Smecel "Grade de
- * horários" with every linked class. A class whose grid changed gets a new version (the history
- * stays); an unchanged one only moves its freshness. A class not linked in the Centro, or a
+ * The school's weekly grid: one capture of the Smecel "Grade de horários" with every linked class.
+ * A class whose grid changed gets a new version (the history stays); an unchanged one only moves
+ * its freshness. A class not linked in the Centro, or a
  * capture older than the class's last one, rejects the whole capture.
  */
 async function collectSchedule(
@@ -1564,8 +1564,8 @@ async function collectSchedule(
   return { classes };
 }
 /**
- * Each student's Centro link (owner decision 29/10/2026): the collector names the student's Smecel
- * class linked in the Centro; the name is resolved in that class like a diary's. A class that is not
+ * Each student's Centro link: the collector names the student's Smecel class linked in the Centro;
+ * the name is resolved in that class like a diary's. A class that is not
  * (or no longer) linked, or a student not found, leaves the student's records without a link: they
  * are kept and linked at a later reading, never refused.
  */
@@ -1614,8 +1614,8 @@ async function incidentStudents(tx: Tx, input: FrequencyIncidentCollectionV2) {
   return links;
 }
 /**
- * The Smecel "Ocorrências" of the year (owner decision 29/10/2026). The whole set comes at every
- * collection; the server, not the computer, decides whether anything changed: the same content
+ * The Smecel "Ocorrências" of the year. The whole set comes at every collection; the server, not
+ * the computer, decides whether anything changed: the same content
  * with the same Centro links only moves freshness. A record new or edited in the Smecel gets a
  * version (an edit is open again for the family); a record missing from a capture is marked removed
  * only when the collector read everything (`complete`), so a failed page never hides one.
@@ -1676,7 +1676,7 @@ async function collectIncidents(
       [input.academicYear, evidenceHash, input.observedAt, rows.length, unresolvedStudents],
     );
   // The same report again: only the year's state records when it was seen. Rewriting every incident
-  // (last_seen_at, read by nothing) cost ~400 row updates per report (issue #1450, 13a).
+  // (last_seen_at, read by nothing) cost ~400 row updates per report.
   if (state && text(state.evidence_hash) === evidenceHash) {
     await saveState();
     return { changed: false, changedIncidents: 0, removedIncidents: 0, ...summary };
@@ -1743,8 +1743,8 @@ function studentReportView(row: Row, names: boolean): FrequencyStudentReportStat
 }
 /**
  * The report's content as compared between readings: its rows without their position in the sheet,
- * in canonical order. The Smecel swaps rows that tie in its own order from one export to the next
- * (seen 29/10/2026), so the same report must give the same hash whatever the order.
+ * in canonical order. The Smecel swaps rows that tie in its own order from one export to the next,
+ * so the same report must give the same hash whatever the order.
  */
 export function studentReportHashV2(input: Pick<FrequencyStudentReportV2, 'rows'>): Promise<string> {
   const rows = input.rows.map(({ sourceRow: _position, ...row }) => canonicalFrequencyJsonV2(row));
@@ -1815,8 +1815,8 @@ function studentReportReply(changed: boolean, outcome: string, notes: FrequencyS
   };
 }
 /**
- * Same report as last time and nothing left to finish: only the dates (owner decision 29/10/2026:
- * no heavy application). Anything else leaves through StudentReportPendingV2.
+ * Same report as last time and nothing left to finish: only the dates (no heavy application).
+ * Anything else leaves through StudentReportPendingV2.
  */
 async function checkStudentReport(
   tx: Tx,
@@ -1944,8 +1944,8 @@ function authorizeOperation(input: FrequencyRequestV2, actor: FrequencyActorV2) 
     fail('not-authorized', 403);
 }
 /**
- * The collector's 30 s status only reads the year (issue #1426, 15): it takes the shared reset lock
- * (a reset in progress still waits for it) but not the year's exclusive lock that grade imports,
+ * The collector's 30 s status only reads the year: it takes the shared reset lock (a reset in
+ * progress still waits for it) but not the year's exclusive lock that grade imports,
  * the Auditoria and the OneDrive reading hold for seconds, and reads the school row without
  * FOR UPDATE. Its one write that a reset must see, a device showing up for the first time, takes
  * the year's lock first, before the device lock, in the same order as every writer.
@@ -1987,7 +1987,7 @@ async function statusOperation(tx: Tx, row: Row, actor: FrequencyActorV2, year: 
     if (truth(operational?.inserted)) await recordFrequencyResetWriteV2(tx, year);
   }
   // The device row is already locked for this transaction (lockDevice before the read): checking
-  // it again here only repeated the same query (issue #1426, 6).
+  // it again here only repeated the same query.
   return status(tx, row, actor);
 }
 async function priorReceipt(

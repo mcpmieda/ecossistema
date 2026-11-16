@@ -4,17 +4,16 @@ type SubjectV1 = SelfResponseV1['subjects'][number];
 type MarkV1 = SubjectV1['periods'][number]['final'];
 
 /*
- * Selos brilhantes (owner idea 27/09/2026): a trimester mark of 90% or more (lowered from 95% on
- * 28/09/2026), reached the minimum,
- * earns the student a seal in that subject — something to collect across the year. The same rule
- * as the Brilhante band of the trimester header; recoveries never earn seals themselves.
+ * Selos brilhantes: a trimester mark of 90% or more, reached the minimum, earns the student a seal
+ * in that subject — something to collect across the year. The same rule as the Brilhante band of
+ * the trimester header; recoveries never earn seals themselves.
  *
- * A red trimester mark in ANY subject means no seal in that trimester (owner decision 27/09/2026).
+ * A red trimester mark in ANY subject means no seal in that trimester.
  * Only earned seals are ever shown: nothing locked, nothing "almost" — a missing seal is simply
  * not there. A closed trimester cannot be recovered: the year-end recovery (REC1–REC3) does not
  * count. Only a teacher correcting the mark changes it, and the rule always reads current marks.
  *
- * Seals from assessments (owner decision 28/09/2026): each of the trimester's two assessments
+ * Seals from assessments: each of the trimester's two assessments
  * (AV1 and AV2, never activities or the parallel exam) that is Brilhante also earns a seal, so a
  * subject can hold up to three per trimester. They count only once the trimester has ended by the
  * calendar and the subject's trimester mark is out, and never in a trimester with a red mark in any
@@ -52,7 +51,7 @@ type PartialV1 = NonNullable<SubjectV1['periods'][number]['partials']>[number];
 /**
  * Whether one activity of the subject earned a seal: a Brilhante AV1/AV2 the student did, in an
  * ended trimester whose mark is out, with no red mark in any subject. The same rule counts the
- * seals and labels the activity "selo Brilhante" (owner request 20/10/2026), so they never disagree.
+ * seals and labels the activity "selo Brilhante", so they never disagree.
  */
 export function earnsAssessmentSealV1(
   subjects: readonly SubjectV1[],

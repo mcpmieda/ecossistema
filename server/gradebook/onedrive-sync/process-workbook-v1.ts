@@ -90,7 +90,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   const openLocal = () => {
     opening ??= Promise.resolve().then(() => ports.openDatabase()).then((database) => database, () => null);
     const year = input.expectedYear;
-    // The Relação file itself never needs the Relação read ahead (issue #1426, 12c).
+    // The Relação file itself never needs the Relação read ahead.
     if (!earlyRelation && year !== null && !RELATION_FILE_NAME_V1.test(input.name)) {
       const relationNames = ports.services?.relationNames ?? relationNamesV1;
       earlyRelation = opening.then((database) => (database ? relationNames(database, year) : null))
@@ -115,7 +115,7 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
     });
     if (ready.outcome === 'unreadable') return result('unreadable', ready.code);
     workbook = ready.outcome === 'ready' && ready.request.operation === 'persist-relacao' ? 'relacao' : 'notas';
-    // A copy of the Relação among the teachers' workbooks would rewrite the master roster (issue #1450, 9).
+    // A copy of the Relação among the teachers' workbooks would rewrite the master roster.
     if (workbook === 'relacao' && input.sourceKind === 'folder') return { ...result('ignored', RELATION_OUTSIDE_SOURCE_CODE_V1), workbook };
     const prepared: PreparedWorkbookV1 = ready.outcome === 'ready'
       ? { outcome: 'ready', request: ready.request, audit: ready.audit, studentNames: [...ready.studentNames] }

@@ -12,10 +12,10 @@ export const ACCOUNT_JOIN_V1 = `FROM student_portal.account a
   LEFT JOIN LATERAL (SELECT min(class_id) AS class_id,min(class_name) AS class_name,count(*)::integer AS matches
     FROM student_portal.academic_binding_v1 WHERE student_id=a.gradebook_student_id AND academic_year=a.academic_year
       AND status IS DISTINCT FROM 6) b ON b.matches=1`;
-/** The admin lists and operations show only em curso, especial and estava no (owner decision,
- * 26/09/2026): assistido (2), desistente (3), transferido (4) and falecido (5) are hidden. "Foi
- * para" (6) is already history outside the class binding. A closed account leaves lists and
- * totals too (owner decision 10/11/2026); the audit keeps its closure. Needs the `a` alias.
+/** The admin lists and operations show only em curso, especial and estava no: assistido (2),
+ * desistente (3), transferido (4) and falecido (5) are hidden. "Foi para" (6) is already history
+ * outside the class binding. A closed account leaves lists and totals too; the audit keeps its
+ * closure. Needs the `a` alias.
  */
 export const ENROLLED_ACCOUNT_SQL_V1 = `(a.closed_at IS NULL AND NOT EXISTS(SELECT 1 FROM student_portal.academic_binding_v1 exit_b
   WHERE exit_b.student_id=a.gradebook_student_id AND exit_b.academic_year=a.academic_year

@@ -45,7 +45,7 @@ export function createPublicProviderCacheV1(now = Date.now) {
   let pendingSince = 0;
   return async (load: () => Promise<PublicProviderHealthV1> = () => collectPublicProviderHealthV1()): Promise<PublicProviderHealthV1> => {
     if (value && now() >= Date.parse(value.generatedAt) && now() < until) return value;
-    // Joined only briefly: the read belongs to the request that started it (issue #1450, 2).
+    // Joined only briefly: the read belongs to the request that started it.
     if (pending && now() - pendingSince < PROVIDER_PENDING_SHARE_MS_V1)
       return joinFlightV1(pending, PROVIDER_PENDING_SHARE_MS_V1 - (now() - pendingSince), load);
     pendingSince = now();

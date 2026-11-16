@@ -32,7 +32,7 @@ await copyFile(`${output}-bundle/index.js`, `${output}/_worker.js`);
 delete config.$schema;
 await writeFile(`${output}/wrangler.jsonc`, `${JSON.stringify(config, null, 2)}\n`);
 // The hashed files under /assets come straight from Pages, without a Function invocation and a log
-// line each (issue #1426, 10); the page, the API and every other path stay on the Function, which
+// line each; the page, the API and every other path stay on the Function, which
 // keeps the origin rules and answers 404 for anything else (wrangler.jsonc included). _headers
 // gives the assets the same headers the Function set, and 404.html keeps a missing asset a 404
 // (without it Pages would answer the page itself, with 200).

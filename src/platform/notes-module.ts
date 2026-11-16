@@ -24,7 +24,7 @@ export const defaultNotesSectionId = 'importacao';
 const notesHref = platformHref('banco-de-notas');
 const notesAreaHref = (area: string): string => `${notesHref}?area=${encodeURIComponent(area)}`;
 
-/** In the order of the tabs: Desempenho first and Auditoria beside Configurações (owner request of 13/10/2026). */
+/** In the order of the tabs: Desempenho first and Auditoria beside Configurações. */
 export const notesSections: NotesSection[] = [
   {
     id: defaultNotesSectionId,

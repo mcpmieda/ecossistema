@@ -114,7 +114,7 @@ export class PortalSchedulerEntrypoint extends WorkerEntrypoint<PortalEnvV1> {
 }
 
 /**
- * Safety net for the minute run by notas-onedrive-sync (issue #1426, 32): every 5 minutes the
+ * Safety net for the minute run by notas-onedrive-sync: every 5 minutes the
  * Portal's own cron looks at the last health sample that run writes; when it is older than 12
  * minutes (that Worker stopped, lost its binding or slowed its cron), the cron here runs the minute.
  */
@@ -142,7 +142,7 @@ export default {
       if (!(await schedulerStalledV1(env))) return;
       console.error(JSON.stringify({ event: 'portal-scheduler-fallback' }));
       // The work due at the last multiple of 5 min: the health sample, the signals, the cleanups and
-      // the midnight pruning all run on those minutes, never on the 2nd/7th (issue #1450, 6).
+      // the midnight pruning all run on those minutes, never on the 2nd/7th.
       await scheduledWorkV1(env, Math.floor(controller.scheduledTime / 300_000) * 300_000);
       return;
     }

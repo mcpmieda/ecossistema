@@ -2,7 +2,7 @@ import { QrArtifactErrorV1 } from './qr-values-v1';
 
 /** Synchronous canvas encoding for QR artifacts.
  * In the admin app, Chromium delivered every `toBlob` result about 1 s late while the main thread
- * was idle (measured 26/09/2026: 1000 ms for an 8 × 8 canvas, versus 13–26 ms for `toDataURL`),
+ * was idle (measured: 1000 ms for an 8 × 8 canvas, versus 13–26 ms for `toDataURL`),
  * which made batch cards wait ~2.8 s each. Encoding inline keeps the batch bound by real work.
  */
 export function canvasBlobSyncV1(

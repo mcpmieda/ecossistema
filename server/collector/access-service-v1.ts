@@ -16,7 +16,7 @@ const snapshotSchema = z.object({ device_id:z.string().uuid(),device_generation:
   origin_authenticated_at:date,encrypted_refresh:z.string().nullable(),state:z.enum(['active','needs_reauth','revoked']),
   grant_revoked_at:date.nullable(),directory_authorized:z.boolean(),directory_checked_at:date.nullable(),directory_valid_until:date.nullable() });
 type Snapshot = z.infer<typeof snapshotSchema>;
-/** Built once, not on every request (issue #1490, finding 12); one copy for revoke, authorize and authorizeFrequency. */
+/** Built once, not on every request; one copy for revoke, authorize and authorizeFrequency. */
 const deviceIdSchema=z.string().uuid(),nonceSchema=z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
 const challengeRowSchema=z.object({generation:z.number().int().positive(),key_thumbprint:z.string(),issued_at:date,expires_at:date});
 export class CollectorAccessErrorV1 extends Error {

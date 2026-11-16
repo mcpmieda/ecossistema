@@ -33,8 +33,8 @@
   --pa-goal-border: #fde68a;
   --pa-goal-fill: #f59e0b;
 }
-/* The cover (owner review 02/11/2026): a glow, the target's rings opening at the right and a slow
-   shine now and then, like the portal's own cover. The texts stay above them. */
+/* The cover: a glow, the target's rings opening at the right and a slow shine now and then, like
+   the portal's own cover. The texts stay above them. */
 .pa-annual-goal-header {
   position: relative;
   isolation: isolate;

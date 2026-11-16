@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
 /*
- * Horário das aulas (owner decision 23/10/2026): the time of each lesson and of the break, per
- * shift and weekday, marked in the ADM (Portal do Aluno → Políticas → Calendário), one for the whole
- * school. The Portal's "Horário" shows each lesson with its time and the break in its place.
+ * Horário das aulas: the time of each lesson and of the break, per shift and weekday, marked in the
+ * ADM (Portal do Aluno → Políticas → Calendário), one for the whole school. The Portal's "Horário"
+ * shows each lesson with its time and the break in its place.
  *
- * The "parada" (owner decision 23/10/2026) is the students' drill, the ordem unida, before the
+ * The "parada" is the students' drill, the ordem unida, before the
  * lessons and, on Friday afternoons, after the last one until 18:00: a time of the school day, never
  * a lesson (no number, no subject, never counted as one).
  */
@@ -65,7 +65,7 @@ export type SchoolBellsV1 = z.infer<typeof schoolBellsV1>;
  */
 export const BELLS_VALID_FROM_V1 = '2026-06-22';
 /**
- * From when the ADM's bells hold (owner request 27/10/2026: derived, never fixed in the code): the
+ * From when the ADM's bells hold (derived, never fixed in the code): the
  * official sheets' day while the bells are still the ones the system saved, otherwise the day a
  * person saved them in the ADM, so a change there never re-times older lessons.
  */
@@ -91,10 +91,10 @@ const lessons = (times: readonly [string, string][], breakAfter: number, breakTi
   });
 
 /**
- * The official "Horário Matutino / Vespertino 2026 — 22/06" of the school (owner decision
- * 23/10/2026: already filled in). Monday and Wednesday: five 55-minute lessons, the break after the
- * 3rd (morning) or 2nd (afternoon); Tuesday and Thursday: six 45-minute lessons, the break after the
- * 4th (morning) or 3rd (afternoon); Friday: five lessons, the break after the 3rd. The parada
+ * The official "Horário Matutino / Vespertino 2026 — 22/06" of the school, already filled in.
+ * Monday and Wednesday: five 55-minute lessons, the break after the 3rd (morning) or 2nd
+ * (afternoon); Tuesday and Thursday: six 45-minute lessons, the break after the 4th (morning) or
+ * 3rd (afternoon); Friday: five lessons, the break after the 3rd. The parada
  * comes first every day (06:45–07:00 in the morning, 06:45–07:45 on Friday; 13:00–13:15 in the
  * afternoon), and again after Friday afternoon's last lesson, 17:15–18:00.
  */

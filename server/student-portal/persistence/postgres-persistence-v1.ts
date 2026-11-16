@@ -593,8 +593,8 @@ class StudentPortalTransaction implements PortalTransactionV1 {
   }
 
   /**
-   * Encerrar conta (owner request 10/11/2026): one record that has no class this year and was
-   * never used (a duplicate left by an import), closed exactly like the yearly closure.
+   * Encerrar conta: one record that has no class this year and was never used (a duplicate left
+   * by an import), closed exactly like the yearly closure.
    */
   async closeUnusedAccountLink(
     accountId: string,

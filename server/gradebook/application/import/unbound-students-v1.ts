@@ -40,7 +40,7 @@ export function dropUnboundStudentsV1(
 }
 
 /**
- * Rule 14 (BN-DEC-046) in the manual import (#1477): with the workbook's names, a student whose name
+ * Rule 14 (BN-DEC-046) in the manual import: with the workbook's names, a student whose name
  * is not the Relação's for that number is held, the same function as the OneDrive reading. Without
  * names (an older tab), nothing changes.
  */

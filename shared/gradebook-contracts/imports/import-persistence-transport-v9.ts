@@ -2,7 +2,7 @@ import { isGradebookAcademicYearV2 } from '../academic-year-v2';
 import { isPlainRecordV1 as record } from '../../plain-record-v1';
 import type { SourceCellRawValueV1 } from '../source/source-contract-v1';
 
-/** Cell observations the reader records (formerly in the v3/v4/v8 transports, 16/11/2026). */
+/** Cell observations the reader records. */
 export type GradebookSnapshotCellV8 = number | string | boolean | readonly ['u'];
 
 export type GradebookImportRecoveryApplicabilityObservationV3 =
@@ -53,7 +53,7 @@ export interface GradebookImportTermResultObservationsV4 {
   readonly annualAccumulatedTotal: GradebookImportResultCellObservationV4;
 }
 
-/** Counts of one import, planned and written (formerly in the v1/v2 transports, 10/11/2026). */
+/** Counts of one import, planned and written. */
 interface ImportWriteCountsV9 {
   readonly logicalSources: number;
   readonly sourceFileVersions: number;
@@ -196,7 +196,7 @@ export interface GradebookImportOfferV9 {
   readonly recuperacao: readonly GradebookImportRecoveryStudentV9[] | null;
 }
 
-/** [class code, number, name as the workbook has it] (#1477). */
+/** [class code, number, name as the workbook has it]. */
 export type GradebookSheetStudentNameV9 = readonly [classCode: string, number: number, name: string];
 
 export interface GradebookNotesImportRequestV9 {
@@ -208,7 +208,7 @@ export interface GradebookNotesImportRequestV9 {
   readonly ano: number;
   readonly professor: string;
   readonly ofertas: readonly GradebookImportOfferV9[];
-  /** The workbook's student names, for rule 14 (BN-DEC-046) in the manual import (#1477). */
+  /** The workbook's student names, for rule 14 (BN-DEC-046) in the manual import. */
   readonly nomes?: readonly GradebookSheetStudentNameV9[];
 }
 

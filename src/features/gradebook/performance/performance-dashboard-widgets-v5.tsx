@@ -57,8 +57,8 @@ function PerformanceKpisV5({ value, selection, onSelectionChange }: {
     analysis.matrix.statistics.completeCells / analysis.matrix.statistics.consideredCells * 100;
   const selected = (group: 'withBelow' | 'pending') =>
     selection?.kind === 'group' && selection.group === group;
-  // Shown only when some student is still waiting for a classification (owner request of
-  // 13/10/2026); since BN-DEC-042 a missing mark no longer leaves anyone there.
+  // Shown only when some student is still waiting for a classification; by BN-DEC-042 a missing
+  // mark no longer leaves anyone there.
   const pending = value.overview.students.pending;
   return <div className="performance-kpi-group" data-cards={pending > 0 ? 4 : 3} aria-label="Resumo da turma">
     <KpiCard icon={<UsersRound size={20}/>} value={analysis.matrix.statistics.visibleRows} label="estudantes"

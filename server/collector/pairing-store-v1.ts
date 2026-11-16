@@ -136,7 +136,7 @@ export class CollectorPairingStoreV1 {
    * without a device. Completed pairings stay: authorization requires them.
    * Skipped until the DELETE grant exists, so deploy order cannot break access. The time ranges
    * compare with statement_timestamp(): a volatile clock_timestamp() kept the expiry indexes
-   * unused (issue #1426, 17: 7.9 billion rows read in challenges in 67 days). */
+   * unused (7.9 billion rows read in challenges in 67 days). */
   async purgeFinished():Promise<void>{
     const [grant]=await this.sql.query<{ready:boolean}>(`SELECT has_table_privilege(current_user,'collector_auth.challenges','DELETE')
       AND has_table_privilege(current_user,'collector_auth.pairings','DELETE') AS ready`,[]);

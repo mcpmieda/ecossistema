@@ -31,8 +31,8 @@ import { platformHref, routeIcons } from './routes';
 import { SectionLinksV1 } from './section-links-v1';
 
 /*
- * The sections of each service. Since 13/10/2026 (owner request) the side column lists the areas
- * of the Centro and the sections of the open one are tabs in the top bar.
+ * The sections of each service. The side column lists the areas of the Centro and the sections of
+ * the open one are tabs in the top bar.
  */
 type ServiceSectionV2 = { id: string; label: string; href: string; icon: LucideIcon };
 const PORTAL_SECTION_ICONS_V2: Record<string, LucideIcon> = {
@@ -53,7 +53,7 @@ const NOTES_SECTION_ICONS_V2: Record<string, LucideIcon> = {
   onedrive: CloudCog,
 };
 /** Sections of the Banco de notas shown under the area Importação: the import itself, its
- * Auditoria (owner request of 13/10/2026) and the OneDrive automatic read. Addresses unchanged. */
+ * Auditoria and the OneDrive automatic read. Addresses unchanged. */
 const IMPORT_AREA_SECTIONS_V1: ReadonlySet<string> = new Set([defaultNotesSectionId, 'audit', 'onedrive']);
 export function importAreaSectionsV1(): ServiceSectionV2[] {
   return notesSections
@@ -93,7 +93,7 @@ export function serviceSectionsV2(route: PlatformRoute): ServiceSectionV2[] {
 }
 /** The section in the address; each service falls back to its own first section. */
 export function serviceSectionFromHashV2(route: PlatformRoute, hash: string): string {
-  // The platform's SharePoint Auditoria was retired (#1473): Saúde is the only section.
+  // The platform's SharePoint Auditoria was retired: Saúde is the only section.
   if (route === 'operacao') return 'health';
   if (route === 'painel-do-aluno') {
     const section = portalSectionFromHash(hash);
@@ -104,7 +104,7 @@ export function serviceSectionFromHashV2(route: PlatformRoute, hash: string): st
     ? (requested as string)
     : defaultNotesSectionId;
 }
-/** Services first, then the platform areas (owner order of 07/10/2026). */
+/** Services first, then the platform areas. */
 const TOP_ORDER_V2: readonly PlatformRoute[] = [
   'banco-de-notas',
   'painel-do-aluno',
@@ -183,8 +183,8 @@ export function mainNavigationAreasV1(
 }
 
 /*
- * Composition of 13/10/2026 (owner request): the side column lists only the areas of the Centro,
- * and the sections of the open area are tabs in the top bar.
+ * Composition: the side column lists only the areas of the Centro, and the sections of the open
+ * area are tabs in the top bar.
  */
 const HEALTH_LABELS_V1 = { normal: 'Normal', attention: 'Atenção', critical: 'Crítico' } as const;
 

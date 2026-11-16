@@ -12,7 +12,7 @@ const matrixRequest = performanceRequestSchemaV2.options[1];
 export const PERFORMANCE_RANKING_PLACES_V5 = 10;
 /**
  * The place of each total in a ranking sorted from the highest: equal totals share a place and
- * the next one skips as many (1º, 2º, 2º, 4º), owner request of 12/11/2026.
+ * the next one skips as many (1º, 2º, 2º, 4º).
  */
 export function rankingPlacesV5(totals: readonly (number | bigint)[]): number[] {
   const places: number[] = [];
@@ -42,7 +42,7 @@ export const performanceDashboardRequestSchemaV5 = matrixRequest
     lens,
     offerId: id.nullable(),
     referencePeriod: z.union([z.literal(1), z.literal(2)]).nullable(),
-    /** The previous trimester's panel in the same read, for the arrows (issue #1471). */
+    /** The previous trimester's panel in the same read, for the arrows. */
     includePrevious: z.boolean().optional(),
   })
   .strict()

@@ -2,7 +2,7 @@ import { useId, type CSSProperties, type ReactNode } from 'react';
 import { reducedMotionV3 } from './portal-pages-v3';
 
 /*
- * The Horário's icons (owner request 27/10/2026): lucide's own drawings of each subject, of the
+ * The Horário's icons: lucide's own drawings of each subject, of the
  * parada and of the break, drawn here so their parts can move while their lesson is the one going on
  * now (`live`): the page of Português turns, the keys of Matemática light up, the flask of Ciências
  * bubbles, the columns of História rise, the Earth of Geografia turns, the paint of Arte pops, the
@@ -218,7 +218,7 @@ export const MarkedBookIconV3: ScheduleIconV3 = ({ live }) => (
 
 /**
  * The parada: lucide's "flag"; live, its cloth waves, its top, middle and bottom lines rising and
- * falling (owner request 27/10/2026). The waving is SMIL, which every phone plays (CSS cannot morph a
+ * falling. The waving is SMIL, which every phone plays (CSS cannot morph a
  * path on all of them), so it is left out with reduced motion.
  */
 const FLAG_STILL =
@@ -263,7 +263,7 @@ export const FlagIconV3: ScheduleIconV3 = ({ live }) => {
 };
 
 /**
- * The break: lucide's "coffee", its three wisps of steam drawn wavy (owner request 23/10/2026);
+ * The break: lucide's "coffee", its three wisps of steam drawn wavy;
  * live, they drift up and fade one after the other.
  */
 export const CoffeeIconV3: ScheduleIconV3 = ({ live }) => (

@@ -278,7 +278,7 @@ async function saveReceiptV1(
   return operationId;
 }
 
-/** Private primitive: #713 supplies trusted admin authorization and transport; no public route. */
+/** Private primitive: the admin API supplies trusted admin authorization and transport; no public route. */
 
 /** A bulk operation acts only while its preview proof lasts, and only on a student still in the
  * previewed scope (one current binding, in the previewed class). */

@@ -24,7 +24,7 @@ export const sessionSchema = z
     roles: z.array(z.enum(['ADMINISTRADOR', 'PROFESSOR', 'ALUNO', 'APOIO', 'VISITANTE'])),
     authenticatedAt: z.number().int().positive().optional(),
     durationHours: z.number().int().refine(isSessionDurationHours).optional(),
-    /** Session id, recorded by "Sair" so a copy of the cookie stops working (cookies before 13/11 have none). */
+    /** Session id, recorded by "Sair" so a copy of the cookie stops working (older cookies have none). */
     sid: z.string().regex(SESSION_ID_PATTERN_V1).optional(),
     exp: z.number().int().positive(),
   })

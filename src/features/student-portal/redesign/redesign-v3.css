@@ -1,4 +1,4 @@
-/* The Portal pages (owner request 20/10/2026). Scoped to .pa3-*. */
+/* The Portal pages. Scoped to .pa3-*. */
 .pa3-app {
   --pa3-ink: #0f2a5f;
   --pa3-blue: #1d4ed8;
@@ -11,12 +11,12 @@
   --pa3-amber-soft: #fef3c7;
   --pa3-green: #15803d;
   --pa3-green-soft: #e8f6ee;
-  /* "Ao vivo" (owner request 27/10/2026): the dot and the "agora" chip; white on it reads at 4.8:1. */
+  /* "Ao vivo": the dot and the "agora" chip; white on it reads at 4.8:1. */
   --pa3-live: #dc2626;
   --pa3-nav-height: 4.25rem;
   min-height: 100dvh;
-  /* Safety net (owner request 20/10/2026): nothing in the page ever adds a sideways scroll bar;
-     wide rows (months, disciplines) scroll inside their own bar instead. */
+  /* Safety net: nothing in the page ever adds a sideways scroll bar; wide rows (months,
+     disciplines) scroll inside their own bar instead. */
   overflow-x: clip;
   background: var(--pa3-bg);
   color: #0f172a;
@@ -152,8 +152,8 @@
   justify-content: space-between;
   gap: 0.25rem 0.75rem;
 }
-/* The legend: the same colours in small squares, in two columns (owner request 23/10/2026: "Sem
-   falta" under "Faltou algumas aulas"). */
+/* The legend: the same colours in small squares, in two columns ("Sem falta" under "Faltou
+   algumas aulas"). */
 .pa3-legend {
   display: grid;
   gap: 0.7rem;
@@ -180,10 +180,10 @@
 .pa3-calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  /* Wider than the selection ring (3px), so it never touches the next day (owner request 27/10/2026). */
+  /* Wider than the selection ring (3px), so it never touches the next day. */
   gap: 0.45rem;
 }
-/* The rows a shorter month does not use stay empty: every month is as tall (owner request 01/11/2026). */
+/* The rows a shorter month does not use stay empty: every month is as tall. */
 .pa3-calendar-blank {
   aspect-ratio: 1;
 }
@@ -239,8 +239,8 @@
   padding: 0;
   list-style: none;
 }
-/* One tile per lesson; every tile has its lines in the same places (owner request 23/10/2026): icon,
-   lesson, time, subject (room for two lines), and the state always at the bottom. */
+/* One tile per lesson; every tile has its lines in the same places: icon, lesson, time, subject
+   (room for two lines), and the state always at the bottom. */
 .pa3-lesson {
   display: flex;
   gap: 0.2rem;
@@ -275,7 +275,7 @@
   font-size: 0.78rem;
   font-weight: 750;
 }
-/* The lesson's state in a filled pill of its own colour (owner request 23/10/2026). */
+/* The lesson's state in a filled pill of its own colour. */
 .pa3-lesson-state {
   max-width: 100%;
   font-size: 0.64rem;
@@ -440,7 +440,7 @@
   animation-play-state: paused;
 }
 
-/* ---------- The calendar's days (owner decisions 21/10/2026) ----------
+/* ---------- The calendar's days ----------
    Only a day with an absence is coloured; a day without one stays neutral, the same grey as a day
    without lessons. Red: an absence in every lesson ("Faltou o dia todo"); light red: in some lessons only
    ("Faltou algumas aulas"); yellow: every absence of the day justified, all lessons or some. Each a soft
@@ -460,7 +460,7 @@
 .pa3-day.pa3-kind--clear:hover {
   background: #eef2f8;
 }
-/* Its small check, centred under the number where "HOJE" sits on today (owner requests 27/10/2026). */
+/* Its small check, centred under the number where "HOJE" sits on today. */
 .pa3-day-check {
   position: absolute;
   bottom: 0.15rem;
@@ -482,11 +482,11 @@
   color: #5f3305;
 }
 /* Today: its number in the same size and place as every other date, a small "HOJE" on its own near
-   the bottom of the tile. Without an absence it has no fill at all (owner requests 21/10/2026: a
-   strong fill next to a red day read as one more kind of absence) — on a school day still open as
+   the bottom of the tile. Without an absence it has no fill at all (a strong fill next to a red
+   day read as one more kind of absence) — on a school day still open as
    on a weekend or holiday, so "HOJE" never fades into the grey of a day without lessons. */
-/* "HOJE" as a small blue tag under the number (owner request 09/11/2026: "mais bonito"), the
-   same on any day; the tile itself still gets no fill. */
+/* "HOJE" as a small blue tag under the number, the same on any day; the tile itself still gets
+   no fill. */
 .pa3-day-today {
   position: absolute;
   bottom: 0.08rem;
@@ -543,7 +543,7 @@
   margin-left: auto;
 }
 
-/* ---------- The year at a glance (owner requests 21–23/10/2026) ----------
+/* ---------- The year at a glance ----------
    One card with the ring of the year's counted days, in the same card as the rest of the page
    (white, hairline border, same corners and padding). No ruler and no limit. */
 .pa3-summary {
@@ -636,7 +636,7 @@
   }
 }
 
-/* ---------- Horário (owner decision 22/10/2026) ----------
+/* ---------- Horário ----------
    A phone shows one day at a time, today first; a computer, the whole week with today marked. The
    subject as the Smecel names it; a free position is a blank space. */
 .pa3-schedule {
@@ -657,7 +657,7 @@
   gap: var(--pa3-week-gap);
   isolation: isolate;
 }
-/* The selected day (owner request 27/10/2026): one solid pill in the menu's blue that slides under
+/* The selected day: one solid pill in the menu's blue that slides under
    the chips, following the finger while the day is dragged. The chips are see-through; their grey
    lies on a layer of its own below the pill (a chip is a stacking context of its own, so its own
    background could never sit under the pill). */
@@ -726,10 +726,10 @@
   font-weight: 700;
   letter-spacing: 0.02em;
 }
-/* The day as a timeline of cards (owner requests 27/10/2026, schedule-page-v3 lessonRowV3). The
+/* The day as a timeline of cards (schedule-page-v3 lessonRowV3). The
    list leaves room around the cards for the ring of the one going on, and on the left for the live
    dot's pulse, which just reaches the day slider's edge (it clips). The line runs halfway between
-   the white card's edge and the lesson cards (owner request 09/11/2026): with the card's 1rem of
+   the white card's edge and the lesson cards: with the card's 1rem of
    padding, 0.375rem here and the rail's 0.5rem make its middle 1.875rem in, and the row's gap below
    puts the lesson cards 1.875rem past it. */
 .pa3-schedule-list {
@@ -745,7 +745,7 @@
   --pa3-row-space: 0.2rem;
   display: flex;
   align-items: stretch;
-  /* Room for the live dot's halo, clear of the card's ring (owner request 01/11/2026), and the line
+  /* Room for the live dot's halo, clear of the card's ring, and the line
      halfway between the white card's edge and the lesson cards (above). */
   gap: 1.375rem;
   padding-block: var(--pa3-row-space);
@@ -753,7 +753,7 @@
 .pa3-schedule-row.is-done {
   opacity: 0.5;
 }
-/* A day without school: its timetable stays, faded, under the reason (owner request 01/11/2026). */
+/* A day without school: its timetable stays, faded, under the reason. */
 .pa3-schedule-off + .pa3-schedule-list {
   margin-top: 0.5rem;
   opacity: 0.6;
@@ -837,7 +837,7 @@
   border-radius: 0.95rem;
   background: var(--pa3-subject-strong);
   color: #fff;
-  /* Short enough to end inside the day's sliding box, which clips what passes it (owner request 01/11/2026). */
+  /* Short enough to end inside the day's sliding box, which clips what passes it. */
   box-shadow: 0 5px 8px -3px color-mix(in srgb, var(--pa3-subject-strong) 40%, transparent);
 }
 .pa3-schedule-row.is-now .pa3-schedule-tile {
@@ -922,7 +922,7 @@
   color: var(--muted);
 }
 
-/* "Agora" (owner decision 23/10/2026): the lesson going on and a short clock to what comes next. */
+/* "Agora": the lesson going on and a short clock to what comes next. */
 .pa3-now {
   gap: 0.45rem;
 }
@@ -940,7 +940,7 @@
   font-size: 0.95rem;
   font-weight: 750;
 }
-/* The highlighted part of the card's title (owner requests 27/10/2026), filled like a lesson's
+/* The highlighted part of the card's title, filled like a lesson's
    "A confirmar", a little smaller than the words beside it: the day of the next lessons ("amanhã",
    "segunda-feira") and the parada in slate, the break in amber, a lesson in its subject's colour,
    as on the Horário. */
@@ -956,8 +956,8 @@
   vertical-align: 0.08em;
   white-space: nowrap;
 }
-/* "Ao vivo" before "Agora:" while a lesson, the break or the parada is going on (owner request
-   27/10/2026): a red dot with a ring that grows and fades, still with reduced motion. */
+/* "Ao vivo" before "Agora:" while a lesson, the break or the parada is going on: a red dot with a
+   ring that grows and fades, still with reduced motion. */
 .pa3-live {
   position: relative;
   display: inline-block;
@@ -1125,7 +1125,7 @@
   }
 }
 
-/* ---------- Reading states (PR 1317, real data) ----------
+/* ---------- Reading states (real data) ----------
    While a month or the week has not come yet, or cannot be shown: one card that says so in plain
    words, the month and its arrows kept so a slow month never traps the reader. */
 .pa3-status {
@@ -1145,7 +1145,7 @@
   font-size: 0.9rem;
 }
 
-/* The school year's countdown (owner requests 22–23/10/2026): the portal's opening clock, made
+/* The school year's countdown: the portal's opening clock, made
    short so parents scroll less: the title beside a small clock, the school days left under it. */
 .pa3-countdown {
   display: grid;
@@ -1166,7 +1166,7 @@
   font-size: 0.78rem;
   line-height: 1.25;
 }
-/* No calendar icon beside the year's end (owner request 23/10/2026). */
+/* No calendar icon beside the year's end. */
 .pa3-countdown .pa-countdown__title svg {
   display: none;
 }
@@ -1185,7 +1185,7 @@
   --pa-flip-h: 2.35rem;
   border-radius: 0.45rem;
   box-shadow: 0 3px 8px rgb(15 23 42 / 0.25);
-  /* Readable when small (owner request 23/10/2026): larger, lighter digits. */
+  /* Readable when small: larger, lighter digits. */
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -1208,12 +1208,12 @@
   text-align: center;
 }
 
-/* The sentence about the absences, first on the page (owner decisions 22/10/2026). */
+/* The sentence about the absences, first on the page. */
 .pa3-comment {
   font-size: 0.95rem;
 }
 
-/* Days without school and the time of each lesson (owner decision 23/10/2026). A holiday or recess
+/* Days without school and the time of each lesson. A holiday or recess
    is a soft slate tile with a dashed edge (never a colour of absence); tapping it says why. */
 .pa3-day.pa3-day--holiday {
   background: #eef2f7;
@@ -1227,7 +1227,7 @@
   background-image: repeating-linear-gradient(135deg, transparent 0 2px, rgb(100 116 139 / 0.35) 2px 3px);
   box-shadow: inset 0 0 0 1px #c3cddb;
 }
-/* A lesson's time and subject inside its tile (owner request 23/10/2026). */
+/* A lesson's time and subject inside its tile. */
 .pa3-lesson-time {
   color: var(--pa3-muted);
   font-size: 0.62rem;
@@ -1259,7 +1259,7 @@
 
 
 
-/* Filled (owner request 23/10/2026): the pill in the state's colour, the word in white. */
+/* Filled: the pill in the state's colour, the word in white. */
 .pa3-lesson .pa3-lesson-state {
   border-color: transparent;
   color: #fff;
@@ -1277,20 +1277,20 @@
 .pa3-lesson--pending .pa3-lesson-state {
   background: #475569;
 }
-/* The Frequência item says how it is going (owner decision 23/10/2026): only the calendar's mark is
-   colored (owner request 27/10/2026), a green check or a red X. */
+/* The Frequência item says how it is going: only the calendar's mark is colored, a green check or
+   a red X. */
 .pa3-frequency-mark--good {
   stroke: var(--pa3-green);
 }
 .pa3-frequency-mark--alert {
   stroke: var(--pa3-red);
 }
-/* "Agora": how much of the lesson or the break has gone by (owner request 23/10/2026). */
+/* "Agora": how much of the lesson or the break has gone by. */
 .pa3-now-progress {
   width: 100%;
 }
-/* Light diagonal stripes walking to the right inside the fill, as if the time were moving (owner
-   request 27/10/2026); the bar a little taller and rounded so they show. Still with reduced motion. */
+/* Light diagonal stripes walking to the right inside the fill, as if the time were moving; the bar
+   a little taller and rounded so they show. Still with reduced motion. */
 .pa3-now-progress .progress-bar__track,
 .pa3-now-progress .progress-bar__fill {
   height: 0.5rem;
@@ -1317,9 +1317,9 @@
     animation: none;
   }
 }
-/* Each subject with its own colour and icon (owner decision 23/10/2026), the same every day: twelve
-   colours a step apart on the colour wheel (owner request 23/10/2026: Matemática and Religião were
-   too alike), each dark enough for white text on it (4.5:1). */
+/* Each subject with its own colour and icon, the same every day: twelve colours a step apart on
+   the colour wheel (Matemática and Religião were too alike), each dark enough for white text on it
+   (4.5:1). */
 .pa3-subject--0 {
   --pa3-subject-strong: #1d4ed8;
 }
@@ -1339,7 +1339,7 @@
   --pa3-subject-strong: #a21caf;
 }
 .pa3-subject--6 {
-  /* Orange 700: white on #ea580c read at 3.6:1 only (owner request 27/10/2026, filled cards). */
+  /* Orange 700: white on #ea580c read at 3.6:1 only (filled cards). */
   --pa3-subject-strong: #c2410c;
 }
 .pa3-subject--7 {
@@ -1359,7 +1359,7 @@
 }
 
 
-/* The icons move while their lesson goes on (owner request 27/10/2026, schedule-icons-v3): only
+/* The icons move while their lesson goes on (schedule-icons-v3): only
    with motion allowed; otherwise, and before and after their lesson, they stand still. --i is a
    part's order, for its delay. */
 .pa3-icon {
@@ -1440,7 +1440,7 @@
   .pa3-icon--marked.is-live .pa3-icon-ribbon {
     animation: pa3-icon-dip 1.8s ease-in-out infinite;
   }
-  /* The break: the steam drifts up and fades, one wisp after the other (owner request 23/10/2026). */
+  /* The break: the steam drifts up and fades, one wisp after the other. */
   .pa3-icon--coffee.is-live .pa3-icon-steam {
     animation: pa3-icon-steam 2.4s ease-out calc(var(--i) * 0.8s) infinite backwards;
   }
@@ -1623,7 +1623,7 @@
 
 
 
-/* The menu's clock shows the time (owner request 23/10/2026): its hands follow the school's clock. */
+/* The menu's clock shows the time: its hands follow the school's clock. */
 .pa3-clock-hand {
   transform-origin: 12px 12px;
   transition: transform 400ms ease-out;
@@ -1634,7 +1634,7 @@
   }
 }
 
-/* "Agora" in the live red on white (owner requests 27/10/2026), so it shows on every card's colour,
+/* "Agora" in the live red on white, so it shows on every card's colour,
    Matemática's red included. */
 .chip.pa3-schedule-now {
   position: relative;
@@ -1647,7 +1647,7 @@
   line-height: 1.3;
   isolation: isolate;
 }
-/* It breathes (owner request 27/10/2026): a soft halo in the chip's colour grows and fades, slower
+/* It breathes: a soft halo in the chip's colour grows and fades, slower
    than the dot; still with reduced motion. */
 .pa3-schedule-now::after {
   position: absolute;
@@ -1676,7 +1676,7 @@
   }
 }
 
-/* The day follows the finger (owner request 23/10/2026): three days side by side, the one shown in
+/* The day follows the finger: three days side by side, the one shown in
    the middle; the neighbours come in as it slides. Vertical drags stay the page's scroll. */
 .pa3-day-slider {
   overflow: hidden;
@@ -1731,7 +1731,7 @@
   }
 }
 
-/* ---------- Ocorrências (owner decisions 29/10/2026) ---------- */
+/* ---------- Ocorrências ---------- */
 .pa3-incidents {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1740,9 +1740,9 @@
 .pa3-incidents .pa3-page-title {
   margin-bottom: 0;
 }
-/* A calm card (owner requests 01/11/2026), redrawn on 09/11/2026 ("mais bonitos", without a band on
-   the left): the kind's icon in a round badge, the day under the kind, the leave
-   in the kind's soft tone and the button with a check. Only the kind and the leave carry a colour. */
+/* A calm card, without a band on the left: the kind's icon in a round badge, the day under the
+   kind, the leave in the kind's soft tone and the button with a check. Only the kind and the leave
+   carry a colour. */
 .pa3-incident {
   --incident-accent: #475569;
   --incident-soft: #f1f5f9;
@@ -1867,7 +1867,7 @@
   border-bottom: 1px dashed #e2e8f0;
   padding-bottom: 0.85rem;
 }
-/* The buttons on the right, where a thumb reaches on a large phone (owner request 30/10/2026). */
+/* The buttons on the right, where a thumb reaches on a large phone. */
 .pa3-incident-ack {
   align-self: flex-end;
   gap: 0.4rem;

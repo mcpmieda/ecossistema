@@ -12,7 +12,7 @@ import { bellShiftOfLabelV1, bellsValidFromV1, schoolBellsDaysV1 } from '../../.
 import { schoolCalendarDaysV1, schoolDaysOffOfV1, schoolYearSpanOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 
-// The weekly grid of the student's own class(es) (owner decision 22/10/2026; attendance 0011).
+// The weekly grid of the student's own class(es) (attendance 0011).
 // The subject exactly as the Smecel names it; no teacher; a free position is absent.
 const lessonSchema=z.object({weekday:z.number().int().min(1).max(5),slot:z.number().int().min(1).max(6),subject:z.string().min(1).max(120)}).strict();
 const readSchema=z.object({classes:z.array(z.object({label:z.string().min(1).max(300),observedAt:z.string().refine(value=>!Number.isNaN(Date.parse(value))),validFrom:z.iso.date().nullable().optional(),lessons:z.array(lessonSchema).max(30)}).strict()).max(8)}).strict();
@@ -21,15 +21,15 @@ const jsonOf=(raw:unknown)=>typeof raw==='string'?JSON.parse(raw):raw;
 /**
  * What the school marked in the ADM (student-portal 0029 and 0030), for the Horário and the
  * Frequência: the time of each lesson by shift and weekday and from when those times hold, the days
- * without school with their description, and the school year's first and last school day (owner
- * requests 27/10/2026: the Horário ends the year at the calendar's last lesson; nothing fixed in the
- * code). Nothing marked yet: null, an empty list and null (the Portal shows the grid without times
- * and without an end of the year).
+ * without school with their description, and the school year's first and last school day (the
+ * Horário ends the year at the calendar's last lesson; nothing fixed in the code). Nothing marked
+ * yet: null, an empty list and null (the Portal shows the grid without times and without an end of
+ * the year).
  */
 export async function schoolBellsAndCalendarV1(tx:StudentPortalPostgresQueryV1,known?:{readonly days:unknown}){
   // Saved by the system (student-portal 0030/0031, the official sheets) or by a person in the ADM.
   const bells=await tx.unsafe(`SELECT bells_json,updated_by='00000000-0000-4000-8000-000000000000' AS by_system,(updated_at AT TIME ZONE '${SCHOOL_TIME_ZONE_V1}')::date::text AS saved_on FROM student_portal.school_bells_v1 WHERE academic_year=2026`,[]);
-  // A caller that already read the calendar passes its days: one query less per Portal entry (issue #1450, 8a).
+  // A caller that already read the calendar passes its days: one query less per Portal entry.
   const rawDays=known?known.days:(await tx.unsafe('SELECT days_json FROM student_portal.school_calendar_v1 WHERE academic_year=2026',[]))?.[0]?.days_json;
   const bellsRow=bells?.[0],rawBells=bellsRow?.bells_json;
   const days=rawDays==null?null:schoolCalendarDaysV1.parse(jsonOf(rawDays));
@@ -58,8 +58,8 @@ export async function servePortalScheduleV1(request:Request,env:PortalCompositio
         const rows=await tx.unsafe('SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule',[context.account.id,session.id]);
         const raw=rows[0]?.schedule;if(raw===null||raw===undefined)return null;
         const value=readSchema.parse(jsonOf(raw));
-        // The school's today and the database's clock (owner decision 23/10/2026: the lesson going
-        // on now and its countdown run on the server's time, never on a phone with a wrong clock).
+        // The school's today and the database's clock (the lesson going on now and its countdown
+        // run on the server's time, never on a phone with a wrong clock).
         const clock=await tx.unsafe(`SELECT clock_timestamp() < $1::timestamptz AS active,(clock_timestamp() AT TIME ZONE '${SCHOOL_TIME_ZONE_V1}')::date::text AS today,clock_timestamp() AS now`,[session.expiresAt]);
         if(clock[0]?.active!==true)return null;
         const{bells,daysOff,schoolYear}=await schoolBellsAndCalendarV1(tx);

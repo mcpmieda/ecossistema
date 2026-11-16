@@ -236,8 +236,8 @@
   }
 }
 
-/* Visão geral (owner request 07/10/2026): cards on the page background instead of one big card,
-   quiet stat tiles, and a short staggered entrance when the content arrives. */
+/* Visão geral: cards on the page background instead of one big card, quiet stat tiles, and a
+   short staggered entrance when the content arrives. */
 .pa-overview.card {
   border: 0;
   background: transparent;

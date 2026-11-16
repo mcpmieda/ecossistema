@@ -46,7 +46,7 @@ const FIELDS = [
   'calendar',
 ] as const;
 type Field = (typeof FIELDS)[number];
-/** Added by migrations 0020 (#1132), 0021 (schedules), 0027 (frequência), 0028 (horário) and 0032 (ocorrências). Absent school rows read as off / none. */
+/** Added by migrations 0020 (fechamento do trimestre), 0021 (schedules), 0027 (frequência), 0028 (horário) and 0032 (ocorrências). Absent school rows read as off / none. */
 const OPTIONAL_SCHOOL_FIELDS: ReadonlySet<Field> = new Set<Field>(['showTermClosing', 'termClosingConclusive', 'accessSchedule', 'showFrequency', 'showSchedule', 'showIncidents']);
 const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.size;
 const schoolFieldCountValidV1 = (count: number) =>
@@ -202,7 +202,7 @@ function schoolDefaultsV1(records: readonly StoredRowV1[]) {
 }
 
 /**
- * Resolution order (owner decision 28/09/2026): school, then class, then shift, then account. The
+ * Resolution order: school, then class, then shift, then account. The
  * shift comes after its class, so for the same option a shift rule wins and the class's own rule
  * stays stored but inactive; an account rule still wins over both.
  */

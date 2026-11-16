@@ -1,9 +1,8 @@
 /*
  * What the operator had chosen on a screen (a class, a period, a tab), kept for this browser
  * tab so a reload returns to the same view, and saved to the person's account so another
- * session, on any computer, opens on the same view (owner request of 12/11/2026). Only
- * identifiers of choices are kept, never names, marks or any other academic data, and the
- * screen revalidates them against what it reads.
+ * session, on any computer, opens on the same view. Only identifiers of choices are kept, never
+ * names, marks or any other academic data, and the screen revalidates them against what it reads.
  */
 import {
   VIEW_PREFERENCE_KEY_PATTERN_V1,
@@ -83,7 +82,7 @@ export function writeSessionViewV1(key: string, value: unknown): void {
   known.set(key, text);
   pending[key] = value;
   // The address changes on every screen and only the last one matters: it goes with the next
-  // filter change or when the tab is hidden or closed, never one PUT per navigation (issue #1426, 12b).
+  // filter change or when the tab is hidden or closed, never one PUT per navigation.
   if (key === LAST_ADDRESS_KEY_V1) return;
   if (flushTimer !== null) clearTimeout(flushTimer);
   flushTimer = setTimeout(() => sendPending(), FLUSH_DELAY_MS_V1);
