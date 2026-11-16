@@ -62,8 +62,8 @@ describe('current import diagnostics retention', () => {
   it('routes complete observations through the atomic snapshot service', () => {
     const route = source('functions/api/gradebook/import-diagnostics.ts');
     const service = source('server/gradebook/application/import/import-diagnostics-snapshot-v1.ts');
-    expect(route).toContain(
-      "replaceGradebookImportDiagnosticsSnapshotV1(database,{ ...payload, origin: 'manual' })",
+    expect(route).toMatch(
+      /replaceGradebookImportDiagnosticsSnapshotV1\(database,\s*\{\s*\.\.\.payload,\s*origin: 'manual',?\s*\}\)/u,
     );
     expect(service).toContain('.transaction(async (transaction)');
     expect(service).toContain('pg_advisory_xact_lock');

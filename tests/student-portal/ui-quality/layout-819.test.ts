@@ -23,7 +23,7 @@ it('sizes the dashboard from content width and targets the native tab scroller i
   expect(admin).toContain('container-type: inline-size');
   expect(tabs).toContain('.pa-admin-page .tabs');
   expect(tabs).toContain('.performance-workspace .tabs');
-  expect(tabs).toContain('.tabs__list-container__scroller > .tabs__list');
+  expect(tabs).toMatch(/\.tabs__list-container__scroller\s*>\s*\.tabs__list/u);
   expect(tabs).toMatch(/>\s*\.tabs__tab\s*\{[^}]*width:\s*auto/s);
   expect(operations).toContain('@container (min-width: 1280px)');
   expect(operations).not.toContain('@media (min-width: 1500px)');
