@@ -19,6 +19,7 @@ import type {
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
 import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
 import { auditWorkbookV1 } from './audit-rules-v1';
+import { isNcTextV9, isRrTextV9 } from './canonical-import-v9';
 
 export interface GradebookImportDiagnosticV1 extends GradebookImportDiagnosticAuditItemV1 {
   readonly studentName?: string;
@@ -127,14 +128,6 @@ function numericValue(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function isNcText(value: unknown): boolean {
-  return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'NC';
-}
-
-function isRrText(value: unknown): boolean {
-  return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'RR';
-}
-
 function hasExactThousandths(value: number): boolean {
   const scaled = value * 1000;
   return Number.isSafeInteger(Math.round(scaled)) && Math.abs(scaled - Math.round(scaled)) <= 1e-7;
@@ -193,7 +186,7 @@ function inspectCell(input: {
   }
 
   if (raw === undefined || raw === null || raw === '') return [];
-  if (input.allowRecoveryMarkers && (isNcText(raw) || isRrText(raw))) return [];
+  if (input.allowRecoveryMarkers && (isNcTextV9(raw) || isRrTextV9(raw))) return [];
 
   const numeric = numericValue(raw);
   if (numeric === null) {
