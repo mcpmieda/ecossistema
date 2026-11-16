@@ -198,7 +198,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(integrationGate).toContain('needs: [scope, static, unit-tests, verify]');
     expect(integrationGate).toContain('run: npx vitest run --shard=${{ matrix.shard }}/4');
     expect(blobHash('.github/workflows/validate-pull-request.yml'))
-      .toBe('3bb2ede543cdd5e5263e3f2d8e516c6bcab917a0');
+      .toBe('3fcef342a3ed46528194714f9e045c354742897b');
   });
   it('keeps the canonical local documentation links resolvable', () => {
     const pages = [

@@ -24,3 +24,6 @@ gha-creds-*.json
 
 __pycache__/
 *.pyc
+
+# Local agent worktrees (full repository copies)
+.claude/worktrees/
