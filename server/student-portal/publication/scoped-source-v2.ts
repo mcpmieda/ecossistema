@@ -157,6 +157,11 @@ export function periodMarksSqlV2(payload: string, mask: string) {
       FROM jsonb_array_elements(${payload}->'offers') WITH ORDINALITY y(o,k)),'[]'::jsonb)) END`;
 }
 
+const summaryCountV2 = z.number().int().nonnegative();
+const summaryPeriodsV2 = z.array(z.object({ period: z.enum(PERIODS_V1), available: z.boolean(), all_published: z.boolean(),
+  published_count: summaryCountV2.default(0), target_count: summaryCountV2.default(0),
+  pending: z.boolean().nullable(), revisions: z.array(academicVersionSchemaV1) }));
+const summaryClassIdV2 = z.number().int().positive().nullable();
 export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
   const scope = scopeV1.parse(input);
   const rows = await tx.unsafe(`WITH target AS (${TARGETS_V2}), head AS (
@@ -188,13 +193,10 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
   const row = rows[0]!;
   const dataVersion = academicVersionSchemaV1.parse(row.data_version);
   const version = versionV1.parse(Number(row.version));
-  const count = z.number().int().nonnegative();
-  const periods = z.array(z.object({ period: z.enum(PERIODS_V1), available: z.boolean(), all_published: z.boolean(),
-    published_count: count.default(0), target_count: count.default(0),
-    pending: z.boolean().nullable(), revisions: z.array(academicVersionSchemaV1) })).parse(row.periods);
+  const periods = summaryPeriodsV2.parse(row.periods);
   return {
-    version, dataVersion, count: z.number().int().nonnegative().parse(row.targets),
-    classId: z.number().int().positive().nullable().parse(row.class_id),
+    version, dataVersion, count: summaryCountV2.parse(row.targets),
+    classId: summaryClassIdV2.parse(row.class_id),
     allPublished: new Set(periods.filter((period) => period.all_published).map((period) => period.period)),
     items: PERIODS_V1.map((period) => {
       const value = periods.find((item) => item.period === period);

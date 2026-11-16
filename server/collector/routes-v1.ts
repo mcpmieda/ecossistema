@@ -21,6 +21,7 @@ const confirmSchema=z.object({purpose:z.literal('collector-confirm'),id:uuid,csr
 const authSchema=z.object({state:z.string().regex(/^collector\.[A-Za-z0-9_-]{43}$/u),nonce:secret,
   verifier:z.string().regex(/^[A-Za-z0-9_-]{64}$/u),exp:z.number().int().positive(),startedAt:z.number().int().positive(),pairingId:uuid}).strict();
 const withdrawalSchema=z.object({purpose:z.literal('collector-withdraw'),device:uuid,actor:uuid,tenant:uuid,thumb:secret,csrf:secret,exp:z.number().int().positive()}).strict();
+const deviceStatusSchema=z.object({deviceId:uuid,keyThumbprint:secret}).strict(),pollSchema=z.object({id:uuid,pollToken:secret}).strict();
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','Pragma':'no-cache'}});
 const escaped=(text:string)=>text.replaceAll(/[&<>"']/gu,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!));
 function page(title:string,body:string,status=200,headers:HeadersInit={},refreshUrl?:string):Response{
@@ -48,7 +49,7 @@ const formOf=async(request:Request)=>new URLSearchParams(new TextDecoder('utf-8'
 /** A verified application session can only ask the revocation status or retire its own device. */
 async function deviceStatus(request:Request,env:RuntimeEnv,store:WithdrawalStoreV1):Promise<Response>{
   if(request.method!=='POST'||foreignOrigin(request,env))return json({error:'Denied'},403);
-  const value=z.object({deviceId:uuid,keyThumbprint:secret}).strict().parse(await readBoundedJson(request,1024));
+  const value=deviceStatusSchema.parse(await readBoundedJson(request,1024));
   return json({revoked:await store.revocationStatus(value.deviceId,value.keyThumbprint)});
 }
 async function withdrawalPage(url:URL,env:RuntimeEnv,store:WithdrawalStoreV1,session:SessionV1):Promise<Response>{
@@ -177,7 +178,7 @@ async function pairingRequest(request:Request,url:URL,env:RuntimeEnv,runtime:Col
         status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':'600'}});
     return json({contractVersion:1,id:proof.id,pollToken,displayCode,browserUrl:env.OFFICIAL_ORIGIN+'/frequency-collector/connect?pairing='+proof.id});
   }
-  const poll=z.object({id:uuid,pollToken:secret}).strict().parse(value),hash=await collectorOpaqueHashV1(poll.pollToken);
+  const poll=pollSchema.parse(value),hash=await collectorOpaqueHashV1(poll.pollToken);
   if(url.pathname==='/api/frequency-collector/pairings/poll'){
     const found=await runtime.pairings.poll(poll.id,hash);
     if(!found)return json({error:'Pairing unavailable'},403);
