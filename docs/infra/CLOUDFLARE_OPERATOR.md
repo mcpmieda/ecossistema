@@ -4,7 +4,7 @@ Status: v2 for #1027, built on the capability probe from #1016.
 
 ## Purpose
 
-The operator lets the repository owner and the ChatGPT lead inspect bounded Cloudflare production state through GitHub Actions without exposing credentials and without depending on a local terminal.
+The operator lets the repository owner and their coding sessions inspect bounded Cloudflare production state through GitHub Actions without exposing credentials and without depending on a local terminal.
 
 It never accepts arbitrary shell, URL, HTTP method, account ID, resource ID or Cloudflare payload from an issue.
 

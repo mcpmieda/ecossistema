@@ -88,7 +88,7 @@ The matching public certificates are stored on the two Entra Application objects
 
 ### Agents
 
-- Jules: approved external/GitHub-connected executor; no repository API key is required by the current repository.
+- Jules and ChatGPT-led delegation are no longer used (AGENTS.md, 16/11/2026); no repository API key is required.
 - CodeRabbit: optional independent reviewer; not an architectural or merge authority.
 - GitHub Actions `github.token` is ephemeral workflow authority and is not a stored repository secret.
 
