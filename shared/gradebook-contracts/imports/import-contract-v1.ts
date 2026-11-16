@@ -1,17 +1,47 @@
-import type { AcademicYearId, TeacherId } from '../entities';
+import type {
+  AcademicYearId,
+  AnnualResultId,
+  AssessmentComponentId,
+  ClassGroupId,
+  EnrollmentId,
+  FinalRecoveryId,
+  GradeEntryId,
+  StudentId,
+  StudentStatusEventId,
+  SubjectId,
+  TeacherId,
+  TeachingAssignmentId,
+  TermResultId,
+} from '../entities';
 import type { SourceContractV2 } from '../source/source-contract-v2';
 import type {
   SourceCellEvidenceV1,
   SourceContractV1,
   SourceFileExtensionV1,
 } from '../source/source-contract-v1';
-import type { AuditEntityReferenceV1, AuditSeverityV1 } from '../audit/audit-contract-v1';
 import type {
   ImportBatchId,
   ImportFileDiagnosticId,
   ImportFileId,
   SourceFileManifestId,
 } from './import-ids-v1';
+
+export type AuditSeverityV1 = 'information' | 'warning' | 'blocking-error' | 'critical-error';
+
+export type AuditEntityReferenceV1 =
+  | { readonly kind: 'academic-year'; readonly id: AcademicYearId }
+  | { readonly kind: 'teacher'; readonly id: TeacherId }
+  | { readonly kind: 'class-group'; readonly id: ClassGroupId }
+  | { readonly kind: 'subject'; readonly id: SubjectId }
+  | { readonly kind: 'teaching-assignment'; readonly id: TeachingAssignmentId }
+  | { readonly kind: 'student'; readonly id: StudentId }
+  | { readonly kind: 'enrollment'; readonly id: EnrollmentId }
+  | { readonly kind: 'student-status-event'; readonly id: StudentStatusEventId }
+  | { readonly kind: 'assessment-component'; readonly id: AssessmentComponentId }
+  | { readonly kind: 'grade-entry'; readonly id: GradeEntryId }
+  | { readonly kind: 'term-result'; readonly id: TermResultId }
+  | { readonly kind: 'final-recovery'; readonly id: FinalRecoveryId }
+  | { readonly kind: 'annual-result'; readonly id: AnnualResultId };
 
 export interface SourceFileDescriptorV1 {
   readonly fileName: string;
