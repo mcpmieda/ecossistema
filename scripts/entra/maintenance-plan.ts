@@ -120,18 +120,18 @@ async function graphJson<T>(
   stage: string,
 ): Promise<T> {
   let response: Response;
+  const init: RequestInit = {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+    redirect: 'error',
+    signal: AbortSignal.timeout(15_000),
+  };
   try {
     // graphReadUrlV1 allows only fixed Graph read paths on the Graph origin.
-    response = await fetcher(graphReadUrlV1(path), {
-      // NOSONAR
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
-      redirect: 'error',
-      signal: AbortSignal.timeout(15_000),
-    });
+    response = await fetcher(graphReadUrlV1(path), init); // NOSONAR
   } catch {
     throw new EntraMaintenancePlanError(`${stage}-transport`);
   }

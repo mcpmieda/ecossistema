@@ -340,9 +340,7 @@ async function graphJson<T>(
   path: string,
   stage: string,
 ): Promise<T> {
-  // graphReadUrlV1 allows only fixed Graph read paths on the Graph origin.
-  const response = await fetcher(graphReadUrlV1(path), {
-    // NOSONAR
+  const init: RequestInit = {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -350,7 +348,9 @@ async function graphJson<T>(
     },
     redirect: 'error',
     signal: AbortSignal.timeout(15_000),
-  });
+  };
+  // graphReadUrlV1 allows only fixed Graph read paths on the Graph origin.
+  const response = await fetcher(graphReadUrlV1(path), init); // NOSONAR
   if (!response.ok) throw new EntraOperationsAuditError(stage, response.status);
   try {
     return (await response.json()) as T;
