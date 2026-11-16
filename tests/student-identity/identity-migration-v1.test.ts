@@ -4,7 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../student-portal/year-reset/schema-fixture';
 import { resolveStudentIdentitiesV1 } from './resolve-student-identity-helper';
-import { createGradebookRelationalImportServiceV11 } from '../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../server/gradebook/application/import/import-service';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresQuerySqlV1,
@@ -202,7 +202,7 @@ describe('shared identity migration on the actual private schema', () => {
       }),
       end: async () => undefined,
     };
-    const service = createGradebookRelationalImportServiceV11(createGradebookPostgresDatabaseFromSqlV1(sql));
+    const service = createGradebookImportService(createGradebookPostgresDatabaseFromSqlV1(sql));
     const request: GradebookRelationImportRequestV9 = {
       transportVersion: 9, operation: 'persist-relacao', ano: 2026,
       manifest: { fileName: 'SYNTHETIC IDENTITY.xlsb', sha256: 'a'.repeat(64), parserVersion: 'synthetic-identity-v1' },

@@ -29,7 +29,7 @@ Buscas de consumidor neste mapa **excluem `Aprendizados/**` como autoridade oper
 | `import-persistence-transport-v6.ts` | COMPATIBILITY | v7/v8 | cadeia V8 | retirar somente após v8 e eventual v7 saírem |
 | `import-persistence-transport-v7.ts` | HISTORICAL/MEMORY | **nenhum consumidor vivo encontrado fora de `Aprendizados/**`** | referências encontradas só no arquivo histórico D1-V8 | BN-04 deve revalidar e só então remover/mover |
 | `import-persistence-transport-v8.ts` | REMOVIDO 16/11/2026 | — | só o leitor usava o tipo da célula do retrato | tipo movido para a v9 |
-| `import-persistence-transport-v9.ts` | **CURRENT** | client V9, API `import-persistence`, V9/V10/V11, canonical import, batch/import hooks | `relational-v9-contract`, multiyear, revisions, PostgreSQL | só por nova decisão de contrato explícita |
+| `import-persistence-transport-v9.ts` | **CURRENT** | client V9, API `import-persistence`, serviço de importação, canonical import, batch/import hooks | `relational-v9-contract`, multiyear, revisions, PostgreSQL | só por nova decisão de contrato explícita |
 
 **Interpretação:** v1–v6/v8 não são “código morto” apenas por terem número menor. V9 é a fronteira externa atual, mas reutiliza tipos das versões anteriores.
 
@@ -51,11 +51,13 @@ Retirados. Os contratos congelados de resultados (`results-contract-v1/v2/v3.ts`
 
 | Serviço | Estado | Papel atual |
 | --- | --- | --- |
-| `import-relational-service-v9.ts` | COMPATIBILITY/Core | implementação relacional base; V10 a envolve |
-| `import-relational-service-v10.ts` | COMPATIBILITY | wrapper de filtragem/coordenação; V11 a envolve |
-| `import-relational-service-v11.ts` | **CURRENT** | composição atual chamada por `functions/api/gradebook/import-persistence.ts` |
+| `import-service.ts` | **CURRENT** | serviço único chamado por `functions/api/gradebook/import-persistence.ts` e pela sincronização OneDrive: normaliza descrições de modelo, agrupa escritas no buffer `relational-import-write-buffer-v11.ts` e aplica a política acadêmica (Relação direta; notas numa transação com filtro FOI_PARA e rollback da recusa) |
+| `relational-import-writer.ts` | **CURRENT** | escrita relacional delta/idempotente, chamada só por `import-service.ts` |
+| `import-relational-service-v9.ts` | RENOMEADO 16/11/2026 | virou `relational-import-writer.ts`, mesmo corpo |
+| `import-relational-service-v10.ts` | REMOVIDO 16/11/2026 | código passou para `import-service.ts` |
+| `import-relational-service-v11.ts` | REMOVIDO 16/11/2026 | código passou para `import-service.ts` |
 
-A cadeia é deliberadamente **V11 → V10 → V9**. Não remover V9/V10 sem reescrever V11 e seus testes.
+Até 16/11/2026 eram três camadas (V11 → V10 → V9), unidas sem mudança de comportamento (#1491 A1). A versão fica só no contrato de rede (`transportVersion: 9`).
 
 ## 5. Operational workspace
 

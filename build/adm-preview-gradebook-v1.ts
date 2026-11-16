@@ -158,7 +158,7 @@ async function createBackend(server: ViteDevServer) {
   // The import route opens the production database binding itself, so the preview calls the
   // same import service directly over the in-memory database.
   const [importService, importObserver, importTransport] = await Promise.all([
-    load('/server/gradebook/application/import/import-relational-service-v11.ts'),
+    load('/server/gradebook/application/import/import-service.ts'),
     load('/server/gradebook/persistence/postgres/import-performance-observer-v1.ts'),
     load('/shared/gradebook-contracts/imports/import-persistence-transport-v9.ts'),
   ]);
@@ -189,7 +189,7 @@ async function createBackend(server: ViteDevServer) {
       }
     )();
     const service = (
-      importService.createGradebookRelationalImportServiceV11 as (
+      importService.createGradebookImportService as (
         database: unknown,
         observer: unknown,
       ) => { execute: (request: unknown) => Promise<unknown> }

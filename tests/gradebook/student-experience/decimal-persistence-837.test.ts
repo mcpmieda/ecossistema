@@ -4,7 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { createGradebookPostgresDatabaseFromSqlV1, type GradebookPostgresDatabaseV1, type GradebookPostgresSqlV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
 import { AcademicStudentReaderPostgresV1, academicToSelfV1 } from '../../../server/student-portal/academic/academic-reader-v1';
 import { createGradebookCanonicalImportRequestV9 } from '../../../src/features/gradebook/import/canonical-import-v9';
@@ -36,7 +36,7 @@ beforeAll(async () => {
     end: () => pg.close(),
   };
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
-  expect((await createGradebookRelationalImportServiceV11(database).execute({
+  expect((await createGradebookImportService(database).execute({
     transportVersion: 9, operation: 'persist-relacao', ano: 2026,
     manifest: { fileName: 'SYNTHETIC ROSTER.xlsx', sha256: 'a'.repeat(64), parserVersion: 'synthetic' },
     turmas: [{ codigo: 'TEST', nome: 'SYNTHETIC CLASS', etapa: 6, turno: 'TESTE', alunos: [[1, 'SYNTHETIC STUDENT', 0]] }],
@@ -47,7 +47,7 @@ afterAll(async () => { await database?.close(); });
 it('reimports actual decimal evidence, preserves history/idempotence and exposes 0.1, zero and not-done to BN and Portal', async () => {
   const value = createGradebookCanonicalImportRequestV9(decimalGradeBatch837());
   if (value.operation !== 'persist-notas') throw new Error('notes expected');
-  const service = createGradebookRelationalImportServiceV11(database);
+  const service = createGradebookImportService(database);
   // Reproduce a prior import that irreversibly collapsed the decimal. Do not infer which
   // stored zeros were decimals; only the newly supplied source permits this correction.
   const oldTerm = (term: GradebookImportTermV9): GradebookImportTermV9 => ({

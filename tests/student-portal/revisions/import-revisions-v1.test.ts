@@ -3,7 +3,7 @@ import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } fro
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -109,7 +109,7 @@ describe('real V11 revision and lifecycle finalizer', () => {
   it('records one academic event after the physical relation flush and creates a profile when the local gate is enabled', async () => {
     await pg.exec('UPDATE student_portal.lifecycle_control SET population_enabled=true');
     const before = await revision();
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     expect(await service.execute(relation(2026, 'T26', 'a'))).toMatchObject({ state: 'applied' });
     expect((await revision()).academic).toBe(before.academic + 1);
     expect((await pg.query('SELECT eligibility FROM student_portal.account')).rows).toEqual([{ eligibility: 'eligible' }]);
@@ -119,7 +119,7 @@ describe('real V11 revision and lifecycle finalizer', () => {
   });
 
   it('records marks once but excludes a professor-only metadata change from the academic revision', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     const before = await revision();
     expect(await service.execute(notes2026())).toMatchObject({ state: 'applied' });
     expect((await revision()).academic).toBe(before.academic + 1);
@@ -131,7 +131,7 @@ describe('real V11 revision and lifecycle finalizer', () => {
   });
 
   it('rolls back a failure after event and lifecycle writes; a retry then revokes the session with the exit', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     await pg.exec(`INSERT INTO student_portal.session (id,account_id,token_hash,security_version,expires_at,persistent)
       SELECT gen_random_uuid(),id,'synthetic-import-session',security_version,now()+interval '1 day',false FROM student_portal.account`);
     const before = await revision();

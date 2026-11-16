@@ -4,7 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { GradebookRelationImportRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -193,7 +193,7 @@ async function protectedSnapshot() {
 
 describe('reparo de identidade dividida por movimentacao explicita V9', () => {
   it('blocks two existing UIDs and preserves notes, accounts, photos and access atomically', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     await expect(service.execute(relation('R1105', 'a', false))).resolves.toMatchObject({
       state: 'applied',
     });
@@ -258,7 +258,7 @@ describe('reparo de identidade dividida por movimentacao explicita V9', () => {
   });
 
   it('falha fechado e reverte tudo se os ids tiverem estado corrente de Conselho concorrente', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     await expect(service.execute(relation('R1106', 'c', false))).resolves.toMatchObject({
       state: 'applied',
     });
@@ -291,7 +291,7 @@ describe('reparo de identidade dividida por movimentacao explicita V9', () => {
   });
 
   it('does not let another known person occupying the same position inherit grades or the original access', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     const original = relation('REPLACE', 'e', false);
     const request = { ...original, turmas: original.turmas.map((turma, index) => ({ ...turma,
       alunos: [[1, index === 0 ? 'PESSOA SINTETICA ORIGINAL' : 'PESSOA SINTETICA SUBSTITUTA', 0] as const] })) };
@@ -307,7 +307,7 @@ describe('reparo de identidade dividida por movimentacao explicita V9', () => {
   });
 
   it('blocks an unlinked report person with a contradictory birth at the same position through normalized SQL booleans', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     const base = relation('EVIDENCE', 'c', false);
     const originalName = 'SINTETICO EVIDENCIA ORIGINAL';
     const replacementName = 'SINTETICO EVIDENCIA NOVA PESSOA';
@@ -361,7 +361,7 @@ describe('reparo de identidade dividida por movimentacao explicita V9', () => {
   });
 
   it('allows ordinary name correction without moving identity, notes, account or photo', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     const original = relation('CORRECT', 'f', false);
     const request = { ...original, turmas: [{ ...original.turmas[0]!,
       alunos: [[1, 'SINTETICO ALEX CORRECAO', 0] as const] }] };
@@ -382,7 +382,7 @@ describe('reparo de identidade dividida por movimentacao explicita V9', () => {
   });
 
   it('applies a unique differently spelled transfer without creating a second person or moving protected resources', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     const base = relation('UNIQUE', 'a', false);
     const initial = { ...base, turmas: base.turmas.map((turma,index) => ({ ...turma,
       alunos: index === 0 ? [[1,'PESSOA SINTETICA MOVIMENTO',0] as const] : [] })) };

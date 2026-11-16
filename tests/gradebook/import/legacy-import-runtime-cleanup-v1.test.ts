@@ -9,7 +9,7 @@ const path = (value: string) => resolve(root, value);
 const CURRENT_IMPORT_FILES = [
   'functions/api/gradebook/import-persistence.ts',
   'src/features/gradebook/import/import-persistence-client-v9.ts',
-  'server/gradebook/application/import/import-relational-service-v11.ts',
+  'server/gradebook/application/import/import-service.ts',
   'server/gradebook/persistence/postgres/relational-import-write-buffer-v11.ts',
 ] as const;
 

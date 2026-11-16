@@ -21,7 +21,7 @@ import { AcademicStudentReaderPostgresV1, ACADEMIC_STUDENT_QUERY_V1 } from '../.
 import { ACADEMIC_FIXTURE_SQL_V1 } from '../academic/academic-fixture-v1';
 import { BirthYearServiceV1 } from '../birth-year/legacy-birth-fixture-v1';
 import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/ports-v1';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import { createYearResetServiceV1 } from '../../../server/gradebook/application/settings/year-reset-v1';
 import { readFileSync } from 'node:fs';
@@ -626,7 +626,7 @@ describe('native import reset revisions', () => {
         },
       })) as ReturnType<GradebookPostgresSqlV1['begin']>,
     } as GradebookPostgresSqlV1);
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     const manifest = { fileName:'synthetic-reset-import.xlsx',sha256:'f'.repeat(64),parserVersion:'synthetic-v1' };
     expect(await service.execute({ transportVersion:9, operation:'persist-relacao', manifest, ano:2020,
       turmas:[{codigo:'T20',nome:'SYNTHETIC CLASS',etapa:6,turno:'MATUTINO',alunos:[[1,'SYNTHETIC IMPORT STUDENT',0]]}] }))
@@ -848,7 +848,7 @@ describe('native lifecycle transactions and least privilege', () => {
         },
       })) as ReturnType<GradebookPostgresSqlV1['begin']>,
     } as GradebookPostgresSqlV1);
-    const service=createGradebookRelationalImportServiceV11(database);
+    const service=createGradebookImportService(database);
     const request={transportVersion:9 as const,operation:'persist-relacao' as const,ano:2026,
       manifest:{fileName:'synthetic-707.xlsx',sha256:'7'.repeat(64),parserVersion:'synthetic-v1'},
       turmas:[{codigo:'S707',nome:'SYNTHETIC LIFECYCLE CLASS',etapa:6,turno:'TESTE',alunos:[[1,'SYNTHETIC LIFECYCLE STUDENT',3] as const]}]};

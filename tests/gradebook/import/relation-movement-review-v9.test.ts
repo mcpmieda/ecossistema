@@ -8,7 +8,7 @@ import {
   type GradebookRelationImportRequestV9,
   type GradebookRelationMovementPairV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1, type GradebookPostgresSqlV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
@@ -59,7 +59,7 @@ async function scenario() {
       { codigo: `${prefix}7C`, nome: '7C', etapa: 7, turno: 'M', alunos: [[1, `${prefix} INDEPENDENTE`, 0]] },
     ],
   };
-  const service = createGradebookRelationalImportServiceV11(database, undefined, actor);
+  const service = createGradebookImportService(database, undefined, actor);
   expect((await service.execute(initial)).state).toBe('applied');
   const request: GradebookRelationImportRequestV9 = {
     ...initial, manifest: { ...initial.manifest, sha256: 'b'.repeat(64) },
@@ -190,7 +190,7 @@ describe('conferência explícita das transferências V9/V11', () => {
       const review = await preview(s);
       let request = { ...s.request, movementReview: { digest: review.digest, pairs: s.pairs } };
       let service = s.service;
-      if (kind === 'actor') service = createGradebookRelationalImportServiceV11(database, undefined, '22222222-2222-4222-8222-222222222222');
+      if (kind === 'actor') service = createGradebookImportService(database, undefined, '22222222-2222-4222-8222-222222222222');
       if (kind === 'file') request = { ...request, manifest: { ...request.manifest, sha256: 'c'.repeat(64) } };
       if (kind === 'content') request = { ...request, turmas: request.turmas.map((turma, i) => i === 2 ? { ...turma, alunos: [[1, 'OUTRO CONTEUDO', 0]] } : turma) };
       if (kind === 'order') request = { ...request, turmas: [...request.turmas].reverse() };

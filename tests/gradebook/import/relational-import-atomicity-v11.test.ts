@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -159,7 +159,7 @@ beforeEach(async () => {
     end: () => pg.close(),
   });
   expect(inspectGradebookImportPersistenceRequestV9(relation)).toBe('ready');
-  expect(await createGradebookRelationalImportServiceV11(database).execute(relation)).toMatchObject(
+  expect(await createGradebookImportService(database).execute(relation)).toMatchObject(
     { state: 'applied' },
   );
   initialState = await snapshot();
@@ -175,7 +175,7 @@ afterEach(async () => {
 
 async function refused(request: GradebookNotesImportRequestV9, state: 'blocked' | 'conflict') {
   expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
-  expect(await createGradebookRelationalImportServiceV11(database).execute(request)).toMatchObject({
+  expect(await createGradebookImportService(database).execute(request)).toMatchObject({
     transportVersion: 9,
     state,
     reason: expect.any(String),
@@ -217,7 +217,7 @@ describe('V11/V10/V9 refusal atomicity on the real PostgreSQL facade', () => {
   ] as const)('propagates and rolls back %s failure', async (mode, message) => {
     failure = mode;
     await expect(
-      createGradebookRelationalImportServiceV11(database).execute(notes()),
+      createGradebookImportService(database).execute(notes()),
     ).rejects.toThrow(message);
     expect(noteGroups).toBeGreaterThan(0);
     expect(await snapshot()).toEqual(initialState);
@@ -226,7 +226,7 @@ describe('V11/V10/V9 refusal atomicity on the real PostgreSQL facade', () => {
   });
 
   it('commits valid writes once and leaves an identical reimport unchanged', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     expect(await service.execute(notes())).toMatchObject({
       state: 'applied',
       summary: expect.any(Object),

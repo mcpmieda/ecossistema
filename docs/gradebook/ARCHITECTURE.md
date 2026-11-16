@@ -12,7 +12,7 @@ Relação + planilhas dos professores, lidas no navegador
   → POST /api/gradebook/import-persistence
   → withOfficialGradebookDatabaseV1
   → Hyperdrive PROD_DB → PostgreSQL/Supabase
-  → createGradebookRelationalImportServiceV11 (sobre V10/V9)
+  → createGradebookImportService (sobre createRelationalImportWriter)
   → fatos relacionais de estado atual; nota/instrumento granular sem histórico de valor anterior
 ```
 

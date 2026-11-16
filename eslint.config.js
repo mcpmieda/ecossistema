@@ -43,7 +43,7 @@ export default [
     },
   },
   {
-    files: ['server/gradebook/application/import/import-relational-service-v9.ts'],
+    files: ['server/gradebook/application/import/relational-import-writer.ts'],
     rules: {
       '@typescript-eslint/no-unnecessary-type-parameters': 'off',
     },

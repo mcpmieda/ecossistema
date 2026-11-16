@@ -8,7 +8,7 @@ import {
   type GradebookPostgresDatabaseV1,
   type GradebookPostgresSqlV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createAssessmentNamesServiceV1 } from '../../../server/gradebook/application/settings/assessment-names-v1';
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
 import { createRelationalBulletinServiceV2 } from '../../../server/gradebook/application/bulletins/relational-bulletin-v2';
@@ -120,7 +120,7 @@ beforeAll(async () => {
     end: () => pg.close(),
   };
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
-  const service = createGradebookRelationalImportServiceV11(database);
+  const service = createGradebookImportService(database);
   expect((await service.execute(relation(2026))).state).toBe('applied');
   expect((await service.execute(relation(2025))).state).toBe('applied');
 }, 30000);
@@ -134,7 +134,7 @@ const rows = async () =>
 
 describe('observed granular facts and ecosystem names #817', () => {
   it('persists zero, observed blank and never-read separately; excludes an inactive placeholder', async () => {
-    const r = await createGradebookRelationalImportServiceV11(database).execute(
+    const r = await createGradebookImportService(database).execute(
       notes([0, null, ['u'], null, null]),
     );
     expect(r).toMatchObject({ state: 'applied' });
@@ -151,7 +151,7 @@ describe('observed granular facts and ecosystem names #817', () => {
     expect(before).toEqual([]);
     expect(
       (
-        await createGradebookRelationalImportServiceV11(database).execute(
+        await createGradebookImportService(database).execute(
           notes([0, null, ['u'], null, null]),
         )
       ).state,
@@ -165,7 +165,7 @@ describe('observed granular facts and ecosystem names #817', () => {
     ).toEqual(before);
   });
   it('preserves a prior observation when unavailable and replaces blank/zero current state without history', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     expect((await service.execute(notes([null, 0, ['u'], ['u'], null]))).state).toBe('applied');
     expect(await rows()).toEqual([
       { slot: 1, valor: null },

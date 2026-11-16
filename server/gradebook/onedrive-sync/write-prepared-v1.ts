@@ -7,7 +7,7 @@ import type {
   GradebookImportPersistenceResponseV9,
   GradebookNotesImportRequestV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { createGradebookRelationalImportServiceV11 } from '../application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../application/import/import-service';
 import {
   InvalidImportDiagnosticsSnapshotV1,
   replaceGradebookImportDiagnosticsSnapshotV1,
@@ -95,7 +95,7 @@ function officialServicesV1(source: string, actorId?: string): WriteServicesV1 {
     persist: async (database, request) => {
       // Numbers only (statements, rows, milliseconds): where the write spends its time.
       const observer = createImportPerformanceObserverV1();
-      const response = await createGradebookRelationalImportServiceV11(observer.wrap(database), observer, actorId).execute(request);
+      const response = await createGradebookImportService(observer.wrap(database), observer, actorId).execute(request);
       emitImportPerformanceV1({ source, state: response.state, ...observer.snapshot() });
       return response;
     },

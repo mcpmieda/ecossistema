@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createGradebookPostgresDatabaseFromSqlV1, type GradebookPostgresSqlV1, type GradebookPostgresQuerySqlV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { lockResetWriterV1, recordResetWriteV1 } from '../../../server/student-portal/integration/year-reset/writer-v1';
 import { ScopedPublicationServiceV2 } from '../../../server/student-portal/publication/scoped-publication-service-v2';
@@ -47,7 +47,7 @@ function notes(first = 2000, final = 8000, professor = 'SYNTHETIC IMPORT TEACHER
     professor, ofertas: [{ turmaCodigo: 'R746-001', disciplina: 'MATEMATICA',
       trimestres: [term(1), term(2), term(3)], recuperacao: null }] };
 }
-const importer = () => createGradebookRelationalImportServiceV11(gradebook);
+const importer = () => createGradebookImportService(gradebook);
 const self = (account = own) => new SelfProjectionReaderV1(portal).read(account, crypto.randomUUID());
 const ownTerm = async () => (await self())?.subjects[0]?.periods.find((item) => item.period === 'T1');
 const preparation = async () => (await owner.unsafe('SELECT mode,scanned_students,written_sources FROM student_portal.publication_preparation_metrics_v3'))[0]!;
@@ -224,7 +224,7 @@ it('rolls grades, history, revision and prepared source back when the finalizer 
     },
   });
   const failing = createGradebookPostgresDatabaseFromSqlV1({ ...interrupt(raw), begin: (run) => raw.begin((tx) => run(interrupt(tx))) });
-  await expect(createGradebookRelationalImportServiceV11(failing).execute(notes(3000, 9000))).rejects.toThrow('synthetic finalizer interruption');
+  await expect(createGradebookImportService(failing).execute(notes(3000, 9000))).rejects.toThrow('synthetic finalizer interruption');
   expect(await state()).toEqual(before);
   expect((await ownTerm())?.final).toMatchObject({ value: 8 });
   expect(await importer().execute(notes(3000, 9000))).toMatchObject({ state: 'applied' });

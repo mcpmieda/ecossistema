@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createImportPerformanceObserverV1 } from '../../../server/gradebook/persistence/postgres/import-performance-observer-v1';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
@@ -143,7 +143,7 @@ export async function createRelationalImportIdempotencyFixtureV11() {
     async execute(request: GradebookImportPersistenceRequestV9) {
       counts = emptyCounts();
       lastObserver = createImportPerformanceObserverV1();
-      const response = await createGradebookRelationalImportServiceV11(
+      const response = await createGradebookImportService(
         lastObserver.wrap(database),
         lastObserver,
       ).execute(request);

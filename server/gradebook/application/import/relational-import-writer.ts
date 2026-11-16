@@ -1052,7 +1052,7 @@ async function persistNotes(
   }
 }
 
-export function createGradebookRelationalImportServiceV9(database: GradebookPostgresWritePortV1, actorId?: string) {
+export function createRelationalImportWriter(database: GradebookPostgresWritePortV1, actorId?: string) {
   return {
     async execute(
       request: GradebookImportPersistenceRequestV9,

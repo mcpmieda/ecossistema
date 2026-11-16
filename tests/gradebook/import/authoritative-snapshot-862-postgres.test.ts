@@ -8,7 +8,7 @@ import {
   type GradebookPostgresDatabaseV1,
   type GradebookPostgresSqlV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import type {
   GradebookImportTermV9,
   GradebookNotesImportRequestV9,
@@ -84,13 +84,13 @@ beforeAll(async () => {
     end: () => pg.close(),
   };
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
-  expect((await createGradebookRelationalImportServiceV11(database).execute(relation)).state).toBe('applied');
+  expect((await createGradebookImportService(database).execute(relation)).state).toBe('applied');
 },30000);
 
 afterAll(async () => database?.close());
 
 it('uses the latest snapshot as current state without note/instrument delta history', async () => {
-  const service = createGradebookRelationalImportServiceV11(database);
+  const service = createGradebookImportService(database);
   const importsBefore = (await pg.query<{ n: number }>(
     'SELECT count(*)::integer AS n FROM gradebook.importacao',
   )).rows[0]!.n;
