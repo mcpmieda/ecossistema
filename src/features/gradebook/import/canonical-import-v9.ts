@@ -5,6 +5,7 @@ import {
   type GradebookImportOfferV9,
   type GradebookImportPersistenceRequestV9,
   type GradebookImportRecoveryCellV9,
+  type GradebookImportResultCellObservationV4,
   type GradebookImportTermV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import { isGradebookAcademicYearV2 } from '../../../../shared/gradebook-contracts/academic-year-v2';
@@ -12,7 +13,6 @@ import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   type SourceAssessmentDefinitionV2,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
-import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { BatchSuccess } from './import-batch';
 import type {
   GradeSheetRecognition,
