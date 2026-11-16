@@ -30,7 +30,7 @@ const cookies = new Map<Role, string>();
 beforeAll(async () => {
   for (const role of ['ADMINISTRADOR', 'PROFESSOR'] as const) {
     const token = await seal({ oid: '11111111-1111-4111-8111-111111111111', name: 'Synthetic',
-      username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET);
+      username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET, 'admin-session');
     cookies.set(role, `${SESSION_COOKIE}=${token}`);
   }
 });

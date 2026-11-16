@@ -116,7 +116,7 @@ export class BulkAdminV1 {
       let created = now.getTime();
       let expires = created + TTL;
       if (query.page.cursor) {
-        const parsed = cursorV1.safeParse(await unseal(query.page.cursor, this.secret));
+        const parsed = cursorV1.safeParse(await unseal(query.page.cursor, this.secret, 'portal-bulk-cursor'));
         if (
           !parsed.success ||
           parsed.data.actor !== context.actorId ||
@@ -177,7 +177,7 @@ export class BulkAdminV1 {
               classId,
             })),
           }),
-          this.secret,
+          this.secret, 'portal-bulk-proof',
         ),
       );
       const nextCursor =
@@ -196,7 +196,7 @@ export class BulkAdminV1 {
                   limit: query.page.limit,
                   last: items.at(-1)!.accountId,
                 }),
-                this.secret,
+                this.secret, 'portal-bulk-cursor',
               ),
             )
           : null;
@@ -253,7 +253,7 @@ export class BulkAdminV1 {
     const context = this.context(inputContext);
     const command = bulkExecuteCommandV1.parse(boundedInput(input));
     try {
-      const parsed = proofV1.safeParse(await unseal(command.proof, this.secret));
+      const parsed = proofV1.safeParse(await unseal(command.proof, this.secret, 'portal-bulk-proof'));
       if (
         !parsed.success ||
         parsed.data.actor !== context.actorId ||

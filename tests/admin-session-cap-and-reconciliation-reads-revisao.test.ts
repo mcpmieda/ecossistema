@@ -40,7 +40,7 @@ describe('A25: an ADM session with write power cannot outlive the cap', () => {
     const at = 1_800_000_000;
     const token = await seal(
       { oid, name: 'Pessoa', roles: ['ADMINISTRADOR'], authenticatedAt: at, durationHours: 12, exp: at + 12 * hour },
-      testEnv.SESSION_SECRET,
+      testEnv.SESSION_SECRET, 'admin-session',
     );
     const request = () => new Request('https://x.test', { headers: { Cookie: `${SESSION_COOKIE}=${token}` } });
     vi.useFakeTimers();

@@ -115,7 +115,7 @@ async function readAuthTransactions(
 ): Promise<StoredAuthTransaction[]> {
   const authCookie = readCookie(request, AUTH_COOKIE);
   if (!authCookie) return [];
-  const value = await unseal<unknown>(authCookie, secret);
+  const value = await unseal<unknown>(authCookie, secret, 'admin-auth');
   if (!value || typeof value !== 'object') return [];
   const candidate = value as { transactions?: unknown };
   if (Array.isArray(candidate.transactions)) {
@@ -132,7 +132,7 @@ async function temporaryAuthCookie(
     .filter((transaction) => transaction.exp > Math.floor(Date.now() / 1000))
     .slice(-MAX_AUTH_TRANSACTIONS);
   if (live.length === 0) return clearCookie(AUTH_COOKIE);
-  const value = await seal({ transactions: live } satisfies AuthTransactionEnvelope, secret);
+  const value = await seal({ transactions: live } satisfies AuthTransactionEnvelope, secret, 'admin-auth');
   return secureCookie(AUTH_COOKIE, value, { maxAge: 600 });
 }
 
@@ -223,7 +223,7 @@ async function serveAuthLoginV1(request: Request, env: ValidEnvV1): Promise<Resp
         },
       ].slice(-MAX_AUTH_TRANSACTIONS),
     } satisfies AuthTransactionEnvelope,
-    env.SESSION_SECRET,
+    env.SESSION_SECRET, 'admin-auth',
   );
   return new Response(null, {
     status: 302,
@@ -334,7 +334,7 @@ async function serveAuthCallbackV1(request: Request, env: ValidEnvV1, url: URL, 
     durationHours,
     authenticatedAt,
   );
-  const session = await seal(applicationSession, env.SESSION_SECRET);
+  const session = await seal(applicationSession, env.SESSION_SECRET, 'admin-session');
   const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
   headers.append(
     'Set-Cookie',
@@ -394,7 +394,7 @@ async function serveSessionSettingsV1(request: Request, env: ValidEnvV1, correla
   const updatedSession = reconfigureApplicationSession(currentSession, input.durationHours, now);
   if (!updatedSession) throw new HttpError(409, 'Reauthentication required');
 
-  const sessionToken = await seal(updatedSession, env.SESSION_SECRET);
+  const sessionToken = await seal(updatedSession, env.SESSION_SECRET, 'admin-session');
   const headers = new Headers();
   headers.append(
     'Set-Cookie',

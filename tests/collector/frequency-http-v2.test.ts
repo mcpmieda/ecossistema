@@ -59,7 +59,7 @@ async function cookie(roles: ('ADMINISTRADOR' | 'PROFESSOR')[]) {
     '=' +
     (await seal(
       createApplicationSession({ oid: id, name: 'Synthetic administrator', roles }),
-      testEnv.SESSION_SECRET,
+      testEnv.SESSION_SECRET, 'admin-session',
     ))
   );
 }
