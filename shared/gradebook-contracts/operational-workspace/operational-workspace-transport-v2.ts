@@ -1,4 +1,5 @@
 import { isGradebookAcademicYearV2 } from '../academic-year-v2';
+import { isPlainRecordV1 as object } from '../../plain-record-v1';
 export const WORKSPACE_KINDS_V2 = ['student', 'class-group', 'teacher', 'subject'] as const;
 export type WorkspaceKindV2 = (typeof WORKSPACE_KINDS_V2)[number];
 export type WorkspaceStatusV2 = null | 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -65,9 +66,6 @@ export type OperationalWorkspaceResponseV2 =
   | { readonly contractVersion: 2; readonly state: 'ready'; readonly operation: 'search'; readonly context: WorkspaceYearV2; readonly items: readonly WorkspaceSearchItemV2[]; readonly nextOffset: number | null }
   | { readonly contractVersion: 2; readonly state: 'ready'; readonly operation: 'center'; readonly context: WorkspaceYearV2; readonly center: WorkspaceCenterV2 };
 
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 function integer(value: unknown, min: number, max = 2_147_483_647): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
 }

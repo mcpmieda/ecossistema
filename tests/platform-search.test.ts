@@ -8,17 +8,6 @@ const snapshot = {
   releaseState: 'production',
   generatedAt: '2026-08-24T19:00:00.000Z',
   correlationId: 'corr-search-test',
-  foundation: {
-    status: 'ok',
-    sharePointListCount: 12,
-    expectedPlatformListsPresent: true,
-    missingPlatformLists: [],
-  },
-  operational: {
-    status: 'nominal',
-    healthContractsConfigured: 0,
-    healthContractsMissing: 0,
-  },
   coreModules: [
     {
       id: 'platform.settings',
@@ -39,7 +28,6 @@ const snapshot = {
       capabilities: ['platform.health.read'],
     },
   ],
-  registeredModules: [],
 } satisfies PlatformSnapshotContract;
 
 describe('platform search model', () => {

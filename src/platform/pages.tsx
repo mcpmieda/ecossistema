@@ -16,8 +16,6 @@ import {
   normalizePlatformRoute,
   type PlatformRoute,
 } from '../../shared/platform-contract';
-import type { PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
-import type { PlatformAuxiliaryStateV2 } from './platform-data-v2';
 import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
 import { NotesPage } from './notes-page';
 import { AreaErrorBoundaryV1 } from '../shared/ui/area-error-boundary-v1';
@@ -270,12 +268,9 @@ function SettingsPage() {
 
 export function PageContent({
   route,
-  snapshot,
 }: Readonly<{
   route: PlatformRoute;
   section?: string;
-  snapshot: PlatformSnapshotV2;
-  auxiliary?: PlatformAuxiliaryStateV2;
 }>) {
   usePreloadedSectionsV1(ROUTE_PAGES_V1);
   switch (route) {
@@ -285,7 +280,7 @@ export function PageContent({
       </AreaErrorBoundaryV1>;
     case 'operacao':
       return <AreaErrorBoundaryV1 key="operacao" label="Saúde do Sistema">
-        <Suspense fallback={<output className="block">Carregando Saúde…</output>}><SystemHealthPage snapshot={snapshot} /></Suspense>
+        <Suspense fallback={<output className="block">Carregando Saúde…</output>}><SystemHealthPage /></Suspense>
       </AreaErrorBoundaryV1>;
     case 'configuracoes':
       return <AreaErrorBoundaryV1 key="configuracoes" label="Configurações"><SettingsPage /></AreaErrorBoundaryV1>;

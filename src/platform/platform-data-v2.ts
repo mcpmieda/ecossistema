@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { platformSnapshotSchemaV2, type PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
 
-export type PlatformAuxiliaryStateV2 = 'loading' | 'ready' | 'partial' | 'error';
 export type PlatformLoadStateV2 =
   | { status: 'loading' }
   | { status: 'error'; message: string; correlationId?: string }
-  | { status: 'ready'; snapshot: PlatformSnapshotV2; auxiliary: PlatformAuxiliaryStateV2; auxiliaryMessage?: string };
+  | { status: 'ready'; snapshot: PlatformSnapshotV2 };
 export const PLATFORM_BOOTSTRAP_TIMEOUT_MS_V2 = 10_000;
-export const PLATFORM_AUXILIARY_TIMEOUT_MS_V2 = 40_000;
+const BOOTSTRAP_PATH_V2 = '/api/platform/bootstrap';
 const EARLY_READ_TTL_MS_V1 = 15_000;
 const earlyReads = new Map<string, { at: number; response: Promise<Response> }>();
-/** Starts both reads together with the identity check so the first open does not wait for it.
- * Each early answer is used once, only while fresh and successful; anything else is read again. */
+/** Starts the read together with the identity check so the first open does not wait for it.
+ * The early answer is used once, only while fresh and successful; anything else is read again. */
 export function prefetchPlatformDataV2(fetcher: typeof fetch = fetch, now = Date.now) {
-  for (const path of ['/api/platform/bootstrap', '/api/platform/snapshot-v2']) {
-    const response = fetcher(path, { credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
-    response.catch(() => undefined);
-    earlyReads.set(path, { at: now(), response });
-  }
+  const response = fetcher(BOOTSTRAP_PATH_V2, { credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+  response.catch(() => undefined);
+  earlyReads.set(BOOTSTRAP_PATH_V2, { at: now(), response });
 }
 async function takeEarlyReadV1(path: string, now: () => number): Promise<Response | undefined> {
   const early = earlyReads.get(path);
@@ -50,39 +47,32 @@ export function usePlatformCheckedAtV2(): string {
 class ReadError extends Error {
   constructor(readonly status: number, readonly retryAt = 0) { super('Platform data unavailable'); }
 }
-/** Independent authenticated reads. There is no persisted permission cache or fallback user.
- * A successful bootstrap never depends on external Microsoft data or its retry deadline.
- */
+/** Authenticated read of the authorized modules. There is no persisted permission cache or fallback user. */
 export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => void,
   fetcher: typeof fetch = fetch, now = Date.now) {
   let generation = 0, stopped = false, retryAt = 0, pending = false;
-  let core: PlatformSnapshotV2 | undefined;
-  let complete: PlatformSnapshotV2 | undefined;
-  let auxiliary: PlatformAuxiliaryStateV2 = 'loading';
-  let coreAbort: AbortController | undefined, auxiliaryAbort: AbortController | undefined;
+  let snapshot: PlatformSnapshotV2 | undefined;
+  let abort: AbortController | undefined;
   /** What was last published: a reading that says the same is not published again. */
   let published = '';
   const emit = () => {
-    if (stopped || !core) return;
-    const shown = `${auxiliary}:${complete ? 'complete' : 'core'}:${snapshotContentV2(complete ?? core)}`;
+    if (stopped || !snapshot) return;
+    const shown = snapshotContentV2(snapshot);
     if (shown === published) return;
     published = shown;
-    publish({ status: 'ready', snapshot: complete ?? core, auxiliary,
-      ...(['error', 'partial'].includes(auxiliary) ? {
-        auxiliaryMessage: 'Parte das informações Microsoft está indisponível. As áreas independentes continuam acessíveis.',
-      } : {}) });
+    publish({ status: 'ready', snapshot });
   };
-  async function read(path: string, parent: AbortSignal, timeoutMs: number): Promise<PlatformSnapshotV2> {
+  async function read(parent: AbortSignal): Promise<PlatformSnapshotV2> {
     const timeout = new AbortController();
-    const timer = setTimeout(() => timeout.abort(new DOMException('Platform request timed out', 'TimeoutError')), timeoutMs);
+    const timer = setTimeout(() => timeout.abort(new DOMException('Platform request timed out', 'TimeoutError')), PLATFORM_BOOTSTRAP_TIMEOUT_MS_V2);
     const signal = AbortSignal.any([parent, timeout.signal]);
-    let abort!: () => void;
+    let onAbort!: () => void;
     try {
       return await Promise.race([
         (async () => {
           signal.throwIfAborted();
-          const response = await takeEarlyReadV1(path, now)
-            ?? await fetcher(path, { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal });
+          const response = await takeEarlyReadV1(BOOTSTRAP_PATH_V2, now)
+            ?? await fetcher(BOOTSTRAP_PATH_V2, { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal });
           signal.throwIfAborted();
           if (!response.ok) {
             const header = response.headers.get('Retry-After');
@@ -102,64 +92,59 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
           return result.data;
         })(),
         new Promise<never>((_resolve, reject) => {
-          abort = () => reject(signal.reason);
-          signal.addEventListener('abort', abort, { once: true });
-          if (signal.aborted) abort();
+          onAbort = () => reject(signal.reason);
+          signal.addEventListener('abort', onAbort, { once: true });
+          if (signal.aborted) onAbort();
         }),
       ]);
-    } finally { clearTimeout(timer); signal.removeEventListener('abort', abort); }
+    } finally { clearTimeout(timer); signal.removeEventListener('abort', onAbort); }
   }
   function failAuthorization(error: unknown) {
     if (!(error instanceof ReadError) || ![401, 403].includes(error.status)) return false;
-    stopped = true; core = undefined; complete = undefined;
-    coreAbort?.abort(); auxiliaryAbort?.abort();
+    stopped = true; snapshot = undefined;
+    abort?.abort();
     publish({ status: 'error', message: 'Sua autorização precisa ser verificada novamente. Entre novamente no Centro.' });
     return true;
   }
-  async function refreshAuxiliary() {
-    if (stopped || pending || now() < retryAt) return;
+  /** A return of focus reads again in 2 min at the soonest (issue #1426, 20); after a failure it
+   * follows the server's Retry-After (30 s at least) and the page shown stays. */
+  async function refresh() {
+    if (stopped || pending || !snapshot || now() < retryAt) return;
     const own = generation, controller = new AbortController();
-    auxiliaryAbort = controller; pending = true;
+    abort = controller; pending = true;
     try {
-      const value = await read('/api/platform/snapshot-v2', controller.signal, PLATFORM_AUXILIARY_TIMEOUT_MS_V2);
+      const value = await read(controller.signal);
       if (controller.signal.aborted || own !== generation || stopped) return;
       // The same content keeps the object already shown, so the screens do not render again.
-      if (snapshotContentV2(value) !== snapshotContentV2(complete)) complete = value;
+      if (snapshotContentV2(value) !== snapshotContentV2(snapshot)) snapshot = value;
       markCheckedV2(value.generatedAt);
-      auxiliary = value.unavailableSections?.length ? 'partial' : 'ready';
-      // A focus storm is not a reason to repeat an identical external request: after a complete
-      // answer a return of focus reads again in 2 min at the soonest (issue #1426, 20); a partial
-      // one follows the server's Retry-After. "Recarregar" starts over at once.
-      const floor = value.unavailableSections?.length ? 30 : 120;
-      retryAt = now() + Math.max(floor, value.retryAfterSeconds ?? 0) * 1000;
+      retryAt = now() + 120_000;
       emit();
     } catch (error) {
       if (controller.signal.aborted || own !== generation || stopped) return;
       if (failAuthorization(error)) return;
       retryAt = Math.max(now() + 30_000, error instanceof ReadError ? error.retryAt : 0);
-      auxiliary = 'error'; emit();
     } finally { if (own === generation) pending = false; }
   }
   async function start() {
-    generation++; stopped = false; core = undefined; complete = undefined; pending = false; retryAt = 0; auxiliary = 'loading';
+    generation++; stopped = false; snapshot = undefined; pending = false; retryAt = 0;
     published = '';
-    coreAbort?.abort(); auxiliaryAbort?.abort(); publish({ status: 'loading' });
-    const own = generation, controller = new AbortController(); coreAbort = controller;
-    void refreshAuxiliary();
+    abort?.abort(); publish({ status: 'loading' });
+    const own = generation, controller = new AbortController(); abort = controller;
     try {
-      const value = await read('/api/platform/bootstrap', controller.signal, PLATFORM_BOOTSTRAP_TIMEOUT_MS_V2);
+      const value = await read(controller.signal);
       if (controller.signal.aborted || own !== generation || stopped) return;
-      core = value; markCheckedV2(value.generatedAt); emit();
+      snapshot = value; markCheckedV2(value.generatedAt); retryAt = now() + 120_000; emit();
     } catch (error) {
       if (controller.signal.aborted || own !== generation || stopped) return;
       if (failAuthorization(error)) return;
-      stopped = true; auxiliaryAbort?.abort(); complete = undefined;
+      stopped = true;
       publish({ status: 'error', message: 'Não foi possível carregar os módulos autorizados. Tente novamente.' });
     }
   }
-  return { start, refresh: refreshAuxiliary, dispose() {
-    generation++; stopped = true; core = undefined; complete = undefined;
-    coreAbort?.abort(); auxiliaryAbort?.abort();
+  return { start, refresh, dispose() {
+    generation++; stopped = true; snapshot = undefined;
+    abort?.abort();
   } };
 }
 export function usePlatformDataV2() {

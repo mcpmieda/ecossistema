@@ -5,6 +5,7 @@ import {
   type GradebookImportOfferV9,
   type GradebookImportPersistenceRequestV9,
   type GradebookImportRecoveryCellV9,
+  type GradebookImportResultCellObservationV4,
   type GradebookImportTermV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import { isGradebookAcademicYearV2 } from '../../../../shared/gradebook-contracts/academic-year-v2';
@@ -12,7 +13,6 @@ import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   type SourceAssessmentDefinitionV2,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
-import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { BatchSuccess } from './import-batch';
 import type {
   GradeSheetRecognition,
@@ -21,6 +21,7 @@ import type {
 } from './spreadsheet-recognizer';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
 import { EMPTY_HOLDS_V1, auditWorkbookV1, type AuditHoldsV1 } from './audit-rules-v1';
+import { normalizeStudentNameV1 as normalize } from '../../../../shared/student-identity/reconciliation-normalization-v1';
 
 type CanonicalImportProgressStageV9 = 'roster' | 'grades' | 'recovery' | 'compacting';
 interface CanonicalImportProgressV9 {
@@ -89,15 +90,6 @@ type SummaryWithRelationV9 = WorkbookSummary & {
   readonly masterRelationV9?: MasterRelationRecognitionV9;
 };
 
-function normalize(value: string): string {
-  return value
-    .normalize('NFD')
-    .replaceAll(/[\u0300-\u036f]/gu, '')
-    .trim()
-    .replaceAll(/\s+/gu, ' ')
-    .toUpperCase();
-}
-
 function parserVersion(value: string): string {
   return `${value.slice(0, 48)}:canonical-v9:observed-blanks-v1:decimal-grades-v1:definition-snapshot-v1`;
 }
@@ -154,11 +146,12 @@ function cellFromSnapshot(
   return canonicalMilliV9(numeric);
 }
 
-function ncText(value: unknown): boolean {
+/** N/C or R/R typed in a recovery cell (slash and case ignored); the diagnostics read the same rule. */
+export function isNcTextV9(value: unknown): boolean {
   return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'NC';
 }
 
-function rrText(value: unknown): boolean {
+export function isRrTextV9(value: unknown): boolean {
   return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'RR';
 }
 
@@ -169,8 +162,8 @@ function textCellV9(
   rawValue: string,
   isRecovery: boolean,
 ): GradebookImportCellV9 | GradebookImportRecoveryCellV9 {
-  if (isRecovery && ncText(rawValue)) return ['n'];
-  if (isRecovery && rrText(rawValue)) return ['r'];
+  if (isRecovery && isNcTextV9(rawValue)) return ['n'];
+  if (isRecovery && isRrTextV9(rawValue)) return ['r'];
   if (/^[+-]?\d+(?:[.,]\d+)?$/u.test(rawValue.trim())) {
     const numeric = Number(rawValue.trim().replace(',', '.'));
     return numeric === 0 && !isRecovery ? null : canonicalMilliV9(numeric);

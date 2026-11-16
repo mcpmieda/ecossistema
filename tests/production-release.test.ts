@@ -22,8 +22,6 @@ describe('Centro de Administração production release', () => {
 
     const snapshot = buildPlatformSnapshot(
       {
-        lists: [],
-        moduleItems: [],
         correlationId: 'production-release-test',
         generatedAt: '2026-08-25T18:00:00.000Z',
       },
@@ -39,7 +37,6 @@ describe('Centro de Administração production release', () => {
       source('src/App.tsx'),
       source('src/platform/navigation.tsx'),
       source('src/platform/pages.tsx'),
-      source('src/platform/operations-page.tsx'),
       source('src/platform/presentation.tsx'),
     ].join('\n');
 

@@ -7,8 +7,8 @@ import {
   studentPortalHref,
 } from './student-portal-module';
 
-export type SearchCategory = 'Área' | 'Seção' | 'Sistema' | 'Configuração';
-export type SearchIconKind = 'route' | 'system' | 'configuration';
+export type SearchCategory = 'Área' | 'Seção' | 'Configuração';
+export type SearchIconKind = 'route' | 'configuration';
 
 export type PlatformSearchItem = {
   id: string;
@@ -61,19 +61,6 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     route: notesModule.route,
   }));
 
-  const systems = snapshot.registeredModules.map((module) => ({
-    id: `system:${module.id}`,
-    label: module.name,
-    description: `${module.integrationState === 'ready' ? 'Sistema integrado' : 'Sistema registrado'} · ${module.key}${module.version ? ' · v' + module.version : ''}`,
-    category: 'Sistema' as const,
-    href: platformHref('operacao'),
-    searchText: normalizeSearch(
-      `${module.name} ${module.key} ${module.version} ${module.status} ${module.integrationState} ${module.requiredCapabilities.join(' ')}`,
-    ),
-    iconKind: 'system' as const,
-    route: 'operacao' as const,
-  }));
-
   const portal = snapshot.coreModules.some((module) => module.route === 'painel-do-aluno')
     ? studentPortalSections.map((section) => ({
         id: 'student-portal:' + section.id,
@@ -108,7 +95,7 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
         },
       ]
     : [];
-  return [...core, ...notes, ...students, ...portal, ...systems];
+  return [...core, ...notes, ...students, ...portal];
 }
 
 export function filterSearchItems(

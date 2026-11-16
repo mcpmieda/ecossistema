@@ -78,7 +78,7 @@ export default {
       PROD_DB: bindings.PROD_DB,
     } as unknown as RuntimeEnv; // Generated production literal types; validateEnv still validates this synthetic runtime.
     if (
-      ['/api/platform/bootstrap', '/api/platform/snapshot-v2'].includes(input.path) &&
+      input.path === '/api/platform/bootstrap' &&
       !input.anonymous &&
       (input.role ?? 'ADMINISTRADOR') === 'ADMINISTRADOR'
     ) {
@@ -87,15 +87,7 @@ export default {
         releaseState: 'production',
         generatedAt: new Date().toISOString(),
         correlationId: 'synthetic-bootstrap-757',
-        foundation: {
-          status: 'ok',
-          sharePointListCount: 4,
-          expectedPlatformListsPresent: true,
-          missingPlatformLists: [],
-        },
-        operational: null,
         coreModules,
-        registeredModules: [],
         };
       return Response.json(snapshot, { headers: { 'Cache-Control': 'no-store' } });
     }

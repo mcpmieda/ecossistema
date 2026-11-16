@@ -116,7 +116,7 @@ function answerV1(request: PreviewRequestV1): Promise<Response> | Response | nul
   const { input, init, path, search } = request;
   if (path === '/api/me') return json(identity);
   // The platform summary and the Banco are answered by the local development backend.
-  if (path === '/api/platform/bootstrap' || path === '/api/platform/snapshot-v2') return nativeFetch(input, init);
+  if (path === '/api/platform/bootstrap') return nativeFetch(input, init);
   if (path.startsWith('/api/student-portal/') || path.startsWith('/api/student-photos/'))
     return previewFetch(path + search, init ?? {});
   if (path === '/api/gradebook/view-preferences') return viewPreferencesV1(init);

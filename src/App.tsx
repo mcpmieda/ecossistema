@@ -5,7 +5,6 @@ import {
 } from '@heroui/react';
 import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, PanelLeft, ShieldCheck, X } from 'lucide-react';
 import { normalizePlatformRoute, type PlatformRoute } from '../shared/platform-contract';
-import { platformRouteNeedsMicrosoftV2, platformRouteUnavailableV2 } from '../shared/platform-snapshot-v2';
 import { ShellAreaNameV1, ShellSectionTabsV1, ShellSidebarV3, serviceSectionFromHashV2 } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
@@ -226,14 +225,6 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
     };
   }, [menuOpen]);
   const section = serviceSectionFromHashV2(route, hash);
-  const native = !platformRouteNeedsMicrosoftV2(route, section);
-  // Settings mixes a native PostgreSQL year selector/session controls and external cards.
-  // Keep the native controls mounted; each Microsoft card applies its own availability gate.
-  const mixedSettings = route === 'configuracoes';
-  const showPage = loadState.status === 'ready' && (native || mixedSettings || (
-    (loadState.auxiliary === 'ready' || loadState.auxiliary === 'partial')
-    && !platformRouteUnavailableV2(route, loadState.snapshot, section)
-  ));
   const profileMenu = (
             <Dropdown>
               <Button variant="ghost" size="md" className="profile-menu-trigger shrink-0 gap-2 px-2.5" aria-label="Abrir menu do perfil">
@@ -311,14 +302,8 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
               {loadState.correlationId && <Chip variant="soft" size="sm" className="font-mono">Correlação: {loadState.correlationId}</Chip>}
             </div>
           </Surface>}
-          {loadState.status === 'ready' && !native && !mixedSettings && loadState.auxiliary === 'loading' && <LoadingWorkspace />}
-          {loadState.status === 'ready' && !showPage && loadState.auxiliary !== 'loading' && <Alert status="warning">
-            <Alert.Indicator /><Alert.Content><Alert.Title>Informações desta área temporariamente indisponíveis</Alert.Title>
-              <Alert.Description>{loadState.auxiliaryMessage} A consulta será refeita automaticamente.</Alert.Description>
-            </Alert.Content>
-          </Alert>}
-          {showPage && loadState.status === 'ready' && <div key={route} className="route-stage">
-            <PageContent route={route} section={section} snapshot={snapshot ?? loadState.snapshot} auxiliary={loadState.auxiliary} />
+          {loadState.status === 'ready' && <div key={route} className="route-stage">
+            <PageContent route={route} section={section} />
             <Separator className="mt-8" />
             <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center"><span>Centro de Administração · {SCHOOL_NAME_V1}</span><PlatformCheckedAtV2 fallback={loadState.snapshot.generatedAt} /></footer>
           </div>}

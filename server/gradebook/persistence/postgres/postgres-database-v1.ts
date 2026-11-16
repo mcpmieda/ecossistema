@@ -60,6 +60,23 @@ export interface GradebookPostgresWritePortV1 extends GradebookPostgresReadPortV
 /** Both native ports are bound to the transaction's own physical connection. */
 export type GradebookPostgresTransactionV1 = GradebookPostgresWritePortV1;
 
+/** A write port that opens its own transaction; the importer refuses any other port. */
+export interface GradebookPostgresTransactionalPortV1 extends GradebookPostgresWritePortV1 {
+  transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
+}
+
+export function requireTransactionDatabaseV1(
+  database: GradebookPostgresWritePortV1,
+): GradebookPostgresTransactionalPortV1 {
+  if (
+    !('transaction' in database) ||
+    typeof (database as { transaction?: unknown }).transaction !== 'function'
+  ) {
+    throw new Error('gradebook-relational-import-requires-postgres');
+  }
+  return database as GradebookPostgresTransactionalPortV1;
+}
+
 export interface GradebookPostgresDatabaseV1 extends GradebookPostgresWritePortV1 {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
   lastFailure(): GradebookPostgresFailureDiagnosticV1 | null;

@@ -18,6 +18,7 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
+  noStoreJsonV1,
   readBoundedJson,
 } from '../../http/security';
 import {
@@ -28,29 +29,15 @@ import { retiredGradebookRequestV1 } from './retired-request-v1';
 
 const GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance';
 
-function noStoreResponse(body: BodyInit | null, status: number, contentType?: string): Response {
-  const headers = new Headers({
-    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-    Expires: '0',
-    Pragma: 'no-cache',
-  });
-  if (contentType) headers.set('Content-Type', contentType);
-  return new Response(body, { status, headers });
-}
-
-function noStoreJson(value: unknown, status = 200): Response {
-  return noStoreResponse(JSON.stringify(value), status, 'application/json; charset=utf-8');
-}
-
 function notAuthorized(status: 401 | 403): Response {
-  return noStoreJson(
+  return noStoreJsonV1(
     { transportVersion: 1, state: 'not-authorized' },
     status,
   );
 }
 
 function unavailable(status = 503): Response {
-  return noStoreJson(
+  return noStoreJsonV1(
     { transportVersion: 1, state: 'unavailable' },
     status,
   );
@@ -106,7 +93,7 @@ function currentPerformanceFailureV1(
   state: 'invalid-request' | 'unavailable',
   status: 400 | 503,
 ): Response {
-  return noStoreJson({ transportVersion: version, state }, status);
+  return noStoreJsonV1({ transportVersion: version, state }, status);
 }
 
 function currentPerformanceDatabaseV1(env: RuntimeEnv): GradebookPostgresWritePortV1 | null {
@@ -144,7 +131,7 @@ async function executeCurrentPerformanceReadV1(
   if (database === null) return currentPerformanceFailureV1(version, 'unavailable', 503);
   try {
     const response = await execute(database);
-    return noStoreJson(response, currentPerformanceStatusV1(response.state));
+    return noStoreJsonV1(response, currentPerformanceStatusV1(response.state));
   } catch {
     return currentPerformanceFailureV1(version, 'unavailable', 503);
   }

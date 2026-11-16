@@ -43,12 +43,8 @@ import {
   type ImportInstrumentStateV11,
   type ImportOfferReadStateV11,
 } from '../../persistence/postgres/relational-import-read-set-v11';
-import { type GradebookPostgresScalarV1, type GradebookPostgresWritePortV1  } from '../../persistence/postgres/postgres-database-v1';
+import { requireTransactionDatabaseV1, type GradebookPostgresScalarV1, type GradebookPostgresWritePortV1  } from '../../persistence/postgres/postgres-database-v1';
 
-
-interface TransactionDatabaseV9 extends GradebookPostgresWritePortV1 {
-  transaction<T>(operation: (database: GradebookPostgresWritePortV1) => Promise<T>): Promise<T>;
-}
 
 type Row = Record<string, unknown>;
 
@@ -1056,23 +1052,13 @@ async function persistNotes(
   }
 }
 
-function transactionDatabase(database: GradebookPostgresWritePortV1): TransactionDatabaseV9 {
-  if (
-    !('transaction' in database) ||
-    typeof (database as { transaction?: unknown }).transaction !== 'function'
-  ) {
-    throw new Error('gradebook-relational-import-requires-postgres');
-  }
-  return database as TransactionDatabaseV9;
-}
-
 export function createGradebookRelationalImportServiceV9(database: GradebookPostgresWritePortV1, actorId?: string) {
   return {
     async execute(
       request: GradebookImportPersistenceRequestV9,
     ): Promise<GradebookImportPersistenceResponseV9> {
       try {
-        const result = await transactionDatabase(database).transaction(async (transaction) => {
+        const result = await requireTransactionDatabaseV1(database).transaction(async (transaction) => {
           if (request.operation === 'persist-relacao') await lockYearResetV1(transaction, request.ano, 'preview');
           else await lockAcademicYear(transaction, request.ano);
           const state: ImportStateV9 = {

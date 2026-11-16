@@ -49,7 +49,6 @@ describe('HeroUI final hardening contract', () => {
       source('src/App.tsx'),
       source('src/platform/navigation.tsx'),
       source('src/platform/pages.tsx'),
-      source('src/platform/operations-page.tsx'),
       source('src/platform/presentation.tsx'),
       source('src/styles.css'),
     ].join('\n');
@@ -77,7 +76,7 @@ describe('HeroUI final hardening contract', () => {
   it('uses HeroUI table scroll containers for every structured table', () => {
     const tableSources = [
       source('src/platform/pages.tsx'),
-      source('src/platform/operations-page.tsx'),
+      source('src/platform/system-health-page-v1.tsx'),
     ].join('\n');
     const tables = tableSources.match(/<Table variant=/gu) ?? [];
     const scrollContainers = tableSources.match(/<Table\.ScrollContainer>/gu) ?? [];
@@ -93,7 +92,6 @@ describe('HeroUI final hardening contract', () => {
       source('src/platform/search.tsx'),
       source('src/platform/navigation.tsx'),
       source('src/platform/pages.tsx'),
-      source('src/platform/operations-page.tsx'),
       source('src/platform/presentation.tsx'),
     ].join('\n');
 

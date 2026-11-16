@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { buildPlatformSnapshot, EXPECTED_PLATFORM_LISTS } from '../../server/platform/snapshot';
-import { PLATFORM_CAPABILITIES } from '../../shared/platform-contract';
 import type { SystemHealthSnapshotV1 } from '../../shared/system-health-v1';
 import { SystemHealthPageV1 } from '../../src/platform/system-health-page-v1';
 
@@ -22,7 +20,6 @@ const sample = (): SystemHealthSnapshotV1 => ({
     },
   },
 });
-const platform = () => buildPlatformSnapshot({ lists: [], moduleItems: [], correlationId: 'synthetic-health-ui' }, PLATFORM_CAPABILITIES);
 const identity = (key = 'synthetic-health-admin') => ({
   authenticated: true, identityKey: key, capabilities: ['platform.health.read', 'platform.settings.read'],
 });
@@ -53,7 +50,7 @@ afterEach(async () => { cleanup(); await flush(); vi.unstubAllGlobals(); vi.rest
 
 it('keeps absent data unknown while the first read is pending', async () => {
   readHealth.mockImplementation(() => new Promise<Response>(() => undefined));
-  const view = render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  const view = render(<SystemHealthPageV1 />); await flush();
   expect(screen.getByRole('heading', { name: 'Não há confirmação suficiente' })).toBeTruthy();
   expect(screen.getByText('Nenhuma coleta disponível.')).toBeTruthy();
   expect(screen.queryByText('Normal')).toBeNull();
@@ -65,14 +62,14 @@ it('keeps absent data unknown while the first read is pending', async () => {
 
 it.each(['platform.health.read', 'platform.settings.read'])('does not read monitoring without %s', async (capability) => {
   readIdentity.mockResolvedValue(Response.json({ ...identity(), capabilities: identity().capabilities.filter((item) => item !== capability) }));
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   expect(screen.getByRole('status').textContent).toBe('Acesso ao monitoramento não autorizado.');
   expect(readHealth).not.toHaveBeenCalled();
 });
 
 it('keeps a successful public sample visible when the private source is unavailable', async () => {
   readHealth.mockResolvedValue(Response.json({ ...sample(), portalReadState: 'unavailable', portal: null }));
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   expect(screen.getByRole('heading', { name: 'Não há confirmação suficiente' })).toBeTruthy();
   expect(metric('Entrada pública').getByText('Respondeu')).toBeTruthy();
   expect(metric('Leitura técnica do banco').getAllByText('Sem dados')).toHaveLength(2);
@@ -84,7 +81,7 @@ it('distinguishes a missing live structure from a healthy zero and caps counts',
   data.portal!.maintenance!.liveOutboxAvailable = false;
   data.portal!.maintenance!.publicationDue = 1001;
   readHealth.mockResolvedValue(Response.json(data));
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   expect(metric('Avisos de atualização').getByText('Sem dados')).toBeTruthy();
   expect(metric('Avisos de atualização').getByText('—')).toBeTruthy();
   expect(metric('Publicações aguardando').getByText('1.000+')).toBeTruthy();
@@ -100,14 +97,14 @@ it.each(['envelope', 'private source', 'public source', 'future envelope'])('doe
   if (field === 'public source') data.publicEntry.observedAt = stale;
   if (field === 'future envelope') data.generatedAt = new Date(now + 60_000).toISOString();
   readHealth.mockResolvedValue(Response.json(data));
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   expect(screen.getByRole('heading', { name: 'Não há confirmação suficiente' })).toBeTruthy();
   expect(screen.queryByText('Normal')).toBeNull();
   expect(metric('Leitura técnica do banco').queryByText('20 ms')).toBeNull();
 });
 
 it('reads only when Saúde opens or on Atualizar, never on a clock (owner decision 15/11/2026)', async () => {
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   expect(screen.getByRole('heading', { name: 'Verificações básicas normais' })).toBeTruthy();
   await advance(600_000);
   expect(readHealth).toHaveBeenCalledTimes(1);
@@ -116,7 +113,7 @@ it('reads only when Saúde opens or on Atualizar, never on a clock (owner decisi
 });
 
 it('retains the collection time after a transient failure without confirming normality', async () => {
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   readHealth.mockRejectedValueOnce(new Error('synthetic-provider-failure'));
   await advance(5_000); fireEvent.click(screen.getByRole('button', { name: 'Atualizar' })); await flush();
   expect(screen.getByRole('alert').textContent).toContain('Não foi possível atualizar.');
@@ -126,7 +123,7 @@ it('retains the collection time after a transient failure without confirming nor
 });
 
 it('refreshes once after the manual cooldown and prevents concurrent reads', async () => {
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   expect(screen.getByRole('heading', { name: 'Verificações básicas normais' })).toBeTruthy();
   let finish!: (response: Response) => void;
   readHealth.mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve; }));
@@ -142,7 +139,7 @@ it('refreshes once after the manual cooldown and prevents concurrent reads', asy
 });
 
 it('confirms a fresh manual response immediately between clock ticks', async () => {
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   await advance(10_000);
   const latest = sample();
   latest.generatedAt = latest.portal!.observedAt = latest.publicEntry.observedAt = new Date(Date.now()).toISOString();
@@ -155,7 +152,7 @@ it('confirms a fresh manual response immediately between clock ticks', async () 
 });
 
 it.each([401, 403])('clears the sample and stops refresh after monitoring returns %i', async (status) => {
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   readHealth.mockResolvedValue(new Response(null, { status }));
   await advance(5_000); fireEvent.click(screen.getByRole('button', { name: 'Atualizar' })); await flush();
   expect(screen.getByRole('alert').textContent).toContain('Acesso ao monitoramento não autorizado.');
@@ -167,7 +164,7 @@ it.each([401, 403])('clears the sample and stops refresh after monitoring return
 });
 
 it('discards the previous identity sample and rejects its late response', async () => {
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   await advance(5_000);
   let finishOld!: (response: Response) => void;
   readHealth.mockImplementationOnce(() => new Promise<Response>((resolve) => { finishOld = resolve; }));
@@ -185,7 +182,7 @@ it('discards the previous identity sample and rejects its late response', async 
 });
 
 it.each(['hidden', 'offline'])('pauses while %s and does not read again on return', async (condition) => {
-  render(<SystemHealthPageV1 snapshot={platform()} />); await flush();
+  render(<SystemHealthPageV1 />); await flush();
   if (condition === 'hidden') Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
   else Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
   await act(async () => condition === 'hidden' ? document.dispatchEvent(new Event('visibilitychange')) : window.dispatchEvent(new Event('offline')));
@@ -202,41 +199,4 @@ it.each(['hidden', 'offline'])('pauses while %s and does not read again on retur
   expect(readHealth).toHaveBeenCalledTimes(1);
   expect(screen.queryByText('Atualização pausada.')).toBeNull();
   expect(screen.getByRole('heading', { name: 'Verificações básicas normais' })).toBeTruthy();
-});
-
-it('renders independent monitoring while the administrative evidence is unavailable', async () => {
-  render(<SystemHealthPageV1 snapshot={{ ...platform(), operational: null, unavailableSections: ['lists', 'modules'] }} />); await flush();
-  expect(screen.getByRole('heading', { name: 'Verificações básicas normais' })).toBeTruthy();
-  const details = screen.getByText('Evidências do Centro ADM').closest('details')!;
-  details.open = true; fireEvent(details, new Event('toggle'));
-  expect(screen.getByText('Evidências administrativas indisponíveis. O monitoramento do Portal usa uma consulta independente.')).toBeTruthy();
-  expect(readHealth).toHaveBeenCalledTimes(1);
-});
-
-it('expands real administrative evidence with accessible signals and registered systems', async () => {
-  const complete = buildPlatformSnapshot({
-    lists: EXPECTED_PLATFORM_LISTS.map((displayName, index) => ({ id: `synthetic-list-${index}`, displayName })),
-    moduleItems: [{ id: 'synthetic-health-module', fields: {
-      Chave: 'plataforma-base', Nome: 'SYNTHETIC HEALTH MODULE', RotaBase: '/', Versao: '1.0.0',
-      Status: 'instalado', Ordem: 0, HealthEndpoint: '/api/health', AtualizadoEmUTC: at,
-    } }],
-    correlationId: 'synthetic-complete-evidence', generatedAt: at,
-  }, PLATFORM_CAPABILITIES);
-  expect(complete.registeredModules).toHaveLength(1);
-  render(<SystemHealthPageV1 snapshot={complete} />); await flush();
-  const details = screen.getByText('Evidências do Centro ADM').closest('details')!;
-  details.open = true; fireEvent(details, new Event('toggle'));
-  await act(async () => {
-    await import('../../src/platform/operations-page');
-  });
-  await flush();
-  const evidence = within(details);
-  expect(evidence.getByRole('heading', { name: 'Operação' })).toBeTruthy();
-  const signals = within(evidence.getByRole('grid', { name: 'Sinais operacionais observados' }));
-  expect.soft(signals.queryAllByRole('rowheader')).toHaveLength(2);
-  expect.soft(signals.queryByRole('rowheader', { name: 'Estrutura da plataforma' })).toBeTruthy();
-  const systems = within(evidence.getByRole('grid', { name: 'Cobertura operacional dos sistemas registrados' }));
-  expect.soft(systems.queryByRole('rowheader', { name: 'SYNTHETIC HEALTH MODULE' })).toBeTruthy();
-  expect(systems.getByText('Configurado')).toBeTruthy();
-  expect(readHealth).toHaveBeenCalledTimes(1);
 });

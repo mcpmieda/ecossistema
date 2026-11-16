@@ -12,6 +12,7 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
+  NO_STORE_HEADERS_V1,
   readBoundedJson,
 } from '../../http/security';
 import { createYearResetServiceV1 } from '../application/settings/year-reset-v1';
@@ -23,11 +24,7 @@ const YEAR_RESET_ROUTE_V1 = '/api/gradebook/year-reset';
 function response(value: YearResetResponseV1, status: number): Response {
   return Response.json(value, {
     status,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      Expires: '0',
-      Pragma: 'no-cache',
-    },
+    headers: NO_STORE_HEADERS_V1,
   });
 }
 

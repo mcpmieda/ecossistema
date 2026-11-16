@@ -97,7 +97,7 @@ export function normalizeCalendarV1(input: unknown): CalendarV1 {
 }
 
 /** The enforced plan when schedules are in use (school-access-v1); null on the Calendário window. */
-function enforcedPlanV1(value: PolicyValueV1): AccessPlanV1 | null {
+export function enforcedPlanV1(value: PolicyValueV1): AccessPlanV1 | null {
   return value.accessSchedule === null
     ? null
     : { enabled: value.accessEnabled, schedule: value.accessSchedule };

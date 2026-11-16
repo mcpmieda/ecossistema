@@ -6,6 +6,7 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
+  NO_STORE_HEADERS_V1,
   readBoundedJson,
 } from '../../http/security';
 import { createViewPreferencesServiceV1 } from '../application/settings/view-preferences-v1';
@@ -17,11 +18,7 @@ export const VIEW_PREFERENCES_ROUTE_V1 = '/api/gradebook/view-preferences';
 function response(value: ViewPreferencesResponseV1, status: number): Response {
   return Response.json(value, {
     status,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      Expires: '0',
-      Pragma: 'no-cache',
-    },
+    headers: NO_STORE_HEADERS_V1,
   });
 }
 
