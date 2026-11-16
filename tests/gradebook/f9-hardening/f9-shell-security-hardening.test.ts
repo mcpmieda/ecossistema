@@ -129,15 +129,18 @@ describe('F9 — privacidade, auth e transporte', () => {
   });
 
   it('mantém os quatro handlers dedicados restantes com auth opaca, origin gates e headers anti-cache completos', () => {
+    // The three anti-cache headers are defined once, in server/http/security.ts (#1490, 3a).
+    const security = source('server/http/security.ts');
+    expect(security).toContain("'Cache-Control': 'no-store, no-cache, must-revalidate, private'");
+    expect(security).toContain("Expires: '0'");
+    expect(security).toContain("Pragma: 'no-cache'");
     for (const path of handlers) {
       const handler = source(path);
       expect(handler, path).toContain('requireAuth');
       expect(handler, path).toContain('authorizeGradebookRuntimeV1');
       expect(handler, path).toContain('enforceOfficialOrigin');
       expect(handler, path).toContain('enforceWriteOrigin');
-      expect(handler, path).toContain("'Cache-Control': 'no-store, no-cache, must-revalidate, private'");
-      expect(handler, path).toContain("Expires: '0'");
-      expect(handler, path).toContain("Pragma: 'no-cache'");
+      expect(handler, path).toMatch(/\b(?:NO_STORE_HEADERS_V1|noStoreJsonV1|noStoreResponseV1)\b/u);
       expect(handler, path).not.toMatch(/console\.(?:log|error|warn|debug)|cause\.message|String\(cause\)/u);
     }
   });
