@@ -40,14 +40,6 @@ jobs:
           ref: 389a68bc35dcff7ebae4614e1615099dafda00d1
           path: node_modules/.cache/student-photo-codec-emsdk
           persist-credentials: false
-      # Only the pinned compiler install is reused; the codec is still built from source below.
-      - name: Restore pinned Emscripten install
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: |
-            node_modules/.cache/student-photo-codec-emsdk/upstream
-            node_modules/.cache/student-photo-codec-emsdk/node
-          key: student-photo-codec-emsdk-${{ runner.os }}-${{ runner.arch }}-389a68bc35dcff7ebae4614e1615099dafda00d1-4.0.15
       - name: Install explicit Emscripten version
         working-directory: node_modules/.cache/student-photo-codec-emsdk
         run: |
