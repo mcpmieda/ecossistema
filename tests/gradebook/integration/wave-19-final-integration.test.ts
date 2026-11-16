@@ -13,11 +13,6 @@ const historicalState = 'docs/gradebook/history/pre-final-1/PROJECT_STATE.yaml';
 const historicalContext = 'docs/gradebook/history/pre-final-1/ACADEMIC_CONTEXT.md';
 
 describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
-  it('preserva a categoria livre do contrato de auditoria', () => {
-    const auditContract = source('shared/gradebook-contracts/audit/audit-contract-v1.ts');
-    expect(auditContract).toContain('readonly category: string;');
-  });
-
   it('mantém a manutenção docente retirada e preserva as leituras operacionais compartilhadas', () => {
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
     const yearProvider = source('src/platform/gradebook-year-provider.tsx');

@@ -4,6 +4,7 @@ import type {
   OneDriveSyncCommandV1,
   OneDriveSyncStatusV1,
 } from '../../../shared/gradebook-contracts/onedrive-sync/onedrive-sync-contract-v1';
+import { PT_BR_COLLATOR_V1 } from '../../../shared/locale-format-v1';
 import {
   DRIVE_SUBSCRIPTION_MAX_MINUTES_V1,
   DeltaResyncRequiredError,
@@ -372,7 +373,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   status(): SyncStatusV1 {
     const subscription = this.meta<{ id: string; expiresAt: string } | null>('subscription', null);
-    const sources = Object.values(this.sources()).sort((a, b) => b.year - a.year || a.path.localeCompare(b.path, 'pt-BR'));
+    const sources = Object.values(this.sources()).sort((a, b) => b.year - a.year || PT_BR_COLLATOR_V1.compare(a.path, b.path));
     return {
       settings: this.settings(),
       activeYear: this.meta<number | null>('activeYear', null),
@@ -384,7 +385,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       breakerUntil: this.meta<number | null>('breakerUntil', null),
       webhook: { active: subscription !== null, expiresAt: subscription?.expiresAt ?? null },
       lastDeltaAt: this.meta<number | null>('lastDeltaAt', null),
-      files: this.files().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map((file) => ({
+      files: this.files().sort((a, b) => PT_BR_COLLATOR_V1.compare(a.name, b.name)).map((file) => ({
         id: file.id, name: file.name, size: file.size, modifiedAt: file.modifiedAt, state: file.state, removed: file.removed,
         lastOutcome: file.lastOutcome, lastCode: file.lastCode, lastReadAt: file.lastReadAt, lastReadMs: file.lastReadMs,
         lastSavedToWrittenMs: file.lastSavedToWrittenMs,

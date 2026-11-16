@@ -14,6 +14,7 @@ import {
   useReportOpenIncidentsV3,
 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
+import { PAGE_LOADING_V3 } from './page-loading-v3';
 
 /*
  * Ocorrências in a page of its own (owner decisions 29/10/2026): the student's records of the year
@@ -217,7 +218,7 @@ function IncidentsLoadStatusV3({ error, retry }: Readonly<{ error: string | null
         </Alert>
       ) : (
         <output className="pa3-status-loading">
-          <Spinner size="sm" /> Carregando as ocorrências…
+          <Spinner size="sm" /> {PAGE_LOADING_V3.incidents.message}
         </output>
       )}
       {canRetry ? (
@@ -262,7 +263,7 @@ export function IncidentsPageV3({
   };
   return (
     <div className="pa3-incidents">
-      <h2 className="pa3-page-title">Ocorrências</h2>
+      <h2 className="pa3-page-title">{PAGE_LOADING_V3.incidents.title}</h2>
       {changed ? <IncidentChangedAlertV3 /> : null}
       {load.data && incidents.length
         ? incidents.map((item) => <IncidentCardV3 key={item.id} incident={item} onAcknowledge={acknowledge} />)

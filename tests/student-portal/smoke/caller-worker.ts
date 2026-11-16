@@ -12,7 +12,7 @@ export default { async fetch(request: Request, env: { ADMIN: PortalAdminEntrypoi
   const sessionSecret = 'synthetic-local-adm-session-715-'.repeat(2);
   const cookie = admin && !input.anonymous ? `${SESSION_COOKIE}=${await seal(createApplicationSession({
     oid: '11111111-1111-4111-8111-111111111111', name: 'SYNTHETIC OPERATOR', roles: ['ADMINISTRADOR'],
-  }), sessionSecret)}` : input.cookie;
+  }), sessionSecret, 'admin-session')}` : input.cookie;
   const forwarded = new Request(origin + input.path, { method: input.input === undefined ? 'GET' : 'POST',
     headers: { host: new URL(origin).host, origin: input.origin ?? origin, 'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
     ...(input.input === undefined ? {} : { body: JSON.stringify(input.input) }) });

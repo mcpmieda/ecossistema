@@ -44,7 +44,7 @@ async function sessionHeaders(roles?: TestRole[]): Promise<Headers> {
       roles,
       exp: Math.floor(Date.now() / 1000) + 600,
     },
-    testEnv.SESSION_SECRET,
+    testEnv.SESSION_SECRET, 'admin-session',
   );
   headers.set('Cookie', `${SESSION_COOKIE}=${session}`);
   return headers;
@@ -91,7 +91,7 @@ describe('browser-facing authentication recovery', () => {
     const secondCookie = responseCookie(second, AUTH_COOKIE);
     const envelope = await unseal<{
       transactions: Array<{ state: string; nonce: string; verifier: string; exp: number }>;
-    }>(secondCookie, testEnv.SESSION_SECRET);
+    }>(secondCookie, testEnv.SESSION_SECRET, 'admin-auth');
 
     expect(first.status).toBe(302);
     expect(new URL(first.headers.get('Location')!).pathname).toContain('/oauth2/v2.0/authorize');
@@ -111,7 +111,7 @@ describe('browser-facing authentication recovery', () => {
 
     const envelope = await unseal<{
       transactions: Array<{ state: string; nonce: string; verifier: string; exp: number }>;
-    }>(cookie!, testEnv.SESSION_SECRET);
+    }>(cookie!, testEnv.SESSION_SECRET, 'admin-auth');
 
     expect(envelope?.transactions).toHaveLength(4);
     expect(new Set(envelope?.transactions.map((transaction) => transaction.state)).size).toBe(4);
@@ -137,13 +137,13 @@ describe('browser-facing authentication recovery', () => {
           },
         ],
       },
-      testEnv.SESSION_SECRET,
+      testEnv.SESSION_SECRET, 'admin-auth',
     );
 
     const response = await invoke(loginRequest(existing));
     const envelope = await unseal<{
       transactions: Array<{ state: string; exp: number }>;
-    }>(responseCookie(response, AUTH_COOKIE), testEnv.SESSION_SECRET);
+    }>(responseCookie(response, AUTH_COOKIE), testEnv.SESSION_SECRET, 'admin-auth');
 
     expect(envelope?.transactions).toHaveLength(2);
     expect(
@@ -160,7 +160,7 @@ describe('browser-facing authentication recovery', () => {
     const second = await invoke(loginRequest(responseCookie(first, AUTH_COOKIE)));
     const envelope = await unseal<{
       transactions: Array<{ state: string; nonce: string; verifier: string; exp: number }>;
-    }>(responseCookie(second, AUTH_COOKIE), testEnv.SESSION_SECRET);
+    }>(responseCookie(second, AUTH_COOKIE), testEnv.SESSION_SECRET, 'admin-auth');
     const [interrupted, independent] = envelope?.transactions ?? [];
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -172,7 +172,7 @@ describe('browser-facing authentication recovery', () => {
     );
     const remaining = await unseal<{
       transactions: Array<{ state: string }>;
-    }>(responseCookie(response, AUTH_COOKIE), testEnv.SESSION_SECRET);
+    }>(responseCookie(response, AUTH_COOKIE), testEnv.SESSION_SECRET, 'admin-auth');
 
     expect(response.status).toBe(303);
     const location = new URL(response.headers.get('Location')!);
@@ -260,7 +260,7 @@ describe('administrative session settings', () => {
       durationHours: number;
       authenticatedAt: number;
       exp: number;
-    }>(responseCookie(response, SESSION_COOKIE), testEnv.SESSION_SECRET);
+    }>(responseCookie(response, SESSION_COOKIE), testEnv.SESSION_SECRET, 'admin-session');
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Set-Cookie')).toContain('__Host-ecossistema_session_policy=');

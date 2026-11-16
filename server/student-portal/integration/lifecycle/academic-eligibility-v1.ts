@@ -13,6 +13,8 @@ import {
 import type { AcademicEligibilityPortV1 } from '../../../../shared/student-portal-contracts/ports-v1';
 import type { StudentPortalPostgresQueryV1 } from '../../persistence/postgres-persistence-v1';
 
+const academicBindingsSchemaV1 = z.array(academicBindingSchemaV1);
+
 /** One statement keeps the revision and bindings in the same READ COMMITTED snapshot. */
 export class AcademicEligibilityReaderPostgresV1
   implements AcademicEligibilityReaderV1<StudentPortalPostgresQueryV1>, AcademicEligibilityPortV1
@@ -41,7 +43,7 @@ export class AcademicEligibilityReaderPostgresV1
     if (rows.length !== 1) throw new Error('student-portal-academic-revision-unavailable');
     const row = rows[0]!;
     const version = academicVersionSchemaV1.parse(row.data_version);
-    const bindings = z.array(academicBindingSchemaV1).parse(row.bindings);
+    const bindings = academicBindingsSchemaV1.parse(row.bindings);
     return resolveEligibilityV1(link, version, bindings);
   }
 

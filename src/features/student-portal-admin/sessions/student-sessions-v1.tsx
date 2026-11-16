@@ -14,6 +14,7 @@ import {
   type OperationsPropsV1,
 } from '../overview/operations-values-v1';
 import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { StudentAvatarV1 } from '../shared/student-avatar-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
@@ -93,7 +94,6 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
     count: number;
     at: string;
   } | null>(null);
-  const [clock, setClock] = useState(Date.now);
   const pendingReview = useRef<AbortController | null>(null);
   const returnFocus = useRef<Element | null>(null);
   const scopeKey = settingsScopeKeyV1(props.scope);
@@ -143,16 +143,11 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
     if (mutation.state === 'error' && authorizationLostV1(mutation.error))
       props.onAuthorizationLost?.(mutation.error);
   }, [mutation]);
-  useEffect(() => {
-    if (mutation.state !== 'error' && !prepareError) return;
-    setClock(Date.now());
-    const deadline = Math.max(prepareRetryAt, mutation.state === 'error' ? mutation.retryAt : 0);
-    const timer = setTimeout(() => setClock(Date.now()), Math.max(0, deadline - Date.now()));
-    return () => clearTimeout(timer);
-  }, [mutation, prepareError, prepareRetryAt]);
+  const prepareReady = useRetryReadyV1(prepareRetryAt);
+  const retryReady = useRetryReadyV1(mutation.state === 'error' ? mutation.retryAt : 0);
   const data = read.state.state === 'ready' ? read.state.data : null;
   const busy =
-    clock < prepareRetryAt ||
+    !prepareReady ||
     preparing ||
     !!review ||
     mutation.state === 'pending' ||
@@ -246,7 +241,7 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
         {prepareError && (
           <AccountsErrorV1
             error={prepareError}
-            canReload={clock >= prepareRetryAt}
+            canReload={prepareReady}
             onReload={() => {
               setPrepareError(null);
               read.reload();
@@ -286,7 +281,7 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
             <div className="pa-operations-actions">
               {mutation.retryable && (
                 <Button
-                  isDisabled={clock < mutation.retryAt}
+                  isDisabled={!retryReady}
                   onPress={() => void operation.retry()}
                 >
                   Retomar encerramento
@@ -294,7 +289,7 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
               )}
               <Button
                 variant="secondary"
-                isDisabled={clock < mutation.retryAt}
+                isDisabled={!retryReady}
                 onPress={() => {
                   operation.clear();
                   read.reload();

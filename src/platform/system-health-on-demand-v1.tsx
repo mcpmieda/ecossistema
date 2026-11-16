@@ -1,4 +1,4 @@
-import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
+import { schoolDateTimeTextV1 } from '../../shared/locale-format-v1';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Card } from '@heroui/react';
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
@@ -51,7 +51,7 @@ function Reader<T extends Sample>({ route, bytes, validate, onDenied, refreshLab
   else if (state.error || state.data?.state === 'unavailable') message = 'Consulta indisponível. Nenhum valor foi estimado.';
   else if (state.data?.state === 'unconfigured') message = 'Fonte ainda não configurada.';
   else if (state.data && !fresh) message = 'Consulta desatualizada. Atualize para consultar os dados.';
-  else if (state.data) message = `Consulta: ${new Date(state.data.generatedAt).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 })} (Bahia)`;
+  else if (state.data) message = `Consulta: ${schoolDateTimeTextV1(state.data.generatedAt)} (Bahia)`;
   return <div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3">
     <p className="text-xs text-muted" role={state.error ? 'alert' : 'status'}>{message}</p>
     <Button size="sm" variant="secondary" isDisabled={state.loading || denied.current} onPress={() => { void read(); }}>{refreshLabel}</Button>

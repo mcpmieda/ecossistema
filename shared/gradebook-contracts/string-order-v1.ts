@@ -8,7 +8,10 @@ export function compareCanonicalStringsV1(left: string, right: string): number {
   return left.localeCompare(right, 'en');
 }
 
-/** Human-facing Portuguese labels with numeric segments (for example 1º, 2º, 10º). */
+/** Built once: `localeCompare` with options builds a collator on every comparison (issue #1490, finding 1). */
+const PT_BR_NUMERIC_COLLATOR_V1 = new Intl.Collator('pt-BR', { numeric: true });
+
+/** Human-facing Portuguese labels with numeric segments (for example 1º, 2º, 10º). Same order as `left.localeCompare(right, 'pt-BR', { numeric: true })`. */
 export function comparePtBrNumericLabelsV1(left: string, right: string): number {
-  return left.localeCompare(right, 'pt-BR', { numeric: true });
+  return PT_BR_NUMERIC_COLLATOR_V1.compare(left, right);
 }

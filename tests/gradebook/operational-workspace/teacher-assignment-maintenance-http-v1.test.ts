@@ -19,7 +19,7 @@ async function headers(role?: TestRole): Promise<Headers> {
     username: 'synthetic-f5@example.test',
     roles: [role],
     exp: Math.floor(Date.now() / 1000) + 600,
-  }, testEnv.SESSION_SECRET);
+  }, testEnv.SESSION_SECRET, 'admin-session');
   value.set('Cookie', `${SESSION_COOKIE}=${session}`);
   return value;
 }

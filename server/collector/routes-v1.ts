@@ -21,6 +21,7 @@ const confirmSchema=z.object({purpose:z.literal('collector-confirm'),id:uuid,csr
 const authSchema=z.object({state:z.string().regex(/^collector\.[A-Za-z0-9_-]{43}$/u),nonce:secret,
   verifier:z.string().regex(/^[A-Za-z0-9_-]{64}$/u),exp:z.number().int().positive(),startedAt:z.number().int().positive(),pairingId:uuid}).strict();
 const withdrawalSchema=z.object({purpose:z.literal('collector-withdraw'),device:uuid,actor:uuid,tenant:uuid,thumb:secret,csrf:secret,exp:z.number().int().positive()}).strict();
+const deviceStatusSchema=z.object({deviceId:uuid,keyThumbprint:secret}).strict(),pollSchema=z.object({id:uuid,pollToken:secret}).strict();
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','Pragma':'no-cache'}});
 const escaped=(text:string)=>text.replaceAll(/[&<>"']/gu,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!));
 function page(title:string,body:string,status=200,headers:HeadersInit={},refreshUrl?:string):Response{
@@ -48,7 +49,7 @@ const formOf=async(request:Request)=>new URLSearchParams(new TextDecoder('utf-8'
 /** A verified application session can only ask the revocation status or retire its own device. */
 async function deviceStatus(request:Request,env:RuntimeEnv,store:WithdrawalStoreV1):Promise<Response>{
   if(request.method!=='POST'||foreignOrigin(request,env))return json({error:'Denied'},403);
-  const value=z.object({deviceId:uuid,keyThumbprint:secret}).strict().parse(await readBoundedJson(request,1024));
+  const value=deviceStatusSchema.parse(await readBoundedJson(request,1024));
   return json({revoked:await store.revocationStatus(value.deviceId,value.keyThumbprint)});
 }
 async function withdrawalPage(url:URL,env:RuntimeEnv,store:WithdrawalStoreV1,session:SessionV1):Promise<Response>{
@@ -59,13 +60,13 @@ async function withdrawalPage(url:URL,env:RuntimeEnv,store:WithdrawalStoreV1,ses
   return page('Concluir a saída do coletor',`<p>A chave local já pode ter sido apagada. Esta confirmação retira o acesso deste dispositivo no servidor, sem encerrar sessões de outros módulos.</p>
     <form method="post" action="/frequency-collector/revoke"><input type="hidden" name="device" value="${device}"><input type="hidden" name="csrf" value="${csrf}">
     <label><input type="checkbox" name="confirm" value="yes" required> Quero retirar o vínculo deste dispositivo.</label><button type="submit">Retirar vínculo</button></form>`,200,
-    {'Set-Cookie':secureCookie(WITHDRAW_COOKIE,await seal(value,env.SESSION_SECRET),{maxAge:600,sameSite:'Strict'})});
+    {'Set-Cookie':secureCookie(WITHDRAW_COOKIE,await seal(value,env.SESSION_SECRET, 'collector-withdraw'),{maxAge:600,sameSite:'Strict'})});
 }
 async function confirmWithdrawal(request:Request,env:RuntimeEnv,store:WithdrawalStoreV1,session:SessionV1):Promise<Response>{
   enforceWriteOrigin(request,env);
   const form=await formOf(request);
   const cookie=readCookie(request,WITHDRAW_COOKIE);
-  const value=withdrawalSchema.parse(cookie&&cookie.length<4096?await unseal(cookie,env.SESSION_SECRET):null);
+  const value=withdrawalSchema.parse(cookie&&cookie.length<4096?await unseal(cookie,env.SESSION_SECRET, 'collector-withdraw'):null);
   const keys=[...form.keys()];
   const confirmed=keys.length===3&&new Set(keys).size===3&&form.get('confirm')==='yes'&&value.exp>Date.now()
     &&value.device===form.get('device')&&value.csrf===form.get('csrf')&&value.actor===session.oid&&value.tenant===env.TENANT_ID;
@@ -94,7 +95,7 @@ async function handleWithdrawalV1(request:Request,url:URL,env:RuntimeEnv,depende
 
 async function oauthCallback(request:Request,url:URL,env:RuntimeEnv,runtime:CollectorRuntimeReadyV1):Promise<Response>{
   const cookie=readCookie(request,AUTH_COOKIE);
-  const transaction=authSchema.parse(cookie && cookie.length<8192?await unseal(cookie,env.SESSION_SECRET):null);
+  const transaction=authSchema.parse(cookie && cookie.length<8192?await unseal(cookie,env.SESSION_SECRET, 'collector-auth'):null);
   if(request.method!=='GET'||url.searchParams.has('error'))throw new Error('callback-denied');
   await completeCollectorOAuthV1({env,transaction,callbackState:url.searchParams.get('state')??'',code:url.searchParams.get('code')??'',cipher:runtime.cipher,dependencies:runtime.oauth});
   return page('Computador autorizado','<p>Volte ao Coletor e clique em <strong>Verificar acesso</strong>.</p><p>O programa não recebe sua senha ou tokens Microsoft. Você pode sair da conta pelo coletor.</p>',200,{'Set-Cookie':clearCookie(AUTH_COOKIE)});
@@ -102,7 +103,7 @@ async function oauthCallback(request:Request,url:URL,env:RuntimeEnv,runtime:Coll
 async function connectPage(url:URL,env:RuntimeEnv,runtime:CollectorRuntimeReadyV1):Promise<Response>{
   const id=uuid.parse(url.searchParams.get('pairing')),view=await runtime.pairings.browserView(id);
   if(!view)return page('Autorização expirada','<p>Prepare o acesso novamente no Coletor.</p>',410);
-  const csrf=random(),cookie=await seal({purpose:'collector-confirm',id,csrf,exp:Math.min(runtime.oauth.now()+600_000,new Date(view.expires_at as string|Date).getTime())},env.SESSION_SECRET);
+  const csrf=random(),cookie=await seal({purpose:'collector-confirm',id,csrf,exp:Math.min(runtime.oauth.now()+600_000,new Date(view.expires_at as string|Date).getTime())},env.SESSION_SECRET, 'collector-confirm');
   return page('Autorizar este computador',`<p>Digite o código mostrado no Coletor. Continue somente se você iniciou este pedido no seu computador.</p>
     <form method="post" action="/frequency-collector/connect"><input type="hidden" name="pairing" value="${id}"><input type="hidden" name="csrf" value="${csrf}">
     <label>Código mostrado no Coletor<input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="off" required></label>
@@ -122,7 +123,7 @@ async function confirmConnect(request:Request,env:RuntimeEnv,runtime:CollectorRu
     const keys=[...form.keys()];
     if(keys.length!==4 || new Set(keys).size!==4 || form.get('confirm')!=='yes')throw new Error('confirmation-required');
     stage='verify-confirmation';
-    const cookie=readCookie(request,CONFIRM_COOKIE),confirmed=confirmSchema.parse(cookie && cookie.length<4096?await unseal(cookie,env.SESSION_SECRET):null);
+    const cookie=readCookie(request,CONFIRM_COOKIE),confirmed=confirmSchema.parse(cookie && cookie.length<4096?await unseal(cookie,env.SESSION_SECRET, 'collector-confirm'):null);
     if(confirmed.exp<=runtime.oauth.now() || confirmed.id!==form.get('pairing') || confirmed.csrf!==form.get('csrf'))throw new Error('confirmation-denied');
     const view=await runtime.pairings.browserView(confirmed.id);
     if(view?.display_code===undefined || form.get('code')!==view.display_code)throw new Error('confirmation-denied');
@@ -133,7 +134,7 @@ async function confirmConnect(request:Request,env:RuntimeEnv,runtime:CollectorRu
     const destination=collectorAuthorizationUrlV1(env,{...base,...transaction});
     const headers=new Headers();
     headers.append('Set-Cookie',clearCookie(CONFIRM_COOKIE));
-    headers.append('Set-Cookie',secureCookie(AUTH_COOKIE,await seal(transaction,env.SESSION_SECRET),{maxAge:600}));
+    headers.append('Set-Cookie',secureCookie(AUTH_COOKIE,await seal(transaction,env.SESSION_SECRET, 'collector-auth'),{maxAge:600}));
     // Chromium applies form-action 'self' to a POST's entire redirect chain.
     // Commit a same-origin document first; its refresh is a fresh navigation,
     // so Microsoft sign-in works without widening the application's CSP.
@@ -177,7 +178,7 @@ async function pairingRequest(request:Request,url:URL,env:RuntimeEnv,runtime:Col
         status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':'600'}});
     return json({contractVersion:1,id:proof.id,pollToken,displayCode,browserUrl:env.OFFICIAL_ORIGIN+'/frequency-collector/connect?pairing='+proof.id});
   }
-  const poll=z.object({id:uuid,pollToken:secret}).strict().parse(value),hash=await collectorOpaqueHashV1(poll.pollToken);
+  const poll=pollSchema.parse(value),hash=await collectorOpaqueHashV1(poll.pollToken);
   if(url.pathname==='/api/frequency-collector/pairings/poll'){
     const found=await runtime.pairings.poll(poll.id,hash);
     if(!found)return json({error:'Pairing unavailable'},403);

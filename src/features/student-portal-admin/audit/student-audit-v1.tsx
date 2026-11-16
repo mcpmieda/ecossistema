@@ -16,6 +16,7 @@ import {
 import { DateInputV1 } from '../settings/settings-editors-v1';
 import { AccountsErrorV1 } from '../accounts/accounts-presentation-v1';
 import { OperationsScopeV1 } from '../overview/operations-scope-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import {
   operationDateV1,
   authorizationLostV1,
@@ -78,7 +79,6 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
   const [invalid, setInvalid] = useState(false);
   const [opened, setOpened] = useState<string | null>(null);
   const [detail, setDetail] = useState<AuditDetailStateV1>({ state: 'idle' });
-  const [clock, setClock] = useState(Date.now);
   const scopeKey = settingsScopeKeyV1(props.scope);
   const load = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
@@ -134,11 +134,8 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
   useEffect(() => {
     if (detail.state === 'error' && authorizationLostV1(detail.error))
       props.onAuthorizationLost?.(detail.error);
-    if (detail.state !== 'error') return;
-    setClock(Date.now());
-    const timer = setTimeout(() => setClock(Date.now()), Math.max(0, detail.retryAt - Date.now()));
-    return () => clearTimeout(timer);
   }, [detail, props.onAuthorizationLost]);
+  const retryReady = useRetryReadyV1(detail.state === 'error' ? detail.retryAt : 0);
   const openDetail = useCallback(
     (eventId: string) => {
       setOpened(eventId);
@@ -317,7 +314,7 @@ function AuditBodyV1(props: Readonly<OperationsPropsV1>) {
                   {detail.state === 'error' && (
                     <AccountsErrorV1
                       error={detail.error}
-                      canReload={clock >= detail.retryAt}
+                      canReload={retryReady}
                       onReload={() => void detailReader.open(props.scope, opened)}
                     />
                   )}

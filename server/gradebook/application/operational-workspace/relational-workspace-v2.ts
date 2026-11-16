@@ -15,6 +15,7 @@ import {
   type WorkspaceYearV2,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
+import { PT_BR_COLLATOR_V1 } from '../../../../shared/locale-format-v1';
 import { type GradebookPostgresWritePortV1, type GradebookPostgresScalarV1, type GradebookPostgresReadPortV1, type GradebookPostgresTransactionV1  } from '../../persistence/postgres/postgres-database-v1';
 
 
@@ -66,9 +67,9 @@ function toOffer(row: Row): WorkspaceOfferV2 {
   };
 }
 function orderOffers(left: WorkspaceOfferV2, right: WorkspaceOfferV2): number {
-  return left.classGroup.label.localeCompare(right.classGroup.label, 'pt-BR') ||
+  return PT_BR_COLLATOR_V1.compare(left.classGroup.label, right.classGroup.label) ||
     compareSourceSubjectPresentationV1(left.subject.label, right.subject.label) ||
-    left.teacher.label.localeCompare(right.teacher.label, 'pt-BR') ||
+    PT_BR_COLLATOR_V1.compare(left.teacher.label, right.teacher.label) ||
     left.id - right.id;
 }
 

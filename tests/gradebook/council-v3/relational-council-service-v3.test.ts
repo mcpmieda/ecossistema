@@ -192,7 +192,7 @@ describe('relational Council V3 lifecycle', () => {
 
 async function http(body: unknown, role: 'ADMINISTRADOR' | 'PROFESSOR' | null = 'ADMINISTRADOR', overrides: Partial<RuntimeEnv> = {}) {
   const headers = new Headers({ Origin: testEnv.OFFICIAL_ORIGIN, 'Content-Type': 'application/json' });
-  if (role) headers.set('Cookie', `${SESSION_COOKIE}=${await seal({ oid: ACTOR, name: 'Synthetic', username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET)}`);
+  if (role) headers.set('Cookie', `${SESSION_COOKIE}=${await seal({ oid: ACTOR, name: 'Synthetic', username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET, 'admin-session')}`);
   const handler = createCouncilWorkspaceRequestHandlerV1();
   const response = await handler(new Request(`${testEnv.OFFICIAL_ORIGIN}/api/gradebook/council-workspace`, {
     method: 'POST', headers, body: JSON.stringify(body),

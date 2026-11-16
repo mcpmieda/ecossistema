@@ -11,6 +11,10 @@ import {
   type BulletinPdfArtifactV1,
   type BulletinPdfLineV1,
 } from './bulletin-pdf-engine';
+import {
+  bulletinGradeTextV2 as grade,
+  bulletinRecoveryGradeTextV2 as recoveryGrade,
+} from '../bulletin-format-v2';
 
 type RelationalBulletinPdfReadinessV2 =
   | { readonly status: 'ready' }
@@ -24,12 +28,6 @@ function clean(value: string): string {
     .join('')
     .replace(/\s+/gu, ' ')
     .trim();
-}
-
-function grade(value: number | null): string {
-  return value === null
-    ? '—'
-    : (value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 }
 
 function period(snapshot: RelationalBulletinSnapshotV2): string {
@@ -77,12 +75,6 @@ function text(
     text: clean(value),
     ...(indent === 0 ? {} : { indent }),
   });
-}
-
-function recoveryGrade(value: number | 'NC' | 'RR' | null): string {
-  if (value === 'NC') return 'N/C';
-  if (value === 'RR') return 'R/R';
-  return grade(value);
 }
 
 export function inspectRelationalBulletinPdfV2(

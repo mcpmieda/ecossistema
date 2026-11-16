@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import {
   createLatestPortalRequestV1,
   type PortalLoadStateV1,
@@ -19,7 +20,6 @@ export function useAccountsReadV1<T>(
   });
   const deadline = useRef(0);
   const state: PortalLoadStateV1<T> = result.load === load ? result.state : { state: 'loading' };
-  const [clock, setClock] = useState(0);
   const reader = useMemo(
     () =>
       createLatestPortalRequestV1<T>((next) => {
@@ -51,12 +51,7 @@ export function useAccountsReadV1<T>(
   } else {
     error = undefined;
   }
-  useEffect(() => {
-    if (!error) return;
-    setClock(Date.now());
-    const timer = setInterval(() => setClock(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [error]);
+  const retryReady = useRetryReadyV1(error ? deadline.current : 0);
   // An automatic read (the window came back, a failure retry) shows nothing; only a change is drawn.
   useLiveRefreshV1(() => reader.run(load, { background: true, silent: true }), {
     active,
@@ -73,7 +68,7 @@ export function useAccountsReadV1<T>(
     state,
     refreshing: state.state === 'ready' && Boolean(state.refreshing),
     refreshError: state.state === 'ready' ? state.refreshError : undefined,
-    canReload: state.state !== 'loading' && (!error || clock >= deadline.current),
+    canReload: state.state !== 'loading' && retryReady,
     reload: () => {
       if (Date.now() >= deadline.current)
         void reader.run(load, { background: state.state === 'ready' });

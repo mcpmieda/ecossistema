@@ -20,6 +20,20 @@ const schedule = (dayTimes: string[], recheck: string | null = null) => ({
   })),
 });
 
+describe('frequencyScheduleV2 time zone', () => {
+  // Accepted zones are remembered (issue #1490, finding 1); rejected ones are checked every time.
+  const zone = (timezone: string) => frequencyScheduleV2.safeParse({ ...schedule(times(2)), timezone }).success;
+  it('accepts the exact IANA name on every parse and still rejects the others', () => {
+    for (let round = 0; round < 2; round++) {
+      expect(zone('America/Bahia')).toBe(true);
+      expect(zone('Europe/Lisbon')).toBe(true);
+      expect(zone('america/bahia')).toBe(false);
+      expect(zone('-03:00')).toBe(false);
+      expect(zone('Mars/Olympus')).toBe(false);
+    }
+  });
+});
+
 describe('frequencyScheduleV2 daily limit', () => {
   it('accepts up to 48 collections per rule', () => {
     expect(frequencyScheduleV2.safeParse(schedule(times(48))).success).toBe(true);

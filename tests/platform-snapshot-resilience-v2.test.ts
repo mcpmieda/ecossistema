@@ -119,7 +119,7 @@ async function request(path: string, roles?: string[], origin = testEnv.OFFICIAL
   if (roles) headers.set('Cookie', `${SESSION_COOKIE}=${await seal({
     oid: '11111111-1111-4111-8111-111111111111', name: 'SYNTHETIC USER', username: 'synthetic@example.invalid',
     roles, exp: Math.floor(Date.now() / 1000) + 600,
-  }, testEnv.SESSION_SECRET)}`);
+  }, testEnv.SESSION_SECRET, 'admin-session')}`);
   return new Request(`${origin}${path}`, { headers });
 }
 describe('native bootstrap HTTP boundaries', () => {

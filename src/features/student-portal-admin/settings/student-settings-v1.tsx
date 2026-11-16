@@ -52,6 +52,7 @@ import { publicationPartialV1, type PublicationItemV1 } from '../publication/pub
 import { accessOpenAtV1 } from '../../../../shared/student-portal-contracts/access-schedule-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import './student-settings-v1.css';
 
 type ReviewIntentV1 =
@@ -526,22 +527,21 @@ function ReviewDialogV1({
 function SettingsMutationFeedbackV1({
   mutation,
   canWrite,
-  clock,
   retry,
   reload,
 }: Readonly<{
   mutation: SettingsMutationStateV1;
   canWrite: boolean;
-  clock: number;
   retry: () => void;
   reload: () => void;
 }>) {
+  const retryReady = useRetryReadyV1(mutation.state === 'error' ? mutation.retryAt : 0);
   if (mutation.state !== 'error') return null;
   return (
     <div className="pa-settings-error" role="alert">
       <p>{mutationErrorLabelV1(mutation.error)}</p>
       {mutation.retryable && canWrite ? (
-        <Button size="sm" variant="secondary" isDisabled={clock < mutation.retryAt} onPress={retry}>
+        <Button size="sm" variant="secondary" isDisabled={!retryReady} onPress={retry}>
           Tentar novamente
         </Button>
       ) : null}
@@ -623,7 +623,6 @@ function SettingsReadyV1({
   onRetry,
   onReload,
   onRefresh,
-  clock,
   onOpenCustomization,
   initialCategory,
   linksClosed,
@@ -651,7 +650,6 @@ function SettingsReadyV1({
   onReload: () => void;
   /** Reads the settings again, keeping what is being edited (the school calendar saved its dates). */
   onRefresh: () => void;
-  clock: number;
   onOpenCustomization?: OpenCustomizationV1;
   initialCategory?: PolicyCategoryV1;
   linksClosed: () => void;
@@ -752,7 +750,6 @@ function SettingsReadyV1({
       <SettingsMutationFeedbackV1
         mutation={mutation}
         canWrite={canWrite}
-        clock={clock}
         retry={onRetry}
         reload={onReload}
       />
@@ -879,7 +876,6 @@ function SettingsScopeV1({
   const [review, setReview] = useState<ReviewV1 | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
-  const [clock, setClock] = useState(Date.now);
   const [discardVersion, setDiscardVersion] = useState(0);
   const [fieldVersions, setFieldVersions] = useState<Partial<Record<string, number>>>({});
   const submittedField = useRef<string | null>(null);
@@ -950,12 +946,6 @@ function SettingsScopeV1({
     setPendingReset(null);
     submittedField.current = null;
   }, [load, pendingReset]);
-  useEffect(() => {
-    if (mutation.state !== 'error' || !mutation.retryable) return;
-    setClock(Date.now());
-    const timer = setInterval(() => setClock(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [mutation]);
   useEffect(() => {
     if (!canWrite) {
       writer.clear();
@@ -1081,7 +1071,6 @@ function SettingsScopeV1({
             onRetry={() => void writer.retry()}
             onReload={discardAndReload}
             onRefresh={() => void reload(true)}
-            clock={clock}
             onOpenCustomization={onOpenCustomization}
             initialCategory={initialCategory}
             linksClosed={linksClosed}

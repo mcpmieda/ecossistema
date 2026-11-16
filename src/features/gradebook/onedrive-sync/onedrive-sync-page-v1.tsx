@@ -6,6 +6,7 @@ import type {
   OneDriveSyncResponseV1,
   OneDriveSyncStatusV1,
 } from '../../../../shared/gradebook-contracts/onedrive-sync/onedrive-sync-contract-v1';
+import { localDayMonthTimeTextV1, PT_BR_UP_TO_1_DECIMAL_V1 } from '../../../../shared/locale-format-v1';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { requestOneDriveSyncV1 } from './onedrive-sync-client-v1';
 
@@ -60,7 +61,7 @@ const CONTROL_DETAILS: Readonly<Record<string, (detail: Record<string, unknown>)
 
 function time(value: number | null): string {
   if (value === null) return '—';
-  return new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return localDayMonthTimeTextV1(value);
 }
 
 /** A duration in minutes and seconds only ("1 min 42 s", "8 s"). */
@@ -165,7 +166,7 @@ function PreviewSummary({ preview }: Readonly<{ preview: PreviewV1 }>) {
   const { sample } = preview;
   return (
     <div className="grid gap-1 rounded-xl border border-border/70 bg-surface p-3 text-sm">
-      <strong>{preview.workbooks} planilha(s) · {(preview.workbookBytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB</strong>
+      <strong>{preview.workbooks} planilha(s) · {PT_BR_UP_TO_1_DECIMAL_V1.format(preview.workbookBytes / 1048576)} MB</strong>
       <span className="text-muted">
         Leitura de teste (sem gravar): {SAMPLE_LABELS[sample.outcome] ?? sample.outcome}
         {sample.readMs !== null && sample.readMs > 0 ? ` em ${minutesSecondsV1(sample.readMs)}` : ''}

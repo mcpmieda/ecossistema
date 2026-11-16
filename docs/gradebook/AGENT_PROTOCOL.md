@@ -1,4 +1,4 @@
-# Protocolo de trabalho para agentes
+# Protocolo de trabalho no Banco de Notas
 
 ## 1. Antes de começar
 
@@ -42,7 +42,7 @@ Se algum campo essencial estiver ausente e impedir uma implementação segura, r
 - Preserve compatibilidade do recurso já publicado.
 - Se descobrir impacto transversal, abra/solicite uma issue `[BN][CONTRATO]` ou `[BN][DECISÃO]`.
 - Se uma instrução nova conflitar com decisão anterior, pare a parte conflitante e cite as decisões envolvidas.
-- Não edite `PROJECT_STATE.yaml` em tarefas comuns; isso evita conflitos entre agentes paralelos.
+- Atualize `PROJECT_STATE.yaml` só ao concluir/publicar uma entrega.
 
 ## 4. Mudança de contrato
 
@@ -73,14 +73,14 @@ O PR deve:
 - declarar explicitamente que não contém dados reais;
 - não pedir merge enquanto checks estiverem falhando.
 
-O agente de implementação não publica diretamente. O integrador revisa, corrige conflitos de integração, faz merge e acompanha o workflow de produção.
+Quem integra revisa o diff, traz a `main` atualizada, faz merge commit com CI verde e acompanha o workflow oficial de produção.
 
-## 6. Handoff obrigatório na issue
+## 6. Registro de conclusão na issue
 
 Antes de encerrar, publique um comentário com:
 
 ```markdown
-## Handoff
+## Conclusão
 
 - Estado: concluído | parcial | bloqueado
 - Branch/PR:
@@ -97,16 +97,12 @@ Antes de encerrar, publique um comentário com:
 
 A issue não deve ser fechada como concluída quando o resultado ainda depende de merge, publicação ou validação prevista nela.
 
-## 7. Papel do integrador
+## 7. Responsabilidades de quem integra
 
-Somente o integrador deve:
-
-- coordenar alterações em arquivos centrais e contratos concorrentes;
-- verificar que a `main` permanece compilável;
+- manter a `main` compilável e integrar um PR por vez;
 - acompanhar deploy e confirmar o site;
 - atualizar `PROJECT_STATE.yaml`, mapa de issues e progresso das fases;
 - fechar issues/fases após critérios de release;
-- manter a fila `Pronta para iniciar` sem liberar tarefas bloqueadas;
 - impedir regras acadêmicas duplicadas ou inferidas pela UI.
 
 ## 8. Publicação progressiva
@@ -118,15 +114,3 @@ issue → branch → PR → checks → merge na main → deploy → verificaçã
 ```
 
 Quando uma fase possui partes independentes, cada parte utilizável pode ser publicada antes do fechamento da fase. Quando uma parte depende de outra para funcionar corretamente, ela permanece bloqueada ou invisível até a dependência ser publicada.
-
-## 9. Limites de paralelismo
-
-O padrão recomendado é até quatro agentes simultâneos, desde que:
-
-- não escrevam nos mesmos arquivos centrais;
-- não alterem o mesmo contrato;
-- cada um tenha uma issue executável;
-- exista um integrador responsável;
-- a `main` seja atualizada frequentemente.
-
-Aumentar o número de agentes sem separar caminhos e contratos aumenta retrabalho, não velocidade.

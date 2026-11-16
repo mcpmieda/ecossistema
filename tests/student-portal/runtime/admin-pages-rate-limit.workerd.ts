@@ -103,7 +103,7 @@ async function cookie(actor: string) {
       roles: ['ADMINISTRADOR'],
       exp: Math.floor(Date.now() / 1000) + 60,
     },
-    testEnv.SESSION_SECRET,
+    testEnv.SESSION_SECRET, 'admin-session',
   )}`;
 }
 function fetchPages(path: string, init: RequestInit = {}) {

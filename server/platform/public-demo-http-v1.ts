@@ -19,6 +19,8 @@ import {
   type PublicDemoAuthorityV1,
 } from '../../shared/public-demo-control-v1';
 
+const emptyBodyV1 = z.object({}).strict();
+const changeResultV1 = z.object({ ok: z.boolean(), state: publicDemoStateSchemaV1 }).strict();
 const reply = (value: unknown, status = 200) =>
   withSecurityHeaders(Response.json(value, { status }), true);
 function demoFailureStatusV1(error: unknown): number {
@@ -40,7 +42,7 @@ export async function handlePublicDemoRequestV1(
     if (request.method !== 'POST') throw new HttpError(405, 'method');
     const session = await requireAuth(request, env);
     const body = await healthDeadlineV1(() => readBoundedJson(request, 256), 2000);
-    const read = z.object({}).strict().safeParse(body).success;
+    const read = emptyBodyV1.safeParse(body).success;
     const capability = !read ? 'platform.settings.write' : 'platform.settings.read';
     requireCapability(capabilitiesForRoles(session.roles), capability);
     const authority: PublicDemoAuthorityV1 = {
@@ -60,10 +62,9 @@ export async function handlePublicDemoRequestV1(
       );
     const parsed = publicDemoChangeSchemaV1.safeParse(body);
     if (!parsed.success) throw new HttpError(400, 'invalid-body');
-    const result = z
-      .object({ ok: z.boolean(), state: publicDemoStateSchemaV1 })
-      .strict()
-      .parse(await healthDeadlineV1(() => binding.setEnabled(authority, parsed.data), 5000));
+    const result = changeResultV1.parse(
+      await healthDeadlineV1(() => binding.setEnabled(authority, parsed.data), 5000),
+    );
     return reply(result, result.ok ? 200 : 409);
   } catch (error) {
     const status = demoFailureStatusV1(error);
