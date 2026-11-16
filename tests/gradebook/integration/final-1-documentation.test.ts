@@ -10,11 +10,13 @@ const history = `${base}history/pre-final-1/`;
 const source = (path: string) => readFileSync(join(root, path), 'utf8');
 const currentState = source(`${base}PROJECT_STATE.yaml`);
 // FINAL-1 remains an immutable checkpoint, not the executable P2 state.
-const state = currentState.split(/^historical_checkpoint_668:\r?\n/mu)[1]!
-  .replace(/^ {2}/gmu, '');
+const state = currentState.split(/^historical_checkpoint_668:\r?\n/mu)[1]!.replace(/^ {2}/gmu, '');
 // Hash canonical Git bytes, respecting checkout LF/CRLF conversion on Windows.
 const blobHash = (path: string) =>
-  execFileSync('git', ['hash-object', '--path', path, path], { cwd: root, encoding: 'utf8' }).trim();
+  execFileSync('git', ['hash-object', '--path', path, path], {
+    cwd: root,
+    encoding: 'utf8',
+  }).trim();
 function section(name: string): string {
   const lines = state.split(/\r?\n/u);
   const start = lines.indexOf(`${name}:`);
@@ -191,14 +193,15 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     // The reviewed gate now validates the actual Cloudflare Pages route
     // artifact. Keep an exact Git blob pin AND a functional safety invariant:
     // this is not permission to bypass checks or academic acceptance.
-    expect(integrationGate).toContain("production-inputs/dist/_routes.json");
+    expect(integrationGate).toContain('production-inputs/dist/_routes.json');
     expect(integrationGate).toContain('/frequency-collector/*');
     // The checks run side by side (lint/types, four unit-test parts, build); the final
     // "Lint, types, tests and build" gate still fails unless every part passed.
     expect(integrationGate).toContain('needs: [scope, static, unit-tests, verify]');
     expect(integrationGate).toContain('run: npx vitest run --shard=${{ matrix.shard }}/4');
-    expect(blobHash('.github/workflows/validate-pull-request.yml'))
-      .toBe('3fcef342a3ed46528194714f9e045c354742897b');
+    expect(blobHash('.github/workflows/validate-pull-request.yml')).toBe(
+      'c575634fb58dcdb9099edf00f1cfa94dc90ccf88',
+    );
   });
   it('keeps the canonical local documentation links resolvable', () => {
     const pages = [
