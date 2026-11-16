@@ -3,7 +3,7 @@ import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } fro
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createRelationalCouncilV3 } from '../../../server/gradebook/application/council/relational-council-v3';
 import { createRelationalAcademicProjectionServiceV1 } from '../../../server/gradebook/application/results/relational-academic-projection-v1';
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
@@ -104,7 +104,7 @@ function notes2025(): GradebookNotesImportRequestV9 {
 
 describe('materialização multi-ano e R/R terminal', () => {
   it('materializa anos pela Relação e mantém homônimos com IDs anuais distintos', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     await expect(service.execute(relation(2026, 'T26', 'a'))).resolves.toMatchObject({ state: 'applied' });
     await expect(service.execute(relation(2025, 'T25', 'b'))).resolves.toMatchObject({ state: 'applied' });
 
@@ -119,7 +119,7 @@ describe('materialização multi-ano e R/R terminal', () => {
   });
 
   it('persiste R/R, produz REPROVADO e o exclui do Conselho mesmo com reimportação idempotente', async () => {
-    const importService = createGradebookRelationalImportServiceV11(database);
+    const importService = createGradebookImportService(database);
     const request = notes2025();
     await expect(importService.execute(request)).resolves.toMatchObject({ state: 'applied' });
     const resetBeforeReplay = (await pg.query('SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2025')).rows;

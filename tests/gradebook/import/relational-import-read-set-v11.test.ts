@@ -8,7 +8,7 @@ import {
   type GradebookPostgresDatabaseV1,
   type GradebookPostgresWritePortV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import {
   loadRelationalImportReadSetV11,
   resolveRelationalImportCatalogV11,
@@ -139,7 +139,7 @@ beforeAll(async () => {
     },
     end: () => pg.close(),
   });
-  expect((await createGradebookRelationalImportServiceV11(database).execute(relation)).state).toBe(
+  expect((await createGradebookImportService(database).execute(relation)).state).toBe(
     'applied',
   );
 }, 30000);
@@ -150,7 +150,7 @@ describe('V11 bounded read sets through the canonical service chain', () => {
     'reads three categories per block for %i offers and reimports without DML',
     async (count) => {
       const request = notes(count);
-      const service = createGradebookRelationalImportServiceV11(database);
+      const service = createGradebookImportService(database);
       expect((await service.execute(request)).state).toBe('applied');
       calls.length = 0;
       const before = commits;
@@ -215,7 +215,7 @@ describe('V11 bounded read sets through the canonical service chain', () => {
         disciplina: index === 0 ? 'Synthetic Subject' : 'SYNTHETIC SUBJECT',
       })),
     };
-    const response = await createGradebookRelationalImportServiceV11(database).execute(variant);
+    const response = await createGradebookImportService(database).execute(variant);
     expect(response).toMatchObject({
       state: 'applied',
       summary: { committedWrites: { total: 2 } },
@@ -241,7 +241,7 @@ describe('V11 bounded read sets through the canonical service chain', () => {
         })) as unknown as typeof source.trimestres,
       })),
     } as GradebookNotesImportRequestV9;
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     expect((await service.execute(withoutQualitative)).state).toBe('no-changes');
     const idsBefore = (
       await pg.query<{ id: number; oferta_id: number; trimestre: number; slot: number }>(
@@ -288,7 +288,7 @@ describe('V11 bounded read sets through the canonical service chain', () => {
 
   it('keeps different teachers as different full offer identities', async () => {
     const request = { ...notes(1), professor: 'SYNTHETIC SECOND TEACHER' };
-    expect((await createGradebookRelationalImportServiceV11(database).execute(request)).state).toBe(
+    expect((await createGradebookImportService(database).execute(request)).state).toBe(
       'applied',
     );
     expect(
@@ -346,7 +346,7 @@ describe('V11 bounded read sets through the canonical service chain', () => {
     failure = 'last-block';
     const beforeCommits = commits;
     await expect(
-      createGradebookRelationalImportServiceV11(database).execute(changed),
+      createGradebookImportService(database).execute(changed),
     ).rejects.toThrow('synthetic-last-block');
     failure = 'none';
     expect(commits).toBe(beforeCommits);
@@ -368,7 +368,7 @@ describe('V11 bounded read sets through the canonical service chain', () => {
   it.each(['\t', '\u00a0'])(
     'preserves accepted raw subject whitespace %j and its legacy repeated conflict',
     async (whitespace) => {
-      const service = createGradebookRelationalImportServiceV11(database);
+      const service = createGradebookImportService(database);
       await service.execute(notes(1));
       const label = whitespace === '\t' ? 'SYNTHETIC TAB SUBJECT' : 'SYNTHETIC NBSP SUBJECT';
       const request = whitespaceNotes(1, `${whitespace}${label}${whitespace}`);
@@ -399,7 +399,7 @@ describe('V11 bounded read sets through the canonical service chain', () => {
   );
 
   it('preserves source order when raw-whitespace and plain subject labels share the inserted identity', async () => {
-    const service = createGradebookRelationalImportServiceV11(database);
+    const service = createGradebookImportService(database);
     await service.execute(notes(2));
     const label = 'SYNTHETIC MIXED WHITESPACE SUBJECT';
     const source = whitespaceNotes(2, label);

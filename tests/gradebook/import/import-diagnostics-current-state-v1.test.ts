@@ -59,7 +59,7 @@ describe('current import diagnostics retention', () => {
     expect(hook).toContain('gradebookImportDiagnosticsAuditRequestV1(result, diagnostics)');
     expect(route).not.toContain('DELETE FROM gradebook.importacao_diagnostico');
     expect(route).not.toContain('clearStaleImportDiagnostics');
-    expect(route).toContain('createGradebookRelationalImportServiceV11(');
+    expect(route).toContain('createGradebookImportService(');
     expect(route).toContain('observer.wrap(database)');
   });
 });

@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { expect, it } from 'vitest';
 import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createGradebookPostgresDatabaseFromSqlV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createImportPerformanceObserverV1 } from '../../../server/gradebook/persistence/postgres/import-performance-observer-v1';
 import type {
@@ -204,14 +204,14 @@ async function runRepetition(
         ),
     });
     expect(
-      (await createGradebookRelationalImportServiceV11(database).execute(relation)).state,
+      (await createGradebookImportService(database).execute(relation)).state,
     ).toBe('applied');
     const run = async (scenario: ScenarioV11, request: GradebookNotesImportRequestV9) => {
       const expected = BASELINE_V11[scenario];
       const observer = createImportPerformanceObserverV1();
       calls.length = 0;
       const started = performance.now();
-      const response = await createGradebookRelationalImportServiceV11(
+      const response = await createGradebookImportService(
         observer.wrap(database),
         observer,
       ).execute(request);

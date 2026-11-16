@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../../server/env';
-import { createGradebookRelationalImportServiceV10 } from '../../../server/gradebook/application/import/import-relational-service-v10';
+import { applyImportPolicy } from '../../../server/gradebook/application/import/import-service';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -29,8 +29,8 @@ vi.mock('../../../server/gradebook/persistence/postgres/official-gradebook-datab
       actual.withOfficialGradebookDatabaseV1(env, operation, { createPostgresDatabase: async () => mocks.database! }),
   };
 });
-vi.mock('../../../server/gradebook/application/import/import-relational-service-v9', () => ({
-  createGradebookRelationalImportServiceV9: (database: GradebookPostgresWritePortV1) => ({
+vi.mock('../../../server/gradebook/application/import/relational-import-writer', () => ({
+  createRelationalImportWriter: (database: GradebookPostgresWritePortV1) => ({
     execute: (request: GradebookImportPersistenceRequestV9) => mocks.persist(database, request),
   }),
 }));
@@ -83,7 +83,7 @@ describe('native miscellaneous reads for B-15 slice 4', () => {
     const { database, calls, transaction } = fixture(() => [{ turma_codigo: ' 6A ', numero: 1 }]);
     mocks.persist.mockResolvedValue({ transportVersion: 9, state: 'no-changes', summary: {} });
     const source = notes();
-    await createGradebookRelationalImportServiceV10(database).execute(source);
+    await applyImportPolicy(database, source);
     expect(calls).toEqual([
       { channel: 'tx', sql: 'SELECT pg_advisory_xact_lock_shared(613,0)', values: [] },
       { channel: 'tx', sql: 'SELECT pg_advisory_xact_lock(613,$1::integer)', values: [2090] },
@@ -102,13 +102,13 @@ describe('native miscellaneous reads for B-15 slice 4', () => {
     const source = notes();
     const response = { transportVersion: 9, state: 'no-changes', summary: {} };
     mocks.persist.mockResolvedValue(response);
-    expect(await createGradebookRelationalImportServiceV10(database).execute(source)).toBe(response);
+    expect(await applyImportPolicy(database, source)).toBe(response);
     expect(mocks.persist.mock.calls[0]![1]).toBe(source);
   });
 
   it('retains lastFailure and prevents persistence when the native binding read fails', async () => {
     const { database } = fixture(() => { throw Object.assign(new Error('relation "gradebook.vinculo" does not exist'), { code: '42P01' }); });
-    await expect(createGradebookRelationalImportServiceV10(database).execute(notes())).rejects.toThrow('relation "gradebook.vinculo" does not exist');
+    await expect(applyImportPolicy(database, notes())).rejects.toThrow('relation "gradebook.vinculo" does not exist');
     expect(database.lastFailure()).toMatchObject({ operation: 'SELECT', relation: 'vinculo', category: 'relation-missing', sqlState: '42P01' });
     expect(mocks.persist).not.toHaveBeenCalled();
   });

@@ -12,8 +12,8 @@ vi.mock('../../server/auth/session', async (original) => ({
 vi.mock('../../server/gradebook/persistence/postgres/official-gradebook-database-v1', () => ({
   withOfficialGradebookDatabaseV1: async (env: RuntimeEnv, run: (env: RuntimeEnv) => unknown) => run({ ...env, GRADEBOOK_DATABASE: {} }),
 }));
-vi.mock('../../server/gradebook/application/import/import-relational-service-v11', () => ({
-  createGradebookRelationalImportServiceV11: () => ({ execute: mocks.execute }),
+vi.mock('../../server/gradebook/application/import/import-service', () => ({
+  createGradebookImportService: () => ({ execute: mocks.execute }),
 }));
 vi.mock('../../shared/gradebook-contracts/imports/import-persistence-transport-v9', async (original) => ({
   ...await original<typeof import('../../shared/gradebook-contracts/imports/import-persistence-transport-v9')>(),

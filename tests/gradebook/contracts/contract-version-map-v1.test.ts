@@ -15,11 +15,11 @@ describe('canonical Gradebook contract version map', () => {
     expect(map).toContain('import-persistence-transport-v7.ts` | HISTORICAL/MEMORY');
   });
 
-  it('preserves the current nested import service chain', () => {
-    expect(map).toContain('V11 → V10 → V9');
-    expect(map).toContain('import-relational-service-v11.ts` | **CURRENT**');
-    expect(map).toContain('import-relational-service-v10.ts` | COMPATIBILITY');
-    expect(map).toContain('import-relational-service-v9.ts` | COMPATIBILITY/Core');
+  it('classifies the single import service over the relational writer', () => {
+    expect(map).toContain('import-service.ts` | **CURRENT**');
+    expect(map).toContain('relational-import-writer.ts` | **CURRENT**');
+    expect(map).toContain('import-relational-service-v10.ts` | REMOVIDO');
+    expect(map).toContain('import-relational-service-v11.ts` | REMOVIDO');
   });
 
   it('does not treat additive performance versions as replacements', () => {

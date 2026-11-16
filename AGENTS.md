@@ -63,7 +63,7 @@ Regras obrigatórias:
 - O Banco usa o mesmo shell, identidade, autorização, pesquisa e publicação do Centro.
 - A Relação do ano é o cadastro mestre; planilhas dos professores são fonte de lançamentos. A reconstrução #613 e seus comentários finais governam o modelo relacional, não o antigo schema streams/versions.
 - Não exigir planilha técnica padronizada. O importador reconhece os arquivos reais existentes.
-- Importador externo V9 e serviços internos V10/V11 já estão homologados. Não os substituir pelo legado arquivado.
+- O importador está homologado: transporte externo V9 e serviço interno único `server/gradebook/application/import/import-service.ts` (que uniu as antigas camadas V10/V11 sobre o escritor `relational-import-writer.ts`). Não o substituir pelo legado arquivado.
 - PostgreSQL/Supabase via Hyperdrive `PROD_DB` é a persistência oficial. Um nome `d1-*` não prova uso físico do D1: verificar rota, composição e SQL antes de retirar código.
 - Uma regra acadêmica existe em um único núcleo. Interface, Desempenho, Conselho, Boletins e Relatórios não criam cálculos concorrentes.
 - Persistência homologada, motor implementado e autoridade acadêmica aceita são estados diferentes. A #347 registra o aceite por consumidor/escopo; não há ativação ou reinterpretação histórica silenciosa.

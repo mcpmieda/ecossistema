@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { createGradebookRelationalImportServiceV9 } from '../../../server/gradebook/application/import/import-relational-service-v9';
+import { createRelationalImportWriter } from '../../../server/gradebook/application/import/relational-import-writer';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresWritePortV1,
@@ -66,7 +66,7 @@ function fixture(options: {
       }));
     },
   };
-  return { service: createGradebookRelationalImportServiceV9(native), database, native, calls, events };
+  return { service: createRelationalImportWriter(native), database, native, calls, events };
 }
 
 function expectValidatedRelationPreviewV9(calls: readonly NativeCallV9[]) {
@@ -149,7 +149,7 @@ describe('V9 native import port', () => {
     const failure = Object.assign(new Error('permission denied'), { code: '42501' });
     const { service, native } = fixture({ failure });
     await expect(service.execute(relation)).rejects.toBe(failure);
-    await expect(createGradebookRelationalImportServiceV9({ query: native.query, executeNative: native.executeNative }).execute(relation))
+    await expect(createRelationalImportWriter({ query: native.query, executeNative: native.executeNative }).execute(relation))
       .rejects.toThrow('gradebook-relational-import-requires-postgres');
   });
 });
