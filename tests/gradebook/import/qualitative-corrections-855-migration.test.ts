@@ -12,7 +12,9 @@ const migration = readFileSync(
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
-  await pg.exec(readFileSync('migrations/gradebook-simplified/0009_granular_observations_names_v1.sql', 'utf8'));
+  await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0009_granular_observations_names_v1.sql', 'utf8'),
+  );
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2026,60000,2);
     INSERT INTO gradebook.professor (id,ano,nome) VALUES
@@ -75,42 +77,54 @@ it('repairs only the proved closed-term definitions and records auditable histor
   await pg.exec(migration);
 
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT maximo,descricao FROM gradebook.instrumento WHERE id=3001
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([{ maximo: 6000, descricao: '2ª ATIVIDADE' }]);
 
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT count(*)::integer AS n
       FROM gradebook.instrumento
       WHERE id BETWEEN 3002 AND 3013 AND (maximo IS NOT NULL OR descricao IS NOT NULL)
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([{ n: 0 }]);
 
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT count(*)::integer AS n
       FROM gradebook.nota WHERE instrumento_id BETWEEN 3002 AND 3013
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([{ n: 0 }]);
 
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT count(*)::integer AS n FROM gradebook.instrumento_historico
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([{ n: 13 }]);
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT count(*)::integer AS n FROM gradebook.nota_historico
       WHERE nao_feito_anterior=true AND nao_feito_novo=false
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([{ n: 12 }]);
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT arquivo,count(*)::integer AS n
       FROM gradebook.importacao GROUP BY arquivo
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([{ arquivo: 'CORRECAO QUALITATIVO #855 V1', n: 1 }]);
 });
 
@@ -141,7 +155,7 @@ it('leaves every corrected T1/T2 qualitative maximum at exactly 16.5', async () 
 
 it('is idempotent after the one-time correction has already been applied', async () => {
   await pg.exec(migration);
-  expect(
-    (await pg.query(`SELECT count(*)::integer AS n FROM gradebook.importacao`)).rows,
-  ).toEqual([{ n: 1 }]);
+  expect((await pg.query(`SELECT count(*)::integer AS n FROM gradebook.importacao`)).rows).toEqual([
+    { n: 1 },
+  ]);
 });

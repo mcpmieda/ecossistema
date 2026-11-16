@@ -145,7 +145,9 @@ describe('administrative settings UI', () => {
     expect(mock.writes).toHaveLength(0);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Aberto agora.')).toBeTruthy();
-    expect(within(dialog).getByText('Os alunos poderão entrar assim que você confirmar.')).toBeTruthy();
+    expect(
+      within(dialog).getByText('Os alunos poderão entrar assim que você confirmar.'),
+    ).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Confirmar alteração' }));
     await screen.findByText('Salvo.');
     expect(mock.writes[0]).toMatchObject({
@@ -164,7 +166,9 @@ describe('administrative settings UI', () => {
     const view = render(createElement(StudentSettingsV1, mock.props));
     await ready();
     await user.click(screen.getByRole('button', { name: 'Usar padrão de Entrada no Portal' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Usar padrão' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Usar padrão' }),
+    );
     await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
     expect(mock.writes[0]).toMatchObject({
       operation: 'settings-inherit',
@@ -291,7 +295,11 @@ describe('administrative settings UI', () => {
   it('opens the policies on the tab asked for', async () => {
     const mock = setup();
     render(
-      createElement(StudentSettingsV1, { ...mock.props, area: 'policies', initialCategory: 'grades' }),
+      createElement(StudentSettingsV1, {
+        ...mock.props,
+        area: 'policies',
+        initialCategory: 'grades',
+      }),
     );
     await screen.findByRole('heading', { name: 'Notas' });
     expect(screen.getByRole('tab', { name: 'Notas' }).getAttribute('aria-selected')).toBe('true');

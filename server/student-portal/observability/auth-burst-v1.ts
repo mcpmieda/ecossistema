@@ -1,8 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  emitPortalAuthBurstMetricV1,
-  type PortalAuthBurstMetricV1,
-} from './metrics-v1';
+import { emitPortalAuthBurstMetricV1, type PortalAuthBurstMetricV1 } from './metrics-v1';
 
 export type AuthBurstGuardV1 = (opaqueSubject: string, networkSubject?: string) => Promise<boolean>;
 type BurstMetricSinkV1 = (metric: PortalAuthBurstMetricV1) => void;
@@ -21,17 +18,24 @@ export function portalAuthBurstV1(
   emit: BurstMetricSinkV1 = emitPortalAuthBurstMetricV1,
 ): AuthBurstGuardV1 {
   return async (opaqueSubject, networkSubject) => {
-    if (opaqueSubject.length > 512 || (networkSubject !== undefined && (!networkSubject || networkSubject.length > 512))) {
+    if (
+      opaqueSubject.length > 512 ||
+      (networkSubject !== undefined && (!networkSubject || networkSubject.length > 512))
+    ) {
       emit({ event: 'student-portal-auth-burst-v1', outcome: 'invalid-subject' });
       return false;
     }
     try {
-      const globalKey = networkSubject === undefined ? 'student-portal-auth-v1' : createHash('sha256')
-        .update('student-portal-auth-v1\0network\0')
-        .update(networkSubject)
-        .digest('hex');
+      const globalKey =
+        networkSubject === undefined
+          ? 'student-portal-auth-v1'
+          : createHash('sha256')
+              .update('student-portal-auth-v1\0network\0')
+              .update(networkSubject)
+              .digest('hex');
       const globalResult = await global.limit({ key: globalKey });
-      if (typeof globalResult?.success !== 'boolean') throw new Error('invalid-rate-limit-response');
+      if (typeof globalResult?.success !== 'boolean')
+        throw new Error('invalid-rate-limit-response');
       if (!globalResult.success) {
         emit({ event: 'student-portal-auth-burst-v1', outcome: 'global-limited' });
         return false;
@@ -41,7 +45,8 @@ export function portalAuthBurstV1(
         .update(opaqueSubject)
         .digest('hex');
       const subjectResult = await subject.limit({ key });
-      if (typeof subjectResult?.success !== 'boolean') throw new Error('invalid-rate-limit-response');
+      if (typeof subjectResult?.success !== 'boolean')
+        throw new Error('invalid-rate-limit-response');
       if (!subjectResult.success) {
         emit({ event: 'student-portal-auth-burst-v1', outcome: 'subject-limited' });
         return false;

@@ -144,7 +144,9 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
   if (state.state !== 'completed') return null;
   const response = state.response;
   const success = response.state === 'applied' || response.state === 'no-changes';
-  const warnings = relationWarningsV1(response).filter((warning) => !AUDITED_WARNING_CODES_V1.has(warning.code));
+  const warnings = relationWarningsV1(response).filter(
+    (warning) => !AUDITED_WARNING_CODES_V1.has(warning.code),
+  );
   const warned = warnings.length > 0;
   // A saved file says it all in its line; only a refusal or a warning needs more.
   if (success && !warned) return null;
@@ -170,15 +172,20 @@ function PersistenceResult({ state }: Readonly<{ state: ImportPersistenceStateV9
 }
 
 /** Students held by the Relação checks: they go to the Auditoria with the other problems. */
-const AUDITED_WARNING_CODES_V1: ReadonlySet<string> = new Set(['student-name-mismatch', 'student-not-in-relation']);
+const AUDITED_WARNING_CODES_V1: ReadonlySet<string> = new Set([
+  'student-name-mismatch',
+  'student-not-in-relation',
+]);
 
-function relationWarningsV1(response: { readonly warnings?: readonly GradebookRelationWarningV9[] } | object):
-  readonly GradebookRelationWarningV9[] {
+function relationWarningsV1(
+  response: { readonly warnings?: readonly GradebookRelationWarningV9[] } | object,
+): readonly GradebookRelationWarningV9[] {
   return 'warnings' in response ? (response.warnings ?? []) : [];
 }
 
 function RelationWarningV1({ warning }: Readonly<{ warning: GradebookRelationWarningV9 }>) {
-  if (warning.code === 'student-name-mismatch' || warning.code === 'student-not-in-relation') return null;
+  if (warning.code === 'student-name-mismatch' || warning.code === 'student-not-in-relation')
+    return null;
   return (
     <li>
       Movimentação ligada entre {warning.classCode} e {warning.relatedClassCode}. Confira a grafia.
@@ -324,10 +331,15 @@ export function NotesImportPanel({
 }: { frequencyClient?: FrequencyAdminClientV2 } = {}) {
   const [area, setArea] = useState('workbooks');
   // The phone's back button returns to the import area seen before.
-  useHistoryStepV1('import-area', { area }, (restored) => setArea(restored.area), (value) => {
-    const restored = (value as { area?: unknown } | null)?.area;
-    return restored === 'workbooks' || restored === 'frequency' ? { area: restored } : null;
-  });
+  useHistoryStepV1(
+    'import-area',
+    { area },
+    (restored) => setArea(restored.area),
+    (value) => {
+      const restored = (value as { area?: unknown } | null)?.area;
+      return restored === 'workbooks' || restored === 'frequency' ? { area: restored } : null;
+    },
+  );
   return (
     <div>
       <Tabs selectedKey={area} onSelectionChange={(key) => setArea(String(key))}>
@@ -572,7 +584,8 @@ type ChipColorV1 = 'default' | 'success' | 'warning' | 'danger';
 function resultChipV1(state: ImportPersistenceStateV9 | undefined): readonly [string, ChipColorV1] {
   if (!state || state.state === 'recognized') return ['Aguardando', 'default'];
   if (state.state === 'processing' || state.state === 'persisting') return ['Salvando', 'default'];
-  if (state.state === 'failed') return [state.kind === 'validation' ? 'Bloqueado' : 'Erro', 'danger'];
+  if (state.state === 'failed')
+    return [state.kind === 'validation' ? 'Bloqueado' : 'Erro', 'danger'];
   if (state.state !== 'completed') return [persistenceLabel(state), 'warning'];
   const response = state.response;
   if (response.state === 'no-changes') return ['Sem mudança', 'default'];
@@ -584,10 +597,15 @@ function resultChipV1(state: ImportPersistenceStateV9 | undefined): readonly [st
 /** The problems of a file that the Auditoria keeps: the actionable findings and the held students. */
 function auditedProblemsV1(result: ImportResultV1, batch: ImportBatchV1): number {
   const state = batch.persistence[result.id];
-  const held = state?.state === 'completed'
-    ? relationWarningsV1(state.response).filter((warning) => AUDITED_WARNING_CODES_V1.has(warning.code)).length
-    : 0;
-  return actionableGradebookImportDiagnosticsV1(batch.sourceDiagnostics[result.id] ?? []).length + held;
+  const held =
+    state?.state === 'completed'
+      ? relationWarningsV1(state.response).filter((warning) =>
+          AUDITED_WARNING_CODES_V1.has(warning.code),
+        ).length
+      : 0;
+  return (
+    actionableGradebookImportDiagnosticsV1(batch.sourceDiagnostics[result.id] ?? []).length + held
+  );
 }
 
 function AuditLinkV1({ problems, failed }: Readonly<{ problems: number; failed: boolean }>) {

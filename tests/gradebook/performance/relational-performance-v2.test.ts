@@ -1,5 +1,8 @@
 // @vitest-environment node
-import { analyticsGradeV6, analyticsDeltaV6 } from '../../../src/features/gradebook/performance/analytics-format-v6';
+import {
+  analyticsGradeV6,
+  analyticsDeltaV6,
+} from '../../../src/features/gradebook/performance/analytics-format-v6';
 import {
   analyticsStatsV6,
   buildPerformanceAnalyticsV6,
@@ -13,19 +16,44 @@ import {
 import { buildPerformanceTeacherPdfV6 } from '../../../src/features/gradebook/performance/performance-analytics-pdf-v6';
 import { PDFDocument } from 'pdf-lib';
 import * as performanceAnalysisModuleV3 from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
-import { buildPerformanceDashboardOverviewV5, createPerformanceDashboardV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
-import { dashboardAnalysisV5, performanceDashboardMatchesV5, performanceDashboardRequestSchemaV5, performanceDashboardResponseSchemaV5 } from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
+import {
+  buildPerformanceDashboardOverviewV5,
+  createPerformanceDashboardV5,
+} from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
+import {
+  dashboardAnalysisV5,
+  performanceDashboardMatchesV5,
+  performanceDashboardRequestSchemaV5,
+  performanceDashboardResponseSchemaV5,
+} from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
-import { performanceTermComparisonRequestSchemaV4, performanceTermComparisonResponseSchemaV4, performanceTermComparisonMatchesV4 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
-import { performanceAnalysisRequestSchemaV3, performanceAnalysisResponseSchemaV3, performanceAnalysisMatchesV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
+import {
+  performanceTermComparisonRequestSchemaV4,
+  performanceTermComparisonResponseSchemaV4,
+  performanceTermComparisonMatchesV4,
+} from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
+import {
+  performanceAnalysisRequestSchemaV3,
+  performanceAnalysisResponseSchemaV3,
+  performanceAnalysisMatchesV3,
+} from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createGradebookPostgresDatabaseFromSqlV1, type GradebookPostgresDatabaseV1, type GradebookPostgresSqlV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
+import {
+  createGradebookPostgresDatabaseFromSqlV1,
+  type GradebookPostgresDatabaseV1,
+  type GradebookPostgresSqlV1,
+} from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
 import { handlePerformanceRequestV1 } from '../../../server/gradebook/http/performance-routes-v1';
-import { performanceRequestSchemaV2, performanceResponseSchemaV2, performanceResponseMatchesV2, type PerformanceRequestV2 } from '../../../shared/gradebook-contracts/performance/relational-performance-v2';
+import {
+  performanceRequestSchemaV2,
+  performanceResponseSchemaV2,
+  performanceResponseMatchesV2,
+  type PerformanceRequestV2,
+} from '../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { seal } from '../../../server/auth/sealed';
 import { SESSION_COOKIE } from '../../../server/auth/session';
 import { testEnv } from '../../fixtures';
@@ -38,18 +66,51 @@ let readsFail = false;
 const queries: string[] = [];
 /** BN-DEC-042: complete and partial results both count in the indicators. */
 const counts = (state: string) => state === 'complete' || state === 'partial';
-const matrixRequest = (extra = {}): PerformanceRequestV2 => ({ transportVersion: 2, operation: 'matrix', year: 2026, classId: 10, period: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], ...extra });
+const matrixRequest = (extra = {}): PerformanceRequestV2 => ({
+  transportVersion: 2,
+  operation: 'matrix',
+  year: 2026,
+  classId: 10,
+  period: 1,
+  mode: 'regular',
+  statuses: [null, 1, 2, 3, 4, 5, 7],
+  ...extra,
+});
 const service = () => createRelationalPerformanceV2(database);
-const comparisonRequest = (extra: Record<string, unknown> = {}) => ({ transportVersion: 4, operation: 'term-comparison', year: 2026, classId: 10,
-  period: 3, referencePeriod: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], lens: 'result', offerId: null, ...extra });
-const dashboardRequest = (extra: Record<string, unknown> = {}) => ({ transportVersion: 5, operation: 'dashboard', year: 2026, classId: 10,
-  period: 1, referencePeriod: null, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], lens: 'result', offerId: null, ...extra });
+const comparisonRequest = (extra: Record<string, unknown> = {}) => ({
+  transportVersion: 4,
+  operation: 'term-comparison',
+  year: 2026,
+  classId: 10,
+  period: 3,
+  referencePeriod: 1,
+  mode: 'regular',
+  statuses: [null, 1, 2, 3, 4, 5, 7],
+  lens: 'result',
+  offerId: null,
+  ...extra,
+});
+const dashboardRequest = (extra: Record<string, unknown> = {}) => ({
+  transportVersion: 5,
+  operation: 'dashboard',
+  year: 2026,
+  classId: 10,
+  period: 1,
+  referencePeriod: null,
+  mode: 'regular',
+  statuses: [null, 1, 2, 3, 4, 5, 7],
+  lens: 'result',
+  offerId: null,
+  ...extra,
+});
 
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
-  await pg.exec('ALTER TABLE gradebook.fechamento ADD COLUMN rec_rr_mask SMALLINT NOT NULL DEFAULT 0;');
+  await pg.exec(
+    'ALTER TABLE gradebook.fechamento ADD COLUMN rec_rr_mask SMALLINT NOT NULL DEFAULT 0;',
+  );
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2),(2025,65000,3);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES
@@ -82,30 +143,78 @@ beforeAll(async () => {
       VALUES (4,1,'DECISAO SINTETICA','11111111-1111-4111-8111-111111111111');
   `);
   const sql: GradebookPostgresSqlV1 = {
-    async unsafe() { throw new Error('read-outside-transaction'); },
-    async begin(operation) { return pg.transaction(async (tx) => operation({ async unsafe(query, values = []) {
-      queries.push(query);
-      if (readsFail && query.startsWith('SELECT')) throw new Error('synthetic-private-failure');
-      const result = await tx.query<Record<string, unknown>>(query, [...values]);
-      if (query.startsWith('SET TRANSACTION')) expect((await tx.query("SELECT current_setting('transaction_read_only') AS r,current_setting('transaction_isolation') AS i")).rows).toEqual([{ r: 'on', i: 'repeatable read' }]);
-      return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
-    } })); },
-    async end() { await pg.close(); },
+    async unsafe() {
+      throw new Error('read-outside-transaction');
+    },
+    async begin(operation) {
+      return pg.transaction(async (tx) =>
+        operation({
+          async unsafe(query, values = []) {
+            queries.push(query);
+            if (readsFail && query.startsWith('SELECT'))
+              throw new Error('synthetic-private-failure');
+            const result = await tx.query<Record<string, unknown>>(query, [...values]);
+            if (query.startsWith('SET TRANSACTION'))
+              expect(
+                (
+                  await tx.query(
+                    "SELECT current_setting('transaction_read_only') AS r,current_setting('transaction_isolation') AS i",
+                  )
+                ).rows,
+              ).toEqual([{ r: 'on', i: 'repeatable read' }]);
+            return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
+          },
+        }),
+      );
+    },
+    async end() {
+      await pg.close();
+    },
   };
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
 }, 30_000);
-afterAll(async () => { await database?.close(); });
-beforeEach(() => { queries.length = 0; readsFail = false; });
+afterAll(async () => {
+  await database?.close();
+});
+beforeEach(() => {
+  queries.length = 0;
+  readsFail = false;
+});
 
 async function matrix(extra = {}) {
   const response = await service().execute(matrixRequest(extra));
-  if (response.state !== 'ready' || response.operation !== 'matrix') throw new Error(JSON.stringify(response));
+  if (response.state !== 'ready' || response.operation !== 'matrix')
+    throw new Error(JSON.stringify(response));
   return response;
 }
-async function http(body: unknown, role: 'ADMINISTRADOR' | 'PROFESSOR' | null = 'ADMINISTRADOR', overrides: Partial<RuntimeEnv> = {}) {
-  const headers = new Headers({ Origin: testEnv.OFFICIAL_ORIGIN, 'Content-Type': 'application/json' });
-  if (role) headers.set('Cookie', `${SESSION_COOKIE}=${await seal({ oid: '11111111-1111-4111-8111-111111111111', name: 'Synthetic', username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET, 'admin-session')}`);
-  const response = await handlePerformanceRequestV1(new Request(`${testEnv.OFFICIAL_ORIGIN}/api/gradebook/performance`, { method: 'POST', headers, body: JSON.stringify(body) }), { ...testEnv, RUNTIME_ENVIRONMENT: 'local', GRADEBOOK_STORAGE_PROVIDER: 'postgres', GRADEBOOK_DATABASE: database, ...overrides });
+async function http(
+  body: unknown,
+  role: 'ADMINISTRADOR' | 'PROFESSOR' | null = 'ADMINISTRADOR',
+  overrides: Partial<RuntimeEnv> = {},
+) {
+  const headers = new Headers({
+    Origin: testEnv.OFFICIAL_ORIGIN,
+    'Content-Type': 'application/json',
+  });
+  if (role)
+    headers.set(
+      'Cookie',
+      `${SESSION_COOKIE}=${await seal({ oid: '11111111-1111-4111-8111-111111111111', name: 'Synthetic', username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET, 'admin-session')}`,
+    );
+  const response = await handlePerformanceRequestV1(
+    new Request(`${testEnv.OFFICIAL_ORIGIN}/api/gradebook/performance`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    }),
+    {
+      ...testEnv,
+      RUNTIME_ENVIRONMENT: 'local',
+      GRADEBOOK_STORAGE_PROVIDER: 'postgres',
+      GRADEBOOK_DATABASE: database,
+      ...overrides,
+    },
+  );
   if (!response) throw new Error('route-not-found');
   return response;
 }
@@ -118,9 +227,15 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
       FROM gradebook.aluno`);
     try {
       const response = await matrix();
-      expect(response.rows.find((row) => row.student.id === 1)?.student.name).toBe('NOME CONFIGURADO SINTETICO');
-      expect((await pg.query('SELECT nome FROM gradebook.aluno WHERE id=1')).rows).toEqual([{ nome: 'ALUNO SINTETICO 1' }]);
-      expect(queries.filter((sql) => sql.includes('gradebook.student_presentation_v1'))).toHaveLength(1);
+      expect(response.rows.find((row) => row.student.id === 1)?.student.name).toBe(
+        'NOME CONFIGURADO SINTETICO',
+      );
+      expect((await pg.query('SELECT nome FROM gradebook.aluno WHERE id=1')).rows).toEqual([
+        { nome: 'ALUNO SINTETICO 1' },
+      ]);
+      expect(
+        queries.filter((sql) => sql.includes('gradebook.student_presentation_v1')),
+      ).toHaveLength(1);
     } finally {
       await pg.exec(`CREATE OR REPLACE VIEW gradebook.student_presentation_v1 AS
         SELECT id AS student_id,ano AS academic_year,nome AS name FROM gradebook.aluno`);
@@ -129,17 +244,27 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
   it('reads one repeatable read snapshot without N+1, old relations or writes', async () => {
     const result = await matrix();
     expect(queries).toHaveLength(6);
-    expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b|academic_record|academic_entity/u);
+    expect(queries.join('\n')).not.toMatch(
+      /\b(INSERT|UPDATE|DELETE)\b|academic_record|academic_entity/u,
+    );
     expect(result.rows).toHaveLength(8);
     expect(result.offers).toHaveLength(2);
-    expect(result).toMatchObject({ authority: 'calculated-preview', statistics: { classRows: 8, visibleRows: 8, eligibleRows: 6 } });
+    expect(result).toMatchObject({
+      authority: 'calculated-preview',
+      statistics: { classRows: 8, visibleRows: 8, eligibleRows: 6 },
+    });
     expect(performanceResponseSchemaV2.safeParse(result).success).toBe(true);
     expect(gzipSync(JSON.stringify(result)).length).toBeLessThan(500_000);
   });
   it('keeps zero, partial, missing, N/C and the imported reference distinct', async () => {
     const result = await matrix();
     const at = (id: number) => result.rows.find((r) => r.student.id === id)!.cells[0]!;
-    expect(at(1)).toMatchObject({ valueMilli: 24000, state: 'complete', sourceReferenceMilli: 24000, sourceComparison: 'match' });
+    expect(at(1)).toMatchObject({
+      valueMilli: 24000,
+      state: 'complete',
+      sourceReferenceMilli: 24000,
+      sourceComparison: 'match',
+    });
     expect(at(2)).toMatchObject({ valueMilli: 0, state: 'complete', level: 'below' });
     // A result with a blank instrument is still compared with the imported AM.
     expect(at(3)).toMatchObject({ state: 'partial', level: 'below' });
@@ -153,7 +278,7 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     // Nothing recorded reads as not done: zero, marked partial.
     expect(at(5)).toMatchObject({ valueMilli: 0, state: 'partial', level: 'below' });
     const recovery = await matrix({ mode: 'recovery' });
-    expect(recovery.rows.map((r) => r.student.id)).toEqual([2,3,4,5]);
+    expect(recovery.rows.map((r) => r.student.id)).toEqual([2, 3, 4, 5]);
     const noShow = recovery.rows.find((r) => r.student.id === 4)!;
     expect(noShow.cells[0]).toMatchObject({ valueMilli: null, state: 'no-show' });
     expect(noShow.cells[1]).toMatchObject({ state: 'recovery-pending' });
@@ -188,36 +313,73 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
   });
   it('does not promote statuses and ignores a decision while the student is not at the Council', async () => {
     const result = await matrix({ period: 'annual' });
-    expect(result.rows.find((r) => r.student.id === 6)).toMatchObject({ student: { indicatorEligible: false }, calculatedAnnual: { state: 'no-result', label: null } });
-    expect(result.rows.find((r) => r.student.id === 7)).toMatchObject({ student: { indicatorEligible: false }, calculatedAnnual: { label: 'TRANSFERIDO' } });
-    expect(result.rows.find((r) => r.student.id === 4)).toMatchObject({ calculatedAnnual: { label: 'EM RECUPERAÇÃO' }, formalCouncilDecision: null });
+    expect(result.rows.find((r) => r.student.id === 6)).toMatchObject({
+      student: { indicatorEligible: false },
+      calculatedAnnual: { state: 'no-result', label: null },
+    });
+    expect(result.rows.find((r) => r.student.id === 7)).toMatchObject({
+      student: { indicatorEligible: false },
+      calculatedAnnual: { label: 'TRANSFERIDO' },
+    });
+    expect(result.rows.find((r) => r.student.id === 4)).toMatchObject({
+      calculatedAnnual: { label: 'EM RECUPERAÇÃO' },
+      formalCouncilDecision: null,
+    });
   });
   it('preserves warnings and refuses to invent comparability', async () => {
     const result = await matrix();
-    expect(result.rows.find((r) => r.student.id === 8)!.cells[0]!.warningCodes).toContain('value-above-maximum');
+    expect(result.rows.find((r) => r.student.id === 8)!.cells[0]!.warningCodes).toContain(
+      'value-above-maximum',
+    );
     expect(result.comparison).toEqual({ available: false, reason: 'comparability-not-contracted' });
   });
-  it.each([1,2,3,'annual'])('keeps period %s in the returned request scope', async (period) => {
+  it.each([1, 2, 3, 'annual'])('keeps period %s in the returned request scope', async (period) => {
     expect(await matrix({ period })).toMatchObject({ period, mode: 'regular' });
   });
   it('returns current movement at the new class only and excludes the historical position', async () => {
     expect((await matrix()).rows.some((r) => r.student.id === 9)).toBe(false);
-    expect((await matrix({ classId: 20 })).rows[0]!.student).toMatchObject({ id: 9, status: 7, indicatorEligible: true });
+    expect((await matrix({ classId: 20 })).rows[0]!.student).toMatchObject({
+      id: 9,
+      status: 7,
+      indicatorEligible: true,
+    });
   });
   it('does not invent a successful result from missing offer definitions', async () => {
     const result = await matrix({ classId: 40 });
-    expect(result.rows[0]).toMatchObject({ calculatedAnnual: null, cells: [{ valueMilli: null, state: 'unavailable' }] });
+    expect(result.rows[0]).toMatchObject({
+      calculatedAnnual: null,
+      cells: [{ valueMilli: null, state: 'unavailable' }],
+    });
   });
   it('rejects ambiguous offerings instead of merging two teachers by subject', async () => {
-    expect(await service().execute(matrixRequest({ classId: 50 }))).toEqual({ transportVersion: 2, state: 'ambiguous-offers' });
+    expect(await service().execute(matrixRequest({ classId: 50 }))).toEqual({
+      transportVersion: 2,
+      state: 'ambiguous-offers',
+    });
   });
   it('rejects a scope beyond the row limit instead of truncating silently', async () => {
-    expect(await service().execute(matrixRequest({ classId: 60 }))).toEqual({ transportVersion: 2, state: 'scope-too-large' });
+    expect(await service().execute(matrixRequest({ classId: 60 }))).toEqual({
+      transportVersion: 2,
+      state: 'scope-too-large',
+    });
   });
   it('loads only the requested student and offer in a cell detail', async () => {
-    const request: PerformanceRequestV2 = { transportVersion: 2, operation: 'cell-detail', year: 2026, classId: 10, period: 1, mode: 'regular', studentId: 2, offerId: 10 };
+    const request: PerformanceRequestV2 = {
+      transportVersion: 2,
+      operation: 'cell-detail',
+      year: 2026,
+      classId: 10,
+      period: 1,
+      mode: 'regular',
+      studentId: 2,
+      offerId: 10,
+    };
     const result = await service().execute(request);
-    expect(result).toMatchObject({ operation: 'cell-detail', student: { id: 2 }, offer: { id: 10 } });
+    expect(result).toMatchObject({
+      operation: 'cell-detail',
+      student: { id: 2 },
+      offer: { id: 10 },
+    });
     expect(performanceResponseMatchesV2(request, result)).toBe(true);
     expect(queries).toHaveLength(6);
     expect(queries[5]).toContain('AND v.aluno_id=');
@@ -240,52 +402,102 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
       });
       if (result.state !== 'ready' || result.operation !== 'cell-detail')
         throw new Error(JSON.stringify(result));
-      expect(result.terms[0].instruments.find((instrument) => instrument.slot === 3)).toMatchObject({
-        slot: 3,
-        maximumMilli: 13_500,
-      });
+      expect(result.terms[0].instruments.find((instrument) => instrument.slot === 3)).toMatchObject(
+        {
+          slot: 3,
+          maximumMilli: 13_500,
+        },
+      );
     } finally {
       await pg.exec('DELETE FROM gradebook.instrumento WHERE id=9901');
     }
   });
   it('loads the student trajectory without a matrix for other students', async () => {
-    const result = await service().execute({ transportVersion: 2, operation: 'student-detail', year: 2026, classId: 10, period: 3, mode: 'regular', studentId: 1 });
-    expect(result).toMatchObject({ operation: 'student-detail', row: { student: { id: 1 } }, trajectory: [{ offerId: 10 }, { offerId: 11 }] });
+    const result = await service().execute({
+      transportVersion: 2,
+      operation: 'student-detail',
+      year: 2026,
+      classId: 10,
+      period: 3,
+      mode: 'regular',
+      studentId: 1,
+    });
+    expect(result).toMatchObject({
+      operation: 'student-detail',
+      row: { student: { id: 1 } },
+      trajectory: [{ offerId: 10 }, { offerId: 11 }],
+    });
     expect(queries).toHaveLength(6);
   });
-  it.each([{ year: 2025, classId: 10 }, { year: 2027, classId: 10 }])('keeps class identities isolated inside any valid year %j', async (extra) => {
-    expect(await service().execute(matrixRequest(extra))).toEqual({ transportVersion: 2, state: 'not-found' });
+  it.each([
+    { year: 2025, classId: 10 },
+    { year: 2027, classId: 10 },
+  ])('keeps class identities isolated inside any valid year %j', async (extra) => {
+    expect(await service().execute(matrixRequest(extra))).toEqual({
+      transportVersion: 2,
+      state: 'not-found',
+    });
     expect(queries.length).toBeGreaterThan(0);
   });
   it('does not disclose whether a class exists outside the requested 2026 scope', async () => {
-    expect(await service().execute(matrixRequest({ classId: 999 }))).toEqual({ transportVersion: 2, state: 'not-found' });
+    expect(await service().execute(matrixRequest({ classId: 999 }))).toEqual({
+      transportVersion: 2,
+      state: 'not-found',
+    });
   });
   it('pages registered classes without inventing a selected year', async () => {
-    const request = { transportVersion: 2, operation: 'classes', year: 2026, offset: 0, limit: 2 } as const;
+    const request = {
+      transportVersion: 2,
+      operation: 'classes',
+      year: 2026,
+      offset: 0,
+      limit: 2,
+    } as const;
     const result = await service().execute(request);
     expect(result).toMatchObject({ classes: [{ id: 10 }, { id: 20 }], nextOffset: 2 });
     expect(performanceResponseMatchesV2(request, result)).toBe(true);
     expect(queries).toHaveLength(3);
   });
-  it.each([{ statuses: [] }, { statuses: [null,null] }, { statuses: [6] }, { classId: "1 OR 1=1" }, { mode: 'automatic' }, { extra: true }])('rejects invalid or unknown input before SQL %j', async (extra) => {
+  it.each([
+    { statuses: [] },
+    { statuses: [null, null] },
+    { statuses: [6] },
+    { classId: '1 OR 1=1' },
+    { mode: 'automatic' },
+    { extra: true },
+  ])('rejects invalid or unknown input before SQL %j', async (extra) => {
     expect(performanceRequestSchemaV2.safeParse(matrixRequest(extra)).success).toBe(false);
-    expect(await service().execute(matrixRequest(extra))).toEqual({ transportVersion: 2, state: 'invalid-request' });
+    expect(await service().execute(matrixRequest(extra))).toEqual({
+      transportVersion: 2,
+      state: 'invalid-request',
+    });
     expect(queries).toHaveLength(0);
   });
   it('serves V2 through the real HTTP authorization boundary with no-store', async () => {
     const response = await http(matrixRequest());
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toContain('no-store');
-    expect(await response.json()).toMatchObject({ transportVersion: 2, authority: 'calculated-preview', operation: 'matrix' });
+    expect(await response.json()).toMatchObject({
+      transportVersion: 2,
+      authority: 'calculated-preview',
+      operation: 'matrix',
+    });
   });
-  it.each([null, 'PROFESSOR'] as const)('denies unauthenticated or unauthorized role %s without reads', async (role) => {
-    const response = await http(matrixRequest(), role);
-    expect([401,403]).toContain(response.status);
-    expect(queries).toHaveLength(0);
-  });
+  it.each([null, 'PROFESSOR'] as const)(
+    'denies unauthenticated or unauthorized role %s without reads',
+    async (role) => {
+      const response = await http(matrixRequest(), role);
+      expect([401, 403]).toContain(response.status);
+      expect(queries).toHaveLength(0);
+    },
+  );
   it('does not bypass the production runtime gate', async () => {
-    const response = await http(matrixRequest(), 'ADMINISTRADOR', { RUNTIME_ENVIRONMENT: 'production', GRADEBOOK_PRODUCTION_ENABLED: 'false' });
-    expect(response.status).toBe(503); expect(queries).toHaveLength(0);
+    const response = await http(matrixRequest(), 'ADMINISTRADOR', {
+      RUNTIME_ENVIRONMENT: 'production',
+      GRADEBOOK_PRODUCTION_ENABLED: 'false',
+    });
+    expect(response.status).toBe(503);
+    expect(queries).toHaveLength(0);
   });
   it('keeps database failures opaque and never converts them to an empty success', async () => {
     readsFail = true;
@@ -305,105 +517,188 @@ describe('same-year trimester comparison V4', () => {
     if (result.state !== 'ready') throw new Error('unexpected-comparison-failure');
     expect(queries).toHaveLength(6);
     expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
-    expect(result).toMatchObject({ authority: 'descriptive-observation', basis: 'percentage-points-of-official-maximum', referencePeriod: 1,
-      analysis: { lens: 'result', matrix: { period: 3, context: { year: 2026 } } } });
+    expect(result).toMatchObject({
+      authority: 'descriptive-observation',
+      basis: 'percentage-points-of-official-maximum',
+      referencePeriod: 1,
+      analysis: { lens: 'result', matrix: { period: 3, context: { year: 2026 } } },
+    });
     const row = (id: number) => result.rows.find((value) => value.studentId === id)!.values[0]!;
     expect(row(1)).toMatchObject({ state: 'comparable', relation: 'lower' });
-    expect(row(2)).toMatchObject({ state: 'comparable', relation: 'equal', deltaPercentagePoints: 0, currentPercent: 0, referencePercent: 0 });
+    expect(row(2)).toMatchObject({
+      state: 'comparable',
+      relation: 'equal',
+      deltaPercentagePoints: 0,
+      currentPercent: 0,
+      referencePercent: 0,
+    });
     expect(row(3)).toMatchObject({ state: 'comparable' });
     expect(performanceTermComparisonResponseSchemaV4.safeParse(result).success).toBe(true);
     expect(performanceTermComparisonMatchesV4(request, result)).toBe(true);
   });
   it('supports T3 against T2 and T2 against T1 for every non-assessment lens', async () => {
-    for (const [period, referencePeriod, lens] of [[3,2,'result'],[2,1,'quantitative'],[2,1,'qualitative']] as const) {
-      const result = await createPerformanceTermComparisonV4(database).execute(comparisonRequest({ period, referencePeriod, lens }));
-      expect(result).toMatchObject({ state: 'ready', referencePeriod, analysis: { lens, matrix: { period } } });
+    for (const [period, referencePeriod, lens] of [
+      [3, 2, 'result'],
+      [2, 1, 'quantitative'],
+      [2, 1, 'qualitative'],
+    ] as const) {
+      const result = await createPerformanceTermComparisonV4(database).execute(
+        comparisonRequest({ period, referencePeriod, lens }),
+      );
+      expect(result).toMatchObject({
+        state: 'ready',
+        referencePeriod,
+        analysis: { lens, matrix: { period } },
+      });
     }
   });
   it.each([
-    { period: 1, referencePeriod: 1 }, { period: 2, referencePeriod: 2 }, { period: 'annual', referencePeriod: 1 },
-    { lens: 'assessments', offerId: 10 }, { year: 2025 },
+    { period: 1, referencePeriod: 1 },
+    { period: 2, referencePeriod: 2 },
+    { period: 'annual', referencePeriod: 1 },
+    { lens: 'assessments', offerId: 10 },
+    { year: 2025 },
   ])('rejects an invalid comparison or isolates another year %j', async (extra) => {
-    expect(await createPerformanceTermComparisonV4(database).execute(comparisonRequest(extra))).toEqual({ transportVersion: 4, state: 'year' in extra ? 'not-found' : 'invalid-request' });
+    expect(
+      await createPerformanceTermComparisonV4(database).execute(comparisonRequest(extra)),
+    ).toEqual({ transportVersion: 4, state: 'year' in extra ? 'not-found' : 'invalid-request' });
     if (!('year' in extra)) expect(queries).toHaveLength(0);
   });
   it('routes V4 through the existing authenticated no-store boundary', async () => {
     const response = await http(comparisonRequest());
     expect(response.status).toBe(200);
     expect(response.headers.get('Cache-Control')).toContain('no-store');
-    expect(await response.json()).toMatchObject({ transportVersion: 4, state: 'ready', operation: 'term-comparison' });
+    expect(await response.json()).toMatchObject({
+      transportVersion: 4,
+      state: 'ready',
+      operation: 'term-comparison',
+    });
   });
   it('rejects forged comparison membership and a mismatched reference', async () => {
     const request = performanceTermComparisonRequestSchemaV4.parse(comparisonRequest());
     const result = await createPerformanceTermComparisonV4(database).execute(request);
     if (result.state !== 'ready') throw new Error('unexpected-comparison-failure');
-    expect(performanceTermComparisonMatchesV4({ ...request, referencePeriod: 2 }, result)).toBe(false);
+    expect(performanceTermComparisonMatchesV4({ ...request, referencePeriod: 2 }, result)).toBe(
+      false,
+    );
     result.columns[0]!.summary.groups.higher.push(9999);
     expect(performanceTermComparisonResponseSchemaV4.safeParse(result).success).toBe(false);
   });
 });
 
-const analysisRequest = (extra = {}) => ({ ...matrixRequest(), transportVersion: 3, operation: 'analysis', lens: 'result', offerId: null, ...extra });
+const analysisRequest = (extra = {}) => ({
+  ...matrixRequest(),
+  transportVersion: 3,
+  operation: 'analysis',
+  lens: 'result',
+  offerId: null,
+  ...extra,
+});
 async function analysis(extra = {}) {
   const result = await createPerformanceAnalysisV3(database).execute(analysisRequest(extra));
   if (result.state !== 'ready') throw new Error(JSON.stringify(result));
   return result;
 }
 describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
-  it.each(['result','quantitative','qualitative'])('reads %s without extra SQL or a second academic engine', async (lens) => {
-    const result = await analysis({ lens });
-    expect(queries).toHaveLength(6);
-    expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b|academic_record|academic_entity/u);
-    expect(result.matrix.rows).toHaveLength(8);
-    expect(result.columns).toHaveLength(2);
-    expect(result.rows.every((row) => row.values.length === 2)).toBe(true);
-    expect(result.matrix.authority).toBe('calculated-preview');
-    expect(gzipSync(JSON.stringify(result)).length).toBeLessThan(500_000);
-    expect(performanceAnalysisResponseSchemaV3.safeParse(result).success).toBe(true);
-  });
+  it.each(['result', 'quantitative', 'qualitative'])(
+    'reads %s without extra SQL or a second academic engine',
+    async (lens) => {
+      const result = await analysis({ lens });
+      expect(queries).toHaveLength(6);
+      expect(queries.join('\n')).not.toMatch(
+        /\b(INSERT|UPDATE|DELETE)\b|academic_record|academic_entity/u,
+      );
+      expect(result.matrix.rows).toHaveLength(8);
+      expect(result.columns).toHaveLength(2);
+      expect(result.rows.every((row) => row.values.length === 2)).toBe(true);
+      expect(result.matrix.authority).toBe('calculated-preview');
+      expect(gzipSync(JSON.stringify(result)).length).toBeLessThan(500_000);
+      expect(performanceAnalysisResponseSchemaV3.safeParse(result).success).toBe(true);
+    },
+  );
   it('retains numeric zero, counts blank and partial results, and excludes noneligible students', async () => {
     const result = await analysis({ lens: 'quantitative' });
     const at = (id: number) => result.rows.find((r) => r.studentId === id)!.values[0]!;
     expect(at(2)).toMatchObject({ valueMilli: 0, percent: 0, bucket: 'below', state: 'complete' });
     expect(at(3)).toMatchObject({ state: 'partial', bucket: 'below' });
     expect(at(5)).toMatchObject({ valueMilli: 0, percent: 0, state: 'partial', bucket: 'below' });
-    expect(at(6).bucket).toBe('excluded'); expect(at(7).bucket).toBe('excluded');
+    expect(at(6).bucket).toBe('excluded');
+    expect(at(7).bucket).toBe('excluded');
     expect(at(8).percent).toBeGreaterThan(100);
     const summary = result.columns[0]!.summary;
-    expect(summary.considered).toBe(6); expect(summary.scaled).toBe(6);
+    expect(summary.considered).toBe(6);
+    expect(summary.scaled).toBe(6);
     expect(summary.groups.incomplete).toEqual([]);
-    expect(summary.meanPercent).toBeCloseTo((12000/13500 + 0 + 8000/13500 + 40000/13500 + 1000/13500 + 0)*100/6);
-    expect(summary.medianPercent).toBeCloseTo((1000/13500 + 8000/13500)*50);
+    expect(summary.meanPercent).toBeCloseTo(
+      ((12000 / 13500 + 0 + 8000 / 13500 + 40000 / 13500 + 1000 / 13500 + 0) * 100) / 6,
+    );
+    expect(summary.medianPercent).toBeCloseTo((1000 / 13500 + 8000 / 13500) * 50);
   });
   it('classifies a numeric partial result at 60% and reads absence as not done', async () => {
     const result = await analysis({ lens: 'result', period: 1 });
     const at = (id: number) => result.rows.find((row) => row.studentId === id)!.values[0]!;
-    expect(at(3)).toMatchObject({ state: 'partial', valueMilli: 2000, maximumMilli: 30000, bucket: 'below' });
-    expect(at(3).percent).toBeCloseTo(2000 / 30000 * 100);
+    expect(at(3)).toMatchObject({
+      state: 'partial',
+      valueMilli: 2000,
+      maximumMilli: 30000,
+      bucket: 'below',
+    });
+    expect(at(3).percent).toBeCloseTo((2000 / 30000) * 100);
     expect(at(5)).toMatchObject({ state: 'partial', valueMilli: 0, percent: 0, bucket: 'below' });
     const third = await analysis({ lens: 'result', period: 3 });
-    expect(third.rows.find((row) => row.studentId === 1)!.values[0]).toMatchObject({ valueMilli: 24000, maximumMilli: 40000, percent: 60, bucket: 'above' });
+    expect(third.rows.find((row) => row.studentId === 1)!.values[0]).toMatchObject({
+      valueMilli: 24000,
+      maximumMilli: 40000,
+      percent: 60,
+      bucket: 'above',
+    });
   });
-  it.each([1,2,3,'annual'])('uses actual qualitative maxima in period %s, not a fabricated concept', async (period) => {
-    const result = await analysis({ lens: 'qualitative', period });
-    const first = result.rows[0]!.values[0]!;
-    expect(first.valueMilli).toBe(period === 'annual' ? 36000 : 12000);
-    expect(first.maximumMilli).toBe(period === 'annual' ? 55000 : period === 3 ? 22000 : 16500);
-    expect(result.matrix.comparison.available).toBe(false);
-  });
+  it.each([1, 2, 3, 'annual'])(
+    'uses actual qualitative maxima in period %s, not a fabricated concept',
+    async (period) => {
+      const result = await analysis({ lens: 'qualitative', period });
+      const first = result.rows[0]!.values[0]!;
+      expect(first.valueMilli).toBe(period === 'annual' ? 36000 : 12000);
+      expect(first.maximumMilli).toBe(period === 'annual' ? 55000 : period === 3 ? 22000 : 16500);
+      expect(result.matrix.comparison.available).toBe(false);
+    },
+  );
   it('does not assign a percentage to a complete reading whose maximum is unknown', async () => {
-    await pg.exec('UPDATE gradebook.instrumento SET maximo=NULL WHERE oferta_id=10 AND trimestre=1 AND slot=11');
+    await pg.exec(
+      'UPDATE gradebook.instrumento SET maximo=NULL WHERE oferta_id=10 AND trimestre=1 AND slot=11',
+    );
     try {
       const result = await analysis({ lens: 'qualitative' });
-      expect(result.rows[0]!.values[0]).toMatchObject({ state: 'complete', valueMilli: 12000, maximumMilli: null, percent: null, bucket: 'unscaled' });
+      expect(result.rows[0]!.values[0]).toMatchObject({
+        state: 'complete',
+        valueMilli: 12000,
+        maximumMilli: null,
+        percent: null,
+        bucket: 'unscaled',
+      });
       expect(result.columns[0]!.summary.meanPercent).toBeNull();
       expect(result.columns[0]!.summary.groups.unscaled).toContain(1);
-    } finally { await pg.exec('UPDATE gradebook.instrumento SET maximo=16500 WHERE oferta_id=10 AND trimestre=1 AND slot=11'); }
+    } finally {
+      await pg.exec(
+        'UPDATE gradebook.instrumento SET maximo=16500 WHERE oferta_id=10 AND trimestre=1 AND slot=11',
+      );
+    }
   });
   it('loads descriptions only for the explicitly selected component and preserves order', async () => {
     const result = await analysis({ lens: 'assessments', offerId: 10, period: 'annual' });
-    expect(queries).toHaveLength(6); expect(queries[5]).toContain('CASE WHEN o.id=');
-    expect(result.columns.map((col) => col.key)).toEqual(['10:1:1','10:1:2','10:1:11','10:2:1','10:2:2','10:2:11','10:3:1','10:3:2','10:3:11']);
+    expect(queries).toHaveLength(6);
+    expect(queries[5]).toContain('CASE WHEN o.id=');
+    expect(result.columns.map((col) => col.key)).toEqual([
+      '10:1:1',
+      '10:1:2',
+      '10:1:11',
+      '10:2:1',
+      '10:2:2',
+      '10:2:11',
+      '10:3:1',
+      '10:3:2',
+      '10:3:11',
+    ]);
     expect(result.columns.every((col) => col.label.includes('AVALIACAO SINTETICA'))).toBe(true);
     expect(result.rows[1]!.values[0]!.valueMilli).toBe(0);
   });
@@ -415,24 +710,55 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
       expect(quantitative.rows[0]!.values[0]!.valueMilli).toBe(12000);
       expect(quantitative.rows[1]!.values[0]!.valueMilli).toBe(9000);
       const instruments = await analysis({ lens: 'assessments', offerId: 10 });
-      expect(instruments.rows[0]!.values.find((v) => v.key === '10:1:3')).toMatchObject({ valueMilli: 9000, recordedMilli: 9000, state: 'complete', bucket: 'above' });
-      expect((await pg.query('SELECT valor FROM gradebook.nota WHERE instrumento_id=9999 AND aluno_id=1')).rows).toEqual([{ valor: 9000 }]);
-    } finally { await pg.exec('DELETE FROM gradebook.nota WHERE instrumento_id=9999; DELETE FROM gradebook.instrumento WHERE id=9999'); }
+      expect(instruments.rows[0]!.values.find((v) => v.key === '10:1:3')).toMatchObject({
+        valueMilli: 9000,
+        recordedMilli: 9000,
+        state: 'complete',
+        bucket: 'above',
+      });
+      expect(
+        (
+          await pg.query(
+            'SELECT valor FROM gradebook.nota WHERE instrumento_id=9999 AND aluno_id=1',
+          )
+        ).rows,
+      ).toEqual([{ valor: 9000 }]);
+    } finally {
+      await pg.exec(
+        'DELETE FROM gradebook.nota WHERE instrumento_id=9999; DELETE FROM gradebook.instrumento WHERE id=9999',
+      );
+    }
   });
   it('keeps N/C and recovery population, but never decomposes REC into activities', async () => {
     const result = await analysis({ mode: 'recovery' });
-    expect(result.rows.map((row) => row.studentId)).toEqual([2,3,4,5]);
-    expect(result.rows.find((row) => row.studentId === 4)!.values[0]).toMatchObject({ state: 'no-show', percent: null, bucket: 'no-show' });
+    expect(result.rows.map((row) => row.studentId)).toEqual([2, 3, 4, 5]);
+    expect(result.rows.find((row) => row.studentId === 4)!.values[0]).toMatchObject({
+      state: 'no-show',
+      percent: null,
+      bucket: 'no-show',
+    });
     const quantitative = await analysis({ mode: 'recovery', lens: 'quantitative' });
     expect(quantitative.rows[0]!.values[0]!.valueMilli).toBe(0);
     expect(quantitative.matrix.rows[0]!.cells[0]!.valueMilli).toBe(18000);
   });
-  it.each([{ lens: 'assessments' },{ lens: 'qualitative', offerId: 10 },{ lens: 'risk' },{ extra: true }])('rejects invalid lens/context before SQL %j', async (extra) => {
-    expect(await createPerformanceAnalysisV3(database).execute(analysisRequest(extra))).toEqual({ transportVersion: 3, state: 'invalid-request' });
+  it.each([
+    { lens: 'assessments' },
+    { lens: 'qualitative', offerId: 10 },
+    { lens: 'risk' },
+    { extra: true },
+  ])('rejects invalid lens/context before SQL %j', async (extra) => {
+    expect(await createPerformanceAnalysisV3(database).execute(analysisRequest(extra))).toEqual({
+      transportVersion: 3,
+      state: 'invalid-request',
+    });
     expect(queries).toHaveLength(0);
   });
   it('rejects an assessment component outside the class and forged statistical membership', async () => {
-    expect(await createPerformanceAnalysisV3(database).execute(analysisRequest({ lens: 'assessments', offerId: 30 }))).toMatchObject({ state: 'not-found' });
+    expect(
+      await createPerformanceAnalysisV3(database).execute(
+        analysisRequest({ lens: 'assessments', offerId: 30 }),
+      ),
+    ).toMatchObject({ state: 'not-found' });
     const result = await analysis();
     const request = performanceAnalysisRequestSchemaV3.parse(analysisRequest());
     expect(performanceAnalysisMatchesV3(request, result)).toBe(true);
@@ -441,15 +767,31 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
     expect(performanceAnalysisResponseSchemaV3.safeParse(result).success).toBe(false);
   });
   it('preserves the original HTTP boundary, no-store, production gate and opaque failure', async () => {
-    for (const role of [null, 'PROFESSOR'] as const) expect([401,403]).toContain((await http(analysisRequest(), role)).status);
+    for (const role of [null, 'PROFESSOR'] as const)
+      expect([401, 403]).toContain((await http(analysisRequest(), role)).status);
     expect(queries).toHaveLength(0);
-    expect((await http(analysisRequest(), 'ADMINISTRADOR', { RUNTIME_ENVIRONMENT: 'production', GRADEBOOK_PRODUCTION_ENABLED: 'false' })).status).toBe(503);
+    expect(
+      (
+        await http(analysisRequest(), 'ADMINISTRADOR', {
+          RUNTIME_ENVIRONMENT: 'production',
+          GRADEBOOK_PRODUCTION_ENABLED: 'false',
+        })
+      ).status,
+    ).toBe(503);
     expect(queries).toHaveLength(0);
     const response = await http(analysisRequest());
-    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toContain('no-store');
-    expect(await response.json()).toMatchObject({ transportVersion: 3, state: 'ready', matrix: { authority: 'calculated-preview' } });
-    readsFail=true;
-    expect(await (await http(analysisRequest())).json()).toEqual({ transportVersion: 3, state: 'unavailable' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toContain('no-store');
+    expect(await response.json()).toMatchObject({
+      transportVersion: 3,
+      state: 'ready',
+      matrix: { authority: 'calculated-preview' },
+    });
+    readsFail = true;
+    expect(await (await http(analysisRequest())).json()).toEqual({
+      transportVersion: 3,
+      state: 'unavailable',
+    });
   });
 });
 
@@ -469,7 +811,9 @@ describe('performance dashboard V5', () => {
       rows: rows.map((row) => ({ ...analysisRow, studentId: row.student.id })),
     });
     expect(overview.ranking).toHaveLength(10);
-    expect(overview.ranking.map((entry) => entry.studentId)).toEqual(Array.from({ length: 10 }, (_, index) => 100 + index));
+    expect(overview.ranking.map((entry) => entry.studentId)).toEqual(
+      Array.from({ length: 10 }, (_, index) => 100 + index),
+    );
   });
   it('returns component counts and a disjoint class panorama from one snapshot', async () => {
     const request = performanceDashboardRequestSchemaV5.parse(dashboardRequest());
@@ -478,54 +822,115 @@ describe('performance dashboard V5', () => {
     if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
     expect(queries).toHaveLength(6);
     expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
-    expect(result.overview.students).toEqual({ eligible: 6, classified: 6, allAtOrAbove: 2, withBelow: 4, pending: 0 });
-    expect(result.overview.groups).toEqual({ allAtOrAbove: [1, 8], withBelow: [2, 3, 4, 5], pending: [] });
+    expect(result.overview.students).toEqual({
+      eligible: 6,
+      classified: 6,
+      allAtOrAbove: 2,
+      withBelow: 4,
+      pending: 0,
+    });
+    expect(result.overview.groups).toEqual({
+      allAtOrAbove: [1, 8],
+      withBelow: [2, 3, 4, 5],
+      pending: [],
+    });
     expect(result.overview.ranking.map((entry) => entry.studentId)).toEqual([8, 1, 4, 3, 2, 5]);
-    expect(result.overview.ranking.find((entry) => entry.studentId === 3)).toMatchObject({ totalMilli: 4000, partial: true });
-    expect(result.overview.columns[0]).toMatchObject({ considered: 6, atOrAbove: 2, below: 4, incomplete: 0, noShow: 0, unscaled: 0 });
+    expect(result.overview.ranking.find((entry) => entry.studentId === 3)).toMatchObject({
+      totalMilli: 4000,
+      partial: true,
+    });
+    expect(result.overview.columns[0]).toMatchObject({
+      considered: 6,
+      atOrAbove: 2,
+      below: 4,
+      incomplete: 0,
+      noShow: 0,
+      unscaled: 0,
+    });
     expect(dashboardAnalysisV5(result).matrix.readAt).toBeTruthy();
     expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(true);
     expect(performanceDashboardMatchesV5(request, result)).toBe(true);
   });
-  it.each([[2, 'result'], [3, 'quantitative'], [3, 'qualitative']] as const)(
-    'sends the T%s %s panel with the previous trimester from the same read (issue #1471)', async (period, lens) => {
-      const request = performanceDashboardRequestSchemaV5.parse(dashboardRequest({ period, lens, includePrevious: true }));
+  it.each([
+    [2, 'result'],
+    [3, 'quantitative'],
+    [3, 'qualitative'],
+  ] as const)(
+    'sends the T%s %s panel with the previous trimester from the same read (issue #1471)',
+    async (period, lens) => {
+      const request = performanceDashboardRequestSchemaV5.parse(
+        dashboardRequest({ period, lens, includePrevious: true }),
+      );
       const result = await createPerformanceDashboardV5(database).execute(request);
       if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
       expect(queries).toHaveLength(6);
       expect(performanceDashboardMatchesV5(request, result)).toBe(true);
       queries.length = 0;
       // The same panel a separate request returns, apart from the instant of the read.
-      const sameRead = (value: unknown) => JSON.parse(JSON.stringify(value).replace(/"readAt":"[^"]*"/gu, '"readAt":""'));
-      const separate = await createPerformanceDashboardV5(database).execute(dashboardRequest({ period: period - 1, lens }));
+      const sameRead = (value: unknown) =>
+        JSON.parse(JSON.stringify(value).replace(/"readAt":"[^"]*"/gu, '"readAt":""'));
+      const separate = await createPerformanceDashboardV5(database).execute(
+        dashboardRequest({ period: period - 1, lens }),
+      );
       expect(sameRead(result.previous)).toEqual(sameRead(separate));
-      const alone = await createPerformanceDashboardV5(database).execute(dashboardRequest({ period, lens }));
+      const alone = await createPerformanceDashboardV5(database).execute(
+        dashboardRequest({ period, lens }),
+      );
       expect(sameRead({ ...result, previous: undefined })).toEqual(sameRead(alone));
-    });
+    },
+  );
   it('refuses the previous trimester where the arrows do not apply', async () => {
-    for (const extra of [{ period: 1 }, { period: 3, referencePeriod: 1 }, { period: 2, lens: 'assessments', offerId: 10 }, { period: 'annual' }]) {
-      expect(await createPerformanceDashboardV5(database).execute(dashboardRequest({ ...extra, includePrevious: true })))
-        .toEqual({ transportVersion: 5, state: 'invalid-request' });
+    for (const extra of [
+      { period: 1 },
+      { period: 3, referencePeriod: 1 },
+      { period: 2, lens: 'assessments', offerId: 10 },
+      { period: 'annual' },
+    ]) {
+      expect(
+        await createPerformanceDashboardV5(database).execute(
+          dashboardRequest({ ...extra, includePrevious: true }),
+        ),
+      ).toEqual({ transportVersion: 5, state: 'invalid-request' });
     }
     expect(queries).toHaveLength(0);
   });
-  it.each(['result', 'quantitative', 'qualitative'])('reuses the current %s analysis for the same-snapshot comparison panorama', async (lens) => {
-    const build = vi.spyOn(performanceAnalysisModuleV3, 'buildPerformanceAnalysisV3');
-    try {
-      const result = await createPerformanceDashboardV5(database).execute(dashboardRequest({ period: 3, referencePeriod: 1, lens }));
-      expect(result.state).toBe('ready');
-      if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
-      expect(result.view).toMatchObject({ transportVersion: 4, operation: 'term-comparison', referencePeriod: 1, analysis: { matrix: { period: 3 } } });
-      expect(queries).toHaveLength(6);
-      expect(build).toHaveBeenCalledTimes(2);
-      expect(build.mock.calls.map((call) => call[2].period)).toEqual([3, 1]);
-      expect(result.overview).toEqual(buildPerformanceDashboardOverviewV5(dashboardAnalysisV5(result)));
-      expect(JSON.stringify(result).match(/"operation":"analysis"/gu)).toHaveLength(1);
-    } finally { build.mockRestore(); }
-  });
+  it.each(['result', 'quantitative', 'qualitative'])(
+    'reuses the current %s analysis for the same-snapshot comparison panorama',
+    async (lens) => {
+      const build = vi.spyOn(performanceAnalysisModuleV3, 'buildPerformanceAnalysisV3');
+      try {
+        const result = await createPerformanceDashboardV5(database).execute(
+          dashboardRequest({ period: 3, referencePeriod: 1, lens }),
+        );
+        expect(result.state).toBe('ready');
+        if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
+        expect(result.view).toMatchObject({
+          transportVersion: 4,
+          operation: 'term-comparison',
+          referencePeriod: 1,
+          analysis: { matrix: { period: 3 } },
+        });
+        expect(queries).toHaveLength(6);
+        expect(build).toHaveBeenCalledTimes(2);
+        expect(build.mock.calls.map((call) => call[2].period)).toEqual([3, 1]);
+        expect(result.overview).toEqual(
+          buildPerformanceDashboardOverviewV5(dashboardAnalysisV5(result)),
+        );
+        expect(JSON.stringify(result).match(/"operation":"analysis"/gu)).toHaveLength(1);
+      } finally {
+        build.mockRestore();
+      }
+    },
+  );
   it('rejects invalid scopes and forged panorama membership', async () => {
-    for (const extra of [{ year: 2025 }, { period: 1, referencePeriod: 1 }, { lens: 'assessments', offerId: 10, referencePeriod: 1 }]) {
-      expect(await createPerformanceDashboardV5(database).execute(dashboardRequest(extra))).toEqual({ transportVersion: 5, state: 'year' in extra ? 'not-found' : 'invalid-request' });
+    for (const extra of [
+      { year: 2025 },
+      { period: 1, referencePeriod: 1 },
+      { lens: 'assessments', offerId: 10, referencePeriod: 1 },
+    ]) {
+      expect(await createPerformanceDashboardV5(database).execute(dashboardRequest(extra))).toEqual(
+        { transportVersion: 5, state: 'year' in extra ? 'not-found' : 'invalid-request' },
+      );
       if (!('year' in extra)) expect(queries).toHaveLength(0);
       queries.length = 0;
     }
@@ -539,13 +944,26 @@ describe('performance dashboard V5', () => {
     expect(performanceDashboardResponseSchemaV5.safeParse(fresh).success).toBe(false);
   });
   it('routes through the authenticated no-store boundary and preserves the production gate', async () => {
-    for (const role of [null, 'PROFESSOR'] as const) expect([401, 403]).toContain((await http(dashboardRequest(), role)).status);
+    for (const role of [null, 'PROFESSOR'] as const)
+      expect([401, 403]).toContain((await http(dashboardRequest(), role)).status);
     expect(queries).toHaveLength(0);
-    expect((await http(dashboardRequest(), 'ADMINISTRADOR', { RUNTIME_ENVIRONMENT: 'production', GRADEBOOK_PRODUCTION_ENABLED: 'false' })).status).toBe(503);
+    expect(
+      (
+        await http(dashboardRequest(), 'ADMINISTRADOR', {
+          RUNTIME_ENVIRONMENT: 'production',
+          GRADEBOOK_PRODUCTION_ENABLED: 'false',
+        })
+      ).status,
+    ).toBe(503);
     expect(queries).toHaveLength(0);
     const response = await http(dashboardRequest());
-    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toContain('no-store');
-    expect(await response.json()).toMatchObject({ transportVersion: 5, operation: 'dashboard', state: 'ready' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toContain('no-store');
+    expect(await response.json()).toMatchObject({
+      transportVersion: 5,
+      operation: 'dashboard',
+      state: 'ready',
+    });
   });
 });
 
@@ -567,9 +985,9 @@ describe('analytics V6: descriptive statistics over the shared academic snapshot
     await pg.exec('UPDATE gradebook.oferta SET professor_id=2 WHERE id=11');
     try {
       const result = await analytics();
-      expect(result.teachers.map((teacher) => teacher.id)).toEqual(
-        [...new Set(result.components.map((component) => component.offer.teacher.id))],
-      );
+      expect(result.teachers.map((teacher) => teacher.id)).toEqual([
+        ...new Set(result.components.map((component) => component.offer.teacher.id)),
+      ]);
       for (const teacher of result.teachers) {
         const component = result.components.find((item) => item.offer.teacher.id === teacher.id)!;
         expect(teacher.offerIds).toEqual([component.offer.id]);
@@ -587,19 +1005,40 @@ describe('analytics V6: descriptive statistics over the shared academic snapshot
       }
       expect(queries).toHaveLength(6);
       expect(performanceAnalyticsResponseSchemaV6.safeParse(result).success).toBe(true);
-    } finally { await pg.exec('UPDATE gradebook.oferta SET professor_id=1 WHERE id=11'); }
+    } finally {
+      await pg.exec('UPDATE gradebook.oferta SET professor_id=1 WHERE id=11');
+    }
   });
   it('retains ordered student groups when there are no component pairs', async () => {
     const matrix = await service().execute(matrixRequest({ statuses: [null, 7] }));
-    if (matrix.state !== 'ready' || matrix.operation !== 'matrix') throw new Error('unexpected-matrix-failure');
-    const result = buildPerformanceAnalyticsV6({
-      ...matrix,
-      offers: [],
-      rows: matrix.rows.map((row) => ({ ...row, cells: [] })),
-    }, new Map(), false);
-    expect(result.students.map((student) => student.student.id)).toEqual(matrix.rows.map((row) => row.student.id));
-    expect(result.summary).toMatchObject({ students: matrix.rows.length, readings: 0, studentsAtOrAbove: 0, studentsBelow: 0 });
-    expect(result.students.every((student) => student.cells.length === 0 && student.summary.readings === 0 && student.summary.result.mean === null)).toBe(true);
+    if (matrix.state !== 'ready' || matrix.operation !== 'matrix')
+      throw new Error('unexpected-matrix-failure');
+    const result = buildPerformanceAnalyticsV6(
+      {
+        ...matrix,
+        offers: [],
+        rows: matrix.rows.map((row) => ({ ...row, cells: [] })),
+      },
+      new Map(),
+      false,
+    );
+    expect(result.students.map((student) => student.student.id)).toEqual(
+      matrix.rows.map((row) => row.student.id),
+    );
+    expect(result.summary).toMatchObject({
+      students: matrix.rows.length,
+      readings: 0,
+      studentsAtOrAbove: 0,
+      studentsBelow: 0,
+    });
+    expect(
+      result.students.every(
+        (student) =>
+          student.cells.length === 0 &&
+          student.summary.readings === 0 &&
+          student.summary.result.mean === null,
+      ),
+    ).toBe(true);
     expect(result.components).toEqual([]);
     expect(result.teachers).toEqual([]);
   });

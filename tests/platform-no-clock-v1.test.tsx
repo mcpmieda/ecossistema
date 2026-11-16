@@ -19,7 +19,10 @@ const template = () =>
     ['platform.snapshot.read', 'platform.settings.read'],
   );
 const json = (body: unknown) =>
-  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 
 afterEach(() => {
   cleanup();
@@ -46,14 +49,20 @@ it('a reading that says the same is not published again (A27)', async () => {
   let clock = 0;
   const states: PlatformLoadStateV2[] = [];
   const fetcher = vi.fn<typeof fetch>(async () => json(template()));
-  const controller = createPlatformDataV2((state) => states.push(state), fetcher, () => clock);
+  const controller = createPlatformDataV2(
+    (state) => states.push(state),
+    fetcher,
+    () => clock,
+  );
   try {
     await controller.start();
     await vi.waitFor(() => expect(states.at(-1)).toMatchObject({ status: 'ready' }));
     const published = states.length;
     clock = 120_000;
     await controller.refresh();
-    expect(fetcher.mock.calls.filter(([path]) => String(path).endsWith('/bootstrap'))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([path]) => String(path).endsWith('/bootstrap'))).toHaveLength(
+      2,
+    );
     expect(states).toHaveLength(published);
   } finally {
     controller.dispose();
@@ -68,7 +77,10 @@ it('the same identity read again keeps the object shown (A27)', async () => {
     identityKey: 'synthetic-identity',
     expiresAt: new Date(Date.now() + 3600_000).toISOString(),
   };
-  vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => json(body)));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn<typeof fetch>(async () => json(body)),
+  );
   const { result } = renderHook(() => usePlatformIdentityV1());
   await vi.waitFor(() => expect(result.current.identity?.authenticated).toBe(true));
   const shown = result.current.identity;

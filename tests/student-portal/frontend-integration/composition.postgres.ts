@@ -168,16 +168,26 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
   const activeSession = await student.session();
   expect(activeSession.state).toBe('authenticated');
   if (activeSession.state !== 'authenticated') throw new Error('Synthetic session was not active');
-  const bound = await harness.fetch({ surface: 'student', path: '/api/student/session?accountId=' + account.accountId, cookie });
+  const bound = await harness.fetch({
+    surface: 'student',
+    path: '/api/student/session?accountId=' + account.accountId,
+    cookie,
+  });
   expect(bound.status).toBe(200);
   expect(await bound.json()).toMatchObject({ state: 'authenticated' });
-  const foreign = await harness.fetch({ surface: 'student', path: '/api/student/session?accountId=' + crypto.randomUUID(), cookie });
+  const foreign = await harness.fetch({
+    surface: 'student',
+    path: '/api/student/session?accountId=' + crypto.randomUUID(),
+    cookie,
+  });
   expect(foreign.status).toBe(401);
   const connectionId = crypto.randomUUID();
   const security = await harness.connectStudentSecurity(account.accountId, cookie!, connectionId);
   expect(security.status).toBe(101);
   const socket = security.webSocket!;
-  const connected = new Promise<string>((resolve) => socket.addEventListener('message', event => resolve(String(event.data)), { once: true }));
+  const connected = new Promise<string>((resolve) =>
+    socket.addEventListener('message', (event) => resolve(String(event.data)), { once: true }),
+  );
   socket.accept();
   expect(JSON.parse(await connected)).toEqual({
     contractVersion: 1,
@@ -187,8 +197,14 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
   });
   const renewed = await student.session(undefined, account.accountId, connectionId);
   expect(renewed.liveRenewed).toBe(true);
-  expect((await student.session(undefined, account.accountId, crypto.randomUUID())).liveRenewed).toBe(false);
-  const unboundRenewal = await harness.fetch({ surface: 'student', path: '/api/student/session?connectionId=' + connectionId, cookie });
+  expect(
+    (await student.session(undefined, account.accountId, crypto.randomUUID())).liveRenewed,
+  ).toBe(false);
+  const unboundRenewal = await harness.fetch({
+    surface: 'student',
+    path: '/api/student/session?connectionId=' + connectionId,
+    cookie,
+  });
   expect(unboundRenewal.status).toBe(403);
   socket.close(1000, 'synthetic-test-complete');
 

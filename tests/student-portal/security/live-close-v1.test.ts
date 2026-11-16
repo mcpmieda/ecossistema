@@ -15,9 +15,24 @@ function socket(readyState: number) {
 
 describe('live close guard (#1207 L-01)', () => {
   it.each([
-    [999, false], [1000, true], [1001, true], [1003, true], [1004, false], [1005, false],
-    [1006, false], [1007, true], [1014, true], [1015, false], [1016, false], [2999, false],
-    [3000, true], [4401, true], [4999, true], [5000, false], [1000.5, false], [Number.NaN, false],
+    [999, false],
+    [1000, true],
+    [1001, true],
+    [1003, true],
+    [1004, false],
+    [1005, false],
+    [1006, false],
+    [1007, true],
+    [1014, true],
+    [1015, false],
+    [1016, false],
+    [2999, false],
+    [3000, true],
+    [4401, true],
+    [4999, true],
+    [5000, false],
+    [1000.5, false],
+    [Number.NaN, false],
   ])('treats %s as sendable=%s', (code, sendable) => {
     expect(sendableCloseCodeV1(code)).toBe(sendable);
     const target = socket(2);
@@ -27,8 +42,14 @@ describe('live close guard (#1207 L-01)', () => {
 
   it('classifies codes without claiming a cause', () => {
     expect([1000, 1001, 4401, 1005, 1006, 1015, 3000, 1004].map(liveCloseCodeClassV1)).toEqual([
-      'normal', 'going-away', 'auth-expired', 'no-status', 'abnormal', 'tls-reserved',
-      'other-sendable', 'other-invalid',
+      'normal',
+      'going-away',
+      'auth-expired',
+      'no-status',
+      'abnormal',
+      'tls-reserved',
+      'other-sendable',
+      'other-invalid',
     ]);
   });
 
@@ -38,7 +59,9 @@ describe('live close guard (#1207 L-01)', () => {
     answerLiveCloseV1(target, 1005, '', (value) => void order.push(`signal:${value.codeClass}`));
     expect(order).toEqual(['signal:no-status', 'close']);
     const quiet = socket(2);
-    answerLiveCloseV1(quiet, 1006, '', () => { throw new Error('sink-unavailable'); });
+    answerLiveCloseV1(quiet, 1006, '', () => {
+      throw new Error('sink-unavailable');
+    });
     expect(quiet.closes).toEqual([[1000]]);
   });
 
@@ -48,7 +71,12 @@ describe('live close guard (#1207 L-01)', () => {
     failLiveSocketV1(target, (value) => void signals.push(value));
     expect(target.closes).toEqual([[1011, 'socket-error']]);
     expect(signals).toEqual([
-      { event: 'student-portal-live-close-v1', callback: 'error', codeClass: 'not-applicable', readyState: state },
+      {
+        event: 'student-portal-live-close-v1',
+        callback: 'error',
+        codeClass: 'not-applicable',
+        readyState: state,
+      },
     ]);
   });
 });

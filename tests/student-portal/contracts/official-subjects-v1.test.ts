@@ -4,7 +4,10 @@ import {
   OFFICIAL_SUBJECTS_2026_V1,
   officialSubjectV1,
 } from '../../../shared/student-portal-contracts/official-subjects-v1';
-import { subjectStyleV3, SUBJECT_TONES_V3 } from '../../../src/features/student-portal/redesign/subject-style-v3';
+import {
+  subjectStyleV3,
+  SUBJECT_TONES_V3,
+} from '../../../src/features/student-portal/redesign/subject-style-v3';
 
 /*
  * The Portal shows the school's official subject names (owner decision 23/10/2026), the Notas'

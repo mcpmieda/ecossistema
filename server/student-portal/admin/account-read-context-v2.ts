@@ -55,7 +55,11 @@ function firstAccessV2(row: Record<string, unknown>) {
   if (row.birth_year === null) return { state: 'birth-missing' as const, qrIssued, recoveryReady };
   if (row.birth_confirmation !== 'confirmed')
     return { state: 'birth-unconfirmed' as const, qrIssued, recoveryReady };
-  if (row.pin_registered !== true && !qrIssued && ['report','profile'].includes(String(row.birth_source)))
+  if (
+    row.pin_registered !== true &&
+    !qrIssued &&
+    ['report', 'profile'].includes(String(row.birth_source))
+  )
     return { state: 'qr-missing' as const, qrIssued, recoveryReady };
   if (row.pin_registered !== true)
     return { state: 'pin-missing' as const, qrIssued, recoveryReady };

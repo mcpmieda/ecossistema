@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const source = (path: string) => readFileSync(path, 'utf8');
-const cached = /new PhotoStorageV1\([\s\S]{0,240}?caches\?\.default\)/u;
+const cached = /new PhotoStorageV1\([\s\S]{0,400}?caches\?\.default,?\s*\)/u;
 
 /** Owner decision #1473: the ADM's photo reads use the Worker's own cache, as the Portal's; writes never do. */
 describe('student photo cache scope', () => {

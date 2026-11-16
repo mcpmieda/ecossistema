@@ -18,7 +18,13 @@ function offer(term: Partial<GradebookImportTermV9> = {}): GradebookImportOfferV
     disciplina: 'SYNTHETIC',
     recuperacao: null,
     trimestres: [
-      { trimestre: 1, definitionSnapshotVersion: 1 as const, instrumentos: [[11, null]], alunos: [[1, [null], null]], ...term },
+      {
+        trimestre: 1,
+        definitionSnapshotVersion: 1 as const,
+        instrumentos: [[11, null]],
+        alunos: [[1, [null], null]],
+        ...term,
+      },
       { trimestre: 2, definitionSnapshotVersion: 1 as const, instrumentos: [], alunos: [] },
       { trimestre: 3, definitionSnapshotVersion: 1 as const, instrumentos: [], alunos: [] },
     ],

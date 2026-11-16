@@ -4,30 +4,60 @@ import { z } from 'zod';
 export const ONEDRIVE_SYNC_CONTRACT_VERSION_V1 = 1;
 export const ONEDRIVE_SYNC_BODY_BYTES_V1 = 4096;
 
-const graphIdV1 = z.string().min(1).max(256).regex(/^[A-Za-z0-9!_.:-]+$/u);
+const graphIdV1 = z
+  .string()
+  .min(1)
+  .max(256)
+  .regex(/^[A-Za-z0-9!_.:-]+$/u);
 const yearV1 = z.number().int().min(2000).max(9999);
 
 export const oneDriveSyncRequestSchemaV1 = z.discriminatedUnion('action', [
   z.object({ action: z.literal('status') }).strict(),
   z.object({ action: z.literal('folders'), parentId: graphIdV1.nullable() }).strict(),
-  z.object({ action: z.literal('preview'), folderId: graphIdV1, testWebhook: z.boolean() }).strict(),
-  z.object({ action: z.literal('set-folder'), year: yearV1, folderId: graphIdV1, folderPath: z.string().min(1).max(400) }).strict(),
+  z
+    .object({ action: z.literal('preview'), folderId: graphIdV1, testWebhook: z.boolean() })
+    .strict(),
+  z
+    .object({
+      action: z.literal('set-folder'),
+      year: yearV1,
+      folderId: graphIdV1,
+      folderPath: z.string().min(1).max(400),
+    })
+    .strict(),
   z.object({ action: z.enum(['enable', 'disable', 'pause', 'resume', 'read-all']) }).strict(),
   z.object({ action: z.literal('set-wait'), seconds: z.number().int().min(0).max(600) }).strict(),
   z.object({ action: z.literal('read-now'), fileId: graphIdV1 }).strict(),
   // A source of an academic year: a whole folder (its workbooks) or one workbook (e.g. the Relação).
-  z.object({
-    action: z.literal('add-source'), year: yearV1, itemId: graphIdV1, kind: z.enum(['folder', 'file']),
-    path: z.string().min(1).max(400),
-  }).strict(),
+  z
+    .object({
+      action: z.literal('add-source'),
+      year: yearV1,
+      itemId: graphIdV1,
+      kind: z.enum(['folder', 'file']),
+      path: z.string().min(1).max(400),
+    })
+    .strict(),
   z.object({ action: z.literal('remove-source'), itemId: graphIdV1 }).strict(),
   // A Relação was applied elsewhere (manual import): the year's teacher workbooks are read again.
   z.object({ action: z.literal('reread-year'), year: yearV1 }).strict(),
 ]);
 export type OneDriveSyncRequestV1 = z.infer<typeof oneDriveSyncRequestSchemaV1>;
-export type OneDriveSyncCommandV1 = Exclude<OneDriveSyncRequestV1, { action: 'status' | 'folders' | 'preview' }>;
+export type OneDriveSyncCommandV1 = Exclude<
+  OneDriveSyncRequestV1,
+  { action: 'status' | 'folders' | 'preview' }
+>;
 
-const outcomeV1 = z.enum(['applied', 'no-changes', 'blocked', 'rejected', 'unreadable', 'ignored', 'too-large', 'failed']);
+const outcomeV1 = z.enum([
+  'applied',
+  'no-changes',
+  'blocked',
+  'rejected',
+  'unreadable',
+  'ignored',
+  'too-large',
+  'failed',
+]);
 
 export const oneDriveSyncFileSchemaV1 = z.object({
   id: z.string(),
@@ -55,13 +85,28 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
     maxParallel: z.number(),
   }),
   activeYear: yearV1.nullable(),
-  folders: z.array(z.object({
-    year: yearV1, folderId: z.string(), folderPath: z.string(), setBy: z.string(), setAt: z.number(),
-  })),
+  folders: z.array(
+    z.object({
+      year: yearV1,
+      folderId: z.string(),
+      folderPath: z.string(),
+      setBy: z.string(),
+      setAt: z.number(),
+    }),
+  ),
   /** Every folder or workbook read, each tied to its academic year (absent before sources existed). */
-  sources: z.array(z.object({
-    itemId: z.string(), kind: z.enum(['folder', 'file']), path: z.string(), year: yearV1, setBy: z.string(), setAt: z.number(),
-  })).optional(),
+  sources: z
+    .array(
+      z.object({
+        itemId: z.string(),
+        kind: z.enum(['folder', 'file']),
+        path: z.string(),
+        year: yearV1,
+        setBy: z.string(),
+        setAt: z.number(),
+      }),
+    )
+    .optional(),
   breakerUntil: z.number().nullable(),
   /** The deployed code version the coordinator runs (first 8 characters), when known. */
   codeVersion: z.string().max(64).nullable().optional(),
@@ -70,12 +115,27 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
   webhook: z.object({ active: z.boolean(), expiresAt: z.string().nullable() }),
   lastDeltaAt: z.number().nullable(),
   files: z.array(oneDriveSyncFileSchemaV1),
-  events: z.array(z.object({ at: z.number(), kind: z.string(), actor: z.string().nullable(), detail: z.string() })),
+  events: z.array(
+    z.object({
+      at: z.number(),
+      kind: z.string(),
+      actor: z.string().nullable(),
+      detail: z.string(),
+    }),
+  ),
 });
 export type OneDriveSyncStatusV1 = z.infer<typeof oneDriveSyncStatusSchemaV1>;
 
-export const oneDriveSyncFolderSchemaV1 = z.object({ id: z.string(), name: z.string(), childFolders: z.number() });
-export const oneDriveSyncWorkbookEntrySchemaV1 = z.object({ id: z.string(), name: z.string(), size: z.number() });
+export const oneDriveSyncFolderSchemaV1 = z.object({
+  id: z.string(),
+  name: z.string(),
+  childFolders: z.number(),
+});
+export const oneDriveSyncWorkbookEntrySchemaV1 = z.object({
+  id: z.string(),
+  name: z.string(),
+  size: z.number(),
+});
 
 export const oneDriveSyncPreviewSchemaV1 = z.object({
   workbooks: z.number(),
@@ -91,15 +151,28 @@ export const oneDriveSyncPreviewSchemaV1 = z.object({
 });
 
 export const oneDriveSyncResponseSchemaV1 = z.discriminatedUnion('state', [
-  z.object({ contractVersion: z.literal(1), state: z.literal('status'), status: oneDriveSyncStatusSchemaV1 }),
   z.object({
-    contractVersion: z.literal(1), state: z.literal('folders'), parentId: z.string().nullable(),
+    contractVersion: z.literal(1),
+    state: z.literal('status'),
+    status: oneDriveSyncStatusSchemaV1,
+  }),
+  z.object({
+    contractVersion: z.literal(1),
+    state: z.literal('folders'),
+    parentId: z.string().nullable(),
     folders: z.array(oneDriveSyncFolderSchemaV1),
     /** The workbooks of that folder, to choose one file as a source. */
     files: z.array(oneDriveSyncWorkbookEntrySchemaV1).optional(),
   }),
-  z.object({ contractVersion: z.literal(1), state: z.literal('preview'), preview: oneDriveSyncPreviewSchemaV1 }),
-  z.object({ contractVersion: z.literal(1), state: z.enum(['invalid-request', 'not-authorized', 'unavailable']) }),
+  z.object({
+    contractVersion: z.literal(1),
+    state: z.literal('preview'),
+    preview: oneDriveSyncPreviewSchemaV1,
+  }),
+  z.object({
+    contractVersion: z.literal(1),
+    state: z.enum(['invalid-request', 'not-authorized', 'unavailable']),
+  }),
 ]);
 export type OneDriveSyncResponseV1 = z.infer<typeof oneDriveSyncResponseSchemaV1>;
 

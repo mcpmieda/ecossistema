@@ -37,7 +37,10 @@ export function encodePhotoAvatarBatchV1(images: readonly PhotoAvatarBatchItemV1
     throw new Error('student-photo-batch-invalid');
   let size = HEADER_BYTES_V1;
   for (const image of images) {
-    if (image instanceof Uint8Array && (image.length < 20 || image.length > STUDENT_PHOTO_MAX_BYTES_V1))
+    if (
+      image instanceof Uint8Array &&
+      (image.length < 20 || image.length > STUDENT_PHOTO_MAX_BYTES_V1)
+    )
       throw new Error('student-photo-batch-invalid');
     size += ITEM_HEADER_BYTES_V1 + (image instanceof Uint8Array ? image.length : 0);
   }
@@ -74,7 +77,8 @@ export function decodePhotoAvatarBatchV1(
   const images: PhotoAvatarBatchItemV1[] = [];
   let offset = HEADER_BYTES_V1;
   for (let index = 0; index < expected; index++) {
-    if (offset + ITEM_HEADER_BYTES_V1 > bytes.length) throw new Error('student-photo-batch-invalid');
+    if (offset + ITEM_HEADER_BYTES_V1 > bytes.length)
+      throw new Error('student-photo-batch-invalid');
     const length = view.getUint32(offset);
     offset += ITEM_HEADER_BYTES_V1;
     if (length === 0 || length === UNAVAILABLE_V1) {

@@ -94,8 +94,18 @@ describe('access plan', () => {
   });
 
   it('accepts only time-ordered schedules without repeated times', () => {
-    expect(accessScheduleV1.safeParse([{ at: CLOSE, action: 'close' }, { at: OPEN, action: 'open' }]).success).toBe(false);
-    expect(accessScheduleV1.safeParse([{ at: OPEN, action: 'open' }, { at: OPEN, action: 'close' }]).success).toBe(false);
+    expect(
+      accessScheduleV1.safeParse([
+        { at: CLOSE, action: 'close' },
+        { at: OPEN, action: 'open' },
+      ]).success,
+    ).toBe(false);
+    expect(
+      accessScheduleV1.safeParse([
+        { at: OPEN, action: 'open' },
+        { at: OPEN, action: 'close' },
+      ]).success,
+    ).toBe(false);
     expect(accessScheduleV1.safeParse([{ at: OPEN, action: 'open' }]).success).toBe(true);
   });
 });
@@ -106,7 +116,11 @@ const policy = (accessEnabled: boolean, accessSchedule: [string, 'open' | 'close
     ...value,
     accessEnabled,
     accessSchedule: accessSchedule && accessSchedule.map(([at, action]) => ({ at, action })),
-    calendar: { ...value.calendar, yearStartsAt: '2026-02-23T03:00:00Z', yearEndsAt: '2026-12-18T21:00:00Z' },
+    calendar: {
+      ...value.calendar,
+      yearStartsAt: '2026-02-23T03:00:00Z',
+      yearEndsAt: '2026-12-18T21:00:00Z',
+    },
   };
 };
 
@@ -139,7 +153,9 @@ describe('enforced access with schedules', () => {
     const klass = policy(true, [[OPEN, 'open']]);
     const enforced = enforceSchoolAccessV1(klass, school);
     expect(accessGateV1(enforced, new Date(REOPEN))).toBe(false);
-    expect(portalNoticesForPolicyV1(enforced, new Date('2026-09-28T12:00:00Z')).accessOpensAt).toBeNull();
+    expect(
+      portalNoticesForPolicyV1(enforced, new Date('2026-09-28T12:00:00Z')).accessOpensAt,
+    ).toBeNull();
   });
 
   it('lets a class stay closed while the school opens on schedule', () => {

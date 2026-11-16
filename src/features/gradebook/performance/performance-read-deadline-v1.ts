@@ -11,11 +11,12 @@ export async function withPerformanceReadDeadlineV1<T>(
   if (parent?.aborted) throw parent.reason ?? new DOMException('Leitura cancelada.', 'AbortError');
   const controller = new AbortController();
   let rejectAbort: (reason: unknown) => void = () => undefined;
-  const cancelled = new Promise<never>((_resolve, reject) => { rejectAbort = reject; });
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject;
+  });
   const onAbort = () => rejectAbort(controller.signal.reason);
-  const onParentAbort = () => controller.abort(
-    parent?.reason ?? new DOMException('Leitura cancelada.', 'AbortError'),
-  );
+  const onParentAbort = () =>
+    controller.abort(parent?.reason ?? new DOMException('Leitura cancelada.', 'AbortError'));
   controller.signal.addEventListener('abort', onAbort, { once: true });
   parent?.addEventListener('abort', onParentAbort, { once: true });
   const timeout = setTimeout(() => {

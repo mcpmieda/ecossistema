@@ -16,11 +16,17 @@ import { SCHOOL_TIME_ZONE_V1 } from './school-time-zone-v1';
 export const PT_BR_COLLATOR_V1 = /* @__PURE__ */ new Intl.Collator('pt-BR');
 
 /** Same text as `n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })`. */
-export const PT_BR_UP_TO_1_DECIMAL_V1 = /* @__PURE__ */ new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
+export const PT_BR_UP_TO_1_DECIMAL_V1 = /* @__PURE__ */ new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 1,
+});
 /** Same text as `n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })`. */
-export const PT_BR_UP_TO_2_DECIMALS_V1 = /* @__PURE__ */ new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
+export const PT_BR_UP_TO_2_DECIMALS_V1 = /* @__PURE__ */ new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 2,
+});
 /** Same text as `n.toLocaleString('pt-BR', { maximumFractionDigits: 3 })`. */
-export const PT_BR_UP_TO_3_DECIMALS_V1 = /* @__PURE__ */ new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 });
+export const PT_BR_UP_TO_3_DECIMALS_V1 = /* @__PURE__ */ new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 3,
+});
 
 /**
  * With no date or time field, `toLocaleString` adds all six as 'numeric' (ECMA-402 ToDateTimeOptions

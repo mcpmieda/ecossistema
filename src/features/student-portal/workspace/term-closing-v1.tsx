@@ -21,7 +21,11 @@ function readSeenV1(storageKey: string): Set<string> {
   try {
     const raw = globalThis.localStorage?.getItem(storageKey);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []);
+    return new Set(
+      Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === 'string')
+        : [],
+    );
   } catch {
     return new Set();
   }
@@ -67,7 +71,10 @@ export function TermClosingCardV1({
   /** Drawn only as the neighbour beside a drag: the student has not opened it, so not "seen". */
   preview?: boolean;
 }>) {
-  const isNew = useTermClosingNewV1(`${accountId}|${subjectId}|${closing.period}|${closing.mode}`, !preview);
+  const isNew = useTermClosingNewV1(
+    `${accountId}|${subjectId}|${closing.period}|${closing.mode}`,
+    !preview,
+  );
   const label = termClosingLabelV1(closing.period, closing.mode);
   const text = (message: TermClosingV1['conclusion'] | undefined) =>
     message ? renderTermClosingMessageV1(message, { period: closing.period }) : null;
@@ -84,10 +91,7 @@ export function TermClosingCardV1({
     );
   const action = text(closing.action);
   return (
-    <section
-      className={'pa-closing pa-closing--' + closing.level}
-      aria-label={label}
-    >
+    <section className={'pa-closing pa-closing--' + closing.level} aria-label={label}>
       <header className="pa-closing-header">
         <p className="pa-closing-eyebrow">{label}</p>
         {isNew ? <NewBadgeV1 /> : null}
@@ -126,7 +130,10 @@ export function TermClosingCardV1({
         <p className="pa-closing-action">
           <Compass className="pa-closing-compass" size={16} aria-hidden="true" />
           <span>
-            <strong>Agora:</strong> {action.replace(/^Agora:\s*/u, '').replace(/^\p{Ll}/u, (letter) => letter.toLocaleUpperCase('pt-BR'))}
+            <strong>Agora:</strong>{' '}
+            {action
+              .replace(/^Agora:\s*/u, '')
+              .replace(/^\p{Ll}/u, (letter) => letter.toLocaleUpperCase('pt-BR'))}
           </span>
         </p>
       ) : null}

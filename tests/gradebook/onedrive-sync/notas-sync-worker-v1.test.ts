@@ -11,13 +11,30 @@ vi.mock('cloudflare:workers', () => ({
   DurableObject: class {},
 }));
 
-const { default: worker, handleAdminV1, handleNotificationV1, handleReadRequestV1, handlePortalScheduledRequestV1, runPortalScheduledV1, sameSecretV1 } = await import('../../../workers/notas-onedrive-sync/index');
-const { NotasSyncCoordinatorV1, readFileForTestsV1, runsOlderCodeV1 } = await import('../../../server/gradebook/onedrive-sync/sync-coordinator-v1');
+const {
+  default: worker,
+  handleAdminV1,
+  handleNotificationV1,
+  handleReadRequestV1,
+  handlePortalScheduledRequestV1,
+  runPortalScheduledV1,
+  sameSecretV1,
+} = await import('../../../workers/notas-onedrive-sync/index');
+const { NotasSyncCoordinatorV1, readFileForTestsV1, runsOlderCodeV1 } =
+  await import('../../../server/gradebook/onedrive-sync/sync-coordinator-v1');
 type Env = Parameters<typeof handleNotificationV1>[1];
 
 function coordinatorMock() {
-  const status = { settings: { enabled: false, paused: false, waitSeconds: 0, maxParallel: 6 }, activeYear: null, folders: [],
-    breakerUntil: null, webhook: { active: false, expiresAt: null }, lastDeltaAt: null, files: [], events: [] };
+  const status = {
+    settings: { enabled: false, paused: false, waitSeconds: 0, maxParallel: 6 },
+    activeYear: null,
+    folders: [],
+    breakerUntil: null,
+    webhook: { active: false, expiresAt: null },
+    lastDeltaAt: null,
+    files: [],
+    events: [],
+  };
   const stub = {
     notify: vi.fn(async () => undefined),
     tick: vi.fn(async () => undefined),
@@ -40,7 +57,12 @@ function envV1(extra: Partial<Env> = {}): Env {
 const origin = 'https://notas-onedrive-sync.example.test';
 const context = () => {
   const work: Promise<unknown>[] = [];
-  return { work, ctx: { waitUntil: (promise: Promise<unknown>) => work.push(promise) } as unknown as ExecutionContext };
+  return {
+    work,
+    ctx: {
+      waitUntil: (promise: Promise<unknown>) => work.push(promise),
+    } as unknown as ExecutionContext,
+  };
 };
 const call = (request: Request, env: Env, ctx = context().ctx) =>
   worker.fetch(request as Request<unknown, IncomingRequestCfProperties>, env, ctx);
@@ -49,32 +71,56 @@ const admin = { id: '00000000-0000-4000-8000-000000000003', name: 'AdministraÃ§Ã
 describe('Notas OneDrive sync Worker', () => {
   it('answers the Graph validation handshake with the token as plain text', async () => {
     const response = await handleNotificationV1(
-      new Request(`${origin}/graph/notificacoes?validationToken=abc%20123`, { method: 'POST' }), envV1());
+      new Request(`${origin}/graph/notificacoes?validationToken=abc%20123`, { method: 'POST' }),
+      envV1(),
+    );
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toContain('text/plain');
     expect(await response.text()).toBe('abc 123');
   });
 
   it('echoes only a short printable token and refuses oversized notifications (issue #1426, 23)', async () => {
-    const long = await call(new Request(`${origin}/graph/notificacoes?validationToken=${'a'.repeat(1025)}`, { method: 'POST' }), envV1());
+    const long = await call(
+      new Request(`${origin}/graph/notificacoes?validationToken=${'a'.repeat(1025)}`, {
+        method: 'POST',
+      }),
+      envV1(),
+    );
     expect(long.status).toBe(400);
-    const echoed = await call(new Request(`${origin}/graph/notificacoes?validationToken=ok`, { method: 'POST' }), envV1());
+    const echoed = await call(
+      new Request(`${origin}/graph/notificacoes?validationToken=ok`, { method: 'POST' }),
+      envV1(),
+    );
     expect(echoed.headers.get('X-Content-Type-Options')).toBe('nosniff');
     const { stub, namespace } = coordinatorMock();
-    const big = await call(new Request(`${origin}/graph/notificacoes`, {
-      method: 'POST', body: JSON.stringify({ value: [{ clientState: 'synthetic-client-state', pad: 'x'.repeat(70_000) }] }),
-    }), envV1({ NOTAS_SYNC: namespace as never }));
+    const big = await call(
+      new Request(`${origin}/graph/notificacoes`, {
+        method: 'POST',
+        body: JSON.stringify({
+          value: [{ clientState: 'synthetic-client-state', pad: 'x'.repeat(70_000) }],
+        }),
+      }),
+      envV1({ NOTAS_SYNC: namespace as never }),
+    );
     expect(big.status).toBe(413);
     expect(stub.notify).not.toHaveBeenCalled();
   });
 
   it('wakes the coordinator only for notifications with the right client state', async () => {
-    for (const [clientState, wakes] of [['synthetic-client-state', true], ['forged', false]] as const) {
+    for (const [clientState, wakes] of [
+      ['synthetic-client-state', true],
+      ['forged', false],
+    ] as const) {
       const { stub, namespace } = coordinatorMock();
       const { ctx, work } = context();
-      const response = await call(new Request(`${origin}/graph/notificacoes`, {
-        method: 'POST', body: JSON.stringify({ value: [{ clientState, subscriptionId: 's' }] }),
-      }), envV1({ NOTAS_SYNC: namespace as never }), ctx);
+      const response = await call(
+        new Request(`${origin}/graph/notificacoes`, {
+          method: 'POST',
+          body: JSON.stringify({ value: [{ clientState, subscriptionId: 's' }] }),
+        }),
+        envV1({ NOTAS_SYNC: namespace as never }),
+        ctx,
+      );
       await Promise.all(work);
       expect(response.status).toBe(202);
       expect(stub.notify).toHaveBeenCalledTimes(wakes ? 1 : 0);
@@ -82,32 +128,54 @@ describe('Notas OneDrive sync Worker', () => {
   });
 
   it('has no public route to operate the sync', async () => {
-    for (const [method, path] of [['POST', '/sonda'], ['GET', '/status'], ['POST', '/controle'], ['GET', '/']] as const) {
-      expect((await call(new Request(`${origin}${path}`, { method }), envV1())).status, `${method} ${path}`).toBe(404);
+    for (const [method, path] of [
+      ['POST', '/sonda'],
+      ['GET', '/status'],
+      ['POST', '/controle'],
+      ['GET', '/'],
+    ] as const) {
+      expect(
+        (await call(new Request(`${origin}${path}`, { method }), envV1())).status,
+        `${method} ${path}`,
+      ).toBe(404);
     }
   });
 
   it('admin entry: validates the request and records who changed what', async () => {
     const { stub, namespace } = coordinatorMock();
     const env = envV1({ NOTAS_SYNC: namespace as never });
-    expect(await handleAdminV1(env, admin, { action: 'status' })).toMatchObject({ state: 'status' });
+    expect(await handleAdminV1(env, admin, { action: 'status' })).toMatchObject({
+      state: 'status',
+    });
     expect(await handleAdminV1(env, admin, { action: 'pause' })).toMatchObject({ state: 'status' });
     expect(stub.control).toHaveBeenCalledWith({ action: 'pause' }, admin);
-    expect(await handleAdminV1(env, admin, { action: 'drop' })).toMatchObject({ state: 'invalid-request' });
-    expect(await handleAdminV1(env, admin, { action: 'set-wait', seconds: 9999 })).toMatchObject({ state: 'invalid-request' });
-    expect(await handleAdminV1(env, { id: '', name: '' }, { action: 'status' })).toMatchObject({ state: 'invalid-request' });
+    expect(await handleAdminV1(env, admin, { action: 'drop' })).toMatchObject({
+      state: 'invalid-request',
+    });
+    expect(await handleAdminV1(env, admin, { action: 'set-wait', seconds: 9999 })).toMatchObject({
+      state: 'invalid-request',
+    });
+    expect(await handleAdminV1(env, { id: '', name: '' }, { action: 'status' })).toMatchObject({
+      state: 'invalid-request',
+    });
   });
 
   it('admin entry: a coordinator failure is reported as unavailable', async () => {
     const { stub, namespace } = coordinatorMock();
     stub.status.mockRejectedValueOnce(new Error('down'));
-    expect(await handleAdminV1(envV1({ NOTAS_SYNC: namespace as never }), admin, { action: 'status' })).toMatchObject({ state: 'unavailable' });
+    expect(
+      await handleAdminV1(envV1({ NOTAS_SYNC: namespace as never }), admin, { action: 'status' }),
+    ).toMatchObject({ state: 'unavailable' });
   });
 
   it('runs the coordinator tick on the cron', async () => {
     const { stub, namespace } = coordinatorMock();
     const { ctx, work } = context();
-    await worker.scheduled({} as ScheduledController, envV1({ NOTAS_SYNC: namespace as never }), ctx);
+    await worker.scheduled(
+      {} as ScheduledController,
+      envV1({ NOTAS_SYNC: namespace as never }),
+      ctx,
+    );
     await Promise.all(work);
     expect(stub.tick).toHaveBeenCalledOnce();
   });
@@ -116,7 +184,11 @@ describe('Notas OneDrive sync Worker', () => {
     const { stub, namespace } = coordinatorMock();
     const { ctx, work } = context();
     const version = { id: 'v2', tag: '', timestamp: '2026-11-14T16:00:00Z' };
-    await worker.scheduled({} as ScheduledController, envV1({ NOTAS_SYNC: namespace as never, CF_VERSION_METADATA: version }), ctx);
+    await worker.scheduled(
+      {} as ScheduledController,
+      envV1({ NOTAS_SYNC: namespace as never, CF_VERSION_METADATA: version }),
+      ctx,
+    );
     await Promise.all(work);
     expect(stub.tick).toHaveBeenCalledWith({ id: 'v2', timestamp: '2026-11-14T16:00:00Z' });
   });
@@ -131,50 +203,106 @@ describe('Notas OneDrive sync Worker', () => {
 
 describe('read through the public address (next to the database)', () => {
   const token = 'r'.repeat(40);
-  const input = { driveId: 'd', itemId: 'i', name: 'synthetic.xlsb', hash: null, modifiedAt: '2026-11-14T10:00:00Z',
-    maxBytes: 1, expectedYear: 2026 };
-  const result = { outcome: 'applied', code: null, readHash: null, readMs: 1, savedToWrittenMs: 1 } as const;
-  const post = (auth: string | null, body: unknown = input) => new Request(`${origin}/ler`, {
-    method: 'POST', body: JSON.stringify(body), headers: auth === null ? {} : { Authorization: `Bearer ${auth}` },
-  });
+  const input = {
+    driveId: 'd',
+    itemId: 'i',
+    name: 'synthetic.xlsb',
+    hash: null,
+    modifiedAt: '2026-11-14T10:00:00Z',
+    maxBytes: 1,
+    expectedYear: 2026,
+  };
+  const result = {
+    outcome: 'applied',
+    code: null,
+    readHash: null,
+    readMs: 1,
+    savedToWrittenMs: 1,
+  } as const;
+  const post = (auth: string | null, body: unknown = input) =>
+    new Request(`${origin}/ler`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: auth === null ? {} : { Authorization: `Bearer ${auth}` },
+    });
 
   it('refuses without the secret, with a wrong one or when the Worker has none', async () => {
     const read = vi.fn(async () => result);
-    expect((await handleReadRequestV1(post(null), envV1({ NOTAS_SYNC_READ_TOKEN: token }), read)).status).toBe(401);
-    expect((await handleReadRequestV1(post('x'.repeat(40)), envV1({ NOTAS_SYNC_READ_TOKEN: token }), read)).status).toBe(401);
+    expect(
+      (await handleReadRequestV1(post(null), envV1({ NOTAS_SYNC_READ_TOKEN: token }), read)).status,
+    ).toBe(401);
+    expect(
+      (
+        await handleReadRequestV1(
+          post('x'.repeat(40)),
+          envV1({ NOTAS_SYNC_READ_TOKEN: token }),
+          read,
+        )
+      ).status,
+    ).toBe(401);
     expect((await handleReadRequestV1(post(''), envV1(), read)).status).toBe(401);
-    expect((await handleReadRequestV1(post('short'), envV1({ NOTAS_SYNC_READ_TOKEN: 'short' }), read)).status).toBe(401);
-    expect((await handleReadRequestV1(post(token, { name: 1 }), envV1({ NOTAS_SYNC_READ_TOKEN: token }), read)).status).toBe(400);
+    expect(
+      (await handleReadRequestV1(post('short'), envV1({ NOTAS_SYNC_READ_TOKEN: 'short' }), read))
+        .status,
+    ).toBe(401);
+    expect(
+      (
+        await handleReadRequestV1(
+          post(token, { name: 1 }),
+          envV1({ NOTAS_SYNC_READ_TOKEN: token }),
+          read,
+        )
+      ).status,
+    ).toBe(400);
     expect(read).not.toHaveBeenCalled();
   });
 
   it('reads with the secret', async () => {
     const read = vi.fn(async () => result);
-    const response = await handleReadRequestV1(post(token), envV1({ NOTAS_SYNC_READ_TOKEN: token }), read);
+    const response = await handleReadRequestV1(
+      post(token),
+      envV1({ NOTAS_SYNC_READ_TOKEN: token }),
+      read,
+    );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(result);
     expect(read).toHaveBeenCalledWith(input);
   });
 
   const self = () => ({ fetch: vi.fn(async () => Response.json({ ...result, code: 'SELF' })) });
-  const env = (reader: ReturnType<typeof self>) => ({ SELF: reader, NOTAS_SYNC_PUBLIC_URL: origin, NOTAS_SYNC_READ_TOKEN: token });
+  const env = (reader: ReturnType<typeof self>) => ({
+    SELF: reader,
+    NOTAS_SYNC_PUBLIC_URL: origin,
+    NOTAS_SYNC_READ_TOKEN: token,
+  });
 
   it('the coordinator reads through the public address when it can', async () => {
     const reader = self();
     const publicFetch = vi.fn(async () => Response.json(result));
-    expect(await readFileForTestsV1(env(reader), input, publicFetch as unknown as typeof fetch)).toEqual(result);
-    expect(publicFetch).toHaveBeenCalledWith(`${origin}/ler`, expect.objectContaining({ method: 'POST' }));
+    expect(
+      await readFileForTestsV1(env(reader), input, publicFetch as unknown as typeof fetch),
+    ).toEqual(result);
+    expect(publicFetch).toHaveBeenCalledWith(
+      `${origin}/ler`,
+      expect.objectContaining({ method: 'POST' }),
+    );
     expect(reader.fetch).not.toHaveBeenCalled();
   });
 
   it('falls back to SELF only when the public read was refused before reading', async () => {
     const reader = self();
     const refused = vi.fn(async () => new Response(null, { status: 401 }));
-    expect((await readFileForTestsV1(env(reader), input, refused as unknown as typeof fetch)).code).toBe('SELF');
+    expect(
+      (await readFileForTestsV1(env(reader), input, refused as unknown as typeof fetch)).code,
+    ).toBe('SELF');
     const failed = vi.fn(async () => new Response(null, { status: 500 }));
-    await expect(readFileForTestsV1(env(self()), input, failed as unknown as typeof fetch)).rejects.toThrow('http-500');
+    await expect(
+      readFileForTestsV1(env(self()), input, failed as unknown as typeof fetch),
+    ).rejects.toThrow('http-500');
     const noToken = self();
-    expect((await readFileForTestsV1({ SELF: noToken }, input, refused as unknown as typeof fetch)).code).toBe('SELF');
+    expect(
+      (await readFileForTestsV1({ SELF: noToken }, input, refused as unknown as typeof fetch)).code,
+    ).toBe('SELF');
   });
 });
 
@@ -182,13 +310,20 @@ describe('Student Portal minute of work, next to the database', () => {
   const token = 'p'.repeat(40);
   const scheduler = (ok = true) => ({ run: vi.fn(async () => ok) });
   const env = (portal: ReturnType<typeof scheduler> | undefined, extra: Partial<Env> = {}) =>
-    envV1({ NOTAS_SYNC_PUBLIC_URL: origin, NOTAS_SYNC_READ_TOKEN: token, PORTAL_SCHEDULER: portal, ...extra });
+    envV1({
+      NOTAS_SYNC_PUBLIC_URL: origin,
+      NOTAS_SYNC_READ_TOKEN: token,
+      PORTAL_SCHEDULER: portal,
+      ...extra,
+    });
   const answer = (status: number) => vi.fn(async () => new Response(null, { status }));
 
   it('asks its own address first; the Portal is not called from here', async () => {
     const portal = scheduler();
     const publicFetch = answer(204);
-    expect(await runPortalScheduledV1(env(portal), 60_000, publicFetch as unknown as typeof fetch)).toBe('nearby');
+    expect(
+      await runPortalScheduledV1(env(portal), 60_000, publicFetch as unknown as typeof fetch),
+    ).toBe('nearby');
     const [url, init] = publicFetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`${origin}/portal-agendado`);
     expect(init.body).toBe(JSON.stringify({ scheduledTime: 60_000 }));
@@ -198,30 +333,63 @@ describe('Student Portal minute of work, next to the database', () => {
   it('runs it from here when the address refuses before working or there is no secret', async () => {
     for (const status of [401, 404, 405]) {
       const portal = scheduler();
-      expect(await runPortalScheduledV1(env(portal), 1, answer(status) as unknown as typeof fetch)).toBe('here');
+      expect(
+        await runPortalScheduledV1(env(portal), 1, answer(status) as unknown as typeof fetch),
+      ).toBe('here');
       expect(portal.run).toHaveBeenCalledWith(1);
     }
     const portal = scheduler();
-    expect(await runPortalScheduledV1(env(portal, { NOTAS_SYNC_READ_TOKEN: undefined }), 2, answer(204) as unknown as typeof fetch)).toBe('here');
-    expect(await runPortalScheduledV1(env(undefined), 2, answer(204) as unknown as typeof fetch)).toBe('off');
+    expect(
+      await runPortalScheduledV1(
+        env(portal, { NOTAS_SYNC_READ_TOKEN: undefined }),
+        2,
+        answer(204) as unknown as typeof fetch,
+      ),
+    ).toBe('here');
+    expect(
+      await runPortalScheduledV1(env(undefined), 2, answer(204) as unknown as typeof fetch),
+    ).toBe('off');
   });
 
   it('does not repeat a minute that may have started', async () => {
     const portal = scheduler();
-    expect(await runPortalScheduledV1(env(portal), 1, answer(500) as unknown as typeof fetch)).toBe('failed');
-    const thrown = vi.fn(async () => { throw new Error('timeout'); });
-    expect(await runPortalScheduledV1(env(portal), 1, thrown as unknown as typeof fetch)).toBe('failed');
+    expect(await runPortalScheduledV1(env(portal), 1, answer(500) as unknown as typeof fetch)).toBe(
+      'failed',
+    );
+    const thrown = vi.fn(async () => {
+      throw new Error('timeout');
+    });
+    expect(await runPortalScheduledV1(env(portal), 1, thrown as unknown as typeof fetch)).toBe(
+      'failed',
+    );
     expect(portal.run).not.toHaveBeenCalled();
   });
 
   it('the route needs the secret and a finite time', async () => {
-    const post = (auth: string, body: unknown) => new Request(`${origin}/portal-agendado`, {
-      method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${auth}` } });
+    const post = (auth: string, body: unknown) =>
+      new Request(`${origin}/portal-agendado`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: { Authorization: `Bearer ${auth}` },
+      });
     const portal = scheduler();
-    expect((await handlePortalScheduledRequestV1(post('x'.repeat(40), { scheduledTime: 1 }), env(portal))).status).toBe(401);
-    expect((await handlePortalScheduledRequestV1(post(token, { scheduledTime: 'x' }), env(portal))).status).toBe(400);
+    expect(
+      (
+        await handlePortalScheduledRequestV1(
+          post('x'.repeat(40), { scheduledTime: 1 }),
+          env(portal),
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (await handlePortalScheduledRequestV1(post(token, { scheduledTime: 'x' }), env(portal)))
+        .status,
+    ).toBe(400);
     expect(portal.run).not.toHaveBeenCalled();
-    expect((await handlePortalScheduledRequestV1(post(token, { scheduledTime: 120_000 }), env(portal))).status).toBe(204);
+    expect(
+      (await handlePortalScheduledRequestV1(post(token, { scheduledTime: 120_000 }), env(portal)))
+        .status,
+    ).toBe(204);
     expect(portal.run).toHaveBeenCalledWith(120_000);
   });
 });
@@ -255,8 +423,14 @@ describe('database write line of the coordinator (issue #1426, 30)', () => {
     const coordinator = line();
     const first = await coordinator.beginWrite();
     const order: string[] = [];
-    const second = coordinator.beginWrite().then((token) => { order.push('second'); return token; });
-    const third = coordinator.beginWrite().then((token) => { order.push('third'); return token; });
+    const second = coordinator.beginWrite().then((token) => {
+      order.push('second');
+      return token;
+    });
+    const third = coordinator.beginWrite().then((token) => {
+      order.push('third');
+      return token;
+    });
     coordinator.endWrite(first);
     coordinator.endWrite(await second);
     await third;
@@ -269,13 +443,17 @@ describe('database write line of the coordinator (issue #1426, 30)', () => {
       const coordinator = line();
       const dead = await coordinator.beginWrite();
       let taken: string | null = null;
-      void coordinator.beginWrite().then((token) => { taken = token; });
+      void coordinator.beginWrite().then((token) => {
+        taken = token;
+      });
       // The turn is taken over after 45 s without being given back (issue #1450, 4; was 120 s).
       await vi.advanceTimersByTimeAsync(46_000);
       expect(taken).not.toBeNull();
       coordinator.endWrite(dead);
       let next: string | null = null;
-      void coordinator.beginWrite().then((token) => { next = token; });
+      void coordinator.beginWrite().then((token) => {
+        next = token;
+      });
       await vi.advanceTimersByTimeAsync(0);
       expect(next).toBeNull();
       coordinator.endWrite(taken!);

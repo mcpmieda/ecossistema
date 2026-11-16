@@ -8,7 +8,9 @@ import { portalAnonymousSubjectV1 } from '../../../server/student-portal/observa
 import { portalAnonymousPeerV1 } from '../../../server/student-portal/observability/anonymous-peer-v1';
 
 const database = vi.hoisted(() => vi.fn());
-vi.mock('../../../server/student-portal/composition/database-v1', () => ({ portalDatabaseV1: database }));
+vi.mock('../../../server/student-portal/composition/database-v1', () => ({
+  portalDatabaseV1: database,
+}));
 
 const origin = 'https://aluno.escolaieda.com';
 const key = JSON.stringify({ 1: Buffer.alloc(32, 1).toString('base64') });
@@ -16,33 +18,51 @@ const allowAll = () => ({ limit: vi.fn().mockResolvedValue({ success: true }) })
 /** A budget of `max` per key, like one Cloudflare location. */
 function counting(max: number) {
   const used = new Map<string, number>();
-  return { used, limit: vi.fn(async ({ key: limitKey }: { key: string }) => {
-    const count = (used.get(limitKey) ?? 0) + 1;
-    used.set(limitKey, count);
-    return { success: count <= max };
-  }) };
+  return {
+    used,
+    limit: vi.fn(async ({ key: limitKey }: { key: string }) => {
+      const count = (used.get(limitKey) ?? 0) + 1;
+      used.set(limitKey, count);
+      return { success: count <= max };
+    }),
+  };
 }
 function portalEnv(overrides: Record<string, unknown> = {}) {
-  return { PORTAL_ENVIRONMENT: 'production', PORTAL_ORIGIN: origin, PORTAL_SERVING_ENABLED: 'true',
-    PORTAL_ADMIN_TENANT_ID: '50000000-0000-4000-8000-000000000001', PASSWORD_PEPPER: key, QR_HMAC_KEYS: key,
-    TURNSTILE_SECRET_KEY: 'synthetic', PORTAL_PUBLICATION_MODE: 'scoped-v2', PORTAL_AUTH_GLOBAL: allowAll(),
-    PORTAL_AUTH_SUBJECT: allowAll(), PORTAL_READ_ACCOUNT: allowAll(), ...overrides,
+  return {
+    PORTAL_ENVIRONMENT: 'production',
+    PORTAL_ORIGIN: origin,
+    PORTAL_SERVING_ENABLED: 'true',
+    PORTAL_ADMIN_TENANT_ID: '50000000-0000-4000-8000-000000000001',
+    PASSWORD_PEPPER: key,
+    QR_HMAC_KEYS: key,
+    TURNSTILE_SECRET_KEY: 'synthetic',
+    PORTAL_PUBLICATION_MODE: 'scoped-v2',
+    PORTAL_AUTH_GLOBAL: allowAll(),
+    PORTAL_AUTH_SUBJECT: allowAll(),
+    PORTAL_READ_ACCOUNT: allowAll(),
+    ...overrides,
   } as unknown as Parameters<typeof servePortalSelfV1>[1];
 }
-const qr = (credential: string) => `${origin}/access#v1.${credential.padEnd(32, 'a')}.1.${'s'.repeat(43)}`;
+const qr = (credential: string) =>
+  `${origin}/access#v1.${credential.padEnd(32, 'a')}.1.${'s'.repeat(43)}`;
 function challenge(credential: string, ip: string | null, cf = true) {
-  const request = new Request(origin + '/api/student/auth/challenge', { method: 'POST',
+  const request = new Request(origin + '/api/student/auth/challenge', {
+    method: 'POST',
     headers: { origin, 'content-type': 'application/json' },
-    body: JSON.stringify({ contractVersion: 1, qr: qr(credential) }) });
+    body: JSON.stringify({ contractVersion: 1, qr: qr(credential) }),
+  });
   if (ip !== null) request.headers.set('cf-connecting-ip', ip);
   if (cf) Object.defineProperty(request, 'cf', { value: { colo: 'GRU' } });
   return request;
 }
 
-afterEach(() => { vi.restoreAllMocks(); database.mockReset(); });
+afterEach(() => {
+  vi.restoreAllMocks();
+  database.mockReset();
+});
 
 describe('A9: a valid QR repeated from one client never blocks the other families', () => {
-  it('spends only that client\'s budget, before and after the QR limit', async () => {
+  it("spends only that client's budget, before and after the QR limit", async () => {
     vi.spyOn(PortalCryptoV1.prototype, 'verifyQr').mockResolvedValue(true);
     database.mockRejectedValue(new Error('synthetic-database-stop'));
     const global = counting(5);
@@ -62,7 +82,9 @@ describe('A9: a valid QR repeated from one client never blocks the other familie
     const env = portalEnv({ PORTAL_AUTH_SUBJECT: counting(30) });
     const statuses: number[] = [];
     for (let index = 0; index < 31; index += 1)
-      statuses.push((await servePortalSelfV1(challenge('photo', `192.0.2.${index + 1}`), env)).status);
+      statuses.push(
+        (await servePortalSelfV1(challenge('photo', `192.0.2.${index + 1}`), env)).status,
+      );
     expect(statuses.slice(0, 30)).not.toContain(429);
     expect(statuses[30]).toBe(429);
   });
@@ -74,16 +96,25 @@ describe('A9: a valid QR repeated from one client never blocks the other familie
     expect(await guard('qr:1:b', 'ip4:203.0.113.9')).toBe(false);
     expect(await guard('qr:1:c', 'ip4:198.51.100.20')).toBe(true);
     expect(await guard('qr:1:d', '')).toBe(false);
-    expect([...global.used.keys()].every((limitKey) => /^[a-f0-9]{64}$/u.test(limitKey))).toBe(true);
+    expect([...global.used.keys()].every((limitKey) => /^[a-f0-9]{64}$/u.test(limitKey))).toBe(
+      true,
+    );
   });
 });
 
-describe('A9: a request without a peer address never shares the families\' namespace', () => {
+describe("A9: a request without a peer address never shares the families' namespace", () => {
   it('uses the header when request.cf did not survive the service binding', () => {
     const log = vi.fn();
-    const peer = portalAnonymousPeerV1({ PORTAL_AUTH_GLOBAL: allowAll() }, challenge('x', '203.0.113.9', false), log);
+    const peer = portalAnonymousPeerV1(
+      { PORTAL_AUTH_GLOBAL: allowAll() },
+      challenge('x', '203.0.113.9', false),
+      log,
+    );
     expect(peer.subject).toBe('ip4:203.0.113.9');
-    expect(log).toHaveBeenCalledExactlyOnceWith({ event: 'student-portal-anonymous-peer-v1', source: 'header' });
+    expect(log).toHaveBeenCalledExactlyOnceWith({
+      event: 'student-portal-anonymous-peer-v1',
+      source: 'header',
+    });
     expect(JSON.stringify(log.mock.calls)).not.toContain('203.0.113');
   });
 
@@ -94,10 +125,17 @@ describe('A9: a request without a peer address never shares the families\' names
     const env = { PORTAL_AUTH_GLOBAL: families, PORTAL_UNKNOWN_PEER: unknown };
     const peer = portalAnonymousPeerV1(env, challenge('x', null, false), log);
     expect(peer.binding).toBe(unknown);
-    expect(log).toHaveBeenCalledWith({ event: 'student-portal-anonymous-peer-v1', source: 'unknown' });
+    expect(log).toHaveBeenCalledWith({
+      event: 'student-portal-anonymous-peer-v1',
+      source: 'unknown',
+    });
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const noAddress = await servePortalSelfV1(new Request(origin + '/api/student/me', { headers: { origin,
-      cookie: '__Host-student_portal_session=' + 'a'.repeat(43) } }), portalEnv(env));
+    const noAddress = await servePortalSelfV1(
+      new Request(origin + '/api/student/me', {
+        headers: { origin, cookie: '__Host-student_portal_session=' + 'a'.repeat(43) },
+      }),
+      portalEnv(env),
+    );
     expect(noAddress.status).toBe(429);
     expect(families.limit).not.toHaveBeenCalled();
     const proven = portalAnonymousPeerV1(env, challenge('x', '198.51.100.20'), log);
@@ -112,8 +150,10 @@ describe('A9: a request without a peer address never shares the families\' names
 
   it('declares the higher, separate production namespace', () => {
     const config = JSON.parse(readFileSync('wrangler.student-portal.jsonc', 'utf8'));
-    const bindings: { name: string; simple: { limit: number } }[] = config.env.production.ratelimits;
-    const limit = (name: string) => bindings.find((binding) => binding.name === name)?.simple.limit ?? 0;
+    const bindings: { name: string; simple: { limit: number } }[] =
+      config.env.production.ratelimits;
+    const limit = (name: string) =>
+      bindings.find((binding) => binding.name === name)?.simple.limit ?? 0;
     expect(limit('PORTAL_UNKNOWN_PEER')).toBeGreaterThan(limit('PORTAL_AUTH_GLOBAL'));
   });
 });

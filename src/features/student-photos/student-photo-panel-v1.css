@@ -1,6 +1,36 @@
-.student-photo-panel { display: grid; gap: .65rem; min-width: 0; padding-block: .65rem; }
-.student-photo-panel__identity { display: flex; align-items: center; gap: .8rem; min-width: 0; }
-.student-photo-panel__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-width: 0; }
-.student-photo-panel__actions button { gap: .4rem; }
-.student-photo-panel__message { margin: 0; font-size: .875rem; line-height: 1.5; overflow-wrap: anywhere; }
-@media (max-width: 420px) { .student-photo-panel__identity { align-items: flex-start; } .student-photo-panel__actions { gap: .3rem; } }
+.student-photo-panel {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  padding-block: 0.65rem;
+}
+.student-photo-panel__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.student-photo-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.student-photo-panel__actions button {
+  gap: 0.4rem;
+}
+.student-photo-panel__message {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 420px) {
+  .student-photo-panel__identity {
+    align-items: flex-start;
+  }
+  .student-photo-panel__actions {
+    gap: 0.3rem;
+  }
+}

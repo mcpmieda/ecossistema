@@ -57,7 +57,20 @@ const KIND_LABELS: Record<SchoolDayKindV1, string> = {
 };
 /** Kinds with a description of their own (a plain school day needs none). */
 const DESCRIBED = new Set<SchoolDayKindV1>(['evento-letivo', 'feriado', 'recesso', 'evento']);
-const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const MONTHS = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
 const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const COUNT_COLOR = { done: 'success', over: 'danger', short: 'warning' } as const;
 /** Under the school-day count: ready, how many too many, or how many still missing. */
@@ -67,14 +80,21 @@ function countNote(tone: keyof typeof COUNT_COLOR, count: number) {
   return `Faltam ${SCHOOL_DAYS_REQUIRED_V1 - count} para 200.`;
 }
 const pad = (value: number) => String(value).padStart(2, '0');
-const dayLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith("2026") ? "" : '/' + date.slice(0, 4)}`;
+const dayLabel = (date: string) =>
+  `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith('2026') ? '' : '/' + date.slice(0, 4)}`;
 
 const mapOf = (days: readonly SchoolCalendarDayV1[]) =>
-  new Map<string, DayV1>(days.map((day) => [day.date, { kind: day.kind, ...(day.note ? { note: day.note } : {}) }]));
+  new Map<string, DayV1>(
+    days.map((day) => [day.date, { kind: day.kind, ...(day.note ? { note: day.note } : {}) }]),
+  );
 const listOf = (days: ReadonlyMap<string, DayV1>): SchoolCalendarDayV1[] =>
   [...days.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, day]) => ({ date, kind: day.kind, ...(day.note && DESCRIBED.has(day.kind) ? { note: day.note } : {}) }));
+    .map(([date, day]) => ({
+      date,
+      kind: day.kind,
+      ...(day.note && DESCRIBED.has(day.kind) ? { note: day.note } : {}),
+    }));
 const schoolDaysIn = (days: ReadonlyMap<string, DayV1>) =>
   [...days.values()].filter((day) => SCHOOL_DAY_COUNTS_V1[day.kind]).length;
 
@@ -105,19 +125,28 @@ const dateOfInstant = (instant: string | null, end: boolean) =>
   instant ? LOCAL_DATE.format(new Date(Date.parse(instant) - Number(end))) : null;
 /** Back to the instant, at the day's first moment in Brasília (UTC−3, no daylight saving). */
 const instantOfDate = (date: string, end: boolean) => {
-  const day = end ? new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10) : date;
+  const day = end
+    ? new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+    : date;
   return `${day}T03:00:00Z`;
 };
 const markersOf = (calendar: CalendarV1): MarkersV1 =>
-  Object.fromEntries(MARKERS.map(({ key, end }) => [key, dateOfInstant(calendar[key] ?? null, end)])) as MarkersV1;
-const shortDate = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith('2026') ? '' : '/' + date.slice(0, 4)}`;
+  Object.fromEntries(
+    MARKERS.map(({ key, end }) => [key, dateOfInstant(calendar[key] ?? null, end)]),
+  ) as MarkersV1;
+const shortDate = (date: string) =>
+  `${date.slice(8)}/${date.slice(5, 7)}${date.startsWith('2026') ? '' : '/' + date.slice(0, 4)}`;
 
 /** Only unmarked Saturdays and Sundays lie between the two days (no class day in between). */
 function weekendBetweenV1(days: ReadonlyMap<string, DayV1>, from: string, to: string) {
   const end = Date.parse(`${to}T12:00:00Z`);
   for (let at = Date.parse(`${from}T12:00:00Z`) + 86_400_000; at < end; at += 86_400_000) {
     const date = new Date(at);
-    if ((date.getUTCDay() !== 0 && date.getUTCDay() !== 6) || days.has(date.toISOString().slice(0, 10))) return false;
+    if (
+      (date.getUTCDay() !== 0 && date.getUTCDay() !== 6) ||
+      days.has(date.toISOString().slice(0, 10))
+    )
+      return false;
   }
   return true;
 }
@@ -130,10 +159,19 @@ function eventsOf(days: ReadonlyMap<string, DayV1>, month: number) {
     if (!date.startsWith(prefix) || !DESCRIBED.has(day.kind)) continue;
     const last = lines.at(-1);
     // Consecutive days, or a weekend between two days of the same break, stay on one line.
-    const gap = last ? (Date.parse(`${date}T12:00:00Z`) - Date.parse(`${last.to}T12:00:00Z`)) / 86_400_000 : Infinity;
-    if (last && last.kind === day.kind && last.note === day.note && gap <= 3 && weekendBetweenV1(days, last.to, date))
+    const gap = last
+      ? (Date.parse(`${date}T12:00:00Z`) - Date.parse(`${last.to}T12:00:00Z`)) / 86_400_000
+      : Infinity;
+    if (
+      last &&
+      last.kind === day.kind &&
+      last.note === day.note &&
+      gap <= 3 &&
+      weekendBetweenV1(days, last.to, date)
+    )
       last.to = date;
-    else lines.push({ from: date, to: date, kind: day.kind, ...(day.note ? { note: day.note } : {}) });
+    else
+      lines.push({ from: date, to: date, kind: day.kind, ...(day.note ? { note: day.note } : {}) });
   }
   return lines;
 }
@@ -189,11 +227,18 @@ const WEEKDAY_MESSAGE_V1: Partial<Record<SchoolDayKindV1, string>> = {
  * only on a single click (a drag passes over weekends quietly); `message` undefined keeps the
  * message shown.
  */
-export function paintStepV1(current: Map<string, DayV1>, date: string, brush: BrushV1, note: string, dragging: boolean):
-  { readonly draft: Map<string, DayV1>; readonly message?: string | null } {
+export function paintStepV1(
+  current: Map<string, DayV1>,
+  date: string,
+  brush: BrushV1,
+  note: string,
+  dragging: boolean,
+): { readonly draft: Map<string, DayV1>; readonly message?: string | null } {
   const next = paintedDraftV1(current, date, brush, note);
   if (next === 'weekday') {
-    return dragging || brush === 'clear' ? { draft: current } : { draft: current, message: WEEKDAY_MESSAGE_V1[brush] ?? null };
+    return dragging || brush === 'clear'
+      ? { draft: current }
+      : { draft: current, message: WEEKDAY_MESSAGE_V1[brush] ?? null };
   }
   if (next === 'limit') return { draft: current, message: DAY_LIMIT_MESSAGE_V1 };
   return { draft: next, message: null };
@@ -238,7 +283,11 @@ function misplacedDayV1(days: ReadonlyMap<string, DayV1>): string | null {
 export function markerStateV1(
   markers: MarkersV1 | null,
   policy: { calendar: CalendarV1; markers: MarkersV1 } | null,
-): { readonly changed: boolean; readonly pending: (typeof MARKERS)[number][]; readonly past: string[] } {
+): {
+  readonly changed: boolean;
+  readonly pending: (typeof MARKERS)[number][];
+  readonly past: string[];
+} {
   if (!markers) return { changed: false, pending: [], past: [] };
   const pending = MARKERS.filter(({ key }) => !markers[key]);
   if (!policy) return { changed: false, pending, past: [] };
@@ -257,7 +306,11 @@ function pastMarkersV1(policy: { calendar: CalendarV1; markers: MarkersV1 }, mar
  * tabs of this page too): it is read again, and the save stops only if someone else moved the
  * main dates meanwhile.
  */
-async function saveMarkersV1(client: PortalAdminClientV1, readMarkers: MarkersV1, markers: MarkersV1) {
+async function saveMarkersV1(
+  client: PortalAdminClientV1,
+  readMarkers: MarkersV1,
+  markers: MarkersV1,
+) {
   const current = await client.query({
     contractVersion: 1,
     operation: 'settings',
@@ -266,8 +319,12 @@ async function saveMarkersV1(client: PortalAdminClientV1, readMarkers: MarkersV1
   });
   if (current.state !== 'settings') throw new PortalClientErrorV1('invalid-response');
   const read = markersOf(current.settings.value.calendar);
-  if (MARKERS.some(({ key }) => read[key] !== readMarkers[key])) throw new PortalClientErrorV1('conflict');
-  const calendar = movedCalendarV1({ calendar: current.settings.value.calendar, markers: read }, markers);
+  if (MARKERS.some(({ key }) => read[key] !== readMarkers[key]))
+    throw new PortalClientErrorV1('conflict');
+  const calendar = movedCalendarV1(
+    { calendar: current.settings.value.calendar, markers: read },
+    markers,
+  );
   await client.command({
     contractVersion: 1,
     operation: 'settings-set',
@@ -317,7 +374,9 @@ function OfficialCalendarNoticeV1({ unsaved }: Readonly<{ unsaved: boolean }>) {
   );
 }
 
-function PendingMarkersAlertV1({ pending }: Readonly<{ pending: readonly (typeof MARKERS)[number][] }>) {
+function PendingMarkersAlertV1({
+  pending,
+}: Readonly<{ pending: readonly (typeof MARKERS)[number][] }>) {
   if (!pending.length) return null;
   return (
     <Alert status="warning">
@@ -364,7 +423,11 @@ export function SchoolCalendarEditorV1({
   const [note, setNote] = useState('');
   const painting = useRef(false);
   // The school's Calendário policy as read (its version guards the write) and the main dates.
-  const [policy, setPolicy] = useState<{ version: number; calendar: CalendarV1; markers: MarkersV1 } | null>(null);
+  const [policy, setPolicy] = useState<{
+    version: number;
+    calendar: CalendarV1;
+    markers: MarkersV1;
+  } | null>(null);
   const [markers, setMarkers] = useState<MarkersV1 | null>(null);
   const [armed, setArmed] = useState<MarkerKeyV1 | null>(null);
   const [confirmingPast, setConfirmingPast] = useState(false);
@@ -378,17 +441,31 @@ export function SchoolCalendarEditorV1({
       setState('loading');
       try {
         const result = await client.query(
-          { contractVersion: 1, operation: 'school-calendar', scope: { kind: 'school', academicYear: 2026 }, page: { limit: 1 } },
+          {
+            contractVersion: 1,
+            operation: 'school-calendar',
+            scope: { kind: 'school', academicYear: 2026 },
+            page: { limit: 1 },
+          },
           signal,
         );
         if (result.state !== 'school-calendar') throw new PortalClientErrorV1('invalid-response');
         const settings = await client.query(
-          { contractVersion: 1, operation: 'settings', scope: { kind: 'school', academicYear: 2026 }, page: { limit: 1 } },
+          {
+            contractVersion: 1,
+            operation: 'settings',
+            scope: { kind: 'school', academicYear: 2026 },
+            page: { limit: 1 },
+          },
           signal,
         );
         if (settings.state !== 'settings') throw new PortalClientErrorV1('invalid-response');
         const read = markersOf(settings.settings.value.calendar);
-        setPolicy({ version: settings.settings.version, calendar: settings.settings.value.calendar, markers: read });
+        setPolicy({
+          version: settings.settings.version,
+          calendar: settings.settings.value.calendar,
+          markers: read,
+        });
         setMarkers({ ...read });
         setArmed(null);
         const days = mapOf(result.calendar?.days ?? []);
@@ -419,7 +496,8 @@ export function SchoolCalendarEditorV1({
 
   const count = useMemo(() => (draft ? schoolDaysIn(draft) : 0), [draft]);
   const daysChanged = useMemo(
-    () => !!draft && !!saved && JSON.stringify(listOf(draft)) !== JSON.stringify(listOf(saved.days)),
+    () =>
+      !!draft && !!saved && JSON.stringify(listOf(draft)) !== JSON.stringify(listOf(saved.days)),
     [draft, saved],
   );
   // A calendar saved before the weekday rule may still have one: the server refuses it now.
@@ -428,7 +506,8 @@ export function SchoolCalendarEditorV1({
   const changed = daysChanged || markersChanged;
   // In the year's order, as the server requires (an end may share the day of the next start).
   const outOfOrder = useMemo(() => outOfOrderV1(markers), [markers]);
-  const markersAt = (date: string) => (markers ? MARKERS.filter(({ key }) => markers[key] === date) : []);
+  const markersAt = (date: string) =>
+    markers ? MARKERS.filter(({ key }) => markers[key] === date) : [];
   /** With a main date chosen, a click marks it on that day instead of painting. */
   const place = (date: string) => {
     if (!armed || !canWrite || state !== 'ready') return false;
@@ -454,7 +533,16 @@ export function SchoolCalendarEditorV1({
   };
 
   const save = async (confirmedPast = false) => {
-    if (!draft || !saved || !markers || !policy || count > SCHOOL_DAYS_REQUIRED_V1 || outOfOrder || misplaced) return;
+    if (
+      !draft ||
+      !saved ||
+      !markers ||
+      !policy ||
+      count > SCHOOL_DAYS_REQUIRED_V1 ||
+      outOfOrder ||
+      misplaced
+    )
+      return;
     if (pastMarkers.length && !confirmedPast) {
       setConfirmingPast(true);
       return;
@@ -483,7 +571,11 @@ export function SchoolCalendarEditorV1({
       if (markersChanged) {
         await saveMarkersV1(client, policy.markers, markers);
         // Saved: the next save reads the policy again, so only the dates on screen move here.
-        setPolicy({ ...policy, calendar: movedCalendarV1(policy, markers), markers: { ...markers } });
+        setPolicy({
+          ...policy,
+          calendar: movedCalendarV1(policy, markers),
+          markers: { ...markers },
+        });
         onSaved?.();
       }
       setMessage('Calendário salvo.');
@@ -535,7 +627,11 @@ export function SchoolCalendarEditorV1({
     let monthNote = 'só matrículas';
     if (!before) monthNote = schoolDays ? `${schoolDays} letivos` : 'sem aula';
     return (
-      <Card key={prefix} variant="secondary" className={'pa-school-month' + (before ? ' pa-school-month--before' : '')}>
+      <Card
+        key={prefix}
+        variant="secondary"
+        className={'pa-school-month' + (before ? ' pa-school-month--before' : '')}
+      >
         <div className="pa-school-month__head">
           <b>{name}</b>
           <Chip size="sm" variant="soft" color={!before && schoolDays ? 'success' : 'default'}>
@@ -564,11 +660,15 @@ export function SchoolCalendarEditorV1({
                 key={date}
                 type="button"
                 className={
-                  'pa-school-day' + (day ? ` pa-school-kind--${day.kind}` : '') + (flags.length ? ' has-mark' : '')
+                  'pa-school-day' +
+                  (day ? ` pa-school-kind--${day.kind}` : '') +
+                  (flags.length ? ' has-mark' : '')
                 }
                 title={label}
                 aria-label={label}
-                disabled={!canWrite || state !== 'ready' || (before && armed !== 'enrollmentStartsAt')}
+                disabled={
+                  !canWrite || state !== 'ready' || (before && armed !== 'enrollmentStartsAt')
+                }
                 onPointerDown={(event) => {
                   event.preventDefault();
                   painting.current = !armed;
@@ -599,9 +699,13 @@ export function SchoolCalendarEditorV1({
             ))}
             {events.map((line) => (
               <li key={line.from}>
-                <span className={`pa-school-brush__dot pa-school-kind--${line.kind}`} aria-hidden="true" />
+                <span
+                  className={`pa-school-brush__dot pa-school-kind--${line.kind}`}
+                  aria-hidden="true"
+                />
                 {dayLabel(line.from)}
-                {line.to !== line.from ? ` a ${dayLabel(line.to)}` : ''} · {line.note ?? KIND_LABELS[line.kind]}
+                {line.to !== line.from ? ` a ${dayLabel(line.to)}` : ''} ·{' '}
+                {line.note ?? KIND_LABELS[line.kind]}
               </li>
             ))}
           </ul>
@@ -618,7 +722,8 @@ export function SchoolCalendarEditorV1({
         <div>
           <Card.Title id="pa-school-calendar-title">Calendário escolar 2026</Card.Title>
           <Card.Description>
-            Vale para a escola inteira. Escolha um pincel e clique nos dias, ou arraste para marcar vários.
+            Vale para a escola inteira. Escolha um pincel e clique nos dias, ou arraste para marcar
+            vários.
           </Card.Description>
         </div>
         <ProgressBar
@@ -634,9 +739,11 @@ export function SchoolCalendarEditorV1({
           <ProgressBar.Track>
             <ProgressBar.Fill />
           </ProgressBar.Track>
-          <span className={`pa-school-calendar__count-note pa-school-calendar__count-note--${tone}`}><output className="contents">
-            {countNote(tone, count)}
-          </output></span>
+          <span
+            className={`pa-school-calendar__count-note pa-school-calendar__count-note--${tone}`}
+          >
+            <output className="contents">{countNote(tone, count)}</output>
+          </span>
         </ProgressBar>
       </Card.Header>
 
@@ -678,7 +785,9 @@ export function SchoolCalendarEditorV1({
                       <CloseButton
                         aria-label={`Apagar ${label}`}
                         isDisabled={state !== 'ready'}
-                        onPress={() => setMarkers((current) => (current ? { ...current, [key]: null } : current))}
+                        onPress={() =>
+                          setMarkers((current) => (current ? { ...current, [key]: null } : current))
+                        }
                       />
                     ) : null}
                   </li>
@@ -703,7 +812,11 @@ export function SchoolCalendarEditorV1({
           }}
         >
           {BRUSHES.map((item) => (
-            <ToggleButton key={item.id} id={item.id} className={`pa-school-brush pa-school-kind--${item.id}`}>
+            <ToggleButton
+              key={item.id}
+              id={item.id}
+              className={`pa-school-brush pa-school-kind--${item.id}`}
+            >
               <span className="pa-school-brush__dot" aria-hidden="true" />
               <span className="pa-school-brush__text">
                 {item.label}
@@ -745,10 +858,17 @@ export function SchoolCalendarEditorV1({
         <Alert status="warning" className="pa-school-calendar__confirm">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>Estas datas já chegaram e mudam no Portal assim que você salvar:</Alert.Title>
+            <Alert.Title>
+              Estas datas já chegaram e mudam no Portal assim que você salvar:
+            </Alert.Title>
             <Alert.Description>{pastMarkers.join(', ')}.</Alert.Description>
             <div className="pa-settings-actions">
-              <Button size="sm" variant="primary" isDisabled={state !== 'ready'} onPress={() => void save(true)}>
+              <Button
+                size="sm"
+                variant="primary"
+                isDisabled={state !== 'ready'}
+                onPress={() => void save(true)}
+              >
                 Salvar mesmo assim
               </Button>
               <Button size="sm" variant="secondary" onPress={() => setConfirmingPast(false)}>
@@ -764,7 +884,11 @@ export function SchoolCalendarEditorV1({
             variant="primary"
             onPress={() => void save()}
             isDisabled={
-              !changed || state === 'saving' || count > SCHOOL_DAYS_REQUIRED_V1 || !!outOfOrder || !!misplaced
+              !changed ||
+              state === 'saving' ||
+              count > SCHOOL_DAYS_REQUIRED_V1 ||
+              !!outOfOrder ||
+              !!misplaced
             }
           >
             <SaveLabelV1 saving={state === 'saving'} />

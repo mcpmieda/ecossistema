@@ -367,7 +367,11 @@ export const reconciliationResponseV1: z.ZodType<ReconciliationResponseV1> = z.u
       contractVersion: z.literal(1),
       state: z.literal('ready'),
       operation: z.literal('pending-count'),
-      pending: z.number().int().min(0).max(RECONCILIATION_PENDING_CAP_V1 + 1),
+      pending: z
+        .number()
+        .int()
+        .min(0)
+        .max(RECONCILIATION_PENDING_CAP_V1 + 1),
     })
     .strict(),
   z

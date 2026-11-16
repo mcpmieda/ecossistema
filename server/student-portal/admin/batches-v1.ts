@@ -34,7 +34,8 @@ const recoveryUnavailableV1 = (row: QrBatchRowV1, preparedPins: ReadonlySet<stri
   (row.birth_year === null ||
     row.confirmation !== 'confirmed' ||
     (!preparedPins.has(String(row.id)) &&
-      (row.pin_verifier === null || Number(row.credential_pin_version) !== Number(row.pin_version))));
+      (row.pin_verifier === null ||
+        Number(row.credential_pin_version) !== Number(row.pin_version))));
 
 /** A revoked credential (or one missing on a replay) is never silently replaced by a new QR. */
 const regenerationRequiredV1 = (row: QrBatchRowV1, replay: boolean) =>
@@ -46,7 +47,9 @@ function qrCardV1(accountId: string, mode: QrBatch['mode'], qr: string, row: QrB
     accountId,
     mode,
     qr,
-    ...(mode !== 'qr-only' ? { name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1).parse(row.name) } : {}),
+    ...(mode !== 'qr-only'
+      ? { name: z.string().min(1).max(STUDENT_NAME_MAX_LENGTH_V1).parse(row.name) }
+      : {}),
     ...(mode === 'qr-name-class'
       ? { classLabel: z.string().min(1).max(80).parse(row.class_name) }
       : {}),
@@ -80,7 +83,8 @@ async function issueQrV1(
     `${PORTAL_ORIGIN_V1}/access#v1.${credentialId}.${version}.${await cryptoPort.signQr(credentialId, version)}`,
   );
   issued.cards.push(qrCardV1(id, command.mode, qr, row));
-  if (isNew) issued.created.push({ account_id: id, credential_id: credentialId, key_version: version });
+  if (isNew)
+    issued.created.push({ account_id: id, credential_id: credentialId, key_version: version });
   if (!replay)
     issued.audits.push(
       auditEventV1.parse({
@@ -145,7 +149,15 @@ export async function qrBatchV1(
     if (missingPins.length > 4) throw new Error('student-portal-batch-recovery-conflict');
     const preparedPins = new Set<string>();
     await inOrderV1(missingPins, async (row) => {
-      if (await ensureCanonicalPinV1(tx, cryptoPort, pepperVersion, String(row.id), Number(row.pin_version)))
+      if (
+        await ensureCanonicalPinV1(
+          tx,
+          cryptoPort,
+          pepperVersion,
+          String(row.id),
+          Number(row.pin_version),
+        )
+      )
         preparedPins.add(String(row.id));
     });
     if (rows.some((row) => recoveryUnavailableV1(row, preparedPins)))

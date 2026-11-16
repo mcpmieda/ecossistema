@@ -458,7 +458,9 @@ describe('real shell, shared year and rendered performance journey', () => {
     await settle();
     expect(selectRoot('Modo')?.hasAttribute('data-open')).toBe(true);
     await act(async () =>
-      selectTrigger('Comparar com')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })),
+      selectTrigger('Comparar com')!.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true }),
+      ),
     );
     await settle();
     expect(selectRoot('Modo')?.hasAttribute('data-open')).toBe(false);
@@ -544,7 +546,9 @@ describe('real shell, shared year and rendered performance journey', () => {
     await click(student.name);
     await closeDetail();
     await click(student.name);
-    await waitFor(() => requests.filter((value) => value.operation === 'student-detail').length === 2);
+    await waitFor(
+      () => requests.filter((value) => value.operation === 'student-detail').length === 2,
+    );
     expect(document.querySelector('[data-slot="drawer-heading"]')?.textContent).toBe(student.name);
     await closeDetail();
     expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
@@ -554,17 +558,23 @@ describe('real shell, shared year and rendered performance journey', () => {
     await loaded();
     const original = mock.getMockImplementation()!;
     let resolve!: (response: Response) => void;
-    const pending = new Promise<Response>((accept) => { resolve = accept; });
+    const pending = new Promise<Response>((accept) => {
+      resolve = accept;
+    });
     mock.mockImplementationOnce(() => pending);
     await click(student.name);
     const pendingCall = mock.mock.calls.at(-1)!;
     const pendingSignal = pendingCall[1]?.signal;
     expect(
-      [...document.querySelectorAll('output')].some((item) => item.textContent?.includes('Carregando detalhe')),
+      [...document.querySelectorAll('output')].some((item) =>
+        item.textContent?.includes('Carregando detalhe'),
+      ),
     ).toBe(true);
     await closeDetail();
     expect(pendingSignal?.aborted).toBe(true);
-    await act(async () => { resolve(await original(...pendingCall)); });
+    await act(async () => {
+      resolve(await original(...pendingCall));
+    });
     await settle();
     expect(document.querySelector('[data-slot="drawer-body"]')).toBeNull();
     expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);

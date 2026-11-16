@@ -21,7 +21,8 @@ export const TERM_CLOSING_MODES_V1 = ['conclusion', 'progress'] as const;
 export type TermClosingModeV1 = (typeof TERM_CLOSING_MODES_V1)[number];
 /** Message kind regardless of mode: `progress.weight.x` and `weight.x` are both a weight. */
 const termClosingKindV1 = (code: string) => code.replace(/^progress\./u, '').split('.')[0]!;
-const modeOfCodeV1 = (code: string): TermClosingModeV1 => (code.startsWith('progress.') ? 'progress' : 'conclusion');
+const modeOfCodeV1 = (code: string): TermClosingModeV1 =>
+  code.startsWith('progress.') ? 'progress' : 'conclusion';
 
 export const termClosingMessageV1 = z
   .object({ code: termClosingCodeV1, variant: z.number().int().nonnegative() })
@@ -30,7 +31,10 @@ export const termClosingMessageV1 = z
 export type TermClosingMessageV1 = z.infer<typeof termClosingMessageV1>;
 
 const prefixed = (kind: string) =>
-  termClosingMessageV1.refine((value) => termClosingKindV1(value.code) === kind, 'Unexpected message kind');
+  termClosingMessageV1.refine(
+    (value) => termClosingKindV1(value.code) === kind,
+    'Unexpected message kind',
+  );
 
 /** One trimester reading of one subject. `good` carries only the recognition line (D5). */
 export const termClosingV1 = z
@@ -50,7 +54,10 @@ export const termClosingV1 = z
   .refine(
     (value) =>
       value.level === 'good'
-        ? termClosingKindV1(value.conclusion.code) === 'line' && !value.weight && !value.strength && !value.action
+        ? termClosingKindV1(value.conclusion.code) === 'line' &&
+          !value.weight &&
+          !value.strength &&
+          !value.action
         : termClosingKindV1(value.conclusion.code) === 'conclusion' && value.weight !== undefined,
     'Closing pieces do not match its level',
   )
@@ -76,7 +83,10 @@ export type TermClosingSummaryV1 = z.infer<typeof termClosingSummaryV1>;
 
 const ORDINAL_V1: Record<TermClosingPeriodV1, string> = { T1: '1º', T2: '2º', T3: '3º' };
 /** "Fechamento do 1º trimestre" (D10), or "Acompanhamento do 2º trimestre" in progress mode. */
-export const termClosingLabelV1 = (period: TermClosingPeriodV1, mode: TermClosingModeV1 = 'conclusion') =>
+export const termClosingLabelV1 = (
+  period: TermClosingPeriodV1,
+  mode: TermClosingModeV1 = 'conclusion',
+) =>
   // "Relatório" matches the admin tab name (Relatório de notas).
   `${mode === 'progress' ? 'Acompanhamento' : 'Relatório'} do ${ORDINAL_V1[period]} trimestre`;
 
@@ -84,7 +94,10 @@ export const termClosingLabelV1 = (period: TermClosingPeriodV1, mode: TermClosin
 export function subjectSentenceLabelV1(label: string): string {
   return label
     .toLocaleLowerCase('pt-BR')
-    .replace(/(^|[\s./-])(\p{L})/gu, (_match, lead: string, letter: string) => lead + letter.toLocaleUpperCase('pt-BR'));
+    .replace(
+      /(^|[\s./-])(\p{L})/gu,
+      (_match, lead: string, letter: string) => lead + letter.toLocaleUpperCase('pt-BR'),
+    );
 }
 
 function joinListV1(items: readonly string[]): string {

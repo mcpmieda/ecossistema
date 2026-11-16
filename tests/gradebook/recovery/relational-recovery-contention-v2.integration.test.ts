@@ -25,12 +25,17 @@ import type {
 // Only HTTP environment/session boundaries are synthetic; the current GET and SQL run unchanged.
 vi.mock('../../../server/env', () => ({ validateEnv: (env: unknown) => env }));
 vi.mock('../../../server/auth/session', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../../server/auth/session')>(),
+  ...(await importOriginal<typeof import('../../../server/auth/session')>()),
   requireAuth: async () => ({ oid: '11111111-1111-4111-8111-111111111111' }),
 }));
-vi.mock('../../../server/gradebook/authorization-v1', () => ({ authorizeGradebookRuntimeV1: () => ({}) }));
+vi.mock('../../../server/gradebook/authorization-v1', () => ({
+  authorizeGradebookRuntimeV1: () => ({}),
+}));
 vi.mock('../../../server/gradebook/persistence/postgres/official-gradebook-database-v1', () => ({
-  withOfficialGradebookDatabaseV1: async (env: RuntimeEnv, operation: (env: RuntimeEnv) => Promise<Response | null>) => operation(env),
+  withOfficialGradebookDatabaseV1: async (
+    env: RuntimeEnv,
+    operation: (env: RuntimeEnv) => Promise<Response | null>,
+  ) => operation(env),
 }));
 
 const CONNECTION_STRING = process.env.GRADEBOOK_RECOVERY_DATABASE_URL ?? '';
@@ -76,19 +81,24 @@ function diagnosticRequest(
 }
 
 async function removeSyntheticDiagnostics(): Promise<void> {
-  await databaseA.executeNative(`DELETE FROM gradebook.importacao_diagnostico
+  await databaseA.executeNative(
+    `DELETE FROM gradebook.importacao_diagnostico
       WHERE arquivo=$1 OR hash IN (decode($2,'hex'),decode($3,'hex'))`,
-    [DIAGNOSTIC_FILE, DIAGNOSTIC_HASH_A, DIAGNOSTIC_HASH_B]);
+    [DIAGNOSTIC_FILE, DIAGNOSTIC_HASH_A, DIAGNOSTIC_HASH_B],
+  );
 }
 
 async function removeSyntheticCouncil(classId: number): Promise<void> {
   await databaseA.transaction(async (transaction) => {
     await transaction.executeNative(
       'UPDATE gradebook.conselho_sessao SET fechamento_atual_id=NULL WHERE ano=$1 AND turma_id=$2',
-      [2026, classId]);
-    await transaction.executeNative(`DELETE FROM gradebook.conselho_fechamento_item WHERE fechamento_id IN
+      [2026, classId],
+    );
+    await transaction.executeNative(
+      `DELETE FROM gradebook.conselho_fechamento_item WHERE fechamento_id IN
         (SELECT id FROM gradebook.conselho_fechamento WHERE ano=$1 AND turma_id=$2)`,
-      [2026, classId]);
+      [2026, classId],
+    );
     for (const relation of [
       'conselho_fechamento',
       'conselho_decisao_comando',
@@ -96,23 +106,31 @@ async function removeSyntheticCouncil(classId: number): Promise<void> {
       'conselho_votacao',
       'conselho_sessao_historico',
     ]) {
-      await transaction.executeNative(`DELETE FROM gradebook.${relation} WHERE ano=$1 AND turma_id=$2`,
-        [2026, classId]);
+      await transaction.executeNative(
+        `DELETE FROM gradebook.${relation} WHERE ano=$1 AND turma_id=$2`,
+        [2026, classId],
+      );
     }
-    await transaction.executeNative('DELETE FROM gradebook.conselho_idempotencia WHERE chave LIKE $1',
-      [`${COUNCIL_KEY_PREFIX}:%`]);
-    await transaction.executeNative('DELETE FROM gradebook.conselho_sessao WHERE ano=$1 AND turma_id=$2',
-      [2026, classId]);
+    await transaction.executeNative(
+      'DELETE FROM gradebook.conselho_idempotencia WHERE chave LIKE $1',
+      [`${COUNCIL_KEY_PREFIX}:%`],
+    );
+    await transaction.executeNative(
+      'DELETE FROM gradebook.conselho_sessao WHERE ano=$1 AND turma_id=$2',
+      [2026, classId],
+    );
   });
 }
 
 async function readCurrentDiagnostics(limit: number) {
   const response = await importDiagnosticsOnRequest({
-    request: new Request(`https://school.test/api/gradebook/import-diagnostics?ano=2026&limit=${String(limit)}`),
+    request: new Request(
+      `https://school.test/api/gradebook/import-diagnostics?ano=2026&limit=${String(limit)}`,
+    ),
     env: { OFFICIAL_ORIGIN: 'https://school.test', GRADEBOOK_DATABASE: databaseA },
   } as unknown as Parameters<typeof importDiagnosticsOnRequest>[0]);
   expect(response.status).toBe(200);
-  const audit = await response.json() as GradebookImportDiagnosticsAuditListResponseV1;
+  const audit = (await response.json()) as GradebookImportDiagnosticsAuditListResponseV1;
   expect(audit).toMatchObject({ version: 1, state: 'ready' });
   if (audit.state !== 'ready') throw new Error('recovery-current-audit-not-ready');
   return audit;
@@ -153,7 +171,8 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     });
     const actor = { issuerOid: ACTOR_ID };
     const catalog = await bulletins.execute(
-      { contractVersion: 2, operation: 'catalog', year: 2026 }, actor,
+      { contractVersion: 2, operation: 'catalog', year: 2026 },
+      actor,
     );
     expect(catalog.state).toBe('ready');
     if (catalog.state !== 'ready' || catalog.operation !== 'catalog') {
@@ -163,16 +182,25 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     const classId = catalog.classes[0]!.id;
 
     const performance = await createPerformanceTermComparisonV4(databaseA).execute({
-      transportVersion: 4, operation: 'term-comparison', year: 2026, classId,
-      period: 2, mode: 'regular', statuses: [...ALL_STATUSES], lens: 'result',
-      offerId: null, referencePeriod: 1,
+      transportVersion: 4,
+      operation: 'term-comparison',
+      year: 2026,
+      classId,
+      period: 2,
+      mode: 'regular',
+      statuses: [...ALL_STATUSES],
+      lens: 'result',
+      offerId: null,
+      referencePeriod: 1,
     });
     expect(performance.state).toBe('ready');
 
     // Exercise the current Audit/Import GET on the restored database, including an empty backup.
-    const recoveredDiagnostics = await rows(databaseA,
+    const recoveredDiagnostics = await rows(
+      databaseA,
       'SELECT id FROM gradebook.importacao_diagnostico WHERE ano=$1 ORDER BY ultimo_em DESC,id DESC LIMIT 6',
-      [2026]);
+      [2026],
+    );
     const audit = await readCurrentDiagnostics(5);
     expect(audit.items.map((item) => item.id)).toEqual(
       recoveredDiagnostics.slice(0, 5).map((row) => Number(row.id)),
@@ -180,13 +208,17 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     expect(audit.nextOffset).toBe(recoveredDiagnostics.length > 5 ? 5 : null);
     expect(audit.items.every((item) => item.academicYear === 2026)).toBe(true);
 
-    const council = await createRelationalCouncilV3(databaseA, ACTOR_ID).execute(
-      { contractVersion: 3, operation: 'workspace', year: 2026, classId },
-    );
+    const council = await createRelationalCouncilV3(databaseA, ACTOR_ID).execute({
+      contractVersion: 3,
+      operation: 'workspace',
+      year: 2026,
+      classId,
+    });
     expect(council.state).toBe('ready');
 
     const history = await bulletins.execute(
-      { contractVersion: 2, operation: 'history', year: 2026, classId }, actor,
+      { contractVersion: 2, operation: 'history', year: 2026, classId },
+      actor,
     );
     expect(history.state).toBe('ready');
     if (history.state !== 'ready' || history.operation !== 'history') {
@@ -201,7 +233,9 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     const release = deferred();
     const sourceKey = `gradebook-import-diagnostics-source:${JSON.stringify([2026, DIAGNOSTIC_FILE])}`;
     const blocker = databaseA.transaction(async (transaction) => {
-      await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 629)) AS locked', [sourceKey]);
+      await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 629)) AS locked', [
+        sourceKey,
+      ]);
       acquired.resolve();
       await release.promise;
     });
@@ -212,7 +246,10 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
       diagnosticRequest(DIAGNOSTIC_HASH_A, 'a'),
     );
     const settlement = await Promise.race([
-      waitingWrite.then(() => 'settled', () => 'failed'),
+      waitingWrite.then(
+        () => 'settled',
+        () => 'failed',
+      ),
       new Promise<'waiting'>((resolve) => setTimeout(() => resolve('waiting'), 100)),
     ]);
     expect(settlement).toBe('waiting');
@@ -244,14 +281,20 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
 
     // Reuse this test's synthetic committed observation to prove a nonempty current read.
     const audit = await readCurrentDiagnostics(200);
-    expect(audit.items.filter((item) => item.fileName === DIAGNOSTIC_FILE)
-      .map((item) => item.key).sort()).toEqual(finalRows.map((row) => String(row.chave)));
+    expect(
+      audit.items
+        .filter((item) => item.fileName === DIAGNOSTIC_FILE)
+        .map((item) => item.key)
+        .sort(),
+    ).toEqual(finalRows.map((row) => String(row.chave)));
 
     const beforeRollback = finalRows.map((row) => `${String(row.chave)}:${String(row.hash)}`);
     await expect(
       databaseA.transaction(async (transaction) => {
-        await transaction.executeNative('DELETE FROM gradebook.importacao_diagnostico WHERE arquivo=$1',
-          [DIAGNOSTIC_FILE]);
+        await transaction.executeNative(
+          'DELETE FROM gradebook.importacao_diagnostico WHERE arquivo=$1',
+          [DIAGNOSTIC_FILE],
+        );
         throw new Error('synthetic-recovery-rollback');
       }),
     ).rejects.toThrow('synthetic-recovery-rollback');
@@ -377,8 +420,9 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     ]);
     expect(settled.every((item) => item.status === 'fulfilled')).toBe(true);
     const responses = settled
-      .filter((item): item is PromiseFulfilledResult<RelationalCouncilResponseV3> =>
-        item.status === 'fulfilled',
+      .filter(
+        (item): item is PromiseFulfilledResult<RelationalCouncilResponseV3> =>
+          item.status === 'fulfilled',
       )
       .map((item) => item.value);
     expect(responses.map((response) => response.state).sort()).toEqual([

@@ -182,25 +182,33 @@ afterAll(async () => {
 });
 describe('frequency V2 private PostgreSQL service', () => {
   it('uses the configured school timezone to reject or admit a civil collection date', async () => {
-    const [clock] = (await pg.query<{ base: string; ahead: string; behind: string }>(
-      `SELECT (clock_timestamp() AT TIME ZONE 'America/Sao_Paulo')::date::text AS base,
+    const [clock] = (
+      await pg.query<{ base: string; ahead: string; behind: string }>(
+        `SELECT (clock_timestamp() AT TIME ZONE 'America/Sao_Paulo')::date::text AS base,
         (clock_timestamp() AT TIME ZONE 'Pacific/Kiritimati')::date::text AS ahead,
         (clock_timestamp() AT TIME ZONE 'Pacific/Pago_Pago')::date::text AS behind`,
-    )).rows;
+      )
+    ).rows;
     const ahead = clock!.ahead > clock!.base;
     const zone = ahead ? 'Pacific/Kiritimati' : 'Pacific/Pago_Pago';
     expect(ahead || clock!.behind < clock!.base).toBe(true);
-    await execute('save-settings', {
-      expectedRevision: 0,
-      schedule: {
-        timezone: zone,
-        rules: Array.from({ length: 14 }, (_, i) => ({
-          weekday: Math.floor(i / 2),
-          shift: i % 2 === 0 ? 'matutino' : 'vespertino',
-          enabled: false, times: [], recheck: null,
-        })),
+    await execute(
+      'save-settings',
+      {
+        expectedRevision: 0,
+        schedule: {
+          timezone: zone,
+          rules: Array.from({ length: 14 }, (_, i) => ({
+            weekday: Math.floor(i / 2),
+            shift: i % 2 === 0 ? 'matutino' : 'vespertino',
+            enabled: false,
+            times: [],
+            recheck: null,
+          })),
+        },
       },
-    }, actor);
+      actor,
+    );
     const testDate = ahead ? clock!.ahead : clock!.base;
     const input = collection({
       observedAt: new Date(Date.now() - 5000).toISOString(),
@@ -213,21 +221,28 @@ describe('frequency V2 private PostgreSQL service', () => {
     else
       await expect(service.execute(input, actor)).rejects.toMatchObject({ code: 'source-invalid' });
   });
-  it('accepts small client clock skew, rejects larger future timestamps',async()=>{
-    const [clock]=(await pg.query<{now:string}>('SELECT clock_timestamp()::text AS now')).rows;
-    const near=new Date(new Date(clock!.now).getTime()+2000).toISOString();
-    await expect(service.execute(collection({observedAt:near}),actor))
-      .resolves.toMatchObject({state:'committed'});
-    const tooFar=new Date(Date.now()+30000).toISOString();
-    await expect(service.execute(collection({observedAt:tooFar,expectedRevision:1}),actor))
-      .rejects.toMatchObject({code:'source-invalid',detail:'observed-in-future'});
+  it('accepts small client clock skew, rejects larger future timestamps', async () => {
+    const [clock] = (await pg.query<{ now: string }>('SELECT clock_timestamp()::text AS now')).rows;
+    const near = new Date(new Date(clock!.now).getTime() + 2000).toISOString();
+    await expect(service.execute(collection({ observedAt: near }), actor)).resolves.toMatchObject({
+      state: 'committed',
+    });
+    const tooFar = new Date(Date.now() + 30000).toISOString();
+    await expect(
+      service.execute(collection({ observedAt: tooFar, expectedRevision: 1 }), actor),
+    ).rejects.toMatchObject({ code: 'source-invalid', detail: 'observed-in-future' });
   });
   it('rejects marks from a civil day after the snapshot capture, even if already past today', async () => {
-    await expect(service.execute(collection({
-      observedAt: '2026-01-05T12:00:00Z',
-      coverage: [{ recordKey: 'r1', date: '2026-01-06', slots: [1], complete: false }],
-      marks: [{ recordKey: 'r1', date: '2026-01-06', slot: 1, mark: 'X' }],
-    }), actor)).rejects.toMatchObject({ code: 'source-invalid' });
+    await expect(
+      service.execute(
+        collection({
+          observedAt: '2026-01-05T12:00:00Z',
+          coverage: [{ recordKey: 'r1', date: '2026-01-06', slots: [1], complete: false }],
+          marks: [{ recordKey: 'r1', date: '2026-01-06', slot: 1, mark: 'X' }],
+        }),
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'source-invalid' });
     expect((await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).batch_v2).toBe(0);
   });
   it('physical rollback removes batches, class state, evidence and receipt after a late SQL failure', async () => {
@@ -271,7 +286,9 @@ describe('frequency V2 private PostgreSQL service', () => {
   });
   it('keeps sparse marks partial; a partial day never becomes presence or consolidated totals', async () => {
     const r = await service.execute(
-      collection({ coverage: [{ recordKey: 'r1', date: '2026-01-05', slots: [1], complete: false }] }),
+      collection({
+        coverage: [{ recordKey: 'r1', date: '2026-01-05', slots: [1], complete: false }],
+      }),
       actor,
     );
     expect(r).toMatchObject({
@@ -436,13 +453,25 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(result).toMatchObject({ resolvedRecords: 1, unresolvedRecords: 1 });
     expect((await summary()).marks).toMatchObject([{ date: '2026-01-05', slot: 1, mark: 'X' }]);
     expect((await status()).unresolved).toEqual([
-      expect.objectContaining({ classId: 101, classLabel: label, name: 'ALUNO NOVO INVENTADO', reason: 'not_found', marks: 1 }),
+      expect.objectContaining({
+        classId: 101,
+        classLabel: label,
+        name: 'ALUNO NOVO INVENTADO',
+        reason: 'not_found',
+        marks: 1,
+      }),
     ]);
     await expect(
       service.execute(
         collection({
           sourceClassLabel: '8E 2026 - VESPERTINO',
-          records: [{ recordKey: 'r1', originalName: 'ALUNA SINTETICA UM', originalClass: '8E 2026 - VESPERTINO' }],
+          records: [
+            {
+              recordKey: 'r1',
+              originalName: 'ALUNA SINTETICA UM',
+              originalClass: '8E 2026 - VESPERTINO',
+            },
+          ],
           expectedRevision: 1,
           observedAt: '2026-01-11T12:00:00Z',
         }),
@@ -473,7 +502,12 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect((await status()).unresolved).toEqual([]);
     expect(
       await service.execute(
-        collection({ records, expectedRevision: 1, observedAt: '2026-01-11T12:00:00Z', sourceVersion: `sha256:${'b'.repeat(64)}` }),
+        collection({
+          records,
+          expectedRevision: 1,
+          observedAt: '2026-01-11T12:00:00Z',
+          sourceVersion: `sha256:${'b'.repeat(64)}`,
+        }),
         actor,
       ),
     ).toMatchObject({ resolvedRecords: 1, unresolvedRecords: 0 });
@@ -508,7 +542,11 @@ describe('frequency V2 private PostgreSQL service', () => {
       ['device-report', 'SOURCE_CLASS_UNAVAILABLE', 1],
       ['device-report', 'SOURCE_LOGIN_REQUIRED', 1],
     ]);
-    expect(failures[0]).toMatchObject({ detail: 'observed-in-future', deviceId: actor.deviceId, classId: 101 });
+    expect(failures[0]).toMatchObject({
+      detail: 'observed-in-future',
+      deviceId: actor.deviceId,
+      classId: 101,
+    });
     expect((await status()).failures.some((f) => f.code === 'unavailable')).toBe(false);
   });
   it('heartbeat expires old failures and operational receipts but keeps batch receipts', async () => {
@@ -520,9 +558,17 @@ describe('frequency V2 private PostgreSQL service', () => {
       SELECT academic_year,generation,'${id()}'::uuid,actor_id,'old','{}',clock_timestamp()-interval '9 days' FROM attendance.receipt_v2 LIMIT 1;
       UPDATE attendance.receipt_v2 SET recorded_at=clock_timestamp()-interval '9 days' WHERE request_id='${batch.requestId}'`,
     );
-    const before = (await pg.query<{ n: number }>('SELECT count(*)::integer AS n FROM attendance.receipt_v2')).rows[0]!.n;
-    await execute('heartbeat', { fencingToken: token, status: 'ready', classId: null, code: null }, actor);
-    const receipts = (await pg.query<{ request_id: string }>('SELECT request_id::text FROM attendance.receipt_v2')).rows;
+    const before = (
+      await pg.query<{ n: number }>('SELECT count(*)::integer AS n FROM attendance.receipt_v2')
+    ).rows[0]!.n;
+    await execute(
+      'heartbeat',
+      { fencingToken: token, status: 'ready', classId: null, code: null },
+      actor,
+    );
+    const receipts = (
+      await pg.query<{ request_id: string }>('SELECT request_id::text FROM attendance.receipt_v2')
+    ).rows;
     expect(receipts).toHaveLength(before);
     expect(receipts.some((r) => r.request_id === batch.requestId)).toBe(true);
     expect((await pg.query('SELECT 1 FROM attendance.failure_v2')).rows).toHaveLength(0);
@@ -581,8 +627,16 @@ describe('frequency V2 private PostgreSQL service', () => {
   });
   it("the source's latest reading always prevails: J then X, and an absence removed", async () => {
     // Owner decision 23/10/2026: no review; the Smecel's last update wins.
-    const coverage = [{ recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3, 4, 5], complete: true }];
-    await service.execute(collection({ coverage, marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }] }), actor);
+    const coverage = [
+      { recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3, 4, 5], complete: true },
+    ];
+    await service.execute(
+      collection({
+        coverage,
+        marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'J' }],
+      }),
+      actor,
+    );
     await service.execute(
       collection({
         sourceVersion: `sha256:${'b'.repeat(64)}`,
@@ -595,13 +649,22 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect((await summary()).marks[0]?.mark).toBe('X');
     expect((await status()).conflicts).toEqual([]);
     await service.execute(
-      collection({ sourceVersion: `sha256:${'c'.repeat(64)}`, expectedRevision: 2, coverage, marks: [] }),
+      collection({
+        sourceVersion: `sha256:${'c'.repeat(64)}`,
+        expectedRevision: 2,
+        coverage,
+        marks: [],
+      }),
       actor,
     );
     expect((await summary()).marks).toEqual([]);
     expect((await status()).conflicts).toEqual([]);
     expect(
-      (await pg.query('SELECT before_mark,after_mark,reason FROM attendance.correction_v2 ORDER BY recorded_at')).rows,
+      (
+        await pg.query(
+          'SELECT before_mark,after_mark,reason FROM attendance.correction_v2 ORDER BY recorded_at',
+        )
+      ).rows,
     ).toEqual([
       { before_mark: 'J', after_mark: 'X', reason: 'Falta marcada no Smecel' },
       { before_mark: 'X', after_mark: null, reason: 'Falta apagada no Smecel' },
@@ -609,9 +672,16 @@ describe('frequency V2 private PostgreSQL service', () => {
   });
   it('daily pruning keeps official marks and only the evidence the next collection needs', async () => {
     const count = async (table: string) =>
-      Number((await pg.query<{ n: number }>(`SELECT count(*)::integer AS n FROM attendance.${table}`)).rows[0]!.n);
+      Number(
+        (await pg.query<{ n: number }>(`SELECT count(*)::integer AS n FROM attendance.${table}`))
+          .rows[0]!.n,
+      );
     const prune = async () =>
-      (await pg.query<{ r: Record<string, number> }>('SELECT attendance.prune_superseded_evidence_v2() AS r')).rows[0]!.r;
+      (
+        await pg.query<{ r: Record<string, number> }>(
+          'SELECT attendance.prune_superseded_evidence_v2() AS r',
+        )
+      ).rows[0]!.r;
     await service.execute(collection(), actor);
     await service.execute(
       collection({
@@ -627,7 +697,13 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(await count('batch_v2')).toBe(1);
     expect(await count('origin_v2')).toBe(1);
     expect((await summary()).marks[0]?.mark).toBe('J');
-    expect(await prune()).toMatchObject({ origins: 0, marks: 0, coverage: 0, sourceRows: 0, batches: 0 });
+    expect(await prune()).toMatchObject({
+      origins: 0,
+      marks: 0,
+      coverage: 0,
+      sourceRows: 0,
+      batches: 0,
+    });
     // Two fichas of the student disagreeing in the same reading: the only case left to a person.
     await service.execute(
       collection({
@@ -723,13 +799,24 @@ describe('frequency V2 private PostgreSQL service', () => {
         )
       ).rows,
     ).toEqual([
-      { reason: 'record-without-lesson', record_key: 'r2', mark: 'X', date: '2026-01-05', slot: 1, student_uid: uid },
+      {
+        reason: 'record-without-lesson',
+        record_key: 'r2',
+        mark: 'X',
+        date: '2026-01-05',
+        slot: 1,
+        student_uid: uid,
+      },
     ]);
-    expect((await summary()).marks).toEqual([expect.objectContaining({ date: '2026-01-05', slot: 1, mark: 'X' })]);
+    expect((await summary()).marks).toEqual([
+      expect.objectContaining({ date: '2026-01-05', slot: 1, mark: 'X' }),
+    ]);
     // Healthy: nothing for the panel's failure trail.
     expect((await status()).failures).toEqual([]);
     // The archive goes with its school year.
-    expect((await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).pruned_origin_v2).toBe(1);
+    expect(
+      (await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).pruned_origin_v2,
+    ).toBe(1);
     await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
     expect(
       (await pg.query('SELECT count(*)::integer AS n FROM attendance.pruned_origin_v2')).rows,
@@ -798,14 +885,25 @@ describe('frequency V2 private PostgreSQL service', () => {
       conflicts: 0,
     });
     const after = await counts();
-    for (const name of ['batch_v2', 'source_row_v2', 'coverage_v2', 'source_mark_v2', 'occurrence_v2', 'origin_v2'])
+    for (const name of [
+      'batch_v2',
+      'source_row_v2',
+      'coverage_v2',
+      'source_mark_v2',
+      'occurrence_v2',
+      'origin_v2',
+    ])
       expect(after[name]).toBe(before[name]);
     expect((await status()).collections[0]?.observedAt).toBe('2026-01-11T12:00:00.000Z');
     expect((await summary()).marks).toHaveLength(1);
     // Content the server does not hold (the collector's copy is wrong, or the server lost it).
     await expect(
       service.execute(
-        unchanged({ expectedRevision: 2, observedAt: '2026-01-12T12:00:00Z', contentHash: 'A'.repeat(43) }),
+        unchanged({
+          expectedRevision: 2,
+          observedAt: '2026-01-12T12:00:00Z',
+          contentHash: 'A'.repeat(43),
+        }),
         actor,
       ),
     ).rejects.toMatchObject({ code: 'payload-required' });
@@ -814,14 +912,20 @@ describe('frequency V2 private PostgreSQL service', () => {
       "UPDATE gradebook.student_source_observation_v1 SET name_key='ALUNA SINTETICA UM' WHERE name_key='ALUNO SINTETICO DOIS'",
     );
     await expect(
-      service.execute(unchanged({ expectedRevision: 2, observedAt: '2026-01-12T12:00:00Z' }), actor),
+      service.execute(
+        unchanged({ expectedRevision: 2, observedAt: '2026-01-12T12:00:00Z' }),
+        actor,
+      ),
     ).rejects.toMatchObject({ code: 'payload-required' });
     // The usual guards stay: an older capture, a stale revision, an administrator.
     await pg.exec(
       "UPDATE gradebook.student_source_observation_v1 SET name_key='ALUNO SINTETICO DOIS' WHERE id='60000000-0000-4000-8000-000000000002'",
     );
     await expect(
-      service.execute(unchanged({ expectedRevision: 2, observedAt: '2026-01-10T11:00:00Z' }), actor),
+      service.execute(
+        unchanged({ expectedRevision: 2, observedAt: '2026-01-10T11:00:00Z' }),
+        actor,
+      ),
     ).rejects.toMatchObject({ code: 'source-invalid' });
     await expect(service.execute(unchanged({ expectedRevision: 1 }), actor)).rejects.toMatchObject({
       code: 'revision-conflict',
@@ -831,7 +935,10 @@ describe('frequency V2 private PostgreSQL service', () => {
     });
   });
   it('the weekly grid keeps one version per change and only freshness otherwise', async () => {
-    const grid = (lessons: { weekday: number; slot: number; subject: string }[], fields: Record<string, unknown> = {}) => ({
+    const grid = (
+      lessons: { weekday: number; slot: number; subject: string }[],
+      fields: Record<string, unknown> = {},
+    ) => ({
       operation: 'schedule-collect',
       academicYear: 2026,
       requestId: id(),
@@ -858,11 +965,15 @@ describe('frequency V2 private PostgreSQL service', () => {
     });
     // The same grid in another order is the same grid: freshness only.
     expect(
-      await service.execute(grid([...first].reverse(), { observedAt: '2026-01-11T12:00:00Z' }), actor),
+      await service.execute(
+        grid([...first].reverse(), { observedAt: '2026-01-11T12:00:00Z' }),
+        actor,
+      ),
     ).toMatchObject({ classes: [{ classId: 101, changed: false }] });
     expect(await versions()).toHaveLength(1);
     expect(
-      (await pg.query('SELECT last_observed_at::text AS at FROM attendance.schedule_state_v2')).rows,
+      (await pg.query('SELECT last_observed_at::text AS at FROM attendance.schedule_state_v2'))
+        .rows,
     ).toEqual([{ at: expect.stringMatching(/^2026-01-11 /u) }]);
     // A change adds a version; the history stays and the class points at the new one.
     const second = [...first.slice(0, 2), { weekday: 2, slot: 6, subject: 'MATEMATICA' }];
@@ -873,7 +984,7 @@ describe('frequency V2 private PostgreSQL service', () => {
     expect(
       (
         await pg.query(
-          'SELECT v.lessons_json->2->>\'subject\' AS subject FROM attendance.schedule_state_v2 s JOIN attendance.schedule_version_v2 v ON v.id=s.current_version_id',
+          "SELECT v.lessons_json->2->>'subject' AS subject FROM attendance.schedule_state_v2 s JOIN attendance.schedule_version_v2 v ON v.id=s.current_version_id",
         )
       ).rows,
     ).toEqual([{ subject: 'MATEMATICA' }]);
@@ -925,10 +1036,21 @@ describe('frequency V2 private PostgreSQL service', () => {
       observedAt: '2026-01-10T12:00:00Z',
       complete: true,
       students: [
-        { sourceStudentId: '501', name: 'ALUNA SINTETICA UM', classId: 101, sourceClassLabel: '6A', incidents },
+        {
+          sourceStudentId: '501',
+          name: 'ALUNA SINTETICA UM',
+          classId: 101,
+          sourceClassLabel: '6A',
+          incidents,
+        },
         // Not linked in the Centro: kept without a student.
-        { sourceStudentId: '502', name: 'PESSOA FORA DA RELACAO', classId: null, sourceClassLabel: null,
-          incidents: [record({ sourceIncidentId: '9003' })] },
+        {
+          sourceStudentId: '502',
+          name: 'PESSOA FORA DA RELACAO',
+          classId: null,
+          sourceClassLabel: null,
+          incidents: [record({ sourceIncidentId: '9003' })],
+        },
       ],
       ...fields,
     });
@@ -940,18 +1062,50 @@ describe('frequency V2 private PostgreSQL service', () => {
         )
       ).rows;
     const versions = async () =>
-      Number((await pg.query<{ n: number }>('SELECT count(*)::integer AS n FROM attendance.incident_version_v2')).rows[0]!.n);
+      Number(
+        (
+          await pg.query<{ n: number }>(
+            'SELECT count(*)::integer AS n FROM attendance.incident_version_v2',
+          )
+        ).rows[0]!.n,
+      );
     expect(await service.execute(capture([record(), suspension]), actor)).toMatchObject({
-      operation: 'incident-collect', changed: true, changedIncidents: 3, removedIncidents: 0, incidents: 3, unresolvedStudents: 1,
+      operation: 'incident-collect',
+      changed: true,
+      changedIncidents: 3,
+      removedIncidents: 0,
+      incidents: 3,
+      unresolvedStudents: 1,
     });
     expect(await rows()).toEqual([
-      { id: '9001', uid, removed: false, description: 'Descrição sintética da ocorrência.', leave_days: null },
-      { id: '9002', uid, removed: false, description: 'Descrição sintética da ocorrência.', leave_days: 2 },
-      { id: '9003', uid: null, removed: false, description: 'Descrição sintética da ocorrência.', leave_days: null },
+      {
+        id: '9001',
+        uid,
+        removed: false,
+        description: 'Descrição sintética da ocorrência.',
+        leave_days: null,
+      },
+      {
+        id: '9002',
+        uid,
+        removed: false,
+        description: 'Descrição sintética da ocorrência.',
+        leave_days: 2,
+      },
+      {
+        id: '9003',
+        uid: null,
+        removed: false,
+        description: 'Descrição sintética da ocorrência.',
+        leave_days: null,
+      },
     ]);
     // The same content again (any computer, any order) is freshness only: the server decides.
     expect(
-      await service.execute(capture([suspension, record()], { observedAt: '2026-01-11T12:00:00Z' }), actor),
+      await service.execute(
+        capture([suspension, record()], { observedAt: '2026-01-11T12:00:00Z' }),
+        actor,
+      ),
     ).toMatchObject({ changed: false, changedIncidents: 0 });
     expect(await versions()).toBe(3);
     // The family confirmed the first text; an edit in the Smecel is a new version without it.
@@ -959,7 +1113,10 @@ describe('frequency V2 private PostgreSQL service', () => {
       SELECT 2026,current_version_id,'${id()}' FROM attendance.incident_v2 WHERE source_incident_id='9001'`);
     const edited = record({ description: 'Descrição sintética corrigida.' });
     expect(
-      await service.execute(capture([edited, suspension], { observedAt: '2026-01-12T12:00:00Z' }), actor),
+      await service.execute(
+        capture([edited, suspension], { observedAt: '2026-01-12T12:00:00Z' }),
+        actor,
+      ),
     ).toMatchObject({ changed: true, changedIncidents: 1 });
     expect(await versions()).toBe(4);
     expect(
@@ -972,13 +1129,19 @@ describe('frequency V2 private PostgreSQL service', () => {
     ).toEqual([{ acknowledged: 0 }]);
     // A partial reading never removes; a complete one does, and a record back is open again.
     expect(
-      await service.execute(capture([edited], { observedAt: '2026-01-13T12:00:00Z', complete: false }), actor),
+      await service.execute(
+        capture([edited], { observedAt: '2026-01-13T12:00:00Z', complete: false }),
+        actor,
+      ),
     ).toMatchObject({ removedIncidents: 0 });
     expect(
       await service.execute(capture([edited], { observedAt: '2026-01-14T12:00:00Z' }), actor),
     ).toMatchObject({ removedIncidents: 1 });
     expect((await rows()).find((r) => r.id === '9002')).toMatchObject({ removed: true });
-    await service.execute(capture([edited, suspension], { observedAt: '2026-01-15T12:00:00Z' }), actor);
+    await service.execute(
+      capture([edited, suspension], { observedAt: '2026-01-15T12:00:00Z' }),
+      actor,
+    );
     expect((await rows()).find((r) => r.id === '9002')).toMatchObject({ removed: false });
     // Guards: an older capture, a record twice, an administrator, the immutable history.
     await expect(
@@ -990,7 +1153,9 @@ describe('frequency V2 private PostgreSQL service', () => {
     await expect(
       service.execute(capture([edited], { observedAt: '2026-01-16T12:00:00Z' }), admin),
     ).rejects.toMatchObject({ code: 'not-authorized' });
-    await expect(pg.exec(`UPDATE attendance.incident_version_v2 SET description='x'`)).rejects.toThrow();
+    await expect(
+      pg.exec(`UPDATE attendance.incident_version_v2 SET description='x'`),
+    ).rejects.toThrow();
     // Each linked record keeps the evidence of its link (attendance 0017); once the Conciliação undoes
     // that link the evidence no longer holds, and the Portal readers (0018) stop showing the record.
     const linkHolds = async () =>
@@ -1005,75 +1170,187 @@ describe('frequency V2 private PostgreSQL service', () => {
       { id: '9002', holds: true },
       { id: '9003', holds: false },
     ]);
-    await pg.exec(`UPDATE gradebook.student_source_link_v1 SET review_required=true WHERE student_uid='${uid}'`);
+    await pg.exec(
+      `UPDATE gradebook.student_source_link_v1 SET review_required=true WHERE student_uid='${uid}'`,
+    );
     expect((await linkHolds()).filter((row) => row.holds)).toEqual([]);
-    await pg.exec(`UPDATE gradebook.student_source_link_v1 SET review_required=false WHERE student_uid='${uid}'`);
+    await pg.exec(
+      `UPDATE gradebook.student_source_link_v1 SET review_required=false WHERE student_uid='${uid}'`,
+    );
     // Everything goes with its school year.
     const counts = await database.transaction((tx) => frequencyYearCountsV2(tx, 2026));
-    expect(counts).toMatchObject({ incident_v2: 3, incident_version_v2: 4, incident_ack_v2: 1, incident_state_v2: 1 });
+    expect(counts).toMatchObject({
+      incident_v2: 3,
+      incident_version_v2: 4,
+      incident_ack_v2: 1,
+      incident_state_v2: 1,
+    });
     await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
     expect(await versions()).toBe(0);
   });
   it('the automatic student report: a short check, a recorded outcome and freshness only when unchanged', async () => {
     const row = (sourceRow: number, fields: Record<string, unknown> = {}) => ({
-      sourceRow, name: 'ALUNA SINTETICA UM', birthDate: 41640, filiation1: 'MAE SINTETICA', inep: 123456789012,
-      enrollmentHash: `hash-${sourceRow}`, classLabel: '6A 2026 - MATUTINO', shift: 'MATUTINO',
-      stageLabel: 'ENSINO FUNDAMENTAL DE 9 ANOS - 6º ANO', status: 'MATRICULADO', enrolledAt: 46023, transferredAt: null,
+      sourceRow,
+      name: 'ALUNA SINTETICA UM',
+      birthDate: 41640,
+      filiation1: 'MAE SINTETICA',
+      inep: 123456789012,
+      enrollmentHash: `hash-${sourceRow}`,
+      classLabel: '6A 2026 - MATUTINO',
+      shift: 'MATUTINO',
+      stageLabel: 'ENSINO FUNDAMENTAL DE 9 ANOS - 6º ANO',
+      status: 'MATRICULADO',
+      enrolledAt: 46023,
+      transferredAt: null,
       ...fields,
     });
-    const report = (rows: unknown[], fields: Record<string, unknown> = {}) => ({
-      operation: 'student-report-collect', academicYear: 2026, requestId: id(), fencingToken: token,
-      sourceVersion: `sha256:${'f'.repeat(64)}`, observedAt: '2026-01-10T12:00:00Z', rows, ...fields,
-    }) as FrequencyStudentReportV2;
-    const notes = { counts: { rows: 2, linked: 2, pending: 0 }, differences: ['1 origem(ns) não encontrada(s) no relatório.'],
-      invalid: [{ sourceRow: 4, name: 'ALUNO SINTETICO DOIS', classLabel: '6A 2026 - MATUTINO', field: 'birthDate', reason: 'nascimento ausente.' }] };
+    const report = (rows: unknown[], fields: Record<string, unknown> = {}) =>
+      ({
+        operation: 'student-report-collect',
+        academicYear: 2026,
+        requestId: id(),
+        fencingToken: token,
+        sourceVersion: `sha256:${'f'.repeat(64)}`,
+        observedAt: '2026-01-10T12:00:00Z',
+        rows,
+        ...fields,
+      }) as FrequencyStudentReportV2;
+    const notes = {
+      counts: { rows: 2, linked: 2, pending: 0 },
+      differences: ['1 origem(ns) não encontrada(s) no relatório.'],
+      invalid: [
+        {
+          sourceRow: 4,
+          name: 'ALUNO SINTETICO DOIS',
+          classLabel: '6A 2026 - MATUTINO',
+          field: 'birthDate',
+          reason: 'nascimento ausente.',
+        },
+      ],
+    };
     const first = report([row(2), row(3)]);
     // Nothing recorded yet: the check leaves without writing, and the application runs outside it.
     const pending = await service.execute(first, actor).catch((error: unknown) => error);
     expect(pending).toBeInstanceOf(StudentReportPendingV2);
     expect((pending as StudentReportPendingV2).previous).toBeNull();
     const evidenceHash = (pending as StudentReportPendingV2).evidenceHash;
-    expect(evidenceHash).toBe(await studentReportHashV2({ rows: [row(3), row(2)] as FrequencyStudentReportV2['rows'] }));
+    expect(evidenceHash).toBe(
+      await studentReportHashV2({ rows: [row(3), row(2)] as FrequencyStudentReportV2['rows'] }),
+    );
     const finished = await service.finishStudentReport(first, actor, {
-      evidenceHash, outcome: 'applied', batchId: id(), notes, changed: true,
+      evidenceHash,
+      outcome: 'applied',
+      batchId: id(),
+      notes,
+      changed: true,
     });
-    expect(finished).toMatchObject({ operation: 'student-report-collect', changed: true, outcome: 'applied', rows: 2, invalid: 1, differences: 1 });
+    expect(finished).toMatchObject({
+      operation: 'student-report-collect',
+      changed: true,
+      outcome: 'applied',
+      rows: 2,
+      invalid: 1,
+      differences: 1,
+    });
     // The receipt answers a repeat of the same request.
     expect(await service.execute(first, actor)).toEqual(finished);
     // The administrator sees the rows left out; a device only what happened.
     expect((await status()).studentReport).toMatchObject({ outcome: 'applied', rows: 2, notes });
-    const seen = (await service.execute({ operation: 'status', academicYear: 2026 }, actor)) as FrequencyStatusV2;
+    const seen = (await service.execute(
+      { operation: 'status', academicYear: 2026 },
+      actor,
+    )) as FrequencyStatusV2;
     expect(seen.studentReport?.notes.invalid).toEqual([]);
     // The same rows (any order) later: dates only, nothing heavy.
-    const again = await service.execute(report([row(3), row(2)], { observedAt: '2026-01-11T12:00:00Z' }), actor);
+    const again = await service.execute(
+      report([row(3), row(2)], { observedAt: '2026-01-11T12:00:00Z' }),
+      actor,
+    );
     expect(again).toMatchObject({ changed: false, outcome: 'applied', invalid: 1 });
     expect((await status()).studentReport?.observedAt).toBe('2026-01-11T12:00:00.000Z');
     // The Coletor's local copy: only the hash. The right one is freshness; another asks for the report.
-    const short = (contentHash: string, observedAt: string) => ({ operation: 'student-report-unchanged', academicYear: 2026,
-      requestId: id(), fencingToken: token, sourceVersion: `sha256:${'f'.repeat(64)}`, observedAt, rows: 2, contentHash });
-    expect(await service.execute(short(evidenceHash, '2026-01-11T12:30:00Z'), actor)).toMatchObject({ changed: false, outcome: 'applied' });
-    await expect(service.execute(short('x'.repeat(43), '2026-01-11T12:40:00Z'), actor)).rejects.toMatchObject({ code: 'payload-required' });
+    const short = (contentHash: string, observedAt: string) => ({
+      operation: 'student-report-unchanged',
+      academicYear: 2026,
+      requestId: id(),
+      fencingToken: token,
+      sourceVersion: `sha256:${'f'.repeat(64)}`,
+      observedAt,
+      rows: 2,
+      contentHash,
+    });
+    expect(await service.execute(short(evidenceHash, '2026-01-11T12:30:00Z'), actor)).toMatchObject(
+      { changed: false, outcome: 'applied' },
+    );
+    await expect(
+      service.execute(short('x'.repeat(43), '2026-01-11T12:40:00Z'), actor),
+    ).rejects.toMatchObject({ code: 'payload-required' });
     // A change (the transfer date of a row) goes to the application again, with the last outcome.
-    const changed = report([row(2), row(3, { transferredAt: 46300, status: 'TRANSFERIDO' })], { observedAt: '2026-01-12T12:00:00Z' });
-    const next = (await service.execute(changed, actor).catch((error: unknown) => error)) as StudentReportPendingV2;
+    const changed = report([row(2), row(3, { transferredAt: 46300, status: 'TRANSFERIDO' })], {
+      observedAt: '2026-01-12T12:00:00Z',
+    });
+    const next = (await service
+      .execute(changed, actor)
+      .catch((error: unknown) => error)) as StudentReportPendingV2;
     expect(next).toBeInstanceOf(StudentReportPendingV2);
     expect(next.previous).toMatchObject({ evidenceHash, outcome: 'applied' });
     // Credentials still being prepared: the same report is not "unchanged" until it is applied.
-    await service.finishStudentReport(changed, actor, { evidenceHash: next.evidenceHash, outcome: 'preparing', batchId: id(), notes, changed: true });
-    await expect(service.execute(report(changed.rows, { observedAt: '2026-01-12T12:05:00Z' }), actor)).rejects.toBeInstanceOf(StudentReportPendingV2);
+    await service.finishStudentReport(changed, actor, {
+      evidenceHash: next.evidenceHash,
+      outcome: 'preparing',
+      batchId: id(),
+      notes,
+      changed: true,
+    });
+    await expect(
+      service.execute(report(changed.rows, { observedAt: '2026-01-12T12:05:00Z' }), actor),
+    ).rejects.toBeInstanceOf(StudentReportPendingV2);
     // Guards: older than the last reading, without the lease, from an administrator.
-    await expect(service.execute(report([row(2)], { observedAt: '2026-01-09T12:00:00Z' }), actor)).rejects.toMatchObject({ code: 'source-invalid' });
-    await expect(service.execute(report([row(2)], { observedAt: '2026-01-13T12:00:00Z', fencingToken: token + 50 }), actor)).rejects.toMatchObject({ code: 'lease-fenced' });
-    await expect(service.execute(report([row(2)], { observedAt: '2026-01-13T12:00:00Z' }), admin)).rejects.toMatchObject({ code: 'not-authorized' });
+    await expect(
+      service.execute(report([row(2)], { observedAt: '2026-01-09T12:00:00Z' }), actor),
+    ).rejects.toMatchObject({ code: 'source-invalid' });
+    await expect(
+      service.execute(
+        report([row(2)], { observedAt: '2026-01-13T12:00:00Z', fencingToken: token + 50 }),
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'lease-fenced' });
+    await expect(
+      service.execute(report([row(2)], { observedAt: '2026-01-13T12:00:00Z' }), admin),
+    ).rejects.toMatchObject({ code: 'not-authorized' });
     // Its own agenda, saved with the school's revision (CAS) and shown in the status.
-    const agenda = { timezone: 'America/Bahia', enabled: true, every: 60, from: '07:10', to: '17:10', weekdays: [1, 2, 3, 4, 5] };
+    const agenda = {
+      timezone: 'America/Bahia',
+      enabled: true,
+      every: 60,
+      from: '07:10',
+      to: '17:10',
+      weekdays: [1, 2, 3, 4, 5],
+    };
     const revision = (await status()).settings.revision;
-    await execute('save-report-settings', { expectedRevision: revision, reportSchedule: agenda }, actor);
-    expect((await status()).settings).toMatchObject({ revision: revision + 1, reportSchedule: agenda });
-    await expect(execute('save-report-settings', { expectedRevision: revision, reportSchedule: null }, actor)).rejects.toMatchObject({ code: 'revision-conflict' });
-    await expect(execute('save-report-settings', { expectedRevision: revision + 1, reportSchedule: { ...agenda, every: 15 } }, actor)).rejects.toMatchObject({ code: 'invalid-request' });
+    await execute(
+      'save-report-settings',
+      { expectedRevision: revision, reportSchedule: agenda },
+      actor,
+    );
+    expect((await status()).settings).toMatchObject({
+      revision: revision + 1,
+      reportSchedule: agenda,
+    });
+    await expect(
+      execute('save-report-settings', { expectedRevision: revision, reportSchedule: null }, actor),
+    ).rejects.toMatchObject({ code: 'revision-conflict' });
+    await expect(
+      execute(
+        'save-report-settings',
+        { expectedRevision: revision + 1, reportSchedule: { ...agenda, every: 15 } },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid-request' });
     // It goes with its school year.
-    expect(await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).toMatchObject({ student_report_state_v2: 1 });
+    expect(await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).toMatchObject({
+      student_report_state_v2: 1,
+    });
     await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
     expect((await status()).studentReport).toBeNull();
   });
@@ -1098,7 +1375,8 @@ describe('frequency V2 private PostgreSQL service', () => {
     let s = await status();
     expect(s.conflicts).toHaveLength(1);
     const deviceStatus = (await service.execute(
-      { operation: 'status', academicYear: 2026 }, actor,
+      { operation: 'status', academicYear: 2026 },
+      actor,
     )) as FrequencyStatusV2;
     expect(deviceStatus.conflicts).toEqual([]);
     expect(deviceStatus.classes).toEqual(s.classes);
@@ -1453,7 +1731,11 @@ describe('frequency V2 private PostgreSQL service', () => {
       marks: [{ recordKey: 'r2', date: '2026-01-05', slot: 1, mark: 'X' as const }],
     };
     await service.execute(
-      collection({ ...swapped, sourceVersion: `sha256:${'b'.repeat(64)}`, observedAt: '2026-01-11T12:00:00Z' }),
+      collection({
+        ...swapped,
+        sourceVersion: `sha256:${'b'.repeat(64)}`,
+        observedAt: '2026-01-11T12:00:00Z',
+      }),
       actor,
     );
     expect(await summary()).toMatchObject({
@@ -1468,7 +1750,12 @@ describe('frequency V2 private PostgreSQL service', () => {
     });
     const latest = async () =>
       (
-        await pg.query<{ record_key: string; date: string; slots_json: number[]; complete: boolean }>(
+        await pg.query<{
+          record_key: string;
+          date: string;
+          slots_json: number[];
+          complete: boolean;
+        }>(
           `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id ORDER BY c.record_key,c.date,b.received_at DESC,b.id DESC`,
         )
       ).rows;
@@ -1563,12 +1850,17 @@ describe('frequency V2 private PostgreSQL service', () => {
     // First sight of the computer: a write the reset must see, under the year's lock.
     expect(recorded.some((sql) => sql.includes('pg_advisory_xact_lock(613,$1'))).toBe(true);
     recorded = [];
-    const answer = (await service.execute({ operation: 'status', academicYear: 2026 }, next)) as FrequencyStatusV2;
+    const answer = (await service.execute(
+      { operation: 'status', academicYear: 2026 },
+      next,
+    )) as FrequencyStatusV2;
     expect(answer.state).toBe('ready');
     expect(recorded.some((sql) => sql.includes('pg_advisory_xact_lock_shared(613,0)'))).toBe(true);
     expect(recorded.some((sql) => sql.includes('pg_advisory_xact_lock(613,'))).toBe(false);
     expect(recorded.some((sql) => sql.includes('ensure_year_coordination_v1'))).toBe(false);
-    expect(recorded.some((sql) => /school_state_v2 WHERE academic_year=\$1 FOR UPDATE/u.test(sql))).toBe(false);
+    expect(
+      recorded.some((sql) => /school_state_v2 WHERE academic_year=\$1 FOR UPDATE/u.test(sql)),
+    ).toBe(false);
     recorded = null;
   });
 });

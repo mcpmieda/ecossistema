@@ -154,7 +154,9 @@ describe('administrative sessions interface', () => {
     denied = true;
     await confirm();
     // The panel removes every protected view on a lost session (authorizationAwareFetchV1).
-    await waitFor(() => expect(lost).toHaveBeenCalledWith(expect.objectContaining({ state: 'unauthenticated' })));
+    await waitFor(() =>
+      expect(lost).toHaveBeenCalledWith(expect.objectContaining({ state: 'unauthenticated' })),
+    );
     expect(mock.writes[0]).toMatchObject({ scope: OP_ACCOUNT_V1, expectedVersion: 11 });
   });
   it('does not offer school-wide revocation, disables writes for read-only and pages beyond 100', async () => {

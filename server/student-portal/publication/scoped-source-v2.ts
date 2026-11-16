@@ -16,9 +16,14 @@ export const scopedKeyV2 = (scope: ScopeV1) => {
 };
 const sourceAccountIdV2 = z.uuid();
 
-export async function scopedPublicationEnabledV2(sql: StudentPortalPostgresQueryV1): Promise<boolean> {
-  const rows = await sql.unsafe('SELECT enabled FROM student_portal.publication_control_v2 WHERE academic_year=2026');
-  if (rows.length !== 1 || typeof rows[0]!.enabled !== 'boolean') throw new Error('student-portal-scoped-publication-unavailable');
+export async function scopedPublicationEnabledV2(
+  sql: StudentPortalPostgresQueryV1,
+): Promise<boolean> {
+  const rows = await sql.unsafe(
+    'SELECT enabled FROM student_portal.publication_control_v2 WHERE academic_year=2026',
+  );
+  if (rows.length !== 1 || typeof rows[0]!.enabled !== 'boolean')
+    throw new Error('student-portal-scoped-publication-unavailable');
   return rows[0]!.enabled;
 }
 
@@ -64,10 +69,18 @@ const SCOPED_SELECTION_V2 = `SELECT p.period,p.mask,r.version AS decision_versio
     WHERE academic_year=2026 AND student_id=t.student_id AND generation=h.generation AND revision<=h.revision
     ORDER BY revision DESC LIMIT 1) latest ON true`;
 
-export async function readScopedSourcesV2(tx: StudentPortalPostgresQueryV1, accountId: string, studentId: number, classId: number) {
-  return tx.unsafe(`WITH target AS (SELECT $1::uuid AS account_id,$2::integer AS student_id,$3::integer AS class_id)
+export async function readScopedSourcesV2(
+  tx: StudentPortalPostgresQueryV1,
+  accountId: string,
+  studentId: number,
+  classId: number,
+) {
+  return tx.unsafe(
+    `WITH target AS (SELECT $1::uuid AS account_id,$2::integer AS student_id,$3::integer AS class_id)
     SELECT selected.* FROM target t CROSS JOIN student_portal.publication_source_head_v2 h
-    CROSS JOIN LATERAL (${SCOPED_SELECTION_V2}) selected WHERE h.academic_year=2026`, [accountId, studentId, classId]);
+    CROSS JOIN LATERAL (${SCOPED_SELECTION_V2}) selected WHERE h.academic_year=2026`,
+    [accountId, studentId, classId],
+  );
 }
 
 const sourceTargetsV2 = z
@@ -158,13 +171,22 @@ export function periodMarksSqlV2(payload: string, mask: string) {
 }
 
 const summaryCountV2 = z.number().int().nonnegative();
-const summaryPeriodsV2 = z.array(z.object({ period: z.enum(PERIODS_V1), available: z.boolean(), all_published: z.boolean(),
-  published_count: summaryCountV2.default(0), target_count: summaryCountV2.default(0),
-  pending: z.boolean().nullable(), revisions: z.array(academicVersionSchemaV1) }));
+const summaryPeriodsV2 = z.array(
+  z.object({
+    period: z.enum(PERIODS_V1),
+    available: z.boolean(),
+    all_published: z.boolean(),
+    published_count: summaryCountV2.default(0),
+    target_count: summaryCountV2.default(0),
+    pending: z.boolean().nullable(),
+    revisions: z.array(academicVersionSchemaV1),
+  }),
+);
 const summaryClassIdV2 = z.number().int().positive().nullable();
 export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
   const scope = scopeV1.parse(input);
-  const rows = await tx.unsafe(`WITH target AS (${TARGETS_V2}), head AS (
+  const rows = await tx.unsafe(
+    `WITH target AS (${TARGETS_V2}), head AS (
       SELECT h.*,c.version FROM student_portal.publication_source_head_v2 h
       JOIN student_portal.publication_control_v2 c USING(academic_year)
       JOIN student_portal.academic_revision r ON r.academic_year=h.academic_year
@@ -188,16 +210,26 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
         bool_or(changed) AS pending,
         COALESCE(jsonb_agg(DISTINCT target_revision) FILTER(WHERE target_revision IS NOT NULL),'[]'::jsonb) AS revisions
         FROM selected GROUP BY period) summary),'[]'::jsonb) AS periods
-    FROM head h`, [scope.kind, scope.kind === 'account' ? scope.accountId : null, scope.kind === 'class' ? scope.classId : null]);
+    FROM head h`,
+    [
+      scope.kind,
+      scope.kind === 'account' ? scope.accountId : null,
+      scope.kind === 'class' ? scope.classId : null,
+    ],
+  );
   if (rows.length !== 1) throw new Error('student-portal-preparation-unavailable');
   const row = rows[0]!;
   const dataVersion = academicVersionSchemaV1.parse(row.data_version);
   const version = versionV1.parse(Number(row.version));
   const periods = summaryPeriodsV2.parse(row.periods);
   return {
-    version, dataVersion, count: summaryCountV2.parse(row.targets),
+    version,
+    dataVersion,
+    count: summaryCountV2.parse(row.targets),
     classId: summaryClassIdV2.parse(row.class_id),
-    allPublished: new Set(periods.filter((period) => period.all_published).map((period) => period.period)),
+    allPublished: new Set(
+      periods.filter((period) => period.all_published).map((period) => period.period),
+    ),
     items: PERIODS_V1.map((period) => {
       const value = periods.find((item) => item.period === period);
       const revisions = value?.revisions ?? [];
@@ -207,32 +239,50 @@ export async function scopedSummaryV2(tx: StudentPortalPostgresQueryV1, input: S
       // One revision is named; several are summarized by a digest of the sorted list.
       let publishedRevision: string | null = null;
       if (revisions.length === 1) publishedRevision = revisions[0]!;
-      else if (revisions.length > 1) publishedRevision = `mixed:${publicationDigestV1([...revisions].sort((left, right) => left.localeCompare(right)))}`;
-      return { period, version, state,
+      else if (revisions.length > 1)
+        publishedRevision = `mixed:${publicationDigestV1([...revisions].sort((left, right) => left.localeCompare(right)))}`;
+      return {
+        period,
+        version,
+        state,
         availableRevision: value?.available ? dataVersion : null,
         publishedRevision,
         // A7: a release of another scope can cover only some of these students.
-        publishedCount: value?.published_count ?? 0, targetCount: value?.target_count ?? 0 };
+        publishedCount: value?.published_count ?? 0,
+        targetCount: value?.target_count ?? 0,
+      };
     }),
   };
 }
 
 /** Newest prepared edition of one student (spec D3: the closing reads every recorded fact). */
 export async function readLatestSourceV2(tx: StudentPortalPostgresQueryV1, studentId: number) {
-  const rows = await tx.unsafe(`SELECT s.payload_json,s.class_id,h.generation||':'||s.revision::text AS revision
+  const rows = await tx.unsafe(
+    `SELECT s.payload_json,s.class_id,h.generation||':'||s.revision::text AS revision
     FROM student_portal.publication_source_head_v2 h
     JOIN LATERAL (SELECT payload_json,class_id,revision FROM student_portal.publication_source_v2
       WHERE academic_year=2026 AND student_id=$1::integer AND generation=h.generation AND revision<=h.revision
       ORDER BY revision DESC LIMIT 1) s ON true
-    WHERE h.academic_year=2026`, [studentId]);
+    WHERE h.academic_year=2026`,
+    [studentId],
+  );
   const row = rows[0];
-  return row ? { payload_json: row.payload_json, class_id: Number(row.class_id), revision: String(row.revision) } : null;
+  return row
+    ? {
+        payload_json: row.payload_json,
+        class_id: Number(row.class_id),
+        revision: String(row.revision),
+      }
+    : null;
 }
 
 /** Durable student key for stable phrase variants (spec decision 7). */
 export async function readStudentKeyV2(tx: StudentPortalPostgresQueryV1, accountId: string) {
   // to_jsonb keeps older disposable schemas (before 0018) readable; production always has the column.
-  const rows = await tx.unsafe("SELECT a.student_uid::text AS uid FROM student_portal.account a WHERE a.id=$1::uuid", [accountId]);
+  const rows = await tx.unsafe(
+    'SELECT a.student_uid::text AS uid FROM student_portal.account a WHERE a.id=$1::uuid',
+    [accountId],
+  );
   const uid = rows[0]?.uid;
   return typeof uid === 'string' && uid.length > 0 ? uid : `account:${accountId}`;
 }

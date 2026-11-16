@@ -26,7 +26,14 @@ export function SectionLinksV1({
   }, [label, section]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLAnchorElement>, id: string) {
-    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
+    if (
+      event.defaultPrevented ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.nativeEvent.isComposing
+    )
+      return;
     if (event.key === 'Enter') {
       // Preserve browser shortcuts. Plain Enter uses exactly the same guarded click as a
       // pointer, without depending on an implicit keypress activation or firing it twice.

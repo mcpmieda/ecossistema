@@ -148,9 +148,17 @@ export async function handleFrequencyAdminRequestV2(
     requireRole(session.roles, 'ADMINISTRADOR');
     const input = frequencyRequestV2.parse(await readBoundedJson(request, FREQUENCY_BODY_BYTES_V2));
     if (
-      ['lease', 'heartbeat', 'release', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'student-report-collect', 'student-report-unchanged'].includes(
-        input.operation,
-      )
+      [
+        'lease',
+        'heartbeat',
+        'release',
+        'collect',
+        'collect-unchanged',
+        'schedule-collect',
+        'incident-collect',
+        'student-report-collect',
+        'student-report-unchanged',
+      ].includes(input.operation)
     )
       return reply({ contractVersion: 2, state: 'not-authorized' }, 403);
     return await execute(env, 'admin', input, {

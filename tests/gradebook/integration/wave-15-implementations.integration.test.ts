@@ -23,7 +23,9 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
 
   it('preserva hardening do Operational Workspace sem alterar seus limites físicos', () => {
     const yearProvider = source('src/platform/gradebook-year-provider.tsx');
-    const performanceHook = source('src/features/gradebook/performance/use-relational-performance-v2.ts');
+    const performanceHook = source(
+      'src/features/gradebook/performance/use-relational-performance-v2.ts',
+    );
     const operationalGate = source(
       'src/features/gradebook/operational-workspace/operational-workspace-request-gate.ts',
     );

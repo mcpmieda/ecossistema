@@ -15,7 +15,8 @@ import {
 } from '../../../../shared/gradebook-contracts/settings/year-reset-contract-v1';
 import {
   type GradebookPostgresWritePortV1,
-  type GradebookPostgresScalarV1, type GradebookPostgresTransactionV1 
+  type GradebookPostgresScalarV1,
+  type GradebookPostgresTransactionV1,
 } from '../../persistence/postgres/postgres-database-v1';
 
 import { inOrderV1 } from '../../../../shared/in-order-v1';
@@ -27,9 +28,14 @@ type TransactionalDatabase = GradebookPostgresWritePortV1 & {
 };
 
 const RECONCILIATION_TABLES_V1 = [
-  'student_report_pending_row_v1', 'student_report_profile_v1', 'student_source_link_v1',
-  'student_reconciliation_decision_v1', 'student_source_observation_v1',
-  'student_source_record_v1', 'student_report_class_v1', 'student_report_batch_v1',
+  'student_report_pending_row_v1',
+  'student_report_profile_v1',
+  'student_source_link_v1',
+  'student_reconciliation_decision_v1',
+  'student_source_observation_v1',
+  'student_source_record_v1',
+  'student_report_class_v1',
+  'student_report_batch_v1',
 ] as const;
 
 const RESET_TABLES_V1 = [
@@ -128,8 +134,11 @@ async function loadCounts(
     [year],
   );
   if (!row) throw new Error('year-reset-counts-missing');
-  const attendance = await hasFrequency(database, year)
-    ? Object.values(await frequencyYearCountsV2(database, year)).reduce((sum, value) => sum + integer(value), 0)
+  const attendance = (await hasFrequency(database, year))
+    ? Object.values(await frequencyYearCountsV2(database, year)).reduce(
+        (sum, value) => sum + integer(value),
+        0,
+      )
     : 0;
   const counts = {
     academicYear: integer(row.academic_year),
@@ -157,9 +166,15 @@ async function loadCounts(
   };
 }
 
-async function hasFrequency(database: GradebookPostgresTransactionV1, year: number): Promise<boolean> {
+async function hasFrequency(
+  database: GradebookPostgresTransactionV1,
+  year: number,
+): Promise<boolean> {
   if (year !== 2026) return false;
-  const row = await first(database, "SELECT to_regclass('attendance.school_state_v2') IS NOT NULL AS installed");
+  const row = await first(
+    database,
+    "SELECT to_regclass('attendance.school_state_v2') IS NOT NULL AS installed",
+  );
   return row?.installed === true || row?.installed === 1;
 }
 
@@ -181,15 +196,29 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
     deleted += changed(await database.executeNative(sql, [year]));
   };
 
-  const portal = await first(database,
-    'SELECT student_portal.clear_reconciliation_credentials_v1($1::smallint) AS deleted', [year]);
+  const portal = await first(
+    database,
+    'SELECT student_portal.clear_reconciliation_credentials_v1($1::smallint) AS deleted',
+    [year],
+  );
   if (!portal) throw new Error('year-reset-reconciliation-count-missing');
   deleted += integer(portal.deleted);
-  await database.executeNative('UPDATE gradebook.student_reconciliation_scope_v1 SET current_batch_id=NULL WHERE academic_year=$1', [year]);
-  await database.executeNative('UPDATE gradebook.student_source_record_v1 SET current_observation_id=NULL WHERE academic_year=$1', [year]);
-  await inOrderV1(RECONCILIATION_TABLES_V1, (table) => run(`DELETE FROM gradebook.${table} WHERE academic_year=$1`));
-  await database.executeNative(`UPDATE gradebook.student_reconciliation_scope_v1
-    SET generation=gen_random_uuid(),revision=0,academic_revision=NULL,name_source='report' WHERE academic_year=$1`, [year]);
+  await database.executeNative(
+    'UPDATE gradebook.student_reconciliation_scope_v1 SET current_batch_id=NULL WHERE academic_year=$1',
+    [year],
+  );
+  await database.executeNative(
+    'UPDATE gradebook.student_source_record_v1 SET current_observation_id=NULL WHERE academic_year=$1',
+    [year],
+  );
+  await inOrderV1(RECONCILIATION_TABLES_V1, (table) =>
+    run(`DELETE FROM gradebook.${table} WHERE academic_year=$1`),
+  );
+  await database.executeNative(
+    `UPDATE gradebook.student_reconciliation_scope_v1
+    SET generation=gen_random_uuid(),revision=0,academic_revision=NULL,name_source='report' WHERE academic_year=$1`,
+    [year],
+  );
 
   await database.executeNative(
     'UPDATE gradebook.conselho_sessao SET fechamento_atual_id=NULL WHERE ano=$1',
@@ -236,13 +265,7 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
   await run('DELETE FROM gradebook.importacao_diagnostico WHERE ano=$1');
   await run('DELETE FROM gradebook.importacao WHERE ano=$1');
   await run('DELETE FROM gradebook.oferta WHERE ano=$1');
-  for (const table of [
-    'aluno',
-    'turma',
-    'professor',
-    'disciplina',
-    'ano_letivo',
-  ] as const) {
+  for (const table of ['aluno', 'turma', 'professor', 'disciplina', 'ano_letivo'] as const) {
     await run(`DELETE FROM gradebook.${table} WHERE ano=$1`);
   }
   return deleted;
@@ -306,7 +329,10 @@ export function createYearResetServiceV1(database: GradebookPostgresWritePortV1,
               if (state !== 'clear')
                 return { contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, state };
               const counts = await loadCounts(transaction, request.year);
-              if (counts.academicYear !== 1 && !(counts.academicYear === 0 && counts.reconciliation + counts.attendance > 0))
+              if (
+                counts.academicYear !== 1 &&
+                !(counts.academicYear === 0 && counts.reconciliation + counts.attendance > 0)
+              )
                 throw new Error('year-reset-year-missing-after-proof');
               if (request.operation === 'preview') {
                 return {

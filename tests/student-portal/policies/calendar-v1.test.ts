@@ -197,8 +197,12 @@ describe('calendar and session policy', () => {
       subjects: [
         {
           ...subject,
-          annualSituation: situation === 'in-recovery' ? 'recovery-pending' : 'approved-after-recovery',
-          periods: [...subject.periods, { period: 'T3', final: { kind: 'score', value: 10, maximum: 40, meetsMinimum: false } }],
+          annualSituation:
+            situation === 'in-recovery' ? 'recovery-pending' : 'approved-after-recovery',
+          periods: [
+            ...subject.periods,
+            { period: 'T3', final: { kind: 'score', value: 10, maximum: 40, meetsMinimum: false } },
+          ],
         },
       ],
     });
@@ -212,23 +216,47 @@ describe('calendar and session policy', () => {
     expect(early.profile).not.toHaveProperty('annualSituation');
     expect(early.subjects[0]).not.toHaveProperty('annualSituation');
     // T3 disclosed, final not: EM RECUPERAÇÃO and the pending subject, without final authority.
-    const inRecovery = applyPublishedVisibilityV1(projection('in-recovery'), value(), afterT3, false);
+    const inRecovery = applyPublishedVisibilityV1(
+      projection('in-recovery'),
+      value(),
+      afterT3,
+      false,
+    );
     expect(inRecovery.profile.annualSituation).toBe('in-recovery');
     expect(inRecovery.subjects[0]!.annualSituation).toBe('recovery-pending');
     // A final situation stays hidden until the final disclosure, then appears with authority.
-    const pending = applyPublishedVisibilityV1(projection('approved-after-recovery'), withFinal, afterT3, true);
+    const pending = applyPublishedVisibilityV1(
+      projection('approved-after-recovery'),
+      withFinal,
+      afterT3,
+      true,
+    );
     expect(pending.profile).not.toHaveProperty('annualSituation');
     expect(pending.subjects[0]).not.toHaveProperty('annualSituation');
-    const released = applyPublishedVisibilityV1(projection('approved-after-recovery'), withFinal, afterFinal, true);
+    const released = applyPublishedVisibilityV1(
+      projection('approved-after-recovery'),
+      withFinal,
+      afterFinal,
+      true,
+    );
     expect(released.profile.annualSituation).toBe('approved-after-recovery');
     expect(released.subjects[0]!.annualSituation).toBe('approved-after-recovery');
     expect(
-      applyPublishedVisibilityV1(projection('approved-after-recovery'), withFinal, afterFinal, false).profile,
+      applyPublishedVisibilityV1(
+        projection('approved-after-recovery'),
+        withFinal,
+        afterFinal,
+        false,
+      ).profile,
     ).not.toHaveProperty('annualSituation');
     // Portal closed: no situation at all.
     expect(
-      applyPublishedVisibilityV1(projection('in-recovery'), { ...value(), accessEnabled: false }, afterT3, false)
-        .profile,
+      applyPublishedVisibilityV1(
+        projection('in-recovery'),
+        { ...value(), accessEnabled: false },
+        afterT3,
+        false,
+      ).profile,
     ).not.toHaveProperty('annualSituation');
   });
 

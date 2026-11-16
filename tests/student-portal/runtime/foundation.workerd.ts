@@ -49,7 +49,9 @@ beforeAll(async () => {
     'node_modules/.cache/student-portal/index.js',
   ]) {
     if (!existsSync(artifact))
-      throw new Error(`student-portal-runtime-artifact-missing: ${artifact}; execute "npm run build:student-portal" before "npm run test:student-portal-runtime"`);
+      throw new Error(
+        `student-portal-runtime-artifact-missing: ${artifact}; execute "npm run build:student-portal" before "npm run test:student-portal-runtime"`,
+      );
   }
   runtime = new Miniflare(
     convertV4MiniflareOptions({
@@ -142,9 +144,13 @@ describe('bundled Worker foundation in actual workerd', () => {
     const edge = await workerForTest('edge');
     expect((await edge.fetch(`${origin}/healthz`)).status).toBe(200);
     expect((await edge.fetch(`${origin}/api/student/session`)).status).toBe(401);
-    expect((await edge.fetch(`${origin}/api/student/session`, {
-      headers: { cookie: '__Host-student_portal_session=' + 'a'.repeat(43) },
-    })).status).toBe(503);
+    expect(
+      (
+        await edge.fetch(`${origin}/api/student/session`, {
+          headers: { cookie: '__Host-student_portal_session=' + 'a'.repeat(43) },
+        })
+      ).status,
+    ).toBe(503);
     expect((await edge.fetch(`${origin}/api/student-portal/admin/query`)).status).toBe(404);
     expect((await edge.fetch('https://student-portal-edge.pages.dev/healthz')).status).toBe(403);
     expect(
@@ -194,12 +200,16 @@ describe('bundled Worker foundation in actual workerd', () => {
     },
   );
   it.each(['/api/student/me', '/api/student/session'])(
-    'rejects absent or malformed session on %s before dependencies', async path => {
+    'rejects absent or malformed session on %s before dependencies',
+    async (path) => {
       const worker = await workerForTest('portal');
       for (const cookie of ['', 'synthetic=value', '__Host-student_portal_session=invalid']) {
         const response = await worker.fetch(origin + path, { headers: { cookie } });
         expect(response.status).toBe(401);
-        expect(await response.json()).toMatchObject({ contractVersion: 1, state: 'unauthenticated' });
+        expect(await response.json()).toMatchObject({
+          contractVersion: 1,
+          state: 'unauthenticated',
+        });
       }
     },
   );

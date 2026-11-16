@@ -5,9 +5,16 @@
  */
 export function requestSignalV1(parent?: AbortSignal | null, timeoutMs = 15_000): AbortSignal {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new DOMException('The read took too long', 'TimeoutError')), timeoutMs);
+  const timer = setTimeout(
+    () => controller.abort(new DOMException('The read took too long', 'TimeoutError')),
+    timeoutMs,
+  );
   controller.signal.addEventListener('abort', () => clearTimeout(timer), { once: true });
   if (parent?.aborted) controller.abort(parent.reason);
-  else parent?.addEventListener('abort', () => controller.abort(parent.reason), { once: true, signal: controller.signal });
+  else
+    parent?.addEventListener('abort', () => controller.abort(parent.reason), {
+      once: true,
+      signal: controller.signal,
+    });
   return controller.signal;
 }

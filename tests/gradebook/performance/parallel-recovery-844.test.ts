@@ -18,7 +18,13 @@ let pg: PGlite;
 let database: GradebookPostgresDatabaseV1;
 const queries: string[] = [];
 const scope = { year: 2026, classId: 844001, period: 2, mode: 'regular' } as const;
-const detail = { ...scope, transportVersion: 2, operation: 'cell-detail', studentId: 844001, offerId: 844001 } as const;
+const detail = {
+  ...scope,
+  transportVersion: 2,
+  operation: 'cell-detail',
+  studentId: 844001,
+  offerId: 844001,
+} as const;
 
 beforeAll(async () => {
   pg = new PGlite();
@@ -55,26 +61,40 @@ beforeAll(async () => {
       VALUES (844001,844001,29000);
   `);
   const sql: GradebookPostgresSqlV1 = {
-    async unsafe() { throw new Error('read-outside-transaction'); },
-    async begin(operation) {
-      return pg.transaction(async (tx) => operation({
-        async unsafe(query, values = []) {
-          queries.push(query);
-          const result = await tx.query<Record<string, unknown>>(query, [...values]);
-          return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
-        },
-      }));
+    async unsafe() {
+      throw new Error('read-outside-transaction');
     },
-    async end() { await pg.close(); },
+    async begin(operation) {
+      return pg.transaction(async (tx) =>
+        operation({
+          async unsafe(query, values = []) {
+            queries.push(query);
+            const result = await tx.query<Record<string, unknown>>(query, [...values]);
+            return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
+          },
+        }),
+      );
+    },
+    async end() {
+      await pg.close();
+    },
   };
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
 }, 30000);
-afterAll(async () => { await database?.close(); });
-beforeEach(() => { queries.length = 0; });
+afterAll(async () => {
+  await database?.close();
+});
+beforeEach(() => {
+  queries.length = 0;
+});
 
 it('returns the exact central sum on opt-in and retains rounded/source values separately', async () => {
-  const response = await createRelationalPerformanceV2(database).execute({ ...detail, includeRawSum: true });
-  if (response.state !== 'ready' || response.operation !== 'cell-detail') throw new Error('expected detail');
+  const response = await createRelationalPerformanceV2(database).execute({
+    ...detail,
+    includeRawSum: true,
+  });
+  if (response.state !== 'ready' || response.operation !== 'cell-detail')
+    throw new Error('expected detail');
   expect(performanceResponseSchemaV2.safeParse(response).success).toBe(true);
   expect(response.terms[1]).toMatchObject({
     parallelApplicable: true,
@@ -85,41 +105,69 @@ it('returns the exact central sum on opt-in and retains rounded/source values se
     parallelMilli: 7000,
     regular: { valueMilli: 19000, rawMilli: 19000, state: 'partial', sourceReferenceMilli: 29000 },
   });
-  expect(response.terms[1].instruments.find((item) => item.slot === 2)).toMatchObject({ valueMilli: null, notDone: true });
+  expect(response.terms[1].instruments.find((item) => item.slot === 2)).toMatchObject({
+    valueMilli: null,
+    notDone: true,
+  });
   // An empty term reads as not done: zero, marked partial.
   expect(response.terms[0].regular).toMatchObject({ valueMilli: 0, state: 'partial' });
   expect(queries).toHaveLength(6);
   expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
-  expect((await pg.query('SELECT am2_fonte FROM gradebook.fechamento')).rows).toEqual([{ am2_fonte: 29000 }]);
-  expect((await pg.query('SELECT valor FROM gradebook.nota WHERE instrumento_id=8440202 AND aluno_id=844001')).rows).toEqual([{ valor: null }]);
+  expect((await pg.query('SELECT am2_fonte FROM gradebook.fechamento')).rows).toEqual([
+    { am2_fonte: 29000 },
+  ]);
+  expect(
+    (
+      await pg.query(
+        'SELECT valor FROM gradebook.nota WHERE instrumento_id=8440202 AND aluno_id=844001',
+      )
+    ).rows,
+  ).toEqual([{ valor: null }]);
 });
 
 it('keeps the exact pre-extension response shape without opt-in', async () => {
   const response = await createRelationalPerformanceV2(database).execute(detail);
-  if (response.state !== 'ready' || response.operation !== 'cell-detail') throw new Error('expected detail');
+  if (response.state !== 'ready' || response.operation !== 'cell-detail')
+    throw new Error('expected detail');
   expect(response.terms.every((term) => !('rawMilli' in term.regular))).toBe(true);
-  expect(performanceRequestSchemaV2.safeParse({ ...detail, includeRawSum: false }).success).toBe(false);
+  expect(performanceRequestSchemaV2.safeParse({ ...detail, includeRawSum: false }).success).toBe(
+    false,
+  );
 });
 
 it('shows an eligible parallel-only result and reads an empty period as not done', async () => {
   const response = await createRelationalPerformanceV2(database).execute({
-    ...scope, transportVersion: 2, operation: 'matrix', statuses: [null],
+    ...scope,
+    transportVersion: 2,
+    operation: 'matrix',
+    statuses: [null],
   });
-  if (response.state !== 'ready' || response.operation !== 'matrix') throw new Error('expected matrix');
+  if (response.state !== 'ready' || response.operation !== 'matrix')
+    throw new Error('expected matrix');
   expect(response.rows[0]?.cells[0]).toMatchObject({ valueMilli: 19000, state: 'partial' });
   expect(response.rows[1]?.cells[0]).toMatchObject({ valueMilli: 7000, state: 'partial' });
   expect(response.rows[2]?.cells[0]).toMatchObject({ valueMilli: 0, state: 'partial' });
   expect(response.rows.every((row) => !('rawMilli' in row.cells[0]!))).toBe(true);
   const invalid = structuredClone(response);
   // A raw sum is only valid beside a numeric result.
-  invalid.rows[2]!.cells[0] = { ...invalid.rows[2]!.cells[0]!, state: 'unavailable', valueMilli: null, level: 'not-classified', rawMilli: 0 };
+  invalid.rows[2]!.cells[0] = {
+    ...invalid.rows[2]!.cells[0]!,
+    state: 'unavailable',
+    valueMilli: null,
+    level: 'not-classified',
+    rawMilli: 0,
+  };
   expect(performanceResponseSchemaV2.safeParse(invalid).success).toBe(false);
 });
 
 it('propagates the same quantitative gain through the existing composition lens', async () => {
   const response = await createPerformanceAnalysisV3(database).execute({
-    ...scope, transportVersion: 3, operation: 'analysis', statuses: [null],
-    lens: 'quantitative', offerId: null,
+    ...scope,
+    transportVersion: 3,
+    operation: 'analysis',
+    statuses: [null],
+    lens: 'quantitative',
+    offerId: null,
   });
   if (response.state !== 'ready') throw new Error('expected analysis');
   expect(response.rows[0]?.values[0]).toMatchObject({ valueMilli: 7000, state: 'partial' });

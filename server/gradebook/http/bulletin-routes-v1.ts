@@ -71,8 +71,11 @@ function relationalStorageReadyV2(env: RuntimeEnv) {
 
 /** Only an emission that produced at least one bulletin notifies live screens. */
 function emittedV2(response: RelationalBulletinResponseV2) {
-  return response.state === 'ready' && (response.operation === 'emit'
-    || (response.operation === 'emit-batch' && response.ready.length > 0));
+  return (
+    response.state === 'ready' &&
+    (response.operation === 'emit' ||
+      (response.operation === 'emit-batch' && response.ready.length > 0))
+  );
 }
 
 async function handleRelationalBulletinV2(

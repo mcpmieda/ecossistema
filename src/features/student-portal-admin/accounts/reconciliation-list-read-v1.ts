@@ -28,7 +28,9 @@ export async function readReconciliationListV1(
       return response;
     // A row kept "Somente no Smecel" is expected, not pending; it stays in the full list.
     const items = response.items.filter((item) =>
-      item.kind === 'external' ? item.reason !== 'smecel_only' : item.reconciliation !== 'reconciled',
+      item.kind === 'external'
+        ? item.reason !== 'smecel_only'
+        : item.reconciliation !== 'reconciled',
     );
     collected.push(...items);
     if (collected.length >= request.limit || response.nextCursor === null)

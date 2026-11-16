@@ -18,13 +18,19 @@ import {
   notificationUrlV1,
   WorkbookTooLargeError,
 } from '../../server/gradebook/onedrive-sync/graph-drive-v1';
-import { processWorkbookV1, type ProcessWorkbookInputV1 } from '../../server/gradebook/onedrive-sync/process-workbook-v1';
+import {
+  processWorkbookV1,
+  type ProcessWorkbookInputV1,
+} from '../../server/gradebook/onedrive-sync/process-workbook-v1';
 import {
   NotasSyncCoordinatorV1,
   READ_PATH_V1,
   type SyncCoordinatorEnvV1,
 } from '../../server/gradebook/onedrive-sync/sync-coordinator-v1';
-import type { ReadResultV1, SchoolDayWindowV1 } from '../../server/gradebook/onedrive-sync/sync-rules-v1';
+import type {
+  ReadResultV1,
+  SchoolDayWindowV1,
+} from '../../server/gradebook/onedrive-sync/sync-rules-v1';
 import { prepareTeacherWorkbookV1 } from '../../server/gradebook/onedrive-sync/teacher-workbook-preparation-v1';
 import { WriteQueueDeadlineErrorV1 } from '../../server/gradebook/onedrive-sync/write-prepared-v1';
 import { createGradebookPostgresDatabaseV1 } from '../../server/gradebook/persistence/postgres/postgres-database-v1';
@@ -61,7 +67,11 @@ export interface NotasSyncEnvV1 extends Omit<SyncCoordinatorEnvV1, 'SELF'> {
  * One database write at a time across reads (the coordinator keeps the turn). Past `deadlineAt` the
  * read gives up instead of taking the turn, so a read about to time out never holds the line.
  */
-async function withWriteTurnV1<T>(env: NotasSyncEnvV1, work: () => Promise<T>, deadlineAt?: number): Promise<T> {
+async function withWriteTurnV1<T>(
+  env: NotasSyncEnvV1,
+  work: () => Promise<T>,
+  deadlineAt?: number,
+): Promise<T> {
   if (deadlineAt !== undefined && Date.now() > deadlineAt) throw new WriteQueueDeadlineErrorV1();
   const coordinator = coordinatorV1(env);
   const token = await coordinator.beginWrite();
@@ -92,7 +102,8 @@ export function sameSecretV1(given: string, expected: string): boolean {
   const a = new TextEncoder().encode(given);
   const b = new TextEncoder().encode(expected);
   let difference = a.length ^ b.length;
-  for (let index = 0; index < Math.max(a.length, b.length); index++) difference |= (a[index] ?? 0) ^ (b[index] ?? 0);
+  for (let index = 0; index < Math.max(a.length, b.length); index++)
+    difference |= (a[index] ?? 0) ^ (b[index] ?? 0);
   return difference === 0 && expected.length > 0;
 }
 
@@ -129,23 +140,36 @@ async function boundedTextV1(request: Request, max: number): Promise<string | nu
 /** Graph's handshake: echoed as plain text, only when it looks like one. */
 function validationAnswerV1(validationToken: string): Response {
   // Graph's token is printable text with spaces ("Validation: Testing client application …").
-  if (validationToken.length > VALIDATION_TOKEN_MAX_V1 || !/^[\x20-\x7e]*$/u.test(validationToken)) {
+  if (
+    validationToken.length > VALIDATION_TOKEN_MAX_V1 ||
+    !/^[\x20-\x7e]*$/u.test(validationToken)
+  ) {
     return new Response(null, { status: 400 });
   }
-  return new Response(validationToken, { status: 200, headers: {
-    'Content-Type': 'text/plain; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' } });
+  return new Response(validationToken, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'no-store',
+    },
+  });
 }
 
 /** How many notices carry the right client state; null when the body is over the limit. */
-async function countNotificationsV1(request: Request, clientState: string | undefined):
-  Promise<{ accepted: number; rejected: number } | null> {
+async function countNotificationsV1(
+  request: Request,
+  clientState: string | undefined,
+): Promise<{ accepted: number; rejected: number } | null> {
   let accepted = 0;
   let rejected = 0;
   try {
     const text = await boundedTextV1(request, NOTIFICATION_MAX_BYTES_V1);
     if (text === null) return null;
     const body = JSON.parse(text) as { value?: Array<{ clientState?: unknown }> };
-    const notifications = Array.isArray(body.value) ? body.value.slice(0, NOTIFICATIONS_MAX_V1) : [];
+    const notifications = Array.isArray(body.value)
+      ? body.value.slice(0, NOTIFICATIONS_MAX_V1)
+      : [];
     for (const notification of notifications) {
       const state = typeof notification.clientState === 'string' ? notification.clientState : '';
       if (clientState && sameSecretV1(state, clientState)) accepted++;
@@ -157,23 +181,34 @@ async function countNotificationsV1(request: Request, clientState: string | unde
   return { accepted, rejected };
 }
 
-export async function handleNotificationV1(request: Request, env: NotasSyncEnvV1,
-  waitUntil: (work: Promise<unknown>) => void = () => undefined): Promise<Response> {
+export async function handleNotificationV1(
+  request: Request,
+  env: NotasSyncEnvV1,
+  waitUntil: (work: Promise<unknown>) => void = () => undefined,
+): Promise<Response> {
   const validationToken = new URL(request.url).searchParams.get('validationToken');
   if (validationToken !== null) return validationAnswerV1(validationToken);
   // Graph's notices are a few KB: a larger body is refused before it is read.
   const declared = Number(request.headers.get('Content-Length') ?? Number.NaN);
-  if (Number.isFinite(declared) && declared > NOTIFICATION_MAX_BYTES_V1) return new Response(null, { status: 413 });
+  if (Number.isFinite(declared) && declared > NOTIFICATION_MAX_BYTES_V1)
+    return new Response(null, { status: 413 });
   const counted = await countNotificationsV1(request, env.NOTAS_SYNC_CLIENT_STATE);
   if (counted === null) return new Response(null, { status: 413 });
   console.log(JSON.stringify({ event: 'notas-sync-notification', ...counted }));
-  if (counted.accepted > 0 && env.NOTAS_SYNC) waitUntil(coordinatorV1(env).notify().catch(() => undefined));
+  if (counted.accepted > 0 && env.NOTAS_SYNC)
+    waitUntil(
+      coordinatorV1(env)
+        .notify()
+        .catch(() => undefined),
+    );
   return new Response(null, { status: 202 });
 }
 
 function maxWorkbookBytesV1(env: NotasSyncEnvV1): number {
   const configured = Number(env.NOTAS_MAX_WORKBOOK_BYTES);
-  return Number.isSafeInteger(configured) && configured > 0 ? configured : DEFAULT_MAX_WORKBOOK_BYTES;
+  return Number.isSafeInteger(configured) && configured > 0
+    ? configured
+    : DEFAULT_MAX_WORKBOOK_BYTES;
 }
 
 async function webhookAcceptedV1(env: NotasSyncEnvV1, driveId: string): Promise<boolean | null> {
@@ -197,14 +232,21 @@ async function previewV1(env: NotasSyncEnvV1, folderId: string, testWebhook: boo
   const driveId = await graphDriveIdV1(env, env.NOTAS_SITE_ID);
   const workbooks = await graphFolderWorkbooksV1(env, driveId, folderId);
   const sample = workbooks[0];
-  let result: { outcome: 'ready' | 'blocked' | 'unreadable' | 'too-large' | 'failed' | 'none'; code: string | null;
-    readMs: number | null; diagnostics: number | null } = { outcome: 'none', code: null, readMs: null, diagnostics: null };
+  let result: {
+    outcome: 'ready' | 'blocked' | 'unreadable' | 'too-large' | 'failed' | 'none';
+    code: string | null;
+    readMs: number | null;
+    diagnostics: number | null;
+  } = { outcome: 'none', code: null, readMs: null, diagnostics: null };
   if (sample) {
     try {
       const bytes = await graphDownloadWorkbookV1(env, driveId, sample.id, maxWorkbookBytesV1(env));
       const prepared = await prepareTeacherWorkbookV1({
-        bytes, fileName: sample.name, lastModified: Date.parse(sample.lastModifiedDateTime) || 0,
-        xlsx: XLSX as unknown as SheetJs, now: () => Date.now(),
+        bytes,
+        fileName: sample.name,
+        lastModified: Date.parse(sample.lastModifiedDateTime) || 0,
+        xlsx: XLSX as unknown as SheetJs,
+        now: () => Date.now(),
       });
       result = {
         outcome: prepared.outcome,
@@ -213,7 +255,12 @@ async function previewV1(env: NotasSyncEnvV1, folderId: string, testWebhook: boo
         diagnostics: prepared.summary.diagnostics,
       };
     } catch (cause) {
-      result = { outcome: cause instanceof WorkbookTooLargeError ? 'too-large' : 'failed', code: null, readMs: null, diagnostics: null };
+      result = {
+        outcome: cause instanceof WorkbookTooLargeError ? 'too-large' : 'failed',
+        code: null,
+        readMs: null,
+        diagnostics: null,
+      };
     }
   }
   return {
@@ -221,33 +268,59 @@ async function previewV1(env: NotasSyncEnvV1, folderId: string, testWebhook: boo
     workbookBytes: workbooks.reduce((total, item) => total + item.size, 0),
     names: workbooks.slice(0, PREVIEW_NAMES_LIMIT).map((item) => item.name),
     sample: result,
-    webhook: testWebhook ? { tested: true, accepted: await webhookAcceptedV1(env, driveId) } : { tested: false, accepted: null },
+    webhook: testWebhook
+      ? { tested: true, accepted: await webhookAcceptedV1(env, driveId) }
+      : { tested: false, accepted: null },
   };
 }
 
 /** The admin panel's single entry. The caller (Pages) has already checked the admin session. */
-export async function handleAdminV1(env: NotasSyncEnvV1, actor: OneDriveSyncActorV1, input: unknown): Promise<OneDriveSyncResponseV1> {
+export async function handleAdminV1(
+  env: NotasSyncEnvV1,
+  actor: OneDriveSyncActorV1,
+  input: unknown,
+): Promise<OneDriveSyncResponseV1> {
   const version = ONEDRIVE_SYNC_CONTRACT_VERSION_V1;
   const parsed = oneDriveSyncRequestSchemaV1.safeParse(input);
-  if (!parsed.success || !actor.id || !actor.name) return { contractVersion: version, state: 'invalid-request' };
+  if (!parsed.success || !actor.id || !actor.name)
+    return { contractVersion: version, state: 'invalid-request' };
   const request = parsed.data;
   try {
     switch (request.action) {
       case 'status':
-        return { contractVersion: version, state: 'status', status: await coordinatorV1(env).status() };
+        return {
+          contractVersion: version,
+          state: 'status',
+          status: await coordinatorV1(env).status(),
+        };
       case 'folders': {
         const driveId = await graphDriveIdV1(env, env.NOTAS_SITE_ID);
         const [folders, workbooks] = await Promise.all([
           graphChildFoldersV1(env, driveId, request.parentId),
           graphFolderWorkbooksV1(env, driveId, request.parentId ?? 'root'),
         ]);
-        return { contractVersion: version, state: 'folders', parentId: request.parentId, folders,
-          files: workbooks.slice(0, 500).map((workbook) => ({ id: workbook.id, name: workbook.name, size: workbook.size })) };
+        return {
+          contractVersion: version,
+          state: 'folders',
+          parentId: request.parentId,
+          folders,
+          files: workbooks
+            .slice(0, 500)
+            .map((workbook) => ({ id: workbook.id, name: workbook.name, size: workbook.size })),
+        };
       }
       case 'preview':
-        return { contractVersion: version, state: 'preview', preview: await previewV1(env, request.folderId, request.testWebhook) };
+        return {
+          contractVersion: version,
+          state: 'preview',
+          preview: await previewV1(env, request.folderId, request.testWebhook),
+        };
       default:
-        return { contractVersion: version, state: 'status', status: await coordinatorV1(env).control(request, actor) };
+        return {
+          contractVersion: version,
+          state: 'status',
+          status: await coordinatorV1(env).control(request, actor),
+        };
     }
   } catch {
     return { contractVersion: version, state: 'unavailable' };
@@ -276,8 +349,11 @@ function readHereV1(env: NotasSyncEnvV1, input: ProcessWorkbookInputV1): Promise
     notifyPortal: async () => {
       // The app identity is the technical author of the sync; the Portal outbox stays authoritative.
       await env.PORTAL_SERVICE?.drainLive?.({
-        actorId: env.GRAPH_CLIENT_ID, tenantId: env.TENANT_ID, requestId: crypto.randomUUID(),
-        authenticatedAt: new Date().toISOString(), capability: 'gradebook.persistence.admin',
+        actorId: env.GRAPH_CLIENT_ID,
+        tenantId: env.TENANT_ID,
+        requestId: crypto.randomUUID(),
+        authenticatedAt: new Date().toISOString(),
+        capability: 'gradebook.persistence.admin',
       });
     },
     now: () => performance.now(),
@@ -288,7 +364,9 @@ function readHereV1(env: NotasSyncEnvV1, input: ProcessWorkbookInputV1): Promise
 export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
   override async fetch(request: Request): Promise<Response> {
     if (request.method !== 'POST') return new Response(null, { status: 405 });
-    return Response.json(await readHereV1(this.env, (await request.json()) as ProcessWorkbookInputV1));
+    return Response.json(
+      await readHereV1(this.env, (await request.json()) as ProcessWorkbookInputV1),
+    );
   }
 }
 
@@ -299,11 +377,20 @@ function internalAuthorizedV1(request: Request, env: NotasSyncEnvV1): boolean {
 }
 
 /** `POST /ler`: only the coordinator holds the secret; a wrong or missing one is 401. */
-export async function handleReadRequestV1(request: Request, env: NotasSyncEnvV1,
-  read: (input: ProcessWorkbookInputV1) => Promise<ReadResultV1> = (input) => readHereV1(env, input)): Promise<Response> {
+export async function handleReadRequestV1(
+  request: Request,
+  env: NotasSyncEnvV1,
+  read: (input: ProcessWorkbookInputV1) => Promise<ReadResultV1> = (input) =>
+    readHereV1(env, input),
+): Promise<Response> {
   if (!internalAuthorizedV1(request, env)) return new Response(null, { status: 401 });
-  const input = await request.json().catch(() => null) as ProcessWorkbookInputV1 | null;
-  if (!input || typeof input.itemId !== 'string' || typeof input.driveId !== 'string' || typeof input.name !== 'string')
+  const input = (await request.json().catch(() => null)) as ProcessWorkbookInputV1 | null;
+  if (
+    !input ||
+    typeof input.itemId !== 'string' ||
+    typeof input.driveId !== 'string' ||
+    typeof input.name !== 'string'
+  )
     return new Response(null, { status: 400 });
   return Response.json(await read(input));
 }
@@ -312,11 +399,15 @@ const PORTAL_SCHEDULED_PATH_V1 = '/portal-agendado';
 const PORTAL_SCHEDULED_TIMEOUT_MS_V1 = 50_000;
 
 /** `POST /portal-agendado`: runs the Portal's minute here, under the region placement. */
-export async function handlePortalScheduledRequestV1(request: Request, env: NotasSyncEnvV1): Promise<Response> {
+export async function handlePortalScheduledRequestV1(
+  request: Request,
+  env: NotasSyncEnvV1,
+): Promise<Response> {
   if (!internalAuthorizedV1(request, env)) return new Response(null, { status: 401 });
-  const body = await request.json().catch(() => null) as { scheduledTime?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { scheduledTime?: unknown } | null;
   const time = body?.scheduledTime;
-  if (typeof time !== 'number' || !Number.isFinite(time)) return new Response(null, { status: 400 });
+  if (typeof time !== 'number' || !Number.isFinite(time))
+    return new Response(null, { status: 400 });
   if (!env.PORTAL_SCHEDULER) return new Response(null, { status: 503 });
   return new Response(null, { status: (await env.PORTAL_SCHEDULER.run(time)) ? 204 : 400 });
 }
@@ -326,8 +417,11 @@ export async function handlePortalScheduledRequestV1(request: Request, env: Nota
  * the database; when that address refuses before working (401/404/405), asked from here, as far
  * as the cron is. Any other failure waits for the next minute (it may have started).
  */
-export async function runPortalScheduledV1(env: NotasSyncEnvV1, scheduledTime: number,
-  publicFetch: typeof fetch = fetch): Promise<'nearby' | 'here' | 'failed' | 'off'> {
+export async function runPortalScheduledV1(
+  env: NotasSyncEnvV1,
+  scheduledTime: number,
+  publicFetch: typeof fetch = fetch,
+): Promise<'nearby' | 'here' | 'failed' | 'off'> {
   if (!env.PORTAL_SCHEDULER) {
     // Without the binding the Portal's minute (privacy cleanup, live, health) would stop in silence.
     console.error(JSON.stringify({ event: 'notas-sync-portal-scheduler-missing' }));
@@ -335,18 +429,32 @@ export async function runPortalScheduledV1(env: NotasSyncEnvV1, scheduledTime: n
   }
   try {
     if (env.NOTAS_SYNC_PUBLIC_URL && env.NOTAS_SYNC_READ_TOKEN) {
-      const response = await publicFetch(`${env.NOTAS_SYNC_PUBLIC_URL}${PORTAL_SCHEDULED_PATH_V1}`, {
-        method: 'POST', body: JSON.stringify({ scheduledTime }), signal: AbortSignal.timeout(PORTAL_SCHEDULED_TIMEOUT_MS_V1),
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.NOTAS_SYNC_READ_TOKEN}` },
-      });
+      const response = await publicFetch(
+        `${env.NOTAS_SYNC_PUBLIC_URL}${PORTAL_SCHEDULED_PATH_V1}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ scheduledTime }),
+          signal: AbortSignal.timeout(PORTAL_SCHEDULED_TIMEOUT_MS_V1),
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${env.NOTAS_SYNC_READ_TOKEN}`,
+          },
+        },
+      );
       await response.body?.cancel();
       if (response.ok) return 'nearby';
-      if (![401, 404, 405].includes(response.status)) throw new Error(`portal-scheduled-http-${response.status}`);
+      if (![401, 404, 405].includes(response.status))
+        throw new Error(`portal-scheduled-http-${response.status}`);
     }
     await env.PORTAL_SCHEDULER.run(scheduledTime);
     return 'here';
   } catch (cause) {
-    console.error(JSON.stringify({ event: 'notas-sync-portal-scheduled-failed', error: String(cause).slice(0, 200) }));
+    console.error(
+      JSON.stringify({
+        event: 'notas-sync-portal-scheduled-failed',
+        error: String(cause).slice(0, 200),
+      }),
+    );
     return 'failed';
   }
 }
@@ -356,14 +464,23 @@ export default {
     const { pathname } = new URL(request.url);
     if (request.method === 'POST' && pathname === NOTIFICATION_PATH)
       return handleNotificationV1(request, env, (work) => ctx?.waitUntil(work));
-    if (request.method === 'POST' && pathname === READ_PATH_V1) return handleReadRequestV1(request, env);
-    if (request.method === 'POST' && pathname === PORTAL_SCHEDULED_PATH_V1) return handlePortalScheduledRequestV1(request, env);
+    if (request.method === 'POST' && pathname === READ_PATH_V1)
+      return handleReadRequestV1(request, env);
+    if (request.method === 'POST' && pathname === PORTAL_SCHEDULED_PATH_V1)
+      return handlePortalScheduledRequestV1(request, env);
     return new Response('Not found', { status: 404 });
   },
   async scheduled(controller, env, ctx) {
     // Its own code version goes along: a coordinator left on older code restarts (see tick).
-    const version = env.CF_VERSION_METADATA ? { id: env.CF_VERSION_METADATA.id, timestamp: env.CF_VERSION_METADATA.timestamp } : undefined;
-    if (env.NOTAS_SYNC) ctx.waitUntil(coordinatorV1(env).tick(version).catch(() => undefined));
+    const version = env.CF_VERSION_METADATA
+      ? { id: env.CF_VERSION_METADATA.id, timestamp: env.CF_VERSION_METADATA.timestamp }
+      : undefined;
+    if (env.NOTAS_SYNC)
+      ctx.waitUntil(
+        coordinatorV1(env)
+          .tick(version)
+          .catch(() => undefined),
+      );
     ctx.waitUntil(runPortalScheduledV1(env, controller.scheduledTime));
   },
 } satisfies ExportedHandler<NotasSyncEnvV1>;

@@ -1,4 +1,12 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type Ref, type RefObject } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Ref,
+  type RefObject,
+} from 'react';
 import { flushSync } from 'react-dom';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
@@ -35,7 +43,10 @@ function settleAfterTypingV1(input: HTMLInputElement | null) {
     if (button && !button.disabled) button.focus({ preventScroll: true });
     else input?.blur();
   }, 0);
-  setTimeout(() => button?.scrollIntoView?.({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' }), 300);
+  setTimeout(
+    () => button?.scrollIntoView?.({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' }),
+    300,
+  );
 }
 
 /** Hands the field to the caller's ref, a callback or an object. */
@@ -204,9 +215,18 @@ function noticeOfV1(
   return { tone: 'info', title: message, text: '' };
 }
 
-const NOTICE_ICONS_V1 = { wrong: CircleX, wait: TimerReset, down: CloudOff, net: WifiOff, info: Info };
+const NOTICE_ICONS_V1 = {
+  wrong: CircleX,
+  wait: TimerReset,
+  down: CloudOff,
+  net: WifiOff,
+  info: Info,
+};
 
-function AuthNoticeV1({ message, step }: Readonly<{ message: string; step: StudentAuthStateV1['step'] }>) {
+function AuthNoticeV1({
+  message,
+  step,
+}: Readonly<{ message: string; step: StudentAuthStateV1['step'] }>) {
   const notice = noticeOfV1(message, step);
   const Icon = NOTICE_ICONS_V1[notice.tone];
   return (
@@ -236,7 +256,9 @@ function RetryCountdownV1({ retryAt }: Readonly<{ retryAt: number }>) {
   // The server's block lasts minutes (15 by default): read it as a clock, say it in minutes.
   const minutes = Math.ceil(seconds / 60);
   const clock =
-    seconds >= 60 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : `${seconds}s`;
+    seconds >= 60
+      ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+      : `${seconds}s`;
   const minuteWord = minutes === 1 ? 'minuto' : 'minutos';
   const inMinutes = `Tente novamente em ${minutes} ${minuteWord}.`;
   // The output is a live region: screen readers hear the minutes, never a second-by-second count.
@@ -286,7 +308,12 @@ function KeepConnectedV1({
   const hint = useId();
   return (
     <div className="pa-keep-connected">
-      <Checkbox isDisabled={disabled} isSelected={value} onChange={onChange} aria-describedby={hint}>
+      <Checkbox
+        isDisabled={disabled}
+        isSelected={value}
+        onChange={onChange}
+        aria-describedby={hint}
+      >
         <Checkbox.Content>
           <Checkbox.Control>
             <Checkbox.Indicator />
@@ -295,8 +322,8 @@ function KeepConnectedV1({
         </Checkbox.Content>
       </Checkbox>
       <p id={hint}>
-        Marque só se o celular for seu: assim você não precisa digitar a senha toda vez. Em
-        aparelho emprestado, deixe desmarcado.
+        Marque só se o celular for seu: assim você não precisa digitar a senha toda vez. Em aparelho
+        emprestado, deixe desmarcado.
       </p>
     </div>
   );
@@ -335,7 +362,9 @@ function CredentialFieldsV1({
   return (
     <>
       {state.step === 'pin' ? (
-        <Card.Description>Para confirmar o acesso, digite o ano de nascimento do aluno.</Card.Description>
+        <Card.Description>
+          Para confirmar o acesso, digite o ano de nascimento do aluno.
+        </Card.Description>
       ) : null}
       {state.step === 'create' ? (
         <Card.Description>
@@ -373,7 +402,11 @@ function CredentialFieldsV1({
         />
       ) : null}
       {showKeepConnected ? (
-        <KeepConnectedV1 value={keepConnected} onChange={setKeepConnected} disabled={state.pending} />
+        <KeepConnectedV1
+          value={keepConnected}
+          onChange={setKeepConnected}
+          disabled={state.pending}
+        />
       ) : null}
       {needsRisk ? (
         <div className="pa-risk-frame">
@@ -384,11 +417,7 @@ function CredentialFieldsV1({
   );
 }
 
-function credentialValidV1(
-  state: StudentAuthStateV1,
-  value: string,
-  confirmation: string,
-) {
+function credentialValidV1(state: StudentAuthStateV1, value: string, confirmation: string) {
   if (state.step === 'risk') return true;
   const length = state.step === 'pin' ? 4 : 6;
   if (value.length !== length) return false;
@@ -456,7 +485,9 @@ function CredentialFormV1({
   }, [state.step, riskToken]);
   return (
     <form
-      className={'pa-auth-form' + (state.message && state.step !== 'risk' ? ' pa-auth-form--retry' : '')}
+      className={
+        'pa-auth-form' + (state.message && state.step !== 'risk' ? ' pa-auth-form--retry' : '')
+      }
       aria-busy={state.pending || undefined}
       onSubmit={(event) => {
         event.preventDefault();
@@ -476,7 +507,11 @@ function CredentialFormV1({
         riskMount={riskMount}
         setRiskToken={setRiskToken}
       />
-      {validation ? <p role="alert" className="pa-auth-validation">{validation}</p> : null}
+      {validation ? (
+        <p role="alert" className="pa-auth-validation">
+          {validation}
+        </p>
+      ) : null}
       {blocked ? <RetryCountdownV1 retryAt={state.retryAt!} /> : null}
       <Button
         type="submit"
@@ -527,7 +562,9 @@ function AuthHeaderV1({ step: authStep }: Readonly<{ step: StudentAuthStateV1['s
   const step = STEPS_V1[authStep];
   return (
     <Card.Header className="pa-auth-header">
-      {step ? <Card.Description className="pa-auth-eyebrow">{step.eyebrow}</Card.Description> : null}
+      {step ? (
+        <Card.Description className="pa-auth-eyebrow">{step.eyebrow}</Card.Description>
+      ) : null}
       <Card.Title className="pa-auth-title">{STEPS_TITLES_V1[authStep]}</Card.Title>
       {step?.index ? (
         <div className="pa-auth-progress" aria-hidden="true">

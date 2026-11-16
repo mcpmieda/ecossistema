@@ -30,7 +30,11 @@ function minimumStateV1(meetsMinimum: boolean | null) {
 }
 
 /** Text/colour mapping only. It never derives a threshold, average, result or new mark. */
-export function StudentMarkV1({ mark, showMaximum = false, oneDecimal = false }: StudentMarkPropsV1) {
+export function StudentMarkV1({
+  mark,
+  showMaximum = false,
+  oneDecimal = false,
+}: StudentMarkPropsV1) {
   if (mark.kind === 'recovery-pending')
     return (
       // Red: a pending recovery is the below-minimum side of the portal's two colours.

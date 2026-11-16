@@ -407,7 +407,8 @@ function candidatesForRowV1(
     sourceConflict: knownHash && origin === undefined,
     // A row kept "Somente no Smecel" was waiting for the Relação: once the student is there, the
     // ordinary rules decide it; any other review still blocks.
-    sourceReview: (origin?.reviewRequired === true && origin.smecelOnly !== true) || linked.sourceReview,
+    sourceReview:
+      (origin?.reviewRequired === true && origin.smecelOnly !== true) || linked.sourceReview,
     sibling: linked.sibling,
   };
 }

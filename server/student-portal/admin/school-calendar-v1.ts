@@ -1,7 +1,16 @@
 import { z } from 'zod';
-import { adminCommandV1, type AdminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
-import { schoolCalendarDaysV1, type SchoolCalendarV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
-import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
+import {
+  adminCommandV1,
+  type AdminCommandV1,
+} from '../../../shared/student-portal-contracts/admin-v1';
+import {
+  schoolCalendarDaysV1,
+  type SchoolCalendarV1,
+} from '../../../shared/student-portal-contracts/school-calendar-v1';
+import type {
+  StudentPortalPostgresQueryV1,
+  StudentPortalPostgresSqlV1,
+} from '../persistence/postgres-persistence-v1';
 import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { adminDigestV1 } from './common-v1';
 
@@ -10,7 +19,9 @@ import { adminDigestV1 } from './common-v1';
  * version read (two admins never overwrite each other), never with more than 200 school days (the
  * contract refuses it), and audited as a settings change.
  */
-export async function readSchoolCalendarV1(tx: StudentPortalPostgresQueryV1): Promise<SchoolCalendarV1 | null> {
+export async function readSchoolCalendarV1(
+  tx: StudentPortalPostgresQueryV1,
+): Promise<SchoolCalendarV1 | null> {
   const rows = await tx.unsafe(
     'SELECT days_json,version FROM student_portal.school_calendar_v1 WHERE academic_year=2026',
   );

@@ -87,7 +87,9 @@ describe('student session revalidation and data clearing', () => {
     const s = setup();
     await s.session.refresh();
     s.client.session.mockRejectedValueOnce(new PortalClientErrorV1('access-closed', 403));
-    await expect(s.session.authorizeSecurity(new AbortController().signal)).rejects.toMatchObject({ state: 'access-closed' });
+    await expect(s.session.authorizeSecurity(new AbortController().signal)).rejects.toMatchObject({
+      state: 'access-closed',
+    });
     expect(s.state()).toMatchObject({ state: 'error', error: { state: 'access-closed' } });
     expect(s.client.me).toHaveBeenCalledTimes(1);
     s.session.dispose();

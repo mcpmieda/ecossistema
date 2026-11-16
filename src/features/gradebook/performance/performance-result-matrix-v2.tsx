@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Button, Chip, Popover, Surface } from '@heroui/react';
-import { CircleAlert, CircleCheck, CircleDashed, ListFilter, ListChecks, Table2 } from 'lucide-react';
+import {
+  CircleAlert,
+  CircleCheck,
+  CircleDashed,
+  ListFilter,
+  ListChecks,
+  Table2,
+} from 'lucide-react';
 import type {
   PerformanceMatrixV2,
   PerformanceStatusV2,
@@ -110,7 +117,10 @@ export function PerformanceResultMatrixV2({
               <ListFilter size={15} aria-hidden="true" />
             </Button>
             <Popover.Content placement="bottom end">
-              <Popover.Dialog aria-label="Situações exibidas" className="performance-matrix-statuses">
+              <Popover.Dialog
+                aria-label="Situações exibidas"
+                className="performance-matrix-statuses"
+              >
                 <FilterTagsV1
                   label="Situações exibidas"
                   selected={selectedStatuses}

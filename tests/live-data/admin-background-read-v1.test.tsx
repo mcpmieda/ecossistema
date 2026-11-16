@@ -88,7 +88,9 @@ it('Configurações: the return read keeps every control enabled and the page un
       if (!path.endsWith('/query')) throw new Error('Unexpected synthetic write');
       reads++;
       JSON.parse(String(init.body));
-      return answers.wait(json({ ...base, state: 'settings', settings: settingsFixtureV1(SETTINGS_CLASS_V1) }));
+      return answers.wait(
+        json({ ...base, state: 'settings', settings: settingsFixtureV1(SETTINGS_CLASS_V1) }),
+      );
     },
   });
   render(
@@ -251,7 +253,9 @@ it('F5 brings the Painel do Aluno back on the same area, class and open record',
   const first = render(<StudentPortalAdminPage fetcher={fetcher} />);
   const user = userEvent.setup();
   await user.click(await screen.findByRole('tab', { name: 'SYNTHETIC OP CLASS' }));
-  await user.click(await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC OP STUDENT 1' }));
+  await user.click(
+    await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC OP STUDENT 1' }),
+  );
   await screen.findByRole('dialog', { name: 'Ficha do aluno' });
   const address = window.location.hash;
   expect(address).toContain('area=accounts');
@@ -268,8 +272,8 @@ it('F5 brings the Painel do Aluno back on the same area, class and open record',
       'aria-selected',
     ),
   ).toBe('true');
-  expect(screen.getByRole('tab', { name: 'Alunos', hidden: true }).getAttribute('aria-selected')).toBe(
-    'true',
-  );
+  expect(
+    screen.getByRole('tab', { name: 'Alunos', hidden: true }).getAttribute('aria-selected'),
+  ).toBe('true');
   expect(window.location.hash).toBe(address);
 });

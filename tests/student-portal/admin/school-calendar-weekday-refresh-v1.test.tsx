@@ -27,7 +27,11 @@ const calendar = {
   disclosure: { mode: 'single', at: null, periods: ['T1'] },
 };
 const calendarClientOf = (days: SchoolCalendarDayV1[] = officialCalendar2026V1()) => {
-  const command = vi.fn(async (_input: unknown) => ({ state: 'committed', operationId: 'x', version: 2 }));
+  const command = vi.fn(async (_input: unknown) => ({
+    state: 'committed',
+    operationId: 'x',
+    version: 2,
+  }));
   const query = vi.fn(async (input: { operation: string }) =>
     input.operation === 'settings'
       ? { state: 'settings', settings: { version: 7, value: { calendar } } }
@@ -36,7 +40,8 @@ const calendarClientOf = (days: SchoolCalendarDayV1[] = officialCalendar2026V1()
   return { client: { query, command } as unknown as PortalAdminClientV1, query, command };
 };
 const day = (label: string) => screen.getByRole('button', { name: new RegExp(`^${label}:`, 'u') });
-const brush = (id: string) => document.querySelector(`.pa-school-brush.pa-school-kind--${id}`) as HTMLElement;
+const brush = (id: string) =>
+  document.querySelector(`.pa-school-brush.pa-school-kind--${id}`) as HTMLElement;
 
 afterEach(cleanup);
 
@@ -77,7 +82,9 @@ it('flags a dia letivo saved on a Sunday before the rule and does not save it', 
   fireEvent.click(brush('clear'));
   fireEvent.pointerDown(day('14/12'));
   window.dispatchEvent(new Event('pointerup'));
-  expect((screen.getByRole('button', { name: 'Salvar calendário' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(
+    (screen.getByRole('button', { name: 'Salvar calendário' }) as HTMLButtonElement).disabled,
+  ).toBe(true);
 });
 
 it('says the calendar was saved when only reading it back fails', async () => {
@@ -97,14 +104,22 @@ it('says the calendar was saved when only reading it back fails', async () => {
   expect(screen.queryByText('Não foi possível carregar o calendário.')).toBeNull();
   // Nothing left to save: the screen knows the days were saved.
   await waitFor(() =>
-    expect((screen.getByRole('button', { name: 'Salvar calendário' }) as HTMLButtonElement).disabled).toBe(true),
+    expect(
+      (screen.getByRole('button', { name: 'Salvar calendário' }) as HTMLButtonElement).disabled,
+    ).toBe(true),
   );
 });
 
 it('says the bells were saved when only reading them back fails', async () => {
   const query = vi.fn(async (_input: unknown) => ({ state: 'school-bells', bells: null }));
-  const command = vi.fn(async (_input: unknown) => ({ state: 'committed', operationId: 'x', version: 1 }));
-  render(<SchoolBellsEditorV1 client={{ query, command } as unknown as PortalAdminClientV1} canWrite />);
+  const command = vi.fn(async (_input: unknown) => ({
+    state: 'committed',
+    operationId: 'x',
+    version: 1,
+  }));
+  render(
+    <SchoolBellsEditorV1 client={{ query, command } as unknown as PortalAdminClientV1} canWrite />,
+  );
   await screen.findByText('Horário de cada aula');
   query.mockImplementation(async () => {
     throw new Error('503');

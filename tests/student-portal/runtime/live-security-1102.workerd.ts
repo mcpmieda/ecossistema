@@ -138,41 +138,67 @@ it.each([
   },
 );
 
-
 it('binds renewal to account/session/connection and rejects authorization preceding security invalidation', async () => {
   const caller = await runtime.getWorker('caller');
-  const response = await caller.fetch('http://caller/renewable-socket', { headers: { Upgrade: 'websocket' } });
+  const response = await caller.fetch('http://caller/renewable-socket', {
+    headers: { Upgrade: 'websocket' },
+  });
   const socket = response.webSocket!;
-  const handshake = new Promise<unknown>(resolve => socket.addEventListener('message', event => resolve(JSON.parse(String(event.data))), { once: true }));
+  const handshake = new Promise<unknown>((resolve) =>
+    socket.addEventListener('message', (event) => resolve(JSON.parse(String(event.data))), {
+      once: true,
+    }),
+  );
   socket.accept();
   expect(await handshake).toMatchObject({ renewable: true });
   const identity = {
     connectionId: '11020000-0000-4000-8000-000000000003',
     sessionId: '11020000-0000-4000-8000-000000000002',
     accountId: '11020000-0000-4000-8000-000000000001',
-    studentId: 110201, classId: 110202, expiresAt: '2099-01-01T00:00:00.000Z',
+    studentId: 110201,
+    classId: 110202,
+    expiresAt: '2099-01-01T00:00:00.000Z',
   };
   const renew = async (patch: Record<string, unknown> = {}) => {
-    const result = await caller.fetch('http://caller/renew', { method: 'POST', body: JSON.stringify({ ...identity, verifiedAt: Date.now(), ...patch }) });
+    const result = await caller.fetch('http://caller/renew', {
+      method: 'POST',
+      body: JSON.stringify({ ...identity, verifiedAt: Date.now(), ...patch }),
+    });
     return result.json();
   };
-  const presence = async () => (await caller.fetch('http://caller/presence', { method: 'POST', body: JSON.stringify({ kind: 'class', academicYear: 2026, classId: 110202 }) })).json();
+  const presence = async () =>
+    (
+      await caller.fetch('http://caller/presence', {
+        method: 'POST',
+        body: JSON.stringify({ kind: 'class', academicYear: 2026, classId: 110202 }),
+      })
+    ).json();
   for (const key of ['accountId', 'sessionId', 'connectionId'])
     expect(await renew({ [key]: '11020000-0000-4000-8000-000000000009' })).toBe(false);
   expect(await renew({ verifiedAt: Date.now() - 60_001 })).toBe(false);
   expect(await renew({ verifiedAt: Date.now() + 60_000 })).toBe(false);
-  await new Promise(resolve => setTimeout(resolve, 10));
+  await new Promise((resolve) => setTimeout(resolve, 10));
   expect(await renew()).toBe(true);
   expect(await presence()).toMatchObject({ connectedStudents: 1 });
   const staleVerification = Date.now();
-  await caller.fetch('http://caller/publish', { method: 'POST', body: JSON.stringify({
-    audience: 'student', domain: 'portal', version: '2', cursor: '00000000000000000003',
-    occurredAt: new Date().toISOString(), accountId: identity.accountId, classId: null, studentIds: [], securityRelevant: true,
-  }) });
+  await caller.fetch('http://caller/publish', {
+    method: 'POST',
+    body: JSON.stringify({
+      audience: 'student',
+      domain: 'portal',
+      version: '2',
+      cursor: '00000000000000000003',
+      occurredAt: new Date().toISOString(),
+      accountId: identity.accountId,
+      classId: null,
+      studentIds: [],
+      securityRelevant: true,
+    }),
+  });
   expect(await presence()).toMatchObject({ connectedStudents: 0 });
   expect(await renew({ verifiedAt: staleVerification })).toBe(false);
   expect(await presence()).toMatchObject({ connectedStudents: 0 });
-  await new Promise(resolve => setTimeout(resolve, 10));
+  await new Promise((resolve) => setTimeout(resolve, 10));
   expect(await renew()).toBe(true);
   expect(await presence()).toMatchObject({ connectedStudents: 1 });
   socket.close();

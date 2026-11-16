@@ -1,7 +1,16 @@
 import { z } from 'zod';
-import { adminCommandV1, type AdminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
-import { schoolBellsDaysV1, type SchoolBellsV1 } from '../../../shared/student-portal-contracts/school-bells-v1';
-import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
+import {
+  adminCommandV1,
+  type AdminCommandV1,
+} from '../../../shared/student-portal-contracts/admin-v1';
+import {
+  schoolBellsDaysV1,
+  type SchoolBellsV1,
+} from '../../../shared/student-portal-contracts/school-bells-v1';
+import type {
+  StudentPortalPostgresQueryV1,
+  StudentPortalPostgresSqlV1,
+} from '../persistence/postgres-persistence-v1';
 import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { adminDigestV1 } from './common-v1';
 
@@ -11,7 +20,9 @@ import { adminDigestV1 } from './common-v1';
  * admins never overwrite each other), checked by the contract (in order, no overlap, one break at
  * most) and audited as a settings change, like the school calendar.
  */
-export async function readSchoolBellsV1(tx: StudentPortalPostgresQueryV1): Promise<SchoolBellsV1 | null> {
+export async function readSchoolBellsV1(
+  tx: StudentPortalPostgresQueryV1,
+): Promise<SchoolBellsV1 | null> {
   const rows = await tx.unsafe(
     'SELECT bells_json,version FROM student_portal.school_bells_v1 WHERE academic_year=2026',
   );

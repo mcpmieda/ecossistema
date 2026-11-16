@@ -1,12 +1,18 @@
 import { gradebookImportDiagnosticTextV1 } from '../../../shared/gradebook-contracts/imports/import-diagnostic-texts-v1';
-import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../../../server/gradebook/http/live-after-commit-v1';
+import {
+  gradebookAfterCommitV1,
+  type GradebookAfterCommitV1,
+} from '../../../server/gradebook/http/live-after-commit-v1';
 import { readBoundedTextV1 } from '../../../server/http/bounded-text-v1';
 import type { RuntimeEnv } from '../../../server/env';
 import { validateEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
 import { AuthorizationError } from '../../../server/auth/roles';
 import { authorizeGradebookRuntimeV1 } from '../../../server/gradebook/authorization-v1';
-import type { GradebookPostgresReadPortV1, GradebookPostgresTransactionV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
+import type {
+  GradebookPostgresReadPortV1,
+  GradebookPostgresTransactionV1,
+} from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createGradebookPostgresParametersV1 } from '../../../server/gradebook/persistence/postgres/postgres-parameters-v1';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import {
@@ -21,7 +27,12 @@ import {
   type GradebookImportDiagnosticsAuditRecordV1,
   type GradebookImportDiagnosticsAuditWriteResponseV1,
 } from '../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
-import { enforceOfficialOrigin, enforceWriteOrigin, HttpError, withSecurityHeaders } from '../../../server/http/security';
+import {
+  enforceOfficialOrigin,
+  enforceWriteOrigin,
+  HttpError,
+  withSecurityHeaders,
+} from '../../../server/http/security';
 import { scalarTextV1 } from '../../../shared/scalar-text-v1';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
@@ -31,13 +42,21 @@ type DiagnosticsErrorState = 'not-authorized' | 'invalid-request' | 'unavailable
 function headers(): Headers {
   return new Headers({ 'Cache-Control': 'no-store, no-cache, must-revalidate, private' });
 }
-function response(value: GradebookImportDiagnosticsAuditWriteResponseV1 | GradebookImportDiagnosticsAuditListResponseV1, status = 200): Response {
+function response(
+  value:
+    GradebookImportDiagnosticsAuditWriteResponseV1 | GradebookImportDiagnosticsAuditListResponseV1,
+  status = 200,
+): Response {
   return Response.json(value, { status, headers: headers() });
 }
 async function readPayload(request: Request): Promise<unknown> {
   // Refused as soon as it passes the limit, never read whole first.
   const { text } = await readBoundedTextV1(request, GRADEBOOK_IMPORT_DIAGNOSTICS_BODY_BYTES_V1);
-  try { return JSON.parse(text) as unknown; } catch { return null; }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
 }
 function asInteger(value: unknown): number {
   const number = typeof value === 'number' ? value : Number(value);
@@ -49,8 +68,10 @@ function nullableString(value: unknown): string | null {
 }
 function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
   return {
-    id: asInteger(row.id), academicYear: row.ano === null ? null : asInteger(row.ano),
-    fileName: String(row.arquivo), key: String(row.chave),
+    id: asInteger(row.id),
+    academicYear: row.ano === null ? null : asInteger(row.ano),
+    fileName: String(row.arquivo),
+    key: String(row.chave),
     severity: String(row.nivel) as GradebookImportDiagnosticsAuditRecordV1['severity'],
     code: String(row.codigo) as GradebookImportDiagnosticsAuditRecordV1['code'],
     message: gradebookImportDiagnosticTextV1(String(row.codigo)).message,
@@ -71,7 +92,12 @@ function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
     observations: asInteger(row.ocorrencias),
   };
 }
-async function listDiagnostics(database: GradebookPostgresReadPortV1, academicYear: number | null, limit: number, offset: number): Promise<{
+async function listDiagnostics(
+  database: GradebookPostgresReadPortV1,
+  academicYear: number | null,
+  limit: number,
+  offset: number,
+): Promise<{
   readonly items: readonly GradebookImportDiagnosticsAuditRecordV1[];
   readonly nextOffset: number | null;
   readonly total: number;
@@ -98,11 +124,17 @@ async function listDiagnostics(database: GradebookPostgresReadPortV1, academicYe
     parameters.values,
   );
   const hasMore = result.length > limit;
-  const page = hasMore ? result.slice(0,limit) : result;
-  const total = result[0] === undefined ? await countDiagnostics(database, academicYear) : asInteger(result[0].total);
+  const page = hasMore ? result.slice(0, limit) : result;
+  const total =
+    result[0] === undefined
+      ? await countDiagnostics(database, academicYear)
+      : asInteger(result[0].total);
   return { items: page.map(auditRecord), nextOffset: hasMore ? offset + limit : null, total };
 }
-async function countDiagnostics(database: GradebookPostgresReadPortV1, academicYear: number | null): Promise<number> {
+async function countDiagnostics(
+  database: GradebookPostgresReadPortV1,
+  academicYear: number | null,
+): Promise<number> {
   const parameters = createGradebookPostgresParametersV1();
   const where = academicYear === null ? '' : `WHERE ano = ${parameters.param(academicYear)}`;
   const rows = await database.query<Row>(
@@ -111,42 +143,72 @@ async function countDiagnostics(database: GradebookPostgresReadPortV1, academicY
   );
   return asInteger(rows[0]?.total ?? 0);
 }
-async function handle(request: Request, env: RuntimeEnv, afterCommit: GradebookAfterCommitV1): Promise<Response> {
+async function handle(
+  request: Request,
+  env: RuntimeEnv,
+  afterCommit: GradebookAfterCommitV1,
+): Promise<Response> {
   enforceOfficialOrigin(request, env);
   const session = await requireAuth(request, env);
   authorizeGradebookRuntimeV1(session);
   const database = env.GRADEBOOK_DATABASE as GradebookPostgresTransactionV1 | undefined;
-  if (!database) return response({ version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'unavailable' }, 503);
+  if (!database)
+    return response(
+      { version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'unavailable' },
+      503,
+    );
   if (request.method === 'GET') {
     const url = new URL(request.url);
     const anoText = url.searchParams.get('ano');
     const ano = anoText === null ? null : Number(anoText);
-    if (ano !== null && (!Number.isSafeInteger(ano) || ano < 2000 || ano > 9999)) return response({ version: 1, state:'invalid-request' },400);
+    if (ano !== null && (!Number.isSafeInteger(ano) || ano < 2000 || ano > 9999))
+      return response({ version: 1, state: 'invalid-request' }, 400);
     const limitText = Number(url.searchParams.get('limit') ?? 50);
-    const limit = Number.isSafeInteger(limitText) ? Math.min(200, Math.max(1,limitText)) : 50;
+    const limit = Number.isSafeInteger(limitText) ? Math.min(200, Math.max(1, limitText)) : 50;
     const offsetText = Number(url.searchParams.get('offset') ?? 0);
-    if (!Number.isSafeInteger(offsetText) || offsetText < 0) return response({ version: 1, state:'invalid-request' },400);
-    const page = await listDiagnostics(database,ano,limit,offsetText);
-    return response({ version: 1,state:'ready',items:page.items,nextOffset:page.nextOffset,total:page.total });
+    if (!Number.isSafeInteger(offsetText) || offsetText < 0)
+      return response({ version: 1, state: 'invalid-request' }, 400);
+    const page = await listDiagnostics(database, ano, limit, offsetText);
+    return response({
+      version: 1,
+      state: 'ready',
+      items: page.items,
+      nextOffset: page.nextOffset,
+      total: page.total,
+    });
   }
-  if (request.method !== 'POST') throw new HttpError(405,'Method not allowed');
+  if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
   enforceWriteOrigin(request, env);
   const payload = await readPayload(request);
-  if (!isGradebookImportDiagnosticsAuditRequestV1(payload)) return response({version:1,state:'invalid-request'},400);
-  const affected = await replaceGradebookImportDiagnosticsSnapshotV1(database,{ ...payload, origin: 'manual' });
+  if (!isGradebookImportDiagnosticsAuditRequestV1(payload))
+    return response({ version: 1, state: 'invalid-request' }, 400);
+  const affected = await replaceGradebookImportDiagnosticsSnapshotV1(database, {
+    ...payload,
+    origin: 'manual',
+  });
   if (affected > 0) afterCommit(session);
-  return response({version:1,state:'recorded',affected});
+  return response({ version: 1, state: 'recorded', affected });
 }
 export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   try {
     const env = validateEnv((context as Context).env);
-    const routed = await withOfficialGradebookDatabaseV1(env,(executionEnv) => handle((context as Context).request,executionEnv,gradebookAfterCommitV1(env, (work) => context.waitUntil(work))));
-    return withSecurityHeaders(routed ?? response({version:1,state:'unavailable'},503),true);
+    const routed = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>
+      handle(
+        (context as Context).request,
+        executionEnv,
+        gradebookAfterCommitV1(env, (work) => context.waitUntil(work)),
+      ),
+    );
+    return withSecurityHeaders(routed ?? response({ version: 1, state: 'unavailable' }, 503), true);
   } catch (error) {
     let status;
     if (error instanceof InvalidImportDiagnosticsSnapshotV1) {
       status = 400;
-    } else if (error instanceof HttpError || error instanceof AuthenticationError || error instanceof AuthorizationError) {
+    } else if (
+      error instanceof HttpError ||
+      error instanceof AuthenticationError ||
+      error instanceof AuthorizationError
+    ) {
       status = error.status;
     } else {
       status = 500;
@@ -159,7 +221,8 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
     } else {
       state = 'unavailable';
     }
-    if (status >= 500) console.error(JSON.stringify({message:'gradebook_import_diagnostics_failed'}));
-    return withSecurityHeaders(response({version:1,state},status),true);
+    if (status >= 500)
+      console.error(JSON.stringify({ message: 'gradebook_import_diagnostics_failed' }));
+    return withSecurityHeaders(response({ version: 1, state }, status), true);
   }
 };

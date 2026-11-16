@@ -63,8 +63,7 @@ function allowedPortalPathV1(path: string) {
   return (
     /^\/api\/(?:student\/(?:session|me|status|auth\/(?:challenge|activate|login|logout))|student-portal\/admin\/(?:query|command))$/u.test(
       path,
-    ) ||
-    SESSION_CHECK_PATH_V1.test(path)
+    ) || SESSION_CHECK_PATH_V1.test(path)
   );
 }
 
@@ -74,16 +73,26 @@ function dropExpiredV1(cooldowns: Map<string, number>, now: number) {
 
 /** A new live connection ID must not bypass the same account's session cooldown. */
 function cooldownKeyV1(path: string) {
-  return path.startsWith('/api/student/session?') ? path.split('&connectionId=')[0]!.toLowerCase() : path;
+  return path.startsWith('/api/student/session?')
+    ? path.split('&connectionId=')[0]!.toLowerCase()
+    : path;
 }
 
 /** Only sign-in and the session ask for the access-closed answer, when the client accepts it. */
 function acceptsAccessClosedV1(path: string, acceptAccessClosed: boolean | undefined) {
-  return Boolean(acceptAccessClosed) &&
-    (path === '/api/student/auth/challenge' || path === '/api/student/auth/login' || path.startsWith('/api/student/session'));
+  return (
+    Boolean(acceptAccessClosed) &&
+    (path === '/api/student/auth/challenge' ||
+      path === '/api/student/auth/login' ||
+      path.startsWith('/api/student/session'))
+  );
 }
 
-function requestInitV1(body: string | undefined, signal: AbortSignal | undefined, accessClosed: boolean): RequestInit {
+function requestInitV1(
+  body: string | undefined,
+  signal: AbortSignal | undefined,
+  accessClosed: boolean,
+): RequestInit {
   return {
     method: body === undefined ? 'GET' : 'POST',
     credentials: 'same-origin',

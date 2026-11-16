@@ -1,4 +1,7 @@
-import { performanceResultCountsV2, type PerformanceMatrixV2  } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+import {
+  performanceResultCountsV2,
+  type PerformanceMatrixV2,
+} from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   analysisMatrixRequestV2,
   performanceAnalysisRequestSchemaV3,
@@ -12,7 +15,10 @@ import {
 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 
 import { SIMPLIFIED_TERM_MAXIMUM_MILLI_V1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
-import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../../persistence/postgres/postgres-database-v1';
+import {
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresTransactionV1,
+} from '../../../persistence/postgres/postgres-database-v1';
 
 import {
   performanceRecoveryCellIsRelevantV2,
@@ -121,8 +127,10 @@ function reading(
     bucket = 'incomplete';
   } else if (percent === null) {
     bucket = 'unscaled';
-  } else if (BigInt(raw.valueMilli!) * BigInt(ANNUAL_MAXIMUM) >=
-                  BigInt(raw.maximumMilli!) * BigInt(minimum)) {
+  } else if (
+    BigInt(raw.valueMilli!) * BigInt(ANNUAL_MAXIMUM) >=
+    BigInt(raw.maximumMilli!) * BigInt(minimum)
+  ) {
     bucket = 'above';
   } else {
     bucket = 'below';
@@ -149,9 +157,11 @@ export function buildPerformanceAnalysisV3(
       (projections.get(row.student.id) ?? []).filter((value) => value.offerId === request.offerId),
     );
     const source = selectedProjections[0];
-    const parallelTerms = new Set(selectedProjections.flatMap((projection) =>
-      projection.terms.flatMap((term) => term?.parallelApplicable === true ? [term.term] : []),
-    ));
+    const parallelTerms = new Set(
+      selectedProjections.flatMap((projection) =>
+        projection.terms.flatMap((term) => (term?.parallelApplicable === true ? [term.term] : [])),
+      ),
+    );
     columns = (source?.facts ?? [])
       .filter((fact) => request.period === 'annual' || fact.term === request.period)
       .filter((fact) => fact.slot !== 3 || parallelTerms.has(fact.term))
@@ -185,11 +195,11 @@ export function buildPerformanceAnalysisV3(
         let raw: RawReading;
         if (request.lens === 'result') {
           raw = {
-                valueMilli: cell.valueMilli,
-                maximumMilli: cell.maximumMilli,
-                recordedMilli: null,
-                state: cell.state,
-              };
+            valueMilli: cell.valueMilli,
+            maximumMilli: cell.maximumMilli,
+            recordedMilli: null,
+            state: cell.state,
+          };
         } else if (!projection) {
           raw = empty();
         } else if (request.lens === 'assessments') {

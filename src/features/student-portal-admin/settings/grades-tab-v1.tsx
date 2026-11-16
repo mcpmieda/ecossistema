@@ -84,7 +84,8 @@ export function GradeStatusChipV1({
   if (accessOpenAtV1(plan, now))
     return partial ? (
       <Chip size="sm" variant="soft" color="warning">
-        <Eye size={14} aria-hidden="true" /> Só {partial.published} de {partial.total} alunos veem agora
+        <Eye size={14} aria-hidden="true" /> Só {partial.published} de {partial.total} alunos veem
+        agora
       </Chip>
     ) : (
       <Chip size="sm" variant="soft" color="success">
@@ -143,7 +144,8 @@ export function GradeShowV1({
   // Settled again once an action happens while the page is open, so it leaves the rows.
   const happened = plan.schedule.filter((event) => Date.parse(event.at) <= now).length;
   const saved = useMemo(
-    () => settleAccessPlanV1(plan, happened ? Date.parse(plan.schedule[happened - 1]!.at) : Date.now()),
+    () =>
+      settleAccessPlanV1(plan, happened ? Date.parse(plan.schedule[happened - 1]!.at) : Date.now()),
     [plan, happened],
   );
   const sourceRows = useMemo(() => scheduleRowsOfV1(saved.schedule), [saved]);
@@ -182,9 +184,9 @@ export function GradeShowV1({
             />
             {settings.scope.kind !== 'school' && !ownsSettingV1(settings, 'calendar') ? (
               <p className="pa-access-consequence">
-                {scopeSubjectV1(settings.scope.kind)}{' '}
-                passa a ter datas próprias: as mudanças que a escola fizer no Calendário e nas Notas
-                deixam de valer aqui até alguém usar “Usar padrão”.
+                {scopeSubjectV1(settings.scope.kind)} passa a ter datas próprias: as mudanças que a
+                escola fizer no Calendário e nas Notas deixam de valer aqui até alguém usar “Usar
+                padrão”.
               </p>
             ) : null}
           </>
@@ -195,8 +197,12 @@ export function GradeShowV1({
     try {
       const current = Date.now();
       // Saved actions that already happened are part of the state now, not pending rows.
-      const done = scheduleRowsOfV1(plan.schedule.filter((event) => Date.parse(event.at) <= current));
-      const pending = rows.filter((row) => !done.some((item) => item.at === row.at && item.action === row.action));
+      const done = scheduleRowsOfV1(
+        plan.schedule.filter((event) => Date.parse(event.at) <= current),
+      );
+      const pending = rows.filter(
+        (row) => !done.some((item) => item.at === row.at && item.action === row.action),
+      );
       const schedule: AccessEventV1[] = parseScheduleRowsV1(pending, current);
       setError(null);
       submit({ enabled: accessOpenAtV1(plan, current), schedule });
@@ -204,8 +210,13 @@ export function GradeShowV1({
       setError(error_ instanceof Error ? error_.message : 'Confira os agendamentos.');
     }
   };
-  const steadyText = openNow ? 'Fica visível até alguém ocultar.' : 'Fica oculto até alguém mostrar.';
-  const notice = gradeShowNoticeV1(canWrite && dirty, Boolean(fromCalendar && saved.schedule.length));
+  const steadyText = openNow
+    ? 'Fica visível até alguém ocultar.'
+    : 'Fica oculto até alguém mostrar.';
+  const notice = gradeShowNoticeV1(
+    canWrite && dirty,
+    Boolean(fromCalendar && saved.schedule.length),
+  );
   return (
     <div className="pa-grade-show">
       <div className="pa-grade-show-now">

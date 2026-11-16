@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
-import { brilliantSealCountV1, earnsSealV1 } from '../../../../shared/student-portal-contracts/brilliant-seal-v1';
+import {
+  brilliantSealCountV1,
+  earnsSealV1,
+} from '../../../../shared/student-portal-contracts/brilliant-seal-v1';
 import { score } from './fixtures-v1';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
@@ -21,7 +24,6 @@ const t = (period: PeriodV1['period'], value: number, maximum = 30): PeriodV1 =>
 });
 
 describe('selos brilhantes (owner rules 27/09/2026)', () => {
-
   it('earns a seal when no subject is red in the trimester', () => {
     const star = subject(t('T1', 29.5));
     const subjects = [star, subject(t('T1', 18)), subject(t('T1', 25))];
@@ -77,14 +79,22 @@ describe('selos brilhantes (owner rules 27/09/2026)', () => {
 
 describe('selos das avaliações (owner rules 28/09/2026)', () => {
   // AV1/AV2 worth 10 each; Brilhante from 9.
-  const av = (id: number, value: number, extra: Partial<NonNullable<PeriodV1['partials']>[number]> = {}) => ({
+  const av = (
+    id: number,
+    value: number,
+    extra: Partial<NonNullable<PeriodV1['partials']>[number]> = {},
+  ) => ({
     assessmentId: id,
     label: `Avaliação sintética ${id}`,
     mark: score(value, 10, value * 5 >= 10 * 3),
     assessment: true as const,
     ...extra,
   });
-  const term = (period: PeriodV1['period'], value: number, partials: NonNullable<PeriodV1['partials']>): PeriodV1 => ({
+  const term = (
+    period: PeriodV1['period'],
+    value: number,
+    partials: NonNullable<PeriodV1['partials']>,
+  ): PeriodV1 => ({
     ...t(period, value),
     partials,
   });
@@ -120,7 +130,12 @@ describe('selos das avaliações (owner rules 28/09/2026)', () => {
 
   it('activities, the parallel exam and not-done assessments never count', () => {
     const activity = { assessmentId: 10, label: 'Atividade sintética', mark: score(2, 2, true) };
-    const parallel = { assessmentId: 11, label: 'Paralela sintética', mark: score(10, 10, true), parallel: true as const };
+    const parallel = {
+      assessmentId: 11,
+      label: 'Paralela sintética',
+      mark: score(10, 10, true),
+      parallel: true as const,
+    };
     const notDone = av(12, 0, { mark: { kind: 'absent' }, notDone: true });
     const math = subject(term('T1', 20, [activity, parallel, notDone, av(13, 8.99)]));
     expect(brilliantSealCountV1([math], ['T1'])).toBe(0);

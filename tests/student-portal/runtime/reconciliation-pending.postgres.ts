@@ -18,8 +18,13 @@ import type {
 } from '../../../shared/student-identity/reconciliation-v1';
 
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
-if (target.protocol !== 'postgres:' || target.hostname !== '127.0.0.1' ||
-  target.pathname !== '/portal705_test' || target.search || target.hash)
+if (
+  target.protocol !== 'postgres:' ||
+  target.hostname !== '127.0.0.1' ||
+  target.pathname !== '/portal705_test' ||
+  target.search ||
+  target.hash
+)
   throw new Error('Pending report tests require disposable local PostgreSQL');
 const cluster = postgres(target.toString(), { max: 1, onnotice: () => undefined });
 const actor = '11111111-1111-4111-8111-111111111111';
@@ -49,23 +54,37 @@ async function fixture(): Promise<Fixture> {
   const owner = postgres(url.toString(), { max: 1, onnotice: () => undefined });
   const app = postgres(url.toString(), { max: 1, onnotice: () => undefined });
   const portal = postgres(url.toString(), { max: 1, onnotice: () => undefined });
-  const result = { name, owner, app, portal, service: new StudentReconciliationServiceV1(
-    createGradebookPostgresDatabaseFromSqlV1(app as unknown as GradebookPostgresSqlV1),
-    actor, 'synthetic-pending-cursor-key-'.repeat(3),
-  ) };
+  const result = {
+    name,
+    owner,
+    app,
+    portal,
+    service: new StudentReconciliationServiceV1(
+      createGradebookPostgresDatabaseFromSqlV1(app as unknown as GradebookPostgresSqlV1),
+      actor,
+      'synthetic-pending-cursor-key-'.repeat(3),
+    ),
+  };
   fixtures.push(result);
   const exec = (sql: string) => owner.unsafe(sql, [], { prepare: false });
-  await applyCurrentGradebookSchemaV1({ unsafe: (sql, params = []) =>
-    owner.unsafe(sql, [...params] as never[], { prepare: false }) }, process.cwd());
+  await applyCurrentGradebookSchemaV1(
+    { unsafe: (sql, params = []) => owner.unsafe(sql, [...params] as never[], { prepare: false }) },
+    process.cwd(),
+  );
   for (const file of readdirSync('migrations/student-portal')
-    .filter((file) => /^\d{4}_.*\.sql$/u.test(file) && Number(file.slice(0, 4)) <= 24).sort()) {
-    if (file.startsWith('0019_')) await exec('UPDATE student_portal.publication_control_v2 SET enabled=true');
+    .filter((file) => /^\d{4}_.*\.sql$/u.test(file) && Number(file.slice(0, 4)) <= 24)
+    .sort()) {
+    if (file.startsWith('0019_'))
+      await exec('UPDATE student_portal.publication_control_v2 SET enabled=true');
     await exec(readFileSync('migrations/student-portal/' + file, 'utf8'));
   }
-  for (const path of ['migrations/gradebook-simplified/0015_student_reconciliation_v1.sql',
+  for (const path of [
+    'migrations/gradebook-simplified/0015_student_reconciliation_v1.sql',
     'migrations/student-portal/0025_reconciliation_credentials_v1.sql',
     'migrations/student-portal/0033_reconciliation_cleanup_idle_v1.sql',
-    'migrations/gradebook-simplified/0018_smecel_only_source_v1.sql']) await exec(readFileSync(path, 'utf8'));
+    'migrations/gradebook-simplified/0018_smecel_only_source_v1.sql',
+  ])
+    await exec(readFileSync(path, 'utf8'));
   await app.unsafe('SET ROLE gradebook_app');
   await portal.unsafe('SET ROLE student_portal_app');
   return result;
@@ -85,23 +104,43 @@ afterAll(async () => {
 });
 
 const reportRow = (patch: Partial<ReportRowV1> = {}): ReportRowV1 => ({
-  sourceRow: 2, name: 'SYNTHETIC PENDING ALPHA', birthDate: '2012-02-03',
-  filiation1: 'SYNTHETIC GUARDIAN ALPHA', inep: '00007101', enrollmentHash: 'synthetic-pending-alpha',
-  classLabel: '7A 2026 - MATUTINO', shift: 'MATUTINO',
-  stageLabel: 'Ensino Fundamental de 9 anos - 7º Ano', status: 'CURSANDO',
-  enrolledAt: null, transferredAt: null, ...patch,
+  sourceRow: 2,
+  name: 'SYNTHETIC PENDING ALPHA',
+  birthDate: '2012-02-03',
+  filiation1: 'SYNTHETIC GUARDIAN ALPHA',
+  inep: '00007101',
+  enrollmentHash: 'synthetic-pending-alpha',
+  classLabel: '7A 2026 - MATUTINO',
+  shift: 'MATUTINO',
+  stageLabel: 'Ensino Fundamental de 9 anos - 7º Ano',
+  status: 'CURSANDO',
+  enrolledAt: null,
+  transferredAt: null,
+  ...patch,
 });
-const reportRows = () => [reportRow(), reportRow({
-  sourceRow: 3, name: 'SYNTHETIC EXTERNAL BETA', inep: '00007102',
-  filiation1: 'SYNTHETIC GUARDIAN BETA', enrollmentHash: 'synthetic-pending-beta',
-})];
-const mapping = [{
-  classLabel: '7A 2026 - MATUTINO', shift: 'MATUTINO',
-  stageLabel: 'Ensino Fundamental de 9 anos - 7º Ano', gradebookClassId: 730001, confirmRegular: false,
-}];
+const reportRows = () => [
+  reportRow(),
+  reportRow({
+    sourceRow: 3,
+    name: 'SYNTHETIC EXTERNAL BETA',
+    inep: '00007102',
+    filiation1: 'SYNTHETIC GUARDIAN BETA',
+    enrollmentHash: 'synthetic-pending-beta',
+  }),
+];
+const mapping = [
+  {
+    classLabel: '7A 2026 - MATUTINO',
+    shift: 'MATUTINO',
+    stageLabel: 'Ensino Fundamental de 9 anos - 7º Ano',
+    gradebookClassId: 730001,
+    confirmRegular: false,
+  },
+];
 async function catalog(f: Fixture) {
   const r = await f.service.execute({ ...base, operation: 'catalog' });
-  if (r.state !== 'ready' || r.operation !== 'catalog') throw new Error('synthetic-catalog-missing');
+  if (r.state !== 'ready' || r.operation !== 'catalog')
+    throw new Error('synthetic-catalog-missing');
   return r;
 }
 async function list(f: Fixture) {
@@ -111,36 +150,75 @@ async function list(f: Fixture) {
 }
 // The count of the side column follows the rule of the pending view of the screen.
 async function expectPendingCount(f: Fixture) {
-  const rows = (await list(f)).items.filter((item) => item.kind === 'external' ? item.reason !== 'smecel_only' : item.reconciliation !== 'reconciled');
-  expect(await f.service.execute({ ...base, operation: 'pending-count' }))
-    .toEqual({ contractVersion: 1, state: 'ready', operation: 'pending-count', pending: rows.length });
+  const rows = (await list(f)).items.filter((item) =>
+    item.kind === 'external' ? item.reason !== 'smecel_only' : item.reconciliation !== 'reconciled',
+  );
+  expect(await f.service.execute({ ...base, operation: 'pending-count' })).toEqual({
+    contractVersion: 1,
+    state: 'ready',
+    operation: 'pending-count',
+    pending: rows.length,
+  });
   return rows.length;
 }
-async function prepareInput(f: Fixture, rows = reportRows(), sourceGeneratedAt: string | null = declaredDate): Promise<ReconciliationPrepareV1> {
+async function prepareInput(
+  f: Fixture,
+  rows = reportRows(),
+  sourceGeneratedAt: string | null = declaredDate,
+): Promise<ReconciliationPrepareV1> {
   const { context } = await catalog(f);
-  return { ...base, operation: 'prepare', generation: context.generation, expectedRevision: context.revision,
-    idempotencyKey: crypto.randomUUID(), normalizationVersion: 1, sourceFormat: 'smecel-report-v1',
-    date1904: false, sourceYear: 2026, confirmYear: true, sourceGeneratedAt, rows,
+  return {
+    ...base,
+    operation: 'prepare',
+    generation: context.generation,
+    expectedRevision: context.revision,
+    idempotencyKey: crypto.randomUUID(),
+    normalizationVersion: 1,
+    sourceFormat: 'smecel-report-v1',
+    date1904: false,
+    sourceYear: 2026,
+    confirmYear: true,
+    sourceGeneratedAt,
+    rows,
     classLinks: context.relationAvailable ? mapping : [],
   };
 }
-type Prepared = Extract<ReconciliationResponseV1, { state: 'ready'; operation: 'prepare' | 'activate-pending' }>;
+type Prepared = Extract<
+  ReconciliationResponseV1,
+  { state: 'ready'; operation: 'prepare' | 'activate-pending' }
+>;
 function prepared(result: ReconciliationResponseV1): Prepared {
   expect(result.state).toBe('ready');
-  if (result.state !== 'ready' || (result.operation !== 'prepare' && result.operation !== 'activate-pending'))
+  if (
+    result.state !== 'ready' ||
+    (result.operation !== 'prepare' && result.operation !== 'activate-pending')
+  )
     throw new Error('synthetic-prepare-missing');
   return result;
 }
-const mutation = (context: ReconciliationContextV1) => ({ ...base,
-  generation: context.generation, expectedRevision: context.revision, idempotencyKey: crypto.randomUUID(),
+const mutation = (context: ReconciliationContextV1) => ({
+  ...base,
+  generation: context.generation,
+  expectedRevision: context.revision,
+  idempotencyKey: crypto.randomUUID(),
 });
 async function stage(f: Fixture, p: Prepared) {
   const request = { ...mutation(p.context), operation: 'stage', batchId: p.batchId };
   expect(await f.service.execute(request)).toMatchObject({ state: 'ready', operation: 'stage' });
-  expect(await prepareReconciliationCredentialsV1(f.portal as unknown as StudentPortalPostgresSqlV1,
-    cryptography, 1, actor, { contractVersion: 1, batchId: p.batchId,
-      generation: p.context.generation, expectedScopeRevision: p.context.revision }))
-    .toMatchObject({ state: 'ready', remainingCount: 0 });
+  expect(
+    await prepareReconciliationCredentialsV1(
+      f.portal as unknown as StudentPortalPostgresSqlV1,
+      cryptography,
+      1,
+      actor,
+      {
+        contractVersion: 1,
+        batchId: p.batchId,
+        generation: p.context.generation,
+        expectedScopeRevision: p.context.revision,
+      },
+    ),
+  ).toMatchObject({ state: 'ready', remainingCount: 0 });
 }
 function apply(p: Prepared, confirmDifferences = true) {
   return { ...mutation(p.context), operation: 'apply', batchId: p.batchId, confirmDifferences };
@@ -149,23 +227,32 @@ async function insertRelation(f: Fixture) {
   await f.owner.begin(async (tx) => {
     await tx.unsafe('SELECT pg_advisory_xact_lock_shared(613,0)');
     await tx.unsafe('SELECT pg_advisory_xact_lock(613,2026)');
-    await tx.unsafe(`INSERT INTO gradebook.ano_letivo VALUES(2026,60000,2);
+    await tx.unsafe(
+      `INSERT INTO gradebook.ano_letivo VALUES(2026,60000,2);
       INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES(730001,2026,'7A','SYNTHETIC PENDING CLASS',7,'MATUTINO');
       INSERT INTO gradebook.aluno(id,ano,nome) VALUES(730001,2026,'SYNTHETIC PENDING ALPHA');
-      INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero) VALUES(2026,730001,730001,1);`, [], { prepare: false });
+      INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero) VALUES(2026,730001,730001,1);`,
+      [],
+      { prepare: false },
+    );
     await tx.unsafe(`SELECT student_portal.record_gradebook_change_v1(gen_random_uuid(),2026::smallint,
       'relation',true,ARRAY[730001],statement_timestamp())`);
   });
-  return String((await f.owner.unsafe('SELECT student_uid FROM gradebook.aluno WHERE id=730001'))[0]!.student_uid);
+  return String(
+    (await f.owner.unsafe('SELECT student_uid FROM gradebook.aluno WHERE id=730001'))[0]!
+      .student_uid,
+  );
 }
 async function currentFacts(f: Fixture) {
-  return Array.from(await f.owner.unsafe(`SELECT o.name,o.birth_date::text,o.enrollment_hash,c.class_key,
+  return Array.from(
+    await f.owner.unsafe(`SELECT o.name,o.birth_date::text,o.enrollment_hash,c.class_key,
     l.student_uid IS NOT NULL AS linked,COALESCE(p.observation_id=o.id,false) AS selected
     FROM gradebook.student_source_record_v1 r JOIN gradebook.student_source_observation_v1 o ON o.id=r.current_observation_id
     JOIN gradebook.student_report_class_v1 c ON c.id=o.report_class_id
     LEFT JOIN gradebook.student_source_link_v1 l ON l.source_id=r.id AND l.academic_year=r.academic_year
     LEFT JOIN gradebook.student_report_profile_v1 p ON p.student_uid=l.student_uid AND p.academic_year=l.academic_year
-    ORDER BY o.name`));
+    ORDER BY o.name`),
+  );
 }
 
 it('warns after 27 days, hides expired pre-Relação data and cleans it at 30 days without creating identities', async () => {
@@ -173,32 +260,62 @@ it('warns after 27 days, hides expired pre-Relação data and cleans it at 30 da
   const p = prepared(await pendingFirst.service.execute(input));
   expect(p.batchState).toBe('awaiting_relation');
   expect(p.counts).toEqual({ rows: 2, linked: 0, pending: 2 });
-  const [ttl] = await pendingFirst.owner.unsafe(`SELECT extract(epoch FROM expires_at-received_at)/86400 AS days
-    FROM gradebook.student_report_batch_v1 WHERE id=$1`, [p.batchId]);
+  const [ttl] = await pendingFirst.owner.unsafe(
+    `SELECT extract(epoch FROM expires_at-received_at)/86400 AS days
+    FROM gradebook.student_report_batch_v1 WHERE id=$1`,
+    [p.batchId],
+  );
   expect(Number(ttl!.days)).toBeGreaterThan(29.99);
   expect(Number(ttl!.days)).toBeLessThanOrEqual(30);
-  await pendingFirst.owner.unsafe(`UPDATE gradebook.student_report_batch_v1
+  await pendingFirst.owner.unsafe(
+    `UPDATE gradebook.student_report_batch_v1
     SET received_at=clock_timestamp()-interval '26 days 23 hours',expires_at=clock_timestamp()+interval '3 days 1 hour'
-    WHERE id=$1`, [p.batchId]);
-  expect((await list(pendingFirst)).items.every((item) => item.kind === 'external' && !item.warning)).toBe(true);
-  await pendingFirst.owner.unsafe(`UPDATE gradebook.student_report_batch_v1
+    WHERE id=$1`,
+    [p.batchId],
+  );
+  expect(
+    (await list(pendingFirst)).items.every((item) => item.kind === 'external' && !item.warning),
+  ).toBe(true);
+  await pendingFirst.owner.unsafe(
+    `UPDATE gradebook.student_report_batch_v1
     SET received_at=clock_timestamp()-interval '27 days 1 second',expires_at=clock_timestamp()+interval '3 days'-interval '1 second'
-    WHERE id=$1`, [p.batchId]);
+    WHERE id=$1`,
+    [p.batchId],
+  );
   const warned = await list(pendingFirst);
   expect(warned.items).toHaveLength(2);
-  expect(warned.items.every((item) => item.kind === 'external' && item.warning && item.sourceId === null)).toBe(true);
-  await pendingFirst.owner.unsafe(`UPDATE gradebook.student_report_batch_v1
+  expect(
+    warned.items.every(
+      (item) => item.kind === 'external' && item.warning && item.sourceId === null,
+    ),
+  ).toBe(true);
+  await pendingFirst.owner.unsafe(
+    `UPDATE gradebook.student_report_batch_v1
     SET received_at=clock_timestamp()-interval '30 days 1 second',expires_at=clock_timestamp()-interval '1 second'
-    WHERE id=$1`, [p.batchId]);
+    WHERE id=$1`,
+    [p.batchId],
+  );
   expect((await list(pendingFirst)).items).toEqual([]);
   expect((await catalog(pendingFirst)).reportClasses).toEqual([]);
   expect(await pendingFirst.service.execute(input)).toMatchObject({ state: 'expired' });
   const before = (await catalog(pendingFirst)).context;
   await pendingFirst.portal.unsafe('SELECT student_portal.cleanup_reconciliation_pending_v1(100)');
   expect((await catalog(pendingFirst)).context.revision).toBeGreaterThan(before.revision);
-  expect((await pendingFirst.owner.unsafe('SELECT state,class_links FROM gradebook.student_report_batch_v1 WHERE id=$1', [p.batchId]))[0])
-    .toMatchObject({ state: 'expired', class_links: [] });
-  for (const table of ['student_report_pending_row_v1', 'student_source_observation_v1', 'student_report_profile_v1', 'student_identity', 'aluno'])
+  expect(
+    (
+      await pendingFirst.owner.unsafe(
+        'SELECT state,class_links FROM gradebook.student_report_batch_v1 WHERE id=$1',
+        [p.batchId],
+      )
+    )[0],
+  ).toMatchObject({ state: 'expired', class_links: [] });
+  for (const table of [
+    'student_report_pending_row_v1',
+    'student_source_observation_v1',
+    'student_report_profile_v1',
+    'student_identity',
+    'aluno',
+  ])
     expect(await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.' + table)).toHaveLength(0);
   expect(await pendingFirst.owner.unsafe('SELECT 1 FROM student_portal.account')).toHaveLength(0);
 });
@@ -210,30 +327,54 @@ it('receives a report before the Relação, activates its mapped batch atomicall
   expect(p.context.relationAvailable).toBe(false);
   const available = await catalog(pendingFirst);
   expect(available.classes).toEqual([]);
-  expect(available.reportClasses).toEqual([expect.objectContaining({ classId: null, label: mapping[0]!.classLabel })]);
+  expect(available.reportClasses).toEqual([
+    expect.objectContaining({ classId: null, label: mapping[0]!.classLabel }),
+  ]);
   const external = (await list(pendingFirst)).items;
   expect(external).toHaveLength(2);
-  expect(external.every((item) => item.kind === 'external' && item.sourceId === null && item.batchId === p.batchId)).toBe(true);
+  expect(
+    external.every(
+      (item) => item.kind === 'external' && item.sourceId === null && item.batchId === p.batchId,
+    ),
+  ).toBe(true);
   expect(await expectPendingCount(pendingFirst)).toBe(2);
   expect(await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.aluno')).toHaveLength(0);
   const studentUid = await insertRelation(pendingFirst);
   const c = (await catalog(pendingFirst)).context;
   expect(c.relationAvailable).toBe(true);
-  const activate = { ...mutation(c), operation: 'activate-pending', batchId: p.batchId, classLinks: mapping };
+  const activate = {
+    ...mutation(c),
+    operation: 'activate-pending',
+    batchId: p.batchId,
+    classLinks: mapping,
+  };
   const activated = prepared(await pendingFirst.service.execute(activate));
   expect(activated.batchId).not.toBe(p.batchId);
   expect(activated.counts).toEqual({ rows: 2, linked: 1, pending: 1 });
   expect(prepared(await pendingFirst.service.execute(activate)).batchId).toBe(activated.batchId);
-  expect(await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.student_source_observation_v1')).toHaveLength(0);
+  expect(
+    await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.student_source_observation_v1'),
+  ).toHaveLength(0);
   await stage(pendingFirst, activated);
   const command = apply(activated, false);
   expect(await pendingFirst.service.execute(command)).toMatchObject({ state: 'committed' });
   expect(await pendingFirst.service.execute(command)).toMatchObject({ state: 'committed' });
-  expect(await pendingFirst.service.execute(activate)).toMatchObject({ state: 'committed', operationId: activated.batchId });
-  expect(await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.student_report_pending_row_v1')).toHaveLength(0);
-  expect(await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.student_source_observation_v1')).toHaveLength(2);
+  expect(await pendingFirst.service.execute(activate)).toMatchObject({
+    state: 'committed',
+    operationId: activated.batchId,
+  });
+  expect(
+    await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.student_report_pending_row_v1'),
+  ).toHaveLength(0);
+  expect(
+    await pendingFirst.owner.unsafe('SELECT 1 FROM gradebook.student_source_observation_v1'),
+  ).toHaveLength(2);
   const people = (await list(pendingFirst)).items;
-  expect(people.find((item) => item.kind === 'person')).toMatchObject({ studentUid, reconciliation: 'reconciled', portal: 'without-portal' });
+  expect(people.find((item) => item.kind === 'person')).toMatchObject({
+    studentUid,
+    reconciliation: 'reconciled',
+    portal: 'without-portal',
+  });
   expect(people.filter((item) => item.kind === 'external')).toHaveLength(1);
   expect(await expectPendingCount(pendingFirst)).toBe(1);
   expect(await pendingFirst.owner.unsafe('SELECT 1 FROM student_portal.account')).toHaveLength(0);
@@ -245,41 +386,66 @@ it('produces equivalent reconciled facts when the Relação arrives before the s
   const p = prepared(await relationFirst.service.execute(await prepareInput(relationFirst)));
   expect(p.counts).toEqual({ rows: 2, linked: 1, pending: 1 });
   await stage(relationFirst, p);
-  expect(await relationFirst.service.execute(apply(p, false))).toMatchObject({ state: 'committed' });
+  expect(await relationFirst.service.execute(apply(p, false))).toMatchObject({
+    state: 'committed',
+  });
   expect(pendingOrderFacts).toHaveLength(2);
   expect(await currentFacts(relationFirst)).toEqual(pendingOrderFacts);
   expect(await relationFirst.owner.unsafe('SELECT 1 FROM student_portal.account')).toHaveLength(0);
 });
 
-it.each(['older', 'unknown'] as const)('requires confirmation for changed content with %s source metadata', async (kind) => {
-  const rows = reportRows();
-  rows[0] = reportRow({ enrollmentHash: 'synthetic-pending-' + kind });
-  const before = await currentFacts(pendingFirst);
-  const p = prepared(await pendingFirst.service.execute(await prepareInput(pendingFirst, rows,
-    kind === 'older' ? '2026-01-01T00:00:00.000Z' : null)));
-  expect(p.batchState).toBe('review_required');
-  expect(p.differences).toContain(kind === 'older'
-    ? 'Relatório anterior ao vigente. Confira as alterações.'
-    : 'Data do relatório não confirmada. Confira as alterações.');
-  await stage(pendingFirst, p);
-  const command = apply(p, false);
-  expect(await pendingFirst.service.execute(command)).toMatchObject({ state: 'conflict' });
-  expect(await currentFacts(pendingFirst)).toEqual(before);
-  expect(await pendingFirst.service.execute({ ...command, confirmDifferences: true })).toMatchObject({ state: 'committed' });
-  expect(await pendingFirst.service.execute({ ...command, confirmDifferences: true })).toMatchObject({ state: 'committed' });
-  expect(await pendingFirst.owner.unsafe('SELECT 1 FROM student_portal.account')).toHaveLength(0);
-});
+it.each(['older', 'unknown'] as const)(
+  'requires confirmation for changed content with %s source metadata',
+  async (kind) => {
+    const rows = reportRows();
+    rows[0] = reportRow({ enrollmentHash: 'synthetic-pending-' + kind });
+    const before = await currentFacts(pendingFirst);
+    const p = prepared(
+      await pendingFirst.service.execute(
+        await prepareInput(
+          pendingFirst,
+          rows,
+          kind === 'older' ? '2026-01-01T00:00:00.000Z' : null,
+        ),
+      ),
+    );
+    expect(p.batchState).toBe('review_required');
+    expect(p.differences).toContain(
+      kind === 'older'
+        ? 'Relatório anterior ao vigente. Confira as alterações.'
+        : 'Data do relatório não confirmada. Confira as alterações.',
+    );
+    await stage(pendingFirst, p);
+    const command = apply(p, false);
+    expect(await pendingFirst.service.execute(command)).toMatchObject({ state: 'conflict' });
+    expect(await currentFacts(pendingFirst)).toEqual(before);
+    expect(
+      await pendingFirst.service.execute({ ...command, confirmDifferences: true }),
+    ).toMatchObject({ state: 'committed' });
+    expect(
+      await pendingFirst.service.execute({ ...command, confirmDifferences: true }),
+    ).toMatchObject({ state: 'committed' });
+    expect(await pendingFirst.owner.unsafe('SELECT 1 FROM student_portal.account')).toHaveLength(0);
+  },
+);
 
 it('keeps a report row "Somente no Smecel" out of the pending view until the Relação has the student', async () => {
   const f = relationFirst;
   const beta = (await list(f)).items.find((item) => item.kind === 'external');
   if (beta?.kind !== 'external' || !beta.sourceId) throw new Error('synthetic-external-missing');
-  const mark = async (smecelOnly: boolean) => f.service.execute({ ...mutation((await catalog(f)).context),
-    operation: 'smecel-only', sourceId: beta.sourceId!, smecelOnly });
+  const mark = async (smecelOnly: boolean) =>
+    f.service.execute({
+      ...mutation((await catalog(f)).context),
+      operation: 'smecel-only',
+      sourceId: beta.sourceId!,
+      smecelOnly,
+    });
   expect(await expectPendingCount(f)).toBe(1);
   expect(await mark(true)).toMatchObject({ state: 'committed' });
   expect(await mark(true)).toMatchObject({ state: 'conflict' });
-  expect((await list(f)).items.find((item) => item.kind === 'external')).toMatchObject({ reason: 'smecel_only' });
+  expect((await list(f)).items.find((item) => item.kind === 'external')).toMatchObject({
+    reason: 'smecel_only',
+  });
   expect(await expectPendingCount(f)).toBe(0);
   expect(await mark(false)).toMatchObject({ state: 'committed' });
   expect(await expectPendingCount(f)).toBe(1);
@@ -288,8 +454,12 @@ it('keeps a report row "Somente no Smecel" out of the pending view until the Rel
   await f.owner.begin(async (tx) => {
     await tx.unsafe('SELECT pg_advisory_xact_lock_shared(613,0)');
     await tx.unsafe('SELECT pg_advisory_xact_lock(613,2026)');
-    await tx.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome) VALUES(730002,2026,'SYNTHETIC EXTERNAL BETA');
-      INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero) VALUES(2026,730001,730002,2);`, [], { prepare: false });
+    await tx.unsafe(
+      `INSERT INTO gradebook.aluno(id,ano,nome) VALUES(730002,2026,'SYNTHETIC EXTERNAL BETA');
+      INSERT INTO gradebook.vinculo(ano,turma_id,aluno_id,numero) VALUES(2026,730001,730002,2);`,
+      [],
+      { prepare: false },
+    );
     await tx.unsafe(`SELECT student_portal.record_gradebook_change_v1(gen_random_uuid(),2026::smallint,
       'relation',true,ARRAY[730001],statement_timestamp())`);
   });
@@ -298,7 +468,9 @@ it('keeps a report row "Somente no Smecel" out of the pending view until the Rel
   await stage(f, p);
   expect(await f.service.execute(apply(p))).toMatchObject({ state: 'committed' });
   expect((await list(f)).items.filter((item) => item.kind === 'external')).toEqual([]);
-  expect(await f.owner.unsafe('SELECT 1 FROM gradebook.student_source_record_v1 WHERE smecel_only')).toHaveLength(0);
+  expect(
+    await f.owner.unsafe('SELECT 1 FROM gradebook.student_source_record_v1 WHERE smecel_only'),
+  ).toHaveLength(0);
 });
 
 it('settles a record without a class once its Portal account is closed (Encerrar conta, 11/11/2026)', async () => {
@@ -307,19 +479,39 @@ it('settles a record without a class once its Portal account is closed (Encerrar
   await f.owner.begin(async (tx) => {
     await tx.unsafe('SELECT pg_advisory_xact_lock_shared(613,0)');
     await tx.unsafe('SELECT pg_advisory_xact_lock(613,2026)');
-    await tx.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome) VALUES(730009,2026,'SYNTHETIC REPEATED RECORD')`, [], { prepare: false });
+    await tx.unsafe(
+      `INSERT INTO gradebook.aluno(id,ano,nome) VALUES(730009,2026,'SYNTHETIC REPEATED RECORD')`,
+      [],
+      { prepare: false },
+    );
   });
-  await f.owner.unsafe(`INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility)
-    VALUES($1,2026,730009,'pending-activation','eligible')`, [accountId]);
-  const listed = async () => (await list(f)).items.find((item) => item.kind === 'person' && item.name === 'SYNTHETIC REPEATED RECORD');
-  expect(await listed()).toMatchObject({ classId: null, reconciliation: 'without-report', portal: 'with-portal' });
+  await f.owner.unsafe(
+    `INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility)
+    VALUES($1,2026,730009,'pending-activation','eligible')`,
+    [accountId],
+  );
+  const listed = async () =>
+    (await list(f)).items.find(
+      (item) => item.kind === 'person' && item.name === 'SYNTHETIC REPEATED RECORD',
+    );
+  expect(await listed()).toMatchObject({
+    classId: null,
+    reconciliation: 'without-report',
+    portal: 'with-portal',
+  });
   const before = await expectPendingCount(f);
   // The same writes as the Portal's closure of one link.
   await f.owner.begin(async (tx) => {
-    await tx.unsafe(`INSERT INTO student_portal.link_closure(account_id,academic_year,gradebook_student_id,closed_at,version)
-      VALUES($1::uuid,2026,730009,statement_timestamp(),1)`, [accountId]);
-    await tx.unsafe(`UPDATE student_portal.account SET gradebook_student_id=NULL,eligibility='unlinked',
-      closed_at=statement_timestamp(),version=1,security_version=security_version+1 WHERE id=$1::uuid`, [accountId]);
+    await tx.unsafe(
+      `INSERT INTO student_portal.link_closure(account_id,academic_year,gradebook_student_id,closed_at,version)
+      VALUES($1::uuid,2026,730009,statement_timestamp(),1)`,
+      [accountId],
+    );
+    await tx.unsafe(
+      `UPDATE student_portal.account SET gradebook_student_id=NULL,eligibility='unlinked',
+      closed_at=statement_timestamp(),version=1,security_version=security_version+1 WHERE id=$1::uuid`,
+      [accountId],
+    );
   });
   expect(await listed()).toBeUndefined();
   expect(await expectPendingCount(f)).toBe(before - 1);

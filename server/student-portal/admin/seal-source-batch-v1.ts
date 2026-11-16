@@ -75,7 +75,7 @@ export async function sealContextsBatchV1(
       AND a.eligibility='eligible' AND a.gradebook_student_id IS NOT NULL ORDER BY a.id`,
     [JSON.stringify(ids)],
   );
-  const now = snapshotNow ?? await authNowV1(tx);
+  const now = snapshotNow ?? (await authNowV1(tx));
   const contexts = new Map<string, ContextV1>();
   const policies = createPolicyResolutionMemoV1();
   for (const row of rows) {

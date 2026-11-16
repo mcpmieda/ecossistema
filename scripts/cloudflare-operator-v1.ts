@@ -4,11 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 export type CloudflareTokenKindV1 = 'deploy' | 'hyperdrive';
 export type CloudflareCapabilityStateV1 =
-  | 'accessible'
-  | 'permission-required'
-  | 'inconclusive'
-  | 'unavailable'
-  | 'credential-missing';
+  'accessible' | 'permission-required' | 'inconclusive' | 'unavailable' | 'credential-missing';
 export type CloudflareResourceStateV1 = CloudflareCapabilityStateV1 | 'not-found';
 
 export type CloudflareCapabilityV1 = {
@@ -97,9 +93,7 @@ function resourceStateForStatusV1(status: number): CloudflareResourceStateV1 {
 }
 
 function asObjectV1(value: unknown): JsonObject | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as JsonObject)
-    : null;
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonObject) : null;
 }
 
 function asStringV1(value: unknown): string | null {
@@ -226,8 +220,7 @@ async function graphqlV1(
     const parsed = await readJsonV1(response);
     if (!parsed) return { state: 'inconclusive', body: null };
     const errors = parsed.errors;
-    if (Array.isArray(errors) && errors.length > 0)
-      return { state: 'inconclusive', body: null };
+    if (Array.isArray(errors) && errors.length > 0) return { state: 'inconclusive', body: null };
     return { state: 'accessible', body: parsed };
   } catch {
     return { state: 'unavailable', body: null };
@@ -280,8 +273,7 @@ export async function probeCloudflareCapabilitiesV1(input: {
   const account = encodeURIComponent(input.accountId);
   const rest = {
     'workers.scripts.read': API_BASE + '/accounts/' + account + '/workers/scripts',
-    'pages.projects.read':
-      API_BASE + '/accounts/' + account + '/pages/projects?page=1&per_page=1',
+    'pages.projects.read': API_BASE + '/accounts/' + account + '/pages/projects?page=1&per_page=1',
     'hyperdrive.configs.read':
       API_BASE + '/accounts/' + account + '/hyperdrive/configs?page=1&per_page=1',
     'zones.read': API_BASE + '/zones?account.id=' + account + '&page=1&per_page=1',
@@ -357,16 +349,16 @@ function invocationTotalsV1(rows: readonly unknown[]) {
     const quantiles = asObjectV1(object?.quantiles);
     const cpuP50 = asNonNegativeNumberV1(quantiles?.cpuTimeP50);
     const cpuP99 = asNonNegativeNumberV1(quantiles?.cpuTimeP99);
-    if (cpuP50 !== null)
-      maxCpuTimeP50 = Math.max(maxCpuTimeP50 ?? 0, cpuP50);
-    if (cpuP99 !== null)
-      maxCpuTimeP99 = Math.max(maxCpuTimeP99 ?? 0, cpuP99);
+    if (cpuP50 !== null) maxCpuTimeP50 = Math.max(maxCpuTimeP50 ?? 0, cpuP50);
+    if (cpuP99 !== null) maxCpuTimeP99 = Math.max(maxCpuTimeP99 ?? 0, cpuP99);
   }
   return { requests, errors, maxCpuTimeP50, maxCpuTimeP99 };
 }
 
 /** The Portal Worker's last hour of invocations. */
-function portalAnalyticsV1(analyticsRead: GraphqlReadV1): CloudflarePortalDeployResultV1['analytics'] {
+function portalAnalyticsV1(
+  analyticsRead: GraphqlReadV1,
+): CloudflarePortalDeployResultV1['analytics'] {
   if (analyticsRead.state !== 'accessible' || !analyticsRead.body)
     return { state: analyticsRead.state, windowMinutes: 60 };
   const data = asObjectV1(analyticsRead.body.data);

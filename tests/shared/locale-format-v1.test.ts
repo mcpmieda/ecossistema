@@ -14,7 +14,21 @@ import {
 import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
 
 // Issue #1490, finding 1: every constant must give exactly what the per-call Intl object gave.
-const labels = ['1º', '2º', '10º', 'Álgebra', 'algebra', 'Ética', 'ética', 'Etica', '1º ano B', '1º ano A', '10º ano', '', ' '];
+const labels = [
+  '1º',
+  '2º',
+  '10º',
+  'Álgebra',
+  'algebra',
+  'Ética',
+  'ética',
+  'Etica',
+  '1º ano B',
+  '1º ano A',
+  '10º ano',
+  '',
+  ' ',
+];
 const sign = (value: number) => Math.sign(value);
 const pairs = labels.flatMap((left) => labels.map((right) => [left, right] as const));
 

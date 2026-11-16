@@ -108,9 +108,9 @@ describe('academic entity contracts v1', () => {
       subjectId,
       sourceDisciplineIndex: 'D1',
     });
-    expect(new Set([assignment.teacherId, assignment.classGroupId, assignment.subjectId]).size).toBe(
-      3,
-    );
+    expect(
+      new Set([assignment.teacherId, assignment.classGroupId, assignment.subjectId]).size,
+    ).toBe(3);
   });
 
   it('preserves a transfer trajectory without recreating the student', () => {

@@ -22,12 +22,18 @@ const TERM_MAXIMUM_MILLI_V1 = { T1: 30_000, T2: 30_000, T3: 40_000 } as const;
 const agreesWithAnnualMinimumV1 = (mark: ScoreMarkV1) =>
   mark.meetsMinimum === null ||
   mark.maximum === null ||
-  (mark.value * 100_000 >= mark.maximum * ANNUAL_MINIMUM_MILLI_V1 - 1e-6) === mark.meetsMinimum;
+  mark.value * 100_000 >= mark.maximum * ANNUAL_MINIMUM_MILLI_V1 - 1e-6 === mark.meetsMinimum;
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 
 type AnnualGoalV1 =
   | { state: 'reached'; soFarMilli: number; t1Milli: number; t2Milli: number }
-  | { state: 'reachable' | 'beyond'; soFarMilli: number; t1Milli: number; t2Milli: number; neededMilli: number };
+  | {
+      state: 'reachable' | 'beyond';
+      soFarMilli: number;
+      t1Milli: number;
+      t2Milli: number;
+      neededMilli: number;
+    };
 
 const milli = (value: number) => Math.round(value * 1000);
 function scoreOf(subject: SubjectV1, period: PeriodV1['period']): ScoreMarkV1 | null {
@@ -43,14 +49,19 @@ export function annualGoalV1(
   subject: SubjectV1,
   profile: Pick<SelfResponseV1['profile'], 'academicState' | 'result' | 'annualSituation'>,
 ): AnnualGoalV1 | null {
-  if (profile.academicState !== 'regular' || subject.annualSituation || subject.officialOutcome) return null;
+  if (profile.academicState !== 'regular' || subject.annualSituation || subject.officialOutcome)
+    return null;
   if (profile.result !== 'in-progress') return null;
   if (profile.annualSituation && profile.annualSituation !== 'in-recovery') return null;
   const t1 = scoreOf(subject, 'T1');
   const t2 = scoreOf(subject, 'T2');
   if (!t1 || !t2) return null;
   if (t1.maximum === null || t2.maximum === null) return null;
-  if (milli(t1.maximum) !== TERM_MAXIMUM_MILLI_V1.T1 || milli(t2.maximum) !== TERM_MAXIMUM_MILLI_V1.T2) return null;
+  if (
+    milli(t1.maximum) !== TERM_MAXIMUM_MILLI_V1.T1 ||
+    milli(t2.maximum) !== TERM_MAXIMUM_MILLI_V1.T2
+  )
+    return null;
   if (!agreesWithAnnualMinimumV1(t1) || !agreesWithAnnualMinimumV1(t2)) return null;
   const t1Milli = milli(t1.value);
   const t2Milli = milli(t2.value);
@@ -75,20 +86,30 @@ export function subjectInSentenceV1(label: string): string {
   if (label !== label.toLocaleUpperCase('pt-BR')) return label;
   return label
     .toLocaleLowerCase('pt-BR')
-    .replace(/(^|[\s.(/-])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toLocaleUpperCase('pt-BR'));
+    .replace(
+      /(^|[\s.(/-])(\p{L})/gu,
+      (_, before: string, letter: string) => before + letter.toLocaleUpperCase('pt-BR'),
+    );
 }
 const percentOfYear = (value: number) => `${value / 1000}%`;
 // A label centred on a point of the track, kept inside it near the ends.
 const labelAt = (milli: number) => `${Math.min(92, Math.max(8, milli / 1000))}%`;
 
-export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: AnnualGoalV1; subjectLabel: string }>) {
-  const needed = goal.state === 'reached' ? 0 : Math.min(goal.neededMilli, TERM_MAXIMUM_MILLI_V1.T3);
+export function AnnualGoalCardV1({
+  goal,
+  subjectLabel,
+}: Readonly<{ goal: AnnualGoalV1; subjectLabel: string }>) {
+  const needed =
+    goal.state === 'reached' ? 0 : Math.min(goal.neededMilli, TERM_MAXIMUM_MILLI_V1.T3);
   let goalText = `O 3º trimestre vale 40 pontos. Cada ponto dele conta, e a recuperação do fim do ano é a chance de completar o que faltar.`;
   if (goal.state === 'reached') goalText = 'O 3º trimestre continua valendo para o seu boletim.';
   else if (goal.state === 'reachable')
     goalText = `${points(goal.neededMilli)} ${goal.neededMilli === 1000 ? 'ponto é' : 'pontos é'} o que você precisa no 3º trimestre para fechar o ano em ${subjectInSentenceV1(subjectLabel)}.`;
   return (
-    <section className={'pa-annual-goal pa-annual-goal--' + goal.state} aria-labelledby="pa-annual-goal-title">
+    <section
+      className={'pa-annual-goal pa-annual-goal--' + goal.state}
+      aria-labelledby="pa-annual-goal-title"
+    >
       <header className="pa-annual-goal-header">
         <div>
           <p className="pa-annual-goal-eyebrow">Meta do ano · 60 pontos</p>
@@ -108,7 +129,10 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: Annual
       {/* How much is missing sits above the remaining part it refers to. */}
       <div className="pa-annual-goal-above" aria-hidden="true">
         {goal.state === 'reached' ? null : (
-          <span className="pa-annual-goal-label pa-annual-goal-label--need" style={{ left: labelAt(goal.soFarMilli + needed / 2) }}>
+          <span
+            className="pa-annual-goal-label pa-annual-goal-label--need"
+            style={{ left: labelAt(goal.soFarMilli + needed / 2) }}
+          >
             <small>faltam</small>
             <b>{points(goal.neededMilli)}</b>
           </span>
@@ -116,14 +140,23 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: Annual
       </div>
       {/* Earned points move toward the goal; the points still needed remain lighter. */}
       <div className="pa-annual-goal-track" aria-hidden="true">
-        <span className="pa-annual-goal-fill pa-annual-goal-fill--have" style={{ width: percentOfYear(goal.soFarMilli) }} />
+        <span
+          className="pa-annual-goal-fill pa-annual-goal-fill--have"
+          style={{ width: percentOfYear(goal.soFarMilli) }}
+        />
         {needed > 0 ? (
-          <span className="pa-annual-goal-fill pa-annual-goal-fill--needed" style={{ width: percentOfYear(needed) }} />
+          <span
+            className="pa-annual-goal-fill pa-annual-goal-fill--needed"
+            style={{ width: percentOfYear(needed) }}
+          />
         ) : null}
         <span className="pa-annual-goal-marker" />
       </div>
       <div className="pa-annual-goal-scale" aria-hidden="true">
-        <span className="pa-annual-goal-label pa-annual-goal-label--have" style={{ left: labelAt(goal.soFarMilli / 2) }}>
+        <span
+          className="pa-annual-goal-label pa-annual-goal-label--have"
+          style={{ left: labelAt(goal.soFarMilli / 2) }}
+        >
           <b>{points(goal.soFarMilli)}</b>
           <small>você tem</small>
         </span>
@@ -137,9 +170,7 @@ export function AnnualGoalCardV1({ goal, subjectLabel }: Readonly<{ goal: Annual
         </span>
       </div>
 
-      <p className="pa-annual-goal-text">
-        {goalText}
-      </p>
+      <p className="pa-annual-goal-text">{goalText}</p>
     </section>
   );
 }

@@ -1065,7 +1065,9 @@ body {
 }
 
 .performance-workspace .school-class-tabs[data-orientation='horizontal'] > .tabs__list-container,
-.performance-workspace .tabs[data-orientation='horizontal'] > .performance-perspectives.tabs__list-container {
+.performance-workspace
+  .tabs[data-orientation='horizontal']
+  > .performance-perspectives.tabs__list-container {
   width: 100%;
   align-self: stretch;
 }
@@ -1180,7 +1182,8 @@ body {
   --glass-edge: rgb(255 255 255 / 0.85);
   --glass-blur: saturate(180%) blur(20px);
   --glass-lift: 0 1px 0 rgb(255 255 255 / 0.9) inset, 0 8px 24px -14px rgb(30 41 59 / 0.28);
-  --shell-backdrop: radial-gradient(60rem 40rem at 8% -10%, rgb(129 140 248 / 0.14), transparent 60%),
+  --shell-backdrop:
+    radial-gradient(60rem 40rem at 8% -10%, rgb(129 140 248 / 0.14), transparent 60%),
     radial-gradient(50rem 36rem at 100% 0%, rgb(45 212 191 / 0.14), transparent 62%),
     radial-gradient(48rem 40rem at 70% 110%, rgb(56 189 248 / 0.12), transparent 60%),
     linear-gradient(170deg, #f7f8fa 0%, #eaeff2 52%, #e0e7ec 100%);
@@ -1372,7 +1375,8 @@ body {
   color: color-mix(in oklab, var(--foreground) 80%, transparent);
   font-size: 0.9rem;
   font-weight: 550;
-  transition: color 120ms ease,
+  transition:
+    color 120ms ease,
     background-color 120ms ease;
   min-width: 0;
   position: relative;
@@ -1470,7 +1474,10 @@ body {
     width: 100%;
   }
   .platform-shell--v2 .shell-tools .platform-search-desktop .search-field__input,
-  .platform-shell--v2 .shell-tools .platform-search-desktop:not(:focus-within) .search-field__input {
+  .platform-shell--v2
+    .shell-tools
+    .platform-search-desktop:not(:focus-within)
+    .search-field__input {
     opacity: 1;
     cursor: text;
   }
@@ -1854,7 +1861,9 @@ body {
   }
   .shell-side__area[data-open='true'] {
     background: var(--glass-strong);
-    box-shadow: var(--glass-lift), 0 0 0 1px rgb(255 255 255 / 0.7);
+    box-shadow:
+      var(--glass-lift),
+      0 0 0 1px rgb(255 255 255 / 0.7);
     backdrop-filter: var(--glass-blur);
   }
   /* Floating menus, lists and hints of HeroUI are frosted. */
@@ -2170,8 +2179,13 @@ body {
 }
 
 @keyframes performance-bar-breathe {
-  0%, 100% { scale: 1 1; }
-  50% { scale: 1 1.03; }
+  0%,
+  100% {
+    scale: 1 1;
+  }
+  50% {
+    scale: 1 1.03;
+  }
 }
 
 /* Phone: the side drawer runs to the bottom of the screen whatever the browser bars do (with the

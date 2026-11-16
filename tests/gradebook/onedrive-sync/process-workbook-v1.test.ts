@@ -3,9 +3,16 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { GradebookImportPersistenceResponseV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type { GradebookPostgresDatabaseV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { WorkbookTooLargeError } from '../../../server/gradebook/onedrive-sync/graph-drive-v1';
-import { processWorkbookV1, type ProcessWorkbookPortsV1 } from '../../../server/gradebook/onedrive-sync/process-workbook-v1';
+import {
+  processWorkbookV1,
+  type ProcessWorkbookPortsV1,
+} from '../../../server/gradebook/onedrive-sync/process-workbook-v1';
 import { prepareTeacherWorkbookV1 } from '../../../server/gradebook/onedrive-sync/teacher-workbook-preparation-v1';
-import { loadRealSheetJsV1, writeRealWorkbookV1, type RealSheetJsV1 } from '../fixtures/sheetjs-real-v1';
+import {
+  loadRealSheetJsV1,
+  writeRealWorkbookV1,
+  type RealSheetJsV1,
+} from '../fixtures/sheetjs-real-v1';
 import { WORKBOOK_READER_EQUIVALENCE_CASES_V1 } from '../fixtures/workbook-reader-equivalence-v1';
 
 let xlsx: RealSheetJsV1;
@@ -13,20 +20,38 @@ beforeAll(async () => {
   xlsx = await loadRealSheetJsV1();
 });
 const input = {
-  driveId: 'd', itemId: 'i', name: 'SINTETICO.xlsb', hash: 'h1', modifiedAt: '2026-11-13T10:00:00.000Z', maxBytes: 8 << 20,
+  driveId: 'd',
+  itemId: 'i',
+  name: 'SINTETICO.xlsb',
+  hash: 'h1',
+  modifiedAt: '2026-11-13T10:00:00.000Z',
+  maxBytes: 8 << 20,
   expectedYear: null as number | null,
 };
 const bytesOf = (id: string) =>
-  writeRealWorkbookV1(xlsx, WORKBOOK_READER_EQUIVALENCE_CASES_V1.find((item) => item.id === id)!.workbook, 'xlsb');
+  writeRealWorkbookV1(
+    xlsx,
+    WORKBOOK_READER_EQUIVALENCE_CASES_V1.find((item) => item.id === id)!.workbook,
+    'xlsb',
+  );
 
 function portsV1(options: {
-  bytes?: ArrayBuffer; download?: () => Promise<ArrayBuffer>; persistState?: GradebookImportPersistenceResponseV9['state'];
-  persistThrows?: boolean; openFails?: boolean; relation?: ReadonlyMap<string, string>;
+  bytes?: ArrayBuffer;
+  download?: () => Promise<ArrayBuffer>;
+  persistState?: GradebookImportPersistenceResponseV9['state'];
+  persistThrows?: boolean;
+  openFails?: boolean;
+  relation?: ReadonlyMap<string, string>;
 }) {
   const calls: string[] = [];
-  const audits: Array<{ academicYear: number | null; diagnostics: ReadonlyArray<{ code: string }> }> = [];
+  const audits: Array<{
+    academicYear: number | null;
+    diagnostics: ReadonlyArray<{ code: string }>;
+  }> = [];
   const persisted: unknown[] = [];
-  const database = { close: vi.fn(async () => undefined) } as unknown as GradebookPostgresDatabaseV1;
+  const database = {
+    close: vi.fn(async () => undefined),
+  } as unknown as GradebookPostgresDatabaseV1;
   const ports: ProcessWorkbookPortsV1 = {
     env: { TENANT_ID: 't', GRAPH_CLIENT_ID: 'c' },
     xlsx,
@@ -35,16 +60,24 @@ function portsV1(options: {
       calls.push('open');
       return database;
     },
-    notifyPortal: async () => { calls.push('portal'); },
+    notifyPortal: async () => {
+      calls.push('portal');
+    },
     now: () => 0,
     download: options.download ?? (async () => options.bytes!),
     services: {
-      recordAudit: async (_database, audit) => { calls.push('audit'); audits.push(audit); },
+      recordAudit: async (_database, audit) => {
+        calls.push('audit');
+        audits.push(audit);
+      },
       persist: async (_database, request) => {
         calls.push('persist');
         persisted.push(request);
         if (options.persistThrows) throw new Error('write failed');
-        return { transportVersion: 9, state: options.persistState ?? 'applied' } as GradebookImportPersistenceResponseV9;
+        return {
+          transportVersion: 9,
+          state: options.persistState ?? 'applied',
+        } as GradebookImportPersistenceResponseV9;
       },
       relationNames: async () => options.relation ?? new Map(),
     },
@@ -73,10 +106,13 @@ describe('one sync read', () => {
     const services = ports.services!;
     const result = await processWorkbookV1(input, {
       ...ports,
-      services: { ...services, persist: async (database, request) => {
-        written.push(JSON.stringify(request));
-        return services.persist(database, request);
-      } },
+      services: {
+        ...services,
+        persist: async (database, request) => {
+          written.push(JSON.stringify(request));
+          return services.persist(database, request);
+        },
+      },
     });
     // Before BN-DEC-045 the whole file is blocked; with it, only that grade and its AM are held.
     if (!calls.includes('persist')) {
@@ -88,10 +124,38 @@ describe('one sync read', () => {
   });
 
   it('maps service refusals and failures', async () => {
-    expect((await processWorkbookV1(input, portsV1({ bytes: bytesOf('teacher'), persistState: 'conflict' }).ports)).outcome).toBe('rejected');
-    expect((await processWorkbookV1(input, portsV1({ bytes: bytesOf('teacher'), persistState: 'unavailable' }).ports)).outcome).toBe('failed');
-    expect((await processWorkbookV1(input, portsV1({ bytes: bytesOf('teacher'), persistThrows: true }).ports)).outcome).toBe('failed');
-    expect((await processWorkbookV1(input, portsV1({ bytes: bytesOf('teacher'), openFails: true }).ports)).outcome).toBe('failed');
+    expect(
+      (
+        await processWorkbookV1(
+          input,
+          portsV1({ bytes: bytesOf('teacher'), persistState: 'conflict' }).ports,
+        )
+      ).outcome,
+    ).toBe('rejected');
+    expect(
+      (
+        await processWorkbookV1(
+          input,
+          portsV1({ bytes: bytesOf('teacher'), persistState: 'unavailable' }).ports,
+        )
+      ).outcome,
+    ).toBe('failed');
+    expect(
+      (
+        await processWorkbookV1(
+          input,
+          portsV1({ bytes: bytesOf('teacher'), persistThrows: true }).ports,
+        )
+      ).outcome,
+    ).toBe('failed');
+    expect(
+      (
+        await processWorkbookV1(
+          input,
+          portsV1({ bytes: bytesOf('teacher'), openFails: true }).ports,
+        )
+      ).outcome,
+    ).toBe('failed');
   });
 
   it('rule 3: a workbook of another year writes nothing and is reported under the folder year', async () => {
@@ -99,36 +163,72 @@ describe('one sync read', () => {
     await processWorkbookV1(input, probe.ports);
     const year = probe.audits[0]!.academicYear!;
     const wrong = portsV1({ bytes: bytesOf('teacher') });
-    expect(await processWorkbookV1({ ...input, expectedYear: year + 1 }, wrong.ports)).toMatchObject({ outcome: 'blocked', code: 'WRONG-YEAR' });
+    expect(
+      await processWorkbookV1({ ...input, expectedYear: year + 1 }, wrong.ports),
+    ).toMatchObject({ outcome: 'blocked', code: 'WRONG-YEAR' });
     expect(wrong.calls).not.toContain('persist');
     expect(wrong.audits[0]!.academicYear).toBe(year + 1);
     expect(wrong.audits[0]!.diagnostics.map((item) => item.code)).toContain('wrong-year');
-    expect((await processWorkbookV1({ ...input, expectedYear: year }, portsV1({ bytes: bytesOf('teacher') }).ports)).outcome).toBe('applied');
+    expect(
+      (
+        await processWorkbookV1(
+          { ...input, expectedYear: year },
+          portsV1({ bytes: bytesOf('teacher') }).ports,
+        )
+      ).outcome,
+    ).toBe('applied');
   });
 
   it('rule 14: a student whose name differs from the Relação is held; a matching one is written', async () => {
-    const prepared = await prepareTeacherWorkbookV1({ bytes: bytesOf('teacher'), fileName: 'SINTETICO.xlsb', lastModified: 0, xlsx });
+    const prepared = await prepareTeacherWorkbookV1({
+      bytes: bytesOf('teacher'),
+      fileName: 'SINTETICO.xlsb',
+      lastModified: 0,
+      xlsx,
+    });
     if (prepared.outcome !== 'ready') throw new Error('unexpected');
     const [key, name] = [...prepared.studentNames.entries()][0]!;
     const numero = Number(key.split('|')[1]);
-    const studentRow = (request: unknown) => (request as { ofertas: Array<{ trimestres: Array<{ alunos: Array<[number, unknown[], unknown]> }> }> })
-      .ofertas[0]!.trimestres[0]!.alunos.find(([number]) => number === numero)!;
+    const studentRow = (request: unknown) =>
+      (
+        request as {
+          ofertas: Array<{ trimestres: Array<{ alunos: Array<[number, unknown[], unknown]> }> }>;
+        }
+      ).ofertas[0]!.trimestres[0]!.alunos.find(([number]) => number === numero)!;
 
-    const other = portsV1({ bytes: bytesOf('teacher'), relation: new Map([[key, 'PESSOA SINTÉTICA DIFERENTE']]) });
+    const other = portsV1({
+      bytes: bytesOf('teacher'),
+      relation: new Map([[key, 'PESSOA SINTÉTICA DIFERENTE']]),
+    });
     await processWorkbookV1(input, other.ports);
     expect(studentRow(other.persisted[0])[2]).toEqual(['u']);
     expect(studentRow(other.persisted[0])[1].every((cell) => Array.isArray(cell))).toBe(true);
-    expect(other.audits[0]!.diagnostics.map((item) => item.code)).toContain('student-name-mismatch');
+    expect(other.audits[0]!.diagnostics.map((item) => item.code)).toContain(
+      'student-name-mismatch',
+    );
 
     const same = portsV1({ bytes: bytesOf('teacher'), relation: new Map([[key, name]]) });
     await processWorkbookV1(input, same.ports);
-    expect(same.audits[0]!.diagnostics.map((item) => item.code)).not.toContain('student-name-mismatch');
+    expect(same.audits[0]!.diagnostics.map((item) => item.code)).not.toContain(
+      'student-name-mismatch',
+    );
   });
 
   it('separates a download failure, a file too large and an unreadable file', async () => {
-    const failing = portsV1({ download: async () => { throw new Error('graph'); } });
-    expect(await processWorkbookV1(input, failing.ports)).toMatchObject({ outcome: 'failed', readHash: null });
-    const large = portsV1({ download: async () => { throw new WorkbookTooLargeError(9 << 20); } });
+    const failing = portsV1({
+      download: async () => {
+        throw new Error('graph');
+      },
+    });
+    expect(await processWorkbookV1(input, failing.ports)).toMatchObject({
+      outcome: 'failed',
+      readHash: null,
+    });
+    const large = portsV1({
+      download: async () => {
+        throw new WorkbookTooLargeError(9 << 20);
+      },
+    });
     expect((await processWorkbookV1(input, large.ports)).outcome).toBe('too-large');
     const junk = portsV1({ bytes: new Uint8Array([1, 2, 3]).buffer });
     expect((await processWorkbookV1(input, junk.ports)).outcome).toBe('unreadable');
@@ -143,7 +243,12 @@ describe('writes taking turns', () => {
     const { ports, calls } = portsV1({ bytes: bytesOf('teacher') });
     const result = await processWorkbookV1(input, {
       ...ports,
-      writeTurn: async (work) => { calls.push('turn'); const value = await work(); calls.push('end'); return value; },
+      writeTurn: async (work) => {
+        calls.push('turn');
+        const value = await work();
+        calls.push('end');
+        return value;
+      },
     });
     expect(result.outcome).toBe('applied');
     expect(calls).toEqual(['open', 'turn', 'audit', 'end', 'turn', 'persist', 'end', 'portal']);
@@ -154,11 +259,15 @@ describe('writes taking turns', () => {
     let busy = 2;
     const services = ports.services!;
     const result = await processWorkbookV1(input, {
-      ...ports, sleep: async () => undefined,
-      services: { ...services, persist: async (database, request) => {
-        if (busy-- > 0) throw Object.assign(new Error('lock'), { code: '55P03' });
-        return services.persist(database, request);
-      } },
+      ...ports,
+      sleep: async () => undefined,
+      services: {
+        ...services,
+        persist: async (database, request) => {
+          if (busy-- > 0) throw Object.assign(new Error('lock'), { code: '55P03' });
+          return services.persist(database, request);
+        },
+      },
     });
     expect(result.outcome).toBe('applied');
     expect(calls.filter((call) => call === 'persist')).toHaveLength(1);
@@ -168,8 +277,15 @@ describe('writes taking turns', () => {
     const { ports } = portsV1({ bytes: bytesOf('teacher') });
     let attempts = 0;
     const result = await processWorkbookV1(input, {
-      ...ports, sleep: async () => undefined,
-      services: { ...ports.services!, persist: async () => { attempts += 1; throw Object.assign(new Error('x'), { code: '23505' }); } },
+      ...ports,
+      sleep: async () => undefined,
+      services: {
+        ...ports.services!,
+        persist: async () => {
+          attempts += 1;
+          throw Object.assign(new Error('x'), { code: '23505' });
+        },
+      },
     });
     expect(result.outcome).toBe('failed');
     expect(attempts).toBe(1);
@@ -190,9 +306,14 @@ describe('memory of the last write (speed)', () => {
   it('only the classes/subjects that changed are sent', async () => {
     const first = portsV1({ bytes: bytesOf('teacher') });
     const written = await processWorkbookV1(input, first.ports);
-    const offers = (first.persisted[0] as { ofertas: Array<{ turmaCodigo: string; disciplina: string }> }).ofertas;
+    const offers = (
+      first.persisted[0] as { ofertas: Array<{ turmaCodigo: string; disciplina: string }> }
+    ).ofertas;
     const [kept] = offers;
-    const stale = { ...written.memory!, offers: { ...written.memory!.offers, [`${kept!.turmaCodigo}|${kept!.disciplina}`]: 'old' } };
+    const stale = {
+      ...written.memory!,
+      offers: { ...written.memory!.offers, [`${kept!.turmaCodigo}|${kept!.disciplina}`]: 'old' },
+    };
     const next = portsV1({ bytes: bytesOf('teacher') });
     await processWorkbookV1({ ...input, memory: stale }, next.ports);
     expect(next.calls).toEqual(['open', 'persist', 'portal']);
@@ -210,17 +331,25 @@ describe('memory of the last write (speed)', () => {
 describe('the Relação is asked for while the workbook downloads', () => {
   it('with the official query (no services given), it starts before the download ends', async () => {
     const query = vi.fn(async () => [{ codigo: '6A', numero: 1, nome: 'Aluno Sintético' }]);
-    const database = { query, close: vi.fn(async () => undefined) } as unknown as GradebookPostgresDatabaseV1;
+    const database = {
+      query,
+      close: vi.fn(async () => undefined),
+    } as unknown as GradebookPostgresDatabaseV1;
     const { ports } = portsV1({});
     let queriedDuringDownload = false;
-    const result = await processWorkbookV1({ ...input, expectedYear: 2026 }, {
-      ...ports, services: undefined, openDatabase: async () => database,
-      download: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 5));
-        queriedDuringDownload = query.mock.calls.length > 0;
-        throw new Error('stop after the download');
+    const result = await processWorkbookV1(
+      { ...input, expectedYear: 2026 },
+      {
+        ...ports,
+        services: undefined,
+        openDatabase: async () => database,
+        download: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          queriedDuringDownload = query.mock.calls.length > 0;
+          throw new Error('stop after the download');
+        },
       },
-    });
+    );
     expect(result.code).toBe('GRAPH-DOWNLOAD');
     expect(queriedDuringDownload).toBe(true);
     expect((query.mock.calls[0] as unknown as [string, unknown[]])[1]).toEqual([2026]);
@@ -229,23 +358,42 @@ describe('the Relação is asked for while the workbook downloads', () => {
 
   it('a folder without a year does not ask for it early', async () => {
     const query = vi.fn(async () => []);
-    const database = { query, close: vi.fn(async () => undefined) } as unknown as GradebookPostgresDatabaseV1;
+    const database = {
+      query,
+      close: vi.fn(async () => undefined),
+    } as unknown as GradebookPostgresDatabaseV1;
     const { ports } = portsV1({});
-    await processWorkbookV1(input, { ...ports, services: undefined, openDatabase: async () => database,
-      download: async () => { throw new Error('stop'); } });
+    await processWorkbookV1(input, {
+      ...ports,
+      services: undefined,
+      openDatabase: async () => database,
+      download: async () => {
+        throw new Error('stop');
+      },
+    });
     expect(query).not.toHaveBeenCalled();
   });
 
   it('a Relação found in a folder source is not written (issue #1450, 9)', async () => {
     const { ports, persisted } = portsV1({ bytes: bytesOf('relation') });
-    const result = await processWorkbookV1({ ...input, expectedYear: 2026, sourceKind: 'folder' }, ports);
-    expect(result).toMatchObject({ outcome: 'ignored', code: 'RELATION-OUTSIDE-SOURCE', workbook: 'relacao' });
+    const result = await processWorkbookV1(
+      { ...input, expectedYear: 2026, sourceKind: 'folder' },
+      ports,
+    );
+    expect(result).toMatchObject({
+      outcome: 'ignored',
+      code: 'RELATION-OUTSIDE-SOURCE',
+      workbook: 'relacao',
+    });
     expect(persisted).toHaveLength(0);
   });
 
   it('the same Relação as a source of its own is written', async () => {
     const { ports, persisted } = portsV1({ bytes: bytesOf('relation') });
-    const result = await processWorkbookV1({ ...input, expectedYear: 2026, sourceKind: 'file' }, ports);
+    const result = await processWorkbookV1(
+      { ...input, expectedYear: 2026, sourceKind: 'file' },
+      ports,
+    );
     expect(result.outcome).not.toBe('ignored');
     expect(persisted).toHaveLength(1);
   });

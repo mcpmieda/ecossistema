@@ -29,8 +29,7 @@ export const SIMPLIFIED_ENGINE_WARNING_CODES_V1 = [
   'recovery-above-term-maximum',
   'recovery-present-when-not-applicable',
 ] as const;
-type SimplifiedEngineWarningCodeV1 =
-  (typeof SIMPLIFIED_ENGINE_WARNING_CODES_V1)[number];
+type SimplifiedEngineWarningCodeV1 = (typeof SIMPLIFIED_ENGINE_WARNING_CODES_V1)[number];
 
 export interface SimplifiedEngineWarningV1 {
   readonly code: SimplifiedEngineWarningCodeV1;
@@ -106,7 +105,9 @@ export interface SimplifiedComponentRecoveryOutcomeV1 {
   readonly originalTotalMilli: number;
   readonly originalComplete: boolean;
   readonly recoveryRequired: boolean | null;
-  readonly recoveryTerms: Readonly<Record<SimplifiedAcademicTermV1, SimplifiedRecoveryTermOutcomeV1>>;
+  readonly recoveryTerms: Readonly<
+    Record<SimplifiedAcademicTermV1, SimplifiedRecoveryTermOutcomeV1>
+  >;
   readonly postRecoveryTotalMilli: number | null;
   readonly classification: SimplifiedComponentClassificationV1;
   readonly warnings: readonly SimplifiedEngineWarningV1[];
@@ -114,7 +115,9 @@ export interface SimplifiedComponentRecoveryOutcomeV1 {
 
 function assertMilli(value: number, label: string, allowZero = true): void {
   if (!Number.isSafeInteger(value) || value < 0 || (!allowZero && value === 0)) {
-    throw new RangeError(`${label} must be a ${allowZero ? 'non-negative' : 'positive'} safe integer`);
+    throw new RangeError(
+      `${label} must be a ${allowZero ? 'non-negative' : 'positive'} safe integer`,
+    );
   }
 }
 
@@ -147,8 +150,10 @@ function instrumentMap(
     if (!SIMPLIFIED_INSTRUMENT_SLOTS_V1.includes(instrument.slot)) {
       throw new RangeError(`unsupported instrument slot ${String(instrument.slot)}`);
     }
-    if (result.has(instrument.slot)) throw new RangeError(`duplicate instrument slot ${instrument.slot}`);
-    if (instrument.maximumMilli !== null) assertMilli(instrument.maximumMilli, 'maximumMilli', false);
+    if (result.has(instrument.slot))
+      throw new RangeError(`duplicate instrument slot ${instrument.slot}`);
+    if (instrument.maximumMilli !== null)
+      assertMilli(instrument.maximumMilli, 'maximumMilli', false);
     if (instrument.valueMilli !== null) assertMilli(instrument.valueMilli, 'valueMilli');
     result.set(instrument.slot, instrument);
   }
@@ -167,7 +172,11 @@ function valueWarning(
   fact: SimplifiedInstrumentFactV1,
   effectiveMaximum: number | null = fact.maximumMilli,
 ): SimplifiedEngineWarningV1 | null {
-  if (fact.valueMilli === null || effectiveMaximum === null || fact.valueMilli <= effectiveMaximum) {
+  if (
+    fact.valueMilli === null ||
+    effectiveMaximum === null ||
+    fact.valueMilli <= effectiveMaximum
+  ) {
     return null;
   }
   return {
@@ -202,8 +211,7 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
   // BN-DEC-035: normal eligibility is evaluated BEFORE PARA and rounding.
   // A recorded numeric PARA (including zero) is the sole exception to eligibility.
   const parallelEligible =
-    quantitativeOriginal * 5 < expectedQuantitative * 3 &&
-    totalBeforeParallel * 5 < maximum * 3;
+    quantitativeOriginal * 5 < expectedQuantitative * 3 && totalBeforeParallel * 5 < maximum * 3;
   const parallelApplicable = parallelEligible || parallel !== null;
   const quantitativeConsidered =
     parallelApplicable && parallel !== null && parallel > quantitativeOriginal
@@ -229,7 +237,9 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
   }
 
   const qualitativeMaximumFacts = qualitativeSlots.map((slot) => facts.get(slot)!);
-  const hasUnknownQualitativeMaximum = qualitativeMaximumFacts.some((fact) => fact.maximumMilli === null);
+  const hasUnknownQualitativeMaximum = qualitativeMaximumFacts.some(
+    (fact) => fact.maximumMilli === null,
+  );
   const qualitativeMaximum = qualitativeMaximumFacts.reduce(
     (total, fact) => total + (fact.maximumMilli ?? 0),
     0,
@@ -249,9 +259,14 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
   // The exception is already resolved, so it never creates a missing-slot pendency.
   // Numeric zero resolves PARA; no other absence is cleared.
   const requiredSlots: SimplifiedInstrumentSlotV1[] = [
-    1, 2, ...(parallelApplicable && facts.has(3) ? [3 as const] : []), ...qualitativeSlots,
+    1,
+    2,
+    ...(parallelApplicable && facts.has(3) ? [3 as const] : []),
+    ...qualitativeSlots,
   ];
-  const resolvedSlots = requiredSlots.filter((slot) => facts.get(slot)?.valueMilli !== null && facts.get(slot)?.valueMilli !== undefined);
+  const resolvedSlots = requiredSlots.filter(
+    (slot) => facts.get(slot)?.valueMilli !== null && facts.get(slot)?.valueMilli !== undefined,
+  );
   const missingSlots = requiredSlots.filter((slot) => !resolvedSlots.includes(slot));
   const reasons: string[] = [];
   for (const slot of missingSlots) reasons.push(`missing-slot:${slot}`);
@@ -290,7 +305,8 @@ function orderedTerms(
     if (result[term.term]) throw new RangeError(`duplicate term ${term.term}`);
     result[term.term] = term;
   }
-  if (!result[1] || !result[2] || !result[3]) throw new RangeError('terms 1, 2, and 3 are required');
+  if (!result[1] || !result[2] || !result[3])
+    throw new RangeError('terms 1, 2, and 3 are required');
   return result;
 }
 
@@ -349,7 +365,8 @@ function componentClassificationV1(facts: {
   if (!facts.originalComplete) return 'in-progress';
   if (facts.recoveryRequired === false) return 'approved-direct';
   if (facts.hasNc) return 'failed-no-show';
-  if (facts.missingApplicableRecovery || facts.postRecoveryTotal === null) return 'recovery-pending';
+  if (facts.missingApplicableRecovery || facts.postRecoveryTotal === null)
+    return 'recovery-pending';
   if (facts.postRecoveryTotal >= facts.minimumApprovalMilli) return 'approved-after-recovery';
   return 'not-approved';
 }
@@ -360,7 +377,8 @@ export function resolveSimplifiedComponentRecoveryV1(
   assertMilli(input.minimumApprovalMilli, 'minimumApprovalMilli', false);
   const terms = orderedTerms(input.terms);
   const originalTotal = terms[1].roundedMilli + terms[2].roundedMilli + terms[3].roundedMilli;
-  const originalComplete = terms[1].coverage.complete && terms[2].coverage.complete && terms[3].coverage.complete;
+  const originalComplete =
+    terms[1].coverage.complete && terms[2].coverage.complete && terms[3].coverage.complete;
   const recoveryRequired = originalComplete ? originalTotal < input.minimumApprovalMilli : null;
   const warnings: SimplifiedEngineWarningV1[] = [];
 

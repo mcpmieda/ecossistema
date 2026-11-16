@@ -6,7 +6,14 @@ import {
   normalizeStudentNameV1,
   parseCivilDateV1,
 } from '../../shared/student-identity/reconciliation-normalization-v1';
-import { compareReconciliationFieldV1, planStudentReconciliationV1, reportContentV1, type ReconciliationReportRowV1, type ReconciliationSourceV1, type ReconciliationStudentV1 } from '../../server/student-identity/reconciliation/domain-v1';
+import {
+  compareReconciliationFieldV1,
+  planStudentReconciliationV1,
+  reportContentV1,
+  type ReconciliationReportRowV1,
+  type ReconciliationSourceV1,
+  type ReconciliationStudentV1,
+} from '../../server/student-identity/reconciliation/domain-v1';
 import { normalizeRelationNameV9 } from '../../server/gradebook/application/import/import-relational-relation-plan-v9';
 
 const today = '2026-10-11';

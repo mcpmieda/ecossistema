@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { GRADEBOOK_ACADEMIC_YEAR_MAX_V2, GRADEBOOK_ACADEMIC_YEAR_MIN_V2 } from '../academic-year-v2';
+import {
+  GRADEBOOK_ACADEMIC_YEAR_MAX_V2,
+  GRADEBOOK_ACADEMIC_YEAR_MIN_V2,
+} from '../academic-year-v2';
 import {
   GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1,
   GRADEBOOK_IMPORT_DIAGNOSTIC_FIELD_KINDS_V1,
@@ -23,7 +26,11 @@ export const IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1 = Object.freeze({
   bodyBytes: 96_000,
 });
 
-const year = z.number().int().min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2).max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
+const year = z
+  .number()
+  .int()
+  .min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2)
+  .max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
 const id = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const boundedText = (maximum: number) =>
   z

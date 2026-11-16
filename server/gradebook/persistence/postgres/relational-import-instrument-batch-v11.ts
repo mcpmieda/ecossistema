@@ -11,7 +11,8 @@ import type { ImportInstrumentPlanV11 } from '../../application/import/import-re
 type Row = Record<string, unknown>;
 
 type InstrumentEntryV11 = ImportInstrumentPlanV11['entries'][number];
-const instrumentKeyV11 = (ofertaId: number, term: number, slot: number) => `${ofertaId}:${term}:${slot}`;
+const instrumentKeyV11 = (ofertaId: number, term: number, slot: number) =>
+  `${ofertaId}:${term}:${slot}`;
 
 /** Removes the retired instruments and their notes, in the database and in the read state. */
 async function retireInstrumentsV11(
@@ -95,8 +96,7 @@ function acceptInstrumentRowV11(
     throw new Error('gradebook-import-instrument-unexpected-return');
   const id = importReadIntegerV11(row.id, 'instrument-id');
   if (entry.action === 'create') {
-    if (knownInstrumentIds.has(id))
-      throw new Error('gradebook-import-instrument-duplicate-id');
+    if (knownInstrumentIds.has(id)) throw new Error('gradebook-import-instrument-duplicate-id');
     knownInstrumentIds.add(id);
   }
   if (entry.action !== 'create' && id !== entry.existingId)
@@ -119,7 +119,11 @@ async function writeInstrumentsV11(
   let writes = 0;
   const planned = new Map(
     entries.map((entry) => [
-      instrumentKeyV11(entry.ofertaId, entry.term.trimestre, entry.term.instrumentos[entry.column]![0]),
+      instrumentKeyV11(
+        entry.ofertaId,
+        entry.term.trimestre,
+        entry.term.instrumentos[entry.column]![0],
+      ),
       entry,
     ]),
   );
@@ -173,7 +177,13 @@ export async function materializeRelationalImportInstrumentPlanV11(
   );
   const creates = plan.entries.filter((entry) => entry.action === 'create');
   const updates = plan.entries.filter((entry) => entry.action === 'update');
-  writes += await writeInstrumentsV11(database, ano, 'create', creates, { state, knownInstrumentIds });
-  writes += await writeInstrumentsV11(database, ano, 'update', updates, { state, knownInstrumentIds });
+  writes += await writeInstrumentsV11(database, ano, 'create', creates, {
+    state,
+    knownInstrumentIds,
+  });
+  writes += await writeInstrumentsV11(database, ano, 'update', updates, {
+    state,
+    knownInstrumentIds,
+  });
   return writes;
 }

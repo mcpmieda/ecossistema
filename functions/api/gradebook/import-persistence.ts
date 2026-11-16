@@ -107,7 +107,10 @@ function response(value: GradebookImportPersistenceResponseV9, serverMs: number)
 }
 async function readPayload(request: Request): Promise<{ value: unknown; bytes: number }> {
   // Refused as soon as it passes the limit, never read whole first.
-  const { text, bytes } = await readBoundedTextV1(request, GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9);
+  const { text, bytes } = await readBoundedTextV1(
+    request,
+    GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9,
+  );
   try {
     return { value: JSON.parse(text) as unknown, bytes };
   } catch {
@@ -165,11 +168,12 @@ async function handle(
       sent = held.request;
       unbound = [...dropped.warnings, ...held.warnings];
     }
-    const result = withUnboundWarningsV1(await createGradebookImportService(
-      observer.wrap(database),
-      observer,
-      session.oid,
-    ).execute(sent), unbound);
+    const result = withUnboundWarningsV1(
+      await createGradebookImportService(observer.wrap(database), observer, session.oid).execute(
+        sent,
+      ),
+      unbound,
+    );
     observation.outcome = result.state;
     if (result.state === 'applied') afterCommit(session);
     // A Relação applied here: the OneDrive sync reads that year's teacher workbooks again, so a
@@ -177,7 +181,12 @@ async function handle(
     if (result.state === 'applied' && sent.operation === 'persist-relacao') {
       const sync = env.NOTAS_SYNC_SERVICE as OneDriveSyncServiceBindingV1 | undefined;
       const actor = { id: session.oid, name: session.name || session.username || session.oid };
-      if (sync) waitUntil(Promise.resolve().then(() => sync.handle(actor, { action: 'reread-year', year: sent.ano })).catch(() => undefined));
+      if (sync)
+        waitUntil(
+          Promise.resolve()
+            .then(() => sync.handle(actor, { action: 'reread-year', year: sent.ano }))
+            .catch(() => undefined),
+        );
     }
     return response(result, performance.now() - started);
   } finally {

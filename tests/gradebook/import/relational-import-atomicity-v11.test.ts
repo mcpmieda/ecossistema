@@ -2,7 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import {
+  installResetSchemaFixtureV1,
+  installReconciliationSchemaFixtureV1,
+} from '../../student-portal/year-reset/schema-fixture';
 import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
@@ -49,8 +52,13 @@ const relation: GradebookRelationImportRequestV9 = {
 
 function offer(turmaCodigo = 'SYN-A', numero = 1): GradebookImportOfferV9 {
   const term = (trimestre: 1 | 2 | 3): GradebookImportTermV9 => ({
-    definitionSnapshotVersion: 1 as const, trimestre,
-    instrumentos: [[1, 10_000, 'SYNTHETIC AV1'], [2, 10_000, 'SYNTHETIC AV2'], [3, null]],
+    definitionSnapshotVersion: 1 as const,
+    trimestre,
+    instrumentos: [
+      [1, 10_000, 'SYNTHETIC AV1'],
+      [2, 10_000, 'SYNTHETIC AV2'],
+      [3, null],
+    ],
     alunos: [[numero, [5_000, null, null], 5_000]],
   });
   return {
@@ -66,7 +74,8 @@ function notes(
 ): GradebookNotesImportRequestV9 {
   return {
     transportVersion: 9,
-    operation: 'persist-notas', granularObservationVersion: 1 as const,
+    operation: 'persist-notas',
+    granularObservationVersion: 1 as const,
     ano: 2026,
     manifest,
     professor: 'SYNTHETIC NEW TEACHER',
@@ -159,9 +168,9 @@ beforeEach(async () => {
     end: () => pg.close(),
   });
   expect(inspectGradebookImportPersistenceRequestV9(relation)).toBe('ready');
-  expect(await createGradebookImportService(database).execute(relation)).toMatchObject(
-    { state: 'applied' },
-  );
+  expect(await createGradebookImportService(database).execute(relation)).toMatchObject({
+    state: 'applied',
+  });
   initialState = await snapshot();
   noteGroups = 0;
   finalizers = 0;
@@ -216,9 +225,7 @@ describe('V11/V10/V9 refusal atomicity on the real PostgreSQL facade', () => {
     ['finalizer', 'synthetic-after-finalizer'],
   ] as const)('propagates and rolls back %s failure', async (mode, message) => {
     failure = mode;
-    await expect(
-      createGradebookImportService(database).execute(notes()),
-    ).rejects.toThrow(message);
+    await expect(createGradebookImportService(database).execute(notes())).rejects.toThrow(message);
     expect(noteGroups).toBeGreaterThan(0);
     expect(await snapshot()).toEqual(initialState);
     expect({ commits, rollbacks }).toEqual({ commits: 0, rollbacks: 1 });

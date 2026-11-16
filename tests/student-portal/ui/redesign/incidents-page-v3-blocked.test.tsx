@@ -28,7 +28,9 @@ it('says Ocorrências is not available, with no retry button, when the school tu
 it('says the session expired, with no retry button, on 401', async () => {
   const lost = vi.fn();
   render(<IncidentsPageV3 client={failing('unauthenticated')} onAuthenticationLost={lost} />);
-  expect(await screen.findByText('Sua sessão expirou. Entre novamente para ver as ocorrências.')).toBeTruthy();
+  expect(
+    await screen.findByText('Sua sessão expirou. Entre novamente para ver as ocorrências.'),
+  ).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull();
   expect(lost).toHaveBeenCalled();
 });
@@ -43,7 +45,13 @@ const menuItem = () => screen.queryByRole('button', { name: /Ocorrências/u });
 
 it('takes Ocorrências off the menu when a read behind the menu answers 403', async () => {
   const client = failing('forbidden');
-  render(<PortalPagesV3 hero={null} grades={<p>Notas</p>} incidents={<IncidentsPageV3 client={client} />} />);
+  render(
+    <PortalPagesV3
+      hero={null}
+      grades={<p>Notas</p>}
+      incidents={<IncidentsPageV3 client={client} />}
+    />,
+  );
   await waitFor(() => expect(client.read).toHaveBeenCalled());
   await waitFor(() => expect(menuItem()).toBeNull());
   expect(screen.getByRole('button', { name: /Notas/u })).toBeTruthy();
@@ -58,7 +66,13 @@ it('keeps the item while the reader is on Ocorrências, and drops it once they l
     }),
     acknowledge: vi.fn(),
   };
-  render(<PortalPagesV3 hero={null} grades={<p>Notas</p>} incidents={<IncidentsPageV3 client={client} />} />);
+  render(
+    <PortalPagesV3
+      hero={null}
+      grades={<p>Notas</p>}
+      incidents={<IncidentsPageV3 client={client} />}
+    />,
+  );
   fireEvent.click(await screen.findByRole('button', { name: /Ocorrências/u }));
   expect(await screen.findByText('Nenhuma ocorrência registrada neste ano.')).toBeTruthy();
   // The school turns Ocorrências off; the next read (here the page's own) answers 403.

@@ -62,14 +62,12 @@ it('fails closed on an existing unrelated name or unreadable provider state, usi
       Response.json({ success: true, result: { bindings: [owner, { name: 'PROD_DB' }] } }),
     );
   await expect(call()).rejects.toThrow('unrelated');
-  mock
-    .mockResolvedValueOnce(existing())
-    .mockResolvedValueOnce(
-      Response.json({
-        success: true,
-        result: { bindings: [owner, { name: 'ASSETS' }, { name: 'DEMO_STATE' }] },
-      }),
-    );
+  mock.mockResolvedValueOnce(existing()).mockResolvedValueOnce(
+    Response.json({
+      success: true,
+      result: { bindings: [owner, { name: 'ASSETS' }, { name: 'DEMO_STATE' }] },
+    }),
+  );
   await expect(call()).resolves.toBeUndefined();
   expect(
     mock.mock.calls.every(

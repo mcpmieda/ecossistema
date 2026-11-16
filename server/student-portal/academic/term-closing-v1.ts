@@ -58,7 +58,11 @@ export interface TermClosingEvaluationV1 {
 const ratio = (value: number, maximum: number) => (maximum > 0 ? value / maximum : null);
 
 /** Below the minimum needs attention; near it, or with something not done or weak, has a point. */
-function closingLevelV1(totalRatio: number, minimumRatio: number, hasPoint: boolean): TermClosingV1['level'] {
+function closingLevelV1(
+  totalRatio: number,
+  minimumRatio: number,
+  hasPoint: boolean,
+): TermClosingV1['level'] {
   if (totalRatio < minimumRatio) return 'attention';
   if (totalRatio < minimumRatio + POINT_BAND_MARGIN || hasPoint) return 'point';
   return 'good';
@@ -69,14 +73,17 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
   const { term, outcome } = input;
   const period = `T${term}` as TermClosingPeriodV1;
   const bySlot = new Map(input.instruments.map((item) => [item.slot, item]));
-  const assessmentsRecorded = [1, 2].every((slot) => bySlot.get(slot)?.value !== null && bySlot.has(slot));
+  const assessmentsRecorded = [1, 2].every(
+    (slot) => bySlot.get(slot)?.value !== null && bySlot.has(slot),
+  );
   const total =
     input.officialTotalMilli ?? (outcome.coverage.complete ? outcome.roundedMilli : null);
   if (!assessmentsRecorded || total === null) return null;
 
   const minimumRatio = input.minimumApprovalMilli / ANNUAL_MAXIMUM_MILLI;
   const totalRatio = total / SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term];
-  const assessmentRatio = ratio(outcome.quantitativeOriginalMilli, outcome.quantitativeMaximumMilli) ?? 0;
+  const assessmentRatio =
+    ratio(outcome.quantitativeOriginalMilli, outcome.quantitativeMaximumMilli) ?? 0;
   const hasQualitative = input.instruments.some((item) => item.slot >= 11);
   const qualitativeRatio = hasQualitative
     ? ratio(outcome.qualitativeOperationalMilli, outcome.expectedQualitativeMaximumMilli)
@@ -88,7 +95,11 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
   const weakAssessments = assessmentRatio < minimumRatio;
   const weakActivities = qualitativeRatio !== null && qualitativeRatio < minimumRatio;
 
-  const level = closingLevelV1(totalRatio, minimumRatio, notDone || weakAssessments || weakActivities);
+  const level = closingLevelV1(
+    totalRatio,
+    minimumRatio,
+    notDone || weakAssessments || weakActivities,
+  );
 
   if (term === 3 && input.recoveryPending)
     return {
@@ -96,22 +107,58 @@ export function evaluateTermClosingV1(input: TermClosingInputV1): TermClosingEva
       mode: 'conclusion',
       level: 'attention',
       conclusion: 'conclusion.recovery',
-      weight: weightV1(notDoneCount, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio),
-      ...strengthV1(parallelDone, notDone, hasQualitative, assessmentRatio, qualitativeRatio, weakAssessments, weakActivities),
+      weight: weightV1(
+        notDoneCount,
+        weakAssessments,
+        weakActivities,
+        assessmentRatio,
+        qualitativeRatio,
+      ),
+      ...strengthV1(
+        parallelDone,
+        notDone,
+        hasQualitative,
+        assessmentRatio,
+        qualitativeRatio,
+        weakAssessments,
+        weakActivities,
+      ),
       action: 'action.recovery',
     };
-  if (level === 'good') return { period, mode: 'conclusion', level, conclusion: term === 3 ? 'line.year-good' : 'line.good' };
+  if (level === 'good')
+    return {
+      period,
+      mode: 'conclusion',
+      level,
+      conclusion: term === 3 ? 'line.year-good' : 'line.good',
+    };
 
-  const weight = weightV1(notDoneCount, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
+  const weight = weightV1(
+    notDoneCount,
+    weakAssessments,
+    weakActivities,
+    assessmentRatio,
+    qualitativeRatio,
+  );
   return {
     period,
     mode: 'conclusion',
     level,
     conclusion: level === 'attention' ? 'conclusion.attention' : 'conclusion.good-with-point',
     weight,
-    ...strengthV1(parallelDone, notDone, hasQualitative, assessmentRatio, qualitativeRatio, weakAssessments, weakActivities),
+    ...strengthV1(
+      parallelDone,
+      notDone,
+      hasQualitative,
+      assessmentRatio,
+      qualitativeRatio,
+      weakAssessments,
+      weakActivities,
+    ),
     // No "next assessments" after T3 (spec decision 15); recovery is handled above.
-    ...(term === 3 ? {} : { action: weight === 'weight.assessments' ? 'action.assessments' : 'action.catch-up' }),
+    ...(term === 3
+      ? {}
+      : { action: weight === 'weight.assessments' ? 'action.assessments' : 'action.catch-up' }),
   } as TermClosingEvaluationV1;
 }
 
@@ -131,7 +178,9 @@ export function evaluateTermProgressV1(input: TermClosingInputV1): TermClosingEv
   if (assessments.length === 0) return null;
   const minimumRatio = input.minimumApprovalMilli / ANNUAL_MAXIMUM_MILLI;
   const assessmentRatio = sum(assessments, 'value') / sum(assessments, 'maximum');
-  const qualitativeRatio = qualitative.length ? sum(qualitative, 'value') / sum(qualitative, 'maximum') : null;
+  const qualitativeRatio = qualitative.length
+    ? sum(qualitative, 'value') / sum(qualitative, 'maximum')
+    : null;
   const totalRatio = sum(recorded, 'value') / sum(recorded, 'maximum');
   const notDoneCount = notDoneCountV1(input.instruments);
   const notDone = notDoneCount > 0;
@@ -141,13 +190,25 @@ export function evaluateTermProgressV1(input: TermClosingInputV1): TermClosingEv
   let level: TermClosingV1['level'];
   if (totalRatio < minimumRatio) {
     level = 'attention';
-  } else if (totalRatio < minimumRatio + POINT_BAND_MARGIN || notDone || weakAssessments || weakActivities) {
+  } else if (
+    totalRatio < minimumRatio + POINT_BAND_MARGIN ||
+    notDone ||
+    weakAssessments ||
+    weakActivities
+  ) {
     level = 'point';
   } else {
     level = 'good';
   }
-  if (level === 'good') return { period, mode: 'progress', level, conclusion: 'progress.line.good' };
-  const weight = weightV1(notDoneCount, weakAssessments, weakActivities, assessmentRatio, qualitativeRatio);
+  if (level === 'good')
+    return { period, mode: 'progress', level, conclusion: 'progress.line.good' };
+  const weight = weightV1(
+    notDoneCount,
+    weakAssessments,
+    weakActivities,
+    assessmentRatio,
+    qualitativeRatio,
+  );
   const { strength } = strengthV1(
     parallelDone,
     notDone,
@@ -162,16 +223,19 @@ export function evaluateTermProgressV1(input: TermClosingInputV1): TermClosingEv
     period,
     mode: 'progress',
     level,
-    conclusion: level === 'attention' ? 'progress.conclusion.attention' : 'progress.conclusion.point',
+    conclusion:
+      level === 'attention' ? 'progress.conclusion.attention' : 'progress.conclusion.point',
     weight: progress(weight),
     ...(strength ? { strength: progress(strength) } : {}),
-    action: weight === 'weight.assessments' ? 'progress.action.assessments' : 'progress.action.catch-up',
+    action:
+      weight === 'weight.assessments' ? 'progress.action.assessments' : 'progress.action.catch-up',
   };
 }
 
 /** Observed blanks ("não fez"), never counting the parallel exam (D1). */
 function notDoneCountV1(instruments: readonly TermClosingInstrumentV1[]): number {
-  return instruments.filter((item) => item.slot !== 3 && item.observed && item.value === null).length;
+  return instruments.filter((item) => item.slot !== 3 && item.observed && item.value === null)
+    .length;
 }
 
 /**
@@ -212,7 +276,11 @@ function strengthV1(
     qualitativeRatio - assessmentRatio >= STRENGTH_CONTRAST
   )
     return { strength: 'strength.activities' };
-  if (!weakAssessments && assessmentRatio >= STRONG_RATIO && (qualitativeRatio === null || assessmentRatio >= qualitativeRatio))
+  if (
+    !weakAssessments &&
+    assessmentRatio >= STRONG_RATIO &&
+    (qualitativeRatio === null || assessmentRatio >= qualitativeRatio)
+  )
     return { strength: 'strength.assessments' };
   if (!notDone && hasQualitative) return { strength: 'strength.all-done' };
   return {};
@@ -240,14 +308,20 @@ export function assignTermClosingVariantsV1(
   studentKey: string,
   evaluations: ReadonlyMap<number, readonly TermClosingEvaluationV1[]>,
 ): Map<number, TermClosingV1[]> {
-  const groups = new Map<string, { subjectId: number; period: TermClosingPeriodV1; piece: PieceV1; code: TermClosingCodeV1 }[]>();
+  const groups = new Map<
+    string,
+    { subjectId: number; period: TermClosingPeriodV1; piece: PieceV1; code: TermClosingCodeV1 }[]
+  >();
   for (const [subjectId, list] of evaluations)
     for (const evaluation of list)
       for (const piece of PIECES_V1) {
         const code = evaluation[piece];
         if (!code) continue;
         const group = `${evaluation.period}|${code}`;
-        groups.set(group, [...(groups.get(group) ?? []), { subjectId, period: evaluation.period, piece, code }]);
+        groups.set(group, [
+          ...(groups.get(group) ?? []),
+          { subjectId, period: evaluation.period, piece, code },
+        ]);
       }
   const chosen = new Map<string, number>();
   for (const [group, members] of groups) {
@@ -256,10 +330,12 @@ export function assignTermClosingVariantsV1(
     [...members]
       .sort(
         (a, b) =>
-          stableHashV1(`${studentKey}|${group}|${a.subjectId}`) - stableHashV1(`${studentKey}|${group}|${b.subjectId}`) ||
-          a.subjectId - b.subjectId,
+          stableHashV1(`${studentKey}|${group}|${a.subjectId}`) -
+            stableHashV1(`${studentKey}|${group}|${b.subjectId}`) || a.subjectId - b.subjectId,
       )
-      .forEach((member, index) => chosen.set(`${member.subjectId}|${member.period}|${member.piece}`, (base + index) % size));
+      .forEach((member, index) =>
+        chosen.set(`${member.subjectId}|${member.period}|${member.piece}`, (base + index) % size),
+      );
   }
   const result = new Map<number, TermClosingV1[]>();
   for (const [subjectId, list] of evaluations)
@@ -268,7 +344,9 @@ export function assignTermClosingVariantsV1(
       list.map((evaluation) => {
         const message = (piece: PieceV1) => {
           const code = evaluation[piece];
-          return code ? { code, variant: chosen.get(`${subjectId}|${evaluation.period}|${piece}`)! } : undefined;
+          return code
+            ? { code, variant: chosen.get(`${subjectId}|${evaluation.period}|${piece}`)! }
+            : undefined;
         };
         const weight = message('weight');
         const strength = message('strength');
@@ -315,7 +393,11 @@ export function termClosingSummaryV1(
   return {
     period,
     mode,
-    message: { code, variant: stableHashV1(`${studentKey}|${period}|${code}`) % TERM_CLOSING_CATALOG_V1[code].length },
+    message: {
+      code,
+      variant:
+        stableHashV1(`${studentKey}|${period}|${code}`) % TERM_CLOSING_CATALOG_V1[code].length,
+    },
     attentionSubjectIds,
   };
 }

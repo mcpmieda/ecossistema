@@ -28,7 +28,9 @@ beforeAll(async () => {
           return await operation({
             async unsafe(sql: string, values: readonly unknown[] = []) {
               const result = await transaction.query<Record<string, unknown>>(sql, [...values]);
-              return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
+              return Object.assign(result.rows, {
+                count: result.affectedRows ?? result.rows.length,
+              });
             },
           });
         } finally {

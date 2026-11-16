@@ -166,7 +166,10 @@ function safeInteger(value: unknown): value is number {
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   const actual = Object.keys(value).sort(compareCanonicalStringsV1);
   const sortedExpected = [...expected].sort(compareCanonicalStringsV1);
-  return actual.length === sortedExpected.length && actual.every((key, index) => key === sortedExpected[index]);
+  return (
+    actual.length === sortedExpected.length &&
+    actual.every((key, index) => key === sortedExpected[index])
+  );
 }
 
 function hasExactNames(actual: readonly string[], expected: readonly string[]): boolean {
@@ -178,7 +181,10 @@ function hasExactNames(actual: readonly string[], expected: readonly string[]): 
 function parseCsvCellV2(csv: string): string {
   const normalized = csv.replace(/^\uFEFF/u, '');
   const firstBreak = normalized.indexOf('\n');
-  if (firstBreak < 0 || normalized.slice(0, firstBreak).replace(/\r$/u, '') !== 'gradebook_backup') {
+  if (
+    firstBreak < 0 ||
+    normalized.slice(0, firstBreak).replace(/\r$/u, '') !== 'gradebook_backup'
+  ) {
     fail('recovery-backup-header-invalid');
   }
   const cell = normalized.slice(firstBreak + 1).trim();
@@ -189,9 +195,21 @@ function parseCsvCellV2(csv: string): string {
 }
 
 function parseCatalogV2(value: unknown): BackupCatalogV2 {
-  if (!record(value) || !exactKeys(value, ['index_count', 'table_count', 'column_count', 'constraint_count', 'foreign_key_count']) ||
-      value.index_count !== 58 || value.table_count !== 28 || value.column_count !== 214 ||
-      value.constraint_count !== 188 || value.foreign_key_count !== 48) {
+  if (
+    !record(value) ||
+    !exactKeys(value, [
+      'index_count',
+      'table_count',
+      'column_count',
+      'constraint_count',
+      'foreign_key_count',
+    ]) ||
+    value.index_count !== 58 ||
+    value.table_count !== 28 ||
+    value.column_count !== 214 ||
+    value.constraint_count !== 188 ||
+    value.foreign_key_count !== 48
+  ) {
     fail('recovery-backup-catalog-invalid');
   }
   return value as unknown as BackupCatalogV2;
@@ -211,10 +229,15 @@ function parseTablesV2(value: unknown): LogicalBackupV2['tables'] {
 }
 
 function parseSequenceV2(value: unknown): BackupSequenceV2 {
-  if (!record(value) || value.schemaname !== 'gradebook' ||
-      !LOGICAL_BACKUP_SEQUENCE_NAMES_V2.includes(value.sequencename as RecoverySequenceNameV2) ||
-      !(value.last_value === null || safeInteger(value.last_value)) ||
-      !safeInteger(value.start_value) || !safeInteger(value.increment_by) || value.increment_by <= 0) {
+  if (
+    !record(value) ||
+    value.schemaname !== 'gradebook' ||
+    !LOGICAL_BACKUP_SEQUENCE_NAMES_V2.includes(value.sequencename as RecoverySequenceNameV2) ||
+    !(value.last_value === null || safeInteger(value.last_value)) ||
+    !safeInteger(value.start_value) ||
+    !safeInteger(value.increment_by) ||
+    value.increment_by <= 0
+  ) {
     fail('recovery-backup-sequence-invalid');
   }
   return value as unknown as BackupSequenceV2;
@@ -228,15 +251,26 @@ export function parseLogicalBackupCsvV2(csv: string): LogicalBackupV2 {
     if (cause instanceof LogicalBackupRecoveryErrorV2) throw cause;
     fail('recovery-backup-json-invalid');
   }
-  if (!record(parsed) || parsed.format !== 'gradebook-logical-backup-v2' ||
-      typeof parsed.source !== 'string' || !parsed.source.trim() ||
-      typeof parsed.captured_at !== 'string' || Number.isNaN(Date.parse(parsed.captured_at)) ||
-      typeof parsed.source_head !== 'string' || !/^[0-9a-f]{40}$/iu.test(parsed.source_head) ||
-      !Array.isArray(parsed.sequences)) {
+  if (
+    !record(parsed) ||
+    parsed.format !== 'gradebook-logical-backup-v2' ||
+    typeof parsed.source !== 'string' ||
+    !parsed.source.trim() ||
+    typeof parsed.captured_at !== 'string' ||
+    Number.isNaN(Date.parse(parsed.captured_at)) ||
+    typeof parsed.source_head !== 'string' ||
+    !/^[0-9a-f]{40}$/iu.test(parsed.source_head) ||
+    !Array.isArray(parsed.sequences)
+  ) {
     fail('recovery-backup-envelope-invalid');
   }
   const sequences = parsed.sequences.map(parseSequenceV2);
-  if (!hasExactNames(sequences.map((sequence) => sequence.sequencename), LOGICAL_BACKUP_SEQUENCE_NAMES_V2)) {
+  if (
+    !hasExactNames(
+      sequences.map((sequence) => sequence.sequencename),
+      LOGICAL_BACKUP_SEQUENCE_NAMES_V2,
+    )
+  ) {
     fail('recovery-backup-sequences-invalid');
   }
   return {
@@ -257,7 +291,8 @@ export function assertDisposableRecoveryTargetV2(connectionString: string): Reco
   } catch {
     fail('recovery-target-url-invalid');
   }
-  if (!['postgres:', 'postgresql:'].includes(target.protocol)) fail('recovery-target-protocol-invalid');
+  if (!['postgres:', 'postgresql:'].includes(target.protocol))
+    fail('recovery-target-protocol-invalid');
   const host = target.hostname.toLowerCase();
   if (host !== '127.0.0.1' && host !== 'localhost' && host !== '[::1]' && host !== '::1') {
     fail('recovery-target-not-loopback');
@@ -267,7 +302,7 @@ export function assertDisposableRecoveryTargetV2(connectionString: string): Reco
   return {
     connectionString,
     databaseName,
-    host: host === '[::1]' ? '::1' : host as RecoveryTargetV2['host'],
+    host: host === '[::1]' ? '::1' : (host as RecoveryTargetV2['host']),
   };
 }
 
@@ -276,7 +311,11 @@ function quotedIdentifier(value: string): string {
   return `"${value}"`;
 }
 
-async function rows(sql: RecoveryQueryV2, query: string, parameters: readonly unknown[] = []): Promise<readonly SqlRowV2[]> {
+async function rows(
+  sql: RecoveryQueryV2,
+  query: string,
+  parameters: readonly unknown[] = [],
+): Promise<readonly SqlRowV2[]> {
   return Array.from(await sql.unsafe(query, parameters));
 }
 
@@ -295,9 +334,13 @@ function integerColumn(row: SqlRowV2, name: string): number {
 }
 
 async function assertEmptyDatabaseV2(sql: RecoveryQueryV2): Promise<void> {
-  const result = await rows(sql, `SELECT count(*)::integer AS count FROM information_schema.tables
-    WHERE table_schema NOT IN ('pg_catalog','information_schema')`);
-  if (result.length !== 1 || integerColumn(result[0]!, 'count') !== 0) fail('recovery-target-not-empty');
+  const result = await rows(
+    sql,
+    `SELECT count(*)::integer AS count FROM information_schema.tables
+    WHERE table_schema NOT IN ('pg_catalog','information_schema')`,
+  );
+  if (result.length !== 1 || integerColumn(result[0]!, 'count') !== 0)
+    fail('recovery-target-not-empty');
 }
 
 async function provisionLocalApplicationRoleV2(sql: RecoveryQueryV2): Promise<void> {
@@ -308,24 +351,40 @@ async function provisionLocalApplicationRoleV2(sql: RecoveryQueryV2): Promise<vo
   END $$`);
 }
 
-export async function applyRecoverySchemaV2(sql: RecoveryQueryV2, repositoryRoot: string): Promise<void> {
+export async function applyRecoverySchemaV2(
+  sql: RecoveryQueryV2,
+  repositoryRoot: string,
+): Promise<void> {
   await assertEmptyDatabaseV2(sql);
   await provisionLocalApplicationRoleV2(sql);
   for (const file of RECOVERY_SCHEMA_PLAN_V2) {
-    const migration = await readFile(`${repositoryRoot}/migrations/gradebook-simplified/${file}`, 'utf8');
+    const migration = await readFile(
+      `${repositoryRoot}/migrations/gradebook-simplified/${file}`,
+      'utf8',
+    );
     try {
       await sql.unsafe(migration);
     } catch (cause) {
-      fail(`recovery-schema-${file.replace(/\.sql$/u, '').replaceAll('_', '-')}-failed${sqlStateSuffix(cause)}`);
+      fail(
+        `recovery-schema-${file.replace(/\.sql$/u, '').replaceAll('_', '-')}-failed${sqlStateSuffix(cause)}`,
+      );
     }
   }
 }
 
-async function tableColumnsV2(sql: RecoveryQueryV2, table: LogicalBackupTableV2): Promise<readonly string[]> {
-  const result = await rows(sql, `SELECT column_name FROM information_schema.columns
-    WHERE table_schema='gradebook' AND table_name=$1 ORDER BY ordinal_position`, [table]);
+async function tableColumnsV2(
+  sql: RecoveryQueryV2,
+  table: LogicalBackupTableV2,
+): Promise<readonly string[]> {
+  const result = await rows(
+    sql,
+    `SELECT column_name FROM information_schema.columns
+    WHERE table_schema='gradebook' AND table_name=$1 ORDER BY ordinal_position`,
+    [table],
+  );
   const columns = result.map((row) => row.column_name);
-  if (columns.some((column) => typeof column !== 'string') || columns.length === 0) fail('recovery-table-columns-invalid');
+  if (columns.some((column) => typeof column !== 'string') || columns.length === 0)
+    fail('recovery-table-columns-invalid');
   return columns as string[];
 }
 
@@ -335,17 +394,27 @@ function validateRowColumnsV2(tableRows: readonly BackupRowV2[], columns: readon
   }
 }
 
-async function insertRowsV2(sql: RecoveryQueryV2, table: LogicalBackupTableV2, tableRows: readonly BackupRowV2[]): Promise<void> {
+async function insertRowsV2(
+  sql: RecoveryQueryV2,
+  table: LogicalBackupTableV2,
+  tableRows: readonly BackupRowV2[],
+): Promise<void> {
   const columns = await tableColumnsV2(sql, table);
   validateRowColumnsV2(tableRows, columns);
   const identifier = `gradebook.${quotedIdentifier(table)}`;
   for (let offset = 0; offset < tableRows.length; offset += 1000) {
     const chunk = tableRows.slice(offset, offset + 1000);
-    await sql.unsafe(`INSERT INTO ${identifier} SELECT * FROM json_populate_recordset(NULL::${identifier}, $1::json)`, [chunk]);
+    await sql.unsafe(
+      `INSERT INTO ${identifier} SELECT * FROM json_populate_recordset(NULL::${identifier}, $1::json)`,
+      [chunk],
+    );
   }
 }
 
-async function restoreSequencesV2(sql: RecoveryQueryV2, sequences: readonly BackupSequenceV2[]): Promise<void> {
+async function restoreSequencesV2(
+  sql: RecoveryQueryV2,
+  sequences: readonly BackupSequenceV2[],
+): Promise<void> {
   for (const sequence of sequences) {
     const value = sequence.last_value ?? sequence.start_value;
     await sql.unsafe('SELECT setval($1::regclass,$2,$3)', [
@@ -356,31 +425,46 @@ async function restoreSequencesV2(sql: RecoveryQueryV2, sequences: readonly Back
   }
 }
 
-async function restoreCouncilSessionClosurePointersV2(sql: RecoveryQueryV2, tableRows: readonly BackupRowV2[]): Promise<void> {
-  const pointers = tableRows.filter((row) => row.fechamento_atual_id !== null).map((row) => ({
-    ano: row.ano,
-    turma_id: row.turma_id,
-    fechamento_atual_id: row.fechamento_atual_id,
-  }));
+async function restoreCouncilSessionClosurePointersV2(
+  sql: RecoveryQueryV2,
+  tableRows: readonly BackupRowV2[],
+): Promise<void> {
+  const pointers = tableRows
+    .filter((row) => row.fechamento_atual_id !== null)
+    .map((row) => ({
+      ano: row.ano,
+      turma_id: row.turma_id,
+      fechamento_atual_id: row.fechamento_atual_id,
+    }));
   if (pointers.length === 0) return;
-  await sql.unsafe(`UPDATE gradebook.conselho_sessao s SET fechamento_atual_id=p.fechamento_atual_id
+  await sql.unsafe(
+    `UPDATE gradebook.conselho_sessao s SET fechamento_atual_id=p.fechamento_atual_id
     FROM json_to_recordset($1::json) AS p(ano smallint,turma_id integer,fechamento_atual_id bigint)
-    WHERE s.ano=p.ano AND s.turma_id=p.turma_id`, [pointers]);
+    WHERE s.ano=p.ano AND s.turma_id=p.turma_id`,
+    [pointers],
+  );
 }
 
-export async function restoreLogicalBackupV2(sql: RecoveryDatabaseV2, backup: LogicalBackupV2): Promise<void> {
+export async function restoreLogicalBackupV2(
+  sql: RecoveryDatabaseV2,
+  backup: LogicalBackupV2,
+): Promise<void> {
   await sql.begin(async (transaction) => {
     await transaction.unsafe('SET CONSTRAINTS ALL DEFERRED');
     for (const table of LOGICAL_BACKUP_TABLE_ORDER_V2) {
       try {
         let tableRows = backup.tables[table];
         if (table === 'conselho_sessao') {
-          tableRows = tableRows.map((row) => ({...row, fechamento_atual_id: null}));
+          tableRows = tableRows.map((row) => ({ ...row, fechamento_atual_id: null }));
         }
         if (table === 'aluno') {
-          await transaction.unsafe('ALTER TABLE gradebook.aluno DISABLE TRIGGER aluno_preparar_conselho_anterior_trg');
+          await transaction.unsafe(
+            'ALTER TABLE gradebook.aluno DISABLE TRIGGER aluno_preparar_conselho_anterior_trg',
+          );
           await insertRowsV2(transaction, table, tableRows);
-          await transaction.unsafe('ALTER TABLE gradebook.aluno ENABLE TRIGGER aluno_preparar_conselho_anterior_trg');
+          await transaction.unsafe(
+            'ALTER TABLE gradebook.aluno ENABLE TRIGGER aluno_preparar_conselho_anterior_trg',
+          );
         } else {
           await insertRowsV2(transaction, table, tableRows);
         }
@@ -402,7 +486,10 @@ export async function restoreLogicalBackupV2(sql: RecoveryDatabaseV2, backup: Lo
 async function validateCountsV2(sql: RecoveryQueryV2, backup: LogicalBackupV2): Promise<number> {
   let total = 0;
   for (const table of LOGICAL_BACKUP_TABLE_ORDER_V2) {
-    const result = await rows(sql, `SELECT count(*)::integer AS count FROM gradebook.${quotedIdentifier(table)}`);
+    const result = await rows(
+      sql,
+      `SELECT count(*)::integer AS count FROM gradebook.${quotedIdentifier(table)}`,
+    );
     const actual = integerColumn(result[0]!, 'count');
     const expected = backup.tables[table].length;
     if (actual !== expected) fail('recovery-row-count-mismatch');
@@ -413,19 +500,27 @@ async function validateCountsV2(sql: RecoveryQueryV2, backup: LogicalBackupV2): 
 
 async function validateSequencesV2(sql: RecoveryQueryV2, backup: LogicalBackupV2): Promise<void> {
   for (const expected of backup.sequences) {
-    const result = await rows(sql, `SELECT last_value::bigint AS last_value,is_called
-      FROM gradebook.${quotedIdentifier(expected.sequencename)}`);
+    const result = await rows(
+      sql,
+      `SELECT last_value::bigint AS last_value,is_called
+      FROM gradebook.${quotedIdentifier(expected.sequencename)}`,
+    );
     const actual = result[0];
     if (!actual) fail('recovery-sequence-missing');
     const lastValue = integerColumn(actual, 'last_value');
-    if (lastValue !== (expected.last_value ?? expected.start_value) || actual.is_called !== (expected.last_value !== null)) {
+    if (
+      lastValue !== (expected.last_value ?? expected.start_value) ||
+      actual.is_called !== (expected.last_value !== null)
+    ) {
       fail('recovery-sequence-mismatch');
     }
   }
 }
 
 async function currentCatalogV2(sql: RecoveryQueryV2): Promise<RecoveryReportV2['currentCatalog']> {
-  const result = await rows(sql, `SELECT
+  const result = await rows(
+    sql,
+    `SELECT
     (SELECT count(*)::integer FROM information_schema.tables WHERE table_schema='gradebook' AND table_type='BASE TABLE') AS tables,
     (SELECT count(*)::integer FROM information_schema.columns WHERE table_schema='gradebook') AS columns,
     (SELECT count(*)::integer FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='gradebook' AND c.contype<>'n') AS constraints,
@@ -433,18 +528,31 @@ async function currentCatalogV2(sql: RecoveryQueryV2): Promise<RecoveryReportV2[
     (SELECT count(*)::integer FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='gradebook' AND c.contype='f') AS foreign_keys,
     (SELECT count(*)::integer FROM pg_sequences WHERE schemaname='gradebook') AS sequences,
     (SELECT count(*)::integer FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='gradebook') AS functions,
-    (SELECT count(*)::integer FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='gradebook' AND NOT t.tgisinternal) AS triggers`);
+    (SELECT count(*)::integer FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='gradebook' AND NOT t.tgisinternal) AS triggers`,
+  );
   const row = result[0];
   if (!row) fail('recovery-catalog-missing');
   const catalog = {
-    tables: integerColumn(row, 'tables'), columns: integerColumn(row, 'columns'),
-    constraints: integerColumn(row, 'constraints'), indexes: integerColumn(row, 'indexes'),
-    foreignKeys: integerColumn(row, 'foreign_keys'), sequences: integerColumn(row, 'sequences'),
-    functions: integerColumn(row, 'functions'), triggers: integerColumn(row, 'triggers'),
+    tables: integerColumn(row, 'tables'),
+    columns: integerColumn(row, 'columns'),
+    constraints: integerColumn(row, 'constraints'),
+    indexes: integerColumn(row, 'indexes'),
+    foreignKeys: integerColumn(row, 'foreign_keys'),
+    sequences: integerColumn(row, 'sequences'),
+    functions: integerColumn(row, 'functions'),
+    triggers: integerColumn(row, 'triggers'),
   };
-  if (catalog.tables !== 29 || catalog.columns !== 227 || catalog.constraints !== 203 ||
-      catalog.indexes !== 62 || catalog.foreignKeys !== 51 || catalog.sequences !== 12 ||
-      catalog.functions !== 4 || catalog.triggers !== 3) fail('recovery-current-catalog-mismatch');
+  if (
+    catalog.tables !== 29 ||
+    catalog.columns !== 227 ||
+    catalog.constraints !== 203 ||
+    catalog.indexes !== 62 ||
+    catalog.foreignKeys !== 51 ||
+    catalog.sequences !== 12 ||
+    catalog.functions !== 4 ||
+    catalog.triggers !== 3
+  )
+    fail('recovery-current-catalog-mismatch');
   return catalog as RecoveryReportV2['currentCatalog'];
 }
 
@@ -456,18 +564,27 @@ export async function validateLogicalRecoveryV2(
   const restoredRows = await validateCountsV2(sql, backup);
   await validateSequencesV2(sql, backup);
   const catalog = await currentCatalogV2(sql);
-  const validation = await rows(sql, `SELECT
+  const validation = await rows(
+    sql,
+    `SELECT
     ARRAY(SELECT ano::integer FROM gradebook.ano_letivo ORDER BY ano) AS years,
     (SELECT count(*)::integer FROM gradebook.boletim_snapshot) AS bulletin_snapshots,
     (SELECT count(*)::integer FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
       WHERE n.nspname='gradebook' AND c.contype='f' AND NOT c.convalidated) AS invalid_foreign_keys,
     (SELECT count(*)::integer FROM information_schema.table_privileges
-      WHERE table_schema='gradebook' AND grantee='PUBLIC') AS public_table_privileges`);
+      WHERE table_schema='gradebook' AND grantee='PUBLIC') AS public_table_privileges`,
+  );
   const row = validation[0];
   const years = row?.years;
-  if (!Array.isArray(years) || years.length !== 1 || Number(years[0]) !== 2026 ||
-      integerColumn(row!, 'bulletin_snapshots') !== 0 || integerColumn(row!, 'invalid_foreign_keys') !== 0 ||
-      integerColumn(row!, 'public_table_privileges') !== 0) fail('recovery-postflight-invalid');
+  if (
+    !Array.isArray(years) ||
+    years.length !== 1 ||
+    Number(years[0]) !== 2026 ||
+    integerColumn(row!, 'bulletin_snapshots') !== 0 ||
+    integerColumn(row!, 'invalid_foreign_keys') !== 0 ||
+    integerColumn(row!, 'public_table_privileges') !== 0
+  )
+    fail('recovery-postflight-invalid');
   return {
     format: 'gradebook-recovery-report-v2',
     backupSha256: createHash('sha256').update(backupBytes).digest('hex'),
@@ -488,9 +605,11 @@ export function repositoryRootForRecoveryV2(): string {
   return fileURLToPath(new URL('../../../', import.meta.url)).replace(/[\\/]$/u, '');
 }
 
-export async function readLogicalBackupV2(path: string): Promise<{readonly backup: LogicalBackupV2; readonly bytes: Uint8Array}> {
+export async function readLogicalBackupV2(
+  path: string,
+): Promise<{ readonly backup: LogicalBackupV2; readonly bytes: Uint8Array }> {
   const bytes = await readFile(path);
-  return {backup: parseLogicalBackupCsvV2(bytes.toString()), bytes};
+  return { backup: parseLogicalBackupCsvV2(bytes.toString()), bytes };
 }
 
 export function sanitizedRecoveryFailureV2(cause: unknown): string {

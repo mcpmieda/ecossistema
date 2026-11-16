@@ -4,8 +4,12 @@
  * preview imports this file, first of all, before any page reads the date.
  */
 const params = new URLSearchParams(window.location.search);
-const date = /^\d{4}-\d{2}-\d{2}$/u.test(params.get('data') ?? '') ? params.get('data') : '2026-11-03';
-const time = /^([01]\d|2[0-3]):[0-5]\d$/u.test(params.get('hora') ?? '') ? params.get('hora') : '14:00';
+const date = /^\d{4}-\d{2}-\d{2}$/u.test(params.get('data') ?? '')
+  ? params.get('data')
+  : '2026-11-03';
+const time = /^([01]\d|2[0-3]):[0-5]\d$/u.test(params.get('hora') ?? '')
+  ? params.get('hora')
+  : '14:00';
 
 const RealDate = Date;
 const offset = RealDate.parse(`${date}T${time}:00-03:00`) - RealDate.now();

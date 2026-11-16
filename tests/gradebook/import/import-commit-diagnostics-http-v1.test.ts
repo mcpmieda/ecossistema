@@ -132,15 +132,27 @@ afterEach(() => {
 
 describe('optional diagnostics after the official wrapper close boundary', () => {
   it('binds a private movement preview to the authenticated actor without reporting a commit', async () => {
-    const review = { transportVersion: 9, state: 'review-required', reason: 'Confira os pares.', movementReview: {
-      digest: 'd'.repeat(64), groups: [{ origins: [{ classCode: '6A', number: 1, name: 'ORIGEM SINTETICA' }],
-        destinations: [{ classCode: '6B', number: 2, name: 'DESTINO SINTETICO' }] }],
-    } };
+    const review = {
+      transportVersion: 9,
+      state: 'review-required',
+      reason: 'Confira os pares.',
+      movementReview: {
+        digest: 'd'.repeat(64),
+        groups: [
+          {
+            origins: [{ classCode: '6A', number: 1, name: 'ORIGEM SINTETICA' }],
+            destinations: [{ classCode: '6B', number: 2, name: 'DESTINO SINTETICO' }],
+          },
+        ],
+      },
+    };
     mocks.execute.mockResolvedValue(review);
     const result = await onRequest(context());
     expect(result.status).toBe(200);
     expect(await result.json()).toEqual(review);
-    expect(result.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate, private');
+    expect(result.headers.get('Cache-Control')).toBe(
+      'no-store, no-cache, must-revalidate, private',
+    );
     expect(mocks.execute.mock.calls[0]![2]).toBe((await mocks.auth.mock.results[0]!.value).oid);
     expect(physical).not.toHaveBeenCalled();
     expect(header(result)?.confirmed ?? null).toBeNull();

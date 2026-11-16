@@ -15,8 +15,7 @@ type SealTargetV1 = Extract<ScopeV1, { kind: 'class' | 'account' }> | { accountI
 const MAX_CACHED_BATCHES_V1 = 32;
 function pruneEntriesV1(cache: SealCountsCacheV1) {
   const now = Date.now();
-  for (const [key, saved] of cache.entries)
-    if (now - saved.at >= 60_000) cache.entries.delete(key);
+  for (const [key, saved] of cache.entries) if (now - saved.at >= 60_000) cache.entries.delete(key);
   while (cache.entries.size > MAX_CACHED_BATCHES_V1)
     cache.entries.delete(cache.entries.keys().next().value!);
 }
@@ -42,9 +41,7 @@ export interface SealCountsCacheV1 {
   clear: () => void;
   invalidate: () => void;
   retainPending: (targets: readonly SealTargetV1[]) => void;
-  read: (
-    scope: SealTargetV1,
-  ) => Promise<Awaited<ReturnType<typeof readSealsV1>>>;
+  read: (scope: SealTargetV1) => Promise<Awaited<ReturnType<typeof readSealsV1>>>;
 }
 
 /** A list owns this memory across filter changes; a standalone record owns its own. */
@@ -148,9 +145,15 @@ async function readSealsV1(
   signal: AbortSignal,
 ) {
   const result = await reader.query(
-    { contractVersion: 2, operation: 'seals-read', page: { limit: 100 },
+    {
+      contractVersion: 2,
+      operation: 'seals-read',
+      page: { limit: 100 },
       ...('accountIds' in target
-        ? { scope: { kind: 'school' as const, academicYear: 2026 as const }, accountIds: target.accountIds }
+        ? {
+            scope: { kind: 'school' as const, academicYear: 2026 as const },
+            accountIds: target.accountIds,
+          }
         : { scope: target }),
     },
     signal,
@@ -188,7 +191,11 @@ function addCountsV1(
  */
 export function useSealCountsV1(
   reader: PortalAdminReadClientV2,
-  target: { accountId: string } | { classIds: readonly number[] } | { accountIds: readonly string[] } | null,
+  target:
+    | { accountId: string }
+    | { classIds: readonly number[] }
+    | { accountIds: readonly string[] }
+    | null,
   options: { active?: boolean; revision?: string | number; cache?: SealCountsCacheV1 } = {},
 ): SealReadStateV1 {
   let key;
@@ -221,7 +228,8 @@ export function useSealCountsV1(
       cache.retainPending(active ? scopes : []);
       if (!active) {
         // A hidden list shows only what is already read, without new requests.
-        for (const scope of scopes) addCountsV1(counts, cache.entries.get(targetKeyV1(scope))?.items);
+        for (const scope of scopes)
+          addCountsV1(counts, cache.entries.get(targetKeyV1(scope))?.items);
         return counts;
       }
       try {

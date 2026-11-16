@@ -27,11 +27,17 @@ const socketIdentityV1 = z
   .strict();
 type SocketIdentityV1 = z.infer<typeof socketIdentityV1> & { resumed: boolean };
 const socketAttachmentV1 = socketIdentityV1.extend({ resumed: z.boolean() }).strict();
-const securityRenewalV1 = z.object({
-  connectionId: z.uuid(), sessionId: z.uuid(), accountId: z.uuid(),
-  studentId: z.number().int().positive().safe(), classId: z.number().int().positive().safe().nullable(),
-  verifiedAt: z.number().int().positive(), expiresAt: z.iso.datetime({ offset: true }),
-}).strict();
+const securityRenewalV1 = z
+  .object({
+    connectionId: z.uuid(),
+    sessionId: z.uuid(),
+    accountId: z.uuid(),
+    studentId: z.number().int().positive().safe(),
+    classId: z.number().int().positive().safe().nullable(),
+    verifiedAt: z.number().int().positive(),
+    expiresAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
 
 /** One SQLite-backed coordination atom per authenticated audience/year. Browser sockets never access it directly. */
 
@@ -40,16 +46,17 @@ function socketIdentityInputV1(headers: Headers) {
   return {
     purpose: headers.get('x-live-purpose') ?? 'academic',
     authorizedAt: Date.now(),
-    ...(headers.has('x-live-connection-id') ? { connectionId: headers.get('x-live-connection-id'), sessionId: headers.get('x-live-session-id') } : {}),
+    ...(headers.has('x-live-connection-id')
+      ? {
+          connectionId: headers.get('x-live-connection-id'),
+          sessionId: headers.get('x-live-session-id'),
+        }
+      : {}),
     audience: headers.get('x-live-audience'),
     expiresAt: headers.get('x-live-expires-at'),
     accountId: headers.get('x-live-account-id') || null,
-    studentId: headers.get('x-live-student-id')
-      ? Number(headers.get('x-live-student-id'))
-      : null,
-    classId: headers.get('x-live-class-id')
-      ? Number(headers.get('x-live-class-id'))
-      : null,
+    studentId: headers.get('x-live-student-id') ? Number(headers.get('x-live-student-id')) : null,
+    classId: headers.get('x-live-class-id') ? Number(headers.get('x-live-class-id')) : null,
   };
 }
 
@@ -160,7 +167,8 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
     const pair = new WebSocketPair();
     const client = pair[0],
       server = pair[1];
-    this.ctx.acceptWebSocket(server, [parsed.data.audience,
+    this.ctx.acceptWebSocket(server, [
+      parsed.data.audience,
       ...(parsed.data.connectionId ? ['connection:' + parsed.data.connectionId] : []),
     ]);
     server.serializeAttachment({ ...parsed.data, resumed: false } satisfies SocketIdentityV1);
@@ -187,14 +195,27 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
       const parsed = socketAttachmentV1.safeParse(socket.deserializeAttachment());
       if (!parsed.success || socket.readyState !== 1) continue;
       const identity = parsed.data;
-      if (identity.purpose !== 'security' || identity.connectionId !== renewal.connectionId ||
-          identity.sessionId !== renewal.sessionId || identity.accountId !== renewal.accountId) continue;
+      if (
+        identity.purpose !== 'security' ||
+        identity.connectionId !== renewal.connectionId ||
+        identity.sessionId !== renewal.sessionId ||
+        identity.accountId !== renewal.accountId
+      )
+        continue;
       // A verification started before an intervening security notice or a newer result cannot
       // restore presence. Use server timestamps, never a browser-provided authorization time.
-      if (renewal.verifiedAt <= (identity.invalidatedAt ?? 0) ||
-          renewal.verifiedAt <= (identity.authorizedAt ?? 0)) return false;
-      socket.serializeAttachment({ ...identity, authorizedAt: renewal.verifiedAt,
-        expiresAt: new Date(end).toISOString(), studentId: renewal.studentId, classId: renewal.classId });
+      if (
+        renewal.verifiedAt <= (identity.invalidatedAt ?? 0) ||
+        renewal.verifiedAt <= (identity.authorizedAt ?? 0)
+      )
+        return false;
+      socket.serializeAttachment({
+        ...identity,
+        authorizedAt: renewal.verifiedAt,
+        expiresAt: new Date(end).toISOString(),
+        studentId: renewal.studentId,
+        classId: renewal.classId,
+      });
       return true;
     }
     return false;

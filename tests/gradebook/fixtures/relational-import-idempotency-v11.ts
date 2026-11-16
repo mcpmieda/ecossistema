@@ -7,7 +7,10 @@ import {
   type GradebookPostgresQuerySqlV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import type { GradebookImportPersistenceRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import {
+  installResetSchemaFixtureV1,
+  installReconciliationSchemaFixtureV1,
+} from '../../student-portal/year-reset/schema-fixture';
 
 type Row = Record<string, unknown>;
 type Action = 'insert' | 'update' | 'delete';

@@ -20,7 +20,9 @@ describe('Auditoria texts for stored codes (issue #1426, finding 24)', () => {
       if (code === 'source-unavailable') continue;
       expect(gradebookImportDiagnosticTextV1(code).message, code).not.toContain('indisponível');
     }
-    expect(gradebookImportDiagnosticTextV1('wrong-year').message).toBe('Ano da planilha diferente do ano da pasta.');
+    expect(gradebookImportDiagnosticTextV1('wrong-year').message).toBe(
+      'Ano da planilha diferente do ano da pasta.',
+    );
   });
 
   it('an unknown code gets a plain text, not a false one', () => {
@@ -30,14 +32,28 @@ describe('Auditoria texts for stored codes (issue #1426, finding 24)', () => {
 
 describe('student left out by the database, in the browser import (issue #1426, finding 31)', () => {
   it('becomes the same Auditoria finding the OneDrive reading writes', async () => {
-    const { studentNotInRelationDiagnosticV1 } = await import('../../../src/features/gradebook/import/import-diagnostics-v1');
-    const { isGradebookImportDiagnosticsAuditRequestV1 } = await import('../../../shared/gradebook-contracts/imports/import-diagnostics-v1');
+    const { studentNotInRelationDiagnosticV1 } =
+      await import('../../../src/features/gradebook/import/import-diagnostics-v1');
+    const { isGradebookImportDiagnosticsAuditRequestV1 } =
+      await import('../../../shared/gradebook-contracts/imports/import-diagnostics-v1');
     const item = studentNotInRelationDiagnosticV1('7C', 41);
-    expect(item).toMatchObject({ code: 'student-not-in-relation', severity: 'blocking-error', classCode: '7C', studentNumber: 41, fieldKind: 'student' });
+    expect(item).toMatchObject({
+      code: 'student-not-in-relation',
+      severity: 'blocking-error',
+      classCode: '7C',
+      studentNumber: 41,
+      fieldKind: 'student',
+    });
     const { key: _key, ...stored } = item;
-    expect(isGradebookImportDiagnosticsAuditRequestV1({
-      version: 1, academicYear: 2026, fileName: 'SINTETICO.xlsb', sha256: 'a'.repeat(64), diagnostics: [{ ...stored, key: item.key }],
-    })).toBe(true);
+    expect(
+      isGradebookImportDiagnosticsAuditRequestV1({
+        version: 1,
+        academicYear: 2026,
+        fileName: 'SINTETICO.xlsb',
+        sha256: 'a'.repeat(64),
+        diagnostics: [{ ...stored, key: item.key }],
+      }),
+    ).toBe(true);
   });
 
   it('the import records it in the Auditoria after the write answers', async () => {

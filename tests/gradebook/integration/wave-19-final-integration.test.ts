@@ -24,8 +24,22 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(yearProvider).toContain("operation: 'bootstrap'");
     expect(accounts).toContain('requestOperationalWorkspaceV2');
     expect(accounts).toContain("result.operation !== 'search'");
-    expect(existsSync(join(root, 'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-workspace.tsx'))).toBe(false);
-    expect(existsSync(join(root, 'server/gradebook/application/operational-workspace/teacher-assignment-maintenance-v1.ts'))).toBe(false);
+    expect(
+      existsSync(
+        join(
+          root,
+          'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-workspace.tsx',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      existsSync(
+        join(
+          root,
+          'server/gradebook/application/operational-workspace/teacher-assignment-maintenance-v1.ts',
+        ),
+      ),
+    ).toBe(false);
   });
 
   it('preserva bridges e browser storage e registra o catálogo do checkpoint histórico', () => {
@@ -36,11 +50,15 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
       'src/features/student-portal-admin/accounts/accounts-client-v2.ts',
       'src/features/gradebook/operational-workspace/operational-workspace-client-v2.ts',
       'src/features/gradebook/performance/performance-dashboard-widgets-v5.tsx',
-    ].map(source).join('\n');
+    ]
+      .map(source)
+      .join('\n');
 
     expect(functions.match(/\/api\/gradebook\/operational-workspace/g) ?? []).toHaveLength(0);
     expect(shell).not.toContain("id: 'operational'");
-    expect(f5Frontend).not.toMatch(/localStorage|sessionStorage|indexedDB|caches\.open|serviceWorker/u);
+    expect(f5Frontend).not.toMatch(
+      /localStorage|sessionStorage|indexedDB|caches\.open|serviceWorker/u,
+    );
     expect(source(historicalState)).toContain('0004_bulletin_council_durability_v1.sql');
     expect(source(historicalState)).toContain('0005_council_session_durability_v2.sql');
   });

@@ -1,7 +1,26 @@
 import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { schoolShortDateTimeTextV1 } from '../../../../shared/locale-format-v1';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
-import { CalendarOff, Check, ChevronLeft, ChevronRight, Clock3, FileCheck2, PartyPopper, TriangleAlert, X } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from 'react';
+import {
+  CalendarOff,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  FileCheck2,
+  PartyPopper,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 import {
   frequencyCountV2,
   type FrequencySummaryV2,
@@ -13,10 +32,20 @@ import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
 import { Chip } from '@heroui/react/chip';
 import { Spinner } from '@heroui/react/spinner';
-import { bellLessonV1, bellShiftOfLabelV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
-import { schoolDayOffLabelV1, type SchoolDayOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
+import {
+  bellLessonV1,
+  bellShiftOfLabelV1,
+} from '../../../../shared/student-portal-contracts/school-bells-v1';
+import {
+  schoolDayOffLabelV1,
+  type SchoolDayOffV1,
+} from '../../../../shared/student-portal-contracts/school-calendar-v1';
 import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
-import { reducedMotionV3, usePortalPageActiveV3, useReportFrequencyToneV3 } from './portal-pages-v3';
+import {
+  reducedMotionV3,
+  usePortalPageActiveV3,
+  useReportFrequencyToneV3,
+} from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
 import { PAGE_LOADING_V3 } from './page-loading-v3';
 import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
@@ -37,9 +66,30 @@ import { useDragSwipeV1 } from '../workspace/student-workspace-v1';
  * today never counts) and sends the school's today and the class's last reading; the page only
  * draws them. Shown only when the self response says `showFrequency === true`.
  */
-const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const MONTHS = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
 const WEEKDAYS_SHORT = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+const WEEKDAYS_LONG = [
+  'Domingo',
+  'Segunda-feira',
+  'Terça-feira',
+  'Quarta-feira',
+  'Quinta-feira',
+  'Sexta-feira',
+  'Sábado',
+];
 /**
  * The months shown: from the month of the school year's first school day to the month of its last,
  * as the ADM calendar marks them (never fixed in the code). Without a
@@ -51,7 +101,12 @@ function monthsOfYearV3(schoolYear: FrequencyYearSummaryV2['schoolYear'], academ
     ? { firstMonth: schoolYear.firstDay.slice(0, 7), lastMonth: schoolYear.lastDay.slice(0, 7) }
     : { firstMonth: `${academicYear}-02`, lastMonth: `${academicYear}-12` };
 }
-const SHIFT_LABELS: Record<string, string> = { MATUTINO: 'Manhã', VESPERTINO: 'Tarde', NOTURNO: 'Noite', INTEGRAL: 'Integral' };
+const SHIFT_LABELS: Record<string, string> = {
+  MATUTINO: 'Manhã',
+  VESPERTINO: 'Tarde',
+  NOTURNO: 'Noite',
+  INTEGRAL: 'Integral',
+};
 
 /** A school day: with or without an absence (89,7% of the school's days have none). */
 type DayKindV3 = 'clear' | 'missed';
@@ -60,7 +115,13 @@ type DayStateV3 = DayKindV3 | 'pending' | 'off' | 'holiday' | 'unknown' | 'futur
 type MarkV3 = FrequencySummaryV2['marks'][number];
 type ShiftLessonsV3 = { shift: string; slots: number[]; complete: boolean };
 /** `share`: lessons with an absence ÷ lessons of the day, drawn as the tile's tone. */
-type DayV3 = { kind: DayKindV3; justified: boolean; missed: MarkV3[]; lessons: number; share: number };
+type DayV3 = {
+  kind: DayKindV3;
+  justified: boolean;
+  missed: MarkV3[];
+  lessons: number;
+  share: number;
+};
 
 const pad = (value: number) => String(value).padStart(2, '0');
 const monthKey = (year: number, month: number) => `${year}-${pad(month)}`;
@@ -78,7 +139,8 @@ const dayLabel = (date: string) => {
   return `${WEEKDAYS_LONG[parsed.getUTCDay()]}, ${parsed.getUTCDate()} de ${MONTHS[parsed.getUTCMonth()]!.toLowerCase()}`;
 };
 /** The calendar day before, "ontem" (a weekend or holiday included). */
-const dayBefore = (date: string) => new Date(Date.parse(`${date}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+const dayBefore = (date: string) =>
+  new Date(Date.parse(`${date}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 /** The shift as people say it; an unknown value is left out rather than guessed. */
 const shiftLabel = (shift: string) => SHIFT_LABELS[shift.trim().toUpperCase()] ?? null;
@@ -140,7 +202,8 @@ function daySentence(day: DayV3, open: boolean) {
       ? 'Nenhuma falta registrada até agora.'
       : `${plural(day.missed.length, 'falta registrada', 'faltas registradas')} até agora${reason}.`;
   if (day.kind === 'clear') return 'Nenhuma falta neste dia.';
-  if (day.missed.length >= day.lessons) return `Falta em todas as ${plural(day.lessons, 'aula', 'aulas')}${reason}.`;
+  if (day.missed.length >= day.lessons)
+    return `Falta em todas as ${plural(day.lessons, 'aula', 'aulas')}${reason}.`;
   return `${plural(day.missed.length, 'falta', 'faltas')} em ${plural(day.lessons, 'aula', 'aulas')}${reason}.`;
 }
 /**
@@ -183,17 +246,51 @@ const RING_KINDS_V3 = [
   // The legend's own words: "faltas totais" read as the sum of all absences. Names that exclude
   // each other ("dias de falta" read as if the justified days and the days with some lessons missed
   // were inside it; every name a kind of day, "dia" for one). Each on its own two lines.
-  { kind: 'clear', colour: '#166534', ink: '#166534', one: ['dia sem', 'nenhuma falta'], many: ['dias sem', 'nenhuma falta'] },
-  { kind: 'full', colour: '#991b1b', ink: '#991b1b', one: ['dia com falta', 'o dia todo'], many: ['dias com falta', 'o dia todo'] },
-  { kind: 'partial', colour: '#d45a4f', ink: '#b42d22', one: ['dia com falta', 'em algumas aulas'], many: ['dias com falta', 'em algumas aulas'] },
-  { kind: 'justified', colour: '#b45309', ink: '#b45309', one: ['dia com falta', 'justificada'], many: ['dias com falta', 'justificadas'] },
+  {
+    kind: 'clear',
+    colour: '#166534',
+    ink: '#166534',
+    one: ['dia sem', 'nenhuma falta'],
+    many: ['dias sem', 'nenhuma falta'],
+  },
+  {
+    kind: 'full',
+    colour: '#991b1b',
+    ink: '#991b1b',
+    one: ['dia com falta', 'o dia todo'],
+    many: ['dias com falta', 'o dia todo'],
+  },
+  {
+    kind: 'partial',
+    colour: '#d45a4f',
+    ink: '#b42d22',
+    one: ['dia com falta', 'em algumas aulas'],
+    many: ['dias com falta', 'em algumas aulas'],
+  },
+  {
+    kind: 'justified',
+    colour: '#b45309',
+    ink: '#b45309',
+    one: ['dia com falta', 'justificada'],
+    many: ['dias com falta', 'justificadas'],
+  },
 ] as const;
-type RingTotalsV3 = { days: number; clear: number; full: number; partial: number; justified: number };
+type RingTotalsV3 = {
+  days: number;
+  clear: number;
+  full: number;
+  partial: number;
+  justified: number;
+};
 /**
  * The school days already over and read in full, by kind (today never counts), over the lesson
  * days and marks given: the whole year so far for the ring, so it matches the ruler.
  */
-function ringTotalsOf(days: readonly NonNullable<FrequencySummaryV2['days']>[number][], marks: readonly MarkV3[], today: string): RingTotalsV3 {
+function ringTotalsOf(
+  days: readonly NonNullable<FrequencySummaryV2['days']>[number][],
+  marks: readonly MarkV3[],
+  today: string,
+): RingTotalsV3 {
   const lessonsByDay = new Map<string, ShiftLessonsV3[]>();
   for (const day of days) {
     const list = lessonsByDay.get(day.date) ?? [];
@@ -213,7 +310,8 @@ function ringTotalsOf(days: readonly NonNullable<FrequencySummaryV2['days']>[num
     days: counted.length,
     clear: counted.filter((day) => day.kind === 'clear').length,
     full: counted.filter((day) => day.kind === 'missed' && !day.justified && day.share >= 1).length,
-    partial: counted.filter((day) => day.kind === 'missed' && !day.justified && day.share < 1).length,
+    partial: counted.filter((day) => day.kind === 'missed' && !day.justified && day.share < 1)
+      .length,
     justified: counted.filter((day) => day.justified).length,
   };
 }
@@ -237,9 +335,15 @@ function curveCrossesRing(start: PointV3, first: PointV3, second: PointV3, end: 
   for (let step = 1; step < 24; step++) {
     const t = step / 24;
     const u = 1 - t;
-    const x = u * u * u * start.x + 3 * u * u * t * first.x + 3 * u * t * t * second.x + t * t * t * end.x;
-    const y = u * u * u * start.y + 3 * u * u * t * first.y + 3 * u * t * t * second.y + t * t * t * end.y;
-    if (Math.hypot(x - RING_CENTER_V3.x, y - RING_CENTER_V3.y) < RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 3) return true;
+    const x =
+      u * u * u * start.x + 3 * u * u * t * first.x + 3 * u * t * t * second.x + t * t * t * end.x;
+    const y =
+      u * u * u * start.y + 3 * u * u * t * first.y + 3 * u * t * t * second.y + t * t * t * end.y;
+    if (
+      Math.hypot(x - RING_CENTER_V3.x, y - RING_CENTER_V3.y) <
+      RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 3
+    )
+      return true;
   }
   return false;
 }
@@ -255,18 +359,28 @@ function spreadLabels<T extends { y: number }>(labels: T[]) {
     label.y = Math.max(label.y, index ? labels[index - 1]!.y + RING_LABEL_GAP_V3 : top);
   // …then up from the bottom edge the same way, so a label pushed past it brings the others up…
   for (let index = labels.length - 1; index >= 0; index--)
-    labels[index]!.y = Math.min(labels[index]!.y, index < labels.length - 1 ? labels[index + 1]!.y - RING_LABEL_GAP_V3 : bottom);
+    labels[index]!.y = Math.min(
+      labels[index]!.y,
+      index < labels.length - 1 ? labels[index + 1]!.y - RING_LABEL_GAP_V3 : bottom,
+    );
   // …and never above the top (three labels always fit between the two edges).
   for (const [index, label] of labels.entries())
     label.y = Math.max(label.y, index ? labels[index - 1]!.y + RING_LABEL_GAP_V3 : top);
   return labels;
 }
 function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: string }>) {
-  const counts = { clear: totals.clear, full: totals.full, partial: totals.partial, justified: totals.justified };
+  const counts = {
+    clear: totals.clear,
+    full: totals.full,
+    partial: totals.partial,
+    justified: totals.justified,
+  };
   // Absences first, then the frequented days. The ring is turned so the absences sit centred on
   // the left and the frequented days on the right: every arc then
   // points sideways, and every guide line runs out nearly level, with no hooks.
-  const shown = [...RING_KINDS_V3.filter(({ kind }) => kind !== 'clear'), RING_KINDS_V3[0]].filter(({ kind }) => counts[kind] > 0);
+  const shown = [...RING_KINDS_V3.filter(({ kind }) => kind !== 'clear'), RING_KINDS_V3[0]].filter(
+    ({ kind }) => counts[kind] > 0,
+  );
   const absent = totals.days - totals.clear;
   let at = Math.PI - (absent / totals.days) * Math.PI;
   const arcs = shown.map((item, order) => {
@@ -299,7 +413,12 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
     const svg = ring.current;
     if (!svg || typeof svg.getBBox !== 'function') return;
     const box = svg.getBBox();
-    setExtra(Math.ceil(Math.max(0, -box.x, box.x + box.width - RING_VIEW_V3.width) + (box.x < 0 || box.x + box.width > RING_VIEW_V3.width ? 2 : 0)));
+    setExtra(
+      Math.ceil(
+        Math.max(0, -box.x, box.x + box.width - RING_VIEW_V3.width) +
+          (box.x < 0 || box.x + box.width > RING_VIEW_V3.width ? 2 : 0),
+      ),
+    );
   }, [key]);
   return (
     <svg
@@ -309,7 +428,13 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
       role="img"
       aria-label={`${label}, ${plural(totals.days, 'dia de aula contado', 'dias de aula contados')}: ${RING_KINDS_V3.map((kind) => plural(totals[kind.kind], kind.one.join(' '), kind.many.join(' '))).join(', ')}`}
     >
-      <circle className="pa3-guide-track" cx={RING_CENTER_V3.x} cy={RING_CENTER_V3.y} r={RING_RADIUS_V3} strokeWidth={RING_STROKE_V3} />
+      <circle
+        className="pa3-guide-track"
+        cx={RING_CENTER_V3.x}
+        cy={RING_CENTER_V3.y}
+        r={RING_RADIUS_V3}
+        strokeWidth={RING_STROKE_V3}
+      />
       {placed.map((arc) =>
         single ? (
           <circle
@@ -342,12 +467,22 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
         // reaches the words level. It goes further out only as far as the words need to clear
         // the ring at their own height.
         const outer = RING_RADIUS_V3 + RING_STROKE_V3 / 2;
-        const above = Math.max(0, RING_CENTER_V3.y - (label.y + 25), label.y - 22 - RING_CENTER_V3.y);
-        const needed = above >= outer ? 0 : Math.sqrt(outer * outer - above * above) + 5 - RING_LABEL_LEAD_V3;
+        const above = Math.max(
+          0,
+          RING_CENTER_V3.y - (label.y + 25),
+          label.y - 22 - RING_CENTER_V3.y,
+        );
+        const needed =
+          above >= outer ? 0 : Math.sqrt(outer * outer - above * above) + 5 - RING_LABEL_LEAD_V3;
         let reach = Math.max(Math.abs(label.elbow.x - RING_CENTER_V3.x), needed);
         const curveTo = (out: number) => {
           const post = RING_CENTER_V3.x + label.side * out;
-          return [label.near, label.elbow, { x: post, y: label.y }, { x: post + label.side * RING_LABEL_LEAD_V3, y: label.y }] as const;
+          return [
+            label.near,
+            label.elbow,
+            { x: post, y: label.y },
+            { x: post + label.side * RING_LABEL_LEAD_V3, y: label.y },
+          ] as const;
         };
         // A label moved up or down: its curve must not graze the ring either.
         while (reach < outer + 40 && curveCrossesRing(...curveTo(reach))) reach += 2;
@@ -357,7 +492,11 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
         const anchor = label.side > 0 ? 'start' : 'end';
         const [first, second] = label.count === 1 ? label.one : label.many;
         return (
-          <g key={label.kind} className="pa3-guide-label" style={{ animationDelay: `${450 + label.order * 160}ms` }}>
+          <g
+            key={label.kind}
+            className="pa3-guide-label"
+            style={{ animationDelay: `${450 + label.order * 160}ms` }}
+          >
             <circle cx={label.near.x} cy={label.near.y} r={2.2} fill={label.colour} />
             <path
               d={`M${label.near.x.toFixed(1)} ${label.near.y.toFixed(1)} C${bend.x.toFixed(1)} ${bend.y.toFixed(1)} ${level.x.toFixed(1)} ${level.y.toFixed(1)} ${end.toFixed(1)} ${label.y.toFixed(1)}`}
@@ -366,7 +505,13 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
               strokeWidth={1.3}
               strokeLinecap="round"
             />
-            <text x={text} y={label.y - 3} textAnchor={anchor} className="pa3-guide-count" fill={label.ink}>
+            <text
+              x={text}
+              y={label.y - 3}
+              textAnchor={anchor}
+              className="pa3-guide-count"
+              fill={label.ink}
+            >
               {label.count}
             </text>
             <text x={text} y={label.y + 10} textAnchor={anchor} className="pa3-guide-name">
@@ -380,13 +525,28 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
       })}
       {/* The school days of the year already over, in the centre ("x dias já se passaram"), on
           two short lines so they stay inside the ring. */}
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 2} textAnchor="middle" className="pa3-guide-percent">
+      <text
+        x={RING_CENTER_V3.x}
+        y={RING_CENTER_V3.y + 2}
+        textAnchor="middle"
+        className="pa3-guide-percent"
+      >
         {totals.days}
       </text>
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 15} textAnchor="middle" className="pa3-guide-caption">
+      <text
+        x={RING_CENTER_V3.x}
+        y={RING_CENTER_V3.y + 15}
+        textAnchor="middle"
+        className="pa3-guide-caption"
+      >
         {totals.days === 1 ? 'dia já' : 'dias já'}
       </text>
-      <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 25} textAnchor="middle" className="pa3-guide-caption">
+      <text
+        x={RING_CENTER_V3.x}
+        y={RING_CENTER_V3.y + 25}
+        textAnchor="middle"
+        className="pa3-guide-caption"
+      >
         {totals.days === 1 ? 'se passou' : 'se passaram'}
       </text>
     </svg>
@@ -444,9 +604,15 @@ function frequencyFailureV3(
   onRetry: () => void,
 ): [string, [string, () => void] | null] {
   if (error === 'unauthenticated')
-    return ['Sua sessão expirou. Entre novamente para ver a frequência.', onLogin ? ['Entrar', onLogin] : null];
+    return [
+      'Sua sessão expirou. Entre novamente para ver a frequência.',
+      onLogin ? ['Entrar', onLogin] : null,
+    ];
   if (error === 'forbidden') return ['A frequência não está disponível no momento.', null];
-  return ['Não foi possível carregar a frequência agora. Vamos tentar de novo em instantes.', ['Tentar agora', onRetry]];
+  return [
+    'Não foi possível carregar a frequência agora. Vamos tentar de novo em instantes.',
+    ['Tentar agora', onRetry],
+  ];
 }
 
 /** While the year has not come yet, or cannot be shown: what happened, in plain words. */
@@ -485,7 +651,12 @@ function FrequencyStatusV3({
   );
 }
 
-export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthenticationLost }: Readonly<FrequencyPageV3Props>) {
+export function FrequencyPageV3({
+  client,
+  academicYear = 2026,
+  onLogin,
+  onAuthenticationLost,
+}: Readonly<FrequencyPageV3Props>) {
   // The whole school year so far, read once with the sign-in (changing months must never blink
   // nor wait): every month, the school's today, the year's counts.
   const read = useCallback(
@@ -565,7 +736,9 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
           bells={year.bells}
           bellsValidFrom={year.bellsValidFrom}
           grid={year.grid}
-          countdown={<SchoolYearCountdownV3 schoolYear={year.schoolYear ?? null} today={year.today} />}
+          countdown={
+            <SchoolYearCountdownV3 schoolYear={year.schoolYear ?? null} today={year.today} />
+          }
         />
       ) : (
         <FrequencyStatusV3 error={load.error} onLogin={onLogin} onRetry={load.retry} />
@@ -575,7 +748,9 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
 }
 
 /** The sentence for the family: a warning in amber, a good news in green. */
-function FrequencyCommentV3({ comment }: Readonly<{ comment: NonNullable<FrequencyYearSummaryV2['comment']> }>) {
+function FrequencyCommentV3({
+  comment,
+}: Readonly<{ comment: NonNullable<FrequencyYearSummaryV2['comment']> }>) {
   const Icon = comment.tone === 'alert' ? TriangleAlert : PartyPopper;
   return (
     <Alert
@@ -603,7 +778,10 @@ const dateLabelV3 = (date: string) => date.split('-').reverse().join('/');
 function SchoolYearCountdownV3({
   schoolYear,
   today,
-}: Readonly<{ schoolYear: NonNullable<FrequencyYearSummaryV2['schoolYear']> | null; today: string }>) {
+}: Readonly<{
+  schoolYear: NonNullable<FrequencyYearSummaryV2['schoolYear']> | null;
+  today: string;
+}>) {
   if (!schoolYear?.firstDay || !schoolYear.lastDay) return null;
   if (today < schoolYear.firstDay)
     return (
@@ -614,7 +792,9 @@ function SchoolYearCountdownV3({
           when={dateLabelV3(schoolYear.firstDay)}
           done="O ano letivo começou."
         />
-        <p className="pa3-countdown-days">{plural(schoolYear.schoolDays, 'dia letivo', 'dias letivos')} no ano.</p>
+        <p className="pa3-countdown-days">
+          {plural(schoolYear.schoolDays, 'dia letivo', 'dias letivos')} no ano.
+        </p>
       </Card>
     );
   // After the last school day only the day it ended: a refresh brings nothing new until the next
@@ -680,10 +860,24 @@ function MonthHeadV3({
     <Card.Header className="pa3-card-head">
       <Card.Title aria-live="polite">{monthLabel(month)}</Card.Title>
       <div className="pa3-month-arrows">
-        <Button isIconOnly size="sm" variant="secondary" aria-label="Mês anterior" isDisabled={!canBack} onPress={() => go(-1)}>
+        <Button
+          isIconOnly
+          size="sm"
+          variant="secondary"
+          aria-label="Mês anterior"
+          isDisabled={!canBack}
+          onPress={() => go(-1)}
+        >
           <ChevronLeft size={18} aria-hidden="true" />
         </Button>
-        <Button isIconOnly size="sm" variant="secondary" aria-label="Próximo mês" isDisabled={!canForward} onPress={() => go(1)}>
+        <Button
+          isIconOnly
+          size="sm"
+          variant="secondary"
+          aria-label="Próximo mês"
+          isDisabled={!canForward}
+          onPress={() => go(1)}
+        >
           <ChevronRight size={18} aria-hidden="true" />
         </Button>
       </div>
@@ -696,7 +890,9 @@ function OpenDayNoteV3({ isToday }: Readonly<{ isToday: boolean }>) {
   return (
     <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
       {/* The teacher marks an absence during the lesson; a presence is only confirmed the next day. */}
-      {isToday ? 'Falta aparece na hora · presença confirma amanhã' : 'Leitura incompleta · conta quando o diário for lido'}
+      {isToday
+        ? 'Falta aparece na hora · presença confirma amanhã'
+        : 'Leitura incompleta · conta quando o diário for lido'}
     </Chip>
   );
 }
@@ -709,7 +905,11 @@ function lessonStateV3(mark: string | undefined, open: boolean): LessonStateV3 {
 }
 
 /** What the calendar knows of each date of a month, from the server's answer. */
-function useMonthDaysV3(data: FrequencySummaryV2, today: string, offByDate: ReadonlyMap<string, SchoolDayOffV1>) {
+function useMonthDaysV3(
+  data: FrequencySummaryV2,
+  today: string,
+  offByDate: ReadonlyMap<string, SchoolDayOffV1>,
+) {
   const monthCount = useMemo(() => frequencyCountV2(data, today), [data, today]);
   // Lessons of each day, straight from the Smecel diary (data.days), kept per shift.
   const lessonsByDay = useMemo(() => {
@@ -720,7 +920,12 @@ function useMonthDaysV3(data: FrequencySummaryV2, today: string, offByDate: Read
       if (same) {
         same.slots = [...new Set([...same.slots, ...day.slots])].sort((a, b) => a - b);
         same.complete &&= day.complete;
-      } else list.push({ shift: day.shift, slots: [...day.slots].sort((a, b) => a - b), complete: day.complete });
+      } else
+        list.push({
+          shift: day.shift,
+          slots: [...day.slots].sort((a, b) => a - b),
+          complete: day.complete,
+        });
       map.set(day.date, list);
     }
     for (const list of map.values()) list.sort((a, b) => a.shift.localeCompare(b.shift));
@@ -729,7 +934,8 @@ function useMonthDaysV3(data: FrequencySummaryV2, today: string, offByDate: Read
   const marksByDay = useMemo(() => {
     const map = new Map<string, MarkV3[]>();
     for (const mark of data.marks) map.set(mark.date, [...(map.get(mark.date) ?? []), mark]);
-    for (const list of map.values()) list.sort((a, b) => a.shift.localeCompare(b.shift) || a.slot - b.slot);
+    for (const list of map.values())
+      list.sort((a, b) => a.shift.localeCompare(b.shift) || a.slot - b.slot);
     return map;
   }, [data]);
   /**
@@ -744,7 +950,10 @@ function useMonthDaysV3(data: FrequencySummaryV2, today: string, offByDate: Read
     const shifts = [...new Set(marks.map((mark) => mark.shift))].sort((a, b) => a.localeCompare(b));
     return shifts.map((shift) => ({
       shift,
-      slots: marks.filter((mark) => mark.shift === shift).map((mark) => mark.slot).sort((a, b) => a - b),
+      slots: marks
+        .filter((mark) => mark.shift === shift)
+        .map((mark) => mark.slot)
+        .sort((a, b) => a - b),
       complete: false,
     }));
   };
@@ -762,7 +971,8 @@ function useMonthDaysV3(data: FrequencySummaryV2, today: string, offByDate: Read
     // No lesson day: "sem aula" only before the diary's last reading, in a month read in full. Never
     // for today (the first reading of the day may not have come yet) nor for a day the collector has
     // not read yet (a reading stopped since then): those are "sem dados".
-    if (!lessons) return monthCount.reliable && readOn !== null && date < readOn ? 'off' : 'unknown';
+    if (!lessons)
+      return monthCount.reliable && readOn !== null && date < readOn ? 'off' : 'unknown';
     // A past day not read in full is only "leitura incompleta", whatever marks it has so far: a
     // colour would be worked out on part of its lessons, and the ring does not count it yet.
     if (date < today && !lessons.every((item) => item.complete)) return 'pending';
@@ -779,7 +989,8 @@ const isPickableV3 = (state: DayStateV3) => state === 'missed' || state === 'pen
 // A day without absence opens too: a parent whose child never misses can still see that day's
 // lessons, every one "Sem falta". It is never chosen at first.
 // A day without school opens too, to say why.
-const opensV3 = (state: DayStateV3) => isPickableV3(state) || state === 'clear' || state === 'holiday';
+const opensV3 = (state: DayStateV3) =>
+  isPickableV3(state) || state === 'clear' || state === 'holiday';
 
 /** The month's name, its legend and its days: the part of the card that follows the finger. */
 function MonthPageV3({
@@ -820,7 +1031,9 @@ function MonthPageV3({
       missed: day ? daySentence(day, isDay) : '',
       pending: isDay ? 'aulas a confirmar' : 'leitura incompleta',
       off: 'sem aula',
-      holiday: offByDate.has(date) ? `sem aula, ${schoolDayOffLabelV1(offByDate.get(date)!)}` : 'sem aula',
+      holiday: offByDate.has(date)
+        ? `sem aula, ${schoolDayOffLabelV1(offByDate.get(date)!)}`
+        : 'sem aula',
       unknown: isDay ? 'nenhuma aula lida até agora' : 'sem dados',
       future: 'data futura, frequência ainda não disponível',
     };
@@ -830,10 +1043,16 @@ function MonthPageV3({
     <div className="pa3-month-page">
       <MonthHeadV3 month={month} canBack={canBack} canForward={canForward} go={go} />
       <ul className="pa3-legend" aria-label="Legenda">
-        <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Faltou o dia todo</li>
+        <li>
+          <span className="pa3-dot pa3-kind--missed" data-tone="3" /> Faltou o dia todo
+        </li>
         {/* Light red: absent in some of the day's lessons. */}
-        <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Faltou algumas aulas</li>
-        <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
+        <li>
+          <span className="pa3-dot pa3-kind--missed" data-tone="1" /> Faltou algumas aulas
+        </li>
+        <li>
+          <span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada
+        </li>
         {/* A day without absence: a white square with its check, as on the calendar. */}
         <li>
           <span className="pa3-dot pa3-dot--clear">
@@ -844,13 +1063,19 @@ function MonthPageV3({
         {/* A holiday or recess: tap it to see why there was no school. */}
         {/* Without one, its line stays empty: every month is as tall, nothing jumps below the card. */}
         {daysOff.some((day) => day.date.startsWith(month)) ? (
-          <li><span className="pa3-dot pa3-dot--holiday" /> Feriado ou recesso</li>
+          <li>
+            <span className="pa3-dot pa3-dot--holiday" /> Feriado ou recesso
+          </li>
         ) : (
           <li aria-hidden="true">&nbsp;</li>
         )}
       </ul>
       {/* A visual grid of buttons; each button says its whole day, so no ARIA grid is needed. */}
-      <fieldset ref={calendar} className="min-w-auto pa3-calendar" aria-label={`Dias de ${monthLabel(month)}`}>
+      <fieldset
+        ref={calendar}
+        className="min-w-auto pa3-calendar"
+        aria-label={`Dias de ${monthLabel(month)}`}
+      >
         {WEEKDAYS_SHORT.map((day, index) => (
           <span key={index} className="pa3-weekday" aria-hidden="true">
             {day}
@@ -868,7 +1093,10 @@ function MonthPageV3({
               key={date}
               type="button"
               className={
-                'pa3-day pa3-day--' + state + ' pa3-kind--' + state +
+                'pa3-day pa3-day--' +
+                state +
+                ' pa3-kind--' +
+                state +
                 (justified ? ' is-justified' : '') +
                 (selected === date ? ' is-selected' : '') +
                 (date === today ? ' is-today' : '')
@@ -881,7 +1109,9 @@ function MonthPageV3({
             >
               <span className="pa3-day-number">{index + 1}</span>
               {/* A school day already over without absence: a small check under the number. */}
-              {state === 'clear' ? <Check className="pa3-day-check" size={10} strokeWidth={3.5} aria-hidden="true" /> : null}
+              {state === 'clear' ? (
+                <Check className="pa3-day-check" size={10} strokeWidth={3.5} aria-hidden="true" />
+              ) : null}
               {date === today ? <span className="pa3-day-today">HOJE</span> : null}
             </button>
           );
@@ -899,7 +1129,12 @@ function MonthPageV3({
 function MonthPeekV3({
   data,
   ...page
-}: Readonly<{ data: FrequencySummaryV2 } & Omit<Parameters<typeof MonthPageV3>[0], 'days' | 'selected' | 'onPick' | 'calendar'>>) {
+}: Readonly<
+  { data: FrequencySummaryV2 } & Omit<
+    Parameters<typeof MonthPageV3>[0],
+    'days' | 'selected' | 'onPick' | 'calendar'
+  >
+>) {
   const days = useMonthDaysV3(data, page.today, page.offByDate);
   return <MonthPageV3 {...page} days={days} selected={null} onPick={() => undefined} />;
 }
@@ -923,12 +1158,14 @@ function lessonInfoV3(
   const { bells, bellsValidFrom, grid } = school;
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   const bellShift = bellShiftOfLabelV1(shift);
-  if (!bellsValidFrom || date < bellsValidFrom || weekday < 1 || weekday > 5 || !bellShift) return null;
+  if (!bellsValidFrom || date < bellsValidFrom || weekday < 1 || weekday > 5 || !bellShift)
+    return null;
   const time = bells ? bellLessonV1(bells[bellShift][weekday as 1 | 2 | 3 | 4 | 5], slot) : null;
   const week = grid.find((item) => item.shift === bellShift);
   const subject =
     week?.validFrom && date >= week.validFrom
-      ? (week.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)?.subject ?? null)
+      ? (week.lessons.find((lesson) => lesson.weekday === weekday && lesson.slot === slot)
+          ?.subject ?? null)
       : null;
   const official = subject ? officialSubjectV1(subject) : null;
   if (!time && !official) return null;
@@ -945,7 +1182,12 @@ function selectedDayV3(
   const selectedLessons = selected ? (lessonsAt(selected) ?? []) : [];
   const selectedDay = selected ? dayAt(selected) : null;
   const selectedOff = selected && !selectedDay ? (offByDate.get(selected) ?? null) : null;
-  const markAt = new Map((selected ? (marksByDay.get(selected) ?? []) : []).map((mark) => [lessonKey(mark.shift, mark.slot), mark]));
+  const markAt = new Map(
+    (selected ? (marksByDay.get(selected) ?? []) : []).map((mark) => [
+      lessonKey(mark.shift, mark.slot),
+      mark,
+    ]),
+  );
   return { selectedLessons, selectedDay, selectedOff, markAt };
 }
 
@@ -1019,7 +1261,14 @@ function FrequencyMonthV3({
     const grid = calendar.current;
     const already = swiped.current;
     swiped.current = false;
-    if (already || from === month || !grid || typeof grid.animate !== 'function' || reducedMotionV3()) return;
+    if (
+      already ||
+      from === month ||
+      !grid ||
+      typeof grid.animate !== 'function' ||
+      reducedMotionV3()
+    )
+      return;
     const side = month > from ? 1 : -1;
     for (const element of [grid, grid.closest('.pa3-month')?.querySelector('[aria-live]')])
       element?.animate(
@@ -1037,14 +1286,17 @@ function FrequencyMonthV3({
       .sort((a, b) => b.localeCompare(a))
       .find((date) => date <= today && isPickableV3(stateOf(date))) ?? null;
   const selected = picked?.startsWith(month) ? picked : firstPick;
-  const { selectedLessons, selectedDay, selectedOff, markAt } = selectedDayV3(monthDays, offByDate, selected);
+  const { selectedLessons, selectedDay, selectedOff, markAt } = selectedDayV3(
+    monthDays,
+    offByDate,
+    selected,
+  );
   const isToday = selected === today;
   // Today, or a past day not read in full: more marks may still come, so nothing is final yet.
   const isOpen = isToday || !selectedLessons.every((group) => group.complete);
 
   return (
     <>
-
       {/*
         The year at a glance: a ring of the school days counted so far this year, by kind. No ruler
         and no limit here (a limit shown to everyone reads as freedom to miss); the limit only
@@ -1072,7 +1324,13 @@ function FrequencyMonthV3({
               calendar={calendar}
             />
             {monthDrag.peek === null ? null : (
-              <div className={'pa-swipe-peek pa-swipe-peek--' + (monthDrag.peek === 1 ? 'next' : 'prev')} aria-hidden="true" inert>
+              <div
+                className={
+                  'pa-swipe-peek pa-swipe-peek--' + (monthDrag.peek === 1 ? 'next' : 'prev')
+                }
+                aria-hidden="true"
+                inert
+              >
                 <MonthPeekV3
                   data={neighbourData(shiftMonth(month, monthDrag.peek))}
                   month={shiftMonth(month, monthDrag.peek)}
@@ -1106,9 +1364,7 @@ function FrequencyMonthV3({
 
       {selected && selectedDay ? (
         <Card className="pa3-card pa3-day-detail" aria-live="polite">
-          <Card.Title className="pa3-day-detail-title">
-            {dayTitle(selected, today)}
-          </Card.Title>
+          <Card.Title className="pa3-day-detail-title">{dayTitle(selected, today)}</Card.Title>
           {/* Today is always open; a past day is open while its reading is incomplete. */}
           {isOpen ? <OpenDayNoteV3 isToday={isToday} /> : null}
           <p className="pa3-day-detail-sub">{daySentence(selectedDay, isOpen)}</p>
@@ -1116,7 +1372,9 @@ function FrequencyMonthV3({
             const label = shiftLabel(group.shift);
             return (
               <div key={group.shift} className="pa3-shift">
-                {label && selectedLessons.length > 1 ? <h4 className="pa3-shift-title">{label}</h4> : null}
+                {label && selectedLessons.length > 1 ? (
+                  <h4 className="pa3-shift-title">{label}</h4>
+                ) : null}
                 <ol className="pa3-lessons" data-count={group.slots.length}>
                   {group.slots.map((slot) => {
                     const mark = markAt.get(lessonKey(group.shift, slot));
@@ -1130,15 +1388,19 @@ function FrequencyMonthV3({
                         </span>
                         <span className="pa3-lesson-name">{slot}ª aula</span>
                         {info?.time ? <span className="pa3-lesson-time">{info.time}</span> : null}
-                        {info?.subject ? <span className="pa3-lesson-subject">{info.subject}</span> : null}
-                        <span className="pa3-lesson-state">
-                          {LESSON_STATE_LABEL[state]}
-                        </span>
+                        {info?.subject ? (
+                          <span className="pa3-lesson-subject">{info.subject}</span>
+                        ) : null}
+                        <span className="pa3-lesson-state">{LESSON_STATE_LABEL[state]}</span>
                       </li>
                     );
                   })}
                 </ol>
-                {label && selectedLessons.length === 1 ? <p className="pa3-shift-foot">{label} · {plural(group.slots.length, 'aula', 'aulas')}</p> : null}
+                {label && selectedLessons.length === 1 ? (
+                  <p className="pa3-shift-foot">
+                    {label} · {plural(group.slots.length, 'aula', 'aulas')}
+                  </p>
+                ) : null}
               </div>
             );
           })}
@@ -1148,10 +1410,7 @@ function FrequencyMonthV3({
       {/* The last reading of the class's diary ("Atualizado em"), unchanged readings included;
           none is invented when the server has none. */}
       {data.lastReadAt ? (
-        <p className="pa3-footnote">
-          Atualizado em{' '}
-          {schoolShortDateTimeTextV1(data.lastReadAt)}
-        </p>
+        <p className="pa3-footnote">Atualizado em {schoolShortDateTimeTextV1(data.lastReadAt)}</p>
       ) : null}
     </>
   );

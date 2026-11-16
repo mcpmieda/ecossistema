@@ -158,9 +158,15 @@ beforeAll(async () => {
   ])
     await pg.exec(readFileSync(`migrations/student-portal/${file}`, 'utf8'));
   await installReconciliationSchemaFixtureV1(pg);
-  await pg.exec(readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'));
-  await pg.exec(readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'));
-  await pg.exec(readFileSync('migrations/gradebook-simplified/0017_drop_ano_letivo_historico_v1.sql', 'utf8'));
+  await pg.exec(
+    readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'),
+  );
+  await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'),
+  );
+  await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0017_drop_ano_letivo_historico_v1.sql', 'utf8'),
+  );
   await pg.exec(`
     INSERT INTO student_portal.revision_event
       (event_id,academic_year,student_ids,cause,affects_academic,affects_reset,

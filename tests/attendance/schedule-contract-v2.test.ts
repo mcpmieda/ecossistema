@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { frequencyScheduleV2, frequencyScheduleWriteV2 } from '../../shared/attendance-contracts/frequency-v2';
+import {
+  frequencyScheduleV2,
+  frequencyScheduleWriteV2,
+} from '../../shared/attendance-contracts/frequency-v2';
 
 // Every 15 minutes from 07:00 to 18:45: what the Coletor's "Em intervalos" can produce.
 const times = (count: number) =>
@@ -22,7 +25,8 @@ const schedule = (dayTimes: string[], recheck: string | null = null) => ({
 
 describe('frequencyScheduleV2 time zone', () => {
   // Accepted zones are remembered (issue #1490, finding 1); rejected ones are checked every time.
-  const zone = (timezone: string) => frequencyScheduleV2.safeParse({ ...schedule(times(2)), timezone }).success;
+  const zone = (timezone: string) =>
+    frequencyScheduleV2.safeParse({ ...schedule(times(2)), timezone }).success;
   it('accepts the exact IANA name on every parse and still rejects the others', () => {
     for (let round = 0; round < 2; round++) {
       expect(zone('America/Bahia')).toBe(true);
@@ -46,7 +50,9 @@ describe('frequencyScheduleV2 daily limit', () => {
   });
 });
 
-const rules = (fill: (i: number) => { enabled: boolean; times: string[]; recheck: string | null }) => ({
+const rules = (
+  fill: (i: number) => { enabled: boolean; times: string[]; recheck: string | null },
+) => ({
   timezone: 'America/Bahia',
   rules: Array.from({ length: 14 }, (_, i) => ({
     weekday: Math.floor(i / 2),
@@ -69,31 +75,56 @@ describe('frequencyScheduleWriteV2 (what a save may write)', () => {
         const m = start + i * 5;
         return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
       });
-    const morning = every5(0), afternoon = every5(240);
+    const morning = every5(0),
+      afternoon = every5(240);
     expect(new Set([...morning, ...afternoon]).size).toBe(96);
-    const value = rules(i => (i === 2 ? { enabled: true, times: morning, recheck: null }
-      : i === 3 ? { enabled: true, times: afternoon, recheck: null } : off));
+    const value = rules((i) =>
+      i === 2
+        ? { enabled: true, times: morning, recheck: null }
+        : i === 3
+          ? { enabled: true, times: afternoon, recheck: null }
+          : off,
+    );
     expect(frequencyScheduleV2.safeParse(value).success).toBe(true); // Each rule is within 48; still readable.
     expect(frequencyScheduleWriteV2.safeParse(value).success).toBe(false); // Over the daily budget.
     // Exactly 48 distinct moments split across the two shifts is accepted.
-    const split = rules(i => (i === 2 ? { enabled: true, times: morning.slice(0, 24), recheck: null }
-      : i === 3 ? { enabled: true, times: morning.slice(24), recheck: null } : off));
+    const split = rules((i) =>
+      i === 2
+        ? { enabled: true, times: morning.slice(0, 24), recheck: null }
+        : i === 3
+          ? { enabled: true, times: morning.slice(24), recheck: null }
+          : off,
+    );
     expect(frequencyScheduleWriteV2.safeParse(split).success).toBe(true);
   });
 
   it('rejects an enabled shift without any moment, accepts a disabled empty one and a recheck-only one', () => {
-    expect(frequencyScheduleWriteV2.safeParse(rules(i => (i === 2 ? { enabled: true, times: [], recheck: null } : off))).success).toBe(false);
+    expect(
+      frequencyScheduleWriteV2.safeParse(
+        rules((i) => (i === 2 ? { enabled: true, times: [], recheck: null } : off)),
+      ).success,
+    ).toBe(false);
     expect(frequencyScheduleWriteV2.safeParse(rules(() => off)).success).toBe(true);
-    expect(frequencyScheduleWriteV2.safeParse(rules(i => (i === 2 ? { enabled: true, times: [], recheck: '18:30' } : off))).success).toBe(true);
+    expect(
+      frequencyScheduleWriteV2.safeParse(
+        rules((i) => (i === 2 ? { enabled: true, times: [], recheck: '18:30' } : off)),
+      ).success,
+    ).toBe(true);
   });
 
   it('requires at least 5 minutes between moments of the same day', () => {
-    const dense = rules(i => (i === 2 ? { enabled: true, times: ['07:00', '07:04'], recheck: null } : off));
-    const spaced = rules(i => (i === 2 ? { enabled: true, times: ['07:00', '07:05'], recheck: null } : off));
+    const dense = rules((i) =>
+      i === 2 ? { enabled: true, times: ['07:00', '07:04'], recheck: null } : off,
+    );
+    const spaced = rules((i) =>
+      i === 2 ? { enabled: true, times: ['07:00', '07:05'], recheck: null } : off,
+    );
     const result = frequencyScheduleWriteV2.safeParse(dense);
     expect(result.success).toBe(false);
     // The message names the day so the administrator finds it among the 14 rules.
-    expect(result.error?.issues.map(issue => issue.message)).toContain('Segunda-feira: deixe pelo menos 5 minutos entre as coletas.');
+    expect(result.error?.issues.map((issue) => issue.message)).toContain(
+      'Segunda-feira: deixe pelo menos 5 minutos entre as coletas.',
+    );
     expect(frequencyScheduleWriteV2.safeParse(spaced).success).toBe(true);
   });
 });

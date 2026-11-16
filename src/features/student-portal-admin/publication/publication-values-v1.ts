@@ -28,7 +28,8 @@ export const PUBLICATION_LABELS_V1 = {
  */
 export function publicationPartialV1(item: PublicationItemV1) {
   const { publishedCount, targetCount } = item;
-  if (item.publishedRevision === null || publishedCount === undefined || targetCount === undefined) return null;
+  if (item.publishedRevision === null || publishedCount === undefined || targetCount === undefined)
+    return null;
   return publishedCount < targetCount ? { published: publishedCount, total: targetCount } : null;
 }
 export function publicationSnapshotV1(

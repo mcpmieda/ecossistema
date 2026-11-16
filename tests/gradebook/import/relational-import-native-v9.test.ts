@@ -10,23 +10,39 @@ import type { GradebookRelationImportRequestV9 } from '../../../shared/gradebook
 const relation: GradebookRelationImportRequestV9 = {
   transportVersion: 9,
   operation: 'persist-relacao',
-  manifest: { fileName: 'RELACAO SINTETICA.xlsb', sha256: 'a'.repeat(64), parserVersion: 'native-test' },
+  manifest: {
+    fileName: 'RELACAO SINTETICA.xlsb',
+    sha256: 'a'.repeat(64),
+    parserVersion: 'native-test',
+  },
   ano: 2026,
-  turmas: [{ codigo: 'T26', nome: 'TURMA SINTETICA', etapa: 6, turno: 'MATUTINO', alunos: [[1, 'ALUNO SINTETICO', 0]] }],
+  turmas: [
+    {
+      codigo: 'T26',
+      nome: 'TURMA SINTETICA',
+      etapa: 6,
+      turno: 'MATUTINO',
+      alunos: [[1, 'ALUNO SINTETICO', 0]],
+    },
+  ],
 };
 
 type NativeCallV9 = { text: string; values: readonly unknown[] };
 type IdentityReadV9 = 'student_source_observation_v1' | 'student_reconciliation_decision_v1';
 
-function fixture(options: {
-  existing?: boolean;
-  failure?: Error;
-  identityFailure?: { relation: IdentityReadV9; error: Error };
-} = {}) {
+function fixture(
+  options: {
+    existing?: boolean;
+    failure?: Error;
+    identityFailure?: { relation: IdentityReadV9; error: Error };
+  } = {},
+) {
   const calls: NativeCallV9[] = [];
   const events: string[] = [];
   const database = createGradebookPostgresDatabaseFromSqlV1({
-    unsafe: async () => { throw new Error('native-import-escaped-transaction'); },
+    unsafe: async () => {
+      throw new Error('native-import-escaped-transaction');
+    },
     async begin(operation) {
       events.push('begin');
       try {
@@ -35,35 +51,61 @@ function fixture(options: {
           async unsafe(text, values = []) {
             calls.push({ text, values });
             let rows: Record<string, unknown>[] = [];
-            if (options.identityFailure && text.includes(`FROM gradebook.${options.identityFailure.relation}`)) {
+            if (
+              options.identityFailure &&
+              text.includes(`FROM gradebook.${options.identityFailure.relation}`)
+            ) {
               throw options.identityFailure.error;
             }
-            if (text.startsWith('INSERT INTO gradebook.vinculo') && options.failure) throw options.failure;
-            if (text.startsWith('INSERT INTO gradebook.turma') || (options.existing && text.startsWith('SELECT id, codigo, nome'))) {
-              rows = [{ id: 10, codigo: 'T26', nome: 'TURMA SINTETICA', etapa: 6, turno: 'MATUTINO' }];
+            if (text.startsWith('INSERT INTO gradebook.vinculo') && options.failure)
+              throw options.failure;
+            if (
+              text.startsWith('INSERT INTO gradebook.turma') ||
+              (options.existing && text.startsWith('SELECT id, codigo, nome'))
+            ) {
+              rows = [
+                { id: 10, codigo: 'T26', nome: 'TURMA SINTETICA', etapa: 6, turno: 'MATUTINO' },
+              ];
             } else if (text.startsWith('INSERT INTO gradebook.aluno')) rows = [{ id: 20 }];
             else if (text.startsWith('SELECT reset_version')) rows = [{ reset_version: '2026:1' }];
-            else if (text.includes('synchronize_gradebook_profiles_v1')) rows = [{ synchronized: 1 }];
+            else if (text.includes('synchronize_gradebook_profiles_v1'))
+              rows = [{ synchronized: 1 }];
             else if (options.existing && text.startsWith('SELECT ano FROM')) rows = [{ ano: 2026 }];
             else if (options.existing && text.startsWith('SELECT v.turma_id')) {
-              rows = [{ turma_id: 10, numero: 1, aluno_id: 20, situacao: null, turma_relacionada_id: null, nome: 'ALUNO SINTETICO', student_uid: '11111111-1111-4111-8111-111111111111' }];
-            } else if (options.existing && text.startsWith('SELECT nome FROM')) rows = [{ nome: 'ALUNO SINTETICO' }];
+              rows = [
+                {
+                  turma_id: 10,
+                  numero: 1,
+                  aluno_id: 20,
+                  situacao: null,
+                  turma_relacionada_id: null,
+                  nome: 'ALUNO SINTETICO',
+                  student_uid: '11111111-1111-4111-8111-111111111111',
+                },
+              ];
+            } else if (options.existing && text.startsWith('SELECT nome FROM'))
+              rows = [{ nome: 'ALUNO SINTETICO' }];
             return Object.assign(rows, { count: text.startsWith('INSERT') ? 1 : rows.length });
           },
         });
         events.push('commit');
         return result;
-      } catch (error) { events.push('rollback'); throw error; }
+      } catch (error) {
+        events.push('rollback');
+        throw error;
+      }
     },
   });
   const native = {
     query: database.query.bind(database),
     executeNative: database.executeNative.bind(database),
     transaction<T>(operation: (transaction: GradebookPostgresWritePortV1) => Promise<T>) {
-      return database.transaction(tx => operation({
-        query: tx.query.bind(tx),
-        executeNative: tx.executeNative.bind(tx),
-      }));
+      return database.transaction((tx) =>
+        operation({
+          query: tx.query.bind(tx),
+          executeNative: tx.executeNative.bind(tx),
+        }),
+      );
     },
   };
   return { service: createRelationalImportWriter(native), database, native, calls, events };
@@ -74,15 +116,24 @@ function expectValidatedRelationPreviewV9(calls: readonly NativeCallV9[]) {
   expect(calls.slice(0, 10)).toEqual([
     { text: 'SELECT pg_advisory_xact_lock_shared(613,0)', values: [] },
     { text: 'SELECT pg_advisory_xact_lock(613,$1::integer)', values: [2026] },
-    { text: 'SELECT id, codigo, nome, etapa, turno FROM gradebook.turma WHERE ano=$1 ORDER BY id', values: [2026] },
+    {
+      text: 'SELECT id, codigo, nome, etapa, turno FROM gradebook.turma WHERE ano=$1 ORDER BY id',
+      values: [2026],
+    },
     {
       text: `SELECT v.turma_id, v.numero, v.aluno_id, v.situacao, v.turma_relacionada_id, a.nome, a.student_uid::text
      FROM gradebook.vinculo v JOIN gradebook.aluno a ON a.id=v.aluno_id
      WHERE v.ano=$1 ORDER BY v.turma_id,v.numero`,
       values: [2026],
     },
-    { text: expect.stringContaining('FROM gradebook.student_source_observation_v1 o'), values: [2026] },
-    { text: expect.stringContaining('FROM gradebook.student_reconciliation_decision_v1'), values: [2026] },
+    {
+      text: expect.stringContaining('FROM gradebook.student_source_observation_v1 o'),
+      values: [2026],
+    },
+    {
+      text: expect.stringContaining('FROM gradebook.student_reconciliation_decision_v1'),
+      values: [2026],
+    },
     { text: 'SELECT pg_advisory_xact_lock_shared(613,0)', values: [] },
     { text: 'SELECT pg_advisory_xact_lock(613,$1::integer)', values: [2026] },
     { text: 'SELECT student_portal.ensure_year_coordination_v1($1::smallint)', values: [2026] },
@@ -90,7 +141,9 @@ function expectValidatedRelationPreviewV9(calls: readonly NativeCallV9[]) {
   ]);
   expect(calls[4]?.text).toContain('WHERE o.academic_year=$1');
   expect(calls[5]?.text).toContain('WHERE academic_year=$1');
-  expect(calls[5]?.text).toContain('ORDER BY source_id,student_uid,sequence DESC,recorded_at DESC,id DESC');
+  expect(calls[5]?.text).toContain(
+    'ORDER BY source_id,student_uid,sequence DESC,recorded_at DESC,id DESC',
+  );
 }
 
 describe('V9 native import port', () => {
@@ -105,51 +158,102 @@ describe('V9 native import port', () => {
     expect(events).toEqual(['begin', 'commit']);
     expectValidatedRelationPreviewV9(calls);
     expect(calls.filter(({ text }) => text.startsWith('INSERT'))).toEqual([
-      { text: 'INSERT INTO gradebook.ano_letivo (ano, minimo_aprovacao, max_componentes_conselho) VALUES ($1, 60000, 2)', values: [2026] },
-      { text: 'INSERT INTO gradebook.turma (ano, codigo, nome, etapa, turno) VALUES ($1, $2, $3, $4, $5)\n         RETURNING id, codigo, nome, etapa, turno', values: [2026, 'T26', 'TURMA SINTETICA', 6, 'MATUTINO'] },
-      { text: 'INSERT INTO gradebook.aluno (ano, nome) VALUES ($1, $2) RETURNING id', values: [2026, 'ALUNO SINTETICO'] },
-      { text: 'INSERT INTO gradebook.vinculo (ano, turma_id, numero, aluno_id, situacao, turma_relacionada_id) VALUES ($1, $2, $3, $4, $5, $6)', values: [2026, 10, 1, 20, null, null] },
+      {
+        text: 'INSERT INTO gradebook.ano_letivo (ano, minimo_aprovacao, max_componentes_conselho) VALUES ($1, 60000, 2)',
+        values: [2026],
+      },
+      {
+        text: 'INSERT INTO gradebook.turma (ano, codigo, nome, etapa, turno) VALUES ($1, $2, $3, $4, $5)\n         RETURNING id, codigo, nome, etapa, turno',
+        values: [2026, 'T26', 'TURMA SINTETICA', 6, 'MATUTINO'],
+      },
+      {
+        text: 'INSERT INTO gradebook.aluno (ano, nome) VALUES ($1, $2) RETURNING id',
+        values: [2026, 'ALUNO SINTETICO'],
+      },
+      {
+        text: 'INSERT INTO gradebook.vinculo (ano, turma_id, numero, aluno_id, situacao, turma_relacionada_id) VALUES ($1, $2, $3, $4, $5, $6)',
+        values: [2026, 10, 1, 20, null, null],
+      },
     ]);
-    expect(calls.at(-2)?.values).toEqual([expect.any(String), 2026, 'relation', 1, { value: '[]', oid: 25 }]);
-    expect(calls.at(-1)?.text).toBe('SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()');
+    expect(calls.at(-2)?.values).toEqual([
+      expect.any(String),
+      2026,
+      'relation',
+      1,
+      { value: '[]', oid: 25 },
+    ]);
+    expect(calls.at(-1)?.text).toBe(
+      'SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()',
+    );
   });
 
   it('keeps an identical relation read-only with no revision or import ledger write', async () => {
     const { service, calls, events } = fixture({ existing: true });
-    expect(await service.execute(relation)).toMatchObject({ state: 'no-changes', summary: { committedWrites: { total: 0 } } });
+    expect(await service.execute(relation)).toMatchObject({
+      state: 'no-changes',
+      summary: { committedWrites: { total: 0 } },
+    });
     expectValidatedRelationPreviewV9(calls);
     expect(calls).toHaveLength(12);
     expect(calls.every(({ text }) => text.startsWith('SELECT'))).toBe(true);
-    expect(calls.at(-1)).toEqual({ text: 'SELECT nome FROM gradebook.aluno WHERE id = $1 AND ano = $2', values: [20, 2026] });
+    expect(calls.at(-1)).toEqual({
+      text: 'SELECT nome FROM gradebook.aluno WHERE id = $1 AND ano = $2',
+      values: [20, 2026],
+    });
     expect(events).toEqual(['begin', 'commit']);
   });
 
   it.each<IdentityReadV9>(['student_source_observation_v1', 'student_reconciliation_decision_v1'])(
-    'rolls back before any write when identity evidence cannot be read: %s', async identityRelation => {
+    'rolls back before any write when identity evidence cannot be read: %s',
+    async (identityRelation) => {
       const failure = Object.assign(new Error('synthetic identity read denied'), { code: '42501' });
-      const { service, calls, events } = fixture({ identityFailure: { relation: identityRelation, error: failure } });
+      const { service, calls, events } = fixture({
+        identityFailure: { relation: identityRelation, error: failure },
+      });
       await expect(service.execute(relation)).rejects.toBe(failure);
       expect(events).toEqual(['begin', 'rollback']);
       expect(calls.at(-1)?.text).toContain(`FROM gradebook.${identityRelation}`);
       expect(calls.every(({ text }) => text.startsWith('SELECT'))).toBe(true);
-      expect(calls.some(({ text }) => /ensure_year_coordination_v1|record_gradebook_change_v1|synchronize_gradebook_profiles_v1/u.test(text))).toBe(false);
+      expect(
+        calls.some(({ text }) =>
+          /ensure_year_coordination_v1|record_gradebook_change_v1|synchronize_gradebook_profiles_v1/u.test(
+            text,
+          ),
+        ),
+      ).toBe(false);
     },
   );
 
-  it.each(['23505', '23503', '23514'])('preserves integrity conflict mapping and driver diagnostics: %s', async code => {
-    const failure = Object.assign(new Error('synthetic integrity failure'), { code });
-    const { service, database, calls, events } = fixture({ failure });
-    expect(await service.execute(relation)).toMatchObject({ transportVersion: 9, state: 'conflict' });
-    expect(events).toEqual(['begin', 'rollback']);
-    expect(calls.at(-1)?.text).toMatch(/^INSERT INTO gradebook.vinculo/u);
-    expect(database.lastFailure()).toEqual({ operation: 'INSERT', relation: 'vinculo', errorType: 'Error', sqlState: code, category: 'unknown' });
-  });
+  it.each(['23505', '23503', '23514'])(
+    'preserves integrity conflict mapping and driver diagnostics: %s',
+    async (code) => {
+      const failure = Object.assign(new Error('synthetic integrity failure'), { code });
+      const { service, database, calls, events } = fixture({ failure });
+      expect(await service.execute(relation)).toMatchObject({
+        transportVersion: 9,
+        state: 'conflict',
+      });
+      expect(events).toEqual(['begin', 'rollback']);
+      expect(calls.at(-1)?.text).toMatch(/^INSERT INTO gradebook.vinculo/u);
+      expect(database.lastFailure()).toEqual({
+        operation: 'INSERT',
+        relation: 'vinculo',
+        errorType: 'Error',
+        sqlState: code,
+        category: 'unknown',
+      });
+    },
+  );
 
   it('rethrows other SQL failures unchanged and rejects roots without transactions', async () => {
     const failure = Object.assign(new Error('permission denied'), { code: '42501' });
     const { service, native } = fixture({ failure });
     await expect(service.execute(relation)).rejects.toBe(failure);
-    await expect(createRelationalImportWriter({ query: native.query, executeNative: native.executeNative }).execute(relation))
-      .rejects.toThrow('gradebook-relational-import-requires-postgres');
+    await expect(
+      createRelationalImportWriter({
+        query: native.query,
+        executeNative: native.executeNative,
+      }).execute(relation),
+    ).rejects.toThrow('gradebook-relational-import-requires-postgres');
   });
 });

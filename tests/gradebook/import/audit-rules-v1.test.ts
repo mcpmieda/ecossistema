@@ -13,21 +13,38 @@ import {
 } from '../fixtures/workbook-reader-equivalence-v1';
 
 const bytes = Uint8Array.of(1, 2, 3, 4).buffer;
-const file = new File([bytes], 'Notas - Docente Fictício - 2026.xlsx', { lastModified: Date.UTC(2026, 0, 5) });
+const file = new File([bytes], 'Notas - Docente Fictício - 2026.xlsx', {
+  lastModified: Date.UTC(2026, 0, 5),
+});
 const manifest = {
-  id: 'source-file-manifest:audit-rules', fileName: file.name, extension: 'xlsx', reportedMimeType: null,
-  sizeBytes: bytes.byteLength, lastModifiedAt: new Date(file.lastModified).toISOString(), sha256: 'c'.repeat(64),
-  sourceContractVersion: 2, parserVersion: 'functional-fixture-adapter', readAt: '2026-10-02T12:00:00.000Z',
+  id: 'source-file-manifest:audit-rules',
+  fileName: file.name,
+  extension: 'xlsx',
+  reportedMimeType: null,
+  sizeBytes: bytes.byteLength,
+  lastModifiedAt: new Date(file.lastModified).toISOString(),
+  sha256: 'c'.repeat(64),
+  sourceContractVersion: 2,
+  parserVersion: 'functional-fixture-adapter',
+  readAt: '2026-10-02T12:00:00.000Z',
 } as unknown as SourceFileManifestV1;
 
 /** The synthetic teacher, with every activity described and maximised, then the case's change. */
 function run(mutate: (sheets: WorkbookFixtureV1['Sheets']) => void = () => {}) {
-  const workbook = structuredClone(WORKBOOK_READER_EQUIVALENCE_CASES_V1.find((item) => item.id === 'teacher')!.workbook);
+  const workbook = structuredClone(
+    WORKBOOK_READER_EQUIVALENCE_CASES_V1.find((item) => item.id === 'teacher')!.workbook,
+  );
   Object.assign(workbook.Sheets['6A3º']!, {
-    AA3: { t: 'n', v: 10 }, AE3: { t: 'n', v: 10 }, AA4: { t: 's', v: 'Atividade A' }, AE4: { t: 's', v: 'Atividade E' },
+    AA3: { t: 'n', v: 10 },
+    AE3: { t: 'n', v: 10 },
+    AA4: { t: 's', v: 'Atividade A' },
+    AE4: { t: 's', v: 'Atividade E' },
   });
   mutate(workbook.Sheets);
-  const result = syntheticResultV1(manifest, readWorkbookData(file, bytes, createFixtureSheetJsV1(workbook), manifest, undefined, true));
+  const result = syntheticResultV1(
+    manifest,
+    readWorkbookData(file, bytes, createFixtureSheetJsV1(workbook), manifest, undefined, true),
+  );
   const diagnostics = collectGradebookImportDiagnosticsV1(result);
   let request: GradebookNotesImportRequestV9 | null;
   try {
@@ -43,12 +60,16 @@ function run(mutate: (sheets: WorkbookFixtureV1['Sheets']) => void = () => {}) {
 describe('audit rules (BN-DEC-046)', () => {
   it('a workbook without problems reports none of the new rules and holds nothing', () => {
     const { codes, firstStudent } = run();
-    expect(codes.filter((code) => !['source-unavailable', 'invalid-maximum'].includes(code))).toEqual([]);
+    expect(
+      codes.filter((code) => !['source-unavailable', 'invalid-maximum'].includes(code)),
+    ).toEqual([]);
     expect(firstStudent?.[2]).not.toEqual(['u']);
   });
 
   it('1. grades in an activity without description hold the column and those students’ results', () => {
-    const { codes, term1, firstStudent } = run((sheets) => { sheets['6A1º']!.AE4 = { t: 's', v: '' }; });
+    const { codes, term1, firstStudent } = run((sheets) => {
+      sheets['6A1º']!.AE4 = { t: 's', v: '' };
+    });
     expect(codes).toContain('activity-without-description');
     expect(term1?.unavailableValueSlots).toContain(15);
     const column = term1!.instrumentos.findIndex(([slot]) => slot === 15);
@@ -57,7 +78,9 @@ describe('audit rules (BN-DEC-046)', () => {
   });
 
   it('2. grades in an activity without a valid maximum hold the column', () => {
-    const { codes, term1 } = run((sheets) => { sheets['6A1º']!.AD5 = { t: 'n', v: 1 }; });
+    const { codes, term1 } = run((sheets) => {
+      sheets['6A1º']!.AD5 = { t: 'n', v: 1 };
+    });
     expect(codes).toContain('activity-without-maximum');
     expect(term1?.unavailableValueSlots).toContain(14);
   });
@@ -69,7 +92,9 @@ describe('audit rules (BN-DEC-046)', () => {
   });
 
   it('4 and 6. activities above the qualitative ceiling hold the results', () => {
-    const { codes, firstStudent } = run((sheets) => { sheets['6A1º']!.AK3 = { t: 'n', v: 5 }; });
+    const { codes, firstStudent } = run((sheets) => {
+      sheets['6A1º']!.AK3 = { t: 'n', v: 5 };
+    });
     expect(codes).toContain('qualitative-maxima-over-ceiling');
     expect(codes).toContain('qualitative-over-ceiling');
     expect(firstStudent?.[2]).toEqual(['u']);
@@ -78,7 +103,11 @@ describe('audit rules (BN-DEC-046)', () => {
   it('6. maxima above the ceiling hold the results even when no student passes it', () => {
     // An extra activity whose maximum alone passes the ceiling, still without grades.
     const { diagnostics, term1 } = run((sheets) => {
-      Object.assign(sheets['6A1º']!, { AK3: { t: 'n', v: 16.5 }, AJ3: { t: 'n', v: 20 }, AJ4: { t: 's', v: 'Atividade J' } });
+      Object.assign(sheets['6A1º']!, {
+        AK3: { t: 'n', v: 16.5 },
+        AJ3: { t: 'n', v: 20 },
+        AJ4: { t: 's', v: 'Atividade J' },
+      });
     });
     const found = diagnostics.find((item) => item.code === 'qualitative-maxima-over-ceiling');
     expect(found?.severity).toBe('blocking-error');
@@ -87,21 +116,27 @@ describe('audit rules (BN-DEC-046)', () => {
   });
 
   it('5. a grade above its maximum is held with the student result', () => {
-    const { codes, firstStudent } = run((sheets) => { sheets['6A1º']!.R5 = { t: 'n', v: 9 }; });
+    const { codes, firstStudent } = run((sheets) => {
+      sheets['6A1º']!.R5 = { t: 'n', v: 9 };
+    });
     expect(codes).toContain('above-maximum');
     expect(firstStudent?.[1][0]).toEqual(['u']);
     expect(firstStudent?.[2]).toEqual(['u']);
   });
 
   it('7. a header naming another term holds the whole class/subject', () => {
-    const { codes, request } = run((sheets) => { sheets['6A1º']!.K4 = { t: 's', v: '2º trimestre' }; });
+    const { codes, request } = run((sheets) => {
+      sheets['6A1º']!.K4 = { t: 's', v: '2º trimestre' };
+    });
     expect(codes).toContain('header-mismatch');
     expect(request).toBeNull();
   });
 
   it('7. K3 written as "6ª SÉRIE A" or "6ANO A" is the same class (issue #1426, finding 4)', () => {
     for (const k3 of ['6ª SÉRIE A', '6ANO A', '6º ANO - A']) {
-      const { codes, request } = run((sheets) => { sheets['6A1º']!.K3 = { t: 's', v: k3 }; });
+      const { codes, request } = run((sheets) => {
+        sheets['6A1º']!.K3 = { t: 's', v: k3 };
+      });
       expect(codes, k3).not.toContain('header-mismatch');
       expect(request, k3).not.toBeNull();
     }
@@ -128,15 +163,21 @@ describe('audit rules (BN-DEC-046)', () => {
   });
 
   it('9. a work grade with the work block off holds the result', () => {
-    const { codes, firstStudent } = run((sheets) => { sheets['6A1º']!.U5 = { t: 'n', v: 2 }; });
+    const { codes, firstStudent } = run((sheets) => {
+      sheets['6A1º']!.U5 = { t: 'n', v: 2 };
+    });
     expect(codes).toContain('work-without-weight');
     expect(firstStudent?.[2]).toEqual(['u']);
   });
 
   it('10. a grade in a row without a student is only reported', () => {
-    const { codes, diagnostics } = run((sheets) => { sheets['6A1º']!.R40 = { t: 'n', v: 5 }; });
+    const { codes, diagnostics } = run((sheets) => {
+      sheets['6A1º']!.R40 = { t: 'n', v: 5 };
+    });
     expect(codes).toContain('grade-without-student');
-    expect(diagnostics.find((item) => item.code === 'grade-without-student')?.severity).toBe('warning');
+    expect(diagnostics.find((item) => item.code === 'grade-without-student')?.severity).toBe(
+      'warning',
+    );
   });
 
   it('11. AV2 filled in "1 AVALIAÇÃO" mode holds the result', () => {
@@ -151,7 +192,9 @@ describe('audit rules (BN-DEC-046)', () => {
     expect(run().codes).not.toContain('manual-term-result');
     const { codes } = run((sheets) => {
       Object.assign(sheets['6A1º']!, {
-        J6: { t: 'n', v: 2 }, K6: { t: 's', v: 'Estudante Fictício 02' }, AM6: { t: 'n', v: 8, f: 'ROUND(B6,1)' },
+        J6: { t: 'n', v: 2 },
+        K6: { t: 's', v: 'Estudante Fictício 02' },
+        AM6: { t: 'n', v: 8, f: 'ROUND(B6,1)' },
       });
     });
     expect(codes).toContain('manual-term-result');

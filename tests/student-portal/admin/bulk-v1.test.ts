@@ -128,14 +128,23 @@ describe('bulk administration #1102 with fictitious disposable data', () => {
   it('marks accounts that the individual operation cannot execute without weakening its guard', async () => {
     const first = await service.preview(context, { ...query, action: 'qr-regenerate' });
     const id = first.items[0]!.accountId;
-    await pg.query("UPDATE student_portal.account SET auth_state='pending-activation' WHERE id=$1", [id]);
+    await pg.query(
+      "UPDATE student_portal.account SET auth_state='pending-activation' WHERE id=$1",
+      [id],
+    );
     const qr = await service.preview(context, { ...query, action: 'qr-regenerate' });
-    expect(qr.items.find((item) => item.accountId === id)?.ineligibility).toBe('recovery-unavailable');
+    expect(qr.items.find((item) => item.accountId === id)?.ineligibility).toBe(
+      'recovery-unavailable',
+    );
     const reset = await service.preview(context, { ...query, action: 'password-reset' });
-    expect(reset.items.find((item) => item.accountId === id)?.ineligibility).toBe('recovery-unavailable');
+    expect(reset.items.find((item) => item.accountId === id)?.ineligibility).toBe(
+      'recovery-unavailable',
+    );
     await pg.query('UPDATE student_portal.account SET blocked=true WHERE id=$1', [id]);
     const block = await service.preview(context, query);
-    expect(block.items.find((item) => item.accountId === id)?.ineligibility).toBe('already-blocked');
+    expect(block.items.find((item) => item.accountId === id)?.ineligibility).toBe(
+      'already-blocked',
+    );
   });
 
   it('binds cursors to the actor, action, scope, limit and revision', async () => {
@@ -201,8 +210,12 @@ describe('bulk administration #1102 with fictitious disposable data', () => {
     timeOffset = 6 * 60_000;
     expect(await service.execute(context, input)).toEqual(result);
     expect(
-      (await pg.query<{ version: number }>('SELECT version FROM student_portal.account WHERE id=$1', [input.accountId]))
-        .rows[0]!.version,
+      (
+        await pg.query<{ version: number }>(
+          'SELECT version FROM student_portal.account WHERE id=$1',
+          [input.accountId],
+        )
+      ).rows[0]!.version,
     ).toBe(1);
     expect(
       (
@@ -229,8 +242,12 @@ describe('bulk administration #1102 with fictitious disposable data', () => {
     timeOffset = 25 * 3_600_000;
     await expect(service.execute(context, input)).rejects.toThrow('preview-conflict');
     expect(
-      (await pg.query<{ version: number }>('SELECT version FROM student_portal.account WHERE id=$1', [input.accountId]))
-        .rows[0]!.version,
+      (
+        await pg.query<{ version: number }>(
+          'SELECT version FROM student_portal.account WHERE id=$1',
+          [input.accountId],
+        )
+      ).rows[0]!.version,
     ).toBe(1);
   });
 

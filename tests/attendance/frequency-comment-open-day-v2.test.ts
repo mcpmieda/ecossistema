@@ -20,7 +20,17 @@ const weekdays = (() => {
 })();
 const comment = (dates: readonly string[], isComplete: (date: string) => boolean) =>
   frequencyCommentV2({
-    months: [{ days: dates.map((date) => ({ date, shift: 'MATUTINO', slots: [1, 2, 3, 4, 5], complete: isComplete(date) })), marks: [] }],
+    months: [
+      {
+        days: dates.map((date) => ({
+          date,
+          shift: 'MATUTINO',
+          slots: [1, 2, 3, 4, 5],
+          complete: isComplete(date),
+        })),
+        marks: [],
+      },
+    ],
     today: TODAY,
     schoolDays: 200,
     remainingSchoolDays: 39,

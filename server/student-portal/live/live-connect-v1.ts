@@ -1,6 +1,11 @@
 export interface SecurityRenewalV1 {
-  connectionId: string; sessionId: string; accountId: string; studentId: number; classId: number | null;
-  verifiedAt: number; expiresAt: string;
+  connectionId: string;
+  sessionId: string;
+  accountId: string;
+  studentId: number;
+  classId: number | null;
+  verifiedAt: number;
+  expiresAt: string;
 }
 interface LiveStubV1 {
   fetch(request: Request): Promise<Response>;

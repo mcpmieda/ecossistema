@@ -175,23 +175,53 @@ async function seedRecovery(accountIds = accounts.map((account) => account.id)) 
 
 describe('private administrative API with real persistence', () => {
   // Calendário escolar (owner decision 22/10/2026).
-  const day = (date: string, kind = 'letivo', note?: string) => ({ date, kind, ...(note ? { note } : {}) });
+  const day = (date: string, kind = 'letivo', note?: string) => ({
+    date,
+    kind,
+    ...(note ? { note } : {}),
+  });
   it('is read and written whole, school-wide, with its version and never past 200 school days', async () => {
     // It starts with the official calendar of 2026, saved by migration 0029 (200 school days).
     const official = await query('school-calendar', { scope: SCHOOL });
     expect(official.calendar?.version).toBe(1);
-    expect(official.calendar?.days.filter((item) => item.kind !== 'feriado' && item.kind !== 'recesso' && item.kind !== 'evento')).toHaveLength(200);
+    expect(
+      official.calendar?.days.filter(
+        (item) => item.kind !== 'feriado' && item.kind !== 'recesso' && item.kind !== 'evento',
+      ),
+    ).toHaveLength(200);
     // Only the school scope: a class never has a calendar of its own.
-    expect((await api.query(context(), { contractVersion: 1, operation: 'school-calendar', scope: CLASS, page: {} })).state).toBe('forbidden');
-    const days = [day('2026-03-02'), day('2026-03-03'), day('2026-04-03', 'feriado', 'Paixão de Cristo')];
+    expect(
+      (
+        await api.query(context(), {
+          contractVersion: 1,
+          operation: 'school-calendar',
+          scope: CLASS,
+          page: {},
+        })
+      ).state,
+    ).toBe('forbidden');
+    const days = [
+      day('2026-03-02'),
+      day('2026-03-03'),
+      day('2026-04-03', 'feriado', 'Paixão de Cristo'),
+    ];
     const first = command('school-calendar-set', 1, { academicYear: 2026, days });
     const saved = state(await api.command(context(), first), 'committed');
-    expect(state(await api.command(context(), first), 'committed')).toMatchObject({ operationId: saved.operationId });
+    expect(state(await api.command(context(), first), 'committed')).toMatchObject({
+      operationId: saved.operationId,
+    });
     expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({
       calendar: { academicYear: 2026, version: 2, days },
     });
     // A write from an older reading is refused (two admins never overwrite each other).
-    expect((await api.command(context(), command('school-calendar-set', 1, { academicYear: 2026, days: [] }))).state).toBe('conflict');
+    expect(
+      (
+        await api.command(
+          context(),
+          command('school-calendar-set', 1, { academicYear: 2026, days: [] }),
+        )
+      ).state,
+    ).toBe('conflict');
     // 201 school days are refused before anything is written (Monday to Friday only, so the
     // weekday rule never refuses them first).
     const many = Array.from({ length: 300 }, (_, index) => new Date(Date.UTC(2026, 0, 1 + index)))
@@ -199,18 +229,48 @@ describe('private administrative API with real persistence', () => {
       .slice(0, 201)
       .map((date) => day(date.toISOString().slice(0, 10)));
     expect(many).toHaveLength(201);
-    expect((await api.command(context(), command('school-calendar-set', 2, { academicYear: 2026, days: many }))).state).toBe('invalid-request');
-    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({ calendar: { version: 2 } });
+    expect(
+      (
+        await api.command(
+          context(),
+          command('school-calendar-set', 2, { academicYear: 2026, days: many }),
+        )
+      ).state,
+    ).toBe('invalid-request');
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({
+      calendar: { version: 2 },
+    });
     // Exactly 200 is the rule and is accepted.
-    state(await api.command(context(), command('school-calendar-set', 2, { academicYear: 2026, days: many.slice(0, 200) })), 'committed');
-    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({ calendar: { version: 3 } });
+    state(
+      await api.command(
+        context(),
+        command('school-calendar-set', 2, { academicYear: 2026, days: many.slice(0, 200) }),
+      ),
+      'committed',
+    );
+    expect(await query('school-calendar', { scope: SCHOOL })).toMatchObject({
+      calendar: { version: 3 },
+    });
   });
   // Horário das aulas (owner decision 23/10/2026).
   it('reads and writes the bells whole, school-wide, with their version, refusing a wrong day', async () => {
     // It starts with the school's sheets of 22/06, saved by migration 0030, with the parada (0031).
     const official = await query('school-bells', { scope: SCHOOL });
-    expect(official.bells).toEqual({ academicYear: 2026, version: 2, bells: officialBells2026V1() });
-    expect((await api.query(context(), { contractVersion: 1, operation: 'school-bells', scope: CLASS, page: {} })).state).toBe('forbidden');
+    expect(official.bells).toEqual({
+      academicYear: 2026,
+      version: 2,
+      bells: officialBells2026V1(),
+    });
+    expect(
+      (
+        await api.query(context(), {
+          contractVersion: 1,
+          operation: 'school-bells',
+          scope: CLASS,
+          page: {},
+        })
+      ).state,
+    ).toBe('forbidden');
     const bells = officialBells2026V1();
     bells.matutino[1] = [
       { kind: 'aula', slot: 1, start: '07:10', end: '08:00' },
@@ -219,63 +279,92 @@ describe('private administrative API with real persistence', () => {
     ];
     const first = command('school-bells-set', 2, { academicYear: 2026, bells });
     const saved = state(await api.command(context(), first), 'committed');
-    expect(state(await api.command(context(), first), 'committed')).toMatchObject({ operationId: saved.operationId });
-    expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({ bells: { version: 3, bells } });
+    expect(state(await api.command(context(), first), 'committed')).toMatchObject({
+      operationId: saved.operationId,
+    });
+    expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({
+      bells: { version: 3, bells },
+    });
     // An older reading is refused; so is a day with two lessons at the same time.
-    expect((await api.command(context(), command('school-bells-set', 2, { academicYear: 2026, bells }))).state).toBe('conflict');
+    expect(
+      (await api.command(context(), command('school-bells-set', 2, { academicYear: 2026, bells })))
+        .state,
+    ).toBe('conflict');
     const wrong = officialBells2026V1();
     wrong.vespertino[2] = [
       { kind: 'aula', slot: 1, start: '13:15', end: '14:00' },
       { kind: 'aula', slot: 2, start: '13:30', end: '14:15' },
     ];
-    expect((await api.command(context(), command('school-bells-set', 3, { academicYear: 2026, bells: wrong }))).state).toBe('invalid-request');
+    expect(
+      (
+        await api.command(
+          context(),
+          command('school-bells-set', 3, { academicYear: 2026, bells: wrong }),
+        )
+      ).state,
+    ).toBe('invalid-request');
     expect(await query('school-bells', { scope: SCHOOL })).toMatchObject({ bells: { version: 3 } });
   });
-  it.each([200, 201, 300])('preserves %i-character accented names through QR batches and V1/V2 cursor pages', async (length) => {
-    const original = (await pg.query<{ id: number; nome: string }>(
-      'SELECT id,nome FROM gradebook.aluno WHERE id=ANY($1::bigint[])',
-      [accounts.map((account) => account.student)],
-    )).rows;
-    const names = ['A', 'B'].map((prefix) => prefix + 'ÁÉÕÇ'.repeat(75).slice(0, length - 1));
-    try {
-      for (const [index, account] of accounts.entries())
-        await pg.query('UPDATE gradebook.aluno SET nome=$2 WHERE id=$1', [account.student, names[index]]);
-      await seedRecovery();
-      for (const mode of ['qr-name', 'qr-name-class']) {
-        const snapshot = await query('accounts');
-        const input = command('qr-batch', snapshot.scopeVersion, {
-          classId: CLASS.classId, accountIds: accounts.map((account) => account.id), mode, confirmed: true,
-        });
-        const result = state(await api.command(context(), input), 'qr');
-        expect(result.cards.map((card) => 'name' in card ? card.name : null)).toEqual(names);
-        expect(state(await api.command(context(), input), 'qr').cards).toEqual(result.cards);
-      }
-      for (const contractVersion of [1, 2]) {
-        const operation = contractVersion === 1 ? 'accounts' : 'accounts-read';
-        const read = async (cursor?: string) => {
-          const result = await api.query(context(), {
-            contractVersion, operation, scope: CLASS, page: { limit: 1, ...(cursor ? { cursor } : {}) },
+  it.each([200, 201, 300])(
+    'preserves %i-character accented names through QR batches and V1/V2 cursor pages',
+    async (length) => {
+      const original = (
+        await pg.query<{ id: number; nome: string }>(
+          'SELECT id,nome FROM gradebook.aluno WHERE id=ANY($1::bigint[])',
+          [accounts.map((account) => account.student)],
+        )
+      ).rows;
+      const names = ['A', 'B'].map((prefix) => prefix + 'ÁÉÕÇ'.repeat(75).slice(0, length - 1));
+      try {
+        for (const [index, account] of accounts.entries())
+          await pg.query('UPDATE gradebook.aluno SET nome=$2 WHERE id=$1', [
+            account.student,
+            names[index],
+          ]);
+        await seedRecovery();
+        for (const mode of ['qr-name', 'qr-name-class']) {
+          const snapshot = await query('accounts');
+          const input = command('qr-batch', snapshot.scopeVersion, {
+            classId: CLASS.classId,
+            accountIds: accounts.map((account) => account.id),
+            mode,
+            confirmed: true,
           });
-          if (result.state !== 'accounts' && result.state !== 'accounts-read')
-            throw new Error(`synthetic-long-name-page-${result.state}`);
-          return result;
-        };
-        const first = await read();
-        expect(first.items).toHaveLength(1);
-        if (contractVersion === 2) expect(first.nextCursor!.length).toBeGreaterThan(512);
-        const second = await read(first.nextCursor!);
-        expect(second.items).toHaveLength(1);
-        const pageNames = [...first.items, ...second.items].map((item) => item.name);
-        expect([...pageNames].sort()).toEqual(names);
-        if (contractVersion === 2) expect(pageNames).toEqual(names);
-        expect(second.items[0]!.accountId).not.toBe(first.items[0]!.accountId);
-        expect(second.nextCursor).toBeNull();
-        expect((await read(first.nextCursor!)).items).toEqual(second.items);
+          const result = state(await api.command(context(), input), 'qr');
+          expect(result.cards.map((card) => ('name' in card ? card.name : null))).toEqual(names);
+          expect(state(await api.command(context(), input), 'qr').cards).toEqual(result.cards);
+        }
+        for (const contractVersion of [1, 2]) {
+          const operation = contractVersion === 1 ? 'accounts' : 'accounts-read';
+          const read = async (cursor?: string) => {
+            const result = await api.query(context(), {
+              contractVersion,
+              operation,
+              scope: CLASS,
+              page: { limit: 1, ...(cursor ? { cursor } : {}) },
+            });
+            if (result.state !== 'accounts' && result.state !== 'accounts-read')
+              throw new Error(`synthetic-long-name-page-${result.state}`);
+            return result;
+          };
+          const first = await read();
+          expect(first.items).toHaveLength(1);
+          if (contractVersion === 2) expect(first.nextCursor!.length).toBeGreaterThan(512);
+          const second = await read(first.nextCursor!);
+          expect(second.items).toHaveLength(1);
+          const pageNames = [...first.items, ...second.items].map((item) => item.name);
+          expect([...pageNames].sort()).toEqual(names);
+          if (contractVersion === 2) expect(pageNames).toEqual(names);
+          expect(second.items[0]!.accountId).not.toBe(first.items[0]!.accountId);
+          expect(second.nextCursor).toBeNull();
+          expect((await read(first.nextCursor!)).items).toEqual(second.items);
+        }
+      } finally {
+        for (const row of original)
+          await pg.query('UPDATE gradebook.aluno SET nome=$2 WHERE id=$1', [row.id, row.nome]);
       }
-    } finally {
-      for (const row of original) await pg.query('UPDATE gradebook.aluno SET nome=$2 WHERE id=$1', [row.id, row.nome]);
-    }
-  });
+    },
+  );
 
   it('rejects absent, forged, stale, wrong-tenant or insufficient contexts before database access', async () => {
     const request = { contractVersion: 1, operation: 'accounts', scope: SCHOOL, page: {} };
@@ -465,19 +554,31 @@ describe('private administrative API with real persistence', () => {
     const initial = await query('birth-years');
     const item = initial.items.find((entry) => entry.accountId === accounts[0]!.id)!;
     const write = command('birth-write', item.accountVersion, {
-      item: { action: 'set', accountId: item.accountId, expectedVersion: item.version,
-        year: '2001', confirmation: 'confirmed' },
+      item: {
+        action: 'set',
+        accountId: item.accountId,
+        expectedVersion: item.version,
+        year: '2001',
+        confirmation: 'confirmed',
+      },
     });
     const batch = command('birth-batch', initial.scopeVersion, {
-      classId: CLASS.classId, expectedCount: initial.items.length,
-      items: initial.items.map((entry) => ({ action: 'clear', accountId: entry.accountId, expectedVersion: entry.version })),
+      classId: CLASS.classId,
+      expectedCount: initial.items.length,
+      items: initial.items.map((entry) => ({
+        action: 'clear',
+        accountId: entry.accountId,
+        expectedVersion: entry.version,
+      })),
       confirmed: true,
     });
     for (const input of [write, write, batch, batch]) {
       expect((await api.command(context(), input)).state).toBe('invalid-request');
     }
     expect(await query('birth-years')).toMatchObject({ ...initial, requestId: expect.any(String) });
-    expect((await pg.query('SELECT account_id FROM student_portal.password_credential')).rows).toEqual([]);
+    expect(
+      (await pg.query('SELECT account_id FROM student_portal.password_credential')).rows,
+    ).toEqual([]);
     expect((await query('audit')).items).toEqual([]);
   });
   it('lists sessions without hashes and revokes only the selected account session', async () => {
@@ -800,10 +901,17 @@ describe('private administrative API with real persistence', () => {
       // Two spaces: the same name only after spacing is normalized.
       "INSERT INTO gradebook.aluno(id,ano,nome) VALUES (910099,2026,'SYNTHETIC  ACADEMIC OTHER') ON CONFLICT DO NOTHING",
     );
-    await pg.query('UPDATE student_portal.account SET gradebook_student_id=910099 WHERE id=$1', [accounts[0]!.id]);
+    await pg.query('UPDATE student_portal.account SET gradebook_student_id=910099 WHERE id=$1', [
+      accounts[0]!.id,
+    ]);
     const scope = accountScope();
     const origin = await sql.begin((tx) =>
-      readAccountOriginV1(tx, { contractVersion: 2, operation: 'account-origin', scope, page: { limit: 1 } }, crypto.randomUUID(), new Date()),
+      readAccountOriginV1(
+        tx,
+        { contractVersion: 2, operation: 'account-origin', scope, page: { limit: 1 } },
+        crypto.randomUUID(),
+        new Date(),
+      ),
     );
     expect(origin).toMatchObject({
       state: 'account-origin',
@@ -816,7 +924,9 @@ describe('private administrative API with real persistence', () => {
     const other = command('account-close', 0, { accountId: accounts[1]!.id, confirmed: true });
     expect((await api.command(context(), other)).state).toBe('conflict');
     const input = command('account-close', 0, { accountId: accounts[0]!.id, confirmed: true });
-    expect((await api.command(context(), { ...input, confirmed: false })).state).toBe('invalid-request');
+    expect((await api.command(context(), { ...input, confirmed: false })).state).toBe(
+      'invalid-request',
+    );
     expect((await api.command(context('platform.settings.read'), input)).state).toBe('forbidden');
     const first = state(await api.command(context(), input), 'committed');
     const replay = state(await api.command(context(), input), 'committed');
@@ -836,12 +946,16 @@ describe('private administrative API with real persistence', () => {
     ).rows;
     expect(audit).toEqual([{ kind: 'links-closed', account_id: accounts[0]!.id }]);
     // It leaves the lists and the totals; a second close (new request) is refused.
-    expect((await query('accounts', { scope: SCHOOL })).items.map((item) => item.accountId)).not.toContain(
-      accounts[0]!.id,
-    );
     expect(
-      (await api.command(context(), command('account-close', first.version, { accountId: accounts[0]!.id, confirmed: true })))
-        .state,
+      (await query('accounts', { scope: SCHOOL })).items.map((item) => item.accountId),
+    ).not.toContain(accounts[0]!.id);
+    expect(
+      (
+        await api.command(
+          context(),
+          command('account-close', first.version, { accountId: accounts[0]!.id, confirmed: true }),
+        )
+      ).state,
     ).toBe('conflict');
   });
   it('accepts the full one-hundred-card boundary with bounded SQL rather than per-account round trips', async () => {

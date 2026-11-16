@@ -60,24 +60,40 @@ const READER_URL_V1 = 'https://notas-sync-reader.internal/ler';
 export const READ_PATH_V1 = '/ler';
 const PUBLIC_READ_TIMEOUT_MS_V1 = 170_000;
 
-type ReadEnvV1 = Pick<SyncCoordinatorEnvV1, 'SELF' | 'NOTAS_SYNC_PUBLIC_URL' | 'NOTAS_SYNC_READ_TOKEN'>;
+type ReadEnvV1 = Pick<
+  SyncCoordinatorEnvV1,
+  'SELF' | 'NOTAS_SYNC_PUBLIC_URL' | 'NOTAS_SYNC_READ_TOKEN'
+>;
 
-async function readFileV1(env: ReadEnvV1, input: ProcessWorkbookInputV1,
-  publicFetch: typeof fetch = fetch): Promise<ReadResultV1> {
+async function readFileV1(
+  env: ReadEnvV1,
+  input: ProcessWorkbookInputV1,
+  publicFetch: typeof fetch = fetch,
+): Promise<ReadResultV1> {
   const body = JSON.stringify(input);
   if (env.NOTAS_SYNC_PUBLIC_URL && env.NOTAS_SYNC_READ_TOKEN) {
     const response = await publicFetch(`${env.NOTAS_SYNC_PUBLIC_URL}${READ_PATH_V1}`, {
-      method: 'POST', body, signal: AbortSignal.timeout(PUBLIC_READ_TIMEOUT_MS_V1),
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.NOTAS_SYNC_READ_TOKEN}` },
+      method: 'POST',
+      body,
+      signal: AbortSignal.timeout(PUBLIC_READ_TIMEOUT_MS_V1),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.NOTAS_SYNC_READ_TOKEN}`,
+      },
     });
     if (response.ok) return (await response.json()) as ReadResultV1;
     // Refused before reading (route or secret not there yet): read through SELF instead.
-    if (![401, 404, 405].includes(response.status)) throw new Error(`notas-sync-reader-http-${response.status}`);
-    console.error(JSON.stringify({ event: 'notas-sync-public-read-refused', status: response.status }));
+    if (![401, 404, 405].includes(response.status))
+      throw new Error(`notas-sync-reader-http-${response.status}`);
+    console.error(
+      JSON.stringify({ event: 'notas-sync-public-read-refused', status: response.status }),
+    );
   }
   // Same limit as the public read: a read that never answers must not hold the alarm.
   const response = await env.SELF.fetch(READER_URL_V1, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
     signal: AbortSignal.timeout(PUBLIC_READ_TIMEOUT_MS_V1),
   });
   if (!response.ok) throw new Error(`notas-sync-reader-http-${response.status}`);
@@ -133,7 +149,10 @@ const NOTIFY_DEBOUNCE_MS = 5_000;
 /** A write turn not given back in this time is taken over (a reader that died mid-write). */
 const WRITE_TURN_MAX_MS = 45_000;
 
-const sleepV1 = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); });
+const sleepV1 = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
 const EVENT_LIMIT = 500;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 
@@ -155,9 +174,14 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.retired = env.NOTAS_SYNC?.idFromName(RETIRED_COORDINATOR_NAME_V1).equals(ctx.id) ?? false;
     // SQLite in a Durable Object is synchronous: the tables exist before any request runs.
     if (this.retired) return;
-    this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
-    this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
-    this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
+    this.ctx.storage.sql.exec(
+      `CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+    );
+    this.ctx.storage.sql.exec(
+      `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+    );
+    this.ctx.storage.sql
+      .exec(`CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
       at INTEGER NOT NULL, kind TEXT NOT NULL, actor TEXT, detail TEXT NOT NULL)`);
   }
 
@@ -169,32 +193,61 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   // ---- storage helpers -------------------------------------------------------------
   private meta<T>(key: string, fallback: T): T {
-    const row = this.ctx.storage.sql.exec<{ value: string }>('SELECT value FROM meta WHERE key = ?', key).toArray()[0];
+    const row = this.ctx.storage.sql
+      .exec<{ value: string }>('SELECT value FROM meta WHERE key = ?', key)
+      .toArray()[0];
     return row ? (JSON.parse(row.value) as T) : fallback;
   }
   private setMeta(key: string, value: unknown): void {
-    this.ctx.storage.sql.exec('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      key, JSON.stringify(value));
+    this.ctx.storage.sql.exec(
+      'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      key,
+      JSON.stringify(value),
+    );
   }
   private files(): SyncFileV1[] {
-    return this.ctx.storage.sql.exec<{ data: string }>('SELECT data FROM files').toArray().map((row) => JSON.parse(row.data) as SyncFileV1);
+    return this.ctx.storage.sql
+      .exec<{ data: string }>('SELECT data FROM files')
+      .toArray()
+      .map((row) => JSON.parse(row.data) as SyncFileV1);
   }
   private file(id: string): SyncFileV1 | null {
-    const row = this.ctx.storage.sql.exec<{ data: string }>('SELECT data FROM files WHERE id = ?', id).toArray()[0];
+    const row = this.ctx.storage.sql
+      .exec<{ data: string }>('SELECT data FROM files WHERE id = ?', id)
+      .toArray()[0];
     return row ? (JSON.parse(row.data) as SyncFileV1) : null;
   }
   private saveFile(file: SyncFileV1): void {
-    this.ctx.storage.sql.exec('INSERT INTO files (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data',
-      file.id, JSON.stringify(file));
+    this.ctx.storage.sql.exec(
+      'INSERT INTO files (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data',
+      file.id,
+      JSON.stringify(file),
+    );
   }
-  private event(kind: string, detail: Record<string, unknown> = {}, actor: string | null = null): void {
-    this.ctx.storage.sql.exec('INSERT INTO events (at, kind, actor, detail) VALUES (?, ?, ?, ?)',
-      Date.now(), kind, actor, JSON.stringify(detail));
-    this.ctx.storage.sql.exec('DELETE FROM events WHERE id <= (SELECT max(id) FROM events) - ?', EVENT_LIMIT);
+  private event(
+    kind: string,
+    detail: Record<string, unknown> = {},
+    actor: string | null = null,
+  ): void {
+    this.ctx.storage.sql.exec(
+      'INSERT INTO events (at, kind, actor, detail) VALUES (?, ?, ?, ?)',
+      Date.now(),
+      kind,
+      actor,
+      JSON.stringify(detail),
+    );
+    this.ctx.storage.sql.exec(
+      'DELETE FROM events WHERE id <= (SELECT max(id) FROM events) - ?',
+      EVENT_LIMIT,
+    );
   }
   private settings(): SyncSettingsV1 {
     // The reads at once are no longer a setting: the sync adjusts them (nextParallelV1).
-    return { ...META_DEFAULTS_V1.settings, ...this.meta<Partial<SyncSettingsV1>>('settings', {}), maxParallel: this.parallel().limit };
+    return {
+      ...META_DEFAULTS_V1.settings,
+      ...this.meta<Partial<SyncSettingsV1>>('settings', {}),
+      maxParallel: this.parallel().limit,
+    };
   }
   private parallel(): SyncParallelV1 {
     return this.meta<SyncParallelV1>('parallel', INITIAL_SYNC_PARALLEL_V1);
@@ -207,7 +260,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
    * (a timed-out wait never leaves a ghost in the line).
    */
   async beginWrite(): Promise<string> {
-    if (!this.writer || Date.now() - this.writer.since >= WRITE_TURN_MAX_MS) return this.grantWriteV1();
+    if (!this.writer || Date.now() - this.writer.since >= WRITE_TURN_MAX_MS)
+      return this.grantWriteV1();
     return new Promise<string>((resolve) => {
       this.writeQueue.push(resolve);
       this.watchWriteTurnV1();
@@ -235,7 +289,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const wait = Math.max(0, WRITE_TURN_MAX_MS - (Date.now() - this.writer.since));
     this.writeWatch = setTimeout(() => {
       this.writeWatch = null;
-      if (this.writer && Date.now() - this.writer.since < WRITE_TURN_MAX_MS) return this.watchWriteTurnV1();
+      if (this.writer && Date.now() - this.writer.since < WRITE_TURN_MAX_MS)
+        return this.watchWriteTurnV1();
       const next = this.writeQueue.shift();
       if (next) next(this.grantWriteV1());
       else this.writer = null;
@@ -258,9 +313,18 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
    */
   async tick(caller?: CodeVersionV1): Promise<void> {
     if (this.retired) return this.eraseRetired();
-    if (runsOlderCodeV1(this.env.CF_VERSION_METADATA, caller) && this.inflight.size === 0 && this.writer === null) {
-      console.log(JSON.stringify({ event: 'notas-sync-coordinator-restart',
-        from: this.env.CF_VERSION_METADATA?.id.slice(0, 8), to: caller?.id.slice(0, 8) }));
+    if (
+      runsOlderCodeV1(this.env.CF_VERSION_METADATA, caller) &&
+      this.inflight.size === 0 &&
+      this.writer === null
+    ) {
+      console.log(
+        JSON.stringify({
+          event: 'notas-sync-coordinator-restart',
+          from: this.env.CF_VERSION_METADATA?.id.slice(0, 8),
+          to: caller?.id.slice(0, 8),
+        }),
+      );
       this.ctx.abort('newer-code-deployed');
       return;
     }
@@ -268,16 +332,22 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const now = Date.now();
     const webhookActive = this.meta<{ id: string } | null>('subscription', null) !== null;
     const lastDelta = this.meta<number | null>('lastDeltaAt', null);
-    const interval = webhookActive ? safetyDeltaIntervalMsV1(await this.pollWindow(now)) : DELTA_INTERVAL_WITHOUT_WEBHOOK_MS;
+    const interval = webhookActive
+      ? safetyDeltaIntervalMsV1(await this.pollWindow(now))
+      : DELTA_INTERVAL_WITHOUT_WEBHOOK_MS;
     if (lastDelta === null || now - lastDelta >= interval) this.setMeta('deltaRequested', true);
     const today = new Date(now).toISOString().slice(0, 10);
-    if (new Date(now).getUTCHours() === NIGHTLY_UTC_HOUR && this.meta<string | null>('nightlyOn', null) !== today) {
+    if (
+      new Date(now).getUTCHours() === NIGHTLY_UTC_HOUR &&
+      this.meta<string | null>('nightlyOn', null) !== today
+    ) {
       this.setMeta('nightlyRequested', true);
       this.setMeta('nightlyOn', today);
     }
     await this.ensureSubscription(now);
     // Only something due wakes the alarm now; otherwise the next one stays as scheduled.
-    if (this.meta('deltaRequested', false) || this.meta('nightlyRequested', false)) await this.wakeAt(now);
+    if (this.meta('deltaRequested', false) || this.meta('nightlyRequested', false))
+      await this.wakeAt(now);
     else await this.scheduleNext();
   }
 
@@ -287,15 +357,48 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const settings = this.settings();
     switch (command.action) {
       // The older panel chose one folder per year; it is now one more source.
-      case 'set-folder': this.addSource({ itemId: command.folderId, kind: 'folder', path: command.folderPath, year: command.year }, actor); break;
-      case 'add-source': this.addSource({ itemId: command.itemId, kind: command.kind, path: command.path, year: command.year }, actor); break;
-      case 'remove-source': this.removeSource(command.itemId); break;
+      case 'set-folder':
+        this.addSource(
+          {
+            itemId: command.folderId,
+            kind: 'folder',
+            path: command.folderPath,
+            year: command.year,
+          },
+          actor,
+        );
+        break;
+      case 'add-source':
+        this.addSource(
+          { itemId: command.itemId, kind: command.kind, path: command.path, year: command.year },
+          actor,
+        );
+        break;
+      case 'remove-source':
+        this.removeSource(command.itemId);
+        break;
       // The cursor kept while off may be too old: start from the current one and list the sources.
-      case 'enable': this.setMeta('settings', { ...settings, enabled: true }); this.setMeta('deltaLink', null); this.setMeta('deltaRequested', true); break;
-      case 'disable': this.setMeta('settings', { ...settings, enabled: false }); break;
-      case 'pause': this.setMeta('settings', { ...settings, paused: true }); break;
-      case 'resume': this.setMeta('settings', { ...settings, paused: false }); this.setMeta('breakerUntil', null); break;
-      case 'set-wait': this.setMeta('settings', { ...settings, waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600) }); break;
+      case 'enable':
+        this.setMeta('settings', { ...settings, enabled: true });
+        this.setMeta('deltaLink', null);
+        this.setMeta('deltaRequested', true);
+        break;
+      case 'disable':
+        this.setMeta('settings', { ...settings, enabled: false });
+        break;
+      case 'pause':
+        this.setMeta('settings', { ...settings, paused: true });
+        break;
+      case 'resume':
+        this.setMeta('settings', { ...settings, paused: false });
+        this.setMeta('breakerUntil', null);
+        break;
+      case 'set-wait':
+        this.setMeta('settings', {
+          ...settings,
+          waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600),
+        });
+        break;
       case 'read-all': {
         // "Conferir tudo agora": every file is read again, whole, even unchanged ones; the result
         // also depends on the Relação and the folder's year.
@@ -304,10 +407,19 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         this.setMeta('nightlyRequested', true);
         break;
       }
-      case 'reread-year': this.rereadYear(command.year); break;
+      case 'reread-year':
+        this.rereadYear(command.year);
+        break;
       case 'read-now': {
         const file = this.file(command.fileId);
-        if (file && file.state !== 'reading') this.saveFile({ ...file, state: 'pending', dueAt: Date.now(), processedHash: null, memory: null });
+        if (file && file.state !== 'reading')
+          this.saveFile({
+            ...file,
+            state: 'pending',
+            dueAt: Date.now(),
+            processedHash: null,
+            memory: null,
+          });
         break;
       }
     }
@@ -341,7 +453,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   }
 
   /** A folder or one workbook of an academic year; the next check lists it whole. */
-  private addSource(source: Pick<SourceV1, 'itemId' | 'kind' | 'path' | 'year'>, actor: OneDriveSyncActorV1): void {
+  private addSource(
+    source: Pick<SourceV1, 'itemId' | 'kind' | 'path' | 'year'>,
+    actor: OneDriveSyncActorV1,
+  ): void {
     const sources = this.sources();
     sources[source.itemId] = { ...source, setBy: actor.name, setAt: Date.now() };
     this.setMeta('sources', sources);
@@ -357,8 +472,18 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const stored = this.meta<Record<string, SourceV1> | null>('sources', null);
     if (stored) return stored;
     const folder = this.activeFolder();
-    const migrated: Record<string, SourceV1> = folder ? { [folder.folderId]: { itemId: folder.folderId, kind: 'folder',
-      path: folder.folderPath, year: folder.year, setBy: folder.setBy, setAt: folder.setAt } } : {};
+    const migrated: Record<string, SourceV1> = folder
+      ? {
+          [folder.folderId]: {
+            itemId: folder.folderId,
+            kind: 'folder',
+            path: folder.folderPath,
+            year: folder.year,
+            setBy: folder.setBy,
+            setAt: folder.setAt,
+          },
+        }
+      : {};
     this.setMeta('sources', migrated);
     if (folder) {
       for (const file of this.files()) {
@@ -372,27 +497,49 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   status(): SyncStatusV1 {
     const subscription = this.meta<{ id: string; expiresAt: string } | null>('subscription', null);
-    const sources = Object.values(this.sources()).sort((a, b) => b.year - a.year || PT_BR_COLLATOR_V1.compare(a.path, b.path));
+    const sources = Object.values(this.sources()).sort(
+      (a, b) => b.year - a.year || PT_BR_COLLATOR_V1.compare(a.path, b.path),
+    );
     return {
       settings: this.settings(),
       activeYear: this.meta<number | null>('activeYear', null),
-      folders: sources.filter((source) => source.kind === 'folder').map((source) => ({
-        year: source.year, folderId: source.itemId, folderPath: source.path, setBy: source.setBy, setAt: source.setAt })),
+      folders: sources
+        .filter((source) => source.kind === 'folder')
+        .map((source) => ({
+          year: source.year,
+          folderId: source.itemId,
+          folderPath: source.path,
+          setBy: source.setBy,
+          setAt: source.setAt,
+        })),
       sources,
       codeVersion: this.env.CF_VERSION_METADATA?.id.slice(0, 8) ?? null,
       parallelCeiling: SYNC_PARALLEL_MAX_V1,
       breakerUntil: this.meta<number | null>('breakerUntil', null),
       webhook: { active: subscription !== null, expiresAt: subscription?.expiresAt ?? null },
       lastDeltaAt: this.meta<number | null>('lastDeltaAt', null),
-      files: this.files().sort((a, b) => PT_BR_COLLATOR_V1.compare(a.name, b.name)).map((file) => ({
-        id: file.id, name: file.name, size: file.size, modifiedAt: file.modifiedAt, state: file.state, removed: file.removed,
-        lastOutcome: file.lastOutcome, lastCode: file.lastCode, lastReadAt: file.lastReadAt, lastReadMs: file.lastReadMs,
-        lastSavedToWrittenMs: file.lastSavedToWrittenMs,
-        lastAppliedAt: file.lastAppliedAt ?? null,
-        ...(file.heldStudents ? { heldStudents: file.heldStudents } : {}),
-      })),
-      events: this.ctx.storage.sql.exec<{ at: number; kind: string; actor: string | null; detail: string }>(
-        'SELECT at, kind, actor, detail FROM events ORDER BY id DESC LIMIT 50').toArray(),
+      files: this.files()
+        .sort((a, b) => PT_BR_COLLATOR_V1.compare(a.name, b.name))
+        .map((file) => ({
+          id: file.id,
+          name: file.name,
+          size: file.size,
+          modifiedAt: file.modifiedAt,
+          state: file.state,
+          removed: file.removed,
+          lastOutcome: file.lastOutcome,
+          lastCode: file.lastCode,
+          lastReadAt: file.lastReadAt,
+          lastReadMs: file.lastReadMs,
+          lastSavedToWrittenMs: file.lastSavedToWrittenMs,
+          lastAppliedAt: file.lastAppliedAt ?? null,
+          ...(file.heldStudents ? { heldStudents: file.heldStudents } : {}),
+        })),
+      events: this.ctx.storage.sql
+        .exec<{ at: number; kind: string; actor: string | null; detail: string }>(
+          'SELECT at, kind, actor, detail FROM events ORDER BY id DESC LIMIT 50',
+        )
+        .toArray(),
     };
   }
 
@@ -401,7 +548,13 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     if (this.retired) return this.eraseRetired();
     const now = Date.now();
     for (const file of expiredLeasesV1(this.files(), now)) {
-      await this.finish(file.id, file.lease ?? '', { outcome: 'failed', code: 'LEASE-EXPIRED', readHash: null, readMs: 0, savedToWrittenMs: null });
+      await this.finish(file.id, file.lease ?? '', {
+        outcome: 'failed',
+        code: 'LEASE-EXPIRED',
+        readHash: null,
+        readMs: 0,
+        savedToWrittenMs: null,
+      });
     }
     if (this.settings().enabled) {
       await this.lookAtOneDrive(now);
@@ -421,21 +574,32 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   /** While someone is editing, the folder is asked every POLL_MS even without a Microsoft notice. */
   private pollDue(now: number): boolean {
-    return this.editPolling(now) && now - (this.meta<number | null>('lastDeltaAt', null) ?? 0) >= POLL_MS;
+    return (
+      this.editPolling(now) && now - (this.meta<number | null>('lastDeltaAt', null) ?? 0) >= POLL_MS
+    );
   }
 
   private editPolling(now: number): boolean {
     const settings = this.settings();
-    return settings.enabled && !settings.paused && now < (this.meta<number | null>('editPollUntil', null) ?? 0);
+    return (
+      settings.enabled &&
+      !settings.paused &&
+      now < (this.meta<number | null>('editPollUntil', null) ?? 0)
+    );
   }
 
   /** Today's poll window, asked of the Portal once a day (again within the hour if it did not answer). */
   private async pollWindow(now: number): Promise<PollWindowV1> {
     const day = schoolDayOfV1(now);
     const cached = this.meta<PollWindowV1 | null>('pollWindow', null);
-    if (cached?.day === day && (cached.retryAfter === null || cached.retryAfter > now)) return cached;
-    const read: SchoolDayWindowV1 | null = await Promise.resolve(this.env.PORTAL_SCHEDULER?.pollWindow?.(day))
-      .then((answer) => answer ?? null, () => null);
+    if (cached?.day === day && (cached.retryAfter === null || cached.retryAfter > now))
+      return cached;
+    const read: SchoolDayWindowV1 | null = await Promise.resolve(
+      this.env.PORTAL_SCHEDULER?.pollWindow?.(day),
+    ).then(
+      (answer) => answer ?? null,
+      () => null,
+    );
     const window = pollWindowV1(day, read, now);
     this.setMeta('pollWindow', window);
     return window;
@@ -444,7 +608,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /** Nightly check, a requested delta, or the school-hours poll; Graph errors back off for a minute. */
   private async lookAtOneDrive(now: number): Promise<void> {
     const breakerUntil = this.meta<number | null>('breakerUntil', null);
-    const graphAllowed = now >= this.meta('graphBackoffUntil', 0) && (breakerUntil === null || breakerUntil <= now);
+    const graphAllowed =
+      now >= this.meta('graphBackoffUntil', 0) && (breakerUntil === null || breakerUntil <= now);
     if (!graphAllowed) return;
     try {
       if (this.meta('nightlyRequested', false)) {
@@ -452,8 +617,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
           this.setMeta('nightlyRequested', true);
           throw cause;
         });
-      }
-      else if (this.meta('deltaRequested', false) || this.pollDue(now)) await this.deltaCheck(now);
+      } else if (this.meta('deltaRequested', false) || this.pollDue(now))
+        await this.deltaCheck(now);
     } catch (cause) {
       if (cause instanceof NoFolderConfiguredError) {
         this.setMeta('deltaRequested', false);
@@ -461,7 +626,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       } else {
         // A listing error only waits (and honours Retry-After); the breaker is for reads that fail.
         this.event('graph-error', { status: graphStatusV1(cause) });
-        this.setMeta('graphBackoffUntil', now + Math.max(60, graphRetryAfterSecondsV1(cause)) * 1000);
+        this.setMeta(
+          'graphBackoffUntil',
+          now + Math.max(60, graphRetryAfterSecondsV1(cause)) * 1000,
+        );
       }
     }
   }
@@ -469,13 +637,18 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /** The folder chosen before sources existed (by its Graph id, so a rename does not break it). */
   private activeFolder(): FolderConfigV1 | null {
     const year = this.meta<number | null>('activeYear', null);
-    return year === null ? null : this.meta<Record<string, FolderConfigV1>>('folders', {})[String(year)] ?? null;
+    return year === null
+      ? null
+      : (this.meta<Record<string, FolderConfigV1>>('folders', {})[String(year)] ?? null);
   }
 
   /** The secretaria's drive (every source lives in it); nothing to look at without a source. */
   private async driveId(): Promise<string> {
     if (Object.keys(this.sources()).length === 0) throw new NoFolderConfiguredError();
-    const known = this.meta<string | null>('driveId', null) ?? this.meta<{ driveId: string } | null>('location', null)?.driveId ?? null;
+    const known =
+      this.meta<string | null>('driveId', null) ??
+      this.meta<{ driveId: string } | null>('location', null)?.driveId ??
+      null;
     if (known) return known;
     const driveId = await graphDriveIdV1(this.env, this.env.NOTAS_SITE_ID);
     this.setMeta('driveId', driveId);
@@ -494,11 +667,25 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       const source = sourceOfV1(item, sources);
       const current = this.file(item.id);
       if (!source && !(item.deleted && current)) continue;
-      if (source && !item.deleted && (current?.modifiedAt !== item.lastModifiedDateTime
-        || current.hash !== item.quickXorHash)) saved = true;
-      const next = observeFileV1(current, {
-        id: item.id, name: item.name, size: item.size, modifiedAt: item.lastModifiedDateTime, hash: item.quickXorHash, deleted: item.deleted,
-      }, now, settings);
+      if (
+        source &&
+        !item.deleted &&
+        (current?.modifiedAt !== item.lastModifiedDateTime || current.hash !== item.quickXorHash)
+      )
+        saved = true;
+      const next = observeFileV1(
+        current,
+        {
+          id: item.id,
+          name: item.name,
+          size: item.size,
+          modifiedAt: item.lastModifiedDateTime,
+          hash: item.quickXorHash,
+          deleted: item.deleted,
+        },
+        now,
+        settings,
+      );
       const file = next ?? current;
       if (!file) continue;
       const placed = placeFileV1(file, source, now);
@@ -528,7 +715,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     }
     // A workbook saved opens (or extends) the 10 s poll: the next saves, and Excel Online's content
     // written after the date it reports, arrive without waiting for Microsoft's notice.
-    if (this.observe(delta.changes, now)) this.setMeta('editPollUntil', editPollUntilV1(await this.pollWindow(now), now));
+    if (this.observe(delta.changes, now))
+      this.setMeta('editPollUntil', editPollUntilV1(await this.pollWindow(now), now));
     this.setMeta('deltaLink', delta.deltaLink);
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
@@ -550,11 +738,18 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   private async resyncSources(now: number, driveId: string, nightly: boolean): Promise<void> {
     const deltaLink = await graphLatestDeltaLinkV1(this.env, driveId);
     const listed: DriveWorkbookV1[] = [];
-    for (const source of Object.values(this.sources())) listed.push(...await this.listSource(driveId, source));
+    for (const source of Object.values(this.sources()))
+      listed.push(...(await this.listSource(driveId, source)));
     const present = new Set(listed.map((item) => item.id));
     this.observe(listed, now);
     for (const file of this.files()) {
-      if (!present.has(file.id) && !file.removed) this.saveFile({ ...file, removed: true, state: file.state === 'reading' ? 'reading' : 'idle', dueAt: null });
+      if (!present.has(file.id) && !file.removed)
+        this.saveFile({
+          ...file,
+          removed: true,
+          state: file.state === 'reading' ? 'reading' : 'idle',
+          dueAt: null,
+        });
       // Once a day the next read of each file writes everything again (memory forgotten).
       else if (nightly && file.memory) this.saveFile({ ...file, memory: null });
     }
@@ -565,7 +760,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   }
 
   /** The workbooks of one source; a folder deleted in OneDrive lists none (its files end up removed). */
-  private async listSource(driveId: string, source: { kind: string; itemId: string }): Promise<DriveWorkbookV1[]> {
+  private async listSource(
+    driveId: string,
+    source: { kind: string; itemId: string },
+  ): Promise<DriveWorkbookV1[]> {
     if (source.kind !== 'folder') {
       const workbook = await graphWorkbookItemV1(this.env, driveId, source.itemId);
       return workbook ? [workbook] : [];
@@ -578,40 +776,78 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   /** Starts every read that may start now; the alarm loop awaits them. */
   private startReads(now: number): void {
-    const driveId = this.meta<string | null>('driveId', null) ?? this.meta<{ driveId: string } | null>('location', null)?.driveId ?? null;
+    const driveId =
+      this.meta<string | null>('driveId', null) ??
+      this.meta<{ driveId: string } | null>('location', null)?.driveId ??
+      null;
     if (!driveId) return;
     const breakerUntil = this.meta<number | null>('breakerUntil', null);
     const maxBytes = Number(this.env.NOTAS_MAX_WORKBOOK_BYTES) || DEFAULT_MAX_BYTES;
     // Only files of a source still chosen are read.
     const sources = this.sources();
-    const files = this.files().filter((file) => file.sourceId !== undefined && sources[file.sourceId] !== undefined);
+    const files = this.files().filter(
+      (file) => file.sourceId !== undefined && sources[file.sourceId] !== undefined,
+    );
     for (const file of filesToStartV1(files, now, this.settings(), breakerUntil)) {
       // Larger than allowed by the listing already: no download, no reader.
       if (file.size > maxBytes) {
-        this.saveFile({ ...file, state: 'idle', dueAt: null, dirty: false, lastOutcome: 'too-large', lastCode: 'FILE-TOO-LARGE',
-          lastReadAt: now, lastReadMs: 0, processedHash: file.hash });
+        this.saveFile({
+          ...file,
+          state: 'idle',
+          dueAt: null,
+          dirty: false,
+          lastOutcome: 'too-large',
+          lastCode: 'FILE-TOO-LARGE',
+          lastReadAt: now,
+          lastReadMs: 0,
+          processedHash: file.hash,
+        });
         continue;
       }
       const lease = crypto.randomUUID();
       this.saveFile(startReadingV1(file, lease, now));
       const input: ProcessWorkbookInputV1 = {
-        driveId, itemId: file.id, name: file.name, hash: file.hash, modifiedAt: file.modifiedAt, maxBytes,
-        expectedYear: file.year ?? this.activeFolder()?.year ?? null, memory: file.memory ?? null,
+        driveId,
+        itemId: file.id,
+        name: file.name,
+        hash: file.hash,
+        modifiedAt: file.modifiedAt,
+        maxBytes,
+        expectedYear: file.year ?? this.activeFolder()?.year ?? null,
+        memory: file.memory ?? null,
         // A Relação is written only from a source of its own; the write turn is taken only while
         // there is still time to finish before this read times out.
-        sourceKind: file.sourceId === undefined ? null : sources[file.sourceId]?.kind ?? null,
+        sourceKind: file.sourceId === undefined ? null : (sources[file.sourceId]?.kind ?? null),
         writeDeadlineAt: now + PUBLIC_READ_TIMEOUT_MS_V1 - WRITE_TURN_MAX_MS,
       };
       const read = readFileV1(this.env, input)
         .catch((cause: unknown): ReadResultV1 => {
-          console.error(JSON.stringify({ event: 'notas-sync-reader-unreachable', error: String(cause).slice(0, 300) }));
-          return { outcome: 'failed', code: 'READER-UNREACHABLE', readHash: null, readMs: 0, savedToWrittenMs: null };
+          console.error(
+            JSON.stringify({
+              event: 'notas-sync-reader-unreachable',
+              error: String(cause).slice(0, 300),
+            }),
+          );
+          return {
+            outcome: 'failed',
+            code: 'READER-UNREACHABLE',
+            readHash: null,
+            readMs: 0,
+            savedToWrittenMs: null,
+          };
         })
         .then((result) => this.finish(file.id, lease, result))
         .catch((cause: unknown) => {
-          console.error(JSON.stringify({ event: 'notas-sync-finish-failed', error: String(cause).slice(0, 300) }));
+          console.error(
+            JSON.stringify({
+              event: 'notas-sync-finish-failed',
+              error: String(cause).slice(0, 300),
+            }),
+          );
         })
-        .then(() => { this.inflight.delete(read); });
+        .then(() => {
+          this.inflight.delete(read);
+        });
       this.inflight.add(read);
     }
   }
@@ -625,38 +861,63 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.saveFile(finished);
     const parallel = this.parallel();
     const nextParallel = nextParallelV1(parallel, result);
-    if (nextParallel.limit !== parallel.limit || nextParallel.clean !== parallel.clean) this.setMeta('parallel', nextParallel);
-    if (nextParallel.limit !== parallel.limit) this.event('parallel', { from: parallel.limit, to: nextParallel.limit, code: result.code });
+    if (nextParallel.limit !== parallel.limit || nextParallel.clean !== parallel.clean)
+      this.setMeta('parallel', nextParallel);
+    if (nextParallel.limit !== parallel.limit)
+      this.event('parallel', { from: parallel.limit, to: nextParallel.limit, code: result.code });
     if (result.relationChanged) {
       // New students may have been left out of workbooks read before: the year's are read again.
-      const others = this.files().filter((other) => other.id !== id && !other.removed && other.workbook !== 'relacao'
-        && (file.year === undefined || other.year === file.year));
+      const others = this.files().filter(
+        (other) =>
+          other.id !== id &&
+          !other.removed &&
+          other.workbook !== 'relacao' &&
+          (file.year === undefined || other.year === file.year),
+      );
       for (const other of others) this.saveFile(rereadFileV1(other, now));
       this.event('relation-changed', { reread: others.length });
     }
     // Waiting too long for the write turn is not a failure of OneDrive or of the database.
-    const breaker = result.code === WRITE_QUEUE_DEADLINE_CODE_V1
-      ? { consecutiveFailures: this.meta('consecutiveFailures', 0), breakerUntil: null }
-      : nextBreakerV1(this.meta('consecutiveFailures', 0), result.outcome, now);
+    const breaker =
+      result.code === WRITE_QUEUE_DEADLINE_CODE_V1
+        ? { consecutiveFailures: this.meta('consecutiveFailures', 0), breakerUntil: null }
+        : nextBreakerV1(this.meta('consecutiveFailures', 0), result.outcome, now);
     this.setMeta('consecutiveFailures', breaker.consecutiveFailures);
     if (breaker.breakerUntil !== null) {
       this.setMeta('breakerUntil', breaker.breakerUntil);
       this.event('breaker-open', { until: breaker.breakerUntil });
     }
-    console.log(JSON.stringify({ event: 'notas-sync-read', outcome: result.outcome, code: result.code,
-      readMs: Math.round(result.readMs), savedToWrittenMs: result.savedToWrittenMs }));
+    console.log(
+      JSON.stringify({
+        event: 'notas-sync-read',
+        outcome: result.outcome,
+        code: result.code,
+        readMs: Math.round(result.readMs),
+        savedToWrittenMs: result.savedToWrittenMs,
+      }),
+    );
   }
 
   private async ensureSubscription(now: number): Promise<void> {
     const current = this.meta<{ id: string; expiresAt: string } | null>('subscription', null);
     if (current && Date.parse(current.expiresAt) - now > SUBSCRIPTION_RENEW_BEFORE_MS) return;
-    if (!this.env.NOTAS_SYNC_PUBLIC_URL || !this.env.NOTAS_SYNC_CLIENT_STATE || Object.keys(this.sources()).length === 0) return;
+    if (
+      !this.env.NOTAS_SYNC_PUBLIC_URL ||
+      !this.env.NOTAS_SYNC_CLIENT_STATE ||
+      Object.keys(this.sources()).length === 0
+    )
+      return;
     const lastTry = this.meta<number | null>('subscriptionTriedAt', null);
     if (lastTry !== null && now - lastTry < 60 * 60_000) return;
     this.setMeta('subscriptionTriedAt', now);
     const expiresAt = new Date(now + (DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 - 60) * 60_000);
     // Still there: its expiry moves forward; only a vanished one is created again.
-    if (current && Date.parse(current.expiresAt) > now && (await this.renewSubscription(current.id, expiresAt)) !== 'gone') return;
+    if (
+      current &&
+      Date.parse(current.expiresAt) > now &&
+      (await this.renewSubscription(current.id, expiresAt)) !== 'gone'
+    )
+      return;
     try {
       const driveId = await this.driveId();
       const created = await graphCreateDriveSubscriptionV1(this.env, {
@@ -675,7 +936,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   }
 
   /** PATCH of the subscription's expiry; 'gone' when Graph no longer knows it (then it is created again). */
-  private async renewSubscription(id: string, expiresAt: Date): Promise<'renewed' | 'gone' | 'failed'> {
+  private async renewSubscription(
+    id: string,
+    expiresAt: Date,
+  ): Promise<'renewed' | 'gone' | 'failed'> {
     try {
       const renewed = await graphRenewSubscriptionV1(this.env, id, expiresAt);
       if (renewed === null) return 'gone';
@@ -708,17 +972,29 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const active = settings.enabled && !settings.paused;
     const files = active ? this.files() : this.files().filter((file) => file.state === 'reading');
     const next = nextWakeV1(files, this.meta<number | null>('breakerUntil', null), now);
-    const graphReadyAt = Math.max(now + 5_000, this.meta('graphBackoffUntil', 0), this.meta<number | null>('breakerUntil', null) ?? 0);
-    const pollAt = active && this.editPolling(now)
-      ? Math.max(now + 1_000, (this.meta<number | null>('lastDeltaAt', null) ?? 0) + POLL_MS) : null;
-    const candidates = [next, pendingWork && this.settings().enabled ? graphReadyAt : null, pollAt]
-      .filter((value): value is number => value !== null);
+    const graphReadyAt = Math.max(
+      now + 5_000,
+      this.meta('graphBackoffUntil', 0),
+      this.meta<number | null>('breakerUntil', null) ?? 0,
+    );
+    const pollAt =
+      active && this.editPolling(now)
+        ? Math.max(now + 1_000, (this.meta<number | null>('lastDeltaAt', null) ?? 0) + POLL_MS)
+        : null;
+    const candidates = [
+      next,
+      pendingWork && this.settings().enabled ? graphReadyAt : null,
+      pollAt,
+    ].filter((value): value is number => value !== null);
     if (candidates.length > 0) await this.wakeAt(Math.min(...candidates));
   }
 }
 
 /** The source a workbook belongs to: itself (a single-file source) or its folder; null for anything else. */
-export function sourceOfV1(item: Pick<DriveWorkbookV1, 'id' | 'parentId'>, sources: Record<string, SourceV1>): SourceV1 | null {
+export function sourceOfV1(
+  item: Pick<DriveWorkbookV1, 'id' | 'parentId'>,
+  sources: Record<string, SourceV1>,
+): SourceV1 | null {
   const own = sources[item.id];
   if (own?.kind === 'file') return own;
   const folder = item.parentId === null ? undefined : sources[item.parentId];
@@ -732,7 +1008,10 @@ export type CodeVersionV1 = { readonly id: string; readonly timestamp: string };
  * True only when the caller's code is a later deploy than this object's: during a rollout an
  * older caller never makes a newer object restart (no restart loop).
  */
-export function runsOlderCodeV1(own: CodeVersionV1 | undefined, caller: CodeVersionV1 | undefined): boolean {
+export function runsOlderCodeV1(
+  own: CodeVersionV1 | undefined,
+  caller: CodeVersionV1 | undefined,
+): boolean {
   if (!own || !caller || own.id === caller.id) return false;
   const ownAt = Date.parse(own.timestamp);
   const callerAt = Date.parse(caller.timestamp);
@@ -752,10 +1031,15 @@ class NoFolderConfiguredError extends Error {
 }
 
 function graphRetryAfterSecondsV1(cause: unknown): number {
-  const value = typeof cause === 'object' && cause !== null && 'retryAfterSeconds' in cause ? Number(cause.retryAfterSeconds) : 0;
+  const value =
+    typeof cause === 'object' && cause !== null && 'retryAfterSeconds' in cause
+      ? Number(cause.retryAfterSeconds)
+      : 0;
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 function graphStatusV1(cause: unknown): number | null {
-  return typeof cause === 'object' && cause !== null && 'status' in cause ? Number(cause.status) : null;
+  return typeof cause === 'object' && cause !== null && 'status' in cause
+    ? Number(cause.status)
+    : null;
 }

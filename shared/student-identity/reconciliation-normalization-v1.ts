@@ -1,5 +1,3 @@
-
-
 export function normalizeStudentNameV1(value: string): string {
   return value
     .normalize('NFD')

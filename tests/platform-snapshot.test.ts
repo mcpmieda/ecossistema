@@ -19,14 +19,29 @@ describe('platform snapshot', () => {
       coreModules,
     });
     // The SharePoint registers (modules, settings, audit, migrations) are no longer read (#1473, #1490).
-    for (const retired of ['foundation', 'operational', 'registeredModules', 'configurations', 'recentAudit', 'migrations'])
+    for (const retired of [
+      'foundation',
+      'operational',
+      'registeredModules',
+      'configurations',
+      'recentAudit',
+      'migrations',
+    ])
       expect(snapshot).not.toHaveProperty(retired);
   });
 
   it('keeps only the modules whose capabilities were granted', () => {
-    const snapshot = buildPlatformSnapshot({ correlationId: 'snapshot-limited' }, ['platform.snapshot.read']);
+    const snapshot = buildPlatformSnapshot({ correlationId: 'snapshot-limited' }, [
+      'platform.snapshot.read',
+    ]);
     expect(snapshot.coreModules).toEqual([]);
-    const settings = buildPlatformSnapshot({ correlationId: 'snapshot-settings' }, ['platform.snapshot.read', 'platform.settings.read']);
-    expect(settings.coreModules.map((module) => module.route)).toEqual(['painel-do-aluno', 'configuracoes']);
+    const settings = buildPlatformSnapshot({ correlationId: 'snapshot-settings' }, [
+      'platform.snapshot.read',
+      'platform.settings.read',
+    ]);
+    expect(settings.coreModules.map((module) => module.route)).toEqual([
+      'painel-do-aluno',
+      'configuracoes',
+    ]);
   });
 });

@@ -1,8 +1,11 @@
 import { SYSTEM_HEALTH_BODY_BYTES_V1 } from './system-health-v1';
 
 /** Races the complete operation, including body reads and transports ignoring AbortSignal. */
-export async function healthDeadlineV1<T>(run: (signal: AbortSignal) => Promise<T>, ms: number,
-  parent?: AbortSignal): Promise<T> {
+export async function healthDeadlineV1<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  parent?: AbortSignal,
+): Promise<T> {
   const controller = new AbortController();
   const signal = parent ? AbortSignal.any([parent, controller.signal]) : controller.signal;
   let rejectAbort: (() => void) | undefined;
@@ -10,7 +13,10 @@ export async function healthDeadlineV1<T>(run: (signal: AbortSignal) => Promise<
   try {
     signal.throwIfAborted();
     return await Promise.race([
-      Promise.resolve().then(() => { signal.throwIfAborted(); return run(signal); }),
+      Promise.resolve().then(() => {
+        signal.throwIfAborted();
+        return run(signal);
+      }),
       new Promise<never>((_resolve, reject) => {
         rejectAbort = () => reject(new Error('health-read-aborted'));
         signal.addEventListener('abort', rejectAbort, { once: true });
@@ -23,7 +29,11 @@ export async function healthDeadlineV1<T>(run: (signal: AbortSignal) => Promise<
   }
 }
 
-export async function readHealthJsonV1(response: Response, signal: AbortSignal, maxBytes = SYSTEM_HEALTH_BODY_BYTES_V1): Promise<unknown> {
+export async function readHealthJsonV1(
+  response: Response,
+  signal: AbortSignal,
+  maxBytes = SYSTEM_HEALTH_BODY_BYTES_V1,
+): Promise<unknown> {
   const length = response.headers.get('content-length');
   if (length !== null && (!/^\d{1,9}$/u.test(length) || Number(length) > maxBytes)) {
     void response.body?.cancel().catch(() => undefined);
@@ -31,7 +41,9 @@ export async function readHealthJsonV1(response: Response, signal: AbortSignal, 
   }
   if (!response.body) throw new Error('health-response-missing');
   const reader = response.body.getReader();
-  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  const cancel = () => {
+    void reader.cancel().catch(() => undefined);
+  };
   signal.addEventListener('abort', cancel, { once: true });
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let size = 0;

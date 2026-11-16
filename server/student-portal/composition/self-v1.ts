@@ -15,7 +15,11 @@ import { TurnstileVerifierV1 } from '../auth/turnstile-v1';
 import { servePortalAuthV1, sessionCookieTokenV1 } from '../http/auth/handler-v1';
 import { portalServingGateV1 } from '../maintenance/serving-gate-v1';
 import { cloudflareClientIpV1 } from '../observability/audit-context-v1';
-import { checkPortalOperationV1, PortalRateLimitErrorV1, portalRateLimitResponseV1 } from '../observability/operation-burst-v1';
+import {
+  checkPortalOperationV1,
+  PortalRateLimitErrorV1,
+  portalRateLimitResponseV1,
+} from '../observability/operation-burst-v1';
 import { checkPortalAnonymousV1, portalAnonymousPeerV1 } from '../observability/anonymous-peer-v1';
 import { portalAuthBurstV1 } from '../observability/auth-burst-v1';
 import { SelfProjectionReaderV1 } from '../publication/self-projection-reader-v1';
@@ -27,7 +31,11 @@ import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { portalNoticesForPolicyV1 } from '../policies/calendar-v1';
 import { accountScopeV1, authNowV1 } from '../auth/transaction-v1';
 import { portalDatabaseV1 } from './database-v1';
-import { connectPortalLiveV1, portalLiveStubV1, type SecurityRenewalV1 } from '../live/live-connect-v1';
+import {
+  connectPortalLiveV1,
+  portalLiveStubV1,
+  type SecurityRenewalV1,
+} from '../live/live-connect-v1';
 import { servePortalPhotoV1 } from '../photos/http-v1';
 import {
   STUDENT_PHOTO_META_PATH_V1,
@@ -65,9 +73,16 @@ function invalidConnectionV1(url: URL, path: string, connectionId: string) {
   );
 }
 
-function qrBurstV1(env: PortalCompositionEnvV1, request: Request, verifiedSubject: string): Promise<boolean> {
+function qrBurstV1(
+  env: PortalCompositionEnvV1,
+  request: Request,
+  verifiedSubject: string,
+): Promise<boolean> {
   const peer = portalAnonymousPeerV1(env, request);
-  return portalAuthBurstV1(peer.binding ?? env.PORTAL_AUTH_GLOBAL!, env.PORTAL_AUTH_SUBJECT!)(verifiedSubject, peer.subject);
+  return portalAuthBurstV1(peer.binding ?? env.PORTAL_AUTH_GLOBAL!, env.PORTAL_AUTH_SUBJECT!)(
+    verifiedSubject,
+    peer.subject,
+  );
 }
 
 /** Lazy adapters enforce method, bytes, JSON and schema BEFORE connection/KDF. */
@@ -138,29 +153,41 @@ function readSessionV1(self: SelfContextV1): SessionServiceV1['read'] {
     const verifiedAt = Date.now();
     let renewal: SecurityRenewalV1 | undefined;
     const result = await portalDatabaseV1(env, 'self', (sql) =>
-      new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads,
-        accountId => checkPortalOperationV1(env.PORTAL_SESSION_ACCOUNT, 'session', accountId)).read(
+      new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads, (accountId) =>
+        checkPortalOperationV1(env.PORTAL_SESSION_ACCOUNT, 'session', accountId),
+      ).read(
         token,
         requestId,
         expectedAccountId,
         includeClosed,
-        connectionId === null ? undefined : async (context, tx, session) => {
-          if (!context.account.link) return;
-          const classes = await tx.unsafe(
-            `SELECT class_id FROM student_portal.academic_binding_v1
+        connectionId === null
+          ? undefined
+          : async (context, tx, session) => {
+              if (!context.account.link) return;
+              const classes = await tx.unsafe(
+                `SELECT class_id FROM student_portal.academic_binding_v1
              WHERE academic_year=2026 AND student_id=$1 AND status IS DISTINCT FROM 6
-             ORDER BY class_id LIMIT 2`, [context.account.link.studentId]);
-          if (classes.length > 1) throw new Error('student-portal-live-class-ambiguous');
-          renewal = { connectionId, sessionId: session.id, accountId: context.account.id,
-            studentId: context.account.link.studentId,
-            classId: classes[0]?.class_id === undefined ? null : Number(classes[0].class_id),
-            verifiedAt, expiresAt: session.expiresAt };
-        },
+             ORDER BY class_id LIMIT 2`,
+                [context.account.link.studentId],
+              );
+              if (classes.length > 1) throw new Error('student-portal-live-class-ambiguous');
+              renewal = {
+                connectionId,
+                sessionId: session.id,
+                accountId: context.account.id,
+                studentId: context.account.link.studentId,
+                classId: classes[0]?.class_id === undefined ? null : Number(classes[0].class_id),
+                verifiedAt,
+                expiresAt: session.expiresAt,
+              };
+            },
       ),
     );
     if (connectionId !== null && result?.state === 'authenticated') {
       // The snapshot has ended; RPC never holds a database transaction open.
-      const liveRenewed = renewal ? await portalLiveStubV1(env, 'student').renewSecurity(renewal) : false;
+      const liveRenewed = renewal
+        ? await portalLiveStubV1(env, 'student').renewSecurity(renewal)
+        : false;
       return { ...result, liveRenewed };
     }
     return result;
@@ -183,39 +210,35 @@ async function serveLiveV1(self: SelfContextV1): Promise<Response> {
   const keys = portalKeysV1(env);
   await checkPortalAnonymousV1(env, 'live-entry', request);
   const identity = await portalDatabaseV1(env, 'live', (sql) =>
-    new SessionServiceV1(sql, keys.cryptoPort, undefined, true,
-      accountId => checkPortalOperationV1(env.PORTAL_LIVE_ACCOUNT, 'live', accountId)).withAuthorized(
-      token,
-      async (context, tx, session) => {
-        if (
-          !context.account.link ||
-          (expectedAccount !== null && context.account.id !== expectedAccount.toLowerCase())
-        )
-          return null;
-        const classes = await tx.unsafe(
-          `SELECT class_id FROM student_portal.academic_binding_v1
+    new SessionServiceV1(sql, keys.cryptoPort, undefined, true, (accountId) =>
+      checkPortalOperationV1(env.PORTAL_LIVE_ACCOUNT, 'live', accountId),
+    ).withAuthorized(token, async (context, tx, session) => {
+      if (
+        !context.account.link ||
+        (expectedAccount !== null && context.account.id !== expectedAccount.toLowerCase())
+      )
+        return null;
+      const classes = await tx.unsafe(
+        `SELECT class_id FROM student_portal.academic_binding_v1
           WHERE academic_year=2026 AND student_id=$1 AND status IS DISTINCT FROM 6
           ORDER BY class_id LIMIT 2`,
-          [context.account.link.studentId],
-        );
-        if (classes.length > 1) throw new Error('student-portal-live-class-ambiguous');
-        return {
-          audience: 'student' as const,
-          ...(connectionId === null ? {} : { connectionId, sessionId: session.id }),
-          purpose: purpose === 'security' ? ('security' as const) : ('academic' as const),
-          expiresAt:
-            purpose === 'security'
-              ? new Date(
-                  Math.min(Date.parse(session.expiresAt), Date.now() + 60_000),
-                ).toISOString()
-              : session.expiresAt,
-          effectiveExpiresAt: purpose === 'security' ? session.expiresAt : undefined,
-          accountId: context.account.id,
-          studentId: context.account.link.studentId,
-          classId: classes[0]?.class_id === undefined ? null : Number(classes[0].class_id),
-        };
-      },
-    ),
+        [context.account.link.studentId],
+      );
+      if (classes.length > 1) throw new Error('student-portal-live-class-ambiguous');
+      return {
+        audience: 'student' as const,
+        ...(connectionId === null ? {} : { connectionId, sessionId: session.id }),
+        purpose: purpose === 'security' ? ('security' as const) : ('academic' as const),
+        expiresAt:
+          purpose === 'security'
+            ? new Date(Math.min(Date.parse(session.expiresAt), Date.now() + 60_000)).toISOString()
+            : session.expiresAt,
+        effectiveExpiresAt: purpose === 'security' ? session.expiresAt : undefined,
+        accountId: context.account.id,
+        studentId: context.account.link.studentId,
+        classId: classes[0]?.class_id === undefined ? null : Number(classes[0].class_id),
+      };
+    }),
   );
   if (!identity) return portalJsonV1(portalFailureV1('unauthenticated'), 401);
   return connectPortalLiveV1(env, request, identity);
@@ -229,8 +252,9 @@ function logoutV1(self: SelfContextV1): SessionServiceV1['logout'] {
     const keys = portalKeysV1(env);
     await checkPortalAnonymousV1(env, 'logout-entry', request);
     return portalDatabaseV1(env, 'auth', (sql) =>
-      new SessionServiceV1(sql, keys.cryptoPort, clientIp).logout(token, requestId,
-        accountId => checkPortalOperationV1(env.PORTAL_AUTH_SUBJECT, 'logout', accountId)),
+      new SessionServiceV1(sql, keys.cryptoPort, clientIp).logout(token, requestId, (accountId) =>
+        checkPortalOperationV1(env.PORTAL_AUTH_SUBJECT, 'logout', accountId),
+      ),
     );
   };
 }
@@ -251,8 +275,9 @@ async function serveStatusV1(self: SelfContextV1): Promise<Response> {
     const policies = new PolicyServiceV1(sql);
     const now = new Date();
     const student = token
-      ? await new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads,
-          accountId => checkPortalOperationV1(env.PORTAL_STATUS_ACCOUNT, 'status', accountId))
+      ? await new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads, (accountId) =>
+          checkPortalOperationV1(env.PORTAL_STATUS_ACCOUNT, 'status', accountId),
+        )
           .withAuthorized(token, async (context, tx) =>
             portalNoticesForPolicyV1(
               (await policies.readSnapshotInTransaction(tx, accountScopeV1(context.account.id)))
@@ -260,7 +285,7 @@ async function serveStatusV1(self: SelfContextV1): Promise<Response> {
               await authNowV1(tx),
             ),
           )
-          .catch(error => {
+          .catch((error) => {
             if (error instanceof PortalRateLimitErrorV1) throw error;
             return null;
           })
@@ -297,32 +322,28 @@ async function serveMeV1(self: SelfContextV1): Promise<Response> {
   const keys = portalKeysV1(env);
   await checkPortalAnonymousV1(env, 'read-entry', request);
   const result = await portalDatabaseV1(env, 'self', (sql) =>
-    new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads,
-      accountId => checkPortalOperationV1(env.PORTAL_READ_ACCOUNT, 'read', accountId)).withAuthorized(
-      token,
-      async (context, tx) => {
-        // Scoped V2 editions are the only published source; without them Self fails closed.
-        if (
-          env.PORTAL_PUBLICATION_MODE !== 'scoped-v2' ||
-          !(await scopedPublicationEnabledV2(tx))
-        )
-          throw new Error('student-portal-scoped-publication-unavailable');
-        return new SelfProjectionReaderV1(sql).readInTransaction(
-          tx,
-          context.account.id,
-          crypto.randomUUID(),
-          snapshotReads,
-        );
-      },
-    ),
+    new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads, (accountId) =>
+      checkPortalOperationV1(env.PORTAL_READ_ACCOUNT, 'read', accountId),
+    ).withAuthorized(token, async (context, tx) => {
+      // Scoped V2 editions are the only published source; without them Self fails closed.
+      if (env.PORTAL_PUBLICATION_MODE !== 'scoped-v2' || !(await scopedPublicationEnabledV2(tx)))
+        throw new Error('student-portal-scoped-publication-unavailable');
+      return new SelfProjectionReaderV1(sql).readInTransaction(
+        tx,
+        context.account.id,
+        crypto.randomUUID(),
+        snapshotReads,
+      );
+    }),
   );
-  return result
-    ? portalJsonV1(result, 200)
-    : portalJsonV1(portalFailureV1('unauthenticated'), 401);
+  return result ? portalJsonV1(result, 200) : portalJsonV1(portalFailureV1('unauthenticated'), 401);
 }
 
 /** Frequência, Horário and Ocorrências: each checks its own method, query and policy. */
-const attendanceRoutesV1 = new Map<string, (request: Request, env: PortalCompositionEnvV1) => Promise<Response>>([
+const attendanceRoutesV1 = new Map<
+  string,
+  (request: Request, env: PortalCompositionEnvV1) => Promise<Response>
+>([
   ['/api/student/frequency', servePortalFrequencyV2],
   ['/api/student/schedule', servePortalScheduleV1],
   ['/api/student/incidents', servePortalIncidentsV1],

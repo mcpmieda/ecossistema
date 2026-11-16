@@ -64,9 +64,7 @@ export function PageHeader({
 export function formatDate(value: string): string {
   if (!value) return '—';
   const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : PT_BR_LOCAL_SHORT_DATE_TIME_V1.format(date);
+  return Number.isNaN(date.getTime()) ? '—' : PT_BR_LOCAL_SHORT_DATE_TIME_V1.format(date);
 }
 
 export function initials(value?: string): string {

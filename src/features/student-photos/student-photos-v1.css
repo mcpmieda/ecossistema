@@ -1,18 +1,78 @@
-.student-photo-editor { width: min(48rem, calc(100vw - 1.5rem)); max-width: 100%; }
-.student-photo-picker { display: grid; gap: .5rem; margin-bottom: 1rem; min-width: 0; }
-.student-photo-picker input { width: 100%; min-width: 0; max-width: 100%; }
-.student-photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.student-photo-crop { min-width: 0; }
-.student-photo-crop .card__content { display: grid; gap: .85rem; }
-.student-photo-crop .slider { width: 100%; min-width: 0; }
-.student-photo-frame { position: relative; overflow: hidden; width: min(100%, 12rem); margin-inline: auto; background: white; }
-.student-photo-frame--portrait { aspect-ratio: 3 / 4; border-radius: .5rem; }
-.student-photo-frame--avatar { aspect-ratio: 1; border-radius: 50%; }
-.student-photo-frame img { position: absolute; max-width: none; user-select: none; pointer-events: none; }
-.student-photo-size { text-align: center; font-size: .8rem; }
-.student-photo-options { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-block: .75rem; padding: 0; border: 0; min-width: 0; }
-.student-photo-options legend { margin-bottom: .5rem; padding: 0; }
-@media (max-width: 36rem) { .student-photo-grid { grid-template-columns: minmax(0, 1fr); } }
+.student-photo-editor {
+  width: min(48rem, calc(100vw - 1.5rem));
+  max-width: 100%;
+}
+.student-photo-picker {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  min-width: 0;
+}
+.student-photo-picker input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.student-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.student-photo-crop {
+  min-width: 0;
+}
+.student-photo-crop .card__content {
+  display: grid;
+  gap: 0.85rem;
+}
+.student-photo-crop .slider {
+  width: 100%;
+  min-width: 0;
+}
+.student-photo-frame {
+  position: relative;
+  overflow: hidden;
+  width: min(100%, 12rem);
+  margin-inline: auto;
+  background: white;
+}
+.student-photo-frame--portrait {
+  aspect-ratio: 3 / 4;
+  border-radius: 0.5rem;
+}
+.student-photo-frame--avatar {
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+.student-photo-frame img {
+  position: absolute;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+}
+.student-photo-size {
+  text-align: center;
+  font-size: 0.8rem;
+}
+.student-photo-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.student-photo-options legend {
+  margin-bottom: 0.5rem;
+  padding: 0;
+}
+@media (max-width: 36rem) {
+  .student-photo-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .student-photo-editor__tools {
   display: flex;
   flex-wrap: wrap;

@@ -33,13 +33,18 @@ async function headers(role?: TestRole, origin = LOCAL_ORIGIN): Promise<Headers>
       roles: [role],
       exp: Math.floor(Date.now() / 1000) + 600,
     },
-    testEnv.SESSION_SECRET, 'admin-session',
+    testEnv.SESSION_SECRET,
+    'admin-session',
   );
   result.set('Cookie', `${SESSION_COOKIE}=${session}`);
   return result;
 }
 
-async function bulletinRequest(body: unknown, role?: TestRole, base = LOCAL_ORIGIN): Promise<Request> {
+async function bulletinRequest(
+  body: unknown,
+  role?: TestRole,
+  base = LOCAL_ORIGIN,
+): Promise<Request> {
   return new Request(`${base}${GRADEBOOK_BULLETIN_ROUTE_V1}`, {
     method: 'POST',
     headers: await headers(role, base),
@@ -59,10 +64,7 @@ describe('Boletins HTTP V1', () => {
     expect(unauthenticated?.status).toBe(401);
     expect(unauthenticated?.headers.get('Cache-Control')).toContain('no-store');
 
-    const forbidden = await handleBulletinRequestV1(
-      await bulletinRequest(body, 'PROFESSOR'),
-      env,
-    );
+    const forbidden = await handleBulletinRequestV1(await bulletinRequest(body, 'PROFESSOR'), env);
     expect(forbidden?.status).toBe(403);
     expect(forbidden?.headers.get('Cache-Control')).toContain('no-store');
     expect(prepare).not.toHaveBeenCalled();

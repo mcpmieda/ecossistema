@@ -55,7 +55,11 @@ function statusFor(value: ImportDiagnosticTreatmentResponseV1): number {
 }
 
 export function createImportDiagnosticTreatmentRequestHandlerV1() {
-  return async (request: Request, env: RuntimeEnv, afterCommit?: GradebookAfterCommitV1): Promise<Response | null> => {
+  return async (
+    request: Request,
+    env: RuntimeEnv,
+    afterCommit?: GradebookAfterCommitV1,
+  ): Promise<Response | null> => {
     if (new URL(request.url).pathname !== IMPORT_DIAGNOSTIC_TREATMENT_ROUTE_V1) return null;
     enforceOfficialOrigin(request, env);
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');

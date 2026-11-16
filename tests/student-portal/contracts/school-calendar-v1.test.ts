@@ -22,12 +22,27 @@ describe('school calendar (owner decision 22/10/2026)', () => {
     );
     // As printed on the official calendar ("(xx DIAS LETIVOS)" under each month).
     expect(perMonth).toEqual({
-      '01': 0, '02': 6, '03': 23, '04': 20, '05': 21, '06': 22,
-      '07': 13, '08': 22, '09': 22, '10': 20, '11': 20, '12': 11,
+      '01': 0,
+      '02': 6,
+      '03': 23,
+      '04': 20,
+      '05': 21,
+      '06': 22,
+      '07': 13,
+      '08': 22,
+      '09': 22,
+      '10': 20,
+      '11': 20,
+      '12': 11,
     });
     // Its trimesters: 59, 68 and 73 days.
-    const between = (from: string, to: string) => school.filter((date) => date >= from && date <= to).length;
-    expect([between('2026-02-23', '2026-05-15'), between('2026-05-18', '2026-08-31'), between('2026-09-01', '2026-12-15')]).toEqual([59, 68, 73]);
+    const between = (from: string, to: string) =>
+      school.filter((date) => date >= from && date <= to).length;
+    expect([
+      between('2026-02-23', '2026-05-15'),
+      between('2026-05-18', '2026-08-31'),
+      between('2026-09-01', '2026-12-15'),
+    ]).toEqual([59, 68, 73]);
     expect(schoolYearProgressOfV1(days, '2026-10-22')).toEqual({
       schoolDays: 200,
       remaining: 39,
@@ -35,7 +50,14 @@ describe('school calendar (owner decision 22/10/2026)', () => {
       lastDay: '2026-12-15',
     });
     // The six Saturdays the Smecel had and the official calendar does not.
-    for (const date of ['2026-04-18', '2026-05-09', '2026-05-16', '2026-06-27', '2026-07-04', '2026-07-18'])
+    for (const date of [
+      '2026-04-18',
+      '2026-05-09',
+      '2026-05-16',
+      '2026-06-27',
+      '2026-07-04',
+      '2026-07-18',
+    ])
       expect(school).not.toContain(date);
   });
 
@@ -52,7 +74,9 @@ describe('school calendar (owner decision 22/10/2026)', () => {
   });
 
   it('refuses a day outside the year or marked twice', () => {
-    expect(schoolCalendarDaysV1.safeParse([{ date: '2027-01-04', kind: 'letivo' }]).success).toBe(false);
+    expect(schoolCalendarDaysV1.safeParse([{ date: '2027-01-04', kind: 'letivo' }]).success).toBe(
+      false,
+    );
     expect(
       schoolCalendarDaysV1.safeParse([
         { date: '2026-03-02', kind: 'letivo' },

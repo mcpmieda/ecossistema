@@ -21,8 +21,10 @@ const annual = (
 
 describe('official annual situation relay', () => {
   it('maps every BN visible result to its exact situation without new rules', () => {
-    const relay = (result: SimplifiedAnnualOutcomeV1['visibleResult'], state?: SimplifiedAnnualOutcomeV1['state']) =>
-      annualSituationV1({ status: null, formalDecision: null, annual: annual(result, state) });
+    const relay = (
+      result: SimplifiedAnnualOutcomeV1['visibleResult'],
+      state?: SimplifiedAnnualOutcomeV1['state'],
+    ) => annualSituationV1({ status: null, formalDecision: null, annual: annual(result, state) });
     expect(relay('EM CURSO', 'in-progress')).toBeUndefined();
     expect(relay('EM RECUPERAÇÃO', 'recovery')).toBe('in-recovery');
     expect(relay('APROVADO DIRETO')).toBe('approved-direct');
@@ -39,10 +41,18 @@ describe('official annual situation relay', () => {
 
   it('lets a formal Council decision prevail and never gives ASSISTIDO a situation', () => {
     const pending = annual(null, 'council-eligible');
-    expect(annualSituationV1({ status: null, formalDecision: 1, annual: pending })).toBe('approved-by-council');
-    expect(annualSituationV1({ status: 7, formalDecision: 2, annual: pending })).toBe('failed-by-council');
-    expect(annualSituationV1({ status: null, formalDecision: 3, annual: pending })).toBe('failed-by-absence');
-    expect(annualSituationV1({ status: 2, formalDecision: null, annual: annual('APROVADO DIRETO') })).toBeUndefined();
+    expect(annualSituationV1({ status: null, formalDecision: 1, annual: pending })).toBe(
+      'approved-by-council',
+    );
+    expect(annualSituationV1({ status: 7, formalDecision: 2, annual: pending })).toBe(
+      'failed-by-council',
+    );
+    expect(annualSituationV1({ status: null, formalDecision: 3, annual: pending })).toBe(
+      'failed-by-absence',
+    );
+    expect(
+      annualSituationV1({ status: 2, formalDecision: null, annual: annual('APROVADO DIRETO') }),
+    ).toBeUndefined();
   });
 
   it('relays component classifications and omits in-progress and ASSISTIDO', () => {

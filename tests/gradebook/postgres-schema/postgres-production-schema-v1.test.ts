@@ -83,7 +83,9 @@ describe('PostgreSQL gradebook production schema v1', () => {
     expect(sql).toContain('(version = 1 AND previous_version IS NULL)');
     expect(sql).toContain('(version > 1 AND previous_version = version - 1)');
 
-    expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_source_file_versions_confirmed_source');
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_source_file_versions_confirmed_source',
+    );
     expect(sql).toContain(
       'REFERENCES gradebook.source_file_versions (\n    academic_year_id,\n    manifest_id,\n    version,\n    confirmed_logical_source_id\n  )',
     );

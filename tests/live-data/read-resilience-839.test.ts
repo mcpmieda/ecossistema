@@ -24,9 +24,13 @@ afterEach(() => {
 
 it('limits heavy polling to two minutes but keeps committed-change invalidation', async () => {
   const refresh = vi.fn(async () => true);
-  disposers.push(subscribeLiveRefreshV1({
-    domains: ['gradebook'], refresh, intervalMs: LIVE_HEAVY_READ_INTERVAL_V1,
-  }));
+  disposers.push(
+    subscribeLiveRefreshV1({
+      domains: ['gradebook'],
+      refresh,
+      intervalMs: LIVE_HEAVY_READ_INTERVAL_V1,
+    }),
+  );
   await vi.advanceTimersByTimeAsync(119_999);
   expect(refresh).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(1);
@@ -45,7 +49,12 @@ it('preserves the default cadence for interactive readers', async () => {
 
 it('does not enqueue another read for focus/pageshow while a read is pending', async () => {
   let resolve!: () => void;
-  const refresh = vi.fn(() => new Promise<void>((done) => { resolve = done; }));
+  const refresh = vi.fn(
+    () =>
+      new Promise<void>((done) => {
+        resolve = done;
+      }),
+  );
   disposers.push(subscribeLiveRefreshV1({ domains: ['gradebook'], refresh }));
   notifyLiveChangeV1('gradebook');
   await vi.advanceTimersByTimeAsync(250);
@@ -60,7 +69,11 @@ it('does not enqueue another read for focus/pageshow while a read is pending', a
 });
 
 it('backs off typed failures, honors cooldown during events and resets after success', async () => {
-  const refresh = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(false).mockResolvedValue(true);
+  const refresh = vi
+    .fn()
+    .mockResolvedValueOnce(false)
+    .mockResolvedValueOnce(false)
+    .mockResolvedValue(true);
   disposers.push(subscribeLiveRefreshV1({ domains: ['gradebook'], refresh }));
   notifyLiveChangeV1('gradebook');
   await vi.advanceTimersByTimeAsync(250);
@@ -83,9 +96,13 @@ it('backs off typed failures, honors cooldown during events and resets after suc
 
 it('caps consecutive failure delay at five minutes for heavy analytics', async () => {
   const refresh = vi.fn(async () => false);
-  disposers.push(subscribeLiveRefreshV1({
-    domains: ['gradebook'], refresh, intervalMs: LIVE_HEAVY_READ_INTERVAL_V1,
-  }));
+  disposers.push(
+    subscribeLiveRefreshV1({
+      domains: ['gradebook'],
+      refresh,
+      intervalMs: LIVE_HEAVY_READ_INTERVAL_V1,
+    }),
+  );
   notifyLiveChangeV1('gradebook');
   await vi.advanceTimersByTimeAsync(250);
   await vi.advanceTimersByTimeAsync(120_000);
@@ -98,7 +115,12 @@ it('caps consecutive failure delay at five minutes for heavy analytics', async (
 
 it('a rejected read with a pending invalidation respects cooldown instead of looping', async () => {
   let reject!: (error: Error) => void;
-  const refresh = vi.fn(() => new Promise<void>((_resolve, fail) => { reject = fail; }));
+  const refresh = vi.fn(
+    () =>
+      new Promise<void>((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
   disposers.push(subscribeLiveRefreshV1({ domains: ['gradebook'], refresh }));
   notifyLiveChangeV1('gradebook');
   await vi.advanceTimersByTimeAsync(250);
@@ -123,9 +145,17 @@ it('spreads event-driven reads without adding a polling clock', async () => {
 });
 
 it('distinguishes module loading from a render failure without returning raw error data', () => {
-  expect(routeLoadFailureV1(new TypeError('Failed to fetch dynamically imported module: /assets/synthetic.js'))).toBe('module-load');
-  expect(routeLoadFailureV1(new TypeError('Importing a module script failed.'))).toBe('module-load');
-  expect(routeLoadFailureV1(new Error('Unable to preload CSS for /assets/synthetic.css'))).toBe('module-load');
+  expect(
+    routeLoadFailureV1(
+      new TypeError('Failed to fetch dynamically imported module: /assets/synthetic.js'),
+    ),
+  ).toBe('module-load');
+  expect(routeLoadFailureV1(new TypeError('Importing a module script failed.'))).toBe(
+    'module-load',
+  );
+  expect(routeLoadFailureV1(new Error('Unable to preload CSS for /assets/synthetic.css'))).toBe(
+    'module-load',
+  );
   expect(routeLoadFailureV1(new Error('synthetic render failure'))).toBe('render');
   expect(routeLoadFailureV1(null)).toBe('render');
 });

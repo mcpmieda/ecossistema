@@ -28,8 +28,11 @@ describe('Auditoria: what the cell means', () => {
 
   it('names who has a grade in a column that was not launched', () => {
     const student = (number: string, name: string) => ({ number, name }) as never;
-    expect(gradedStudentsV1([student('09', 'Aluno Sintético A')])).toBe('Nota de 09. Aluno Sintético A');
-    expect(gradedStudentsV1(['1', '2', '3', '4', '5'].map((n) => student(n, `Aluno ${n}`))))
-      .toBe('Nota de 1. Aluno 1, 2. Aluno 2, 3. Aluno 3 e mais 2');
+    expect(gradedStudentsV1([student('09', 'Aluno Sintético A')])).toBe(
+      'Nota de 09. Aluno Sintético A',
+    );
+    expect(gradedStudentsV1(['1', '2', '3', '4', '5'].map((n) => student(n, `Aluno ${n}`)))).toBe(
+      'Nota de 1. Aluno 1, 2. Aluno 2, 3. Aluno 3 e mais 2',
+    );
   });
 });

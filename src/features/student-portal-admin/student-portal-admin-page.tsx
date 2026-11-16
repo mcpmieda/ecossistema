@@ -434,7 +434,10 @@ function PortalWorkspace({
       setSelectedClass(
         restored.turma === null
           ? null
-          : (classItems.find((item) => item.id === restored.turma) ?? { id: restored.turma, label: '' }),
+          : (classItems.find((item) => item.id === restored.turma) ?? {
+              id: restored.turma,
+              label: '',
+            }),
       );
       setCustomizationTarget(null);
       setOpenedAccount(
@@ -453,9 +456,15 @@ function PortalWorkspace({
     (value) => {
       if (value === null || typeof value !== 'object') return null;
       const stored = value as Record<string, unknown>;
-      const turma = typeof stored.turma === 'number' && Number.isSafeInteger(stored.turma) && stored.turma > 0 ? stored.turma : null;
+      const turma =
+        typeof stored.turma === 'number' && Number.isSafeInteger(stored.turma) && stored.turma > 0
+          ? stored.turma
+          : null;
       const turno = PANEL_SHIFTS_V1.find((item) => item === stored.turno) ?? null;
-      const ficha = typeof stored.ficha === 'string' && /^[0-9a-f-]{36}$/u.test(stored.ficha) ? stored.ficha : null;
+      const ficha =
+        typeof stored.ficha === 'string' && /^[0-9a-f-]{36}$/u.test(stored.ficha)
+          ? stored.ficha
+          : null;
       return { turma, turno, ficha };
     },
   );

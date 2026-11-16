@@ -9,7 +9,12 @@ import {
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
-import { enforceOfficialOrigin, enforceWriteOrigin, HttpError, readBoundedJson } from '../../http/security';
+import {
+  enforceOfficialOrigin,
+  enforceWriteOrigin,
+  HttpError,
+  readBoundedJson,
+} from '../../http/security';
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 
 const ONEDRIVE_SYNC_ROUTE_V1 = '/api/gradebook/onedrive-sync';
@@ -23,7 +28,10 @@ function response(value: OneDriveSyncResponseV1, status: number): Response {
   return Response.json(value, { status, headers: { 'Cache-Control': 'no-store, private' } });
 }
 
-function failure(state: 'invalid-request' | 'not-authorized' | 'unavailable', status: number): Response {
+function failure(
+  state: 'invalid-request' | 'not-authorized' | 'unavailable',
+  status: number,
+): Response {
   return response({ contractVersion: ONEDRIVE_SYNC_CONTRACT_VERSION_V1, state }, status);
 }
 
@@ -35,7 +43,10 @@ function statusFor(value: OneDriveSyncResponseV1): number {
 }
 
 /** Admin panel of the OneDrive sync: admin session here, then the Worker does the work. */
-export async function handleOneDriveSyncRequestV1(request: Request, env: RuntimeEnv): Promise<Response | null> {
+export async function handleOneDriveSyncRequestV1(
+  request: Request,
+  env: RuntimeEnv,
+): Promise<Response | null> {
   if (new URL(request.url).pathname !== ONEDRIVE_SYNC_ROUTE_V1) return null;
   enforceOfficialOrigin(request, env);
   if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');

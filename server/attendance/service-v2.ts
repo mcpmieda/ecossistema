@@ -98,10 +98,32 @@ function text(value: unknown): string {
   throw new FrequencyErrorV2('unavailable', 503, 'unexpected-database-value');
 }
 const iso = (v: unknown) => new Date(text(v)).toISOString();
-const DEVICE_ONLY = new Set(['lease', 'collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'student-report-collect', 'student-report-unchanged', 'heartbeat', 'release']);
+const DEVICE_ONLY = new Set([
+  'lease',
+  'collect',
+  'collect-unchanged',
+  'schedule-collect',
+  'incident-collect',
+  'student-report-collect',
+  'student-report-unchanged',
+  'heartbeat',
+  'release',
+]);
 /** Operations that write evidence under the live lease, as `collect` does. */
-const COLLECTING = new Set(['collect', 'collect-unchanged', 'schedule-collect', 'incident-collect', 'student-report-collect', 'student-report-unchanged']);
-const ADMIN_ONLY = new Set(['revoke-device', 'resolve-conflict', 'monthly-summary', 'set-preferred-device']);
+const COLLECTING = new Set([
+  'collect',
+  'collect-unchanged',
+  'schedule-collect',
+  'incident-collect',
+  'student-report-collect',
+  'student-report-unchanged',
+]);
+const ADMIN_ONLY = new Set([
+  'revoke-device',
+  'resolve-conflict',
+  'monthly-summary',
+  'set-preferred-device',
+]);
 /**
  * How long a reserve waits for the preferred computer (migrations/attendance/0019): past it, a
  * preferred computer that took no lease since the reserve began waiting no longer holds the slot.
@@ -312,13 +334,21 @@ export function withLessonDaysV2(
   rows: readonly Row[],
   today: string,
 ): FrequencySummaryV2 {
-  const byDay = new Map<string, { date: string; shift: string; slots: Set<number>; complete: boolean }>();
+  const byDay = new Map<
+    string,
+    { date: string; shift: string; slots: Set<number>; complete: boolean }
+  >();
   for (const row of rows) {
     // A tombstone (no slots) only says the record has no lesson that day.
     if (!json<number[]>(row.slots_json).length) continue;
     const date = text(row.date);
     const shift = text(row.shift);
-    const day = byDay.get(`${date}:${shift}`) ?? { date, shift, slots: new Set<number>(), complete: true };
+    const day = byDay.get(`${date}:${shift}`) ?? {
+      date,
+      shift,
+      slots: new Set<number>(),
+      complete: true,
+    };
     for (const slot of json<number[]>(row.slots_json)) day.slots.add(Number(slot));
     day.complete &&= truth(row.complete);
     byDay.set(`${date}:${shift}`, day);
@@ -333,7 +363,10 @@ export function withLessonDaysV2(
       complete: day.complete,
     }));
   if (!days.length) return summary;
-  const count = frequencyCountV2({ marks: summary.marks, conflicts: summary.conflicts, days }, today);
+  const count = frequencyCountV2(
+    { marks: summary.marks, conflicts: summary.conflicts, days },
+    today,
+  );
   const justified = summary.marks.filter((mark) => mark.mark === 'J' && mark.date < today).length;
   return {
     ...summary,
@@ -402,9 +435,10 @@ function monthsSoFarV2(today: string): string[] {
     current = '2026-12';
   }
   if (current === null) return [];
-  return Array.from({ length: 12 }, (_, index) => `2026-${String(index + 1).padStart(2, '0')}`).filter(
-    (key) => key <= current,
-  );
+  return Array.from(
+    { length: 12 },
+    (_, index) => `2026-${String(index + 1).padStart(2, '0')}`,
+  ).filter((key) => key <= current);
 }
 /**
  * The year so far: every month from January to the current one by the same rule (today
@@ -422,13 +456,17 @@ function yearOfMonthsV2(months: readonly FrequencySummaryV2[], today: string) {
   }
   return lessons > 0 ? { lessons, absences } : null;
 }
-const lastReadOfV2 = (read: PortalFrequencyYearReadV2) => (read.lastReadAt === null ? null : iso(read.lastReadAt));
+const lastReadOfV2 = (read: PortalFrequencyYearReadV2) =>
+  read.lastReadAt === null ? null : iso(read.lastReadAt);
 /**
  * Only the school days of the calendar marked in the ADM count: a day the diary has lessons on but
  * the official calendar does not (the six compensation Saturdays of 2026 the Secretaria did not
  * list) neither adds lessons nor shows. Without a calendar, the diary.
  */
-function onSchoolDaysV2(read: PortalFrequencyYearReadV2, schoolDays?: ReadonlySet<string>): PortalFrequencyYearReadV2 {
+function onSchoolDaysV2(
+  read: PortalFrequencyYearReadV2,
+  schoolDays?: ReadonlySet<string>,
+): PortalFrequencyYearReadV2 {
   if (!schoolDays) return read;
   const kept = (row: Row) => schoolDays.has(text(row.date));
   return { ...read, origins: read.origins.filter(kept), days: read.days.filter(kept) };
@@ -843,8 +881,10 @@ async function checkCollectionClock(tx: Tx, input: FrequencyCollectionV2) {
   // The Windows collector diagnoses skew beyond five seconds using serverTime.
   // A capture whose clock is slightly ahead must not be rejected by the
   // server; future civil dates are still rejected against the school day.
-  rejectSource(new Date(input.observedAt).getTime() > new Date(text(clock!.now)).getTime() + 5000,
-    'observed-in-future');
+  rejectSource(
+    new Date(input.observedAt).getTime() > new Date(text(clock!.now)).getTime() + 5000,
+    'observed-in-future',
+  );
   return cutoff;
 }
 /**
@@ -1021,7 +1061,12 @@ async function coverageDelta(
     const recordKey = text(p.record_key);
     const date = text(p.date);
     const tombstone = truth(p.complete) && json<number[]>(p.slots_json).length === 0;
-    if (records.has(recordKey) && date <= cutoff && !tombstone && !current.has(`${recordKey}:${date}`))
+    if (
+      records.has(recordKey) &&
+      date <= cutoff &&
+      !tombstone &&
+      !current.has(`${recordKey}:${date}`)
+    )
       delta.push({ recordKey, date, slots: [], complete: true });
   }
   return delta;
@@ -1064,7 +1109,11 @@ function sourceEvents(
     }
   return events;
 }
-export async function collectionEvents(tx: Tx, input: FrequencyCollectionV2, sources: StoredSource[]) {
+export async function collectionEvents(
+  tx: Tx,
+  input: FrequencyCollectionV2,
+  sources: StoredSource[],
+) {
   const allPrior = await tx.query<Row>(
     `SELECT DISTINCT ON(p.record_key,o.student_uid,o.date,o.slot) p.record_key,o.student_uid::text,o.date::text,o.slot,p.mark FROM attendance.origin_v2 p JOIN attendance.occurrence_v2 o ON o.id=p.occurrence_id JOIN attendance.source_row_v2 s ON s.batch_id=p.batch_id AND s.record_key=p.record_key JOIN attendance.batch_v2 b ON b.id=p.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 AND b.id<>$3::uuid ORDER BY p.record_key,o.student_uid,o.date,o.slot,b.received_at DESC,b.id DESC`,
     [input.academicYear, input.classId, input.requestId],
@@ -1240,7 +1289,10 @@ async function saveSettings(
   else if (input.operation === 'save-report-settings')
     await tx.executeNative(
       `UPDATE attendance.school_state_v2 SET report_schedule_json=$2::text::jsonb,revision=revision+1 WHERE academic_year=$1`,
-      [input.academicYear, input.reportSchedule === null ? null : JSON.stringify(input.reportSchedule)],
+      [
+        input.academicYear,
+        input.reportSchedule === null ? null : JSON.stringify(input.reportSchedule),
+      ],
     );
   else
     await tx.executeNative(
@@ -1287,7 +1339,12 @@ async function changeDevice(
  * wait, so a preferred computer that started the slot restarts it. The refusal is 'lease-busy', the
  * same routine wait of a busy school lease.
  */
-async function waitsForPreferred(tx: Tx, row: Row, year: number, deviceId: string): Promise<boolean> {
+async function waitsForPreferred(
+  tx: Tx,
+  row: Row,
+  year: number,
+  deviceId: string,
+): Promise<boolean> {
   if (row.preferred_device === null || row.preferred_device === undefined) return false;
   if (text(row.preferred_device) === deviceId) return false;
   const [state] = await tx.query<Row>(
@@ -1300,9 +1357,20 @@ async function waitsForPreferred(tx: Tx, row: Row, year: number, deviceId: strin
     LEFT JOIN attendance.device_status_v2 w ON w.academic_year=p.academic_year AND w.device_id=$2::uuid
     WHERE p.academic_year=$1 AND p.device_id=$5::uuid`,
     // The same "online" as the ADM shows: 2 min near the agenda, a quiet refresh plus 2 min away from it.
-    [year, deviceId, PREFERRED_GRACE_SECONDS_V2, PREFERRED_WAIT_RESET_SECONDS_V2, text(row.preferred_device),
-      onlineSecondsV2(row.schedule_json == null ? null : json<FrequencyScheduleV2>(row.schedule_json),
-        row.report_schedule_json == null ? null : json<FrequencyReportScheduleV2>(row.report_schedule_json), Date.now())],
+    [
+      year,
+      deviceId,
+      PREFERRED_GRACE_SECONDS_V2,
+      PREFERRED_WAIT_RESET_SECONDS_V2,
+      text(row.preferred_device),
+      onlineSecondsV2(
+        row.schedule_json == null ? null : json<FrequencyScheduleV2>(row.schedule_json),
+        row.report_schedule_json == null
+          ? null
+          : json<FrequencyReportScheduleV2>(row.report_schedule_json),
+        Date.now(),
+      ),
+    ],
   );
   if (!state || !truth(state.online)) return false;
   return !(truth(state.waiting) && truth(state.lapsed));
@@ -1476,9 +1544,18 @@ async function resolveConflict(
  * evidence the class already holds moves freshness, like a repeated payload. Anything else asks
  * for the whole diary ('payload-required'), so the collector's local copy never decides alone.
  */
-async function collectUnchanged(tx: Tx, input: FrequencyUnchangedV2, actor: FrequencyActorV2): Promise<Row> {
+async function collectUnchanged(
+  tx: Tx,
+  input: FrequencyUnchangedV2,
+  actor: FrequencyActorV2,
+): Promise<Row> {
   const { contentHash, ...fields } = input;
-  const collection: FrequencyCollectionV2 = { ...fields, operation: 'collect', coverage: [], marks: [] };
+  const collection: FrequencyCollectionV2 = {
+    ...fields,
+    operation: 'collect',
+    coverage: [],
+    marks: [],
+  };
   await liveLease(tx, collection, actor);
   await checkCollectionClock(tx, collection);
   const { reportLabel } = await matchCollectionClass(tx, collection);
@@ -1571,7 +1648,10 @@ async function collectSchedule(
  */
 async function incidentStudents(tx: Tx, input: FrequencyIncidentCollectionV2) {
   // With the link, its evidence (attendance 0017): the Portal shows a record only while it holds.
-  const links = new Map<string, { uid: string; classId: number; sourceIds: string[]; observationIds: string[] } | null>();
+  const links = new Map<
+    string,
+    { uid: string; classId: number; sourceIds: string[]; observationIds: string[] } | null
+  >();
   const groups = new Map<string, FrequencyIncidentCollectionV2['students']>();
   for (const student of input.students) {
     if (student.classId === null || student.sourceClassLabel === null) {
@@ -1586,7 +1666,9 @@ async function incidentStudents(tx: Tx, input: FrequencyIncidentCollectionV2) {
     let reportLabel: string;
     try {
       ({ reportLabel } = await matchSourceClass(tx, {
-        academicYear: input.academicYear, classId: classId!, sourceClassLabel: sourceClassLabel!,
+        academicYear: input.academicYear,
+        classId: classId!,
+        sourceClassLabel: sourceClassLabel!,
       }));
     } catch (error) {
       if (!(error instanceof FrequencyErrorV2) || error.code !== 'identity-review') throw error;
@@ -1596,7 +1678,11 @@ async function incidentStudents(tx: Tx, input: FrequencyIncidentCollectionV2) {
     const resolutions = await centralMany(
       tx,
       input.academicYear,
-      students.map((s) => ({ recordKey: s.sourceStudentId, originalName: s.name, originalClass: sourceClassLabel! })),
+      students.map((s) => ({
+        recordKey: s.sourceStudentId,
+        originalName: s.name,
+        originalClass: sourceClassLabel!,
+      })),
       input.sourceVersion,
       classId!,
       reportLabel,
@@ -1606,7 +1692,12 @@ async function incidentStudents(tx: Tx, input: FrequencyIncidentCollectionV2) {
       links.set(
         student.sourceStudentId,
         resolved.state === 'resolved'
-          ? { uid: resolved.studentUid, classId: classId!, sourceIds: resolved.sourceIds, observationIds: resolved.observationIds }
+          ? {
+              uid: resolved.studentUid,
+              classId: classId!,
+              sourceIds: resolved.sourceIds,
+              observationIds: resolved.observationIds,
+            }
           : null,
       );
     });
@@ -1660,11 +1751,21 @@ async function collectIncidents(
     ),
   );
   rows.sort((a, b) => a.source_incident_id.localeCompare(b.source_incident_id));
-  const unresolvedStudents = input.students.filter((s) => links.get(s.sourceStudentId) === null).length;
+  const unresolvedStudents = input.students.filter(
+    (s) => links.get(s.sourceStudentId) === null,
+  ).length;
   const evidenceHash = await frequencyPayloadHashV2({
     complete: input.complete,
-    rows: rows.map((r) => [r.source_incident_id, r.source_student_id, r.student_name, r.student_uid, r.class_id, r.content_hash,
-      r.source_ids_json, r.observation_ids_json]),
+    rows: rows.map((r) => [
+      r.source_incident_id,
+      r.source_student_id,
+      r.student_name,
+      r.student_uid,
+      r.class_id,
+      r.content_hash,
+      r.source_ids_json,
+      r.observation_ids_json,
+    ]),
   });
   const summary = { incidents: rows.length, unresolvedStudents };
   const saveState = () =>
@@ -1746,7 +1847,9 @@ function studentReportView(row: Row, names: boolean): FrequencyStudentReportStat
  * in canonical order. The Smecel swaps rows that tie in its own order from one export to the next,
  * so the same report must give the same hash whatever the order.
  */
-export function studentReportHashV2(input: Pick<FrequencyStudentReportV2, 'rows'>): Promise<string> {
+export function studentReportHashV2(
+  input: Pick<FrequencyStudentReportV2, 'rows'>,
+): Promise<string> {
   const rows = input.rows.map(({ sourceRow: _position, ...row }) => canonicalFrequencyJsonV2(row));
   return frequencyPayloadHashV2(rows.sort(byCodeUnitV2));
 }
@@ -1803,7 +1906,12 @@ async function studentReportState(
     fail('source-invalid', 409, 'older-than-last-collection');
   return state;
 }
-function studentReportReply(changed: boolean, outcome: string, notes: FrequencyStudentReportNotesV2, rows: number): Row {
+function studentReportReply(
+  changed: boolean,
+  outcome: string,
+  notes: FrequencyStudentReportNotesV2,
+  rows: number,
+): Row {
   return {
     changed,
     outcome,
@@ -1826,7 +1934,12 @@ async function checkStudentReport(
   const state = await studentReportState(tx, input, actor);
   const evidenceHash = await studentReportHashV2(input);
   const notes = state ? json<FrequencyStudentReportNotesV2>(state.notes_json) : null;
-  if (state && notes && text(state.evidence_hash) === evidenceHash && ['applied', 'review'].includes(text(state.outcome))) {
+  if (
+    state &&
+    notes &&
+    text(state.evidence_hash) === evidenceHash &&
+    ['applied', 'review'].includes(text(state.outcome))
+  ) {
     await tx.executeNative(
       `UPDATE attendance.student_report_state_v2 SET last_observed_at=$2::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1`,
       [input.academicYear, input.observedAt],
@@ -1865,7 +1978,12 @@ async function studentReportUnchanged(
     `UPDATE attendance.student_report_state_v2 SET last_observed_at=$2::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1`,
     [input.academicYear, input.observedAt],
   );
-  return studentReportReply(false, text(state.outcome), json<FrequencyStudentReportNotesV2>(state.notes_json), input.rows);
+  return studentReportReply(
+    false,
+    text(state.outcome),
+    json<FrequencyStudentReportNotesV2>(state.notes_json),
+    input.rows,
+  );
 }
 /** Records what the application did, under the same lease, with the request's receipt. */
 async function finishStudentReport(
@@ -1960,7 +2078,10 @@ async function statusRead(tx: Tx, year: number, actor: FrequencyActorV2) {
       )
     ).length > 0;
   const [state] = known
-    ? await tx.query<Row>('SELECT 1 AS present FROM attendance.school_state_v2 WHERE academic_year=$1', [year])
+    ? await tx.query<Row>(
+        'SELECT 1 AS present FROM attendance.school_state_v2 WHERE academic_year=$1',
+        [year],
+      )
     : [];
   if (!known || !state) {
     await lockResetWriterV1(tx, year);
@@ -2032,7 +2153,12 @@ async function finishMutation(
   if (!UNLEASED.has(input.operation)) await recordFrequencyResetWriteV2(tx, input.academicYear);
   await lockDevice(tx, actor);
   if (COLLECTING.has(input.operation) || input.operation === 'heartbeat')
-    await liveLease(tx, input as { academicYear: number; fencingToken: number }, actor, input.operation === 'heartbeat');
+    await liveLease(
+      tx,
+      input as { academicYear: number; fencingToken: number },
+      actor,
+      input.operation === 'heartbeat',
+    );
   if (input.operation === 'heartbeat') await purgeFrequencyOperationalRowsV2(tx);
   if (input.operation === 'lease')
     await liveLease(

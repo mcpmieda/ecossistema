@@ -44,16 +44,25 @@ function subscribe(listener: () => void): () => void {
 }
 
 export function useAuditPendingV1(enabled: boolean, visit: string): string | null {
-  const current = useSyncExternalStore(subscribe, () => state, () => state);
+  const current = useSyncExternalStore(
+    subscribe,
+    () => state,
+    () => state,
+  );
   const active = useRef<AbortController | null>(null);
   const read = useCallback(async () => {
     const year = state.year;
-    if (!enabled || year === null || document.visibilityState === 'hidden' || active.current) return;
+    if (!enabled || year === null || document.visibilityState === 'hidden' || active.current)
+      return;
     const controller = new AbortController();
     active.current = controller;
     try {
-      const response = await listGradebookImportDiagnosticsAuditV1({ academicYear: year, limit: 1 }, controller.signal);
-      if (response.state === 'ready' && response.total !== undefined) publishAuditPendingV1(year, response.total);
+      const response = await listGradebookImportDiagnosticsAuditV1(
+        { academicYear: year, limit: 1 },
+        controller.signal,
+      );
+      if (response.state === 'ready' && response.total !== undefined)
+        publishAuditPendingV1(year, response.total);
     } catch {
       // The tab keeps its last count; the Auditoria itself shows a failed read.
     } finally {

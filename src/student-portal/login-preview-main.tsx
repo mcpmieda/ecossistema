@@ -1,4 +1,11 @@
-import { StrictMode, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  StrictMode,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentAuthenticationV1 } from '../features/student-portal/auth/student-auth-v1';
 import type { RiskMountV1 } from '../features/student-portal/auth/turnstile-widget-v1';
@@ -115,10 +122,10 @@ function reply(status: number, body: Record<string, unknown>) {
   });
 }
 const failure = (state: string, retryAfterSeconds?: number) =>
-  reply(
-    { unauthenticated: 401, 'rate-limited': 429, unavailable: 503 }[state] ?? 400,
-    { state, ...(retryAfterSeconds ? { retryAfterSeconds } : {}) },
-  );
+  reply({ unauthenticated: 401, 'rate-limited': 429, unavailable: 503 }[state] ?? 400, {
+    state,
+    ...(retryAfterSeconds ? { retryAfterSeconds } : {}),
+  });
 const session = () =>
   reply(200, {
     state: 'authenticated',
@@ -279,7 +286,13 @@ const panelStyle: CSSProperties = {
   font: '12px/1.4 system-ui, sans-serif',
   boxShadow: '0 10px 30px rgb(0 0 0 / 0.3)',
 };
-const rowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', margin: '6px 0' };
+const rowStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: '4px 8px',
+  margin: '6px 0',
+};
 
 let runCounter = 0;
 
@@ -314,7 +327,9 @@ function LoginPreviewV1() {
           notices={{
             access: 'closed',
             accessOpensAt:
-              screen.closed === 'opening' ? new Date(Date.now() + 3 * 86_400_000).toISOString() : null,
+              screen.closed === 'opening'
+                ? new Date(Date.now() + 3 * 86_400_000).toISOString()
+                : null,
             gradesReleaseAt:
               screen.closed === 'grades'
                 ? new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60 + 9) * 1000).toISOString()

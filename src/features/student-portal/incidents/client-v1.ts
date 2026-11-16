@@ -29,7 +29,11 @@ const incident = z
   })
   .strict();
 const answer = z
-  .object({ contractVersion: z.literal(1), state: z.literal('ready'), incidents: z.array(incident).max(500) })
+  .object({
+    contractVersion: z.literal(1),
+    state: z.literal('ready'),
+    incidents: z.array(incident).max(500),
+  })
   .strict();
 const acknowledged = z
   .object({

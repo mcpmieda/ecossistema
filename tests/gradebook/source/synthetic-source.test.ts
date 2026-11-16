@@ -7,7 +7,14 @@ import {
   type GradeSheetRecognition,
   type StudentRecognition,
 } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
-import { SYNTHETIC_EXPECTATIONS, SYNTHETIC_FILES, SYNTHETIC_SHEET_CONTROLS, SYNTHETIC_TEACHER_WORKBOOK, createSyntheticFile, createSyntheticSheetJs } from '../fixtures/synthetic-teacher-workbooks';
+import {
+  SYNTHETIC_EXPECTATIONS,
+  SYNTHETIC_FILES,
+  SYNTHETIC_SHEET_CONTROLS,
+  SYNTHETIC_TEACHER_WORKBOOK,
+  createSyntheticFile,
+  createSyntheticSheetJs,
+} from '../fixtures/synthetic-teacher-workbooks';
 
 const SYNTHETIC_SHA256 = 'a'.repeat(64);
 
@@ -106,9 +113,11 @@ describe('massa sintética — semântica observável das células', () => {
   });
 
   it('CELL-002/#837: preserva 0,1 como nota decimal comum no leitor atual', () => {
-    expect(requiredStudent('6A1º', 5).quantitativeAssessments[0]).toEqual(
-      { source: 0.1, value: 0.1, kind: 'manual' },
-    );
+    expect(requiredStudent('6A1º', 5).quantitativeAssessments[0]).toEqual({
+      source: 0.1,
+      value: 0.1,
+      kind: 'manual',
+    });
   });
 
   it('CELL-003: mantém zero manual legado distinto', () => {
@@ -282,7 +291,6 @@ describe('massa sintética — posições, movimentações e recuperação', () 
 });
 
 describe('massa sintética — definições trimestrais V2', () => {
-
   it('separa AA3, AA4 e AA5 sem normalizar destrutivamente o nome livre', () => {
     const definition = requiredDefinition('6A1º', 'AA');
     if (definition.kind !== 'qualitative-activity')

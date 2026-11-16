@@ -11,7 +11,9 @@ export async function proveTurnstileProviderV1() {
   const schema = z.object({ success: z.boolean(), 'error-codes': z.array(z.string()).optional() });
   const siteverify = async (secret: string) => {
     const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
+      method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(5000),
       body: new URLSearchParams({ secret, response: dummy }),
     });
     if (!response.ok) throw new Error('provider-proof-unavailable');
@@ -19,8 +21,17 @@ export async function proveTurnstileProviderV1() {
   };
   const accepted = await siteverify(pass);
   const replay = await siteverify(spent);
-  const strictRejected = !await new TurnstileVerifierV1(pass).verify(dummy);
-  if (!accepted.success || replay.success || !replay['error-codes']?.includes('timeout-or-duplicate') || !strictRejected)
+  const strictRejected = !(await new TurnstileVerifierV1(pass).verify(dummy));
+  if (
+    !accepted.success ||
+    replay.success ||
+    !replay['error-codes']?.includes('timeout-or-duplicate') ||
+    !strictRejected
+  )
     throw new Error('provider-proof-failed');
-  return { publicDummyAccepted: true, providerSpentFixtureRejected: true, strictProductionHostnameActionRejectedDummy: true };
+  return {
+    publicDummyAccepted: true,
+    providerSpentFixtureRejected: true,
+    strictProductionHostnameActionRejectedDummy: true,
+  };
 }

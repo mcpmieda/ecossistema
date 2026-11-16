@@ -30,7 +30,9 @@ describe('security remediation #637', () => {
 
   it('pins the patched sharp only in the Miniflare dependency chain', () => {
     expect(manifest.overrides.miniflare).toEqual({ sharp: '0.35.5' });
-    const entries = Object.entries(lock.packages).filter(([path]) => /(?:^|\/)node_modules\/sharp$/u.test(path));
+    const entries = Object.entries(lock.packages).filter(([path]) =>
+      /(?:^|\/)node_modules\/sharp$/u.test(path),
+    );
     expect(entries.length).toBeGreaterThan(0);
     for (const [path, entry] of entries) {
       expect(entry.version, path).toBe('0.35.5');
@@ -42,7 +44,9 @@ describe('security remediation #637', () => {
   it('does not restore the unused manifest CLI or its vulnerable ZIP dependency', () => {
     expect(manifest.devDependencies).not.toHaveProperty('office-addin-manifest');
     expect(manifest.overrides).not.toHaveProperty('adm-zip');
-    const removed = Object.keys(lock.packages).filter((path) => /(?:^|\/)node_modules\/(?:office-addin-manifest|adm-zip)$/u.test(path));
+    const removed = Object.keys(lock.packages).filter((path) =>
+      /(?:^|\/)node_modules\/(?:office-addin-manifest|adm-zip)$/u.test(path),
+    );
     expect(removed).toEqual([]);
   });
 

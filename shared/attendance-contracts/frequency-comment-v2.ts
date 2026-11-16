@@ -39,7 +39,14 @@ export type FrequencyCommentKindV2 =
   | 'none-this-year';
 type FrequencyCommentV2 = { kind: FrequencyCommentKindV2; tone: 'alert' | 'good'; text: string };
 
-const WEEKDAY_PLURAL = ['', 'às segundas-feiras', 'às terças-feiras', 'às quartas-feiras', 'às quintas-feiras', 'às sextas-feiras'];
+const WEEKDAY_PLURAL = [
+  '',
+  'às segundas-feiras',
+  'às terças-feiras',
+  'às quartas-feiras',
+  'às quintas-feiras',
+  'às sextas-feiras',
+];
 const days = (count: number) => (count === 1 ? '1 dia' : `${count} dias`);
 const dateLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
 
@@ -47,10 +54,15 @@ const dateLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
  * justification, most recent first; days without lessons are left out. `open`: some shift of the day
  * was not read in full (or had a mark in conflict) in the last 30 days, as the ring and the calendar
  * show it. */
-function pastSchoolDaysV2(months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[], today: string) {
+function pastSchoolDaysV2(
+  months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[],
+  today: string,
+) {
   const lessons = new Map<string, Set<string>>();
   const open = new Set<string>();
-  const openSince = new Date(Date.parse(`${today}T12:00:00Z`) - OPEN_DAY_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const openSince = new Date(Date.parse(`${today}T12:00:00Z`) - OPEN_DAY_WINDOW_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
   for (const day of months.flatMap((month) => month.days ?? []) as FrequencyDayV2[]) {
     if (day.date >= today) continue;
     if (day.complete === false && day.date >= openSince) open.add(day.date);
@@ -66,7 +78,14 @@ function pastSchoolDaysV2(months: readonly Pick<FrequencySummaryV2, 'marks' | 'd
     if (mark.mark === 'X') absent.set(mark.date, (absent.get(mark.date) ?? 0) + 1);
   }
   return [...lessons.entries()]
-    .map(([date, set]) => ({ date, lessons: set.size, absences: absent.get(date) ?? 0, marked: marked.has(date), open: open.has(date), weekday: new Date(`${date}T12:00:00Z`).getUTCDay() }))
+    .map(([date, set]) => ({
+      date,
+      lessons: set.size,
+      absences: absent.get(date) ?? 0,
+      marked: marked.has(date),
+      open: open.has(date),
+      weekday: new Date(`${date}T12:00:00Z`).getUTCDay(),
+    }))
     .filter((day) => day.lessons > 0)
     .sort((left, right) => right.date.localeCompare(left.date));
 }
@@ -121,28 +140,46 @@ export function frequencyCommentV2({
   for (const day of fullDays) byWeekday[day.weekday]! += 1;
   const topWeekday = byWeekday.indexOf(Math.max(...byWeekday));
 
-  const alert = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'alert', text });
-  const good = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({ kind, tone: 'good', text });
+  const alert = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({
+    kind,
+    tone: 'alert',
+    text,
+  });
+  const good = (kind: FrequencyCommentKindV2, text: string): FrequencyCommentV2 => ({
+    kind,
+    tone: 'good',
+    text,
+  });
   if (absenceDays > limit)
     return alert('over-limit', `Já faltou cerca de ${days(shown)}. Pode reprovar por falta.`);
   if (absenceDays + recentRate * remainingSchoolDays > limit)
-    return alert('will-pass', `Já faltou cerca de ${days(shown)}. Faltando assim, pode reprovar por falta.`);
+    return alert(
+      'will-pass',
+      `Já faltou cerca de ${days(shown)}. Faltando assim, pode reprovar por falta.`,
+    );
   // From three fifths of the limit on (30 days of 50). No sentence names the limit (a number of
   // days reads as freedom to miss); it only decides when a warning shows.
   if (absenceDays >= limit * NEAR_LIMIT_SHARE)
     return alert('near-limit', `Já faltou cerca de ${days(shown)}. Mais faltas podem reprovar.`);
   if (streak >= 3)
-    return alert('in-a-row', `Não vem à escola desde ${dateLabel(weekdays[streak - 1]!.date)} (${streak} dias seguidos).`);
+    return alert(
+      'in-a-row',
+      `Não vem à escola desde ${dateLabel(weekdays[streak - 1]!.date)} (${streak} dias seguidos).`,
+    );
   // "Antes" needs weekdays before the last four weeks (a student who just arrived has none).
   if (before.length && recentAbsenceDays >= 4 && recentRate >= 2 * beforeRate)
-    return alert('rising', `Faltou cerca de ${days(Math.round(recentAbsenceDays))} nas últimas 4 semanas. Antes, faltava menos.`);
+    return alert(
+      'rising',
+      `Faltou cerca de ${days(Math.round(recentAbsenceDays))} nas últimas 4 semanas. Antes, faltava menos.`,
+    );
   if (fullDays.length >= 8 && byWeekday[topWeekday]! >= 0.4 * fullDays.length)
     return alert('weekday', `Falta muito ${WEEKDAY_PLURAL[topWeekday]}.`);
   if (before.length && beforeRate >= 0.1 && recentRate < 0.5 * beforeRate)
     return good('improving', 'Está faltando menos dias. Continue assim!');
   // "Nenhuma falta" is for who never missed: a justified absence is still an absence.
   // A recent day not read in full (or with a mark in conflict) may hide one: it never counts as "sem falta".
-  if (all.every((day) => !day.marked && !day.open)) return good('none-this-year', 'Nenhuma falta este ano. Parabéns!');
+  if (all.every((day) => !day.marked && !day.open))
+    return good('none-this-year', 'Nenhuma falta este ano. Parabéns!');
   if (recent.length && recent.every((day) => !day.marked && !day.open))
     return good('none-recently', 'Nenhuma falta nas últimas 4 semanas. Muito bem!');
   return null;

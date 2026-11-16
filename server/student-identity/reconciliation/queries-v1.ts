@@ -99,13 +99,21 @@ const RECONCILIATION_ROWS_SQL_V1 = `WITH people AS (
   ) `;
 
 /** How many rows the pending view lists (the rule of the screen), counted up to one past the cap. */
-export async function pendingCountV1(tx: TxV1, academicYear: number): Promise<ReconciliationResponseV1> {
+export async function pendingCountV1(
+  tx: TxV1,
+  academicYear: number,
+): Promise<ReconciliationResponseV1> {
   const [row] = await tx.query(
     `${RECONCILIATION_ROWS_SQL_V1} SELECT count(*)::integer AS pending FROM (SELECT 1 FROM (SELECT item FROM people UNION ALL SELECT item FROM external) all_rows
     WHERE (all_rows.item->>'kind'='external' AND all_rows.item->>'reason'<>'smecel_only') OR all_rows.item->>'reconciliation'<>'reconciled' LIMIT $2) counted`,
     [academicYear, RECONCILIATION_PENDING_CAP_V1 + 1],
   );
-  return { contractVersion: 1, state: 'ready', operation: 'pending-count', pending: Number(row?.pending ?? 0) };
+  return {
+    contractVersion: 1,
+    state: 'ready',
+    operation: 'pending-count',
+    pending: Number(row?.pending ?? 0),
+  };
 }
 
 export async function listV1(
@@ -120,7 +128,9 @@ export async function listV1(
   const keySecret = `student-reconciliation-cursor-v1:${secret}`;
   let after = '';
   if (request.cursor) {
-    const c = cursorSchema.safeParse(await unseal(request.cursor, keySecret, 'reconciliation-cursor'));
+    const c = cursorSchema.safeParse(
+      await unseal(request.cursor, keySecret, 'reconciliation-cursor'),
+    );
     if (
       !c.success ||
       c.data.actor !== actor ||
@@ -182,7 +192,8 @@ export async function listV1(
               expires: clock.now.getTime() + 300000,
               key: String(page.at(-1)!.key),
             },
-            keySecret, 'reconciliation-cursor',
+            keySecret,
+            'reconciliation-cursor',
           )
         : null,
   };
@@ -253,7 +264,10 @@ export async function detailV1(
 }
 
 /** The Coletor's last automatic report: what it applied and the differences it left here. */
-export async function automaticReportV1(tx: TxV1, academicYear: number): Promise<ReconciliationResponseV1> {
+export async function automaticReportV1(
+  tx: TxV1,
+  academicYear: number,
+): Promise<ReconciliationResponseV1> {
   const [row] = await tx.query(
     `SELECT last_observed_at::text,last_changed_at::text,outcome,rows,notes_json FROM attendance.student_report_state_v2 WHERE academic_year=$1`,
     [academicYear],
@@ -264,7 +278,13 @@ export async function automaticReportV1(tx: TxV1, academicYear: number): Promise
     ? (stored as {
         counts: { rows: number; linked: number; pending: number } | null;
         differences: string[];
-        invalid: { sourceRow: number; name: string; classLabel: string; field: string; reason: string }[];
+        invalid: {
+          sourceRow: number;
+          name: string;
+          classLabel: string;
+          field: string;
+          reason: string;
+        }[];
       })
     : null;
   return {
@@ -276,7 +296,8 @@ export async function automaticReportV1(tx: TxV1, academicYear: number): Promise
         ? {
             observedAt: new Date(String(row.last_observed_at)).toISOString(),
             changedAt: new Date(String(row.last_changed_at)).toISOString(),
-            outcome: String(row.outcome) as 'applied' | 'preparing' | 'awaiting_relation' | 'review',
+            outcome: String(row.outcome) as
+              'applied' | 'preparing' | 'awaiting_relation' | 'review',
             rows: Number(row.rows),
             counts: notes.counts,
             differences: notes.differences,

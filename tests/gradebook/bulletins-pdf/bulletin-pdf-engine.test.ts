@@ -8,7 +8,10 @@ import {
 } from '../../../src/features/gradebook/bulletins/pdf/bulletin-pdf-engine';
 
 const engineSource = () =>
-  readFileSync(join(process.cwd(), 'src/features/gradebook/bulletins/pdf/bulletin-pdf-engine.ts'), 'utf8');
+  readFileSync(
+    join(process.cwd(), 'src/features/gradebook/bulletins/pdf/bulletin-pdf-engine.ts'),
+    'utf8',
+  );
 const jpeg = () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
 
 describe('Boletins PDF engine', () => {
@@ -45,7 +48,15 @@ describe('Boletins PDF engine', () => {
 
   it('holds no academic rule, HTTP read or browser storage', () => {
     const source = engineSource();
-    for (const forbidden of ['maximum *', 'fetch(', '/api/gradebook/', 'localStorage', 'sessionStorage', 'indexedDB', 'caches.open']) {
+    for (const forbidden of [
+      'maximum *',
+      'fetch(',
+      '/api/gradebook/',
+      'localStorage',
+      'sessionStorage',
+      'indexedDB',
+      'caches.open',
+    ]) {
       expect(source).not.toContain(forbidden);
     }
   });

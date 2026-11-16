@@ -3,7 +3,8 @@
  * "7º ano C - Matutino", "TURMA 6A" → "6A"…; null when there is no class letter ("9ANO", "6º ANO").
  * Read in linear time (no backtracking expression). Shared by the recognizer and the Auditoria.
  */
-const normalized = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase().replace(/\s+/gu, ' ').trim();
+const normalized = (value: string) =>
+  value.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase().replace(/\s+/gu, ' ').trim();
 const isSpaceV1 = (char: string | undefined) => char !== undefined && /\s/u.test(char);
 const isDigitV1 = (char: string | undefined) => char !== undefined && char >= '0' && char <= '9';
 const isLetterV1 = (char: string | undefined) => char !== undefined && char >= 'A' && char <= 'Z';
@@ -15,7 +16,9 @@ function classCodeAtV1(text: string, start: number): string | null {
   let index = start;
   while (index - start < 2 && isDigitV1(text[index])) index += 1;
   const number = text.slice(start, index);
-  const skipSpaces = () => { while (isSpaceV1(text[index])) index += 1; };
+  const skipSpaces = () => {
+    while (isSpaceV1(text[index])) index += 1;
+  };
   skipSpaces();
   if (CLASS_ORDINALS_V1.has(text[index] ?? '')) index += 1;
   skipSpaces();
@@ -45,4 +48,3 @@ export function classCodeV1(value: string): string | null {
   }
   return null;
 }
-

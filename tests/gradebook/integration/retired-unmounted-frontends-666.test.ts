@@ -43,17 +43,21 @@ describe('frontends antigos sem montagem aposentados na #666', () => {
     expect(shell).not.toContain('gradebook-operational-surface');
     expect(council).toContain('RelationalCouncilPageV3');
     expect(bulletins).toContain('RelationalBulletinPageV2');
-    expect(shell).toContain("import('../features/gradebook/performance/relational-performance-page-v2')");
-    expect(shell).not.toContain("import('../features/gradebook/reports/relational-institutional-reports-page-v2')");
-    expect(shell).not.toContain("import('../features/gradebook/reports/institutional-reports-page')");
+    expect(shell).toContain(
+      "import('../features/gradebook/performance/relational-performance-page-v2')",
+    );
+    expect(shell).not.toContain(
+      "import('../features/gradebook/reports/relational-institutional-reports-page-v2')",
+    );
+    expect(shell).not.toContain(
+      "import('../features/gradebook/reports/institutional-reports-page')",
+    );
     expect(shell).not.toContain("import('../features/gradebook/performance/performance-page')");
   });
 
   it('preserva endpoints server-side e o renderer PDF compartilhado com V2', () => {
     const functions = source('functions/[[path]].ts');
-    const rendererV2 = source(
-      'src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts',
-    );
+    const rendererV2 = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts');
 
     for (const handler of [
       'handleOperationalWorkspaceRequestV1',
@@ -64,9 +68,8 @@ describe('frontends antigos sem montagem aposentados na #666', () => {
       expect(functions).toContain(handler);
     }
     expect(rendererV2).toContain("from './bulletin-pdf-engine'");
-    expect(existsSync(join(
-      root,
-      'src/features/gradebook/bulletins/pdf/bulletin-pdf-engine.ts',
-    ))).toBe(true);
+    expect(
+      existsSync(join(root, 'src/features/gradebook/bulletins/pdf/bulletin-pdf-engine.ts')),
+    ).toBe(true);
   });
 });

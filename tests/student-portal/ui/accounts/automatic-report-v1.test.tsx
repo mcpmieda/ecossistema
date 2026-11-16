@@ -11,7 +11,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
-const report = (outcome: AutomaticReportV1['outcome'], differences: string[]): AutomaticReportV1 => ({
+const report = (
+  outcome: AutomaticReportV1['outcome'],
+  differences: string[],
+): AutomaticReportV1 => ({
   observedAt: '2026-10-29T12:07:00Z',
   changedAt: '2026-10-29T12:07:00Z',
   outcome,

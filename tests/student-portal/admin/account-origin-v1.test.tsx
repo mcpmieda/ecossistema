@@ -61,13 +61,23 @@ it('mostra o motivo na ficha sem turma e encerra só depois da confirmação', a
     query: (input) =>
       input.operation === 'account-origin'
         ? Promise.resolve(
-            accountJsonV1(origin({ accountId: mock.accounts[0]!.accountId, version: mock.accounts[0]!.version })),
+            accountJsonV1(
+              origin({
+                accountId: mock.accounts[0]!.accountId,
+                version: mock.accounts[0]!.version,
+              }),
+            ),
           )
         : undefined,
     write: (input) => {
       commands.push(input);
       return Promise.resolve(
-        accountJsonV1({ ...ACCOUNT_META_V1, state: 'committed', operationId: crypto.randomUUID(), version: 9 }),
+        accountJsonV1({
+          ...ACCOUNT_META_V1,
+          state: 'committed',
+          operationId: crypto.randomUUID(),
+          version: 9,
+        }),
       );
     },
   });
@@ -91,11 +101,17 @@ it('mostra o motivo na ficha sem turma e encerra só depois da confirmação', a
   expect(commands).toHaveLength(0);
   fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Encerrar conta' }));
   await advance();
-  expect(within(screen.getByRole('alertdialog')).getByText(/sai da lista e dos totais/)).toBeTruthy();
+  expect(
+    within(screen.getByRole('alertdialog')).getByText(/sai da lista e dos totais/),
+  ).toBeTruthy();
   expect(commands).toHaveLength(0);
   fireEvent.click(screen.getByRole('button', { name: 'Confirmar ação' }));
   await advance();
   expect(commands).toEqual([
-    expect.objectContaining({ operation: 'account-close', accountId: mock.accounts[0]!.accountId, confirmed: true }),
+    expect.objectContaining({
+      operation: 'account-close',
+      accountId: mock.accounts[0]!.accountId,
+      confirmed: true,
+    }),
   ]);
 });

@@ -8,7 +8,10 @@ import {
   type ScopeV1,
 } from '../../../shared/student-portal-contracts/core-v1';
 import { auditEventV1 } from '../../../shared/student-portal-contracts/admin-v1';
-import { effectiveSettingsV1, type EffectiveSettingsV1 } from '../../../shared/student-portal-contracts/policy-v1';
+import {
+  effectiveSettingsV1,
+  type EffectiveSettingsV1,
+} from '../../../shared/student-portal-contracts/policy-v1';
 import type {
   AccountRecordV1,
   AttemptRecordV1,
@@ -26,8 +29,9 @@ import type {
 
 type SqlRowV1 = Record<string, unknown>;
 
-export interface StudentPortalPostgresResultV1<Row extends SqlRowV1 = SqlRowV1>
-  extends ReadonlyArray<Row> {
+export interface StudentPortalPostgresResultV1<
+  Row extends SqlRowV1 = SqlRowV1,
+> extends ReadonlyArray<Row> {
   readonly count?: number | null;
 }
 
@@ -59,7 +63,8 @@ function integer(value: unknown, field: string): number {
   } else {
     parsed = value;
   }
-  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed)) throw new Error(`student-portal-invalid-${field}`);
+  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed))
+    throw new Error(`student-portal-invalid-${field}`);
   return parsed;
 }
 
@@ -134,8 +139,15 @@ function scopeKey(scope: PolicyScopeV1): string {
   }
 }
 
-function scopeColumns(scope: PolicyScopeV1): readonly [string, number, number | null, string | null] {
-  return [scope.kind, scope.academicYear, scope.kind === 'class' ? scope.classId : null, scope.kind === 'account' ? scope.accountId : null];
+function scopeColumns(
+  scope: PolicyScopeV1,
+): readonly [string, number, number | null, string | null] {
+  return [
+    scope.kind,
+    scope.academicYear,
+    scope.kind === 'class' ? scope.classId : null,
+    scope.kind === 'account' ? scope.accountId : null,
+  ];
 }
 
 function sameLink(left: AcademicLinkV1 | null, right: AcademicLinkV1 | null): boolean {
@@ -144,7 +156,8 @@ function sameLink(left: AcademicLinkV1 | null, right: AcademicLinkV1 | null): bo
 }
 
 export function accountFromRowV1(row: SqlRowV1): AccountRecordV1 {
-  const studentId = row.gradebook_student_id === null ? null : integer(row.gradebook_student_id, 'student-id');
+  const studentId =
+    row.gradebook_student_id === null ? null : integer(row.gradebook_student_id, 'student-id');
   const year = integer(row.academic_year, 'academic-year');
   const link = studentId === null ? null : ({ academicYear: year, studentId } as AcademicLinkV1);
   return {
@@ -222,11 +235,20 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     if (year !== 2026) throw new Error('student-portal-year-not-supported');
     if (mode === 'exclusive') this.requireYearWriter();
     await rows(this.sql, 'SELECT pg_advisory_xact_lock_shared($1,$2)', [613, 0]);
-    await rows(this.sql, mode === 'shared'
-      ? 'SELECT pg_advisory_xact_lock_shared($1,$2)' : 'SELECT pg_advisory_xact_lock($1,$2)', [613, year]);
-    await rows(this.sql, mode === 'shared'
-      ? 'SELECT academic_year FROM student_portal.academic_revision WHERE academic_year=$1 FOR SHARE'
-      : 'SELECT academic_year FROM student_portal.academic_revision WHERE academic_year=$1 FOR UPDATE', [year]);
+    await rows(
+      this.sql,
+      mode === 'shared'
+        ? 'SELECT pg_advisory_xact_lock_shared($1,$2)'
+        : 'SELECT pg_advisory_xact_lock($1,$2)',
+      [613, year],
+    );
+    await rows(
+      this.sql,
+      mode === 'shared'
+        ? 'SELECT academic_year FROM student_portal.academic_revision WHERE academic_year=$1 FOR SHARE'
+        : 'SELECT academic_year FROM student_portal.academic_revision WHERE academic_year=$1 FOR UPDATE',
+      [year],
+    );
     if (this.yearLock !== 'exclusive') this.yearLock = mode;
   }
 
@@ -236,7 +258,9 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       throw new Error('student-portal-account-lock-order');
     }
     for (const accountId of sorted) {
-      await rows(this.sql, 'SELECT id FROM student_portal.account WHERE id=$1::uuid FOR UPDATE', [accountId]);
+      await rows(this.sql, 'SELECT id FROM student_portal.account WHERE id=$1::uuid FOR UPDATE', [
+        accountId,
+      ]);
     }
   }
 
@@ -323,7 +347,15 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       `INSERT INTO student_portal.session
          (id,account_id,token_hash,security_version,expires_at,revoked_at,persistent)
        VALUES ($1::uuid,$2::uuid,$3,$4,$5::timestamptz,$6::timestamptz,$7)`,
-      [record.id, record.accountId, record.tokenHash, record.securityVersion, record.expiresAt, record.revokedAt, record.persistent],
+      [
+        record.id,
+        record.accountId,
+        record.tokenHash,
+        record.securityVersion,
+        record.expiresAt,
+        record.revokedAt,
+        record.persistent,
+      ],
     );
   }
 
@@ -360,7 +392,12 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     return result.length;
   }
 
-  async consumeChallenge(hash: string, securityVersion: number, pinVersion: number, now: string): Promise<boolean> {
+  async consumeChallenge(
+    hash: string,
+    securityVersion: number,
+    pinVersion: number,
+    now: string,
+  ): Promise<boolean> {
     const result = await rows(
       this.sql,
       `UPDATE student_portal.auth_challenge
@@ -379,7 +416,14 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       `INSERT INTO student_portal.auth_challenge
          (token_hash,account_id,security_version,pin_version,expires_at,consumed_at)
        VALUES ($1,$2::uuid,$3,$4,$5::timestamptz,$6::timestamptz)`,
-      [record.tokenHash, record.accountId, record.securityVersion, record.pinVersion, record.expiresAt, record.consumedAt],
+      [
+        record.tokenHash,
+        record.accountId,
+        record.securityVersion,
+        record.pinVersion,
+        record.expiresAt,
+        record.consumedAt,
+      ],
     );
   }
 
@@ -457,7 +501,10 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     return {
       accountId: text(row.account_id, 'account-id'),
       year: row.birth_year === null ? null : String(integer(row.birth_year, 'birth-year')),
-      confirmation: row.confirmation === null ? null : text(row.confirmation, 'birth-confirmation') as BirthRecordV1['confirmation'],
+      confirmation:
+        row.confirmation === null
+          ? null
+          : (text(row.confirmation, 'birth-confirmation') as BirthRecordV1['confirmation']),
       version: integer(row.version, 'birth-version'),
     };
   }
@@ -470,13 +517,15 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       [accountId],
     );
     const row = result[0];
-    return row ? {
-      accountId: text(row.account_id, 'account-id'),
-      failures: integer(row.failures, 'failures'),
-      windowStartedAt: instant(row.window_started_at, 'window-started-at'),
-      blockedUntil: nullableInstant(row.blocked_until, 'blocked-until'),
-      version: integer(row.version, 'attempt-version'),
-    } : null;
+    return row
+      ? {
+          accountId: text(row.account_id, 'account-id'),
+          failures: integer(row.failures, 'failures'),
+          windowStartedAt: instant(row.window_started_at, 'window-started-at'),
+          blockedUntil: nullableInstant(row.blocked_until, 'blocked-until'),
+          version: integer(row.version, 'attempt-version'),
+        }
+      : null;
   }
 
   async saveAttempts(record: AttemptRecordV1): Promise<void> {
@@ -487,7 +536,13 @@ class StudentPortalTransaction implements PortalTransactionV1 {
        ON CONFLICT (account_id) DO UPDATE SET
          failures=EXCLUDED.failures,window_started_at=EXCLUDED.window_started_at,
          blocked_until=EXCLUDED.blocked_until,version=EXCLUDED.version`,
-      [record.accountId, record.failures, record.windowStartedAt, record.blockedUntil, record.version],
+      [
+        record.accountId,
+        record.failures,
+        record.windowStartedAt,
+        record.blockedUntil,
+        record.version,
+      ],
     );
   }
 
@@ -500,14 +555,16 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       [key, actorId],
     );
     const row = result[0];
-    return row ? {
-      key: text(row.idempotency_key, 'idempotency-key'),
-      actorId: text(row.actor_id, 'actor-id'),
-      requestDigest: text(row.request_digest, 'request-digest'),
-      operationId: text(row.operation_id, 'operation-id'),
-      version: integer(row.version, 'receipt-version'),
-      expiresAt: instant(row.expires_at, 'receipt-expires-at'),
-    } : null;
+    return row
+      ? {
+          key: text(row.idempotency_key, 'idempotency-key'),
+          actorId: text(row.actor_id, 'actor-id'),
+          requestDigest: text(row.request_digest, 'request-digest'),
+          operationId: text(row.operation_id, 'operation-id'),
+          version: integer(row.version, 'receipt-version'),
+          expiresAt: instant(row.expires_at, 'receipt-expires-at'),
+        }
+      : null;
   }
 
   async saveIdempotency(record: IdempotencyRecordV1): Promise<void> {
@@ -517,14 +574,22 @@ class StudentPortalTransaction implements PortalTransactionV1 {
          (idempotency_key,actor_id,request_digest,operation_id,version,expires_at)
        VALUES ($1,$2,$3,$4::uuid,$5,$6::timestamptz)
        ON CONFLICT (idempotency_key,actor_id) DO NOTHING`,
-      [record.key, record.actorId, record.requestDigest, record.operationId, record.version, record.expiresAt],
+      [
+        record.key,
+        record.actorId,
+        record.requestDigest,
+        record.operationId,
+        record.version,
+        record.expiresAt,
+      ],
     );
   }
 
   async appendAudit(event: Parameters<typeof auditEventV1.parse>[0]): Promise<void> {
     const parsed = auditEventV1.parse(event);
     // detail_json (migration 0023) is written only when there is a detail to keep.
-    const detail = parsed.detail && Object.keys(parsed.detail).length ? JSON.stringify(parsed.detail) : null;
+    const detail =
+      parsed.detail && Object.keys(parsed.detail).length ? JSON.stringify(parsed.detail) : null;
     await rows(
       this.sql,
       `INSERT INTO student_portal.audit_event
@@ -532,19 +597,57 @@ class StudentPortalTransaction implements PortalTransactionV1 {
        SELECT $1::uuid,$2::text::timestamptz,$3::uuid,$4::uuid,$5::text::jsonb,$6,$7,$8::uuid,$9,
          COALESCE(${AUDIT_IP_MASK_V1},$10),client_ip,
          CASE WHEN client_ip IS NOT NULL THEN $2::text::timestamptz+interval '90 days' END${detail ? ',$11::text::jsonb' : ''} FROM ${AUDIT_IP_SOURCE_V1}`,
-      [parsed.eventId, parsed.at, parsed.actorId, parsed.accountId, JSON.stringify(parsed.scope), parsed.kind, parsed.result, parsed.requestId, parsed.version, parsed.maskedIp, ...(detail ? [detail] : [])],
+      [
+        parsed.eventId,
+        parsed.at,
+        parsed.actorId,
+        parsed.accountId,
+        JSON.stringify(parsed.scope),
+        parsed.kind,
+        parsed.result,
+        parsed.requestId,
+        parsed.version,
+        parsed.maskedIp,
+        ...(detail ? [detail] : []),
+      ],
     );
   }
 
-  async compareAndSetSettings(settings: EffectiveSettingsV1, expectedVersion: number): Promise<boolean> {
+  async compareAndSetSettings(
+    settings: EffectiveSettingsV1,
+    expectedVersion: number,
+  ): Promise<boolean> {
     this.requireYearWriter();
     const parsed = effectiveSettingsV1.parse(settings);
     const key = scopeKey(parsed.scope);
-    const existing = await rows(this.sql, 'SELECT field_key,version FROM student_portal.setting WHERE scope_key=$1 FOR UPDATE', [key]);
-    if (existing.length === 0 ? expectedVersion !== 0 : existing.some((row) => integer(row.version, 'setting-version') !== expectedVersion)) return false;
+    const existing = await rows(
+      this.sql,
+      'SELECT field_key,version FROM student_portal.setting WHERE scope_key=$1 FOR UPDATE',
+      [key],
+    );
+    if (
+      existing.length === 0
+        ? expectedVersion !== 0
+        : existing.some((row) => integer(row.version, 'setting-version') !== expectedVersion)
+    )
+      return false;
     await rows(this.sql, 'DELETE FROM student_portal.setting WHERE scope_key=$1', [key]);
     const [kind, year, classId, accountId] = scopeColumns(parsed.scope);
-    const fields = ['accessEnabled','accessSchedule','showPartials','autoUpdate','showFinalResult','showTermClosing','termClosingConclusive','showFrequency','showSchedule','showIncidents','allowedPeriods','risk','calendar'] as const;
+    const fields = [
+      'accessEnabled',
+      'accessSchedule',
+      'showPartials',
+      'autoUpdate',
+      'showFinalResult',
+      'showTermClosing',
+      'termClosingConclusive',
+      'showFrequency',
+      'showSchedule',
+      'showIncidents',
+      'allowedPeriods',
+      'risk',
+      'calendar',
+    ] as const;
     for (const field of fields) {
       // No schedule is stored as no row (migration 0021 may not be applied yet).
       if (field === 'accessSchedule' && parsed.value.accessSchedule === null) continue;
@@ -559,7 +662,17 @@ class StudentPortalTransaction implements PortalTransactionV1 {
         `INSERT INTO student_portal.setting
            (scope_key,field_key,scope_kind,academic_year,class_id,account_id,value_json,source_scope_json,version)
          VALUES ($1,$2,$3,$4,$5,$6::uuid,$7::text::jsonb,$8::text::jsonb,$9)`,
-        [key, field, kind, year, classId, accountId, JSON.stringify(parsed.value[field]), JSON.stringify(parsed.sources[field]), parsed.version],
+        [
+          key,
+          field,
+          kind,
+          year,
+          classId,
+          accountId,
+          JSON.stringify(parsed.value[field]),
+          JSON.stringify(parsed.sources[field]),
+          parsed.version,
+        ],
       );
     }
     return true;
@@ -680,7 +793,8 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     const current = state[0];
     if (!current) throw new Error('student-portal-revision-state-missing');
     const dataVersion = `${text(current.academic_generation, 'academic-generation')}:${String(current.academic_counter)}`;
-    if (dataVersion !== event.dataVersion) throw new Error('student-portal-academic-revision-conflict');
+    if (dataVersion !== event.dataVersion)
+      throw new Error('student-portal-academic-revision-conflict');
     const resetVersion = `${text(current.reset_generation, 'reset-generation')}:${String(current.reset_counter)}`;
     const portalLinkVersion = `${text(current.portal_link_generation, 'portal-link-generation')}:${String(current.portal_link_counter)}`;
     await rows(
@@ -690,7 +804,16 @@ class StudentPortalTransaction implements PortalTransactionV1 {
           data_version,reset_version,portal_link_version,occurred_at)
        VALUES ($1::uuid,$2,$3::integer[],$4,true,true,$5,$6,$7,$8::timestamptz)
        ON CONFLICT (event_id) DO NOTHING`,
-      [event.eventId, event.academicYear, integerArrayLiteralV1(event.studentIds), event.cause, event.dataVersion, resetVersion, portalLinkVersion, event.occurredAt],
+      [
+        event.eventId,
+        event.academicYear,
+        integerArrayLiteralV1(event.studentIds),
+        event.cause,
+        event.dataVersion,
+        resetVersion,
+        portalLinkVersion,
+        event.occurredAt,
+      ],
     );
   }
 
@@ -702,7 +825,17 @@ class StudentPortalTransaction implements PortalTransactionV1 {
        VALUES ($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8::timestamptz,$9::timestamptz)
        ON CONFLICT (account_id,data_version,policy_version,publication_version) DO NOTHING
        RETURNING id`,
-      [job.id, job.accountId, job.target.dataVersion, job.target.policyVersion, job.target.publicationVersion, job.state, job.attempts, job.nextAttemptAt, job.leaseUntil],
+      [
+        job.id,
+        job.accountId,
+        job.target.dataVersion,
+        job.target.policyVersion,
+        job.target.publicationVersion,
+        job.state,
+        job.attempts,
+        job.nextAttemptAt,
+        job.leaseUntil,
+      ],
     );
     return inserted[0] ? 'created' : 'existing';
   }
@@ -712,7 +845,9 @@ export class StudentPortalPostgresPersistenceV1 implements PersistencePortV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
 
   async transaction<T>(operation: (tx: PortalTransactionV1) => Promise<T>): Promise<T> {
-    return this.sql.begin(async (transactionSql) => operation(new StudentPortalTransaction(transactionSql)));
+    return this.sql.begin(async (transactionSql) =>
+      operation(new StudentPortalTransaction(transactionSql)),
+    );
   }
 
   async findSessionByHash(hash: string): Promise<SessionRecordV1 | null> {
@@ -726,6 +861,8 @@ export class StudentPortalPostgresPersistenceV1 implements PersistencePortV1 {
   }
 }
 
-export function createStudentPortalPostgresPersistenceV1(sql: StudentPortalPostgresSqlV1): PersistencePortV1 {
+export function createStudentPortalPostgresPersistenceV1(
+  sql: StudentPortalPostgresSqlV1,
+): PersistencePortV1 {
   return new StudentPortalPostgresPersistenceV1(sql);
 }

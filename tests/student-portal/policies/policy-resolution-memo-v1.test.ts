@@ -46,7 +46,12 @@ function schoolRows(schedule = false): Stored[] {
     version: 4,
   }));
 }
-const own = (scope: PolicyScopeV1, key: string, field_key: string, value_json: unknown): Stored => ({
+const own = (
+  scope: PolicyScopeV1,
+  key: string,
+  field_key: string,
+  value_json: unknown,
+): Stored => ({
   scope_key: key,
   field_key,
   value_json,
@@ -69,7 +74,11 @@ const accountRule = (n: number) =>
   own(accountScope(n), 'account:2026:' + account(n), 'accessEnabled', false);
 const target = (
   rows: Stored[],
-  extra: { class_id?: number | null; shift?: string | null; account_version?: number | string } = {},
+  extra: {
+    class_id?: number | null;
+    shift?: string | null;
+    account_version?: number | string;
+  } = {},
 ) => ({
   resolved: true,
   class_id: 7,
@@ -91,7 +100,10 @@ describe('policy resolution shared by one read', () => {
       [accountScope(6), target([...schoolRows(true), classRule], { shift: 'NOTURNO' })],
       [accountScope(7), target(schoolRows(true), { class_id: 8, shift: null })],
       [{ kind: 'class', academicYear: 2026, classId: 7 }, target(classmates)],
-      [{ kind: 'shift', academicYear: 2026, shift: 'MATUTINO' }, target(classmates, { class_id: null, shift: null })],
+      [
+        { kind: 'shift', academicYear: 2026, shift: 'MATUTINO' },
+        target(classmates, { class_id: null, shift: null }),
+      ],
       [SCHOOL, target(schoolRows(), { class_id: null, shift: null })],
     ];
     const memo = createPolicyResolutionMemoV1();
@@ -107,7 +119,11 @@ describe('policy resolution shared by one read', () => {
     const first = await resolvePolicySnapshotRowsV1(accountScope(1), [cases[0]![1]], memo);
     expect(first.settings.scope).toEqual(accountScope(1));
     expect(first.settings.version).toBe(7);
-    expect(first.settings.sources.showPartials).toEqual({ kind: 'class', academicYear: 2026, classId: 7 });
+    expect(first.settings.sources.showPartials).toEqual({
+      kind: 'class',
+      academicYear: 2026,
+      classId: 7,
+    });
     const ruled = await resolvePolicySnapshotRowsV1(accountScope(3), [cases[2]![1]], memo);
     expect(ruled.settings.value.accessEnabled).toBe(false);
     expect(ruled.settings.sources.accessEnabled).toEqual(accountScope(3));
@@ -118,9 +134,17 @@ describe('policy resolution shared by one read', () => {
     const classmates = [...schoolRows(), classRule];
     const memo = createPolicyResolutionMemoV1();
     for (const n of [1, 2, 3])
-      await resolvePolicySnapshotRowsV1(accountScope(n), [target(classmates, { account_version: n })], memo);
+      await resolvePolicySnapshotRowsV1(
+        accountScope(n),
+        [target(classmates, { account_version: n })],
+        memo,
+      );
     expect(memo.size).toBe(1);
-    await resolvePolicySnapshotRowsV1(accountScope(4), [target([...classmates, accountRule(4)])], memo);
+    await resolvePolicySnapshotRowsV1(
+      accountScope(4),
+      [target([...classmates, accountRule(4)])],
+      memo,
+    );
     expect(memo.size).toBe(1);
     // Rows of another account never resolve as this account's own rule, with or without memory.
     const foreign = target([...classmates, accountRule(4)]);
@@ -140,25 +164,39 @@ describe('policy resolution shared by one read', () => {
     first.settings.value.calendar.yearEndsAt = '2030-01-01T00:00:00Z';
     first.settings.sources.showPartials = SCHOOL;
     first.enforcedValue.calendar.accessEndsAt = '2030-01-01T00:00:00Z';
-    expect(await resolvePolicySnapshotRowsV1(accountScope(2), [target(rows)], memo)).toEqual(expected);
+    expect(await resolvePolicySnapshotRowsV1(accountScope(2), [target(rows)], memo)).toEqual(
+      expected,
+    );
   });
 
   it('keeps refusing invalid or unresolved input and remembers nothing from it', async () => {
     const memo = createPolicyResolutionMemoV1();
     const incomplete = schoolRows().filter((row) => row.field_key !== 'risk');
-    await expect(resolvePolicySnapshotRowsV1(accountScope(1), [target(incomplete)], memo)).rejects.toThrow(
-      'student-portal-policy-defaults-unavailable',
-    );
     await expect(
-      resolvePolicySnapshotRowsV1(accountScope(1), [{ ...target(schoolRows()), resolved: false }], memo),
+      resolvePolicySnapshotRowsV1(accountScope(1), [target(incomplete)], memo),
+    ).rejects.toThrow('student-portal-policy-defaults-unavailable');
+    await expect(
+      resolvePolicySnapshotRowsV1(
+        accountScope(1),
+        [{ ...target(schoolRows()), resolved: false }],
+        memo,
+      ),
     ).rejects.toThrow('student-portal-policy-target-unresolved');
     expect(memo.size).toBe(0);
     await resolvePolicySnapshotRowsV1(accountScope(1), [target(schoolRows())], memo);
     await expect(
-      resolvePolicySnapshotRowsV1(accountScope(2), [target(schoolRows(), { account_version: -1 })], memo),
+      resolvePolicySnapshotRowsV1(
+        accountScope(2),
+        [target(schoolRows(), { account_version: -1 })],
+        memo,
+      ),
     ).rejects.toThrow();
     await expect(
-      resolvePolicySnapshotRowsV1(accountScope(2), [target(schoolRows(), { shift: 'INTEGRAL' })], memo),
+      resolvePolicySnapshotRowsV1(
+        accountScope(2),
+        [target(schoolRows(), { shift: 'INTEGRAL' })],
+        memo,
+      ),
     ).rejects.toThrow();
   });
 });

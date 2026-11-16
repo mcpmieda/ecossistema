@@ -1,10 +1,17 @@
 import { z } from 'zod';
 import { customizationsResponseV1 } from '../../../shared/student-portal-contracts/customizations-v1';
-import { completeStoredPolicyValueV1, settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
+import {
+  completeStoredPolicyValueV1,
+  settingsValueV1,
+} from '../../../shared/student-portal-contracts/policy-v1';
 import { versionV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { AdminReadQueryV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
-import { PARENT_RELEASE_KEYS_V1, SCHOOL_RELEASE_KEYS_V1, releaseSelectionSqlV1 } from '../publication/release-selection-v1';
+import {
+  PARENT_RELEASE_KEYS_V1,
+  SCHOOL_RELEASE_KEYS_V1,
+  releaseSelectionSqlV1,
+} from '../publication/release-selection-v1';
 import { scopedKeyV2 } from '../publication/scoped-source-v2';
 import type { AdminCursorV1 } from './cursor-v1';
 import { ACCOUNT_JOIN_V1 } from './queries-v1';
@@ -21,7 +28,11 @@ const normalizedOption = (alias: string) => `CASE WHEN ${alias}.field_key='calen
 
 /** The class or account being read, as one more owner row; the school has none. The parameters
  * are bound in the same order as before: kind, class, account. */
-function contextOwnerSqlV1(scope: AdminReadQueryV2['scope'], contextKey: string, bind: (value: unknown) => string) {
+function contextOwnerSqlV1(
+  scope: AdminReadQueryV2['scope'],
+  contextKey: string,
+  bind: (value: unknown) => string,
+) {
   if (scope.kind === 'school') return '';
   const classId = scope.kind === 'class' ? scope.classId : null;
   const accountId = scope.kind === 'account' ? scope.accountId : null;
@@ -33,9 +44,16 @@ function contextOwnerSqlV1(scope: AdminReadQueryV2['scope'], contextKey: string,
 /** Two read statements in the dispatcher's repeatable-read transaction, independent of
  * population size. Filter actual differences BEFORE pagination; do not load each student's
  * publication endpoint, infer origin from legacy snapshots, or query marks here. */
-export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, query: AdminReadQueryV2,
-  actor: string, requestId: string, now: Date, cursor: AdminCursorV1) {
-  if (query.operation !== 'customizations-read') throw new Error('student-portal-cursor-invalid-request');
+export async function readCustomizationsV1(
+  tx: StudentPortalPostgresQueryV1,
+  query: AdminReadQueryV2,
+  actor: string,
+  requestId: string,
+  now: Date,
+  cursor: AdminCursorV1,
+) {
+  if (query.operation !== 'customizations-read')
+    throw new Error('student-portal-cursor-invalid-request');
   const after = await cursor.read(query, actor, now);
   if (after?.at) throw new Error('student-portal-cursor-invalid-request');
   const metadata = await tx.unsafe(`SELECT c.version::text,c.enabled,h.generation,h.revision::text,
@@ -54,10 +72,19 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   const schoolDefaults = settingsValueV1.parse(completeStoredPolicyValueV1(meta.defaults));
   const publicationVersion = versionV1.parse(Number(meta.version));
   const epoch = versionV1.parse(Number(meta.epoch));
-  const generation = z.string().regex(/^[a-f0-9]{32}$/u).parse(meta.generation);
-  const headRevision = z.string().regex(/^[1-9]\d{0,19}$/u).parse(meta.revision);
+  const generation = z
+    .string()
+    .regex(/^[a-f0-9]{32}$/u)
+    .parse(meta.generation);
+  const headRevision = z
+    .string()
+    .regex(/^[1-9]\d{0,19}$/u)
+    .parse(meta.revision);
   const args: unknown[] = [generation, headRevision, epoch, publicationVersion];
-  const bind = (value: unknown) => { args.push(value); return `$${args.length}`; };
+  const bind = (value: unknown) => {
+    args.push(value);
+    return `$${args.length}`;
+  };
   // Sent as text and cast in SQL: a string bound straight to a jsonb parameter is JSON-encoded
   // again by the driver, and every option the school has no row for (Frequência, Horário) read
   // as null, failing the whole page.
@@ -65,11 +92,16 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   const targetKey = query.scope.kind === 'school' ? null : scopedKeyV2(query.scope);
   const contextKey = bind(targetKey);
   const contextOwner = contextOwnerSqlV1(query.scope, contextKey, bind);
-  const where = ['s.resolved', "(s.value IS NOT NULL OR s.blocked OR jsonb_array_length(s.publications)>0)"];
+  const where = [
+    's.resolved',
+    '(s.value IS NOT NULL OR s.blocked OR jsonb_array_length(s.publications)>0)',
+  ];
   if (query.scope.kind === 'class') where.push(`s.class_id=${bind(query.scope.classId)}`);
   if (query.scope.kind === 'account') where.push(`s.scope_key=${contextKey}`);
   if (query.nameSearch !== undefined)
-    where.push(`position(lower(${bind(query.nameSearch)}) in lower(s.label||' '||s.class_label))>0`);
+    where.push(
+      `position(lower(${bind(query.nameSearch)}) in lower(s.label||' '||s.class_label))>0`,
+    );
   if (after) where.push(`s.scope_key COLLATE "C">${bind(after.id)} COLLATE "C"`);
   const limit = bind(query.page.limit + 1);
   // Turnos: an account's own choice, then its shift, then its class, then the school;
@@ -83,8 +115,10 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
       ${school ? '0' : 'COALESCE(automatic.revision,0)'},
       CASE WHEN ${school ? "COALESCE(sa.value_json,'false'::jsonb)='true'::jsonb" : auto}
         THEN $2::numeric ELSE 0 END)::text END`;
-  const choice = (alias: string, revision: string) => `jsonb_build_object('source',${source(alias)},'revision',${revision},'version',${alias}.version)`;
-  const rows = await tx.unsafe(`WITH own_settings AS (
+  const choice = (alias: string, revision: string) =>
+    `jsonb_build_object('source',${source(alias)},'revision',${revision},'version',${alias}.version)`;
+  const rows = await tx.unsafe(
+    `WITH own_settings AS (
     SELECT st.*,${normalizedOption('st')} AS normalized FROM student_portal.setting st
     WHERE st.academic_year=2026 AND st.source_scope_json=CASE st.scope_kind
       WHEN 'school' THEN jsonb_build_object('kind','school','academicYear',2026)
@@ -175,15 +209,31 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     'accountVersion',s.account_version,'settingsVersion',$3::bigint+COALESCE(s.account_version,0),'publicationVersion',$4::bigint,
     'value',s.value,'inheritedValue',s.inherited,'schoolValue',s.school,'blocked',s.blocked,'publications',s.publications,
     'updatedAt',to_char(s.modified AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) ORDER BY s.scope_key COLLATE "C") FROM page s),'[]'::jsonb) AS items,
-    (SELECT jsonb_build_object('resolved',s.resolved,'publications',s.context) FROM serialized s WHERE s.scope_key=${contextKey}) AS context`, args);
-  if (rows.length !== 1 || !Array.isArray(rows[0]!.items)) throw new Error('student-portal-admin-unavailable');
+    (SELECT jsonb_build_object('resolved',s.resolved,'publications',s.context) FROM serialized s WHERE s.scope_key=${contextKey}) AS context`,
+    args,
+  );
+  if (rows.length !== 1 || !Array.isArray(rows[0]!.items))
+    throw new Error('student-portal-admin-unavailable');
   const result = rows[0]!;
   const items = result.items as Record<string, unknown>[];
   const selected = items.slice(0, query.page.limit);
   return customizationsResponseV1.parse({
-    contractVersion: 2, state: 'customizations-read', requestId, observedAt: now.toISOString(), scope: query.scope,
-    publicationVersion, items: selected,
-    nextCursor: items.length > query.page.limit ? await cursor.next(query, actor, now, String(selected.at(-1)!.id)) : null,
-    context: targetKey ? { ...((result.context ?? { resolved: false, publications: [] }) as Record<string, unknown>), scope: query.scope } : null,
+    contractVersion: 2,
+    state: 'customizations-read',
+    requestId,
+    observedAt: now.toISOString(),
+    scope: query.scope,
+    publicationVersion,
+    items: selected,
+    nextCursor:
+      items.length > query.page.limit
+        ? await cursor.next(query, actor, now, String(selected.at(-1)!.id))
+        : null,
+    context: targetKey
+      ? {
+          ...((result.context ?? { resolved: false, publications: [] }) as Record<string, unknown>),
+          scope: query.scope,
+        }
+      : null,
   });
 }

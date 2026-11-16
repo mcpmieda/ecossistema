@@ -8,11 +8,16 @@ import {
 
 const ENDPOINT = '/api/gradebook/onedrive-sync';
 
-function fallback(state: 'invalid-request' | 'not-authorized' | 'unavailable'): OneDriveSyncResponseV1 {
+function fallback(
+  state: 'invalid-request' | 'not-authorized' | 'unavailable',
+): OneDriveSyncResponseV1 {
   return { contractVersion: ONEDRIVE_SYNC_CONTRACT_VERSION_V1, state };
 }
 
-export async function requestOneDriveSyncV1(request: OneDriveSyncRequestV1, signal?: AbortSignal): Promise<OneDriveSyncResponseV1> {
+export async function requestOneDriveSyncV1(
+  request: OneDriveSyncRequestV1,
+  signal?: AbortSignal,
+): Promise<OneDriveSyncResponseV1> {
   if (!oneDriveSyncRequestSchemaV1.safeParse(request).success) return fallback('invalid-request');
   let response: Response;
   try {

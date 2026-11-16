@@ -92,21 +92,30 @@ describe('gradebook native PostgreSQL database adapter', () => {
     const database = createGradebookPostgresDatabaseFromSqlV1(sql);
     const text = "\n SELECT '?' AS literal, $1 AS value, $2 AS nullable; \n";
     await database.query(text, ["'; DROP TABLE gradebook.example; --", null]);
-    expect(sql.calls).toEqual([{
-      channel: 'pool', query: text, parameters: ["'; DROP TABLE gradebook.example; --", null],
-    }]);
+    expect(sql.calls).toEqual([
+      {
+        channel: 'pool',
+        query: text,
+        parameters: ["'; DROP TABLE gradebook.example; --", null],
+      },
+    ]);
   });
 
   it('sends explicitly marked serialized JSON as text OID 25 without rewriting SQL', async () => {
     const sql = new SyntheticPostgresSqlV1();
     const database = createGradebookPostgresDatabaseFromSqlV1(sql);
     const payload = JSON.stringify([{ kind: 'student', id: 'student:synthetic' }]);
-    const text = "SELECT value FROM jsonb_array_elements($1::jsonb) AS j(value) WHERE value->>'kind' = $2";
+    const text =
+      "SELECT value FROM jsonb_array_elements($1::jsonb) AS j(value) WHERE value->>'kind' = $2";
     await database.executeNative(text, [postgresJsonTextV1(payload), 'student']);
     expect(sql.typedCalls).toEqual([{ channel: 'pool', value: payload, oid: 25 }]);
-    expect(sql.calls).toEqual([{
-      channel: 'pool', query: text, parameters: [{ value: payload, oid: 25 }, 'student'],
-    }]);
+    expect(sql.calls).toEqual([
+      {
+        channel: 'pool',
+        query: text,
+        parameters: [{ value: payload, oid: 25 }, 'student'],
+      },
+    ]);
   });
 
   it('never infers JSON typing from text contents, a column name or an SQL cast', async () => {
@@ -114,11 +123,16 @@ describe('gradebook native PostgreSQL database adapter', () => {
     const database = createGradebookPostgresDatabaseFromSqlV1(sql);
     const text = '{"looks":"json"}';
     const payload = '{"actual":"json"}';
-    const query = 'INSERT INTO gradebook.example (payload_json, presentation) VALUES ($1::jsonb, $2::jsonb)';
+    const query =
+      'INSERT INTO gradebook.example (payload_json, presentation) VALUES ($1::jsonb, $2::jsonb)';
     await database.executeNative(query, [text, postgresJsonTextV1(payload)]);
-    expect(sql.calls).toEqual([{
-      channel: 'pool', query, parameters: [text, { value: payload, oid: 25 }],
-    }]);
+    expect(sql.calls).toEqual([
+      {
+        channel: 'pool',
+        query,
+        parameters: [text, { value: payload, oid: 25 }],
+      },
+    ]);
     expect(sql.typedCalls).toEqual([{ channel: 'pool', value: payload, oid: 25 }]);
   });
 
@@ -127,52 +141,76 @@ describe('gradebook native PostgreSQL database adapter', () => {
     const database = createGradebookPostgresDatabaseFromSqlV1(sql);
     const query = 'INSERT INTO gradebook.example (payload_json) VALUES ($1::jsonb)';
     await database.executeNative(query, [postgresJsonTextV1('{not-json')]);
-    expect(sql.calls).toEqual([{
-      channel: 'pool', query, parameters: [{ value: '{not-json', oid: 25 }],
-    }]);
+    expect(sql.calls).toEqual([
+      {
+        channel: 'pool',
+        query,
+        parameters: [{ value: '{not-json', oid: 25 }],
+      },
+    ]);
   });
 
   it('retains only sanitized physical failure diagnostics after repository masking', async () => {
     const sql = new SyntheticPostgresSqlV1();
-    const error = Object.assign(new Error('column payload_json is of type jsonb but value is text'), { code: '42804' });
+    const error = Object.assign(
+      new Error('column payload_json is of type jsonb but value is text'),
+      { code: '42804' },
+    );
     sql.failNext(error);
     const database = createGradebookPostgresDatabaseFromSqlV1(sql);
-    await expect(database.executeNative(
-      'INSERT INTO gradebook.example (payload_json) VALUES ($1::jsonb)',
-      [postgresJsonTextV1(JSON.stringify({ secret: 'never-diagnosed' }))],
-    )).rejects.toBe(error);
+    await expect(
+      database.executeNative('INSERT INTO gradebook.example (payload_json) VALUES ($1::jsonb)', [
+        postgresJsonTextV1(JSON.stringify({ secret: 'never-diagnosed' })),
+      ]),
+    ).rejects.toBe(error);
     expect(database.lastFailure()).toEqual({
-      operation: 'INSERT', relation: 'example', errorType: 'Error', sqlState: '42804', category: 'jsonb-cast',
+      operation: 'INSERT',
+      relation: 'example',
+      errorType: 'Error',
+      sqlState: '42804',
+      category: 'jsonb-cast',
     });
     expect(JSON.stringify(database.lastFailure())).not.toContain('secret');
   });
 
-  it.each(['query', 'executeNative'] as const)('normalizes PostgreSQL rows through %s', async (operation) => {
-    const sql = new SyntheticPostgresSqlV1();
-    sql.respond([{
-      payload_json: { kind: 'student', value: { id: 'student:synthetic' } },
-      recorded_at: new Date('2026-09-08T12:00:00Z'), current_version: '2', available: true,
-    }]);
-    const database = createGradebookPostgresDatabaseFromSqlV1(sql);
-    const result = await database[operation]<Row>('SELECT * FROM gradebook.example', []);
-    const rows = 'rows' in result ? result.rows : result;
-    expect(rows).toEqual([{
-      payload_json: '{"kind":"student","value":{"id":"student:synthetic"}}',
-      recorded_at: '2026-09-08T12:00:00.000Z', current_version: 2, available: 1,
-    }]);
-    await database.close();
-    expect(sql.closed).toBe(true);
-  });
+  it.each(['query', 'executeNative'] as const)(
+    'normalizes PostgreSQL rows through %s',
+    async (operation) => {
+      const sql = new SyntheticPostgresSqlV1();
+      sql.respond([
+        {
+          payload_json: { kind: 'student', value: { id: 'student:synthetic' } },
+          recorded_at: new Date('2026-09-08T12:00:00Z'),
+          current_version: '2',
+          available: true,
+        },
+      ]);
+      const database = createGradebookPostgresDatabaseFromSqlV1(sql);
+      const result = await database[operation]<Row>('SELECT * FROM gradebook.example', []);
+      const rows = 'rows' in result ? result.rows : result;
+      expect(rows).toEqual([
+        {
+          payload_json: '{"kind":"student","value":{"id":"student:synthetic"}}',
+          recorded_at: '2026-09-08T12:00:00.000Z',
+          current_version: 2,
+          available: 1,
+        },
+      ]);
+      await database.close();
+      expect(sql.closed).toBe(true);
+    },
+  );
 
   it('preserves physical affected counts and propagates a failed native CAS transaction', async () => {
     const sql = new SyntheticPostgresSqlV1();
     const database = createGradebookPostgresDatabaseFromSqlV1(sql);
     const query = 'UPDATE gradebook.example SET payload=$1::jsonb, version=$2 WHERE version=$3';
-    const mutate = () => database.transaction(async (tx) => {
-      const result = await tx.executeNative(query, [postgresJsonTextV1('{}'), 2, 1]);
-      if (result.changes !== 1) throw new Error('synthetic-native-cas-conflict');
-      return { result, read: await tx.query('SELECT version FROM gradebook.example', []) };
-    });
+    const mutate = () =>
+      database.transaction(async (tx) => {
+        const result = await tx.executeNative(query, [postgresJsonTextV1('{}'), 2, 1]);
+        if (result.changes !== 1) throw new Error('synthetic-native-cas-conflict');
+        return { result, read: await tx.query('SELECT version FROM gradebook.example', []) };
+      });
     sql.respond([], 1);
     sql.respond([{ version: '2' }]);
     expect(await mutate()).toEqual({ result: { rows: [], changes: 1 }, read: [{ version: 2 }] });

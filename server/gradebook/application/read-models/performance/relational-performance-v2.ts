@@ -20,7 +20,10 @@ import {
   type PerformanceOfferV2,
   type PerformanceFailureV2,
 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
-import { effectiveCouncilDecisionV1, resolveSimplifiedAnnualOutcomeV1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
+import {
+  effectiveCouncilDecisionV1,
+  resolveSimplifiedAnnualOutcomeV1,
+} from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 import type {
   SimplifiedInstrumentSlotV1,
   SimplifiedAcademicTermV1,
@@ -30,7 +33,7 @@ import {
   type GradebookPostgresWritePortV1,
   type GradebookPostgresScalarV1,
   type GradebookPostgresReadPortV1,
-  type GradebookPostgresTransactionV1
+  type GradebookPostgresTransactionV1,
 } from '../../../persistence/postgres/postgres-database-v1';
 
 import {
@@ -157,7 +160,8 @@ function makeRow(
           councilEligibility: annual.councilEligibility,
         }
       : null,
-    formalCouncilDecision: decision === null ? null : { code: decision, label: DECISION_LABELS[decision] },
+    formalCouncilDecision:
+      decision === null ? null : { code: decision, label: DECISION_LABELS[decision] },
     cells: projections.map((value) => performanceCellV2(value, request.period, request.mode)),
   };
 }
@@ -165,7 +169,9 @@ function makeRow(
 /** The enrolment status in words; a transfer names the class the student came from. */
 function statusLabelV2(status: keyof typeof STATUS_LABELS | null, relatedClass: string | null) {
   if (status === null) return 'Em curso';
-  return status === 7 && relatedClass !== null ? `ESTAVA NO ${relatedClass}` : STATUS_LABELS[status];
+  return status === 7 && relatedClass !== null
+    ? `ESTAVA NO ${relatedClass}`
+    : STATUS_LABELS[status];
 }
 
 type PerformanceDetailRequestV2 = Exclude<PerformanceRequestV2, { operation: 'classes' }>;
@@ -178,7 +184,13 @@ type PerformanceOptionsV2 = {
 async function readClassesV2(
   db: GradebookPostgresReadPortV1,
   request: Extract<PerformanceRequestV2, { operation: 'classes' }>,
-  common: { transportVersion: 2; state: 'ready'; authority: 'calculated-preview'; context: { year: number; minimumApprovalMilli: number; maxCouncilComponents: number }; readAt: string },
+  common: {
+    transportVersion: 2;
+    state: 'ready';
+    authority: 'calculated-preview';
+    context: { year: number; minimumApprovalMilli: number; maxCouncilComponents: number };
+    readAt: string;
+  },
 ): Promise<PerformanceResponseV2> {
   const classesQuery = parameters();
   const classesYear = classesQuery.param(request.year);
@@ -209,12 +221,17 @@ async function readClassesV2(
 }
 
 /** The class's students (or the one asked for), bounded to one more than the limit. */
-async function readStudentsV2(db: GradebookPostgresReadPortV1, request: PerformanceDetailRequestV2) {
+async function readStudentsV2(
+  db: GradebookPostgresReadPortV1,
+  request: PerformanceDetailRequestV2,
+) {
   const specificStudent = request.operation !== 'matrix';
   const studentsQuery = parameters();
   const studentsYear = studentsQuery.param(request.year);
   const studentsClass = studentsQuery.param(request.classId);
-  const studentsFilter = specificStudent ? `AND a.id=${studentsQuery.param(request.studentId)}` : '';
+  const studentsFilter = specificStudent
+    ? `AND a.id=${studentsQuery.param(request.studentId)}`
+    : '';
   const studentsLimit = studentsQuery.param(PERFORMANCE_LIMITS_V2.students + 1);
   return all(
     db,
@@ -261,7 +278,8 @@ function factsDescriptionV2(
   specificOffer: boolean,
   options: PerformanceOptionsV2,
 ) {
-  if (specificOffer) { // NOSONAR one SQL expression, chosen by the reading's scope
+  // One SQL expression, chosen by the reading's scope.
+  if (specificOffer /* NOSONAR */) {
     return 'i.descricao';
   } else if (options.descriptionOfferId !== undefined) {
     return `CASE WHEN o.id=${factsQuery.param(options.descriptionOfferId)} THEN i.descricao ELSE NULL::text END`;
@@ -289,7 +307,9 @@ async function readGroupedFactsV2(
   // One query for the entire bounded scope. A detail restricts SQL, not just its response.
   const factsYear = factsQuery.param(request.year);
   const factsClass = factsQuery.param(request.classId);
-  const factsStudent = specificStudent ? `AND v.aluno_id=${factsQuery.param(request.studentId)}` : '';
+  const factsStudent = specificStudent
+    ? `AND v.aluno_id=${factsQuery.param(request.studentId)}`
+    : '';
   const factsOffer = specificOffer ? `AND o.id=${factsQuery.param(request.offerId)}` : '';
   const facts = await all(
     db,

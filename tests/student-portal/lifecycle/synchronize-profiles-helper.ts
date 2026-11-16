@@ -19,6 +19,10 @@ export class LifecycleServiceV1 {
     );
     if (rows.length !== 1) throw new Error('student-portal-lifecycle-unavailable');
     const result = counts.parse(rows[0]);
-    return { created: result.created_count, updated: result.updated_count, denied: result.denied_count };
+    return {
+      created: result.created_count,
+      updated: result.updated_count,
+      denied: result.denied_count,
+    };
   }
 }

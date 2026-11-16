@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { requestSignalV1 } from '../shared/request-signal-v1';
 import type { FrequencyYearSummaryV2 } from '../../../../shared/attendance-contracts/frequency-v2';
-import { BELL_SHIFTS_V1, schoolBellsDaysV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
+import {
+  BELL_SHIFTS_V1,
+  schoolBellsDaysV1,
+} from '../../../../shared/student-portal-contracts/school-bells-v1';
 import { schoolDaysOffV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
 
 export class FrequencyClientErrorV2 extends Error {
@@ -124,7 +127,10 @@ const summary = z
     // The school's today, the year so far and the class's last reading (attendance 0012).
     today: z.iso.date().optional(),
     year: z
-      .object({ lessons: z.number().int().positive().max(100_000), absences: z.number().int().nonnegative().max(100_000) })
+      .object({
+        lessons: z.number().int().positive().max(100_000),
+        absences: z.number().int().nonnegative().max(100_000),
+      })
       .strict()
       .refine((value) => value.absences <= value.lessons)
       .nullable()
@@ -162,7 +168,17 @@ const wholeYear = z
       .optional(),
     comment: z
       .object({
-        kind: z.enum(['over-limit', 'will-pass', 'near-limit', 'in-a-row', 'rising', 'weekday', 'improving', 'none-recently', 'none-this-year']),
+        kind: z.enum([
+          'over-limit',
+          'will-pass',
+          'near-limit',
+          'in-a-row',
+          'rising',
+          'weekday',
+          'improving',
+          'none-recently',
+          'none-this-year',
+        ]),
         tone: z.enum(['alert', 'good']),
         text: z.string().min(1).max(200),
       })

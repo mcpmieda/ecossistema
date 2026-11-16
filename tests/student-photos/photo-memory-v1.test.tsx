@@ -36,7 +36,11 @@ const together = (items: PhotoAvatarBatchItemV1[]) => {
     headers: { 'Content-Type': PHOTO_AVATAR_BATCH_TYPE_V1 },
   });
 };
-const settle = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
+const settle = () =>
+  act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
 let created: ReturnType<typeof vi.fn<(blob: Blob) => string>>;
 let revoked: ReturnType<typeof vi.fn<(src: string) => void>>;
 beforeEach(() => {
@@ -55,7 +59,9 @@ afterEach(() => {
 });
 
 it('reads the avatars mounted together in one request and shows a remounted list from memory', async () => {
-  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => together(asked(init).map(webp)));
+  const fetcher = vi.fn(async (_url: string, init?: RequestInit) =>
+    together(asked(init).map(webp)),
+  );
   vi.stubGlobal('fetch', fetcher);
   const list = () => (
     <>
@@ -113,20 +119,36 @@ it('keeps the fallback for a student without photo or with a failed read, withou
 
 it('asks for at most sixteen students per request, the row near the screen first', async () => {
   const callbacks: IntersectionObserverCallback[] = [];
-  vi.stubGlobal('IntersectionObserver', class {
-    constructor(callback: IntersectionObserverCallback) { callbacks.push(callback); }
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-    takeRecords() { return []; }
-  });
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    },
+  );
   const pending: { students: number[]; answer(): void }[] = [];
-  const fetcher = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((resolve) => {
-    const students = asked(init);
-    pending.push({ students, answer: () => resolve(together(students.map(webp))) });
-  }));
+  const fetcher = vi.fn(
+    (_url: string, init?: RequestInit) =>
+      new Promise<Response>((resolve) => {
+        const students = asked(init);
+        pending.push({ students, answer: () => resolve(together(students.map(webp))) });
+      }),
+  );
   vi.stubGlobal('fetch', fetcher);
-  const view = render(<>{Array.from({ length: 90 }, (_, index) => <LinkedStudentPhotoAvatarV1 key={index} subject={subject(100 + index)} />)}</>);
+  const view = render(
+    <>
+      {Array.from({ length: 90 }, (_, index) => (
+        <LinkedStudentPhotoAvatarV1 key={index} subject={subject(100 + index)} />
+      ))}
+    </>,
+  );
   await settle();
   // Four requests in flight, sixteen students each, in list order.
   expect(pending.map((request) => request.students.length)).toEqual([16, 16, 16, 16]);
@@ -134,15 +156,24 @@ it('asks for at most sixteen students per request, the row near the screen first
   expect(pending[3]!.students[15]).toBe(163);
   // The last row comes near the screen while 26 are still waiting: it leads the next request.
   await act(async () => {
-    callbacks.at(-1)!([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    callbacks.at(-1)!(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
   });
-  await act(async () => { pending[0]!.answer(); });
+  await act(async () => {
+    pending[0]!.answer();
+  });
   await waitFor(() => expect(pending).toHaveLength(5));
   expect(pending[4]!.students[0]).toBe(189);
   expect(pending[4]!.students.slice(1, 4)).toEqual([164, 165, 166]);
-  await act(async () => { for (const request of pending) request.answer(); });
+  await act(async () => {
+    for (const request of pending) request.answer();
+  });
   await waitFor(() => expect(pending).toHaveLength(6));
-  await act(async () => { for (const request of pending) request.answer(); });
+  await act(async () => {
+    for (const request of pending) request.answer();
+  });
   await waitFor(() => expect(images(view)).toHaveLength(90));
   expect(pending.flatMap((request) => request.students).sort((a, b) => a - b)).toEqual(
     Array.from({ length: 90 }, (_, index) => 100 + index),
@@ -150,40 +181,60 @@ it('asks for at most sixteen students per request, the row near the screen first
 });
 
 it('does not ask for the photo of a row that left the list before its turn', async () => {
-  vi.stubGlobal('IntersectionObserver', class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-    takeRecords() { return []; }
-  });
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    },
+  );
   const requests: number[][] = [];
   const answers: (() => void)[] = [];
-  const fetcher = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((resolve) => {
-    const students = asked(init);
-    requests.push(students);
-    answers.push(() => resolve(together(students.map(webp))));
-  }));
+  const fetcher = vi.fn(
+    (_url: string, init?: RequestInit) =>
+      new Promise<Response>((resolve) => {
+        const students = asked(init);
+        requests.push(students);
+        answers.push(() => resolve(together(students.map(webp))));
+      }),
+  );
   vi.stubGlobal('fetch', fetcher);
-  const row = (index: number) => <LinkedStudentPhotoAvatarV1 key={index} subject={subject(400 + index)} />;
+  const row = (index: number) => (
+    <LinkedStudentPhotoAvatarV1 key={index} subject={subject(400 + index)} />
+  );
   const view = render(<>{Array.from({ length: 70 }, (_, index) => row(index))}</>);
   await settle();
   expect(requests).toHaveLength(4);
   // A filter removes the six rows still waiting.
   view.rerender(<>{Array.from({ length: 64 }, (_, index) => row(index))}</>);
-  await act(async () => { for (const answer of answers.splice(0)) answer(); });
+  await act(async () => {
+    for (const answer of answers.splice(0)) answer();
+  });
   await waitFor(() => expect(images(view)).toHaveLength(64));
   expect(requests).toHaveLength(4);
 });
 
 it('asks ahead for the first rows of a list so they mount with their photos', async () => {
-  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => together(asked(init).map(webp)));
+  const fetcher = vi.fn(async (_url: string, init?: RequestInit) =>
+    together(asked(init).map(webp)),
+  );
   vi.stubGlobal('fetch', fetcher);
   primePhotoMemoryV1([5, 6, 7].map((n) => studentAvatarPhotoV1(account(n))));
   // The request leaves at once, without waiting for the screen to finish mounting.
   expect(fetcher).toHaveBeenCalledTimes(1);
   await waitFor(() => expect(created).toHaveBeenCalledTimes(3));
   expect(asked(fetcher.mock.calls[0]?.[1])).toEqual([5, 6, 7]);
-  const view = render(<>{[5, 6, 7].map((n) => <LinkedStudentPhotoAvatarV1 key={n} subject={subject(n)} />)}</>);
+  const view = render(
+    <>
+      {[5, 6, 7].map((n) => (
+        <LinkedStudentPhotoAvatarV1 key={n} subject={subject(n)} />
+      ))}
+    </>,
+  );
   expect(images(view)).toHaveLength(3);
   await settle();
   expect(fetcher).toHaveBeenCalledTimes(1);
@@ -210,22 +261,34 @@ it('falls back to one read per student when the server has no joint read, and re
   const versioned = render(<LinkedStudentPhotoAvatarV1 subject={subject(8)} revision={revision} />);
   await waitFor(() => expect(images(versioned)).toHaveLength(1));
   expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
-    expect.stringMatching(new RegExp('^/api/student-photos/admin/image\\?.*v=' + revision + '$', 'u')),
+    expect.stringMatching(
+      new RegExp('^/api/student-photos/admin/image\\?.*v=' + revision + '$', 'u'),
+    ),
   ]);
 });
 
 it('releases every image when the page is left and revalidates what is on screen after a saved photo', async () => {
-  const fetcher = vi.fn(async (_url: string, init?: RequestInit) => together(asked(init).map(webp)));
+  const fetcher = vi.fn(async (_url: string, init?: RequestInit) =>
+    together(asked(init).map(webp)),
+  );
   vi.stubGlobal('fetch', fetcher);
   const view = render(<LinkedStudentPhotoAvatarV1 subject={subject(5)} />);
   await waitFor(() => expect(images(view)).toEqual(['blob:synthetic-1']));
-  act(() => { window.dispatchEvent(new CustomEvent(PHOTO_CHANGED_EVENT_V1, { detail: { subjectKey: 'other', studentUid: 'other', revision: null } })); });
+  act(() => {
+    window.dispatchEvent(
+      new CustomEvent(PHOTO_CHANGED_EVENT_V1, {
+        detail: { subjectKey: 'other', studentUid: 'other', revision: null },
+      }),
+    );
+  });
   // The current image stays until its replacement arrives.
   expect(images(view)).toEqual(['blob:synthetic-1']);
   await waitFor(() => expect(images(view)).toEqual(['blob:synthetic-2']));
   expect(revoked).toHaveBeenCalledWith('blob:synthetic-1');
   expect(fetcher).toHaveBeenCalledTimes(2);
-  act(() => { window.dispatchEvent(new Event('pagehide')); });
+  act(() => {
+    window.dispatchEvent(new Event('pagehide'));
+  });
   expect(images(view)).toHaveLength(0);
   expect(revoked).toHaveBeenCalledWith('blob:synthetic-2');
   await settle();

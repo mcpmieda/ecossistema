@@ -97,14 +97,12 @@ describe('gradebook importer structure', () => {
 
   it('keeps SheetJS loading, lean workbook options and HeroUI presentation explicit', () => {
     const sheetJsLoader = source('src/features/gradebook/import/sheetjs-loader.ts');
-    expect(sheetJsLoader).toContain(
-      "import sheetJsUrl from 'xlsx/dist/xlsx.full.min.js?url';",
-    );
+    expect(sheetJsLoader).toContain("import sheetJsUrl from 'xlsx/dist/xlsx.full.min.js?url';");
     expect(sheetJsLoader).toContain('script.src = sheetJsUrl');
     expect(sheetJsLoader).toContain(
       'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT',
     );
-    expect(sheetJsLoader).toContain("script.integrity = SHEETJS_INTEGRITY");
+    expect(sheetJsLoader).toContain('script.integrity = SHEETJS_INTEGRITY');
     expect(sheetJsLoader).toContain("script.crossOrigin = 'anonymous'");
     expect(WORKBOOK_READ_OPTIONS).toEqual({
       type: 'array',
@@ -120,7 +118,9 @@ describe('gradebook importer structure', () => {
     // One line per workbook (issue #1450, 109): no per-student grade tables after an import.
     const presentation = source('src/features/gradebook/import/import-panel.tsx');
     expect(presentation.match(/from '@heroui\/react'/gu)).toHaveLength(1);
-    expect(existsSync(join(root, 'src/features/gradebook/import/workbook-inspector.tsx'))).toBe(false);
+    expect(existsSync(join(root, 'src/features/gradebook/import/workbook-inspector.tsx'))).toBe(
+      false,
+    );
     expect(presentation).toContain('Sem mudança');
     expect(presentation).toContain('Notas novas');
   });

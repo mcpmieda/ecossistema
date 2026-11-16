@@ -116,7 +116,9 @@ describe('publication interface', () => {
     automatic.fixture.settings.value.autoUpdate = true;
     render(createElement(StudentPublicationV1, automatic.props));
     await ready();
-    expect(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }),
+    ).toBeTruthy();
     expect(
       screen.queryByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }),
     ).toBeNull();
@@ -133,9 +135,7 @@ describe('publication interface', () => {
     const published = screen
       .getByRole('heading', { name: 'Recuperação 1' })
       .closest('.pa-publication-card')!;
-    expect(
-      within(published as HTMLElement).queryByText('Publicar as notas novas'),
-    ).toBeNull();
+    expect(within(published as HTMLElement).queryByText('Publicar as notas novas')).toBeNull();
   });
 
   it('reviews only the chosen period and does not equate command acceptance with materialization', async () => {
@@ -143,7 +143,9 @@ describe('publication interface', () => {
       mock = setup();
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }),
+    );
     expect(mock.writes).toHaveLength(0);
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:2')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
@@ -173,7 +175,9 @@ describe('publication interface', () => {
       mock = setup();
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }),
+    );
     await user.click(screen.getByRole('button', { name: 'Voltar' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(mock.writes).toHaveLength(0);
@@ -183,7 +187,9 @@ describe('publication interface', () => {
       mock = setup({ write: async () => json({ ...PUBLICATION_META_V1, state: 'conflict' }, 409) });
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }),
+    );
     mock.fixture.items.forEach((item) => {
       item.version = 11;
       if (item.availableRevision) item.availableRevision = 'synthetic:2026:revision:3';
@@ -202,7 +208,9 @@ describe('publication interface', () => {
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Recarregar' }));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Publicar as notas novas de 2º trimestre' }),
+    );
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:3')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Publicar as notas novas' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(2));
@@ -243,11 +251,15 @@ describe('publication interface', () => {
       mock = setup();
     const view = render(createElement(StudentPublicationV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }),
+    );
     view.rerender(createElement(StudentPublicationV1, { ...mock.props, canWrite: false }));
     expect(screen.queryByRole('dialog')).toBeNull();
     await ready();
-    expect(screen.queryByRole('button', { name: /Publicar|Atualizar|Retirar publicação/u })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /Publicar|Atualizar|Retirar publicação/u }),
+    ).toBeNull();
     expect(mock.writes).toHaveLength(0);
   });
   it('clears the previous scope and ignores a late response after a scope switch', async () => {
@@ -297,7 +309,9 @@ describe('publication interface', () => {
     });
     render(createElement(StrictMode, null, createElement(StudentPublicationV1, mock.props)));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }),
+    );
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
     await screen.findByRole('button', { name: 'Tentar novamente' });
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -342,7 +356,9 @@ describe('publication interface', () => {
       createElement(StudentPublicationV1, { client, scope: SETTINGS_CLASS_V1, canWrite: true }),
     );
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Publicar as notas novas de 1º trimestre' }),
+    );
     expect(within(screen.getByRole('dialog')).getByText('1º trimestre')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
     const check = (await screen.findByRole('button', {

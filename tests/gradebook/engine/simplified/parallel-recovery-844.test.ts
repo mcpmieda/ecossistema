@@ -28,12 +28,19 @@ function calculate(
   parallel: number | null,
   qualitative: number | null,
 ) {
-  return resolveSimplifiedTermV1({ term, instruments: facts(term, av1, av2, parallel, qualitative) });
+  return resolveSimplifiedTermV1({
+    term,
+    instruments: facts(term, av1, av2, parallel, qualitative),
+  });
 }
 
 describe('parallel recovery, corrected by BN-DEC-035', () => {
   it.each([1, 2, 3] as const)('does not require either assessment in term %s', (term) => {
-    for (const [av1, av2] of [[null, 200], [200, null], [null, null]] as const) {
+    for (const [av1, av2] of [
+      [null, 200],
+      [200, null],
+      [null, null],
+    ] as const) {
       const instruments = facts(term, av1, av2, 7000, 12000);
       const before = structuredClone(instruments);
       const result = resolveSimplifiedTermV1({ term, instruments });
@@ -47,36 +54,44 @@ describe('parallel recovery, corrected by BN-DEC-035', () => {
     }
   });
 
-  it.each([1, 2, 3] as const)('uses strict institutional quantitative limits in term %s', (term) => {
-    const cutoff = term === 3 ? 10800 : 8100;
-    expect(calculate(term, cutoff - 1, 0, null, 0).parallelApplicable).toBe(true);
-    for (const value of [cutoff, cutoff + 1]) {
-      const result = calculate(term, value, 0, null, 0);
-      expect(result.parallelApplicable).toBe(false);
-      expect(result.rawMilli).toBe(value);
-      const recorded = calculate(term, value, 0, 12000, 0);
-      expect(recorded.parallelApplicable).toBe(true);
-      expect(recorded.rawMilli).toBe(12000);
-    }
-  });
+  it.each([1, 2, 3] as const)(
+    'uses strict institutional quantitative limits in term %s',
+    (term) => {
+      const cutoff = term === 3 ? 10800 : 8100;
+      expect(calculate(term, cutoff - 1, 0, null, 0).parallelApplicable).toBe(true);
+      for (const value of [cutoff, cutoff + 1]) {
+        const result = calculate(term, value, 0, null, 0);
+        expect(result.parallelApplicable).toBe(false);
+        expect(result.rawMilli).toBe(value);
+        const recorded = calculate(term, value, 0, 12000, 0);
+        expect(recorded.parallelApplicable).toBe(true);
+        expect(recorded.rawMilli).toBe(12000);
+      }
+    },
+  );
 
-  it.each([1, 2, 3] as const)('dispenses with an unrecorded PARA at the unrounded term limit in term %s', (term) => {
-    const cutoff = term === 3 ? 24000 : 18000;
-    const below = calculate(term, 2000, null, 8000, cutoff - 2001);
-    expect(below.parallelApplicable).toBe(true);
-    expect(below.rawMilli).toBe(cutoff - 2001 + 8000);
-    expect(calculate(term, 2000, null, null, cutoff - 2001).parallelApplicable).toBe(true);
-    for (const value of [cutoff, cutoff + 1]) {
-      const result = calculate(term, 2000, null, null, value - 2000);
-      expect(result.parallelApplicable).toBe(false);
-      expect(result.quantitativeConsideredMilli).toBe(2000);
-      expect(result.rawMilli).toBe(value);
-      const recorded = calculate(term, 2000, null, 8000, value - 2000);
-      expect(recorded.parallelApplicable).toBe(true);
-      expect(recorded.rawMilli).toBe(value - 2000 + 8000);
-      expect(recorded.warnings.map((warning) => warning.code)).not.toContain('parallel-present-when-not-applicable');
-    }
-  });
+  it.each([1, 2, 3] as const)(
+    'dispenses with an unrecorded PARA at the unrounded term limit in term %s',
+    (term) => {
+      const cutoff = term === 3 ? 24000 : 18000;
+      const below = calculate(term, 2000, null, 8000, cutoff - 2001);
+      expect(below.parallelApplicable).toBe(true);
+      expect(below.rawMilli).toBe(cutoff - 2001 + 8000);
+      expect(calculate(term, 2000, null, null, cutoff - 2001).parallelApplicable).toBe(true);
+      for (const value of [cutoff, cutoff + 1]) {
+        const result = calculate(term, 2000, null, null, value - 2000);
+        expect(result.parallelApplicable).toBe(false);
+        expect(result.quantitativeConsideredMilli).toBe(2000);
+        expect(result.rawMilli).toBe(value);
+        const recorded = calculate(term, 2000, null, 8000, value - 2000);
+        expect(recorded.parallelApplicable).toBe(true);
+        expect(recorded.rawMilli).toBe(value - 2000 + 8000);
+        expect(recorded.warnings.map((warning) => warning.code)).not.toContain(
+          'parallel-present-when-not-applicable',
+        );
+      }
+    },
+  );
 
   it('uses a superior PARA instead of Q while preserving original quantitative evidence', () => {
     const result = calculate(2, 200, null, 7000, 12000);
@@ -134,7 +149,9 @@ describe('parallel recovery, corrected by BN-DEC-035', () => {
     );
     const result = resolveSimplifiedTermV1({ term: 1, instruments });
     expect(result.parallelApplicable).toBe(true);
-    expect(result.warnings.map((warning) => warning.code)).toContain('quantitative-maximum-mismatch');
+    expect(result.warnings.map((warning) => warning.code)).toContain(
+      'quantitative-maximum-mismatch',
+    );
   });
 
   it('still refuses missing structural assessment definitions', () => {

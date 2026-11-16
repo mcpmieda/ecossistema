@@ -7,7 +7,10 @@ import { learningFixtureV1 } from './learning-fixture-v1';
 import { setupOperationsDomV1 } from '../../student-portal/ui/overview/dom-v1';
 
 beforeEach(setupOperationsDomV1);
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function props(tab: 'students' | 'components' | 'teachers' = 'students') {
   return {
@@ -33,23 +36,36 @@ function entityTrigger(value: RegExp, label: string) {
 it('replaces the old statistical student cards with learning and follow-up indicators', () => {
   render(<PerformanceAnalyticsWorkspaceV6 {...props()} />);
   expect(screen.getByTestId('performance-student-learning-v1')).toBeTruthy();
-  for (const label of ['Desempenho atual', 'Evolução trimestral', 'Atenção recorrente', 'Participação avaliada'])
+  for (const label of [
+    'Desempenho atual',
+    'Evolução trimestral',
+    'Atenção recorrente',
+    'Participação avaliada',
+  ])
     expect(screen.getByText(label)).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'Onde olhar primeiro' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'Dificuldades que se repetem' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'Componentes do aluno' })).toBeTruthy();
   expect(screen.queryByText('Mediana')).toBeNull();
   expect(screen.queryByText(/Dispersão/)).toBeNull();
-  expect(screen.getByRole('button', { name: /Recuperação · detalhes/ }).getAttribute('aria-expanded')).toBe('false');
-  expect(screen.getByRole('button', { name: /Base dos indicadores/ }).getAttribute('aria-expanded')).toBe('false');
+  expect(
+    screen.getByRole('button', { name: /Recuperação · detalhes/ }).getAttribute('aria-expanded'),
+  ).toBe('false');
+  expect(
+    screen.getByRole('button', { name: /Base dos indicadores/ }).getAttribute('aria-expanded'),
+  ).toBe('false');
 });
 
 it('opens highlighted components through the existing student detail entry point', async () => {
   const model = props();
   render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
-  const panel = screen.getByRole('heading', { name: 'Onde olhar primeiro' }).closest('[data-slot="card"]');
+  const panel = screen
+    .getByRole('heading', { name: 'Onde olhar primeiro' })
+    .closest('[data-slot="card"]');
   expect(panel).toBeTruthy();
-  const button = within(panel as HTMLElement).getAllByRole('button').find((item) => item.textContent?.includes('Melhor resultado atual'));
+  const button = within(panel as HTMLElement)
+    .getAllByRole('button')
+    .find((item) => item.textContent?.includes('Melhor resultado atual'));
   expect(button).toBeTruthy();
   await userEvent.setup().click(button!);
   expect(model.onCell).toHaveBeenCalledWith(1, expect.any(Number));
@@ -67,7 +83,8 @@ it('reuses period and component-detail callbacks in the student perspective', as
   await user.click(within(table).getByRole('button', { name: 'Matemática' }));
   expect(model.onCell).toHaveBeenCalledWith(1, 10);
 
-  const recurring = screen.getByRole('heading', { name: 'Dificuldades que se repetem' })
+  const recurring = screen
+    .getByRole('heading', { name: 'Dificuldades que se repetem' })
     .closest('[data-slot="card"]');
   expect(recurring).toBeTruthy();
   await user.click(within(recurring as HTMLElement).getByRole('button', { name: /Matemática/ }));
@@ -102,29 +119,32 @@ it('closes the student select on an outside touch, on Escape, and after choosing
 it.each([
   ['components', 'Componente', /Matemática/, /Português/, { offerId: 11 }],
   ['teachers', 'Professor', /Docente sintético 1/, /Docente sintético 2/, { teacherId: 2 }],
-] as const)('uses the same dismissible entity select for %s', async (tab, label, value, next, expected) => {
-  const model = props(tab);
-  render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
-  const user = userEvent.setup();
-  const trigger = entityTrigger(value, label);
-  await user.click(trigger);
-  expect(screen.getByRole('listbox')).toBeTruthy();
-  if (tab === 'components') await user.click(document.body);
-  else fireEvent.pointerDown(document.body, { pointerType: 'touch' });
-  await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+] as const)(
+  'uses the same dismissible entity select for %s',
+  async (tab, label, value, next, expected) => {
+    const model = props(tab);
+    render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
+    const user = userEvent.setup();
+    const trigger = entityTrigger(value, label);
+    await user.click(trigger);
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    if (tab === 'components') await user.click(document.body);
+    else fireEvent.pointerDown(document.body, { pointerType: 'touch' });
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
 
-  trigger.focus();
-  expect(document.activeElement).toBe(trigger);
-  await user.keyboard('{Enter}');
-  await user.keyboard('{Escape}');
-  await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
-  expect(document.activeElement).toBe(trigger);
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+    expect(document.activeElement).toBe(trigger);
 
-  await user.click(trigger);
-  await user.click(screen.getByRole('option', { name: next }));
-  expect(model.onSelection).toHaveBeenCalledWith(expected);
-  await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
-});
+    await user.click(trigger);
+    await user.click(screen.getByRole('option', { name: next }));
+    expect(model.onSelection).toHaveBeenCalledWith(expected);
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+  },
+);
 
 it('preserves the selected student panel, expanded state and focus on same-scope revalidation', async () => {
   const model = props();
@@ -157,13 +177,12 @@ it('resets student-local state when period or student scope changes', async () =
   const previous = screen.getByTestId('performance-student-learning-v1');
 
   view.rerender(
-    <PerformanceAnalyticsWorkspaceV6
-      {...model}
-      value={learningFixtureV1({ period: 1 }).value}
-    />,
+    <PerformanceAnalyticsWorkspaceV6 {...model} value={learningFixtureV1({ period: 1 }).value} />,
   );
   expect(screen.getByTestId('performance-student-learning-v1')).not.toBe(previous);
-  expect(screen.getByRole('button', { name: /Recuperação · detalhes/ }).getAttribute('aria-expanded')).toBe('false');
+  expect(
+    screen.getByRole('button', { name: /Recuperação · detalhes/ }).getAttribute('aria-expanded'),
+  ).toBe('false');
 
   const periodPanel = screen.getByTestId('performance-student-learning-v1');
   view.rerender(
@@ -180,15 +199,16 @@ it('resets student-local state when period or student scope changes', async () =
 it('reads a student with nothing recorded as not done, with results to highlight', () => {
   const model = props();
   render(
-    <PerformanceAnalyticsWorkspaceV6
-      {...model}
-      selection={{ ...model.selection, studentId: 4 }}
-    />,
+    <PerformanceAnalyticsWorkspaceV6 {...model} selection={{ ...model.selection, studentId: 4 }} />,
   );
 
   const learning = screen.getByTestId('performance-student-learning-v1');
-  expect(within(learning).queryByText('Ainda não há resultados suficientes para destacar.')).toBeNull();
-  expect(within(learning).queryByText('Ainda não há notas suficientes para avaliar recorrência.')).toBeNull();
+  expect(
+    within(learning).queryByText('Ainda não há resultados suficientes para destacar.'),
+  ).toBeNull();
+  expect(
+    within(learning).queryByText('Ainda não há notas suficientes para avaliar recorrência.'),
+  ).toBeNull();
   expect(within(learning).queryByText(/Maior avanço|Maior queda/)).toBeNull();
   expect(within(learning).queryByText('Sem notas suficientes neste recorte.')).toBeNull();
 });

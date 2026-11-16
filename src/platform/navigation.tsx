@@ -54,7 +54,11 @@ const NOTES_SECTION_ICONS_V2: Record<string, LucideIcon> = {
 };
 /** Sections of the Banco de notas shown under the area Importação: the import itself, its
  * Auditoria and the OneDrive automatic read. Addresses unchanged. */
-const IMPORT_AREA_SECTIONS_V1: ReadonlySet<string> = new Set([defaultNotesSectionId, 'audit', 'onedrive']);
+const IMPORT_AREA_SECTIONS_V1: ReadonlySet<string> = new Set([
+  defaultNotesSectionId,
+  'audit',
+  'onedrive',
+]);
 export function importAreaSectionsV1(): ServiceSectionV2[] {
   return notesSections
     .filter((section) => IMPORT_AREA_SECTIONS_V1.has(section.id))
@@ -86,9 +90,7 @@ export function serviceSectionsV2(route: PlatformRoute): ServiceSectionV2[] {
         icon: NOTES_SECTION_ICONS_V2[section.id] ?? Circle,
       }));
   if (route === 'operacao')
-    return [
-      { id: 'health', label: 'Saúde', href: '#/operacao', icon: HeartPulse },
-    ];
+    return [{ id: 'health', label: 'Saúde', href: '#/operacao', icon: HeartPulse }];
   return [];
 }
 /** The section in the address; each service falls back to its own first section. */
@@ -207,7 +209,10 @@ export function ShellSidebarV3({
     { label: 'Sistema', areas: areas.filter((area) => SYSTEM_ROUTES_V1.has(area.route)) },
   ].filter((group) => group.areas.length > 0);
   const health = useSidebarHealthV1(!loading && areas.some((area) => area.route === 'operacao'));
-  const pending = useSidebarPendingV1(!loading && areas.some((area) => area.id === 'navigation.students'), `${route}:${section}`);
+  const pending = useSidebarPendingV1(
+    !loading && areas.some((area) => area.id === 'navigation.students'),
+    `${route}:${section}`,
+  );
   return (
     <nav aria-label="Navegação principal" className="shell-side">
       <div className="shell-side__brand">{brand}</div>
@@ -284,7 +289,8 @@ export function ShellSectionTabsV1({
   const area = mainNavigationAreasV1(modules, route, section).find((module) => module.open);
   const auditPending = useAuditPendingV1(area?.id === 'navigation.import', section);
   const sections = (area?.sections ?? []).map((item) =>
-    item.id === 'audit' ? { ...item, count: auditPending } : item);
+    item.id === 'audit' ? { ...item, count: auditPending } : item,
+  );
   if (!area || sections.length === 0) return null;
   return <SectionLinksV1 label={`Seções de ${area.name}`} section={section} sections={sections} />;
 }

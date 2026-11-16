@@ -17,7 +17,11 @@ export type ScheduleIconV3 = (props: Readonly<{ live: boolean }>) => ReactNode;
 /** The order of a part among its siblings, for its animation's delay (--i in redesign-v3.css). */
 const nth = (index: number) => ({ '--i': index }) as CSSProperties;
 
-function IconV3({ name, live, children }: Readonly<{ name: string; live: boolean; children: ReactNode }>) {
+function IconV3({
+  name,
+  live,
+  children,
+}: Readonly<{ name: string; live: boolean; children: ReactNode }>) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -39,12 +43,25 @@ export const BookIconV3: ScheduleIconV3 = ({ live }) => (
   <IconV3 name="book" live={live}>
     <path d="M12 5v16" />
     <path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" />
-    {live ? <path className="pa3-icon-page" d="M12 5a5 5 0 0 1 4-2h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4a5 5 0 0 0-4 2" /> : null}
+    {live ? (
+      <path
+        className="pa3-icon-page"
+        d="M12 5a5 5 0 0 1 4-2h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4a5 5 0 0 0-4 2"
+      />
+    ) : null}
   </IconV3>
 );
 
 /** Matemática: lucide's "calculator"; live, its keys light up one after the other. */
-const KEYS = ['M8 10h.01', 'M12 10h.01', 'M16 10h.01', 'M8 14h.01', 'M12 14h.01', 'M8 18h.01', 'M12 18h.01'];
+const KEYS = [
+  'M8 10h.01',
+  'M12 10h.01',
+  'M16 10h.01',
+  'M8 14h.01',
+  'M12 14h.01',
+  'M8 18h.01',
+  'M12 18h.01',
+];
 export const CalculatorIconV3: ScheduleIconV3 = ({ live }) => (
   <IconV3 name="calculator" live={live}>
     <rect width="16" height="20" x="4" y="2" rx="2" />
@@ -68,7 +85,16 @@ export const FlaskIconV3: ScheduleIconV3 = ({ live }) => (
           [13.5, 19.5, 0.7],
           [12, 18.5, 0.8],
         ].map(([cx, cy, r], index) => (
-          <circle key={cx} className="pa3-icon-bubble" cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" style={nth(index)} />
+          <circle
+            key={cx}
+            className="pa3-icon-bubble"
+            cx={cx}
+            cy={cy}
+            r={r}
+            fill="currentColor"
+            stroke="none"
+            style={nth(index)}
+          />
         ))
       : null}
   </IconV3>
@@ -132,7 +158,15 @@ export const PaletteIconV3: ScheduleIconV3 = ({ live }) => (
   <IconV3 name="palette" live={live}>
     <path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" />
     {DROPS.map(([cx, cy], index) => (
-      <circle key={`${cx}-${cy}`} className="pa3-icon-drop" cx={cx} cy={cy} r=".5" fill="currentColor" style={nth(index)} />
+      <circle
+        key={`${cx}-${cy}`}
+        className="pa3-icon-drop"
+        cx={cx}
+        cy={cy}
+        r=".5"
+        fill="currentColor"
+        style={nth(index)}
+      />
     ))}
   </IconV3>
 );
@@ -175,7 +209,10 @@ export const HeartIconV3: ScheduleIconV3 = ({ live }) => (
 export const PenIconV3: ScheduleIconV3 = ({ live }) => (
   <IconV3 name="pen" live={live}>
     <path className="pa3-icon-line" d="M13 21h8" />
-    <path className="pa3-icon-nib" d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+    <path
+      className="pa3-icon-nib"
+      d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
+    />
   </IconV3>
 );
 
@@ -268,9 +305,11 @@ export const FlagIconV3: ScheduleIconV3 = ({ live }) => {
  */
 export const CoffeeIconV3: ScheduleIconV3 = ({ live }) => (
   <IconV3 name="coffee" live={live}>
-    {['M6 5c-.6-.8.6-1.6 0-2.6', 'M10 5c-.6-.8.6-1.6 0-2.6', 'M14 5c-.6-.8.6-1.6 0-2.6'].map((d, index) => (
-      <path key={d} className="pa3-icon-steam" d={d} style={nth(index)} />
-    ))}
+    {['M6 5c-.6-.8.6-1.6 0-2.6', 'M10 5c-.6-.8.6-1.6 0-2.6', 'M14 5c-.6-.8.6-1.6 0-2.6'].map(
+      (d, index) => (
+        <path key={d} className="pa3-icon-steam" d={d} style={nth(index)} />
+      ),
+    )}
     <path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1" />
   </IconV3>
 );

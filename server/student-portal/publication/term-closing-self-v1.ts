@@ -1,7 +1,10 @@
 import { compareSourceSubjectPresentationV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { settingsValueV1 } from '../../../shared/student-portal-contracts/policy-v1';
 import { accessGateV1, periodDisclosureV1 } from '../policies/calendar-v1';
-import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
+import {
+  selfResponseV1,
+  type SelfResponseV1,
+} from '../../../shared/student-portal-contracts/self-v1';
 import {
   TERM_CLOSING_PERIODS_V1,
   type TermClosingModeV1,
@@ -17,7 +20,10 @@ type PolicyValueV1 = Parameters<typeof settingsValueV1.parse>[0];
 const END_FIELD_V1 = { T1: 't1EndsAt', T2: 't2EndsAt', T3: 't3EndsAt' } as const;
 
 const START_FIELD_V1 = { T1: 'yearStartsAt', T2: 't2StartsAt', T3: 't3StartsAt' } as const;
-const PREVIOUS_V1: Partial<Record<TermClosingPeriodV1, TermClosingPeriodV1>> = { T2: 'T1', T3: 'T2' };
+const PREVIOUS_V1: Partial<Record<TermClosingPeriodV1, TermClosingPeriodV1>> = {
+  T2: 'T1',
+  T3: 'T2',
+};
 interface TermClosingTargetsV1 {
   readonly mode: TermClosingModeV1;
   readonly periods: readonly TermClosingPeriodV1[];
@@ -39,15 +45,21 @@ export function termClosingTargetsV1(
 ): TermClosingTargetsV1 {
   const value = settingsValueV1.parse(policy);
   const mode: TermClosingModeV1 = value.termClosingConclusive ? 'conclusion' : 'progress';
-  if (!value.showTermClosing || !accessGateV1(value, now) || academicState !== 'regular') return { mode, periods: [] };
-  const at = (raw: string | null | undefined) => (raw && Number.isFinite(Date.parse(raw)) ? Date.parse(raw) : null);
+  if (!value.showTermClosing || !accessGateV1(value, now) || academicState !== 'regular')
+    return { mode, periods: [] };
+  const at = (raw: string | null | undefined) =>
+    raw && Number.isFinite(Date.parse(raw)) ? Date.parse(raw) : null;
   const ended = (period: TermClosingPeriodV1) => {
     const end = at(value.calendar[END_FIELD_V1[period]]);
     return end !== null && now.getTime() >= end;
   };
-  const released = (period: TermClosingPeriodV1) => periodDisclosureV1(value, period, now) === 'allowed';
+  const released = (period: TermClosingPeriodV1) =>
+    periodDisclosureV1(value, period, now) === 'allowed';
   if (mode === 'conclusion')
-    return { mode, periods: TERM_CLOSING_PERIODS_V1.filter((period) => ended(period) && released(period)) };
+    return {
+      mode,
+      periods: TERM_CLOSING_PERIODS_V1.filter((period) => ended(period) && released(period)),
+    };
   const current = TERM_CLOSING_PERIODS_V1.find((period) => {
     if (at(value.calendar[END_FIELD_V1[period]]) === null || ended(period)) return false;
     const start = at(value.calendar[START_FIELD_V1[period]]);
@@ -79,7 +91,9 @@ export function buildTermClosingsV1(input: {
   const { mode, periods } = input.targets;
   const inScope = new Map<number, TermClosingEvaluationV1[]>();
   for (const [subjectId, list] of input.evaluations) {
-    const kept = list.filter((evaluation) => evaluation.mode === mode && periods.includes(evaluation.period));
+    const kept = list.filter(
+      (evaluation) => evaluation.mode === mode && periods.includes(evaluation.period),
+    );
     if (kept.length) inScope.set(subjectId, kept);
   }
   const closings = assignTermClosingVariantsV1(input.studentKey, inScope);
@@ -110,9 +124,16 @@ export function attachTermClosingsV1(input: {
   const bySubject = new Map(projection.subjects.map((subject) => [subject.subjectId, subject]));
   for (const source of input.sourceSubjects)
     if (!bySubject.has(source.subjectId) && closings.has(source.subjectId))
-      bySubject.set(source.subjectId, { subjectId: source.subjectId, label: source.label, order: 0, periods: [] });
+      bySubject.set(source.subjectId, {
+        subjectId: source.subjectId,
+        label: source.label,
+        order: 0,
+        periods: [],
+      });
   const subjects = [...bySubject.values()]
-    .sort((a, b) => compareSourceSubjectPresentationV1(a.label, b.label) || a.subjectId - b.subjectId)
+    .sort(
+      (a, b) => compareSourceSubjectPresentationV1(a.label, b.label) || a.subjectId - b.subjectId,
+    )
     .map((subject, order) => {
       const list = closings.get(subject.subjectId);
       return { ...subject, order, ...(list ? { closings: list } : {}) };

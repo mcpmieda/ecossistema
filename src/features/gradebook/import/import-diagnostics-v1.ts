@@ -5,7 +5,8 @@ import {
   type GradebookImportDiagnosticCodeV1,
   type GradebookImportDiagnosticFieldKindV1,
   type GradebookImportDiagnosticSeverityV1,
-  type GradebookImportDiagnosticsAuditRequestV1, GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1 
+  type GradebookImportDiagnosticsAuditRequestV1,
+  GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 
 import { SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
@@ -87,20 +88,36 @@ function diagnostic(value: DiagnosticBase): GradebookImportDiagnosticV1 {
  * A student of the workbook the system's Relação does not have: the database leaves only that
  * student out when writing and says so; the Auditoria keeps it, as the OneDrive reading does.
  */
-export function studentNotInRelationDiagnosticV1(classCode: string, number: number): GradebookImportDiagnosticV1 {
+export function studentNotInRelationDiagnosticV1(
+  classCode: string,
+  number: number,
+): GradebookImportDiagnosticV1 {
   const text = GRADEBOOK_IMPORT_DIAGNOSTIC_TEXTS_V1['student-not-in-relation'];
   return diagnostic({
-    severity: 'blocking-error', code: 'student-not-in-relation', message: text.message, recommendedAction: text.action,
-    classCode, studentNumber: number, fieldKind: 'student',
+    severity: 'blocking-error',
+    code: 'student-not-in-relation',
+    message: text.message,
+    recommendedAction: text.action,
+    classCode,
+    studentNumber: number,
+    fieldKind: 'student',
   });
 }
 
 /** Rule 14: the workbook's name is not the Relação's for that number; found by the server. */
-export function studentNameMismatchDiagnosticV1(classCode: string, number: number): GradebookImportDiagnosticV1 {
+export function studentNameMismatchDiagnosticV1(
+  classCode: string,
+  number: number,
+): GradebookImportDiagnosticV1 {
   const text = GRADEBOOK_IMPORT_DIAGNOSTIC_TEXTS_V1['student-name-mismatch'];
   return diagnostic({
-    severity: 'blocking-error', code: 'student-name-mismatch', message: text.message, recommendedAction: text.action,
-    classCode, studentNumber: number, fieldKind: 'student',
+    severity: 'blocking-error',
+    code: 'student-name-mismatch',
+    message: text.message,
+    recommendedAction: text.action,
+    classCode,
+    studentNumber: number,
+    fieldKind: 'student',
   });
 }
 
@@ -259,8 +276,7 @@ function inspectCell(input: {
 function maximumMilli(sheet: GradeSheetRecognition, sourceSlot: string): number | null {
   const definition = sheet.assessmentDefinitions.find((value) => value.sourceSlot === sourceSlot);
   const configuration = definition?.maximumConfiguration;
-  if (configuration?.state !== 'numeric' || configuration.rawValue <= 0)
-    return null;
+  if (configuration?.state !== 'numeric' || configuration.rawValue <= 0) return null;
   return Math.round(configuration.rawValue * 1000);
 }
 
@@ -359,31 +375,28 @@ function qualitativeNameDiagnosticV1(
     (nameState?.state !== 'missing-field' && nameState?.state !== 'unrecognized')
   )
     return undefined;
-  return (
-      diagnostic({
-        ...base,
-        severity: 'warning',
-        code: 'source-unavailable',
-        fieldLabel: `Nome da atividade ${index + 1}`,
-        sheetName: nameState.provenance.sheetName,
-        cellAddress: nameState.provenance.cellAddress,
-        message: 'O nome de uma atividade não pôde ser lido na planilha.',
-        recommendedAction:
-          'Confira a célula indicada e salve a planilha novamente. O Banco preserva o nome atual enquanto a origem estiver indisponível.',
-        cause:
-          nameState.state === 'missing-field'
-            ? 'A célula de nome não foi encontrada na estrutura lida do arquivo.'
-            : 'A célula de nome contém um tipo de valor que não pode ser usado como rótulo.',
-        ...('rawValue' in nameState
-          ? { foundValue: displayValue(nameState.rawValue) }
-          : {}),
-      })
-  );
+  return diagnostic({
+    ...base,
+    severity: 'warning',
+    code: 'source-unavailable',
+    fieldLabel: `Nome da atividade ${index + 1}`,
+    sheetName: nameState.provenance.sheetName,
+    cellAddress: nameState.provenance.cellAddress,
+    message: 'O nome de uma atividade não pôde ser lido na planilha.',
+    recommendedAction:
+      'Confira a célula indicada e salve a planilha novamente. O Banco preserva o nome atual enquanto a origem estiver indisponível.',
+    cause:
+      nameState.state === 'missing-field'
+        ? 'A célula de nome não foi encontrada na estrutura lida do arquivo.'
+        : 'A célula de nome contém um tipo de valor que não pode ser usado como rótulo.',
+    ...('rawValue' in nameState ? { foundValue: displayValue(nameState.rawValue) } : {}),
+  });
 }
 
 const QUALITATIVE_MAXIMUM_INVALID_V1 = 'O máximo informado não é um número positivo.';
 const QUALITATIVE_MAXIMUM_CAUSES_V1: Partial<Record<string, string>> = {
-  'ambiguous-empty': 'A atividade ainda possui nome ou lançamento, mas a célula de máximo está vazia.',
+  'ambiguous-empty':
+    'A atividade ainda possui nome ou lançamento, mas a célula de máximo está vazia.',
   'ambiguous-marker': 'A célula de máximo contém o marcador * em vez de um número positivo.',
   unrecognized: 'A célula de máximo contém um valor que não pôde ser interpretado como número.',
 };
@@ -410,13 +423,12 @@ function qualitativeMaximumDiagnosticV1(
 
   if (configuration.state === 'numeric' && configuration.rawValue > 0) return undefined;
 
-  const trulyDeleted =
-    configuration.state === 'ambiguous-empty' && !name && !hasStudentValue;
+  const trulyDeleted = configuration.state === 'ambiguous-empty' && !name && !hasStudentValue;
   if (trulyDeleted) return undefined;
 
-  const found =
-    'rawValue' in configuration ? displayValue(configuration.rawValue) : undefined;
-  const cause = QUALITATIVE_MAXIMUM_CAUSES_V1[configuration.state] ?? QUALITATIVE_MAXIMUM_INVALID_V1;
+  const found = 'rawValue' in configuration ? displayValue(configuration.rawValue) : undefined;
+  const cause =
+    QUALITATIVE_MAXIMUM_CAUSES_V1[configuration.state] ?? QUALITATIVE_MAXIMUM_INVALID_V1;
   return diagnostic({
     ...base,
     severity: 'warning',
@@ -455,12 +467,16 @@ function inspectQualitativeDefinitionMaximum(
       cellAddress: configuration?.provenance.cellAddress ?? slot.maximumCell,
     };
 
-    const nameState =
-      definition?.kind === 'qualitative-activity' ? definition.name : undefined;
+    const nameState = definition?.kind === 'qualitative-activity' ? definition.name : undefined;
     const nameDiagnostic = qualitativeNameDiagnosticV1(base, nameState, index);
     if (nameDiagnostic) result.push(nameDiagnostic);
 
-    const maximumDiagnostic = qualitativeMaximumDiagnosticV1(base, configuration, name, hasStudentValue);
+    const maximumDiagnostic = qualitativeMaximumDiagnosticV1(
+      base,
+      configuration,
+      name,
+      hasStudentValue,
+    );
     if (maximumDiagnostic) result.push(maximumDiagnostic);
   }
   return result;
@@ -482,7 +498,8 @@ function inspectDuplicateStudentNumbers(
         severity: 'blocking-error',
         code: 'duplicate-student-number',
         message: 'O mesmo número de aluno aparece mais de uma vez nesta turma e período.',
-        recommendedAction: 'Corrija a duplicidade na planilha e salve novamente. Esta turma e disciplina não foram lançadas; as demais foram.',
+        recommendedAction:
+          'Corrija a duplicidade na planilha e salve novamente. Esta turma e disciplina não foram lançadas; as demais foram.',
         classCode: sheet.className.trim().toUpperCase(),
         subject: sheet.discipline.trim() || undefined,
         period: periodLabel(sheet),
@@ -617,7 +634,9 @@ function inspectRecoverySheet(
 }
 
 /** Where each BN-DEC-046 finding points; the texts are the shared ones the Auditoria API also reads. */
-const AUDIT_FIELD_KIND_V1: Partial<Record<GradebookImportDiagnosticCodeV1, GradebookImportDiagnosticFieldKindV1>> = {
+const AUDIT_FIELD_KIND_V1: Partial<
+  Record<GradebookImportDiagnosticCodeV1, GradebookImportDiagnosticFieldKindV1>
+> = {
   'activity-without-description': 'configuration',
   'activity-without-maximum': 'configuration',
   'qualitative-over-ceiling': 'assessment',
@@ -633,7 +652,8 @@ const AUDIT_FIELD_KIND_V1: Partial<Record<GradebookImportDiagnosticCodeV1, Grade
 /** BN-DEC-046 findings as Auditoria items; the canonical builder holds exactly these. */
 function auditRuleDiagnosticsV1(summary: WorkbookSummary): GradebookImportDiagnosticV1[] {
   return auditWorkbookV1(summary).findings.map((finding) => {
-    const { message, action: recommendedAction } = GRADEBOOK_IMPORT_DIAGNOSTIC_TEXTS_V1[finding.code];
+    const { message, action: recommendedAction } =
+      GRADEBOOK_IMPORT_DIAGNOSTIC_TEXTS_V1[finding.code];
     const fieldKind = AUDIT_FIELD_KIND_V1[finding.code] ?? 'file';
     const number = finding.student ? studentNumber(finding.student) : undefined;
     return diagnostic({
@@ -691,7 +711,9 @@ export function actionableGradebookImportDiagnosticsV1(
   diagnostics: readonly GradebookImportDiagnosticV1[],
 ): readonly GradebookImportDiagnosticV1[] {
   return diagnostics.filter(
-    (value) => value.severity === 'blocking-error' || GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1.has(value.code),
+    (value) =>
+      value.severity === 'blocking-error' ||
+      GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1.has(value.code),
   );
 }
 

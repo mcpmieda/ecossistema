@@ -58,7 +58,9 @@ function disclosureInstantsV1(disclosure: CalendarV1['disclosure']) {
     };
   return {
     mode: 'per-period',
-    at: Object.fromEntries(Object.entries(disclosure.at).map(([key, value]) => [key, instant(value)])),
+    at: Object.fromEntries(
+      Object.entries(disclosure.at).map(([key, value]) => [key, instant(value)]),
+    ),
     ...(disclosure.endsAt === undefined
       ? {}
       : {
@@ -91,7 +93,9 @@ export function normalizeCalendarV1(input: unknown): CalendarV1 {
     recoveriesStartAt: instant(parsed.recoveriesStartAt),
     yearEndsAt: instant(parsed.yearEndsAt),
     finalDisclosureAt: instant(parsed.finalDisclosureAt),
-    ...(parsed.finalAgenda === undefined ? {} : { finalAgenda: agendaInstantsV1(parsed.finalAgenda) }),
+    ...(parsed.finalAgenda === undefined
+      ? {}
+      : { finalAgenda: agendaInstantsV1(parsed.finalAgenda) }),
     disclosure: disclosureInstantsV1(parsed.disclosure),
   });
 }
@@ -214,7 +218,10 @@ function disclosureShownAtV1(at: number | null, end: number | null, time: number
 }
 
 /** The earliest grade release still ahead and the latest disclosure end already past. */
-type DisclosureNoticeV1 = { release: number | null; ended: { period: PeriodV1 | null; at: number } | null };
+type DisclosureNoticeV1 = {
+  release: number | null;
+  ended: { period: PeriodV1 | null; at: number } | null;
+};
 
 function earlierReleaseV1(notice: DisclosureNoticeV1, opens: number) {
   if (notice.release === null || opens < notice.release) notice.release = opens;
@@ -225,7 +232,12 @@ function laterEndV1(notice: DisclosureNoticeV1, period: PeriodV1 | null, at: num
 }
 
 /** A period on the Notas agenda: its next "Liberar", or the scheduled "Ocultar" that hid it. */
-function agendaNoticeV1(notice: DisclosureNoticeV1, plan: AccessPlanV1, period: PeriodV1, current: number) {
+function agendaNoticeV1(
+  notice: DisclosureNoticeV1,
+  plan: AccessPlanV1,
+  period: PeriodV1,
+  current: number,
+) {
   if (accessOpenAtV1(plan, current)) return;
   const opens = nextAccessChangeV1(plan, current, true);
   if (opens !== null) {
@@ -284,7 +296,8 @@ export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): Porta
   const disclosure = calendar.disclosure;
   const notice: DisclosureNoticeV1 = { release: null, ended: null };
   for (const period of periodV1.options) {
-    if (disclosure.mode === 'agenda') agendaNoticeV1(notice, disclosure.periods[period], period, current);
+    if (disclosure.mode === 'agenda')
+      agendaNoticeV1(notice, disclosure.periods[period], period, current);
     else datedNoticeV1(notice, { value, disclosure, period, current });
   }
   const { release, ended } = notice;
@@ -292,7 +305,8 @@ export function portalNoticesForPolicyV1(input: PolicyValueV1, now: Date): Porta
   // With schedules, the next scheduled opening; without them, the Calendário's start while still ahead.
   let opensAt: number | null = null;
   if (plan) opensAt = scheduledOpening;
-  else if (!open && value.accessEnabled && accessStart !== null && accessStart > current) opensAt = accessStart;
+  else if (!open && value.accessEnabled && accessStart !== null && accessStart > current)
+    opensAt = accessStart;
   return portalNoticesV1.parse({
     access: open ? 'open' : 'closed',
     accessOpensAt: iso(opensAt),
@@ -310,7 +324,11 @@ export function mayDiscloseFinalV1(
   const agenda = value.calendar.finalAgenda;
   // Aba Notas: the Resultado anual agenda replaces showFinalResult and its two dates.
   if (agenda)
-    return officialSourceAuthorized && Number.isFinite(now.getTime()) && accessOpenAtV1(agenda, now.getTime());
+    return (
+      officialSourceAuthorized &&
+      Number.isFinite(now.getTime()) &&
+      accessOpenAtV1(agenda, now.getTime())
+    );
   const at = timestamp(value.calendar.finalDisclosureAt);
   const end = timestamp(value.calendar.finalDisclosureEndsAt ?? null);
   return (

@@ -13,9 +13,8 @@ export async function requestRelationalPerformanceV2(
 ): Promise<PerformanceResponseV2> {
   if (!performanceRequestSchemaV2.safeParse(request).success)
     return { transportVersion: 2, state: 'invalid-request' };
-  const wireRequest = request.operation === 'cell-detail'
-    ? { ...request, includeRawSum: true as const }
-    : request;
+  const wireRequest =
+    request.operation === 'cell-detail' ? { ...request, includeRawSum: true as const } : request;
   return withPerformanceReadDeadlineV1<PerformanceResponseV2>(async (readSignal) => {
     const response = await fetch('/api/gradebook/performance', {
       method: 'POST',
@@ -38,7 +37,8 @@ export async function requestRelationalPerformanceV2(
       return unavailable;
     }
     const parsed = performanceResponseSchemaV2.safeParse(input);
-    if (!parsed.success || !performanceResponseMatchesV2(wireRequest, parsed.data)) return unavailable;
+    if (!parsed.success || !performanceResponseMatchesV2(wireRequest, parsed.data))
+      return unavailable;
     if (!response.ok && parsed.data.state === 'ready') return unavailable;
     return parsed.data;
   }, signal);

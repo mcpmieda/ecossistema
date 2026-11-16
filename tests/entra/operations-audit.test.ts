@@ -35,28 +35,34 @@ describe('Entra operations read-only audit', () => {
           displayName: 'Ecossistema Escolar - Web',
           signInAudience: 'AzureADMyOrg',
           web: { redirectUris: ['https://admin.escolaieda.com/auth/callback'] },
-          keyCredentials: [{
-            keyId: '55555555-5555-4555-8555-555555555555',
-            type: 'AsymmetricX509Cert',
-            usage: 'Verify',
-            displayName: 'rotation-a',
-            startDateTime: '2026-01-01T00:00:00Z',
-            endDateTime: '2027-01-01T00:00:00Z',
-            customKeyIdentifier: 'synthetic-thumbprint',
-            key: 'MUST_NOT_LEAK',
-          }],
-          passwordCredentials: [{
-            keyId: '66666666-6666-4666-8666-666666666666',
-            displayName: 'legacy-secret',
-            startDateTime: '2026-01-01T00:00:00Z',
-            endDateTime: '2026-12-31T00:00:00Z',
-            secretText: 'MUST_NOT_LEAK',
-            hint: 'abc',
-          }],
-          requiredResourceAccess: [{
-            resourceAppId: '00000003-0000-0000-c000-000000000000',
-            resourceAccess: [{ id: '77777777-7777-4777-8777-777777777777', type: 'Role' }],
-          }],
+          keyCredentials: [
+            {
+              keyId: '55555555-5555-4555-8555-555555555555',
+              type: 'AsymmetricX509Cert',
+              usage: 'Verify',
+              displayName: 'rotation-a',
+              startDateTime: '2026-01-01T00:00:00Z',
+              endDateTime: '2027-01-01T00:00:00Z',
+              customKeyIdentifier: 'synthetic-thumbprint',
+              key: 'MUST_NOT_LEAK',
+            },
+          ],
+          passwordCredentials: [
+            {
+              keyId: '66666666-6666-4666-8666-666666666666',
+              displayName: 'legacy-secret',
+              startDateTime: '2026-01-01T00:00:00Z',
+              endDateTime: '2026-12-31T00:00:00Z',
+              secretText: 'MUST_NOT_LEAK',
+              hint: 'abc',
+            },
+          ],
+          requiredResourceAccess: [
+            {
+              resourceAppId: '00000003-0000-0000-c000-000000000000',
+              resourceAccess: [{ id: '77777777-7777-4777-8777-777777777777', type: 'Role' }],
+            },
+          ],
         });
       }
       if (url.includes(`/applications/${GRAPH_OBJECT}`)) {
@@ -68,70 +74,88 @@ describe('Entra operations read-only audit', () => {
           web: { redirectUris: [] },
           spa: { redirectUris: [] },
           publicClient: { redirectUris: [] },
-          keyCredentials: [{
-            keyId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-            type: 'AsymmetricX509Cert',
-            usage: 'Verify',
-            displayName: 'rotation-a',
-            startDateTime: '2026-01-01T00:00:00Z',
-            endDateTime: '2027-12-31T00:00:00Z',
-          }],
+          keyCredentials: [
+            {
+              keyId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              type: 'AsymmetricX509Cert',
+              usage: 'Verify',
+              displayName: 'rotation-a',
+              startDateTime: '2026-01-01T00:00:00Z',
+              endDateTime: '2027-12-31T00:00:00Z',
+            },
+          ],
         });
       }
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(WEB_APP_ID))) {
         return json({
-          value: [{
-            id: '88888888-8888-4888-8888-888888888888',
-            appId: WEB_APP_ID,
-            displayName: 'Synthetic Web SP',
-            accountEnabled: true,
-            servicePrincipalType: 'Application',
-          }],
+          value: [
+            {
+              id: '88888888-8888-4888-8888-888888888888',
+              appId: WEB_APP_ID,
+              displayName: 'Synthetic Web SP',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
         });
       }
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(GRAPH_APP_ID))) {
         return json({
-          value: [{
-            id: '99999999-9999-4999-8999-999999999999',
-            appId: GRAPH_APP_ID,
-            displayName: 'Synthetic Graph SP',
-            accountEnabled: true,
-            servicePrincipalType: 'Application',
-          }],
+          value: [
+            {
+              id: '99999999-9999-4999-8999-999999999999',
+              appId: GRAPH_APP_ID,
+              displayName: 'Synthetic Graph SP',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
         });
       }
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(OPS_APP_ID))) {
         return json({
-          value: [{
-            id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
-            appId: OPS_APP_ID,
-            displayName: 'Ecossistema Operations - GitHub OIDC',
-            accountEnabled: true,
-            servicePrincipalType: 'Application',
-          }],
+          value: [
+            {
+              id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+              appId: OPS_APP_ID,
+              displayName: 'Ecossistema Operations - GitHub OIDC',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
         });
       }
-      if (url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/appRoleAssignments')) {
+      if (
+        url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/appRoleAssignments')
+      ) {
         return json({
-          value: [{
-            id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-            appRoleId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-            resourceId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-            createdDateTime: '2026-01-01T00:00:00Z',
-          }],
+          value: [
+            {
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              appRoleId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+              resourceId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+              createdDateTime: '2026-01-01T00:00:00Z',
+            },
+          ],
         });
       }
-      if (url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments')) {
+      if (
+        url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments')
+      ) {
         return json({ value: [] });
       }
-      if (url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments')) {
+      if (
+        url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments')
+      ) {
         return json({
-          value: [{
-            id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
-            appRoleId: APPLICATION_READ_ALL,
-            resourceId: '00000003-0000-0000-c000-000000000000',
-            createdDateTime: '2026-09-19T00:00:00Z',
-          }],
+          value: [
+            {
+              id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+              appRoleId: APPLICATION_READ_ALL,
+              resourceId: '00000003-0000-0000-c000-000000000000',
+              createdDateTime: '2026-09-19T00:00:00Z',
+            },
+          ],
         });
       }
       throw new Error(`Unexpected URL: ${url}`);
@@ -194,12 +218,14 @@ describe('Entra operations read-only audit', () => {
           displayName: 'Ecossistema Escolar - Web',
           signInAudience: 'AzureADMyOrg',
           web: { redirectUris: ['https://admin.escolaieda.com/auth/callback'] },
-          keyCredentials: [{
-            keyId: '11111111-aaaa-4111-8111-111111111111',
-            type: 'AsymmetricX509Cert',
-            usage: 'Verify',
-            endDateTime: '2027-12-31T00:00:00Z',
-          }],
+          keyCredentials: [
+            {
+              keyId: '11111111-aaaa-4111-8111-111111111111',
+              type: 'AsymmetricX509Cert',
+              usage: 'Verify',
+              endDateTime: '2027-12-31T00:00:00Z',
+            },
+          ],
         });
       }
       if (url.includes(`/applications/${GRAPH_OBJECT}`)) {
@@ -211,54 +237,84 @@ describe('Entra operations read-only audit', () => {
           web: { redirectUris: [] },
           spa: { redirectUris: [] },
           publicClient: { redirectUris: [] },
-          keyCredentials: [{
-            keyId: '22222222-aaaa-4222-8222-222222222222',
-            type: 'AsymmetricX509Cert',
-            usage: 'Verify',
-            endDateTime: '2027-12-31T00:00:00Z',
-          }],
+          keyCredentials: [
+            {
+              keyId: '22222222-aaaa-4222-8222-222222222222',
+              type: 'AsymmetricX509Cert',
+              usage: 'Verify',
+              endDateTime: '2027-12-31T00:00:00Z',
+            },
+          ],
         });
       }
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(WEB_APP_ID))) {
-        return json({ value: [{
-          id: '88888888-8888-4888-8888-888888888888',
-          appId: WEB_APP_ID,
-          displayName: 'Web SP',
-          accountEnabled: true,
-          servicePrincipalType: 'Application',
-        }] });
+        return json({
+          value: [
+            {
+              id: '88888888-8888-4888-8888-888888888888',
+              appId: WEB_APP_ID,
+              displayName: 'Web SP',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
+        });
       }
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(GRAPH_APP_ID))) {
-        return json({ value: [{
-          id: '99999999-9999-4999-8999-999999999999',
-          appId: GRAPH_APP_ID,
-          displayName: 'Graph SP',
-          accountEnabled: true,
-          servicePrincipalType: 'Application',
-        }] });
+        return json({
+          value: [
+            {
+              id: '99999999-9999-4999-8999-999999999999',
+              appId: GRAPH_APP_ID,
+              displayName: 'Graph SP',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
+        });
       }
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(OPS_APP_ID))) {
-        return json({ value: [{
-          id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
-          appId: OPS_APP_ID,
-          displayName: 'Ecossistema Operations - GitHub OIDC',
-          accountEnabled: true,
-          servicePrincipalType: 'Application',
-        }] });
+        return json({
+          value: [
+            {
+              id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+              appId: OPS_APP_ID,
+              displayName: 'Ecossistema Operations - GitHub OIDC',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
+        });
       }
-      if (url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/appRoleAssignments'))
+      if (
+        url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/appRoleAssignments')
+      )
         return json({ value: [] });
-      if (url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments'))
+      if (
+        url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments')
+      )
         return json({ value: [] });
-      if (url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments'))
-        return json({ value: [
-          { id: crypto.randomUUID(), appRoleId: APPLICATION_READ_ALL, resourceId: crypto.randomUUID() },
-          { id: crypto.randomUUID(), appRoleId: SITES_SELECTED, resourceId: crypto.randomUUID() },
-        ] });
+      if (
+        url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments')
+      )
+        return json({
+          value: [
+            {
+              id: crypto.randomUUID(),
+              appRoleId: APPLICATION_READ_ALL,
+              resourceId: crypto.randomUUID(),
+            },
+            { id: crypto.randomUUID(), appRoleId: SITES_SELECTED, resourceId: crypto.randomUUID() },
+          ],
+        });
       if (url.includes(encodeURIComponent(selectedSite)) && url.includes('/lists?'))
         return json({ value: [{ id: 'list-a' }, { id: 'list-b' }] });
       if (url.includes(encodeURIComponent(selectedSite)))
-        return json({ id: selectedSite, displayName: 'Selected Site', webUrl: 'https://example.invalid/sites/selected' });
+        return json({
+          id: selectedSite,
+          displayName: 'Selected Site',
+          webUrl: 'https://example.invalid/sites/selected',
+        });
       if (url.includes(encodeURIComponent(isolationSite)))
         return new Response(null, { status: 403 });
       throw new Error(`Unexpected URL: ${url}`);
@@ -297,7 +353,9 @@ describe('Entra operations read-only audit', () => {
       const url = String(input);
       if (url.includes(`/applications/${WEB_OBJECT}`)) {
         return json({
-          id: WEB_OBJECT, appId: WEB_APP_ID, displayName: 'Ecossistema Escolar - Web',
+          id: WEB_OBJECT,
+          appId: WEB_APP_ID,
+          displayName: 'Ecossistema Escolar - Web',
           signInAudience: 'AzureADMyOrg',
           web: { redirectUris: ['https://admin.escolaieda.com/auth/callback'] },
           keyCredentials: [{ keyId: crypto.randomUUID(), endDateTime: '2027-12-31T00:00:00Z' }],
@@ -305,54 +363,97 @@ describe('Entra operations read-only audit', () => {
       }
       if (url.includes(`/applications/${GRAPH_OBJECT}`)) {
         return json({
-          id: GRAPH_OBJECT, appId: GRAPH_APP_ID, displayName: 'Ecossistema Escolar - Graph Backend',
+          id: GRAPH_OBJECT,
+          appId: GRAPH_APP_ID,
+          displayName: 'Ecossistema Escolar - Graph Backend',
           signInAudience: 'AzureADMyOrg',
-          web: { redirectUris: [] }, spa: { redirectUris: [] }, publicClient: { redirectUris: [] },
+          web: { redirectUris: [] },
+          spa: { redirectUris: [] },
+          publicClient: { redirectUris: [] },
           keyCredentials: [{ keyId: crypto.randomUUID(), endDateTime: '2027-12-31T00:00:00Z' }],
         });
       }
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(WEB_APP_ID)))
-        return json({ value: [{ id: '88888888-8888-4888-8888-888888888888', appId: WEB_APP_ID,
-          displayName: 'Web SP', accountEnabled: true, servicePrincipalType: 'Application' }] });
+        return json({
+          value: [
+            {
+              id: '88888888-8888-4888-8888-888888888888',
+              appId: WEB_APP_ID,
+              displayName: 'Web SP',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
+        });
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(GRAPH_APP_ID)))
-        return json({ value: [{ id: '99999999-9999-4999-8999-999999999999', appId: GRAPH_APP_ID,
-          displayName: 'Graph SP', accountEnabled: true, servicePrincipalType: 'Application' }] });
+        return json({
+          value: [
+            {
+              id: '99999999-9999-4999-8999-999999999999',
+              appId: GRAPH_APP_ID,
+              displayName: 'Graph SP',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
+        });
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(OPS_APP_ID)))
-        return json({ value: [{ id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', appId: OPS_APP_ID,
-          displayName: 'Ecossistema Operations - GitHub OIDC', accountEnabled: true,
-          servicePrincipalType: 'Application' }] });
-      if (url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments'))
-        return json({ value: [
-          { id: crypto.randomUUID(), appRoleId: APPLICATION_READ_ALL, resourceId: crypto.randomUUID() },
-          { id: crypto.randomUUID(), appRoleId: SITES_SELECTED, resourceId: crypto.randomUUID() },
-        ] });
+        return json({
+          value: [
+            {
+              id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+              appId: OPS_APP_ID,
+              displayName: 'Ecossistema Operations - GitHub OIDC',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
+        });
+      if (
+        url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments')
+      )
+        return json({
+          value: [
+            {
+              id: crypto.randomUUID(),
+              appRoleId: APPLICATION_READ_ALL,
+              resourceId: crypto.randomUUID(),
+            },
+            { id: crypto.randomUUID(), appRoleId: SITES_SELECTED, resourceId: crypto.randomUUID() },
+          ],
+        });
       if (url.includes('/appRoleAssignments')) return json({ value: [] });
       if (url.includes(encodeURIComponent(selectedSite)) && url.includes('/lists?'))
         return json({ value: [] });
       if (url.includes(encodeURIComponent(selectedSite)))
-        return json({ id: selectedSite, displayName: 'Selected Site', webUrl: 'https://example.invalid/sites/selected' });
-      if (url.includes(encodeURIComponent(isolationSite)))
-        return json({ id: isolationSite });
+        return json({
+          id: selectedSite,
+          displayName: 'Selected Site',
+          webUrl: 'https://example.invalid/sites/selected',
+        });
+      if (url.includes(encodeURIComponent(isolationSite))) return json({ id: isolationSite });
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    await expect(auditEntraOperations({
-      accessToken: TOKEN,
-      webApplicationObjectId: WEB_OBJECT,
-      graphApplicationObjectId: GRAPH_OBJECT,
-      operationsClientId: OPS_APP_ID,
-      sharePointAuditEnabled: true,
-      fetcher,
-      now: () => new Date('2026-09-19T00:00:00Z'),
-    })).rejects.toMatchObject({
+    await expect(
+      auditEntraOperations({
+        accessToken: TOKEN,
+        webApplicationObjectId: WEB_OBJECT,
+        graphApplicationObjectId: GRAPH_OBJECT,
+        operationsClientId: OPS_APP_ID,
+        sharePointAuditEnabled: true,
+        fetcher,
+        now: () => new Date('2026-09-19T00:00:00Z'),
+      }),
+    ).rejects.toMatchObject({
       name: 'EntraOperationsAuditError',
       stage: 'sharepoint-broad-access-detected',
     });
   });
 
   it('fails closed with a sanitized error instead of provider response content', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () =>
-      new Response('provider-secret-body-MUST_NOT_LEAK', { status: 403 }),
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response('provider-secret-body-MUST_NOT_LEAK', { status: 403 }),
     );
 
     await expect(
@@ -363,17 +464,19 @@ describe('Entra operations read-only audit', () => {
         operationsClientId: OPS_APP_ID,
         fetcher,
       }),
-    ).rejects.toEqual(expect.objectContaining<Partial<EntraOperationsAuditError>>({
-      name: 'EntraOperationsAuditError',
-      status: 403,
-    }));
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<EntraOperationsAuditError>>({
+        name: 'EntraOperationsAuditError',
+        status: 403,
+      }),
+    );
 
     try {
       await auditEntraOperations({
         accessToken: TOKEN,
         webApplicationObjectId: WEB_OBJECT,
         graphApplicationObjectId: GRAPH_OBJECT,
-      operationsClientId: OPS_APP_ID,
+        operationsClientId: OPS_APP_ID,
         fetcher,
       });
     } catch (error) {
@@ -389,7 +492,7 @@ describe('Entra operations read-only audit', () => {
         accessToken: TOKEN,
         webApplicationObjectId: 'not-a-uuid',
         graphApplicationObjectId: GRAPH_OBJECT,
-      operationsClientId: OPS_APP_ID,
+        operationsClientId: OPS_APP_ID,
         fetcher,
       }),
     ).rejects.toBeInstanceOf(EntraOperationsAuditError);

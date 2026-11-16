@@ -5,9 +5,17 @@ import { Spinner } from '@heroui/react/spinner';
  * loading card says. The pages use these words; the shell shows the same while a page's own code
  * is still on its way (each one arrives on demand). */
 export const PAGE_LOADING_V3 = {
-  frequency: { className: 'pa3-frequency', title: 'Frequência do aluno', message: 'Carregando frequência…' },
+  frequency: {
+    className: 'pa3-frequency',
+    title: 'Frequência do aluno',
+    message: 'Carregando frequência…',
+  },
   schedule: { className: 'pa3-schedule', title: 'Horário', message: 'Carregando horário…' },
-  incidents: { className: 'pa3-incidents', title: 'Ocorrências', message: 'Carregando as ocorrências…' },
+  incidents: {
+    className: 'pa3-incidents',
+    title: 'Ocorrências',
+    message: 'Carregando as ocorrências…',
+  },
 } as const;
 
 export function PageLoadingV3({ page }: Readonly<{ page: keyof typeof PAGE_LOADING_V3 }>) {

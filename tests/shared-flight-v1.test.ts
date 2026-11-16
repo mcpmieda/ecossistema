@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { joinFlightV1 } from '../server/http/shared-flight-v1';
 import { createSystemHealthCacheV1 } from '../server/platform/system-health-source-v1';
 
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('reads shared between requests never wait forever (issue #1450, finding 2)', () => {
   it('a read in flight is joined while it answers in time', async () => {

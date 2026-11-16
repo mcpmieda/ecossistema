@@ -305,7 +305,9 @@ async function fill(selector: string, value: string) {
 }
 
 function button(label: string) {
-  const found = [...host.querySelectorAll('button')].find((item) => item.textContent?.includes(label));
+  const found = [...host.querySelectorAll('button')].find((item) =>
+    item.textContent?.includes(label),
+  );
   expect(found).toBeDefined();
   return found!;
 }
@@ -313,7 +315,8 @@ const isDisabled = (element: Element) =>
   element.hasAttribute('disabled') || element.getAttribute('data-disabled') === 'true';
 const nativeDecision = () => {
   const container = [...host.querySelectorAll<HTMLElement>('[data-slot="select"]')].find(
-    (element) => element.querySelector('[data-slot="label"]')?.textContent === 'Situação após o Conselho',
+    (element) =>
+      element.querySelector('[data-slot="label"]')?.textContent === 'Situação após o Conselho',
   );
   return container?.querySelector('select') ?? null;
 };
@@ -354,24 +357,31 @@ describe('Council decision chosen explicitly (A3)', () => {
 describe('Council refusal after another save (A12)', () => {
   it('keeps the conflict warning and the typed draft after the reread', async () => {
     let conflict = false;
-    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (url, init) => {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      if (conflict && body.operation === 'decision') {
-        requests.push(body);
-        return reply({ contractVersion: 3, state: 'version-conflict' }, 409);
-      }
-      return fetchMock(url, init);
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (url, init) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        if (conflict && body.operation === 'decision') {
+          requests.push(body);
+          return reply({ contractVersion: 3, state: 'version-conflict' }, 409);
+        }
+        return fetchMock(url, init);
+      }),
+    );
     await openMeeting();
     await select('Situação após o Conselho', '3');
     await fill('#decision-reason-1', 'Rascunho que não pode sumir.');
     conflict = true;
     const before = requests.length;
     await click('Registrar decisão');
-    await waitFor(() => requests.slice(before).some((request) => request.operation === 'workspace'));
+    await waitFor(() =>
+      requests.slice(before).some((request) => request.operation === 'workspace'),
+    );
     await settle();
     expect(host.textContent).toContain('Outra alteração foi salva antes desta.');
-    expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe('Rascunho que não pode sumir.');
+    expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe(
+      'Rascunho que não pode sumir.',
+    );
     expect(nativeDecision()?.value).toBe('3');
   }, 15_000);
 
@@ -399,14 +409,17 @@ describe('Council refusal after another save (A12)', () => {
 
   it('keeps the draft and warns when the conflict is on the same student', async () => {
     let conflict = false;
-    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (url, init) => {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      if (conflict && body.operation === 'decision') {
-        requests.push(body);
-        return reply({ contractVersion: 3, state: 'version-conflict' }, 409);
-      }
-      return fetchMock(url, init);
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (url, init) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        if (conflict && body.operation === 'decision') {
+          requests.push(body);
+          return reply({ contractVersion: 3, state: 'version-conflict' }, 409);
+        }
+        return fetchMock(url, init);
+      }),
+    );
     await openMeeting();
     await select('Situação após o Conselho', '3');
     await fill('#decision-reason-1', 'Meu rascunho do mesmo aluno.');
@@ -414,12 +427,18 @@ describe('Council refusal after another save (A12)', () => {
     conflict = true;
     const before = requests.length;
     await click('Registrar decisão');
-    await waitFor(() => requests.slice(before).some((request) => request.operation === 'workspace'));
+    await waitFor(() =>
+      requests.slice(before).some((request) => request.operation === 'workspace'),
+    );
     await settle();
     expect(host.textContent).toContain('Outra alteração foi salva antes desta.');
     expect(host.textContent).toContain('Outra pessoa alterou este aluno');
-    expect(host.textContent).toContain('REPROVADO PELO CONSELHO (Decisão gravada por outra pessoa.)');
-    expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe('Meu rascunho do mesmo aluno.');
+    expect(host.textContent).toContain(
+      'REPROVADO PELO CONSELHO (Decisão gravada por outra pessoa.)',
+    );
+    expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe(
+      'Meu rascunho do mesmo aluno.',
+    );
     expect(nativeDecision()?.value).toBe('3');
     // Recording the draft afterwards is a choice made knowing the current record.
     conflict = false;
@@ -433,14 +452,17 @@ describe('Council refusal after another save (A12)', () => {
 
   it('shows the new decision without a warning when only the count had a draft', async () => {
     let conflict = false;
-    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (url, init) => {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      if (conflict && body.operation === 'vote') {
-        requests.push(body);
-        return reply({ contractVersion: 3, state: 'version-conflict' }, 409);
-      }
-      return fetchMock(url, init);
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (url, init) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        if (conflict && body.operation === 'vote') {
+          requests.push(body);
+          return reply({ contractVersion: 3, state: 'version-conflict' }, 409);
+        }
+        return fetchMock(url, init);
+      }),
+    );
     await openMeeting();
     await fill('#votes-for-1', '4');
     await fill('#votes-against-1', '2');
@@ -449,15 +471,21 @@ describe('Council refusal after another save (A12)', () => {
     conflict = true;
     const before = requests.length;
     await click('Registrar contagem');
-    await waitFor(() => requests.slice(before).some((request) => request.operation === 'workspace'));
+    await waitFor(() =>
+      requests.slice(before).some((request) => request.operation === 'workspace'),
+    );
     await settle();
     expect(host.textContent).toContain('Outra alteração foi salva antes desta.');
     expect(host.textContent).not.toContain('Outra pessoa alterou este aluno');
     // Nothing typed in the decision: it now shows the record of the other person.
     expect(nativeDecision()?.value).toBe('2');
-    expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe('Decisão gravada por outra pessoa.');
+    expect(host.querySelector<HTMLTextAreaElement>('#decision-reason-1')?.value).toBe(
+      'Decisão gravada por outra pessoa.',
+    );
     // The count, whose record did not change, keeps what was typed.
     expect(host.querySelector<HTMLInputElement>('#votes-for-1')?.value).toBe('4');
-    expect(host.querySelector<HTMLTextAreaElement>('#vote-reason-1')?.value).toBe('Contagem ainda não gravada.');
+    expect(host.querySelector<HTMLTextAreaElement>('#vote-reason-1')?.value).toBe(
+      'Contagem ainda não gravada.',
+    );
   }, 15_000);
 });

@@ -127,7 +127,10 @@ export function useHistoryStepV1<T>(
     }
     // An entry opened by an address (another area of the Centro) learns the view it starts with.
     if (!first && !(field in stateRecord()))
-      window.history.replaceState({ ...stateRecord(), [field]: JSON.parse(previous) as unknown }, '');
+      window.history.replaceState(
+        { ...stateRecord(), [field]: JSON.parse(previous) as unknown },
+        '',
+      );
     const entry = { ...stateRecord(), [field]: JSON.parse(text) as unknown };
     // The first value, a value restored by back or one that settles a choice: the same step.
     // One tap that changes two screens' views (a perspective and its filters) is still one step.

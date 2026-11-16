@@ -248,10 +248,7 @@ export function createImportPerformanceObserverV1() {
       metrics.maximumReadSetOffers = Math.max(metrics.maximumReadSetOffers, count);
     } else {
       metrics.instrumentStatements++;
-      metrics.maximumInstrumentGroupRows = Math.max(
-        metrics.maximumInstrumentGroupRows,
-        count,
-      );
+      metrics.maximumInstrumentGroupRows = Math.max(metrics.maximumInstrumentGroupRows, count);
       metrics.maximumInstrumentGroupBytes = Math.max(
         metrics.maximumInstrumentGroupBytes,
         new TextEncoder().encode(body.jsonText).byteLength,
@@ -428,7 +425,8 @@ export function createImportPerformanceObserverV1() {
       metrics.maximumGroupBytes = Math.max(metrics.maximumGroupBytes, bytes);
     },
     groupFinished(success: boolean) {
-      if (success) metrics.groupedStatementsCompleted++; // NOSONAR the observer port reports one outcome per group
+      if (success)
+        metrics.groupedStatementsCompleted++; // NOSONAR the observer port reports one outcome per group
       else metrics.groupedStatementsFailed++;
     },
     finalizerElapsed(started: number) {

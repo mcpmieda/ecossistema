@@ -11,7 +11,6 @@ import {
 import { selfResponseV1, type SelfResponseV1 } from '../../shared/student-portal-contracts/self-v1';
 import '../features/student-portal/shared/styles.css';
 
-
 const previewPortrait = new URL('./assets/demo-student-boy.webp', import.meta.url).href;
 
 /*
@@ -58,7 +57,10 @@ const recovery = (period: 'REC1' | 'REC2', value?: number) => {
   const term = period === 'REC1' ? 'T1' : 'T2';
   return {
     period,
-    final: value === undefined ? { kind: 'recovery-pending' as const } : score(value, TERM_MAXIMUM[term]),
+    final:
+      value === undefined
+        ? { kind: 'recovery-pending' as const }
+        : score(value, TERM_MAXIMUM[term]),
   };
 };
 
@@ -108,7 +110,10 @@ const previewData = selfResponseV1.parse({
           partial('Quiz de revisão', 0, 1),
           notDone('Atividade de casa'),
         ]),
-        ongoingT3([partial('Avaliação 1', 6, 15), partial('Lista de exercícios: função quadrática', 2, 3)]),
+        ongoingT3([
+          partial('Avaliação 1', 6, 15),
+          partial('Lista de exercícios: função quadrática', 2, 3),
+        ]),
         recovery('REC1', 19),
       ],
     },
@@ -249,7 +254,8 @@ const realSubject = (
 ) => {
   const markOf = (value: number | null, maximum: number | null) => {
     if (value === null) return absent;
-    if (maximum === null) return { kind: 'score' as const, value, maximum: null, meetsMinimum: null };
+    if (maximum === null)
+      return { kind: 'score' as const, value, maximum: null, meetsMinimum: null };
     return score(value, maximum);
   };
   const partials = activities.map(([activity, maximum, value]) => ({
@@ -268,8 +274,16 @@ const realSubject = (
     (sum, [activity, , value]) => (activity === PARALLEL_LABEL ? sum : sum + (value ?? 0)),
     0,
   );
-  const final = parallel !== null && parallel > quantitative ? beforeParallel - quantitative + parallel : beforeParallel;
-  return { subjectId, label, order, periods: [{ period: 'T1' as const, final: score(final, 30), partials }] };
+  const final =
+    parallel !== null && parallel > quantitative
+      ? beforeParallel - quantitative + parallel
+      : beforeParallel;
+  return {
+    subjectId,
+    label,
+    order,
+    periods: [{ period: 'T1' as const, final: score(final, 30), partials }],
+  };
 };
 const AV1_LABEL = '1ª AVALIAÇÃO';
 const AV2_LABEL = 'SIMULADO';
@@ -299,8 +313,14 @@ const trendPreviewData = () =>
       label,
       order,
       periods: [
-        term('T1', t1, [partial('Avaliação 1', Math.round((t1 / 3) * 2) / 2, 10), partial('Participação', 3, 3)]),
-        term('T2', t2, [partial('Avaliação 1', Math.round((t2 / 3) * 2) / 2, 10), partial('Participação', 3, 3)]),
+        term('T1', t1, [
+          partial('Avaliação 1', Math.round((t1 / 3) * 2) / 2, 10),
+          partial('Participação', 3, 3),
+        ]),
+        term('T2', t2, [
+          partial('Avaliação 1', Math.round((t2 / 3) * 2) / 2, 10),
+          partial('Participação', 3, 3),
+        ]),
       ],
     })),
   }));
@@ -334,7 +354,13 @@ const withRealCorrectionV1 = (data: typeof previewData, corrected: boolean) =>
  * has reds, so MATEMÁTICA is Brilhante again but earns no seal. Each activity set adds up to its
  * trimester mark: Avaliação 1 and 2 of 10, Trabalho of 4, Lista of 3, Participação of 3.
  */
-type ShowcaseTermV1 = readonly [av1: number, av2: number, work: number, list: number, class_: number];
+type ShowcaseTermV1 = readonly [
+  av1: number,
+  av2: number,
+  work: number,
+  list: number,
+  class_: number,
+];
 const showcaseTerm = (period: 'T1' | 'T2', [av1, av2, work, list, class_]: ShowcaseTermV1) =>
   term(period, av1 + av2 + work + list + class_, [
     partial('Avaliação 1', av1, 10),
@@ -369,7 +395,10 @@ const SHOWCASE_CASES_V1: readonly [
  * (activities so far, no trimester mark) or closed (mark of 40, minimum 24).
  */
 type ThirdTermStateV1 = 'hidden' | 'ongoing' | 'closed';
-const showcaseThirdTerm = (state: ThirdTermStateV1, [av1, av2, work, list, class_]: ShowcaseTermV1) =>
+const showcaseThirdTerm = (
+  state: ThirdTermStateV1,
+  [av1, av2, work, list, class_]: ShowcaseTermV1,
+) =>
   state === 'closed'
     ? {
         period: 'T3' as const,
@@ -652,17 +681,30 @@ const reading = (
     period,
     mode: 'conclusion',
     level,
-    conclusion: { code: level === 'attention' ? 'conclusion.attention' : 'conclusion.good-with-point', variant },
+    conclusion: {
+      code: level === 'attention' ? 'conclusion.attention' : 'conclusion.good-with-point',
+      variant,
+    },
     weight: { code: weight, variant },
     ...(strength ? { strength: { code: strength, variant } } : {}),
     action: { code: action, variant },
   });
 const EXAMPLE_CLOSINGS_V1: Record<number, ClosingV1[]> = {
   900001: [
-    reading('T1', 'attention', 0, 'weight.assessments', 'action.assessments', 'strength.activities'),
+    reading(
+      'T1',
+      'attention',
+      0,
+      'weight.assessments',
+      'action.assessments',
+      'strength.activities',
+    ),
     reading('T2', 'point', 1, 'weight.not-done', 'action.catch-up', 'strength.assessments'),
   ],
-  900002: [goodLine(0), reading('T2', 'attention', 2, 'weight.not-done', 'action.catch-up', 'strength.activities')],
+  900002: [
+    goodLine(0),
+    reading('T2', 'attention', 2, 'weight.not-done', 'action.catch-up', 'strength.activities'),
+  ],
   900003: [goodLine(1), reading('T2', 'attention', 1, 'weight.assessments', 'action.assessments')],
   900004: [
     reading('T1', 'attention', 2, 'weight.not-done', 'action.catch-up'),
@@ -745,7 +787,11 @@ const SITUATION_OPTIONS_V1: readonly [AdminSimulationV1['situation'], string][] 
 ];
 
 /** Geografia carries the failure; the other recovered subject passed after recovery. */
-function geographyFailedV1(key: string, recovered: boolean, failed: SubjectSituationV1): SubjectSituationV1 {
+function geographyFailedV1(
+  key: string,
+  recovered: boolean,
+  failed: SubjectSituationV1,
+): SubjectSituationV1 {
   if (key === 'geografia') return failed;
   return recovered ? 'approved-after-recovery' : 'approved-direct';
 }
@@ -786,7 +832,9 @@ function subjectSituationFor(
       return geographyFailedV1(key, recovered, 'not-approved');
   }
 }
-const coarseResultV1 = (situation: AdminSimulationV1['situation']): SelfResponseV1['profile']['result'] => {
+const coarseResultV1 = (
+  situation: AdminSimulationV1['situation'],
+): SelfResponseV1['profile']['result'] => {
   if (situation === 'none' || situation === 'in-recovery') {
     return 'in-progress';
   }
@@ -851,7 +899,8 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     : [];
   // Closings follow the policy, access and a regular student (D8, D9); a closed but unreleased
   // T1 keeps its subject with only the closing (R2).
-  const closingsOn = admin.accessEnabled && admin.showTermClosing && admin.academicState === 'regular';
+  const closingsOn =
+    admin.accessEnabled && admin.showTermClosing && admin.academicState === 'regular';
   const closingsOf = (subjectId: number): ClosingV1[] | undefined =>
     admin.dataset === 'real'
       ? REAL_CLOSINGS_V1[subjectId] && [REAL_CLOSINGS_V1[subjectId]]
@@ -863,7 +912,12 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
           subject.periods.some((period) => period.period === closing.period),
         );
         return released?.length
-          ? { ...subject, closings: released.map((closing) => (admin.termClosingConclusive ? closing : asProgressV1(closing))) }
+          ? {
+              ...subject,
+              closings: released.map((closing) =>
+                admin.termClosingConclusive ? closing : asProgressV1(closing),
+              ),
+            }
           : (subject as SelfResponseV1['subjects'][number]);
       })
     : subjects;
@@ -873,7 +927,8 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
   ) as ClosingV1['period'][];
   const summaries = summaryPeriods.map((period) => {
     const attention = withClosings.filter(
-      (subject) => subject.closings?.find((closing) => closing.period === period)?.level === 'attention',
+      (subject) =>
+        subject.closings?.find((closing) => closing.period === period)?.level === 'attention',
     );
     return {
       period,
@@ -924,7 +979,12 @@ const panelStyle: CSSProperties = {
   font: '12px/1.4 system-ui, sans-serif',
   boxShadow: '0 10px 30px rgb(0 0 0 / 0.3)',
 };
-const rowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '4px 12px', margin: '6px 0' };
+const rowStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '4px 12px',
+  margin: '6px 0',
+};
 
 function AdminSimulatorPanelV1({
   value,
@@ -933,8 +993,25 @@ function AdminSimulatorPanelV1({
   value: AdminSimulationV1;
   onChange: (next: AdminSimulationV1) => void;
 }>) {
-  const toggle = (key: 'accessEnabled' | 'showPartials' | 'showTermClosing' | 'termClosingConclusive' | 'showFrequency' | 'showSchedule' | 'showIncidents' | 'finalDisclosed' | 'hasPortrait' | 'singleSubject' | 'correctedRed') => (
-    <input type="checkbox" checked={value[key]} onChange={() => onChange({ ...value, [key]: !value[key] })} />
+  const toggle = (
+    key:
+      | 'accessEnabled'
+      | 'showPartials'
+      | 'showTermClosing'
+      | 'termClosingConclusive'
+      | 'showFrequency'
+      | 'showSchedule'
+      | 'showIncidents'
+      | 'finalDisclosed'
+      | 'hasPortrait'
+      | 'singleSubject'
+      | 'correctedRed',
+  ) => (
+    <input
+      type="checkbox"
+      checked={value[key]}
+      onChange={() => onChange({ ...value, [key]: !value[key] })}
+    />
   );
   return (
     <details style={panelStyle}>
@@ -945,7 +1022,11 @@ function AdminSimulatorPanelV1({
           value={value.dataset}
           onChange={(event) => {
             const dataset = event.target.value as AdminSimulationV1['dataset'];
-            onChange({ ...value, dataset, periods: dataset === 'recovery' ? ALL_PERIODS_V1 : TERM_PERIODS_V1 });
+            onChange({
+              ...value,
+              dataset,
+              periods: dataset === 'recovery' ? ALL_PERIODS_V1 : TERM_PERIODS_V1,
+            });
           }}
         >
           <option value="showcase">Vitrine: Brilhante e tendências</option>
@@ -962,7 +1043,10 @@ function AdminSimulatorPanelV1({
           <select
             value={value.thirdTerm}
             onChange={(event) =>
-              onChange({ ...value, thirdTerm: event.target.value as AdminSimulationV1['thirdTerm'] })
+              onChange({
+                ...value,
+                thirdTerm: event.target.value as AdminSimulationV1['thirdTerm'],
+              })
             }
           >
             <option value="hidden">Não iniciado</option>
@@ -974,7 +1058,8 @@ function AdminSimulatorPanelV1({
       {value.dataset === 'real' ? (
         <div style={rowStyle}>
           <label>
-            {toggle('correctedRed')} Professores corrigiram PORTUGUÊS e HISTÓRIA (sem vermelhas no 1º tri)
+            {toggle('correctedRed')} Professores corrigiram PORTUGUÊS e HISTÓRIA (sem vermelhas no
+            1º tri)
           </label>
         </div>
       ) : null}
@@ -982,7 +1067,9 @@ function AdminSimulatorPanelV1({
         <span style={{ opacity: 0.7 }}>Aviso:</span>
         <select
           value={value.notice}
-          onChange={(event) => onChange({ ...value, notice: event.target.value as AdminSimulationV1['notice'] })}
+          onChange={(event) =>
+            onChange({ ...value, notice: event.target.value as AdminSimulationV1['notice'] })
+          }
         >
           <option value="none">Nenhum</option>
           <option value="countdown">Contagem para liberar notas</option>
@@ -994,7 +1081,10 @@ function AdminSimulatorPanelV1({
         <select
           value={value.academicState}
           onChange={(event) =>
-            onChange({ ...value, academicState: event.target.value as AdminSimulationV1['academicState'] })
+            onChange({
+              ...value,
+              academicState: event.target.value as AdminSimulationV1['academicState'],
+            })
           }
         >
           <option value="regular">Regular</option>
@@ -1014,7 +1104,9 @@ function AdminSimulatorPanelV1({
           Frase da frequência{' '}
           <select
             value={value.frequencyComment}
-            onChange={(event) => onChange({ ...value, frequencyComment: event.target.value as DemoCommentChoiceV3 })}
+            onChange={(event) =>
+              onChange({ ...value, frequencyComment: event.target.value as DemoCommentChoiceV3 })
+            }
           >
             <option value="auto">Automática</option>
             <option value="none">Nenhuma</option>
@@ -1116,8 +1208,13 @@ export function PortalDemoAppV1() {
     [admin],
   );
   // A new client per choice, so the page reads the forced sentence again (keyed below).
-  const frequencyClient = useMemo(() => createDemoFrequencyClientV3(admin.frequencyComment), [admin.frequencyComment]);
-  const [releaseAt] = useState(() => new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60) * 1000).toISOString());
+  const frequencyClient = useMemo(
+    () => createDemoFrequencyClientV3(admin.frequencyComment),
+    [admin.frequencyComment],
+  );
+  const [releaseAt] = useState(() =>
+    new Date(Date.now() + (86400 + 4 * 3600 + 25 * 60) * 1000).toISOString(),
+  );
   return (
     <>
       <AdminSimulatorPanelV1 value={admin} onChange={setAdmin} />
@@ -1133,7 +1230,9 @@ export function PortalDemoAppV1() {
                 accessOpensAt: null,
                 gradesReleaseAt: admin.notice === 'countdown' ? releaseAt : null,
                 disclosureEnded:
-                  admin.notice === 'ended' ? { period: 'T1', at: '2026-09-20T18:00:00-03:00' } : null,
+                  admin.notice === 'ended'
+                    ? { period: 'T1', at: '2026-09-20T18:00:00-03:00' }
+                    : null,
               }}
             />
           )
@@ -1147,4 +1246,3 @@ export function PortalDemoAppV1() {
     </>
   );
 }
-

@@ -47,8 +47,7 @@ export type SourceQuantitativeAssessmentSlotV2 =
 export type SourceQualitativeActivitySlotV2 =
   (typeof SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2)[number]['sourceSlot'];
 export type SourceAssessmentSlotV2 =
-  | SourceQuantitativeAssessmentSlotV2
-  | SourceQualitativeActivitySlotV2;
+  SourceQuantitativeAssessmentSlotV2 | SourceQualitativeActivitySlotV2;
 
 type SourceAssessmentMaximumConfigurationV2 =
   | {
@@ -118,8 +117,7 @@ export type SourceQualitativeActivityDefinitionV2 = {
 };
 
 export type SourceAssessmentDefinitionV2 =
-  | SourceQuantitativeAssessmentDefinitionV2
-  | SourceQualitativeActivityDefinitionV2;
+  SourceQuantitativeAssessmentDefinitionV2 | SourceQualitativeActivityDefinitionV2;
 
 const SOURCE_CELL_MAP_V2 = {
   metadata: SOURCE_CELL_MAP_V1.metadata,

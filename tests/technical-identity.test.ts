@@ -62,8 +62,10 @@ describe('technical identity slots', () => {
       GRAPH_CREDENTIAL_A: '{sensitive-invalid',
       GRAPH_CREDENTIAL_B: 'also-sensitive-invalid',
     };
-    try { graphCredentials(env); throw new Error('Expected the inventory to fail'); }
-    catch (error) {
+    try {
+      graphCredentials(env);
+      throw new Error('Expected the inventory to fail');
+    } catch (error) {
       expect(error).toBeInstanceOf(TechnicalCredentialError);
       expect(error).toMatchObject({ stage: 'invalid', slots: ['A', 'B'] });
       expect(String(error)).not.toContain('sensitive');

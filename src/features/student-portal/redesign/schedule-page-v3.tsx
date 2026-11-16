@@ -478,7 +478,10 @@ const rowStateClassV3 = (clock: RowClockV3, item: { start: string; end: string }
  * the right. A free position is an empty dashed card.
  */
 /** The card's time, with "agora" over it while it goes on. */
-function RowTimeV3({ now, time }: Readonly<{ now: boolean; time: { start: string; end: string } }>) {
+function RowTimeV3({
+  now,
+  time,
+}: Readonly<{ now: boolean; time: { start: string; end: string } }>) {
   return (
     <span className="pa3-schedule-time">
       {now ? (
@@ -640,14 +643,23 @@ function nextSchoolDayOf(
     // Nothing after the calendar's last school day; nothing before its first.
     if (schoolYear && date > schoolYear.lastDay) return null;
     const weekday = weekdayOf(date);
-    const start = isSchoolDateV3(date, weekday, off, schoolYear) ? dayStartOfV3(item, weekday as WeekdayV3) : null;
+    const start = isSchoolDateV3(date, weekday, off, schoolYear)
+      ? dayStartOfV3(item, weekday as WeekdayV3)
+      : null;
     if (start) return { ahead, date, weekday: weekday as WeekdayV3, start };
   }
   return null;
 }
 /** A weekday the ADM calendar does not mark as without school, from the school year's first day. */
-function isSchoolDateV3(date: string, weekday: number, off: ReadonlySet<string>, schoolYear: SchoolYearSpanV1 | null) {
-  return weekday >= 1 && weekday <= 5 && !off.has(date) && !(schoolYear && date < schoolYear.firstDay);
+function isSchoolDateV3(
+  date: string,
+  weekday: number,
+  off: ReadonlySet<string>,
+  schoolYear: SchoolYearSpanV1 | null,
+) {
+  return (
+    weekday >= 1 && weekday <= 5 && !off.has(date) && !(schoolYear && date < schoolYear.firstDay)
+  );
 }
 /**
  * When a weekday's lessons start for this class: with the parada when the day has one (the students
@@ -742,8 +754,13 @@ function NextLessonsCardV3({
  * parada in slate, a lesson in its subject's colour.
  */
 function NowItemV3({ item, subject }: Readonly<{ item: BellItemV1; subject: string | null }>) {
-  const tone = item.kind === 'aula' && subject ? ` pa3-subject--${subjectStyleV3(subject).tone}` : '';
-  return <span className={`pa3-now-pill pa3-now-pill--${item.kind}${tone}`}>{itemName(item, subject)}</span>;
+  const tone =
+    item.kind === 'aula' && subject ? ` pa3-subject--${subjectStyleV3(subject).tone}` : '';
+  return (
+    <span className={`pa3-now-pill pa3-now-pill--${item.kind}${tone}`}>
+      {itemName(item, subject)}
+    </span>
+  );
 }
 
 /** The card's title, the countdown's label and target, and what comes after, for the moment. */
@@ -978,7 +995,8 @@ function latestObservedV3(classes: readonly ScheduleClassV3[] | null): string | 
 }
 
 /** Today first; on a weekend, Monday (the next school day). */
-const firstShownDayV3 = (schoolDay: boolean, todayWeekday: number) => (schoolDay ? todayWeekday : 1);
+const firstShownDayV3 = (schoolDay: boolean, todayWeekday: number) =>
+  schoolDay ? todayWeekday : 1;
 
 /**
  * Today has lessons only inside the school year: after the calendar's
@@ -1125,10 +1143,7 @@ export function ScheduleWeekV3({
 
           {/* When the class's grid was last read (no source name). */}
           {latest ? (
-            <p className="pa3-footnote">
-              Atualizado em{' '}
-              {schoolShortDateTimeTextV1(latest)}
-            </p>
+            <p className="pa3-footnote">Atualizado em {schoolShortDateTimeTextV1(latest)}</p>
           ) : null}
         </>
       ) : null}

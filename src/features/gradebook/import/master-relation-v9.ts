@@ -1,4 +1,7 @@
-import type { GradebookRelationClassV9, GradebookRelationStudentV9 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import type {
+  GradebookRelationClassV9,
+  GradebookRelationStudentV9,
+} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type { Workbook, Worksheet } from './spreadsheet-recognizer';
 import { trimEndCharsV1 } from '../../../../shared/trim-chars-v1';
 import { normalizeStudentNameV1 as normalize } from '../../../../shared/student-identity/reconciliation-normalization-v1';
@@ -52,7 +55,9 @@ function columnName(oneBased: number): string {
   return result;
 }
 
-export function parseRelationStatusV9(raw: string): readonly [GradebookRelationStudentV9[2], string?] {
+export function parseRelationStatusV9(
+  raw: string,
+): readonly [GradebookRelationStudentV9[2], string?] {
   const status = trimEndCharsV1(normalize(raw), '.').trim();
   if (!status || status === 'NOVATO') return [0];
   if (status === 'ESPECIAL') return [1];
@@ -70,7 +75,10 @@ export function parseRelationStatusV9(raw: string): readonly [GradebookRelationS
 }
 
 /** One class's students in VINCULO AGENDA: its pair of columns (situation, name), rows 3 to 48. */
-function relationStudentsV9(agenda: NonNullable<Workbook['Sheets'][string]>, relationIndex: number) {
+function relationStudentsV9(
+  agenda: NonNullable<Workbook['Sheets'][string]>,
+  relationIndex: number,
+) {
   const statusColumn = columnName(9 + relationIndex * 2); // I, K, M ... AY
   const nameColumn = columnName(10 + relationIndex * 2); // J, L, N ... AZ
   const alunos: GradebookRelationStudentV9[] = [];
@@ -78,7 +86,9 @@ function relationStudentsV9(agenda: NonNullable<Workbook['Sheets'][string]>, rel
     const studentName = text(agenda, `${nameColumn}${agendaRow}`).trim();
     if (!studentName || studentName === '0') continue;
     const numero = agendaRow - 2;
-    const [situacao, relacionada] = parseRelationStatusV9(text(agenda, `${statusColumn}${agendaRow}`));
+    const [situacao, relacionada] = parseRelationStatusV9(
+      text(agenda, `${statusColumn}${agendaRow}`),
+    );
     alunos.push(
       relacionada === undefined
         ? ([numero, studentName, situacao] as const)

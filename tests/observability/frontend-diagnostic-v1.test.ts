@@ -40,22 +40,29 @@ describe('frontend diagnostic contract V1', () => {
   });
 
   it('rejects arbitrary release text, non-opaque correlation and unknown enums', () => {
-    expect(inspectFrontendDiagnosticSubmissionV1({
-      ...valid,
-      release: 'https://example.invalid/release',
-    })).toBe(false);
-    expect(inspectFrontendDiagnosticSubmissionV1({
-      ...valid,
-      correlationId: 'student-123',
-    })).toBe(false);
-    expect(inspectFrontendDiagnosticSubmissionV1({
-      ...valid,
-      category: 'raw-error',
-    })).toBe(false);
-    expect(inspectFrontendDiagnosticSubmissionV1({
-      ...valid,
-      area: 'student-123',
-    })).toBe(false);
+    expect(
+      inspectFrontendDiagnosticSubmissionV1({
+        ...valid,
+        release: 'https://example.invalid/release',
+      }),
+    ).toBe(false);
+    expect(
+      inspectFrontendDiagnosticSubmissionV1({
+        ...valid,
+        correlationId: 'student-123',
+      }),
+    ).toBe(false);
+    expect(
+      inspectFrontendDiagnosticSubmissionV1({
+        ...valid,
+        category: 'raw-error',
+      }),
+    ).toBe(false);
+    expect(
+      inspectFrontendDiagnosticSubmissionV1({
+        ...valid,
+        area: 'student-123',
+      }),
+    ).toBe(false);
   });
-
 });

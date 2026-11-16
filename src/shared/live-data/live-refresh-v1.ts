@@ -37,7 +37,6 @@ function nextCadenceAt(entry: Subscription, from: number) {
   return entry.automatic() ? from + entry.interval + jitter() : Number.POSITIVE_INFINITY;
 }
 
-
 /** In-memory invalidation metadata only; no independent clock, socket, payload or storage. */
 export function subscribeLiveChangesV1(listener: (domain: LiveDomainV1) => void): () => void {
   changeListeners.add(listener);

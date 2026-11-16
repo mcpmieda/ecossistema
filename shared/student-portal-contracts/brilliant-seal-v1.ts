@@ -25,7 +25,8 @@ type SealPeriodV1 = (typeof SEAL_PERIODS_V1)[number];
 
 const isSealPeriodV1 = (period: string): period is SealPeriodV1 =>
   (SEAL_PERIODS_V1 as readonly string[]).includes(period);
-const markOf = (subject: SubjectV1, period: string) => subject.periods.find((item) => item.period === period)?.final;
+const markOf = (subject: SubjectV1, period: string) =>
+  subject.periods.find((item) => item.period === period)?.final;
 
 export function isBrilliantMarkV1(mark: MarkV1 | undefined): boolean {
   if (mark?.kind !== 'score' || mark.meetsMinimum !== true || !mark.maximum) return false;
@@ -42,8 +43,16 @@ function hasRedMarkV1(subjects: readonly SubjectV1[], period: SealPeriodV1): boo
 }
 
 /** Whether the subject holds a seal in the trimester. */
-export function earnsSealV1(subjects: readonly SubjectV1[], subject: SubjectV1, period: string): boolean {
-  return isSealPeriodV1(period) && isBrilliantMarkV1(markOf(subject, period)) && !hasRedMarkV1(subjects, period);
+export function earnsSealV1(
+  subjects: readonly SubjectV1[],
+  subject: SubjectV1,
+  period: string,
+): boolean {
+  return (
+    isSealPeriodV1(period) &&
+    isBrilliantMarkV1(markOf(subject, period)) &&
+    !hasRedMarkV1(subjects, period)
+  );
 }
 
 type PartialV1 = NonNullable<SubjectV1['periods'][number]['partials']>[number];
@@ -70,7 +79,9 @@ export function earnsAssessmentSealV1(
   )
     return false;
   const term = subject.periods.find((item) => item.period === period);
-  return endedPeriods.includes(period) && term?.final.kind === 'score' && !hasRedMarkV1(subjects, period);
+  return (
+    endedPeriods.includes(period) && term?.final.kind === 'score' && !hasRedMarkV1(subjects, period)
+  );
 }
 
 /** Seals from the subject's Brilhante assessments in an ended trimester whose mark is out. */

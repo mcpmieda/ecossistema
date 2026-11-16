@@ -22,13 +22,18 @@ export type SessionRevocationPortV1 = {
 export function newSessionIdV1(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   // Base64 padding ("=") only ever appears at the end.
-  return btoa(String.fromCodePoint(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+  return btoa(String.fromCodePoint(...bytes))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '');
 }
 
 type HyperdriveBindingV1 = { readonly connectionString: string };
 
 function postgresRevocationV1(connectionString: string): SessionRevocationPortV1 {
-  const withDatabase = async <T>(run: (db: Awaited<ReturnType<typeof createGradebookPostgresDatabaseV1>>) => Promise<T>) => {
+  const withDatabase = async <T>(
+    run: (db: Awaited<ReturnType<typeof createGradebookPostgresDatabaseV1>>) => Promise<T>,
+  ) => {
     const db = await createGradebookPostgresDatabaseV1(connectionString, {
       maximumConnections: 1,
       connectTimeoutSeconds: 3,
@@ -57,14 +62,19 @@ function postgresRevocationV1(connectionString: string): SessionRevocationPortV1
           [sid, expiresAtSeconds],
         );
         // Ids whose cookie has expired anyway do not pile up.
-        await db.executeNative('DELETE FROM admin_session.revoked_v1 WHERE expires_at < statement_timestamp()', []);
+        await db.executeNative(
+          'DELETE FROM admin_session.revoked_v1 WHERE expires_at < statement_timestamp()',
+          [],
+        );
       }),
   };
 }
 
 let overridePortV1: SessionRevocationPortV1 | null | undefined;
 /** Tests replace the database; `undefined` restores it. */
-export function setSessionRevocationPortForTestsV1(port: SessionRevocationPortV1 | null | undefined): void {
+export function setSessionRevocationPortForTestsV1(
+  port: SessionRevocationPortV1 | null | undefined,
+): void {
   overridePortV1 = port;
   cacheV1.clear();
 }
@@ -72,7 +82,8 @@ export function setSessionRevocationPortForTestsV1(port: SessionRevocationPortV1
 function portV1(env: RuntimeEnv): SessionRevocationPortV1 | null {
   if (overridePortV1 !== undefined) return overridePortV1;
   const binding = env.PROD_DB as Partial<HyperdriveBindingV1> | undefined;
-  if (!binding || typeof binding.connectionString !== 'string' || binding.connectionString === '') return null;
+  if (!binding || typeof binding.connectionString !== 'string' || binding.connectionString === '')
+    return null;
   return postgresRevocationV1(binding.connectionString);
 }
 
@@ -86,7 +97,10 @@ export const FAILURE_CACHE_MS_V1 = 15_000;
  * database outage does not slow every request by the connection timeout.
  */
 type CacheEntryV1 = {
-  readonly revoked: Promise<boolean>; readonly until: number; readonly settled: boolean; readonly startedAt?: number;
+  readonly revoked: Promise<boolean>;
+  readonly until: number;
+  readonly settled: boolean;
+  readonly startedAt?: number;
 };
 /** A read in flight is shared only this long (a little over the connection timeout). */
 export const PENDING_SHARE_MS_V1 = 4_000;
@@ -115,28 +129,50 @@ export async function isSessionRevokedV1(
   const startedAt = cached?.startedAt ?? 0;
   if (cached && !cached.settled && now - startedAt < PENDING_SHARE_MS_V1)
     return joinFlightV1(cached.revoked, PENDING_SHARE_MS_V1 - (now - startedAt), () =>
-      port.isRevoked(sid).catch(() => false));
+      port.isRevoked(sid).catch(() => false),
+    );
   const read = port.isRevoked(sid).then(
     (revoked) => {
       // "Sair" during the read already stored the revocation: it is never overwritten.
       if (cacheV1.get(sid)?.revoked === read)
-        remember(sid, { revoked: Promise.resolve(revoked), settled: true,
-          until: revoked ? expiresAtSeconds * 1000 : Date.now() + NOT_REVOKED_CACHE_MS_V1 });
+        remember(sid, {
+          revoked: Promise.resolve(revoked),
+          settled: true,
+          until: revoked ? expiresAtSeconds * 1000 : Date.now() + NOT_REVOKED_CACHE_MS_V1,
+        });
       return revoked;
     },
     (cause: unknown) => {
-      console.warn(JSON.stringify({ event: 'admin-session-revocation-read-failure-v1', error: cause instanceof Error ? cause.message.slice(0, 200) : 'unknown' }));
+      console.warn(
+        JSON.stringify({
+          event: 'admin-session-revocation-read-failure-v1',
+          error: cause instanceof Error ? cause.message.slice(0, 200) : 'unknown',
+        }),
+      );
       if (cacheV1.get(sid)?.revoked === read)
-        remember(sid, { revoked: Promise.resolve(false), settled: true, until: Date.now() + FAILURE_CACHE_MS_V1 });
+        remember(sid, {
+          revoked: Promise.resolve(false),
+          settled: true,
+          until: Date.now() + FAILURE_CACHE_MS_V1,
+        });
       return false;
     },
   );
-  remember(sid, { revoked: read, settled: false, until: now + PENDING_SHARE_MS_V1, startedAt: now });
+  remember(sid, {
+    revoked: read,
+    settled: false,
+    until: now + PENDING_SHARE_MS_V1,
+    startedAt: now,
+  });
   return read;
 }
 
 /** Records the session as ended. Never throws: "Sair" always clears the cookie. */
-export async function revokeSessionV1(env: RuntimeEnv, sid: string, expiresAtSeconds: number): Promise<boolean> {
+export async function revokeSessionV1(
+  env: RuntimeEnv,
+  sid: string,
+  expiresAtSeconds: number,
+): Promise<boolean> {
   remember(sid, { revoked: Promise.resolve(true), settled: true, until: expiresAtSeconds * 1000 });
   const port = portV1(env);
   if (!port) return false;
@@ -144,7 +180,12 @@ export async function revokeSessionV1(env: RuntimeEnv, sid: string, expiresAtSec
     await port.revoke(sid, expiresAtSeconds);
     return true;
   } catch (cause) {
-    console.warn(JSON.stringify({ event: 'admin-session-revocation-write-failure-v1', error: cause instanceof Error ? cause.message.slice(0, 200) : 'unknown' }));
+    console.warn(
+      JSON.stringify({
+        event: 'admin-session-revocation-write-failure-v1',
+        error: cause instanceof Error ? cause.message.slice(0, 200) : 'unknown',
+      }),
+    );
     return false;
   }
 }

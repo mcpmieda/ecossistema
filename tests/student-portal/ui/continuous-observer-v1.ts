@@ -16,16 +16,27 @@ export function controlledContinuousObserverV1() {
       this.rootMargin = options?.rootMargin ?? '0px';
       observers.add(this);
     }
-    observe(target: Element) { this.targets.add(target); }
-    unobserve(target: Element) { this.targets.delete(target); }
-    disconnect() { this.targets.clear(); observers.delete(this); }
-    takeRecords() { return []; }
+    observe(target: Element) {
+      this.targets.add(target);
+    }
+    unobserve(target: Element) {
+      this.targets.delete(target);
+    }
+    disconnect() {
+      this.targets.clear();
+      observers.delete(this);
+    }
+    takeRecords() {
+      return [];
+    }
   }
   vi.stubGlobal('IntersectionObserver', Observer);
-  const ends = () => [...observers].flatMap((observer) =>
-    [...observer.targets].filter((target) => target.matches('.pa-continuous-end'))
-      .map((target) => ({ observer, target })),
-  );
+  const ends = () =>
+    [...observers].flatMap((observer) =>
+      [...observer.targets]
+        .filter((target) => target.matches('.pa-continuous-end'))
+        .map((target) => ({ observer, target })),
+    );
   return {
     isObserving: () => ends().length > 0,
     intersect(isIntersecting = true) {
@@ -33,10 +44,20 @@ export function controlledContinuousObserverV1() {
       if (!active.length) throw new Error('No continuous-list sentinel is being observed');
       for (const { observer, target } of active) {
         const rect = target.getBoundingClientRect();
-        observer.callback([{
-          target, isIntersecting, intersectionRatio: isIntersecting ? 1 : 0,
-          boundingClientRect: rect, intersectionRect: rect, rootBounds: null, time: 0,
-        }], observer as unknown as IntersectionObserver);
+        observer.callback(
+          [
+            {
+              target,
+              isIntersecting,
+              intersectionRatio: isIntersecting ? 1 : 0,
+              boundingClientRect: rect,
+              intersectionRect: rect,
+              rootBounds: null,
+              time: 0,
+            },
+          ],
+          observer as unknown as IntersectionObserver,
+        );
       }
     },
   };

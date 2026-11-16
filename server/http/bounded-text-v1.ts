@@ -4,7 +4,10 @@ import { HttpError } from './security';
  * The request body as text, read only up to `maxBytes`: a declared or streamed body over the limit
  * is refused with 413 as soon as it passes it, never held whole in memory.
  */
-export async function readBoundedTextV1(request: Request, maxBytes: number): Promise<{ text: string; bytes: number }> {
+export async function readBoundedTextV1(
+  request: Request,
+  maxBytes: number,
+): Promise<{ text: string; bytes: number }> {
   const declared = request.headers.get('content-length');
   if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > maxBytes))
     throw new HttpError(413, 'Payload too large');

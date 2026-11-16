@@ -25,8 +25,7 @@ export function emptyReconciliationReadV1(operation: unknown): ReconciliationRes
       relationAvailable: true,
     },
   };
-  if (operation === 'catalog')
-    return { ...base, operation, classes: [], reportClasses: [] };
+  if (operation === 'catalog') return { ...base, operation, classes: [], reportClasses: [] };
   if (operation === 'list') return { ...base, operation, items: [], nextCursor: null };
   throw new Error('Unexpected synthetic reconciliation operation');
 }
@@ -101,7 +100,8 @@ export function accountsMockV1(
             .filter((item) =>
               input.scope.kind === 'account'
                 ? item.accountId === input.scope.accountId
-                : input.scope.kind === 'class' ? item.classId === input.scope.classId
+                : input.scope.kind === 'class'
+                  ? item.classId === input.scope.classId
                   : input.accountIds?.includes(item.accountId),
             )
             .map((item, index) => ({ accountId: item.accountId, seals: index % 3 })),
@@ -139,7 +139,15 @@ export function accountsMockV1(
           accountsScopeVersion: 4,
           nextCursor: null,
           items: account
-            ? [{ accountId: account.accountId, accountVersion: account.version, year: null, confirmation: null, version: 0 }]
+            ? [
+                {
+                  accountId: account.accountId,
+                  accountVersion: account.version,
+                  year: null,
+                  confirmation: null,
+                  version: 0,
+                },
+              ]
             : [],
         });
       }

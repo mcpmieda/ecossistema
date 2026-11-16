@@ -22,7 +22,11 @@ const start = () => screen.getByRole('button', { name: 'Gerar miniaturas que fal
 
 it('runs only on request and reports what was created, what existed and what has no photo', async () => {
   const { value, spies } = ports((who) =>
-    reference(who) === id(2) ? { hasAvatar: true } : reference(who) === id(3) ? { hasPortrait: false } : {},
+    reference(who) === id(2)
+      ? { hasAvatar: true }
+      : reference(who) === id(3)
+        ? { hasPortrait: false }
+        : {},
   );
   render(<AvatarBackfillPanelV1 subjects={[1, 2, 3, 4].map(subject)} ready ports={value} />);
   expect(spies.catalog).not.toHaveBeenCalled();
@@ -36,7 +40,9 @@ it('runs only on request and reports what was created, what existed and what has
 
 it('waits for the complete list and tells when the session is lost', async () => {
   const { value, spies } = ports();
-  const view = render(<AvatarBackfillPanelV1 subjects={[subject(1)]} ready={false} ports={value} />);
+  const view = render(
+    <AvatarBackfillPanelV1 subjects={[subject(1)]} ready={false} ports={value} />,
+  );
   expect((start() as HTMLButtonElement).disabled).toBe(true);
   spies.catalog.mockRejectedValue(new PhotoAdminClientErrorV1('unauthenticated'));
   view.rerender(<AvatarBackfillPanelV1 subjects={[subject(1)]} ready ports={value} />);
@@ -48,9 +54,21 @@ it('waits for the complete list and tells when the session is lost', async () =>
 });
 
 it('appears in the student list only when the address asks for it and the operator may write', async () => {
-  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-    addListener: vi.fn(), removeListener: vi.fn() }));
-  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal('matchMedia', () => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+  }));
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   const mock = accountsMockV1();
   const first = render(createElement(StudentAccountsV1, mock.props));
   await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' });

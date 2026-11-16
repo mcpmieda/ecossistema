@@ -26,15 +26,11 @@ describe('superfície aposentada do Audit Workspace V1', () => {
   });
 
   it('mantém a Auditoria Atual V2 como única superfície montada', () => {
-    const surface = source(
-      'src/features/gradebook/audit-workspace/gradebook-audit-surface.tsx',
-    );
+    const surface = source('src/features/gradebook/audit-workspace/gradebook-audit-surface.tsx');
     const page = source(
       'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
     );
-    const client = source(
-      'src/features/gradebook/import/import-diagnostics-client-v1.ts',
-    );
+    const client = source('src/features/gradebook/import/import-diagnostics-client-v1.ts');
 
     expect(surface).toContain('<RelationalCurrentAuditPageV2 />');
     expect(surface).not.toContain('AuditWorkspacePage');
@@ -43,5 +39,4 @@ describe('superfície aposentada do Audit Workspace V1', () => {
     expect(client).toContain('/api/gradebook/import-diagnostics');
     expect(client).toContain("cache: 'no-store'");
   });
-
 });

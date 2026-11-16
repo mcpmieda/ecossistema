@@ -25,7 +25,11 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: phone, media: query }));
   document.body.innerHTML = '<main><p id="text">texto</p><input id="field" /></main>';
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); document.body.innerHTML = ''; });
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  document.body.innerHTML = '';
+});
 
 describe('phone drawer swipe', () => {
   it('opens on a swipe to the right and closes on a swipe to the left', () => {

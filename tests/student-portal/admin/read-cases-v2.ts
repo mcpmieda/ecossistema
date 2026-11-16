@@ -137,20 +137,37 @@ export function adminReadCasesV2(
       const api = readApiV2(get().sql);
       const accountId = readAccountIdV2(1);
       const scope = { kind: 'account', academicYear: 2026, accountId };
-      const birthQuery = { contractVersion: 1, operation: 'birth-years', scope, page: { limit: 1 } };
+      const birthQuery = {
+        contractVersion: 1,
+        operation: 'birth-years',
+        scope,
+        page: { limit: 1 },
+      };
       const legacyBirth = await api.query(readContextV2(), birthQuery);
       expect(legacyBirth).not.toHaveProperty('accountsScopeVersion');
       const birth = await api.query(readContextV2(), { ...birthQuery, includeReadContext: true });
       const accounts = await read({ scope, page: { limit: 1 } });
-      expect(birth).toMatchObject({ state: 'birth-years', accountsScopeVersion: accounts.scopeVersion });
+      expect(birth).toMatchObject({
+        state: 'birth-years',
+        accountsScopeVersion: accounts.scopeVersion,
+      });
       const eventId = readAccountIdV2(950);
-      await get().admin.unsafe(`INSERT INTO student_portal.audit_event
+      await get().admin.unsafe(
+        `INSERT INTO student_portal.audit_event
         (event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version)
         VALUES($1::uuid,now(),$2::uuid,$2::uuid,
           jsonb_build_object('kind','account','academicYear',2026,'accountId',$2::text),
-          'login','success',$1::uuid,0)`, [eventId, accountId]);
+          'login','success',$1::uuid,0)`,
+        [eventId, accountId],
+      );
       try {
-        const query = { contractVersion: 1, operation: 'audit-detail', scope, eventId, page: { limit: 1 } };
+        const query = {
+          contractVersion: 1,
+          operation: 'audit-detail',
+          scope,
+          eventId,
+          page: { limit: 1 },
+        };
         const auditContext = { ...readContextV2(), capability: 'platform.settings.write' };
         const legacyAudit = await api.query(auditContext, query);
         expect(legacyAudit.state).toBe('audit-detail');
@@ -160,7 +177,9 @@ export function adminReadCasesV2(
         if (audit.state !== 'audit-detail') throw new Error('Synthetic audit unavailable');
         expect(Number.isFinite(Date.parse(audit.observedAt!))).toBe(true);
       } finally {
-        await get().admin.unsafe('DELETE FROM student_portal.audit_event WHERE event_id=$1::uuid', [eventId]);
+        await get().admin.unsafe('DELETE FROM student_portal.audit_event WHERE event_id=$1::uuid', [
+          eventId,
+        ]);
       }
     });
     it('orders accented names and homonyms across account pages with a stable cursor', async () => {
@@ -354,7 +373,8 @@ export function adminReadCasesV2(
         readContextV2(),
         input({ operation: 'overview', scope: READ_SCHOOL_V2, byClass: true }),
       );
-      if (school.state !== 'overview' || !school.classes) throw new Error('per-class totals missing');
+      if (school.state !== 'overview' || !school.classes)
+        throw new Error('per-class totals missing');
       expect(school.classes.reduce((sum, row) => sum + row.counts.accounts, 0)).toBe(
         school.counts.accounts,
       );
@@ -364,8 +384,12 @@ export function adminReadCasesV2(
       );
       expect(plain.state === 'overview' && plain.classes).toBeFalsy();
       expect(
-        (await readApiV2(get().sql).query(readContextV2(), input({ operation: 'overview', byClass: true })))
-          .state,
+        (
+          await readApiV2(get().sql).query(
+            readContextV2(),
+            input({ operation: 'overview', byClass: true }),
+          )
+        ).state,
       ).toBe('invalid-request');
       await get().admin.unsafe('UPDATE student_portal.account SET blocked=true WHERE id=$1::uuid', [
         readAccountIdV2(1),
@@ -390,9 +414,8 @@ export function adminReadCasesV2(
     });
     // Includes inserting/removing 5,001 fixtures; verifies bounded correctness, not latency.
     it('refuses an oversized overview instead of returning truncated school totals', async () => {
-      await get().admin
-        // Open accounts: closed ones leave the totals (owner decision 10/11/2026).
-        .unsafe(`INSERT INTO gradebook.aluno(id,ano,nome)
+      await // Open accounts: closed ones leave the totals (owner decision 10/11/2026).
+      get().admin.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome)
           SELECT 760000+n,2026,'SYNTHETIC OVERSIZED '||n FROM generate_series(1000,6000) n`);
       await get().admin
         .unsafe(`INSERT INTO student_portal.account(id,gradebook_student_id,auth_state,eligibility)

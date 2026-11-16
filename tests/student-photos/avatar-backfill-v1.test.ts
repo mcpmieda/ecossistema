@@ -64,26 +64,50 @@ describe('one student', () => {
   it('concludes its own unfinished write and one whose answer was not final', async () => {
     const own = ports();
     own.spies.catalog
-      .mockResolvedValueOnce({ version: 1, state: 'catalog', traceId: id(700), canWrite: true,
-        catalog: state({ pendingRequest: id(601), ownPending: true }) })
-      .mockResolvedValueOnce({ version: 1, state: 'catalog', traceId: id(700), canWrite: true,
-        catalog: state({ hasAvatar: true }) });
+      .mockResolvedValueOnce({
+        version: 1,
+        state: 'catalog',
+        traceId: id(700),
+        canWrite: true,
+        catalog: state({ pendingRequest: id(601), ownPending: true }),
+      })
+      .mockResolvedValueOnce({
+        version: 1,
+        state: 'catalog',
+        traceId: id(700),
+        canWrite: true,
+        catalog: state({ hasAvatar: true }),
+      });
     await expect(deriveMissingAvatarV1(subject(1), signal(), own.value)).resolves.toBe('present');
     expect(own.spies.recover).toHaveBeenCalledWith(subject(1), id(601), expect.any(AbortSignal));
     expect(own.spies.client.save).not.toHaveBeenCalled();
 
     const unfinished = ports();
     unfinished.spies.client.save.mockImplementation(async (_who, command) => ({
-      version: 1, traceId: id(701), state: 'committed', requestId: command.requestId,
-      revision: command.requestId, cleanupPending: true,
+      version: 1,
+      traceId: id(701),
+      state: 'committed',
+      requestId: command.requestId,
+      revision: command.requestId,
+      cleanupPending: true,
     }));
-    await expect(deriveMissingAvatarV1(subject(2), signal(), unfinished.value)).resolves.toBe('created');
-    expect(unfinished.spies.recover).toHaveBeenCalledWith(subject(2), id(1001), expect.any(AbortSignal));
+    await expect(deriveMissingAvatarV1(subject(2), signal(), unfinished.value)).resolves.toBe(
+      'created',
+    );
+    expect(unfinished.spies.recover).toHaveBeenCalledWith(
+      subject(2),
+      id(1001),
+      expect.any(AbortSignal),
+    );
 
     const open = ports();
     open.spies.client.save.mockImplementation(async (_who, command) => ({
-      version: 1, traceId: id(701), state: 'committed', requestId: command.requestId,
-      revision: command.requestId, cleanupPending: true,
+      version: 1,
+      traceId: id(701),
+      state: 'committed',
+      requestId: command.requestId,
+      revision: command.requestId,
+      cleanupPending: true,
     }));
     open.spies.recover.mockRejectedValue(new PhotoAdminClientErrorV1('unavailable'));
     await expect(deriveMissingAvatarV1(subject(3), signal(), open.value)).resolves.toBe('pending');
@@ -91,9 +115,16 @@ describe('one student', () => {
 
   it('refuses a reader without permission to change photos', async () => {
     const { value, spies } = ports();
-    spies.catalog.mockResolvedValue({ version: 1, state: 'catalog', traceId: id(700), canWrite: false,
-      catalog: state() });
-    await expect(deriveMissingAvatarV1(subject(1), signal(), value)).rejects.toMatchObject({ code: 'forbidden' });
+    spies.catalog.mockResolvedValue({
+      version: 1,
+      state: 'catalog',
+      traceId: id(700),
+      canWrite: false,
+      catalog: state(),
+    });
+    await expect(deriveMissingAvatarV1(subject(1), signal(), value)).rejects.toMatchObject({
+      code: 'forbidden',
+    });
     expect(spies.portrait).not.toHaveBeenCalled();
   });
 });
@@ -103,7 +134,11 @@ describe('batch', () => {
     let running = 0;
     let most = 0;
     const { value, spies } = ports((who) =>
-      reference(who) === id(2) ? { hasAvatar: true } : reference(who) === id(3) ? { hasPortrait: false } : {},
+      reference(who) === id(2)
+        ? { hasAvatar: true }
+        : reference(who) === id(3)
+          ? { hasPortrait: false }
+          : {},
     );
     spies.client.preview.mockImplementation(async (who: PhotoAdminSubjectV1) => {
       most = Math.max(most, ++running);
@@ -114,9 +149,19 @@ describe('batch', () => {
     });
     const progress = vi.fn();
     const summary = await backfillAvatarsV1([1, 2, 3, 4, 5, 6].map(subject), {
-      signal: signal(), ports: value, onProgress: progress,
+      signal: signal(),
+      ports: value,
+      onProgress: progress,
     });
-    expect(summary).toEqual({ created: 3, present: 1, 'no-portrait': 1, pending: 0, failed: 1, done: 6, total: 6 });
+    expect(summary).toEqual({
+      created: 3,
+      present: 1,
+      'no-portrait': 1,
+      pending: 0,
+      failed: 1,
+      done: 6,
+      total: 6,
+    });
     expect(most).toBe(2);
     expect(progress).toHaveBeenCalledTimes(6);
     expect(progress.mock.calls.at(-1)?.[0]).toEqual(summary);
@@ -139,11 +184,20 @@ describe('batch', () => {
     const controller = new AbortController();
     spies.client.save.mockImplementation(async (_who, command) => {
       controller.abort();
-      return { version: 1, traceId: id(701), state: 'committed', requestId: command.requestId,
-        revision: command.requestId, cleanupPending: false };
+      return {
+        version: 1,
+        traceId: id(701),
+        state: 'committed',
+        requestId: command.requestId,
+        revision: command.requestId,
+        cleanupPending: false,
+      };
     });
     await expect(
-      backfillAvatarsV1([1, 2, 3, 4, 5, 6].map(subject), { signal: controller.signal, ports: value }),
+      backfillAvatarsV1([1, 2, 3, 4, 5, 6].map(subject), {
+        signal: controller.signal,
+        ports: value,
+      }),
     ).rejects.toMatchObject({ name: 'AbortError' });
     expect(spies.client.save.mock.calls.length).toBeLessThanOrEqual(2);
   });

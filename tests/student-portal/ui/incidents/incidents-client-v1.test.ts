@@ -20,7 +20,9 @@ const stateOf = async (promise: Promise<unknown>) => {
 };
 
 it('reads the records same-origin, private and without a cache', async () => {
-  const fetcher = vi.fn<typeof fetch>(async () => json({ contractVersion: 1, state: 'ready', incidents: [incident] }));
+  const fetcher = vi.fn<typeof fetch>(async () =>
+    json({ contractVersion: 1, state: 'ready', incidents: [incident] }),
+  );
   const client = createStudentIncidentsClientV1(fetcher);
   expect(await client.read(new AbortController().signal)).toEqual({ incidents: [incident] });
   const [path, init] = fetcher.mock.calls[0]!;
@@ -34,7 +36,9 @@ it('confirms one version with a JSON body naming only its id', async () => {
     json({ contractVersion: 1, state: 'ready', acknowledgedAt: '2026-10-29T12:40:00.000Z' }),
   );
   const client = createStudentIncidentsClientV1(fetcher);
-  expect(await client.acknowledge(versionId)).toEqual({ acknowledgedAt: '2026-10-29T12:40:00.000Z' });
+  expect(await client.acknowledge(versionId)).toEqual({
+    acknowledgedAt: '2026-10-29T12:40:00.000Z',
+  });
   const [path, init] = fetcher.mock.calls[0]!;
   expect(path).toBe('/api/student/incidents/acknowledge');
   expect(init).toMatchObject({ method: 'POST', credentials: 'same-origin', cache: 'no-store' });
@@ -47,16 +51,22 @@ it('turns each failure into its state, never a provider body', async () => {
   const signal = new AbortController().signal;
   expect(await stateOf(failing(json({}, 401)).read(signal))).toBe('unauthenticated');
   expect(await stateOf(failing(json({}, 403)).read(signal))).toBe('forbidden');
-  expect(await stateOf(failing(json({ contractVersion: 1, state: 'changed' }, 409)).acknowledge(versionId))).toBe(
-    'changed',
-  );
-  expect(await stateOf(failing(new Response('<html>', { headers: { 'Content-Type': 'text/html' } })).read(signal))).toBe(
-    'unavailable',
-  );
+  expect(
+    await stateOf(
+      failing(json({ contractVersion: 1, state: 'changed' }, 409)).acknowledge(versionId),
+    ),
+  ).toBe('changed');
+  expect(
+    await stateOf(
+      failing(new Response('<html>', { headers: { 'Content-Type': 'text/html' } })).read(signal),
+    ),
+  ).toBe('unavailable');
   // A record outside the contract (an extra field) is not shown.
   expect(
     await stateOf(
-      failing(json({ contractVersion: 1, state: 'ready', incidents: [{ ...incident, teacher: 'X' }] })).read(signal),
+      failing(
+        json({ contractVersion: 1, state: 'ready', incidents: [{ ...incident, teacher: 'X' }] }),
+      ).read(signal),
     ),
   ).toBe('unavailable');
 });

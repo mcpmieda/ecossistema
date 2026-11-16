@@ -2,10 +2,7 @@ import { isPlainRecordV1 as isObject } from '../../plain-record-v1';
 
 export const GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1 = 1 as const;
 
-export const GRADEBOOK_IMPORT_DIAGNOSTIC_SEVERITIES_V1 = [
-  'warning',
-  'blocking-error',
-] as const;
+export const GRADEBOOK_IMPORT_DIAGNOSTIC_SEVERITIES_V1 = ['warning', 'blocking-error'] as const;
 export type GradebookImportDiagnosticSeverityV1 =
   (typeof GRADEBOOK_IMPORT_DIAGNOSTIC_SEVERITIES_V1)[number];
 
@@ -44,8 +41,7 @@ export const GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1 = [
   // OneDrive sync of the Relação: a class move the system cannot pair by itself.
   'class-move-review',
 ] as const;
-export type GradebookImportDiagnosticCodeV1 =
-  (typeof GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1)[number];
+export type GradebookImportDiagnosticCodeV1 = (typeof GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1)[number];
 
 export const GRADEBOOK_IMPORT_DIAGNOSTIC_FIELD_KINDS_V1 = [
   'assessment',
@@ -90,8 +86,7 @@ export interface GradebookImportDiagnosticsAuditRequestV1 {
 /** 'manual' or 'onedrive:' and the Graph item id; the database checks the same rule. */
 export const GRADEBOOK_IMPORT_DIAGNOSTICS_ORIGIN_PATTERN_V1 = /^(?:manual|onedrive:[!-~]{1,200})$/u;
 
-export interface GradebookImportDiagnosticsAuditRecordV1
-  extends GradebookImportDiagnosticAuditItemV1 {
+export interface GradebookImportDiagnosticsAuditRecordV1 extends GradebookImportDiagnosticAuditItemV1 {
   readonly id: number;
   readonly academicYear: number | null;
   readonly fileName: string;
@@ -131,9 +126,7 @@ export const GRADEBOOK_IMPORT_DIAGNOSTICS_BODY_BYTES_V1 = 1_500_000;
 
 function stringWithin(value: unknown, maximum: number, allowEmpty = false): value is string {
   return (
-    typeof value === 'string' &&
-    value.length <= maximum &&
-    (allowEmpty || value.trim().length > 0)
+    typeof value === 'string' && value.length <= maximum && (allowEmpty || value.trim().length > 0)
   );
 }
 
@@ -143,10 +136,7 @@ function optionalStringWithin(value: unknown, maximum: number): boolean {
 
 function safeIntegerWithin(value: unknown, minimum: number, maximum: number): value is number {
   return (
-    typeof value === 'number' &&
-    Number.isSafeInteger(value) &&
-    value >= minimum &&
-    value <= maximum
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum && value <= maximum
   );
 }
 
@@ -208,7 +198,12 @@ export function isGradebookImportDiagnosticsAuditRequestV1(
   if (!nullableAcademicYear(value.academicYear)) return false;
   if (!stringWithin(value.fileName, 255)) return false;
   if (typeof value.sha256 !== 'string' || !/^[a-f0-9]{64}$/iu.test(value.sha256)) return false;
-  if (value.origin !== undefined && (typeof value.origin !== 'string' || !GRADEBOOK_IMPORT_DIAGNOSTICS_ORIGIN_PATTERN_V1.test(value.origin))) return false;
+  if (
+    value.origin !== undefined &&
+    (typeof value.origin !== 'string' ||
+      !GRADEBOOK_IMPORT_DIAGNOSTICS_ORIGIN_PATTERN_V1.test(value.origin))
+  )
+    return false;
   if (
     !Array.isArray(value.diagnostics) ||
     value.diagnostics.length > GRADEBOOK_IMPORT_DIAGNOSTICS_MAX_ITEMS_V1
@@ -224,7 +219,8 @@ function isAuditRecord(value: unknown): value is GradebookImportDiagnosticsAudit
   if (!nullableAcademicYear(value.academicYear)) return false;
   if (!stringWithin(value.fileName, 255)) return false;
   if (!(value.studentName === null || stringWithin(value.studentName, 240))) return false;
-  if (!stringWithin(value.firstObservedAt, 64) || !stringWithin(value.lastObservedAt, 64)) return false;
+  if (!stringWithin(value.firstObservedAt, 64) || !stringWithin(value.lastObservedAt, 64))
+    return false;
   if (!safeIntegerWithin(value.observations, 1, Number.MAX_SAFE_INTEGER)) return false;
   return true;
 }
@@ -247,7 +243,8 @@ export function isGradebookImportDiagnosticsAuditListResponseV1(
     return (
       Array.isArray(value.items) &&
       value.items.every(isAuditRecord) &&
-      (value.nextOffset === null || safeIntegerWithin(value.nextOffset, 1, Number.MAX_SAFE_INTEGER)) &&
+      (value.nextOffset === null ||
+        safeIntegerWithin(value.nextOffset, 1, Number.MAX_SAFE_INTEGER)) &&
       (value.total === undefined || safeIntegerWithin(value.total, 0, Number.MAX_SAFE_INTEGER))
     );
   }

@@ -1,4 +1,7 @@
-import { FRONTEND_DIAGNOSTIC_ROUTE_V1, type FrontendDiagnosticCategoryV1 } from '../../shared/frontend-diagnostic-v1';
+import {
+  FRONTEND_DIAGNOSTIC_ROUTE_V1,
+  type FrontendDiagnosticCategoryV1,
+} from '../../shared/frontend-diagnostic-v1';
 
 let sink: ((category: FrontendDiagnosticCategoryV1) => void) | null = null;
 const moduleErrors = new WeakSet<object>();
@@ -9,14 +12,33 @@ export function enableStudentDiagnosticsV1(fetcher: typeof fetch = fetch): () =>
   const report = (category: FrontendDiagnosticCategoryV1) => {
     if (sent.has(category) || sent.size >= 3 || navigator.onLine === false) return;
     sent.add(category);
-    const controller = new AbortController(); active.add(controller);
+    const controller = new AbortController();
+    active.add(controller);
     const timer = setTimeout(() => controller.abort(), 2000);
-    void Promise.resolve().then(() => fetcher(FRONTEND_DIAGNOSTIC_ROUTE_V1, {
-      method: 'POST', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer',
-      signal: controller.signal, headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: 1, area: 'student-portal', category,
-        release: 'portal-signals-v1', correlationId: crypto.randomUUID() }),
-    })).catch(() => undefined).finally(() => { clearTimeout(timer); active.delete(controller); });
+    void Promise.resolve()
+      .then(() =>
+        fetcher(FRONTEND_DIAGNOSTIC_ROUTE_V1, {
+          method: 'POST',
+          credentials: 'omit',
+          cache: 'no-store',
+          redirect: 'error',
+          referrerPolicy: 'no-referrer',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            version: 1,
+            area: 'student-portal',
+            category,
+            release: 'portal-signals-v1',
+            correlationId: crypto.randomUUID(),
+          }),
+        }),
+      )
+      .catch(() => undefined)
+      .finally(() => {
+        clearTimeout(timer);
+        active.delete(controller);
+      });
   };
   sink = report;
   return () => {
@@ -26,7 +48,11 @@ export function enableStudentDiagnosticsV1(fetcher: typeof fetch = fetch): () =>
   };
 }
 export function reportStudentDiagnosticV1(category: FrontendDiagnosticCategoryV1): void {
-  try { sink?.(category); } catch { /* Diagnostic failures must never affect the Portal. */ }
+  try {
+    sink?.(category);
+  } catch {
+    /* Diagnostic failures must never affect the Portal. */
+  }
 }
 export function markStudentModuleFailureV1(error: unknown): never {
   if (typeof error === 'object' && error !== null) moduleErrors.add(error);

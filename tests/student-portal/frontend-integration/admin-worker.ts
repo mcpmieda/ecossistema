@@ -24,7 +24,7 @@ export default {
       role?: 'ADMINISTRADOR' | 'PROFESSOR';
       origin?: string;
       hostname?: string;
-  upgrade?: boolean;
+      upgrade?: boolean;
     };
     if (!input.path.startsWith('/') || input.path.startsWith('//'))
       return new Response(null, { status: 400 });
@@ -41,7 +41,8 @@ export default {
               name: 'SYNTHETIC INTEGRATION OPERATOR',
               roles: [input.role ?? 'ADMINISTRADOR'],
             }),
-            secret, 'admin-session',
+            secret,
+            'admin-session',
           ))
         : input.cookie;
     const forwarded = new Request(origin + input.path, {
@@ -88,7 +89,7 @@ export default {
         generatedAt: new Date().toISOString(),
         correlationId: 'synthetic-bootstrap-757',
         coreModules,
-        };
+      };
       return Response.json(snapshot, { headers: { 'Cache-Control': 'no-store' } });
     }
     return onRequest({

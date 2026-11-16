@@ -9,8 +9,22 @@ export async function openSyntheticSchoolV1(sql: StudentPortalPostgresSqlV1) {
   const now = Math.floor(Date.now() / 1000) * 1000;
   const startsAt = new Date(now - 365 * 86400_000).toISOString();
   const endsAt = new Date(now + 365 * 86400_000).toISOString();
-  await service.mutate('11111111-1111-4111-8111-111111111111', { contractVersion: 1, operation: 'settings-set', scope,
-    expectedVersion: current.version, idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true,
-    value: { accessEnabled: true, calendar: { ...current.value.calendar, accessStartsAt: startsAt, accessEndsAt: endsAt,
-      yearStartsAt: current.value.calendar.yearStartsAt ?? startsAt, yearEndsAt: current.value.calendar.yearEndsAt ?? endsAt } } });
+  await service.mutate('11111111-1111-4111-8111-111111111111', {
+    contractVersion: 1,
+    operation: 'settings-set',
+    scope,
+    expectedVersion: current.version,
+    idempotencyKey: crypto.randomUUID(),
+    acknowledgeImmediateEffect: true,
+    value: {
+      accessEnabled: true,
+      calendar: {
+        ...current.value.calendar,
+        accessStartsAt: startsAt,
+        accessEndsAt: endsAt,
+        yearStartsAt: current.value.calendar.yearStartsAt ?? startsAt,
+        yearEndsAt: current.value.calendar.yearEndsAt ?? endsAt,
+      },
+    },
+  });
 }

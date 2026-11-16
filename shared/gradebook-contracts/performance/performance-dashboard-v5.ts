@@ -1,6 +1,13 @@
 import { z } from 'zod';
-import { performanceAnalysisResponseSchemaV3, performanceAnalysisRequestSchemaV3, type PerformanceAnalysisV3 } from './performance-analysis-v3';
-import { performanceTermComparisonResponseSchemaV4, type PerformanceTermComparisonV4 } from './performance-term-comparison-v4';
+import {
+  performanceAnalysisResponseSchemaV3,
+  performanceAnalysisRequestSchemaV3,
+  type PerformanceAnalysisV3,
+} from './performance-analysis-v3';
+import {
+  performanceTermComparisonResponseSchemaV4,
+  type PerformanceTermComparisonV4,
+} from './performance-term-comparison-v4';
 import {
   performanceRequestSchemaV2,
   performanceResponseSchemaV2,
@@ -49,9 +56,14 @@ export const performanceDashboardRequestSchemaV5 = matrixRequest
   .superRefine((value, ctx) => {
     if (
       value.includePrevious === true &&
-      (value.lens === 'assessments' || value.referencePeriod !== null || (value.period !== 2 && value.period !== 3))
+      (value.lens === 'assessments' ||
+        value.referencePeriod !== null ||
+        (value.period !== 2 && value.period !== 3))
     ) {
-      ctx.addIssue({ code: 'custom', message: 'previous trimester only for T2 or T3 without a comparison' });
+      ctx.addIssue({
+        code: 'custom',
+        message: 'previous trimester only for T2 or T3 without a comparison',
+      });
     }
     if ((value.lens === 'assessments') !== (value.offerId !== null)) {
       ctx.addIssue({ code: 'custom', message: 'assessment lens requires one offer' });
@@ -130,80 +142,92 @@ const dashboardShape = {
 const dashboardCore = z.object(dashboardShape).strict();
 
 function checkDashboardV5(value: z.infer<typeof dashboardCore>, ctx: z.RefinementCtx) {
-    const fail = (message: string) => ctx.addIssue({ code: 'custom', message });
-    const analysis = value.view.operation === 'analysis' ? value.view : value.view.analysis;
-    const ids = analysis.matrix.rows
-      .filter((row) => row.student.indicatorEligible)
-      .map((row) => row.student.id);
-    const groups = value.overview.groups;
-    const grouped = [...groups.allAtOrAbove, ...groups.withBelow, ...groups.pending];
-    if (
-      new Set(grouped).size !== grouped.length ||
-      grouped.length !== ids.length ||
-      grouped.some((studentId) => !ids.includes(studentId))
+  const fail = (message: string) => ctx.addIssue({ code: 'custom', message });
+  const analysis = value.view.operation === 'analysis' ? value.view : value.view.analysis;
+  const ids = analysis.matrix.rows
+    .filter((row) => row.student.indicatorEligible)
+    .map((row) => row.student.id);
+  const groups = value.overview.groups;
+  const grouped = [...groups.allAtOrAbove, ...groups.withBelow, ...groups.pending];
+  if (
+    new Set(grouped).size !== grouped.length ||
+    grouped.length !== ids.length ||
+    grouped.some((studentId) => !ids.includes(studentId))
+  )
+    fail('inconsistent overview population');
+  const stats = value.overview.students;
+  if (
+    stats.eligible !== ids.length ||
+    stats.allAtOrAbove !== groups.allAtOrAbove.length ||
+    stats.withBelow !== groups.withBelow.length ||
+    stats.pending !== groups.pending.length ||
+    stats.classified !== stats.allAtOrAbove + stats.withBelow ||
+    stats.eligible !== stats.classified + stats.pending
+  )
+    fail('inconsistent overview totals');
+  const expectedRanking = analysis.matrix.rows
+    .filter(
+      (row) =>
+        row.student.indicatorEligible &&
+        row.cells.length > 0 &&
+        row.cells.every((cell) => cell.valueMilli !== null),
     )
-      fail('inconsistent overview population');
-    const stats = value.overview.students;
-    if (
-      stats.eligible !== ids.length ||
-      stats.allAtOrAbove !== groups.allAtOrAbove.length ||
-      stats.withBelow !== groups.withBelow.length ||
-      stats.pending !== groups.pending.length ||
-      stats.classified !== stats.allAtOrAbove + stats.withBelow ||
-      stats.eligible !== stats.classified + stats.pending
-    )
-      fail('inconsistent overview totals');
-    const expectedRanking = analysis.matrix.rows
-      .filter((row) => row.student.indicatorEligible && row.cells.length > 0 && row.cells.every((cell) => cell.valueMilli !== null))
-      .map((row) => ({
-        studentId: row.student.id,
-        total: row.cells.reduce((total, cell) => total + BigInt(cell.valueMilli!), 0n),
-        partial: row.cells.some((cell) => cell.state === 'partial'),
-        number: row.student.number,
-      }))
-      .sort((left, right) => {
-        if (left.total === right.total) {
-          return left.number - right.number || left.studentId - right.studentId;
-        }
-        if (left.total > right.total) {
-          return -1;
-        }
-        return 1;
-      });
-    const expectedTop = rankingCutV5(expectedRanking, (entry) => entry.total);
-    if (
-      expectedTop.some((entry) => entry.total > BigInt(Number.MAX_SAFE_INTEGER)) ||
-      expectedTop.length !== value.overview.ranking.length ||
-      expectedTop.some((entry, index) => {
-        const actual = value.overview.ranking[index];
-        return actual === undefined || actual.studentId !== entry.studentId || actual.totalMilli !== Number(entry.total) || actual.partial !== entry.partial;
-      })
-    ) fail('inconsistent overview ranking');
-    if (
-      value.overview.columns.length !== analysis.columns.length ||
-      value.overview.columns.some((item, index) => {
-        const source = analysis.columns[index];
-        return (
-          source === undefined ||
-          item.key !== source.key ||
-          item.offerId !== source.offerId ||
-          item.label !== source.label ||
-          item.considered !== source.summary.considered ||
-          item.atOrAbove !== source.summary.groups.above.length ||
-          item.below !== source.summary.groups.below.length ||
-          item.incomplete !== source.summary.groups.incomplete.length ||
-          item.noShow !== source.summary.groups['no-show'].length ||
-          item.unscaled !== source.summary.groups.unscaled.length
-        );
-      })
-    )
-      fail('inconsistent overview columns');
+    .map((row) => ({
+      studentId: row.student.id,
+      total: row.cells.reduce((total, cell) => total + BigInt(cell.valueMilli!), 0n),
+      partial: row.cells.some((cell) => cell.state === 'partial'),
+      number: row.student.number,
+    }))
+    .sort((left, right) => {
+      if (left.total === right.total) {
+        return left.number - right.number || left.studentId - right.studentId;
+      }
+      if (left.total > right.total) {
+        return -1;
+      }
+      return 1;
+    });
+  const expectedTop = rankingCutV5(expectedRanking, (entry) => entry.total);
+  if (
+    expectedTop.some((entry) => entry.total > BigInt(Number.MAX_SAFE_INTEGER)) ||
+    expectedTop.length !== value.overview.ranking.length ||
+    expectedTop.some((entry, index) => {
+      const actual = value.overview.ranking[index];
+      return (
+        actual === undefined ||
+        actual.studentId !== entry.studentId ||
+        actual.totalMilli !== Number(entry.total) ||
+        actual.partial !== entry.partial
+      );
+    })
+  )
+    fail('inconsistent overview ranking');
+  if (
+    value.overview.columns.length !== analysis.columns.length ||
+    value.overview.columns.some((item, index) => {
+      const source = analysis.columns[index];
+      return (
+        source === undefined ||
+        item.key !== source.key ||
+        item.offerId !== source.offerId ||
+        item.label !== source.label ||
+        item.considered !== source.summary.considered ||
+        item.atOrAbove !== source.summary.groups.above.length ||
+        item.below !== source.summary.groups.below.length ||
+        item.incomplete !== source.summary.groups.incomplete.length ||
+        item.noShow !== source.summary.groups['no-show'].length ||
+        item.unscaled !== source.summary.groups.unscaled.length
+      );
+    })
+  )
+    fail('inconsistent overview columns');
 }
 
 /** The previous trimester's panel: the same checks, never a comparison and never nested. */
 const previousDashboard = dashboardCore.superRefine((value, ctx) => {
   checkDashboardV5(value, ctx);
-  if (value.view.operation !== 'analysis') ctx.addIssue({ code: 'custom', message: 'previous panel is an analysis' });
+  if (value.view.operation !== 'analysis')
+    ctx.addIssue({ code: 'custom', message: 'previous panel is an analysis' });
 });
 
 const ready = z

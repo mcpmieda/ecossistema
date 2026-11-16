@@ -21,12 +21,24 @@ describe('Meta do ano (2º trimestre)', () => {
       ]),
       regular,
     );
-    expect(goal).toEqual({ state: 'reachable', soFarMilli: 36_300, t1Milli: 16_500, t2Milli: 19_800, neededMilli: 23_700 });
+    expect(goal).toEqual({
+      state: 'reachable',
+      soFarMilli: 36_300,
+      t1Milli: 16_500,
+      t2Milli: 19_800,
+      neededMilli: 23_700,
+    });
   });
 
   it('says the goal is reached at exactly 60 and beyond when more than 40 is missing', () => {
     const at = (t1: number, t2: number) =>
-      annualGoalV1(subjectOf([{ period: 'T1', final: scoreOf(t1, 30) }, { period: 'T2', final: scoreOf(t2, 30) }]), regular);
+      annualGoalV1(
+        subjectOf([
+          { period: 'T1', final: scoreOf(t1, 30) },
+          { period: 'T2', final: scoreOf(t2, 30) },
+        ]),
+        regular,
+      );
     expect(at(30, 30)?.state).toBe('reached');
     expect(at(10, 10)?.state).toBe('reachable'); // exactly 40 needed
     expect(at(10, 9.9)?.state).toBe('beyond');
@@ -38,10 +50,22 @@ describe('Meta do ano (2º trimestre)', () => {
       { period: 'T2' as const, final: scoreOf(15, 30) },
     ];
     expect(annualGoalV1(subjectOf([base[0]!]), regular)).toBeNull();
-    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, 25) }]), regular)).toBeNull();
-    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, null) }]), regular)).toBeNull();
-    expect(annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: { kind: 'nc' } }]), regular)).toBeNull();
-    expect(annualGoalV1(subjectOf(base), { ...regular, academicState: 'assisted', result: 'not-applicable' })).toBeNull();
+    expect(
+      annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, 25) }]), regular),
+    ).toBeNull();
+    expect(
+      annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: scoreOf(15, null) }]), regular),
+    ).toBeNull();
+    expect(
+      annualGoalV1(subjectOf([base[0]!, { period: 'T2', final: { kind: 'nc' } }]), regular),
+    ).toBeNull();
+    expect(
+      annualGoalV1(subjectOf(base), {
+        ...regular,
+        academicState: 'assisted',
+        result: 'not-applicable',
+      }),
+    ).toBeNull();
     expect(annualGoalV1(subjectOf(base), { ...regular, academicState: 'special' })).toBeNull();
     expect(annualGoalV1(subjectOf(base, { officialOutcome: 'approved' }), regular)).toBeNull();
   });
@@ -61,9 +85,16 @@ describe('Meta do ano (2º trimestre)', () => {
   });
 
   it("hides the goal when the school's minimum is not 60% (owner request 27/10/2026)", () => {
-    const marked = (value: number, meetsMinimum: boolean) => ({ kind: 'score', value, maximum: 30, meetsMinimum }) as const;
+    const marked = (value: number, meetsMinimum: boolean) =>
+      ({ kind: 'score', value, maximum: 30, meetsMinimum }) as const;
     const goal = (t1: ReturnType<typeof marked>) =>
-      annualGoalV1(subjectOf([{ period: 'T1', final: t1 }, { period: 'T2', final: marked(20, true) }]), regular);
+      annualGoalV1(
+        subjectOf([
+          { period: 'T1', final: t1 },
+          { period: 'T2', final: marked(20, true) },
+        ]),
+        regular,
+      );
     // 18 of 30 is 60%: the gradebook agrees, the goal shows.
     expect(goal(marked(18, true))).not.toBeNull();
     // 19 of 30 is above 60%, yet the gradebook says below its minimum: another minimum, no goal.
@@ -80,13 +111,16 @@ describe('Meta do ano (2º trimestre)', () => {
       annualGoalV1(subjectOf(base), regular),
     );
     expect(annualGoalV1(subjectOf(withThird, { officialOutcome: 'approved' }), regular)).toBeNull();
-    expect(annualGoalV1(subjectOf(withThird, { annualSituation: 'approved-direct' }), regular)).toBeNull();
+    expect(
+      annualGoalV1(subjectOf(withThird, { annualSituation: 'approved-direct' }), regular),
+    ).toBeNull();
   });
 });
 
 describe('subject name inside the Meta do ano sentence', () => {
   it('turns published capitals into a readable name and keeps mixed case', async () => {
-    const { subjectInSentenceV1 } = await import('../../../../src/features/student-portal/workspace/annual-goal-v1');
+    const { subjectInSentenceV1 } =
+      await import('../../../../src/features/student-portal/workspace/annual-goal-v1');
     expect(subjectInSentenceV1('MATEMÁTICA')).toBe('Matemática');
     expect(subjectInSentenceV1('ED. FÍSICA')).toBe('Ed. Física');
     expect(subjectInSentenceV1('PORTUGUÊS')).toBe('Português');

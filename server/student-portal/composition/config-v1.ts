@@ -29,18 +29,22 @@ export interface PortalCompositionEnvV1 extends PortalLiveEnvV1 {
   PORTAL_ADMIN_REVOKE?: Pick<RateLimit, 'limit'>;
   /** Anonymous requests that arrive with no peer address at all; never the families' budget. */
   PORTAL_UNKNOWN_PEER?: Pick<RateLimit, 'limit'>;
-
 }
 
-const keyringSchema = z.record(z.string().regex(/^[1-9]\d{0,5}$/u),
-  z.string().regex(/^[A-Za-z0-9+/]{43}=$/u));
+const keyringSchema = z.record(
+  z.string().regex(/^[1-9]\d{0,5}$/u),
+  z.string().regex(/^[A-Za-z0-9+/]{43}=$/u),
+);
 function keyring(value: string | undefined) {
   const parsed = keyringSchema.parse(JSON.parse(value ?? '{}'));
-  const ring = new Map(Object.entries(parsed).map(([version, encoded]) => {
-    const bytes = Buffer.from(encoded, 'base64');
-    if (bytes.length !== 32 || bytes.toString('base64') !== encoded) throw new Error('student-portal-key-invalid');
-    return [Number(version), bytes] as const;
-  }));
+  const ring = new Map(
+    Object.entries(parsed).map(([version, encoded]) => {
+      const bytes = Buffer.from(encoded, 'base64');
+      if (bytes.length !== 32 || bytes.toString('base64') !== encoded)
+        throw new Error('student-portal-key-invalid');
+      return [Number(version), bytes] as const;
+    }),
+  );
   if (!ring.size) throw new Error('student-portal-key-unavailable');
   return ring;
 }
@@ -51,6 +55,12 @@ export function portalKeysV1(env: PortalCompositionEnvV1) {
   const qrKeys = keyring(env.QR_HMAC_KEYS);
   const pepperVersion = Math.max(...peppers.keys());
   const qrKeyVersion = Math.max(...qrKeys.keys());
-  return { cryptoPort: new PortalCryptoV1(peppers, qrKeys), pepperVersion, qrKeyVersion,
-    cursorSecret: createHmac('sha256', qrKeys.get(qrKeyVersion)!).update('student-portal:admin-cursor:v1').digest('hex') };
+  return {
+    cryptoPort: new PortalCryptoV1(peppers, qrKeys),
+    pepperVersion,
+    qrKeyVersion,
+    cursorSecret: createHmac('sha256', qrKeys.get(qrKeyVersion)!)
+      .update('student-portal:admin-cursor:v1')
+      .digest('hex'),
+  };
 }

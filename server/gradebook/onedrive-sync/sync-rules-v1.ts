@@ -72,7 +72,12 @@ export type SyncSettingsV1 = {
 
 /** Most reads at once. Each read runs in its own Worker invocation; the Banco takes one write at a time. */
 export const SYNC_PARALLEL_MAX_V1 = 6;
-export const DEFAULT_SYNC_SETTINGS_V1: SyncSettingsV1 = { enabled: false, paused: false, waitSeconds: 0, maxParallel: SYNC_PARALLEL_MAX_V1 };
+export const DEFAULT_SYNC_SETTINGS_V1: SyncSettingsV1 = {
+  enabled: false,
+  paused: false,
+  waitSeconds: 0,
+  maxParallel: SYNC_PARALLEL_MAX_V1,
+};
 
 /**
  * The reads allowed at once, set by the sync itself: a read that shows congestion (the write turn
@@ -83,14 +88,24 @@ export const DEFAULT_SYNC_SETTINGS_V1: SyncSettingsV1 = { enabled: false, paused
 export type SyncParallelV1 = { readonly limit: number; readonly clean: number };
 export const INITIAL_SYNC_PARALLEL_V1: SyncParallelV1 = { limit: SYNC_PARALLEL_MAX_V1, clean: 0 };
 const CONGESTION_CODES_V1: ReadonlySet<string> = new Set([
-  'WRITE-QUEUE-DEADLINE', 'DATABASE-UNAVAILABLE', 'DATABASE-WRITE', 'READER-UNREACHABLE', 'LEASE-EXPIRED', 'GRAPH-DOWNLOAD',
+  'WRITE-QUEUE-DEADLINE',
+  'DATABASE-UNAVAILABLE',
+  'DATABASE-WRITE',
+  'READER-UNREACHABLE',
+  'LEASE-EXPIRED',
+  'GRAPH-DOWNLOAD',
 ]);
 const SLOW_READ_MS_V1 = 60_000;
 
-export function nextParallelV1(current: SyncParallelV1, result: Pick<ReadResultV1, 'outcome' | 'code' | 'readMs'>): SyncParallelV1 {
+export function nextParallelV1(
+  current: SyncParallelV1,
+  result: Pick<ReadResultV1, 'outcome' | 'code' | 'readMs'>,
+): SyncParallelV1 {
   const limit = Math.min(Math.max(Math.round(current.limit) || 1, 1), SYNC_PARALLEL_MAX_V1);
-  const congested = result.outcome === 'failed' || (result.code !== null && CONGESTION_CODES_V1.has(result.code))
-    || result.readMs > SLOW_READ_MS_V1;
+  const congested =
+    result.outcome === 'failed' ||
+    (result.code !== null && CONGESTION_CODES_V1.has(result.code)) ||
+    result.readMs > SLOW_READ_MS_V1;
   if (congested) return { limit: Math.max(1, Math.floor(limit / 2)), clean: 0 };
   if (limit >= SYNC_PARALLEL_MAX_V1) return { limit, clean: 0 };
   const clean = current.clean + 1;
@@ -112,9 +127,24 @@ export type ObservedFileV1 = {
 
 export function newSyncFileV1(observed: ObservedFileV1): SyncFileV1 {
   return {
-    id: observed.id, name: observed.name, size: observed.size, modifiedAt: observed.modifiedAt, hash: observed.hash,
-    processedHash: null, state: 'idle', dirty: false, dueAt: null, lease: null, leaseUntil: null, attempts: 0,
-    lastOutcome: null, lastCode: null, lastReadAt: null, lastReadMs: null, lastSavedToWrittenMs: null, removed: false,
+    id: observed.id,
+    name: observed.name,
+    size: observed.size,
+    modifiedAt: observed.modifiedAt,
+    hash: observed.hash,
+    processedHash: null,
+    state: 'idle',
+    dirty: false,
+    dueAt: null,
+    lease: null,
+    leaseUntil: null,
+    attempts: 0,
+    lastOutcome: null,
+    lastCode: null,
+    lastReadAt: null,
+    lastReadMs: null,
+    lastSavedToWrittenMs: null,
+    removed: false,
   };
 }
 
@@ -122,12 +152,31 @@ export function newSyncFileV1(observed: ObservedFileV1): SyncFileV1 {
  * A change seen by delta, the folder listing or the nightly check. Deleting a file never
  * deletes grades: the file is only marked removed.
  */
-export function observeFileV1(current: SyncFileV1 | null, observed: ObservedFileV1, now: number,
-  settings: SyncSettingsV1): SyncFileV1 | null {
-  if (observed.deleted) return current ? { ...current, removed: true, state: current.state === 'reading' ? 'reading' : 'idle', dueAt: null, dirty: false } : null;
+export function observeFileV1(
+  current: SyncFileV1 | null,
+  observed: ObservedFileV1,
+  now: number,
+  settings: SyncSettingsV1,
+): SyncFileV1 | null {
+  if (observed.deleted)
+    return current
+      ? {
+          ...current,
+          removed: true,
+          state: current.state === 'reading' ? 'reading' : 'idle',
+          dueAt: null,
+          dirty: false,
+        }
+      : null;
   const base = current ?? newSyncFileV1(observed);
-  const updated: SyncFileV1 = { ...base, name: observed.name, size: observed.size, modifiedAt: observed.modifiedAt,
-    hash: observed.hash, removed: false };
+  const updated: SyncFileV1 = {
+    ...base,
+    name: observed.name,
+    size: observed.size,
+    modifiedAt: observed.modifiedAt,
+    hash: observed.hash,
+    removed: false,
+  };
   const unchanged = observed.hash !== null && observed.hash === base.processedHash;
   if (unchanged && base.state !== 'reading') return { ...updated, state: 'idle', dueAt: null };
   // During a read, the hash being read is `base.hash`: a repeated notice of that same save is not a
@@ -138,14 +187,26 @@ export function observeFileV1(current: SyncFileV1 | null, observed: ObservedFile
   }
   const due = now + settings.waitSeconds * 1000;
   // A later save pushes the wait forward: the read happens once the file settles.
-  return { ...updated, state: 'pending', dueAt: Math.max(due, base.state === 'pending' ? (base.dueAt ?? due) : due), attempts: 0 };
+  return {
+    ...updated,
+    state: 'pending',
+    dueAt: Math.max(due, base.state === 'pending' ? (base.dueAt ?? due) : due),
+    attempts: 0,
+  };
 }
 
 /** Files to start now, oldest due first, within the parallel limit; none while paused or tripped. */
-export function filesToStartV1(files: readonly SyncFileV1[], now: number, settings: SyncSettingsV1,
-  breakerUntil: number | null): SyncFileV1[] {
-  if (!settings.enabled || settings.paused || (breakerUntil !== null && breakerUntil > now)) return [];
-  const reading = files.filter((file) => file.state === 'reading' && (file.leaseUntil ?? 0) > now).length;
+export function filesToStartV1(
+  files: readonly SyncFileV1[],
+  now: number,
+  settings: SyncSettingsV1,
+  breakerUntil: number | null,
+): SyncFileV1[] {
+  if (!settings.enabled || settings.paused || (breakerUntil !== null && breakerUntil > now))
+    return [];
+  const reading = files.filter(
+    (file) => file.state === 'reading' && (file.leaseUntil ?? 0) > now,
+  ).length;
   const free = Math.max(0, settings.maxParallel - reading);
   return files
     .filter((file) => file.state === 'pending' && !file.removed && (file.dueAt ?? 0) <= now)
@@ -179,19 +240,33 @@ export type ReadResultV1 = {
 };
 
 /** Applies a finished read. Returns null when the lease is stale (another read owns the file). */
-export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadResultV1, now: number,
-  waitMs = 0): SyncFileV1 | null {
+export function finishReadingV1(
+  file: SyncFileV1,
+  lease: string,
+  result: ReadResultV1,
+  now: number,
+  waitMs = 0,
+): SyncFileV1 | null {
   if (file.state !== 'reading' || file.lease !== lease) return null;
   const transient = result.outcome === 'failed';
   const attempts = transient ? file.attempts + 1 : 0;
   const memory = result.memory === undefined ? (file.memory ?? null) : result.memory;
   const finished: SyncFileV1 = {
-    ...file, lease: null, leaseUntil: null, attempts,
-    lastOutcome: result.outcome, lastCode: result.code, lastReadAt: now, lastReadMs: result.readMs,
+    ...file,
+    lease: null,
+    leaseUntil: null,
+    attempts,
+    lastOutcome: result.outcome,
+    lastCode: result.code,
+    lastReadAt: now,
+    lastReadMs: result.readMs,
     // The arrival of grades and its time from the teacher's save go together: both change only
     // when grades went in; a read caused by the Relação has no save to count from.
     ...(result.outcome === 'applied'
-      ? { lastAppliedAt: now, lastSavedToWrittenMs: file.rereading ? null : result.savedToWrittenMs }
+      ? {
+          lastAppliedAt: now,
+          lastSavedToWrittenMs: file.rereading ? null : result.savedToWrittenMs,
+        }
       : {}),
     // A reread asked during this read (forget) applies to the next one.
     ...(transient ? {} : { rereading: Boolean(file.forget) }),
@@ -218,15 +293,26 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
 export function rereadFileV1(file: SyncFileV1, now: number): SyncFileV1 {
   if (file.removed) return file;
   if (file.state === 'reading') return { ...file, dirty: true, forget: true, rereading: true };
-  return { ...file, memory: null, processedHash: null, state: 'pending', dueAt: now, attempts: 0, rereading: true };
+  return {
+    ...file,
+    memory: null,
+    processedHash: null,
+    state: 'pending',
+    dueAt: now,
+    attempts: 0,
+    rereading: true,
+  };
 }
 
 /**
  * Ties a file to its source and that source's year. A file whose year changed (the source's year
  * was corrected) or that the old reader skipped as "not a teacher's" (the Relação) is read again whole.
  */
-export function placeFileV1(file: SyncFileV1, source: { readonly itemId: string; readonly year: number } | null,
-  now: number): SyncFileV1 {
+export function placeFileV1(
+  file: SyncFileV1,
+  source: { readonly itemId: string; readonly year: number } | null,
+  now: number,
+): SyncFileV1 {
   if (!source) return file;
   const yearChanged = file.year !== undefined && file.year !== source.year;
   const kept = yearChanged || file.lastOutcome === 'ignored' ? rereadFileV1(file, now) : file;
@@ -235,12 +321,21 @@ export function placeFileV1(file: SyncFileV1, source: { readonly itemId: string;
 }
 
 /** One day's school hours as the Portal knows them (calendar and bells), "HH:MM" in local time. */
-export type SchoolDayWindowV1 = { readonly schoolDay: boolean; readonly starts: string; readonly ends: string; readonly source: string };
+export type SchoolDayWindowV1 = {
+  readonly schoolDay: boolean;
+  readonly starts: string;
+  readonly ends: string;
+  readonly source: string;
+};
 
 /** Whether `day` is a school day (calendar of the Portal), and its lesson hours. */
 export type PollWindowV1 = {
-  readonly day: string; readonly schoolDay: boolean; readonly startsAt: number; readonly endsAt: number;
-  readonly source: string; readonly retryAfter: number | null;
+  readonly day: string;
+  readonly schoolDay: boolean;
+  readonly startsAt: number;
+  readonly endsAt: number;
+  readonly source: string;
+  readonly retryAfter: number | null;
 };
 const POLL_MARGIN_BEFORE_MS_V1 = 30 * 60_000;
 const POLL_MARGIN_AFTER_MS_V1 = 60 * 60_000;
@@ -255,16 +350,32 @@ export function schoolDayOfV1(now: number): string {
  * The poll window of `day` from what the Portal answered; without an answer (Portal unreachable),
  * Monday to Friday 07:00–18:00, asked again within the hour.
  */
-export function pollWindowV1(day: string, read: SchoolDayWindowV1 | null, now: number): PollWindowV1 {
+export function pollWindowV1(
+  day: string,
+  read: SchoolDayWindowV1 | null,
+  now: number,
+): PollWindowV1 {
   const at = (time: string) => Date.parse(`${day}T${HHMM_V1.test(time) ? time : '07:00'}:00-03:00`);
   if (read) {
     const ends = HHMM_V1.test(read.ends) ? read.ends : '18:00';
-    return { day, schoolDay: read.schoolDay, startsAt: at(read.starts) - POLL_MARGIN_BEFORE_MS_V1,
-      endsAt: at(ends) + POLL_MARGIN_AFTER_MS_V1, source: read.source, retryAfter: null };
+    return {
+      day,
+      schoolDay: read.schoolDay,
+      startsAt: at(read.starts) - POLL_MARGIN_BEFORE_MS_V1,
+      endsAt: at(ends) + POLL_MARGIN_AFTER_MS_V1,
+      source: read.source,
+      retryAfter: null,
+    };
   }
   const weekday = new Date(`${day}T12:00:00-03:00`).getUTCDay();
-  return { day, schoolDay: weekday >= 1 && weekday <= 5, startsAt: at('07:00') - POLL_MARGIN_BEFORE_MS_V1,
-    endsAt: at('18:00') + POLL_MARGIN_AFTER_MS_V1, source: 'weekday-fallback', retryAfter: now + 60 * 60_000 };
+  return {
+    day,
+    schoolDay: weekday >= 1 && weekday <= 5,
+    startsAt: at('07:00') - POLL_MARGIN_BEFORE_MS_V1,
+    endsAt: at('18:00') + POLL_MARGIN_AFTER_MS_V1,
+    source: 'weekday-fallback',
+    retryAfter: now + 60 * 60_000,
+  };
 }
 
 /**
@@ -285,8 +396,11 @@ export function safetyDeltaIntervalMsV1(window: PollWindowV1): number {
 }
 
 /** Consecutive transient failures across files trip the breaker for a while. */
-export function nextBreakerV1(consecutiveFailures: number, outcome: SyncOutcomeV1, now: number):
-  { readonly consecutiveFailures: number; readonly breakerUntil: number | null } {
+export function nextBreakerV1(
+  consecutiveFailures: number,
+  outcome: SyncOutcomeV1,
+  now: number,
+): { readonly consecutiveFailures: number; readonly breakerUntil: number | null } {
   if (outcome !== 'failed') return { consecutiveFailures: 0, breakerUntil: null };
   const failures = consecutiveFailures + 1;
   return failures >= SYNC_BREAKER_FAILURES_V1
@@ -302,7 +416,11 @@ function wakeMomentsV1(file: SyncFileV1): number[] {
 }
 
 /** The earliest moment the coordinator must wake up again. */
-export function nextWakeV1(files: readonly SyncFileV1[], breakerUntil: number | null, now: number): number | null {
+export function nextWakeV1(
+  files: readonly SyncFileV1[],
+  breakerUntil: number | null,
+  now: number,
+): number | null {
   const moments = files.flatMap(wakeMomentsV1);
   if (breakerUntil !== null && breakerUntil > now) moments.push(breakerUntil);
   return moments.length === 0 ? null : Math.max(now, Math.min(...moments));

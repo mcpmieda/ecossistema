@@ -394,7 +394,10 @@ function ScheduleDayV2({
                   </Chip>
                 </Card.Header>
                 <Card.Content>
-                  <p>Coletas: {[...rule.times].sort((a, b) => a.localeCompare(b)).join(', ') || 'Nenhuma'}</p>
+                  <p>
+                    Coletas:{' '}
+                    {[...rule.times].sort((a, b) => a.localeCompare(b)).join(', ') || 'Nenhuma'}
+                  </p>
                   <p>Rechecagem: {rule.recheck ?? 'Não definida'}</p>
                 </Card.Content>
               </Card>
@@ -445,9 +448,7 @@ function ScheduleSummaryV2({
           </>
         ) : null}
       </p>
-      {pending ? (
-        <output>Atualizando agenda. A revisão exibida aguarda confirmação.</output>
-      ) : null}
+      {pending ? <output>Atualizando agenda. A revisão exibida aguarda confirmação.</output> : null}
       {schedule === null ? (
         <p>Agenda ainda não configurada no Coletor.</p>
       ) : (

@@ -29,7 +29,8 @@ const lift = (x: number, y: number) => {
 
 globalThis.addEventListener('mousedown', (event) => {
   // The simulator's own panel and its fields keep the mouse.
-  if (event.button !== 0 || (event.target as Element).closest('details, input, select, textarea')) return;
+  if (event.button !== 0 || (event.target as Element).closest('details, input, select, textarea'))
+    return;
   target = event.target;
   start = { x: event.clientX, y: event.clientY };
   last = start;

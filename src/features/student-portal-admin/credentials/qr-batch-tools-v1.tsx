@@ -111,21 +111,11 @@ function QrBatchStatusV1({
               : batchFailureText(state.error.state)}
           </p>
           {state.retryable ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={!retryReady}
-              onPress={onRetry}
-            >
+            <Button size="sm" variant="secondary" isDisabled={!retryReady} onPress={onRetry}>
               Repetir mesma solicitação
             </Button>
           ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              isDisabled={!retryReady}
-              onPress={onReload}
-            >
+            <Button size="sm" variant="secondary" isDisabled={!retryReady} onPress={onReload}>
               Recarregar disponibilidade
             </Button>
           )}

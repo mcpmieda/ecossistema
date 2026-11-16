@@ -78,10 +78,7 @@ function sameScope(a: z.infer<typeof bulkScopeV1>, b: z.infer<typeof bulkScopeV1
 }
 
 /** Why a student cannot take the bulk action: already blocked, or no way to recover the account. */
-function ineligibilityV1(
-  action: string,
-  row: Readonly<Record<string, unknown>>,
-) {
+function ineligibilityV1(action: string, row: Readonly<Record<string, unknown>>) {
   if (action === 'block') return row.blocked ? 'already-blocked' : null;
   const recoveryNeeded = action !== 'qr-regenerate' || row.auth_state !== 'active';
   return recoveryNeeded && !row.recovery_ready ? 'recovery-unavailable' : null;
@@ -116,7 +113,9 @@ export class BulkAdminV1 {
       let created = now.getTime();
       let expires = created + TTL;
       if (query.page.cursor) {
-        const parsed = cursorV1.safeParse(await unseal(query.page.cursor, this.secret, 'portal-bulk-cursor'));
+        const parsed = cursorV1.safeParse(
+          await unseal(query.page.cursor, this.secret, 'portal-bulk-cursor'),
+        );
         if (
           !parsed.success ||
           parsed.data.actor !== context.actorId ||
@@ -177,7 +176,8 @@ export class BulkAdminV1 {
               classId,
             })),
           }),
-          this.secret, 'portal-bulk-proof',
+          this.secret,
+          'portal-bulk-proof',
         ),
       );
       const nextCursor =
@@ -196,7 +196,8 @@ export class BulkAdminV1 {
                   limit: query.page.limit,
                   last: items.at(-1)!.accountId,
                 }),
-                this.secret, 'portal-bulk-cursor',
+                this.secret,
+                'portal-bulk-cursor',
               ),
             )
           : null;
@@ -253,7 +254,9 @@ export class BulkAdminV1 {
     const context = this.context(inputContext);
     const command = bulkExecuteCommandV1.parse(boundedInput(input));
     try {
-      const parsed = proofV1.safeParse(await unseal(command.proof, this.secret, 'portal-bulk-proof'));
+      const parsed = proofV1.safeParse(
+        await unseal(command.proof, this.secret, 'portal-bulk-proof'),
+      );
       if (
         !parsed.success ||
         parsed.data.actor !== context.actorId ||
@@ -265,11 +268,7 @@ export class BulkAdminV1 {
       const item = proof.items.find(
         (entry) => entry.accountId.toLowerCase() === command.accountId.toLowerCase(),
       );
-      if (
-        !item ||
-        item.version !== command.expectedVersion ||
-        proof.scope.classId !== item.classId
-      )
+      if (!item || item.version !== command.expectedVersion || proof.scope.classId !== item.classId)
         throw new Error('student-portal-bulk-forbidden');
       // Expiry is checked by the mutation after receipt lookup, preserving retries of unknown responses.
       const result = await this.qr.command(

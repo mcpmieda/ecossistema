@@ -682,22 +682,37 @@ function recognitionValues(student: StudentRecognition): Array<NoteValue | null>
 }
 
 const WORK_COLUMNS_V1 = ['U', 'V', 'W', 'X'] as const;
-const TERM_GRADE_COLUMNS_V1 = ['R', 'S', 'Z', ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) => slot.sourceSlot)];
+const TERM_GRADE_COLUMNS_V1 = [
+  'R',
+  'S',
+  'Z',
+  ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) => slot.sourceSlot),
+];
 const RECOVERY_GRADE_COLUMNS_V1 = ['R', 'S', 'T'];
 
 /** A number typed in the cell (not a formula result), other than zero. */
 function typedNumberAt(sheet: Worksheet, address: string): boolean {
   const cell = cellAt(sheet, address);
-  return Boolean(cell && !cell.f && typeof cell.v === 'number' && Number.isFinite(cell.v) && cell.v !== 0);
+  return Boolean(
+    cell && !cell.f && typeof cell.v === 'number' && Number.isFinite(cell.v) && cell.v !== 0,
+  );
 }
 
-function sheetAuditFactsV1(sheet: Worksheet, stage: GradeStage, sheetClass: string,
-  students: readonly StudentRecognition[]): SheetAuditFactsV1 {
+function sheetAuditFactsV1(
+  sheet: Worksheet,
+  stage: GradeStage,
+  sheetClass: string,
+  students: readonly StudentRecognition[],
+): SheetAuditFactsV1 {
   const studentRows = new Set(students.map((student) => student.row));
   const gradeColumns = stage === 'recovery' ? RECOVERY_GRADE_COLUMNS_V1 : TERM_GRADE_COLUMNS_V1;
   const orphanRows: number[] = [];
   for (let row = 5; row <= 50; row += 1) {
-    if (!studentRows.has(row) && gradeColumns.some((column) => typedNumberAt(sheet, `${column}${row}`))) orphanRows.push(row);
+    if (
+      !studentRows.has(row) &&
+      gradeColumns.some((column) => typedNumberAt(sheet, `${column}${row}`))
+    )
+      orphanRows.push(row);
   }
   const isTerm = stage !== 'recovery' && stage !== 'overview';
   return {
@@ -707,8 +722,13 @@ function sheetAuditFactsV1(sheet: Worksheet, stage: GradeStage, sheetClass: stri
     workCeiling: numberAt(sheet, 'Y3'),
     qualitativeCeiling: numberAt(sheet, 'AK3'),
     workRows: isTerm
-      ? students.filter((student) => WORK_COLUMNS_V1.some((column) => (numberAt(sheet, `${column}${student.row}`) ?? 0) !== 0))
-        .map((student) => student.row)
+      ? students
+          .filter((student) =>
+            WORK_COLUMNS_V1.some(
+              (column) => (numberAt(sheet, `${column}${student.row}`) ?? 0) !== 0,
+            ),
+          )
+          .map((student) => student.row)
       : [],
     orphanRows,
   };
@@ -727,7 +747,8 @@ function recognizeGradeSheet(
   const dimensions = worksheetDimensions(sheet, xlsx);
   // K3 is the class the grades are written to: "6ª SÉRIE A" or "6º ANO A" are the class 6A.
   const declaredClass = textAt(sheet, 'K3');
-  const className = (declaredClass && classCodeV1(declaredClass)) || declaredClass || pattern.className;
+  const className =
+    (declaredClass && classCodeV1(declaredClass)) || declaredClass || pattern.className;
   const discipline = textAt(sheet, 'K2');
   const declaredStage = textAt(sheet, 'K4');
   const declaredStudentsValue = numberAt(sheet, 'J1');

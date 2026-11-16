@@ -17,11 +17,17 @@ export function gradebookAfterCommitV1(
       const binding = env.PORTAL_SERVICE as PortalAdminServiceBindingV1 | undefined;
       if (!binding?.drainLive) return;
       const context = {
-        actorId: session.oid, tenantId: env.TENANT_ID,
-        requestId: crypto.randomUUID(), authenticatedAt: new Date().toISOString(),
+        actorId: session.oid,
+        tenantId: env.TENANT_ID,
+        requestId: crypto.randomUUID(),
+        authenticatedAt: new Date().toISOString(),
         capability: 'gradebook.persistence.admin' as const,
       };
-      waitUntil(Promise.resolve().then(() => binding.drainLive!(context)).catch(() => undefined));
+      waitUntil(
+        Promise.resolve()
+          .then(() => binding.drainLive!(context))
+          .catch(() => undefined),
+      );
     } catch {
       // Failure to notify cannot turn a committed academic write into an HTTP failure.
     }

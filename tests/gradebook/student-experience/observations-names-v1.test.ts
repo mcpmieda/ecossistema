@@ -2,7 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
-import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import {
+  installResetSchemaFixtureV1,
+  installReconciliationSchemaFixtureV1,
+} from '../../student-portal/year-reset/schema-fixture';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -53,7 +56,8 @@ function notes(
   values: GradebookNotesImportRequestV9['ofertas'][number]['trimestres'][number]['alunos'][number][1],
 ): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3): GradebookImportTermV9 => ({
-    definitionSnapshotVersion: 1 as const, trimestre,
+    definitionSnapshotVersion: 1 as const,
+    trimestre,
     instrumentos: [
       [1, 5000, 'AV 1'],
       [2, 5000, 'AV 2'],
@@ -150,11 +154,8 @@ describe('observed granular facts and ecosystem names #817', () => {
     ).rows;
     expect(before).toEqual([]);
     expect(
-      (
-        await createGradebookImportService(database).execute(
-          notes([0, null, ['u'], null, null]),
-        )
-      ).state,
+      (await createGradebookImportService(database).execute(notes([0, null, ['u'], null, null])))
+        .state,
     ).toBe('no-changes');
     expect(
       (

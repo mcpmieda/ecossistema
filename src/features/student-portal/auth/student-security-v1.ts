@@ -14,7 +14,10 @@ export interface StudentSecuritySocketV1 {
  * checks; any other failure retries in 15 s. */
 function verificationRetryV1(error: unknown) {
   if (error instanceof PortalClientErrorV1 && error.state === 'rate-limited')
-    return { wait: Math.max(15_000, Math.min(86_400, error.retryAfterSeconds ?? 60) * 1000), limited: true };
+    return {
+      wait: Math.max(15_000, Math.min(86_400, error.retryAfterSeconds ?? 60) * 1000),
+      limited: true,
+    };
   return { wait: 15_000, limited: false };
 }
 
@@ -38,7 +41,10 @@ function securityHandshakeV1(value: Record<string, unknown>) {
   const keys = Object.keys(value).length;
   const supportsRenewal = value.renewable === true;
   const expiry = instantV1.safeParse(value.expiresAt);
-  if (supportsRenewal ? keys !== 4 || !expiry.success : keys !== 2 && (keys !== 3 || !expiry.success)) return null;
+  if (
+    supportsRenewal ? keys !== 4 || !expiry.success : keys !== 2 && (keys !== 3 || !expiry.success)
+  )
+    return null;
   return { keys, supportsRenewal, expiry };
 }
 
@@ -125,7 +131,10 @@ export function createStudentSecurityV1(options: {
     clearTimeout(lease);
     leaseFrom = verifiedAt;
     if (paused) return;
-    lease = setTimeout(() => void authorize(), Math.max(0, (renewable ? 45_000 : 60_000) - (Date.now() - verifiedAt)));
+    lease = setTimeout(
+      () => void authorize(),
+      Math.max(0, (renewable ? 45_000 : 60_000) - (Date.now() - verifiedAt)),
+    );
   };
   // Stable login: when the lease is due, re-check the session over
   // HTTP (never /me). Only a confirmed revocation hides content — `authorize` publishes it and
@@ -192,7 +201,8 @@ export function createStudentSecurityV1(options: {
       if (again && !disposed) {
         again = false;
         void authorize();
-      }    }
+      }
+    }
   };
   const schedule = () => {
     if (disposed || paused || reconnect) return;
@@ -272,7 +282,8 @@ export function createStudentSecurityV1(options: {
       if (!disposed && socket === current) {
         // Older deployments can reject unknown query parameters before acknowledging.
         // Retry their unchanged URL and retain the existing rotation protocol.
-        if (!acknowledged && offered && ++renewalMisses >= RENEWAL_MISSES_V1) attemptRenewal = false;
+        if (!acknowledged && offered && ++renewalMisses >= RENEWAL_MISSES_V1)
+          attemptRenewal = false;
         schedule();
       }
     };
@@ -297,7 +308,8 @@ export function createStudentSecurityV1(options: {
   function visibilityChanged() {
     if (disposed) return;
     clearTimeout(pauseTimer);
-    if (page?.visibilityState === 'hidden') pauseTimer = setTimeout(pause, HIDDEN_PAUSE_AFTER_MS_V1);
+    if (page?.visibilityState === 'hidden')
+      pauseTimer = setTimeout(pause, HIDDEN_PAUSE_AFTER_MS_V1);
     else if (paused) resume();
   }
   page?.addEventListener('visibilitychange', visibilityChanged);

@@ -20,20 +20,14 @@ describe('Gradebook live code versus historical memory', () => {
   });
 
   it('documents that Aprendizados is not an operational consumer', () => {
-    const archive = readFileSync(
-      join(root, 'Aprendizados/IMPORTADORES-LEGADOS/README.md'),
-      'utf8',
-    );
+    const archive = readFileSync(join(root, 'Aprendizados/IMPORTADORES-LEGADOS/README.md'), 'utf8');
 
     expect(archive).toContain('exclua `Aprendizados/**` da busca');
     expect(archive).toContain('nome de arquivo e símbolos exportados');
   });
 
   it('preserves the V9/V10/V11 import authority statement', () => {
-    const archive = readFileSync(
-      join(root, 'Aprendizados/IMPORTADORES-LEGADOS/README.md'),
-      'utf8',
-    );
+    const archive = readFileSync(join(root, 'Aprendizados/IMPORTADORES-LEGADOS/README.md'), 'utf8');
 
     expect(archive).toContain('import-relational-service-v11.ts');
     expect(archive).toContain('coordena V10/V9');

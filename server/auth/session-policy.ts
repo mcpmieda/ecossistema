@@ -36,7 +36,9 @@ export async function readSessionDurationPreference(
   const token = readCookie(request, SESSION_POLICY_COOKIE);
   if (!token) return DEFAULT_SESSION_DURATION_HOURS;
 
-  const parsed = preferenceSchema.safeParse(await unseal<unknown>(token, env.SESSION_SECRET, 'session-policy'));
+  const parsed = preferenceSchema.safeParse(
+    await unseal<unknown>(token, env.SESSION_SECRET, 'session-policy'),
+  );
   if (
     !parsed.success ||
     parsed.data.oid !== oid ||
@@ -62,7 +64,8 @@ export async function createSessionDurationPreferenceCookie(
       durationHours,
       exp: now + PREFERENCE_MAX_AGE_SECONDS,
     },
-    env.SESSION_SECRET, 'session-policy',
+    env.SESSION_SECRET,
+    'session-policy',
   );
 
   return secureCookie(SESSION_POLICY_COOKIE, token, { maxAge: PREFERENCE_MAX_AGE_SECONDS });

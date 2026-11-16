@@ -110,7 +110,8 @@ describe('policy categories preserve editing and inheritance', () => {
     expect(screen.getByRole('tab', { name: 'Acesso' }).getAttribute('aria-selected')).toBe('true');
     await user.click(screen.getByRole('tab', { name: 'Segurança' }));
     expect(
-      (screen.getByRole('spinbutton', { name: 'Pedir verificação após' }) as HTMLInputElement).value,
+      (screen.getByRole('spinbutton', { name: 'Pedir verificação após' }) as HTMLInputElement)
+        .value,
     ).toBe('4');
     expect(screen.getByRole('button', { name: 'Desfazer edições' })).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
@@ -124,10 +125,14 @@ describe('policy categories preserve editing and inheritance', () => {
     await user.click(await screen.findByRole('tab', { name: 'Notas' }));
     expect(screen.getByText('Datas próprias')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Usar padrão das datas' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Usar padrão' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Usar padrão' }),
+    );
     await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
     expect(mock.writes[0]).toMatchObject({ operation: 'settings-inherit', keys: ['calendar'] });
-    await screen.findByText('Esta turma segue as datas da escola. Salvar um agendamento aqui cria datas próprias para ela.');
+    await screen.findByText(
+      'Esta turma segue as datas da escola. Salvar um agendamento aqui cria datas próprias para ela.',
+    );
     expect(screen.getByRole('tab', { name: 'Relatório de notas' })).toBeTruthy();
   });
 

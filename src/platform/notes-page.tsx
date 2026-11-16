@@ -1,7 +1,10 @@
 import { Component, Suspense, type ReactNode } from 'react';
 import { Alert, Button, Spinner, Surface } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
-import { routeLoadFailureV1, type RouteLoadFailureV1 } from '../shared/live-data/route-load-failure-v1';
+import {
+  routeLoadFailureV1,
+  type RouteLoadFailureV1,
+} from '../shared/live-data/route-load-failure-v1';
 import { normalizePlatformRoute } from '../../shared/platform-contract';
 import { preloadedSectionV1 } from '../shared/ui/preloaded-section-v1';
 
@@ -17,7 +20,10 @@ if (
 
 type GradebookRouteBoundaryState = { readonly failure: RouteLoadFailureV1 | null };
 
-class GradebookRouteBoundary extends Component<{ readonly children: ReactNode }, GradebookRouteBoundaryState> {
+class GradebookRouteBoundary extends Component<
+  { readonly children: ReactNode },
+  GradebookRouteBoundaryState
+> {
   override state: GradebookRouteBoundaryState = { failure: null };
 
   static getDerivedStateFromError(error: unknown): GradebookRouteBoundaryState {
@@ -41,17 +47,26 @@ class GradebookRouteBoundary extends Component<{ readonly children: ReactNode },
               : 'Ocorreu um erro ao exibir esta área. Isso, por si só, não confirma uma falha no banco de dados.'}
           </p>
           <p className="mt-2 text-xs text-muted">
-            Código: {moduleFailure ? 'BN-CARGA' : 'BN-TELA'}. A página não será recarregada automaticamente.
+            Código: {moduleFailure ? 'BN-CARGA' : 'BN-TELA'}. A página não será recarregada
+            automaticamente.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onPress={() => {
-              if (allowDraftNavigationV1()) window.location.assign('#/operacao');
-            }}>
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={() => {
+                if (allowDraftNavigationV1()) window.location.assign('#/operacao');
+              }}
+            >
               Ir para Saúde
             </Button>
-            <Button size="sm" variant="secondary" onPress={() => {
-              if (allowDraftNavigationV1()) window.location.reload();
-            }}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={() => {
+                if (allowDraftNavigationV1()) window.location.reload();
+              }}
+            >
               Recarregar
             </Button>
           </div>

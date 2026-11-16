@@ -69,46 +69,52 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     },
     [years, applyYear],
   );
-  const refreshYears = useCallback(async (preferredYear?: number) => {
-    const ticket = ++requestSequence.current;
-    setLoading(true);
-    let response;
-    try {
-      response = await requestOperationalWorkspaceV2({
-        contractVersion: 2,
-        operation: 'bootstrap',
-      });
-    } catch {
-      if (ticket === requestSequence.current) {
+  const refreshYears = useCallback(
+    async (preferredYear?: number) => {
+      const ticket = ++requestSequence.current;
+      setLoading(true);
+      let response;
+      try {
+        response = await requestOperationalWorkspaceV2({
+          contractVersion: 2,
+          operation: 'bootstrap',
+        });
+      } catch {
+        if (ticket === requestSequence.current) {
+          setFailure('Não foi possível carregar os anos letivos disponíveis.');
+          setLoading(false);
+        }
+        return;
+      }
+      if (ticket !== requestSequence.current) return;
+      if (response.state === 'not-authorized') {
+        forgetAuthorization();
+        return;
+      }
+      if (response.state !== 'ready' || response.operation !== 'bootstrap') {
         setFailure('Não foi possível carregar os anos letivos disponíveis.');
         setLoading(false);
+        return;
       }
-      return;
-    }
-    if (ticket !== requestSequence.current) return;
-    if (response.state === 'not-authorized') {
-      forgetAuthorization();
-      return;
-    }
-    if (response.state !== 'ready' || response.operation !== 'bootstrap') {
-      setFailure('Não foi possível carregar os anos letivos disponíveis.');
+      setFailure(null);
+      setYears(response.years);
+      const current = yearRef.current ?? chosenYearV1;
+      let next;
+      if (
+        preferredYear !== undefined &&
+        response.years.some((item) => item.year === preferredYear)
+      ) {
+        next = preferredYear;
+      } else if (current !== null && response.years.some((item) => item.year === current)) {
+        next = current;
+      } else {
+        next = response.years[0]?.year ?? null;
+      }
+      applyYear(next);
       setLoading(false);
-      return;
-    }
-    setFailure(null);
-    setYears(response.years);
-    const current = yearRef.current ?? chosenYearV1;
-    let next;
-    if (preferredYear !== undefined && response.years.some((item) => item.year === preferredYear)) {
-      next = preferredYear;
-    } else if (current !== null && response.years.some((item) => item.year === current)) {
-      next = current;
-    } else {
-      next = response.years[0]?.year ?? null;
-    }
-    applyYear(next);
-    setLoading(false);
-  }, [applyYear, forgetAuthorization]);
+    },
+    [applyYear, forgetAuthorization],
+  );
   useEffect(() => {
     void refreshYears();
     return () => {

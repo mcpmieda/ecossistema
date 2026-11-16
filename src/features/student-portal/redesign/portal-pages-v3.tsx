@@ -1,5 +1,13 @@
 import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { flushSync } from 'react-dom';
 import { FileWarning, NotebookPen } from 'lucide-react';
 import { StudentPortalShellV1, type StudentShellPropsV1 } from '../shell/student-shell-v1';
@@ -57,7 +65,10 @@ export function useReportIncidentsTurnedOffV3(off: boolean) {
 }
 
 /** A menu item's icon: Frequência's calendar says how it is going, Horário's clock tells the time. */
-function NavIconV3({ id, frequencyTone }: Readonly<{ id: PortalPageIdV3; frequencyTone: FrequencyToneV3 }>) {
+function NavIconV3({
+  id,
+  frequencyTone,
+}: Readonly<{ id: PortalPageIdV3; frequencyTone: FrequencyToneV3 }>) {
   if (id === 'frequency') return <FrequencyIconV3 tone={frequencyTone} size={22} />;
   if (id === 'schedule') return <LiveClockIconV3 size={22} />;
   if (id === 'incidents') return <FileWarning size={22} aria-hidden="true" />;
@@ -118,7 +129,10 @@ const SCHOOL_HOUR_V3 = new Intl.DateTimeFormat('en-GB', {
   hourCycle: 'h23',
 });
 function schoolTimeV3() {
-  const [hour, minute] = SCHOOL_HOUR_V3.format(new Date(portalNowV1())).split(':').map(Number) as [number, number];
+  const [hour, minute] = SCHOOL_HOUR_V3.format(new Date(portalNowV1())).split(':').map(Number) as [
+    number,
+    number,
+  ];
   return { hour, minute };
 }
 function LiveClockIconV3({ size }: Readonly<{ size: number }>) {
@@ -142,8 +156,23 @@ function LiveClockIconV3({ size }: Readonly<{ size: number }>) {
       aria-hidden="true"
     >
       <circle cx="12" cy="12" r="10" />
-      <line className="pa3-clock-hand" x1="12" y1="12" x2="12" y2="7.5" style={{ transform: `rotate(${hourAngle}deg)` }} />
-      <line className="pa3-clock-hand" x1="12" y1="12" x2="12" y2="5" strokeWidth="1.6" style={{ transform: `rotate(${minuteAngle}deg)` }} />
+      <line
+        className="pa3-clock-hand"
+        x1="12"
+        y1="12"
+        x2="12"
+        y2="7.5"
+        style={{ transform: `rotate(${hourAngle}deg)` }}
+      />
+      <line
+        className="pa3-clock-hand"
+        x1="12"
+        y1="12"
+        x2="12"
+        y2="5"
+        strokeWidth="1.6"
+        style={{ transform: `rotate(${minuteAngle}deg)` }}
+      />
     </svg>
   );
 }
@@ -192,7 +221,10 @@ function useNavHighlightV3(page: PortalPageIdV3, items: number) {
  */
 const PAGE_HISTORY_KEY_V3 = 'pa3Page';
 const pageOfState = (state: unknown, pages: readonly { id: PortalPageIdV3 }[]): PortalPageIdV3 => {
-  const saved = state && typeof state === 'object' ? (state as Record<string, unknown>)[PAGE_HISTORY_KEY_V3] : null;
+  const saved =
+    state && typeof state === 'object'
+      ? (state as Record<string, unknown>)[PAGE_HISTORY_KEY_V3]
+      : null;
   return pages.find((item) => item.id === saved)?.id ?? 'grades';
 };
 
@@ -209,7 +241,14 @@ type PortalPagesPropsV3 = Omit<StudentShellPropsV1, 'children' | 'hero' | 'busy'
   incidents?: ReactNode;
 };
 
-export function PortalPagesV3({ hero, grades, frequency, schedule, incidents, ...shell }: PortalPagesPropsV3) {
+export function PortalPagesV3({
+  hero,
+  grades,
+  frequency,
+  schedule,
+  incidents,
+  ...shell
+}: PortalPagesPropsV3) {
   const contentOf: Record<PortalPageIdV3, ReactNode> = { grades, frequency, schedule, incidents };
   const pages = PAGES.filter((item) => item.id === 'grades' || contentOf[item.id] != null);
   // Notas alone (both keys off): the bottom bar stays, with Notas only.
@@ -238,7 +277,9 @@ function PortalMenuPagesV3({
   const [frequencyTone, setFrequencyTone] = useState<FrequencyToneV3>(null);
   const [openIncidents, setOpenIncidents] = useState<number | null>(null);
   const [incidentsOff, setIncidentsOff] = useState(false);
-  const menu = pages.filter((item) => item.id !== 'incidents' || !incidentsOff || page === 'incidents');
+  const menu = pages.filter(
+    (item) => item.id !== 'incidents' || !incidentsOff || page === 'incidents',
+  );
   const highlight = useNavHighlightV3(page, menu.length);
   const elementOf = (id: PortalPageIdV3) => panels.current[id] ?? null;
   // Set by a switch the reader asked for (menu or Back), never by the first render.
@@ -262,7 +303,8 @@ function PortalMenuPagesV3({
   };
   const choose = (next: PortalPageIdV3) => {
     if (next === page || leaving) return;
-    const state = window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
+    const state =
+      window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
     window.history.pushState({ ...state, [PAGE_HISTORY_KEY_V3]: next }, '');
     show(next);
   };
@@ -330,32 +372,33 @@ function PortalMenuPagesV3({
   };
   return (
     <div className="pa3-app pa3-app--cover">
-
       <div className="pa3-page">
         <FrequencyToneReportV3 value={setFrequencyTone}>
-        <OpenIncidentsReportV3 value={setOpenIncidents}>
-        <IncidentsTurnedOffReportV3 value={setIncidentsOff}>
-        <StudentPortalShellV1 {...shell} hero={hero}>
-          <div ref={stage} className="pa3-stage">
-            {pages.map(({ id, label }) => (
-              <section
-                key={id}
-                ref={(element) => {
-                  panels.current[id] = element;
-                }}
-                id={`pa3-panel-${id}`}
-                aria-label={label}
-                tabIndex={-1}
-                inert={page !== id}
-                className={`pa3-panel pa3-panel--${id}` + stateOf(id)}
-              >
-                <PortalPageActiveV3.Provider value={page === id}>{contentOf[id]}</PortalPageActiveV3.Provider>
-              </section>
-            ))}
-          </div>
-        </StudentPortalShellV1>
-        </IncidentsTurnedOffReportV3>
-        </OpenIncidentsReportV3>
+          <OpenIncidentsReportV3 value={setOpenIncidents}>
+            <IncidentsTurnedOffReportV3 value={setIncidentsOff}>
+              <StudentPortalShellV1 {...shell} hero={hero}>
+                <div ref={stage} className="pa3-stage">
+                  {pages.map(({ id, label }) => (
+                    <section
+                      key={id}
+                      ref={(element) => {
+                        panels.current[id] = element;
+                      }}
+                      id={`pa3-panel-${id}`}
+                      aria-label={label}
+                      tabIndex={-1}
+                      inert={page !== id}
+                      className={`pa3-panel pa3-panel--${id}` + stateOf(id)}
+                    >
+                      <PortalPageActiveV3.Provider value={page === id}>
+                        {contentOf[id]}
+                      </PortalPageActiveV3.Provider>
+                    </section>
+                  ))}
+                </div>
+              </StudentPortalShellV1>
+            </IncidentsTurnedOffReportV3>
+          </OpenIncidentsReportV3>
         </FrequencyToneReportV3>
       </div>
 
@@ -370,7 +413,9 @@ function PortalMenuPagesV3({
             className="pa3-nav-item"
             aria-current={page === id ? 'page' : undefined}
             aria-controls={`pa3-panel-${id}`}
-            aria-describedby={id === 'frequency' && frequencyTone ? 'pa3-frequency-tone' : undefined}
+            aria-describedby={
+              id === 'frequency' && frequencyTone ? 'pa3-frequency-tone' : undefined
+            }
             onClick={() => choose(id)}
           >
             <span className="pa3-nav-icon">

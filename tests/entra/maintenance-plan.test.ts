@@ -16,39 +16,40 @@ function json(value: unknown, status = 200) {
   });
 }
 
-function target(
-  id: string,
-  appId: string,
-  displayName: string,
-  includeCertificateMaterial = true,
-) {
+function target(id: string, appId: string, displayName: string, includeCertificateMaterial = true) {
   return {
     id,
     appId,
     displayName,
-    keyCredentials: [{
-      keyId: crypto.randomUUID(),
-      type: 'AsymmetricX509Cert',
-      usage: 'Verify',
-      displayName: 'rotation-a',
-      startDateTime: '2026-01-01T00:00:00Z',
-      endDateTime: '2027-01-01T00:00:00Z',
-      customKeyIdentifier: 'synthetic-thumbprint',
-      key: includeCertificateMaterial ? 'PUBLIC-CERTIFICATE-MUST-NOT-BE-EMITTED' : null,
-    }],
+    keyCredentials: [
+      {
+        keyId: crypto.randomUUID(),
+        type: 'AsymmetricX509Cert',
+        usage: 'Verify',
+        displayName: 'rotation-a',
+        startDateTime: '2026-01-01T00:00:00Z',
+        endDateTime: '2027-01-01T00:00:00Z',
+        customKeyIdentifier: 'synthetic-thumbprint',
+        key: includeCertificateMaterial ? 'PUBLIC-CERTIFICATE-MUST-NOT-BE-EMITTED' : null,
+      },
+    ],
     passwordCredentials: [{ secretText: 'MUST-NOT-LEAK' }],
   };
 }
 
-function fetcherFor(options: {
-  assignments?: Array<{ id: string; appRoleId: string; resourceId: string }>;
-  ownedIds?: string[];
-} = {}) {
-  const assignments = options.assignments ?? [{
-    id: crypto.randomUUID(),
-    appRoleId: OWNED_BY,
-    resourceId: crypto.randomUUID(),
-  }];
+function fetcherFor(
+  options: {
+    assignments?: Array<{ id: string; appRoleId: string; resourceId: string }>;
+    ownedIds?: string[];
+  } = {},
+) {
+  const assignments = options.assignments ?? [
+    {
+      id: crypto.randomUUID(),
+      appRoleId: OWNED_BY,
+      resourceId: crypto.randomUUID(),
+    },
+  ];
   const ownedIds = options.ownedIds ?? [WEB_OBJECT_ID, GRAPH_OBJECT_ID];
 
   return vi.fn<typeof fetch>(async (input, init) => {
@@ -57,13 +58,17 @@ function fetcherFor(options: {
     expect(new Headers(init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
 
     if (url.includes('/servicePrincipals?')) {
-      return json({ value: [{
-        id: MAINTENANCE_SP_ID,
-        appId: MAINTENANCE_CLIENT_ID,
-        displayName: 'Ecossistema Maintenance - GitHub OIDC',
-        accountEnabled: true,
-        servicePrincipalType: 'Application',
-      }] });
+      return json({
+        value: [
+          {
+            id: MAINTENANCE_SP_ID,
+            appId: MAINTENANCE_CLIENT_ID,
+            displayName: 'Ecossistema Maintenance - GitHub OIDC',
+            accountEnabled: true,
+            servicePrincipalType: 'Application',
+          },
+        ],
+      });
     }
     if (url.includes(`/servicePrincipals/${MAINTENANCE_SP_ID}/appRoleAssignments`)) {
       return json({ value: assignments });
@@ -72,18 +77,18 @@ function fetcherFor(options: {
       return json({ value: ownedIds.map((id) => ({ id })) });
     }
     if (url.includes(`/applications/${WEB_OBJECT_ID}`)) {
-      return json(target(
-        WEB_OBJECT_ID,
-        '78185e20-c824-4acc-9ccd-41b9f7509a6f',
-        'Ecossistema Escolar - Web',
-      ));
+      return json(
+        target(WEB_OBJECT_ID, '78185e20-c824-4acc-9ccd-41b9f7509a6f', 'Ecossistema Escolar - Web'),
+      );
     }
     if (url.includes(`/applications/${GRAPH_OBJECT_ID}`)) {
-      return json(target(
-        GRAPH_OBJECT_ID,
-        '7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c',
-        'Ecossistema Escolar - Graph Backend',
-      ));
+      return json(
+        target(
+          GRAPH_OBJECT_ID,
+          '7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c',
+          'Ecossistema Escolar - Graph Backend',
+        ),
+      );
     }
     throw new Error(`Unexpected URL: ${url}`);
   });
@@ -104,10 +109,9 @@ describe('Entra Maintenance dry-run', () => {
     expect(fetcher).toHaveBeenCalledTimes(5);
     expect(result.status).toBe('ready');
     expect(result.identity.applicationPermissions).toEqual(['Application.ReadWrite.OwnedBy']);
-    expect(result.identity.ownedApplicationObjectIds).toEqual([
-      WEB_OBJECT_ID,
-      GRAPH_OBJECT_ID,
-    ].sort());
+    expect(result.identity.ownedApplicationObjectIds).toEqual(
+      [WEB_OBJECT_ID, GRAPH_OBJECT_ID].sort(),
+    );
     expect(result.targets.web.passwordCredentialCount).toBe(1);
     expect(result.targets.graph.keyCredentials).toHaveLength(1);
     expect(result.targets.web.certificateMaterialReadableCount).toBe(1);
@@ -122,7 +126,6 @@ describe('Entra Maintenance dry-run', () => {
     expect(serialized).not.toContain('"key"');
   });
 
-
   it('reports certificate material readiness without emitting certificate bytes', async () => {
     const fetcher = fetcherFor();
     fetcher.mockImplementation(async (input, init) => {
@@ -131,38 +134,50 @@ describe('Entra Maintenance dry-run', () => {
       expect(new Headers(init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
 
       if (url.includes('/servicePrincipals?')) {
-        return json({ value: [{
-          id: MAINTENANCE_SP_ID,
-          appId: MAINTENANCE_CLIENT_ID,
-          displayName: 'Ecossistema Maintenance - GitHub OIDC',
-          accountEnabled: true,
-          servicePrincipalType: 'Application',
-        }] });
+        return json({
+          value: [
+            {
+              id: MAINTENANCE_SP_ID,
+              appId: MAINTENANCE_CLIENT_ID,
+              displayName: 'Ecossistema Maintenance - GitHub OIDC',
+              accountEnabled: true,
+              servicePrincipalType: 'Application',
+            },
+          ],
+        });
       }
       if (url.includes(`/servicePrincipals/${MAINTENANCE_SP_ID}/appRoleAssignments`)) {
-        return json({ value: [{
-          id: crypto.randomUUID(),
-          appRoleId: OWNED_BY,
-          resourceId: crypto.randomUUID(),
-        }] });
+        return json({
+          value: [
+            {
+              id: crypto.randomUUID(),
+              appRoleId: OWNED_BY,
+              resourceId: crypto.randomUUID(),
+            },
+          ],
+        });
       }
       if (url.includes(`/servicePrincipals/${MAINTENANCE_SP_ID}/ownedObjects`)) {
         return json({ value: [WEB_OBJECT_ID, GRAPH_OBJECT_ID].map((id) => ({ id })) });
       }
       if (url.includes(`/applications/${WEB_OBJECT_ID}`)) {
-        return json(target(
-          WEB_OBJECT_ID,
-          '78185e20-c824-4acc-9ccd-41b9f7509a6f',
-          'Ecossistema Escolar - Web',
-          false,
-        ));
+        return json(
+          target(
+            WEB_OBJECT_ID,
+            '78185e20-c824-4acc-9ccd-41b9f7509a6f',
+            'Ecossistema Escolar - Web',
+            false,
+          ),
+        );
       }
       if (url.includes(`/applications/${GRAPH_OBJECT_ID}`)) {
-        return json(target(
-          GRAPH_OBJECT_ID,
-          '7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c',
-          'Ecossistema Escolar - Graph Backend',
-        ));
+        return json(
+          target(
+            GRAPH_OBJECT_ID,
+            '7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c',
+            'Ecossistema Escolar - Graph Backend',
+          ),
+        );
       }
       throw new Error(`Unexpected URL: ${url}`);
     });
@@ -186,17 +201,23 @@ describe('Entra Maintenance dry-run', () => {
     const fetcher = fetcherFor({
       assignments: [
         { id: crypto.randomUUID(), appRoleId: OWNED_BY, resourceId: crypto.randomUUID() },
-        { id: crypto.randomUUID(), appRoleId: crypto.randomUUID(), resourceId: crypto.randomUUID() },
+        {
+          id: crypto.randomUUID(),
+          appRoleId: crypto.randomUUID(),
+          resourceId: crypto.randomUUID(),
+        },
       ],
     });
 
-    await expect(buildMaintenancePlan({
-      accessToken: TOKEN,
-      maintenanceClientId: MAINTENANCE_CLIENT_ID,
-      webApplicationObjectId: WEB_OBJECT_ID,
-      graphApplicationObjectId: GRAPH_OBJECT_ID,
-      fetcher,
-    })).rejects.toMatchObject({
+    await expect(
+      buildMaintenancePlan({
+        accessToken: TOKEN,
+        maintenanceClientId: MAINTENANCE_CLIENT_ID,
+        webApplicationObjectId: WEB_OBJECT_ID,
+        graphApplicationObjectId: GRAPH_OBJECT_ID,
+        fetcher,
+      }),
+    ).rejects.toMatchObject({
       stage: 'maintenance-permission-drift',
     });
   });
@@ -206,13 +227,15 @@ describe('Entra Maintenance dry-run', () => {
       ownedIds: [WEB_OBJECT_ID, GRAPH_OBJECT_ID, '55555555-5555-4555-8555-555555555555'],
     });
 
-    await expect(buildMaintenancePlan({
-      accessToken: TOKEN,
-      maintenanceClientId: MAINTENANCE_CLIENT_ID,
-      webApplicationObjectId: WEB_OBJECT_ID,
-      graphApplicationObjectId: GRAPH_OBJECT_ID,
-      fetcher,
-    })).rejects.toMatchObject({
+    await expect(
+      buildMaintenancePlan({
+        accessToken: TOKEN,
+        maintenanceClientId: MAINTENANCE_CLIENT_ID,
+        webApplicationObjectId: WEB_OBJECT_ID,
+        graphApplicationObjectId: GRAPH_OBJECT_ID,
+        fetcher,
+      }),
+    ).rejects.toMatchObject({
       stage: 'maintenance-ownership-mismatch',
     });
   });
@@ -220,20 +243,22 @@ describe('Entra Maintenance dry-run', () => {
   it('fails closed if one required target is not owned', async () => {
     const fetcher = fetcherFor({ ownedIds: [WEB_OBJECT_ID] });
 
-    await expect(buildMaintenancePlan({
-      accessToken: TOKEN,
-      maintenanceClientId: MAINTENANCE_CLIENT_ID,
-      webApplicationObjectId: WEB_OBJECT_ID,
-      graphApplicationObjectId: GRAPH_OBJECT_ID,
-      fetcher,
-    })).rejects.toMatchObject({
+    await expect(
+      buildMaintenancePlan({
+        accessToken: TOKEN,
+        maintenanceClientId: MAINTENANCE_CLIENT_ID,
+        webApplicationObjectId: WEB_OBJECT_ID,
+        graphApplicationObjectId: GRAPH_OBJECT_ID,
+        fetcher,
+      }),
+    ).rejects.toMatchObject({
       stage: 'maintenance-ownership-mismatch',
     });
   });
 
   it('never includes provider response bodies in errors', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () =>
-      new Response('provider-secret-MUST-NOT-LEAK', { status: 403 }),
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response('provider-secret-MUST-NOT-LEAK', { status: 403 }),
     );
 
     try {

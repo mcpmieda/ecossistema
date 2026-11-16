@@ -41,9 +41,7 @@ async function sessionVersionV2(
   query: AdminReadQueryV2,
   accountVersion: unknown,
 ) {
-  return query.scope.kind === 'account'
-    ? Number(accountVersion)
-    : accountsScopeVersionV1(tx);
+  return query.scope.kind === 'account' ? Number(accountVersion) : accountsScopeVersionV1(tx);
 }
 
 async function readSessionWindowV2(

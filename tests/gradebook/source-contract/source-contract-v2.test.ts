@@ -2,7 +2,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { type SourceCellProvenanceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
-import { SOURCE_CONTRACT_V2, SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2, SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2, classifySourceAssessmentMaximumConfigurationV2 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
+import {
+  SOURCE_CONTRACT_V2,
+  SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
+  SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
+  classifySourceAssessmentMaximumConfigurationV2,
+} from '../../../shared/gradebook-contracts/source/source-contract-v2';
 
 function provenance(cellAddress: string): SourceCellProvenanceV1 {
   return {

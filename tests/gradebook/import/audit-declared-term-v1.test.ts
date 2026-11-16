@@ -4,7 +4,12 @@ import { declaredTermV1 } from '../../../src/features/gradebook/import/audit-rul
 
 /** The former reading, kept here only as the oracle: same answers, now without backtracking. */
 function formerDeclaredTerm(value: string): number | null {
-  const text = value.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase().replace(/\s+/gu, ' ').trim();
+  const text = value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/gu, '')
+    .toUpperCase()
+    .replace(/\s+/gu, ' ')
+    .trim();
   // The old expression on purpose (short inputs only): it is what the new reader must match.
   const match = /\b(III|II|I|[123])\s*(?:º|°|O)?\s*TRIM/u.exec(text); // NOSONAR
   if (!match) return null;
@@ -22,7 +27,27 @@ describe('the term named in K4', () => {
   });
 
   it('answers exactly as the former expression, for many generated headers', () => {
-    const alphabet = ['I', 'I', 'I', '1', '2', '3', '4', ' ', ' ', 'º', '°', 'O', 'TRIM', 'TRIMESTRE', 'A', '_', 'X', '\t', 'ESTRE'];
+    const alphabet = [
+      'I',
+      'I',
+      'I',
+      '1',
+      '2',
+      '3',
+      '4',
+      ' ',
+      ' ',
+      'º',
+      '°',
+      'O',
+      'TRIM',
+      'TRIMESTRE',
+      'A',
+      '_',
+      'X',
+      '\t',
+      'ESTRE',
+    ];
     let seed = 20261114;
     const random = () => {
       seed = (seed * 1103515245 + 12345) % 2147483648;
@@ -30,7 +55,10 @@ describe('the term named in K4', () => {
     };
     for (let round = 0; round < 20000; round += 1) {
       const length = 1 + Math.floor(random() * 9);
-      const text = Array.from({ length }, () => alphabet[Math.floor(random() * alphabet.length)]!).join('');
+      const text = Array.from(
+        { length },
+        () => alphabet[Math.floor(random() * alphabet.length)]!,
+      ).join('');
       expect(declaredTermV1(text), JSON.stringify(text)).toBe(formerDeclaredTerm(text));
     }
   });

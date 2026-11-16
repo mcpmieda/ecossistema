@@ -78,7 +78,9 @@ it('ficha: vínculo e regra no resumo, sem aba Nascimento', async () => {
 
 it('textos curtos da ficha', () => {
   expect(lastAuthenticationLabelV1(null)).toBe('Nenhum em 12 meses');
-  expect(birthStateLabelV1({ year: null, confirmation: null } as never)).toBe('Aguardando Relatório');
+  expect(birthStateLabelV1({ year: null, confirmation: null } as never)).toBe(
+    'Aguardando Relatório',
+  );
   expect(birthStateLabelV1({ year: 2013, confirmation: 'confirmed' } as never)).toBe('Confirmado');
   expect(accountLinkLabelV1({ linkClosed: true } as never)).toBe('Encerrado no Portal');
 });
@@ -92,7 +94,11 @@ it('ficha sem aba de QR abre na primeira aba que existe', async () => {
 it('"Mudar QR" fica na aba QR code e abre a mesma confirmação da ficha', async () => {
   await openRecord({
     credentials: (context) => (
-      <button type="button" disabled={context.regenerateQr.disabled} onClick={context.regenerateQr.open}>
+      <button
+        type="button"
+        disabled={context.regenerateQr.disabled}
+        onClick={context.regenerateQr.open}
+      >
         Mudar QR
       </button>
     ),

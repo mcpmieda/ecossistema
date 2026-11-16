@@ -1,4 +1,7 @@
-import type { FrequencyReportScheduleV2, FrequencyScheduleV2 } from '../../shared/attendance-contracts/frequency-v2';
+import type {
+  FrequencyReportScheduleV2,
+  FrequencyScheduleV2,
+} from '../../shared/attendance-contracts/frequency-v2';
 
 /**
  * Away from the agenda the Coletor asks only every 9 minutes; within 10 minutes before a collection
@@ -21,7 +24,16 @@ const OFFSET_FORMAT_V2 = new Map<string, Intl.DateTimeFormat>();
 function offsetFormat(zone: string): Intl.DateTimeFormat {
   let format = OFFSET_FORMAT_V2.get(zone);
   if (!format) {
-    format = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+    format = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+    });
     OFFSET_FORMAT_V2.set(zone, format);
   }
   return format;
@@ -30,18 +42,37 @@ function offsetFormat(zone: string): Intl.DateTimeFormat {
 /** The zone's offset from UTC at an instant, in ms. */
 function offsetMs(zone: string, at: number): number {
   const parts = Object.fromEntries(
-    offsetFormat(zone).formatToParts(at).map((p) => [p.type, p.value]),
+    offsetFormat(zone)
+      .formatToParts(at)
+      .map((p) => [p.type, p.value]),
   );
-  return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second)) - Math.floor(at / 1000) * 1000;
+  return (
+    Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    ) -
+    Math.floor(at / 1000) * 1000
+  );
 }
 
-function agendaDays(schedule: FrequencyScheduleV2 | null, report: FrequencyReportScheduleV2 | null | undefined) {
+function agendaDays(
+  schedule: FrequencyScheduleV2 | null,
+  report: FrequencyReportScheduleV2 | null | undefined,
+) {
   const out: { zone: string; days: Map<number, string[]> }[] = [];
   if (schedule) {
     const days = new Map<number, string[]>();
     for (const r of schedule.rules) {
       if (!r.enabled) continue;
-      days.set(r.weekday, [...(days.get(r.weekday) ?? []), ...r.times, ...(r.recheck ? [r.recheck] : [])]);
+      days.set(r.weekday, [
+        ...(days.get(r.weekday) ?? []),
+        ...r.times,
+        ...(r.recheck ? [r.recheck] : []),
+      ]);
     }
     out.push({ zone: schedule.timezone, days });
   }
@@ -49,7 +80,9 @@ function agendaDays(schedule: FrequencyScheduleV2 | null, report: FrequencyRepor
     const minute = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
     const times: string[] = [];
     for (let m = minute(report.from); m <= minute(report.to); m += report.every)
-      times.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+      times.push(
+        `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`,
+      );
     out.push({ zone: report.timezone, days: new Map(report.weekdays.map((d) => [d, times])) });
   }
   return out;

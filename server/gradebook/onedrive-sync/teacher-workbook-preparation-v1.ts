@@ -32,7 +32,11 @@ export type TeacherWorkbookPreparationV1 =
       readonly audit: GradebookImportDiagnosticsAuditRequestV1;
       readonly summary: PreparationSummaryV1;
     }
-  | { readonly outcome: 'unreadable'; readonly code: string; readonly summary: PreparationSummaryV1 };
+  | {
+      readonly outcome: 'unreadable';
+      readonly code: string;
+      readonly summary: PreparationSummaryV1;
+    };
 
 export type PreparationSummaryV1 = {
   readonly bytes: number;
@@ -53,12 +57,23 @@ export async function prepareTeacherWorkbookV1(input: {
   const now = input.now ?? (() => performance.now());
   const started = now();
   const file = new File([input.bytes], input.fileName, { lastModified: input.lastModified });
-  const batch = await importWorkbookBatch([file], createFastTeacherSheetJsV1(input.xlsx), () => {}, {
-    captureValues: true,
-    yieldBeforeRecognition: async () => {},
-  });
+  const batch = await importWorkbookBatch(
+    [file],
+    createFastTeacherSheetJsV1(input.xlsx),
+    () => {},
+    {
+      captureValues: true,
+      yieldBeforeRecognition: async () => {},
+    },
+  );
   const readMs = now() - started;
-  const base = { bytes: input.bytes.byteLength, readMs, diagnostics: 0, blocking: 0, requestBytes: 0 };
+  const base = {
+    bytes: input.bytes.byteLength,
+    readMs,
+    diagnostics: 0,
+    blocking: 0,
+    requestBytes: 0,
+  };
   const success = batch.successes[0];
   if (!success) {
     const code = batch.failureDetails[0]?.diagnostic.code ?? 'WORKBOOK-RECOGNITION-FAILED';
@@ -73,12 +88,20 @@ export async function prepareTeacherWorkbookV1(input: {
     request = createGradebookCanonicalImportRequestV9(success);
   } catch {
     // Same rule as the browser: nothing that the builder refuses is ever persisted.
-    const summary = { ...base, diagnostics: diagnostics.length, blocking, prepareMs: now() - started };
+    const summary = {
+      ...base,
+      diagnostics: diagnostics.length,
+      blocking,
+      prepareMs: now() - started,
+    };
     if (blocking > 0) return { outcome: 'blocked', audit, summary };
     return { outcome: 'unreadable', code: 'CANONICAL-REJECTED', summary };
   }
-  const studentNames = new Map(gradebookSheetStudentNamesV1(success)
-    .map(([classCode, number, name]) => [studentKeyV1(classCode, number), name] as const));
+  const studentNames = new Map(
+    gradebookSheetStudentNamesV1(success).map(
+      ([classCode, number, name]) => [studentKeyV1(classCode, number), name] as const,
+    ),
+  );
   return {
     outcome: 'ready',
     request,

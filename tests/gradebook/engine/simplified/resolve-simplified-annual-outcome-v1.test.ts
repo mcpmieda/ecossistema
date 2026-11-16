@@ -20,7 +20,12 @@ function component(
       2: { term: 2, applicable: false, source: null, replacementMilli: 0 },
       3: { term: 3, applicable: false, source: null, replacementMilli: 0 },
     },
-    postRecoveryTotalMilli: classification === 'recovery-pending' || classification === 'failed-no-show' || classification === 'failed-repeat' ? null : 0,
+    postRecoveryTotalMilli:
+      classification === 'recovery-pending' ||
+      classification === 'failed-no-show' ||
+      classification === 'failed-repeat'
+        ? null
+        : 0,
     classification,
     warnings: [],
   };
@@ -48,31 +53,42 @@ describe('simplified annual outcome v1', () => {
   });
 
   it('keeps regular students in progress until component facts are ready', () => {
-    expect(resolve({ components: [] })).toMatchObject({ state: 'in-progress', visibleResult: 'EM CURSO' });
-    expect(resolve({ components: [component('approved-direct'), component('in-progress')] })).toMatchObject({
+    expect(resolve({ components: [] })).toMatchObject({
+      state: 'in-progress',
+      visibleResult: 'EM CURSO',
+    });
+    expect(
+      resolve({ components: [component('approved-direct'), component('in-progress')] }),
+    ).toMatchObject({
       state: 'in-progress',
       visibleResult: 'EM CURSO',
     });
   });
 
   it('returns EM RECUPERAÇÃO while any component still awaits final recovery', () => {
-    expect(resolve({ components: [component('approved-direct'), component('recovery-pending')] })).toMatchObject({
+    expect(
+      resolve({ components: [component('approved-direct'), component('recovery-pending')] }),
+    ).toMatchObject({
       state: 'recovery',
       visibleResult: 'EM RECUPERAÇÃO',
     });
   });
 
   it('distinguishes direct approval from approval after recovery', () => {
-    expect(resolve({ components: [component('approved-direct'), component('approved-direct')] }).visibleResult).toBe(
-      'APROVADO DIRETO',
-    );
     expect(
-      resolve({ components: [component('approved-direct'), component('approved-after-recovery')] }).visibleResult,
+      resolve({ components: [component('approved-direct'), component('approved-direct')] })
+        .visibleResult,
+    ).toBe('APROVADO DIRETO');
+    expect(
+      resolve({ components: [component('approved-direct'), component('approved-after-recovery')] })
+        .visibleResult,
     ).toBe('APROVADO PELA RECUPERAÇÃO');
   });
 
   it('makes a required REC N/C final and ineligible for Council', () => {
-    expect(resolve({ components: [component('failed-no-show'), component('approved-direct')] })).toMatchObject({
+    expect(
+      resolve({ components: [component('failed-no-show'), component('approved-direct')] }),
+    ).toMatchObject({
       state: 'final',
       visibleResult: 'REPROVADO POR NÃO COMPARECIMENTO',
       councilEligibility: 'not-eligible',
@@ -80,7 +96,9 @@ describe('simplified annual outcome v1', () => {
   });
 
   it('makes any R/R component REPROVADO and ineligible even while another recovery is pending', () => {
-    expect(resolve({ components: [component('recovery-pending'), component('failed-repeat')] })).toMatchObject({
+    expect(
+      resolve({ components: [component('recovery-pending'), component('failed-repeat')] }),
+    ).toMatchObject({
       state: 'final',
       visibleResult: 'REPROVADO',
       councilEligibility: 'not-eligible',
@@ -91,7 +109,11 @@ describe('simplified annual outcome v1', () => {
   it('enforces the configured failed-component Council limit', () => {
     expect(
       resolve({
-        components: [component('not-approved'), component('not-approved'), component('not-approved')],
+        components: [
+          component('not-approved'),
+          component('not-approved'),
+          component('not-approved'),
+        ],
         maxCouncilComponents: 2,
       }),
     ).toMatchObject({
@@ -113,23 +135,40 @@ describe('simplified annual outcome v1', () => {
   });
 
   it('treats ESTAVA_NO as a current regular binding and rejects historical FOI_PARA', () => {
-    expect(resolve({ status: 7, components: [component('approved-direct')] }).visibleResult).toBe('APROVADO DIRETO');
-    expect(() => resolve({ status: 6, components: [component('approved-direct')] })).toThrow(/FOI_PARA/u);
+    expect(resolve({ status: 7, components: [component('approved-direct')] }).visibleResult).toBe(
+      'APROVADO DIRETO',
+    );
+    expect(() => resolve({ status: 6, components: [component('approved-direct')] })).toThrow(
+      /FOI_PARA/u,
+    );
   });
 
   it('keeps a Council decision only while the student is still sent to the Council', () => {
     const decided = 2; // REPROVADO PELO CONSELHO, recorded earlier
-    const eligible = resolve({ components: [component('not-approved'), component('approved-direct')] });
+    const eligible = resolve({
+      components: [component('not-approved'), component('approved-direct')],
+    });
     expect(eligible.councilEligibility).toBe('eligible');
     expect(effectiveCouncilDecisionV1(eligible, decided)).toBe(2);
     // A corrected grade approves the student: the old decision no longer applies.
-    const approved = resolve({ components: [component('approved-after-recovery'), component('approved-direct')] });
+    const approved = resolve({
+      components: [component('approved-after-recovery'), component('approved-direct')],
+    });
     expect(effectiveCouncilDecisionV1(approved, decided)).toBeNull();
     // Failing more components than the limit, R/R and terminal statuses also leave it out.
-    const aboveLimit = resolve({ components: [component('not-approved'), component('not-approved'), component('not-approved')] });
+    const aboveLimit = resolve({
+      components: [component('not-approved'), component('not-approved'), component('not-approved')],
+    });
     expect(effectiveCouncilDecisionV1(aboveLimit, 1)).toBeNull();
-    expect(effectiveCouncilDecisionV1(resolve({ components: [component('failed-repeat')] }), 1)).toBeNull();
-    expect(effectiveCouncilDecisionV1(resolve({ status: 4, components: [component('not-approved')] }), 1)).toBeNull();
+    expect(
+      effectiveCouncilDecisionV1(resolve({ components: [component('failed-repeat')] }), 1),
+    ).toBeNull();
+    expect(
+      effectiveCouncilDecisionV1(
+        resolve({ status: 4, components: [component('not-approved')] }),
+        1,
+      ),
+    ).toBeNull();
     expect(effectiveCouncilDecisionV1(null, 1)).toBeNull();
   });
 });

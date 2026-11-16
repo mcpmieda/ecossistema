@@ -15,26 +15,41 @@ function request(body: unknown): Request {
   });
 }
 
-
 function handler() {
-  return createPerformanceRequestHandlerV1({ async authorizeRequest() {
-    return { runtimeAuthorization: {} as never, capabilities: ['platform.settings.read'] };
-  } });
+  return createPerformanceRequestHandlerV1({
+    async authorizeRequest() {
+      return { runtimeAuthorization: {} as never, capabilities: ['platform.settings.read'] };
+    },
+  });
 }
 async function json(response: Response): Promise<Record<string, unknown>> {
-  return await response.json() as Record<string, unknown>;
+  return (await response.json()) as Record<string, unknown>;
 }
 describe('Performance HTTP V1 retirement', () => {
-  it.each([AuthenticationError, AuthorizationError])('preserves %s before storage access', async (ErrorType) => {
-    const access = vi.fn(() => { throw new Error('retired-storage-access'); });
-    const guarded = Object.defineProperty({ ...env }, 'GRADEBOOK_DATABASE', { get: access });
-    const route = createPerformanceRequestHandlerV1({ async authorizeRequest() { throw new ErrorType(); } });
-    const response = await route(request({ transportVersion: 1, operation: 'matrix' }), guarded);
-    expect(response?.status).toBe(new ErrorType().status);
-    expect(response?.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate, private');
-    await expect(response?.json()).resolves.toEqual({ transportVersion: 1, state: 'not-authorized' });
-    expect(access).not.toHaveBeenCalled();
-  });
+  it.each([AuthenticationError, AuthorizationError])(
+    'preserves %s before storage access',
+    async (ErrorType) => {
+      const access = vi.fn(() => {
+        throw new Error('retired-storage-access');
+      });
+      const guarded = Object.defineProperty({ ...env }, 'GRADEBOOK_DATABASE', { get: access });
+      const route = createPerformanceRequestHandlerV1({
+        async authorizeRequest() {
+          throw new ErrorType();
+        },
+      });
+      const response = await route(request({ transportVersion: 1, operation: 'matrix' }), guarded);
+      expect(response?.status).toBe(new ErrorType().status);
+      expect(response?.headers.get('Cache-Control')).toBe(
+        'no-store, no-cache, must-revalidate, private',
+      );
+      await expect(response?.json()).resolves.toEqual({
+        transportVersion: 1,
+        state: 'not-authorized',
+      });
+      expect(access).not.toHaveBeenCalled();
+    },
+  );
   it('mantém dispatch explícito e gate fail-closed para transportes V2 a V6', async () => {
     const route = handler();
     const validCurrentRequests = [
@@ -102,14 +117,24 @@ describe('Performance HTTP V1 retirement', () => {
     }
   });
 
-
   it('retires every old version without reading it or touching storage', async () => {
-    const access = vi.fn(() => { throw new Error('retired-storage-access'); });
-    const guarded = Object.defineProperties({ ...env }, {
-      GRADEBOOK_D1: { get: access }, GRADEBOOK_DATABASE: { get: access }, PROD_DB: { get: access },
+    const access = vi.fn(() => {
+      throw new Error('retired-storage-access');
     });
+    const guarded = Object.defineProperties(
+      { ...env },
+      {
+        GRADEBOOK_D1: { get: access },
+        GRADEBOOK_DATABASE: { get: access },
+        PROD_DB: { get: access },
+      },
+    );
     const route = handler();
-    for (const body of [{ transportVersion: 1, operation: 'matrix' }, { transportVersion: 1, operation: 'cell-detail', detailRef: 'x' }, { bad: true }]) {
+    for (const body of [
+      { transportVersion: 1, operation: 'matrix' },
+      { transportVersion: 1, operation: 'cell-detail', detailRef: 'x' },
+      { bad: true },
+    ]) {
       const response = await route(request(body), guarded);
       expect(response?.status).toBe(410);
       expect(response?.headers.get('Cache-Control')).toContain('no-store');

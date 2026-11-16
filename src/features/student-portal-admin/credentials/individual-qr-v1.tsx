@@ -325,32 +325,32 @@ export function IndividualQrV1(
               <h4>QR puro</h4>
               {/* Every QR button in one row; "Imprimir QR" is the reprint of the current QR. */}
               <div className="pa-individual-qr-actions">
-                  <Button onPress={() => operation.download(qrFilenameV1(account?.name, 'png'))}>
-                    Baixar QR
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onPress={() => void operation.copy()}
-                    isDisabled={state.state === 'ready' && state.copy === 'pending'}
-                  >
-                    Copiar QR
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onPress={() => {
-                      setNotice('');
-                      void printer.print(imageUrl).then((ok) => {
-                        if (!ok)
-                          setNotice(
-                            'Não foi possível imprimir o QR. Baixe a imagem para imprimir pelo navegador.',
-                          );
-                      });
-                    }}
-                  >
-                    Imprimir QR
-                  </Button>
-                  {regenerateButton}
-                </div>
+                <Button onPress={() => operation.download(qrFilenameV1(account?.name, 'png'))}>
+                  Baixar QR
+                </Button>
+                <Button
+                  variant="secondary"
+                  onPress={() => void operation.copy()}
+                  isDisabled={state.state === 'ready' && state.copy === 'pending'}
+                >
+                  Copiar QR
+                </Button>
+                <Button
+                  variant="secondary"
+                  onPress={() => {
+                    setNotice('');
+                    void printer.print(imageUrl).then((ok) => {
+                      if (!ok)
+                        setNotice(
+                          'Não foi possível imprimir o QR. Baixe a imagem para imprimir pelo navegador.',
+                        );
+                    });
+                  }}
+                >
+                  Imprimir QR
+                </Button>
+                {regenerateButton}
+              </div>
               <img src={imageUrl} alt="QR atual de acesso" width={224} height={224} />
             </div>
             <div className="pa-individual-qr-variant">

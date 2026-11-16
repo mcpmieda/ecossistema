@@ -5,15 +5,9 @@ import {
   performanceCellV2,
   type PerformanceProjectionV2,
 } from '../../../server/gradebook/application/results/relational-performance-facts-v2';
-import {
-  buildPerformanceAnalysisV3,
-} from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
-import {
-  buildPerformanceDashboardOverviewV5,
-} from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
-import {
-  buildPerformanceTermComparisonV4,
-} from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
+import { buildPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
+import { buildPerformanceDashboardOverviewV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
+import { buildPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
 import {
   performanceAnalysisRequestSchemaV3,
   type AnalysisReadingV3,
@@ -37,10 +31,7 @@ import { isParticipationLabelV1 } from '../../../shared/gradebook-contracts/perf
 import { SIMPLIFIED_TERM_MAXIMUM_MILLI_V1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 
 const TERMS = [1, 2, 3] as const;
-const ANNUAL_MAXIMUM = TERMS.reduce(
-  (sum, term) => sum + SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term],
-  0,
-);
+const ANNUAL_MAXIMUM = TERMS.reduce((sum, term) => sum + SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term], 0);
 const numeric = (values: readonly (number | null)[]) =>
   values.filter((value): value is number => value !== null);
 const mean = (values: readonly number[]) =>
@@ -60,15 +51,9 @@ function stats(values: readonly number[]): PerformanceAnalyticsStatsV6 {
   return {
     n: sorted.length,
     mean: average,
-    median:
-      sorted.length % 2
-        ? sorted[mid]!
-        : (sorted[mid - 1]! + sorted[mid]!) / 2,
+    median: sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2,
     deviation: Math.sqrt(
-      sorted.reduce(
-        (sum, value) => sum + (value - average) ** 2 / sorted.length,
-        0,
-      ),
+      sorted.reduce((sum, value) => sum + (value - average) ** 2 / sorted.length, 0),
     ),
     min: sorted[0]!,
     max: sorted[sorted.length - 1]!,
@@ -143,13 +128,11 @@ function oracleDimension(
     ? null
     : (maxima as number[]).reduce((sum, value) => sum + value, 0) || null;
   const valueMilli = outcomes.reduce(
-        (sum, outcome) =>
-          sum +
-          (quantitative
-            ? outcome!.quantitativeConsideredMilli
-            : outcome!.qualitativeOperationalMilli),
-        0,
-      );
+    (sum, outcome) =>
+      sum +
+      (quantitative ? outcome!.quantitativeConsideredMilli : outcome!.qualitativeOperationalMilli),
+    0,
+  );
   return {
     valueMilli,
     maximumMilli,
@@ -176,10 +159,7 @@ function oraclePairs(
 ): OraclePair[] {
   return matrix.rows.flatMap((row) => {
     const byOffer = new Map(
-      (projections.get(row.student.id) ?? []).map((projection) => [
-        projection.offerId,
-        projection,
-      ]),
+      (projections.get(row.student.id) ?? []).map((projection) => [projection.offerId, projection]),
     );
     return row.cells.map((result) => {
       const projection = byOffer.get(result.offerId);
@@ -203,8 +183,7 @@ function oraclePairs(
           const cell = performanceCellV2(projection, term, 'regular');
           return counts(cell.state) ? ratio(cell.valueMilli, cell.maximumMilli) : null;
         }),
-        direction:
-          comparison === null ? null : comparison > 0n ? 1 : comparison < 0n ? -1 : 0,
+        direction: comparison === null ? null : comparison > 0n ? 1 : comparison < 0n ? -1 : 0,
         deltaPP:
           comparison === null
             ? null
@@ -229,10 +208,7 @@ function oracleSummary(
   const studentsAtOrAbove = [...byStudent.values()].filter(
     (items) =>
       items.length > 0 &&
-      items.every(
-        (pair) =>
-          counts(pair.result.state) && pair.result.level === 'at-or-above',
-      ),
+      items.every((pair) => counts(pair.result.state) && pair.result.level === 'at-or-above'),
   ).length;
   const facts = pairs.flatMap((pair) =>
     pair.projection.facts.filter(
@@ -245,14 +221,8 @@ function oracleSummary(
   const paired = pairs.filter(
     (pair) => pair.quantitative.percent !== null && pair.qualitative.percent !== null,
   );
-  const quantitativePoints = paired.reduce(
-    (sum, pair) => sum + pair.quantitative.valueMilli!,
-    0,
-  );
-  const qualitativePoints = paired.reduce(
-    (sum, pair) => sum + pair.qualitative.valueMilli!,
-    0,
-  );
+  const quantitativePoints = paired.reduce((sum, pair) => sum + pair.quantitative.valueMilli!, 0);
+  const qualitativePoints = paired.reduce((sum, pair) => sum + pair.qualitative.valueMilli!, 0);
   const recovery = {
     applicable: 0,
     recorded: 0,
@@ -288,30 +258,23 @@ function oracleSummary(
       }
       const outcome = pair.projection.terms[term - 1];
       if (outcome?.parallelApplicable === true) parallelApplicable++;
-      if (
-        outcome &&
-        outcome.quantitativeConsideredMilli > outcome.quantitativeOriginalMilli
-      ) {
+      if (outcome && outcome.quantitativeConsideredMilli > outcome.quantitativeOriginalMilli) {
         parallelApplied++;
-        parallelGains.push(
-          outcome.quantitativeConsideredMilli - outcome.quantitativeOriginalMilli,
-        );
+        parallelGains.push(outcome.quantitativeConsideredMilli - outcome.quantitativeOriginalMilli);
       }
     }
   }
   recovery.meanGainMilli = mean(recoveryGains);
-  const percentages = complete.map((pair) => ratio(pair.result.valueMilli, pair.result.maximumMilli)!);
+  const percentages = complete.map((pair) =>
+    ratio(pair.result.valueMilli, pair.result.maximumMilli)!,
+  );
   const distribution = ['0–<20%', '20–<40%', '40–<60%', '60–<80%', '80–100%', '>100%'].map(
     (label) => ({ label, count: 0 }),
   );
   for (const percentage of percentages)
-    distribution[
-      percentage > 100 ? 5 : Math.min(4, Math.floor(percentage / 20))
-    ]!.count++;
+    distribution[percentage > 100 ? 5 : Math.min(4, Math.floor(percentage / 20))]!.count++;
   const changes = pairs.filter((pair) => pair.direction !== null);
-  const comparableSource = pairs.filter(
-    (pair) => pair.result.sourceComparison !== 'unavailable',
-  );
+  const comparableSource = pairs.filter((pair) => pair.result.sourceComparison !== 'unavailable');
   return {
     students: studentIds.length,
     readings: pairs.length,
@@ -329,20 +292,12 @@ function oracleSummary(
     qualitative: stats(numeric(pairs.map((pair) => pair.qualitative.percent))),
     dimensionGap: {
       n: paired.length,
-      meanPP: mean(
-        paired.map((pair) => pair.qualitative.percent! - pair.quantitative.percent!),
-      ),
+      meanPP: mean(paired.map((pair) => pair.qualitative.percent! - pair.quantitative.percent!)),
     },
     composition: {
       n: paired.length,
-      quantitativeShare: ratio(
-        quantitativePoints,
-        quantitativePoints + qualitativePoints,
-      ),
-      qualitativeShare: ratio(
-        qualitativePoints,
-        quantitativePoints + qualitativePoints,
-      ),
+      quantitativeShare: ratio(quantitativePoints, quantitativePoints + qualitativePoints),
+      qualitativeShare: ratio(qualitativePoints, quantitativePoints + qualitativePoints),
     },
     coverage: {
       expected: facts.length,
@@ -375,9 +330,8 @@ function oracleSummary(
     source: {
       recorded: pairs.filter((pair) => pair.result.sourceReferenceMilli !== null).length,
       comparable: comparableSource.length,
-      different: comparableSource.filter(
-        (pair) => pair.result.sourceComparison === 'mismatch',
-      ).length,
+      different: comparableSource.filter((pair) => pair.result.sourceComparison === 'mismatch')
+        .length,
     },
   };
 }
@@ -443,7 +397,6 @@ function expectSummary(
   expect(actual.source).toEqual(expected.source);
 }
 
-
 type OracleInstrument = PerformanceAnalyticsV6['components'][number]['instruments'][number];
 
 function oracleInstruments(
@@ -468,13 +421,11 @@ function oracleInstruments(
       const first = entries[0]!.fact;
       const effectiveMaximum =
         first.slot === 3
-          ? (entries[0]!.pair.projection.terms[first.term - 1]
-              ?.quantitativeMaximumMilli ?? null)
+          ? (entries[0]!.pair.projection.terms[first.term - 1]?.quantitativeMaximumMilli ?? null)
           : first.maximumMilli;
       const applicable = entries.filter(
         ({ pair, fact }) =>
-          fact.slot !== 3 ||
-          pair.projection.terms[fact.term - 1]?.parallelApplicable === true,
+          fact.slot !== 3 || pair.projection.terms[fact.term - 1]?.parallelApplicable === true,
       );
       const recorded = applicable.filter(({ fact }) => fact.valueMilli !== null);
       const percentages = numeric(
@@ -507,27 +458,16 @@ function oracleInstruments(
         notApplicable: entries.length - applicable.length,
       };
     })
-    .filter(
-      (instrument) => instrument.slot !== 3 || instrument.coverage.expected > 0,
-    )
+    .filter((instrument) => instrument.slot !== 3 || instrument.coverage.expected > 0)
     .sort((left, right) => left.term - right.term || left.slot - right.slot);
 }
 
-function rawParticipation(
-  projection: PerformanceProjectionV2,
-  terms: readonly (1 | 2 | 3)[],
-) {
+function rawParticipation(projection: PerformanceProjectionV2, terms: readonly (1 | 2 | 3)[]) {
   const facts = projection.facts.filter(
-    (fact) =>
-      terms.includes(fact.term) &&
-      fact.slot >= 11 &&
-      isParticipationLabelV1(fact.label),
+    (fact) => terms.includes(fact.term) && fact.slot >= 11 && isParticipationLabelV1(fact.label),
   );
   const valid = facts.filter(
-    (fact) =>
-      fact.valueMilli !== null &&
-      fact.maximumMilli !== null &&
-      fact.maximumMilli > 0,
+    (fact) => fact.valueMilli !== null && fact.maximumMilli !== null && fact.maximumMilli > 0,
   );
   // BN-DEC-042: blank scaled instruments keep their maximum and add no points.
   const maximum = facts
@@ -539,9 +479,7 @@ function rawParticipation(
     complete: facts.length > 0 && facts.length === valid.length,
     recorded: valid.length,
     expected: facts.length,
-    unscaled: facts.filter(
-      (fact) => fact.maximumMilli === null || fact.maximumMilli <= 0,
-    ).length,
+    unscaled: facts.filter((fact) => fact.maximumMilli === null || fact.maximumMilli <= 0).length,
   };
 }
 
@@ -573,8 +511,7 @@ function proveLearningStudentFromFacts(
     if (current.percent !== null) currentParticipation.push(current.percent);
     if (reference !== null && current.percent !== null) {
       const previous = rawParticipation(projection, [reference]);
-      if (previous.percent !== null)
-        participationChanges.push(current.percent - previous.percent);
+      if (previous.percent !== null) participationChanges.push(current.percent - previous.percent);
     }
 
     const instrumentTerms: (1 | 2 | 3)[] = [];
@@ -593,36 +530,22 @@ function proveLearningStudentFromFacts(
         recurrenceAssessed = true;
         if (
           facts.filter(
-            (fact) =>
-              (fact.valueMilli! / fact.maximumMilli!) * 100 < value.minimumPercent,
+            (fact) => (fact.valueMilli! / fact.maximumMilli!) * 100 < value.minimumPercent,
           ).length >= 2
         )
           instrumentTerms.push(term);
       }
       if (term > 1) {
         const currentResult = performanceCellV2(projection, term, 'regular');
-        const previousResult = performanceCellV2(
-          projection,
-          (term - 1) as 1 | 2,
-          'regular',
-        );
-        if (
-          counts(currentResult.state) &&
-          counts(previousResult.state)
-        ) {
+        const previousResult = performanceCellV2(projection, (term - 1) as 1 | 2, 'regular');
+        if (counts(currentResult.state) && counts(previousResult.state)) {
           recurrenceAssessed = true;
-          if (
-            currentResult.level === 'below' &&
-            previousResult.level === 'below'
-          )
+          if (currentResult.level === 'below' && previousResult.level === 'below')
             consecutiveTerms.push(term);
         }
       }
       const outcome = projection.terms[term - 1];
-      if (
-        outcome &&
-        outcome.quantitativeConsideredMilli > outcome.quantitativeOriginalMilli
-      ) {
+      if (outcome && outcome.quantitativeConsideredMilli > outcome.quantitativeOriginalMilli) {
         parallelImprovements++;
         if (outcome.quantitativeMaximumMilli > 0)
           parallelGainsPP.push(
@@ -641,11 +564,7 @@ function proveLearningStudentFromFacts(
 
     const qDimension = oracleDimension(projection, value.period, true);
     const aDimension = oracleDimension(projection, value.period, false);
-    if (
-      qDimension.complete &&
-      aDimension.complete &&
-      aDimension.percent !== null
-    ) {
+    if (qDimension.complete && aDimension.complete && aDimension.percent !== null) {
       const outcomes = selectedTerms.map((term) => projection.terms[term - 1]);
       if (outcomes.every((outcome) => outcome !== null)) {
         const maximum = outcomes.reduce(
@@ -678,9 +597,7 @@ function proveLearningStudentFromFacts(
   expectMetric(actual.dimensions?.quantitativePercent ?? null, mean(quantitative));
   expectMetric(actual.dimensions?.qualitativePercent ?? null, mean(qualitative));
   const expectedGap =
-    quantitative.length && qualitative.length
-      ? mean(qualitative)! - mean(quantitative)!
-      : null;
+    quantitative.length && qualitative.length ? mean(qualitative)! - mean(quantitative)! : null;
   expectMetric(actual.dimensions?.gapPP ?? null, expectedGap);
   return {
     studentId,
@@ -720,9 +637,7 @@ function proofAllV6Scopes(
     expectSummary(student.summary, oracleSummary(matrix, own, [student.student.id]));
   }
   for (const component of value.components) {
-    const own = pairs.filter(
-      (pair) => pair.projection.offerId === component.offer.id,
-    );
+    const own = pairs.filter((pair) => pair.projection.offerId === component.offer.id);
     expectSummary(component.summary, oracleSummary(matrix, own, studentIds));
     const instruments = oracleInstruments(own, matrix.period);
     expect(component.instruments.map((item) => item.key)).toEqual(
@@ -773,22 +688,12 @@ function proofAllV6Scopes(
   const learning = value.learning!;
   expect(learning.students.map((item) => item.studentId)).toEqual(studentIds);
   const rawLearning = studentIds.map((studentId) =>
-    proveLearningStudentFromFacts(
-      value,
-      studentId,
-      projections.get(studentId) ?? [],
-    ),
+    proveLearningStudentFromFacts(value, studentId, projections.get(studentId) ?? []),
   );
-  const participationPercents = numeric(
-    rawLearning.map((item) => item.participation.percent),
-  );
-  const participationChanges = numeric(
-    rawLearning.map((item) => item.participation.deltaPP),
-  );
+  const participationPercents = numeric(rawLearning.map((item) => item.participation.percent));
+  const participationChanges = numeric(rawLearning.map((item) => item.participation.deltaPP));
   expect(learning.participation.students).toBe(participationPercents.length);
-  expect(learning.participation.comparedStudents).toBe(
-    participationChanges.length,
-  );
+  expect(learning.participation.comparedStudents).toBe(participationChanges.length);
   expect(learning.participation.recorded).toBe(
     rawLearning.reduce((sum, item) => sum + item.participation.recorded, 0),
   );
@@ -816,12 +721,8 @@ function proofAllV6Scopes(
   expect(learning.dimensions.components).toBe(
     rawLearning.reduce((sum, item) => sum + item.dimensions.components, 0),
   );
-  const qStudents = numeric(
-    rawLearning.map((item) => item.dimensions.quantitativePercent),
-  );
-  const aStudents = numeric(
-    rawLearning.map((item) => item.dimensions.qualitativePercent),
-  );
+  const qStudents = numeric(rawLearning.map((item) => item.dimensions.quantitativePercent));
+  const aStudents = numeric(rawLearning.map((item) => item.dimensions.qualitativePercent));
   const quantitativeMean = mean(qStudents);
   const qualitativeMean = mean(aStudents);
   expectMetric(learning.dimensions.quantitativePercent, quantitativeMean);
@@ -857,13 +758,19 @@ function proofAllV6Scopes(
     .map((instrument) => instrument.key);
   expect(learning.activitiesToReview).toEqual(expectedActivities);
 
-  expect(value.summary.complete + value.summary.partial + value.summary.missing + value.summary.unavailable)
-    .toBe(value.summary.readings);
+  expect(
+    value.summary.complete +
+      value.summary.partial +
+      value.summary.missing +
+      value.summary.unavailable,
+  ).toBe(value.summary.readings);
   expect(value.summary.above + value.summary.below).toBe(value.summary.complete);
-  expect(value.summary.studentsAtOrAbove + value.summary.studentsBelow + value.summary.studentsPending)
-    .toBe(value.summary.students);
-  expect(value.summary.distribution.reduce((sum, bin) => sum + bin.count, 0))
-    .toBe(value.summary.complete);
+  expect(
+    value.summary.studentsAtOrAbove + value.summary.studentsBelow + value.summary.studentsPending,
+  ).toBe(value.summary.students);
+  expect(value.summary.distribution.reduce((sum, bin) => sum + bin.count, 0)).toBe(
+    value.summary.complete,
+  );
 }
 
 function analysisRequest(
@@ -905,39 +812,26 @@ function oracleAnalysis(
 ): OracleAnalysis {
   const selectedProjections = matrix.rows.flatMap((row) =>
     (projections.get(row.student.id) ?? []).filter(
-      (projection) =>
-        request.offerId !== null && projection.offerId === request.offerId,
+      (projection) => request.offerId !== null && projection.offerId === request.offerId,
     ),
   );
   const source = selectedProjections[0];
   const parallelTerms = new Set(
     selectedProjections.flatMap((projection) =>
-      projection.terms.flatMap((term) =>
-        term?.parallelApplicable === true ? [term.term] : [],
-      ),
+      projection.terms.flatMap((term) => (term?.parallelApplicable === true ? [term.term] : [])),
     ),
   );
   const baseColumns =
     request.lens === 'assessments'
       ? (source?.facts ?? [])
-          .filter(
-            (fact) => request.period === 'annual' || fact.term === request.period,
-          )
+          .filter((fact) => request.period === 'annual' || fact.term === request.period)
           .filter((fact) => fact.slot !== 3 || parallelTerms.has(fact.term))
           .map((fact) => ({
-            key:
-              String(request.offerId) +
-              ':' +
-              String(fact.term) +
-              ':' +
-              String(fact.slot),
+            key: String(request.offerId) + ':' + String(fact.term) + ':' + String(fact.slot),
             offerId: request.offerId!,
             term: fact.term,
             slot: fact.slot,
-            label:
-              request.period === 'annual'
-                ? 'T' + fact.term + ' · ' + fact.label
-                : fact.label,
+            label: request.period === 'annual' ? 'T' + fact.term + ' · ' + fact.label : fact.label,
           }))
       : matrix.offers.map((offer) => ({
           key: String(offer.id),
@@ -950,10 +844,7 @@ function oracleAnalysis(
 
   const rows: PerformanceAnalysisV3['rows'] = matrix.rows.map((row) => {
     const byOffer = new Map(
-      (projections.get(row.student.id) ?? []).map((projection) => [
-        projection.offerId,
-        projection,
-      ]),
+      (projections.get(row.student.id) ?? []).map((projection) => [projection.offerId, projection]),
     );
     return {
       studentId: row.student.id,
@@ -1011,18 +902,13 @@ function oracleAnalysis(
           } else {
             const outcome = projection.terms[fact.term - 1];
             const maximumMilli =
-              fact.slot === 3
-                ? (outcome?.quantitativeMaximumMilli ?? null)
-                : fact.maximumMilli;
+              fact.slot === 3 ? (outcome?.quantitativeMaximumMilli ?? null) : fact.maximumMilli;
             if (fact.slot === 3 && outcome?.parallelApplicable !== true) {
               raw = {
                 valueMilli: null,
                 maximumMilli,
                 recordedMilli: null,
-                state:
-                  outcome?.parallelApplicable === false
-                    ? 'not-applicable'
-                    : 'unavailable',
+                state: outcome?.parallelApplicable === false ? 'not-applicable' : 'unavailable',
               };
             } else {
               raw = {
@@ -1038,20 +924,15 @@ function oracleAnalysis(
           }
         }
 
-        const classificationReady =
-          counts(raw.state);
+        const classificationReady = counts(raw.state);
         const readingPercent =
-          classificationReady &&
-          raw.valueMilli !== null &&
-          raw.maximumMilli !== null
+          classificationReady && raw.valueMilli !== null && raw.maximumMilli !== null
             ? (raw.valueMilli / raw.maximumMilli) * 100
             : null;
         const recoveryRelevant =
-          scopeCell.recoveryApplicable === true ||
-          scopeCell.state === 'repeat-failure';
+          scopeCell.recoveryApplicable === true || scopeCell.state === 'repeat-failure';
         const eligible =
-          row.student.indicatorEligible &&
-          (request.mode === 'regular' || recoveryRelevant);
+          row.student.indicatorEligible && (request.mode === 'regular' || recoveryRelevant);
         const bucket: AnalysisReadingV3['bucket'] =
           !eligible || raw.state === 'not-applicable'
             ? 'excluded'
@@ -1064,8 +945,7 @@ function oracleAnalysis(
                   : readingPercent === null
                     ? 'unscaled'
                     : BigInt(raw.valueMilli!) * BigInt(ANNUAL_MAXIMUM) >=
-                        BigInt(raw.maximumMilli!) *
-                          BigInt(matrix.context.minimumApprovalMilli)
+                        BigInt(raw.maximumMilli!) * BigInt(matrix.context.minimumApprovalMilli)
                       ? 'above'
                       : 'below';
         return {
@@ -1082,45 +962,43 @@ function oracleAnalysis(
     };
   });
 
-  const columns: PerformanceAnalysisV3['columns'] = baseColumns.map(
-    (column, columnIndex) => {
-      const groups = {
-        above: [] as number[],
-        below: [] as number[],
-        incomplete: [] as number[],
-        'no-show': [] as number[],
-        unscaled: [] as number[],
-      };
-      const percentages: number[] = [];
-      for (const row of rows) {
-        const value = row.values[columnIndex]!;
-        if (value.bucket === 'excluded') continue;
-        groups[value.bucket].push(row.studentId);
-        if (value.percent !== null) percentages.push(value.percent);
-      }
-      const ordered = [...percentages].sort((left, right) => left - right);
-      const mid = Math.floor(ordered.length / 2);
-      return {
-        ...column,
-        summary: {
-          considered:
-            groups.above.length +
-            groups.below.length +
-            groups.incomplete.length +
-            groups['no-show'].length +
-            groups.unscaled.length,
-          scaled: percentages.length,
-          meanPercent: mean(percentages),
-          medianPercent: ordered.length
-            ? ordered.length % 2
-              ? ordered[mid]!
-              : (ordered[mid - 1]! + ordered[mid]!) / 2
-            : null,
-          groups,
-        },
-      };
-    },
-  );
+  const columns: PerformanceAnalysisV3['columns'] = baseColumns.map((column, columnIndex) => {
+    const groups = {
+      above: [] as number[],
+      below: [] as number[],
+      incomplete: [] as number[],
+      'no-show': [] as number[],
+      unscaled: [] as number[],
+    };
+    const percentages: number[] = [];
+    for (const row of rows) {
+      const value = row.values[columnIndex]!;
+      if (value.bucket === 'excluded') continue;
+      groups[value.bucket].push(row.studentId);
+      if (value.percent !== null) percentages.push(value.percent);
+    }
+    const ordered = [...percentages].sort((left, right) => left - right);
+    const mid = Math.floor(ordered.length / 2);
+    return {
+      ...column,
+      summary: {
+        considered:
+          groups.above.length +
+          groups.below.length +
+          groups.incomplete.length +
+          groups['no-show'].length +
+          groups.unscaled.length,
+        scaled: percentages.length,
+        meanPercent: mean(percentages),
+        medianPercent: ordered.length
+          ? ordered.length % 2
+            ? ordered[mid]!
+            : (ordered[mid - 1]! + ordered[mid]!) / 2
+          : null,
+        groups,
+      },
+    };
+  });
   return { columns, rows };
 }
 
@@ -1206,9 +1084,7 @@ function proveAnalysisAndDashboard(
     withBelow: expected.withBelow.length,
     pending: expected.pending.length,
   });
-  expect(overview.students.eligible).toBe(
-    overview.students.classified + overview.students.pending,
-  );
+  expect(overview.students.eligible).toBe(overview.students.classified + overview.students.pending);
 
   for (const [index, column] of overview.columns.entries()) {
     const source = oracle.columns[index]!;
@@ -1221,11 +1097,7 @@ function proveAnalysisAndDashboard(
       unscaled: source.summary.groups.unscaled.length,
     });
     expect(
-      column.atOrAbove +
-        column.below +
-        column.incomplete +
-        column.noShow +
-        column.unscaled,
+      column.atOrAbove + column.below + column.incomplete + column.noShow + column.unscaled,
     ).toBe(column.considered);
   }
 
@@ -1238,9 +1110,7 @@ function proveAnalysisAndDashboard(
     )
     .map((row) => ({
       studentId: row.student.id,
-      totalMilli: Number(
-        row.cells.reduce((sum, cell) => sum + BigInt(cell.valueMilli!), 0n),
-      ),
+      totalMilli: Number(row.cells.reduce((sum, cell) => sum + BigInt(cell.valueMilli!), 0n)),
       partial: row.cells.some((cell) => cell.state === 'partial'),
       number: row.student.number,
     }))
@@ -1251,7 +1121,10 @@ function proveAnalysisAndDashboard(
         left.studentId - right.studentId,
     )
     // Equal totals share a place (1º, 2º, 2º, 4º): everyone up to the tenth place is listed.
-    .filter((entry, _index, sorted) => sorted.filter((other) => other.totalMilli > entry.totalMilli).length < 10)
+    .filter(
+      (entry, _index, sorted) =>
+        sorted.filter((other) => other.totalMilli > entry.totalMilli).length < 10,
+    )
     .map(({ number: _number, ...entry }) => entry);
   expect(overview.ranking).toEqual(ranking);
 
@@ -1306,8 +1179,7 @@ function oracleComparison(
     state: 'comparable',
     currentPercent: current.percent,
     referencePercent: reference.percent,
-    deltaPercentagePoints:
-      relation === 'equal' ? 0 : current.percent - reference.percent,
+    deltaPercentagePoints: relation === 'equal' ? 0 : current.percent - reference.percent,
     relation,
     reason: null,
   };
@@ -1343,10 +1215,7 @@ function proveTermComparison(
   const expectedRows = currentOracle.rows.map((row, rowIndex) => ({
     studentId: row.studentId,
     values: row.values.map((value, columnIndex) =>
-      oracleComparison(
-        value,
-        referenceOracle.rows[rowIndex]!.values[columnIndex]!,
-      ),
+      oracleComparison(value, referenceOracle.rows[rowIndex]!.values[columnIndex]!),
     ),
   }));
   expect(comparison.rows.map((row) => row.studentId)).toEqual(
@@ -1363,10 +1232,7 @@ function proveTermComparison(
       });
       expectMetric(value.currentPercent, expectedValue.currentPercent);
       expectMetric(value.referencePercent, expectedValue.referencePercent);
-      expectMetric(
-        value.deltaPercentagePoints,
-        expectedValue.deltaPercentagePoints,
-      );
+      expectMetric(value.deltaPercentagePoints, expectedValue.deltaPercentagePoints);
     }),
   );
 
@@ -1415,8 +1281,7 @@ describe('performance count proof #852', () => {
           return { valueMilli: 13_000 };
         if (student === 2 && component === 1 && fact.term === 2 && fact.slot === 13)
           return { valueMilli: (fact.maximumMilli ?? 1) * 2 };
-        if (component === 2 && fact.term === 2 && fact.slot === 13)
-          return { maximumMilli: null };
+        if (component === 2 && fact.term === 2 && fact.slot === 13) return { maximumMilli: null };
         return {};
       },
     });
@@ -1427,12 +1292,18 @@ describe('performance count proof #852', () => {
     ).toBe(true);
     expect(value.summary.parallel.applied).toBeGreaterThan(0);
     expect(value.summary.coverage.zeros).toBeGreaterThan(0);
-    expect(value.components.some((component) =>
-      component.instruments.some((instrument) => instrument.stats.max !== null && instrument.stats.max > 100),
-    )).toBe(true);
-    expect(value.components.some((component) =>
-      component.instruments.some((instrument) => instrument.maximumMilli === null),
-    )).toBe(true);
+    expect(
+      value.components.some((component) =>
+        component.instruments.some(
+          (instrument) => instrument.stats.max !== null && instrument.stats.max > 100,
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      value.components.some((component) =>
+        component.instruments.some((instrument) => instrument.maximumMilli === null),
+      ),
+    ).toBe(true);
     for (const lens of ['result', 'quantitative', 'qualitative', 'assessments'] as const)
       proveAnalysisAndDashboard(matrix, projections, lens);
   });
@@ -1450,9 +1321,9 @@ describe('performance count proof #852', () => {
     (lens) => {
       const { matrix, projections } = learningFixtureV1({ period: 2 });
       const comparison = proveTermComparison(matrix, projections, lens);
-      expect(
-        comparison.rows.reduce((sum, row) => sum + row.values.length, 0),
-      ).toBe(comparison.rows.length * comparison.columns.length);
+      expect(comparison.rows.reduce((sum, row) => sum + row.values.length, 0)).toBe(
+        comparison.rows.length * comparison.columns.length,
+      );
     },
   );
 

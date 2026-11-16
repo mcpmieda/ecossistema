@@ -15,13 +15,16 @@ import {
 function backupArgument(): string {
   const index = process.argv.indexOf('--backup');
   const value = index >= 0 ? process.argv[index + 1] : undefined;
-  if (!value || value.startsWith('--')) throw new LogicalBackupRecoveryErrorV2('recovery-backup-argument-missing');
+  if (!value || value.startsWith('--'))
+    throw new LogicalBackupRecoveryErrorV2('recovery-backup-argument-missing');
   return resolve(value);
 }
 
 async function run(): Promise<void> {
   try {
-    const target = assertDisposableRecoveryTargetV2(process.env.GRADEBOOK_RECOVERY_DATABASE_URL ?? '');
+    const target = assertDisposableRecoveryTargetV2(
+      process.env.GRADEBOOK_RECOVERY_DATABASE_URL ?? '',
+    );
     const input = await readLogicalBackupV2(backupArgument());
     const postgresModule = await import('postgres');
     const sql = postgresModule.default(target.connectionString, {
@@ -37,15 +40,17 @@ async function run(): Promise<void> {
         lock_timeout: 10_000,
         idle_in_transaction_session_timeout: 120_000,
       },
-    }) as unknown as RecoveryDatabaseV2 & {end(options?: {timeout?: number}): Promise<void>};
+    }) as unknown as RecoveryDatabaseV2 & { end(options?: { timeout?: number }): Promise<void> };
     try {
       const startedAt = performance.now();
       await applyRecoverySchemaV2(sql, repositoryRootForRecoveryV2());
       await restoreLogicalBackupV2(sql, input.backup);
       const report = await validateLogicalRecoveryV2(sql, input.backup, input.bytes);
-      process.stdout.write(`${JSON.stringify({...report, elapsedMilliseconds: Math.round(performance.now() - startedAt)})}\n`);
+      process.stdout.write(
+        `${JSON.stringify({ ...report, elapsedMilliseconds: Math.round(performance.now() - startedAt) })}\n`,
+      );
     } finally {
-      await sql.end({timeout: 1});
+      await sql.end({ timeout: 1 });
     }
   } catch (cause) {
     process.stderr.write(`${sanitizedRecoveryFailureV2(cause)}\n`);

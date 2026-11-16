@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Time } from '@internationalized/date';
 import { I18nProvider } from 'react-aria-components';
-import { Alert, Button, Card, Chip, Spinner, TimeField, ToggleButton, ToggleButtonGroup } from '@heroui/react';
+import {
+  Alert,
+  Button,
+  Card,
+  Chip,
+  Spinner,
+  TimeField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@heroui/react';
 import { Coffee, Flag, Plus, Trash2 } from 'lucide-react';
 import {
   bellDayV1,
@@ -43,12 +52,20 @@ const renumbered = (items: readonly BellItemV1[]): BellDayV1 => {
 };
 /** "07:55" plus (or minus) minutes, kept within the day. */
 const later = (time: string, minutes: number) => {
-  const total = Math.max(0, Math.min(23 * 60 + 59, Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) + minutes));
+  const total = Math.max(
+    0,
+    Math.min(23 * 60 + 59, Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) + minutes),
+  );
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 };
 
 /** The list with one bell's start or end replaced. */
-function withTimeAtV1<T extends { start: string; end: string }>(list: readonly T[], index: number, part: 'start' | 'end', text: string): T[] {
+function withTimeAtV1<T extends { start: string; end: string }>(
+  list: readonly T[],
+  index: number,
+  part: 'start' | 'end',
+  text: string,
+): T[] {
   return list.map((each, at) => (at === index ? { ...each, [part]: text } : each));
 }
 function withoutAtV1<T>(list: readonly T[], index: number): T[] {
@@ -59,7 +76,12 @@ const minutesOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.
  * A lesson or the break added at the end of the day. A parada after the lessons stays last: the new
  * item takes its time and the parada follows it, as long as it was.
  */
-function withAddedV1(list: readonly BellItemV1[], kind: 'aula' | 'intervalo', minutes: number, lastEnd: string): BellItemV1[] {
+function withAddedV1(
+  list: readonly BellItemV1[],
+  kind: 'aula' | 'intervalo',
+  minutes: number,
+  lastEnd: string,
+): BellItemV1[] {
   const tail = list.at(-1);
   const closing = list.length > 1 && tail?.kind === 'parada' ? tail : null;
   const start = closing ? closing.start : lastEnd;
@@ -70,12 +92,20 @@ function withAddedV1(list: readonly BellItemV1[], kind: 'aula' | 'intervalo', mi
   return [...list.slice(0, -1), added, { ...closing, start: end, end: later(end, length) }];
 }
 /** A parada before the lessons (the usual one) or, when the day already starts with one, after them. */
-function withParadaV1(list: readonly BellItemV1[], firstStart: string, lastEnd: string): BellItemV1[] {
-  if (list[0]?.kind === 'parada') return [...list, { kind: 'parada', start: lastEnd, end: later(lastEnd, 15) }];
+function withParadaV1(
+  list: readonly BellItemV1[],
+  firstStart: string,
+  lastEnd: string,
+): BellItemV1[] {
+  if (list[0]?.kind === 'parada')
+    return [...list, { kind: 'parada', start: lastEnd, end: later(lastEnd, 15) }];
   return [{ kind: 'parada', start: later(firstStart, -15), end: firstStart }, ...list];
 }
 
-export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: PortalAdminClientV1; canWrite: boolean }>) {
+export function SchoolBellsEditorV1({
+  client,
+  canWrite,
+}: Readonly<{ client: PortalAdminClientV1; canWrite: boolean }>) {
   const [saved, setSaved] = useState<{ version: number; bells: SchoolBellsDaysV1 } | null>(null);
   const [draft, setDraft] = useState<SchoolBellsDaysV1 | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');
@@ -90,7 +120,12 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
       setState('loading');
       try {
         const result = await client.query(
-          { contractVersion: 1, operation: 'school-bells', scope: { kind: 'school', academicYear: 2026 }, page: { limit: 1 } },
+          {
+            contractVersion: 1,
+            operation: 'school-bells',
+            scope: { kind: 'school', academicYear: 2026 },
+            page: { limit: 1 },
+          },
           signal,
         );
         if (result.state !== 'school-bells') throw new PortalClientErrorV1('invalid-response');
@@ -117,24 +152,36 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
     const days = new Set<string>();
     if (!draft) return days;
     for (const { id } of SHIFTS)
-      for (const { weekday } of DAYS) if (!bellDayV1.safeParse(draft[id][weekday]).success) days.add(`${id}:${weekday}`);
+      for (const { weekday } of DAYS)
+        if (!bellDayV1.safeParse(draft[id][weekday]).success) days.add(`${id}:${weekday}`);
     return days;
   }, [draft]);
-  const changed = !!draft && !!saved && (saved.version === 0 || JSON.stringify(draft) !== JSON.stringify(saved.bells));
+  const changed =
+    !!draft &&
+    !!saved &&
+    (saved.version === 0 || JSON.stringify(draft) !== JSON.stringify(saved.bells));
 
   const editDay = (weekday: WeekdayV1, change: (items: BellItemV1[]) => BellItemV1[]) => {
     if (!canWrite || state !== 'ready') return;
     setMessage(null);
     setDraft((current) =>
       current
-        ? { ...current, [shift]: { ...current[shift], [weekday]: renumbered(change([...current[shift][weekday]])) } }
+        ? {
+            ...current,
+            [shift]: {
+              ...current[shift],
+              [weekday]: renumbered(change([...current[shift][weekday]])),
+            },
+          }
         : current,
     );
   };
 
   // In the order of their start once a time is typed (never while typing: the row would jump).
   const sortDay = (weekday: WeekdayV1) => () =>
-    editDay(weekday, (list) => [...list].sort((left, right) => left.start.localeCompare(right.start)));
+    editDay(weekday, (list) =>
+      [...list].sort((left, right) => left.start.localeCompare(right.start)),
+    );
 
   const save = async () => {
     if (!draft || !saved || invalid.size) return;
@@ -151,7 +198,8 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
         bells: draft,
       });
       // Saved: if reading it back fails, the screen still knows what was saved.
-      if (result.state === 'committed') setSaved({ version: result.version, bells: structuredClone(draft) });
+      if (result.state === 'committed')
+        setSaved({ version: result.version, bells: structuredClone(draft) });
       setMessage('Horários salvos.');
       if (!(await load(undefined, true))) setRefreshFailed(true);
     } catch (error) {
@@ -190,7 +238,8 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
   const editable = canWrite && state === 'ready';
   /** "07:55" as the field's value, and back. */
   const timeOf = (text: string) => new Time(Number(text.slice(0, 2)), Number(text.slice(3, 5)));
-  const textOf = (time: Time) => `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`;
+  const textOf = (time: Time) =>
+    `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`;
   return (
     <I18nProvider locale="pt-BR">
       <Card className="pa-school-bells" aria-labelledby="pa-school-bells-title">
@@ -198,8 +247,9 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
           <div>
             <Card.Title id="pa-school-bells-title">Horário de cada aula</Card.Title>
             <Card.Description>
-              Vale para a escola inteira. O Portal mostra a hora de cada aula, o intervalo e a parada no lugar
-              certo e a aula de agora. A ordem se ajusta sozinha pela hora de início.
+              Vale para a escola inteira. O Portal mostra a hora de cada aula, o intervalo e a
+              parada no lugar certo e a aula de agora. A ordem se ajusta sozinha pela hora de
+              início.
             </Card.Description>
           </div>
           <ToggleButtonGroup
@@ -227,8 +277,8 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Description>
-                  Estes são os horários de 2026 (folhas de 22/06). Confira e clique em Salvar horários para
-                  valerem no Portal.
+                  Estes são os horários de 2026 (folhas de 22/06). Confira e clique em Salvar
+                  horários para valerem no Portal.
                 </Alert.Description>
               </Alert.Content>
             </Alert>
@@ -263,7 +313,11 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
               const wrong = invalid.has(`${shift}:${weekday}`);
               const lastEnd = items.at(-1)?.end ?? (shift === 'matutino' ? '07:00' : '13:15');
               return (
-                <Card key={weekday} variant="secondary" className={'pa-school-bells__day' + (wrong ? ' is-wrong' : '')}>
+                <Card
+                  key={weekday}
+                  variant="secondary"
+                  className={'pa-school-bells__day' + (wrong ? ' is-wrong' : '')}
+                >
                   <Card.Header className="pa-school-bells__day-head">
                     <Card.Title>{label}</Card.Title>
                     <Chip size="sm" variant="soft" color={wrong ? 'danger' : 'default'}>
@@ -283,7 +337,9 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                         }
                         const setTime = (part: 'start' | 'end', value: Time | null) => {
                           if (value)
-                            editDay(weekday, (list) => withTimeAtV1(list, index, part, textOf(value)));
+                            editDay(weekday, (list) =>
+                              withTimeAtV1(list, index, part, textOf(value)),
+                            );
                         };
                         const field = (part: 'start' | 'end') => (
                           <TimeField
@@ -297,15 +353,26 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                             isInvalid={wrong}
                           >
                             <TimeField.Group>
-                              <TimeField.Input>{(segment) => <TimeField.Segment segment={segment} />}</TimeField.Input>
+                              <TimeField.Input>
+                                {(segment) => <TimeField.Segment segment={segment} />}
+                              </TimeField.Input>
                             </TimeField.Group>
                           </TimeField>
                         );
                         return (
-                          <li key={index /* NOSONAR bells have no id; a key from their times would remount the field being typed in */} className={'pa-school-bells__item pa-school-bells__item--' + item.kind}>
+                          <li
+                            key={
+                              index /* NOSONAR bells have no id; a key from their times would remount the field being typed in */
+                            }
+                            className={'pa-school-bells__item pa-school-bells__item--' + item.kind}
+                          >
                             <span className="pa-school-bells__name">
-                              {item.kind === 'intervalo' ? <Coffee size={14} aria-hidden="true" /> : null}
-                              {item.kind === 'parada' ? <Flag size={14} aria-hidden="true" /> : null}
+                              {item.kind === 'intervalo' ? (
+                                <Coffee size={14} aria-hidden="true" />
+                              ) : null}
+                              {item.kind === 'parada' ? (
+                                <Flag size={14} aria-hidden="true" />
+                              ) : null}
                               {name}
                             </span>
                             <span className="pa-school-bells__times">
@@ -330,8 +397,9 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                     </ol>
                     {wrong ? (
                       <p className="pa-school-bells__error" role="alert">
-                        Confira os horários: estão fora de ordem, um começa antes do outro acabar, há mais de um
-                        intervalo ou uma parada entre as aulas (ela só vem antes ou depois delas).
+                        Confira os horários: estão fora de ordem, um começa antes do outro acabar,
+                        há mais de um intervalo ou uma parada entre as aulas (ela só vem antes ou
+                        depois delas).
                       </p>
                     ) : null}
                   </Card.Content>
@@ -341,7 +409,9 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                         size="sm"
                         variant="secondary"
                         isDisabled={lessons >= 6 || items.length >= 10}
-                        onPress={() => editDay(weekday, (list) => withAddedV1(list, 'aula', 50, lastEnd))}
+                        onPress={() =>
+                          editDay(weekday, (list) => withAddedV1(list, 'aula', 50, lastEnd))
+                        }
                       >
                         <Plus size={14} aria-hidden="true" /> Aula
                       </Button>
@@ -349,7 +419,9 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                         size="sm"
                         variant="secondary"
                         isDisabled={hasBreak || items.length >= 10}
-                        onPress={() => editDay(weekday, (list) => withAddedV1(list, 'intervalo', 15, lastEnd))}
+                        onPress={() =>
+                          editDay(weekday, (list) => withAddedV1(list, 'intervalo', 15, lastEnd))
+                        }
                       >
                         <Plus size={14} aria-hidden="true" /> Intervalo
                       </Button>
@@ -357,7 +429,9 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
                         size="sm"
                         variant="secondary"
                         isDisabled={paradas >= 2 || items.length >= 10}
-                        onPress={() => editDay(weekday, (list) => withParadaV1(list, firstStart, lastEnd))}
+                        onPress={() =>
+                          editDay(weekday, (list) => withParadaV1(list, firstStart, lastEnd))
+                        }
                       >
                         <Plus size={14} aria-hidden="true" /> Parada
                       </Button>

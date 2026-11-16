@@ -42,7 +42,8 @@ function legacyPeriodPlanV1(value: ValueV1, period: GradePeriodV1): AccessPlanV1
   if (!allowedPeriods.includes(period) || !included || start === null)
     return { enabled: false, schedule: [] };
   const at = disclosure.mode === 'single' ? disclosure.at : disclosure.at[period];
-  const end = (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null;
+  const end =
+    (disclosure.mode === 'single' ? disclosure.endsAt : disclosure.endsAt?.[period]) ?? null;
   const schedule = [
     ...(at === null ? [] : [{ at: Date.parse(at), action: 'open' as const }]),
     ...(end === null ? [] : [{ at: Date.parse(end), action: 'close' as const }]),
@@ -76,7 +77,10 @@ export function gradesFromCalendarV1(value: ValueV1, key: GradeKeyV1) {
     : value.calendar.disclosure.mode !== 'agenda';
 }
 
-const toSchedule = (plan: AccessPlanV1): AgendaPlanV1 => ({ enabled: plan.enabled, schedule: [...plan.schedule] });
+const toSchedule = (plan: AccessPlanV1): AgendaPlanV1 => ({
+  enabled: plan.enabled,
+  schedule: [...plan.schedule],
+});
 
 /**
  * The calendar to save with one agenda replaced. Converting the periods converts all six at once
@@ -122,5 +126,7 @@ export const GRADE_LABELS_V1: Record<GradeKeyV1, string> = {
 /** "do 1º trimestre", "da recuperação do 1º trimestre", "do resultado anual". */
 export function gradeOfV1(key: GradeKeyV1) {
   if (key === 'final') return 'do resultado anual';
-  return key.startsWith('REC') ? `da recuperação do ${key.slice(3)}º trimestre` : `do ${key.slice(1)}º trimestre`;
+  return key.startsWith('REC')
+    ? `da recuperação do ${key.slice(3)}º trimestre`
+    : `do ${key.slice(1)}º trimestre`;
 }

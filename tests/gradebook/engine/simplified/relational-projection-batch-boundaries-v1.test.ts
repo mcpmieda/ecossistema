@@ -40,21 +40,31 @@ beforeAll(async () => {
       queries.push(query);
       return (await pg.query<Record<string, unknown>>(query, [...values])).rows;
     },
-    async begin() { throw new Error('Unexpected transaction in a read-only projection'); },
-    async end() { await pg.close(); },
+    async begin() {
+      throw new Error('Unexpected transaction in a read-only projection');
+    },
+    async end() {
+      await pg.close();
+    },
   };
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
 }, 30_000);
 
-afterAll(async () => { await database?.close(); });
-beforeEach(() => { queries.length = 0; });
+afterAll(async () => {
+  await database?.close();
+});
+beforeEach(() => {
+  queries.length = 0;
+});
 
 describe('relational batch boundary and source parity', () => {
   it('accepts exactly 1,000 unique pairs in one SQL read without dropping students', async () => {
     const requests = Array.from({ length: 1000 }, (_, index) => ({
-      ofertaId: (index % 100) + 1, alunoId: Math.floor(index / 100) + 1,
+      ofertaId: (index % 100) + 1,
+      alunoId: Math.floor(index / 100) + 1,
     }));
-    const results = await createRelationalAcademicProjectionServiceV1(database).projectMany(requests);
+    const results =
+      await createRelationalAcademicProjectionServiceV1(database).projectMany(requests);
     expect(results).toHaveLength(1000);
     expect(queries).toHaveLength(1);
     expect(results.map(({ ofertaId, alunoId }) => ({ ofertaId, alunoId }))).toEqual(requests);
@@ -63,22 +73,27 @@ describe('relational batch boundary and source parity', () => {
   });
 
   it('rejects 1,001 pairs before issuing any SQL', async () => {
-    await expect(createRelationalAcademicProjectionServiceV1(database).projectMany(
-      Array.from({ length: 1001 }, (_, index) => ({ ofertaId: index + 1, alunoId: 1 })),
-    )).rejects.toMatchObject({ code: 'projection-batch-too-large' });
+    await expect(
+      createRelationalAcademicProjectionServiceV1(database).projectMany(
+        Array.from({ length: 1001 }, (_, index) => ({ ofertaId: index + 1, alunoId: 1 })),
+      ),
+    ).rejects.toMatchObject({ code: 'projection-batch-too-large' });
     expect(queries).toHaveLength(0);
   });
 
   it('rejects a missing offer atomically as a result instead of returning a shortened batch', async () => {
-    await expect(createRelationalAcademicProjectionServiceV1(database).projectMany([
-      { ofertaId: 1, alunoId: 1 }, { ofertaId: 101, alunoId: 1 },
-    ])).rejects.toMatchObject({ code: 'offer-student-not-found' });
+    await expect(
+      createRelationalAcademicProjectionServiceV1(database).projectMany([
+        { ofertaId: 1, alunoId: 1 },
+        { ofertaId: 101, alunoId: 1 },
+      ]),
+    ).rejects.toMatchObject({ code: 'offer-student-not-found' });
     expect(queries).toHaveLength(1);
   });
 
   it('reads mismatch, second-term NC and incomplete coverage in one batch', async () => {
     const service = createRelationalAcademicProjectionServiceV1(database);
-    const requests = [1,2,10].map((alunoId) => ({ ofertaId: 1, alunoId }));
+    const requests = [1, 2, 10].map((alunoId) => ({ ofertaId: 1, alunoId }));
     const batch = await service.projectMany(requests);
     expect(batch[0]!.terms[0].sourceComparison).toBe('mismatch');
     expect(batch[1]!.recovery.classification).toBe('failed-no-show');
@@ -89,9 +104,11 @@ describe('relational batch boundary and source parity', () => {
   it('rejects an offer without instrument definitions instead of inventing an all-zero result', async () => {
     await pg.exec('BEGIN; DELETE FROM gradebook.instrumento WHERE oferta_id=100;');
     try {
-      await expect(createRelationalAcademicProjectionServiceV1(database).projectMany([
-        { ofertaId: 100, alunoId: 10 },
-      ])).rejects.toMatchObject({ code: 'incomplete-offer-definition' });
+      await expect(
+        createRelationalAcademicProjectionServiceV1(database).projectMany([
+          { ofertaId: 100, alunoId: 10 },
+        ]),
+      ).rejects.toMatchObject({ code: 'incomplete-offer-definition' });
       expect(queries).toHaveLength(1);
     } finally {
       await pg.exec('ROLLBACK;');

@@ -35,7 +35,8 @@ import { RISK_LABELS_V1, type RiskDraftV1, type SettingsDraftV1 } from './settin
 
 /** A yes/no option in words: the orientation type says what it means, the others on or off. */
 function booleanText(field: SettingsFieldV1, value: unknown) {
-  if (field === 'termClosingConclusive') return value ? 'Trimestre encerrado' : 'Trimestre em andamento';
+  if (field === 'termClosingConclusive')
+    return value ? 'Trimestre encerrado' : 'Trimestre em andamento';
   return value ? 'Ativado' : 'Desativado';
 }
 
@@ -146,8 +147,8 @@ export function DateInputV1({
         <DateField.Group>
           <DateField.Input
             onClick={(event) => {
-              const type = (event.target as HTMLElement).closest<HTMLElement>('[data-type]')?.dataset
-                .type;
+              const type = (event.target as HTMLElement).closest<HTMLElement>('[data-type]')
+                ?.dataset.type;
               if (!disabled && (!type || ['day', 'month', 'year', 'literal'].includes(type)))
                 setOpen(true);
             }}
@@ -486,15 +487,14 @@ export function SettingsValueSummaryV1({
       <p>
         {schedule.length
           ? schedule
-              .map((event) => `${event.action === 'open' ? 'Abrir' : 'Fechar'} em ${dateLabel(event.at)}`)
+              .map(
+                (event) =>
+                  `${event.action === 'open' ? 'Abrir' : 'Fechar'} em ${dateLabel(event.at)}`,
+              )
               .join(' · ')
           : 'Nenhum agendamento'}
       </p>
     );
   }
-  return (
-    <p>
-      {booleanText(field, value)}
-    </p>
-  );
+  return <p>{booleanText(field, value)}</p>;
 }

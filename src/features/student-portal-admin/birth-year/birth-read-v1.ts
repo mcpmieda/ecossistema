@@ -9,7 +9,11 @@ export type BirthValueV1 = Extract<AdminResponseV1, { state: 'birth-years' }>['i
 type BirthResponseV1 = Extract<AdminResponseV1, { state: 'birth-years' }>;
 
 /** The birth read saw exactly the record's account, at its version and in the same account scope. */
-function snapshotStillCurrentV1(account: AdminAccountReadV2, birth: BirthResponseV1, scopeVersion: number) {
+function snapshotStillCurrentV1(
+  account: AdminAccountReadV2,
+  birth: BirthResponseV1,
+  scopeVersion: number,
+) {
   return (
     birth.accountsScopeVersion !== undefined &&
     birth.accountsScopeVersion === scopeVersion &&

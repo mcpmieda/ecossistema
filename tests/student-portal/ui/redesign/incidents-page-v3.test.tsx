@@ -45,12 +45,16 @@ const clientOf = (
     acknowledgedAt: '2026-10-29T12:40:00.000Z',
   }),
 ) => ({
-  read: vi.fn<StudentIncidentsClientV1['read']>(async () => ({ incidents: structuredClone(incidents) })),
+  read: vi.fn<StudentIncidentsClientV1['read']>(async () => ({
+    incidents: structuredClone(incidents),
+  })),
   acknowledge: vi.fn(acknowledge),
 });
 const cards = () => [...document.querySelectorAll('.pa3-incident')] as HTMLElement[];
 const confirmFirstOpen = async () => {
-  fireEvent.click((await screen.findAllByRole('button', { name: 'Toque aqui para confirmar que leu' }))[0]!);
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: 'Toque aqui para confirmar que leu' }))[0]!,
+  );
   fireEvent.click(await screen.findByRole('button', { name: 'Sim, li' }));
 };
 afterEach(cleanup);
@@ -68,11 +72,15 @@ it('lists the records newest first, each with its kind, date, leave and whole de
   expect(first.querySelector('.pa3-incident-leave')?.textContent).toBe(
     'Afastamento: De 22/10/2026 a 28/10/2026 · 3 dias',
   );
-  expect(within(first).getByText('Três dias de suspensão por desrespeito a um colega.')).toBeTruthy();
+  expect(
+    within(first).getByText('Três dias de suspensão por desrespeito a um colega.'),
+  ).toBeTruthy();
   // A warning has no leave; a part the Smecel left blank is left out, never guessed.
   expect(within(second).getByText('ADVERTÊNCIA')).toBeTruthy();
   expect(second.querySelector('.pa3-incident-leave')).toBeNull();
-  expect(third.querySelector('.pa3-incident-leave')?.textContent).toBe('Afastamento: Até 11/06/2026 · 1 dia');
+  expect(third.querySelector('.pa3-incident-leave')?.textContent).toBe(
+    'Afastamento: Até 11/06/2026 · 1 dia',
+  );
   // Already confirmed: the check with the day and time (school time), no button.
   expect(third.querySelector('.pa3-incident-seen')?.textContent).toContain(
     'Você confirmou a leitura em 11/06/2026, às 10:20',
@@ -99,7 +107,9 @@ it('turns a confirmed record into a check at once, for that version, without rea
   const client = clientOf([warning]);
   render(<IncidentsPageV3 client={client} />);
   await confirmFirstOpen();
-  expect(await screen.findByText(/Você confirmou a leitura em 29\/10\/2026, às 09:40/u)).toBeTruthy();
+  expect(
+    await screen.findByText(/Você confirmou a leitura em 29\/10\/2026, às 09:40/u),
+  ).toBeTruthy();
   expect(client.acknowledge).toHaveBeenCalledExactlyOnceWith(warning.id);
   expect(client.read).toHaveBeenCalledOnce();
   expect(screen.queryByRole('button', { name: 'Toque aqui para confirmar que leu' })).toBeNull();
@@ -114,12 +124,17 @@ it('keeps the record open with a message when the confirmation fails', async () 
     />,
   );
   await confirmFirstOpen();
-  expect(await screen.findByText('Não foi possível registrar agora. Tente de novo em instantes.')).toBeTruthy();
+  expect(
+    await screen.findByText('Não foi possível registrar agora. Tente de novo em instantes.'),
+  ).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Toque aqui para confirmar que leu' })).toBeTruthy();
 });
 
 it('reads again and warns when the school edited the record meanwhile', async () => {
-  const edited = incident({ id: '66666666-6666-4666-8666-666666666666', description: 'Texto corrigido pela escola.' });
+  const edited = incident({
+    id: '66666666-6666-4666-8666-666666666666',
+    description: 'Texto corrigido pela escola.',
+  });
   const client = clientOf([warning], async () => {
     throw new FrequencyClientErrorV2('changed');
   });
@@ -128,7 +143,9 @@ it('reads again and warns when the school edited the record meanwhile', async ()
   client.read.mockResolvedValueOnce({ incidents: [edited] });
   await confirmFirstOpen();
   expect(
-    await screen.findByText('A escola alterou uma ocorrência. Confira o texto atualizado antes de confirmar.'),
+    await screen.findByText(
+      'A escola alterou uma ocorrência. Confira o texto atualizado antes de confirmar.',
+    ),
   ).toBeTruthy();
   expect(await screen.findByText('Texto corrigido pela escola.')).toBeTruthy();
   expect(client.read).toHaveBeenCalledTimes(2);
@@ -164,12 +181,22 @@ it('hands an expired session to the portal', async () => {
 });
 
 it('shows on the menu item how many records are still open, and nothing once all are confirmed', async () => {
-  render(<PortalPagesV3 hero={null} grades={<p>Notas</p>} incidents={<IncidentsPageV3 client={clientOf([warning, suspension, seen])} />} />);
+  render(
+    <PortalPagesV3
+      hero={null}
+      grades={<p>Notas</p>}
+      incidents={<IncidentsPageV3 client={clientOf([warning, suspension, seen])} />}
+    />,
+  );
   const item = () => screen.getByRole('button', { name: /Ocorrências/u });
-  await waitFor(() => expect(item().querySelector('.pa3-nav-badge')?.textContent).toBe('2 sem confirmação'));
+  await waitFor(() =>
+    expect(item().querySelector('.pa3-nav-badge')?.textContent).toBe('2 sem confirmação'),
+  );
   fireEvent.click(item());
   await confirmFirstOpen();
-  await waitFor(() => expect(item().querySelector('.pa3-nav-badge')?.textContent).toBe('1 sem confirmação'));
+  await waitFor(() =>
+    expect(item().querySelector('.pa3-nav-badge')?.textContent).toBe('1 sem confirmação'),
+  );
   await confirmFirstOpen();
   await waitFor(() => expect(item().querySelector('.pa3-nav-badge')).toBeNull());
 });

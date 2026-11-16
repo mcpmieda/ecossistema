@@ -15,7 +15,9 @@ let runtime: Miniflare;
 let caller: Awaited<ReturnType<Miniflare['getWorker']>>;
 function fixture(path: string, target: string, instrument = false) {
   const filename = resolve(directory, 'functions', path);
-  const source = relative(dirname(filename), resolve(target)).replaceAll('\\', '/').replace(/\.ts$/u, '');
+  const source = relative(dirname(filename), resolve(target))
+    .replaceAll('\\', '/')
+    .replace(/\.ts$/u, '');
   mkdirSync(dirname(filename), { recursive: true });
   writeFileSync(
     filename,
@@ -103,7 +105,8 @@ async function cookie(actor: string) {
       roles: ['ADMINISTRADOR'],
       exp: Math.floor(Date.now() / 1000) + 60,
     },
-    testEnv.SESSION_SECRET, 'admin-session',
+    testEnv.SESSION_SECRET,
+    'admin-session',
   )}`;
 }
 function fetchPages(path: string, init: RequestInit = {}) {

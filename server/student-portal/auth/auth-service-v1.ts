@@ -126,20 +126,17 @@ async function failed(
         : null,
   };
   await store.saveAttempts(attempt);
-  await authAuditV1(
-    store,
-    context.account,
-    'login-failed',
-    context.now,
-    requestId,
-    { actorId: context.account.id, result: 'denied', detail: {
+  await authAuditV1(store, context.account, 'login-failed', context.now, requestId, {
+    actorId: context.account.id,
+    result: 'denied',
+    detail: {
       reason: kind === 'pin' ? 'wrong-pin' : 'wrong-password',
       step: kind,
       failures,
       blockAfter: context.policy.enforcedValue.risk.blockAfter,
       ...(attempt.blockedUntil ? { blockedUntil: attempt.blockedUntil } : {}),
-    } },
-  );
+    },
+  });
   // Return, never throw: a failed credential must commit its durable counter.
   return blocked(attempt, context, requestId) ?? denied(requestId);
 }
@@ -163,7 +160,11 @@ async function auditedDenied(
   requestId: string,
   detail?: AuditDetailV1,
 ) {
-  await authAuditV1(store, account, 'login-failed', now, requestId, { actorId: account.id, result: 'denied', detail });
+  await authAuditV1(store, account, 'login-failed', now, requestId, {
+    actorId: account.id,
+    result: 'denied',
+    detail,
+  });
   return denied(requestId);
 }
 
@@ -180,23 +181,29 @@ async function auditedBlockedV1(
   requestId: string,
   step: NonNullable<AuditDetailV1['step']>,
 ) {
-  await authAuditV1(store, context.account, 'login-failed', context.now, requestId, { actorId: context.account.id, result: 'denied', detail: {
-    reason: 'temporarily-blocked',
-    step,
-    failures: attempt.failures,
-    blockAfter: context.policy.enforcedValue.risk.blockAfter,
-    ...(attempt.blockedUntil ? { blockedUntil: attempt.blockedUntil } : {}),
-  } });
+  await authAuditV1(store, context.account, 'login-failed', context.now, requestId, {
+    actorId: context.account.id,
+    result: 'denied',
+    detail: {
+      reason: 'temporarily-blocked',
+      step,
+      failures: attempt.failures,
+      blockAfter: context.policy.enforcedValue.risk.blockAfter,
+      ...(attempt.blockedUntil ? { blockedUntil: attempt.blockedUntil } : {}),
+    },
+  });
 }
 
 function sameVerifier(left: VerifierV1, right: VerifierV1): boolean {
   const parameters = (value: VerifierV1) =>
     Object.entries(value.parameters).sort(([a], [b]) => a.localeCompare(b));
-  return left.algorithm === right.algorithm
-    && left.salt === right.salt
-    && left.pepperVersion === right.pepperVersion
-    && left.digest === right.digest
-    && JSON.stringify(parameters(left)) === JSON.stringify(parameters(right));
+  return (
+    left.algorithm === right.algorithm &&
+    left.salt === right.salt &&
+    left.pepperVersion === right.pepperVersion &&
+    left.digest === right.digest &&
+    JSON.stringify(parameters(left)) === JSON.stringify(parameters(right))
+  );
 }
 
 type QrIdentityV1 = ReturnType<typeof parseQrV1>;
@@ -248,7 +255,10 @@ async function qrAuthStateV1(
     credential.keyVersion !== qr.keyVersion
   )
     return {
-      result: await auditedDenied(store, account, await authNowV1(tx), requestId, { reason: 'card-replaced', step }),
+      result: await auditedDenied(store, account, await authNowV1(tx), requestId, {
+        reason: 'card-replaced',
+        step,
+      }),
     };
   const context = await accessContextV1(sql, tx, store, accountId, true);
   if (!context)
@@ -259,10 +269,14 @@ async function qrAuthStateV1(
       }),
     };
   if (!context.accessOpen) {
-    await authAuditV1(store, account, 'login-failed', context.now, requestId, { actorId: account.id, result: 'denied', detail: {
-      reason: 'access-closed',
-      step,
-    } });
+    await authAuditV1(store, account, 'login-failed', context.now, requestId, {
+      actorId: account.id,
+      result: 'denied',
+      detail: {
+        reason: 'access-closed',
+        step,
+      },
+    });
     return { result: accessClosed(requestId) };
   }
   return { accountId, context, credential, attempt: await attempts(store, context) };
@@ -399,14 +413,22 @@ async function withAuthResultV1<Request, Result>(
   try {
     request = parse();
   } catch (error) {
-    emitPortalAuthResultMetricV1({ event: 'student-portal-auth-result-v1', step, outcome: 'invalid-request' });
+    emitPortalAuthResultMetricV1({
+      event: 'student-portal-auth-result-v1',
+      step,
+      outcome: 'invalid-request',
+    });
     throw error;
   }
   let result: Result;
   try {
     result = await run(request);
   } catch (error) {
-    emitPortalAuthResultMetricV1({ event: 'student-portal-auth-result-v1', step, outcome: 'unavailable' });
+    emitPortalAuthResultMetricV1({
+      event: 'student-portal-auth-result-v1',
+      step,
+      outcome: 'unavailable',
+    });
     throw error;
   }
   emitPortalAuthResultMetricV1(authResultV1(step, result));
@@ -458,17 +480,18 @@ export class AuthServiceV1 {
     // Remote verification finishes before acquiring any database lock.
     const riskPassed =
       request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);
-    const pinProof = request.pin === undefined
-      ? null
-      : await credentialProofV1(
-          this.sql,
-          this.cryptoPort,
-          qr,
-          request.pin,
-          'pin',
-          requestId,
-          riskPassed,
-        );
+    const pinProof =
+      request.pin === undefined
+        ? null
+        : await credentialProofV1(
+            this.sql,
+            this.cryptoPort,
+            qr,
+            request.pin,
+            'pin',
+            requestId,
+            riskPassed,
+          );
     const step = request.pin === undefined ? 'card' : 'pin';
     const device = this.device ? { device: this.device } : {};
     return accountTransactionV1(this.sql, async (tx, store) => {
@@ -500,11 +523,12 @@ export class AuthServiceV1 {
       if (attempt.failures >= context.policy.enforcedValue.risk.challengeAfter && !riskPassed)
         return required(requestId, 'risk');
       if (request.pin === undefined) return required(requestId, 'pin');
-      if (
-        pinProof?.accountId !== accountId ||
-        !sameVerifier(pinProof.verifier, credential.pin)
-      )
-        return auditedDenied(store, context.account, context.now, requestId, { reason: 'retry-needed', step, ...device });
+      if (pinProof?.accountId !== accountId || !sameVerifier(pinProof.verifier, credential.pin))
+        return auditedDenied(store, context.account, context.now, requestId, {
+          reason: 'retry-needed',
+          step,
+          ...device,
+        });
       if (!pinProof.valid) return failed(store, context, attempt, requestId, 'pin');
       context.now = await authNowV1(tx);
       const token = this.cryptoPort.randomToken(32);
@@ -557,9 +581,8 @@ export class AuthServiceV1 {
         retryAfterSeconds: 60,
       };
     const hash = await this.cryptoPort.hashOpaqueToken(request.challenge);
-    const preflight = await accountTransactionV1(
-      this.sql,
-      (tx, store) => activationStateV1(this.sql, tx, store, hash, requestId),
+    const preflight = await accountTransactionV1(this.sql, (tx, store) =>
+      activationStateV1(this.sql, tx, store, hash, requestId),
     );
     if ('contractVersion' in preflight) return preflight;
 
@@ -599,7 +622,14 @@ export class AuthServiceV1 {
         'activated',
         current.context.now,
         requestId,
-        { actorId: current.context.account.id, result: 'success', detail: { keepConnected: request.keepConnected, ...(this.device ? { device: this.device } : {}) } },
+        {
+          actorId: current.context.account.id,
+          result: 'success',
+          detail: {
+            keepConnected: request.keepConnected,
+            ...(this.device ? { device: this.device } : {}),
+          },
+        },
       );
       return createSessionV1(
         store,
@@ -646,7 +676,11 @@ export class AuthServiceV1 {
       if ('result' in locked) return locked.result;
       const { accountId, context, credential, attempt } = locked;
       const passwordDenied = (reason: NonNullable<AuditDetailV1['reason']>) =>
-        auditedDenied(store, context.account, context.now, requestId, { reason, step: 'password', ...device });
+        auditedDenied(store, context.account, context.now, requestId, {
+          reason,
+          step: 'password',
+          ...device,
+        });
       if (context.account.state !== 'active' || !credential.password)
         return passwordDenied('first-access-pending');
       const limited = blocked(attempt, context, requestId);
@@ -664,10 +698,14 @@ export class AuthServiceV1 {
       if (!passwordProof.valid) return failed(store, context, attempt, requestId, 'password');
       context.now = await authNowV1(tx);
       await clearAttempts(store, context, attempt);
-      await authAuditV1(store, context.account, 'login', context.now, requestId, { actorId: context.account.id, result: 'success', detail: {
-        keepConnected: request.keepConnected,
-        ...device,
-      } });
+      await authAuditV1(store, context.account, 'login', context.now, requestId, {
+        actorId: context.account.id,
+        result: 'success',
+        detail: {
+          keepConnected: request.keepConnected,
+          ...device,
+        },
+      });
       return createSessionV1(store, context, this.cryptoPort, request.keepConnected, requestId);
     });
   }

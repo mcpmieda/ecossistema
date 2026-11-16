@@ -2,7 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../student-portal/year-reset/schema-fixture';
+import {
+  installResetSchemaFixtureV1,
+  installReconciliationSchemaFixtureV1,
+} from '../student-portal/year-reset/schema-fixture';
 import { resolveStudentIdentitiesV1 } from './resolve-student-identity-helper';
 import { createGradebookImportService } from '../../server/gradebook/application/import/import-service';
 import {
@@ -33,7 +36,8 @@ async function snapshot() {
 
 async function uidOf(id: number) {
   const result = await pg.query<{ uid: string }>(
-    'SELECT student_uid::text AS uid FROM gradebook.aluno WHERE id=$1', [id],
+    'SELECT student_uid::text AS uid FROM gradebook.aluno WHERE id=$1',
+    [id],
   );
   return result.rows[0]!.uid;
 }
@@ -41,13 +45,18 @@ async function uidOf(id: number) {
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
-  await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS; CREATE ROLE anon; CREATE ROLE authenticated;');
+  await pg.exec(
+    'CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS; CREATE ROLE anon; CREATE ROLE authenticated;',
+  );
   for (const migration of [
-    '0003_council_session_v3.sql', '0004_council_v3_least_privilege.sql',
-    '0005_relational_bulletin_snapshot_v2.sql', '0006_import_diagnostic_treatment_v1.sql',
+    '0003_council_session_v3.sql',
+    '0004_council_v3_least_privilege.sql',
+    '0005_relational_bulletin_snapshot_v2.sql',
+    '0006_import_diagnostic_treatment_v1.sql',
     '0007_multiyear_rr_v1.sql',
     '0009_granular_observations_names_v1.sql',
-  ]) await pg.exec(readFileSync(`migrations/gradebook-simplified/${migration}`, 'utf8'));
+  ])
+    await pg.exec(readFileSync(`migrations/gradebook-simplified/${migration}`, 'utf8'));
   await installResetSchemaFixtureV1(pg);
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho)
@@ -73,17 +82,24 @@ beforeAll(async () => {
       VALUES ('30000000-0000-4000-8000-000000000001','${accountId}','synthetic-identity-session',2,now()+interval '1 day',false);
   `);
   before = await snapshot();
-  await pg.exec(readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8'));
+  await pg.exec(
+    readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8'),
+  );
   await installReconciliationSchemaFixtureV1(pg, true);
 }, 30_000);
 
-afterAll(async () => { await pg?.close(); });
+afterAll(async () => {
+  await pg?.close();
+});
 
 describe('shared identity migration on the actual private schema', () => {
   it('adopts existing UUIDs while preserving academic rows, accounts, credentials, sessions and photo references', async () => {
     expect(await snapshot()).toEqual(before);
     expect(await uidOf(101)).toBe(accountId);
-    const closed = await pg.query<{ student_uid: string }>('SELECT student_uid::text FROM student_portal.account WHERE id=$1', [closedId]);
+    const closed = await pg.query<{ student_uid: string }>(
+      'SELECT student_uid::text FROM student_portal.account WHERE id=$1',
+      [closedId],
+    );
     expect(closed.rows[0]!.student_uid).toBe(closedId);
     expect((await pg.query('SELECT id FROM gradebook.student_identity')).rows).toHaveLength(3);
   });
@@ -92,10 +108,14 @@ describe('shared identity migration on the actual private schema', () => {
     const query = async (sql: string, parameters: readonly (string | number)[]) =>
       (await pg.query<Record<string, unknown>>(sql, [...parameters])).rows;
     const fromGradebook = await resolveStudentIdentitiesV1(query, {
-      source: 'gradebook', academicYear: 2026, studentIds: [101],
+      source: 'gradebook',
+      academicYear: 2026,
+      studentIds: [101],
     });
     const fromPortal = await resolveStudentIdentitiesV1(query, {
-      source: 'portal', academicYear: 2026, accountIds: [accountId],
+      source: 'portal',
+      academicYear: 2026,
+      accountIds: [accountId],
     });
     expect(fromGradebook[0]!.studentUid).toBe(fromPortal[0]!.studentUid);
     expect(fromGradebook[0]!.studentUid).toBe(accountId);
@@ -105,7 +125,9 @@ describe('shared identity migration on the actual private schema', () => {
     const other = await uidOf(102);
     expect(other).not.toBe(accountId);
     await pg.exec("UPDATE gradebook.aluno SET nome='SYNTHETIC CORRECTED' WHERE id=102");
-    await pg.exec("INSERT INTO gradebook.aluno (id,ano,nome) VALUES (102,2026,'SYNTHETIC CORRECTED') ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome");
+    await pg.exec(
+      "INSERT INTO gradebook.aluno (id,ano,nome) VALUES (102,2026,'SYNTHETIC CORRECTED') ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome",
+    );
     expect(await uidOf(102)).toBe(other);
     expect((await pg.query('SELECT id FROM gradebook.student_identity')).rows).toHaveLength(3);
   });
@@ -114,56 +136,111 @@ describe('shared identity migration on the actual private schema', () => {
     await pg.exec("INSERT INTO gradebook.aluno (id,ano,nome) VALUES (110,2026,'SYNTHETIC NEW')");
     newUid = await uidOf(110);
     expect(newUid).toMatch(/^[a-f0-9-]{36}$/u);
-    await pg.query(`INSERT INTO student_portal.account
+    await pg.query(
+      `INSERT INTO student_portal.account
       (id,academic_year,gradebook_student_id,auth_state,eligibility)
-      VALUES ($1,2026,110,'pending-activation','eligible')`, [newAccountId]);
-    const result = await pg.query<{ student_uid: string }>('SELECT student_uid::text FROM student_portal.account WHERE id=$1', [newAccountId]);
+      VALUES ($1,2026,110,'pending-activation','eligible')`,
+      [newAccountId],
+    );
+    const result = await pg.query<{ student_uid: string }>(
+      'SELECT student_uid::text FROM student_portal.account WHERE id=$1',
+      [newAccountId],
+    );
     expect(result.rows[0]!.student_uid).toBe(newUid);
   });
 
   it('refuses identity mutation and reassignment of an existing account to a different person', async () => {
     const other = await uidOf(102);
-    await expect(pg.query('UPDATE gradebook.aluno SET student_uid=$1 WHERE id=101', [other])).rejects.toThrow('student-identity-immutable');
-    await expect(pg.query('UPDATE student_portal.account SET student_uid=$1 WHERE id=$2', [other, accountId])).rejects.toThrow('student-identity-immutable');
-    await expect(pg.query('UPDATE student_portal.account SET gradebook_student_id=102 WHERE id=$1', [accountId])).rejects.toThrow('student-identity-mismatch');
+    await expect(
+      pg.query('UPDATE gradebook.aluno SET student_uid=$1 WHERE id=101', [other]),
+    ).rejects.toThrow('student-identity-immutable');
+    await expect(
+      pg.query('UPDATE student_portal.account SET student_uid=$1 WHERE id=$2', [other, accountId]),
+    ).rejects.toThrow('student-identity-immutable');
+    await expect(
+      pg.query('UPDATE student_portal.account SET gradebook_student_id=102 WHERE id=$1', [
+        accountId,
+      ]),
+    ).rejects.toThrow('student-identity-mismatch');
     expect(await uidOf(101)).toBe(accountId);
   });
 
   it('enforces one annual academic reference per person, with explicit cross-year linkage only', async () => {
     const other = await uidOf(102);
-    await expect(pg.query("INSERT INTO gradebook.aluno (id,ano,nome,student_uid) VALUES (201,2026,'SYNTHETIC DUPLICATE',$1)", [other])).rejects.toThrow();
-    await pg.query("INSERT INTO gradebook.aluno (id,ano,nome,student_uid) VALUES (202,2027,'SYNTHETIC EXPLICIT LINK',$1)", [other]);
+    await expect(
+      pg.query(
+        "INSERT INTO gradebook.aluno (id,ano,nome,student_uid) VALUES (201,2026,'SYNTHETIC DUPLICATE',$1)",
+        [other],
+      ),
+    ).rejects.toThrow();
+    await pg.query(
+      "INSERT INTO gradebook.aluno (id,ano,nome,student_uid) VALUES (202,2027,'SYNTHETIC EXPLICIT LINK',$1)",
+      [other],
+    );
     expect(await uidOf(202)).toBe(other);
   });
 
   it('preserves the person/account/photo after closing the link and deleting the academic row; reused numbers do not inherit it', async () => {
-    await pg.query("INSERT INTO student_portal.profile_photo VALUES ($1,'synthetic-drive','synthetic-new-item')", [newAccountId]);
+    await pg.query(
+      "INSERT INTO student_portal.profile_photo VALUES ($1,'synthetic-drive','synthetic-new-item')",
+      [newAccountId],
+    );
     await expect(pg.exec('DELETE FROM gradebook.aluno WHERE id=110')).rejects.toThrow();
-    await pg.query(`UPDATE student_portal.account SET gradebook_student_id=NULL,
-      eligibility='unlinked',closed_at=statement_timestamp() WHERE id=$1`, [newAccountId]);
+    await pg.query(
+      `UPDATE student_portal.account SET gradebook_student_id=NULL,
+      eligibility='unlinked',closed_at=statement_timestamp() WHERE id=$1`,
+      [newAccountId],
+    );
     await pg.exec('DELETE FROM gradebook.aluno WHERE id=110');
-    expect((await pg.query('SELECT id FROM gradebook.student_identity WHERE id=$1', [newUid])).rows).toHaveLength(1);
-    expect((await pg.query('SELECT account_id FROM student_portal.profile_photo WHERE account_id=$1', [newAccountId])).rows).toHaveLength(1);
+    expect(
+      (await pg.query('SELECT id FROM gradebook.student_identity WHERE id=$1', [newUid])).rows,
+    ).toHaveLength(1);
+    expect(
+      (
+        await pg.query('SELECT account_id FROM student_portal.profile_photo WHERE account_id=$1', [
+          newAccountId,
+        ])
+      ).rows,
+    ).toHaveLength(1);
     await pg.exec("INSERT INTO gradebook.aluno (id,ano,nome) VALUES (110,2026,'SYNTHETIC NEW')");
     expect(await uidOf(110)).not.toBe(newUid);
-    await expect(pg.query(`UPDATE student_portal.account SET gradebook_student_id=110,
-      eligibility='eligible',closed_at=NULL WHERE id=$1`, [newAccountId])).rejects.toThrow('student-identity-mismatch');
+    await expect(
+      pg.query(
+        `UPDATE student_portal.account SET gradebook_student_id=110,
+      eligibility='eligible',closed_at=NULL WHERE id=$1`,
+        [newAccountId],
+      ),
+    ).rejects.toThrow('student-identity-mismatch');
   });
 
   it('keeps registry and trigger functions private, including inherited default grants', async () => {
-    const table = await pg.query<{ rls: boolean }>("SELECT relrowsecurity AS rls FROM pg_class WHERE oid='gradebook.student_identity'::regclass");
+    const table = await pg.query<{ rls: boolean }>(
+      "SELECT relrowsecurity AS rls FROM pg_class WHERE oid='gradebook.student_identity'::regclass",
+    );
     expect(table.rows[0]!.rls).toBe(true);
     for (const role of ['anon', 'authenticated', 'gradebook_app', 'student_portal_app']) {
       for (const privilege of ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']) {
-        const result = await pg.query<{ allowed: boolean }>("SELECT has_table_privilege($1,'gradebook.student_identity',$2) AS allowed", [role, privilege]);
+        const result = await pg.query<{ allowed: boolean }>(
+          "SELECT has_table_privilege($1,'gradebook.student_identity',$2) AS allowed",
+          [role, privilege],
+        );
         expect(result.rows[0]!.allowed).toBe(false);
       }
-      for (const name of ['gradebook.assign_student_uid_v1()', 'student_portal.assign_student_uid_v1()']) {
-        const result = await pg.query<{ allowed: boolean }>("SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed", [role, name]);
+      for (const name of [
+        'gradebook.assign_student_uid_v1()',
+        'student_portal.assign_student_uid_v1()',
+      ]) {
+        const result = await pg.query<{ allowed: boolean }>(
+          "SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed",
+          [role, name],
+        );
         expect(result.rows[0]!.allowed).toBe(false);
       }
     }
-    const functions = await pg.query<{ prosecdef: boolean; proconfig: string[] }>(`SELECT prosecdef,proconfig FROM pg_proc
+    const functions = await pg.query<{
+      prosecdef: boolean;
+      proconfig: string[];
+    }>(`SELECT prosecdef,proconfig FROM pg_proc
       WHERE oid IN ('gradebook.assign_student_uid_v1()'::regprocedure,'student_portal.assign_student_uid_v1()'::regprocedure)`);
     expect(functions.rows).toHaveLength(2);
     for (const fn of functions.rows) {
@@ -173,50 +250,88 @@ describe('shared identity migration on the actual private schema', () => {
   });
 
   it('lets existing backend roles use the trigger boundary without direct registry writes', async () => {
-    await pg.exec('GRANT USAGE ON SCHEMA gradebook TO gradebook_app; GRANT SELECT,INSERT,UPDATE ON gradebook.aluno TO gradebook_app;');
+    await pg.exec(
+      'GRANT USAGE ON SCHEMA gradebook TO gradebook_app; GRANT SELECT,INSERT,UPDATE ON gradebook.aluno TO gradebook_app;',
+    );
     await pg.exec('SET ROLE gradebook_app');
     try {
-      await pg.exec("INSERT INTO gradebook.aluno (id,ano,nome) VALUES (330,2026,'SYNTHETIC BACKEND')");
-    } finally { await pg.exec('RESET ROLE'); }
+      await pg.exec(
+        "INSERT INTO gradebook.aluno (id,ano,nome) VALUES (330,2026,'SYNTHETIC BACKEND')",
+      );
+    } finally {
+      await pg.exec('RESET ROLE');
+    }
     const uid = await uidOf(330);
     await pg.exec('SET ROLE student_portal_app');
     try {
       await pg.exec(`INSERT INTO student_portal.account
         (id,academic_year,gradebook_student_id,auth_state,eligibility)
         VALUES ('40000000-0000-4000-8000-000000000001',2026,330,'pending-activation','eligible')`);
-    } finally { await pg.exec('RESET ROLE'); }
-    const result = await pg.query<{ student_uid: string }>('SELECT student_uid::text FROM student_portal.account WHERE gradebook_student_id=330');
+    } finally {
+      await pg.exec('RESET ROLE');
+    }
+    const result = await pg.query<{ student_uid: string }>(
+      'SELECT student_uid::text FROM student_portal.account WHERE gradebook_student_id=330',
+    );
     expect(result.rows[0]!.student_uid).toBe(uid);
   });
 
   it('preserves canonical identity through the actual V11 import and existing Portal population function', async () => {
-    async function execute(client: Pick<PGlite, 'query'>, query: string, values: readonly unknown[] = []) {
+    async function execute(
+      client: Pick<PGlite, 'query'>,
+      query: string,
+      values: readonly unknown[] = [],
+    ) {
       const result = await client.query<Record<string, unknown>>(query, [...values]);
       return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
     }
     const sql: GradebookPostgresSqlV1 = {
       unsafe: (query, values = []) => execute(pg, query, values),
-      begin: (operation) => pg.transaction((client) => {
-        const transaction: GradebookPostgresQuerySqlV1 = { unsafe: (query, values = []) => execute(client, query, values) };
-        return operation(transaction);
-      }),
+      begin: (operation) =>
+        pg.transaction((client) => {
+          const transaction: GradebookPostgresQuerySqlV1 = {
+            unsafe: (query, values = []) => execute(client, query, values),
+          };
+          return operation(transaction);
+        }),
       end: async () => undefined,
     };
     const service = createGradebookImportService(createGradebookPostgresDatabaseFromSqlV1(sql));
     const request: GradebookRelationImportRequestV9 = {
-      transportVersion: 9, operation: 'persist-relacao', ano: 2026,
-      manifest: { fileName: 'SYNTHETIC IDENTITY.xlsb', sha256: 'a'.repeat(64), parserVersion: 'synthetic-identity-v1' },
-      turmas: [{ codigo: 'ID1114', nome: 'SYNTHETIC IDENTITY CLASS', etapa: 6, turno: 'MATUTINO', alunos: [[1, 'SYNTHETIC IMPORT IDENTITY', 0]] }],
+      transportVersion: 9,
+      operation: 'persist-relacao',
+      ano: 2026,
+      manifest: {
+        fileName: 'SYNTHETIC IDENTITY.xlsb',
+        sha256: 'a'.repeat(64),
+        parserVersion: 'synthetic-identity-v1',
+      },
+      turmas: [
+        {
+          codigo: 'ID1114',
+          nome: 'SYNTHETIC IDENTITY CLASS',
+          etapa: 6,
+          turno: 'MATUTINO',
+          alunos: [[1, 'SYNTHETIC IMPORT IDENTITY', 0]],
+        },
+      ],
     };
     await pg.exec('UPDATE student_portal.lifecycle_control SET population_enabled=true');
     expect(await service.execute(request)).toMatchObject({ state: 'applied' });
-    const first = await pg.query<{ student_uid: string; account_uid: string }>(`SELECT s.student_uid::text AS student_uid,a.student_uid::text AS account_uid
+    const first = await pg.query<{
+      student_uid: string;
+      account_uid: string;
+    }>(`SELECT s.student_uid::text AS student_uid,a.student_uid::text AS account_uid
       FROM gradebook.aluno s JOIN student_portal.account a ON a.gradebook_student_id=s.id AND a.academic_year=s.ano
       WHERE s.nome='SYNTHETIC IMPORT IDENTITY'`);
     expect(first.rows).toHaveLength(1);
     expect(first.rows[0]!.student_uid).toBe(first.rows[0]!.account_uid);
-    const count = (await pg.query('SELECT count(*)::integer AS count FROM gradebook.student_identity')).rows;
+    const count = (
+      await pg.query('SELECT count(*)::integer AS count FROM gradebook.student_identity')
+    ).rows;
     expect(await service.execute(request)).toMatchObject({ state: 'no-changes' });
-    expect((await pg.query('SELECT count(*)::integer AS count FROM gradebook.student_identity')).rows).toEqual(count);
+    expect(
+      (await pg.query('SELECT count(*)::integer AS count FROM gradebook.student_identity')).rows,
+    ).toEqual(count);
   }, 30_000);
 });

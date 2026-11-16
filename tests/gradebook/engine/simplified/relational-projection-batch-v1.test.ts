@@ -55,23 +55,32 @@ beforeAll(async () => {
       parameters.push(values);
       return (await pg.query<Record<string, unknown>>(query, [...values])).rows;
     },
-    async begin() { throw new Error('A read projection must not open a write transaction'); },
-    async end() { await pg.close(); },
+    async begin() {
+      throw new Error('A read projection must not open a write transaction');
+    },
+    async end() {
+      await pg.close();
+    },
   };
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
 }, 30_000);
 
-afterAll(async () => { await database?.close(); });
-beforeEach(() => { queries.length = 0; parameters.length = 0; });
+afterAll(async () => {
+  await database?.close();
+});
+beforeEach(() => {
+  queries.length = 0;
+  parameters.length = 0;
+});
 
 describe('relational projection batch through the PostgreSQL adapter', () => {
-  it.each([1,12,180])('projects %i pairs with one SQL statement, not N+1', async (count) => {
+  it.each([1, 12, 180])('projects %i pairs with one SQL statement, not N+1', async (count) => {
     const result = await createRelationalAcademicProjectionServiceV1(database).projectMany(
-      Array.from({ length: count }, (_, index) => ({ ofertaId: index+1, alunoId: 1 })),
+      Array.from({ length: count }, (_, index) => ({ ofertaId: index + 1, alunoId: 1 })),
     );
     expect(result).toHaveLength(count);
     expect(queries).toHaveLength(1);
-    expect(parameters[0]).toHaveLength(count*2);
+    expect(parameters[0]).toHaveLength(count * 2);
     expect(queries[0]).toContain('$1::integer');
     expect(queries[0]).not.toMatch(/academic_record|academic_entity|\b(INSERT|UPDATE|DELETE)\b/iu);
     expect(result.every((entry) => entry.recovery.classification === 'approved-direct')).toBe(true);
@@ -79,13 +88,17 @@ describe('relational projection batch through the PostgreSQL adapter', () => {
 
   it('preserves requested order', async () => {
     const service = createRelationalAcademicProjectionServiceV1(database);
-    const bulk = await service.projectMany([{ ofertaId: 9, alunoId: 1 },{ ofertaId: 1, alunoId: 1 }]);
-    expect(bulk.map((entry) => entry.ofertaId)).toEqual([9,1]);
+    const bulk = await service.projectMany([
+      { ofertaId: 9, alunoId: 1 },
+      { ofertaId: 1, alunoId: 1 },
+    ]);
+    expect(bulk.map((entry) => entry.ofertaId)).toEqual([9, 1]);
   });
 
   it('separates explicit zero, unavailable grades, source AM and REC N/C', async () => {
     const result = await createRelationalAcademicProjectionServiceV1(database).projectMany([
-      { ofertaId: 1, alunoId: 4 }, { ofertaId: 1, alunoId: 5 },
+      { ofertaId: 1, alunoId: 4 },
+      { ofertaId: 1, alunoId: 5 },
     ]);
     expect(result[0]!.terms[0].outcome.rawMilli).toBe(8000);
     expect(result[0]!.terms[0].outcome.coverage.complete).toBe(true);
@@ -98,12 +111,18 @@ describe('relational projection batch through the PostgreSQL adapter', () => {
     expect(result[1]!.sourceUComparison).toBe('unavailable');
   });
 
-  it.each([2,99,999])('rejects non-current, cross-year or missing membership (%i)', async (alunoId) => {
-    await expect(createRelationalAcademicProjectionServiceV1(database).projectMany([
-      { ofertaId: 1, alunoId: 1 }, { ofertaId: 1, alunoId },
-    ])).rejects.toMatchObject({ code: 'offer-student-not-found' });
-    expect(queries).toHaveLength(1);
-  });
+  it.each([2, 99, 999])(
+    'rejects non-current, cross-year or missing membership (%i)',
+    async (alunoId) => {
+      await expect(
+        createRelationalAcademicProjectionServiceV1(database).projectMany([
+          { ofertaId: 1, alunoId: 1 },
+          { ofertaId: 1, alunoId },
+        ]),
+      ).rejects.toMatchObject({ code: 'offer-student-not-found' });
+      expect(queries).toHaveLength(1);
+    },
+  );
 
   it('returns an empty batch without SQL', async () => {
     expect(await createRelationalAcademicProjectionServiceV1(database).projectMany([])).toEqual([]);
@@ -112,16 +131,30 @@ describe('relational projection batch through the PostgreSQL adapter', () => {
 
   it('rejects duplicate pairs and invalid IDs before any SQL', async () => {
     const service = createRelationalAcademicProjectionServiceV1(database);
-    await expect(service.projectMany([{ ofertaId: 1, alunoId: 1 },{ ofertaId: 1, alunoId: 1 }])).rejects.toMatchObject({ code: 'invalid-relational-row' });
-    await expect(service.projectMany([{ ofertaId: 1.5, alunoId: 1 }])).rejects.toMatchObject({ code: 'invalid-relational-row' });
-    await expect(service.projectMany([{ ofertaId: 1, alunoId: 2_147_483_648 }])).rejects.toMatchObject({ code: 'invalid-relational-row' });
+    await expect(
+      service.projectMany([
+        { ofertaId: 1, alunoId: 1 },
+        { ofertaId: 1, alunoId: 1 },
+      ]),
+    ).rejects.toMatchObject({ code: 'invalid-relational-row' });
+    await expect(service.projectMany([{ ofertaId: 1.5, alunoId: 1 }])).rejects.toMatchObject({
+      code: 'invalid-relational-row',
+    });
+    await expect(
+      service.projectMany([{ ofertaId: 1, alunoId: 2_147_483_648 }]),
+    ).rejects.toMatchObject({ code: 'invalid-relational-row' });
     expect(queries).toHaveLength(0);
   });
 
   it('rejects oversized batches rather than silently truncating a class', async () => {
-    await expect(createRelationalAcademicProjectionServiceV1(database).projectMany(
-      Array.from({ length: RELATIONAL_PROJECTION_BATCH_LIMIT_V1+1 }, (_, index) => ({ ofertaId: index+1, alunoId: 1 })),
-    )).rejects.toMatchObject({ code: 'projection-batch-too-large' });
+    await expect(
+      createRelationalAcademicProjectionServiceV1(database).projectMany(
+        Array.from({ length: RELATIONAL_PROJECTION_BATCH_LIMIT_V1 + 1 }, (_, index) => ({
+          ofertaId: index + 1,
+          alunoId: 1,
+        })),
+      ),
+    ).rejects.toMatchObject({ code: 'projection-batch-too-large' });
     expect(queries).toHaveLength(0);
   });
 });

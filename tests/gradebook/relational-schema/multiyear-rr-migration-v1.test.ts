@@ -17,7 +17,9 @@ beforeAll(async () => {
   await pg.exec(readFileSync(`${root}0007_multiyear_rr_v1.sql`, 'utf8'));
 }, 30_000);
 
-afterAll(async () => { await pg.close(); });
+afterAll(async () => {
+  await pg.close();
+});
 
 describe('multiyear and R/R migration v1', () => {
   it('is additive and removes only the two fixed-2026 constraints', () => {
@@ -42,14 +44,19 @@ describe('multiyear and R/R migration v1', () => {
         (importacao_id,oferta_id,aluno_id,campo,estado_anterior,estado_novo)
         VALUES (1,1,1,5,0,3);
     `);
-    expect((await pg.query('SELECT rec_nc_mask,rec_rr_mask,rec2 FROM gradebook.fechamento')).rows)
-      .toEqual([{ rec_nc_mask: 0, rec_rr_mask: 2, rec2: null }]);
-    await expect(pg.exec('UPDATE gradebook.fechamento SET rec2=1000 WHERE oferta_id=1 AND aluno_id=1'))
-      .rejects.toMatchObject({ code: '23514' });
-    await expect(pg.exec('UPDATE gradebook.fechamento SET rec_nc_mask=2 WHERE oferta_id=1 AND aluno_id=1'))
-      .rejects.toMatchObject({ code: '23514' });
-    await expect(pg.exec(`INSERT INTO gradebook.fechamento_historico
+    expect(
+      (await pg.query('SELECT rec_nc_mask,rec_rr_mask,rec2 FROM gradebook.fechamento')).rows,
+    ).toEqual([{ rec_nc_mask: 0, rec_rr_mask: 2, rec2: null }]);
+    await expect(
+      pg.exec('UPDATE gradebook.fechamento SET rec2=1000 WHERE oferta_id=1 AND aluno_id=1'),
+    ).rejects.toMatchObject({ code: '23514' });
+    await expect(
+      pg.exec('UPDATE gradebook.fechamento SET rec_nc_mask=2 WHERE oferta_id=1 AND aluno_id=1'),
+    ).rejects.toMatchObject({ code: '23514' });
+    await expect(
+      pg.exec(`INSERT INTO gradebook.fechamento_historico
       (importacao_id,oferta_id,aluno_id,campo,estado_anterior,estado_novo)
-      VALUES (1,1,1,1,0,3)`)).rejects.toMatchObject({ code: '23514' });
+      VALUES (1,1,1,1,0,3)`),
+    ).rejects.toMatchObject({ code: '23514' });
   });
 });

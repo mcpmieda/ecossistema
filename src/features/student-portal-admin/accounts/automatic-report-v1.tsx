@@ -4,7 +4,10 @@ import { Alert, Button, Card, Chip } from '@heroui/react';
 import type { AutomaticReportV1 } from '../../../../shared/student-identity/reconciliation-v1';
 import type { ReconciliationClientV1 } from '../shared/reconciliation-client-v1';
 
-const OUTCOME_V1: Record<AutomaticReportV1['outcome'], { label: string; color: 'success' | 'warning' | 'default' }> = {
+const OUTCOME_V1: Record<
+  AutomaticReportV1['outcome'],
+  { label: string; color: 'success' | 'warning' | 'default' }
+> = {
   applied: { label: 'Aplicado', color: 'success' },
   preparing: { label: 'Aplicando', color: 'default' },
   awaiting_relation: { label: 'Aguardando Relação', color: 'warning' },
@@ -35,7 +38,10 @@ export function AutomaticReportPanelV1({
   useEffect(() => {
     const controller = new AbortController();
     void client
-      .request({ contractVersion: 1, academicYear: 2026, operation: 'automatic-report' }, controller.signal)
+      .request(
+        { contractVersion: 1, academicYear: 2026, operation: 'automatic-report' },
+        controller.signal,
+      )
       .then((result) => {
         if (controller.signal.aborted) return;
         if (result.state === 'ready' && result.operation === 'automatic-report') {
@@ -58,7 +64,10 @@ export function AutomaticReportPanelV1({
       </Button>
     </div>
   ) : null;
-  if (!report || (!report.differences.length && !report.invalid.length && report.outcome === 'applied'))
+  if (
+    !report ||
+    (!report.differences.length && !report.invalid.length && report.outcome === 'applied')
+  )
     return failure ? (
       <Card aria-label="Relatório automático">
         <Card.Content>{failure}</Card.Content>
@@ -77,8 +86,10 @@ export function AutomaticReportPanelV1({
         </div>
         <p className="text-sm text-muted">
           Lido no Smecel em {when(report.observedAt)} · {report.rows} linhas
-          {report.counts ? ` · ${report.counts.linked} conciliadas · ${report.counts.pending} pendentes` : ''}.
-          {' '}{SUMMARY_V1[report.outcome]}
+          {report.counts
+            ? ` · ${report.counts.linked} conciliadas · ${report.counts.pending} pendentes`
+            : ''}
+          . {SUMMARY_V1[report.outcome]}
         </p>
         {report.differences.length ? (
           <ul className="list-inside list-disc space-y-1 text-sm">
@@ -107,7 +118,9 @@ export function AutomaticReportPanelV1({
                   </li>
                 ))}
               </ul>
-              <Alert.Description>Corrija no Smecel: a próxima leitura aplica sozinha.</Alert.Description>
+              <Alert.Description>
+                Corrija no Smecel: a próxima leitura aplica sozinha.
+              </Alert.Description>
             </Alert.Content>
           </Alert>
         ) : null}

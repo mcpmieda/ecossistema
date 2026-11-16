@@ -44,9 +44,7 @@ const periodDates = z
   })
   .strict();
 /** A switch plus scheduled Mostrar/Ocultar, following the agenda like access (access-schedule-v1). */
-export const agendaPlanV1 = z
-  .object({ enabled: z.boolean(), schedule: accessScheduleV1 })
-  .strict();
+export const agendaPlanV1 = z.object({ enabled: z.boolean(), schedule: accessScheduleV1 }).strict();
 export type AgendaPlanV1 = z.infer<typeof agendaPlanV1>;
 export const disclosureV1 = z.discriminatedUnion('mode', [
   z
@@ -86,7 +84,9 @@ export const calendarV1 = z
     // Resultado anual on the Notas tab: when present it replaces showFinalResult and the two dates.
     finalAgenda: agendaPlanV1.optional(),
     // One source: the legacy saved value reads as the school's zone.
-    timezone: z.enum([SCHOOL_TIME_ZONE_V1, LEGACY_SCHOOL_TIME_ZONE_V1]).transform(() => SCHOOL_TIME_ZONE_V1),
+    timezone: z
+      .enum([SCHOOL_TIME_ZONE_V1, LEGACY_SCHOOL_TIME_ZONE_V1])
+      .transform(() => SCHOOL_TIME_ZONE_V1),
     enrollmentStartsAt: instantV1.nullable(),
     yearStartsAt: instantV1.nullable(),
     t1EndsAt: instantV1.nullable(),
@@ -203,8 +203,19 @@ export const completeStoredPolicyValueV1 = (stored: unknown): unknown =>
     : stored;
 /** Every policy option, as stored one row per option and scope. */
 export const POLICY_FIELDS_V1 = [
-  'accessEnabled', 'accessSchedule', 'showPartials', 'autoUpdate', 'showFinalResult',
-  'showTermClosing', 'termClosingConclusive', 'showFrequency', 'showSchedule', 'showIncidents', 'allowedPeriods', 'risk', 'calendar',
+  'accessEnabled',
+  'accessSchedule',
+  'showPartials',
+  'autoUpdate',
+  'showFinalResult',
+  'showTermClosing',
+  'termClosingConclusive',
+  'showFrequency',
+  'showSchedule',
+  'showIncidents',
+  'allowedPeriods',
+  'risk',
+  'calendar',
 ] as const;
 export const policyFieldV1 = z.enum(POLICY_FIELDS_V1);
 // Complete value per scope: partial field inheritance is expressed by explicit keys.

@@ -30,7 +30,8 @@ const shaV1 = (value: unknown, label: string) => {
   return value;
 };
 const repositoryV1 = (value: unknown) => {
-  if (typeof value !== 'string' || !REPOSITORY_V1.test(value)) throw new Error('Invalid repository');
+  if (typeof value !== 'string' || !REPOSITORY_V1.test(value))
+    throw new Error('Invalid repository');
   return value;
 };
 const workflowV1 = (value: unknown): CiWorkflowV1 => {
@@ -47,9 +48,11 @@ const requiredEnvironmentV1 = (environment: EnvironmentV1, key: string) => {
 const gitV1 = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim(); // NOSONAR
 
 export function parseCiProvenanceV1(input: unknown): CiProvenanceV1 {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid provenance');
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new Error('Invalid provenance');
   const value = input as Record<string, unknown>;
-  if (value.schema !== 1 || value.event !== 'pull_request') throw new Error('Invalid provenance schema');
+  if (value.schema !== 1 || value.event !== 'pull_request')
+    throw new Error('Invalid provenance schema');
   const parsed: CiProvenanceV1 = {
     schema: 1,
     workflow: workflowV1(value.workflow),
@@ -61,7 +64,14 @@ export function parseCiProvenanceV1(input: unknown): CiProvenanceV1 {
     treeSha: shaV1(value.treeSha, 'tree SHA'),
     runId: integerV1(value.runId, 'run ID'),
   };
-  if (Object.keys(value).sort((left, right) => left.localeCompare(right)).join(',') !== Object.keys(parsed).sort((left, right) => left.localeCompare(right)).join(','))
+  if (
+    Object.keys(value)
+      .sort((left, right) => left.localeCompare(right))
+      .join(',') !==
+    Object.keys(parsed)
+      .sort((left, right) => left.localeCompare(right))
+      .join(',')
+  )
     throw new Error('Unexpected provenance fields');
   return parsed;
 }
@@ -71,7 +81,8 @@ export async function writeCiProvenanceV1(
   output: string,
   environment: EnvironmentV1 = process.env,
 ): Promise<CiProvenanceV1> {
-  if (environment.GITHUB_EVENT_NAME !== 'pull_request') throw new Error('Provenance requires pull_request');
+  if (environment.GITHUB_EVENT_NAME !== 'pull_request')
+    throw new Error('Provenance requires pull_request');
   const proof = parseCiProvenanceV1({
     schema: 1,
     workflow,
@@ -106,15 +117,20 @@ export function verifyProductionProvenanceV1(input: {
   };
   const validate = parseCiProvenanceV1(input.validate);
   const runtime = parseCiProvenanceV1(input.runtime);
-  if (validate.workflow !== 'validate-pull-request' || runtime.workflow !== 'student-portal-runtime-gates')
+  if (
+    validate.workflow !== 'validate-pull-request' ||
+    runtime.workflow !== 'student-portal-runtime-gates'
+  )
     throw new Error('Unexpected gate workflow');
   for (const proof of [validate, runtime]) {
     if (proof.repository !== expected.repository) throw new Error('Repository provenance mismatch');
     if (proof.headSha !== expected.headSha) throw new Error('PR head provenance mismatch');
-    if (proof.treeSha !== expected.treeSha) throw new Error('Validated tree does not match production tree');
+    if (proof.treeSha !== expected.treeSha)
+      throw new Error('Validated tree does not match production tree');
   }
   if (validate.pullRequest !== runtime.pullRequest) throw new Error('Gate pull request mismatch');
-  if (validate.runId !== expected.validateRunId) throw new Error('Validate run provenance mismatch');
+  if (validate.runId !== expected.validateRunId)
+    throw new Error('Validate run provenance mismatch');
   if (runtime.runId !== expected.runtimeRunId) throw new Error('Runtime run provenance mismatch');
   return { pullRequest: validate.pullRequest, treeSha: expected.treeSha } as const;
 }
@@ -124,9 +140,16 @@ async function main() {
   if (command === 'write') {
     const workflow = workflowV1(args[0]);
     const output = args[1];
-    if (!output || args.length !== 2) throw new Error('Usage: provenance-v1.ts write <workflow> <output>');
+    if (!output || args.length !== 2)
+      throw new Error('Usage: provenance-v1.ts write <workflow> <output>');
     const proof = await writeCiProvenanceV1(workflow, output);
-    console.log(JSON.stringify({ event: 'ci-provenance-written-v1', workflow: proof.workflow, treeSha: proof.treeSha }));
+    console.log(
+      JSON.stringify({
+        event: 'ci-provenance-written-v1',
+        workflow: proof.workflow,
+        treeSha: proof.treeSha,
+      }),
+    );
     return;
   }
   if (command === 'verify') {
@@ -141,8 +164,14 @@ async function main() {
       repository: requiredEnvironmentV1(process.env, 'GITHUB_REPOSITORY'),
       headSha: requiredEnvironmentV1(process.env, 'PR_HEAD_SHA'),
       treeSha: requiredEnvironmentV1(process.env, 'FINAL_TREE_SHA'),
-      validateRunId: integerV1(requiredEnvironmentV1(process.env, 'VALIDATE_RUN_ID'), 'validate run ID'),
-      runtimeRunId: integerV1(requiredEnvironmentV1(process.env, 'RUNTIME_RUN_ID'), 'runtime run ID'),
+      validateRunId: integerV1(
+        requiredEnvironmentV1(process.env, 'VALIDATE_RUN_ID'),
+        'validate run ID',
+      ),
+      runtimeRunId: integerV1(
+        requiredEnvironmentV1(process.env, 'RUNTIME_RUN_ID'),
+        'runtime run ID',
+      ),
       validate,
       runtime,
     });
