@@ -22,7 +22,6 @@ function environment(
     TENANT_ID: tenant,
     WEB_CLIENT_ID: actor,
     GRAPH_CLIENT_ID: actor,
-    SHAREPOINT_SITE_ID: 'synthetic-site-for-health-969',
     GROUP_ADMIN_ID: actor,
     GROUP_PROFESSOR_ID: actor,
     GROUP_ALUNO_ID: actor,

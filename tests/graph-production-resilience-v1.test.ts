@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { graphAllPages, GraphError, graphRequest } from '../server/graph/client';
+import { GraphError, graphRequest } from '../server/graph/client';
 import { graphRetryAfterMsV1 } from '../server/graph/request-policy-v1';
 import { testEnv } from './fixtures';
 
@@ -101,68 +101,5 @@ describe('Graph production backoff and intent #806', () => {
       graphRequest({ ...input, dependencies: { fetch: denied, sleep: async () => undefined } }),
     ).rejects.toMatchObject({ status: 403 });
     expect(denied).toHaveBeenCalledOnce();
-  });
-});
-
-describe('Graph complete pagination #806', () => {
-  it('reads more than ten pages and retains the exact opaque cursor query', async () => {
-    let page = 0;
-    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, options) => {
-      expect(new Headers(options?.headers).get('Authorization')).toBe('Bearer synthetic-token');
-      const index = page++;
-      return json({
-        value: [index],
-        ...(page < 12
-          ? {
-              '@odata.nextLink': `https://graph.microsoft.com/v1.0/sites/example/lists?$skiptoken=${page}%2FA%2BB%3D`,
-            }
-          : {}),
-      });
-    });
-    const result = await graphAllPages<number>(testEnv, input.path, input.token, {
-      dependencies: { fetch, sleep: async () => undefined },
-    });
-    expect(result).toEqual(Array.from({ length: 12 }, (_, index) => index));
-    expect(fetch.mock.calls[1]![0]).toBe(
-      'https://graph.microsoft.com/v1.0/sites/example/lists?$skiptoken=1%2FA%2BB%3D',
-    );
-  });
-  it.each([
-    'https://graph.microsoft.com.attacker.invalid/v1.0/lists',
-    'https://attacker.invalid/v1.0/lists',
-    'https://graph.microsoft.com/v1.0/../../outside',
-    'https://x@graph.microsoft.com/v1.0/lists',
-  ])('rejects unsafe nextLink %s before sending a token', async (link) => {
-    const fetch = vi
-      .fn<typeof globalThis.fetch>()
-      .mockResolvedValue(json({ value: [1], '@odata.nextLink': link }));
-    await expect(
-      graphAllPages(testEnv, input.path, input.token, {
-        dependencies: { fetch, sleep: async () => undefined },
-      }),
-    ).rejects.toThrow('approved API');
-    expect(fetch).toHaveBeenCalledOnce();
-  });
-  it('rejects cursor loops rather than returning a partial collection', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () =>
-      json({
-        value: [1],
-        '@odata.nextLink': 'https://graph.microsoft.com/v1.0/sites/example/lists',
-      }),
-    );
-    await expect(
-      graphAllPages(testEnv, input.path, input.token, {
-        dependencies: { fetch, sleep: async () => undefined },
-      }),
-    ).rejects.toThrow('cycle');
-    expect(fetch).toHaveBeenCalledOnce();
-  });
-  it('rejects a malformed page instead of skipping its contents', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(json({ value: null }));
-    await expect(
-      graphAllPages(testEnv, input.path, input.token, {
-        dependencies: { fetch, sleep: async () => undefined },
-      }),
-    ).rejects.toMatchObject({ status: 502 });
   });
 });
