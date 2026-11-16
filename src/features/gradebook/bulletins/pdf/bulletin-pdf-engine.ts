@@ -225,7 +225,7 @@ function wrapCanvasText(
 }
 
 /** Synchronous JPEG encoding. In the admin app Chromium delivers PNG/JPEG `toBlob` results about
- * 1 s late even when idle (measured 26/09/2026; WebP is unaffected), i.e. one extra second per
+ * 1 s late even when idle (measured; WebP is unaffected), i.e. one extra second per
  * bulletin page. `toDataURL` encodes the same bytes in milliseconds.
  */
 function canvasToJpegBytes(canvas: HTMLCanvasElement): Uint8Array {

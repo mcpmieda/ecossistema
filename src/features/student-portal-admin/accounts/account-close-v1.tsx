@@ -15,8 +15,8 @@ import {
 import { RecordOriginV1 } from './record-origin-v1';
 
 /**
- * "Encerrar conta" outside the record (the Conciliação, owner request 11/11/2026): the same reason,
- * confirmation and command as the record, for an account without a class.
+ * "Encerrar conta" outside the record (the Conciliação): the same reason, confirmation and command
+ * as the record, for an account without a class.
  */
 export function AccountCloseV1({
   client,

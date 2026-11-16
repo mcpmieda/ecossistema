@@ -42,8 +42,8 @@ import { CoffeeIconV3, FlagIconV3, type ScheduleIconV3 } from './schedule-icons-
 import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
 
 /*
- * Horário in a page of its own (owner decisions 22–23/10/2026): the weekly grid of the student's
- * class as the Smecel has it, read by the collector from "Grade de horários". Only the
+ * Horário in a page of its own: the weekly grid of the student's class as the Smecel has it, read
+ * by the collector from "Grade de horários". Only the
  * subject, by its official name (the Notas' "PORTUGUÊS" for the Smecel's "LINGUA PORTUGUESA",
  * official-subjects-v1), with its own colour and icon; never the teacher; a free position ("VAGA")
  * is a blank space.
@@ -154,7 +154,7 @@ const subjectText = (subject: string) =>
       {part}
     </Fragment>
   ));
-/** The subject of a position, by its official name (owner decision 23/10/2026: "COMPUTAÇÃO"). */
+/** The subject of a position, by its official name ("COMPUTAÇÃO"). */
 const subjectAt = (lessons: readonly ScheduleLessonV3[], weekday: number, slot: number) => {
   const subject = lessons.find(
     (lesson) => lesson.weekday === weekday && lesson.slot === slot,
@@ -173,8 +173,8 @@ type RowV3 =
   | { kind: 'intervalo'; start: string; end: string }
   | { kind: 'parada'; start: string; end: string };
 /**
- * A day's rows: its positions up to its own last lesson (owner request 23/10/2026: no 6th on a day
- * without one), each with its time, and the break before the first lesson that starts after it.
+ * A day's rows: its positions up to its own last lesson (no 6th on a day without one), each with
+ * its time, and the break before the first lesson that starts after it.
  */
 function rowsOf(item: ScheduleClassV3, weekday: WeekdayV3): RowV3[] {
   const last = Math.max(
@@ -185,7 +185,7 @@ function rowsOf(item: ScheduleClassV3, weekday: WeekdayV3): RowV3[] {
   const pause = bells?.find((bell) => bell.kind === 'intervalo') ?? null;
   const rows: RowV3[] = [];
   let paused = false;
-  // The parada (owner decision 23/10/2026) before the first lesson, on a day with lessons.
+  // The parada before the first lesson, on a day with lessons.
   const firstTime = bellLessonV1(bells, 1);
   for (const bell of bells ?? [])
     if (
@@ -221,12 +221,12 @@ function rowsOf(item: ScheduleClassV3, weekday: WeekdayV3): RowV3[] {
 }
 
 /**
- * On a phone, the day follows the finger (owner request 23/10/2026): dragged sideways, the card
+ * On a phone, the day follows the finger: dragged sideways, the card
  * slides and the next (or the previous) day shows as it slides in; let go past a fifth of the width,
  * it settles on that day, otherwise it slides back. A drag that starts up or down is the page's
  * scroll. Friday is followed by Monday, and Monday comes after Friday. `onDrag` tells how far it is
  * (1 a whole day forward, -1 back) and whether the finger is still on it, so the chips follow.
- * A day picked on the chips slides in the same way (owner request 27/10/2026): from the right when
+ * A day picked on the chips slides in the same way: from the right when
  * it comes later in the week, from the left when earlier, pushing out the day that was shown.
  */
 const SLIDE_MS_V3 = 260;
@@ -471,7 +471,7 @@ const rowStateClassV3 = (clock: RowClockV3, item: { start: string; end: string }
   (clock.isNow(item) ? ' is-now' : '') + (clock.isDone(item) ? ' is-done' : '');
 
 /*
- * A row of the day (owner requests 27/10/2026): on the left, the day's timeline, one line from the
+ * A row of the day: on the left, the day's timeline, one line from the
  * first row to the last, a dot on what is already over today and the red one, beating, on what goes
  * on now (redesign-v3.css, .pa3-schedule-rail); then the card in the subject's colour (the break's
  * amber, the parada's slate): its icon, moving while it goes on, "3ª aula" over the name, the time on
@@ -582,7 +582,7 @@ function DayListV3({
     minute >= bellMinutesV1(item.start) &&
     minute < bellMinutesV1(item.end);
   // Already over, while today's lessons go on: faded, still readable. Once the day is over, nothing
-  // is faded (owner request 23/10/2026: the day is checked after the lessons too).
+  // is faded (the day is checked after the lessons too).
   const ends = rows.flatMap((row) => {
     if (row.kind !== 'aula') {
       return [row.end];
@@ -621,9 +621,9 @@ function DayOffV3({ day, today }: Readonly<{ day: SchoolDayOffV1; today: boolean
 
 /**
  * The next school day after today with lessons and times for this class: a weekday the ADM calendar
- * does not mark as a day without school, inside its school year, however far (owner request
- * 27/10/2026: the holidays before the first day keep the clock running to it, whatever their
- * length). Without a calendar, looked for up to two months ahead.
+ * does not mark as a day without school, inside its school year, however far (the holidays before
+ * the first day keep the clock running to it, whatever their length). Without a calendar, looked
+ * for up to two months ahead.
  */
 function nextSchoolDayOf(
   item: ScheduleClassV3,
@@ -702,7 +702,7 @@ function NextLessonsCardV3({
 }>) {
   const next = nextSchoolDayOf(item, today, daysOff, schoolYear);
   if (!next) {
-    // After the calendar's last lesson (owner request 27/10/2026), the same words as Frequência's
+    // After the calendar's last lesson, the same words as Frequência's
     // countdown; no clock.
     if (!schoolYear || today < schoolYear.lastDay) return null;
     return (
@@ -738,8 +738,8 @@ function NextLessonsCardV3({
 }
 
 /**
- * The item in the card's title, filled in its colour on the Horário (owner request 27/10/2026): the
- * break in amber, the parada in slate, a lesson in its subject's colour.
+ * The item in the card's title, filled in its colour on the Horário: the break in amber, the
+ * parada in slate, a lesson in its subject's colour.
  */
 function NowItemV3({ item, subject }: Readonly<{ item: BellItemV1; subject: string | null }>) {
   const tone = item.kind === 'aula' && subject ? ` pa3-subject--${subjectStyleV3(subject).tone}` : '';
@@ -759,7 +759,7 @@ function nowTextsV3(
   if (moment.state === 'in') {
     title = (
       <>
-        {/* The red "ao vivo" dot while something is going on (owner request 27/10/2026). */}
+        {/* The red "ao vivo" dot while something is going on. */}
         <span className="pa3-live" aria-hidden="true" />
         Agora: <NowItemV3 item={moment.current} subject={subjectOf(moment.current)} />
       </>
@@ -791,7 +791,7 @@ function nowTextsV3(
 }
 
 /**
- * Today, now (owner decision 23/10/2026): the lesson going on and a short clock to what comes next
+ * Today, now: the lesson going on and a short clock to what comes next
  * ("Intervalo em", "Saída em"), then what follows. Before the day starts (with the parada, when
  * there is one), when it starts; after it, the clock runs to the next school day.
  */
@@ -903,7 +903,7 @@ function dayPanelV3(
         <h3 aria-live={current ? 'polite' : undefined}>
           {isToday(weekday) ? `Hoje, ${day.long.toLowerCase()}` : day.long}
         </h3>
-        {/* A day without school still shows its timetable (owner request 01/11/2026), faded. */}
+        {/* A day without school still shows its timetable, faded. */}
         {dayOff ? <DayOffV3 day={dayOff} today={isToday(weekday)} /> : null}
         <DayListV3
           rows={rowsOf(item, weekday)}
@@ -981,7 +981,7 @@ function latestObservedV3(classes: readonly ScheduleClassV3[] | null): string | 
 const firstShownDayV3 = (schoolDay: boolean, todayWeekday: number) => (schoolDay ? todayWeekday : 1);
 
 /**
- * Today has lessons only inside the school year (owner request 27/10/2026): after the calendar's
+ * Today has lessons only inside the school year: after the calendar's
  * last school day, a weekday the calendar does not mark is no school day either.
  */
 function inSchoolYearV3(today: string, schoolYear: SchoolYearSpanV1 | null): boolean {
@@ -1021,7 +1021,7 @@ export function ScheduleWeekV3({
     if (weekday !== shown) setSwipedSide(side);
     setPicked(weekday);
   };
-  // The chips' blue pill follows the day being dragged (owner request 27/10/2026): from the day shown
+  // The chips' blue pill follows the day being dragged: from the day shown
   // toward the one coming in, as far as the card has slid; it glides there on its own otherwise.
   const [drag, setDrag] = useState({ progress: 0, dragging: false });
   const toward = wrapWeekdayV3(shown + (drag.progress > 0 ? 1 : -1));
@@ -1123,7 +1123,7 @@ export function ScheduleWeekV3({
             </Card>
           ))}
 
-          {/* When the class's grid was last read (owner request 23/10/2026: no source name). */}
+          {/* When the class's grid was last read (no source name). */}
           {latest ? (
             <p className="pa3-footnote">
               Atualizado em{' '}

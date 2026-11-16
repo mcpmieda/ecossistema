@@ -9,7 +9,7 @@ const RETRY_AFTER_MS_V3 = 30_000;
 const RETRY_MAX_MS_V3 = 300_000;
 
 /**
- * One read with the sign-in, kept on screen (owner request 22/10/2026: "não pode piscar"). The
+ * One read with the sign-in, kept on screen (it must not flicker). The
  * Frequência and Horário pages are read once when the portal opens, like the grades, so opening
  * them or changing months shows the data at once and asks nothing of the server. When the page is
  * opened again, or the phone comes back to the portal, data older than ten minutes (or never read)

@@ -24,13 +24,13 @@ type DemoFrequencyV3 = FrequencySummaryV2 & { days: FrequencyDayV2[] };
  */
 
 /**
- * Lessons of a school day, as the Smecel diary gives them (owner decision 20/10/2026): five on most
- * days, six on Tuesdays and Thursdays; no configuration involved, the preview just imitates the diary.
+ * Lessons of a school day, as the Smecel diary gives them: five on most days, six on Tuesdays and
+ * Thursdays; no configuration involved, the preview just imitates the diary.
  */
 const lessonsOn = (date: string) => ([2, 4].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? 6 : 5);
 /**
  * The preview diary's lesson days: the school days of the official calendar, the only ones the
- * server counts (owner request 27/10/2026: the ring's "dias já se passaram" as in the real portal).
+ * server counts, so the ring's "dias já se passaram" reads as in the real portal.
  */
 const SCHOOL_DAYS = new Set(schoolDaysOfV1(demoCalendarV3()));
 /** A school Saturday is a compensation day with automatic attendance: never an absence. */
@@ -39,8 +39,8 @@ const pad = (value: number) => String(value).padStart(2, '0');
 /** Today as the school's clock reads it (the same helper as the real page). */
 const previewTodayV3 = schoolDateOnDeviceV3;
 /**
- * The preview's clock: the real time, or a simulated one with ?hora=15:35 in the address (owner
- * request 23/10/2026: "simula o intervalo"), today at that time in Brasília, running from there.
+ * The preview's clock: the real time, or a simulated one with ?hora=15:35 in the address (to
+ * simulate the break), today at that time in Brasília, running from there.
  */
 const SIMULATED_AT_V3 = (() => {
   const hora = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('hora');
@@ -51,8 +51,8 @@ const previewNowV3 = () =>
   new Date(SIMULATED_AT_V3 ? SIMULATED_AT_V3.at + (Date.now() - SIMULATED_AT_V3.loadedAt) : Date.now()).toISOString();
 
 /** Hand-written October, so the story is easy to follow; other months are generated. */
-// Each kind of day (owner request 21/10/2026): whole days (one justified) and days absent in
-// some lessons only (at the start, at the end, in the middle; one justified).
+// Each kind of day: whole days (one justified) and days absent in some lessons only (at the
+// start, at the end, in the middle; one justified).
 const OCTOBER: Record<string, readonly [slot: number, mark: 'X' | 'J'][]> = {
   '2026-10-06': [[1, 'X'], [2, 'X']],
   '2026-10-08': [[1, 'X'], [2, 'X'], [3, 'X'], [4, 'X'], [5, 'X'], [6, 'X']],
@@ -116,7 +116,7 @@ function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
 /**
  * The month as the Portal's frequency API answers it (portalFrequencySummaryV2 in
  * server/attendance/service-v2.ts), so the page is built against the real shape: the totals by
- * the owner's rule (frequencyCountV2: today never counts), the school's today, the year so far
+ * frequencyCountV2 (today never counts), the school's today, the year so far
  * (null while any month is unknown) and the class's last reading.
  */
 function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
@@ -208,8 +208,8 @@ const later = <T,>(value: () => T, signal: AbortSignal) =>
     });
   });
 /**
- * One example of each sentence about the absences (owner decisions 22/10/2026), for the "Simular
- * admin" panel: the same wording the server writes, with invented numbers.
+ * One example of each sentence about the absences, for the "Simular admin" panel: the same
+ * wording the server writes, with invented numbers.
  */
 export const DEMO_FREQUENCY_COMMENTS_V3: Record<FrequencyCommentKindV2, { label: string; tone: 'alert' | 'good'; text: string }> = {
   'over-limit': { label: 'Já passou do limite', tone: 'alert', text: 'Já faltou cerca de 52 dias. Pode reprovar por falta.' },
@@ -237,7 +237,7 @@ export const createDemoFrequencyClientV3 = (comment: DemoCommentChoiceV3 = 'auto
 });
 
 /**
- * The class's weekly grid (owner decision 22/10/2026), shaped like a real Smecel "Grade de
+ * The class's weekly grid, shaped like a real Smecel "Grade de
  * horários": subjects as the Smecel names them, no teacher, a free position left out (it shows as a
  * blank space). Monday, Wednesday and Friday have no 6th lesson.
  */
@@ -285,7 +285,7 @@ export const createDemoScheduleClientV3 = (): StudentScheduleClientV1 => ({
 });
 
 /*
- * The preview's Ocorrências (owner decisions 29/10/2026): invented records shaped like the Smecel's
+ * The preview's Ocorrências: invented records shaped like the Smecel's
  * (a suspension with its leave, one whose start the Smecel left blank, warnings, one "outras"), one
  * already confirmed. "Estou ciente" is kept in memory until the page is reloaded.
  */

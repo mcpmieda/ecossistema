@@ -1,7 +1,7 @@
 import { useId } from 'react';
 
 /*
- * The selo brilhante as a real award seal (owner request 28/09/2026): a scalloped gold rosette with
+ * The selo brilhante as a real award seal: a scalloped gold rosette with
  * a stitched inner ring, a raised star and two ribbon tails. Pure SVG, so it stays crisp at any size;
  * a soft light crosses it now and then, clipped to the rosette.
  */

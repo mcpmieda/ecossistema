@@ -248,7 +248,7 @@ function BulkErrorV1({ error }: Readonly<{ error: BulkStateV1['error'] }>) {
 
 /** Bulk writes open in a full-screen dialog: counts instead of a name list, a typed confirmation
  * and a progress bar. With rows selected in the table only those accounts are written; with none
- * selected the whole class is (owner decision, 26/09/2026).
+ * selected the whole class is.
  */
 export function StudentBulkV1({
   client,

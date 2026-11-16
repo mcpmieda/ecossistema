@@ -169,7 +169,7 @@ const wholeYear = z
       .strict()
       .nullable()
       .optional(),
-    // The days without school, each lesson's time and the week's subjects (owner decision 23/10/2026).
+    // The days without school, each lesson's time and the week's subjects.
     daysOff: schoolDaysOffV1.optional(),
     bells: schoolBellsDaysV1.nullable().optional(),
     // From when those times hold (the ADM's last save, or the official sheets' day).
@@ -201,7 +201,7 @@ const wholeYear = z
   .strict();
 
 export type StudentFrequencyClientV2 = {
-  /** The whole school year so far in one answer (read with the sign-in, PR 1317). */
+  /** The whole school year so far in one answer (read with the sign-in). */
   readYear(signal: AbortSignal): Promise<FrequencyYearSummaryV2>;
 };
 export function createStudentFrequencyClientV2(

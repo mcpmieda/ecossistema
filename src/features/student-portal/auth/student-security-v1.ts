@@ -127,7 +127,7 @@ export function createStudentSecurityV1(options: {
     if (paused) return;
     lease = setTimeout(() => void authorize(), Math.max(0, (renewable ? 45_000 : 60_000) - (Date.now() - verifiedAt)));
   };
-  // Stable login (owner decision, 22/09/2026): when the lease is due, re-check the session over
+  // Stable login: when the lease is due, re-check the session over
   // HTTP (never /me). Only a confirmed revocation hides content — `authorize` publishes it and
   // the session hook disposes this channel. Network uncertainty (socket blocked, tab resumed
   // after the OS suspended it, flaky mobile data) keeps the content and retries shortly.

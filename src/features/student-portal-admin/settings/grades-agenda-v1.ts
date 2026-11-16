@@ -12,7 +12,7 @@ import {
 import { PERIODS_V1, type CalendarV1 } from './settings-values-v1';
 
 /*
- * Aba Notas (27/09/2026): each period and the Resultado anual follow an agenda (a switch plus
+ * Aba Notas: each period and the Resultado anual follow an agenda (a switch plus
  * Mostrar/Ocultar), like access. A scope still on the older dates is read as the agenda those dates
  * mean, so the tab opens showing what students see today, and it is saved as an agenda.
  */

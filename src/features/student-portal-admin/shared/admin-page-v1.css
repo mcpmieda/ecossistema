@@ -81,7 +81,7 @@
   padding: 0.75rem;
 }
 
-/* #1101: keep the existing table models; sticky cells stay in their own scroll region. */
+/* Keep the existing table models; sticky cells stay in their own scroll region. */
 .pa-admin-page .table__scroll-container {
   position: relative;
   scroll-padding-top: 3rem;
@@ -140,8 +140,8 @@
 }
 
 /*
- * Responsive review (owner request 29/09/2026): records that open cleanly on phones and desktops,
- * compact tables and no needless line breaks.
+ * Responsive: records that open cleanly on phones and desktops, compact tables and no needless
+ * line breaks.
  */
 /* Tab labels stay on one line; the tab strip scrolls instead of wrapping "Relatório de notas". */
 .pa-admin-page [role='tab'],

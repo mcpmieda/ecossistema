@@ -23,14 +23,13 @@ import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1
 import { useDragSwipeV1 } from '../workspace/student-workspace-v1';
 
 /*
- * Frequência in a page of its own (owner requests 20–21/10/2026): one month at a time, read in
- * DAYS and about absences only. Every school day already over is one of four kinds, the same
+ * Frequência in a page of its own: one month at a time, read in DAYS and about absences only.
+ * Every school day already over is one of four kinds, the same
  * everywhere (calendar colour, legend, ring, sentence): "faltou o dia todo" (an absence in every
  * lesson, one at least not justified), "faltou algumas aulas" (in some lessons only), "justificado" (every
  * absence of the day justified) or "sem falta" (no absence). The portal never interprets the diary:
- * no "arrived late", "left early" or "partly" (owner decisions 21/10/2026); which lessons were
- * missed only shows in the lesson tiles of the day. The legal attendance stays by lessons, over the
- * whole year (the ruler).
+ * no "arrived late", "left early" or "partly"; which lessons were missed only shows in the lesson
+ * tiles of the day. The legal attendance stays by lessons, over the whole year (the ruler).
  *
  * Data: GET /api/student/frequency?year=2026 (createStudentFrequencyClientV2), the whole year so
  * far in one answer, read with the sign-in and kept (useCachedReadV3), so changing months never
@@ -43,7 +42,7 @@ const WEEKDAYS_SHORT = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 /**
  * The months shown: from the month of the school year's first school day to the month of its last,
- * as the ADM calendar marks them (owner request 27/10/2026: never fixed in the code). Without a
+ * as the ADM calendar marks them (never fixed in the code). Without a
  * calendar, February to December of the student's academic year (profile.link.academicYear).
  * After the last month the page stays on it instead of asking for a month the API would refuse.
  */
@@ -54,7 +53,7 @@ function monthsOfYearV3(schoolYear: FrequencyYearSummaryV2['schoolYear'], academ
 }
 const SHIFT_LABELS: Record<string, string> = { MATUTINO: 'Manhã', VESPERTINO: 'Tarde', NOTURNO: 'Noite', INTEGRAL: 'Integral' };
 
-/** A school day: with or without an absence (89,7% of the school's days have none, 21/10/2026). */
+/** A school day: with or without an absence (89,7% of the school's days have none). */
 type DayKindV3 = 'clear' | 'missed';
 /** The calendar's state of a date: a day kind, or a date with nothing to judge yet. */
 type DayStateV3 = DayKindV3 | 'pending' | 'off' | 'holiday' | 'unknown' | 'future';
@@ -101,7 +100,7 @@ function dayOf(lessons: readonly ShiftLessonsV3[], marks: readonly MarkV3[]): Da
   };
 }
 
-/** Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro" (owner request 21/10/2026). */
+/** Today and yesterday say so: "Hoje, quarta-feira, 21 de outubro". */
 function dayTitle(selected: string, today: string) {
   if (selected === today) return `Hoje, ${dayLabel(selected).toLowerCase()}`;
   if (selected === dayBefore(today)) return `Ontem, ${dayLabel(selected).toLowerCase()}`;
@@ -145,7 +144,7 @@ function daySentence(day: DayV3, open: boolean) {
   return `${plural(day.missed.length, 'falta', 'faltas')} em ${plural(day.lessons, 'aula', 'aulas')}${reason}.`;
 }
 /**
- * The tile's colour (owner decision 21/10/2026): red when every lesson of the day had an absence,
+ * The tile's colour: red when every lesson of the day had an absence,
  * light red when only some did, amber when the day's absences are all justified (some or all).
  */
 const toneLevelOf = (day: DayV3 | null) => {
@@ -159,9 +158,8 @@ const toneLevelOf = (day: DayV3 | null) => {
 };
 
 /**
- * The month's school days as a ring with guide lines (owner choices 21/10/2026: "a A com as
- * legendas ao lado das setinhas guias de cada banda", darker tones). One arc per kind of day (faltou
- * o dia todo, faltou algumas aulas, justificado, sem falta); from the middle of each arc a curved guide line
+ * The month's school days as a ring with guide lines, in darker tones. One arc per kind of day
+ * (faltou o dia todo, faltou algumas aulas, justificado, sem falta); from the middle of each arc a curved guide line
  * goes out to its number and name. The centre shows how many days are counted (days already over;
  * today is not). When the month opens, the arcs grow in turn and the labels appear after them
  * (still with reduced motion).
@@ -173,8 +171,8 @@ const RING_STROKE_V3 = 19;
 /** A small gap between arcs, in radians. */
 const RING_GAP_V3 = 0.05;
 /**
- * The four kinds of day, the same as the calendar's colours (owner decision 21/10/2026: a student
- * who misses only some lessons, arriving at the third, did not miss the day). Every school day
+ * The four kinds of day, the same as the calendar's colours (a student who misses only some
+ * lessons, arriving at the third, did not miss the day). Every school day
  * already over falls in exactly one: no absence; an absence in every lesson (one at least not
  * justified); an absence in some lessons only (one at least not justified); every absence of the
  * day justified, all lessons or some.
@@ -182,10 +180,9 @@ const RING_GAP_V3 = 0.05;
 // `ink`: the number's colour. The light red arc stays light, but its number is darker so it reads
 // at 4,5:1 on white even when the ring is scaled down on a narrow phone (#d45a4f was 3,9:1).
 const RING_KINDS_V3 = [
-  // The legend's own words (owner request 01/11/2026): "faltas totais" read as the sum of all absences.
-  // Names that exclude each other (owner requests 09/11/2026: "dias de falta" read as if the
-  // justified days and the days with some lessons missed were inside it; every name a kind of day,
-  // "dia" for one). Each on its own two lines.
+  // The legend's own words: "faltas totais" read as the sum of all absences. Names that exclude
+  // each other ("dias de falta" read as if the justified days and the days with some lessons missed
+  // were inside it; every name a kind of day, "dia" for one). Each on its own two lines.
   { kind: 'clear', colour: '#166534', ink: '#166534', one: ['dia sem', 'nenhuma falta'], many: ['dias sem', 'nenhuma falta'] },
   { kind: 'full', colour: '#991b1b', ink: '#991b1b', one: ['dia com falta', 'o dia todo'], many: ['dias com falta', 'o dia todo'] },
   { kind: 'partial', colour: '#d45a4f', ink: '#b42d22', one: ['dia com falta', 'em algumas aulas'], many: ['dias com falta', 'em algumas aulas'] },
@@ -194,8 +191,7 @@ const RING_KINDS_V3 = [
 type RingTotalsV3 = { days: number; clear: number; full: number; partial: number; justified: number };
 /**
  * The school days already over and read in full, by kind (today never counts), over the lesson
- * days and marks given: the whole year so far for the ring (owner request 22/10/2026: "os dados
- * do ano inteiro e não mais o mês, pra casar com a régua").
+ * days and marks given: the whole year so far for the ring, so it matches the ruler.
  */
 function ringTotalsOf(days: readonly NonNullable<FrequencySummaryV2['days']>[number][], marks: readonly MarkV3[], today: string): RingTotalsV3 {
   const lessonsByDay = new Map<string, ShiftLessonsV3[]>();
@@ -268,7 +264,7 @@ function spreadLabels<T extends { y: number }>(labels: T[]) {
 function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: string }>) {
   const counts = { clear: totals.clear, full: totals.full, partial: totals.partial, justified: totals.justified };
   // Absences first, then the frequented days. The ring is turned so the absences sit centred on
-  // the left and the frequented days on the right (owner request 21/10/2026): every arc then
+  // the left and the frequented days on the right: every arc then
   // points sideways, and every guide line runs out nearly level, with no hooks.
   const shown = [...RING_KINDS_V3.filter(({ kind }) => kind !== 'clear'), RING_KINDS_V3[0]].filter(({ kind }) => counts[kind] > 0);
   const absent = totals.days - totals.clear;
@@ -286,15 +282,15 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
   // (an exhaustive check of every split up to 31 days found no overlap and no line crossing the ring).
   const placed = arcs.map((arc) => {
     const side = Math.cos(arc.middle) >= 0 ? 1 : -1;
-    // The pointer starts a little away from the ring, not touching it (owner request 21/10/2026).
+    // The pointer starts a little away from the ring, not touching it.
     const near = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 6, arc.middle);
     const elbow = ringPoint(RING_RADIUS_V3 + RING_STROKE_V3 / 2 + 14, arc.middle);
     return { ...arc, side, near, elbow, y: elbow.y };
   });
   for (const side of [1, -1]) spreadLabels(placed.filter((label) => label.side === side));
   const single = arcs.length === 1;
-  // Nothing is ever cut (owner check 09/11/2026: a label pushed far from its arc, or a long name,
-  // could run past the edge): once drawn, the picture widens evenly on both sides to hold every word,
+  // Nothing is ever cut (a label pushed far from its arc, or a long name, could run past the
+  // edge): once drawn, the picture widens evenly on both sides to hold every word,
   // and so shrinks a little as a whole, which keeps every distance between the parts.
   const ring = useRef<SVGSVGElement>(null);
   const [extra, setExtra] = useState(0);
@@ -341,8 +337,8 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
         ),
       )}
       {placed.map((label) => {
-        // One smooth curve, as short as it can be (owner requests 21/10/2026: no crooked arrows,
-        // no needless bends, curves instead of corners): it leaves the arc pointing outwards and
+        // One smooth curve, as short as it can be (no crooked arrows, no needless bends, curves
+        // instead of corners): it leaves the arc pointing outwards and
         // reaches the words level. It goes further out only as far as the words need to clear
         // the ring at their own height.
         const outer = RING_RADIUS_V3 + RING_STROKE_V3 / 2;
@@ -382,8 +378,8 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
           </g>
         );
       })}
-      {/* The school days of the year already over, in the centre (owner request 22/10/2026:
-          "x dias já se passaram"), on two short lines so they stay inside the ring. */}
+      {/* The school days of the year already over, in the centre ("x dias já se passaram"), on
+          two short lines so they stay inside the ring. */}
       <text x={RING_CENTER_V3.x} y={RING_CENTER_V3.y + 2} textAnchor="middle" className="pa3-guide-percent">
         {totals.days}
       </text>
@@ -398,7 +394,7 @@ function DayRingV3({ totals, label }: Readonly<{ totals: RingTotalsV3; label: st
 }
 
 /**
- * Today, kept current while the page stays open (owner request 21/10/2026): a phone left on the
+ * Today, kept current while the page stays open: a phone left on the
  * portal overnight moves "HOJE" (and, on the 1st, the month) when the parent comes back to it, and
  * at midnight. The school's clock: America/Bahia, always UTC−3 (no daylight saving since 2012).
  * Used only until the server's today arrives (a phone with a wrong clock never moves "HOJE").
@@ -490,8 +486,8 @@ function FrequencyStatusV3({
 }
 
 export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthenticationLost }: Readonly<FrequencyPageV3Props>) {
-  // The whole school year so far, read once with the sign-in (owner request 22/10/2026: changing
-  // months must never blink nor wait): every month, the school's today, the year's counts.
+  // The whole school year so far, read once with the sign-in (changing months must never blink
+  // nor wait): every month, the school's today, the year's counts.
   const read = useCallback(
     async (signal: AbortSignal) => {
       const value = await client.readYear(signal);
@@ -552,7 +548,7 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
       <h2 id="pa3-frequency-title" className="pa3-page-title" tabIndex={-1}>
         {PAGE_LOADING_V3.frequency.title}
       </h2>
-      {/* One sentence about the absences, first (owner decisions 22/10/2026); none, nothing. */}
+      {/* One sentence about the absences, first; none, nothing. */}
       {year?.comment ? <FrequencyCommentV3 comment={year.comment} /> : null}
       {year && totals ? (
         <FrequencyMonthV3
@@ -599,10 +595,10 @@ function FrequencyCommentV3({ comment }: Readonly<{ comment: NonNullable<Frequen
 
 const dateLabelV3 = (date: string) => date.split('-').reverse().join('/');
 /**
- * How long until the school year ends (owner request 22/10/2026), with the same split-flap clock as
+ * How long until the school year ends, with the same split-flap clock as
  * the portal's opening countdown. It runs to the end of the last school day of the calendar marked
  * in the ADM, and says how many school days are left. Before the first school day, how long until
- * the year starts (owner request 27/10/2026). Nothing while no calendar is marked.
+ * the year starts. Nothing while no calendar is marked.
  */
 function SchoolYearCountdownV3({
   schoolYear,
@@ -668,7 +664,7 @@ const monthDataV3 = (year: FrequencyYearSummaryV2, month: string): FrequencySumm
   lastReadAt: year.lastReadAt,
 });
 
-/** The month's name and its arrows (owner request 21/10/2026: the month bar is gone). */
+/** The month's name and its arrows. */
 function MonthHeadV3({
   month,
   canBack,
@@ -699,7 +695,7 @@ function MonthHeadV3({
 function OpenDayNoteV3({ isToday }: Readonly<{ isToday: boolean }>) {
   return (
     <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
-      {/* The teacher marks an absence during the lesson; a presence is only confirmed the next day (owner request 27/10/2026). */}
+      {/* The teacher marks an absence during the lesson; a presence is only confirmed the next day. */}
       {isToday ? 'Falta aparece na hora · presença confirma amanhã' : 'Leitura incompleta · conta quando o diário for lido'}
     </Chip>
   );
@@ -771,7 +767,7 @@ function useMonthDaysV3(data: FrequencySummaryV2, today: string, offByDate: Read
     // colour would be worked out on part of its lessons, and the ring does not count it yet.
     if (date < today && !lessons.every((item) => item.complete)) return 'pending';
     const day = dayOf(lessons, marksByDay.get(date) ?? []);
-    // Today with an absence keeps its colour (owner decision 21/10/2026); without, it is still open.
+    // Today with an absence keeps its colour; without, it is still open.
     if (day.kind !== 'clear') return day.kind;
     return date < today ? 'clear' : 'pending';
   };
@@ -780,9 +776,9 @@ function useMonthDaysV3(data: FrequencySummaryV2, today: string, offByDate: Read
 
 // Only a day with an absence, or one still open, is highlighted and opens.
 const isPickableV3 = (state: DayStateV3) => state === 'missed' || state === 'pending';
-// A day without absence opens too (owner request 22/10/2026): a parent whose child never misses
-// can still see that day's lessons, every one "Sem falta". It is never chosen at first.
-// A day without school opens too, to say why (owner decision 23/10/2026).
+// A day without absence opens too: a parent whose child never misses can still see that day's
+// lessons, every one "Sem falta". It is never chosen at first.
+// A day without school opens too, to say why.
 const opensV3 = (state: DayStateV3) => isPickableV3(state) || state === 'clear' || state === 'holiday';
 
 /** The month's name, its legend and its days: the part of the card that follows the finger. */
@@ -835,17 +831,17 @@ function MonthPageV3({
       <MonthHeadV3 month={month} canBack={canBack} canForward={canForward} go={go} />
       <ul className="pa3-legend" aria-label="Legenda">
         <li><span className="pa3-dot pa3-kind--missed" data-tone="3" /> Faltou o dia todo</li>
-        {/* Light red (owner request 21/10/2026): absent in some of the day's lessons. */}
+        {/* Light red: absent in some of the day's lessons. */}
         <li><span className="pa3-dot pa3-kind--missed" data-tone="1" /> Faltou algumas aulas</li>
         <li><span className="pa3-dot pa3-kind--missed is-justified" data-tone="3" /> Justificada</li>
-        {/* A day without absence (owner requests 23 and 27/10/2026): a white square with its check, as on the calendar. */}
+        {/* A day without absence: a white square with its check, as on the calendar. */}
         <li>
           <span className="pa3-dot pa3-dot--clear">
             <Check size={8} strokeWidth={4} aria-hidden="true" />
           </span>{' '}
           Sem falta
         </li>
-        {/* A holiday or recess (owner decision 23/10/2026): tap it to see why there was no school. */}
+        {/* A holiday or recess: tap it to see why there was no school. */}
         {/* Without one, its line stays empty: every month is as tall, nothing jumps below the card. */}
         {daysOff.some((day) => day.date.startsWith(month)) ? (
           <li><span className="pa3-dot pa3-dot--holiday" /> Feriado ou recesso</li>
@@ -884,7 +880,7 @@ function MonthPageV3({
               onClick={() => onPick(date)}
             >
               <span className="pa3-day-number">{index + 1}</span>
-              {/* A school day already over without absence (owner request 27/10/2026): a small check under the number. */}
+              {/* A school day already over without absence: a small check under the number. */}
               {state === 'clear' ? <Check className="pa3-day-check" size={10} strokeWidth={3.5} aria-hidden="true" /> : null}
               {date === today ? <span className="pa3-day-today">HOJE</span> : null}
             </button>
@@ -909,8 +905,8 @@ function MonthPeekV3({
 }
 
 /**
- * A lesson's time and subject on a date (owner decision 23/10/2026: "Faltou na 3ª aula
- * (08:50–09:45), MATEMATICA"): only from the day the current bells hold, never for an older day
+ * A lesson's time and subject on a date ("Faltou na 3ª aula (08:50–09:45), MATEMATICA"): only
+ * from the day the current bells hold, never for an older day
  * whose times may have been different; the subject only from the day the current grid was first
  * read (a lesson swapped in the Horário must not rename an older absence), else the time alone.
  */
@@ -983,7 +979,7 @@ function FrequencyMonthV3({
   onMonth: (month: string) => void;
   /** The school year's countdown, under the year at a glance. */
   countdown?: ReactNode;
-  /** The days without school the ADM calendar names (owner decision 23/10/2026: say why). */
+  /** The days without school the ADM calendar names, to say why. */
   daysOff?: readonly SchoolDayOffV1[];
   /** Each lesson's time by shift and weekday (ADM) and the week's subjects, for an absence. */
   bells?: Exclude<FrequencyYearSummaryV2['bells'], undefined>;
@@ -1002,7 +998,7 @@ function FrequencyMonthV3({
     setPicked(null);
   };
   // Only the calendar card swipes, like the arrows in its head; the month follows the finger, as the
-  // trimesters and the Horário's days do (owner request 01/11/2026), from anywhere on the calendar.
+  // trimesters and the Horário's days do, from anywhere on the calendar.
   const canStep = (step: 1 | -1) => (step === 1 ? month < current : month > firstMonth);
   const swiped = useRef(false);
   const monthDrag = useDragSwipeV1(
@@ -1013,8 +1009,8 @@ function FrequencyMonthV3({
     },
     { ignored: 'input, select, summary' },
   );
-  // A new month slides in a little from the side it comes from, fading in (owner request
-  // 27/10/2026): its name and its days; the legend stays still. A drag already brought it in.
+  // A new month slides in a little from the side it comes from, fading in: its name and its days;
+  // the legend stays still. A drag already brought it in.
   const calendar = useRef<HTMLFieldSetElement>(null);
   const monthBefore = useRef(month);
   useLayoutEffect(() => {
@@ -1050,10 +1046,9 @@ function FrequencyMonthV3({
     <>
 
       {/*
-        The year at a glance (owner requests 21–22/10/2026): a ring of the school days counted so
-        far this year, by kind. No ruler and no limit here (owner decision 22/10/2026: a limit shown
-        to everyone reads as freedom to miss); the limit only appears in the warning at the top,
-        when there is a risk.
+        The year at a glance: a ring of the school days counted so far this year, by kind. No ruler
+        and no limit here (a limit shown to everyone reads as freedom to miss); the limit only
+        appears in the warning at the top, when there is a risk.
       */}
       <Card className="pa3-card pa3-summary">
         <DayRingV3 totals={totals} label={`Ano letivo ${academicYear}`} />
@@ -1126,7 +1121,7 @@ function FrequencyMonthV3({
                   {group.slots.map((slot) => {
                     const mark = markAt.get(lessonKey(group.shift, slot));
                     const state = lessonStateV3(mark?.mark, isToday || !group.complete);
-                    // Its time and subject inside the tile (owner request 23/10/2026), when known.
+                    // Its time and subject inside the tile, when known.
                     const info = lessonInfo(selected, group.shift, slot);
                     return (
                       <li key={slot} className={'pa3-lesson pa3-lesson--' + state}>
@@ -1150,8 +1145,8 @@ function FrequencyMonthV3({
         </Card>
       ) : null}
 
-      {/* The last reading of the class's diary (owner request 21/10/2026: "Atualizado em"),
-          unchanged readings included; none is invented when the server has none. */}
+      {/* The last reading of the class's diary ("Atualizado em"), unchanged readings included;
+          none is invented when the server has none. */}
       {data.lastReadAt ? (
         <p className="pa3-footnote">
           Atualizado em{' '}

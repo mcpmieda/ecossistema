@@ -165,8 +165,8 @@ function YearFailureV1({ scope }: { readonly scope: GradebookYearContextValue })
 }
 
 /**
- * The school year in use, read-only: it is chosen in the settings of the Centro (owner request of
- * 13/10/2026). With `failureOnly` nothing shows unless the year could not be read.
+ * The school year in use, read-only: it is chosen in the settings of the Centro. With
+ * `failureOnly` nothing shows unless the year could not be read.
  */
 export function GradebookYearContextBanner({
   failureOnly = false,

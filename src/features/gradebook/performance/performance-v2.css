@@ -587,7 +587,7 @@ button.performance-kpi__button:hover {
   font-weight: 650;
 }
 
-/* Notas: the lenses, then mode and comparison right beside them (owner request of 13/10/2026). */
+/* Notas: the lenses, then mode and comparison right beside them. */
 .performance-notes-bar {
   display: flex;
   flex-wrap: wrap;
@@ -956,7 +956,7 @@ button.performance-kpi__button:hover {
   }
 }
 
-/* Three indicators while no student waits for a classification (owner request of 13/10/2026). */
+/* Three indicators while no student waits for a classification. */
 .performance-kpi-group[data-cards='3'] {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -1003,7 +1003,7 @@ button.performance-kpi__button:hover {
   color: var(--performance-below);
 }
 
-/* Up or down with the number; a small square when nothing changed (owner request of 15/10/2026). */
+/* Up or down with the number; a small square when nothing changed. */
 .performance-delta[data-change='none']::before {
   display: block;
   width: 0.35rem;
@@ -1035,7 +1035,7 @@ button.performance-kpi__button:hover {
 }
 
 /* A selected component takes the whole card: the back button, its name and the students below
-   the minimum, with the list running to the bottom edge (owner request of 15/10/2026). */
+   the minimum, with the list running to the bottom edge. */
 .performance-widget--detail {
   display: flex;
   min-height: 19rem;
@@ -1068,7 +1068,7 @@ button.performance-kpi__button:hover {
   scrollbar-width: thin;
 }
 
-/* No lines between students; alternate rows are tinted instead (owner request of 15/10/2026). */
+/* No lines between students; alternate rows are tinted instead. */
 .performance-widget--detail .performance-bars__student-group li + li {
   border-top: 0;
 }
@@ -1136,10 +1136,10 @@ button.performance-kpi__button:hover {
   }
 }
 
-/* Panorama da turma in the look of Situação por componente (owner request of 15/10/2026): the
-   share of the class as one rounded stacked bar under the leading percentage, the three counts
-   as rows with the same change pills, and the ranking as a striped list. */
-/* The pie stays (owner request of 15/10/2026), next to the counts. */
+/* Panorama da turma in the look of Situação por componente: the share of the class as one
+   rounded stacked bar under the leading percentage, the three counts as rows with the same
+   change pills, and the ranking as a striped list. */
+/* The pie stays, next to the counts. */
 .performance-panorama {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1153,8 +1153,7 @@ button.performance-kpi__button:hover {
   height: 0.65rem;
 }
 
-/* Classificação da turma opens inside the card, as a selected component does (owner request of
-   15/10/2026). */
+/* Classificação da turma opens inside the card, as a selected component does. */
 .performance-ranking__open {
   display: flex;
   align-items: center;
@@ -1214,8 +1213,7 @@ button.performance-kpi__button:hover {
   color: var(--danger);
 }
 
-/* Opening a list slides it in from the right; going back slides the chart in from the left
-   (owner request of 15/10/2026). */
+/* Opening a list slides it in from the right; going back slides the chart in from the left. */
 @keyframes performance-slide-in-right {
   from { opacity: 0; transform: translateX(1.5rem); }
   to { opacity: 1; transform: none; }
@@ -1241,7 +1239,7 @@ button.performance-kpi__button:hover {
   }
 }
 
-/* Gold, silver and bronze for the first three of the ranking (owner request of 15/10/2026). */
+/* Gold, silver and bronze for the first three of the ranking. */
 .performance-medal {
   justify-self: end;
 }
@@ -1258,8 +1256,7 @@ button.performance-kpi__button:hover {
   color: #b87333;
 }
 
-/* Panorama: "Top 10" at the top right; the larger pie and its counts in the middle of the card
-   (owner request of 15/10/2026). */
+/* Panorama: "Top 10" at the top right; the larger pie and its counts in the middle of the card. */
 .performance-widget--panorama {
   display: flex;
   flex-direction: column;

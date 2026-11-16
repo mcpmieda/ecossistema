@@ -48,8 +48,8 @@ const PERIOD_LABELS_V1: Record<PeriodIdV1, string> = {
   REC3: 'REC 3º Trimestre',
 };
 /*
- * What each trimester is worth and its passing mark, under its Boletim tab only ("Mín. 18 · Máx. 30";
- * "vale 30 · 18 passa" from 20/10/2026 to 01/11/2026); inside a discipline the header already reads "de 30 pontos".
+ * What each trimester is worth and its passing mark, under its Boletim tab only ("Mín. 18 · Máx. 30");
+ * inside a discipline the header already reads "de 30 pontos".
  * A published mark carries its own maximum; this fallback mirrors the engine's term maxima
  * (SIMPLIFIED_TERM_MAXIMUM_MILLI_V1), which the UI bundle may not import.
  */
@@ -66,7 +66,7 @@ function termValueV1(subjects: readonly SubjectV1[], period: PeriodIdV1): number
 /**
  * The school's minimum is the server's (`meetsMinimum`), not a constant here. The 60% line is only
  * stated while the published marks agree with it; one that does not (a school with another
- * minimum) hides it rather than give a wrong passing mark (PR 1317 review).
+ * minimum) hides it rather than give a wrong passing mark.
  */
 function agreesWithSixtyPercentV1(final: PeriodV1['final'] | undefined): boolean {
   if (final?.kind !== 'score' || !final.maximum || final.meetsMinimum === null) return true;
@@ -79,7 +79,7 @@ function minimumIsSixtyPercentV1(subjects: readonly SubjectV1[], period: PeriodI
 function TermValueV1({ subjects, period }: Readonly<{ subjects: readonly SubjectV1[]; period: PeriodIdV1 }>) {
   const value = termValueV1(subjects, period);
   if (value === null) return null;
-  // "Mín. 18 · Máx. 30" (owner request 01/11/2026): the minimum to pass the trimester, the same
+  // "Mín. 18 · Máx. 30": the minimum to pass the trimester, the same
   // 60% line the discipline's meter marks, and what it is worth.
   const passing = (value * METER_MINIMUM_PERCENT_V1) / 100;
   return (
@@ -88,7 +88,7 @@ function TermValueV1({ subjects, period }: Readonly<{ subjects: readonly Subject
     </span>
   );
 }
-// 'failed' is a darker red than the 'danger' of Em recuperação (owner review 27/09/2026).
+// 'failed' is a darker red than the 'danger' of Em recuperação.
 type ToneV1 = 'success' | 'danger' | 'failed';
 const chipColorV1 = (tone: ToneV1) => (tone === 'failed' ? 'danger' : tone);
 const chipToneClassV1 = (tone: ToneV1) => (tone === 'failed' ? 'pa-chip-failed' : undefined);
@@ -98,7 +98,7 @@ const ANNUAL_SITUATION_LABELS_V1: Record<
   { label: string; tone: ToneV1 }
 > = {
   'in-recovery': { label: 'Em recuperação', tone: 'danger' },
-  // Not emitted any more (owner decision 2026-09-23); older payloads read as EM RECUPERAÇÃO.
+  // Not emitted any more; older payloads read as EM RECUPERAÇÃO.
   'awaiting-council': { label: 'Em recuperação', tone: 'danger' },
   'approved-direct': { label: 'Aprovado direto', tone: 'success' },
   'approved-after-recovery': { label: 'Aprovado pela recuperação', tone: 'success' },
@@ -133,7 +133,7 @@ function subjectSituationV1(subject: SubjectV1): { label: string; tone: ToneV1 }
 }
 type SummaryKeyV1 = PeriodIdV1 | 'REC';
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 20 });
-// Trimester marks read with one decimal at least: "27,0" (owner review 27/09/2026).
+// Trimester marks read with one decimal at least: "27,0".
 const trimesterNumber = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 20,
@@ -153,8 +153,7 @@ function visibleMainPeriodsV1(subjects: readonly SubjectV1[]) {
 }
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
 /**
- * Released periods only: a trimester's closing shows together with its marks, never alone
- * (owner decision 2026-09-24, replacing #1132 R2).
+ * Released periods only: a trimester's closing shows together with its marks, never alone.
  */
 function closingOfV1(subject: SubjectV1, period: PeriodIdV1) {
   return subject.closings?.find((closing) => closing.period === period);
@@ -202,7 +201,7 @@ function trendV1(current: ScoreMarkV1 | null, reference: ScoreMarkV1 | null): Tr
 }
 
 /**
- * The comparison with the previous trimester as a short line (owner rules, 27/09/2026). Gentle with
+ * The comparison with the previous trimester as a short line. Gentle with
  * a student who reached the minimum, plain with one below it:
  * - reached it: "Subiu em relação ao 1º" / "Porém caiu em relação ao 1º" / "Se manteve igual ao 1º";
  * - below it: "Subiu, mas ainda precisa melhorar" / "Caiu em relação ao 1º" /
@@ -465,8 +464,7 @@ function SummaryV1({
           </Tabs>
         ) : null}
 
-        {/* No column labels over the list (owner request 27/10/2026); the section heading stays
-            for screen readers. */}
+        {/* No column labels over the list; the section heading stays for screen readers. */}
         <h2 id="pa-summary-title" className="pa-visually-hidden" tabIndex={-1}>
           Minhas notas
         </h2>
@@ -608,7 +606,7 @@ function BulletinListV1({
               </>
             )}
             {/* Each row opens its discipline. Inside the band, so a red or gold row runs to the
-                arrow (owner review 27/09/2026). */}
+                arrow. */}
             <ChevronRight className="pa-list-chevron" size={18} aria-hidden="true" />
             </span>
           </ListBox.Item>
@@ -660,9 +658,9 @@ function PartialLabelV1({ label, feedback }: Readonly<{ label: string; feedback?
 }
 
 /*
- * Tag under each activity, in four bands of the activity's own maximum (owner decision
- * 2026-09-27): below 40% Precisa melhorar, 40–59% Não foi muito bem, 60–79% Foi bem,
- * 80–100% Excelente, and from 90% Brilhante (95% until 28/09/2026) — only for a trimester's mark and its two
+ * Tag under each activity, in four bands of the activity's own maximum: below 40% Precisa
+ * melhorar, 40–59% Não foi muito bem, 60–79% Foi bem, 80–100% Excelente, and from 90% Brilhante
+ * — only for a trimester's mark and its two
  * assessments (columns R and S), since other activities get full marks too often (42% in
  * 2026) for it to mean anything. The 60% line is the server's `meetsMinimum`, so a tag never contradicts the
  * mark's colour; only the split inside each side is computed here, by exact cross-multiplication.
@@ -694,10 +692,10 @@ function partialBandV1(partial: PartialV1): PartialBandV1 | null {
 
 /**
  * `calm`: the trimester mark is below the minimum, so an Excelente stays still — the celebration
- * is kept for a trimester that went well (owner decision 2026-09-27). Brilhante always shines.
+ * is kept for a trimester that went well. Brilhante always shines.
  */
 function PartialFeedbackV1({ partial, calm, sealed = false }: Readonly<{ partial: PartialV1; calm: boolean; sealed?: boolean }>) {
-  // Repeats the pill beside the activity, to reinforce it (owner request 02/11/2026); read aloud once.
+  // Repeats the pill beside the activity, to reinforce it; read aloud once.
   const zero = partial.mark.kind === 'score' && partial.mark.value === 0;
   if (partial.notDone || zero)
     return (
@@ -708,7 +706,7 @@ function PartialFeedbackV1({ partial, calm, sealed = false }: Readonly<{ partial
   const band = partialBandV1(partial);
   if (!band) return null;
   // An assessment that earned a seal reads "selo Brilhante"; a Brilhante that did not (a red
-  // mark in the trimester, or the trimester not over yet) keeps "Brilhante" (owner request 20/10/2026).
+  // mark in the trimester, or the trimester not over yet) keeps "Brilhante".
   const label = band === 'brilliant' && sealed ? 'selo Brilhante' : PARTIAL_BANDS_V1[band].label;
   return (
     <Chip
@@ -731,7 +729,7 @@ function PartialFeedbackV1({ partial, calm, sealed = false }: Readonly<{ partial
 }
 
 /*
- * Header status, a touch richer without more words (owner review 28/09/2026): a small emblem in
+ * Header status, a touch richer without more words: a small emblem in
  * the band's colour before the reading (the star stays Brilhante's), and under it a slim meter of
  * the mark with a notch at the minimum and the share of the points, so even the 1º trimestre,
  * which has no trend line, says at a glance how far above or below the minimum it is.
@@ -755,7 +753,7 @@ function ScoreMeterV1({ mark }: Readonly<{ mark: ScoreMarkV1 }>) {
     0,
     Math.min(100, Math.floor((Math.round(mark.value * 1000) * 100) / Math.round(mark.maximum * 1000))),
   );
-  // The minimum in points, named under the notch: 18,0 of 30, 24,0 of 40 (owner review 28/09/2026).
+  // The minimum in points, named under the notch: 18,0 of 30, 24,0 of 40.
   // A mark that disagrees with the 60% line (another minimum) shows the share without a notch.
   const minimum = agreesWithSixtyPercentV1(mark)
     ? trimesterNumber.format((mark.maximum * METER_MINIMUM_PERCENT_V1) / 100)
@@ -787,7 +785,7 @@ function ScoreMeterV1({ mark }: Readonly<{ mark: ScoreMarkV1 }>) {
 
 /**
  * Status copy restates the server's mark kind and classification in the same four bands as the
- * activities (owner decision 2026-09-27); it never infers a result.
+ * activities; it never infers a result.
  */
 function periodStatusV1(period: PeriodV1 | undefined) {
   const final = period?.final;
@@ -802,7 +800,7 @@ function periodStatusV1(period: PeriodV1 | undefined) {
 }
 
 /*
- * Drag to switch (owner requests 27/09 and 20/10/2026): on the Boletim a sideways drag moves
+ * Drag to switch: on the Boletim a sideways drag moves
  * between trimesters; on a discipline, between disciplines in the order of the subject bar, with no
  * wrap. The content follows the finger and the neighbour comes in from the side while dragging, so
  * nothing appears only after the gesture. Releasing past a third of the width, or with a quick
@@ -816,7 +814,7 @@ const DRAG_COMMIT_RATIO_V1 = 0.3;
 const DRAG_FLICK_PX_PER_MS_V1 = 0.45;
 /**
  * How long after a drag ends a tap still belongs to it, by the time the tap happened. A new tap is
- * never held back while the move ends (owner report 01/11/2026: the first tap after a drag was lost).
+ * never held back while the move ends (otherwise the first tap after a drag was lost).
  */
 const DRAG_SWALLOW_MS_V1 = 60;
 /**
@@ -832,13 +830,13 @@ const DRAG_IGNORED_V1 =
   '[role="tablist"], button, a, input, label:not(.pa-workspace-list-name), select, summary, [role="switch"]';
 type TabFollowV1 = { move: (progress: number) => void; release: (step: DragStepV1 | 0) => void; clear: () => void };
 /**
- * The tabs' highlight follows the finger as the content does (owner request 01/11/2026), as the
+ * The tabs' highlight follows the finger as the content does, as the
  * Horário's days already did: from the chosen tab toward its neighbour, as far as the content has
  * slid, and the bar scrolls along. Let go, it glides on its own (the library's own transition), and
  * the tab chosen next takes over from where it stands. `ring`: tabs without a highlight of their own
- * (a discipline's trimester cards, marked by a ring): the ring never crosses the gap between two cards
- * (owner request 02/11/2026); it fades on the card being left as it lights on the next one, as far as
- * the content has slid.
+ * (a discipline's trimester cards, marked by a ring): the ring never crosses the gap between two
+ * cards; it fades on the card being left as it lights on the next one, as far as the content has
+ * slid.
  */
 const RING_INK_V1: Readonly<Record<string, string>> = {
   brilliant: '#ba7517',
@@ -1137,7 +1135,7 @@ export function useDragSwipeV1(
 }
 
 /*
- * Sideways slide (owner review 27/09/2026): when the student swipes or picks the next discipline or
+ * Sideways slide: when the student swipes or picks the next discipline or
  * trimester, the old content visibly leaves to one side while the new one comes in from the other,
  * so the change is obvious. The old content is a static, inert copy of the DOM (never React), laid
  * over the stage and animated out with the Web Animations API; without it (reduced motion, or a
@@ -1165,13 +1163,13 @@ function useSlideStageV1(liveSelector = ':scope > [data-slide-live]') {
     ghost.setAttribute('inert', '');
     // A still frame of what was on screen: no entrance motion of its own replays while it leaves.
     // Its other classes stay (e.g. the tab panel's padding), or the copy would sit a few pixels
-    // off the original and jump before sliding (owner review 20/10/2026).
+    // off the original and jump before sliding.
     ghost.className = [...live.classList]
       .filter((name) => !/^pa-(slide-in|list-enter|tab-motion)/u.test(name))
       .concat('pa-slide-ghost')
       .join(' ');
     // Exactly where the content was: the live element may sit inside a padded panel, and any offset
-    // here shows as a jump before the slide (owner review 28/09/2026).
+    // here shows as a jump before the slide.
     const from = live.getBoundingClientRect();
     const origin = layer.getBoundingClientRect();
     const look = getComputedStyle(live);
@@ -1213,7 +1211,7 @@ function useSlideStageV1(liveSelector = ':scope > [data-slide-live]') {
 }
 
 /*
- * One line when it fits (owner review 28/09/2026): a header line that would wrap first shrinks,
+ * One line when it fits: a header line that would wrap first shrinks,
  * down to `minPx`; if it would need to get smaller than that, it keeps its size and wraps.
  * Layout-only (jsdom skips).
  */
@@ -1242,7 +1240,7 @@ function useFitLineV1<T extends HTMLElement>(key: string, minPx: number) {
 }
 
 /*
- * "de 30 pontos" as wide as the mark above it (owner review 27/09/2026): the caption's font size is
+ * "de 30 pontos" as wide as the mark above it: the caption's font size is
  * scaled so its text spans exactly the number's width. Layout-only; jsdom (no layout) skips it.
  */
 function useCaptionFitV1(key: string) {
@@ -1262,16 +1260,16 @@ function useCaptionFitV1(key: string) {
 }
 
 /*
- * The discipline's header stays put while its body slides (owner review 28/09/2026): back button,
+ * The discipline's header stays put while its body slides: back button,
  * title and the subject bar. The bar is one persistent Tabs, so its white pill glides to the
  * discipline chosen; the icon replays its own motion for each discipline.
  */
 /*
- * Discipline header (owner review 20/10/2026): one line with Back and the bar of disciplines, so a
- * parent sees at once that there are others and changes with one tap. The chosen one is the
- * highlighted tab (with its icon), centred in the bar; the next ones peek in at the edge. Only
- * the chosen tab has an icon and the tabs are compact, so a phone shows as many as before. The big title above the bar, which repeated the name, is gone;
- * the heading stays for screen readers.
+ * Discipline header: one line with Back and the bar of disciplines, so a parent sees at once that
+ * there are others and changes with one tap. The chosen one is the highlighted tab (with its icon),
+ * centred in the bar; the next ones peek in at the edge. Only the chosen tab has an icon and the
+ * tabs are compact, so a phone shows as many as before. No big title above the bar (it would
+ * repeat the name); the heading stays for screen readers.
  */
 function SubjectHeaderV1({
   subject,
@@ -1398,7 +1396,7 @@ function ScoreHeadV1({
       }
     >
       {periodStatusV1(period).band === 'brilliant' ? (
-        // Crisp white sparkles, each twinkling in its own time (owner request 27/09/2026).
+        // Crisp white sparkles, each twinkling in its own time.
         <span className="pa-head-sparkles" aria-hidden="true">
           {Array.from({ length: 18 }, (_, index) => (
             <i key={index} />
@@ -1433,8 +1431,8 @@ function ScoreHeadV1({
           >
             <StatusEmblemV1 band={periodStatusV1(period).band} />
             <span className="pa-status-word">
-              {/* "selo" rides small above the word when the seal was earned (owner request
-                  28/09/2026); a Brilhante without the seal reads Brilhante alone. */}
+              {/* "selo" rides small above the word when the seal was earned; a Brilhante without
+                  the seal reads Brilhante alone. */}
               {sealed(active) ? (
                 <span className="pa-status-seal" aria-hidden="true">
                   selo
@@ -1509,7 +1507,7 @@ function PartialRowV1({
   return (
     <li>
       {/* The description leads, its status chip right under it reads as its subtitle,
-          and the mark sits on the description's line (owner review 27/09/2026). */}
+          and the mark sits on the description's line. */}
       <PartialLabelV1
         label={partial.label}
         feedback={
@@ -1570,8 +1568,8 @@ function SubjectV1View({
   const [periodMotion, setPeriodMotion] = useState<SlideV1 | null>(null);
   // Trimester cards slide like the Boletim lists: the old card leaves while the new one comes in.
   const periodStage = useSlideStageV1(':scope > .pa-swipe-track > [role="tabpanel"]');
-  // A sideways drag moves between trimesters, as in the Boletim (owner request 01/11/2026: the same
-  // gesture does the same thing everywhere); the bar above changes the discipline.
+  // A sideways drag moves between trimesters, as in the Boletim (the same gesture does the same
+  // thing everywhere); the bar above changes the discipline.
   const neighbourPeriod = (step: DragStepV1) => available[available.indexOf(active) + step];
   const periodFollow = useTabFollowV1('.pa-period-tabs [role="tab"]', true);
   const periodDrag = useDragSwipeV1(
@@ -1590,7 +1588,7 @@ function SubjectV1View({
   const trend = trendReference
     ? trendV1(mark, scoreOfV1(subjectPeriodV1(subject, trendReference)))
     : null;
-  // Meta do ano lives only on the 2º tri tab (owner request, phase 4).
+  // Meta do ano lives only on the 2º tri tab.
   const annualGoal = active === 'T2' ? annualGoalV1(subject, profile) : null;
 
   return (
@@ -1617,14 +1615,14 @@ function SubjectV1View({
                 id={item}
                 key={item}
                 className="pa-period-tab"
-                // Each card wears its trimester's band (owner review 28/09/2026); gold shines.
+                // Each card wears its trimester's band; gold shines.
                 data-tone={periodStatusV1(subjectPeriodV1(subject, item)).band ?? undefined}
               >
                 {/* Always the full name, as in production ("1º Trimestre"); when six cards do not
-                    fit a phone, the row scrolls sideways instead (owner decision 20/10/2026). */}
+                    fit a phone, the row scrolls sideways instead. */}
                 <span className="pa-period-tab-label">{PERIOD_LABELS_V1[item]}</span>
                 {/* The chosen trimester's mark heads the card below; the others stay here so a
-                    parent can compare (owner review 27/09/2026). */}
+                    parent can compare. */}
                 {item === active ? null : (
                   <span className="pa-period-tab-mark">
                     <StudentMarkV1
@@ -1755,7 +1753,7 @@ export function StudentPortalWorkspaceV1({
   // Set only while moving from one discipline to another: then the view slides across.
   const [subjectSlide, setSubjectSlide] = useState<SlideV1 | null>(null);
   const subjectStage = useSlideStageV1();
-  // Boletim ⇄ Disciplina slide across too (owner review 27/09/2026): opening a discipline pushes the
+  // Boletim ⇄ Disciplina slide across too: opening a discipline pushes the
   // Boletim out to the left; going back brings it in from the left.
   // 'still': the area stays as it is (switching disciplines moves only the body below the header).
   const [areaSlide, setAreaSlide] = useState<SlideMotionV1>(null);

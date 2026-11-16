@@ -20,7 +20,7 @@ const SUMMARY_V1: Record<AutomaticReportV1['outcome'], string> = {
 const when = (value: string) => schoolShortDateTimeTextV1(value);
 
 /**
- * The Coletor's automatic "Relatório de alunos" (owner decision 29/10/2026): what it applied, and
+ * The Coletor's automatic "Relatório de alunos": what it applied, and
  * every difference it did not hold back on (rows with an invalid cell, unlinked classes, origins
  * missing from the report). Shown only when there is something to confer.
  */

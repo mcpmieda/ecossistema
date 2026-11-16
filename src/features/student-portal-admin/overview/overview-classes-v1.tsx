@@ -59,7 +59,7 @@ const attention: Partial<Record<(typeof columns)[number][0], 'warning' | 'danger
 };
 
 /** All classes read in the same school summary: no tabs, one request. The "Sem turma" row opens
- * the Alunos list showing only those accounts (owner request 10/11/2026). */
+ * the Alunos list showing only those accounts. */
 export function OverviewClassesV1({
   classes,
   labels,

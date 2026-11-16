@@ -265,7 +265,7 @@ fieldset.pa-account-actions {
 .pa-student-drawer .pa-account-detail {
   box-shadow: none;
   border: 0;
-  /* Narrower margins in the record (owner request 10/11/2026). */
+  /* Narrower margins in the record. */
   padding: 0.5rem;
 }
 /* Only the record's own header shows the large photo; rows inside its tabs keep small avatars. */
@@ -349,7 +349,7 @@ fieldset.pa-account-actions {
   width: min(100%, 40rem);
   margin-inline: auto;
 }
-/* Selos brilhantes (29/09/2026): gold, as on the Portal. */
+/* Selos brilhantes: gold, as on the Portal. */
 .pa-account-profile {
   display: flex;
   flex-wrap: wrap;
@@ -399,9 +399,9 @@ fieldset.pa-account-actions {
   margin-block: 0;
 }
 
-/* Controls card (owner request 07/10/2026): low, dense and categorised so the list stays in
-   view. Line one finds a student (search, order); every other line is one category named in a
-   shared left rail: filters, then the class tools as a grouped pair of rows. */
+/* Controls card: low, dense and categorised so the list stays in view. Line one finds a student
+   (search, order); every other line is one category named in a shared left rail: filters, then
+   the class tools as a grouped pair of rows. */
 .pa-accounts .pa-account-controls.card__content {
   --pa-rail: 5.4rem;
   display: grid;
@@ -550,7 +550,7 @@ fieldset.pa-account-actions {
     margin-left: 0;
   }
 }
-/* "Redefinir senha" in the record: HeroUI's success colour on the primary button (10/11/2026). */
+/* "Redefinir senha" in the record: HeroUI's success colour on the primary button. */
 .pa-account-actions .pa-action-success {
   background: var(--success);
   color: var(--success-foreground);
@@ -558,7 +558,7 @@ fieldset.pa-account-actions {
 .pa-account-actions .pa-action-success:hover:not(:disabled) {
   background: color-mix(in oklab, var(--success) 88%, var(--foreground));
 }
-/* Narrower margins in the record, on the computer and on phones (owner request 10/11/2026). */
+/* Narrower margins in the record, on the computer and on phones. */
 .drawer__dialog.pa-student-drawer {
   padding: 0.75rem;
 }
@@ -577,7 +577,7 @@ fieldset.pa-account-actions {
     padding-inline: 0;
   }
 }
-/* "Por que está sem turma" in the record (owner request 10/11/2026). */
+/* "Por que está sem turma" in the record. */
 .pa-record-origin > .card__content {
   display: grid;
   gap: 0.5rem;

@@ -16,7 +16,7 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import './school-bells-editor-v1.css';
 
 /*
- * Horário das aulas (owner decision 23/10/2026): the time of each lesson and of the break, per shift
+ * Horário das aulas: the time of each lesson and of the break, per shift
  * and weekday, one for the whole school. The Portal shows each lesson with its time, the break in its
  * place, the lesson going on now and how long until the break or the end. Lessons are numbered in
  * the order they are listed (1ª, 2ª…), so the admin only types times; a day out of order, with
@@ -257,7 +257,7 @@ export function SchoolBellsEditorV1({ client, canWrite }: Readonly<{ client: Por
               const items = draft[shift][weekday];
               const lessons = items.filter((item) => item.kind === 'aula').length;
               const hasBreak = items.some((item) => item.kind === 'intervalo');
-              // A parada (owner decision 23/10/2026) before the lessons and, at most, one after them.
+              // A parada before the lessons and, at most, one after them.
               const paradas = items.filter((item) => item.kind === 'parada').length;
               const firstStart = items[0]?.start ?? (shift === 'matutino' ? '07:00' : '13:15');
               const wrong = invalid.has(`${shift}:${weekday}`);

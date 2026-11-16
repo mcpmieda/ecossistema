@@ -9,13 +9,13 @@ type ScoreMarkV1 = Extract<PeriodV1['final'], { kind: 'score' }>;
  * Meta do ano (2º trimestre only). Same rule as the gradebook engine
  * (resolve-simplified-academic-engine-v1): a subject is approved directly when T1 + T2 + T3 reach
  * 60 of 100 (30 + 30 + 40). Only marks already on the student's screen are used, so no text can
- * reveal an undisplayed mark (#1132 R1). Recovery happens only after T3, so it never enters here.
+ * reveal an undisplayed mark. Recovery happens only after T3, so it never enters here.
  */
 const ANNUAL_MINIMUM_MILLI_V1 = 60_000;
 const TERM_MAXIMUM_MILLI_V1 = { T1: 30_000, T2: 30_000, T3: 40_000 } as const;
 /**
- * The 60 of 100 above is the school's minimum only while its published marks agree (owner request
- * 27/10/2026: the minimum is the gradebook's, never assumed): a T1 or T2 mark whose `meetsMinimum`
+ * The 60 of 100 above is the school's minimum only while its published marks agree (the minimum
+ * is the gradebook's, never assumed): a T1 or T2 mark whose `meetsMinimum`
  * (the server's) contradicts 60% of its maximum means another minimum, and the goal is hidden
  * rather than wrong.
  */

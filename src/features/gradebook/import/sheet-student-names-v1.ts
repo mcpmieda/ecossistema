@@ -4,7 +4,7 @@ import type { BatchSuccess } from './import-batch';
 /**
  * The students' names as the teacher's workbook has them, by class and number, from the term
  * sheets: what rule 14 (BN-DEC-046, "aluno trocado") compares with the Relação. Used by the
- * OneDrive reading and sent with the manual import (#1477).
+ * OneDrive reading and sent with the manual import.
  */
 export function gradebookSheetStudentNamesV1(success: BatchSuccess): GradebookSheetStudentNameV9[] {
   const names = new Map<string, GradebookSheetStudentNameV9>();

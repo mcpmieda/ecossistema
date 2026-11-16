@@ -43,7 +43,7 @@ export const ACCOUNT_ACTIONS_V1: Record<AccountActionV1, { label: string; descri
       'Encerra esta conta do Portal. Ela sai da lista e dos totais; o registro fica na Auditoria. Não apaga nada do Banco de Notas.',
   },
 };
-/** The record's "Vínculo" fact, short (owner request 10/11/2026). */
+/** The record's "Vínculo" fact, short. */
 export function accountLinkLabelV1(account: AdminAccountReadV2) {
   if (account.linkClosed) return 'Encerrado no Portal';
   if (account.link === null || account.eligibility === 'unlinked') return 'Sem vínculo acadêmico';

@@ -8,7 +8,7 @@ import type { ReconciliationClientV1 } from '../shared/reconciliation-client-v1'
 
 /** Keep the server's situation and opaque cursor. Pending rows are scattered across the alphabetical
  * pages, so pages are joined until a page's worth of them is in or the list ends: the screen then
- * shows every pending row the side column counts (owner report of 16/10/2026). */
+ * shows every pending row the side column counts. */
 export async function readReconciliationListV1(
   client: ReconciliationClientV1,
   request: Extract<ReconciliationRequestV1, { operation: 'list' }>,

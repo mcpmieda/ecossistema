@@ -74,7 +74,7 @@
 
 .pa-boletim-period-tabs {
   width: 100%;
-  /* Close to the list since the column labels are gone (owner request 27/10/2026). */
+  /* Close to the list, which has no column labels. */
   margin: 0 0 0.5rem;
 }
 
@@ -126,8 +126,8 @@
   text-transform: uppercase;
 }
 
-/* The subjects as wide as the trimester tabs above them (owner request 27/10/2026): no side
-   padding; nothing clipped, so a focused row's ring still shows past the edge. */
+/* The subjects as wide as the trimester tabs above them: no side padding; nothing clipped, so a
+   focused row's ring still shows past the edge. */
 .list-box.pa-workspace-list {
   padding-inline: 0;
   overflow: visible;
@@ -262,7 +262,7 @@
   --pa-score-maximum: #3b4f7d;
   --pa-score-status-surface: #fff;
   --pa-score-status-border: #bcd4ff;
-  /* A notch stronger (owner review 28/09/2026); the mark block stays a step above the fill. */
+  /* A notch stronger; the mark block stays a step above the fill. */
   --pa-head-fill: #eaf3fc;
   --pa-head-line: #cfe2f6;
   --pa-head-surface: #d8e9f9;
@@ -380,7 +380,7 @@
   text-align: left;
 }
 
-/* Harmony between an activity's description and its status (owner review 27/09/2026): the
+/* Harmony between an activity's description and its status: the
    description is firmer, the chip sits right under it as its subtitle and is compact — same
    shape, colours and motion, a smaller size — so the reading goes description → mark → status. */
 .pa-partials-list .pa-partial-feedback {
@@ -479,7 +479,7 @@
   --pa-final-border: #f7c1c1;
   --pa-final-accent: #a32d2d;
 }
-/* Reprovado: a darker red than Em recuperação, so the two read apart (owner review 27/09/2026). */
+/* Reprovado: a darker red than Em recuperação, so the two read apart. */
 .pa-final-result--failed {
   --pa-final-surface: #fcebeb;
   --pa-final-border: #e89b9b;
@@ -577,7 +577,7 @@
   will-change: transform, opacity;
 }
 
-/* Sideways slide between disciplines and trimesters (owner review 27/09/2026): the new content
+/* Sideways slide between disciplines and trimesters: the new content
    comes in from the side it sits on while a static copy of the old one leaves (see
    useSlideStageV1). While sliding, the stage clips the two sideways so nothing scrolls the page. */
 .pa-slide-stage {
@@ -998,7 +998,7 @@
   }
 }
 
-/* The arrows' wave (owner request 20/10/2026): on entering the Boletim, and then again every 15 s
+/* The arrows' wave: on entering the Boletim, and then again every 15 s
    while the list is on screen, so the rows keep saying "tap to open". Each row waits its turn. */
 .pa-workspace-list [role='option'] .pa-list-chevron {
   animation: pa-workspace-chevron-repeat 15s ease-in-out calc(var(--chevron-delay, 0ms) + 15s) infinite;
@@ -1086,14 +1086,14 @@
   }
 }
 
-/* Icon, name and mark share one band; below the minimum it turns red, the portal's colour for it (27/09/2026). */
+/* Icon, name and mark share one band; below the minimum it turns red, the portal's colour for it. */
 .pa-workspace-list .pa-list-band {
   display: flex;
   flex: 1;
   min-width: 0;
   align-items: center;
   gap: 0.75rem;
-  /* Out to the row's edges, as wide as the trimester tabs (owner request 27/10/2026); the padding
+  /* Out to the row's edges, as wide as the trimester tabs; the padding
      takes the same amount back, so the icon, name, mark and arrow stay in place. */
   margin-block: -0.3rem;
   margin-inline: -0.5rem;
@@ -1124,7 +1124,7 @@
   color: #a32d2d;
 }
 
-/* Each trimester is its own card, so the chosen one stands out (owner request, redesign 6). */
+/* Each trimester is its own card, so the chosen one stands out. */
 .pa-student-workspace .pa-period-tabs .tabs__list {
   gap: 0.5rem;
   padding: 0.15rem;
@@ -1163,7 +1163,7 @@
   box-shadow: inset 0 0 0 1px #1d4ed8, 0 6px 16px -10px rgb(29 78 216 / 0.55);
   color: #1e3a8a;
 }
-/* Each trimester card is filled with its mark's band (owner review 28/09/2026), like the header:
+/* Each trimester card is filled with its mark's band, like the header:
    blue at or above the minimum (a touch deeper for Excelente), red below it, and gold with a slow
    drifting shine for Brilhante. The chosen card keeps its ring, in the band's own ink. */
 .pa-student-workspace
@@ -1299,7 +1299,7 @@
   width: calc(100% - 2 * var(--pa-period-panel-pad) + 0.3rem);
   max-width: 40.3rem;
   margin-inline-start: calc(var(--pa-period-panel-pad) - 0.15rem);
-  /* The same space above the cards, to the discipline tabs, as below, to the score card (owner request 01/11/2026). */
+  /* The same space above the cards, to the discipline tabs, as below, to the score card. */
   margin-block-start: 0.35rem;
   background: transparent;
   box-shadow: none;
@@ -1347,7 +1347,7 @@
 
 /* Excelente: light blue that celebrates once — it pops in, one shine sweeps across and the star
    twinkles, then it rests. Under a trimester below the minimum it does not move (.is-calm).
-   Hierarchy (owner review 27/09/2026): the activity name first, then its mark, then this status —
+   Hierarchy: the activity name first, then its mark, then this status —
    so a light surface, regular weight and a slightly smaller size, with the blue star and a
    deeper blue edge keeping it a step above "Foi bem". */
 .pa-partial-feedback--excellent {
@@ -1355,7 +1355,7 @@
   overflow: hidden;
   gap: 0.25rem;
   border: 1px solid rgb(24 95 165 / 0.45);
-  /* Option B (owner choice 27/09/2026): a clear-to-mid blue gradient with a thin white highlight on
+  /* Option B: a clear-to-mid blue gradient with a thin white highlight on
      top and a soft shadow — beauty back, still under the description. It fades in, no bounce. */
   background: linear-gradient(115deg, #e6f0fd 0%, #a9cdf2 50%, #7cb0e9 100%);
   box-shadow:
@@ -1406,7 +1406,7 @@
   color: #412402;
   font-weight: 800;
   box-shadow: 0 2px 12px -4px rgb(186 117 23 / 0.9);
-  /* Slow and natural (owner review 27/09/2026): the gold drifts across and eases back
+  /* Slow and natural: the gold drifts across and eases back
      (alternate), so the loop never cuts; the halo breathes slowly. */
   background-position: 0% 50%;
   animation:
@@ -1575,7 +1575,7 @@
   }
 }
 
-/* Under a taken parallel exam: it was a second chance (owner request, redesign 6). */
+/* Under a taken parallel exam: it was a second chance. */
 .pa-partial-second-chance {
   display: inline-flex;
   align-items: center;
@@ -1590,7 +1590,7 @@
   color: #d97706;
 }
 
-/* Não fez / Tirou zero wear the same outlined pill as the marks beside them (redesign 6). */
+/* Não fez / Tirou zero wear the same outlined pill as the marks beside them. */
 .pa-partials-list .pa-partial-status .chip {
   min-height: 0;
   height: auto;
@@ -1601,9 +1601,9 @@
   line-height: 1.25;
 }
 
-/* Four bands in the portal's two colours (owner review 27/09/2026): blue reached the minimum,
-   red is below it (amber until 27/09/2026, when it competed with the Brilhante gold); the stronger
-   shade marks the ends (Excelente, Precisa melhorar). Brilhante, above them all, is gold. */
+/* Four bands in the portal's two colours: blue reached the minimum, red is below it (amber
+   competed with the Brilhante gold); the stronger shade marks the ends (Excelente, Precisa
+   melhorar). Brilhante, above them all, is gold. */
 [data-band='brilliant'] {
   --pa-band-surface: #fac775;
   --pa-band-text: #412402;
@@ -1819,7 +1819,7 @@
 }
 
 /* A Brilhante trimester (95%+) turns the whole header gold: a slow shining gradient, with the mark
-   block and the texts in warm golds so everything stays readable (owner request 27/09/2026). */
+   block and the texts in warm golds so everything stays readable. */
 .pa-score-head--brilliant {
   position: relative;
   overflow: hidden;
@@ -1828,7 +1828,7 @@
   background: linear-gradient(120deg, #fff3d6, #fde9b5, #fac775, #fde9b5, #fff8e8, #fde9b5, #fff3d6);
   background-size: 400% 100%;
   background-position: 0% 50%;
-  /* Eases back at each end instead of jumping to the start (owner review 27/09/2026). */
+  /* Eases back at each end instead of jumping to the start. */
   animation: pa-gold-drift 20s ease-in-out infinite alternate;
 }
 .pa-score-head--brilliant::after {
@@ -1841,7 +1841,7 @@
   animation: pa-brilliant-glint 20s cubic-bezier(0.45, 0, 0.55, 1) 2.5s infinite;
   pointer-events: none;
 }
-/* Four-point white sparkles over the gold (owner request 27/09/2026): crisp, with a soft glow,
+/* Four-point white sparkles over the gold: crisp, with a soft glow,
    each one flashing in its own time and kept clear of the text so the header stays clean. */
 .pa-head-sparkles {
   position: absolute;
@@ -1865,8 +1865,8 @@
   background: #fff;
   clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
 }
-/* Eighteen of them, staggered so about seven shine at any moment (owner requests 20/10 and
-   02/11/2026), all around the edges and between the blocks, never over the mark or the texts. */
+/* Eighteen of them, staggered so about seven shine at any moment, all around the edges and between
+   the blocks, never over the mark or the texts. */
 .pa-head-sparkles i:nth-child(1) { --size: 16px; --delay: 0.1s; top: 12%; left: 58%; }
 .pa-head-sparkles i:nth-child(2) { --size: 21px; --delay: 0.7s; top: 20%; left: 88%; }
 .pa-head-sparkles i:nth-child(3) { --size: 14px; --delay: 1.2s; top: 70%; left: 93%; }
@@ -1932,8 +1932,8 @@
   }
 }
 
-/* The mark pills: the band as a soft, slightly see-through gradient rather than a solid block
-   (owner review 27/09/2026), so the numbers read lighter next to their tags. */
+/* The mark pills: the band as a soft, slightly see-through gradient rather than a solid block, so
+   the numbers read lighter next to their tags. */
 .pa-partials-list .pa-mark-band[data-band] .pa-mark-value,
 .pa-partials-list .pa-partial-status .chip {
   box-shadow: inset 0 0 0 1px var(--pa-pill-line);
@@ -1941,7 +1941,7 @@
   color: var(--pa-pill-text);
 }
 /* A Brilhante mark pill: a few tiny white stars twinkle softly in its background, kept to the
-   edges so the number stays easy to read (owner review 28/09/2026). */
+   edges so the number stays easy to read. */
 .pa-partials-list .pa-mark-band[data-band='brilliant'] .pa-mark-value {
   position: relative;
   isolation: isolate;
@@ -2005,7 +2005,7 @@
   --pa-pill-text: #501313;
 }
 
-/* Selo brilhante in the Boletim (owner idea 27/09/2026): the subject's row turns soft gold and a
+/* Selo brilhante in the Boletim: the subject's row turns soft gold and a
    gold medal with a star sits beside the mark, catching the light now and then. */
 /* The mark stays blue — it is above the minimum; the gold only celebrates. */
 .pa-workspace-list .pa-list-band--brilliant {
@@ -2078,7 +2078,7 @@
   }
 }
 
-/* The subject bar's edge fades are narrow (owner review 28/09/2026): HeroUI's 64px fade ate half a
+/* The subject bar's edge fades are narrow: HeroUI's 64px fade ate half a
    tab on a phone, so a tab next to the edge looked cut. A thin fade still says "more this way". */
 .pa-subject-bar .tabs__list-container__scroller[data-left-right-scroll='true'] {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
@@ -2093,7 +2093,7 @@
   mask-image: linear-gradient(90deg, #000 calc(100% - 1.25rem), transparent);
 }
 
-/* Recovery marks on a phone (owner request 20/10/2026): two or three marks beside the subject's
+/* Recovery marks on a phone: two or three marks beside the subject's
    name would cover it, so they move to a second line under the name, right-aligned with the
    arrow kept on the first line. A single mark still fits beside the name. */
 @media (max-width: 560px) {
@@ -2109,7 +2109,7 @@
   }
 }
 
-/* The sliding content keeps its own margins inside it (owner review 20/10/2026): otherwise the
+/* The sliding content keeps its own margins inside it: otherwise the
    list's top margin escapes the live element but not its absolutely placed copy, and the copy that
    leaves starts 13px lower — the "pulinho" before every slide. */
 .pa-slide-stage > [data-slide-live],
@@ -2120,7 +2120,7 @@
   display: flow-root;
 }
 
-/* Drag to switch (owner request 20/10/2026): the content follows the finger and the neighbour,
+/* Drag to switch: the content follows the finger and the neighbour,
    drawn beside it, comes in from the side. The page still scrolls vertically and can be zoomed. */
 .pa-swipe-area {
   touch-action: pan-y pinch-zoom;
@@ -2162,7 +2162,7 @@
   min-width: 0;
 }
 
-/* Discipline header, one line (owner review 20/10/2026): Back, the bar of disciplines (the chosen one
+/* Discipline header, one line: Back, the bar of disciplines (the chosen one
    highlighted, the next ones peeking in at the edge) and the place in the list. */
 .pa-subject-head {
   display: grid;
@@ -2205,7 +2205,7 @@
   box-shadow: none;
 }
 
-/* As tall as the disciplines' bar beside it (owner request 01/11/2026). */
+/* As tall as the disciplines' bar beside it. */
 .pa-subject-head-row > .pa-workspace-back {
   flex: 0 0 auto;
   width: 2.5rem;
@@ -2223,7 +2223,7 @@
 .pa-subject-bar [role='tab'] {
   padding-inline: 0.6rem;
 }
-/* Phone (owner review 20/10/2026): the Boletim/Disciplina panel and the trimester panel add no
+/* Phone: the Boletim/Disciplina panel and the trimester panel add no
    side padding, so the cards and the list run close to the sheet's edge. */
 @media (max-width: 560px) {
   .pa-student-workspace > .pa-slide-stage > .tabs__panel,

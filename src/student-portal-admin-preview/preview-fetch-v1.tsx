@@ -17,8 +17,8 @@ import type { PolicyScopeV1, ScopeV1 } from '../../shared/student-portal-contrac
 
 /*
  * Settings the preview can save: the school value plus class/student overrides, resolved field by
- * field like the server. The school starts like production on 27/09/2026 — switch on and the old
- * Calendário access window — so the access card shows how it converts into agendamentos.
+ * field like the server. The school starts with access switched on and the old Calendário access
+ * window, so the access card shows how it converts into agendamentos.
  */
 const previewSchool = (() => {
   const base = settingsFixtureV1().value;
@@ -162,8 +162,8 @@ if (localStudents?.length) {
     ][index]!;
     account.classLabel = '7º ANO A';
   }
-  // Sem turma (owner request 10/11/2026): the real case, a second record of a student who is in
-  // 7º ANO A, with no class and never used, to see "Por que está sem turma" and "Encerrar conta".
+  // Sem turma: the real case, a second record of a student who is in 7º ANO A, with no class and
+  // never used, to see "Por que está sem turma" and "Encerrar conta".
   const template = mock.accounts[0]!;
   mock.accounts.push({
     ...template,
@@ -302,7 +302,7 @@ type PreviewCommandV1 = {
 /** A batch of cards, answered after production's measured wait. */
 async function previewQrBatchV1(command: PreviewCommandV1, init: RequestInit) {
   if (!command.accountIds || !command.mode) return undefined;
-  // Production answered a 32-card batch in 0.37 s (measured 26/09/2026); keep that wait.
+  // Production answered a 32-card batch in 0.37 s (measured); keep that wait.
   await new Promise((resolve) => setTimeout(resolve, 400));
   init.signal?.throwIfAborted();
   const chosen = command.accountIds.map((id) =>
@@ -612,7 +612,7 @@ async function previewRecordsQueryV1(
       },
     });
   if (query.operation === 'seals-read') {
-    // Synthetic Selos brilhantes (29/09/2026).
+    // Synthetic Selos brilhantes.
     const members =
       scope.kind === 'account'
         ? mock.accounts.filter((item) => item.accountId === scope.accountId)
@@ -630,7 +630,7 @@ async function previewRecordsQueryV1(
     });
   }
   if (query.operation === 'audit' || query.operation === 'audit-detail') {
-    // Synthetic sign-in events with refusal reasons (owner request 29/09/2026).
+    // Synthetic sign-in events with refusal reasons.
     const people = mock.accounts.slice(0, 3);
     const event = (index: number, kind: 'login' | 'login-failed' | 'activated', detail: object) => {
       const person = people[index % people.length]!;

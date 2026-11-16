@@ -443,7 +443,7 @@
   margin: -0.25rem 0 0;
 }
 
-/* Aba Notas (27/09/2026): per period, publish then show; Resultado anual; options at the end. */
+/* Aba Notas: per period, publish then show; Resultado anual; options at the end. */
 .pa-grades {
   display: grid;
   gap: 0.85rem;
@@ -567,7 +567,7 @@
   flex: 0 0 auto;
   color: var(--muted);
 }
-/* Calendário: read-only until "Editar" (owner request 23/10/2026). */
+/* Calendário: read-only until "Editar". */
 .pa-policy-edit-bar {
   display: flex;
   flex-wrap: wrap;

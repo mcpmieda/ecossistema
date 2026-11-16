@@ -8,7 +8,7 @@ type MarkV1 = PeriodV1['final'];
 type StudentMarkPropsV1 = Readonly<{
   mark: MarkV1;
   showMaximum?: boolean;
-  /** Trimester marks: whole numbers read "27,0" (owner review 27/09/2026). */
+  /** Trimester marks: whole numbers read "27,0". */
   oneDecimal?: boolean;
 }>;
 
@@ -58,7 +58,7 @@ export function StudentMarkV1({ mark, showMaximum = false, oneDecimal = false }:
       aria-label={ariaLabel}
     >
       <span className="pa-mark-value">{value}</span>
-      {/* "8 de 10" reads as a sentence (owner review 27/09/2026); same size and colour as before. */}
+      {/* "8 de 10" reads as a sentence; same size and colour as before. */}
       {total === null ? null : <span className="pa-mark-maximum"> de {total}</span>}
     </span>
   );

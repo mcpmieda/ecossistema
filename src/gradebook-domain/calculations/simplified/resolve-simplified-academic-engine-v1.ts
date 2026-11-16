@@ -61,7 +61,7 @@ export interface SimplifiedTermOutcomeV1 {
   readonly quantitativeOriginalMilli: number;
   readonly quantitativeMaximumMilli: number;
   readonly parallelMilli: number | null;
-  /** Effective applicability: normal eligibility OR an explicitly recorded numeric PARA (#850). */
+  /** Effective applicability: normal eligibility OR an explicitly recorded numeric PARA. */
   readonly parallelApplicable: boolean | null;
   readonly quantitativeConsideredMilli: number;
   readonly qualitativeOperationalMilli: number;

@@ -106,8 +106,8 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
     publish({ status: 'error', message: 'Sua autorização precisa ser verificada novamente. Entre novamente no Centro.' });
     return true;
   }
-  /** A return of focus reads again in 2 min at the soonest (issue #1426, 20); after a failure it
-   * follows the server's Retry-After (30 s at least) and the page shown stays. */
+  /** A return of focus reads again in 2 min at the soonest; after a failure it follows the
+   * server's Retry-After (30 s at least) and the page shown stays. */
   async function refresh() {
     if (stopped || pending || !snapshot || now() < retryAt) return;
     const own = generation, controller = new AbortController();

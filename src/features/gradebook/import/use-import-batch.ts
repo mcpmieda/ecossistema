@@ -217,7 +217,7 @@ function prepareLocalPersistenceV9(
       throw new Error('Ano letivo do pacote divergiu do ano reconhecido nesta planilha.');
     }
     unavailableCells = unavailableCellsV9(request);
-    // Rule 14 (BN-DEC-046) also in the manual import: the server compares these names with the Relação (#1477).
+    // Rule 14 (BN-DEC-046) also in the manual import: the server compares these names with the Relação.
     if (request.operation === 'persist-notas') {
       const nomes = gradebookSheetStudentNamesV1(result);
       if (nomes.length > 0) request = { ...request, nomes };
@@ -792,7 +792,7 @@ export function useImportBatch() {
 
   /**
    * Students the system's Relação does not have were left out by the database: the Auditoria of
-   * this file keeps them, as the OneDrive reading does (issue #1426, finding 31).
+   * this file keeps them, as the OneDrive reading does.
    */
   async function auditUnboundStudents(
     operation: GradebookImportPersistenceRequestV9['operation'],

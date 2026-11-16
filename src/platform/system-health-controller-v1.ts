@@ -12,7 +12,7 @@ const denied = Symbol('health-denied');
 
 /**
  * One reader per monitoring workspace: it reads when Saúde opens, on Atualizar and on F5, never on a
- * clock (owner decision 15/11/2026). No storage or data survives stop().
+ * clock. No storage or data survives stop().
  */
 export function createHealthMonitorV1(options: OptionsV1 = {}) {
   const fetcher = options.fetcher ?? fetch;

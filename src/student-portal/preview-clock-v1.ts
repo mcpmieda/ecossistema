@@ -1,8 +1,7 @@
 /*
- * The preview's clock (owner request 01/11/2026: "próxima terça às 14:00"): the whole page lives at
- * this moment in Brasília and runs from it. Another moment by the address:
- * ?data=2026-11-10&hora=08:00. Only the preview imports this file, first of all, before any page
- * reads the date.
+ * The preview's clock (by default a Tuesday at 14:00): the whole page lives at this moment in
+ * Brasília and runs from it. Another moment by the address: ?data=2026-11-10&hora=08:00. Only the
+ * preview imports this file, first of all, before any page reads the date.
  */
 const params = new URLSearchParams(window.location.search);
 const date = /^\d{4}-\d{2}-\d{2}$/u.test(params.get('data') ?? '') ? params.get('data') : '2026-11-03';

@@ -76,7 +76,7 @@ export function qrAccessCardSlotV1(slot: number) {
   };
 }
 
-/** A missing or unreadable portrait still prints (owner decision); only lost access stops. */
+/** A missing or unreadable portrait still prints; only lost access stops. */
 async function readPhotoOrNoneV1(
   dependencies: CardPdfDependenciesV1,
   accountId: string,

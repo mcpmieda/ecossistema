@@ -1,10 +1,10 @@
 /*
- * The phone's back button closes what is open on top of the page (owner report of 12/11/2026:
- * "voltar" left the whole Centro). While a layer is open (a modal window, a side panel, the phone
+ * The phone's back button closes what is open on top of the page instead of leaving the whole
+ * Centro. While a layer is open (a modal window, a side panel, the phone
  * menu, an option list or popover), the history has one extra entry with the same address. Back
  * takes that entry away and the open layer is asked to close, as Escape would.
  * HeroUI's windows carry role="dialog" without aria-modal, so they are recognised by their own
- * slot (owner report of 12/11/2026: back left the student panel for the overview). A window with
+ * slot (otherwise back left the student panel for the overview). A window with
  * steps inside marks its own "Voltar" with data-back-step: back presses it, one step at a time,
  * and only closes the window from its first step.
  * A layer closed on the page (Fechar, or an option picked) releases its entry: the next step or

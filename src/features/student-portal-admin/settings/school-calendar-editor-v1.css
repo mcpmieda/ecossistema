@@ -1,6 +1,6 @@
-/* Calendário escolar (owner decisions 22–23/10/2026): HeroUI cards, a progress bar against the rule
-   of 200 school days, the main dates and twelve small months (plus December of the year before for
-   the enrollment). Theme colours everywhere; only the kinds of day keep their own colours. */
+/* Calendário escolar: HeroUI cards, a progress bar against the rule of 200 school days, the main
+   dates and twelve small months (plus December of the year before for the enrollment). Theme
+   colours everywhere; only the kinds of day keep their own colours. */
 .pa-school-calendar {
   --sc-letivo: #15803d;
   --sc-sabado: #0f766e;

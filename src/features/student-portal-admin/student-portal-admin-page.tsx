@@ -290,7 +290,7 @@ function sectionContentV1({
     case 'credentials':
       return <StudentAccountsV1 key={section} {...common} slots={slots} onQr={onQr} />;
     case 'sessions':
-      // Sessions are read for the whole school only (owner decision 07/10/2026).
+      // Sessions are read for the whole school only.
       return <StudentSessionsV1 {...common} scope={SCHOOL} scopeLabel="Toda a escola" />;
     case 'audit':
       return <AuditWorkspaceV1 {...common} />;
@@ -324,7 +324,7 @@ function sectionContentV1({
         </>
       );
     default:
-      // Every class at once from the school summary (owner request 10/11/2026): no class tabs.
+      // Every class at once from the school summary: no class tabs.
       return (
         <StudentOverviewV1
           {...common}
@@ -601,7 +601,7 @@ function PortalWorkspace({
               <Button
                 size="sm"
                 variant="secondary"
-                // The public demo, the one link for everybody (owner request 28/10/2026).
+                // The public demo, the one link for everybody.
                 onPress={() => window.open(PUBLIC_DEMO_URL_V1, '_blank', 'noopener,noreferrer')}
               >
                 Visão do aluno (demo)

@@ -37,7 +37,7 @@ function MessageLineV1({ message, closing }: Readonly<{ message?: TermClosingMes
 }
 
 /**
- * Fechamento do trimestre preview (#1132 D12, R7): the same engine and phrase variants the student
+ * Fechamento do trimestre preview: the same engine and phrase variants the student
  * receives, shown even while the `showTermClosing` policy is off so it can be reviewed first.
  * `refreshKey` reads it again after the record changes access or policies: the tab stays mounted.
  */

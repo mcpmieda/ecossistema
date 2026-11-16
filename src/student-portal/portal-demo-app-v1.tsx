@@ -275,8 +275,8 @@ const AV1_LABEL = '1ª AVALIAÇÃO';
 const AV2_LABEL = 'SIMULADO';
 const PARALLEL_LABEL = 'Prova paralela';
 /*
- * "Casos de tendência": one subject per case of the 2º-vs-1º trimester line (owner review
- * 27/09/2026). Max 30 and minimum 18 (60%): blue from 18, amber below.
+ * "Casos de tendência": one subject per case of the 2º-vs-1º trimester line. Max 30 and minimum
+ * 18 (60%): blue from 18, amber below.
  */
 const TREND_CASES_V1: readonly [label: string, t1: number, t2: number][] = [
   ['1 AZUL QUE SUBIU', 20, 24],
@@ -306,8 +306,8 @@ const trendPreviewData = () =>
   }));
 /*
  * "Como na produção": PORTUGUÊS and HISTÓRIA are red in the 1º trimestre, so ED. FÍSICA (29,5)
- * earns no seal (owner decision 27/09/2026). The panel can simulate the teachers correcting both
- * marks above the minimum, the only way the seal appears.
+ * earns no seal. The panel can simulate the teachers correcting both marks above the minimum, the
+ * only way the seal appears.
  */
 const REAL_CORRECTED_T1_V1: Record<number, number> = { 910001: 19, 910003: 18.5 };
 const withRealCorrectionV1 = (data: typeof previewData, corrected: boolean) =>
@@ -329,11 +329,10 @@ const withRealCorrectionV1 = (data: typeof previewData, corrected: boolean) =>
       }
     : data;
 /*
- * "Vitrine" (owner request 28/09/2026): the Brilhante situations and the trend cases in one place,
- * the preview's default. The 1º trimestre has no red mark, so its two Brilhantes (MATEMÁTICA,
- * INGLÊS) earn seals; the 2º has reds, so MATEMÁTICA is Brilhante again but earns no seal. Each
- * activity set adds up to its trimester mark: Avaliação 1 and 2 of 10, Trabalho of 4, Lista of 3,
- * Participação of 3.
+ * "Vitrine": the Brilhante situations and the trend cases in one place, the preview's default.
+ * The 1º trimestre has no red mark, so its two Brilhantes (MATEMÁTICA, INGLÊS) earn seals; the 2º
+ * has reds, so MATEMÁTICA is Brilhante again but earns no seal. Each activity set adds up to its
+ * trimester mark: Avaliação 1 and 2 of 10, Trabalho of 4, Lista of 3, Participação of 3.
  */
 type ShowcaseTermV1 = readonly [av1: number, av2: number, work: number, list: number, class_: number];
 const showcaseTerm = (period: 'T1' | 'T2', [av1, av2, work, list, class_]: ShowcaseTermV1) =>
@@ -366,8 +365,8 @@ const SHOWCASE_CASES_V1: readonly [
   ['GEOGRAFIA', [6, 5.5, 2.5, 2, 2], [6.5, 6, 3, 2, 2], [9, 9, 2.5, 1.5, 2]],
 ];
 /*
- * 3º trimestre in the Vitrine (owner request 20/10/2026), chosen in "Simular admin": not started
- * (no tab), in progress (activities so far, no trimester mark) or closed (mark of 40, minimum 24).
+ * 3º trimestre in the Vitrine, chosen in "Simular admin": not started (no tab), in progress
+ * (activities so far, no trimester mark) or closed (mark of 40, minimum 24).
  */
 type ThirdTermStateV1 = 'hidden' | 'ongoing' | 'closed';
 const showcaseThirdTerm = (state: ThirdTermStateV1, [av1, av2, work, list, class_]: ShowcaseTermV1) =>
@@ -410,10 +409,10 @@ const showcasePreviewData = (thirdTerm: ThirdTermStateV1) => {
   return data;
 };
 /*
- * "Recuperação nos 3 trimestres" (owner request 20/10/2026): MATEMÁTICA falls below the minimum
- * in the 1º, 2º and 3º trimestres and takes REC1, REC2 and REC3, each scored against its
- * trimester maximum (30/30/40). The other subjects pass every trimester, so only one row carries
- * recoveries. All three trimesters are closed, as at the end of the year.
+ * "Recuperação nos 3 trimestres": MATEMÁTICA falls below the minimum in the 1º, 2º and 3º
+ * trimestres and takes REC1, REC2 and REC3, each scored against its trimester maximum (30/30/40).
+ * The other subjects pass every trimester, so only one row carries recoveries. All three
+ * trimesters are closed, as at the end of the year.
  */
 const half = (value: number) => Math.round(value * 2) / 2;
 // Two assessments (10/10, or 15/15 in the 3º) and participation (10) adding up to the term mark.
@@ -569,7 +568,7 @@ const realPreviewData = selfResponseV1.parse({
 });
 
 /*
- * Fechamento do trimestre (#1132), preview only. The browser bundle may not import the server
+ * Fechamento do trimestre, preview only. The browser bundle may not import the server
  * engine, so these are the codes that engine produces for the production-shaped T1 above
  * (attention: PORTUGUÊS with a blank, HISTÓRIA with the parallel exam; point: ARTE; the rest good),
  * with variants spread as the server would (no repeated line on one page).
@@ -689,15 +688,15 @@ type SubjectSituationV1 = NonNullable<SelfResponseV1['subjects'][number]['annual
 interface AdminSimulationV1 {
   accessEnabled: boolean;
   showPartials: boolean;
-  /** Policy `showTermClosing` (#1132); the preview treats T1 as already closed. */
+  /** Policy `showTermClosing`; the preview treats T1 as already closed. */
   showTermClosing: boolean;
   /** Policy `termClosingConclusive`: off shows the same T1 as a trimester in progress. */
   termClosingConclusive: boolean;
   /** Policy `showFrequency`: off hides the attendance section, as in production. */
   showFrequency: boolean;
-  /** Policy `showSchedule` (owner decision 22/10/2026): off hides the "Horário" page. */
+  /** Policy `showSchedule`: off hides the "Horário" page. */
   showSchedule: boolean;
-  /** Policy `showIncidents` (owner decisions 29/10/2026): off hides the "Ocorrências" page. */
+  /** Policy `showIncidents`: off hides the "Ocorrências" page. */
   showIncidents: boolean;
   /** The sentence about the absences on Frequência: computed from the invented data, or forced. */
   frequencyComment: DemoCommentChoiceV3;
@@ -729,7 +728,7 @@ const PREVIEW_NAMES_V1 = [
   'ÂNGELA GONÇALVES DE ÁVILA JOÃO',
 ] as const;
 const ALL_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'];
-/** The three trimesters only (owner request 02/11/2026); recoveries come by their checkboxes or their own dataset. */
+/** The three trimesters only; recoveries come by their checkboxes or their own dataset. */
 const TERM_PERIODS_V1: readonly PeriodIdV1[] = ['T1', 'T2', 'T3'];
 const SITUATION_OPTIONS_V1: readonly [AdminSimulationV1['situation'], string][] = [
   ['none', 'Em curso'],
@@ -857,7 +856,7 @@ function simulateAdminV1(data: SelfResponseV1, admin: AdminSimulationV1): SelfRe
     admin.dataset === 'real'
       ? REAL_CLOSINGS_V1[subjectId] && [REAL_CLOSINGS_V1[subjectId]]
       : EXAMPLE_CLOSINGS_V1[subjectId];
-  // A closing shows together with its trimester's released marks, never alone (owner, 2026-09-24).
+  // A closing shows together with its trimester's released marks, never alone.
   const withClosings: SelfResponseV1['subjects'] = closingsOn
     ? subjects.map((subject): SelfResponseV1['subjects'][number] => {
         const released = closingsOf(subject.subjectId)?.filter((closing) =>
@@ -1091,7 +1090,7 @@ export function PortalDemoAppV1() {
     showPartials: true,
     showTermClosing: true,
     termClosingConclusive: true,
-    // Frequência, Horário and Ocorrências open at first (owner request 28/10/2026); the simulator turns them off.
+    // Frequência, Horário and Ocorrências open at first; the simulator turns them off.
     showFrequency: true,
     showSchedule: true,
     showIncidents: true,

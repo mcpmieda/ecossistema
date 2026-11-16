@@ -1,5 +1,4 @@
-/* Mark presentation shared by the Boletim and the Disciplina (StudentMarkV1). The old grades
-   table and its column resizer were removed on 27/09/2026; their rules went with them. */
+/* Mark presentation shared by the Boletim and the Disciplina (StudentMarkV1). */
 .pa-mark {
   font-variant-numeric: tabular-nums;
 }
@@ -9,7 +8,7 @@
 }
 
 .pa-mark[data-minimum='below'] .pa-mark-value {
-  /* Red (owner review 27/09/2026): amber competed with the Brilhante gold. */
+  /* Red: amber competed with the Brilhante gold. */
   color: #a32d2d;
 }
 

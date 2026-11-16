@@ -183,7 +183,7 @@ function addCountsV1(
 }
 
 /**
- * Selos brilhantes for a record or a list (owner request 29/09/2026). The server counts one
+ * Selos brilhantes for a record or a list. The server counts one
  * record or up to 400 selected accounts per read; two batches may be in flight.
  */
 export function useSealCountsV1(

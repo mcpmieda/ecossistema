@@ -27,8 +27,8 @@ const SECRET_REVEAL_MS_V1 = 1200;
 function settleAfterTypingV1(input: HTMLInputElement | null) {
   const button = input?.closest('form')?.querySelector<HTMLButtonElement>('.pa-auth-submit');
   const smooth = !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  // The last digit moves the focus to the button (owner report 23/10/2026: on a computer, Enter did
-  // nothing once the field let go of the focus); on a phone the keyboard still closes. The button is
+  // The last digit moves the focus to the button (on a computer, Enter did nothing once the field
+  // let go of the focus); on a phone the keyboard still closes. The button is
   // enabled by the render that follows the last digit, so this waits for it; a button still
   // disabled (the risk check pending) only releases the field.
   setTimeout(() => {
@@ -67,8 +67,8 @@ function NumericCredentialV1({
 }>) {
   const id = useId();
   const own = useRef<HTMLInputElement>(null);
-  // Ready to type on every step (owner report 23/10/2026: on the next screen the field had to be
-  // clicked again): on arrival, and again when the field comes back from waiting for the server.
+  // Ready to type on every step (otherwise the field had to be clicked again on the next screen):
+  // on arrival, and again when the field comes back from waiting for the server.
   useEffect(() => {
     if (!autoFocus || disabled) return;
     own.current?.focus({ preventScroll: true });
@@ -180,7 +180,7 @@ function noticeOfV1(
       title: 'Sem conexão com a internet',
       text: 'Confira o Wi-Fi ou os dados móveis e tente de novo.',
     };
-  // Refused at the card step (owner review 28/09/2026): nobody typed any numbers yet. The server
+  // Refused at the card step: nobody typed any numbers yet. The server
   // does not say why (unknown, replaced or blocked card), so neither do we.
   if (message.startsWith('Não foi possível entrar') && step === 'scan')
     return {
@@ -355,7 +355,7 @@ function CredentialFieldsV1({
             state.step === 'create' ? () => confirmationInput.current?.focus() : settleAfterTypingV1
           }
           // Only the sign-in password is hidden; while creating one the student sees both
-          // fields to compare them (owner decision).
+          // fields to compare them.
           secret={state.step === 'password'}
           disabled={state.pending}
           autoFocus
@@ -593,7 +593,7 @@ export function StudentAuthenticationV1({
   riskMount?: RiskMountV1;
 }>) {
   const [state, setState] = useState(INITIAL_AUTH_STATE_V1);
-  // Off by default (owner decision): a shared or borrowed phone must not stay signed in.
+  // Off by default: a shared or borrowed phone must not stay signed in.
   const [keepConnected, setKeepConnected] = useState(false);
   // The choice belongs to one card: back at the reader, the next card starts unchecked.
   useEffect(() => {
@@ -633,7 +633,7 @@ export function StudentAuthenticationV1({
         {notice ? <AuthNoticeV1 message={notice} step={state.step} /> : null}
         {state.step === 'risk' ? <RiskIntroV1 /> : null}
         {/* Once the card is read, the reader gives way to its own "read" state until the next step
-            arrives, instead of flashing back to the opening screen (owner review 27/09/2026). */}
+            arrives, instead of flashing back to the opening screen. */}
         {state.step === 'scan' && state.pending ? <CardReadV1 /> : null}
         {state.step === 'scan' && !state.pending ? (
           <fieldset className="pa-qr-controls">

@@ -60,8 +60,7 @@ const categories = [
     fields: ['showIncidents'],
   },
   {
-    // A tab of its own, like Frequência and Ocorrências (owner request 09/11/2026); the lesson
-    // times stay in Calendário.
+    // A tab of its own, like Frequência and Ocorrências; the lesson times stay in Calendário.
     id: 'schedule',
     label: 'Horário',
     icon: Clock,
@@ -76,7 +75,7 @@ const categories = [
     title: 'Datas e horários',
     description:
       'Dias letivos, datas principais do ano e o horário das aulas. Notas e resultado anual ficam na aba Notas.',
-    // The main dates are marked on the school calendar (owner decision 23/10/2026), no form.
+    // The main dates are marked on the school calendar, no form.
     fields: [],
   },
   {
@@ -112,7 +111,7 @@ export function PolicyLayoutV1({
   schoolCalendar?: (editing: boolean) => ReactNode;
   /** The time of each lesson and of the break (school scope only), under the Horário switch. */
   schoolBells?: (editing: boolean) => ReactNode;
-  /** The person may change the Calendário tab: it shows "Editar" (owner request 23/10/2026). */
+  /** The person may change the Calendário tab: it shows "Editar". */
   calendarEditable?: boolean;
   /** The tab shown first: a customization opened for its publication starts on Notas. */
   initialCategory?: PolicyCategoryV1;
@@ -120,8 +119,8 @@ export function PolicyLayoutV1({
   const [selected, setSelected] = useState<string>(initialCategory);
   const [publicationVisited, setPublicationVisited] = useState(initialCategory === 'grades');
   const [customizationsVisited, setCustomizationsVisited] = useState(false);
-  // Calendário opens read-only, so nothing changes by an accidental click (owner request
-  // 23/10/2026); "Editar" unlocks it and shows the save buttons. Leaving discards unsaved changes.
+  // Calendário opens read-only, so nothing changes by an accidental click; "Editar" unlocks it
+  // and shows the save buttons. Leaving discards unsaved changes.
   const [calendarEditing, setCalendarEditing] = useState(false);
   const [calendarSession, setCalendarSession] = useState(0);
   const choose = (key: string) => {

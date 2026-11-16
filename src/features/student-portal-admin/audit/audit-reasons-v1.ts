@@ -3,8 +3,8 @@ import type { AuditDetailV1 } from '../../../../shared/student-portal-contracts/
 type ReasonV1 = NonNullable<AuditDetailV1['reason']>;
 
 /**
- * Motivos de recusa e como orientar a família (owner request 29/09/2026). The guidance is shown
- * only in the event detail, where support needs it.
+ * Motivos de recusa e como orientar a família. The guidance is shown only in the event detail,
+ * where support needs it.
  */
 export const AUDIT_REASON_LABELS_V1: Record<ReasonV1, { label: string; help: string }> = {
   'wrong-pin': { label: 'PIN incorreto', help: 'Conferir o PIN de 4 números do cartão de acesso.' },
