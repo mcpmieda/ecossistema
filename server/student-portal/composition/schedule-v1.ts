@@ -5,7 +5,7 @@ import { portalKeysV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 import { SessionServiceV1 } from '../auth/session-service-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
-import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
+import { portalRequestOriginAllowedV1, portalSessionJsonV1 } from '../runtime/http-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 import { bellShiftOfLabelV1, bellsValidFromV1, schoolBellsDaysV1 } from '../../../shared/student-portal-contracts/school-bells-v1';
@@ -40,7 +40,7 @@ export async function schoolBellsAndCalendarV1(tx:StudentPortalPostgresQueryV1,k
     schoolYear:days?schoolYearSpanOfV1(days):null,
   };
 }
-const response=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store, no-cache, private, must-revalidate','Pragma':'no-cache','Vary':'Cookie, Authorization'}});
+const response=portalSessionJsonV1;
 export async function servePortalScheduleV1(request:Request,env:PortalCompositionEnvV1):Promise<Response>{
   const fail=(state:string,status:number)=>response({contractVersion:1,state},status);
   if(!portalRequestOriginAllowedV1(request,env.PORTAL_ENVIRONMENT,env.PORTAL_ORIGIN))return fail('forbidden',403);

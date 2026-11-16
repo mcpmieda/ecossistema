@@ -4,7 +4,7 @@ import { portalKeysV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 import { SessionServiceV1 } from '../auth/session-service-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
-import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
+import { portalRequestOriginAllowedV1, portalSessionJsonV1 } from '../runtime/http-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 import { portalFrequencySummaryV2, portalFrequencyYearV2 } from '../../attendance/service-v2';
@@ -22,7 +22,7 @@ const originsSchema=z.array(z.object({occurrence_id:z.uuid(),date:z.iso.date(),s
 const daysSchema=z.array(z.object({date:z.iso.date(),shift:z.string().max(80),slots_json:z.array(z.number().int().min(1).max(6)).max(6),complete:z.boolean()}).strict()).max(4000);
 const readSchema=z.object({origins:originsSchema,days:daysSchema,today:z.iso.date(),lastReadAt:z.string().nullable(),now:z.string().optional()}).strict();
 const HIDDEN=Symbol('frequency-hidden');
-const response=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store, no-cache, private, must-revalidate','Pragma':'no-cache','Vary':'Cookie, Authorization'}});
+const response=portalSessionJsonV1;
 export async function servePortalFrequencyV2(request:Request,env:PortalCompositionEnvV1):Promise<Response>{
   const fail=(state:string,status:number)=>response({contractVersion:2,state},status);
   if(!portalRequestOriginAllowedV1(request,env.PORTAL_ENVIRONMENT,env.PORTAL_ORIGIN))return fail('forbidden',403);
