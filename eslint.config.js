@@ -26,7 +26,6 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        projectService: true,
       },
       globals: { ...globals.browser, ...globals.worker, ...globals.node },
     },
@@ -35,11 +34,19 @@ export default [
       ...tseslint.configs.recommended.rules,
       'no-undef': 'off',
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', ignoreRestSiblings: true },
       ],
+    },
+  },
+  {
+    // The only type-aware rule; tests are linted without building TypeScript programs.
+    files: ['**/*.ts', '**/*.tsx'],
+    ignores: ['tests/**'],
+    languageOptions: { parserOptions: { projectService: true } },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
     },
   },
   {

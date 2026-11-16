@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { shouldReloadFailedModuleV1 } from '../../../src/platform/gradebook-workspace-shell';
 

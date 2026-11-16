@@ -1,3 +1,4 @@
+// @vitest-environment node
 import {describe,it,expect,vi} from 'vitest';
 import {collectorAuthorizationUrlV1,completeCollectorOAuthV1,type CollectorOAuthDependenciesV1,type CollectorOAuthTransactionV1} from '../../server/collector/oauth-v1';
 import {CollectorRefreshCipherV1} from '../../server/collector/refresh-cipher-v1';

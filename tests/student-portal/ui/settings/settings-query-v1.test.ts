@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it, vi } from 'vitest';
 import { createSettingsQueryV1 } from '../../../../src/features/student-portal-admin/shared/settings-query-v1';
 import type { AdminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';

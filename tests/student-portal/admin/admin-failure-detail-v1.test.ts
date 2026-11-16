@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 import { adminFailureDetailV1 } from '../../../server/student-portal/admin/common-v1';

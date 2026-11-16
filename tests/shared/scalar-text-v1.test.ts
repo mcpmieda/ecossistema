@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { scalarTextV1 } from '../../shared/scalar-text-v1';
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { seal } from '../../server/auth/sealed';
 import { createApplicationSession, SESSION_COOKIE } from '../../server/auth/session';

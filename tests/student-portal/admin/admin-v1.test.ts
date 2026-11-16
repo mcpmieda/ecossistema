@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { cleanupPortalV1 } from '../../../server/student-portal/maintenance/retention-v1';
 import type { AdminReadResponseV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import { readFileSync } from 'node:fs';

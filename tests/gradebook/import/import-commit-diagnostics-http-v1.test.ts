@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { onRequest } from '../../../functions/api/gradebook/import-persistence';
 import * as contract from '../../../shared/gradebook-contracts/imports/import-commit-diagnostics-v1';

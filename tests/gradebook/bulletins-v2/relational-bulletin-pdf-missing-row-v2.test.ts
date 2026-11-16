@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { RelationalBulletinSnapshotV2 } from '../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import { buildRelationalBulletinPdfLinesV2 } from '../../../src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2';

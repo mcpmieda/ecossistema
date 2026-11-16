@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { dispatchPortalLiveEventsV1 } from '../../../server/student-portal/live/live-outbox-v1';
 import { portalScheduledV1 } from '../../../server/student-portal/composition/scheduled-v1';

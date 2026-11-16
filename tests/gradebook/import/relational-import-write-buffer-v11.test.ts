@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { PGlite } from '@electric-sql/pglite';
 import { createImportPerformanceObserverV1 } from '../../../server/gradebook/persistence/postgres/import-performance-observer-v1';
 import {

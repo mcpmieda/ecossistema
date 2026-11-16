@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import type {
   SheetJs,
@@ -12,26 +11,12 @@ export type RealSheetJsV1 = SheetJs & {
   write: (workbook: Workbook, options: Record<string, unknown>) => ArrayBuffer;
 };
 
-/** Same official bytes and integrity as the browser loader; no npm substitute/mock. */
+/** Same official bytes and integrity as the browser loader, read from the installed package. */
 export async function loadRealSheetJsV1(): Promise<RealSheetJsV1> {
   const source = await readFile('src/features/gradebook/import/sheetjs-loader.ts', 'utf8');
-  const url = source.match(/const SHEETJS_SRC = '([^']+)'/u)?.[1];
   const integrity = source.match(/sha384-[A-Za-z0-9+/=]+/u)?.[0];
-  if (!url || !integrity) throw new Error('missing-project-sheetjs-pin');
-  const cache = 'node_modules/.cache/gradebook-reader-v1';
-  await mkdir(cache, { recursive: true });
-  const path = join(cache, 'sheetjs-0.20.3.js');
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(path);
-  } catch {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`sheetjs-download-http-${response.status}`);
-    bytes = Buffer.from(await response.arrayBuffer());
-    if (`sha384-${createHash('sha384').update(bytes).digest('base64')}` !== integrity)
-      throw new Error('sheetjs-integrity-mismatch');
-    await writeFile(path, bytes);
-  }
+  if (!integrity) throw new Error('missing-project-sheetjs-pin');
+  const bytes = await readFile('node_modules/xlsx/dist/xlsx.full.min.js');
   if (`sha384-${createHash('sha384').update(bytes).digest('base64')}` !== integrity)
     throw new Error('sheetjs-integrity-mismatch');
   const context = {

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { gradebookAfterCommitV1 } from '../../server/gradebook/http/live-after-commit-v1';
 import type { Session } from '../../server/auth/session';

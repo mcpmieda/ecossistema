@@ -8,6 +8,8 @@
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/server.tsbuildinfo",
     "skipLibCheck": true,
     "types": ["@cloudflare/workers-types", "vitest/globals"],
     "noUncheckedIndexedAccess": true,

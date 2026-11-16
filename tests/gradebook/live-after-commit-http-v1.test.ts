@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { onRequest } from '../../functions/api/gradebook/import-persistence';
 import { createCouncilWorkspaceRequestHandlerV1 } from '../../server/gradebook/http/council-routes-v1';

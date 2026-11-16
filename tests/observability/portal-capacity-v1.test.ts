@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { capacitySampleFreshV1, emptyPortalCapacityV1, isPortalCapacitySampleV1, type PortalCapacitySampleV1 } from '../../shared/portal-capacity-v1';
 import { createCapacityCacheV1 } from '../../server/student-portal/composition/capacity-v1';

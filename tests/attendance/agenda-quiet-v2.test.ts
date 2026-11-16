@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { agendaNearV2, onlineSecondsV2, ONLINE_QUIET_SECONDS_V2 } from '../../server/attendance/agenda-quiet-v2';
 import type { FrequencyReportScheduleV2, FrequencyScheduleV2 } from '../../shared/attendance-contracts/frequency-v2';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe,it,expect,vi } from 'vitest';
 import { handleCollectorAccessRequestV1,type CollectorAccessPortV1 } from '../../server/collector/http-v1';
 import { CollectorAccessErrorV1 } from '../../server/collector/access-service-v1';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { initialPolicyDefaultsV1 } from '../../../server/student-portal/policies/defaults-v1';
 import {

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { GradebookNotesImportRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import { holdNameMismatchesV1, sameStudentNameV1, studentKeyV1 } from '../../../server/gradebook/onedrive-sync/server-audit-v1';

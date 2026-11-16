@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { onRequest } from '../../../functions/[[path]]';
 import { seal } from '../../../server/auth/sealed';
