@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { GradebookNotesImportRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { filterHistoricalClassFactsV10 } from '../../../server/gradebook/application/import/import-relational-service-v10';
+import { filterHistoricalClassFacts } from '../../../server/gradebook/application/import/import-service';
 import { dropUnboundStudentsV1 as dropUnboundStudentsV10 } from '../../../server/gradebook/application/import/unbound-students-v1';
 import { isGradebookImportPersistenceResponseV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 
@@ -42,7 +42,7 @@ function request(): GradebookNotesImportRequestV9 {
 describe('relational V10 current-class filter', () => {
   it('removes every academic fact for a FOI_PARA binding before persistence', () => {
     const source = request();
-    const filtered = filterHistoricalClassFactsV10(source, new Set(['7C:1']));
+    const filtered = filterHistoricalClassFacts(source, new Set(['7C:1']));
     const offer = filtered.ofertas[0]!;
 
     expect(offer.trimestres.map((term) => term.alunos.map(([numero]) => numero))).toEqual([
@@ -58,7 +58,7 @@ describe('relational V10 current-class filter', () => {
 
   it('keeps current-class facts and does not invent fallback from the historical class', () => {
     const source = request();
-    const filtered = filterHistoricalClassFactsV10(source, new Set(['8A:1']));
+    const filtered = filterHistoricalClassFacts(source, new Set(['8A:1']));
 
     expect(filtered.ofertas[0]!.trimestres[0].alunos.map(([numero]) => numero)).toEqual([1, 2]);
     expect(filtered.ofertas[0]!.recuperacao?.map(([numero]) => numero)).toEqual([1, 2]);

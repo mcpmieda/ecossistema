@@ -29,8 +29,8 @@ vi.mock('../../../server/gradebook/persistence/postgres/official-gradebook-datab
     }
   },
 }));
-vi.mock('../../../server/gradebook/application/import/import-relational-service-v11', () => ({
-  createGradebookRelationalImportServiceV11: (database: unknown, _observer: unknown, actorId: string) => ({
+vi.mock('../../../server/gradebook/application/import/import-service', () => ({
+  createGradebookImportService: (database: unknown, _observer: unknown, actorId: string) => ({
     execute: (request: unknown) => mocks.execute(database, request, actorId),
   }),
 }));

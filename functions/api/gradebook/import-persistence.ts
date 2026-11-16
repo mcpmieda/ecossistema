@@ -11,7 +11,7 @@ import { authorizeGradebookRuntimeV1 } from '../../../server/gradebook/authoriza
 import type { GradebookPostgresWritePortV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import type { OneDriveSyncServiceBindingV1 } from '../../../server/gradebook/http/onedrive-sync-routes-v1';
-import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import {
   boundStudentsFromNamesV1,
   dropUnboundStudentsV1,
@@ -165,7 +165,7 @@ async function handle(
       sent = held.request;
       unbound = [...dropped.warnings, ...held.warnings];
     }
-    const result = withUnboundWarningsV1(await createGradebookRelationalImportServiceV11(
+    const result = withUnboundWarningsV1(await createGradebookImportService(
       observer.wrap(database),
       observer,
       session.oid,
