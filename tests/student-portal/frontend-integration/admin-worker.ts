@@ -41,7 +41,7 @@ export default {
               name: 'SYNTHETIC INTEGRATION OPERATOR',
               roles: [input.role ?? 'ADMINISTRADOR'],
             }),
-            secret,
+            secret, 'admin-session',
           ))
         : input.cookie;
     const forwarded = new Request(origin + input.path, {

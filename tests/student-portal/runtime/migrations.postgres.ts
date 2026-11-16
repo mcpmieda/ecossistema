@@ -185,6 +185,7 @@ beforeAll(async () => {
   await admin.unsafe(readFileSync('migrations/student-portal/0025_reconciliation_credentials_v1.sql', 'utf8'));
   await admin.unsafe(readFileSync('migrations/student-portal/0033_reconciliation_cleanup_idle_v1.sql', 'utf8'));
   await admin.unsafe(readFileSync('migrations/student-portal/0034_publication_work_mem_v1.sql', 'utf8'));
+  await admin.unsafe(readFileSync('migrations/student-portal/0035_year_coordination_exists_first_v1.sql', 'utf8'));
   await admin.unsafe(readFileSync('migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql', 'utf8'));
 });
 
@@ -562,6 +563,12 @@ describe('native application reset service', () => {
     expect(await service.execute({ contractVersion: 1, operation: 'preview', year: 2026 }))
       .toEqual({ contractVersion: 1, state: 'portal-linked-accounts' });
     await admin`INSERT INTO gradebook.ano_letivo VALUES (2023,60000,2)`;
+    // A year not yet coordinated still needs the reset locks; an existing one returns at once.
+    await expect(gradebook.begin((tx) => tx`SELECT student_portal.ensure_year_coordination_v1(2023::smallint)`))
+      .rejects.toThrow('year-reset-locks-required');
+    await gradebook.begin((tx) => tx`SELECT student_portal.ensure_year_coordination_v1(2026::smallint)`);
+    expect(await admin`SELECT to_regprocedure('student_portal.publication_source_rows_v2()') AS gone`)
+      .toEqual([{ gone: null }]);
     await gradebook.begin(async (tx) => {
       await tx`SELECT pg_advisory_xact_lock_shared(613,0)`;
       await tx`SELECT pg_advisory_xact_lock(613,2023)`;

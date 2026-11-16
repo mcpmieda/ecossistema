@@ -227,14 +227,14 @@ native('frequency V2 complete native migration stack', () => {
       await exec(`SELECT has_table_privilege('gradebook_app','collector_auth.oauth_grants','SELECT') AS auth_table,
  has_table_privilege('student_portal_app','attendance.occurrence_v2','SELECT') AS portal_table,
  has_function_privilege('anon','attendance.read_portal_origins_v2(uuid,uuid,text)','EXECUTE') AS public_rpc,
- has_function_privilege('anon','attendance.read_portal_frequency_v3(uuid,uuid,text)','EXECUTE') AS public_rpc_v3,
+ has_function_privilege('anon','attendance.read_portal_frequency_v4(uuid,uuid,text,text)','EXECUTE') AS public_rpc_v4,
  has_table_privilege('student_portal_app','attendance.coverage_v2','SELECT') AS portal_coverage,
  has_function_privilege('collector_runtime','collector_auth.lock_active_device_v2(uuid,uuid,uuid,bigint,text)','EXECUTE') AS collector_lock`);
     expect(acl).toEqual({
       auth_table: false,
       portal_table: false,
       public_rpc: false,
-      public_rpc_v3: false,
+      public_rpc_v4: false,
       portal_coverage: false,
       collector_lock: false,
     });
@@ -278,12 +278,13 @@ native('frequency V2 complete native migration stack', () => {
       ]),
     );
     expect(wrong!.origins).toBeNull();
-    // v3 (attendance 0008): the same marks plus the student's lesson days, under the same checks.
+    // One month through v4: the same marks plus the student's lesson days, under the same checks.
     const lessonRead = (who = account) =>
       asRole('student_portal_app', (tx) =>
-        tx.unsafe(`SELECT attendance.read_portal_frequency_v3($1::uuid,$2::uuid,$3::text) AS frequency`, [
+        tx.unsafe(`SELECT attendance.read_portal_frequency_v4($1::uuid,$2::uuid,$3::text,$4::text) AS frequency`, [
           who,
           session,
+          '2026-01',
           '2026-01',
         ]),
       );

@@ -32,7 +32,7 @@ async function headers(role?: TestRole, origin = LOCAL_ORIGIN): Promise<Headers>
       roles: [role],
       exp: Math.floor(Date.now() / 1000) + 600,
     },
-    testEnv.SESSION_SECRET,
+    testEnv.SESSION_SECRET, 'admin-session',
   );
   result.set('Cookie', `${SESSION_COOKIE}=${session}`);
   return result;
