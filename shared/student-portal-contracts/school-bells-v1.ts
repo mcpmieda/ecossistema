@@ -14,7 +14,14 @@ export type BellShiftV1 = (typeof BELL_SHIFTS_V1)[number];
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
 export const bellItemV1 = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('aula'), slot: z.number().int().min(1).max(6), start: time, end: time }).strict(),
+  z
+    .object({
+      kind: z.literal('aula'),
+      slot: z.number().int().min(1).max(6),
+      start: time,
+      end: time,
+    })
+    .strict(),
   z.object({ kind: z.literal('intervalo'), start: time, end: time }).strict(),
   z.object({ kind: z.literal('parada'), start: time, end: time }).strict(),
 ]);
@@ -32,14 +39,17 @@ export const bellDayV1 = z
     let slot = 0;
     let breaks = 0;
     for (const [index, item] of items.entries()) {
-      if (item.end <= item.start) ctx.addIssue({ code: 'custom', message: 'Ends before it starts' });
-      if (item.start < previousEnd) ctx.addIssue({ code: 'custom', message: 'Overlaps the previous one' });
+      if (item.end <= item.start)
+        ctx.addIssue({ code: 'custom', message: 'Ends before it starts' });
+      if (item.start < previousEnd)
+        ctx.addIssue({ code: 'custom', message: 'Overlaps the previous one' });
       previousEnd = item.end;
       if (item.kind === 'intervalo') breaks += 1;
       else if (item.kind === 'parada') {
         if (index !== 0 && index !== items.length - 1)
           ctx.addIssue({ code: 'custom', message: 'A parada only before or after the lessons' });
-      } else if (item.slot !== ++slot) ctx.addIssue({ code: 'custom', message: 'Lessons out of order' });
+      } else if (item.slot !== ++slot)
+        ctx.addIssue({ code: 'custom', message: 'Lessons out of order' });
     }
     if (breaks > 1) ctx.addIssue({ code: 'custom', message: 'More than one break' });
   });
@@ -47,13 +57,21 @@ export type BellDayV1 = z.infer<typeof bellDayV1>;
 
 export const schoolBellsDaysV1 = z
   .object({
-    matutino: z.object({ 1: bellDayV1, 2: bellDayV1, 3: bellDayV1, 4: bellDayV1, 5: bellDayV1 }).strict(),
-    vespertino: z.object({ 1: bellDayV1, 2: bellDayV1, 3: bellDayV1, 4: bellDayV1, 5: bellDayV1 }).strict(),
+    matutino: z
+      .object({ 1: bellDayV1, 2: bellDayV1, 3: bellDayV1, 4: bellDayV1, 5: bellDayV1 })
+      .strict(),
+    vespertino: z
+      .object({ 1: bellDayV1, 2: bellDayV1, 3: bellDayV1, 4: bellDayV1, 5: bellDayV1 })
+      .strict(),
   })
   .strict();
 export type SchoolBellsDaysV1 = z.infer<typeof schoolBellsDaysV1>;
 export const schoolBellsV1 = z
-  .object({ academicYear: z.literal(2026), version: z.number().int().nonnegative().safe(), bells: schoolBellsDaysV1 })
+  .object({
+    academicYear: z.literal(2026),
+    version: z.number().int().nonnegative().safe(),
+    bells: schoolBellsDaysV1,
+  })
   .strict();
 export type SchoolBellsV1 = z.infer<typeof schoolBellsV1>;
 
@@ -84,10 +102,16 @@ export function bellShiftOfLabelV1(label: string): BellShiftV1 | null {
   return null;
 }
 
-const lessons = (times: readonly [string, string][], breakAfter: number, breakTimes: [string, string]): BellDayV1 =>
+const lessons = (
+  times: readonly [string, string][],
+  breakAfter: number,
+  breakTimes: [string, string],
+): BellDayV1 =>
   times.flatMap(([start, end], index) => {
     const lesson: BellItemV1 = { kind: 'aula', slot: index + 1, start, end };
-    return index + 1 === breakAfter ? [lesson, { kind: 'intervalo' as const, start: breakTimes[0], end: breakTimes[1] }] : [lesson];
+    return index + 1 === breakAfter
+      ? [lesson, { kind: 'intervalo' as const, start: breakTimes[0], end: breakTimes[1] }]
+      : [lesson];
   });
 
 /**
@@ -100,32 +124,70 @@ const lessons = (times: readonly [string, string][], breakAfter: number, breakTi
  */
 export function officialBells2026V1(): SchoolBellsDaysV1 {
   const morningLong = lessons(
-    [['07:00', '07:55'], ['07:55', '08:50'], ['08:50', '09:45'], ['10:00', '10:55'], ['10:55', '11:45']],
+    [
+      ['07:00', '07:55'],
+      ['07:55', '08:50'],
+      ['08:50', '09:45'],
+      ['10:00', '10:55'],
+      ['10:55', '11:45'],
+    ],
     3,
     ['09:45', '10:00'],
   );
   const morningShort = lessons(
-    [['07:00', '07:45'], ['07:45', '08:30'], ['08:30', '09:15'], ['09:15', '10:00'], ['10:15', '11:00'], ['11:00', '11:45']],
+    [
+      ['07:00', '07:45'],
+      ['07:45', '08:30'],
+      ['08:30', '09:15'],
+      ['09:15', '10:00'],
+      ['10:15', '11:00'],
+      ['11:00', '11:45'],
+    ],
     4,
     ['10:00', '10:15'],
   );
   const morningFriday = lessons(
-    [['07:45', '08:30'], ['08:30', '09:15'], ['09:15', '10:00'], ['10:15', '11:00'], ['11:00', '11:45']],
+    [
+      ['07:45', '08:30'],
+      ['08:30', '09:15'],
+      ['09:15', '10:00'],
+      ['10:15', '11:00'],
+      ['11:00', '11:45'],
+    ],
     3,
     ['10:00', '10:15'],
   );
   const afternoonLong = lessons(
-    [['13:15', '14:10'], ['14:10', '15:05'], ['15:20', '16:15'], ['16:15', '17:10'], ['17:10', '18:00']],
+    [
+      ['13:15', '14:10'],
+      ['14:10', '15:05'],
+      ['15:20', '16:15'],
+      ['16:15', '17:10'],
+      ['17:10', '18:00'],
+    ],
     2,
     ['15:05', '15:20'],
   );
   const afternoonShort = lessons(
-    [['13:15', '14:00'], ['14:00', '14:45'], ['14:45', '15:30'], ['15:45', '16:30'], ['16:30', '17:15'], ['17:15', '18:00']],
+    [
+      ['13:15', '14:00'],
+      ['14:00', '14:45'],
+      ['14:45', '15:30'],
+      ['15:45', '16:30'],
+      ['16:30', '17:15'],
+      ['17:15', '18:00'],
+    ],
     3,
     ['15:30', '15:45'],
   );
   const afternoonFriday = lessons(
-    [['13:15', '14:00'], ['14:00', '14:45'], ['14:45', '15:30'], ['15:45', '16:30'], ['16:30', '17:15']],
+    [
+      ['13:15', '14:00'],
+      ['14:00', '14:45'],
+      ['14:45', '15:30'],
+      ['15:45', '16:30'],
+      ['16:30', '17:15'],
+    ],
     3,
     ['15:30', '15:45'],
   );
@@ -151,10 +213,14 @@ export function officialBells2026V1(): SchoolBellsDaysV1 {
 }
 
 /** "HH:MM" as minutes since midnight. */
-export const bellMinutesV1 = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+export const bellMinutesV1 = (time: string) =>
+  Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 /** The time of one lesson of a day, if the bells have it. */
 export const bellLessonV1 = (day: BellDayV1 | null | undefined, slot: number) =>
-  day?.find((item): item is Extract<BellItemV1, { kind: 'aula' }> => item.kind === 'aula' && item.slot === slot) ?? null;
+  day?.find(
+    (item): item is Extract<BellItemV1, { kind: 'aula' }> =>
+      item.kind === 'aula' && item.slot === slot,
+  ) ?? null;
 
 /**
  * Where a day is at a moment (minutes since midnight, school time): before its first lesson, in a
@@ -171,8 +237,10 @@ export function bellMomentV1(day: BellDayV1, minutes: number): BellMomentV1 {
   if (minutes < bellMinutesV1(day[0]!.start)) return { state: 'before', next: day[0]! };
   for (const [index, item] of day.entries()) {
     const next = day[index + 1] ?? null;
-    if (minutes >= bellMinutesV1(item.start) && minutes < bellMinutesV1(item.end)) return { state: 'in', current: item, next };
-    if (next && minutes >= bellMinutesV1(item.end) && minutes < bellMinutesV1(next.start)) return { state: 'between', next };
+    if (minutes >= bellMinutesV1(item.start) && minutes < bellMinutesV1(item.end))
+      return { state: 'in', current: item, next };
+    if (next && minutes >= bellMinutesV1(item.end) && minutes < bellMinutesV1(next.start))
+      return { state: 'between', next };
   }
   return { state: 'over' };
 }

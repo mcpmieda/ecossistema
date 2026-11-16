@@ -13,7 +13,8 @@ vi.mock('../../src/features/student-photos/catalog-client-v1', () => ({
   announcePhotoChangeV1: vi.fn(),
 }));
 vi.mock('../../src/features/student-photos/admin-client-v1', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/features/student-photos/admin-client-v1')>();
+  const actual =
+    await importOriginal<typeof import('../../src/features/student-photos/admin-client-v1')>();
   return { ...actual, createPhotoAdminClientV1: () => ({ save: spies.save, preview: vi.fn() }) };
 });
 vi.mock('../../src/features/student-photos/linked-student-photo-avatar-v1', () => ({
@@ -30,8 +31,17 @@ function catalog(overrides: Record<string, unknown> = {}) {
     traceId: uid,
     canWrite: true,
     catalog: photoCatalogStateV1.parse({
-      version: 1, studentUid: uid, revision, initialized: true, hasPortrait: true, hasAvatar: false,
-      pendingRequest: null, pendingKind: null, pendingStage: null, ownPending: false, portalReady: false,
+      version: 1,
+      studentUid: uid,
+      revision,
+      initialized: true,
+      hasPortrait: true,
+      hasAvatar: false,
+      pendingRequest: null,
+      pendingKind: null,
+      pendingStage: null,
+      ownPending: false,
+      portalReady: false,
       ...overrides,
     }),
   };
@@ -61,7 +71,10 @@ it('depois de salvar com sucesso não aparece "Tentar de novo"', async () => {
     .mockResolvedValueOnce(catalog())
     .mockResolvedValueOnce(catalog({ hasPortrait: false }));
   spies.save.mockImplementationOnce(async (_subject, cmd) => ({
-    state: 'committed', requestId: cmd.requestId, revision: cmd.requestId, cleanupPending: false,
+    state: 'committed',
+    requestId: cmd.requestId,
+    revision: cmd.requestId,
+    cleanupPending: false,
   }));
   render(<StudentPhotoPanelV1 subject={subject} />);
   await user.click(await screen.findByRole('button', { name: 'Remover' }));

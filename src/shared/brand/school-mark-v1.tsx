@@ -4,8 +4,10 @@ import './school-mark-v1.css';
 export { SCHOOL_NAME_V1 } from './school-name-v1';
 
 /** The school's crest, shared by the administrative apps and the Portal do Aluno. */
-export const SCHOOL_LOGO_SRC_V1 = new URL('../../student-portal/assets/school-logo.webp', import.meta.url)
-  .href;
+export const SCHOOL_LOGO_SRC_V1 = new URL(
+  '../../student-portal/assets/school-logo.webp',
+  import.meta.url,
+).href;
 
 /**
  * Decorative crest. `shine` passes a soft light across it from time to time; `pulse` is the

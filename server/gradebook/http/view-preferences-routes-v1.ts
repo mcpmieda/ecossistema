@@ -63,7 +63,9 @@ export async function handleViewPreferencesRequestV1(
   )
     return failure('unavailable', 503);
 
-  const service = createViewPreferencesServiceV1(env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1);
+  const service = createViewPreferencesServiceV1(
+    env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
+  );
   if (request.method === 'GET') {
     const value = await service.read(actorId);
     return response(value, statusFor(value));

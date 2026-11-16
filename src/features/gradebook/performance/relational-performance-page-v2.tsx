@@ -462,20 +462,12 @@ export function RelationalPerformancePageV2({
       return current;
     });
   }, []);
-  const {
-    openingId,
-    focusTerm,
-    open,
-    openFromAnalytics,
-    close,
-    goBack,
-    backLabel,
-    depth,
-  } = useDetailStepsV2({
-    isOpen: state.detailOpen,
-    open: (studentId, offerId) => void state.open(studentId, offerId),
-    close: state.closeDetail,
-  });
+  const { openingId, focusTerm, open, openFromAnalytics, close, goBack, backLabel, depth } =
+    useDetailStepsV2({
+      isOpen: state.detailOpen,
+      open: (studentId, offerId) => void state.open(studentId, offerId),
+      close: state.closeDetail,
+    });
   const lensLabel: Record<PerformanceLensV3, string> = {
     result: 'Resultado',
     quantitative: 'Quantitativo',
@@ -574,7 +566,10 @@ export function RelationalPerformancePageV2({
                   selectedKey={state.filters.lens}
                   className="performance-lens-tabs min-w-0"
                   onSelectionChange={(key) => {
-                    if (key !== state.filters.lens && PERFORMANCE_LENSES_V3.includes(key as PerformanceLensV3))
+                    if (
+                      key !== state.filters.lens &&
+                      PERFORMANCE_LENSES_V3.includes(key as PerformanceLensV3)
+                    )
                       void state.select({ lens: key as PerformanceLensV3 });
                   }}
                 >

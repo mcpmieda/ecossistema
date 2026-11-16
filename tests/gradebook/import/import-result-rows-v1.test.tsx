@@ -6,10 +6,19 @@ import { setupOperationsDomV1 } from '../../student-portal/ui/overview/dom-v1';
 /** Issue #1450, 109: after a manual import, one line per workbook saying whether grades went in. */
 const { writes, result } = vi.hoisted(() => ({
   writes: (academicRecordVersions: number) => ({
-    logicalSources: 0, sourceFileVersions: 0, importBatchVersions: 1, assessmentComponentVersions: 0,
-    academicRecordVersions, logicalSourceRecordAssociationVersions: 0, total: academicRecordVersions + 1,
+    logicalSources: 0,
+    sourceFileVersions: 0,
+    importBatchVersions: 1,
+    assessmentComponentVersions: 0,
+    academicRecordVersions,
+    logicalSourceRecordAssociationVersions: 0,
+    total: academicRecordVersions + 1,
   }),
-  result: (id: string) => ({ id, manifest: { fileName: `${id}.xlsb`, sha256: 'a'.repeat(64) }, summary: { fileName: `${id}.xlsb` } }),
+  result: (id: string) => ({
+    id,
+    manifest: { fileName: `${id}.xlsb`, sha256: 'a'.repeat(64) },
+    summary: { fileName: `${id}.xlsb` },
+  }),
 }));
 
 vi.mock('../../../src/features/gradebook/import/use-import-batch', () => {
@@ -20,18 +29,42 @@ vi.mock('../../../src/features/gradebook/import/use-import-batch', () => {
     confirmMovementReview: vi.fn(),
     diagnosticAuditFailures: {},
     error: null,
-    failures: [{ id: 'f', fileName: 'quebrada.xlsx', message: 'Arquivo ilegível.', stage: 'recognition', diagnostic: { code: 'x' } }],
+    failures: [
+      {
+        id: 'f',
+        fileName: 'quebrada.xlsx',
+        message: 'Arquivo ilegível.',
+        stage: 'recognition',
+        diagnostic: { code: 'x' },
+      },
+    ],
     handleFiles: vi.fn(),
     loading: false,
     pendingPersistenceCount: 0,
     progress: null,
     persistence: {
-      novas: { state: 'completed', response: { transportVersion: 9, state: 'applied', summary: { committedWrites: writes(12) } } },
-      iguais: { state: 'completed', response: { transportVersion: 9, state: 'no-changes', summary: { committedWrites: writes(0) } } },
+      novas: {
+        state: 'completed',
+        response: {
+          transportVersion: 9,
+          state: 'applied',
+          summary: { committedWrites: writes(12) },
+        },
+      },
+      iguais: {
+        state: 'completed',
+        response: {
+          transportVersion: 9,
+          state: 'no-changes',
+          summary: { committedWrites: writes(0) },
+        },
+      },
       fora: {
         state: 'completed',
         response: {
-          transportVersion: 9, state: 'applied', summary: { committedWrites: writes(3) },
+          transportVersion: 9,
+          state: 'applied',
+          summary: { committedWrites: writes(3) },
           warnings: [{ code: 'student-not-in-relation', classCode: 'SYN-A', number: 7 }],
         },
       },

@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { FrequencySummaryV2, FrequencyYearSummaryV2 } from '../../../../shared/attendance-contracts/frequency-v2';
+import type {
+  FrequencySummaryV2,
+  FrequencyYearSummaryV2,
+} from '../../../../shared/attendance-contracts/frequency-v2';
 import type { StudentFrequencyClientV2 } from '../../../../src/features/student-portal/frequency/client-v2';
 import { FrequencyPageV3 } from '../../../../src/features/student-portal/redesign/frequency-page-v3';
 
@@ -25,18 +28,18 @@ const empty = (month: string): FrequencySummaryV2 => ({
   days: [],
 });
 const clientOf = (today: string): StudentFrequencyClientV2 => ({
-  readYear: vi.fn(
-    async (): Promise<FrequencyYearSummaryV2> => ({
-      contractVersion: 2,
-      state: 'ready',
-      academicYear: 2026,
-      today,
-      year: { lessons: 100, absences: 0 },
-      lastReadAt: `${today}T10:10:00Z`,
-      months: Array.from({ length: Number(today.slice(5, 7)) }, (_, index) => empty(`2026-${String(index + 1).padStart(2, '0')}`)),
-      schoolYear: { schoolDays: 200, remaining: 0, firstDay: '2026-02-23', lastDay: '2026-12-15' },
-    }),
-  ),
+  readYear: vi.fn(async (): Promise<FrequencyYearSummaryV2> => ({
+    contractVersion: 2,
+    state: 'ready',
+    academicYear: 2026,
+    today,
+    year: { lessons: 100, absences: 0 },
+    lastReadAt: `${today}T10:10:00Z`,
+    months: Array.from({ length: Number(today.slice(5, 7)) }, (_, index) =>
+      empty(`2026-${String(index + 1).padStart(2, '0')}`),
+    ),
+    schoolYear: { schoolDays: 200, remaining: 0, firstDay: '2026-02-23', lastDay: '2026-12-15' },
+  })),
 });
 
 beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));

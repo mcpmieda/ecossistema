@@ -4,6 +4,10 @@ import { noStoreResponseV1 } from '../../http/security';
 export function retiredGradebookRequestV1(payload: unknown): Response {
   const isObject = payload !== null && typeof payload === 'object' && !Array.isArray(payload);
   return isObject
-    ? noStoreResponseV1(JSON.stringify({ state: 'retired' }), 410, 'application/json; charset=utf-8')
+    ? noStoreResponseV1(
+        JSON.stringify({ state: 'retired' }),
+        410,
+        'application/json; charset=utf-8',
+      )
     : noStoreResponseV1(null, 400);
 }

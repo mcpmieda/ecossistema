@@ -62,10 +62,9 @@ describe('relational closing update V9', () => {
   });
 
   it('keeps N/C and R/R masks disjoint while recording exact recovery states', () => {
-    const result = resolveRelationalClosingUpdateV9(
-      state({ rec: [5000, null, 7000] }),
-      { rec: [['n'], ['r'], null] },
-    );
+    const result = resolveRelationalClosingUpdateV9(state({ rec: [5000, null, 7000] }), {
+      rec: [['n'], ['r'], null],
+    });
 
     expect(result.next).toMatchObject({
       rec: [null, null, null],

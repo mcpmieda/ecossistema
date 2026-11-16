@@ -31,7 +31,12 @@ describe('gradebook import auth resume V1', () => {
   });
 
   it('retoma apenas auth-required e recognized, preservando concluídos e falhas', () => {
-    const successes = [result('synthetic:1'), result('synthetic:2'), result('synthetic:3'), result('synthetic:4')];
+    const successes = [
+      result('synthetic:1'),
+      result('synthetic:2'),
+      result('synthetic:3'),
+      result('synthetic:4'),
+    ];
     const persistence: Record<string, ImportPersistenceStateV9> = {
       'synthetic:1': {
         state: 'completed',
@@ -46,10 +51,9 @@ describe('gradebook import auth resume V1', () => {
       'synthetic:4': { state: 'failed', message: 'synthetic-failure' },
     };
 
-    expect(selectPendingGradebookImportResultsV1(successes, persistence).map((value) => value.id)).toEqual([
-      'synthetic:2',
-      'synthetic:3',
-    ]);
+    expect(
+      selectPendingGradebookImportResultsV1(successes, persistence).map((value) => value.id),
+    ).toEqual(['synthetic:2', 'synthetic:3']);
   });
 
   it('integra pausa no primeiro 401/403 e renovação em outra aba sem storage acadêmico', () => {

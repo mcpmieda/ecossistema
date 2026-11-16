@@ -6,25 +6,55 @@ import { App } from '../src/App';
 import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
 import { buildPlatformSnapshot } from '../server/platform/snapshot';
 
-const snapshot = () => buildPlatformSnapshot({
-  correlationId: 'synthetic',
-}, PLATFORM_CAPABILITIES);
+const snapshot = () =>
+  buildPlatformSnapshot(
+    {
+      correlationId: 'synthetic',
+    },
+    PLATFORM_CAPABILITIES,
+  );
 const years = {
-  contractVersion: 2, state: 'ready', operation: 'bootstrap',
-  years: [2026, 2025].map((year) => ({ year, minimumApprovalMilli: 60000, maxCouncilComponents: 2 })),
+  contractVersion: 2,
+  state: 'ready',
+  operation: 'bootstrap',
+  years: [2026, 2025].map((year) => ({
+    year,
+    minimumApprovalMilli: 60000,
+    maxCouncilComponents: 2,
+  })),
 };
 const session = {
-  version: 1, policy: 'absolute', defaultDurationHours: 8, allowedDurationsHours: [4, 8, 12],
-  currentDurationHours: 8, configured: true, authenticatedAt: '2026-10-14T00:00:00Z', expiresAt: '2026-10-14T08:00:00Z',
+  version: 1,
+  policy: 'absolute',
+  defaultDurationHours: 8,
+  allowedDurationsHours: [4, 8, 12],
+  currentDurationHours: 8,
+  configured: true,
+  authenticatedAt: '2026-10-14T00:00:00Z',
+  expiresAt: '2026-10-14T08:00:00Z',
 };
 const animations = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
 beforeEach(() => {
-  Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  });
   window.history.replaceState(null, '', '/#/configuracoes');
   vi.stubGlobal('matchMedia', () => ({
-    matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(),
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
   }));
-  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
 });
 afterEach(() => {
   cleanup();
@@ -38,18 +68,24 @@ function network(
   academic: () => Promise<Response> = async () => Response.json(years),
 ) {
   const fetcher = vi.fn<typeof fetch>(async (path, init) => {
-    if (path === '/api/me') return Response.json({ authenticated: true, capabilities: PLATFORM_CAPABILITIES });
+    if (path === '/api/me')
+      return Response.json({ authenticated: true, capabilities: PLATFORM_CAPABILITIES });
     if (path === '/api/platform/bootstrap') return bootstrap();
     if (path === '/api/platform/settings/session') return Response.json(session);
     if (path === '/api/gradebook/operational-workspace') return academic();
-    if (path === '/api/gradebook/performance') return Response.json({ transportVersion: 2, state: 'unavailable' }, { status: 503 });
-    if (path === '/api/platform/live') return Response.json({ state: 'unavailable' }, { status: 503 });
-    throw new Error(`Unexpected synthetic request: ${String(path)} ${String(init?.method ?? 'GET')}`);
+    if (path === '/api/gradebook/performance')
+      return Response.json({ transportVersion: 2, state: 'unavailable' }, { status: 503 });
+    if (path === '/api/platform/live')
+      return Response.json({ state: 'unavailable' }, { status: 503 });
+    throw new Error(
+      `Unexpected synthetic request: ${String(path)} ${String(init?.method ?? 'GET')}`,
+    );
   });
   vi.stubGlobal('fetch', fetcher);
   return fetcher;
 }
-const bootstrapCalls = (fetcher: ReturnType<typeof network>) => fetcher.mock.calls.filter(([path]) => path === '/api/gradebook/operational-workspace').length;
+const bootstrapCalls = (fetcher: ReturnType<typeof network>) =>
+  fetcher.mock.calls.filter(([path]) => path === '/api/gradebook/operational-workspace').length;
 async function yearSelector(container: HTMLElement) {
   // Query the actual year card, not unrelated controls or portals elsewhere in document.body.
   // findByRole still enforces uniqueness: duplicate controls inside this card remain a failure.
@@ -71,7 +107,14 @@ it('keeps native settings mounted and carries the selected year to the real Banc
   expect(trigger.textContent).toContain('2025');
   const main = within(view.container).getByRole('navigation', { name: 'Navegação principal' });
   await user.click(within(main).getByRole('link', { name: 'Banco de notas' }));
-  await waitFor(() => expect(fetcher.mock.calls.some(([path, init]) => path === '/api/gradebook/performance' && String(init?.body).includes('"year":2025'))).toBe(true));
+  await waitFor(() =>
+    expect(
+      fetcher.mock.calls.some(
+        ([path, init]) =>
+          path === '/api/gradebook/performance' && String(init?.body).includes('"year":2025'),
+      ),
+    ).toBe(true),
+  );
   expect(bootstrapCalls(fetcher)).toBe(2);
   await user.click(within(main).getByRole('link', { name: 'Configurações' }));
   const second = await yearSelector(view.container);
@@ -88,7 +131,9 @@ it('opens the settings without asking Microsoft: the SharePoint registers were r
   const trigger = await yearSelector(view.container);
   await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(false));
   expect(within(view.container).queryByText('Consultando informações Microsoft…')).toBeNull();
-  expect(within(view.container).queryByText('Informações Microsoft temporariamente indisponíveis')).toBeNull();
+  expect(
+    within(view.container).queryByText('Informações Microsoft temporariamente indisponíveis'),
+  ).toBeNull();
   expect(within(view.container).queryByText('Registro de configurações')).toBeNull();
   expect(within(view.container).queryByText('Migrações registradas')).toBeNull();
   expect(fetcher.mock.calls.some(([path]) => path === '/api/platform/settings/session')).toBe(true);
@@ -98,7 +143,9 @@ it('opens the settings without asking Microsoft: the SharePoint registers were r
 it.each([401, 403])('preserves the authoritative authorization boundary (%i)', async (status) => {
   network(async () => Response.json({}, { status }));
   const view = render(<App />);
-  expect(await within(view.container).findByText(/Sua autorização precisa ser verificada novamente/u)).toBeTruthy();
+  expect(
+    await within(view.container).findByText(/Sua autorização precisa ser verificada novamente/u),
+  ).toBeTruthy();
   expect(within(view.container).queryByRole('button', { name: /Ano letivo global$/u })).toBeNull();
 });
 
@@ -132,7 +179,9 @@ it('uses semantic section links with current-route state and no dangling tab con
   const nav = await app.findByRole('navigation', { name: 'Seções de Banco de notas' });
   const links = within(nav).getAllByRole('link');
   expect(links).toHaveLength(4);
-  expect(within(nav).getByRole('link', { name: 'Desempenho' }).getAttribute('aria-current')).toBe('page');
+  expect(within(nav).getByRole('link', { name: 'Desempenho' }).getAttribute('aria-current')).toBe(
+    'page',
+  );
   expect(nav.querySelector('[role="tab"],[role="tablist"],[aria-controls]')).toBeNull();
   // The shell arrives before the real, lazy-loaded workspace. Wait for that workspace,
   // not only for its navigation, so a cold import cannot race this integration assertion.
@@ -159,7 +208,9 @@ it('supports focus-only arrow keys and guarded mouse and native Enter activation
   const last = within(nav).getByRole('link', { name: 'Configurações' });
   const user = userEvent.setup();
   const clicks: Event[] = [];
-  const observeClick = (event: Event) => { clicks.push(event); };
+  const observeClick = (event: Event) => {
+    clicks.push(event);
+  };
   const block = vi.fn((event: Event) => event.preventDefault());
   last.addEventListener('click', observeClick);
   window.addEventListener('ecossistema-before-navigation', block);

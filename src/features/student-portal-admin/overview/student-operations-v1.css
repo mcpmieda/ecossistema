@@ -220,8 +220,6 @@
   line-height: 1.25;
 }
 
-
-
 @container (max-width: 700px) {
   .pa-stat > .card__content {
     padding: 0.65rem 0.75rem;

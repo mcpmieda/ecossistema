@@ -44,7 +44,8 @@ async function sessionHeaders(roles?: TestRole[]): Promise<Headers> {
       roles,
       exp: Math.floor(Date.now() / 1000) + 600,
     },
-    testEnv.SESSION_SECRET, 'admin-session',
+    testEnv.SESSION_SECRET,
+    'admin-session',
   );
   headers.set('Cookie', `${SESSION_COOKIE}=${session}`);
   return headers;
@@ -137,7 +138,8 @@ describe('browser-facing authentication recovery', () => {
           },
         ],
       },
-      testEnv.SESSION_SECRET, 'admin-auth',
+      testEnv.SESSION_SECRET,
+      'admin-auth',
     );
 
     const response = await invoke(loginRequest(existing));
@@ -300,4 +302,3 @@ describe('administrative session settings', () => {
     expect(professor.status).toBe(403);
   });
 });
-

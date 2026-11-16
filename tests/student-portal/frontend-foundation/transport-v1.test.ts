@@ -39,7 +39,9 @@ it('uses fixed same-origin paths and rejects unexpected versions, fields and res
       method: 'GET',
     }),
   );
-  expect((fetch.mock.calls[0]?.[1]?.headers as Record<string, string>)[ACCESS_CLOSED_ACCEPT_HEADER_V1]).toBe('v1');
+  expect(
+    (fetch.mock.calls[0]?.[1]?.headers as Record<string, string>)[ACCESS_CLOSED_ACCEPT_HEADER_V1],
+  ).toBe('v1');
   for (const body of [
     { ...session, contractVersion: 2 },
     { ...session, secret: 'synthetic' },
@@ -63,7 +65,9 @@ it('honors 401/403/429 and Retry-After without logging payloads or automatically
   expect(unauthorized).toHaveBeenCalledOnce();
   fetch.mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'forbidden' }, 403));
   await expect(client.session()).rejects.toMatchObject({ state: 'forbidden' });
-  fetch.mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'access-closed' }, 403));
+  fetch.mockResolvedValueOnce(
+    json({ contractVersion: 1, requestId: id, state: 'access-closed' }, 403),
+  );
   await expect(client.session()).rejects.toMatchObject({ state: 'access-closed' });
   fetch.mockResolvedValueOnce(
     json({ contractVersion: 1, requestId: id, state: 'rate-limited', retryAfterSeconds: 10 }, 429, {
@@ -80,9 +84,14 @@ it('honors 401/403/429 and Retry-After without logging payloads or automatically
   fetch.mockResolvedValueOnce(new Response('<html>sign in</html>', { status: 401 }));
   const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 30_001);
   try {
-    await expect(client.session()).rejects.toMatchObject({ state: 'invalid-response', status: 401 });
+    await expect(client.session()).rejects.toMatchObject({
+      state: 'invalid-response',
+      status: 401,
+    });
     expect(unauthorized).toHaveBeenCalledTimes(2);
-  } finally { clock.mockRestore(); }
+  } finally {
+    clock.mockRestore();
+  }
 });
 
 it('preserves command bytes, CAS and idempotency when resuming prepared QR batches', async () => {
@@ -354,14 +363,22 @@ it('aborts before networking and rejects missing no-store on success', async () 
   await expect(client.session()).rejects.toMatchObject({ state: 'invalid-response' });
 });
 
-
 it('keeps session cooldown across reconnection IDs without applying it to another account', async () => {
-  const fetch = vi.fn<PortalFetchV1>(async () => json({ contractVersion: 1, requestId: id,
-    state: 'rate-limited', retryAfterSeconds: 60 }, 429, { 'Retry-After': '60' }));
+  const fetch = vi.fn<PortalFetchV1>(async () =>
+    json({ contractVersion: 1, requestId: id, state: 'rate-limited', retryAfterSeconds: 60 }, 429, {
+      'Retry-After': '60',
+    }),
+  );
   const client = createPortalSelfClientV1({ fetch });
-  await expect(client.session(undefined, id, crypto.randomUUID())).rejects.toMatchObject({ state: 'rate-limited' });
-  await expect(client.session(undefined, id, crypto.randomUUID())).rejects.toMatchObject({ state: 'rate-limited' });
+  await expect(client.session(undefined, id, crypto.randomUUID())).rejects.toMatchObject({
+    state: 'rate-limited',
+  });
+  await expect(client.session(undefined, id, crypto.randomUUID())).rejects.toMatchObject({
+    state: 'rate-limited',
+  });
   expect(fetch).toHaveBeenCalledTimes(1);
-  await expect(client.session(undefined, crypto.randomUUID(), crypto.randomUUID())).rejects.toMatchObject({ state: 'rate-limited' });
+  await expect(
+    client.session(undefined, crypto.randomUUID(), crypto.randomUUID()),
+  ).rejects.toMatchObject({ state: 'rate-limited' });
   expect(fetch).toHaveBeenCalledTimes(2);
 });

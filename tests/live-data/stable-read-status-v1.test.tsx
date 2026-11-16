@@ -34,8 +34,14 @@ it.each([250, 1200])('keeps the same text footprint and following content at wid
   // JSDOM proves stable DOM/CSS visibility, not browser geometry or cumulative layout shift.
 });
 it('uses an unconditional stable row where a background refresh is announced', () => {
-  const performance = readFileSync('src/features/gradebook/performance/relational-performance-page-v2.tsx', 'utf8');
-  const publication = readFileSync('src/features/student-portal-admin/publication/student-publication-v1.tsx', 'utf8');
+  const performance = readFileSync(
+    'src/features/gradebook/performance/relational-performance-page-v2.tsx',
+    'utf8',
+  );
+  const publication = readFileSync(
+    'src/features/student-portal-admin/publication/student-publication-v1.tsx',
+    'utf8',
+  );
   // Desempenho re-reads silently: what is on screen stays, with no status line.
   expect(performance).not.toContain('StableReadStatusV1');
   expect(performance).not.toContain('{state.busy.matrix || state.busy.classes ? (');

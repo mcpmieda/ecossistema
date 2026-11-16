@@ -8,12 +8,21 @@ import { serveObservedPortalSelfV1 } from '../../server/student-portal/compositi
 import { portalAdminRpcV1 } from '../../server/student-portal/composition/admin-v1';
 import { portalReconciliationCredentialsRpcV1 } from '../../server/student-portal/composition/reconciliation-v1';
 import { portalMonitoringRpcV1 } from '../../server/student-portal/composition/monitoring-v1';
-import { portalHistoryRpcV1, portalHistoryScheduledV1 } from '../../server/student-portal/composition/health-history-v1';
-import { portalSignalsRpcV1, portalSignalsScheduledV1 } from '../../server/student-portal/composition/signals-v1';
+import {
+  portalHistoryRpcV1,
+  portalHistoryScheduledV1,
+} from '../../server/student-portal/composition/health-history-v1';
+import {
+  portalSignalsRpcV1,
+  portalSignalsScheduledV1,
+} from '../../server/student-portal/composition/signals-v1';
 import { portalCapacityRpcV1 } from '../../server/student-portal/composition/capacity-v1';
 import { portalHealthReviewRpcV1 } from '../../server/student-portal/composition/health-review-v1';
 import { portalScheduledV1 } from '../../server/student-portal/composition/scheduled-v1';
-import { readSchoolDayWindowV1, type SchoolDayWindowV1 } from '../../server/student-portal/composition/poll-window-v1';
+import {
+  readSchoolDayWindowV1,
+  type SchoolDayWindowV1,
+} from '../../server/student-portal/composition/poll-window-v1';
 import { portalDatabaseV1 } from '../../server/student-portal/composition/database-v1';
 import type { PortalCompositionEnvV1 } from '../../server/student-portal/composition/config-v1';
 import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v1';
@@ -21,15 +30,20 @@ import { liveAdminContextV1 } from '../../shared/student-portal-contracts/live-v
 import { connectPortalLiveV1 } from '../../server/student-portal/live/live-connect-v1';
 import { allowPortalLiveDrainV1 } from '../../server/student-portal/composition/live-drain-v1';
 import { dispatchPortalLiveEventsV1 } from '../../server/student-portal/live/live-outbox-v1';
-type PortalEnvV1 = PortalWorkerEnv & PortalCompositionEnvV1 & {
-  /** 'notas-onedrive-sync': that Worker runs the minute's work next to the database; the cron here rests. */
-  readonly PORTAL_SCHEDULER?: string;
-};
+type PortalEnvV1 = PortalWorkerEnv &
+  PortalCompositionEnvV1 & {
+    /** 'notas-onedrive-sync': that Worker runs the minute's work next to the database; the cron here rests. */
+    readonly PORTAL_SCHEDULER?: string;
+  };
 
 /** The minute's scheduled work (retention, live outbox, health history and signals). */
 async function scheduledWorkV1(env: PortalEnvV1, scheduledTime: number): Promise<void> {
-  await Promise.all([portalScheduledV1(env, scheduledTime), dispatchPortalLiveEventsV1(env).catch(() => 0),
-    portalHistoryScheduledV1(env, scheduledTime), portalSignalsScheduledV1(env, scheduledTime)]);
+  await Promise.all([
+    portalScheduledV1(env, scheduledTime),
+    dispatchPortalLiveEventsV1(env).catch(() => 0),
+    portalHistoryScheduledV1(env, scheduledTime),
+    portalSignalsScheduledV1(env, scheduledTime),
+  ]);
 }
 
 const selfMayEnqueueLiveV1 = (request: Request, response: Response): boolean => {
@@ -38,52 +52,96 @@ const selfMayEnqueueLiveV1 = (request: Request, response: Response): boolean => 
   if (path === '/api/student/auth/logout') return sessionCookieTokenV1(request) !== '';
   if (path !== '/api/student/auth/activate') return false;
   const cookie = response.headers.get('Set-Cookie') ?? '';
-  return cookie.startsWith(`${SESSION_COOKIE_V1.name}=`)
-    && /^[A-Za-z0-9_-]{43};/u.test(cookie.slice(SESSION_COOKIE_V1.name.length + 1));
+  return (
+    cookie.startsWith(`${SESSION_COOKIE_V1.name}=`) &&
+    /^[A-Za-z0-9_-]{43};/u.test(cookie.slice(SESSION_COOKIE_V1.name.length + 1))
+  );
 };
-export class PortalSelfEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & PortalCompositionEnvV1> {
+export class PortalSelfEntrypoint extends WorkerEntrypoint<
+  PortalWorkerEnv & PortalCompositionEnvV1
+> {
   override async fetch(request: Request): Promise<Response> {
-    const response = await serveObservedPortalSelfV1(request, this.env, (promise) => this.ctx.waitUntil(promise));
-    if (selfMayEnqueueLiveV1(request, response)) this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
+    const response = await serveObservedPortalSelfV1(request, this.env, (promise) =>
+      this.ctx.waitUntil(promise),
+    );
+    if (selfMayEnqueueLiveV1(request, response))
+      this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
     return response;
   }
 }
-export class PortalAdminEntrypoint extends WorkerEntrypoint<PortalWorkerEnv & PortalCompositionEnvV1> {
+export class PortalAdminEntrypoint extends WorkerEntrypoint<
+  PortalWorkerEnv & PortalCompositionEnvV1
+> {
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const parsed = liveAdminContextV1.safeParse({
-      actorId: request.headers.get('x-admin-actor-id'), tenantId: request.headers.get('x-admin-tenant-id'),
-      capability: request.headers.get('x-admin-capability'), expiresAt: request.headers.get('x-admin-expires-at'),
+      actorId: request.headers.get('x-admin-actor-id'),
+      tenantId: request.headers.get('x-admin-tenant-id'),
+      capability: request.headers.get('x-admin-capability'),
+      expiresAt: request.headers.get('x-admin-expires-at'),
     });
-    if (url.origin !== 'https://portal-admin.internal' || url.pathname !== '/live'
-      || request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket'
-      || !parsed.success || parsed.data.tenantId !== this.env.PORTAL_ADMIN_TENANT_ID
-      || Date.parse(parsed.data.expiresAt) <= Date.now()) return portalJsonV1(portalFailureV1('forbidden'), 403);
-    const limited = await limitAdminOperationV1(this.env, {
-      actorId: parsed.data.actorId, tenantId: parsed.data.tenantId,
-      capability: parsed.data.capability, authenticatedAt: new Date().toISOString(), requestId: crypto.randomUUID(),
-    }, 'live');
+    if (
+      url.origin !== 'https://portal-admin.internal' ||
+      url.pathname !== '/live' ||
+      request.method !== 'GET' ||
+      request.headers.get('upgrade')?.toLowerCase() !== 'websocket' ||
+      !parsed.success ||
+      parsed.data.tenantId !== this.env.PORTAL_ADMIN_TENANT_ID ||
+      Date.parse(parsed.data.expiresAt) <= Date.now()
+    )
+      return portalJsonV1(portalFailureV1('forbidden'), 403);
+    const limited = await limitAdminOperationV1(
+      this.env,
+      {
+        actorId: parsed.data.actorId,
+        tenantId: parsed.data.tenantId,
+        capability: parsed.data.capability,
+        authenticatedAt: new Date().toISOString(),
+        requestId: crypto.randomUUID(),
+      },
+      'live',
+    );
     if (limited) {
       const response = portalJsonV1(limited, ERROR_HTTP_V1[limited.state]);
-      if (limited.retryAfterSeconds) response.headers.set('Retry-After', String(limited.retryAfterSeconds));
+      if (limited.retryAfterSeconds)
+        response.headers.set('Retry-After', String(limited.retryAfterSeconds));
       return response;
     }
     this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
-    return connectPortalLiveV1(this.env, request, { audience: 'admin', expiresAt: parsed.data.expiresAt,
-      accountId: null, studentId: null, classId: null });
+    return connectPortalLiveV1(this.env, request, {
+      audience: 'admin',
+      expiresAt: parsed.data.expiresAt,
+      accountId: null,
+      studentId: null,
+      classId: null,
+    });
   }
-  async limitOperation(context: unknown, operation: unknown) { return limitAdminOperationV1(this.env, context, operation); }
+  async limitOperation(context: unknown, operation: unknown) {
+    return limitAdminOperationV1(this.env, context, operation);
+  }
   async drainLive(context: unknown): Promise<boolean> {
     if (!allowPortalLiveDrainV1(this.env, context)) return false;
     this.ctx.waitUntil(dispatchPortalLiveEventsV1(this.env).catch(() => undefined));
     return true;
   }
-  async monitoring(context: unknown) { return portalMonitoringRpcV1(this.env, context); }
-  async monitoringHistory(context: unknown, before: unknown) { return portalHistoryRpcV1(this.env, context, before); }
-  async monitoringSignals(context: unknown, before: unknown) { return portalSignalsRpcV1(this.env, context, before); }
-  async monitoringCapacity(context: unknown) { return portalCapacityRpcV1(this.env, context); }
-  async monitoringReview(context: unknown) { return portalHealthReviewRpcV1(this.env, context); }
-  async query(context: unknown, request: unknown) { return portalAdminRpcV1(this.env, 'query', context, request); }
+  async monitoring(context: unknown) {
+    return portalMonitoringRpcV1(this.env, context);
+  }
+  async monitoringHistory(context: unknown, before: unknown) {
+    return portalHistoryRpcV1(this.env, context, before);
+  }
+  async monitoringSignals(context: unknown, before: unknown) {
+    return portalSignalsRpcV1(this.env, context, before);
+  }
+  async monitoringCapacity(context: unknown) {
+    return portalCapacityRpcV1(this.env, context);
+  }
+  async monitoringReview(context: unknown) {
+    return portalHealthReviewRpcV1(this.env, context);
+  }
+  async query(context: unknown, request: unknown) {
+    return portalAdminRpcV1(this.env, 'query', context, request);
+  }
   async prepareReconciliationCredentials(context: unknown, request: unknown) {
     return portalReconciliationCredentialsRpcV1(this.env, context, request);
   }
@@ -121,7 +179,8 @@ export class PortalSchedulerEntrypoint extends WorkerEntrypoint<PortalEnvV1> {
 async function schedulerStalledV1(env: PortalEnvV1): Promise<boolean> {
   try {
     return await portalDatabaseV1(env, 'cleanup', async (sql) => {
-      const [row] = await sql.unsafe(`SELECT coalesce(max(bucket_at) < now() - interval '12 minutes', true) AS late
+      const [row] =
+        await sql.unsafe(`SELECT coalesce(max(bucket_at) < now() - interval '12 minutes', true) AS late
         FROM system_health.portal_sample_v1`);
       return (row as { late?: unknown } | undefined)?.late !== false;
     });
@@ -132,8 +191,11 @@ async function schedulerStalledV1(env: PortalEnvV1): Promise<boolean> {
 // No admin RPC on the default/self capability. Population remains an explicit, separate operation.
 export default {
   async fetch(request, env, ctx) {
-    const response = await serveObservedPortalSelfV1(request, env, (promise) => ctx.waitUntil(promise));
-    if (selfMayEnqueueLiveV1(request, response)) ctx.waitUntil(dispatchPortalLiveEventsV1(env).catch(() => undefined));
+    const response = await serveObservedPortalSelfV1(request, env, (promise) =>
+      ctx.waitUntil(promise),
+    );
+    if (selfMayEnqueueLiveV1(request, response))
+      ctx.waitUntil(dispatchPortalLiveEventsV1(env).catch(() => undefined));
     return response;
   },
   async scheduled(controller, env) {
@@ -150,4 +212,4 @@ export default {
   },
 } satisfies ExportedHandler<PortalEnvV1>;
 
-export {PortalLiveUpdatesV1} from '../../server/student-portal/live/live-updates-v1';
+export { PortalLiveUpdatesV1 } from '../../server/student-portal/live/live-updates-v1';

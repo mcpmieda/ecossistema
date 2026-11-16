@@ -46,7 +46,11 @@ const QR_SLOTS_V1 = {
   credentials: (context: AccountSlotContextV1) =>
     createElement(
       'button',
-      { type: 'button', disabled: context.regenerateQr.disabled, onClick: context.regenerateQr.open },
+      {
+        type: 'button',
+        disabled: context.regenerateQr.disabled,
+        onClick: context.regenerateQr.open,
+      },
       'Mudar QR',
     ),
 };
@@ -308,7 +312,9 @@ describe('account list and detail', () => {
     let answer: (() => void) | null = null;
     const mock = accountsMockV1({
       query: (input) =>
-        mock.writes.length > 0 && input.operation === 'accounts-read' && input.scope.kind === 'school'
+        mock.writes.length > 0 &&
+        input.operation === 'accounts-read' &&
+        input.scope.kind === 'school'
           ? new Promise<Response>((resolve) => {
               // The list's own read after the write answers when the test says so.
               answer = () =>

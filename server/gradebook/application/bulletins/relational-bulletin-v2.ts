@@ -20,15 +20,19 @@ import {
   compareSourceSubjectPresentationV1,
 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import {
-  effectiveCouncilDecisionV1, resolveSimplifiedAnnualOutcomeV1,
+  effectiveCouncilDecisionV1,
+  resolveSimplifiedAnnualOutcomeV1,
   type SimplifiedEnrollmentStatusV1,
 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 import type { SimplifiedAcademicTermV1 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../persistence/postgres/active-instrument-predicate-v1';
 import type { RelationalBulletinSnapshotRepositoryV2 } from '../../persistence/postgres/relational-bulletin-snapshot-v2';
-import { type GradebookPostgresReadPortV1, type GradebookPostgresTransactionV1,
+import {
+  type GradebookPostgresReadPortV1,
+  type GradebookPostgresTransactionV1,
   type GradebookPostgresWritePortV1,
-  type GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
+  type GradebookPostgresScalarV1,
+} from '../../persistence/postgres/postgres-database-v1';
 import { createGradebookPostgresParametersV1 } from '../../persistence/postgres/postgres-parameters-v1';
 
 import {
@@ -370,7 +374,10 @@ async function readMaterializations(
     const hasRepeatFailure = projections.some(
       ({ projection }) => projection.recovery.classification === 'failed-repeat',
     );
-    const formalCouncilDecision = effectiveCouncilDecisionV1(annualOutcome, student.councilDecision);
+    const formalCouncilDecision = effectiveCouncilDecisionV1(
+      annualOutcome,
+      student.councilDecision,
+    );
     const visibleResult =
       student.status === 2 ? null : (formalCouncilDecision ?? annualOutcome.visibleResult);
     const reasons = new Set<string>();
@@ -407,16 +414,18 @@ async function readMaterializations(
             instruments:
               first.detail === 'detailed'
                 ? (instrumentsMap.get(instrumentsKey(student.id, offer.id, currentTerm)) ?? [])
-                  .filter((instrument) => instrument.slot !== 3 || outcome.parallelApplicable === true)
-                  .map((instrument) => ({
-                    id: instrument.id,
-                    term: instrument.term,
-                    slot: instrument.slot,
-                    label: instrument.label,
-                    maximumMilli: instrument.maximumMilli,
-                    valueMilli: instrument.valueMilli,
-                    ...(instrument.notDone ? { notDone: true as const } : {}),
-                  }))
+                    .filter(
+                      (instrument) => instrument.slot !== 3 || outcome.parallelApplicable === true,
+                    )
+                    .map((instrument) => ({
+                      id: instrument.id,
+                      term: instrument.term,
+                      slot: instrument.slot,
+                      label: instrument.label,
+                      maximumMilli: instrument.maximumMilli,
+                      valueMilli: instrument.valueMilli,
+                      ...(instrument.notDone ? { notDone: true as const } : {}),
+                    }))
                 : [],
           };
         },
@@ -579,9 +588,9 @@ export function createRelationalBulletinServiceV2(
   async function readCatalog(
     request: Extract<RelationalBulletinRequestV2, { operation: 'catalog' }>,
   ): Promise<RelationalBulletinResponseV2> {
-      const values = await rows(
-        database,
-        `SELECT t.id, t.codigo, t.nome, COUNT(v.aluno_id) AS student_count
+    const values = await rows(
+      database,
+      `SELECT t.id, t.codigo, t.nome, COUNT(v.aluno_id) AS student_count
            FROM gradebook.turma t
            LEFT JOIN gradebook.vinculo v ON v.turma_id = t.id AND v.ano = t.ano
             AND v.situacao IS DISTINCT FROM 6
@@ -589,70 +598,70 @@ export function createRelationalBulletinServiceV2(
           GROUP BY t.id, t.codigo, t.nome
           ORDER BY t.nome COLLATE "C", t.id
           LIMIT $2`,
-        [request.year, RELATIONAL_BULLETIN_LIMITS_V2.classes + 1],
-      );
-      if (values.length > RELATIONAL_BULLETIN_LIMITS_V2.classes)
-        return failure(request.operation, 'scope-too-large');
-      return {
-        contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
-        operation: request.operation,
-        state: 'ready',
-        year: request.year,
-        classes: values.map((row) => ({
-          id: integer(row.id, true),
-          code: text(row.codigo),
-          name: text(row.nome),
-          label: text(row.nome),
-          studentCount: integer(row.student_count),
-        })),
-      };
+      [request.year, RELATIONAL_BULLETIN_LIMITS_V2.classes + 1],
+    );
+    if (values.length > RELATIONAL_BULLETIN_LIMITS_V2.classes)
+      return failure(request.operation, 'scope-too-large');
+    return {
+      contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
+      operation: request.operation,
+      state: 'ready',
+      year: request.year,
+      classes: values.map((row) => ({
+        id: integer(row.id, true),
+        code: text(row.codigo),
+        name: text(row.nome),
+        label: text(row.nome),
+        studentCount: integer(row.student_count),
+      })),
+    };
   }
 
   /** One class and its enrolled students, in number order, bounded. */
   async function readStudents(
     request: Extract<RelationalBulletinRequestV2, { operation: 'students' }>,
   ): Promise<RelationalBulletinResponseV2> {
-      const classRows = await rows(
-        database,
-        'SELECT id, codigo, nome FROM gradebook.turma WHERE ano = $1 AND id = $2',
-        [request.year, request.classId],
-      );
-      if (classRows.length === 0) return failure(request.operation, 'not-found');
-      const values = await rows(
-        database,
-        `SELECT a.id, sp.name AS nome, v.numero, v.situacao
+    const classRows = await rows(
+      database,
+      'SELECT id, codigo, nome FROM gradebook.turma WHERE ano = $1 AND id = $2',
+      [request.year, request.classId],
+    );
+    if (classRows.length === 0) return failure(request.operation, 'not-found');
+    const values = await rows(
+      database,
+      `SELECT a.id, sp.name AS nome, v.numero, v.situacao
            FROM gradebook.vinculo v
            JOIN gradebook.aluno a ON a.id = v.aluno_id AND a.ano = v.ano
            JOIN gradebook.student_presentation_v1 sp ON sp.student_id = a.id AND sp.academic_year = a.ano
           WHERE v.ano = $1 AND v.turma_id = $2 AND v.situacao IS DISTINCT FROM 6
           ORDER BY v.numero
           LIMIT $3`,
-        [request.year, request.classId, RELATIONAL_BULLETIN_LIMITS_V2.students + 1],
-      );
-      if (values.length > RELATIONAL_BULLETIN_LIMITS_V2.students)
-        return failure(request.operation, 'scope-too-large');
-      const classRow = classRows[0]!;
-      return {
-        contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
-        operation: request.operation,
-        state: 'ready',
-        classGroup: {
-          id: integer(classRow.id, true),
-          code: text(classRow.codigo),
-          name: text(classRow.nome),
-          label: text(classRow.nome),
-        },
-        students: values.map((row) => {
-          const status = enrollmentStatus(row.situacao);
-          return {
-            id: integer(row.id, true),
-            number: integer(row.numero, true),
-            name: text(row.nome),
-            statusCode: status,
-            statusLabel: statusLabel(status),
-          };
-        }),
-      };
+      [request.year, request.classId, RELATIONAL_BULLETIN_LIMITS_V2.students + 1],
+    );
+    if (values.length > RELATIONAL_BULLETIN_LIMITS_V2.students)
+      return failure(request.operation, 'scope-too-large');
+    const classRow = classRows[0]!;
+    return {
+      contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
+      operation: request.operation,
+      state: 'ready',
+      classGroup: {
+        id: integer(classRow.id, true),
+        code: text(classRow.codigo),
+        name: text(classRow.nome),
+        label: text(classRow.nome),
+      },
+      students: values.map((row) => {
+        const status = enrollmentStatus(row.situacao);
+        return {
+          id: integer(row.id, true),
+          number: integer(row.numero, true),
+          name: text(row.nome),
+          statusCode: status,
+          statusLabel: statusLabel(status),
+        };
+      }),
+    };
   }
 
   /** One snapshot per ready student; the others are listed with why they are not ready. */
@@ -660,36 +669,36 @@ export function createRelationalBulletinServiceV2(
     request: Extract<RelationalBulletinRequestV2, { operation: 'emit-batch' }>,
     context: RelationalBulletinServerContextV2,
   ): Promise<RelationalBulletinResponseV2> {
-      const selections = request.selection.studentIds
-        .map((studentId) => ({
-          ...request.selection,
-          studentId,
-          studentIds: undefined,
-        }))
-        .map(({ studentIds: _studentIds, ...selection }) => selection);
-      const models = await materialize(selections);
-      const ready: { studentId: number; snapshot: RelationalBulletinSnapshotV2 }[] = [];
-      const blocked: { studentId: number; reasons: string[] }[] = [];
-      for (let index = 0; index < models.length; index += 1) {
-        const model = models[index]!;
-        const selection = selections[index]!;
-        if (!model.emissionReadiness.ready) {
-          blocked.push({
-            studentId: model.student.id,
-            reasons: model.emissionReadiness.reasons,
-          });
-          continue;
-        }
-        const snapshot = await emitModel(selection, model, context);
-        if (snapshot) ready.push({ studentId: model.student.id, snapshot });
+    const selections = request.selection.studentIds
+      .map((studentId) => ({
+        ...request.selection,
+        studentId,
+        studentIds: undefined,
+      }))
+      .map(({ studentIds: _studentIds, ...selection }) => selection);
+    const models = await materialize(selections);
+    const ready: { studentId: number; snapshot: RelationalBulletinSnapshotV2 }[] = [];
+    const blocked: { studentId: number; reasons: string[] }[] = [];
+    for (let index = 0; index < models.length; index += 1) {
+      const model = models[index]!;
+      const selection = selections[index]!;
+      if (!model.emissionReadiness.ready) {
+        blocked.push({
+          studentId: model.student.id,
+          reasons: model.emissionReadiness.reasons,
+        });
+        continue;
       }
-      return {
-        contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
-        operation: request.operation,
-        state: 'ready',
-        ready,
-        blocked,
-      };
+      const snapshot = await emitModel(selection, model, context);
+      if (snapshot) ready.push({ studentId: model.student.id, snapshot });
+    }
+    return {
+      contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
+      operation: request.operation,
+      state: 'ready',
+      ready,
+      blocked,
+    };
   }
 
   /** One student's snapshot, only when the bulletin is ready to be emitted. */
@@ -697,19 +706,19 @@ export function createRelationalBulletinServiceV2(
     request: Extract<RelationalBulletinRequestV2, { operation: 'emit' }>,
     context: RelationalBulletinServerContextV2,
   ): Promise<RelationalBulletinResponseV2> {
-      const [model] = await materialize([request.selection]);
-      if (!model) return failure(request.operation, 'not-found');
-      if (!model.emissionReadiness.ready)
-        return failure(request.operation, 'insufficient-data', model.emissionReadiness.reasons);
-      const snapshot = await emitModel(request.selection, model, context);
-      if (!snapshot)
-        return failure(request.operation, 'insufficient-data', model.emissionReadiness.reasons);
-      return {
-        contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
-        operation: request.operation,
-        state: 'ready',
-        snapshot,
-      };
+    const [model] = await materialize([request.selection]);
+    if (!model) return failure(request.operation, 'not-found');
+    if (!model.emissionReadiness.ready)
+      return failure(request.operation, 'insufficient-data', model.emissionReadiness.reasons);
+    const snapshot = await emitModel(request.selection, model, context);
+    if (!snapshot)
+      return failure(request.operation, 'insufficient-data', model.emissionReadiness.reasons);
+    return {
+      contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
+      operation: request.operation,
+      state: 'ready',
+      snapshot,
+    };
   }
 
   return {

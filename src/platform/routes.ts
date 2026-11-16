@@ -1,10 +1,4 @@
-import {
-  BookOpenText,
-  HeartPulse,
-  Settings2,
-  GraduationCap,
-  type LucideIcon,
-} from 'lucide-react';
+import { BookOpenText, HeartPulse, Settings2, GraduationCap, type LucideIcon } from 'lucide-react';
 import type { PlatformRoute } from '../../shared/platform-contract';
 
 export const routeIcons: Record<PlatformRoute, LucideIcon> = {

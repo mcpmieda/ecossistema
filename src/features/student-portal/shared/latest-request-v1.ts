@@ -56,12 +56,18 @@ function yieldsToRunningReadV1(options: ReadOptionsV1, activeSilent: boolean): b
 
 /** What shows while a read runs: the content refreshing, or the loading state. */
 function startedStateV1<T>(previous: ReadyStateV1<T> | null): PortalLoadStateV1<T> {
-  return previous ? { state: 'ready', data: previous.data, refreshing: true } : { state: 'loading' };
+  return previous
+    ? { state: 'ready', data: previous.data, refreshing: true }
+    : { state: 'loading' };
 }
 
 /** What a finished read shows. A silent read that brought the same answer publishes nothing,
  * unless it clears the notice of an earlier failure. */
-function settledStateV1<T>(previous: ReadyStateV1<T> | null, data: T, silent: boolean): PortalLoadStateV1<T> | null {
+function settledStateV1<T>(
+  previous: ReadyStateV1<T> | null,
+  data: T,
+  silent: boolean,
+): PortalLoadStateV1<T> | null {
   if (!silent || !previous || !sameReadV1(previous.data, data)) return { state: 'ready', data };
   return previous.refreshError ? { state: 'ready', data: previous.data } : null;
 }

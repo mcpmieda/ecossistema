@@ -7,7 +7,10 @@ const edge = readFileSync('workers/student-portal/edge/[[path]].ts', 'utf8');
 
 describe('Portal hashed assets straight from Pages (issue #1426, 10)', () => {
   it('excludes only /assets/* from the Function: the page, the API and everything else stay on it', () => {
-    const routes = /JSON\.stringify\((\{ version: 1, include: \['\/\*'\], exclude: \[[^\]]*\] \})\)/u.exec(build)?.[1];
+    const routes =
+      /JSON\.stringify\((\{ version: 1, include: \['\/\*'\], exclude: \[[^\]]*\] \})\)/u.exec(
+        build,
+      )?.[1];
     expect(routes).toBe("{ version: 1, include: ['/*'], exclude: ['/assets/*'] }");
   });
 
@@ -16,9 +19,13 @@ describe('Portal hashed assets straight from Pages (issue #1426, 10)', () => {
     const assetCsp = /const ASSET_CSP_V1 = "([^"]+)"/u.exec(build)?.[1];
     expect(functionCsp).toBeTruthy();
     expect(assetCsp).toBe(functionCsp);
-    for (const header of ["Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
-      "Referrer-Policy', 'no-referrer", "X-Content-Type-Options', 'nosniff", "X-Frame-Options', 'DENY",
-      "Strict-Transport-Security', 'max-age=31536000; includeSubDomains"]) {
+    for (const header of [
+      "Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
+      "Referrer-Policy', 'no-referrer",
+      "X-Content-Type-Options', 'nosniff",
+      "X-Frame-Options', 'DENY",
+      "Strict-Transport-Security', 'max-age=31536000; includeSubDomains",
+    ]) {
       expect(edge).toContain(header);
       const [name, value] = header.split("', '");
       expect(build).toContain(`  ${name}: ${value}`);

@@ -2,8 +2,7 @@ import sheetJsUrl from 'xlsx/dist/xlsx.full.min.js?url';
 import type { SheetJs } from './spreadsheet-recognizer';
 
 // The same 0.20.3 file the CDN served, copied by Vite to /assets/ from the installed package.
-const SHEETJS_INTEGRITY =
-  'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
+const SHEETJS_INTEGRITY = 'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
 
 declare global {
   interface Window {

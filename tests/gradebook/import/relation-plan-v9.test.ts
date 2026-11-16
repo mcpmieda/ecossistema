@@ -39,10 +39,7 @@ function request(
 describe('relation movement planner V9', () => {
   it('groups source movements into one component and prefers the non-moved row', () => {
     const plan = buildRelationPlanV9(
-      request(
-        [[1, 'ALUNO TESTE', 6, '6B']],
-        [[3, 'ALUNO TESTE', 0]],
-      ),
+      request([[1, 'ALUNO TESTE', 6, '6B']], [[3, 'ALUNO TESTE', 0]]),
       classes,
       [],
     );
@@ -72,21 +69,13 @@ describe('relation movement planner V9', () => {
         nome: 'ALUNO TESTE',
       },
     ];
-    const plan = buildRelationPlanV9(
-      request([[1, 'ALUNO TESTE', 6, '6B']]),
-      classes,
-      existing,
-    );
+    const plan = buildRelationPlanV9(request([[1, 'ALUNO TESTE', 6, '6B']]), classes, existing);
     expect(plan.components[0]?.seedAlunoId).toBe(900);
   });
 
   it('fails closed when a related class is missing', () => {
     expect(() =>
-      buildRelationPlanV9(
-        request([[1, 'ALUNO TESTE', 6, '7X']]),
-        classes,
-        [],
-      ),
+      buildRelationPlanV9(request([[1, 'ALUNO TESTE', 6, '7X']]), classes, []),
     ).toThrowError(
       expect.objectContaining<Partial<RelationPlanErrorV9>>({
         state: 'blocked',
@@ -118,11 +107,7 @@ describe('relation movement planner V9', () => {
 
   it('blocks movement without one source/destination binding', () => {
     expect(() =>
-      buildRelationPlanV9(
-        request([[1, 'ALUNO TESTE', 6, '6B']]),
-        classes,
-        [],
-      ),
+      buildRelationPlanV9(request([[1, 'ALUNO TESTE', 6, '6B']]), classes, []),
     ).toThrowError(
       expect.objectContaining<Partial<RelationPlanErrorV9>>({
         state: 'blocked',
@@ -150,14 +135,13 @@ describe('relation movement planner V9', () => {
         nome: 'ALUNO TÉSTE',
       },
     ];
-    expect(() => buildRelationPlanV9(
-      request(
-        [[1, 'ALUNO TESTE', 6, '6B']],
-        [[3, 'ALUNO TESTE', 7, '6A']],
+    expect(() =>
+      buildRelationPlanV9(
+        request([[1, 'ALUNO TESTE', 6, '6B']], [[3, 'ALUNO TESTE', 7, '6A']]),
+        classes,
+        existing,
       ),
-      classes,
-      existing,
-    )).toThrowError(expect.objectContaining({ state: 'conflict' }));
+    ).toThrowError(expect.objectContaining({ state: 'conflict' }));
   });
 
   it('reports conflict when one component is already linked to different students', () => {
@@ -181,70 +165,167 @@ describe('relation movement planner V9', () => {
     ];
     expect(() =>
       buildRelationPlanV9(
-        request(
-          [[1, 'ALUNO TESTE', 6, '6B']],
-          [[3, 'ALUNO TESTE', 0]],
-        ),
+        request([[1, 'ALUNO TESTE', 6, '6B']], [[3, 'ALUNO TESTE', 0]]),
         classes,
         existing,
       ),
     ).toThrowError(
       expect.objectContaining<Partial<RelationPlanErrorV9>>({
         state: 'conflict',
-        reason: 'A movimentação entre 6A nº 1 e 6B nº 3 envolve identidades distintas. Confira os vínculos existentes.',
+        reason:
+          'A movimentação entre 6A nº 1 e 6B nº 3 envolve identidades distintas. Confira os vínculos existentes.',
       }),
     );
   });
 
   it('links a unique reciprocal pair with different spelling and returns a warning without personal names', () => {
-    const plan = buildRelationPlanV9(request(
-      [[1, 'ESTUDANTE SINTETICO ORIGEM', 6, '6B']],
-      [[3, 'ESTUDANTE SINTETICO CORRIGIDO', 7, '6A']],
-    ), classes, [{ turmaId: 10, numero: 1, alunoId: 100, situacao: null,
-      turmaRelacionadaId: null, nome: 'ESTUDANTE SINTETICO ORIGEM', studentUid: '11111111-1111-4111-8111-111111111111' }]);
+    const plan = buildRelationPlanV9(
+      request(
+        [[1, 'ESTUDANTE SINTETICO ORIGEM', 6, '6B']],
+        [[3, 'ESTUDANTE SINTETICO CORRIGIDO', 7, '6A']],
+      ),
+      classes,
+      [
+        {
+          turmaId: 10,
+          numero: 1,
+          alunoId: 100,
+          situacao: null,
+          turmaRelacionadaId: null,
+          nome: 'ESTUDANTE SINTETICO ORIGEM',
+          studentUid: '11111111-1111-4111-8111-111111111111',
+        },
+      ],
+    );
     expect(plan.components).toHaveLength(1);
-    expect(plan.components[0]).toMatchObject({ seedAlunoId: 100, preferred: { turmaId: 20, numero: 3 } });
-    expect(plan.warnings).toEqual([{ code: 'movement-spelling', classCode: '6A', number: 1, relatedClassCode: '6B' }]);
+    expect(plan.components[0]).toMatchObject({
+      seedAlunoId: 100,
+      preferred: { turmaId: 20, numero: 3 },
+    });
+    expect(plan.warnings).toEqual([
+      { code: 'movement-spelling', classCode: '6A', number: 1, relatedClassCode: '6B' },
+    ]);
   });
 
   it('requests review rather than guessing when there are multiple unmatched reciprocal pairs', () => {
-    expect(() => buildRelationPlanV9(request(
-      [[1, 'SINTETICO UM', 6, '6B'], [2, 'SINTETICO DOIS', 6, '6B']],
-      [[3, 'SINTETICO CORRIGIDO UM', 7, '6A'], [4, 'SINTETICO CORRIGIDO DOIS', 7, '6A']],
-    ), classes, [])).toThrowError(expect.objectContaining({
-      state: 'review-required',
-      reason: 'Confira os pares de movimentação entre 6A e 6B.',
-    }));
+    expect(() =>
+      buildRelationPlanV9(
+        request(
+          [
+            [1, 'SINTETICO UM', 6, '6B'],
+            [2, 'SINTETICO DOIS', 6, '6B'],
+          ],
+          [
+            [3, 'SINTETICO CORRIGIDO UM', 7, '6A'],
+            [4, 'SINTETICO CORRIGIDO DOIS', 7, '6A'],
+          ],
+        ),
+        classes,
+        [],
+      ),
+    ).toThrowError(
+      expect.objectContaining({
+        state: 'review-required',
+        reason: 'Confira os pares de movimentação entre 6A e 6B.',
+      }),
+    );
   });
 
   it('pairs already confirmed (both positions bound to one student) are not asked again', () => {
-    const bound = (turmaId: number, numero: number, alunoId: number, situacao: 6 | 7, nome: string): ExistingRelationBindingV9 =>
-      ({ turmaId, numero, alunoId, situacao, turmaRelacionadaId: turmaId === 10 ? 20 : 10, nome });
-    const existing = [bound(10, 1, 100, 6, 'SINTETICO UM'), bound(20, 4, 100, 7, 'SINTETICO CORRIGIDO UM'),
-      bound(10, 2, 200, 6, 'SINTETICO DOIS'), bound(20, 3, 200, 7, 'SINTETICO CORRIGIDO DOIS')];
-    const plan = buildRelationPlanV9(request(
-      [[1, 'SINTETICO UM', 6, '6B'], [2, 'SINTETICO DOIS', 6, '6B']],
-      [[3, 'SINTETICO CORRIGIDO DOIS', 7, '6A'], [4, 'SINTETICO CORRIGIDO UM', 7, '6A']],
-    ), classes, existing);
-    expect(plan.components.map((component) => [component.seedAlunoId, component.items.map((item) => item.numero)]))
-      .toEqual(expect.arrayContaining([[100, [1, 4]], [200, [2, 3]]]));
+    const bound = (
+      turmaId: number,
+      numero: number,
+      alunoId: number,
+      situacao: 6 | 7,
+      nome: string,
+    ): ExistingRelationBindingV9 => ({
+      turmaId,
+      numero,
+      alunoId,
+      situacao,
+      turmaRelacionadaId: turmaId === 10 ? 20 : 10,
+      nome,
+    });
+    const existing = [
+      bound(10, 1, 100, 6, 'SINTETICO UM'),
+      bound(20, 4, 100, 7, 'SINTETICO CORRIGIDO UM'),
+      bound(10, 2, 200, 6, 'SINTETICO DOIS'),
+      bound(20, 3, 200, 7, 'SINTETICO CORRIGIDO DOIS'),
+    ];
+    const plan = buildRelationPlanV9(
+      request(
+        [
+          [1, 'SINTETICO UM', 6, '6B'],
+          [2, 'SINTETICO DOIS', 6, '6B'],
+        ],
+        [
+          [3, 'SINTETICO CORRIGIDO DOIS', 7, '6A'],
+          [4, 'SINTETICO CORRIGIDO UM', 7, '6A'],
+        ],
+      ),
+      classes,
+      existing,
+    );
+    expect(
+      plan.components.map((component) => [
+        component.seedAlunoId,
+        component.items.map((item) => item.numero),
+      ]),
+    ).toEqual(
+      expect.arrayContaining([
+        [100, [1, 4]],
+        [200, [2, 3]],
+      ]),
+    );
     expect(plan.warnings).toEqual([]);
   });
 
   it('a new doubtful pair next to a confirmed one is still asked', () => {
     const existing: ExistingRelationBindingV9[] = [
-      { turmaId: 10, numero: 1, alunoId: 100, situacao: 6, turmaRelacionadaId: 20, nome: 'SINTETICO UM' },
-      { turmaId: 20, numero: 4, alunoId: 100, situacao: 7, turmaRelacionadaId: 10, nome: 'SINTETICO CORRIGIDO UM' },
+      {
+        turmaId: 10,
+        numero: 1,
+        alunoId: 100,
+        situacao: 6,
+        turmaRelacionadaId: 20,
+        nome: 'SINTETICO UM',
+      },
+      {
+        turmaId: 20,
+        numero: 4,
+        alunoId: 100,
+        situacao: 7,
+        turmaRelacionadaId: 10,
+        nome: 'SINTETICO CORRIGIDO UM',
+      },
     ];
-    expect(() => buildRelationPlanV9(request(
-      [[1, 'SINTETICO UM', 6, '6B'], [2, 'SINTETICO DOIS', 6, '6B'], [5, 'SINTETICO TRES', 6, '6B']],
-      [[3, 'SINTETICO CORRIGIDO DOIS', 7, '6A'], [4, 'SINTETICO CORRIGIDO UM', 7, '6A'], [6, 'SINTETICO CORRIGIDO TRES', 7, '6A']],
-    ), classes, existing)).toThrowError(expect.objectContaining({ state: 'review-required' }));
+    expect(() =>
+      buildRelationPlanV9(
+        request(
+          [
+            [1, 'SINTETICO UM', 6, '6B'],
+            [2, 'SINTETICO DOIS', 6, '6B'],
+            [5, 'SINTETICO TRES', 6, '6B'],
+          ],
+          [
+            [3, 'SINTETICO CORRIGIDO DOIS', 7, '6A'],
+            [4, 'SINTETICO CORRIGIDO UM', 7, '6A'],
+            [6, 'SINTETICO CORRIGIDO TRES', 7, '6A'],
+          ],
+        ),
+        classes,
+        existing,
+      ),
+    ).toThrowError(expect.objectContaining({ state: 'review-required' }));
   });
 
   it('never treats a nonreciprocal unmatched pair as evidence of movement', () => {
-    expect(() => buildRelationPlanV9(request(
-      [[1, 'SINTETICO ORIGEM', 6, '6B']], [[3, 'SINTETICO OUTRO', 0]],
-    ), classes, [])).toThrowError(expect.objectContaining({ state: 'blocked' }));
+    expect(() =>
+      buildRelationPlanV9(
+        request([[1, 'SINTETICO ORIGEM', 6, '6B']], [[3, 'SINTETICO OUTRO', 0]]),
+        classes,
+        [],
+      ),
+    ).toThrowError(expect.objectContaining({ state: 'blocked' }));
   });
 });

@@ -47,14 +47,24 @@ const FIELDS = [
 ] as const;
 type Field = (typeof FIELDS)[number];
 /** Added by migrations 0020 (fechamento do trimestre), 0021 (schedules), 0027 (frequência), 0028 (horário) and 0032 (ocorrências). Absent school rows read as off / none. */
-const OPTIONAL_SCHOOL_FIELDS: ReadonlySet<Field> = new Set<Field>(['showTermClosing', 'termClosingConclusive', 'accessSchedule', 'showFrequency', 'showSchedule', 'showIncidents']);
+const OPTIONAL_SCHOOL_FIELDS: ReadonlySet<Field> = new Set<Field>([
+  'showTermClosing',
+  'termClosingConclusive',
+  'accessSchedule',
+  'showFrequency',
+  'showSchedule',
+  'showIncidents',
+]);
 const REQUIRED_SCHOOL_FIELD_COUNT = FIELDS.length - OPTIONAL_SCHOOL_FIELDS.size;
 const schoolFieldCountValidV1 = (count: number) =>
   count >= REQUIRED_SCHOOL_FIELD_COUNT && count <= FIELDS.length;
 /** Before migration 0020 the school row may be absent: the feature then reads as off. */
-const OPTIONAL_SCHOOL_DEFAULTS_V1: Partial<Record<Field, unknown>> = OPTIONAL_STORED_POLICY_DEFAULTS_V1;
+const OPTIONAL_SCHOOL_DEFAULTS_V1: Partial<Record<Field, unknown>> =
+  OPTIONAL_STORED_POLICY_DEFAULTS_V1;
 const schoolValueV1 = (school: readonly StoredRowV1[]) =>
-  completeStoredPolicyValueV1(Object.fromEntries(school.map((row) => [row.field_key, row.value_json])));
+  completeStoredPolicyValueV1(
+    Object.fromEntries(school.map((row) => [row.field_key, row.value_json])),
+  );
 const SCHOOL = { kind: 'school', academicYear: 2026 } as const;
 const storedRow = z.object({
   scope_key: z.string(),
@@ -161,7 +171,8 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
   const left = before.disclosure;
   const right = after.disclosure;
   if (left.mode !== right.mode) return true;
-  if (left.mode === 'agenda' || right.mode === 'agenda') return canonical(left) !== canonical(right);
+  if (left.mode === 'agenda' || right.mode === 'agenda')
+    return canonical(left) !== canonical(right);
   if (left.mode === 'single' && right.mode === 'single') {
     return (
       changedDate(left.at, right.at) ||
@@ -206,7 +217,11 @@ function schoolDefaultsV1(records: readonly StoredRowV1[]) {
  * shift comes after its class, so for the same option a shift rule wins and the class's own rule
  * stays stored but inactive; an account rule still wins over both.
  */
-function scopeChainV1(scope: PolicyScopeV1, classId: number | null, shift: ShiftV1 | null): PolicyScopeV1[] {
+function scopeChainV1(
+  scope: PolicyScopeV1,
+  classId: number | null,
+  shift: ShiftV1 | null,
+): PolicyScopeV1[] {
   const chain: PolicyScopeV1[] = [SCHOOL];
   if (classId !== null) chain.push({ kind: 'class', academicYear: 2026, classId });
   if (shift !== null) chain.push({ kind: 'shift', academicYear: 2026, shift });
@@ -390,7 +405,10 @@ async function clearScheduleV1(
   if (!previous) return false;
   if (!command.acknowledgeImmediateEffect)
     throw new Error('student-portal-policy-immediate-confirmation-required');
-  await tx.unsafe('DELETE FROM student_portal.setting WHERE scope_key=$1 AND field_key=$2', [key(scope), 'accessSchedule']);
+  await tx.unsafe('DELETE FROM student_portal.setting WHERE scope_key=$1 AND field_key=$2', [
+    key(scope),
+    'accessSchedule',
+  ]);
   return true;
 }
 
@@ -563,7 +581,12 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
         // No row already reads as off for showFrequency, showSchedule and showIncidents, so the
         // bootstrap never needs migrations 0027, 0028 or 0032.
         for (const field of FIELDS)
-          if (defaults[field] !== null && field !== 'showFrequency' && field !== 'showSchedule' && field !== 'showIncidents')
+          if (
+            defaults[field] !== null &&
+            field !== 'showFrequency' &&
+            field !== 'showSchedule' &&
+            field !== 'showIncidents'
+          )
             await writeField(tx, SCHOOL, field, defaults[field], 1);
       }
       return this.readSnapshotInTransaction(tx, SCHOOL);

@@ -113,7 +113,9 @@ function RecordBirthLineV1({
 }>) {
   if (!account || scopeVersion === undefined) return null;
   if (!account.link || account.linkClosed || account.classId === null) return null;
-  return <RecordBirthV1 client={client} reader={reader} account={account} scopeVersion={scopeVersion} />;
+  return (
+    <RecordBirthV1 client={client} reader={reader} account={account} scopeVersion={scopeVersion} />
+  );
 }
 /** What the record may write now. Closing is for a record without a class, so it does not need
  * a manageable account; every other action does. */
@@ -407,7 +409,11 @@ function AccountDetailBodyV1({
         {failed && (
           <div role="alert" className="pa-account-notice">
             <p>
-              {failureText(mutation.error.state === 'conflict', protectedFailure, mutation.retryable)}
+              {failureText(
+                mutation.error.state === 'conflict',
+                protectedFailure,
+                mutation.retryable,
+              )}
             </p>
             {mutation.retryable && (
               <Button
@@ -433,8 +439,16 @@ function AccountDetailBodyV1({
             </Button>
           </div>
         )}
-        {pending && <p><output className="contents">Salvando…</output></p>}
-        {waiting && !shown && <p><output className="contents">Carregando aluno…</output></p>}
+        {pending && (
+          <p>
+            <output className="contents">Salvando…</output>
+          </p>
+        )}
+        {waiting && !shown && (
+          <p>
+            <output className="contents">Carregando aluno…</output>
+          </p>
+        )}
         {!protectedFailure && read.state.state === 'error' && (
           <AccountsErrorV1
             error={read.state.error}
@@ -443,9 +457,11 @@ function AccountDetailBodyV1({
           />
         )}
         {!protectedFailure && read.state.state === 'ready' && !account && (
-          <p><output className="contents">
-            Conta não encontrada neste escopo. Nenhuma conta foi criada ou associada pelo nome.
-          </output></p>
+          <p>
+            <output className="contents">
+              Conta não encontrada neste escopo. Nenhuma conta foi criada ou associada pelo nome.
+            </output>
+          </p>
         )}
         {shown && (
           <>
@@ -614,7 +630,10 @@ function AccountDetailBodyV1({
 }
 
 /** Beside the profile: the Selos brilhantes the student sees on the Portal. */
-function RecordSealsV1({ reader, accountId }: Readonly<{ reader: AccountDetailPropsV1['reader']; accountId: string }>) {
+function RecordSealsV1({
+  reader,
+  accountId,
+}: Readonly<{ reader: AccountDetailPropsV1['reader']; accountId: string }>) {
   const seals = useSealCountsV1(reader, { accountId });
   const count = seals.state === 'ready' ? seals.counts.get(accountId) : undefined;
   if (count === undefined || count === null) return null;

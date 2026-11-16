@@ -36,7 +36,8 @@ async function headers(role?: TestRole, origin = LOCAL_ORIGIN): Promise<Headers>
       roles: [role],
       exp: Math.floor(Date.now() / 1000) + 600,
     },
-    testEnv.SESSION_SECRET, 'admin-session',
+    testEnv.SESSION_SECRET,
+    'admin-session',
   );
   value.set('Cookie', `${SESSION_COOKIE}=${session}`);
   return value;
@@ -112,11 +113,14 @@ describe('operational workspace HTTP bridge v1', () => {
   });
 
   it('retires the authorized local bridge with no-store and no binding access', async () => {
-    const binding = vi.fn(() => { throw new Error('retired-binding'); });
+    const binding = vi.fn(() => {
+      throw new Error('retired-binding');
+    });
     const env = localEnv(undefined);
     Object.defineProperty(env, 'GRADEBOOK_D1', { get: binding });
     const handled = await handleOperationalWorkspaceRequestV1(
-      await request({ contractVersion: 1, operation: 'bootstrap' }, { role: 'ADMINISTRADOR' }), env,
+      await request({ contractVersion: 1, operation: 'bootstrap' }, { role: 'ADMINISTRADOR' }),
+      env,
     );
     expect(handled?.status).toBe(410);
     expect(handled?.headers.get('Cache-Control')).toContain('no-store');

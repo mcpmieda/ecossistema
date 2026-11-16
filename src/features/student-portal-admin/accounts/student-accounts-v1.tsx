@@ -625,7 +625,11 @@ function narrowedKeyV1(view: {
 
 /** Thumbnail maintenance asks for every listed account's photo. */
 function photoSubjectsV1(items: readonly { accountId: string }[]) {
-  return items.map((item) => ({ source: 'portal' as const, academicYear: 2026, accountIds: [item.accountId] }));
+  return items.map((item) => ({
+    source: 'portal' as const,
+    academicYear: 2026,
+    accountIds: [item.accountId],
+  }));
 }
 
 /**
@@ -650,7 +654,8 @@ function useRankingSealsV1(
   const ready = readySealCountsV1(seals);
   if (ready) return { counts: ready, forget };
   const kept = lastSealCounts.current;
-  const counts = seals.state === 'loading' && kept?.accountIds === sealAccountIds ? kept.counts : null;
+  const counts =
+    seals.state === 'loading' && kept?.accountIds === sealAccountIds ? kept.counts : null;
   return { counts, forget };
 }
 
@@ -979,7 +984,9 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
             canReload={read.canReload}
             onReload={reload}
           />
-          {authorizationError && bulkInterrupted ? <BulkInterruptedNoticeV1 interrupted={bulkInterrupted} /> : null}
+          {authorizationError && bulkInterrupted ? (
+            <BulkInterruptedNoticeV1 interrupted={bulkInterrupted} />
+          ) : null}
           {current && visibleItems.length === 0 && !current.nextCursor && <NoAccountsNoticeV1 />}
           {current && visibleItems.length > 0 && (
             // Rows are kept per account; a class adds the selection column, so its table is another.

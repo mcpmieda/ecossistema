@@ -17,7 +17,9 @@ export function AccountIdentityV1({
 }: Readonly<{ account: AdminAccountReadV2; detail?: boolean; birth?: ReactNode }>) {
   const name = account.name || 'Nome indisponível';
   return (
-    <div className={detail ? 'pa-account-identity pa-account-identity--detail' : 'pa-account-identity'}>
+    <div
+      className={detail ? 'pa-account-identity pa-account-identity--detail' : 'pa-account-identity'}
+    >
       <StudentAvatarV1 id={account.accountId} detail={detail} />
       <div>
         <strong>{name}</strong>
@@ -30,11 +32,7 @@ export function AccountIdentityV1({
 export function AccountStatusV1({ account }: Readonly<{ account: AdminAccountReadV2 }>) {
   return (
     <div className="pa-account-tags">
-      <Chip
-        size="sm"
-        color={accountColorV1(account)}
-        variant="soft"
-      >
+      <Chip size="sm" color={accountColorV1(account)} variant="soft">
         {account.linkClosed ? 'Encerrada' : accountStateLabelV1(account)}
       </Chip>
       {account.blocked && (
@@ -54,7 +52,13 @@ export function AccountsErrorV1({
   onReload: () => void;
   canReload?: boolean;
 }>) {
-  let message: 'Sessão administrativa expirada. Entre novamente.' | 'Sem permissão para esta consulta.' | 'Os dados mudaram. Recarregue antes de continuar.' | 'A consulta ou a página expirou. Volte à primeira página ou recarregue.' | 'Limite temporário. Aguarde para consultar novamente.' | 'Consulta indisponível. Tente novamente.';
+  let message:
+    | 'Sessão administrativa expirada. Entre novamente.'
+    | 'Sem permissão para esta consulta.'
+    | 'Os dados mudaram. Recarregue antes de continuar.'
+    | 'A consulta ou a página expirou. Volte à primeira página ou recarregue.'
+    | 'Limite temporário. Aguarde para consultar novamente.'
+    | 'Consulta indisponível. Tente novamente.';
   if (error.state === 'unauthenticated') {
     message = 'Sessão administrativa expirada. Entre novamente.';
   } else if (error.state === 'forbidden') {

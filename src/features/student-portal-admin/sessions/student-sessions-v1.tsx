@@ -43,8 +43,7 @@ function assertFreshSessionsV1(
   if (
     scope.kind === 'account' &&
     (fresh.items.some((s) => s.accountId !== scope.accountId) ||
-      (parentScope.kind === 'class' &&
-        fresh.items.some((s) => s.classId !== parentScope.classId)))
+      (parentScope.kind === 'class' && fresh.items.some((s) => s.classId !== parentScope.classId)))
   )
     throw new PortalClientErrorV1('conflict');
   if (fresh.revocableCount === 0) throw new PortalClientErrorV1('conflict');
@@ -280,10 +279,7 @@ function SessionsBodyV1(props: Readonly<OperationsPropsV1>) {
             </p>
             <div className="pa-operations-actions">
               {mutation.retryable && (
-                <Button
-                  isDisabled={!retryReady}
-                  onPress={() => void operation.retry()}
-                >
+                <Button isDisabled={!retryReady} onPress={() => void operation.retry()}>
                   Retomar encerramento
                 </Button>
               )}

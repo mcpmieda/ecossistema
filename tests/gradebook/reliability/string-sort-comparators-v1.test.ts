@@ -23,15 +23,7 @@ describe('BN string ordering reliability', () => {
   });
 
   it('uses explicit locale-aware comparators for canonical and human-readable string order', () => {
-    expect(['z:2', 'a:10', 'a:2'].sort(compareCanonicalStringsV1)).toEqual([
-      'a:10',
-      'a:2',
-      'z:2',
-    ]);
-    expect(['10º', '2º', '1º'].sort(comparePtBrNumericLabelsV1)).toEqual([
-      '1º',
-      '2º',
-      '10º',
-    ]);
+    expect(['z:2', 'a:10', 'a:2'].sort(compareCanonicalStringsV1)).toEqual(['a:10', 'a:2', 'z:2']);
+    expect(['10º', '2º', '1º'].sort(comparePtBrNumericLabelsV1)).toEqual(['1º', '2º', '10º']);
   });
 });

@@ -42,8 +42,7 @@
   padding: 1.05rem 1.2rem 1.15rem;
   background:
     radial-gradient(circle at 92% 0%, var(--pa-goal-glow), transparent 55%),
-    radial-gradient(circle at 0% 100%, rgb(255 255 255 / 0.1), transparent 45%),
-    var(--pa-goal-head);
+    radial-gradient(circle at 0% 100%, rgb(255 255 255 / 0.1), transparent 45%), var(--pa-goal-head);
 }
 .pa-annual-goal-header > * {
   position: relative;
@@ -57,7 +56,11 @@
   width: 10rem;
   height: 10rem;
   border-radius: 50%;
-  background: repeating-radial-gradient(circle, transparent 0 0.95rem, rgb(255 255 255 / 0.2) 0.95rem 1.05rem);
+  background: repeating-radial-gradient(
+    circle,
+    transparent 0 0.95rem,
+    rgb(255 255 255 / 0.2) 0.95rem 1.05rem
+  );
   mask-image: radial-gradient(circle, black 35%, transparent 72%);
   transform: translateY(-50%);
   animation: pa-annual-goal-rings 5s ease-in-out infinite alternate;

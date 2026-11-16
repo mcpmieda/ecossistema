@@ -1,5 +1,8 @@
 // @vitest-environment node
-import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../year-reset/schema-fixture';
+import {
+  installResetSchemaFixtureV1,
+  installReconciliationSchemaFixtureV1,
+} from '../year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -33,7 +36,8 @@ async function execute(
   values: readonly unknown[] = [],
 ) {
   const result = await client.query<Row>(query, [...values]);
-  if (failAfterSync && query.includes('synchronize_gradebook_profiles_v1')) throw new Error('synthetic-after-lifecycle');
+  if (failAfterSync && query.includes('synchronize_gradebook_profiles_v1'))
+    throw new Error('synthetic-after-lifecycle');
   return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
 }
 
@@ -48,15 +52,17 @@ beforeAll(async () => {
     '0006_import_diagnostic_treatment_v1.sql',
     '0007_multiyear_rr_v1.sql',
     '0009_granular_observations_names_v1.sql',
-  ]) await pg.exec(readFileSync(`${migrations}${migration}`, 'utf8'));
+  ])
+    await pg.exec(readFileSync(`${migrations}${migration}`, 'utf8'));
   const sql: GradebookPostgresSqlV1 = {
     unsafe: (query, values = []) => execute(pg, query, values),
-    begin: (operation) => pg.transaction((client) => {
-      const transaction: GradebookPostgresQuerySqlV1 = {
-        unsafe: (query, values = []) => execute(client, query, values),
-      };
-      return operation(transaction);
-    }),
+    begin: (operation) =>
+      pg.transaction((client) => {
+        const transaction: GradebookPostgresQuerySqlV1 = {
+          unsafe: (query, values = []) => execute(client, query, values),
+        };
+        return operation(transaction);
+      }),
     end: () => pg.close(),
   };
   await installResetSchemaFixtureV1(pg);
@@ -64,45 +70,76 @@ beforeAll(async () => {
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
 }, 30_000);
 
-afterAll(async () => { await database?.close(); });
+afterAll(async () => {
+  await database?.close();
+});
 
-function relation(year: number, classCode: string, hashDigit: string): GradebookRelationImportRequestV9 {
+function relation(
+  year: number,
+  classCode: string,
+  hashDigit: string,
+): GradebookRelationImportRequestV9 {
   return {
     transportVersion: 9,
     operation: 'persist-relacao',
     manifest: manifest(`RELACAO TESTE ${year}.xlsb`, hashDigit),
     ano: year,
-    turmas: [{ codigo: classCode, nome: `TURMA TESTE ${year}`, etapa: 6, turno: 'MATUTINO', alunos: [[1, 'ALUNO HOMONIMO TESTE', 0]] }],
+    turmas: [
+      {
+        codigo: classCode,
+        nome: `TURMA TESTE ${year}`,
+        etapa: 6,
+        turno: 'MATUTINO',
+        alunos: [[1, 'ALUNO HOMONIMO TESTE', 0]],
+      },
+    ],
   };
 }
 
 function notes2026(): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3) => ({
-    definitionSnapshotVersion: 1 as const, trimestre,
-    instrumentos: trimestre === 3
-      ? [[1, 9_000, 'AV1 TESTE'], [2, 9_000, 'AV2 TESTE'], [11, 22_000, 'QUALITATIVA TESTE']] as const
-      : [[1, 6_750, 'AV1 TESTE'], [2, 6_750, 'AV2 TESTE'], [11, 16_500, 'QUALITATIVA TESTE']] as const,
+    definitionSnapshotVersion: 1 as const,
+    trimestre,
+    instrumentos:
+      trimestre === 3
+        ? ([
+            [1, 9_000, 'AV1 TESTE'],
+            [2, 9_000, 'AV2 TESTE'],
+            [11, 22_000, 'QUALITATIVA TESTE'],
+          ] as const)
+        : ([
+            [1, 6_750, 'AV1 TESTE'],
+            [2, 6_750, 'AV2 TESTE'],
+            [11, 16_500, 'QUALITATIVA TESTE'],
+          ] as const),
     alunos: [[1, [2_000, 2_000, 4_000], 8_000]] as const,
   });
   return {
     transportVersion: 9,
-    operation: 'persist-notas', granularObservationVersion: 1 as const,
+    operation: 'persist-notas',
+    granularObservationVersion: 1 as const,
     manifest: manifest('NOTAS TESTE 2025.xlsb', 'c'),
     ano: 2026,
     professor: 'DOCENTE TESTE',
-    ofertas: [{
-      turmaCodigo: 'T26',
-      disciplina: 'COMPONENTE TESTE',
-      trimestres: [term(1), term(2), term(3)],
-      recuperacao: [[1, ['r'], null, null, null]],
-    }],
+    ofertas: [
+      {
+        turmaCodigo: 'T26',
+        disciplina: 'COMPONENTE TESTE',
+        trimestres: [term(1), term(2), term(3)],
+        recuperacao: [[1, ['r'], null, null, null]],
+      },
+    ],
   };
 }
 
-
 async function revision() {
-  return (await pg.query<{ academic: number; reset: number }>(`SELECT academic_counter::integer AS academic,
-    reset_counter::integer AS reset FROM student_portal.academic_revision WHERE academic_year=2026`)).rows[0]!;
+  return (
+    await pg.query<{
+      academic: number;
+      reset: number;
+    }>(`SELECT academic_counter::integer AS academic,
+    reset_counter::integer AS reset FROM student_portal.academic_revision WHERE academic_year=2026`)
+  ).rows[0]!;
 }
 
 describe('real V11 revision and lifecycle finalizer', () => {
@@ -112,9 +149,13 @@ describe('real V11 revision and lifecycle finalizer', () => {
     const service = createGradebookImportService(database);
     expect(await service.execute(relation(2026, 'T26', 'a'))).toMatchObject({ state: 'applied' });
     expect((await revision()).academic).toBe(before.academic + 1);
-    expect((await pg.query('SELECT eligibility FROM student_portal.account')).rows).toEqual([{ eligibility: 'eligible' }]);
+    expect((await pg.query('SELECT eligibility FROM student_portal.account')).rows).toEqual([
+      { eligibility: 'eligible' },
+    ]);
     const after = await revision();
-    expect(await service.execute(relation(2026, 'T26', 'a'))).toMatchObject({ state: 'no-changes' });
+    expect(await service.execute(relation(2026, 'T26', 'a'))).toMatchObject({
+      state: 'no-changes',
+    });
     expect(await revision()).toEqual(after);
   });
 
@@ -126,7 +167,9 @@ describe('real V11 revision and lifecycle finalizer', () => {
     const after = await revision();
     expect(await service.execute(notes2026())).toMatchObject({ state: 'no-changes' });
     expect(await revision()).toEqual(after);
-    expect(await service.execute({ ...notes2026(), professor: 'Docente Teste' })).toMatchObject({ state: 'applied' });
+    expect(await service.execute({ ...notes2026(), professor: 'Docente Teste' })).toMatchObject({
+      state: 'applied',
+    });
     expect(await revision()).toEqual({ academic: after.academic, reset: after.reset + 1 });
   });
 
@@ -136,18 +179,31 @@ describe('real V11 revision and lifecycle finalizer', () => {
       SELECT gen_random_uuid(),id,'synthetic-import-session',security_version,now()+interval '1 day',false FROM student_portal.account`);
     const before = await revision();
     const relationExit = relation(2026, 'T26', 'b');
-    const request: GradebookRelationImportRequestV9 = { ...relationExit,
-      turmas: relationExit.turmas.map((t) => ({ ...t, alunos: [[1, 'ALUNO HOMONIMO TESTE', 3]] })) };
+    const request: GradebookRelationImportRequestV9 = {
+      ...relationExit,
+      turmas: relationExit.turmas.map((t) => ({ ...t, alunos: [[1, 'ALUNO HOMONIMO TESTE', 3]] })),
+    };
     failAfterSync = true;
-    try { await expect(service.execute(request)).rejects.toThrow('synthetic-after-lifecycle'); }
-    finally { failAfterSync = false; }
+    try {
+      await expect(service.execute(request)).rejects.toThrow('synthetic-after-lifecycle');
+    } finally {
+      failAfterSync = false;
+    }
     expect(await revision()).toEqual(before);
-    expect((await pg.query('SELECT situacao FROM gradebook.vinculo')).rows).toEqual([{ situacao: null }]);
-    expect((await pg.query('SELECT revoked_at FROM student_portal.session')).rows).toEqual([{ revoked_at: null }]);
+    expect((await pg.query('SELECT situacao FROM gradebook.vinculo')).rows).toEqual([
+      { situacao: null },
+    ]);
+    expect((await pg.query('SELECT revoked_at FROM student_portal.session')).rows).toEqual([
+      { revoked_at: null },
+    ]);
     expect(await service.execute(request)).toMatchObject({ state: 'applied' });
     expect((await revision()).academic).toBe(before.academic + 1);
-    expect((await pg.query('SELECT eligibility FROM student_portal.account')).rows).toEqual([{ eligibility: 'exit' }]);
-    expect((await pg.query('SELECT revoked_at IS NOT NULL AS revoked FROM student_portal.session')).rows).toEqual([{ revoked: true }]);
+    expect((await pg.query('SELECT eligibility FROM student_portal.account')).rows).toEqual([
+      { eligibility: 'exit' },
+    ]);
+    expect(
+      (await pg.query('SELECT revoked_at IS NOT NULL AS revoked FROM student_portal.session')).rows,
+    ).toEqual([{ revoked: true }]);
     const after = await revision();
     expect(await service.execute(request)).toMatchObject({ state: 'no-changes' });
     expect(await revision()).toEqual(after);

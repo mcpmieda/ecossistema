@@ -13,7 +13,9 @@ export const backfillSubjectV1 = (n: number): PhotoAdminSubjectV1 => ({
 /** The account a synthetic subject points to. */
 export const backfillReferenceV1 = (subject: PhotoAdminSubjectV1) =>
   subject.source === 'portal' ? subject.accountIds[0] : undefined;
-export const backfillStateV1 = (overrides: Partial<PhotoCatalogStateV1> = {}): PhotoCatalogStateV1 => ({
+export const backfillStateV1 = (
+  overrides: Partial<PhotoCatalogStateV1> = {},
+): PhotoCatalogStateV1 => ({
   version: 1,
   studentUid: backfillIdV1(900),
   revision: backfillIdV1(800),
@@ -27,7 +29,9 @@ export const backfillStateV1 = (overrides: Partial<PhotoCatalogStateV1> = {}): P
   portalReady: true,
   ...overrides,
 });
-export function backfillPortsV1(catalog: (subject: PhotoAdminSubjectV1) => Partial<PhotoCatalogStateV1> = () => ({})) {
+export function backfillPortsV1(
+  catalog: (subject: PhotoAdminSubjectV1) => Partial<PhotoCatalogStateV1> = () => ({}),
+) {
   const dispose = vi.fn();
   let request = 0;
   const value = {
@@ -50,7 +54,10 @@ export function backfillPortsV1(catalog: (subject: PhotoAdminSubjectV1) => Parti
       blob: new Blob([new Uint8Array(48).fill(7)], { type: 'image/webp' }),
       width: 320,
       height: 320,
-      geometry: { crop: { x: 0, y: 32, width: 600, height: 600 }, output: { width: 320, height: 320 } },
+      geometry: {
+        crop: { x: 0, y: 32, width: 600, height: 600 },
+        output: { width: 320, height: 320 },
+      },
     })),
     client: {
       preview: vi.fn(async (_subject: PhotoAdminSubjectV1) => ({

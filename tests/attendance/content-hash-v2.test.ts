@@ -17,7 +17,11 @@ const CONTENT_HASH_VECTOR_V2 = {
   sourceClassLabel: '6A 2026 - MATUTINO',
   rosterComplete: true,
   records: [
-    { recordKey: 'source:a', originalName: 'JOÃO DA CONCEIÇÃO', originalClass: '6A 2026 - MATUTINO' },
+    {
+      recordKey: 'source:a',
+      originalName: 'JOÃO DA CONCEIÇÃO',
+      originalClass: '6A 2026 - MATUTINO',
+    },
     { recordKey: 'source:b', originalName: 'ÁGATA ÑANDU', originalClass: '6A 2026 - MATUTINO' },
   ],
   coverage: [
@@ -38,10 +42,14 @@ const SCHEDULE_HASH_VECTOR_V2 = {
 
 describe('frequency content hashes shared with the collector', () => {
   it('pins the diary content hash', async () => {
-    expect(await frequencyContentHashV2(CONTENT_HASH_VECTOR_V2)).toBe('ejvrOzgythGCyeAvblqIQp41cxV93nD11YHa99P6I6U');
+    expect(await frequencyContentHashV2(CONTENT_HASH_VECTOR_V2)).toBe(
+      'ejvrOzgythGCyeAvblqIQp41cxV93nD11YHa99P6I6U',
+    );
   });
   it('pins the weekly grid hash, whatever the lessons order', async () => {
-    expect(await frequencyScheduleHashV2(SCHEDULE_HASH_VECTOR_V2)).toBe('gvV54qYzWAbdp_6ZJk6hsRABYj-Vzb2dYc0XiRmTD6k');
+    expect(await frequencyScheduleHashV2(SCHEDULE_HASH_VECTOR_V2)).toBe(
+      'gvV54qYzWAbdp_6ZJk6hsRABYj-Vzb2dYc0XiRmTD6k',
+    );
     expect(
       await frequencyScheduleHashV2({
         ...SCHEDULE_HASH_VECTOR_V2,

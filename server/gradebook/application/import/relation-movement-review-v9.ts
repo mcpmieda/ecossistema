@@ -16,10 +16,20 @@ export async function relationMovementDigestV9(
       (SELECT revision::text FROM gradebook.student_reconciliation_scope_v1 WHERE academic_year=$1) AS revision`,
     [request.ano],
   );
-  return yearResetDigestV1(JSON.stringify({
-    version: 1, actorId,
-    request: { transportVersion: request.transportVersion, operation: request.operation,
-      manifest: request.manifest, ano: request.ano, turmas: request.turmas },
-    classes, bindings, revisions,
-  }));
+  return yearResetDigestV1(
+    JSON.stringify({
+      version: 1,
+      actorId,
+      request: {
+        transportVersion: request.transportVersion,
+        operation: request.operation,
+        manifest: request.manifest,
+        ano: request.ano,
+        turmas: request.turmas,
+      },
+      classes,
+      bindings,
+      revisions,
+    }),
+  );
 }

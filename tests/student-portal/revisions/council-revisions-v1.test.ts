@@ -18,9 +18,15 @@ beforeAll(async () => {
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
   await pg.exec(readFileSync('tests/gradebook/fixtures/student-presentation-relation.sql', 'utf8'));
-  await pg.exec(readFileSync('migrations/gradebook-simplified/0003_council_session_v3.sql', 'utf8'));
-  await pg.exec(readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'));
-  await pg.exec(readFileSync('migrations/gradebook-simplified/0009_granular_observations_names_v1.sql', 'utf8'));
+  await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0003_council_session_v3.sql', 'utf8'),
+  );
+  await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'),
+  );
+  await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0009_granular_observations_names_v1.sql', 'utf8'),
+  );
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES
@@ -46,51 +52,86 @@ beforeAll(async () => {
   `);
   await installResetSchemaFixtureV1(pg);
   database = createGradebookPostgresDatabaseFromSqlV1({
-    async unsafe() { throw new Error('outside-transaction'); },
-    async begin(operation) {
-      return pg.transaction(async (tx) => operation({ async unsafe(sql, values = []) {
-        const result = await tx.query<Record<string, unknown>>(sql, [...values]);
-        return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
-      } }));
+    async unsafe() {
+      throw new Error('outside-transaction');
     },
-    async end() { await pg.close(); },
+    async begin(operation) {
+      return pg.transaction(async (tx) =>
+        operation({
+          async unsafe(sql, values = []) {
+            const result = await tx.query<Record<string, unknown>>(sql, [...values]);
+            return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
+          },
+        }),
+      );
+    },
+    async end() {
+      await pg.close();
+    },
   });
 }, 30_000);
-afterAll(async () => { await database?.close(); });
+afterAll(async () => {
+  await database?.close();
+});
 
 function request(operation: string, extra: Record<string, unknown> = {}) {
   return { contractVersion: 3, operation, year: 2026, classId: 10, ...extra };
 }
 
-
 async function counters() {
-  return (await pg.query<{ academic: number; reset: number }>(`SELECT academic_counter::integer AS academic,
-    reset_counter::integer AS reset FROM student_portal.academic_revision WHERE academic_year=2026`)).rows[0]!;
+  return (
+    await pg.query<{
+      academic: number;
+      reset: number;
+    }>(`SELECT academic_counter::integer AS academic,
+    reset_counter::integer AS reset FROM student_portal.academic_revision WHERE academic_year=2026`)
+  ).rows[0]!;
 }
 
 describe('Council producer academic classification', () => {
   it('distinguishes decisions/closure from administrative votes, justification and replay', async () => {
-    const service=createRelationalCouncilV3(database,ACTOR);
-    let expected=await counters();
-    const execute=async(operation:string,version:number,extra:Record<string,unknown>,academic:boolean)=>{
-      const command=request(operation,{expectedVersion:version,idempotencyKey:crypto.randomUUID(),justification:'Synthetic decision record',...extra});
-      const result=await service.execute(command);
-      expect(result).toMatchObject({state:'ready'});
-      expected={academic:expected.academic+(academic?1:0),reset:expected.reset+1};
+    const service = createRelationalCouncilV3(database, ACTOR);
+    let expected = await counters();
+    const execute = async (
+      operation: string,
+      version: number,
+      extra: Record<string, unknown>,
+      academic: boolean,
+    ) => {
+      const command = request(operation, {
+        expectedVersion: version,
+        idempotencyKey: crypto.randomUUID(),
+        justification: 'Synthetic decision record',
+        ...extra,
+      });
+      const result = await service.execute(command);
+      expect(result).toMatchObject({ state: 'ready' });
+      expected = { academic: expected.academic + (academic ? 1 : 0), reset: expected.reset + 1 };
       expect(await counters()).toEqual(expected);
-      expect(await service.execute(command)).toMatchObject({state:'ready'});
+      expect(await service.execute(command)).toMatchObject({ state: 'ready' });
       expect(await counters()).toEqual(expected);
       return result;
     };
-    await execute('open',0,{},false);
-    await execute('decision',1,{studentId:1,decision:1},true);
-    await execute('decision',2,{studentId:1,decision:1,justification:'Synthetic updated justification'},false);
-    const voted=await execute('vote',3,{studentId:1,favoraveis:2,contrarios:1},false);
-    if(voted.state!=='ready'||voted.operation==='classes') throw new Error('synthetic-workspace-missing');
-    await execute('close',4,{reviewReference:voted.workspace.session.reviewReference},true);
-    await execute('reopen',5,{},true);
-    await execute('decision',6,{studentId:1,decision:2},true);
-    expect((await pg.query("SELECT student_ids FROM student_portal.revision_event WHERE cause='council' AND affects_academic AND cardinality(student_ids)>0")).rows)
-      .toEqual([{student_ids:[1]},{student_ids:[1]}]);
+    await execute('open', 0, {}, false);
+    await execute('decision', 1, { studentId: 1, decision: 1 }, true);
+    await execute(
+      'decision',
+      2,
+      { studentId: 1, decision: 1, justification: 'Synthetic updated justification' },
+      false,
+    );
+    const voted = await execute('vote', 3, { studentId: 1, favoraveis: 2, contrarios: 1 }, false);
+    if (voted.state !== 'ready' || voted.operation === 'classes')
+      throw new Error('synthetic-workspace-missing');
+    await execute('close', 4, { reviewReference: voted.workspace.session.reviewReference }, true);
+    await execute('reopen', 5, {}, true);
+    await execute('decision', 6, { studentId: 1, decision: 2 }, true);
+    expect(
+      (
+        await pg.query(
+          "SELECT student_ids FROM student_portal.revision_event WHERE cause='council' AND affects_academic AND cardinality(student_ids)>0",
+        )
+      ).rows,
+    ).toEqual([{ student_ids: [1] }, { student_ids: [1] }]);
   });
 });

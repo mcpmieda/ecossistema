@@ -13,18 +13,23 @@ vi.mock('../../../server/student-portal/http/auth/handler-v1', () => ({
 vi.mock('../../../server/student-portal/composition/database-v1', () => ({
   portalDatabaseV1: mocks.database,
 }));
-vi.mock('../../../server/student-portal/observability/operation-burst-v1', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../server/student-portal/observability/operation-burst-v1')>();
-  return {
-    ...actual,
-    // The entry budget is spent: the read must stop here, before the database.
-    checkPortalOperationV1: async (_binding: unknown, operation: string) => {
-      mocks.operations.push(operation);
-      throw new actual.PortalRateLimitErrorV1('rate-limited');
-    },
-  };
-});
+vi.mock(
+  '../../../server/student-portal/observability/operation-burst-v1',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('../../../server/student-portal/observability/operation-burst-v1')
+      >();
+    return {
+      ...actual,
+      // The entry budget is spent: the read must stop here, before the database.
+      checkPortalOperationV1: async (_binding: unknown, operation: string) => {
+        mocks.operations.push(operation);
+        throw new actual.PortalRateLimitErrorV1('rate-limited');
+      },
+    };
+  },
+);
 const env = {
   PORTAL_ENVIRONMENT: 'production',
   PORTAL_ORIGIN: 'https://aluno.escolaieda.com',

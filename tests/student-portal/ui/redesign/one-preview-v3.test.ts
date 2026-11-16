@@ -11,14 +11,18 @@ it('the preview has every page of the signed-in portal', () => {
   const clients = [...shell.matchAll(/^\s*(\w+Client)\?:/gmu)].map((match) => match[1]!);
   expect(keys.length).toBeGreaterThan(0);
   expect(clients.length).toBeGreaterThan(0);
-  expect(keys.filter((key) => !preview.includes(`${key}: admin.${key}`) || !preview.includes(`toggle('${key}')`))).toEqual([]);
+  expect(
+    keys.filter(
+      (key) => !preview.includes(`${key}: admin.${key}`) || !preview.includes(`toggle('${key}')`),
+    ),
+  ).toEqual([]);
   expect(clients.filter((client) => !preview.includes(`${client}={`))).toEqual([]);
 });
 
 it('there is only one Portal preview', () => {
-  expect(readdirSync('src/student-portal').filter((file) => file.endsWith('.html')).sort()).toEqual([
-    'index.html',
-    'login-preview.html',
-    'ui-preview.html',
-  ]);
+  expect(
+    readdirSync('src/student-portal')
+      .filter((file) => file.endsWith('.html'))
+      .sort(),
+  ).toEqual(['index.html', 'login-preview.html', 'ui-preview.html']);
 });

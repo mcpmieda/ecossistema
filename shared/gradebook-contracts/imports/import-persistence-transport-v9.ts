@@ -197,7 +197,11 @@ export interface GradebookImportOfferV9 {
 }
 
 /** [class code, number, name as the workbook has it]. */
-export type GradebookSheetStudentNameV9 = readonly [classCode: string, number: number, name: string];
+export type GradebookSheetStudentNameV9 = readonly [
+  classCode: string,
+  number: number,
+  name: string,
+];
 
 export interface GradebookNotesImportRequestV9 {
   readonly transportVersion: 9;
@@ -602,7 +606,8 @@ export function isGradebookImportPersistenceResponseV9(
                 warning.code === 'movement-spelling' &&
                 nonEmptyText(warning.relatedClassCode, 32)) ||
                 (Object.keys(warning).length === 3 &&
-                  (warning.code === 'student-not-in-relation' || warning.code === 'student-name-mismatch'))),
+                  (warning.code === 'student-not-in-relation' ||
+                    warning.code === 'student-name-mismatch'))),
           )))
     );
   }

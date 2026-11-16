@@ -53,7 +53,10 @@ function isShortCellRecordV1(type: number): boolean {
 
 function readUInt32V1(bytes: Uint8Array, offset: number): number {
   if (offset < 0 || offset + 4 > bytes.length) throw new Error('fast-read-truncated-record');
-  return (bytes[offset]! | (bytes[offset + 1]! << 8) | (bytes[offset + 2]! << 16)) + bytes[offset + 3]! * 0x1000000;
+  return (
+    (bytes[offset]! | (bytes[offset + 1]! << 8) | (bytes[offset + 2]! << 16)) +
+    bytes[offset + 3]! * 0x1000000
+  );
 }
 
 /**
@@ -62,7 +65,13 @@ function readUInt32V1(bytes: Uint8Array, offset: number): number {
  * array-formula range already seen in the sheet; `BrtArrFmla`/`BrtShrFmla` mark their anchor.
  */
 export function scanFormulaCellsV1(bytes: Uint8Array): Set<number> {
-  const state: FormulaScanStateV1 = { row: -1, column: -1, lastCell: -1, marked: new Set<number>(), arrays: [] };
+  const state: FormulaScanStateV1 = {
+    row: -1,
+    column: -1,
+    lastCell: -1,
+    marked: new Set<number>(),
+    arrays: [],
+  };
   let position = 0;
   while (position < bytes.length) {
     const { type, size, body } = readRecordHeaderV1(bytes, position);
@@ -88,7 +97,10 @@ type FormulaScanStateV1 = {
 };
 
 /** One BIFF12 record header: variable-length type and size; `body` is where its data starts. */
-function readRecordHeaderV1(bytes: Uint8Array, start: number): { readonly type: number; readonly size: number; readonly body: number } {
+function readRecordHeaderV1(
+  bytes: Uint8Array,
+  start: number,
+): { readonly type: number; readonly size: number; readonly body: number } {
   let position = start;
   let type = bytes[position++]!;
   if (type & 0x80) type = (type & 0x7f) | ((bytes[position++]! & 0x7f) << 7);
@@ -104,22 +116,39 @@ function readRecordHeaderV1(bytes: Uint8Array, start: number): { readonly type: 
   return { type, size, body: position };
 }
 
-function insideArrayFormulaV1(arrays: FormulaScanStateV1['arrays'], row: number, column: number): boolean {
-  return arrays.some(([firstRow, lastRow, firstColumn, lastColumn]) =>
-    row >= firstRow && row <= lastRow && column >= firstColumn && column <= lastColumn);
+function insideArrayFormulaV1(
+  arrays: FormulaScanStateV1['arrays'],
+  row: number,
+  column: number,
+): boolean {
+  return arrays.some(
+    ([firstRow, lastRow, firstColumn, lastColumn]) =>
+      row >= firstRow && row <= lastRow && column >= firstColumn && column <= lastColumn,
+  );
 }
 
 /** A cell: its formula is marked unless it lies inside an array formula already seen. */
-function scanCellRecordV1(state: FormulaScanStateV1, bytes: Uint8Array, type: number, body: number): void {
+function scanCellRecordV1(
+  state: FormulaScanStateV1,
+  bytes: Uint8Array,
+  type: number,
+  body: number,
+): void {
   if (state.row < 0) throw new Error('fast-read-cell-before-row');
   state.column = isShortCellRecordV1(type) ? state.column + 1 : readUInt32V1(bytes, body);
   state.lastCell = state.row * COLUMNS_PER_ROW + state.column;
   const isFormula = type >= BRT_FMLA_FIRST && type <= BRT_FMLA_LAST;
-  if (isFormula && !insideArrayFormulaV1(state.arrays, state.row, state.column)) state.marked.add(state.lastCell);
+  if (isFormula && !insideArrayFormulaV1(state.arrays, state.row, state.column))
+    state.marked.add(state.lastCell);
 }
 
 /** BrtArrFmla / BrtShrFmla mark the cell just read (their anchor); an array also records its range. */
-function scanFormulaAnchorV1(state: FormulaScanStateV1, bytes: Uint8Array, type: number, body: number): void {
+function scanFormulaAnchorV1(
+  state: FormulaScanStateV1,
+  bytes: Uint8Array,
+  type: number,
+  body: number,
+): void {
   if (state.lastCell < 0) throw new Error('fast-read-anchor-without-cell');
   if (type === BRT_ARR_FMLA) {
     state.arrays.push([
@@ -153,7 +182,13 @@ function relationshipTargetsV1(xml: string): Map<string, string> {
 function zipEntryV1(files: Record<string, ZipEntryV1>, path: string): Uint8Array | null {
   const wanted = path.replace(/^\/+/u, '').toLowerCase();
   for (const [key, entry] of Object.entries(files)) {
-    if (key.replace(/^Root Entry\//u, '').replace(/^\/+/u, '').toLowerCase() !== wanted) continue;
+    if (
+      key
+        .replace(/^Root Entry\//u, '')
+        .replace(/^\/+/u, '')
+        .toLowerCase() !== wanted
+    )
+      continue;
     return entry.content ? Uint8Array.from(entry.content) : null;
   }
   return null;
@@ -194,7 +229,11 @@ function markFormulaCellsV1(workbook: FastWorkbookV1, keep: readonly string[]): 
   return true;
 }
 
-function fastReadV1(xlsx: SheetJs, data: ArrayBuffer, options: Record<string, unknown>): Workbook | null {
+function fastReadV1(
+  xlsx: SheetJs,
+  data: ArrayBuffer,
+  options: Record<string, unknown>,
+): Workbook | null {
   const names = xlsx.read(data, { type: 'array', bookSheets: true }).SheetNames;
   // The master Relação workbook needs INICIO and its agenda tab: never take the shortcut.
   if (names.some((name) => normalizedSheetNameV1(name).includes('VINCULO AGENDA'))) return null;
@@ -218,7 +257,8 @@ function fastReadV1(xlsx: SheetJs, data: ArrayBuffer, options: Record<string, un
  */
 export function createFastTeacherSheetJsV1(xlsx: SheetJs): SheetJs {
   const read: SheetJs['read'] = (data, options = {}) => {
-    if (options.cellFormula !== true || options.sheets !== undefined) return xlsx.read(data, options);
+    if (options.cellFormula !== true || options.sheets !== undefined)
+      return xlsx.read(data, options);
     try {
       return fastReadV1(xlsx, data, options) ?? xlsx.read(data, options);
     } catch {

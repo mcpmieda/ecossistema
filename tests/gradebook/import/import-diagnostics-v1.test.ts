@@ -259,16 +259,11 @@ describe('import diagnostics v1', () => {
       sheetName: '7D2º',
       cellAddress: 'AE3',
     };
-    const visible = actionableGradebookImportDiagnosticsV1([
-      ...diagnostics,
-      technicalMaximum,
-    ]);
+    const visible = actionableGradebookImportDiagnosticsV1([...diagnostics, technicalMaximum]);
 
     expect(visible.some((value) => value.code === 'source-unavailable')).toBe(false);
     expect(
-      visible.some(
-        (value) => value.code === 'invalid-maximum' && value.severity === 'warning',
-      ),
+      visible.some((value) => value.code === 'invalid-maximum' && value.severity === 'warning'),
     ).toBe(false);
     expect(visible).toContainEqual(
       // BN-DEC-046: a grade above its maximum is held, so it is a blocking item.

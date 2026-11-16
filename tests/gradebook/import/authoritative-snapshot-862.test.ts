@@ -1,14 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  inspectGradebookImportPersistenceRequestV9,
-} from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import {
-  createGradebookCanonicalImportRequestV9,
-} from '../../../src/features/gradebook/import/canonical-import-v9';
-import {
-  collectGradebookImportDiagnosticsV1,
-} from '../../../src/features/gradebook/import/import-diagnostics-v1';
+import { inspectGradebookImportPersistenceRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import { createGradebookCanonicalImportRequestV9 } from '../../../src/features/gradebook/import/canonical-import-v9';
+import { collectGradebookImportDiagnosticsV1 } from '../../../src/features/gradebook/import/import-diagnostics-v1';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
 
 function termSheet(
@@ -49,14 +43,16 @@ function termSheet(
       {
         sourceSlot: 'R',
         maximumConfiguration: {
-          state: 'numeric', rawValue: 6.75,
+          state: 'numeric',
+          rawValue: 6.75,
           provenance: { sheetName: `6A${trimester}º`, cellAddress: 'R3' },
         },
       },
       {
         sourceSlot: 'S',
         maximumConfiguration: {
-          state: 'numeric', rawValue: 6.75,
+          state: 'numeric',
+          rawValue: 6.75,
           provenance: { sheetName: `6A${trimester}º`, cellAddress: 'S3' },
         },
       },
@@ -67,16 +63,25 @@ function termSheet(
         order: 1,
         maximumConfiguration,
         name: {
-          state: 'empty', rawValue: '',
+          state: 'empty',
+          rawValue: '',
           provenance: { sheetName: `6A${trimester}º`, cellAddress: 'AA4' },
         },
       },
     ],
     students: [
       {
-        row: 5, number: '1', name: 'ALUNO SINTETICO', status: '',
-        quantitativeAssessments: [null, null], quantitativeTotal: null, parallel: null,
-        qualitative: [], qualitativeTotal: null, official: null, annual: null,
+        row: 5,
+        number: '1',
+        name: 'ALUNO SINTETICO',
+        status: '',
+        quantitativeAssessments: [null, null],
+        quantitativeTotal: null,
+        parallel: null,
+        qualitative: [],
+        qualitativeTotal: null,
+        official: null,
+        annual: null,
         termResultObservations: {
           quantitativeTotal: { classification: 'empty', rawValue: null },
           parallelAssessment: { classification: 'empty', rawValue: null },
@@ -87,7 +92,8 @@ function termSheet(
         recovery: null,
       },
     ],
-    formulas: 0, officialZeros: 0,
+    formulas: 0,
+    officialZeros: 0,
     snapshotCellsV8: { R5: 2, S5: 3, Z5: null, AA5: aaSnapshot, AM5: null },
   };
 }
@@ -96,21 +102,28 @@ function result(): BatchSuccess {
   return {
     id: 'synthetic-authoritative-862',
     manifest: {
-      fileName: 'NOTAS SINTETICAS 2026.xlsb', extension: 'xlsb', reportedMimeType: null,
-      sizeBytes: 512, lastModifiedAt: null, sha256: 'a'.repeat(64),
-      sourceContractVersion: 2, parserVersion: 'synthetic',
+      fileName: 'NOTAS SINTETICAS 2026.xlsb',
+      extension: 'xlsb',
+      reportedMimeType: null,
+      sizeBytes: 512,
+      lastModifiedAt: null,
+      sha256: 'a'.repeat(64),
+      sourceContractVersion: 2,
+      parserVersion: 'synthetic',
       readAt: '2026-09-18T00:00:00.000Z',
     },
     summary: {
-      fileName: 'NOTAS SINTETICAS 2026.xlsb', format: 'XLSB', size: 512,
-      parserVersion: 'synthetic', academicYear: 2026, teacherName: 'DOCENTE SINTETICO',
+      fileName: 'NOTAS SINTETICAS 2026.xlsb',
+      format: 'XLSB',
+      size: 512,
+      parserVersion: 'synthetic',
+      academicYear: 2026,
+      teacherName: 'DOCENTE SINTETICO',
       sheets: [],
-      gradeSheets: [
-        termSheet(1, 'empty'),
-        termSheet(2, 'missing'),
-        termSheet(3, 'numeric'),
-      ],
-      classes: [], auxiliarySheets: [], unrecognizedSheets: [],
+      gradeSheets: [termSheet(1, 'empty'), termSheet(2, 'missing'), termSheet(3, 'numeric')],
+      classes: [],
+      auxiliarySheets: [],
+      unrecognizedSheets: [],
     },
   } as unknown as BatchSuccess;
 }
@@ -160,7 +173,9 @@ describe('authoritative import snapshot #862', () => {
         }),
       ]),
     );
-    expect(diagnostics.some((item) => item.period === '1º trimestre' && item.slot === 11)).toBe(false);
+    expect(diagnostics.some((item) => item.period === '1º trimestre' && item.slot === 11)).toBe(
+      false,
+    );
   });
 
   it('rejects unavailable-definition lists without snapshot version', () => {

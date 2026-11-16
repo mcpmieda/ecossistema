@@ -15,15 +15,10 @@ export const SIMPLIFIED_VISIBLE_ANNUAL_RESULTS_V1 = [
   'TRANSFERIDO',
   'FALECIDO',
 ] as const;
-export type SimplifiedVisibleAnnualResultV1 =
-  (typeof SIMPLIFIED_VISIBLE_ANNUAL_RESULTS_V1)[number];
+export type SimplifiedVisibleAnnualResultV1 = (typeof SIMPLIFIED_VISIBLE_ANNUAL_RESULTS_V1)[number];
 
 export type SimplifiedAnnualProgressStateV1 =
-  | 'no-result'
-  | 'in-progress'
-  | 'recovery'
-  | 'final'
-  | 'council-eligible';
+  'no-result' | 'in-progress' | 'recovery' | 'final' | 'council-eligible';
 
 interface SimplifiedAnnualOutcomeInputV1 {
   readonly status: SimplifiedEnrollmentStatusV1;
@@ -66,14 +61,18 @@ function terminal(
 }
 
 /** Status precedence is independent from grades and Council calculations. */
-function statusOutcomeV1(status: SimplifiedAnnualOutcomeInputV1['status']): SimplifiedAnnualOutcomeV1 | null {
+function statusOutcomeV1(
+  status: SimplifiedAnnualOutcomeInputV1['status'],
+): SimplifiedAnnualOutcomeV1 | null {
   if (status === 2) return terminal(null, 'status:ASSISTIDO');
   if (status === 5) return terminal('FALECIDO', 'status:FALECIDO');
   if (status === 4) return terminal('TRANSFERIDO', 'status:TRANSFERIDO');
   if (status === 3) return terminal('DESISTENTE', 'status:DESISTENTE');
   if (status === 1) return terminal('APROVADO', 'status:ESPECIAL');
   if (status === 6) {
-    throw new RangeError('FOI_PARA is a historical binding and cannot be resolved as the current annual status');
+    throw new RangeError(
+      'FOI_PARA is a historical binding and cannot be resolved as the current annual status',
+    );
   }
   return null;
 }
@@ -105,7 +104,8 @@ export function resolveSimplifiedAnnualOutcomeV1(
     (component) => component.classification === 'approved-after-recovery',
   ).length;
   const failedComponentCount = input.components.filter(
-    (component) => component.classification === 'not-approved' || component.classification === 'failed-repeat',
+    (component) =>
+      component.classification === 'not-approved' || component.classification === 'failed-repeat',
   ).length;
 
   const base = {
@@ -133,7 +133,10 @@ export function resolveSimplifiedAnnualOutcomeV1(
       state: 'in-progress',
       visibleResult: 'EM CURSO',
       councilEligibility: 'not-applicable',
-      reasons: input.components.length === 0 ? ['components:not-yet-available'] : ['component:in-progress'],
+      reasons:
+        input.components.length === 0
+          ? ['components:not-yet-available']
+          : ['component:in-progress'],
     };
   }
 
@@ -164,7 +167,9 @@ export function resolveSimplifiedAnnualOutcomeV1(
       state: 'final',
       visibleResult: afterRecovery ? 'APROVADO PELA RECUPERAÇÃO' : 'APROVADO DIRETO',
       councilEligibility: 'not-applicable',
-      reasons: [afterRecovery ? 'all-components-approved-after-recovery' : 'all-components-approved-direct'],
+      reasons: [
+        afterRecovery ? 'all-components-approved-after-recovery' : 'all-components-approved-direct',
+      ],
     };
   }
 
@@ -174,7 +179,9 @@ export function resolveSimplifiedAnnualOutcomeV1(
       state: 'final',
       visibleResult: 'REPROVADO APÓS RECUPERAÇÃO',
       councilEligibility: 'not-eligible',
-      reasons: [`failed-components:${failedComponentCount}:above-council-limit:${input.maxCouncilComponents}`],
+      reasons: [
+        `failed-components:${failedComponentCount}:above-council-limit:${input.maxCouncilComponents}`,
+      ],
     };
   }
 
@@ -183,6 +190,8 @@ export function resolveSimplifiedAnnualOutcomeV1(
     state: 'council-eligible',
     visibleResult: null,
     councilEligibility: 'eligible',
-    reasons: [`failed-components:${failedComponentCount}:within-council-limit:${input.maxCouncilComponents}`],
+    reasons: [
+      `failed-components:${failedComponentCount}:within-council-limit:${input.maxCouncilComponents}`,
+    ],
   };
 }

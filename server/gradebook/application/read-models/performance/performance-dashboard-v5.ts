@@ -10,10 +10,16 @@ import {
 import { performanceTermComparisonRequestSchemaV4 } from '../../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import type { PerformanceAnalysisV3 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import type { PerformanceProjectionV2 } from '../../results/relational-performance-facts-v2';
-import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../../persistence/postgres/postgres-database-v1';
+import {
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresTransactionV1,
+} from '../../../persistence/postgres/postgres-database-v1';
 
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
-import { buildPerformanceTermComparisonV4, projectReferenceMatrix } from './performance-term-comparison-v4';
+import {
+  buildPerformanceTermComparisonV4,
+  projectReferenceMatrix,
+} from './performance-term-comparison-v4';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
 
 export function buildPerformanceDashboardOverviewV5(
@@ -32,16 +38,18 @@ export function buildPerformanceDashboardOverviewV5(
     const row = rows.get(studentId);
     const buckets = row?.values.map((value) => value.bucket) ?? [];
     // A UI test reads this exact comparison in the source.
-    if (buckets.some((bucket) => bucket === 'below')) groups.withBelow.push(studentId); // NOSONAR
+    if (buckets.some((bucket) => bucket === 'below'))
+      groups.withBelow.push(studentId); // NOSONAR
     else if (buckets.length > 0 && buckets.every((bucket) => bucket === 'above')) {
       groups.allAtOrAbove.push(studentId);
     } else groups.pending.push(studentId);
   }
   const sorted = analysis.matrix.rows
-    .filter((row) =>
-      row.student.indicatorEligible &&
-      row.cells.length > 0 &&
-      row.cells.every((cell) => cell.valueMilli !== null),
+    .filter(
+      (row) =>
+        row.student.indicatorEligible &&
+        row.cells.length > 0 &&
+        row.cells.every((cell) => cell.valueMilli !== null),
     )
     .map((row) => {
       const total = row.cells.reduce((sum, cell) => sum + BigInt(cell.valueMilli!), 0n);
@@ -53,10 +61,18 @@ export function buildPerformanceDashboardOverviewV5(
         number: row.student.number,
       };
     })
-    .sort((left, right) => right.totalMilli - left.totalMilli || left.number - right.number || left.studentId - right.studentId);
+    .sort(
+      (left, right) =>
+        right.totalMilli - left.totalMilli ||
+        left.number - right.number ||
+        left.studentId - right.studentId,
+    );
   // The first ten places; equal totals share a place, so a tie at the tenth keeps all of them.
-  const ranking = rankingCutV5(sorted, (entry) => entry.totalMilli)
-    .map((entry) => ({ studentId: entry.studentId, totalMilli: entry.totalMilli, partial: entry.partial }));
+  const ranking = rankingCutV5(sorted, (entry) => entry.totalMilli).map((entry) => ({
+    studentId: entry.studentId,
+    totalMilli: entry.totalMilli,
+    partial: entry.partial,
+  }));
   return {
     denominator: 'eligible-students-in-current-scope',
     students: {
@@ -125,11 +141,7 @@ export function createPerformanceDashboardV5(database: GradebookPostgresWritePor
         }
         const view =
           request.referencePeriod === null
-            ? buildPerformanceAnalysisV3(
-                matrix,
-                projections,
-                dashboardAnalysisRequestV3(request),
-              )
+            ? buildPerformanceAnalysisV3(matrix, projections, dashboardAnalysisRequestV3(request))
             : buildPerformanceTermComparisonV4(
                 matrix,
                 projections,
@@ -148,14 +160,20 @@ export function createPerformanceDashboardV5(database: GradebookPostgresWritePor
               );
         const analysis = view.operation === 'term-comparison' ? view.analysis : view;
         // The previous trimester from the same facts: no second request, no second read.
-        const previousPeriod = request.includePrevious === true && typeof request.period === 'number'
-          ? request.period - 1 : null;
+        const previousPeriod =
+          request.includePrevious === true && typeof request.period === 'number'
+            ? request.period - 1
+            : null;
         let previous = null;
         if (previousPeriod === 1 || previousPeriod === 2) {
           const before = buildPerformanceAnalysisV3(
             projectReferenceMatrix(matrix, projections, previousPeriod),
             projections,
-            dashboardAnalysisRequestV3({ ...request, period: previousPeriod, referencePeriod: null }),
+            dashboardAnalysisRequestV3({
+              ...request,
+              period: previousPeriod,
+              referencePeriod: null,
+            }),
           );
           previous = {
             transportVersion: 5,

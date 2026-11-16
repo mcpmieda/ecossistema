@@ -27,6 +27,8 @@ try {
 enableStudentDiagnosticsV1();
 createRoot(root).render(
   <StrictMode>
-    <StudentDiagnosticBoundaryV1><StudentPortalApp entry={entry} /></StudentDiagnosticBoundaryV1>
+    <StudentDiagnosticBoundaryV1>
+      <StudentPortalApp entry={entry} />
+    </StudentDiagnosticBoundaryV1>
   </StrictMode>,
 );

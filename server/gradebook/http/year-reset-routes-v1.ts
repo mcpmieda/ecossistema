@@ -42,7 +42,11 @@ function statusFor(value: YearResetResponseV1): number {
 }
 
 export function createYearResetRequestHandlerV1() {
-  return async (request: Request, env: RuntimeEnv, afterCommit?: GradebookAfterCommitV1): Promise<Response | null> => {
+  return async (
+    request: Request,
+    env: RuntimeEnv,
+    afterCommit?: GradebookAfterCommitV1,
+  ): Promise<Response | null> => {
     if (new URL(request.url).pathname !== YEAR_RESET_ROUTE_V1) return null;
     enforceOfficialOrigin(request, env);
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');

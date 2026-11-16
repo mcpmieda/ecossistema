@@ -87,9 +87,7 @@ it('uses independent main links without remounting Importação and respects int
   expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
   await user.click(main.getByRole('link', { name: 'Importação' }));
   expect(window.location.hash).toBe('#/banco-de-notas?area=importacao');
-  expect(main.getByRole('link', { name: 'Importação' }).getAttribute('aria-current')).toBe(
-    'page',
-  );
+  expect(main.getByRole('link', { name: 'Importação' }).getAttribute('aria-current')).toBe('page');
   expect(screen.getByRole('textbox', { name: 'workspace-banco-de-notas' })).toBe(input);
   expect((input as HTMLInputElement).value).toBe('interrupted synthetic import');
   const block = (event: Event) => event.preventDefault();
@@ -102,14 +100,14 @@ it('uses independent main links without remounting Importação and respects int
   }
   await user.click(main.getByRole('link', { name: 'Conciliação' }));
   await screen.findByRole('textbox', { name: 'workspace-painel-do-aluno' });
-  expect(main.getByRole('link', { name: 'Conciliação' }).getAttribute('aria-current')).toBe(
-    'page',
-  );
+  expect(main.getByRole('link', { name: 'Conciliação' }).getAttribute('aria-current')).toBe('page');
   expect(screen.queryByRole('link', { name: 'Acessos e QR' })).toBeNull();
   expect(screen.queryByRole('tab', { name: 'Acessos e QR' })).toBeNull();
   await user.click(main.getByRole('link', { name: 'Painel do Aluno' }));
   // The header links navigate by address; the side column still lists areas only.
-  const sections = within(await screen.findByRole('navigation', { name: 'Seções de Painel do Aluno' }));
+  const sections = within(
+    await screen.findByRole('navigation', { name: 'Seções de Painel do Aluno' }),
+  );
   expect(sections.getAllByRole('link', { name: 'Alunos' })).toHaveLength(1);
   expect(main.queryByRole('link', { name: 'Alunos' })).toBeNull();
   await user.click(sections.getByRole('link', { name: 'Sessões' }));
@@ -134,7 +132,8 @@ it.each([503, 401])(
           name: 'SYNTHETIC ADMIN',
           capabilities: PLATFORM_CAPABILITIES,
         });
-      if (path === '/api/platform/bootstrap') return ++bootstraps === 1 ? Response.json(snapshot()) : waiting;
+      if (path === '/api/platform/bootstrap')
+        return ++bootstraps === 1 ? Response.json(snapshot()) : waiting;
       if (path === '/api/gradebook/view-preferences')
         return Response.json({ contractVersion: 1, state: 'ready', views: {} });
       throw new Error('Unexpected synthetic request');
@@ -188,8 +187,11 @@ it('opens every page from the native bootstrap alone: nothing is read from Share
     await flush();
   });
   expect(await screen.findByRole('textbox', { name: 'workspace-configuracoes' })).toBeTruthy();
-  expect(fetcher.mock.calls.filter(([path]) => String(path).startsWith('/api/platform/'))
-    .map(([path]) => path)).toEqual(['/api/platform/bootstrap']);
+  expect(
+    fetcher.mock.calls
+      .filter(([path]) => String(path).startsWith('/api/platform/'))
+      .map(([path]) => path),
+  ).toEqual(['/api/platform/bootstrap']);
 });
 
 it('keeps the keyboard inside the phone drawer, closes it on Escape and gives focus back', async () => {

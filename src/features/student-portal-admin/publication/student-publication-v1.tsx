@@ -84,7 +84,9 @@ function publicationColorV1(item: PublicationItemV1) {
 function publicationLabelV1(item: PublicationItemV1, detailed = false) {
   const partial = publicationPartialV1(item);
   if (!partial) return PUBLICATION_LABELS_V1[item.state];
-  return detailed ? `Publicada para ${partial.published} de ${partial.total} alunos` : 'Publicada em parte';
+  return detailed
+    ? `Publicada para ${partial.published} de ${partial.total} alunos`
+    : 'Publicada em parte';
 }
 function PublicationActionsV1({
   item,
@@ -188,7 +190,9 @@ function PublicationPeriodV1({
   if (extra !== undefined) {
     const empty = item.state === 'no-data' && item.publishedRevision === null;
     return (
-      <Card className={'pa-publication-card pa-grade-period' + (empty ? ' pa-grade-period--empty' : '')}>
+      <Card
+        className={'pa-publication-card pa-grade-period' + (empty ? ' pa-grade-period--empty' : '')}
+      >
         <Card.Header>
           <div className="pa-publication-heading">
             <h3>{termLabel(item.period)}</h3>
@@ -197,7 +201,10 @@ function PublicationPeriodV1({
         </Card.Header>
         {empty ? null : (
           <Card.Content className="pa-grade-steps">
-            <section className="pa-grade-step" aria-label={`Publicação de ${termLabel(item.period)}`}>
+            <section
+              className="pa-grade-step"
+              aria-label={`Publicação de ${termLabel(item.period)}`}
+            >
               <p className="pa-grade-step-title">1 · Publicação</p>
               <p className="pa-grade-step-text">
                 <Chip size="sm" variant="soft" color={publicationColorV1(item)}>
@@ -238,15 +245,11 @@ function PublicationPeriodV1({
         <dl className="pa-publication-details">
           <div>
             <dt>Liberar a partir de</dt>
-            <dd>
-              {releaseText(restriction, disclosure)}
-            </dd>
+            <dd>{releaseText(restriction, disclosure)}</dd>
           </div>
           <div>
             <dt>Regra de exibição</dt>
-            <dd>
-              {ruleText(restriction)}
-            </dd>
+            <dd>{ruleText(restriction)}</dd>
           </div>
         </dl>
         {versions}
@@ -293,12 +296,7 @@ function PublicationErrorFeedbackV1({
       <p>{publicationErrorMessageV1(mutation)}</p>
       <div className="pa-publication-actions">
         {mutation.retryable ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={!retryReady}
-            onPress={onRetry}
-          >
+          <Button size="sm" variant="secondary" isDisabled={!retryReady} onPress={onRetry}>
             Tentar novamente
           </Button>
         ) : null}

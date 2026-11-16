@@ -294,13 +294,20 @@ describe('HTTP timing boundaries', () => {
   });
 });
 
-
 it('reports import throttling wait without retrying or claiming a commit', async () => {
-  const fetch = vi.fn(async () => Response.json({ transportVersion: 9, state: 'unavailable' },
-    { status: 429, headers: { 'Retry-After': '60' } }));
+  const fetch = vi.fn(async () =>
+    Response.json(
+      { transportVersion: 9, state: 'unavailable' },
+      { status: 429, headers: { 'Retry-After': '60' } },
+    ),
+  );
   vi.stubGlobal('fetch', fetch);
   const timing = vi.fn();
-  await expect(persistGradebookCanonicalImportV9(request, timing)).rejects.toThrow('Aguarde 60 segundos');
+  await expect(persistGradebookCanonicalImportV9(request, timing)).rejects.toThrow(
+    'Aguarde 60 segundos',
+  );
   expect(fetch).toHaveBeenCalledTimes(1);
-  expect(timing).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'unavailable', commitDiagnostics: null }));
+  expect(timing).toHaveBeenCalledWith(
+    expect.objectContaining({ outcome: 'unavailable', commitDiagnostics: null }),
+  );
 });

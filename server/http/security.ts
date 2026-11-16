@@ -20,7 +20,11 @@ export const NO_STORE_HEADERS_V1: Readonly<Record<string, string>> = {
   Expires: '0',
 };
 
-export function noStoreResponseV1(body: BodyInit | null, status: number, contentType?: string): Response {
+export function noStoreResponseV1(
+  body: BodyInit | null,
+  status: number,
+  contentType?: string,
+): Response {
   const headers = new Headers(NO_STORE_HEADERS_V1);
   if (contentType) headers.set('Content-Type', contentType);
   return new Response(body, { status, headers });

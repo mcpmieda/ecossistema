@@ -11,7 +11,9 @@ describe('integração final da onda 22 — bridges e checkpoint', () => {
   it('mantém configuração server-side na área global e o write administrativo em hard stop', () => {
     const platformSnapshot = source('server/platform/snapshot.ts');
     const settingsPage = source('src/platform/pages.tsx');
-    const comparisonPanel = source('src/features/gradebook/performance/performance-term-comparison-panel-v4.tsx');
+    const comparisonPanel = source(
+      'src/features/gradebook/performance/performance-term-comparison-panel-v4.tsx',
+    );
     const performanceRoute = source('server/gradebook/http/performance-routes-v1.ts');
 
     // The SharePoint settings register was retired (owner decision, #1473): the area keeps the
@@ -21,7 +23,9 @@ describe('integração final da onda 22 — bridges e checkpoint', () => {
     expect(settingsPage).toContain('<SessionDurationSetting />');
     expect(performanceRoute).toContain("requireCapability(capabilities, 'platform.settings.read')");
     expect(comparisonPanel).toContain('não mede evolução pedagógica');
-    expect(`${settingsPage}${comparisonPanel}`).not.toMatch(/localStorage|sessionStorage|indexedDB/u);
+    expect(`${settingsPage}${comparisonPanel}`).not.toMatch(
+      /localStorage|sessionStorage|indexedDB/u,
+    );
   });
 
   it('preserva o checkpoint documental das ondas 22–24 sem impor flags antigas ao programa final', () => {

@@ -143,7 +143,16 @@ type ReplayRequestV1 = {
 async function replayReceiptV1(
   tx: StudentPortalPostgresQueryV1,
   store: PortalTransactionV1,
-  { command, operation, account, receiptActor, digest, now, url, receiptOnly = false }: ReplayRequestV1,
+  {
+    command,
+    operation,
+    account,
+    receiptActor,
+    digest,
+    now,
+    url,
+    receiptOnly = false,
+  }: ReplayRequestV1,
 ): Promise<QrResultV1 | null> {
   const receipt = await store.readIdempotency(command.idempotencyKey, receiptActor);
   if (!receipt) return null;
@@ -299,10 +308,7 @@ async function checkBulkGuardV1(
           WHERE academic_year=2026 AND student_id=$1 AND status IS DISTINCT FROM 6 ORDER BY class_id LIMIT 2`,
     [studentId],
   );
-  if (
-    rows.length !== 1 ||
-    (scope.kind === 'class' && Number(rows[0]!.class_id) !== scope.classId)
-  )
+  if (rows.length !== 1 || (scope.kind === 'class' && Number(rows[0]!.class_id) !== scope.classId))
     throw new Error('student-portal-bulk-scope-conflict');
 }
 
@@ -361,7 +367,13 @@ export class QrServiceV1 {
       const credential = await store.readCredentials(accountId);
       const active = activeCredentialV1(credential);
       if (operation === 'qr-issue' && account.state !== 'active')
-        await ensureCanonicalPinV1(tx, this.cryptoPort, this.pepperVersion, account.id, account.pinVersion);
+        await ensureCanonicalPinV1(
+          tx,
+          this.cryptoPort,
+          this.pepperVersion,
+          account.id,
+          account.pinVersion,
+        );
       await assertRecoveryReadyV1(tx, store, account, operation);
       assertCredentialOperationV1(operation, credential, active);
 
@@ -380,7 +392,9 @@ export class QrServiceV1 {
       const changed = newQr || securityChanged;
       const next = nextAccountV1(command, account, changed, securityChanged);
       await applySecurityChangeV1(tx, store, account, next, changed, securityChanged, now);
-      await authAuditV1(store, next, auditKindV1(command), now, command.idempotencyKey, { actorId: actor });
+      await authAuditV1(store, next, auditKindV1(command), now, command.idempotencyKey, {
+        actorId: actor,
+      });
       const operationId = await saveReceiptV1(
         store,
         command,

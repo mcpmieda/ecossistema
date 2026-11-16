@@ -21,26 +21,68 @@ const ROWS_STEP = 100;
 /** Tab name and the one line that says how the teacher fixes it. Unknown codes fall back to their message. */
 const PROBLEMS: Readonly<Record<string, readonly [label: string, hint: string]>> = {
   'wrong-year': ['Ano errado', 'Planilha com outro ano em CONFIGURAÇÃO. Nada foi lançado.'],
-  'header-mismatch': ['Cabeçalho trocado', 'O cabeçalho da guia não bate com o nome da guia. A turma não foi lançada.'],
-  'student-name-mismatch': ['Aluno trocado', 'O nome na planilha não bate com a Relação. As notas do aluno não foram lançadas.'],
-  'class-move-review': ['Troca de turma a conferir', 'A Relação tem troca de turma com dúvida e não foi lançada. Confirme os pares na importação manual da Relação.'],
-  'student-not-in-relation': ['Aluno fora da Relação', 'O aluno está na planilha, mas não na Relação do sistema. As notas dele não foram lançadas.'],
-  'activity-without-description': ['Atividade sem descrição', 'Notas numa coluna sem descrição. A coluna não foi lançada.'],
-  'activity-without-maximum': ['Atividade sem máximo', 'Notas numa coluna sem máximo. A coluna não foi lançada.'],
+  'header-mismatch': [
+    'Cabeçalho trocado',
+    'O cabeçalho da guia não bate com o nome da guia. A turma não foi lançada.',
+  ],
+  'student-name-mismatch': [
+    'Aluno trocado',
+    'O nome na planilha não bate com a Relação. As notas do aluno não foram lançadas.',
+  ],
+  'class-move-review': [
+    'Troca de turma a conferir',
+    'A Relação tem troca de turma com dúvida e não foi lançada. Confirme os pares na importação manual da Relação.',
+  ],
+  'student-not-in-relation': [
+    'Aluno fora da Relação',
+    'O aluno está na planilha, mas não na Relação do sistema. As notas dele não foram lançadas.',
+  ],
+  'activity-without-description': [
+    'Atividade sem descrição',
+    'Notas numa coluna sem descrição. A coluna não foi lançada.',
+  ],
+  'activity-without-maximum': [
+    'Atividade sem máximo',
+    'Notas numa coluna sem máximo. A coluna não foi lançada.',
+  ],
   'above-maximum': ['Nota acima do máximo', 'A nota e o resultado do aluno não foram lançados.'],
-  'qualitative-maxima-over-ceiling': ['Máximos acima do qualitativo', 'A soma dos máximos das atividades passa do qualitativo. Distribua os máximos corretamente. Os resultados não foram lançados.'],
-  'qualitative-over-ceiling': ['Qualitativo estourado', 'A soma das atividades do aluno passa do qualitativo. O resultado não foi lançado.'],
-  'recovery-above-maximum': ['Recuperação acima do máximo', 'A recuperação e o resultado final não foram lançados.'],
-  'work-without-weight': ['Trabalho sem peso', 'Nota de trabalho com o bloco desligado. O resultado não foi lançado.'],
-  'one-assessment-mode': ['AV2 em modo 1 avaliação', 'Nota na AV2 com a guia em 1 avaliação. O resultado não foi lançado.'],
-  'manual-term-result': ['Média digitada', 'Média digitada à mão no lugar da fórmula. Não foi lançada.'],
+  'qualitative-maxima-over-ceiling': [
+    'Máximos acima do qualitativo',
+    'A soma dos máximos das atividades passa do qualitativo. Distribua os máximos corretamente. Os resultados não foram lançados.',
+  ],
+  'qualitative-over-ceiling': [
+    'Qualitativo estourado',
+    'A soma das atividades do aluno passa do qualitativo. O resultado não foi lançado.',
+  ],
+  'recovery-above-maximum': [
+    'Recuperação acima do máximo',
+    'A recuperação e o resultado final não foram lançados.',
+  ],
+  'work-without-weight': [
+    'Trabalho sem peso',
+    'Nota de trabalho com o bloco desligado. O resultado não foi lançado.',
+  ],
+  'one-assessment-mode': [
+    'AV2 em modo 1 avaliação',
+    'Nota na AV2 com a guia em 1 avaliação. O resultado não foi lançado.',
+  ],
+  'manual-term-result': [
+    'Média digitada',
+    'Média digitada à mão no lugar da fórmula. Não foi lançada.',
+  ],
   'invalid-text': ['Texto no lugar de nota', 'A nota e o resultado do aluno não foram lançados.'],
   'negative-grade': ['Nota negativa', 'A nota e o resultado do aluno não foram lançados.'],
   'invalid-precision': ['Casas decimais', 'A nota e o resultado do aluno não foram lançados.'],
   'invalid-maximum': ['Máximo inválido', 'O máximo da atividade está vazio ou errado.'],
   'duplicate-student-number': ['Número repetido', 'Dois alunos com o mesmo número na guia.'],
-  'grade-without-student': ['Nota sem aluno', 'Nota numa linha sem nome ou número de aluno: não foi lançada. Confira a digitação ou a Relação da planilha.'],
-  'source-unavailable': ['Valor indisponível', 'A planilha não guardou o valor. O anterior foi mantido.'],
+  'grade-without-student': [
+    'Nota sem aluno',
+    'Nota numa linha sem nome ou número de aluno: não foi lançada. Confira a digitação ou a Relação da planilha.',
+  ],
+  'source-unavailable': [
+    'Valor indisponível',
+    'A planilha não guardou o valor. O anterior foi mantido.',
+  ],
 };
 
 function problem(code: string): readonly [string, string | null] {
@@ -61,7 +103,9 @@ function where(value: Finding): string {
 /** A finding about the file itself (no class or student): the tab and cell to look at, never a generic text. */
 function fileWideWhereV1(value: Finding): string {
   if (!value.sheetName) return 'Planilha inteira';
-  return value.cellAddress ? `Guia ${value.sheetName}, célula ${value.cellAddress}` : `Guia ${value.sheetName}`;
+  return value.cellAddress
+    ? `Guia ${value.sheetName}, célula ${value.cellAddress}`
+    : `Guia ${value.sheetName}`;
 }
 
 function teacher(fileName: string): string {
@@ -106,11 +150,25 @@ function groupByProblem(items: readonly Finding[]): readonly ProblemTab[] {
     );
 }
 
-function StateAlert({ state, year }: { readonly state: 'empty' | 'not-authorized' | 'unavailable'; readonly year: number | null }) {
+function StateAlert({
+  state,
+  year,
+}: {
+  readonly state: 'empty' | 'not-authorized' | 'unavailable';
+  readonly year: number | null;
+}) {
   const alerts = {
-    'not-authorized': ['warning', 'Acesso não autorizado', 'Sua sessão não pode consultar a Auditoria.'],
+    'not-authorized': [
+      'warning',
+      'Acesso não autorizado',
+      'Sua sessão não pode consultar a Auditoria.',
+    ],
     unavailable: ['danger', 'Auditoria indisponível', 'Não foi possível ler os problemas agora.'],
-    empty: ['success', 'Nenhum problema', `As planilhas de ${year ?? 'este ano'} estão sem pendências.`],
+    empty: [
+      'success',
+      'Nenhum problema',
+      `As planilhas de ${year ?? 'este ano'} estão sem pendências.`,
+    ],
   } as const;
   const [status, title, text] = alerts[state];
   return (
@@ -159,7 +217,10 @@ function ProblemList({ tab }: { readonly tab: ProblemTab }) {
                     </span>
                   )}
                   {item.cellAddress && (
-                    <span className="hidden shrink-0 text-xs text-muted sm:inline" title={item.sheetName ? `Guia ${item.sheetName}` : undefined}>
+                    <span
+                      className="hidden shrink-0 text-xs text-muted sm:inline"
+                      title={item.sheetName ? `Guia ${item.sheetName}` : undefined}
+                    >
                       {item.cellAddress}
                     </span>
                   )}
@@ -171,7 +232,11 @@ function ProblemList({ tab }: { readonly tab: ProblemTab }) {
       </Surface>
       {tab.items.length > shown && (
         <div className="flex justify-center">
-          <Button size="sm" variant="secondary" onPress={() => setShown((value) => value + ROWS_STEP)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={() => setShown((value) => value + ROWS_STEP)}
+          >
             Mostrar mais ({tab.items.length - shown})
           </Button>
         </div>
@@ -266,7 +331,9 @@ export function RelationalCurrentAuditPageV2() {
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
             <ShieldAlert className="size-4" /> Auditoria
           </div>
-          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.035em]">Problemas nas planilhas</h2>
+          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.035em]">
+            Problemas nas planilhas
+          </h2>
         </div>
         {state === 'ready' && (
           <>
@@ -306,9 +373,16 @@ export function RelationalCurrentAuditPageV2() {
             onSelectionChange={(key) => setSelected(String(key))}
           >
             <Tabs.ListContainer className="min-w-0">
-              <Tabs.List aria-label="Tipos de problema" className="h-auto w-full flex-wrap justify-start">
+              <Tabs.List
+                aria-label="Tipos de problema"
+                className="h-auto w-full flex-wrap justify-start"
+              >
                 {tabs.map((tab) => (
-                  <Tabs.Tab key={tab.code} id={tab.code} className="w-auto gap-1.5 whitespace-nowrap">
+                  <Tabs.Tab
+                    key={tab.code}
+                    id={tab.code}
+                    className="w-auto gap-1.5 whitespace-nowrap"
+                  >
                     <span
                       aria-hidden="true"
                       className={`size-2 rounded-full ${tab.blocking ? 'bg-danger' : 'bg-warning'}`}

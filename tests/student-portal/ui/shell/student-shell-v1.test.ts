@@ -70,8 +70,19 @@ describe('student shell and canonical profile', () => {
       within(screen.getByRole('navigation', { name: 'Menu do Portal' }))
         .getAllByRole('button')
         .map((item) => item.textContent);
-    const show = (fields: { showFrequency?: boolean; showSchedule?: boolean; showIncidents?: boolean }) =>
-      render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, ...fields } }, frequencyClient, scheduleClient, incidentsClient }));
+    const show = (fields: {
+      showFrequency?: boolean;
+      showSchedule?: boolean;
+      showIncidents?: boolean;
+    }) =>
+      render(
+        page({
+          load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, ...fields } },
+          frequencyClient,
+          scheduleClient,
+          incidentsClient,
+        }),
+      );
     // Every key off (or a server without them): the bottom bar with Notas only (owner decision 23/10/2026).
     show({ showFrequency: false, showSchedule: false, showIncidents: false });
     expect(menu()).toEqual(['Notas']);
@@ -99,20 +110,31 @@ describe('student shell and canonical profile', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(scheduleClient.read).toHaveBeenCalledOnce();
   });
-  it("marks the Frequência calendar with a green check, or a red X while the page has a red warning (owner decision 23/10/2026)", async () => {
+  it('marks the Frequência calendar with a green check, or a red X while the page has a red warning (owner decision 23/10/2026)', async () => {
     const year = (tone: 'alert' | 'good' | null) => ({
-      contractVersion: 2 as const, state: 'ready' as const, academicYear: 2026 as const, today: '2026-10-21',
-      year: null, lastReadAt: null, months: [],
+      contractVersion: 2 as const,
+      state: 'ready' as const,
+      academicYear: 2026 as const,
+      today: '2026-10-21',
+      year: null,
+      lastReadAt: null,
+      months: [],
       comment: tone ? { kind: 'near-limit', tone, text: 'Frase' } : null,
     });
-    const mark = () => document.querySelector('.pa3-nav-item[aria-controls="pa3-panel-frequency"] .pa3-nav-icon g')!;
+    const mark = () =>
+      document.querySelector('.pa3-nav-item[aria-controls="pa3-panel-frequency"] .pa3-nav-icon g')!;
     for (const [tone, expected, name] of [
       ['alert', 'pa3-frequency-mark--alert', 'Com aviso'],
       ['good', 'pa3-frequency-mark--good', 'Sem aviso'],
       [null, 'pa3-frequency-mark--good', 'Sem aviso'],
     ] as const) {
       const frequencyClient = { readYear: vi.fn(async () => year(tone)) };
-      render(page({ load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, showFrequency: true } }, frequencyClient }));
+      render(
+        page({
+          load: { state: 'ready', data: { ...SYNTHETIC_SELF_V1, showFrequency: true } },
+          frequencyClient,
+        }),
+      );
       // Unknown until the year is read: the plain icon.
       await vi.waitFor(() => expect(mark().getAttribute('class')).toBe(expected));
       expect(screen.getByRole('button', { name: 'Frequência', description: name })).toBeTruthy();

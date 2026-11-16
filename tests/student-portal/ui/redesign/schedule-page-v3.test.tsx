@@ -103,7 +103,9 @@ it('shows each lesson with its time and the break in its place, different on eac
   // On a computer each day is its own column, with the same rows.
   const week = screen.getByRole('group', { name: 'Horário da semana' });
   expect(within(week).getAllByRole('list')).toHaveLength(5);
-  expect(rows(within(week).getByRole('list', { name: 'Aulas de sexta-feira' }))[0]).toBe('Parada06:45 – 07:45');
+  expect(rows(within(week).getByRole('list', { name: 'Aulas de sexta-feira' }))[0]).toBe(
+    'Parada06:45 – 07:45',
+  );
 });
 
 it('says the lesson going on now and counts to the break, the next lesson and the end', () => {
@@ -115,7 +117,9 @@ it('says the lesson going on now and counts to the break, the next lesson and th
   expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('Próxima aula em 10 minutos');
   expect(screen.getByText('Depois: 4ª aula · MATERIA 4.4 · 09:15')).toBeTruthy();
   // The row of the lesson going on is marked.
-  expect(within(phoneList()).getAllByRole('listitem')[3]!.getAttribute('aria-current')).toBe('time');
+  expect(within(phoneList()).getAllByRole('listitem')[3]!.getAttribute('aria-current')).toBe(
+    'time',
+  );
 
   act(() => {
     at('2026-10-22T09:50:00');
@@ -145,7 +149,9 @@ it('says the lesson going on now and counts to the break, the next lesson and th
   });
   expect(nowTitle()).toBe('Próximas aulas: amanhã');
   // Friday starts with the parada at 06:45.
-  expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('Começa em 18 horas e 54 minutos');
+  expect(screen.getByRole('timer').getAttribute('aria-label')).toBe(
+    'Começa em 18 horas e 54 minutos',
+  );
 });
 
 it('before the day, says when it starts: with the parada, which is never a lesson', () => {
@@ -164,7 +170,11 @@ it('before the day, says when it starts: with the parada, which is never a lesso
 });
 
 it("counts Friday afternoon's last lesson to the parada, then the parada to 18:00", () => {
-  const afternoon = { ...morning(), label: '6º ANO C - VESPERTINO', bells: officialBells2026V1().vespertino };
+  const afternoon = {
+    ...morning(),
+    label: '6º ANO C - VESPERTINO',
+    bells: officialBells2026V1().vespertino,
+  };
   at('2026-10-23T17:00:00');
   render(<SchedulePageV3 classes={[afternoon]} />);
   expect(screen.getByText('Parada em')).toBeTruthy();
@@ -214,7 +224,13 @@ it("marks today's column in the week", () => {
   render(<SchedulePageV3 classes={[grid()]} />);
   const week = screen.getByRole('group', { name: 'Horário da semana' });
   const columns = [...week.querySelectorAll('.pa3-schedule-column')];
-  expect(columns.map((column) => column.classList.contains('is-today'))).toEqual([false, false, false, true, false]);
+  expect(columns.map((column) => column.classList.contains('is-today'))).toEqual([
+    false,
+    false,
+    false,
+    true,
+    false,
+  ]);
 });
 
 it('names each class only when the student has two (regular and integral)', () => {
@@ -261,10 +277,19 @@ it('moves only the icon of the lesson going on, and dots the timeline (owner req
     return item.classList.contains('is-done') ? 'done' : 'later';
   };
   // The parada, the 1st and the 2nd lessons are over; the 3rd goes on; the rest are still to come.
-  expect(items.map(stateOf)).toEqual(['done', 'done', 'done', 'now', 'later', 'later', 'later', 'later']);
-  expect(items.map((item) => item.querySelector('.pa3-schedule-icon .pa3-icon.is-live') !== null)).toEqual([
-    false, false, false, true, false, false, false, false,
+  expect(items.map(stateOf)).toEqual([
+    'done',
+    'done',
+    'done',
+    'now',
+    'later',
+    'later',
+    'later',
+    'later',
   ]);
+  expect(
+    items.map((item) => item.querySelector('.pa3-schedule-icon .pa3-icon.is-live') !== null),
+  ).toEqual([false, false, false, true, false, false, false, false]);
   // The large faint copy behind the name never moves.
   expect(items[3]!.querySelector('.pa3-schedule-watermark .is-live')).toBeNull();
 });
@@ -296,7 +321,9 @@ it("ends the year at the calendar's last lesson, whatever its date (owner reques
   // The year ends where the calendar says: one marked a day later still has lessons that day.
   cleanup();
   at('2026-12-15T13:00:00');
-  render(<SchedulePageV3 classes={[morning()]} schoolYear={{ ...schoolYear, lastDay: '2026-12-16' }} />);
+  render(
+    <SchedulePageV3 classes={[morning()]} schoolYear={{ ...schoolYear, lastDay: '2026-12-16' }} />,
+  );
   expect(nowTitle()).toBe('Próximas aulas: amanhã');
 });
 
@@ -337,14 +364,16 @@ it("slides every class's card the finger's way when a swipe goes from Friday to 
   at('2026-10-23T12:00:00'); // A Friday.
   render(<SchedulePageV3 classes={[morning(), grid('6º ANO A - INTEGRAL')]} />);
   const [first, second] = [...document.querySelectorAll('.pa3-day-slider')] as HTMLElement[];
-  for (const slider of [first!, second!]) Object.defineProperty(slider, 'offsetWidth', { value: 300 });
+  for (const slider of [first!, second!])
+    Object.defineProperty(slider, 'offsetWidth', { value: 300 });
   fireEvent.touchStart(first!, { touches: [{ clientX: 250, clientY: 300 }] });
   fireEvent.touchMove(first!, { touches: [{ clientX: 60, clientY: 305 }] });
   fireEvent.touchEnd(first!, { changedTouches: [{ clientX: 60, clientY: 305 }] });
   act(() => {
     vi.advanceTimersByTime(270);
   });
-  const panels = () => [...second!.querySelectorAll('.pa3-day-panel h3')].map((title) => title.textContent);
+  const panels = () =>
+    [...second!.querySelectorAll('.pa3-day-panel h3')].map((title) => title.textContent);
   // Monday comes in from the right on the other card too: Friday leaves to the left.
   expect(panels()).toEqual(['Hoje, sexta-feira', 'Segunda-feira', 'Terça-feira']);
 });

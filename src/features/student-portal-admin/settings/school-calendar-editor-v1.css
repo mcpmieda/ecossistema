@@ -112,13 +112,27 @@
   background: var(--sc-color, var(--surface));
   box-shadow: inset 0 0 0 1px var(--border);
 }
-.pa-school-kind--letivo { --sc-color: var(--sc-letivo); }
-.pa-school-kind--sabado-letivo { --sc-color: var(--sc-sabado); }
-.pa-school-kind--evento-letivo { --sc-color: var(--sc-evento-letivo); }
-.pa-school-kind--feriado { --sc-color: var(--sc-feriado); }
-.pa-school-kind--recesso { --sc-color: var(--sc-recesso); }
-.pa-school-kind--evento { --sc-color: var(--sc-evento); }
-.pa-school-kind--clear { --sc-color: var(--surface); }
+.pa-school-kind--letivo {
+  --sc-color: var(--sc-letivo);
+}
+.pa-school-kind--sabado-letivo {
+  --sc-color: var(--sc-sabado);
+}
+.pa-school-kind--evento-letivo {
+  --sc-color: var(--sc-evento-letivo);
+}
+.pa-school-kind--feriado {
+  --sc-color: var(--sc-feriado);
+}
+.pa-school-kind--recesso {
+  --sc-color: var(--sc-recesso);
+}
+.pa-school-kind--evento {
+  --sc-color: var(--sc-evento);
+}
+.pa-school-kind--clear {
+  --sc-color: var(--surface);
+}
 .pa-school-calendar__note {
   max-width: 26rem;
 }

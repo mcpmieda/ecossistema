@@ -131,7 +131,10 @@ async function smecelOnlyDecisionV1(
     action: request.operation,
     reason: 'operator',
     source: request.sourceId,
-    observation: source.current_observation_id === null ? undefined : scalarTextV1(source.current_observation_id),
+    observation:
+      source.current_observation_id === null
+        ? undefined
+        : scalarTextV1(source.current_observation_id),
     before: { smecelOnly: !request.smecelOnly },
     after: { smecelOnly: request.smecelOnly },
   };

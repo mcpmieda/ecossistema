@@ -74,9 +74,11 @@ function nullableInteger(value: unknown): number | null {
 
 function validateRequest(input: RelationalProjectionRequestV1): void {
   if (
-    !Number.isSafeInteger(input.ofertaId) || input.ofertaId <= 0 ||
+    !Number.isSafeInteger(input.ofertaId) ||
+    input.ofertaId <= 0 ||
     input.ofertaId > 2_147_483_647 ||
-    !Number.isSafeInteger(input.alunoId) || input.alunoId <= 0 ||
+    !Number.isSafeInteger(input.alunoId) ||
+    input.alunoId <= 0 ||
     input.alunoId > 2_147_483_647
   ) {
     throw new RelationalAcademicProjectionErrorV1('invalid-relational-row');
@@ -103,10 +105,7 @@ function sourceComparison(
   return calculated === source ? 'match' : 'mismatch';
 }
 
-function recoveryValue(
-  row: Row | null,
-  term: SimplifiedAcademicTermV1,
-): SimplifiedRecoveryValueV1 {
+function recoveryValue(row: Row | null, term: SimplifiedAcademicTermV1): SimplifiedRecoveryValueV1 {
   if (!row) return null;
   const mask = asInteger(row.rec_nc_mask ?? 0);
   const rrMask = asInteger(row.rec_rr_mask ?? 0);
@@ -196,8 +195,9 @@ export function createRelationalAcademicProjectionServiceV1(database: GradebookP
       }
       // Only placeholder syntax is interpolated. Identifiers are bound values.
       const { param, values } = createGradebookPostgresParametersV1();
-      const placeholders = requests.map((input) =>
-        `(${param(input.ofertaId)}::integer, ${param(input.alunoId)}::integer)`).join(', ');
+      const placeholders = requests
+        .map((input) => `(${param(input.ofertaId)}::integer, ${param(input.alunoId)}::integer)`)
+        .join(', ');
       const rows = await all<Row>(
         database,
         `WITH requested(oferta_id, aluno_id) AS (VALUES ${placeholders})

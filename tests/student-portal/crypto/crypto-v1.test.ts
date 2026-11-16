@@ -1,9 +1,18 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { PortalCryptoV1, SCRYPT_PARAMETERS_V1 } from '../../../server/student-portal/crypto/crypto-v1';
+import {
+  PortalCryptoV1,
+  SCRYPT_PARAMETERS_V1,
+} from '../../../server/student-portal/crypto/crypto-v1';
 
-const pepper = new Map([[1, new Uint8Array(32).fill(1)], [2, new Uint8Array(32).fill(2)]]);
-const qrKeys = new Map([[1, new Uint8Array(32).fill(3)], [2, new Uint8Array(32).fill(4)]]);
+const pepper = new Map([
+  [1, new Uint8Array(32).fill(1)],
+  [2, new Uint8Array(32).fill(2)],
+]);
+const qrKeys = new Map([
+  [1, new Uint8Array(32).fill(3)],
+  [2, new Uint8Array(32).fill(4)],
+]);
 const cryptoPort = new PortalCryptoV1(pepper, qrKeys);
 
 describe('native memory-hard verifiers and versioned QR HMAC', () => {
@@ -24,7 +33,9 @@ describe('native memory-hard verifiers and versioned QR HMAC', () => {
     const wrong = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(9)]]), qrKeys);
     expect(await wrong.verifySecret('2001', verifier)).toBe(false);
     const removed = new PortalCryptoV1(new Map([[2, pepper.get(2)!]]), qrKeys);
-    await expect(removed.verifySecret('2001', verifier)).rejects.toThrow('student-portal-crypto-pepper-unavailable');
+    await expect(removed.verifySecret('2001', verifier)).rejects.toThrow(
+      'student-portal-crypto-pepper-unavailable',
+    );
     const current = await cryptoPort.deriveVerifier('2001', 2);
     expect(await removed.verifySecret('2001', current)).toBe(true);
   });
@@ -32,11 +43,19 @@ describe('native memory-hard verifiers and versioned QR HMAC', () => {
   it('rejects downgraded or abusive verifier parameters before KDF work', async () => {
     const verifier = await cryptoPort.deriveVerifier('123456', 1);
     for (const N of [1, 16384, 1073741824]) {
-      await expect(cryptoPort.verifySecret('123456', { ...verifier, parameters: { ...verifier.parameters, N } }))
-        .rejects.toThrow('student-portal-crypto-verifier-unavailable');
+      await expect(
+        cryptoPort.verifySecret('123456', {
+          ...verifier,
+          parameters: { ...verifier.parameters, N },
+        }),
+      ).rejects.toThrow('student-portal-crypto-verifier-unavailable');
     }
-    await expect(cryptoPort.verifySecret('123456', { ...verifier, algorithm: 'sha256' })).rejects.toThrow();
-    await expect(cryptoPort.verifySecret('123456', { ...verifier, digest: 'not-a-digest' })).rejects.toThrow();
+    await expect(
+      cryptoPort.verifySecret('123456', { ...verifier, algorithm: 'sha256' }),
+    ).rejects.toThrow();
+    await expect(
+      cryptoPort.verifySecret('123456', { ...verifier, digest: 'not-a-digest' }),
+    ).rejects.toThrow();
   });
 
   it('recreates the same QR signature and binds the credential and key version', async () => {
@@ -48,7 +67,9 @@ describe('native memory-hard verifiers and versioned QR HMAC', () => {
     expect(await cryptoPort.verifyQr(cryptoPort.randomToken(32), 1, signature)).toBe(false);
     expect(await cryptoPort.verifyQr(id, 2, signature)).toBe(false);
     expect(await cryptoPort.verifyQr(id, 1, signature + '=')).toBe(false);
-    await expect(cryptoPort.signQr(id, 3)).rejects.toThrow('student-portal-crypto-qr-key-unavailable');
+    await expect(cryptoPort.signQr(id, 3)).rejects.toThrow(
+      'student-portal-crypto-qr-key-unavailable',
+    );
   });
 
   it('generates opaque high-entropy tokens and stores stable one-way hashes', async () => {

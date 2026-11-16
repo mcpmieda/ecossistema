@@ -12,7 +12,10 @@ import {
 } from '../../http/security';
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
 import { retiredGradebookRequestV1 } from './retired-request-v1';
-import { relationalCouncilRequestSchemaV3, type RelationalCouncilResponseV3 } from '../../../shared/gradebook-contracts/council/relational-council-v3';
+import {
+  relationalCouncilRequestSchemaV3,
+  type RelationalCouncilResponseV3,
+} from '../../../shared/gradebook-contracts/council/relational-council-v3';
 import { createRelationalCouncilV3 } from '../application/council/relational-council-v3';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 
@@ -29,7 +32,10 @@ function unavailable(status = 503): Response {
 type CouncilSessionV1 = Awaited<ReturnType<typeof requireAuth>>;
 
 /** The signed-in reader allowed in the Banco de Notas, or the refusal to send back. */
-async function councilSessionV1(request: Request, env: RuntimeEnv): Promise<CouncilSessionV1 | Response> {
+async function councilSessionV1(
+  request: Request,
+  env: RuntimeEnv,
+): Promise<CouncilSessionV1 | Response> {
   try {
     const session = await requireAuth(request, env);
     authorizeGradebookRuntimeV1(session);
@@ -42,11 +48,18 @@ async function councilSessionV1(request: Request, env: RuntimeEnv): Promise<Coun
 }
 
 /** The HTTP status of a V3 answer: ready, not found, invalid, unprocessable, unavailable or conflict. */
-function councilStatusV3(state: RelationalCouncilResponseV3['state']): 200 | 404 | 400 | 422 | 503 | 409 {
+function councilStatusV3(
+  state: RelationalCouncilResponseV3['state'],
+): 200 | 404 | 400 | 422 | 503 | 409 {
   if (state === 'ready') return 200;
   if (state === 'not-found') return 404;
   if (state === 'invalid-request') return 400;
-  if (state === 'scope-too-large' || state === 'closure-blocked' || state === 'student-not-eligible') return 422;
+  if (
+    state === 'scope-too-large' ||
+    state === 'closure-blocked' ||
+    state === 'student-not-eligible'
+  )
+    return 422;
   return state === 'unavailable' ? 503 : 409;
 }
 
@@ -60,10 +73,12 @@ async function serveRelationalCouncilV3(
   const parsed = relationalCouncilRequestSchemaV3.safeParse(payload);
   if (!parsed.success) return noStoreJsonV1({ contractVersion: 3, state: 'invalid-request' }, 400);
   const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
-  if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
-      !['production', 'local', 'preview'].includes(environment) ||
-      (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
-      !env.GRADEBOOK_DATABASE) {
+  if (
+    env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
+    !['production', 'local', 'preview'].includes(environment) ||
+    (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
+    !env.GRADEBOOK_DATABASE
+  ) {
     return noStoreJsonV1({ contractVersion: 3, state: 'unavailable' }, 503);
   }
   try {
@@ -71,7 +86,10 @@ async function serveRelationalCouncilV3(
       env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
       session.oid,
     ).execute(parsed.data);
-    if (response.state === 'ready' && ['open', 'decision', 'vote', 'close', 'reopen'].includes(response.operation))
+    if (
+      response.state === 'ready' &&
+      ['open', 'decision', 'vote', 'close', 'reopen'].includes(response.operation)
+    )
       afterCommit?.(session);
     return noStoreJsonV1(response, councilStatusV3(response.state));
   } catch {
@@ -79,7 +97,11 @@ async function serveRelationalCouncilV3(
   }
 }
 
-export function createCouncilWorkspaceRequestHandlerV1(): (request: Request, env: RuntimeEnv, afterCommit?: GradebookAfterCommitV1) => Promise<Response | null> {
+export function createCouncilWorkspaceRequestHandlerV1(): (
+  request: Request,
+  env: RuntimeEnv,
+  afterCommit?: GradebookAfterCommitV1,
+) => Promise<Response | null> {
   return async (request, env, afterCommit) => {
     if (new URL(request.url).pathname !== GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1) return null;
 
@@ -97,7 +119,12 @@ export function createCouncilWorkspaceRequestHandlerV1(): (request: Request, env
       return unavailable(cause instanceof HttpError ? cause.status : 400);
     }
 
-    if (payload !== null && typeof payload === 'object' && 'contractVersion' in payload && payload.contractVersion === 3)
+    if (
+      payload !== null &&
+      typeof payload === 'object' &&
+      'contractVersion' in payload &&
+      payload.contractVersion === 3
+    )
       return serveRelationalCouncilV3(payload, env, session, afterCommit);
     return retiredGradebookRequestV1(payload);
   };

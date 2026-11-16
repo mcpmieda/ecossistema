@@ -442,13 +442,19 @@ export function StudentReconciliationV1({
     { item: selected ? itemKeyV1(selected) : null },
     (restored) => {
       if (locked || !allowDraftNavigationV1()) return false;
-      const item = restored.item === null ? undefined : items.find((row) => itemKeyV1(row) === restored.item);
+      const item =
+        restored.item === null ? undefined : items.find((row) => itemKeyV1(row) === restored.item);
       if (item) void open(item);
       else back();
     },
     (value) =>
       value !== null && typeof value === 'object' && 'item' in value
-        ? { item: typeof (value as { item: unknown }).item === 'string' ? (value as { item: string }).item : null }
+        ? {
+            item:
+              typeof (value as { item: unknown }).item === 'string'
+                ? (value as { item: string }).item
+                : null,
+          }
         : null,
   );
   function selectedContent(current: ReconciliationListItemV1) {

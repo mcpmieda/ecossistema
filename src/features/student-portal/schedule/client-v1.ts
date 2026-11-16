@@ -2,7 +2,10 @@ import { z } from 'zod';
 import { requestSignalV1 } from '../shared/request-signal-v1';
 import { FrequencyClientErrorV2 } from '../frequency/client-v2';
 import { bellDayV1 } from '../../../../shared/student-portal-contracts/school-bells-v1';
-import { schoolDaysOffV1, schoolYearSpanV1 } from '../../../../shared/student-portal-contracts/school-calendar-v1';
+import {
+  schoolDaysOffV1,
+  schoolYearSpanV1,
+} from '../../../../shared/student-portal-contracts/school-calendar-v1';
 
 /*
  * The weekly grid of the student's own class(es), from

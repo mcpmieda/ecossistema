@@ -11,9 +11,15 @@ import { StudentPortalWorkspaceV1 } from '../workspace/student-workspace-v1';
 import { brilliantSealCountV1 } from '../../../../shared/student-portal-contracts/brilliant-seal-v1';
 import { SCHOOL_NAME_V1 } from '../../../shared/brand/school-mark-v1';
 import './student-shell-v1.css';
-import { createStudentFrequencyClientV2, type StudentFrequencyClientV2 } from '../frequency/client-v2';
+import {
+  createStudentFrequencyClientV2,
+  type StudentFrequencyClientV2,
+} from '../frequency/client-v2';
 import { createStudentScheduleClientV1, type StudentScheduleClientV1 } from '../schedule/client-v1';
-import { createStudentIncidentsClientV1, type StudentIncidentsClientV1 } from '../incidents/client-v1';
+import {
+  createStudentIncidentsClientV1,
+  type StudentIncidentsClientV1,
+} from '../incidents/client-v1';
 import { PortalPagesV3 } from '../redesign/portal-pages-v3';
 import { PageLoadingV3 } from '../redesign/page-loading-v3';
 import { markStudentModuleFailureV1 } from '../../../student-portal/diagnostics-v1';
@@ -217,7 +223,9 @@ export function StudentProfileV1({
   return (
     <header
       className={
-        photo ? 'pa-student-hero pa-student-hero--arch' : 'pa-student-hero pa-student-hero--no-portrait'
+        photo
+          ? 'pa-student-hero pa-student-hero--arch'
+          : 'pa-student-hero pa-student-hero--no-portrait'
       }
       aria-labelledby={heading}
     >
@@ -255,7 +263,10 @@ export function StudentProfileV1({
         <div className="pa-hero-body">
           <div className="pa-hero-copy">
             <p className="pa-hero-greeting">Olá,</p>
-            <h3 className={'pa-student-name pa-student-name--' + nameLengthV1(profile.name)} title={profile.name}>
+            <h3
+              className={'pa-student-name pa-student-name--' + nameLengthV1(profile.name)}
+              title={profile.name}
+            >
               {profile.name}
             </h3>
 
@@ -299,10 +310,16 @@ export function StudentProfileV1({
   );
 }
 
-type StudentMessageKindV1 = 'empty' | 'error' | 'expired' | 'closed' | 'maintenance' | 'unavailable';
+type StudentMessageKindV1 =
+  'empty' | 'error' | 'expired' | 'closed' | 'maintenance' | 'unavailable';
 const messages = {
   empty: { title: 'Notas ainda não publicadas', description: '', status: 'default', action: '' },
-  closed: { title: 'Acesso ao Portal fechado', description: '', status: 'warning', action: 'Tentar novamente' },
+  closed: {
+    title: 'Acesso ao Portal fechado',
+    description: '',
+    status: 'warning',
+    action: 'Tentar novamente',
+  },
   error: {
     title: 'Não foi possível carregar seus dados',
     description: '',
@@ -341,7 +358,9 @@ function StudentPortalMessageV1({
     return (
       <Card className="pa-empty-card">
         <Card.Content>
-          <p><output className="contents">{message.title}</output></p>
+          <p>
+            <output className="contents">{message.title}</output>
+          </p>
         </Card.Content>
       </Card>
     );
@@ -392,8 +411,10 @@ function StudentPageSkeletonV1() {
 }
 
 export type StudentPageStateV1 = PortalLoadStateV1<SelfResponseV1> | { state: 'maintenance' };
-export interface StudentPagePropsV1
-  extends Omit<StudentShellPropsV1, 'children' | 'busy' | 'hero'> {
+export interface StudentPagePropsV1 extends Omit<
+  StudentShellPropsV1,
+  'children' | 'busy' | 'hero'
+> {
   load: StudentPageStateV1;
   status?: ReactNode;
   onRetry?: () => void;

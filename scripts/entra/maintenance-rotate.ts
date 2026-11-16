@@ -46,7 +46,11 @@ export class MaintenanceRotationError extends Error {
   readonly status?: number;
 
   constructor(stage: string, status?: number) {
-    super(status ? `Maintenance rotation failed at ${stage} (${status})` : `Maintenance rotation failed at ${stage}`);
+    super(
+      status
+        ? `Maintenance rotation failed at ${stage} (${status})`
+        : `Maintenance rotation failed at ${stage}`,
+    );
     this.name = 'MaintenanceRotationError';
     this.stage = stage;
     this.status = status;
@@ -128,7 +132,8 @@ function normalizeExistingKey(
     displayName: credential.displayName,
     startDateTime: credential.startDateTime,
     endDateTime: credential.endDateTime,
-    ...(typeof credential.customKeyIdentifier === 'string' && credential.customKeyIdentifier.length > 0
+    ...(typeof credential.customKeyIdentifier === 'string' &&
+    credential.customKeyIdentifier.length > 0
       ? { customKeyIdentifier: credential.customKeyIdentifier }
       : {}),
     slot,
@@ -171,7 +176,10 @@ async function readTarget(
   token: string,
   target: MaintenanceRotationTarget,
   objectId: string,
-): Promise<{ application: Application; keys: Array<NormalizedKey & { slot: MaintenanceRotationSlot }> }> {
+): Promise<{
+  application: Application;
+  keys: Array<NormalizedKey & { slot: MaintenanceRotationSlot }>;
+}> {
   const select = 'id,appId,displayName,keyCredentials,passwordCredentials';
   const application = await graphJson<Application>(
     fetcher,
@@ -210,9 +218,7 @@ function certificateIdentity(key: Pick<NormalizedKey, 'key' | 'displayName'>): s
   return `${key.displayName}\u0000${key.key}`;
 }
 
-function preservedPatchKey(
-  key: NormalizedKey & { slot?: MaintenanceRotationSlot },
-): PatchKey {
+function preservedPatchKey(key: NormalizedKey & { slot?: MaintenanceRotationSlot }): PatchKey {
   return {
     type: 'AsymmetricX509Cert',
     usage: 'Verify',
@@ -258,7 +264,8 @@ function activeSlotForTwo(
   if (keys.length !== 2) throw new MaintenanceRotationError('rotation-requires-two-certificates');
   const a = keys.filter((key) => key.slot === 'A');
   const b = keys.filter((key) => key.slot === 'B');
-  if (a.length !== 1 || b.length !== 1) throw new MaintenanceRotationError('rotation-slot-layout-invalid');
+  if (a.length !== 1 || b.length !== 1)
+    throw new MaintenanceRotationError('rotation-slot-layout-invalid');
   const aTime = timestamp(a[0]!.startDateTime, 'slot-a-start-invalid');
   const bTime = timestamp(b[0]!.startDateTime, 'slot-b-start-invalid');
   if (aTime === bTime) throw new MaintenanceRotationError('rotation-active-slot-ambiguous');
@@ -367,7 +374,8 @@ export async function removeExactCertificate(input: {
   const keyId = requiredUuid(input.keyId, 'invalid-key-id');
   const fetcher = input.fetcher ?? fetch;
   const { keys } = await readTarget(fetcher, token, input.target, objectId);
-  if (!keys.some((key) => key.keyId === keyId)) throw new MaintenanceRotationError('key-to-remove-missing');
+  if (!keys.some((key) => key.keyId === keyId))
+    throw new MaintenanceRotationError('key-to-remove-missing');
   if (keys.length <= 1) throw new MaintenanceRotationError('refuse-remove-last-certificate');
   const removed = keys.find((key) => key.keyId === keyId)!;
   const removedIdentity = certificateIdentity(removed);
@@ -380,10 +388,8 @@ export async function removeExactCertificate(input: {
     const converged =
       !after.keys.some((key) => certificateIdentity(key) === removedIdentity) &&
       after.keys.length === remaining.length &&
-      remainingSource.every(
-        (expected) => after.keys.some(
-          (actual) => certificateIdentity(actual) === certificateIdentity(expected),
-        ),
+      remainingSource.every((expected) =>
+        after.keys.some((actual) => certificateIdentity(actual) === certificateIdentity(expected)),
       );
     if (converged) {
       return { status: 'removed', remainingCertificates: after.keys.length };
@@ -425,13 +431,16 @@ export async function finalizeRotation(input: {
     throw new MaintenanceRotationError('finalize-slot-layout-invalid');
   }
   const ordered = [...sameSlot].sort(
-    (left, right) => timestamp(right.startDateTime, 'finalize-start-invalid') -
+    (left, right) =>
+      timestamp(right.startDateTime, 'finalize-start-invalid') -
       timestamp(left.startDateTime, 'finalize-start-invalid'),
   );
   const newest = ordered[0]!;
   const stale = ordered[1]!;
-  if (timestamp(newest.startDateTime, 'finalize-new-start-invalid') <=
-      timestamp(rollback[0]!.startDateTime, 'finalize-rollback-start-invalid')) {
+  if (
+    timestamp(newest.startDateTime, 'finalize-new-start-invalid') <=
+    timestamp(rollback[0]!.startDateTime, 'finalize-rollback-start-invalid')
+  ) {
     throw new MaintenanceRotationError('finalize-new-certificate-not-preferred');
   }
 
@@ -446,7 +455,9 @@ export async function finalizeRotation(input: {
   let after = await readTarget(fetcher, token, input.target, objectId);
   for (let attempt = 0; attempt < 10; attempt++) {
     const retainedNew = after.keys.find((key) => certificateIdentity(key) === newestIdentity);
-    const retainedRollback = after.keys.find((key) => certificateIdentity(key) === rollbackIdentity);
+    const retainedRollback = after.keys.find(
+      (key) => certificateIdentity(key) === rollbackIdentity,
+    );
     const converged =
       after.keys.length === 2 &&
       retainedNew !== undefined &&

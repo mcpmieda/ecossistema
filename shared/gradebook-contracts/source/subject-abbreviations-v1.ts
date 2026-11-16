@@ -7,16 +7,32 @@ import { PT_BR_COLLATOR_V1 } from '../../locale-format-v1';
  * This catalogue is presentation metadata, never the identity of a subject.
  */
 export const SOURCE_SUBJECT_PRESENTATION_V1 = Object.freeze([
-  ['PORTUGUES', 'P'], ['MATEMATICA', 'M'], ['HISTORIA', 'H'], ['GEOGRAFIA', 'G'],
-  ['CIENCIAS', 'C'], ['ARTE', 'A'], ['RELIGIAO', 'RL'], ['REDACAO', 'RD'],
-  ['ED. FISICA', 'F'], ['ETICA', 'ET'], ['INGLES', 'I'], ['COMPUTACAO', 'CT'],
+  ['PORTUGUES', 'P'],
+  ['MATEMATICA', 'M'],
+  ['HISTORIA', 'H'],
+  ['GEOGRAFIA', 'G'],
+  ['CIENCIAS', 'C'],
+  ['ARTE', 'A'],
+  ['RELIGIAO', 'RL'],
+  ['REDACAO', 'RD'],
+  ['ED. FISICA', 'F'],
+  ['ETICA', 'ET'],
+  ['INGLES', 'I'],
+  ['COMPUTACAO', 'CT'],
 ] as const);
 const SOURCE_SUBJECT_ABBREVIATIONS_V1: Readonly<Record<string, string>> = Object.freeze(
-  Object.fromEntries(SOURCE_SUBJECT_PRESENTATION_V1));
+  Object.fromEntries(SOURCE_SUBJECT_PRESENTATION_V1),
+);
 const SOURCE_SUBJECT_PRESENTATION_INDEX_V1 = new Map<string, number>(
-  SOURCE_SUBJECT_PRESENTATION_V1.map(([name], index) => [name, index]));
+  SOURCE_SUBJECT_PRESENTATION_V1.map(([name], index) => [name, index]),
+);
 function normalizeSourceSubjectNameV1(name: string): string {
-  return name.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').trim().replace(/\s+/gu, ' ').toUpperCase();
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .trim()
+    .replace(/\s+/gu, ' ')
+    .toUpperCase();
 }
 export function sourceSubjectPresentationOrderV1(name: string): number | null {
   return SOURCE_SUBJECT_PRESENTATION_INDEX_V1.get(normalizeSourceSubjectNameV1(name)) ?? null;

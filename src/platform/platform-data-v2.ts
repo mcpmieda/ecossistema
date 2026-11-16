@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { platformSnapshotSchemaV2, type PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
+import {
+  platformSnapshotSchemaV2,
+  type PlatformSnapshotV2,
+} from '../../shared/platform-snapshot-v2';
 
 export type PlatformLoadStateV2 =
   | { status: 'loading' }
@@ -12,7 +15,11 @@ const earlyReads = new Map<string, { at: number; response: Promise<Response> }>(
 /** Starts the read together with the identity check so the first open does not wait for it.
  * The early answer is used once, only while fresh and successful; anything else is read again. */
 export function prefetchPlatformDataV2(fetcher: typeof fetch = fetch, now = Date.now) {
-  const response = fetcher(BOOTSTRAP_PATH_V2, { credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+  const response = fetcher(BOOTSTRAP_PATH_V2, {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    redirect: 'error',
+  });
   response.catch(() => undefined);
   earlyReads.set(BOOTSTRAP_PATH_V2, { at: now(), response });
 }
@@ -20,7 +27,12 @@ async function takeEarlyReadV1(path: string, now: () => number): Promise<Respons
   const early = earlyReads.get(path);
   earlyReads.delete(path);
   if (!early || now() - early.at > EARLY_READ_TTL_MS_V1) return undefined;
-  try { const response = await early.response; return response.ok ? response : undefined; } catch { return undefined; }
+  try {
+    const response = await early.response;
+    return response.ok ? response : undefined;
+  } catch {
+    return undefined;
+  }
 }
 /** What a reading says, without what every reading changes (its time and its correlation). */
 function snapshotContentV2(snapshot: PlatformSnapshotV2 | undefined): string {
@@ -39,18 +51,34 @@ function markCheckedV2(at: string) {
 }
 export function usePlatformCheckedAtV2(): string {
   return useSyncExternalStore(
-    (listener) => { checkedListenersV2.add(listener); return () => { checkedListenersV2.delete(listener); }; },
+    (listener) => {
+      checkedListenersV2.add(listener);
+      return () => {
+        checkedListenersV2.delete(listener);
+      };
+    },
     () => checkedAtV2,
     () => checkedAtV2,
   );
 }
 class ReadError extends Error {
-  constructor(readonly status: number, readonly retryAt = 0) { super('Platform data unavailable'); }
+  constructor(
+    readonly status: number,
+    readonly retryAt = 0,
+  ) {
+    super('Platform data unavailable');
+  }
 }
 /** Authenticated read of the authorized modules. There is no persisted permission cache or fallback user. */
-export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => void,
-  fetcher: typeof fetch = fetch, now = Date.now) {
-  let generation = 0, stopped = false, retryAt = 0, pending = false;
+export function createPlatformDataV2(
+  publish: (state: PlatformLoadStateV2) => void,
+  fetcher: typeof fetch = fetch,
+  now = Date.now,
+) {
+  let generation = 0,
+    stopped = false,
+    retryAt = 0,
+    pending = false;
   let snapshot: PlatformSnapshotV2 | undefined;
   let abort: AbortController | undefined;
   /** What was last published: a reading that says the same is not published again. */
@@ -64,15 +92,24 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
   };
   async function read(parent: AbortSignal): Promise<PlatformSnapshotV2> {
     const timeout = new AbortController();
-    const timer = setTimeout(() => timeout.abort(new DOMException('Platform request timed out', 'TimeoutError')), PLATFORM_BOOTSTRAP_TIMEOUT_MS_V2);
+    const timer = setTimeout(
+      () => timeout.abort(new DOMException('Platform request timed out', 'TimeoutError')),
+      PLATFORM_BOOTSTRAP_TIMEOUT_MS_V2,
+    );
     const signal = AbortSignal.any([parent, timeout.signal]);
     let onAbort!: () => void;
     try {
       return await Promise.race([
         (async () => {
           signal.throwIfAborted();
-          const response = await takeEarlyReadV1(BOOTSTRAP_PATH_V2, now)
-            ?? await fetcher(BOOTSTRAP_PATH_V2, { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal });
+          const response =
+            (await takeEarlyReadV1(BOOTSTRAP_PATH_V2, now)) ??
+            (await fetcher(BOOTSTRAP_PATH_V2, {
+              credentials: 'same-origin',
+              cache: 'no-store',
+              redirect: 'error',
+              signal,
+            }));
           signal.throwIfAborted();
           if (!response.ok) {
             const header = response.headers.get('Retry-After');
@@ -97,21 +134,30 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
           if (signal.aborted) onAbort();
         }),
       ]);
-    } finally { clearTimeout(timer); signal.removeEventListener('abort', onAbort); }
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+    }
   }
   function failAuthorization(error: unknown) {
     if (!(error instanceof ReadError) || ![401, 403].includes(error.status)) return false;
-    stopped = true; snapshot = undefined;
+    stopped = true;
+    snapshot = undefined;
     abort?.abort();
-    publish({ status: 'error', message: 'Sua autorização precisa ser verificada novamente. Entre novamente no Centro.' });
+    publish({
+      status: 'error',
+      message: 'Sua autorização precisa ser verificada novamente. Entre novamente no Centro.',
+    });
     return true;
   }
   /** A return of focus reads again in 2 min at the soonest; after a failure it follows the
    * server's Retry-After (30 s at least) and the page shown stays. */
   async function refresh() {
     if (stopped || pending || !snapshot || now() < retryAt) return;
-    const own = generation, controller = new AbortController();
-    abort = controller; pending = true;
+    const own = generation,
+      controller = new AbortController();
+    abort = controller;
+    pending = true;
     try {
       const value = await read(controller.signal);
       if (controller.signal.aborted || own !== generation || stopped) return;
@@ -124,42 +170,73 @@ export function createPlatformDataV2(publish: (state: PlatformLoadStateV2) => vo
       if (controller.signal.aborted || own !== generation || stopped) return;
       if (failAuthorization(error)) return;
       retryAt = Math.max(now() + 30_000, error instanceof ReadError ? error.retryAt : 0);
-    } finally { if (own === generation) pending = false; }
+    } finally {
+      if (own === generation) pending = false;
+    }
   }
   async function start() {
-    generation++; stopped = false; snapshot = undefined; pending = false; retryAt = 0;
+    generation++;
+    stopped = false;
+    snapshot = undefined;
+    pending = false;
+    retryAt = 0;
     published = '';
-    abort?.abort(); publish({ status: 'loading' });
-    const own = generation, controller = new AbortController(); abort = controller;
+    abort?.abort();
+    publish({ status: 'loading' });
+    const own = generation,
+      controller = new AbortController();
+    abort = controller;
     try {
       const value = await read(controller.signal);
       if (controller.signal.aborted || own !== generation || stopped) return;
-      snapshot = value; markCheckedV2(value.generatedAt); retryAt = now() + 120_000; emit();
+      snapshot = value;
+      markCheckedV2(value.generatedAt);
+      retryAt = now() + 120_000;
+      emit();
     } catch (error) {
       if (controller.signal.aborted || own !== generation || stopped) return;
       if (failAuthorization(error)) return;
       stopped = true;
-      publish({ status: 'error', message: 'Não foi possível carregar os módulos autorizados. Tente novamente.' });
+      publish({
+        status: 'error',
+        message: 'Não foi possível carregar os módulos autorizados. Tente novamente.',
+      });
     }
   }
-  return { start, refresh, dispose() {
-    generation++; stopped = true; snapshot = undefined;
-    abort?.abort();
-  } };
+  return {
+    start,
+    refresh,
+    dispose() {
+      generation++;
+      stopped = true;
+      snapshot = undefined;
+      abort?.abort();
+    },
+  };
 }
 export function usePlatformDataV2() {
   const [loadState, setLoadState] = useState<PlatformLoadStateV2>({ status: 'loading' });
   const current = useRef<ReturnType<typeof createPlatformDataV2> | null>(null);
   useEffect(() => {
-    const controller = createPlatformDataV2(setLoadState); current.current = controller;
+    const controller = createPlatformDataV2(setLoadState);
+    current.current = controller;
     // No clock (ADMIN_AUTOMATIC_READS_V1 is off): read again only when the window comes back.
-    const refresh = () => { if (document.visibilityState !== 'hidden') void controller.refresh(); };
-    window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh);
+    const refresh = () => {
+      if (document.visibilityState !== 'hidden') void controller.refresh();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
     void controller.start();
     return () => {
-      controller.dispose(); current.current = null;
-      window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh);
+      controller.dispose();
+      current.current = null;
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
     };
   }, []);
-  return { loadState, reload: () => loadState.status === 'error' ? current.current?.start() : current.current?.refresh() };
+  return {
+    loadState,
+    reload: () =>
+      loadState.status === 'error' ? current.current?.start() : current.current?.refresh(),
+  };
 }

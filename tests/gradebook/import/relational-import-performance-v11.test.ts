@@ -5,7 +5,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { expect, it } from 'vitest';
-import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import {
+  installResetSchemaFixtureV1,
+  installReconciliationSchemaFixtureV1,
+} from '../../student-portal/year-reset/schema-fixture';
 import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createGradebookPostgresDatabaseFromSqlV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createImportPerformanceObserverV1 } from '../../../server/gradebook/persistence/postgres/import-performance-observer-v1';
@@ -178,7 +181,7 @@ async function runRepetition(
     ])
       await pg.exec(file('gradebook-simplified', name));
     await installResetSchemaFixtureV1(pg);
-  await installReconciliationSchemaFixtureV1(pg);
+    await installReconciliationSchemaFixtureV1(pg);
     for (const name of [
       '0008_atomic_publication_v2.sql',
       '0009_publication_cutover_guard_v2.sql',
@@ -203,9 +206,7 @@ async function runRepetition(
           operation({ unsafe: (sql, values) => execute(client, sql, values) }),
         ),
     });
-    expect(
-      (await createGradebookImportService(database).execute(relation)).state,
-    ).toBe('applied');
+    expect((await createGradebookImportService(database).execute(relation)).state).toBe('applied');
     const run = async (scenario: ScenarioV11, request: GradebookNotesImportRequestV9) => {
       const expected = BASELINE_V11[scenario];
       const observer = createImportPerformanceObserverV1();

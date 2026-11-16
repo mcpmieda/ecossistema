@@ -261,14 +261,27 @@ const ready = z
       fail();
     if (value.learning) {
       const learning = value.learning;
-      const instrumentKeys = new Set(value.components.flatMap((item) => item.instruments.map((entry) => entry.key)));
-      if (learning.students.length !== studentIds.length || learning.students.some((item, index) =>
-        item.studentId !== studentIds[index] ||
-        (item.dimensions !== undefined && item.dimensions.components !== value.students[index]?.summary.dimensionGap.n) ||
-        item.recurring.some((entry) =>
-          !offerIds.includes(entry.offerId) || [...entry.instrumentTerms, ...entry.consecutiveTerms]
-            .some((term) => value.period !== 'annual' && term !== value.period))) ||
-        learning.activitiesToReview.some((key) => !instrumentKeys.has(key))) fail();
+      const instrumentKeys = new Set(
+        value.components.flatMap((item) => item.instruments.map((entry) => entry.key)),
+      );
+      if (
+        learning.students.length !== studentIds.length ||
+        learning.students.some(
+          (item, index) =>
+            item.studentId !== studentIds[index] ||
+            (item.dimensions !== undefined &&
+              item.dimensions.components !== value.students[index]?.summary.dimensionGap.n) ||
+            item.recurring.some(
+              (entry) =>
+                !offerIds.includes(entry.offerId) ||
+                [...entry.instrumentTerms, ...entry.consecutiveTerms].some(
+                  (term) => value.period !== 'annual' && term !== value.period,
+                ),
+            ),
+        ) ||
+        learning.activitiesToReview.some((key) => !instrumentKeys.has(key))
+      )
+        fail();
     }
   });
 const failure = performanceResponseSchemaV2.options[0]
@@ -287,6 +300,7 @@ export function performanceAnalyticsMatchesV6(
       response.classGroup.id === request.classId &&
       response.period === request.period &&
       (!request.includeLearning || response.learning?.version === 1) &&
-      (!request.includeStudentDimensions || response.learning?.students.every((student) => student.dimensions !== undefined) === true))
+      (!request.includeStudentDimensions ||
+        response.learning?.students.every((student) => student.dimensions !== undefined) === true))
   );
 }

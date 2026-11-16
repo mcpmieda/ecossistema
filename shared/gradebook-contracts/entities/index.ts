@@ -25,9 +25,7 @@ export type EntityLifecycleStatusV1 = 'active' | 'inactive';
 export type EnrollmentPositionV1 = 'current' | 'historical';
 export type StudentStatusV1 = 'active' | 'transferred' | 'withdrawn' | 'deceased' | 'other';
 export type TeachingAssignmentConfirmationOriginV1 =
-  | 'imported-source'
-  | 'user-confirmed'
-  | 'administrative';
+  'imported-source' | 'user-confirmed' | 'administrative';
 
 export interface EffectivePeriodV1 {
   readonly startsOn?: string;

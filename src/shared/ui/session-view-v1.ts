@@ -120,7 +120,10 @@ async function readAccountViews(): Promise<Record<string, unknown> | null> {
  * hands forgets the previous person's choices; the account's saved views fill what this tab
  * has not chosen yet; an address-less opening goes back to the last area used.
  */
-export async function startAccountViewsV1(owner: string, openedWithoutAddress: boolean): Promise<void> {
+export async function startAccountViewsV1(
+  owner: string,
+  openedWithoutAddress: boolean,
+): Promise<void> {
   try {
     if (window.sessionStorage.getItem(OWNER_KEY_V1) !== owner) {
       clearTabViews();

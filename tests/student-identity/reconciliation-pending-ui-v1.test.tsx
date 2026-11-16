@@ -179,7 +179,9 @@ it('resets pending rows and opaque cursor for search and class changes, retainin
     classId: 7,
     search: 'match',
   });
-  expect(request.mock.calls.every(([input]) => ['catalog', 'list', 'automatic-report'].includes(input.operation))).toBe(
-    true,
-  );
+  expect(
+    request.mock.calls.every(([input]) =>
+      ['catalog', 'list', 'automatic-report'].includes(input.operation),
+    ),
+  ).toBe(true);
 });

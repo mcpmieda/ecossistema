@@ -1,4 +1,7 @@
-import { gradebookAfterCommitV1, type GradebookAfterCommitV1 } from '../server/gradebook/http/live-after-commit-v1';
+import {
+  gradebookAfterCommitV1,
+  type GradebookAfterCommitV1,
+} from '../server/gradebook/http/live-after-commit-v1';
 import type { RuntimeEnv } from '../server/env';
 import { handleStudentReconciliationRequestV1 } from '../server/student-identity/reconciliation/http-v1';
 import { validateEnv } from '../server/env';
@@ -132,7 +135,11 @@ async function temporaryAuthCookie(
     .filter((transaction) => transaction.exp > Math.floor(Date.now() / 1000))
     .slice(-MAX_AUTH_TRANSACTIONS);
   if (live.length === 0) return clearCookie(AUTH_COOKIE);
-  const value = await seal({ transactions: live } satisfies AuthTransactionEnvelope, secret, 'admin-auth');
+  const value = await seal(
+    { transactions: live } satisfies AuthTransactionEnvelope,
+    secret,
+    'admin-auth',
+  );
   return secureCookie(AUTH_COOKIE, value, { maxAge: 600 });
 }
 
@@ -223,7 +230,8 @@ async function serveAuthLoginV1(request: Request, env: ValidEnvV1): Promise<Resp
         },
       ].slice(-MAX_AUTH_TRANSACTIONS),
     } satisfies AuthTransactionEnvelope,
-    env.SESSION_SECRET, 'admin-auth',
+    env.SESSION_SECRET,
+    'admin-auth',
   );
   return new Response(null, {
     status: 302,
@@ -235,7 +243,12 @@ async function serveAuthLoginV1(request: Request, env: ValidEnvV1): Promise<Resp
 }
 
 /** The sign-in callback: the transaction, the code exchange, the ID token and the institutional role. */
-async function serveAuthCallbackV1(request: Request, env: ValidEnvV1, url: URL, correlationId: string): Promise<Response> {
+async function serveAuthCallbackV1(
+  request: Request,
+  env: ValidEnvV1,
+  url: URL,
+  correlationId: string,
+): Promise<Response> {
   method(request, ['GET']);
   const transactions = await readAuthTransactions(request, env.SESSION_SECRET);
   const error = url.searchParams.get('error');
@@ -246,10 +259,7 @@ async function serveAuthCallbackV1(request: Request, env: ValidEnvV1, url: URL, 
   const remainingTransactions = transactions.filter(
     (item) => item.state !== state && item.exp > now,
   );
-  const remainingAuthCookie = await temporaryAuthCookie(
-    remainingTransactions,
-    env.SESSION_SECRET,
-  );
+  const remainingAuthCookie = await temporaryAuthCookie(remainingTransactions, env.SESSION_SECRET);
 
   if (error) {
     return authFailureResponse({
@@ -370,7 +380,11 @@ async function serveMeV1(request: Request, env: ValidEnvV1): Promise<Response> {
 }
 
 /** The administrative session length: read it, or change it (the session is sealed again). */
-async function serveSessionSettingsV1(request: Request, env: ValidEnvV1, correlationId: string): Promise<Response> {
+async function serveSessionSettingsV1(
+  request: Request,
+  env: ValidEnvV1,
+  correlationId: string,
+): Promise<Response> {
   method(request, ['GET', 'POST']);
   const currentSession = await requireAuth(request, env);
   const capabilities = capabilitiesForRoles(currentSession.roles);
@@ -402,12 +416,7 @@ async function serveSessionSettingsV1(request: Request, env: ValidEnvV1, correla
   );
   headers.append(
     'Set-Cookie',
-    await createSessionDurationPreferenceCookie(
-      env,
-      currentSession.oid,
-      input.durationHours,
-      now,
-    ),
+    await createSessionDurationPreferenceCookie(env, currentSession.oid, input.durationHours, now),
   );
   console.info(
     JSON.stringify({
@@ -420,7 +429,11 @@ async function serveSessionSettingsV1(request: Request, env: ValidEnvV1, correla
 }
 
 /** Collector, frequency, health, public demo and the Painel do Aluno's admin service. */
-async function routeServicesV1(request: Request, env: ValidEnvV1, url: URL): Promise<Response | null> {
+async function routeServicesV1(
+  request: Request,
+  env: ValidEnvV1,
+  url: URL,
+): Promise<Response | null> {
   const collectorResponse = await handleCollectorRequestV1(request, env);
   if (collectorResponse) return collectorResponse;
   const frequencyResponse = await handleFrequencyAdminRequestV2(request, env);
@@ -446,25 +459,43 @@ async function routeServicesV1(request: Request, env: ValidEnvV1, url: URL): Pro
 }
 
 /** Sign-in, sign-out, the reader and the session length. */
-async function routeSessionV1(request: Request, env: ValidEnvV1, url: URL, correlationId: string): Promise<Response | null> {
+async function routeSessionV1(
+  request: Request,
+  env: ValidEnvV1,
+  url: URL,
+  correlationId: string,
+): Promise<Response | null> {
   if (url.pathname === '/auth/login') return serveAuthLoginV1(request, env);
-  if (url.pathname === '/auth/callback') return serveAuthCallbackV1(request, env, url, correlationId);
+  if (url.pathname === '/auth/callback')
+    return serveAuthCallbackV1(request, env, url, correlationId);
   if (url.pathname === '/auth/logout') return serveAuthLogoutV1(request, env);
   if (url.pathname === '/api/me') return serveMeV1(request, env);
-  if (url.pathname === '/api/platform/settings/session') return serveSessionSettingsV1(request, env, correlationId);
+  if (url.pathname === '/api/platform/settings/session')
+    return serveSessionSettingsV1(request, env, correlationId);
   return null;
 }
 
 /** The Banco de Notas: reconciliation and the gradebook API. */
-async function routeGradebookV1(context: Context, request: Request, env: ValidEnvV1, url: URL): Promise<Response | null> {
+async function routeGradebookV1(
+  context: Context,
+  request: Request,
+  env: ValidEnvV1,
+  url: URL,
+): Promise<Response | null> {
   if (url.pathname === '/api/student-reconciliation/v1') {
-    const response = await withOfficialGradebookDatabaseV1(env, (executionEnv) => handleStudentReconciliationRequestV1(request, executionEnv));
+    const response = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>
+      handleStudentReconciliationRequestV1(request, executionEnv),
+    );
     if (response) return response;
   }
 
   if (url.pathname.startsWith('/api/gradebook/')) {
     const gradebookResponse = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>
-      routeOfficialGradebookRequestV1(request, executionEnv, gradebookAfterCommitV1(env, (work) => context.waitUntil(work))),
+      routeOfficialGradebookRequestV1(
+        request,
+        executionEnv,
+        gradebookAfterCommitV1(env, (work) => context.waitUntil(work)),
+      ),
     );
     if (gradebookResponse) return gradebookResponse;
   }
@@ -493,7 +524,10 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   const correlationId = crypto.randomUUID();
   try {
     const pathname = new URL(context.request.url).pathname;
-    const noStore = pathname.startsWith('/api/') || pathname.startsWith('/auth/') || pathname.startsWith('/frequency-collector/');
+    const noStore =
+      pathname.startsWith('/api/') ||
+      pathname.startsWith('/auth/') ||
+      pathname.startsWith('/frequency-collector/');
     return withSecurityHeaders(await route(context as Context, correlationId), noStore);
   } catch (error) {
     const status =

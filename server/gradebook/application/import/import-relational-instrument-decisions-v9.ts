@@ -17,9 +17,10 @@ function isUnavailableCellV9(value: GradebookImportCellV9): value is readonly ['
   return Array.isArray(value) && value[0] === 'u';
 }
 
-export function parseRelationalInstrumentKeyV9(
-  key: string,
-): { readonly term: number; readonly slot: number } {
+export function parseRelationalInstrumentKeyV9(key: string): {
+  readonly term: number;
+  readonly slot: number;
+} {
   const [termText, slotText] = key.split(':');
   const term = Number(termText);
   const slot = Number(slotText);
@@ -37,11 +38,7 @@ export function shouldRetireQualitativeInstrumentV9(input: {
   readonly unavailableDescription: ReadonlySet<GradebookImportInstrumentV9[0]>;
   readonly unavailableValues: ReadonlySet<GradebookImportInstrumentV9[0]>;
 }): boolean {
-  if (
-    input.currentTerm !== input.incomingTerm ||
-    input.currentSlot < 11 ||
-    input.currentSlot > 20
-  )
+  if (input.currentTerm !== input.incomingTerm || input.currentSlot < 11 || input.currentSlot > 20)
     return false;
   const slot = input.currentSlot as GradebookImportInstrumentV9[0];
   return (

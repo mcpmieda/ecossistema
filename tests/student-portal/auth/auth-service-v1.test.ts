@@ -67,9 +67,17 @@ beforeAll(async () => {
     if (failAudit && query.includes('INSERT INTO student_portal.audit_event'))
       throw new Error('synthetic-db-failure');
     // Simulates a proof consumed by a concurrent request between the checks and the update.
-    if (consumeMiss && query.includes('UPDATE student_portal.auth_challenge') && query.includes('RETURNING token_hash'))
+    if (
+      consumeMiss &&
+      query.includes('UPDATE student_portal.auth_challenge') &&
+      query.includes('RETURNING token_hash')
+    )
       return [] as R[];
-    if (query === 'SELECT statement_timestamp() AS now' && shiftNowAtCall > 0 && ++nowCalls === shiftNowAtCall)
+    if (
+      query === 'SELECT statement_timestamp() AS now' &&
+      shiftNowAtCall > 0 &&
+      ++nowCalls === shiftNowAtCall
+    )
       return [{ now: new Date(Date.now() + 400 * 86400_000) }] as unknown as R[];
     return (await target.query<R>(query, [...parameters])).rows;
   };
@@ -213,19 +221,29 @@ describe('KDF transaction boundary', () => {
     const service = new AuthServiceV1(trackedSql, trackedCrypto, 1, risk);
     const challenge = await service.challenge({ contractVersion: 1, qr, pin: '2001' }, id());
     if (challenge.state !== 'password-creation') throw new Error('synthetic-kdf-proof-missing');
-    expect(await service.activate({
-      contractVersion: 1,
-      challenge: challenge.challenge,
-      password: '482913',
-      confirmation: '482913',
-      keepConnected: false,
-    }, id())).toHaveProperty('token');
-    expect(await service.login({
-      contractVersion: 1,
-      qr,
-      password: '482913',
-      keepConnected: false,
-    }, id())).toHaveProperty('token');
+    expect(
+      await service.activate(
+        {
+          contractVersion: 1,
+          challenge: challenge.challenge,
+          password: '482913',
+          confirmation: '482913',
+          keepConnected: false,
+        },
+        id(),
+      ),
+    ).toHaveProperty('token');
+    expect(
+      await service.login(
+        {
+          contractVersion: 1,
+          qr,
+          password: '482913',
+          keepConnected: false,
+        },
+        id(),
+      ),
+    ).toHaveProperty('token');
     expect(phases).toEqual(['verify', 'derive', 'verify']);
   });
 
@@ -233,31 +251,53 @@ describe('KDF transaction boundary', () => {
     await activate();
     let release!: () => void;
     let entered!: () => void;
-    const enteredPromise = new Promise<void>((resolve) => { entered = resolve; });
-    const releasePromise = new Promise<void>((resolve) => { release = resolve; });
-    const service = new AuthServiceV1(sql, cryptoWithV1({
-      verifySecret: async (secret, verifier) => {
-        entered();
-        await releasePromise;
-        return cryptoPort.verifySecret(secret, verifier);
+    const enteredPromise = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const releasePromise = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const service = new AuthServiceV1(
+      sql,
+      cryptoWithV1({
+        verifySecret: async (secret, verifier) => {
+          entered();
+          await releasePromise;
+          return cryptoPort.verifySecret(secret, verifier);
+        },
+      }),
+      1,
+      risk,
+    );
+    const before = Number(
+      (
+        await pg.query<{ count: string }>(
+          'SELECT count(*)::text AS count FROM student_portal.session',
+        )
+      ).rows[0]!.count,
+    );
+    const pending = service.login(
+      {
+        contractVersion: 1,
+        qr,
+        password: '482913',
+        keepConnected: false,
       },
-    }), 1, risk);
-    const before = Number((await pg.query<{ count: string }>(
-      'SELECT count(*)::text AS count FROM student_portal.session',
-    )).rows[0]!.count);
-    const pending = service.login({
-      contractVersion: 1,
-      qr,
-      password: '482913',
-      keepConnected: false,
-    }, id());
+      id(),
+    );
     await enteredPromise;
     await qrService.command(ACTOR, await command('password-reset', { confirmed: true }));
     release();
     expect(await pending).toMatchObject({ state: 'unauthenticated' });
-    expect(Number((await pg.query<{ count: string }>(
-      'SELECT count(*)::text AS count FROM student_portal.session',
-    )).rows[0]!.count)).toBe(before);
+    expect(
+      Number(
+        (
+          await pg.query<{ count: string }>(
+            'SELECT count(*)::text AS count FROM student_portal.session',
+          )
+        ).rows[0]!.count,
+      ),
+    ).toBe(before);
   });
 });
 
@@ -272,12 +312,17 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
       keepConnected: false,
     };
     await expect(auth.activate(input, id())).rejects.toThrow('Weak password');
-    expect((await pg.query<{ consumed_at: string | null }>(
-      'SELECT consumed_at FROM student_portal.auth_challenge',
-    )).rows).toEqual([{ consumed_at: null }]);
+    expect(
+      (
+        await pg.query<{ consumed_at: string | null }>(
+          'SELECT consumed_at FROM student_portal.auth_challenge',
+        )
+      ).rows,
+    ).toEqual([{ consumed_at: null }]);
     expect((await pg.query('SELECT account_id FROM student_portal.auth_attempt')).rows).toEqual([]);
-    expect(await auth.activate({ ...input, password: '482913', confirmation: '482913' }, id()))
-      .toHaveProperty('token');
+    expect(
+      await auth.activate({ ...input, password: '482913', confirmation: '482913' }, id()),
+    ).toHaveProperty('token');
   });
   it('requires QR/PIN, commits activation once, stores only hashes and requires password for an active account', async () => {
     expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({
@@ -303,10 +348,14 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
       state: 'authenticated',
       persistent: false,
     });
-    expect(await sessions.read(result.token, id(), accountId)).toMatchObject({ state: 'authenticated' });
+    expect(await sessions.read(result.token, id(), accountId)).toMatchObject({
+      state: 'authenticated',
+    });
     expect(await sessions.read(result.token, id(), id())).toBeNull();
     // A security revalidation must never authorize the old page after a cookie switches accounts.
-    expect(await sessions.read(result.token, id(), accountId)).toMatchObject({ state: 'authenticated' });
+    expect(await sessions.read(result.token, id(), accountId)).toMatchObject({
+      state: 'authenticated',
+    });
     const stored = JSON.stringify((await pg.query('SELECT * FROM student_portal.session')).rows);
     expect(stored).not.toContain(result.token);
     expect(
@@ -330,8 +379,10 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
         state: 'unauthenticated',
       });
     expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({ next: 'risk' });
-    const guardedVerify = vi.fn((secret: string, verifier: Parameters<CryptoPortV1['verifySecret']>[1]) =>
-      cryptoPort.verifySecret(secret, verifier));
+    const guardedVerify = vi.fn(
+      (secret: string, verifier: Parameters<CryptoPortV1['verifySecret']>[1]) =>
+        cryptoPort.verifySecret(secret, verifier),
+    );
     const guarded = new AuthServiceV1(sql, cryptoWithV1({ verifySecret: guardedVerify }), 1, risk);
     expect(await guarded.login({ ...bad, password: '482913' }, id())).toMatchObject({
       state: 'unauthenticated',
@@ -367,13 +418,22 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     ).rows;
     const reasons = events.map((event) => event.detail_json?.reason ?? event.kind);
     expect(reasons).toEqual([
-      'wrong-password', 'wrong-password', 'wrong-password', 'verification-required',
-      'wrong-password', 'wrong-password', 'temporarily-blocked', 'login',
+      'wrong-password',
+      'wrong-password',
+      'wrong-password',
+      'verification-required',
+      'wrong-password',
+      'wrong-password',
+      'temporarily-blocked',
+      'login',
     ]);
     expect(events[0]!.detail_json).toMatchObject({ step: 'password', failures: 1, blockAfter: 5 });
     expect(events[4]!.detail_json).not.toHaveProperty('blockedUntil');
     expect(events[5]!.detail_json).toMatchObject({ failures: 5, blockedUntil: expect.any(String) });
-    expect(events[6]!.detail_json).toMatchObject({ step: 'password', blockedUntil: expect.any(String) });
+    expect(events[6]!.detail_json).toMatchObject({
+      step: 'password',
+      blockedUntil: expect.any(String),
+    });
     expect(events.at(-1)!.detail_json).toEqual({ keepConnected: false });
   });
 
@@ -578,26 +638,49 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     const signed = await activate();
     const current = await policy.read(SCHOOL);
     await policy.mutate(ACTOR, {
-      contractVersion: 1, operation: 'settings-set', scope: SCHOOL,
-      expectedVersion: current.version, idempotencyKey: id(), acknowledgeImmediateEffect: true,
+      contractVersion: 1,
+      operation: 'settings-set',
+      scope: SCHOOL,
+      expectedVersion: current.version,
+      idempotencyKey: id(),
+      acknowledgeImmediateEffect: true,
       value: { accessEnabled: false },
     });
-    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({ state: 'access-closed' });
+    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({
+      state: 'access-closed',
+    });
     expect(await sessions.read(signed.token, id())).toBeNull();
-    expect(await sessions.read(signed.token, id(), undefined, true)).toMatchObject({ state: 'access-closed' });
+    expect(await sessions.read(signed.token, id(), undefined, true)).toMatchObject({
+      state: 'access-closed',
+    });
     expect(await sessions.read(signed.token, id(), id(), true)).toBeNull();
 
-    const challenge = (headers: Record<string, string>) => servePortalAuthV1(new Request(`${ORIGIN}/api/student/auth/challenge`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({ contractVersion: 1, qr }),
-    }), 'production', ORIGIN, auth, sessions);
+    const challenge = (headers: Record<string, string>) =>
+      servePortalAuthV1(
+        new Request(`${ORIGIN}/api/student/auth/challenge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ contractVersion: 1, qr }),
+        }),
+        'production',
+        ORIGIN,
+        auth,
+        sessions,
+      );
     expect(await (await challenge({})).json()).toMatchObject({ state: 'unauthenticated' });
     const disclosed = await challenge({ [ACCESS_CLOSED_ACCEPT_HEADER_V1]: 'v1' });
     expect(disclosed.status).toBe(403);
     expect(await disclosed.json()).toMatchObject({ state: 'access-closed' });
-    const session = (headers: Record<string, string>) => servePortalAuthV1(new Request(`${ORIGIN}/api/student/session`, {
-      headers: { cookie: `__Host-student_portal_session=${signed.token}`, ...headers },
-    }), 'production', ORIGIN, auth, sessions);
+    const session = (headers: Record<string, string>) =>
+      servePortalAuthV1(
+        new Request(`${ORIGIN}/api/student/session`, {
+          headers: { cookie: `__Host-student_portal_session=${signed.token}`, ...headers },
+        }),
+        'production',
+        ORIGIN,
+        auth,
+        sessions,
+      );
     expect((await session({})).status).toBe(401);
     const closedSession = await session({ [ACCESS_CLOSED_ACCEPT_HEADER_V1]: 'v1' });
     expect(closedSession.status).toBe(403);
@@ -605,24 +688,38 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
 
     const revoked = qr;
     qr = (await qrService.command(ACTOR, await command('qr-regenerate', { confirmed: true }))).qr!;
-    expect(await auth.challenge({ contractVersion: 1, qr: revoked }, id())).toMatchObject({ state: 'unauthenticated' });
+    expect(await auth.challenge({ contractVersion: 1, qr: revoked }, id())).toMatchObject({
+      state: 'unauthenticated',
+    });
     expect(await sessions.read(signed.token, id(), undefined, true)).toBeNull();
     const school = await policy.read(SCHOOL);
     await policy.mutate(ACTOR, {
-      contractVersion: 1, operation: 'settings-set', scope: SCHOOL,
-      expectedVersion: school.version, idempotencyKey: id(), acknowledgeImmediateEffect: true,
+      contractVersion: 1,
+      operation: 'settings-set',
+      scope: SCHOOL,
+      expectedVersion: school.version,
+      idempotencyKey: id(),
+      acknowledgeImmediateEffect: true,
       value: { accessEnabled: true },
     });
     const individual = { kind: 'account', academicYear: 2026, accountId } as const;
     const own = await policy.read(individual);
     await policy.mutate(ACTOR, {
-      contractVersion: 1, operation: 'settings-set', scope: individual,
-      expectedVersion: own.version, idempotencyKey: id(), acknowledgeImmediateEffect: true,
+      contractVersion: 1,
+      operation: 'settings-set',
+      scope: individual,
+      expectedVersion: own.version,
+      idempotencyKey: id(),
+      acknowledgeImmediateEffect: true,
       value: { accessEnabled: false },
     });
-    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({ state: 'access-closed' });
+    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({
+      state: 'access-closed',
+    });
     await qrService.command(ACTOR, await command('block', { blocked: true, confirmed: true }));
-    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({ state: 'unauthenticated' });
+    expect(await auth.challenge({ contractVersion: 1, qr }, id())).toMatchObject({
+      state: 'unauthenticated',
+    });
   });
 
   it('revokes all sessions in a current class with CAS and idempotent receipt', async () => {
@@ -748,9 +845,15 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
       ['accountId=invalid', 403],
       [`accountId=${accountId}&accountId=${id()}`, 403],
     ] as const) {
-      const bound = await servePortalAuthV1(new Request(`${ORIGIN}/api/student/session?${query}`, {
-        headers: { cookie: cookie.split(';')[0]! },
-      }), 'production', ORIGIN, auth, sessions);
+      const bound = await servePortalAuthV1(
+        new Request(`${ORIGIN}/api/student/session?${query}`, {
+          headers: { cookie: cookie.split(';')[0]! },
+        }),
+        'production',
+        ORIGIN,
+        auth,
+        sessions,
+      );
       expect(bound.status).toBe(status);
     }
     expect(
@@ -812,7 +915,9 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
 
 describe('terminal auth result and audited refusal reasons (#1207)', () => {
   type Logged = Record<string, unknown>;
-  async function capture<T>(run: () => Promise<T>): Promise<{ value?: T; error?: unknown; logged: Logged[] }> {
+  async function capture<T>(
+    run: () => Promise<T>,
+  ): Promise<{ value?: T; error?: unknown; logged: Logged[] }> {
     const logged: Logged[] = [];
     const spy = vi.spyOn(console, 'info').mockImplementation((value: unknown) => {
       const record = value as Logged;
@@ -839,45 +944,91 @@ describe('terminal auth result and audited refusal reasons (#1207)', () => {
     expect((await capture(() => auth.challenge({ contractVersion: 1, qr }, id()))).logged).toEqual([
       { event, step: 'challenge', outcome: 'required', next: 'pin' },
     ]);
-    expect((await capture(() => auth.challenge({ contractVersion: 1, qr, pin: '1999' }, id()))).logged).toEqual([
-      { event, step: 'challenge', outcome: 'denied' },
-    ]);
-    const issued = await capture(() => auth.challenge({ contractVersion: 1, qr, pin: '2001' }, id()));
+    expect(
+      (await capture(() => auth.challenge({ contractVersion: 1, qr, pin: '1999' }, id()))).logged,
+    ).toEqual([{ event, step: 'challenge', outcome: 'denied' }]);
+    const issued = await capture(() =>
+      auth.challenge({ contractVersion: 1, qr, pin: '2001' }, id()),
+    );
     expect(issued.logged).toEqual([{ event, step: 'challenge', outcome: 'issued' }]);
     const challenge = (issued.value as { challenge: string }).challenge;
     const weak = await capture(() =>
-      auth.activate({ contractVersion: 1, challenge, password: '123456', confirmation: '123456', keepConnected: false }, id()),
+      auth.activate(
+        {
+          contractVersion: 1,
+          challenge,
+          password: '123456',
+          confirmation: '123456',
+          keepConnected: false,
+        },
+        id(),
+      ),
     );
     expect(weak.error).toBeInstanceOf(Error);
     expect(weak.logged).toEqual([{ event, step: 'activate', outcome: 'invalid-request' }]);
     const activated = await capture(() =>
-      auth.activate({ contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false }, id()),
+      auth.activate(
+        {
+          contractVersion: 1,
+          challenge,
+          password: '482913',
+          confirmation: '482913',
+          keepConnected: false,
+        },
+        id(),
+      ),
     );
     expect(activated.value).toHaveProperty('token');
     expect(activated.logged).toEqual([{ event, step: 'activate', outcome: 'issued' }]);
-    const login = await capture(() => auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()));
+    const login = await capture(() =>
+      auth.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()),
+    );
     expect(login.logged).toEqual([{ event, step: 'login', outcome: 'issued' }]);
-    const wrong = await capture(() => auth.login({ contractVersion: 1, qr, password: '200100', keepConnected: false }, id()));
+    const wrong = await capture(() =>
+      auth.login({ contractVersion: 1, qr, password: '200100', keepConnected: false }, id()),
+    );
     expect(wrong.logged).toEqual([{ event, step: 'login', outcome: 'denied' }]);
-    const serialized = JSON.stringify([issued, activated, login, wrong].flatMap((item) => item.logged));
-    for (const secret of [qr, challenge, accountId, '482913', '2001']) expect(serialized).not.toContain(secret);
+    const serialized = JSON.stringify(
+      [issued, activated, login, wrong].flatMap((item) => item.logged),
+    );
+    for (const secret of [qr, challenge, accountId, '482913', '2001'])
+      expect(serialized).not.toContain(secret);
   });
 
   it('reports the service rate limit as blocked and an unknown card as denied', async () => {
     const limited = new AuthServiceV1(sql, cryptoPort, 1, risk, undefined, async () => false);
-    expect((await capture(() => limited.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()))).logged)
-      .toEqual([{ event, step: 'login', outcome: 'blocked' }]);
+    expect(
+      (
+        await capture(() =>
+          limited.login({ contractVersion: 1, qr, password: '482913', keepConnected: false }, id()),
+        )
+      ).logged,
+    ).toEqual([{ event, step: 'login', outcome: 'blocked' }]);
     const parts = qr.split('.');
     parts[parts.length - 1] = 'A'.repeat(43);
-    expect((await capture(() => auth.challenge({ contractVersion: 1, qr: parts.join('.'), pin: '2001' }, id()))).logged)
-      .toEqual([{ event, step: 'challenge', outcome: 'denied' }]);
+    expect(
+      (
+        await capture(() =>
+          auth.challenge({ contractVersion: 1, qr: parts.join('.'), pin: '2001' }, id()),
+        )
+      ).logged,
+    ).toEqual([{ event, step: 'challenge', outcome: 'denied' }]);
   });
 
   it('reports a rolled-back operation as unavailable and rethrows the same error', async () => {
     const challenge = await proof();
     failAudit = true;
     const result = await capture(() =>
-      auth.activate({ contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false }, id()),
+      auth.activate(
+        {
+          contractVersion: 1,
+          challenge,
+          password: '482913',
+          confirmation: '482913',
+          keepConnected: false,
+        },
+        id(),
+      ),
     );
     expect((result.error as Error).message).toBe('synthetic-db-failure');
     expect(result.logged).toEqual([{ event, step: 'activate', outcome: 'unavailable' }]);
@@ -885,10 +1036,22 @@ describe('terminal auth result and audited refusal reasons (#1207)', () => {
 
   it('emits once for a terminal activation preflight and keeps the result when the sink fails', async () => {
     const challenge = await proof();
-    await pg.exec("UPDATE student_portal.auth_challenge SET created_at=statement_timestamp()-interval '10 minutes',expires_at=statement_timestamp()-interval '1 second'");
-    const input = { contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false };
-    expect((await capture(() => auth.activate(input, id()))).logged).toEqual([{ event, step: 'activate', outcome: 'denied' }]);
-    const spy = vi.spyOn(console, 'info').mockImplementation(() => { throw new Error('sink-unavailable'); });
+    await pg.exec(
+      "UPDATE student_portal.auth_challenge SET created_at=statement_timestamp()-interval '10 minutes',expires_at=statement_timestamp()-interval '1 second'",
+    );
+    const input = {
+      contractVersion: 1,
+      challenge,
+      password: '482913',
+      confirmation: '482913',
+      keepConnected: false,
+    };
+    expect((await capture(() => auth.activate(input, id()))).logged).toEqual([
+      { event, step: 'activate', outcome: 'denied' },
+    ]);
+    const spy = vi.spyOn(console, 'info').mockImplementation(() => {
+      throw new Error('sink-unavailable');
+    });
     try {
       expect(await auth.activate(input, id())).toMatchObject({ state: 'unauthenticated' });
     } finally {
@@ -904,12 +1067,23 @@ describe('terminal auth result and audited refusal reasons (#1207)', () => {
       ]),
     );
     expect(result.logged).toHaveLength(2);
-    expect(result.logged).toContainEqual({ event, step: 'challenge', outcome: 'required', next: 'pin' });
+    expect(result.logged).toContainEqual({
+      event,
+      step: 'challenge',
+      outcome: 'required',
+      next: 'pin',
+    });
     expect(result.logged).toContainEqual({ event, step: 'login', outcome: 'denied' });
   });
 
   it('reports a consumed proof as a retry, not as an expired deadline', async () => {
-    const input = { contractVersion: 1, challenge: await proof(), password: '482913', confirmation: '482913', keepConnected: false };
+    const input = {
+      contractVersion: 1,
+      challenge: await proof(),
+      password: '482913',
+      confirmation: '482913',
+      keepConnected: false,
+    };
     expect(await auth.activate(input, id())).toHaveProperty('token');
     expect(await auth.activate(input, id())).toMatchObject({ state: 'unauthenticated' });
     expect(await reasons()).toEqual([{ reason: 'retry-needed', step: 'create' }]);
@@ -917,9 +1091,20 @@ describe('terminal auth result and audited refusal reasons (#1207)', () => {
 
   it('reports an expired deadline only when the proof really expired', async () => {
     const challenge = await proof();
-    await pg.exec("UPDATE student_portal.auth_challenge SET created_at=statement_timestamp()-interval '10 minutes',expires_at=statement_timestamp()-interval '1 second'");
+    await pg.exec(
+      "UPDATE student_portal.auth_challenge SET created_at=statement_timestamp()-interval '10 minutes',expires_at=statement_timestamp()-interval '1 second'",
+    );
     expect(
-      await auth.activate({ contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false }, id()),
+      await auth.activate(
+        {
+          contractVersion: 1,
+          challenge,
+          password: '482913',
+          confirmation: '482913',
+          keepConnected: false,
+        },
+        id(),
+      ),
     ).toMatchObject({ state: 'unauthenticated' });
     expect(await reasons()).toEqual([{ reason: 'password-window-expired', step: 'create' }]);
   });
@@ -928,12 +1113,23 @@ describe('terminal auth result and audited refusal reasons (#1207)', () => {
     const challenge = await proof();
     consumeMiss = true;
     expect(
-      await auth.activate({ contractVersion: 1, challenge, password: '482913', confirmation: '482913', keepConnected: false }, id()),
+      await auth.activate(
+        {
+          contractVersion: 1,
+          challenge,
+          password: '482913',
+          confirmation: '482913',
+          keepConnected: false,
+        },
+        id(),
+      ),
     ).toMatchObject({ state: 'unauthenticated' });
     consumeMiss = false;
     // Third DB clock read in a PIN challenge: proof snapshot, locked context, then issuance.
     shiftNowAtCall = 3;
-    expect(await auth.challenge({ contractVersion: 1, qr, pin: '2001' }, id())).toMatchObject({ state: 'unauthenticated' });
+    expect(await auth.challenge({ contractVersion: 1, qr, pin: '2001' }, id())).toMatchObject({
+      state: 'unauthenticated',
+    });
     expect(await reasons()).toEqual([
       { reason: 'retry-needed', step: 'create' },
       { reason: 'password-window-expired', step: 'pin' },

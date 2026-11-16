@@ -7,7 +7,8 @@ import { isGradebookImportPersistenceResponseV9 } from '../../../shared/gradeboo
 
 function request(): GradebookNotesImportRequestV9 {
   const term = (trimestre: 1 | 2 | 3) => ({
-    definitionSnapshotVersion: 1 as const, trimestre,
+    definitionSnapshotVersion: 1 as const,
+    trimestre,
     instrumentos: [[1, 6_750]] as const,
     alunos: [
       [1, [5_000], 10_000],
@@ -17,7 +18,8 @@ function request(): GradebookNotesImportRequestV9 {
 
   return {
     transportVersion: 9,
-    operation: 'persist-notas', granularObservationVersion: 1 as const,
+    operation: 'persist-notas',
+    granularObservationVersion: 1 as const,
     manifest: {
       fileName: 'NOTAS TESTE 2026.xlsb',
       sha256: 'a'.repeat(64),
@@ -69,7 +71,11 @@ describe('student missing from the system Relação (manual import)', () => {
     const { request: present, warnings } = dropUnboundStudentsV10(request(), new Set(['7C:1']));
     expect(warnings).toEqual([{ code: 'student-not-in-relation', classCode: '7C', number: 2 }]);
     const offer = present.ofertas[0]!;
-    expect(offer.trimestres.map((term) => term.alunos.map(([numero]) => numero))).toEqual([[1], [1], [1]]);
+    expect(offer.trimestres.map((term) => term.alunos.map(([numero]) => numero))).toEqual([
+      [1],
+      [1],
+      [1],
+    ]);
     expect(offer.recuperacao?.map(([numero]) => numero)).toEqual([1]);
   });
 
@@ -80,9 +86,13 @@ describe('student missing from the system Relação (manual import)', () => {
   });
 
   it('the response with the new warning passes the contract', () => {
-    expect(isGradebookImportPersistenceResponseV9({
-      transportVersion: 9, state: 'applied', summary: { writes: 1, importRecorded: true },
-      warnings: [{ code: 'student-not-in-relation', classCode: '7C', number: 2 }],
-    })).toBe(true);
+    expect(
+      isGradebookImportPersistenceResponseV9({
+        transportVersion: 9,
+        state: 'applied',
+        summary: { writes: 1, importRecorded: true },
+        warnings: [{ code: 'student-not-in-relation', classCode: '7C', number: 2 }],
+      }),
+    ).toBe(true);
   });
 });

@@ -14,12 +14,22 @@ const strip = (node) => {
 };
 const nested = (node) => {
   node = strip(node);
-  return ts.isConditionalExpression(node) && (ts.isConditionalExpression(strip(node.whenTrue)) || ts.isConditionalExpression(strip(node.whenFalse)));
+  return (
+    ts.isConditionalExpression(node) &&
+    (ts.isConditionalExpression(strip(node.whenTrue)) ||
+      ts.isConditionalExpression(strip(node.whenFalse)))
+  );
 };
 
 for (const file of files) {
   const text = readFileSync(file, 'utf8');
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const source = ts.createSourceFile(
+    file,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
   const nl = text.includes('\r\n') ? '\r\n' : '\n';
   const raw = (node) => text.slice(node.getStart(source), node.getEnd());
   const indentOf = (node) => {
@@ -36,7 +46,8 @@ for (const file of files) {
     const head = `${indent}if (${raw(expr.condition)}) {${nl}${emit(expr.whenTrue, sink, indent + unit, returning)}${nl}${indent}}`;
     const rest = strip(expr.whenFalse);
     if (returning) return `${head}${nl}${emit(rest, sink, indent, true)}`;
-    if (ts.isConditionalExpression(rest)) return `${head} else ${emit(rest, sink, indent).trimStart()}`;
+    if (ts.isConditionalExpression(rest))
+      return `${head} else ${emit(rest, sink, indent).trimStart()}`;
     return `${head} else {${nl}${emit(rest, sink, indent + unit)}${nl}${indent}}`;
   };
   // Texts of every value of a (nested) conditional when all are literals, otherwise null.
@@ -47,21 +58,43 @@ for (const file of files) {
       const right = literalLeaves(expr.whenFalse);
       return left && right ? [...left, ...right] : null;
     }
-    const literal = ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr) || ts.isNumericLiteral(expr) ||
-      [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(expr.kind) ||
+    const literal =
+      ts.isStringLiteral(expr) ||
+      ts.isNoSubstitutionTemplateLiteral(expr) ||
+      ts.isNumericLiteral(expr) ||
+      [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(
+        expr.kind,
+      ) ||
       (ts.isIdentifier(expr) && expr.text === 'undefined') ||
-      (ts.isPrefixUnaryExpression(expr) && expr.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(expr.operand));
+      (ts.isPrefixUnaryExpression(expr) &&
+        expr.operator === ts.SyntaxKind.MinusToken &&
+        ts.isNumericLiteral(expr.operand));
     return literal ? [raw(expr)] : null;
   };
   const hasComment = (node) => /\/\/|\/\*/u.test(raw(node));
   const edits = [];
   // Each rewrite answers whether it handled the node (its children are then left alone).
   const rewriteReturn = (node) => {
-    if (!(ts.isReturnStatement(node) && node.expression && nested(node.expression) && !hasComment(node))) return false;
+    if (!(
+      ts.isReturnStatement(node) &&
+      node.expression &&
+      nested(node.expression) &&
+      !hasComment(node)
+    ))
+      return false;
     const indent = indentOf(node);
     // A `return` that is the whole body of an unbraced if/else/loop needs braces of its own.
-    if (ts.isBlock(node.parent) || ts.isSourceFile(node.parent) || ts.isCaseClause(node.parent) || ts.isDefaultClause(node.parent)) {
-      edits.push([node.getStart(source), node.getEnd(), emit(node.expression, (v) => `return ${v};`, indent, true).trimStart()]);
+    if (
+      ts.isBlock(node.parent) ||
+      ts.isSourceFile(node.parent) ||
+      ts.isCaseClause(node.parent) ||
+      ts.isDefaultClause(node.parent)
+    ) {
+      edits.push([
+        node.getStart(source),
+        node.getEnd(),
+        emit(node.expression, (v) => `return ${v};`, indent, true).trimStart(),
+      ]);
     } else {
       const inner = emit(node.expression, (v) => `return ${v};`, indent + unit, true);
       edits.push([node.getStart(source), node.getEnd(), `{${nl}${inner}${nl}${indent}}`]);
@@ -69,7 +102,13 @@ for (const file of files) {
     return true;
   };
   const rewriteArrow = (node) => {
-    if (!(ts.isArrowFunction(node) && !ts.isBlock(node.body) && nested(node.body) && !hasComment(node.body))) return false;
+    if (!(
+      ts.isArrowFunction(node) &&
+      !ts.isBlock(node.body) &&
+      nested(node.body) &&
+      !hasComment(node.body)
+    ))
+      return false;
     const indent = indentOf(node);
     const inner = emit(node.body, (v) => `return ${v};`, indent + unit, true);
     // The brace goes right after `=>`, even when the old body started on the next line.
@@ -79,9 +118,20 @@ for (const file of files) {
     return true;
   };
   const rewriteVariable = (node) => {
-    if (!ts.isVariableStatement(node) || node.modifiers?.length || node.declarationList.declarations.length !== 1) return false;
+    if (
+      !ts.isVariableStatement(node) ||
+      node.modifiers?.length ||
+      node.declarationList.declarations.length !== 1
+    )
+      return false;
     const decl = node.declarationList.declarations[0];
-    if (!(ts.isIdentifier(decl.name) && decl.initializer && nested(decl.initializer) && !hasComment(node))) return false;
+    if (!(
+      ts.isIdentifier(decl.name) &&
+      decl.initializer &&
+      nested(decl.initializer) &&
+      !hasComment(node)
+    ))
+      return false;
     const indent = indentOf(node);
     // Without a declared type, `let` would widen literal values ('a' -> string); keep the union.
     const leaves = literalLeaves(decl.initializer);
@@ -101,7 +151,8 @@ for (const file of files) {
   if (!edits.length) continue;
   let out = text;
   edits.sort((a, b) => b[0] - a[0]);
-  for (const [start, end, replacement] of edits) out = out.slice(0, start) + replacement + out.slice(end);
+  for (const [start, end, replacement] of edits)
+    out = out.slice(0, start) + replacement + out.slice(end);
   console.log(`${edits.length} ${file}`);
   if (write) writeFileSync(file, out);
 }

@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FrequencyPageV3 } from '../../../../src/features/student-portal/redesign/frequency-page-v3';
 import { IncidentsPageV3 } from '../../../../src/features/student-portal/redesign/incidents-page-v3';
 import { PortalPagesV3 } from '../../../../src/features/student-portal/redesign/portal-pages-v3';
-import { FrequencyClientErrorV2, createStudentFrequencyClientV2 } from '../../../../src/features/student-portal/frequency/client-v2';
+import {
+  FrequencyClientErrorV2,
+  createStudentFrequencyClientV2,
+} from '../../../../src/features/student-portal/frequency/client-v2';
 import { createStudentScheduleClientV1 } from '../../../../src/features/student-portal/schedule/client-v1';
 import { createStudentIncidentsClientV1 } from '../../../../src/features/student-portal/incidents/client-v1';
 import { requestSignalV1 } from '../../../../src/features/student-portal/shared/request-signal-v1';
@@ -23,7 +26,12 @@ const incident = (id: string, description = 'Texto') => ({
 });
 const ID = '66666666-6666-4666-8666-666666666666';
 const pages = (client: unknown) => (
-  <PortalPagesV3 schoolName="Escola" hero={<div />} grades={<div>notas</div>} incidents={<IncidentsPageV3 client={client as never} />} />
+  <PortalPagesV3
+    schoolName="Escola"
+    hero={<div />}
+    grades={<div>notas</div>}
+    incidents={<IncidentsPageV3 client={client as never} />}
+  />
 );
 
 beforeEach(setupOperationsDomV1);
@@ -40,7 +48,9 @@ describe('an older phone, without AbortSignal.any', () => {
     // @ts-expect-error an older browser
     AbortSignal.any = undefined;
     try {
-      const fetcher = vi.fn(async () => new Response('{}', { headers: { 'content-type': 'application/json' } }));
+      const fetcher = vi.fn(
+        async () => new Response('{}', { headers: { 'content-type': 'application/json' } }),
+      );
       const signal = new AbortController().signal;
       await Promise.allSettled([
         createStudentFrequencyClientV2(fetcher as never).readYear(signal),
@@ -99,28 +109,37 @@ describe('an absence under an open conflict', () => {
     const disputed = await screen.findByRole('button', { name: /20 de outubro/u });
     expect(disputed.getAttribute('aria-label')).toMatch(/leitura incompleta/u);
     // The other day of the same month keeps its answer.
-    expect(screen.getByRole('button', { name: /19 de outubro/u }).getAttribute('aria-label')).toMatch(/nenhuma falta registrada/u);
+    expect(
+      screen.getByRole('button', { name: /19 de outubro/u }).getAttribute('aria-label'),
+    ).toMatch(/nenhuma falta registrada/u);
   });
 });
 
 describe('a page behind the menu', () => {
   it('is read when the phone comes back, if the portal opened in the background', async () => {
     setVisibility('hidden');
-    const client = { read: vi.fn(async () => ({ incidents: [incident(ID)] })), acknowledge: vi.fn() };
+    const client = {
+      read: vi.fn(async () => ({ incidents: [incident(ID)] })),
+      acknowledge: vi.fn(),
+    };
     render(pages(client));
     expect(client.read).not.toHaveBeenCalled();
     setVisibility('visible');
     await act(async () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    await waitFor(() => expect(document.querySelector('.pa3-nav-badge')?.textContent).toContain('1'));
+    await waitFor(() =>
+      expect(document.querySelector('.pa3-nav-badge')?.textContent).toContain('1'),
+    );
   });
 
   it('is read again when the phone comes back to old data, so its badge is right', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-10-21T12:00:00-03:00'));
     const client = {
-      read: vi.fn(async () => ({ incidents: client.read.mock.calls.length === 1 ? [] : [incident(ID)] })),
+      read: vi.fn(async () => ({
+        incidents: client.read.mock.calls.length === 1 ? [] : [incident(ID)],
+      })),
       acknowledge: vi.fn(),
     };
     render(pages(client));
@@ -131,7 +150,9 @@ describe('a page behind the menu', () => {
       await vi.advanceTimersByTimeAsync(10);
     });
     expect(client.read).toHaveBeenCalledTimes(2);
-    await waitFor(() => expect(document.querySelector('.pa3-nav-badge')?.textContent).toContain('1'));
+    await waitFor(() =>
+      expect(document.querySelector('.pa3-nav-badge')?.textContent).toContain('1'),
+    );
   });
 
   it('is not read again while its data is recent', async () => {
@@ -154,7 +175,14 @@ describe('"Vamos tentar de novo em instantes"', () => {
     render(<FrequencyPageV3 client={{ readYear }} />);
     expect(await screen.findByText(/Vamos tentar de novo em instantes/u)).toBeTruthy();
     // 30 s, 1, 2, 4 min, then every 5 min.
-    for (const [wait, calls] of [[30_000, 2], [60_000, 3], [120_000, 4], [240_000, 5], [300_000, 6], [300_000, 7]] as const) {
+    for (const [wait, calls] of [
+      [30_000, 2],
+      [60_000, 3],
+      [120_000, 4],
+      [240_000, 5],
+      [300_000, 6],
+      [300_000, 7],
+    ] as const) {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(wait - 1_000);
       });
@@ -176,7 +204,9 @@ describe('"Vamos tentar de novo em instantes"', () => {
     const year = portalFrequencyYearV2({
       today: '2026-10-21',
       lastReadAt: '2026-10-21T10:00:00Z',
-      days: [{ date: '2026-10-20', shift: 'MATUTINO', slots_json: [1, 2, 3, 4, 5], complete: true }],
+      days: [
+        { date: '2026-10-20', shift: 'MATUTINO', slots_json: [1, 2, 3, 4, 5], complete: true },
+      ],
       origins: [],
     } as never);
     const readYear = vi.fn(async () => {
@@ -216,7 +246,9 @@ describe('"A escola alterou uma ocorrência"', () => {
     const first = incident(ID);
     const edited = incident('77777777-7777-4777-8777-777777777777', 'Corrigido');
     const client = {
-      read: vi.fn(async () => ({ incidents: client.read.mock.calls.length === 1 ? [first] : [edited] })),
+      read: vi.fn(async () => ({
+        incidents: client.read.mock.calls.length === 1 ? [first] : [edited],
+      })),
       acknowledge: vi.fn(async (id: string) => {
         if (id === first.id) throw new FrequencyClientErrorV2('changed');
         return { acknowledgedAt: '2026-10-29T12:40:00Z' };
@@ -224,7 +256,9 @@ describe('"A escola alterou uma ocorrência"', () => {
     };
     render(<IncidentsPageV3 client={client} />);
     const confirmOne = async () => {
-      fireEvent.click(await screen.findByRole('button', { name: 'Toque aqui para confirmar que leu' }));
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Toque aqui para confirmar que leu' }),
+      );
       fireEvent.click(await screen.findByRole('button', { name: 'Sim, li' }));
     };
     await confirmOne();

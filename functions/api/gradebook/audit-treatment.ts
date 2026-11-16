@@ -34,7 +34,11 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   try {
     const env = validateEnv((context as Context).env);
     const routed = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>
-      handler((context as Context).request, executionEnv, gradebookAfterCommitV1(env, (work) => context.waitUntil(work))),
+      handler(
+        (context as Context).request,
+        executionEnv,
+        gradebookAfterCommitV1(env, (work) => context.waitUntil(work)),
+      ),
     );
     return withSecurityHeaders(routed ?? failure(), true);
   } catch (cause) {

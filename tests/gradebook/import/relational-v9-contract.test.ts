@@ -35,7 +35,8 @@ const manifest = {
 function notesRequestV9(): GradebookNotesImportRequestV9 {
   return {
     transportVersion: 9,
-    operation: 'persist-notas', granularObservationVersion: 1 as const,
+    operation: 'persist-notas',
+    granularObservationVersion: 1 as const,
     manifest,
     ano: 2026,
     professor: 'PROFESSOR TESTE',
@@ -44,7 +45,8 @@ function notesRequestV9(): GradebookNotesImportRequestV9 {
         turmaCodigo: '6A',
         disciplina: 'MATEMÁTICA',
         trimestres: [1, 2, 3].map((trimestre) => ({
-          trimestre: trimestre as 1 | 2 | 3, definitionSnapshotVersion: 1 as const,
+          trimestre: trimestre as 1 | 2 | 3,
+          definitionSnapshotVersion: 1 as const,
           instrumentos: [
             [1, 10000],
             [2, 10000],
@@ -136,13 +138,19 @@ function teacherResultWithAboveMaximum(): BatchSuccess {
 
 describe('gradebook relational import v9', () => {
   it('accepts movement warnings without allowing personal fields in their payload', () => {
-    const response = { transportVersion: 9, state: 'applied', summary: {}, warnings: [
-      { code: 'movement-spelling', classCode: '7A', number: 2, relatedClassCode: '7B' },
-    ] };
+    const response = {
+      transportVersion: 9,
+      state: 'applied',
+      summary: {},
+      warnings: [{ code: 'movement-spelling', classCode: '7A', number: 2, relatedClassCode: '7B' }],
+    };
     expect(isGradebookImportPersistenceResponseV9(response)).toBe(true);
-    expect(isGradebookImportPersistenceResponseV9({ ...response, warnings: [
-      { ...response.warnings[0], studentName: 'SYNTHETIC NAME' },
-    ] })).toBe(false);
+    expect(
+      isGradebookImportPersistenceResponseV9({
+        ...response,
+        warnings: [{ ...response.warnings[0], studentName: 'SYNTHETIC NAME' }],
+      }),
+    ).toBe(false);
   });
   it('normalizes relation statuses without persisting NOVATO', () => {
     expect(parseRelationStatusV9(' NOVATO ')).toEqual([0]);

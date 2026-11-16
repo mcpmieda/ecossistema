@@ -1,4 +1,7 @@
-import { adminReadResponseV2, type AdminReadQueryV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
+import {
+  adminReadResponseV2,
+  type AdminReadQueryV2,
+} from '../../../shared/student-portal-contracts/admin-read-v2';
 import {
   StudentPortalPostgresPersistenceV1,
   type StudentPortalPostgresQueryV1,
@@ -18,15 +21,25 @@ export async function readClosingPreviewV2(
   requestId: string,
   now: Date,
 ) {
-  if (query.scope.kind !== 'account') throw new Error('student-portal-closing-preview-invalid-request');
+  if (query.scope.kind !== 'account')
+    throw new Error('student-portal-closing-preview-invalid-request');
   const accountId = query.scope.accountId.toLowerCase();
-  const sql: StudentPortalPostgresSqlV1 = { unsafe: (text, values) => tx.unsafe(text, values), begin: (run) => run(tx) };
+  const sql: StudentPortalPostgresSqlV1 = {
+    unsafe: (text, values) => tx.unsafe(text, values),
+    begin: (run) => run(tx),
+  };
   const context = await new StudentPortalPostgresPersistenceV1(sql).transaction((store) =>
     publicationContextV1(sql, tx, store, accountId, false, false),
   );
   const preview = context
     ? await termClosingPreviewV2(tx, context)
-    : { mode: 'conclusion' as const, closedPeriods: [], visibleToStudent: false, subjects: [], summary: undefined };
+    : {
+        mode: 'conclusion' as const,
+        closedPeriods: [],
+        visibleToStudent: false,
+        subjects: [],
+        summary: undefined,
+      };
   return adminReadResponseV2.parse({
     contractVersion: 2,
     requestId,

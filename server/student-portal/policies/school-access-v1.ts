@@ -1,4 +1,7 @@
-import { settingsValueV1, type EffectiveSettingsV1 } from '../../../shared/student-portal-contracts/policy-v1';
+import {
+  settingsValueV1,
+  type EffectiveSettingsV1,
+} from '../../../shared/student-portal-contracts/policy-v1';
 import type { PolicyScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import {
   combineAccessPlansV1,

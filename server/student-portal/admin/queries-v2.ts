@@ -49,7 +49,8 @@ export async function readAdminV2(
   if (query.operation === 'settings-overrides')
     return readSettingsOverridesV1(tx, query, actor, requestId, now, cursor);
   if (query.operation === 'shifts-read') return readShiftsV1(tx, query, requestId, now);
-  if (query.operation === 'seals-read') return readSealsV1(tx, query, requestId, now, pendingSealWrites);
+  if (query.operation === 'seals-read')
+    return readSealsV1(tx, query, requestId, now, pendingSealWrites);
   if (query.operation === 'sessions-read')
     return readSessionsV2(tx, query, actor, requestId, now, cursor);
   return readAccountsV2(tx, query, { actor, requestId, now, cursor });
@@ -59,7 +60,12 @@ export async function readAdminV2(
 async function readAccountsV2(
   tx: StudentPortalPostgresQueryV1,
   query: AdminReadQueryV2,
-  { actor, requestId, now, cursor }: { actor: string; requestId: string; now: Date; cursor: AdminCursorV1 },
+  {
+    actor,
+    requestId,
+    now,
+    cursor,
+  }: { actor: string; requestId: string; now: Date; cursor: AdminCursorV1 },
 ) {
   const after = await cursor.read(query, actor, now);
   if (after?.at) throw new Error('student-portal-cursor-invalid-request');
@@ -81,13 +87,13 @@ async function readAccountsV2(
   // for them: each one would otherwise cost its own round trips to the database.
   const pending = Promise.all([
     tx.unsafe(
-    `SELECT ${ADMIN_ACCOUNT_FIELDS_V2},
+      `SELECT ${ADMIN_ACCOUNT_FIELDS_V2},
     (SELECT max(e.occurred_at) FROM student_portal.audit_event e WHERE e.account_id=a.id
       AND e.kind IN ('login','activated') AND e.result='success'
       AND e.occurred_at>${clock}::timestamptz-interval '12 months'
       AND e.occurred_at<=${clock}::timestamptz) AS last_authentication
     ${ACCOUNT_JOIN_V1} WHERE ${where.join(' AND ')} ORDER BY ${orderBy} LIMIT ${bind(limit + 1)}`,
-    values,
+      values,
     ),
     accountsScopeVersionV1(tx),
     query.operation === 'overview'
@@ -112,24 +118,36 @@ async function readAccountsV2(
       state: 'accounts-read',
       items,
       nextCursor:
-        rows.length > limit ? await cursor.next(query, actor, now, items.at(-1)!.accountId, undefined,
-          String(selected.at(-1)!.name)) : null,
+        rows.length > limit
+          ? await cursor.next(
+              query,
+              actor,
+              now,
+              items.at(-1)!.accountId,
+              undefined,
+              String(selected.at(-1)!.name),
+            )
+          : null,
       lastAuthenticationWindowMonths: 12,
     });
   return overviewResponseV2(base, items, health!.status, query.byClass === true);
 }
 
-type SessionPolicyV2 = { id: string; security: number; end: string; persistent: number; short: number };
+type SessionPolicyV2 = {
+  id: string;
+  security: number;
+  end: string;
+  persistent: number;
+  short: number;
+};
 type AdminAccountItemV2 = z.infer<typeof adminAccountReadV2>;
 
 /** The filters of the read; a single record opens even after the student left (audit links),
  * while lists and totals keep showing only enrolled students. */
-function accountWhereV2(
-  query: AdminReadQueryV2,
-  bind: (value: unknown) => string,
-) {
+function accountWhereV2(query: AdminReadQueryV2, bind: (value: unknown) => string) {
   const where = ['a.academic_year=2026'];
-  if (query.scope.kind !== 'account' || query.operation !== 'accounts-read') where.push(ENROLLED_ACCOUNT_SQL_V1);
+  if (query.scope.kind !== 'account' || query.operation !== 'accounts-read')
+    where.push(ENROLLED_ACCOUNT_SQL_V1);
   if (query.scope.kind === 'account') where.push(`a.id=${bind(query.scope.accountId)}::uuid`);
   if (query.scope.kind === 'class') where.push(`b.class_id=${bind(query.scope.classId)}`);
   if (query.accountState !== undefined) where.push(`a.auth_state=${bind(query.accountState)}`);
@@ -193,14 +211,18 @@ async function countValidSessionsV2(
     [JSON.stringify(sessionPolicies), now.toISOString()],
   );
   const counts = new Map(
-    sessions.map((row) => [sessionAccountV2.parse(row.account_id), sessionCountV2.parse(row.count)]),
+    sessions.map((row) => [
+      sessionAccountV2.parse(row.account_id),
+      sessionCountV2.parse(row.count),
+    ]),
   );
   for (const item of items) item.validSessionCount = counts.get(item.accountId) ?? 0;
 }
 
 /** The totals of one group of accounts. */
 export function overviewCountsV2(items: readonly AdminAccountItemV2[]) {
-  const count = (predicate: (item: AdminAccountItemV2) => boolean) => items.filter(predicate).length;
+  const count = (predicate: (item: AdminAccountItemV2) => boolean) =>
+    items.filter(predicate).length;
   return {
     accounts: items.length,
     active: count((item) => item.state === 'active'),

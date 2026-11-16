@@ -50,7 +50,11 @@ function dashboardSelectionV3(value: unknown): PerformanceDashboardSelectionV5 |
   if (value === null) return null;
   if (typeof value !== 'object') return undefined;
   const item = value as Record<string, unknown>;
-  if (item.kind === 'column' && typeof item.key === 'string' && (item.bucket === 'above' || item.bucket === 'below'))
+  if (
+    item.kind === 'column' &&
+    typeof item.key === 'string' &&
+    (item.bucket === 'above' || item.bucket === 'below')
+  )
     return { kind: 'column', key: item.key, bucket: item.bucket };
   const group = GROUPS_V3.find((name) => name === item.group);
   return item.kind === 'group' && group ? { kind: 'group', group } : undefined;

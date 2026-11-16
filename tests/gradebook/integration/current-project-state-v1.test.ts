@@ -78,7 +78,15 @@ describe('current canonical project state', () => {
   it('preserves the latest applied Gradebook migration separately from draft candidates', () => {
     const state = source('docs/gradebook/PROJECT_STATE.yaml');
     const latest = migrationFiles('migrations/gradebook-simplified')
-      .filter((file) => !new Set<string>([...reconciliationCandidates.gradebook, gradebookCleanupCandidate, smecelOnlyCandidate, diagnosticsOriginCandidate]).has(file))
+      .filter(
+        (file) =>
+          !new Set<string>([
+            ...reconciliationCandidates.gradebook,
+            gradebookCleanupCandidate,
+            smecelOnlyCandidate,
+            diagnosticsOriginCandidate,
+          ]).has(file),
+      )
       .at(-1);
     expect(latest).toBe('0014_function_execute_hardening_v1.sql');
     expect(state).toContain(`latest_gradebook_migration_file: ${latest}`);
@@ -106,7 +114,19 @@ describe('current canonical project state', () => {
     const latest = migrationFiles('migrations/student-portal')
       .filter(
         (file) =>
-          !new Set<string>([...reconciliationCandidates.portal, retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate, bellsCandidate, paradaCandidate, incidentCandidate, idleCleanupCandidate, publicationWorkMemCandidate, yearCoordinationCandidate]).has(file),
+          !new Set<string>([
+            ...reconciliationCandidates.portal,
+            retentionCandidate,
+            frequencyCandidate,
+            scheduleCandidate,
+            calendarCandidate,
+            bellsCandidate,
+            paradaCandidate,
+            incidentCandidate,
+            idleCleanupCandidate,
+            publicationWorkMemCandidate,
+            yearCoordinationCandidate,
+          ]).has(file),
       )
       .at(-1);
     expect(latest).toBe('0024_seal_count_cache_v1.sql');
@@ -182,13 +202,29 @@ describe('current canonical project state', () => {
       migrationFiles('migrations/gradebook-simplified').filter(
         (file) => Number(file.slice(0, 4)) > 14,
       ),
-    ).toEqual([...reconciliationCandidates.gradebook, gradebookCleanupCandidate, smecelOnlyCandidate, diagnosticsOriginCandidate]);
+    ).toEqual([
+      ...reconciliationCandidates.gradebook,
+      gradebookCleanupCandidate,
+      smecelOnlyCandidate,
+      diagnosticsOriginCandidate,
+    ]);
     expect(
       migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) === 25),
     ).toEqual(reconciliationCandidates.portal);
     expect(
       migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) > 25),
-    ).toEqual([retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate, bellsCandidate, paradaCandidate, incidentCandidate, idleCleanupCandidate, publicationWorkMemCandidate, yearCoordinationCandidate]);
+    ).toEqual([
+      retentionCandidate,
+      frequencyCandidate,
+      scheduleCandidate,
+      calendarCandidate,
+      bellsCandidate,
+      paradaCandidate,
+      incidentCandidate,
+      idleCleanupCandidate,
+      publicationWorkMemCandidate,
+      yearCoordinationCandidate,
+    ]);
     const contract = source('docs/student-identity/RECONCILIATION_V1.md');
     const order = [
       'gradebook-simplified/0015_student_reconciliation_v1.sql',

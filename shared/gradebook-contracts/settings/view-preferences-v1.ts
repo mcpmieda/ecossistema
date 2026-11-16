@@ -31,10 +31,14 @@ export const viewPreferencesSaveSchemaV1 = z
 export type ViewPreferencesSaveV1 = z.infer<typeof viewPreferencesSaveSchemaV1>;
 
 export const viewPreferencesResponseSchemaV1 = z.discriminatedUnion('state', [
-  z.object({ contractVersion: z.literal(1), state: z.literal('ready'), views: viewsSchemaV1 }).strict(),
-  z.object({
-    contractVersion: z.literal(1),
-    state: z.enum(['invalid-request', 'not-authorized', 'unavailable']),
-  }).strict(),
+  z
+    .object({ contractVersion: z.literal(1), state: z.literal('ready'), views: viewsSchemaV1 })
+    .strict(),
+  z
+    .object({
+      contractVersion: z.literal(1),
+      state: z.enum(['invalid-request', 'not-authorized', 'unavailable']),
+    })
+    .strict(),
 ]);
 export type ViewPreferencesResponseV1 = z.infer<typeof viewPreferencesResponseSchemaV1>;

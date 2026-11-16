@@ -17,7 +17,9 @@ function slidesSidewaysV1(target: EventTarget | null, toTheRight: boolean): bool
     const overflow = getComputedStyle(node).overflowX;
     if (overflow !== 'auto' && overflow !== 'scroll') continue;
     // A finger moving right pulls the content back toward its start.
-    if (toTheRight ? node.scrollLeft > 0 : node.scrollLeft + node.clientWidth < node.scrollWidth - 1)
+    if (
+      toTheRight ? node.scrollLeft > 0 : node.scrollLeft + node.clientWidth < node.scrollWidth - 1
+    )
       return true;
   }
   return false;
@@ -93,7 +95,8 @@ export function useDrawerSwipeV1(
     // Whether the content under the finger could slide is read when the finger lands: by the
     // time it lifts, a table pulled back to its start would look like it could not.
     let gesture: Gesture | null = null;
-    const phone = () => typeof window.matchMedia === 'function' && window.matchMedia(PHONE_V1).matches;
+    const phone = () =>
+      typeof window.matchMedia === 'function' && window.matchMedia(PHONE_V1).matches;
     const width = () => drawer.current?.getBoundingClientRect().width || 288;
     const release = () => {
       document.documentElement.style.removeProperty('overflow');

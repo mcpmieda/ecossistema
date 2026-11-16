@@ -16,12 +16,7 @@ const REASSIGNED_OLD_A = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const REASSIGNED_OLD_B = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const REASSIGNED_NEW_A = '99999999-9999-4999-8999-999999999999';
 
-function key(
-  keyId: string,
-  slot: 'A' | 'B',
-  startDateTime: string,
-  suffix: string,
-) {
+function key(keyId: string, slot: 'A' | 'B', startDateTime: string, suffix: string) {
   return {
     keyId,
     type: 'AsymmetricX509Cert',
@@ -172,27 +167,32 @@ describe('Maintenance certificate rotation', () => {
       key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
     ]);
 
-    await expect(addRotationCertificate({
-      accessToken: TOKEN,
-      target: 'web',
-      slot: 'B',
-      objectId: WEB_OBJECT_ID,
-      certificateDerBase64: Buffer.from('NEW-CERT').toString('base64'),
-      displayName: 'automatic-web-slot-B-2026-09-19T13:00:00.000Z',
-      startDateTime: '2026-09-19T13:00:00.000Z',
-      endDateTime: '2027-03-18T13:00:00.000Z',
-      fetcher: state.fetcher,
-    })).rejects.toMatchObject({ stage: 'requested-slot-is-not-inactive' });
+    await expect(
+      addRotationCertificate({
+        accessToken: TOKEN,
+        target: 'web',
+        slot: 'B',
+        objectId: WEB_OBJECT_ID,
+        certificateDerBase64: Buffer.from('NEW-CERT').toString('base64'),
+        displayName: 'automatic-web-slot-B-2026-09-19T13:00:00.000Z',
+        startDateTime: '2026-09-19T13:00:00.000Z',
+        endDateTime: '2027-03-18T13:00:00.000Z',
+        fetcher: state.fetcher,
+      }),
+    ).rejects.toMatchObject({ stage: 'requested-slot-is-not-inactive' });
     expect(state.keys()).toHaveLength(2);
     expect(state.patchBodies()).toHaveLength(0);
   });
 
   it('finalizes by removing only the older certificate from the rotated slot', async () => {
-    const state = statefulFetcher([
-      key(OLD_A, 'A', '2026-08-24T16:00:05.533Z', 'old-a'),
-      key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
-      key(GRAPH_NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
-    ], { staleReadsAfterPatch: 2 });
+    const state = statefulFetcher(
+      [
+        key(OLD_A, 'A', '2026-08-24T16:00:05.533Z', 'old-a'),
+        key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
+        key(GRAPH_NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
+      ],
+      { staleReadsAfterPatch: 2 },
+    );
     const pause = vi.fn(async () => undefined);
 
     const result = await finalizeRotation({
@@ -241,11 +241,14 @@ describe('Maintenance certificate rotation', () => {
   });
 
   it('waits for Graph reads to converge after removing an orphan certificate', async () => {
-    const state = statefulFetcher([
-      key(OLD_A, 'A', '2026-08-24T16:00:05.533Z', 'old-a'),
-      key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
-      key(GRAPH_NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
-    ], { staleReadsAfterPatch: 2 });
+    const state = statefulFetcher(
+      [
+        key(OLD_A, 'A', '2026-08-24T16:00:05.533Z', 'old-a'),
+        key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
+        key(GRAPH_NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
+      ],
+      { staleReadsAfterPatch: 2 },
+    );
     const pause = vi.fn(async () => undefined);
 
     const result = await removeExactCertificate({
@@ -266,8 +269,8 @@ describe('Maintenance certificate rotation', () => {
   });
 
   it('does not leak provider bodies through rotation errors', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () =>
-      new Response('provider-secret-MUST-NOT-LEAK', { status: 403 }),
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response('provider-secret-MUST-NOT-LEAK', { status: 403 }),
     );
     try {
       await removeExactCertificate({

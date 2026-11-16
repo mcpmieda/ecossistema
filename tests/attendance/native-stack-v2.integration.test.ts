@@ -144,7 +144,16 @@ native('frequency V2 complete native migration stack', () => {
       'migrations/gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
       'migrations/gradebook-simplified/0018_smecel_only_source_v1.sql',
       ...readdirSync('migrations/collector')
-        .filter((f) => /^\d{4}_.*\.sql$/u.test(f) && !['0007_scheduled_retention_v2.sql','0008_cron_history_retention_v2.sql','0010_daily_evidence_pruning_v2.sql','0013_scheduled_retention_now_v2.sql'].includes(f))
+        .filter(
+          (f) =>
+            /^\d{4}_.*\.sql$/u.test(f) &&
+            ![
+              '0007_scheduled_retention_v2.sql',
+              '0008_cron_history_retention_v2.sql',
+              '0010_daily_evidence_pruning_v2.sql',
+              '0013_scheduled_retention_now_v2.sql',
+            ].includes(f),
+        )
         .sort()
         .map((f) => `migrations/collector/${f}`),
       ...readdirSync('migrations/attendance')
@@ -215,9 +224,10 @@ native('frequency V2 complete native migration stack', () => {
       name: 'SYNTHETIC PERSON',
       classLabel: '6A',
     };
-    expect(
-      await database.transaction((tx) => resolveOneSource(tx, evidence)),
-    ).toMatchObject({ state: 'resolved', studentUid: uid });
+    expect(await database.transaction((tx) => resolveOneSource(tx, evidence))).toMatchObject({
+      state: 'resolved',
+      studentUid: uid,
+    });
     expect(
       await database.transaction((tx) =>
         resolveOneSource(tx, { ...evidence, academicYear: 2025 as 2026 }),
@@ -281,33 +291,38 @@ native('frequency V2 complete native migration stack', () => {
     // One month through v4: the same marks plus the student's lesson days, under the same checks.
     const lessonRead = (who = account) =>
       asRole('student_portal_app', (tx) =>
-        tx.unsafe(`SELECT attendance.read_portal_frequency_v4($1::uuid,$2::uuid,$3::text,$4::text) AS frequency`, [
-          who,
-          session,
-          '2026-01',
-          '2026-01',
-        ]),
+        tx.unsafe(
+          `SELECT attendance.read_portal_frequency_v4($1::uuid,$2::uuid,$3::text,$4::text) AS frequency`,
+          [who, session, '2026-01', '2026-01'],
+        ),
       );
     const [lessons] = await lessonRead();
-    const frequency = lessons!.frequency as { origins: Record<string, unknown>[]; days: Record<string, unknown>[] };
+    const frequency = lessons!.frequency as {
+      origins: Record<string, unknown>[];
+      days: Record<string, unknown>[];
+    };
     expect(frequency.origins).toHaveLength(read!.origins ? (read!.origins as unknown[]).length : 0);
     expect(frequency.days.length).toBeGreaterThan(0);
-    const summary = withLessonDaysV2(summarizeFrequencyPublicOriginsV2(frequency.origins, '2026-01'), frequency.days, '2026-10-22');
+    const summary = withLessonDaysV2(
+      summarizeFrequencyPublicOriginsV2(frequency.origins, '2026-01'),
+      frequency.days,
+      '2026-10-22',
+    );
     expect(summary.days?.every((day) => day.slots.length > 0)).toBe(true);
     expect((await lessonRead(crypto.randomUUID()))[0]!.frequency).toBeNull();
     // v4 (attendance 0012): the whole year in one read, with the school's today and the class's
     // last reading; the Portal works out the month and the year from it.
     const yearRead = (who = account, from = '2026-01', to = '2026-12') =>
       asRole('student_portal_app', (tx) =>
-        tx.unsafe(`SELECT attendance.read_portal_frequency_v4($1::uuid,$2::uuid,$3::text,$4::text) AS frequency`, [
-          who,
-          session,
-          from,
-          to,
-        ]),
+        tx.unsafe(
+          `SELECT attendance.read_portal_frequency_v4($1::uuid,$2::uuid,$3::text,$4::text) AS frequency`,
+          [who, session, from, to],
+        ),
       );
     const year = (await yearRead())[0]!.frequency as PortalFrequencyYearReadV2;
-    const [schoolDay] = await exec(`SELECT (clock_timestamp() AT TIME ZONE 'America/Bahia')::date::text AS today`);
+    const [schoolDay] = await exec(
+      `SELECT (clock_timestamp() AT TIME ZONE 'America/Bahia')::date::text AS today`,
+    );
     expect(year.today).toBe(schoolDay!.today);
     // The database's clock, for the school year's countdown (not the phone's).
     expect(Math.abs(Date.parse(year.now!) - Date.now())).toBeLessThan(60_000);
@@ -316,9 +331,18 @@ native('frequency V2 complete native migration stack', () => {
     expect(year.days).toEqual(frequency.days);
     expect(new Date(year.lastReadAt!).toISOString()).toBe('2026-01-10T12:00:00.000Z');
     const january = portalFrequencySummaryV2(year, '2026-01');
-    expect(january).toMatchObject({ absences: 1, denominator: 1, coverage: 'reliable', year: { lessons: 1, absences: 1 } });
+    expect(january).toMatchObject({
+      absences: 1,
+      denominator: 1,
+      coverage: 'reliable',
+      year: { lessons: 1, absences: 1 },
+    });
     expect((await yearRead(crypto.randomUUID()))[0]!.frequency).toBeNull();
-    for (const [from, to] of [['2026-03', '2026-02'], ['2025-12', '2026-01'], ['2026-01', '2026-13']])
+    for (const [from, to] of [
+      ['2026-03', '2026-02'],
+      ['2025-12', '2026-01'],
+      ['2026-01', '2026-13'],
+    ])
       expect((await yearRead(account, from, to))[0]!.frequency).toBeNull();
     const [v4Acl] = await exec(`SELECT
  has_function_privilege('anon','attendance.read_portal_frequency_v4(uuid,uuid,text,text)','EXECUTE') AS public_rpc,
@@ -336,22 +360,36 @@ native('frequency V2 complete native migration stack', () => {
           fencingToken: Number(lease.fencingToken),
           sourceVersion: `sha256:${'c'.repeat(64)}`,
           observedAt: '2026-01-10T12:00:00Z',
-          classes: [{ classId: 101, sourceClassId: '123', sourceClassLabel: '6A', lessons: lessonsOfGrid }],
+          classes: [
+            { classId: 101, sourceClassId: '123', sourceClassLabel: '6A', lessons: lessonsOfGrid },
+          ],
         }),
         deviceActor,
       ),
     ).toMatchObject({ state: 'committed', classes: [{ classId: 101, changed: true }] });
     const scheduleRead = (who = account) =>
       asRole('student_portal_app', (tx) =>
-        tx.unsafe(`SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule`, [who, session]),
+        tx.unsafe(`SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule`, [
+          who,
+          session,
+        ]),
       );
     expect((await scheduleRead())[0]!.schedule).toEqual({
-      classes: [{ label: '6A', observedAt: expect.any(String), validFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u), lessons: lessonsOfGrid }],
+      classes: [
+        {
+          label: '6A',
+          observedAt: expect.any(String),
+          validFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u),
+          lessons: lessonsOfGrid,
+        },
+      ],
     });
     expect((await scheduleRead(crypto.randomUUID()))[0]!.schedule).toBeNull();
     // A later reading in which this student's diary did not change stores no row for them (only what
     // changed is sent): the grid and the "last reading" still come (attendance 0013).
-    const [kept] = await exec(`SELECT last_batch_id::text AS id,last_observed_at::text AS at FROM attendance.class_state_v2 WHERE class_id=101`);
+    const [kept] = await exec(
+      `SELECT last_batch_id::text AS id,last_observed_at::text AS at FROM attendance.class_state_v2 WHERE class_id=101`,
+    );
     const laterBatch = crypto.randomUUID();
     await exec(`WITH later AS(INSERT INTO attendance.batch_v2 SELECT (jsonb_populate_record(b,jsonb_build_object(
  'id','${laterBatch}','received_at',b.received_at+interval '1 hour','observed_at',b.observed_at+interval '1 hour',
@@ -359,24 +397,40 @@ native('frequency V2 complete native migration stack', () => {
  WHERE b.id='${kept!.id}' RETURNING id,observed_at)
  UPDATE attendance.class_state_v2 cs SET last_batch_id=later.id,last_observed_at=later.observed_at FROM later WHERE cs.class_id=101`);
     expect((await scheduleRead())[0]!.schedule).toEqual({
-      classes: [{ label: '6A', observedAt: expect.any(String), validFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u), lessons: lessonsOfGrid }],
+      classes: [
+        {
+          label: '6A',
+          observedAt: expect.any(String),
+          validFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u),
+          lessons: lessonsOfGrid,
+        },
+      ],
     });
-    expect(new Date(((await yearRead())[0]!.frequency as PortalFrequencyYearReadV2).lastReadAt!).toISOString()).toBe(
-      '2026-01-10T13:00:00.000Z',
-    );
+    expect(
+      new Date(
+        ((await yearRead())[0]!.frequency as PortalFrequencyYearReadV2).lastReadAt!,
+      ).toISOString(),
+    ).toBe('2026-01-10T13:00:00.000Z');
     await exec(
       `UPDATE attendance.class_state_v2 SET last_batch_id='${kept!.id}',last_observed_at='${kept!.at}' WHERE class_id=101`,
     );
     await exec(`DELETE FROM attendance.batch_v2 WHERE id='${laterBatch}'`);
     // Another student, not in the class's diary, sees no grid at all.
-    const other = { uid: crypto.randomUUID(), account: crypto.randomUUID(), session: crypto.randomUUID() };
+    const other = {
+      uid: crypto.randomUUID(),
+      account: crypto.randomUUID(),
+      session: crypto.randomUUID(),
+    };
     await exec(`SET ROLE frequency_migrator_v2;
  INSERT INTO gradebook.student_identity(id) VALUES('${other.uid}');
  INSERT INTO gradebook.aluno(id,ano,nome,student_uid) VALUES(2,2026,'OTHER SYNTHETIC PERSON','${other.uid}');
  INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility,student_uid) VALUES('${other.account}',2026,2,'active','eligible','${other.uid}');
  INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent) VALUES('${other.session}','${other.account}','synthetic-hash-2',0,clock_timestamp()+interval '10 minutes',false); RESET ROLE;`);
     const [otherRead] = await asRole('student_portal_app', (tx) =>
-      tx.unsafe(`SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule`, [other.account, other.session]),
+      tx.unsafe(`SELECT attendance.read_portal_schedule_v1($1::uuid,$2::uuid) AS schedule`, [
+        other.account,
+        other.session,
+      ]),
     );
     expect(otherRead!.schedule).toEqual({ classes: [] });
     const [scheduleAcl] = await exec(`SELECT
@@ -393,7 +447,14 @@ native('frequency V2 complete native migration stack', () => {
  attendance.portal_enrolment_open_v1('[{"endsOn":"2026-02-28"}]','2026-03-01') AS transferred,
  attendance.portal_enrolment_open_v1('[{"endsOn":"2026-02-28"},{"endsOn":null}]','2026-03-01') AS came_back,
  has_function_privilege('student_portal_app','attendance.portal_enrolment_open_v1(jsonb,date)','EXECUTE') AS portal_rpc`);
-    expect(open).toEqual({ no_evidence: true, enrolled: true, last_day: true, transferred: false, came_back: true, portal_rpc: false });
+    expect(open).toEqual({
+      no_evidence: true,
+      enrolled: true,
+      last_day: true,
+      transferred: false,
+      came_back: true,
+      portal_rpc: false,
+    });
     await exec(
       `UPDATE student_portal.session SET revoked_at=clock_timestamp() WHERE id='${session}'`,
     );

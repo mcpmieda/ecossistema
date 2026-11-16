@@ -65,7 +65,12 @@ function anchorReferenceV1(row: number, column: number): number[] {
   return parsedFormulaV1([0x01, ...u32V1(row)], u32V1(column));
 }
 
-function formulaCellV1(column: number, style: number[], value: number, formula: number[]): number[] {
+function formulaCellV1(
+  column: number,
+  style: number[],
+  value: number,
+  formula: number[],
+): number[] {
   return recordV1(0x0009, [...u32V1(column), ...style, ...f64V1(value), 0, 0, ...formula]);
 }
 
@@ -77,7 +82,10 @@ function readU32V1(bytes: Uint8Array, offset: number): number {
   return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true);
 }
 
-function rewriteSheetV1(bytes: Uint8Array, injections: readonly XlsbFormulaInjectionV1[]): Uint8Array {
+function rewriteSheetV1(
+  bytes: Uint8Array,
+  injections: readonly XlsbFormulaInjectionV1[],
+): Uint8Array {
   const out: number[] = [];
   let position = 0;
   let row = -1;
@@ -119,10 +127,13 @@ function rewriteSheetV1(bytes: Uint8Array, injections: readonly XlsbFormulaInjec
       out.push(...formulaCellV1(column, style, target.value, constantFormulaV1(target.value)));
       continue;
     }
-    out.push(...formulaCellV1(column, style, target.value, anchorReferenceV1(target.firstRow, column)));
+    out.push(
+      ...formulaCellV1(column, style, target.value, anchorReferenceV1(target.firstRow, column)),
+    );
     if (row !== target.firstRow) continue;
     const range = rfxV1(target.firstRow, target.lastRow, column);
-    if (target.kind === 'shared') out.push(...recordV1(0x01ab, [...range, ...constantFormulaV1(target.value)]));
+    if (target.kind === 'shared')
+      out.push(...recordV1(0x01ab, [...range, ...constantFormulaV1(target.value)]));
     else out.push(...recordV1(0x01aa, [...range, 0, ...constantFormulaV1(target.value)]));
   }
   return Uint8Array.from(out);
@@ -147,11 +158,16 @@ export function injectXlsbFormulasV1(
     const index = book.SheetNames.indexOf(sheet);
     const relation = book.Workbook?.Sheets?.[index];
     const id = relation?.id ?? relation?.strRelID;
-    const target = id ? new RegExp(`Id="${id}"[^>]*Target="([^"]+)"`, 'u').exec(xml)?.[1] : undefined;
+    const target = id
+      ? new RegExp(`Id="${id}"[^>]*Target="([^"]+)"`, 'u').exec(xml)?.[1]
+      : undefined;
     if (!target) throw new Error('synthetic-xlsb-sheet-not-found');
     const entry = cfb.find(container, `/xl/${target.replace(/^\/?xl\//u, '')}`);
     if (!entry) throw new Error('synthetic-xlsb-part-not-found');
-    entry.content = rewriteSheetV1(Uint8Array.from(entry.content), injections.filter((item) => item.sheet === sheet));
+    entry.content = rewriteSheetV1(
+      Uint8Array.from(entry.content),
+      injections.filter((item) => item.sheet === sheet),
+    );
   }
   return Uint8Array.from(cfb.write(container, { type: 'array', fileType: 'zip' })).buffer;
 }

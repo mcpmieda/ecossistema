@@ -17,7 +17,12 @@ it.each(['offered', 'unavailable'] as const)(
           ...ACCOUNT_META_V1,
           state: 'qr',
           version: 10,
-          cards: [{ ...qrPrintCardsV1(1, 'qr-only')[0]!, accountId: 'accountId' in command ? command.accountId : '' }],
+          cards: [
+            {
+              ...qrPrintCardsV1(1, 'qr-only')[0]!,
+              accountId: 'accountId' in command ? command.accountId : '',
+            },
+          ],
         }),
     });
     const states: AccountMutationStateV1[] = [];

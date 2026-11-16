@@ -26,12 +26,18 @@ describe('opening the Portal page from links (students reported 403)', () => {
     expect(
       portalDocumentNavigationAllowedV1(new Request('https://evil.invalid/'), 'production', origin),
     ).toBe(false);
-    expect(portalDocumentNavigationAllowedV1(new Request(origin + '/'), 'preview', origin)).toBe(false);
+    expect(portalDocumentNavigationAllowedV1(new Request(origin + '/'), 'preview', origin)).toBe(
+      false,
+    );
   });
 
   it('keeps the strict rule for every API call', () => {
     const api = (headers: HeadersInit) =>
-      portalRequestOriginAllowedV1(new Request(origin + '/api/student/me', { headers }), 'production', origin);
+      portalRequestOriginAllowedV1(
+        new Request(origin + '/api/student/me', { headers }),
+        'production',
+        origin,
+      );
     expect(api({ 'sec-fetch-site': 'cross-site' })).toBe(false);
     expect(api({ 'sec-fetch-site': 'same-origin' })).toBe(true);
   });

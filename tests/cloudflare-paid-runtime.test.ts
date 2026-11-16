@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const root = process.cwd();
-function source(path: string): string { return readFileSync(join(root, path), 'utf8'); }
+function source(path: string): string {
+  return readFileSync(join(root, path), 'utf8');
+}
 
 describe('Cloudflare Workers Paid runtime configuration', () => {
   it('pins the Pages Functions CPU safety envelope to 120 seconds', () => {

@@ -14,7 +14,9 @@ const clientOf = () =>
     command: vi.fn(),
   }) as unknown as PortalAdminClientV1;
 const dayCard = (label: string) =>
-  screen.getByText(label, { selector: '.pa-school-bells__day-head *' }).closest('.pa-school-bells__day') as HTMLElement;
+  screen
+    .getByText(label, { selector: '.pa-school-bells__day-head *' })
+    .closest('.pa-school-bells__day') as HTMLElement;
 
 afterEach(cleanup);
 

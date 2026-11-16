@@ -11,7 +11,8 @@ describe('Performance dashboard V5 HeroUI', () => {
   const grid = source('src/features/gradebook/performance/performance-grid-v2.tsx');
   const matrix = source('src/features/gradebook/performance/performance-result-matrix-v2.tsx');
   const display = source('src/features/gradebook/performance/performance-display-v2.tsx');
-  const styles = source('src/styles.css') + source('src/features/gradebook/performance/performance-v2.css');
+  const styles =
+    source('src/styles.css') + source('src/features/gradebook/performance/performance-v2.css');
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const service = source(
     'server/gradebook/application/read-models/performance/performance-dashboard-v5.ts',

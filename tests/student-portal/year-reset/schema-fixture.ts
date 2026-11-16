@@ -30,7 +30,9 @@ export async function installResetSchemaFixtureV1(database: {
 }
 
 /** Historical schemas have only the legacy source; current runtime still uses the single reader. */
-export async function installLegacyBirthReadFixtureV1(database: { exec(sql: string): Promise<unknown> }): Promise<void> {
+export async function installLegacyBirthReadFixtureV1(database: {
+  exec(sql: string): Promise<unknown>;
+}): Promise<void> {
   await database.exec(`CREATE VIEW student_portal.account_birth_v1 AS
     SELECT a.id AS account_id,d.birth_year,d.confirmation,COALESCE(d.version,0)::bigint AS version,
       CASE WHEN d.birth_year IS NULL THEN 'missing' ELSE 'legacy' END AS source
@@ -46,7 +48,9 @@ export async function installShiftReadViewFixtureV1(database: {
   exec(sql: string): Promise<unknown>;
 }): Promise<void> {
   const migration = readFileSync('migrations/student-portal/0022_shift_policy_v1.sql', 'utf8');
-  const view = migration.match(/CREATE OR REPLACE VIEW student_portal\.academic_class_v1[\s\S]+?GRANT SELECT ON student_portal\.academic_class_v1 TO student_portal_app;/u)?.[0];
+  const view = migration.match(
+    /CREATE OR REPLACE VIEW student_portal\.academic_class_v1[\s\S]+?GRANT SELECT ON student_portal\.academic_class_v1 TO student_portal_app;/u,
+  )?.[0];
   if (!view) throw new Error('Missing shift-policy view migration');
   await database.exec(view);
 }
@@ -61,8 +65,14 @@ export async function installReconciliationSchemaFixtureV1(
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
   END $$;`);
   if (!sharedIdentityAlreadyInstalled) {
-    await database.exec(readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8'));
+    await database.exec(
+      readFileSync('migrations/student-portal/0018_shared_student_identity_v1.sql', 'utf8'),
+    );
   }
-  await database.exec(readFileSync('migrations/gradebook-simplified/0015_student_reconciliation_v1.sql', 'utf8'));
-  await database.exec(readFileSync('migrations/gradebook-simplified/0018_smecel_only_source_v1.sql', 'utf8'));
+  await database.exec(
+    readFileSync('migrations/gradebook-simplified/0015_student_reconciliation_v1.sql', 'utf8'),
+  );
+  await database.exec(
+    readFileSync('migrations/gradebook-simplified/0018_smecel_only_source_v1.sql', 'utf8'),
+  );
 }

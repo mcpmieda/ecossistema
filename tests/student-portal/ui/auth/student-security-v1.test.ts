@@ -9,7 +9,10 @@ import {
   useStudentSessionV1,
 } from '../../../../src/features/student-portal/auth/student-session-v1';
 import { sessionResponseV1 } from '../../../../shared/student-portal-contracts/auth-v1';
-import { createPortalTransportV1, PortalClientErrorV1 } from '../../../../src/features/student-portal/shared/transport-v1';
+import {
+  createPortalTransportV1,
+  PortalClientErrorV1,
+} from '../../../../src/features/student-portal/shared/transport-v1';
 import { createPortalSelfClientV1 } from '../../../../src/features/student-portal/shared/self-client-v1';
 import { SYNTHETIC_SELF_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { clientFixtureV1, NOW, SESSION } from './fixtures-v1';
@@ -70,8 +73,16 @@ async function setup() {
 describe('student security channel', () => {
   it('falls back to legacy connection URL after unacknowledged handshake failures in a row', async () => {
     const sockets: Socket[] = [];
-    const connect = vi.fn((_connectionId?: string) => { const socket = new Socket(); sockets.push(socket); return socket; });
-    const security = createStudentSecurityV1({ connect, authorize: vi.fn().mockResolvedValue(undefined), onAuthorized: () => true });
+    const connect = vi.fn((_connectionId?: string) => {
+      const socket = new Socket();
+      sockets.push(socket);
+      return socket;
+    });
+    const security = createStudentSecurityV1({
+      connect,
+      authorize: vi.fn().mockResolvedValue(undefined),
+      onAuthorized: () => true,
+    });
     expect(connect.mock.calls[0]![0]).toMatch(/^[0-9a-f-]{36}$/u);
     sockets[0]!.onerror?.(new Event('error'));
     await vi.advanceTimersByTimeAsync(1000);
@@ -80,7 +91,11 @@ describe('student security channel', () => {
     sockets[1]!.onerror?.(new Event('error'));
     await vi.advanceTimersByTimeAsync(2000);
     expect(connect.mock.calls[2]![0]).toBeUndefined();
-    sockets[2]!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt });
+    sockets[2]!.message({
+      contractVersion: 1,
+      type: 'security-connected',
+      expiresAt: SESSION.expiresAt,
+    });
     await vi.advanceTimersByTimeAsync(45_000);
     expect(connect).toHaveBeenCalledTimes(4);
     expect(connect.mock.calls[3]![0]).toBeUndefined();
@@ -88,8 +103,16 @@ describe('student security channel', () => {
   });
   it('offers renewal again after a while on the legacy URL, falling back at the first miss', async () => {
     const sockets: Socket[] = [];
-    const connect = vi.fn((_connectionId?: string) => { const socket = new Socket(); sockets.push(socket); return socket; });
-    const security = createStudentSecurityV1({ connect, authorize: vi.fn().mockResolvedValue(undefined), onAuthorized: () => true });
+    const connect = vi.fn((_connectionId?: string) => {
+      const socket = new Socket();
+      sockets.push(socket);
+      return socket;
+    });
+    const security = createStudentSecurityV1({
+      connect,
+      authorize: vi.fn().mockResolvedValue(undefined),
+      onAuthorized: () => true,
+    });
     sockets[0]!.onerror?.(new Event('error'));
     await vi.advanceTimersByTimeAsync(1000);
     sockets[1]!.onerror?.(new Event('error'));
@@ -98,7 +121,9 @@ describe('student security channel', () => {
     for (let legacy = 0; legacy < 10; legacy++) {
       expect(connect.mock.calls.at(-1)![0]).toBeUndefined();
       sockets.at(-1)!.open();
-      sockets.at(-1)!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt });
+      sockets
+        .at(-1)!
+        .message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt });
       await vi.advanceTimersByTimeAsync(45_000);
     }
     const probe = sockets.length - 1;
@@ -112,12 +137,17 @@ describe('student security channel', () => {
     const s = await setup();
     s.client.session.mockResolvedValue({ ...SESSION, liveRenewed: true });
     s.sockets[0]!.open();
-    s.sockets[0]!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt, renewable: true });
+    s.sockets[0]!.message({
+      contractVersion: 1,
+      type: 'security-connected',
+      expiresAt: SESSION.expiresAt,
+      renewable: true,
+    });
     for (let cycle = 0; cycle < 8; cycle++) await vi.advanceTimersByTimeAsync(45_000);
     expect(s.sockets).toHaveLength(1);
     expect(s.sockets[0]!.close).not.toHaveBeenCalled();
     expect(s.client.session).toHaveBeenCalledTimes(9);
-    const ids = s.client.session.mock.calls.slice(1).map(call => call[2]);
+    const ids = s.client.session.mock.calls.slice(1).map((call) => call[2]);
     expect(new Set(ids).size).toBe(1);
     expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/u);
     expect(s.client.me).toHaveBeenCalledTimes(1);
@@ -127,7 +157,12 @@ describe('student security channel', () => {
     const s = await setup();
     s.client.session.mockResolvedValue({ ...SESSION, liveRenewed: false });
     s.sockets[0]!.open();
-    s.sockets[0]!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt, renewable: true });
+    s.sockets[0]!.message({
+      contractVersion: 1,
+      type: 'security-connected',
+      expiresAt: SESSION.expiresAt,
+      renewable: true,
+    });
     await vi.advanceTimersByTimeAsync(45_000);
     expect(s.sockets).toHaveLength(2);
     expect(s.sockets[0]!.close).toHaveBeenCalledTimes(1);
@@ -137,7 +172,12 @@ describe('student security channel', () => {
   it('keeps content and retries failed renewal after fifteen seconds', async () => {
     const s = await setup();
     s.sockets[0]!.open();
-    s.sockets[0]!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt, renewable: true });
+    s.sockets[0]!.message({
+      contractVersion: 1,
+      type: 'security-connected',
+      expiresAt: SESSION.expiresAt,
+      renewable: true,
+    });
     s.client.session.mockRejectedValueOnce(new PortalClientErrorV1('network-error'));
     await vi.advanceTimersByTimeAsync(45_000);
     expect(s.sockets).toHaveLength(1);
@@ -418,31 +458,51 @@ describe('student security channel', () => {
     expect(s.client.me).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
   });
-  it.each([false, true])('rechecks an event during outstanding session check (renewable=%s)', async (renewable) => {
+  it.each([false, true])(
+    'rechecks an event during outstanding session check (renewable=%s)',
+    async (renewable) => {
+      const s = await setup();
+      let resolve!: (value: typeof SESSION) => void;
+      s.client.session.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done;
+          }),
+      );
+      s.sockets[0]!.open();
+      if (renewable)
+        s.sockets[0]!.message({
+          contractVersion: 1,
+          type: 'security-connected',
+          expiresAt: SESSION.expiresAt,
+          renewable: true,
+        });
+      s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
+      s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
+      s.client.session.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+      resolve(SESSION);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(s.publish.mock.lastCall![0].state).toBe('error');
+      expect(s.client.me).toHaveBeenCalledTimes(1);
+      s.dispose();
+    },
+  );
+  it('keeps a replacement socket when the old renewal finishes late', async () => {
     const s = await setup();
-    let resolve!: (value: typeof SESSION) => void;
+    let resolve!: (value: typeof SESSION & { liveRenewed: boolean }) => void;
     s.client.session.mockImplementationOnce(
       () =>
         new Promise((done) => {
           resolve = done;
         }),
     );
-    s.sockets[0]!.open();
-    if (renewable) s.sockets[0]!.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt, renewable: true });
-    s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
-    s.sockets[0]!.message({ contractVersion: 1, type: 'reauthorize' });
-    s.client.session.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
-    resolve(SESSION);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(s.publish.mock.lastCall![0].state).toBe('error');
-    expect(s.client.me).toHaveBeenCalledTimes(1);
-    s.dispose();
-  });
-  it('keeps a replacement socket when the old renewal finishes late', async () => {
-    const s = await setup();
-    let resolve!: (value: typeof SESSION & { liveRenewed: boolean }) => void;
-    s.client.session.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
-    const confirm = (socket: Socket) => socket.message({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt, renewable: true });
+    const confirm = (socket: Socket) =>
+      socket.message({
+        contractVersion: 1,
+        type: 'security-connected',
+        expiresAt: SESSION.expiresAt,
+        renewable: true,
+      });
     const old = s.sockets[0]!;
     old.open();
     confirm(old);
@@ -467,21 +527,28 @@ describe('student security channel', () => {
     s.dispose();
   });
   it('sends the bound renewal URL and rejects malformed or duplicated selectors', async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...SESSION, liveRenewed: true }), {
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-    }));
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ...SESSION, liveRenewed: true }), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      }),
+    );
     const account = SYNTHETIC_SELF_V1.profile.accountId;
     const connection = '12230000-0000-4000-8000-000000000001';
     const client = createPortalSelfClientV1({ fetch });
     expect((await client.session(undefined, account, connection)).liveRenewed).toBe(true);
-    expect(fetch.mock.calls[0]![0]).toBe(`/api/student/session?accountId=${account}&connectionId=${connection}`);
+    expect(fetch.mock.calls[0]![0]).toBe(
+      `/api/student/session?accountId=${account}&connectionId=${connection}`,
+    );
     const send = createPortalTransportV1({ fetch });
     for (const query of [
       `connectionId=${connection}`,
       `accountId=${account}&connectionId=bad`,
       `accountId=${account}&connectionId=${connection}&connectionId=${connection}`,
       `accountId=${account}&accountId=${account}&connectionId=${connection}`,
-    ]) await expect(send('/api/student/session?' + query, sessionResponseV1)).rejects.toMatchObject({ state: 'invalid-request' });
+    ])
+      await expect(send('/api/student/session?' + query, sessionResponseV1)).rejects.toMatchObject({
+        state: 'invalid-request',
+      });
     expect(fetch).toHaveBeenCalledOnce();
   });
   it('restricts the expected account query to the session endpoint', async () => {
@@ -551,10 +618,12 @@ describe('student security channel', () => {
   });
 });
 
-
 it('honors session Retry-After without extending a security lease or repeating on an event', async () => {
   const socket = new Socket();
-  const authorize = vi.fn().mockRejectedValueOnce(new PortalClientErrorV1('rate-limited', 429, 60)).mockResolvedValue(undefined);
+  const authorize = vi
+    .fn()
+    .mockRejectedValueOnce(new PortalClientErrorV1('rate-limited', 429, 60))
+    .mockResolvedValue(undefined);
   const security = createStudentSecurityV1({ connect: () => socket, authorize });
   socket.open();
   socket.message({ contractVersion: 1, type: 'security-connected' });

@@ -1,27 +1,57 @@
 /* HeroUI 3 has a ScrollShadow between ListContainer and List. Keep its native
  * overflow controls, and override the tab's w-full (not just its flex basis).
  * Limit these rules to horizontal workspace navigation, including nested lists. */
-:is(.pa-admin-page .tabs, .performance-workspace .tabs, .school-class-tabs)[data-orientation='horizontal'] {
+:is(
+  .pa-admin-page .tabs,
+  .performance-workspace .tabs,
+  .school-class-tabs
+)[data-orientation='horizontal'] {
   min-width: 0;
   max-width: 100%;
 }
-:is(.pa-admin-page .tabs, .performance-workspace .tabs, .school-class-tabs)[data-orientation='horizontal'] > .tabs__list-container {
+:is(
+    .pa-admin-page .tabs,
+    .performance-workspace .tabs,
+    .school-class-tabs
+  )[data-orientation='horizontal']
+  > .tabs__list-container {
   align-self: flex-start;
   width: fit-content;
   min-width: 0;
   max-width: 100%;
   overflow: visible;
 }
-:is(.pa-admin-page .tabs, .performance-workspace .tabs, .school-class-tabs)[data-orientation='horizontal'] > .tabs__list-container > .tabs__list-container__scroller {
+:is(
+    .pa-admin-page .tabs,
+    .performance-workspace .tabs,
+    .school-class-tabs
+  )[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller {
   min-width: 0;
   max-width: 100%;
 }
-:is(.pa-admin-page .tabs, .performance-workspace .tabs, .school-class-tabs)[data-orientation='horizontal'] > .tabs__list-container > .tabs__list-container__scroller > .tabs__list[data-orientation='horizontal'] {
+:is(
+    .pa-admin-page .tabs,
+    .performance-workspace .tabs,
+    .school-class-tabs
+  )[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal'] {
   width: max-content;
   min-width: 0;
   justify-content: flex-start;
 }
-:is(.pa-admin-page .tabs, .performance-workspace .tabs, .school-class-tabs)[data-orientation='horizontal'] > .tabs__list-container > .tabs__list-container__scroller > .tabs__list[data-orientation='horizontal'] > .tabs__tab {
+:is(
+    .pa-admin-page .tabs,
+    .performance-workspace .tabs,
+    .school-class-tabs
+  )[data-orientation='horizontal']
+  > .tabs__list-container
+  > .tabs__list-container__scroller
+  > .tabs__list[data-orientation='horizontal']
+  > .tabs__tab {
   width: auto;
   flex: 0 0 auto;
   white-space: nowrap;

@@ -565,7 +565,12 @@ it('lists unrecognized Smecel students and the failure trail with the actions th
 it('with two computers the ADM picks the one that sends the frequency, and can undo it', async () => {
   const value = fixture();
   const otherId = '44444444-4444-4444-8444-444444444444';
-  value.devices.push({ ...value.devices[0]!, deviceId: otherId, label: 'OUTRO COMPUTADOR', state: 'reserve' });
+  value.devices.push({
+    ...value.devices[0]!,
+    deviceId: otherId,
+    label: 'OUTRO COMPUTADOR',
+    state: 'reserve',
+  });
   const client = {
     status: vi.fn(async () => structuredClone(value)),
     mutate: vi.fn<FrequencyAdminClientV2['mutate']>(async () => {}),
@@ -577,7 +582,11 @@ it('with two computers the ADM picks the one that sends the frequency, and can u
   await user.click(within(other).getByRole('button', { name: 'Usar para enviar a frequência' }));
   await waitFor(() =>
     expect(client.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ operation: 'set-preferred-device', deviceId: otherId, expectedRevision: 3 }),
+      expect.objectContaining({
+        operation: 'set-preferred-device',
+        deviceId: otherId,
+        expectedRevision: 3,
+      }),
       expect.anything(),
     ),
   );
@@ -591,7 +600,11 @@ it('with two computers the ADM picks the one that sends the frequency, and can u
   await user.click(screen.getByRole('button', { name: 'Qualquer computador' }));
   await waitFor(() =>
     expect(client.mutate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ operation: 'set-preferred-device', deviceId: null, expectedRevision: 4 }),
+      expect.objectContaining({
+        operation: 'set-preferred-device',
+        deviceId: null,
+        expectedRevision: 4,
+      }),
       expect.anything(),
     ),
   );

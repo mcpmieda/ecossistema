@@ -7,7 +7,9 @@ const emit = () => listeners.forEach((listener) => listener());
 const getSnapshot = () => pending.size > 0;
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  return () => {
+    listeners.delete(listener);
+  };
 };
 
 /** A broad notice cannot identify a changed student. Drafts and original CAS remain owned
@@ -15,9 +17,16 @@ const subscribe = (listener: () => void) => {
  */
 export function DraftUpdatesNoticeV1() {
   const changed = useSyncExternalStore(subscribe, getSnapshot, () => false);
-  return changed ? createElement('p', {
-    role: 'status', className: 'mb-3 rounded-xl border border-border/60 px-3 py-2 text-sm text-muted',
-  }, 'Há atualizações a conferir. Sua edição foi preservada; revise os dados antes de salvar.') : null;
+  return changed
+    ? createElement(
+        'p',
+        {
+          role: 'status',
+          className: 'mb-3 rounded-xl border border-border/60 px-3 py-2 text-sm text-muted',
+        },
+        'Há atualizações a conferir. Sua edição foi preservada; revise os dados antes de salvar.',
+      )
+    : null;
 }
 
 /** A pending edit must not be destroyed by the surrounding tabs or links. */
@@ -37,7 +46,11 @@ let refusedHash: string | null = null;
 let restoringHash: string | null = null;
 let restoreTimer = 0;
 const hashOf = (url: string) => {
-  try { return new URL(url).hash; } catch { return window.location.hash; }
+  try {
+    return new URL(url).hash;
+  } catch {
+    return window.location.hash;
+  }
 };
 const allowLeaving = () => allowDraftNavigationV1() || window.confirm(DISCARD_DRAFT_PROMPT_V1);
 /**
@@ -46,7 +59,11 @@ const allowLeaving = () => allowDraftNavigationV1() || window.confirm(DISCARD_DR
  */
 export function allowLeavingToV1(href: string): boolean {
   if (!allowLeaving()) return false;
-  try { shownHash = new URL(href, window.location.href).hash; } catch { /* asked again on arrival */ }
+  try {
+    shownHash = new URL(href, window.location.href).hash;
+  } catch {
+    /* asked again on arrival */
+  }
   return true;
 }
 /*
@@ -111,7 +128,10 @@ export function useDraftNavigationGuardV1(blocked: boolean): void {
     shownHash = window.location.hash;
     const token = {};
     const unsubscribe = subscribeLiveChangesV1(() => {
-      if (!pending.has(token)) { pending.add(token); emit(); }
+      if (!pending.has(token)) {
+        pending.add(token);
+        emit();
+      }
     });
     const prevent = (event: Event) => event.preventDefault();
     const unload = (event: BeforeUnloadEvent) => {

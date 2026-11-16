@@ -1,6 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { SOURCE_CELL_CLASSIFICATIONS_V1, SOURCE_CONTRACT_V1, SOURCE_STAGES_V1, type SourceCellEvidenceV1, type SourceCellProvenanceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
+import {
+  SOURCE_CELL_CLASSIFICATIONS_V1,
+  SOURCE_CONTRACT_V1,
+  SOURCE_STAGES_V1,
+  type SourceCellEvidenceV1,
+  type SourceCellProvenanceV1,
+} from '../../../shared/gradebook-contracts/source/source-contract-v1';
 
 const provenance: SourceCellProvenanceV1 = {
   fileName: 'professor-sintetico.xlsx',
@@ -10,7 +16,6 @@ const provenance: SourceCellProvenanceV1 = {
 };
 
 describe('SourceContractV1 — estrutura da fonte', () => {
-
   it('SRC-003: codifica metadados, alunos, trimestres e REC nos locais confirmados', () => {
     expect(SOURCE_STAGES_V1).toEqual(['VG', '1º', '2º', '3º', 'REC']);
     expect(SOURCE_CONTRACT_V1.cells.metadata).toEqual({
@@ -150,11 +155,7 @@ describe('SourceContractV1 — vocabulário semântico das células', () => {
     expect(classifications.has('not-applicable')).toBe(true);
     expect(classifications.has('empty')).toBe(true);
     expect(classifications.has('missing-field')).toBe(true);
-    expect(SOURCE_CONTRACT_V1.semantics.notApplicable).not.toBe(
-      SOURCE_CONTRACT_V1.semantics.empty,
-    );
-    expect(SOURCE_CONTRACT_V1.semantics.missingField).not.toBe(
-      SOURCE_CONTRACT_V1.semantics.empty,
-    );
+    expect(SOURCE_CONTRACT_V1.semantics.notApplicable).not.toBe(SOURCE_CONTRACT_V1.semantics.empty);
+    expect(SOURCE_CONTRACT_V1.semantics.missingField).not.toBe(SOURCE_CONTRACT_V1.semantics.empty);
   });
 });

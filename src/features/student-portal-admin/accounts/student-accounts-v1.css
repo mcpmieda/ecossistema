@@ -236,8 +236,6 @@ fieldset.pa-account-actions {
   }
 }
 
-
-
 .pa-accounts .card__content {
   padding: 0.65rem 0.8rem;
 }
@@ -384,7 +382,6 @@ fieldset.pa-account-actions {
   display: flex;
 }
 
-
 .pa-accounts .pa-account-list-card {
   padding: 0.5rem;
 }
@@ -392,7 +389,6 @@ fieldset.pa-account-actions {
   padding: 0.25rem;
   gap: 0.35rem;
 }
-
 
 .pa-accounts .pa-account-list-card .pa-account-page-controls,
 .pa-accounts .pa-account-list-card .pa-account-table {

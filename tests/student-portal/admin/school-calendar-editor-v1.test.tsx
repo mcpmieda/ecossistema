@@ -30,7 +30,10 @@ const clientOf = () => {
   const query = vi.fn(async (input: { operation: string }) =>
     input.operation === 'settings'
       ? { state: 'settings', settings: { version: 7, value: { calendar } } }
-      : { state: 'school-calendar', calendar: { academicYear: 2026, version: 1, days: officialCalendar2026V1() } },
+      : {
+          state: 'school-calendar',
+          calendar: { academicYear: 2026, version: 1, days: officialCalendar2026V1() },
+        },
   );
   return { client: { query, command } as unknown as PortalAdminClientV1, query, command };
 };
@@ -86,7 +89,9 @@ it('refuses to save main dates out of order, and a cleared one becomes pending',
   fireEvent.click(chip('Fim do 1º trimestre'));
   fireEvent.pointerDown(day('21/09'));
   expect(screen.getByText(/fora de ordem: confira Início do 2º trimestre/u)).toBeTruthy();
-  expect((screen.getByRole('button', { name: 'Salvar calendário' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(
+    (screen.getByRole('button', { name: 'Salvar calendário' }) as HTMLButtonElement).disabled,
+  ).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: 'Apagar Início do 2º trimestre' }));
   expect(chip('Início do 2º trimestre').textContent).toContain('Pendente');
 });
@@ -126,7 +131,10 @@ it('saves the main dates on the policy version read at save time', async () => {
   query.mockImplementation(async (input: { operation: string }) =>
     input.operation === 'settings'
       ? { state: 'settings', settings: { version: ++reads === 1 ? 7 : 8, value: { calendar } } }
-      : { state: 'school-calendar', calendar: { academicYear: 2026, version: 1, days: officialCalendar2026V1() } },
+      : {
+          state: 'school-calendar',
+          calendar: { academicYear: 2026, version: 1, days: officialCalendar2026V1() },
+        },
   );
   render(<SchoolCalendarEditorV1 client={client} canWrite />);
   await screen.findByText('Datas principais');
@@ -134,7 +142,10 @@ it('saves the main dates on the policy version read at save time', async () => {
   fireEvent.pointerDown(day('15/12'));
   fireEvent.click(screen.getByRole('button', { name: 'Salvar calendário' }));
   await waitFor(() => expect(command).toHaveBeenCalledTimes(1));
-  expect(command.mock.calls[0]![0]).toMatchObject({ operation: 'settings-set', expectedVersion: 8 });
+  expect(command.mock.calls[0]![0]).toMatchObject({
+    operation: 'settings-set',
+    expectedVersion: 8,
+  });
 });
 
 it('asks before changing a main date that already came', async () => {
@@ -150,7 +161,9 @@ it('asks before changing a main date that already came', async () => {
   expect(command).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Salvar mesmo assim' }));
   await waitFor(() => expect(command).toHaveBeenCalledTimes(1));
-  expect(command.mock.calls[0]![0]).toMatchObject({ value: { calendar: { t1EndsAt: '2026-05-15T03:00:00Z' } } });
+  expect(command.mock.calls[0]![0]).toMatchObject({
+    value: { calendar: { t1EndsAt: '2026-05-15T03:00:00Z' } },
+  });
 });
 
 it('lists two days of a break apart when a class day lies between them', async () => {

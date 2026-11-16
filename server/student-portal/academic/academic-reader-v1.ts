@@ -28,11 +28,18 @@ import {
   type SimplifiedAcademicTermV1,
   type SimplifiedInstrumentSlotV1,
 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
-import { effectiveCouncilDecisionV1, resolveSimplifiedAnnualOutcomeV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
+import {
+  effectiveCouncilDecisionV1,
+  resolveSimplifiedAnnualOutcomeV1,
+} from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 import { resolveStudentMarkPresentationV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../gradebook/persistence/postgres/active-instrument-predicate-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
-import { evaluateTermClosingV1, evaluateTermProgressV1, type TermClosingEvaluationV1 } from './term-closing-v1';
+import {
+  evaluateTermClosingV1,
+  evaluateTermProgressV1,
+  type TermClosingEvaluationV1,
+} from './term-closing-v1';
 
 // Preserve the official predicate verbatim apart from its relation adapter. Evidence is
 // instrument-wide, but only this student's value is ever selected into the snapshot.
@@ -409,9 +416,10 @@ export class AcademicStudentReaderPostgresV1
             minimum,
           ),
           partials: offer.instruments
-            .filter((item) =>
-              item.term === term &&
-              (item.slot !== 3 || terms[term - 1]!.parallelApplicable === true),
+            .filter(
+              (item) =>
+                item.term === term &&
+                (item.slot !== 3 || terms[term - 1]!.parallelApplicable === true),
             )
             .map((item) => ({
               assessmentId: item.id,
@@ -441,7 +449,10 @@ export class AcademicStudentReaderPostgresV1
       let officialOutcome;
       if (status === 2) {
         officialOutcome = undefined;
-      } else if (classification === 'approved-direct' || classification === 'approved-after-recovery') {
+      } else if (
+        classification === 'approved-direct' ||
+        classification === 'approved-after-recovery'
+      ) {
         officialOutcome = 'approved' as const;
       } else if (['not-approved', 'failed-no-show', 'failed-repeat'].includes(classification)) {
         officialOutcome = 'failed' as const;

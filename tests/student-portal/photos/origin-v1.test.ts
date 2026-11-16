@@ -7,7 +7,8 @@ import { photoRevisionFixtureV1 as revision, photoAccountV1 } from './fixture-v1
 
 const origin = 'https://aluno.escolaieda.com';
 const photoPath = portraitContentPathV1(revision);
-const request = (path: string, headers: HeadersInit = {}) => new Request(origin + path, { headers });
+const request = (path: string, headers: HeadersInit = {}) =>
+  new Request(origin + path, { headers });
 const allowed = (path: string, headers: HeadersInit = {}) =>
   portalRequestOriginAllowedV1(request(path, headers), 'production', origin);
 
@@ -16,7 +17,9 @@ describe('photo query integration in the existing Portal origin boundary', () =>
     expect(allowed(photoPath)).toBe(true);
     expect(allowed(photoPath, { origin, 'sec-fetch-site': 'same-origin' })).toBe(true);
     expect(allowed('/api/student/session?accountId=' + photoAccountV1)).toBe(true);
-    expect(allowed('/api/student/live?accountId=' + photoAccountV1 + '&purpose=security')).toBe(true);
+    expect(allowed('/api/student/live?accountId=' + photoAccountV1 + '&purpose=security')).toBe(
+      true,
+    );
   });
 
   it.each([
@@ -34,11 +37,12 @@ describe('photo query integration in the existing Portal origin boundary', () =>
     '/api/student/session?v=' + revision,
     '/api/student/session?accountId=' + photoAccountV1 + '&v=' + revision,
     '/api/student/live?accountId=' + photoAccountV1 + '&purpose=security&v=' + revision,
-  ])('rejects unauthorized query/path combination %s at the real outer boundary', async path => {
+  ])('rejects unauthorized query/path combination %s at the real outer boundary', async (path) => {
     expect(allowed(path)).toBe(false);
     // No keys/database configured. Routing must reject before trying either.
     const response = await servePortalSelfV1(request(path), {
-      PORTAL_ENVIRONMENT: 'production', PORTAL_ORIGIN: origin,
+      PORTAL_ENVIRONMENT: 'production',
+      PORTAL_ORIGIN: origin,
       PORTAL_SERVING_ENABLED: 'true',
       PORTAL_ADMIN_TENANT_ID: '50000000-0000-4000-8000-000000000001',
     });
@@ -60,6 +64,12 @@ describe('photo query integration in the existing Portal origin boundary', () =>
 
   it('keeps preview environments and foreign request origins closed', () => {
     expect(portalRequestOriginAllowedV1(request(photoPath), 'preview', origin)).toBe(false);
-    expect(portalRequestOriginAllowedV1(new Request('https://foreign.invalid' + photoPath), 'production', origin)).toBe(false);
+    expect(
+      portalRequestOriginAllowedV1(
+        new Request('https://foreign.invalid' + photoPath),
+        'production',
+        origin,
+      ),
+    ).toBe(false);
   });
 });

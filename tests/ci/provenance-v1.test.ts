@@ -42,7 +42,13 @@ describe('production provenance v1', () => {
     ['tree', () => ({ ...input(), treeSha: sha('d') })],
     ['validate run', () => ({ ...input(), validateRunId: 999 })],
     ['runtime run', () => ({ ...input(), runtimeRunId: 999 })],
-    ['pull request', () => ({ ...input(), runtime: { ...proof('student-portal-runtime-gates', 202), pullRequest: 830 } })],
+    [
+      'pull request',
+      () => ({
+        ...input(),
+        runtime: { ...proof('student-portal-runtime-gates', 202), pullRequest: 830 },
+      }),
+    ],
   ])('fails closed on a %s mismatch', (_label, make) => {
     expect(() => verifyProductionProvenanceV1(make())).toThrow();
   });
@@ -51,8 +57,9 @@ describe('production provenance v1', () => {
     const swapped = input();
     swapped.validate = proof('student-portal-runtime-gates', 101);
     expect(() => verifyProductionProvenanceV1(swapped)).toThrow('Unexpected gate workflow');
-    expect(() => parseCiProvenanceV1({ ...proof('validate-pull-request', 101), extra: true }))
-      .toThrow('Unexpected provenance fields');
+    expect(() =>
+      parseCiProvenanceV1({ ...proof('validate-pull-request', 101), extra: true }),
+    ).toThrow('Unexpected provenance fields');
   });
 
   it.each([

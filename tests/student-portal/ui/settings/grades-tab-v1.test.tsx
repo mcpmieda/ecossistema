@@ -10,7 +10,10 @@ const empty = { enabled: false, schedule: [] };
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
   vi.setSystemTime(new Date('2026-10-20T12:58:00Z'));
-  Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  });
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener: vi.fn(),

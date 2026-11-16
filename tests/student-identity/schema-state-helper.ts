@@ -3,13 +3,22 @@ import { GRADEBOOK_CURRENT_TABLES_V1 } from '../../server/gradebook/recovery/cur
 
 /** Exact Gradebook catalog after the existing foundation and the cross-module identity migration. */
 const STUDENT_IDENTITY_GRADEBOOK_CATALOG_V1 = {
-  tables: 30, columns: 248, constraints: 221, indexes: 72,
-  foreignKeys: 52, sequences: 13, functions: 6, triggers: 5,
+  tables: 30,
+  columns: 248,
+  constraints: 221,
+  indexes: 72,
+  foreignKeys: 52,
+  sequences: 13,
+  functions: 6,
+  triggers: 5,
 } as const;
 
 /** Owner-side recovery/postflight assertion, not a runtime endpoint or permission grant. */
-export async function assertStudentIdentitySchemaV1(sql: CurrentGradebookRecoveryQueryV1): Promise<void> {
-  const rows = Array.from(await sql.unsafe(`SELECT
+export async function assertStudentIdentitySchemaV1(
+  sql: CurrentGradebookRecoveryQueryV1,
+): Promise<void> {
+  const rows = Array.from(
+    await sql.unsafe(`SELECT
     (SELECT count(*) FROM pg_tables WHERE schemaname='gradebook')::integer AS tables,
     (SELECT count(*) FROM information_schema.columns WHERE table_schema='gradebook')::integer AS columns,
     (SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
@@ -21,18 +30,26 @@ export async function assertStudentIdentitySchemaV1(sql: CurrentGradebookRecover
     (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
       WHERE n.nspname='gradebook')::integer AS functions,
     (SELECT count(*) FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace
-      WHERE n.nspname='gradebook' AND NOT t.tgisinternal)::integer AS triggers`));
+      WHERE n.nspname='gradebook' AND NOT t.tgisinternal)::integer AS triggers`),
+  );
   if (rows.length !== 1) throw new Error('student-identity-catalog-missing');
   for (const [key, expected] of Object.entries(STUDENT_IDENTITY_GRADEBOOK_CATALOG_V1)) {
     if (rows[0]![key] !== expected) throw new Error(`student-identity-catalog-${key}-mismatch`);
   }
-  const names = Array.from(await sql.unsafe("SELECT tablename FROM pg_tables WHERE schemaname='gradebook' ORDER BY tablename"));
+  const names = Array.from(
+    await sql.unsafe(
+      "SELECT tablename FROM pg_tables WHERE schemaname='gradebook' ORDER BY tablename",
+    ),
+  );
   const expectedNames = new Set<string>([...GRADEBOOK_CURRENT_TABLES_V1, 'student_identity']);
-  if (names.length !== expectedNames.size
-    || names.some(row => typeof row.tablename !== 'string' || !expectedNames.has(row.tablename))) {
+  if (
+    names.length !== expectedNames.size ||
+    names.some((row) => typeof row.tablename !== 'string' || !expectedNames.has(row.tablename))
+  ) {
     throw new Error('student-identity-table-set-mismatch');
   }
-  const checks = Array.from(await sql.unsafe(`SELECT
+  const checks = Array.from(
+    await sql.unsafe(`SELECT
     NOT EXISTS (SELECT 1 FROM gradebook.aluno WHERE student_uid IS NULL) AS students_complete,
     NOT EXISTS (SELECT 1 FROM student_portal.account WHERE student_uid IS NULL) AS accounts_complete,
     NOT EXISTS (SELECT 1 FROM student_portal.account a JOIN gradebook.aluno s
@@ -81,8 +98,9 @@ export async function assertStudentIdentitySchemaV1(sql: CurrentGradebookRecover
         OR has_function_privilege(r.oid,'gradebook.assign_student_uid_v1()','EXECUTE')
         OR has_function_privilege(r.oid,'student_portal.assign_student_uid_v1()','EXECUTE')
         OR has_function_privilege(r.oid,'gradebook.guard_student_uid_input_v1()','EXECUTE')
-        OR has_function_privilege(r.oid,'student_portal.guard_student_uid_input_v1()','EXECUTE'))) AS no_runtime_identity_writes`));
-  if (checks.length !== 1 || Object.values(checks[0]!).some(value => value !== true)) {
+        OR has_function_privilege(r.oid,'student_portal.guard_student_uid_input_v1()','EXECUTE'))) AS no_runtime_identity_writes`),
+  );
+  if (checks.length !== 1 || Object.values(checks[0]!).some((value) => value !== true)) {
     throw new Error('student-identity-postflight-invariant-failed');
   }
 }

@@ -53,7 +53,12 @@ function periodShownV2(available: readonly SubjectV2[], period: (typeof PERIODS_
  * REC1/REC2 happens before the T3: it must never outrank the T3 as the final/annual source.
  */
 const CALENDAR_RANK_V2: Readonly<Record<(typeof PERIODS_V1)[number], number>> = {
-  T1: 0, REC1: 1, T2: 2, REC2: 3, T3: 4, REC3: 5,
+  T1: 0,
+  REC1: 1,
+  T2: 2,
+  REC2: 3,
+  T3: 4,
+  REC3: 5,
 };
 
 const preparedPayloadV2 = z.record(z.string(), z.unknown());
@@ -88,7 +93,11 @@ function selectPeriodV2(
 ): PeriodSelectionV2 {
   const explicitWithdrawal = row.decision_version !== null && row.approved_revision === null;
   const revision = academicVersionSchemaV1.nullable().parse(row.target_revision);
-  if (revision === null || row.payload_json === null || row.edition_class_id !== context.policy.classId)
+  if (
+    revision === null ||
+    row.payload_json === null ||
+    row.edition_class_id !== context.policy.classId
+  )
     return { available: [], acceptedRevision: null, explicitWithdrawal };
   const source = preparedSourceV2(row, revision, reader, decoded, context);
   return {
@@ -136,7 +145,9 @@ function orderedSubjectsV2(
   finalAuthority: boolean,
   t3Published: boolean,
 ) {
-  const finalSubjects = finalSource ? academicToSelfV1(finalSource.student, accountId).subjects : [];
+  const finalSubjects = finalSource
+    ? academicToSelfV1(finalSource.student, accountId).subjects
+    : [];
   return [...subjects.values()]
     .sort(
       (a, b) => compareSourceSubjectPresentationV1(a.label, b.label) || a.subjectId - b.subjectId,
@@ -144,7 +155,8 @@ function orderedSubjectsV2(
     .map((subject, order) => {
       const official = finalSubjects.find((item) => item.subjectId === subject.subjectId);
       const outcome = official?.officialOutcome;
-      const hasAuthority = finalSource?.finalAuthority.subjectIds.includes(subject.subjectId) === true;
+      const hasAuthority =
+        finalSource?.finalAuthority.subjectIds.includes(subject.subjectId) === true;
       // Final classifications need the same authority as officialOutcome. `recovery-pending`
       // exists precisely before the annual closure, so it is relayed from the accepted edition
       // and gated later by T3 disclosure (applyPublishedVisibilityV1), but only while the 3º
@@ -173,7 +185,8 @@ function profileSituationV2(
   finalAuthority: boolean,
   t3Published: boolean,
 ) {
-  if (finalSource?.student.profile.academicState !== context.profile.academicState) return undefined;
+  if (finalSource?.student.profile.academicState !== context.profile.academicState)
+    return undefined;
   const situation = finalSource.student.profile.annualSituation;
   // Same authority as `result`, except EM RECUPERAÇÃO, which precedes the annual closure and
   // needs the 3º trimestre it comes from to be published.
@@ -228,13 +241,20 @@ export async function scopedSelfV2(
 ): Promise<SelfResponseV1> {
   const accountId = context.account.id;
   const link = context.account.link!;
-  const rows = sources ? await sources.scoped(context)
+  const rows = sources
+    ? await sources.scoped(context)
     : await readScopedSourcesV2(tx, accountId, link.studentId, context.policy.classId!);
   if (rows.length !== PERIODS_V1.length) throw new Error('student-portal-preparation-unavailable');
   const subjects = new Map<number, SubjectV2>();
   const reader = new AcademicStudentReaderPostgresV1(tx);
   const decoded = new Map<string, SourceV2>();
-  const { accepted, finalSource, explicitWithdrawal } = readPeriodsV2(rows, context, reader, decoded, subjects);
+  const { accepted, finalSource, explicitWithdrawal } = readPeriodsV2(
+    rows,
+    context,
+    reader,
+    decoded,
+    subjects,
+  );
   const finalAuthority = finalAuthorityV2(context, finalSource, explicitWithdrawal);
   const published = PERIODS_V1.filter((_, index) => accepted[index] !== null);
   const t3Published = published.includes('T3');
@@ -246,7 +266,8 @@ export async function scopedSelfV2(
     state: ordered.length ? 'ready' : 'no-publication',
     profile: {
       ...context.profile,
-      result: finalAuthority && finalSource ? finalSource.student.profile.result : context.profile.result,
+      result:
+        finalAuthority && finalSource ? finalSource.student.profile.result : context.profile.result,
       ...(annualSituation === undefined ? {} : { annualSituation }),
     },
     subjects: ordered,
@@ -263,7 +284,15 @@ export async function scopedSelfV2(
     context.now,
     finalAuthority,
   );
-  const withClosings = await termClosingsV2(tx, context, visible, published, reader, decoded, sources);
+  const withClosings = await termClosingsV2(
+    tx,
+    context,
+    visible,
+    published,
+    reader,
+    decoded,
+    sources,
+  );
   const endedPeriods = endedPeriodsV1(context.policy.enforcedValue, context.now);
   return selfResponseV1.parse({
     ...withClosings,
@@ -292,7 +321,10 @@ async function termClosingsV2(
     context.profile.academicState,
     context.now,
   );
-  const targets = { ...allowed, periods: allowed.periods.filter((period) => published.includes(period)) };
+  const targets = {
+    ...allowed,
+    periods: allowed.periods.filter((period) => published.includes(period)),
+  };
   if (targets.periods.length === 0) return projection;
   const source = await closingSourceV2(tx, context, reader, decoded, sources);
   return source ? attachTermClosingsV1({ projection, targets, ...source }) : projection;
@@ -306,16 +338,25 @@ async function closingSourceV2(
   decoded: Map<string, SourceV2>,
   sources?: ScopedSelfSourceReaderV2,
 ) {
-  const latest = sources ? await sources.latest(context.account.link!.studentId)
+  const latest = sources
+    ? await sources.latest(context.account.link!.studentId)
     : await readLatestSourceV2(tx, context.account.link!.studentId);
-  if (!latest || latest.payload_json === null || latest.class_id !== context.policy.classId) return null;
+  if (!latest || latest.payload_json === null || latest.class_id !== context.policy.classId)
+    return null;
   try {
     const revision = academicVersionSchemaV1.parse(latest.revision);
-    const source = preparedSourceV2({ payload_json: latest.payload_json } as ScopedRowV2, revision, reader, decoded, context);
+    const source = preparedSourceV2(
+      { payload_json: latest.payload_json } as ScopedRowV2,
+      revision,
+      reader,
+      decoded,
+      context,
+    );
     return {
       evaluations: source.closings,
       sourceSubjects: source.student.subjects,
-      studentKey: sources ? await sources.studentKey(context.account.id)
+      studentKey: sources
+        ? await sources.studentKey(context.account.id)
         : await readStudentKeyV2(tx, context.account.id),
     };
   } catch {
@@ -334,11 +375,19 @@ export async function termClosingPreviewV2(tx: StudentPortalPostgresQueryV1, con
     context.profile.academicState,
     context.now,
   );
-  const visibleToStudent = value.showTermClosing && accessGateV1(value, context.now) && targets.periods.length > 0;
+  const visibleToStudent =
+    value.showTermClosing && accessGateV1(value, context.now) && targets.periods.length > 0;
   const source = targets.periods.length
     ? await closingSourceV2(tx, context, new AcademicStudentReaderPostgresV1(tx), new Map())
     : null;
-  if (!source) return { mode: targets.mode, closedPeriods: targets.periods, visibleToStudent, subjects: [], summary: undefined };
+  if (!source)
+    return {
+      mode: targets.mode,
+      closedPeriods: targets.periods,
+      visibleToStudent,
+      subjects: [],
+      summary: undefined,
+    };
   const { closings, summary } = buildTermClosingsV1({ targets, ...source });
   return {
     mode: targets.mode,
@@ -346,7 +395,11 @@ export async function termClosingPreviewV2(tx: StudentPortalPostgresQueryV1, con
     visibleToStudent,
     subjects: source.sourceSubjects
       .filter((subject) => closings.has(subject.subjectId))
-      .map((subject) => ({ subjectId: subject.subjectId, label: subject.label, closings: closings.get(subject.subjectId)! })),
+      .map((subject) => ({
+        subjectId: subject.subjectId,
+        label: subject.label,
+        closings: closings.get(subject.subjectId)!,
+      })),
     summary,
   };
 }

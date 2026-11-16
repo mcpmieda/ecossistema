@@ -70,9 +70,10 @@ export function createViewPreferencesServiceV1(database: Database) {
         return readViews(db, actorId);
       };
       try {
-        const views = typeof database.transaction === 'function'
-          ? await database.transaction(write)
-          : await write(database);
+        const views =
+          typeof database.transaction === 'function'
+            ? await database.transaction(write)
+            : await write(database);
         return { contractVersion: 1, state: 'ready', views };
       } catch {
         return failure('unavailable');

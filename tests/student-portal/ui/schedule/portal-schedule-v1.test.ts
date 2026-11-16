@@ -46,7 +46,10 @@ vi.mock('../../../../server/student-portal/auth/session-service-v1', () => ({
       ) => Promise<T>,
     ) {
       return operation(
-        { account: { id: accountId }, policy: { enforcedValue: { showSchedule: mocks.showSchedule } } },
+        {
+          account: { id: accountId },
+          policy: { enforcedValue: { showSchedule: mocks.showSchedule } },
+        },
         { unsafe: mocks.unsafe },
         { id: sessionId, expiresAt: '2026-10-22T13:00:00.000Z', persistent: false },
       );
@@ -97,7 +100,11 @@ it("returns the student's own grid, read with its account and session only", asy
   expect(await response.json()).toEqual({
     contractVersion: 1,
     state: 'ready',
-    classes: grid.classes.map((item) => ({ ...item, observedAt: '2026-10-22T11:00:00.123Z', bells: null })),
+    classes: grid.classes.map((item) => ({
+      ...item,
+      observedAt: '2026-10-22T11:00:00.123Z',
+      bells: null,
+    })),
     today: '2026-10-22',
     now: '2026-10-22T12:30:00.000Z',
     daysOff: [],
@@ -121,9 +128,20 @@ it("adds the bells of each class's shift, the days without school and the school
     daysOff: { date: string; kind: string; note?: string }[];
     schoolYear: { firstDay: string; lastDay: string } | null;
   };
-  expect(body.classes.map((item: { bells: unknown }) => item.bells)).toEqual([officialBells2026V1().matutino, null]);
-  expect(body.daysOff).toContainEqual({ date: '2026-10-12', kind: 'feriado', note: 'Nossa Senhora Aparecida' });
-  expect(body.daysOff.every((day: { kind: string }) => ['feriado', 'recesso', 'evento'].includes(day.kind))).toBe(true);
+  expect(body.classes.map((item: { bells: unknown }) => item.bells)).toEqual([
+    officialBells2026V1().matutino,
+    null,
+  ]);
+  expect(body.daysOff).toContainEqual({
+    date: '2026-10-12',
+    kind: 'feriado',
+    note: 'Nossa Senhora Aparecida',
+  });
+  expect(
+    body.daysOff.every((day: { kind: string }) =>
+      ['feriado', 'recesso', 'evento'].includes(day.kind),
+    ),
+  ).toBe(true);
   // The official calendar's first and last school day, never a fixed date.
   expect(body.schoolYear).toEqual({ firstDay: '2026-02-23', lastDay: '2026-12-15' });
 });
@@ -159,18 +177,24 @@ it('rejects a query string and anything outside the recognized grid', async () =
   }
   // A reading moment no browser could show is not ours either.
   mocks.unsafe.mockReset();
-  mocks.unsafe.mockResolvedValueOnce([{ schedule: { classes: [{ label: 'A', observedAt: 'ontem', lessons: [] }] } }]);
+  mocks.unsafe.mockResolvedValueOnce([
+    { schedule: { classes: [{ label: 'A', observedAt: 'ontem', lessons: [] }] } },
+  ]);
   expect((await servePortalScheduleV1(request(), env)).status).toBe(503);
 });
 
 it("reads the grid's first reading day (attendance 0020) but keeps it out of the Horário's answer", async () => {
   mocks.unsafe
-    .mockResolvedValueOnce([{ schedule: { classes: [{ ...grid.classes[0]!, validFrom: '2026-08-03' }] } }])
+    .mockResolvedValueOnce([
+      { schedule: { classes: [{ ...grid.classes[0]!, validFrom: '2026-08-03' }] } },
+    ])
     .mockResolvedValueOnce([clock])
     .mockResolvedValueOnce([])
     .mockResolvedValueOnce([]);
   const response = await servePortalScheduleV1(request(), env);
   expect(response.status).toBe(200);
   const body = (await response.json()) as { classes: Record<string, unknown>[] };
-  expect(body.classes).toEqual([{ ...grid.classes[0], observedAt: '2026-10-22T11:00:00.123Z', bells: null }]);
+  expect(body.classes).toEqual([
+    { ...grid.classes[0], observedAt: '2026-10-22T11:00:00.123Z', bells: null },
+  ]);
 });

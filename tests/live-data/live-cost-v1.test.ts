@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { notifyLiveChangeV1, subscribeLiveRefreshV1 } from '../../src/shared/live-data/live-refresh-v1';
+import {
+  notifyLiveChangeV1,
+  subscribeLiveRefreshV1,
+} from '../../src/shared/live-data/live-refresh-v1';
 import { createLatestPortalRequestV1 } from '../../src/features/student-portal/shared/latest-request-v1';
 import { mockSecureJitterV1 } from './secure-jitter-fixture';
 

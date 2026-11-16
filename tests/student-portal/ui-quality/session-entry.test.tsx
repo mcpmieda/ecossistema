@@ -84,12 +84,14 @@ it.each([false, true])(
     const fetcher = vi.fn((path: string) => {
       if (path === '/api/student/session') {
         if (restoring) return restoredSession.promise;
-        return Promise.resolve(json({
-          ...meta,
-          state: 'authenticated',
-          persistent: false,
-          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-        }));
+        return Promise.resolve(
+          json({
+            ...meta,
+            state: 'authenticated',
+            persistent: false,
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+          }),
+        );
       }
       return Promise.resolve(json(SYNTHETIC_SELF_V1));
     });
@@ -103,12 +105,16 @@ it.each([false, true])(
     restoring = true;
     const show = new Event('pageshow');
     Object.defineProperty(show, 'persisted', { value: persisted });
-    await act(async () => { fireEvent(window, show); });
+    await act(async () => {
+      fireEvent(window, show);
+    });
     // Stable login: the return re-verifies on its own; no retry button, no protected content yet.
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
-    await act(async () => restoredSession.resolve(json({ ...meta, state: 'unauthenticated' }, 401)));
+    await act(async () =>
+      restoredSession.resolve(json({ ...meta, state: 'unauthenticated' }, 401)),
+    );
     // Revoked: straight to the login form, without any error message.
     await screen.findByRole('button', { name: 'Selecionar QR da galeria' });
     expect(screen.queryByRole('alert')).toBeNull();
@@ -167,7 +173,12 @@ it('logs out the current account before challenging the second QR and accepts it
   client.me.mockResolvedValueOnce(SYNTHETIC_SELF_V1).mockResolvedValueOnce(second);
   client.challenge.mockResolvedValueOnce(REQUIRED('password'));
   let finishLogout!: (value: Awaited<ReturnType<typeof client.logout>>) => void;
-  client.logout.mockImplementationOnce(() => new Promise((resolve) => { finishLogout = resolve; }));
+  client.logout.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishLogout = resolve;
+      }),
+  );
   render(
     <StudentPortalApp
       client={client}
@@ -178,10 +189,14 @@ it('logs out the current account before challenging the second QR and accepts it
   expect(client.challenge).not.toHaveBeenCalled();
   await userEvent.setup().click(screen.getByRole('button', { name: 'Trocar de aluno' }));
   expect(client.challenge).not.toHaveBeenCalled();
-  await act(async () => finishLogout({ contractVersion: 1, requestId: SYNTHETIC_ID_V1, state: 'logged-out' }));
+  await act(async () =>
+    finishLogout({ contractVersion: 1, requestId: SYNTHETIC_ID_V1, state: 'logged-out' }),
+  );
   const password = await screen.findByLabelText('Senha de 6 números');
   expect(client.logout).toHaveBeenCalledOnce();
-  expect(client.logout.mock.invocationCallOrder[0]).toBeLessThan(client.challenge.mock.invocationCallOrder[0]!);
+  expect(client.logout.mock.invocationCallOrder[0]).toBeLessThan(
+    client.challenge.mock.invocationCallOrder[0]!,
+  );
   await userEvent.setup().type(password, '001234');
   await userEvent.setup().click(screen.getByRole('button', { name: 'Entrar' }));
   expect(await screen.findByText(second.profile.name)).toBeTruthy();
@@ -327,9 +342,19 @@ it('sends a signed-in student whose access closed back to the login countdown, n
     state: 'status' as const,
     scope: 'school' as const,
     serverNow: new Date().toISOString(),
-    notices: { access: 'closed' as const, accessOpensAt: opensAt, gradesReleaseAt: null, disclosureEnded: null },
+    notices: {
+      access: 'closed' as const,
+      accessOpensAt: opensAt,
+      gradesReleaseAt: null,
+      disclosureEnded: null,
+    },
   }));
-  render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} statusClient={statusClient} />);
+  render(
+    <StudentPortalApp
+      client={createPortalSelfClientV1({ fetch: fetcher })}
+      statusClient={statusClient}
+    />,
+  );
 
   expect(await screen.findByText('Portal fechado no momento')).toBeTruthy();
   expect(screen.getByText(/O Portal abre em/u)).toBeTruthy();

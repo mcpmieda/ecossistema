@@ -40,7 +40,11 @@ const scenarios = (['swapped', 'reused', 'historical'] as const).flatMap((kind) 
     [false, true].flatMap((reverseSources) =>
       (['both', 'inep', 'filiation', 'empty'] as const).flatMap((difference) =>
         [false, true].map((historicalRejection) => ({
-          kind, reverseRows, reverseSources, difference, historicalRejection,
+          kind,
+          reverseRows,
+          reverseSources,
+          difference,
+          historicalRejection,
         })),
       ),
     ),
@@ -56,18 +60,27 @@ describe('rejected homonyms cannot consume another origin', () => {
         sourceRow: 3,
         inep: difference === 'empty' ? null : difference === 'filiation' ? a.inep : '002',
         inepKey: difference === 'empty' ? null : difference === 'filiation' ? a.inepKey : '002',
-        filiation1: difference === 'empty' ? null : difference === 'inep' ? a.filiation1 : 'GUARDIAN B',
-        filiation1Key: difference === 'empty' ? null : difference === 'inep' ? a.filiation1Key : 'GUARDIAN B',
+        filiation1:
+          difference === 'empty' ? null : difference === 'inep' ? a.filiation1 : 'GUARDIAN B',
+        filiation1Key:
+          difference === 'empty' ? null : difference === 'inep' ? a.filiation1Key : 'GUARDIAN B',
         enrollmentHash: 'synthetic-hash-b',
       });
       const rejected: ReconciliationSourceV1 = {
         sourceId: 'synthetic-source-b',
         studentUid: null,
-        current: historicalRejection ? row({
-          sourceRow: 3, name: 'RENAMED B', nameKey: 'RENAMED B',
-          inep: '003', inepKey: '003', filiation1: 'RENAMED GUARDIAN',
-          filiation1Key: 'RENAMED GUARDIAN', enrollmentHash: 'synthetic-current-b',
-        }) : b,
+        current: historicalRejection
+          ? row({
+              sourceRow: 3,
+              name: 'RENAMED B',
+              nameKey: 'RENAMED B',
+              inep: '003',
+              inepKey: '003',
+              filiation1: 'RENAMED GUARDIAN',
+              filiation1Key: 'RENAMED GUARDIAN',
+              enrollmentHash: 'synthetic-current-b',
+            })
+          : b,
         history: historicalRejection ? [b] : [],
       };
       const rows = [
@@ -84,7 +97,9 @@ describe('rejected homonyms cannot consume another origin', () => {
       const before = structuredClone(input);
       const result = planStudentReconciliationV1(input);
       expect(result.rows.find((entry) => entry.sourceRow === 3)).toMatchObject({
-        sourceId: null, studentUid: null, reason: 'rejected',
+        sourceId: null,
+        studentUid: null,
+        reason: 'rejected',
       });
       // Neither side of the rejection may acquire the other person's current observation.
       expect(result.rows.every((entry) => entry.sourceId === null)).toBe(true);
@@ -94,18 +109,34 @@ describe('rejected homonyms cannot consume another origin', () => {
   );
 
   it.each(['synthetic-hash-a', 'synthetic-new-hash'])(
-    'does not outvote a rejected INEP with corrected name/filiation: %s', (enrollmentHash) => {
+    'does not outvote a rejected INEP with corrected name/filiation: %s',
+    (enrollmentHash) => {
       const result = planStudentReconciliationV1({
         rows: [row({ enrollmentHash, inep: '002', inepKey: '002' })],
-        sources: [source(), {
-          sourceId: 'synthetic-source-b', studentUid: null,
-          current: row({ name: 'OTHER', nameKey: 'OTHER', inep: '002', inepKey: '002',
-            filiation1: 'OTHER GUARDIAN', filiation1Key: 'OTHER GUARDIAN', enrollmentHash: 'synthetic-hash-b' }),
-        }],
+        sources: [
+          source(),
+          {
+            sourceId: 'synthetic-source-b',
+            studentUid: null,
+            current: row({
+              name: 'OTHER',
+              nameKey: 'OTHER',
+              inep: '002',
+              inepKey: '002',
+              filiation1: 'OTHER GUARDIAN',
+              filiation1Key: 'OTHER GUARDIAN',
+              enrollmentHash: 'synthetic-hash-b',
+            }),
+          },
+        ],
         students: [student],
         rejectedPairs: [{ sourceId: 'synthetic-source-b', studentUid: student.studentUid }],
       });
-      expect(result.rows[0]).toMatchObject({ sourceId: null, studentUid: null, reason: 'rejected' });
+      expect(result.rows[0]).toMatchObject({
+        sourceId: null,
+        studentUid: null,
+        reason: 'rejected',
+      });
       expect(result.profiles).toEqual([]);
     },
   );
@@ -113,9 +144,15 @@ describe('rejected homonyms cannot consume another origin', () => {
   it('does not treat name/birth plus two explicit conflicts as continuity without a rejection', () => {
     const result = planStudentReconciliationV1({
       rows: [row({ inep: '002', inepKey: '002', filiation1: 'OTHER', filiation1Key: 'OTHER' })],
-      sources: [source()], students: [student], rejectedPairs: [],
+      sources: [source()],
+      students: [student],
+      rejectedPairs: [],
     });
-    expect(result.rows[0]).toMatchObject({ sourceId: null, studentUid: null, reason: 'source_conflict' });
+    expect(result.rows[0]).toMatchObject({
+      sourceId: null,
+      studentUid: null,
+      reason: 'source_conflict',
+    });
     expect(result.profiles).toEqual([]);
   });
 
@@ -128,35 +165,71 @@ describe('rejected homonyms cannot consume another origin', () => {
     { enrollmentHash: 'synthetic-new-hash' },
   ])('retains legitimate corrections and explicit empty fields: %j', (patch) => {
     const result = planStudentReconciliationV1({
-      rows: [row(patch)], sources: [source()], students: [student], rejectedPairs: [],
+      rows: [row(patch)],
+      sources: [source()],
+      students: [student],
+      rejectedPairs: [],
     });
-    expect(result.rows[0]).toMatchObject({ studentUid: student.studentUid, rule: 'continuity', reason: null });
+    expect(result.rows[0]).toMatchObject({
+      studentUid: student.studentUid,
+      rule: 'continuity',
+      reason: null,
+    });
   });
 
-  it.each([false, true])('retains settled twins with cross-rejections, new hashes %s', (changed) => {
-    const b = row({ sourceRow: 3, name: 'TWIN B', nameKey: 'TWIN B', inep: '002', inepKey: '002', enrollmentHash: 'synthetic-hash-b' });
-    const twin = { studentUid: 'synthetic-uid-b', classId: 7, nameKey: b.nameKey };
-    const result = planStudentReconciliationV1({
-      rows: [row(), b].map((entry) => ({ ...entry, enrollmentHash: entry.enrollmentHash + (changed ? '-new' : '') })),
-      sources: [source(), { sourceId: 'synthetic-source-b', studentUid: twin.studentUid, current: b }],
-      students: [student, twin],
-      rejectedPairs: [
-        { sourceId: 'synthetic-source-a', studentUid: twin.studentUid },
-        { sourceId: 'synthetic-source-b', studentUid: student.studentUid },
-      ],
-    });
-    expect(result.rows.map((entry) => entry.studentUid)).toEqual([student.studentUid, twin.studentUid]);
-    expect(result.rows.every((entry) => entry.reason === null)).toBe(true);
-  });
+  it.each([false, true])(
+    'retains settled twins with cross-rejections, new hashes %s',
+    (changed) => {
+      const b = row({
+        sourceRow: 3,
+        name: 'TWIN B',
+        nameKey: 'TWIN B',
+        inep: '002',
+        inepKey: '002',
+        enrollmentHash: 'synthetic-hash-b',
+      });
+      const twin = { studentUid: 'synthetic-uid-b', classId: 7, nameKey: b.nameKey };
+      const result = planStudentReconciliationV1({
+        rows: [row(), b].map((entry) => ({
+          ...entry,
+          enrollmentHash: entry.enrollmentHash + (changed ? '-new' : ''),
+        })),
+        sources: [
+          source(),
+          { sourceId: 'synthetic-source-b', studentUid: twin.studentUid, current: b },
+        ],
+        students: [student, twin],
+        rejectedPairs: [
+          { sourceId: 'synthetic-source-a', studentUid: twin.studentUid },
+          { sourceId: 'synthetic-source-b', studentUid: student.studentUid },
+        ],
+      });
+      expect(result.rows.map((entry) => entry.studentUid)).toEqual([
+        student.studentUid,
+        twin.studentUid,
+      ]);
+      expect(result.rows.every((entry) => entry.reason === null)).toBe(true);
+    },
+  );
 
   it('does not use a new hash to override equally specific historical rejected evidence', () => {
     const result = planStudentReconciliationV1({
       rows: [row({ enrollmentHash: 'synthetic-new-hash' })],
-      sources: [source(), {
-        sourceId: 'synthetic-source-b', studentUid: null,
-        current: row({ name: 'OTHER', nameKey: 'OTHER', inep: '002', inepKey: '002', enrollmentHash: 'synthetic-hash-b' }),
-        history: [row({ enrollmentHash: 'synthetic-old-b' })],
-      }],
+      sources: [
+        source(),
+        {
+          sourceId: 'synthetic-source-b',
+          studentUid: null,
+          current: row({
+            name: 'OTHER',
+            nameKey: 'OTHER',
+            inep: '002',
+            inepKey: '002',
+            enrollmentHash: 'synthetic-hash-b',
+          }),
+          history: [row({ enrollmentHash: 'synthetic-old-b' })],
+        },
+      ],
       students: [student],
       rejectedPairs: [{ sourceId: 'synthetic-source-b', studentUid: student.studentUid }],
     });

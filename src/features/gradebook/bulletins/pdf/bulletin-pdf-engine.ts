@@ -53,7 +53,6 @@ export class BulletinPdfRendererErrorV1 extends Error {
   }
 }
 
-
 function concatBytes(chunks: readonly Uint8Array[]): Uint8Array {
   const length = chunks.reduce((total, chunk) => total + chunk.length, 0);
   const output = new Uint8Array(length);

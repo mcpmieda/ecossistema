@@ -22,12 +22,16 @@ type AreaErrorBoundaryStateV1 = { readonly failure: RouteLoadFailureV1 | null };
  */
 /** What the area shows when it fails: an old module after a deploy, the whole Centre, or one area. */
 function failureTextV1(moduleFailure: boolean, whole: boolean): string {
-  if (moduleFailure) return 'Não foi possível carregar esta área. Recarregue a página para obter a versão atual.';
+  if (moduleFailure)
+    return 'Não foi possível carregar esta área. Recarregue a página para obter a versão atual.';
   if (whole) return 'Ocorreu um erro ao mostrar o Centro. Recarregue a página para continuar.';
   return 'Ocorreu um erro ao mostrar esta área. O restante do Centro continua disponível.';
 }
 
-export class AreaErrorBoundaryV1 extends Component<AreaErrorBoundaryPropsV1, AreaErrorBoundaryStateV1> {
+export class AreaErrorBoundaryV1 extends Component<
+  AreaErrorBoundaryPropsV1,
+  AreaErrorBoundaryStateV1
+> {
   override state: AreaErrorBoundaryStateV1 = { failure: null };
 
   static getDerivedStateFromError(error: unknown): AreaErrorBoundaryStateV1 {

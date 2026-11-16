@@ -96,7 +96,11 @@ export class EntraMaintenancePlanError extends Error {
   readonly status?: number;
 
   constructor(stage: string, status?: number) {
-    super(status ? `Entra maintenance dry-run failed at ${stage} (${status})` : `Entra maintenance dry-run failed at ${stage}`);
+    super(
+      status
+        ? `Entra maintenance dry-run failed at ${stage} (${status})`
+        : `Entra maintenance dry-run failed at ${stage}`,
+    );
     this.name = 'EntraMaintenancePlanError';
     this.stage = stage;
     this.status = status;
@@ -118,7 +122,8 @@ async function graphJson<T>(
   let response: Response;
   try {
     // graphReadUrlV1 allows only fixed Graph read paths on the Graph origin.
-    response = await fetcher(graphReadUrlV1(path), { // NOSONAR
+    response = await fetcher(graphReadUrlV1(path), {
+      // NOSONAR
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -273,8 +278,7 @@ async function readTarget(
     keyCredentials,
     passwordCredentialCount: (app.passwordCredentials ?? []).length,
     certificateMaterialReadableCount,
-    allCertificateMaterialReadable:
-      certificateMaterialReadableCount === rawKeyCredentials.length,
+    allCertificateMaterialReadable: certificateMaterialReadableCount === rawKeyCredentials.length,
   };
 }
 
@@ -291,7 +295,8 @@ export async function buildMaintenancePlan(input: {
   const maintenanceClientId = requiredUuid(input.maintenanceClientId, 'maintenance-client-id');
   const webObjectId = requiredUuid(input.webApplicationObjectId, 'web-object-id');
   const graphObjectId = requiredUuid(input.graphApplicationObjectId, 'graph-object-id');
-  if (webObjectId === graphObjectId) throw new EntraMaintenancePlanError('duplicate-target-object-id');
+  if (webObjectId === graphObjectId)
+    throw new EntraMaintenancePlanError('duplicate-target-object-id');
 
   const fetcher = input.fetcher ?? fetch;
   const identity = await readMaintenanceIdentity(fetcher, accessToken, maintenanceClientId);

@@ -15,7 +15,12 @@ class Socket implements StudentSecuritySocketV1 {
   confirm() {
     this.onopen?.(new Event('open'));
     this.onmessage?.({
-      data: JSON.stringify({ contractVersion: 1, type: 'security-connected', expiresAt: SESSION.expiresAt, renewable: true }),
+      data: JSON.stringify({
+        contractVersion: 1,
+        type: 'security-connected',
+        expiresAt: SESSION.expiresAt,
+        renewable: true,
+      }),
     } as MessageEvent);
   }
 }
@@ -36,7 +41,9 @@ afterEach(() => {
 });
 function setup() {
   const sockets: Socket[] = [];
-  const authorize = vi.fn<(signal: AbortSignal, connectionId?: string) => Promise<boolean>>().mockResolvedValue(true);
+  const authorize = vi
+    .fn<(signal: AbortSignal, connectionId?: string) => Promise<boolean>>()
+    .mockResolvedValue(true);
   const security = createStudentSecurityV1({
     connect: () => {
       const socket = new Socket();
@@ -123,7 +130,11 @@ describe('student security channel on a hidden page', () => {
     const s = setup();
     s.sockets[0]!.confirm();
     let finish: (renewed: boolean) => void = () => {};
-    s.authorize.mockReturnValueOnce(new Promise<boolean>((resolve) => { finish = resolve; }));
+    s.authorize.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+    );
     await vi.advanceTimersByTimeAsync(20_000);
     show('hidden');
     await vi.advanceTimersByTimeAsync(25_000); // the 45 s renewal starts, five seconds before the pause

@@ -13,9 +13,7 @@ const navigableModules = withNotesModule(coreModules);
 describe('Centro de Administração module contract', () => {
   it('declares one stable navigable module per platform route', () => {
     expect(navigableModules).toHaveLength(PLATFORM_ROUTES.length);
-    expect(new Set(navigableModules.map((module) => module.id)).size).toBe(
-      navigableModules.length,
-    );
+    expect(new Set(navigableModules.map((module) => module.id)).size).toBe(navigableModules.length);
     expect(new Set(navigableModules.map((module) => module.route))).toEqual(
       new Set(PLATFORM_ROUTES),
     );
@@ -42,7 +40,8 @@ describe('Centro de Administração module contract', () => {
     const states = new Map(navigableModules.map((module) => [module.route, module.state]));
     // Publicações, Páginas and Sistemas left the Centro on 07/10/2026 (owner request).
     const routes = navigableModules.map((module): string => module.route);
-    for (const removed of ['publicacoes', 'paginas', 'sistemas']) expect(routes).not.toContain(removed);
+    for (const removed of ['publicacoes', 'paginas', 'sistemas'])
+      expect(routes).not.toContain(removed);
     // Visão geral left on 08/10/2026 and Auditoria became a section of Saúde do Sistema.
     for (const removed of ['visao-geral', 'auditoria']) expect(routes).not.toContain(removed);
     expect(navigableModules.every((module) => module.state === 'ready')).toBe(true);

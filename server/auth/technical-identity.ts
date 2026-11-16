@@ -43,8 +43,9 @@ function requestedCredential(
   purpose: CredentialPurpose,
   slot: GraphCredentialSlot,
 ): GraphCredential {
-  try { return rotatedCredential(env, purpose, slot); }
-  catch {
+  try {
+    return rotatedCredential(env, purpose, slot);
+  } catch {
     throw new TechnicalCredentialError(
       purpose,
       env[`${purpose}_CREDENTIAL_${slot}`] ? 'invalid' : 'missing',
@@ -64,8 +65,11 @@ function technicalCredentials(
   const invalid: GraphCredentialSlot[] = [];
   for (const slot of ['A', 'B'] as const) {
     if (!env[`${purpose}_CREDENTIAL_${slot}`]) continue;
-    try { rotated.push(rotatedCredential(env, purpose, slot)); }
-    catch { invalid.push(slot); }
+    try {
+      rotated.push(rotatedCredential(env, purpose, slot));
+    } catch {
+      invalid.push(slot);
+    }
   }
   rotated.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   if (rotated.length === 0) {

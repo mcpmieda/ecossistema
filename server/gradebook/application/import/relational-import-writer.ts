@@ -43,8 +43,11 @@ import {
   type ImportInstrumentStateV11,
   type ImportOfferReadStateV11,
 } from '../../persistence/postgres/relational-import-read-set-v11';
-import { requireTransactionDatabaseV1, type GradebookPostgresScalarV1, type GradebookPostgresWritePortV1  } from '../../persistence/postgres/postgres-database-v1';
-
+import {
+  requireTransactionDatabaseV1,
+  type GradebookPostgresScalarV1,
+  type GradebookPostgresWritePortV1,
+} from '../../persistence/postgres/postgres-database-v1';
 
 type Row = Record<string, unknown>;
 
@@ -116,7 +119,10 @@ async function academicRun(
   return changes;
 }
 
-async function lockAcademicYear(database: GradebookPostgresWritePortV1, ano: number): Promise<void> {
+async function lockAcademicYear(
+  database: GradebookPostgresWritePortV1,
+  ano: number,
+): Promise<void> {
   await lockResetWriterV1(database, ano);
 }
 
@@ -322,7 +328,8 @@ function existingRelationIdentitiesV9(plan: RelationPlanV9) {
   const names = new Map<string, Set<number>>();
   const identities = new Map<number, string>();
   for (const binding of plan.existingByBinding.values()) {
-    if (!binding.studentUid || binding.studentUid === 'undefined') throw new Error('relation-student-identity-missing');
+    if (!binding.studentUid || binding.studentUid === 'undefined')
+      throw new Error('relation-student-identity-missing');
     identities.set(binding.alunoId, binding.studentUid);
     addToSetMapV9(names, normalizeRelationNameV9(binding.nome), binding.alunoId);
   }
@@ -333,7 +340,9 @@ async function loadReportIdentityEvidenceV9(
   database: GradebookPostgresWritePortV1,
   year: number,
 ): Promise<ReportIdentityEvidenceV9> {
-  const observations = await all<Row>(database, `SELECT o.source_id::text,o.name_key,o.birth_date::text,o.inep_key,
+  const observations = await all<Row>(
+    database,
+    `SELECT o.source_id::text,o.name_key,o.birth_date::text,o.inep_key,
       l.student_uid::text,c.gradebook_class_id,(o.id=s.current_observation_id) AS current_observation,
       (p.observation_id=o.id AND NOT p.review_required AND NOT l.review_required) AS selected_profile
     FROM gradebook.student_source_observation_v1 o
@@ -341,15 +350,24 @@ async function loadReportIdentityEvidenceV9(
     JOIN gradebook.student_report_class_v1 c ON c.id=o.report_class_id AND c.academic_year=o.academic_year
     LEFT JOIN gradebook.student_source_link_v1 l ON l.source_id=o.source_id AND l.academic_year=o.academic_year
     LEFT JOIN gradebook.student_report_profile_v1 p ON p.student_uid=l.student_uid AND p.academic_year=l.academic_year
-    WHERE o.academic_year=$1`, [year]);
-  const decisions = await all<Row>(database, `SELECT DISTINCT ON(source_id,student_uid)
+    WHERE o.academic_year=$1`,
+    [year],
+  );
+  const decisions = await all<Row>(
+    database,
+    `SELECT DISTINCT ON(source_id,student_uid)
       source_id::text,student_uid::text,action
     FROM gradebook.student_reconciliation_decision_v1
     WHERE academic_year=$1 AND source_id IS NOT NULL AND student_uid IS NOT NULL
       AND action IN ('reject','separate','release','associate','confirm')
-    ORDER BY source_id,student_uid,sequence DESC,recorded_at DESC,id DESC`, [year]);
-  const rejected = new Set(decisions.filter((row) => row.action === 'reject' || row.action === 'separate')
-    .map((row) => `${String(row.source_id)}:${String(row.student_uid)}`));
+    ORDER BY source_id,student_uid,sequence DESC,recorded_at DESC,id DESC`,
+    [year],
+  );
+  const rejected = new Set(
+    decisions
+      .filter((row) => row.action === 'reject' || row.action === 'separate')
+      .map((row) => `${String(row.source_id)}:${String(row.student_uid)}`),
+  );
   const observationsByName = new Map<string, Row[]>();
   const profilesByUid = new Map<string, Row>();
   const identitiesByInepBirth = new Map<string, Set<string>>();
@@ -377,10 +395,15 @@ function reportObservationConflictsV9(
   if (row.student_uid !== null && row.student_uid !== uid) return true;
   if (evidence.rejected.has(`${String(row.source_id)}:${uid}`)) return true;
   if (!isDatabaseTrueV9(row.current_observation)) return false;
-  if (profile && row.gradebook_class_id === turmaId && row.birth_date !== profile.birth_date) return true;
+  if (profile && row.gradebook_class_id === turmaId && row.birth_date !== profile.birth_date)
+    return true;
   const personalKey = inepBirthKeyV9(row);
-  return personalKey !== null &&
-    [...(evidence.identitiesByInepBirth.get(personalKey) ?? [])].some((otherUid) => otherUid !== uid);
+  return (
+    personalKey !== null &&
+    [...(evidence.identitiesByInepBirth.get(personalKey) ?? [])].some(
+      (otherUid) => otherUid !== uid,
+    )
+  );
 }
 
 /** Compares the complete previous state before any student name or binding is changed. */
@@ -403,12 +426,20 @@ async function assertRelationIdentityEvidenceV9(
       const nameChanged = current !== undefined && normalizeRelationNameV9(current.nome) !== key;
       const movement = component.items.length > 1 || item.relatedTurmaId !== null;
       if (!nameChanged && !movement) return false;
-      const academicConflict = nameChanged && [...(names.get(key) ?? [])].some((id) => id !== alunoId);
-      return academicConflict || (evidence.observationsByName.get(key) ?? []).some((row) =>
-        reportObservationConflictsV9(row, uid, item.turmaId, profile, evidence));
+      const academicConflict =
+        nameChanged && [...(names.get(key) ?? [])].some((id) => id !== alunoId);
+      return (
+        academicConflict ||
+        (evidence.observationsByName.get(key) ?? []).some((row) =>
+          reportObservationConflictsV9(row, uid, item.turmaId, profile, evidence),
+        )
+      );
     });
     if (conflicting) {
-      throw new RelationalImportErrorV9('review-required', 'A posição ou movimentação tem evidências de outra identidade. Confira os alunos.');
+      throw new RelationalImportErrorV9(
+        'review-required',
+        'A posição ou movimentação tem evidências de outra identidade. Confira os alunos.',
+      );
     }
   }
 }
@@ -436,18 +467,13 @@ async function resolveRelationComponentStudentV9(
     [alunoId, request.ano],
   );
   if (!current) {
-    throw new RelationalImportErrorV9(
-      'conflict',
-      `Aluno existente fora do ano ${request.ano}.`,
-    );
+    throw new RelationalImportErrorV9('conflict', `Aluno existente fora do ano ${request.ano}.`);
   }
   if (String(current.nome) !== component.preferred.nome) {
-    await changedRun(
-      database,
-      state,
-      'UPDATE gradebook.aluno SET nome = $1 WHERE id = $2',
-      [component.preferred.nome, alunoId],
-    );
+    await changedRun(database, state, 'UPDATE gradebook.aluno SET nome = $1 WHERE id = $2', [
+      component.preferred.nome,
+      alunoId,
+    ]);
   }
   return alunoId;
 }
@@ -509,15 +535,30 @@ function previewRelationClassesV9(
   request: GradebookRelationImportRequestV9,
   classRows: readonly Row[],
 ): Map<string, ExistingClassV9> {
-  const previewClasses = new Map<string, ExistingClassV9>(classRows.map((row) => [classKey(String(row.codigo)), {
-    id: asNumber(row.id, 'turma-id'), codigo: String(row.codigo), nome: String(row.nome),
-    etapa: asNumber(row.etapa, 'etapa'), turno: String(row.turno),
-  }]));
-  const sortedClasses = [...request.turmas].sort((a, b) => classKey(a.codigo).localeCompare(classKey(b.codigo)));
+  const previewClasses = new Map<string, ExistingClassV9>(
+    classRows.map((row) => [
+      classKey(String(row.codigo)),
+      {
+        id: asNumber(row.id, 'turma-id'),
+        codigo: String(row.codigo),
+        nome: String(row.nome),
+        etapa: asNumber(row.etapa, 'etapa'),
+        turno: String(row.turno),
+      },
+    ]),
+  );
+  const sortedClasses = [...request.turmas].sort((a, b) =>
+    classKey(a.codigo).localeCompare(classKey(b.codigo)),
+  );
   for (const [index, turma] of sortedClasses.entries()) {
-    if (!previewClasses.has(classKey(turma.codigo))) previewClasses.set(classKey(turma.codigo), {
-      id: -index - 1, codigo: classKey(turma.codigo), nome: turma.nome, etapa: turma.etapa, turno: turma.turno,
-    });
+    if (!previewClasses.has(classKey(turma.codigo)))
+      previewClasses.set(classKey(turma.codigo), {
+        id: -index - 1,
+        codigo: classKey(turma.codigo),
+        nome: turma.nome,
+        etapa: turma.etapa,
+        turno: turma.turno,
+      });
   }
   return previewClasses;
 }
@@ -528,25 +569,36 @@ async function previewRelationV9(
   request: GradebookRelationImportRequestV9,
   actorId: string | undefined,
 ): Promise<ReturnType<typeof parseExistingRelationBindingsV9>> {
-  const classRows = await all<Row>(database,
-    'SELECT id, codigo, nome, etapa, turno FROM gradebook.turma WHERE ano=$1 ORDER BY id', [request.ano]);
-  const existingRows = await all<Row>(database,
+  const classRows = await all<Row>(
+    database,
+    'SELECT id, codigo, nome, etapa, turno FROM gradebook.turma WHERE ano=$1 ORDER BY id',
+    [request.ano],
+  );
+  const existingRows = await all<Row>(
+    database,
     `SELECT v.turma_id, v.numero, v.aluno_id, v.situacao, v.turma_relacionada_id, a.nome, a.student_uid::text
      FROM gradebook.vinculo v JOIN gradebook.aluno a ON a.id=v.aluno_id
-     WHERE v.ano=$1 ORDER BY v.turma_id,v.numero`, [request.ano]);
+     WHERE v.ano=$1 ORDER BY v.turma_id,v.numero`,
+    [request.ano],
+  );
   const existing = parseExistingRelationBindingsV9(existingRows);
   const previewClasses = previewRelationClassesV9(request, classRows);
-  const digest = () => relationMovementDigestV9(database, request, actorId!, classRows, existingRows);
-  if (request.movementReview && (!actorId || request.movementReview.digest !== await digest()))
-    throw new RelationalImportErrorV9('conflict', 'A conferência mudou. Confira novamente as movimentações deste arquivo.');
+  const digest = () =>
+    relationMovementDigestV9(database, request, actorId!, classRows, existingRows);
+  if (request.movementReview && (!actorId || request.movementReview.digest !== (await digest())))
+    throw new RelationalImportErrorV9(
+      'conflict',
+      'A conferência mudou. Confira novamente as movimentações deste arquivo.',
+    );
   let previewPlan: RelationPlanV9;
   try {
     previewPlan = buildRelationPlanV9(request, previewClasses, existing);
   } catch (cause) {
     if (!(cause instanceof RelationPlanErrorV9)) throw cause;
-    const movementReview = cause.movementGroups && actorId
-      ? { digest: await digest(), groups: cause.movementGroups }
-      : undefined;
+    const movementReview =
+      cause.movementGroups && actorId
+        ? { digest: await digest(), groups: cause.movementGroups }
+        : undefined;
     throw new RelationalImportErrorV9(cause.state, cause.reason, movementReview);
   }
   await assertRelationIdentityEvidenceV9(database, request, previewPlan);
@@ -574,11 +626,7 @@ async function persistRelation(
   }
 
   const classes = await resolveRelationClasses(database, state, request);
-  const plan = relationPlanOrThrowV9(
-    request,
-    classes,
-    existing,
-  );
+  const plan = relationPlanOrThrowV9(request, classes, existing);
   state.warnings = plan.warnings;
 
   const alunoForSource = new Map<number, number>();
@@ -590,9 +638,7 @@ async function persistRelation(
   for (const item of plan.orderedSource) {
     const alunoId = alunoForSource.get(item.index);
     if (alunoId === undefined) throw new Error('component-aluno-missing');
-    const current = plan.existingByBinding.get(
-      relationBindingKeyV9(item.turmaId, item.numero),
-    );
+    const current = plan.existingByBinding.get(relationBindingKeyV9(item.turmaId, item.numero));
     await persistRelationBindingV9(database, state, request, item, alunoId, current);
   }
 }
@@ -654,12 +700,10 @@ async function resolveDiscipline(
   if (String(current.nome) !== name.trim()) {
     // A shared subject label may affect classes outside this file's offers.
     state.globalAcademicChange = true;
-    await changedRun(
-      database,
-      state,
-      `UPDATE gradebook.disciplina SET nome = $1 WHERE id = $2`,
-      [name.trim(), id],
-    );
+    await changedRun(database, state, `UPDATE gradebook.disciplina SET nome = $1 WHERE id = $2`, [
+      name.trim(),
+      id,
+    ]);
   }
   return id;
 }
@@ -686,15 +730,7 @@ async function reconcileInstrumentNotesV9(
   instrument: InstrumentStateV9,
   hasValue: boolean,
 ): Promise<void> {
-  const {
-    database,
-    state,
-    offer,
-    turmaId,
-    bindings,
-    observedInstruments,
-    notes,
-  } = scope;
+  const { database, state, offer, turmaId, bindings, observedInstruments, notes } = scope;
   const slot = term.instrumentos[column]![0];
   const activeInstrument = isRelationalInstrumentActiveV9({
     slot,
@@ -851,8 +887,9 @@ function closingPatchesV9(
           `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}.`,
         );
       const patch = patches.get(alunoId) ?? {};
-      const ams: [GradebookImportCellV9?, GradebookImportCellV9?, GradebookImportCellV9?] =
-        patch.am ? [...patch.am] : [];
+      const ams: [GradebookImportCellV9?, GradebookImportCellV9?, GradebookImportCellV9?] = patch.am
+        ? [...patch.am]
+        : [];
       ams[term.trimestre - 1] = am;
       patches.set(alunoId, { ...patch, am: ams });
     }
@@ -947,7 +984,10 @@ async function processOffer(
 }
 
 /** Each offer in its class, at most once per class and subject; a missing class blocks the file. */
-function preparedOffersV9(request: GradebookNotesImportRequestV9, classes: ReadonlyMap<string, number>) {
+function preparedOffersV9(
+  request: GradebookNotesImportRequestV9,
+  classes: ReadonlyMap<string, number>,
+) {
   const seen = new Set<string>();
   const prepared: Array<{ sourceIndex: number; offer: GradebookImportOfferV9; turmaId: number }> =
     [];
@@ -1052,38 +1092,44 @@ async function persistNotes(
   }
 }
 
-export function createRelationalImportWriter(database: GradebookPostgresWritePortV1, actorId?: string) {
+export function createRelationalImportWriter(
+  database: GradebookPostgresWritePortV1,
+  actorId?: string,
+) {
   return {
     async execute(
       request: GradebookImportPersistenceRequestV9,
     ): Promise<GradebookImportPersistenceResponseV9> {
       try {
-        const result = await requireTransactionDatabaseV1(database).transaction(async (transaction) => {
-          if (request.operation === 'persist-relacao') await lockYearResetV1(transaction, request.ano, 'preview');
-          else await lockAcademicYear(transaction, request.ano);
-          const state: ImportStateV9 = {
-            importId: null,
-            writes: 0,
-            academicWrites: 0,
-            sourceStudentIds: new Set(),
-            globalAcademicChange: false,
-            warnings: [],
-          };
-          if (request.operation === 'persist-relacao')
-            await persistRelation(transaction, request, state, actorId);
-          else await persistNotes(transaction, request, state);
-          if (state.writes > 0)
-            await recordImportResetWriteV1(
-              transaction,
-              request.ano,
-              request.operation === 'persist-relacao' ? 'relation' : 'marks',
-              {
-                changed: state.academicWrites > 0,
-                studentIds: state.globalAcademicChange ? [] : [...state.sourceStudentIds],
-              },
-            );
-          return state;
-        });
+        const result = await requireTransactionDatabaseV1(database).transaction(
+          async (transaction) => {
+            if (request.operation === 'persist-relacao')
+              await lockYearResetV1(transaction, request.ano, 'preview');
+            else await lockAcademicYear(transaction, request.ano);
+            const state: ImportStateV9 = {
+              importId: null,
+              writes: 0,
+              academicWrites: 0,
+              sourceStudentIds: new Set(),
+              globalAcademicChange: false,
+              warnings: [],
+            };
+            if (request.operation === 'persist-relacao')
+              await persistRelation(transaction, request, state, actorId);
+            else await persistNotes(transaction, request, state);
+            if (state.writes > 0)
+              await recordImportResetWriteV1(
+                transaction,
+                request.ano,
+                request.operation === 'persist-relacao' ? 'relation' : 'marks',
+                {
+                  changed: state.academicWrites > 0,
+                  studentIds: state.globalAcademicChange ? [] : [...state.sourceStudentIds],
+                },
+              );
+            return state;
+          },
+        );
         return {
           transportVersion: 9,
           state: result.writes === 0 ? 'no-changes' : 'applied',
@@ -1092,8 +1138,12 @@ export function createRelationalImportWriter(database: GradebookPostgresWritePor
         };
       } catch (cause) {
         if (cause instanceof RelationalImportErrorV9) {
-          return { transportVersion: 9, state: cause.state, reason: cause.reason,
-            ...(cause.movementReview ? { movementReview: cause.movementReview } : {}) };
+          return {
+            transportVersion: 9,
+            state: cause.state,
+            reason: cause.reason,
+            ...(cause.movementReview ? { movementReview: cause.movementReview } : {}),
+          };
         }
         const code =
           cause !== null && typeof cause === 'object' && 'code' in cause ? String(cause.code) : '';

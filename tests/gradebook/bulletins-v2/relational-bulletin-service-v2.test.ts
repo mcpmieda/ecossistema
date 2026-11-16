@@ -163,15 +163,22 @@ describe('relational bulletin V2', () => {
       studentId: 1,
       period: { kind: 'term' as const, term: 1 as const },
     };
-    const initialGrades = await pg.query('SELECT * FROM gradebook.nota ORDER BY instrumento_id,aluno_id');
-    const initialClosing = await pg.query('SELECT * FROM gradebook.fechamento ORDER BY oferta_id,aluno_id');
+    const initialGrades = await pg.query(
+      'SELECT * FROM gradebook.nota ORDER BY instrumento_id,aluno_id',
+    );
+    const initialClosing = await pg.query(
+      'SELECT * FROM gradebook.fechamento ORDER BY oferta_id,aluno_id',
+    );
     let firstSnapshot: RelationalBulletinSnapshotV2 | undefined;
     try {
       for (const [source, expectedName] of [
         ['relation', 'ALUNO REGULAR'],
         ['report', 'ALUNO RELATÓRIO SINTÉTICO'],
       ] as const) {
-        await pg.query('UPDATE gradebook.student_reconciliation_scope_v1 SET name_source=$1 WHERE academic_year=2026', [source]);
+        await pg.query(
+          'UPDATE gradebook.student_reconciliation_scope_v1 SET name_source=$1 WHERE academic_year=2026',
+          [source],
+        );
         const students = await workspace.execute(
           { contractVersion: 2, operation: 'students', year: 2026, classId: 10 },
           { issuerOid: 'actor' },
@@ -187,13 +194,20 @@ describe('relational bulletin V2', () => {
           { contractVersion: 2, operation: 'preview', selection },
           { issuerOid: 'actor' },
         );
-        expect(preview).toMatchObject({ state: 'ready', model: { student: { id: 1, name: expectedName } } });
+        expect(preview).toMatchObject({
+          state: 'ready',
+          model: { student: { id: 1, name: expectedName } },
+        });
         const emitted = await workspace.execute(
           { contractVersion: 2, operation: 'emit', selection },
           { issuerOid: 'actor' },
         );
-        expect(emitted).toMatchObject({ state: 'ready', snapshot: { model: { student: { id: 1, name: expectedName } } } });
-        if (emitted.state !== 'ready' || emitted.operation !== 'emit') throw new Error('name-source-snapshot-missing');
+        expect(emitted).toMatchObject({
+          state: 'ready',
+          snapshot: { model: { student: { id: 1, name: expectedName } } },
+        });
+        if (emitted.state !== 'ready' || emitted.operation !== 'emit')
+          throw new Error('name-source-snapshot-missing');
         if (firstSnapshot) {
           expect(emitted.snapshot.snapshotVersion).toBe(firstSnapshot.snapshotVersion + 1);
           expect(emitted.snapshot.model.subjects).toEqual(firstSnapshot.model.subjects);
@@ -203,18 +217,33 @@ describe('relational bulletin V2', () => {
       }
       if (!firstSnapshot) throw new Error('original-name-snapshot-missing');
       const reprint = await workspace.execute(
-        { contractVersion: 2, operation: 'reprint', snapshotId, snapshotVersion: firstSnapshot.snapshotVersion },
+        {
+          contractVersion: 2,
+          operation: 'reprint',
+          snapshotId,
+          snapshotVersion: firstSnapshot.snapshotVersion,
+        },
         { issuerOid: 'actor' },
       );
       expect(reprint).toMatchObject({
-        state: 'ready', source: 'historical-snapshot', snapshot: firstSnapshot,
+        state: 'ready',
+        source: 'historical-snapshot',
+        snapshot: firstSnapshot,
       });
-      expect((await pg.query('SELECT nome FROM gradebook.aluno WHERE id=1')).rows).toEqual([{ nome: 'ALUNO REGULAR' }]);
-      expect((await pg.query('SELECT * FROM gradebook.nota ORDER BY instrumento_id,aluno_id')).rows).toEqual(initialGrades.rows);
-      expect((await pg.query('SELECT * FROM gradebook.fechamento ORDER BY oferta_id,aluno_id')).rows).toEqual(initialClosing.rows);
+      expect((await pg.query('SELECT nome FROM gradebook.aluno WHERE id=1')).rows).toEqual([
+        { nome: 'ALUNO REGULAR' },
+      ]);
+      expect(
+        (await pg.query('SELECT * FROM gradebook.nota ORDER BY instrumento_id,aluno_id')).rows,
+      ).toEqual(initialGrades.rows);
+      expect(
+        (await pg.query('SELECT * FROM gradebook.fechamento ORDER BY oferta_id,aluno_id')).rows,
+      ).toEqual(initialClosing.rows);
     } finally {
       await pg.query('DELETE FROM gradebook.boletim_snapshot WHERE snapshot_id=$1', [snapshotId]);
-      await pg.exec("UPDATE gradebook.student_reconciliation_scope_v1 SET name_source='relation' WHERE academic_year=2026");
+      await pg.exec(
+        "UPDATE gradebook.student_reconciliation_scope_v1 SET name_source='relation' WHERE academic_year=2026",
+      );
     }
   });
 
@@ -354,8 +383,11 @@ describe('relational bulletin V2', () => {
       });
       if (preview.state !== 'ready' || preview.operation !== 'preview')
         throw new Error('repeat-preview-missing');
-      expect(preview.model.subjects.some((subject) =>
-        subject.annual?.classification === 'failed-repeat')).toBe(true);
+      expect(
+        preview.model.subjects.some(
+          (subject) => subject.annual?.classification === 'failed-repeat',
+        ),
+      ).toBe(true);
 
       const emitted = await workspace.execute(
         { contractVersion: 2, operation: 'emit', selection },
@@ -370,28 +402,40 @@ describe('relational bulletin V2', () => {
       });
       if (emitted.state !== 'ready' || emitted.operation !== 'emit')
         throw new Error('repeat-snapshot-missing');
-      await expect(workspace.execute({
-        contractVersion: 2,
-        operation: 'emit-batch',
-        selection: {
-          ...base,
-          studentIds: [1],
-          period: { kind: 'annual' },
-        },
-      }, { issuerOid: 'actor' })).resolves.toMatchObject({
+      await expect(
+        workspace.execute(
+          {
+            contractVersion: 2,
+            operation: 'emit-batch',
+            selection: {
+              ...base,
+              studentIds: [1],
+              period: { kind: 'annual' },
+            },
+          },
+          { issuerOid: 'actor' },
+        ),
+      ).resolves.toMatchObject({
         state: 'ready',
-        ready: [{
-          studentId: 1,
-          snapshot: { snapshotId: '22222222-2222-4222-8222-222222222222' },
-        }],
+        ready: [
+          {
+            studentId: 1,
+            snapshot: { snapshotId: '22222222-2222-4222-8222-222222222222' },
+          },
+        ],
         blocked: [],
       });
-      await expect(workspace.execute({
-        contractVersion: 2,
-        operation: 'reprint',
-        snapshotId: emitted.snapshot.snapshotId,
-        snapshotVersion: emitted.snapshot.snapshotVersion,
-      }, { issuerOid: 'actor' })).resolves.toMatchObject({
+      await expect(
+        workspace.execute(
+          {
+            contractVersion: 2,
+            operation: 'reprint',
+            snapshotId: emitted.snapshot.snapshotId,
+            snapshotVersion: emitted.snapshot.snapshotVersion,
+          },
+          { issuerOid: 'actor' },
+        ),
+      ).resolves.toMatchObject({
         state: 'ready',
         source: 'historical-snapshot',
         snapshot: { model: { overall: { visibleResult: 'REPROVADO' } } },
@@ -400,18 +444,16 @@ describe('relational bulletin V2', () => {
       await pg.exec(
         'UPDATE gradebook.fechamento SET am1_fonte = NULL WHERE oferta_id = 20 AND aluno_id = 1;',
       );
-      const missingOfficialAm = await service(
-        '33333333-3333-4333-8333-333333333333',
-      ).execute(
+      const missingOfficialAm = await service('33333333-3333-4333-8333-333333333333').execute(
         { contractVersion: 2, operation: 'emit', selection },
         { issuerOid: 'actor' },
       );
       expect(missingOfficialAm).toMatchObject({ state: 'insufficient-data' });
       if (missingOfficialAm.state !== 'insufficient-data')
         throw new Error('repeat-bulletin-without-official-am-was-not-blocked');
-      expect(missingOfficialAm.reasons).toEqual(expect.arrayContaining([
-        expect.stringMatching(/^missing-official-am:/u),
-      ]));
+      expect(missingOfficialAm.reasons).toEqual(
+        expect.arrayContaining([expect.stringMatching(/^missing-official-am:/u)]),
+      );
       await pg.exec(
         'UPDATE gradebook.fechamento SET am1_fonte = 0 WHERE oferta_id = 20 AND aluno_id = 1;',
       );
@@ -426,9 +468,9 @@ describe('relational bulletin V2', () => {
       expect(incomplete).toMatchObject({ state: 'insufficient-data' });
       if (incomplete.state !== 'insufficient-data')
         throw new Error('ordinary-incomplete-bulletin-was-not-blocked');
-      expect(incomplete.reasons).toEqual(expect.arrayContaining([
-        expect.stringMatching(/^final-recovery-pending:/u),
-      ]));
+      expect(incomplete.reasons).toEqual(
+        expect.arrayContaining([expect.stringMatching(/^final-recovery-pending:/u)]),
+      );
     } finally {
       await pg.exec(`
         DELETE FROM gradebook.boletim_snapshot
@@ -497,7 +539,8 @@ describe('relational bulletin V2', () => {
     const academicQueries: string[] = [];
     const isAcademicRead = (query: string) =>
       !query.includes('gradebook.boletim_snapshot') &&
-      !query.includes('student_portal.') && !query.includes('pg_advisory_xact_lock') &&
+      !query.includes('student_portal.') &&
+      !query.includes('pg_advisory_xact_lock') &&
       /^\s*(?:SELECT|WITH)\b/iu.test(query);
     const counted = (target: GradebookPostgresWritePortV1): GradebookPostgresWritePortV1 => ({
       query(query, values) {
@@ -566,7 +609,8 @@ async function http(
         roles: [role],
         exp: Math.floor(Date.now() / 1000) + 600,
       },
-      testEnv.SESSION_SECRET, 'admin-session',
+      testEnv.SESSION_SECRET,
+      'admin-session',
     );
     headers.set('Cookie', `${SESSION_COOKIE}=${session}`);
   }

@@ -1,11 +1,34 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  Alert, Avatar, Button, Chip, Description, Dropdown,
-  Label, Separator, Spinner, Surface,
+  Alert,
+  Avatar,
+  Button,
+  Chip,
+  Description,
+  Dropdown,
+  Label,
+  Separator,
+  Spinner,
+  Surface,
 } from '@heroui/react';
-import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, PanelLeft, ShieldCheck, X } from 'lucide-react';
+import {
+  Activity,
+  Boxes,
+  ChevronDown,
+  LockKeyhole,
+  LogOut,
+  Menu,
+  PanelLeft,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 import { normalizePlatformRoute, type PlatformRoute } from '../shared/platform-contract';
-import { ShellAreaNameV1, ShellSectionTabsV1, ShellSidebarV3, serviceSectionFromHashV2 } from './platform/navigation';
+import {
+  ShellAreaNameV1,
+  ShellSectionTabsV1,
+  ShellSidebarV3,
+  serviceSectionFromHashV2,
+} from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { SCHOOL_NAME_V1 } from './shared/brand/school-mark-v1';
@@ -14,7 +37,10 @@ import { useDrawerSwipeV1 } from './platform/drawer-swipe-v1';
 import { useBackClosesOverlayV1 } from './platform/back-closes-overlay-v1';
 import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformCheckedAtV2, usePlatformDataV2 } from './platform/platform-data-v2';
-import { usePlatformIdentityV1, type PlatformIdentityV1 as Identity } from './platform/platform-identity-v1';
+import {
+  usePlatformIdentityV1,
+  type PlatformIdentityV1 as Identity,
+} from './platform/platform-identity-v1';
 import { LiveRefreshAutomaticV1Provider } from './shared/live-data/live-refresh-scope-v1';
 import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
 import { rememberAddressV1, startAccountViewsV1 } from './shared/ui/session-view-v1';
@@ -33,7 +59,9 @@ function authFailureFromUrl(): AuthFailure | null {
 }
 /** Read before anything rewrites the address: only an address-less opening returns to the last area. */
 const OPENED_WITHOUT_ADDRESS_V1 = /^#?\/?$/u.test(window.location.hash);
-function routeFromHash(): PlatformRoute { return normalizePlatformRoute(window.location.hash.replace(/^#\/?/u, '')); }
+function routeFromHash(): PlatformRoute {
+  return normalizePlatformRoute(window.location.hash.replace(/^#\/?/u, ''));
+}
 function usePlatformRoute(): PlatformRoute {
   const [route, setRoute] = useState<PlatformRoute>(() => routeFromHash());
   useEffect(() => {
@@ -59,65 +87,140 @@ function useLocationHash(): string {
 const SIDE_COLLAPSED_KEY_V1 = 'centro.side-collapsed.v1';
 function useSideCollapsedV1(): [boolean, () => void] {
   const [collapsed, setCollapsed] = useState(() => {
-    try { return window.localStorage.getItem(SIDE_COLLAPSED_KEY_V1) === '1'; } catch { return false; }
+    try {
+      return window.localStorage.getItem(SIDE_COLLAPSED_KEY_V1) === '1';
+    } catch {
+      return false;
+    }
   });
-  const toggle = () => setCollapsed((current) => {
-    // Storage can be unavailable (private window, blocked data): the choice then lasts for the visit.
-    try { window.localStorage.setItem(SIDE_COLLAPSED_KEY_V1, current ? '0' : '1'); } catch { /* kept in memory */ }
-    return !current;
-  });
+  const toggle = () =>
+    setCollapsed((current) => {
+      // Storage can be unavailable (private window, blocked data): the choice then lasts for the visit.
+      try {
+        window.localStorage.setItem(SIDE_COLLAPSED_KEY_V1, current ? '0' : '1');
+      } catch {
+        /* kept in memory */
+      }
+      return !current;
+    });
   return [collapsed, toggle];
 }
 function MicrosoftMark() {
-  return <span className="grid size-4 grid-cols-2 gap-px" aria-hidden="true">
-    <span className="bg-current" /><span className="bg-current" /><span className="bg-current" /><span className="bg-current" />
-  </span>;
+  return (
+    <span className="grid size-4 grid-cols-2 gap-px" aria-hidden="true">
+      <span className="bg-current" />
+      <span className="bg-current" />
+      <span className="bg-current" />
+      <span className="bg-current" />
+    </span>
+  );
 }
 function SessionCheckExperience() {
-  return <main className="platform-shell grid min-h-svh place-items-center p-6" aria-busy="true" aria-label="Carregando Centro de Administração">
-    <div className="grid justify-items-center gap-4 text-muted"><BrandMark pulse /><Spinner size="sm" color="accent" /></div>
-  </main>;
+  return (
+    <main
+      className="platform-shell grid min-h-svh place-items-center p-6"
+      aria-busy="true"
+      aria-label="Carregando Centro de Administração"
+    >
+      <div className="grid justify-items-center gap-4 text-muted">
+        <BrandMark pulse />
+        <Spinner size="sm" color="accent" />
+      </div>
+    </main>
+  );
 }
 function LoginExperience({ loading }: Readonly<{ loading: boolean }>) {
   return (
     <main className="platform-shell grid min-h-svh place-items-center px-4 py-6 sm:px-6 lg:px-8">
       <Surface className="login-stage grid w-full max-w-5xl overflow-hidden rounded-3xl border border-border/70 lg:grid-cols-[1.08fr_.92fr]">
-        <Surface variant="secondary" className="login-intro hidden min-h-[600px] flex-col justify-between rounded-none border-0 p-10 shadow-none lg:flex">
+        <Surface
+          variant="secondary"
+          className="login-intro hidden min-h-[600px] flex-col justify-between rounded-none border-0 p-10 shadow-none lg:flex"
+        >
           <div>
             <BrandMark />
-            <Chip className="mt-10" variant="soft" color="accent" size="sm">{SCHOOL_NAME_V1}</Chip>
-            <h1 className="mt-6 max-w-xl text-4xl font-semibold tracking-[-0.05em]">Centro de Administração</h1>
+            <Chip className="mt-10" variant="soft" color="accent" size="sm">
+              {SCHOOL_NAME_V1}
+            </Chip>
+            <h1 className="mt-6 max-w-xl text-4xl font-semibold tracking-[-0.05em]">
+              Centro de Administração
+            </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-muted">
-              Uma plataforma administrativa modular e protegida para operar os sistemas da escola em uma única experiência.
+              Uma plataforma administrativa modular e protegida para operar os sistemas da escola em
+              uma única experiência.
             </p>
           </div>
           <div className="grid max-w-xl gap-3 text-sm">
-            {[[ShieldCheck, 'Acesso institucional protegido'], [Boxes, 'Módulos integrados à mesma experiência'],
-              [Activity, 'Operação rastreável e evolutiva']].map(([Icon, label]) => {
+            {[
+              [ShieldCheck, 'Acesso institucional protegido'],
+              [Boxes, 'Módulos integrados à mesma experiência'],
+              [Activity, 'Operação rastreável e evolutiva'],
+            ].map(([Icon, label]) => {
               const FeatureIcon = Icon as typeof ShieldCheck;
-              return <Surface key={label as string} variant="default" className="stagger-item flex items-center gap-3 rounded-2xl border border-border/70 px-4 py-3">
-                <FeatureIcon className="size-4 text-muted" /><span>{label as string}</span>
-              </Surface>;
+              return (
+                <Surface
+                  key={label as string}
+                  variant="default"
+                  className="stagger-item flex items-center gap-3 rounded-2xl border border-border/70 px-4 py-3"
+                >
+                  <FeatureIcon className="size-4 text-muted" />
+                  <span>{label as string}</span>
+                </Surface>
+              );
             })}
           </div>
         </Surface>
-        <Surface variant="default" className="flex min-h-[560px] items-center rounded-none border-0 px-6 py-12 shadow-none sm:px-12 lg:min-h-[600px]">
+        <Surface
+          variant="default"
+          className="flex min-h-[560px] items-center rounded-none border-0 px-6 py-12 shadow-none sm:px-12 lg:min-h-[600px]"
+        >
           <div className="mx-auto w-full max-w-sm">
             <div className="mb-10 flex items-center gap-3 lg:hidden">
               <BrandMark compact />
-              <div><p className="text-sm font-semibold">Centro de Administração</p><p className="text-xs text-muted">{SCHOOL_NAME_V1}</p></div>
+              <div>
+                <p className="text-sm font-semibold">Centro de Administração</p>
+                <p className="text-xs text-muted">{SCHOOL_NAME_V1}</p>
+              </div>
             </div>
-            <Chip color="accent" variant="soft" size="sm">Acesso institucional</Chip>
-            <h2 className="mt-5 text-3xl font-semibold tracking-[-0.045em]">{loading ? 'Preparando seu acesso' : 'Entre para continuar'}</h2>
-            <p className="mt-3 text-sm leading-6 text-muted">Use sua conta institucional da escola para continuar.</p>
-            {loading ? <Alert status="accent" className="mt-8">
-              <Alert.Indicator><Spinner size="sm" color="accent" /></Alert.Indicator>
-              <Alert.Content><Alert.Title>Verificando sua sessão</Alert.Title><Alert.Description>Estamos confirmando identidade e permissões administrativas.</Alert.Description></Alert.Content>
-            </Alert> : <Button variant="primary" size="lg" fullWidth className="mt-8" onPress={() => window.location.assign('/auth/login')}>
-              <MicrosoftMark />Entrar com conta institucional
-            </Button>}
-            <Surface variant="secondary" className="mt-8 flex items-start gap-3 rounded-2xl p-4 text-xs leading-5 text-muted">
-              <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground/70" /><p>O Centro não solicita nem armazena sua senha institucional.</p>
+            <Chip color="accent" variant="soft" size="sm">
+              Acesso institucional
+            </Chip>
+            <h2 className="mt-5 text-3xl font-semibold tracking-[-0.045em]">
+              {loading ? 'Preparando seu acesso' : 'Entre para continuar'}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              Use sua conta institucional da escola para continuar.
+            </p>
+            {loading ? (
+              <Alert status="accent" className="mt-8">
+                <Alert.Indicator>
+                  <Spinner size="sm" color="accent" />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>Verificando sua sessão</Alert.Title>
+                  <Alert.Description>
+                    Estamos confirmando identidade e permissões administrativas.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            ) : (
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                className="mt-8"
+                onPress={() => window.location.assign('/auth/login')}
+              >
+                <MicrosoftMark />
+                Entrar com conta institucional
+              </Button>
+            )}
+            <Surface
+              variant="secondary"
+              className="mt-8 flex items-start gap-3 rounded-2xl p-4 text-xs leading-5 text-muted"
+            >
+              <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground/70" />
+              <p>O Centro não solicita nem armazena sua senha institucional.</p>
             </Surface>
           </div>
         </Surface>
@@ -126,37 +229,85 @@ function LoginExperience({ loading }: Readonly<{ loading: boolean }>) {
   );
 }
 function AuthErrorExperience({ correlationId }: Readonly<AuthFailure>) {
-  return <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
-    <Surface variant="default" className="platform-card-surface w-full max-w-xl rounded-3xl p-6 sm:p-8">
-      <Chip color="danger" variant="soft" size="sm">Entrada não concluída</Chip>
-      <Alert status="danger" className="mt-5"><Alert.Indicator /><Alert.Content>
-        <Alert.Title>Não foi possível concluir sua entrada.</Alert.Title>
-        <Alert.Description>A tentativa anterior foi encerrada com segurança. Inicie uma nova entrada para continuar.</Alert.Description>
-      </Alert.Content></Alert>
-      <Button variant="primary" size="lg" fullWidth className="mt-6" onPress={() => window.location.assign('/auth/login')}><MicrosoftMark />Entrar novamente</Button>
-      {correlationId && <p className="mt-5 break-all text-xs leading-5 text-muted">Correlação: <span className="font-mono">{correlationId}</span></p>}
-    </Surface>
-  </main>;
+  return (
+    <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
+      <Surface
+        variant="default"
+        className="platform-card-surface w-full max-w-xl rounded-3xl p-6 sm:p-8"
+      >
+        <Chip color="danger" variant="soft" size="sm">
+          Entrada não concluída
+        </Chip>
+        <Alert status="danger" className="mt-5">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Não foi possível concluir sua entrada.</Alert.Title>
+            <Alert.Description>
+              A tentativa anterior foi encerrada com segurança. Inicie uma nova entrada para
+              continuar.
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          className="mt-6"
+          onPress={() => window.location.assign('/auth/login')}
+        >
+          <MicrosoftMark />
+          Entrar novamente
+        </Button>
+        {correlationId && (
+          <p className="mt-5 break-all text-xs leading-5 text-muted">
+            Correlação: <span className="font-mono">{correlationId}</span>
+          </p>
+        )}
+      </Surface>
+    </main>
+  );
 }
 function RestrictedExperience({ name }: Readonly<{ name?: string }>) {
-  return <main className="platform-shell grid min-h-svh place-items-center p-4">
-    <Surface variant="default" className="platform-card-surface w-full max-w-2xl rounded-3xl p-6 sm:p-8">
-      <Chip color="warning" variant="soft" size="sm">Acesso restrito</Chip>
-      <Alert status="warning" className="mt-5"><Alert.Indicator /><Alert.Content>
-        <Alert.Title>Você não tem acesso a esta área</Alert.Title>
-        <Alert.Description>{name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} Seu perfil não possui as permissões necessárias para acessar o Centro de Administração.</Alert.Description>
-      </Alert.Content></Alert>
-      <form method="post" action="/auth/logout" className="mt-6"><Button variant="outline" type="submit"><LogOut />Sair</Button></form>
-    </Surface>
-  </main>;
+  return (
+    <main className="platform-shell grid min-h-svh place-items-center p-4">
+      <Surface
+        variant="default"
+        className="platform-card-surface w-full max-w-2xl rounded-3xl p-6 sm:p-8"
+      >
+        <Chip color="warning" variant="soft" size="sm">
+          Acesso restrito
+        </Chip>
+        <Alert status="warning" className="mt-5">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Você não tem acesso a esta área</Alert.Title>
+            <Alert.Description>
+              {name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} Seu
+              perfil não possui as permissões necessárias para acessar o Centro de Administração.
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+        <form method="post" action="/auth/logout" className="mt-6">
+          <Button variant="outline" type="submit">
+            <LogOut />
+            Sair
+          </Button>
+        </form>
+      </Surface>
+    </main>
+  );
 }
 /** The person's last views are in place before any screen reads them. */
 function AccountViewsGateV1({ owner, children }: Readonly<{ owner: string; children: ReactNode }>) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let active = true;
-    void startAccountViewsV1(owner, OPENED_WITHOUT_ADDRESS_V1).finally(() => { if (active) setReady(true); });
-    return () => { active = false; };
+    void startAccountViewsV1(owner, OPENED_WITHOUT_ADDRESS_V1).finally(() => {
+      if (active) setReady(true);
+    });
+    return () => {
+      active = false;
+    };
   }, [owner]);
   return ready ? children : <SessionCheckExperience />;
 }
@@ -164,16 +315,29 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
   const route = usePlatformRoute();
   const { loadState, reload } = usePlatformDataV2();
   const logoutFormRef = useRef<HTMLFormElement>(null);
-  const snapshot = useMemo(() => loadState.status === 'ready' ? {
-    ...loadState.snapshot,
-    coreModules: withStudentPortalModule(loadState.snapshot.coreModules, identity.capabilities ?? []),
-  } : null, [loadState, identity.capabilities]);
+  const snapshot = useMemo(
+    () =>
+      loadState.status === 'ready'
+        ? {
+            ...loadState.snapshot,
+            coreModules: withStudentPortalModule(
+              loadState.snapshot.coreModules,
+              identity.capabilities ?? [],
+            ),
+          }
+        : null,
+    [loadState, identity.capabilities],
+  );
   const modules = snapshot?.coreModules ?? [];
   const hash = useLocationHash();
-  useEffect(() => { rememberAddressV1(hash); }, [hash]);
+  useEffect(() => {
+    rememberAddressV1(hash);
+  }, [hash]);
   // On phones the side column is a drawer; it closes when the address changes.
   const [menuOpen, setMenuOpen] = useState(false);
-  useEffect(() => { setMenuOpen(false); }, [hash]);
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [hash]);
   const [sideCollapsed, toggleSide] = useSideCollapsedV1();
   const drawerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -191,8 +355,10 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
     main?.setAttribute('inert', '');
     bar?.setAttribute('inert', '');
     areaBar?.setAttribute('inert', '');
-    (drawer?.querySelector<HTMLElement>(".shell-side__area[data-open='true']") ??
-      drawer?.querySelector<HTMLElement>('.shell-side__area'))?.focus();
+    (
+      drawer?.querySelector<HTMLElement>(".shell-side__area[data-open='true']") ??
+      drawer?.querySelector<HTMLElement>('.shell-side__area')
+    )?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMenuOpen(false);
       if (event.key !== 'Tab' || !drawer) return;
@@ -200,18 +366,33 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
       const stops = [...drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]
         // Only what can really take focus: nothing hidden by the styles and nothing inside an
         // inert branch.
-        .filter((item) => item.tabIndex >= 0 && !item.closest('[inert]') &&
-          (typeof item.checkVisibility !== 'function' || item.checkVisibility()));
-      const first = stops[0], last = stops.at(-1);
+        .filter(
+          (item) =>
+            item.tabIndex >= 0 &&
+            !item.closest('[inert]') &&
+            (typeof item.checkVisibility !== 'function' || item.checkVisibility()),
+        );
+      const first = stops[0],
+        last = stops.at(-1);
       if (!first || !last) return;
       const active = document.activeElement;
-      if (!drawer.contains(active)) { event.preventDefault(); first.focus(); }
-      else if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
+      if (!drawer.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     // The drawer only exists on phones; a window that grows past them closes it.
-    const wide = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 901px)') : null;
-    const onWide = () => { if (wide?.matches) setMenuOpen(false); };
+    const wide =
+      typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 901px)') : null;
+    const onWide = () => {
+      if (wide?.matches) setMenuOpen(false);
+    };
     window.addEventListener('keydown', onKeyDown);
     wide?.addEventListener('change', onWide);
     return () => {
@@ -225,35 +406,107 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
   }, [menuOpen]);
   const section = serviceSectionFromHashV2(route, hash);
   const profileMenu = (
-            <Dropdown>
-              <Button variant="ghost" size="md" className="profile-menu-trigger shrink-0 gap-2 px-2.5" aria-label="Abrir menu do perfil">
-                <Avatar size="sm" color="accent" variant="soft"><Avatar.Fallback className="text-xs font-medium">{initials(identity.name)}</Avatar.Fallback></Avatar>
-                <span className="hidden min-w-0 text-left lg:block"><span className="block max-w-40 truncate text-sm font-medium">{identity.name || 'Administrador'}</span><span className="block max-w-40 truncate text-xs font-normal text-muted">Administrador</span></span>
-                <ChevronDown className="hidden size-4 text-muted sm:block" />
-              </Button>
-              <Dropdown.Popover className="min-w-72"><Dropdown.Menu aria-label="Conta e sessão" onAction={(key) => { if (key === 'logout') logoutFormRef.current?.requestSubmit(); }}>
-                <Dropdown.Item id="identity" textValue="Perfil atual" isDisabled className="profile-menu-identity">
-                  <div className="profile-menu-item-content">
-                    <Avatar size="sm" color="accent" variant="soft"><Avatar.Fallback>{initials(identity.name)}</Avatar.Fallback></Avatar>
-                    <div className="profile-menu-copy"><Label className="max-w-52 truncate">{identity.name || 'Administrador'}</Label><Description className="max-w-52 truncate">Administrador · sessão institucional</Description></div>
-                  </div>
-                </Dropdown.Item>
-                <Separator />
-                <Dropdown.Item id="logout" textValue="Sair" variant="danger"><div className="profile-menu-item-content"><LogOut className="size-4 shrink-0" /><div className="profile-menu-copy"><Label>Sair</Label><Description>Encerrar a sessão institucional</Description></div></div></Dropdown.Item>
-              </Dropdown.Menu></Dropdown.Popover>
-            </Dropdown>
+    <Dropdown>
+      <Button
+        variant="ghost"
+        size="md"
+        className="profile-menu-trigger shrink-0 gap-2 px-2.5"
+        aria-label="Abrir menu do perfil"
+      >
+        <Avatar size="sm" color="accent" variant="soft">
+          <Avatar.Fallback className="text-xs font-medium">
+            {initials(identity.name)}
+          </Avatar.Fallback>
+        </Avatar>
+        <span className="hidden min-w-0 text-left lg:block">
+          <span className="block max-w-40 truncate text-sm font-medium">
+            {identity.name || 'Administrador'}
+          </span>
+          <span className="block max-w-40 truncate text-xs font-normal text-muted">
+            Administrador
+          </span>
+        </span>
+        <ChevronDown className="hidden size-4 text-muted sm:block" />
+      </Button>
+      <Dropdown.Popover className="min-w-72">
+        <Dropdown.Menu
+          aria-label="Conta e sessão"
+          onAction={(key) => {
+            if (key === 'logout') logoutFormRef.current?.requestSubmit();
+          }}
+        >
+          <Dropdown.Item
+            id="identity"
+            textValue="Perfil atual"
+            isDisabled
+            className="profile-menu-identity"
+          >
+            <div className="profile-menu-item-content">
+              <Avatar size="sm" color="accent" variant="soft">
+                <Avatar.Fallback>{initials(identity.name)}</Avatar.Fallback>
+              </Avatar>
+              <div className="profile-menu-copy">
+                <Label className="max-w-52 truncate">{identity.name || 'Administrador'}</Label>
+                <Description className="max-w-52 truncate">
+                  Administrador · sessão institucional
+                </Description>
+              </div>
+            </div>
+          </Dropdown.Item>
+          <Separator />
+          <Dropdown.Item id="logout" textValue="Sair" variant="danger">
+            <div className="profile-menu-item-content">
+              <LogOut className="size-4 shrink-0" />
+              <div className="profile-menu-copy">
+                <Label>Sair</Label>
+                <Description>Encerrar a sessão institucional</Description>
+              </div>
+            </div>
+          </Dropdown.Item>
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
   return (
-    <div className="platform-shell platform-shell--v2 min-h-svh" data-side={sideCollapsed ? 'collapsed' : undefined}>
-      <Surface variant="default" className="platform-topbar shell-topbar sticky top-0 z-30 rounded-none">
-        <Button ref={menuButtonRef} variant="ghost" size="md" isIconOnly className="shell-menu-button" aria-controls="shell-drawer" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} onPress={() => setMenuOpen((open) => !open)}>
+    <div
+      className="platform-shell platform-shell--v2 min-h-svh"
+      data-side={sideCollapsed ? 'collapsed' : undefined}
+    >
+      <Surface
+        variant="default"
+        className="platform-topbar shell-topbar sticky top-0 z-30 rounded-none"
+      >
+        <Button
+          ref={menuButtonRef}
+          variant="ghost"
+          size="md"
+          isIconOnly
+          className="shell-menu-button"
+          aria-controls="shell-drawer"
+          aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+          aria-expanded={menuOpen}
+          onPress={() => setMenuOpen((open) => !open)}
+        >
           {menuOpen ? <X /> : <Menu />}
         </Button>
-        <Button variant="ghost" size="md" isIconOnly className="shell-collapse-button" aria-controls="shell-drawer" aria-label={sideCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'} aria-pressed={sideCollapsed} onPress={toggleSide}>
+        <Button
+          variant="ghost"
+          size="md"
+          isIconOnly
+          className="shell-collapse-button"
+          aria-controls="shell-drawer"
+          aria-label={sideCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+          aria-pressed={sideCollapsed}
+          onPress={toggleSide}
+        >
           <PanelLeft />
         </Button>
         <div className="shell-path">
-          <a href="#/banco-de-notas" className="shell-brand text-foreground no-underline" aria-label="Ir para o início do Centro de Administração">
+          <a
+            href="#/banco-de-notas"
+            className="shell-brand text-foreground no-underline"
+            aria-label="Ir para o início do Centro de Administração"
+          >
             <BrandMark compact />
             <span className="shell-brand__name">
               <span>Centro de Administração</span>
@@ -263,9 +516,9 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
           <ShellAreaNameV1 route={route} section={section} modules={modules} />
         </div>
         <div className="shell-tools">
-            <PlatformSearch snapshot={snapshot} />
-            <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
-            {profileMenu}
+          <PlatformSearch snapshot={snapshot} />
+          <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
+          {profileMenu}
         </div>
       </Surface>
       <div className="shell-areabar">
@@ -273,16 +526,45 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
       </div>
       <div className="shell-body shell-body--service">
         {/* Always present, so it can fade with the drawer while a finger drags it. */}
-        <button ref={backdropRef} type="button" className="shell-drawer-backdrop" data-open={menuOpen ? 'true' : undefined} tabIndex={-1} aria-hidden="true" onClick={() => setMenuOpen(false)} />
-        <aside ref={drawerRef} id="shell-drawer" className="shell-aside" data-open={menuOpen ? 'true' : undefined} {...(menuOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menu do Centro' } : {})}>
-          <Button variant="ghost" size="sm" isIconOnly className="shell-drawer-close" aria-label="Fechar menu" onPress={() => setMenuOpen(false)}><X /></Button>
+        <button
+          ref={backdropRef}
+          type="button"
+          className="shell-drawer-backdrop"
+          data-open={menuOpen ? 'true' : undefined}
+          tabIndex={-1}
+          aria-hidden="true"
+          onClick={() => setMenuOpen(false)}
+        />
+        <aside
+          ref={drawerRef}
+          id="shell-drawer"
+          className="shell-aside"
+          data-open={menuOpen ? 'true' : undefined}
+          {...(menuOpen
+            ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menu do Centro' }
+            : {})}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            isIconOnly
+            className="shell-drawer-close"
+            aria-label="Fechar menu"
+            onPress={() => setMenuOpen(false)}
+          >
+            <X />
+          </Button>
           <ShellSidebarV3
             route={route}
             section={section}
             modules={modules}
             loading={loadState.status === 'loading'}
             brand={
-              <a href="#/banco-de-notas" className="shell-side__brand-link text-foreground no-underline" aria-label="Ir para o início do Centro de Administração">
+              <a
+                href="#/banco-de-notas"
+                className="shell-side__brand-link text-foreground no-underline"
+                aria-label="Ir para o início do Centro de Administração"
+              >
                 <BrandMark compact />
                 <span className="shell-side__brand-name">
                   <span>Centro de Administração</span>
@@ -295,17 +577,45 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
         <main ref={mainRef} className="shell-main shell-main--service">
           <DraftUpdatesNoticeV1 />
           {loadState.status === 'loading' && <LoadingWorkspace />}
-          {loadState.status === 'error' && <Surface variant="default" className="platform-card-surface max-w-3xl rounded-3xl p-5 sm:p-7">
-            <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Title>Não foi possível carregar o Centro</Alert.Title><Alert.Description>{loadState.message}</Alert.Description></Alert.Content></Alert>
-            <div className="mt-5 flex flex-wrap items-center gap-3"><Button variant="outline" onPress={() => { void reload(); }}>Tentar novamente</Button>
-              {loadState.correlationId && <Chip variant="soft" size="sm" className="font-mono">Correlação: {loadState.correlationId}</Chip>}
+          {loadState.status === 'error' && (
+            <Surface
+              variant="default"
+              className="platform-card-surface max-w-3xl rounded-3xl p-5 sm:p-7"
+            >
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>Não foi possível carregar o Centro</Alert.Title>
+                  <Alert.Description>{loadState.message}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <Button
+                  variant="outline"
+                  onPress={() => {
+                    void reload();
+                  }}
+                >
+                  Tentar novamente
+                </Button>
+                {loadState.correlationId && (
+                  <Chip variant="soft" size="sm" className="font-mono">
+                    Correlação: {loadState.correlationId}
+                  </Chip>
+                )}
+              </div>
+            </Surface>
+          )}
+          {loadState.status === 'ready' && (
+            <div key={route} className="route-stage">
+              <PageContent route={route} section={section} />
+              <Separator className="mt-8" />
+              <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center">
+                <span>Centro de Administração · {SCHOOL_NAME_V1}</span>
+                <PlatformCheckedAtV2 fallback={loadState.snapshot.generatedAt} />
+              </footer>
             </div>
-          </Surface>}
-          {loadState.status === 'ready' && <div key={route} className="route-stage">
-            <PageContent route={route} section={section} />
-            <Separator className="mt-8" />
-            <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center"><span>Centro de Administração · {SCHOOL_NAME_V1}</span><PlatformCheckedAtV2 fallback={loadState.snapshot.generatedAt} /></footer>
-          </div>}
+          )}
         </main>
       </div>
     </div>
@@ -321,18 +631,41 @@ function PlatformCheckedAtV2({ fallback }: { readonly fallback: string }) {
 export function App() {
   const { identity, accessError, retry } = usePlatformIdentityV1();
   const authFailure = authFailureFromUrl();
-  if (accessError) return <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
-    <Surface className="platform-card-surface w-full max-w-xl rounded-3xl p-6 sm:p-8"><Alert status="warning"><Alert.Indicator /><Alert.Content>
-      <Alert.Title>Não foi possível verificar seu acesso.</Alert.Title><Alert.Description>Confira sua conexão e tente novamente em instantes.</Alert.Description>
-    </Alert.Content></Alert><Button variant="outline" className="mt-5" onPress={retry}>Tentar novamente</Button></Surface>
-  </main>;
+  if (accessError)
+    return (
+      <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
+        <Surface className="platform-card-surface w-full max-w-xl rounded-3xl p-6 sm:p-8">
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Não foi possível verificar seu acesso.</Alert.Title>
+              <Alert.Description>
+                Confira sua conexão e tente novamente em instantes.
+              </Alert.Description>
+            </Alert.Content>
+          </Alert>
+          <Button variant="outline" className="mt-5" onPress={retry}>
+            Tentar novamente
+          </Button>
+        </Surface>
+      </main>
+    );
   if (identity === null) return <SessionCheckExperience />;
-  if (authFailure && !identity.authenticated) return <AuthErrorExperience correlationId={authFailure.correlationId} />;
+  if (authFailure && !identity.authenticated)
+    return <AuthErrorExperience correlationId={authFailure.correlationId} />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
-  if (!identity.capabilities?.includes('platform.snapshot.read')) return <RestrictedExperience name={identity.name} />;
-  return <LiveRefreshAutomaticV1Provider enabled={ADMIN_AUTOMATIC_READS_V1}>
-    <AccountViewsGateV1 owner={(identity.identityKey ?? 'current-session').split(':')[0] ?? 'current-session'}>
-    <AdminShell key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`} identity={identity} />
-    </AccountViewsGateV1>
-  </LiveRefreshAutomaticV1Provider>;
+  if (!identity.capabilities?.includes('platform.snapshot.read'))
+    return <RestrictedExperience name={identity.name} />;
+  return (
+    <LiveRefreshAutomaticV1Provider enabled={ADMIN_AUTOMATIC_READS_V1}>
+      <AccountViewsGateV1
+        owner={(identity.identityKey ?? 'current-session').split(':')[0] ?? 'current-session'}
+      >
+        <AdminShell
+          key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`}
+          identity={identity}
+        />
+      </AccountViewsGateV1>
+    </LiveRefreshAutomaticV1Provider>
+  );
 }

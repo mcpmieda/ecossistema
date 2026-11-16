@@ -12,10 +12,20 @@ beforeEach(() => {
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
-const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+const advance = (ms: number) =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
 
-function Reader({ refresh, canRefresh = () => true }: {
+function Reader({
+  refresh,
+  canRefresh = () => true,
+}: {
   refresh: () => Promise<unknown>;
   canRefresh?: () => boolean;
 }) {
@@ -25,14 +35,21 @@ function Reader({ refresh, canRefresh = () => true }: {
 
 it('pauses every retained reader in an inactive workspace and resumes once without unmounting its draft', async () => {
   const refresh = vi.fn(async () => true);
-  const content = (active: boolean) => <LiveRefreshScopeV1 active={active}><Reader refresh={refresh} /></LiveRefreshScopeV1>;
+  const content = (active: boolean) => (
+    <LiveRefreshScopeV1 active={active}>
+      <Reader refresh={refresh} />
+    </LiveRefreshScopeV1>
+  );
   const view = render(content(true));
   const input = screen.getByRole('textbox') as HTMLInputElement;
   fireEvent.change(input, { target: { value: 'rascunho preservado' } });
   await advance(30_000);
   expect(refresh).toHaveBeenCalledTimes(1);
   view.rerender(content(false));
-  await act(async () => { notifyLiveChangeV1('gradebook'); notifyLiveChangeV1('gradebook'); });
+  await act(async () => {
+    notifyLiveChangeV1('gradebook');
+    notifyLiveChangeV1('gradebook');
+  });
   await advance(120_000);
   expect(refresh).toHaveBeenCalledTimes(1);
   expect(vi.getTimerCount()).toBe(0);
@@ -45,8 +62,17 @@ it('pauses every retained reader in an inactive workspace and resumes once witho
 
 it('an active inner panel cannot reactivate an inactive ancestor', async () => {
   const refresh = vi.fn(async () => true);
-  render(<LiveRefreshScopeV1 active={false}><LiveRefreshScopeV1 active><Reader refresh={refresh} /></LiveRefreshScopeV1></LiveRefreshScopeV1>);
-  await act(async () => { notifyLiveChangeV1('gradebook'); window.dispatchEvent(new Event('focus')); });
+  render(
+    <LiveRefreshScopeV1 active={false}>
+      <LiveRefreshScopeV1 active>
+        <Reader refresh={refresh} />
+      </LiveRefreshScopeV1>
+    </LiveRefreshScopeV1>,
+  );
+  await act(async () => {
+    notifyLiveChangeV1('gradebook');
+    window.dispatchEvent(new Event('focus'));
+  });
   await advance(120_000);
   expect(refresh).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);
@@ -54,9 +80,15 @@ it('an active inner panel cannot reactivate an inactive ancestor', async () => {
 
 it('retains failure cooldown across hidden/visible transitions', async () => {
   const refresh = vi.fn(async () => false);
-  const content = (active: boolean) => <LiveRefreshScopeV1 active={active}><Reader refresh={refresh} /></LiveRefreshScopeV1>;
+  const content = (active: boolean) => (
+    <LiveRefreshScopeV1 active={active}>
+      <Reader refresh={refresh} />
+    </LiveRefreshScopeV1>
+  );
   const view = render(content(true));
-  await act(async () => { notifyLiveChangeV1('gradebook'); });
+  await act(async () => {
+    notifyLiveChangeV1('gradebook');
+  });
   await advance(250);
   expect(refresh).toHaveBeenCalledTimes(1);
   view.rerender(content(false));
@@ -71,7 +103,11 @@ it('retains failure cooldown across hidden/visible transitions', async () => {
 it('does not bypass the reader guard for a dirty form or an operation in progress', async () => {
   let allowed = false;
   const refresh = vi.fn(async () => true);
-  const content = (active: boolean) => <LiveRefreshScopeV1 active={active}><Reader refresh={refresh} canRefresh={() => allowed} /></LiveRefreshScopeV1>;
+  const content = (active: boolean) => (
+    <LiveRefreshScopeV1 active={active}>
+      <Reader refresh={refresh} canRefresh={() => allowed} />
+    </LiveRefreshScopeV1>
+  );
   const view = render(content(false));
   view.rerender(content(true));
   await advance(2_000);

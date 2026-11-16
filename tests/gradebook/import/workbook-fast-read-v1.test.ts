@@ -6,19 +6,32 @@ import {
   collectGradebookImportDiagnosticsV1,
   gradebookImportDiagnosticsAuditRequestV1,
 } from '../../../src/features/gradebook/import/import-diagnostics-v1';
-import type { SheetJs, Workbook } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
+import type {
+  SheetJs,
+  Workbook,
+} from '../../../src/features/gradebook/import/spreadsheet-recognizer';
 import {
   createFastTeacherSheetJsV1,
   isSheetSkippedByFastReadV1,
 } from '../../../src/features/gradebook/import/workbook-fast-read-v1';
-import { WORKBOOK_READ_OPTIONS, readWorkbookData } from '../../../src/features/gradebook/import/workbook-reader';
-import { loadRealSheetJsV1, writeRealWorkbookV1, type RealSheetJsV1 } from '../fixtures/sheetjs-real-v1';
+import {
+  WORKBOOK_READ_OPTIONS,
+  readWorkbookData,
+} from '../../../src/features/gradebook/import/workbook-reader';
+import {
+  loadRealSheetJsV1,
+  writeRealWorkbookV1,
+  type RealSheetJsV1,
+} from '../fixtures/sheetjs-real-v1';
 import {
   WORKBOOK_READER_EQUIVALENCE_CASES_V1,
   syntheticResultV1,
   type WorkbookFixtureV1,
 } from '../fixtures/workbook-reader-equivalence-v1';
-import { injectXlsbFormulasV1, type XlsbFormulaInjectionV1 } from '../fixtures/xlsb-formula-injection-v1';
+import {
+  injectXlsbFormulasV1,
+  type XlsbFormulaInjectionV1,
+} from '../fixtures/xlsb-formula-injection-v1';
 
 let xlsx: RealSheetJsV1;
 beforeAll(async () => {
@@ -54,7 +67,11 @@ const INJECTIONS_V1: readonly XlsbFormulaInjectionV1[] = [
 ];
 
 function syntheticXlsbV1(): ArrayBuffer {
-  return injectXlsbFormulasV1(xlsx, writeRealWorkbookV1(xlsx, teacherWithAuxiliaryTabsV1(), 'xlsb'), INJECTIONS_V1);
+  return injectXlsbFormulasV1(
+    xlsx,
+    writeRealWorkbookV1(xlsx, teacherWithAuxiliaryTabsV1(), 'xlsb'),
+    INJECTIONS_V1,
+  );
 }
 
 type CellViewV1 = { v?: unknown; w?: string; t?: string; f?: string };
@@ -72,7 +89,9 @@ describe('fast teacher read V1 — same import as the full SheetJS read', () => 
   it('the synthetic file really carries plain, shared and array formulas', () => {
     const full = xlsx.read(syntheticXlsbV1(), { ...WORKBOOK_READ_OPTIONS });
     const formulas = (sheet: string) =>
-      Object.entries(cellsV1(full, sheet)).filter(([, cell]) => cell.formula).map(([address]) => address);
+      Object.entries(cellsV1(full, sheet))
+        .filter(([, cell]) => cell.formula)
+        .map(([address]) => address);
     expect(formulas('6A1º')).toContain('S5');
     // Array members after the anchor carry no `f` in SheetJS; the anchor and shared cells do.
     expect(formulas('CONFIGURAÇÃO')).toEqual(expect.arrayContaining(['Z10', 'Z11', 'Z12']));
@@ -89,15 +108,21 @@ describe('fast teacher read V1 — same import as the full SheetJS read', () => 
       if (isSheetSkippedByFastReadV1(name)) expect(fast.Sheets[name]).toBeUndefined();
       else expect(cellsV1(fast, name)).toEqual(cellsV1(full, name));
     }
-    expect(['6AVG', 'RELAÇÃO', 'INICIO'].every((name) => fast.Sheets[name] === undefined)).toBe(true);
+    expect(['6AVG', 'RELAÇÃO', 'INICIO'].every((name) => fast.Sheets[name] === undefined)).toBe(
+      true,
+    );
   });
 
   it('produces the same import request and Auditoria request', async () => {
     const bytes = syntheticXlsbV1();
-    const file = new File([bytes], 'SYNTHETIC-fast-read.xlsb', { lastModified: Date.UTC(2026, 0, 1) });
+    const file = new File([bytes], 'SYNTHETIC-fast-read.xlsb', {
+      lastModified: Date.UTC(2026, 0, 1),
+    });
     const manifest = await createSourceFileManifest(file, bytes, xlsx.version, { now: fixedNow });
     const prepare = (library: SheetJs) => {
-      const summary = structuredClone(readWorkbookData(file, bytes, library, manifest, undefined, true));
+      const summary = structuredClone(
+        readWorkbookData(file, bytes, library, manifest, undefined, true),
+      );
       const result = syntheticResultV1(manifest, summary);
       const diagnostics = collectGradebookImportDiagnosticsV1(result);
       return {
@@ -112,13 +137,17 @@ describe('fast teacher read V1 — same import as the full SheetJS read', () => 
     const fast = createFastTeacherSheetJsV1(xlsx);
     const teacher = teacherWithAuxiliaryTabsV1();
     const xlsxBytes = writeRealWorkbookV1(xlsx, teacher, 'xlsx');
-    expect(fast.read(xlsxBytes, { ...WORKBOOK_READ_OPTIONS })).toEqual(xlsx.read(xlsxBytes, { ...WORKBOOK_READ_OPTIONS }));
+    expect(fast.read(xlsxBytes, { ...WORKBOOK_READ_OPTIONS })).toEqual(
+      xlsx.read(xlsxBytes, { ...WORKBOOK_READ_OPTIONS }),
+    );
 
     const master = structuredClone(teacher);
     master.SheetNames.push('VÍNCULO AGENDA');
     master.Sheets['VÍNCULO AGENDA'] = { '!ref': 'A1', A1: { t: 's', v: 'SINTÉTICO' } };
     const masterBytes = writeRealWorkbookV1(xlsx, master, 'xlsb');
-    expect(fast.read(masterBytes, { ...WORKBOOK_READ_OPTIONS })).toEqual(xlsx.read(masterBytes, { ...WORKBOOK_READ_OPTIONS }));
+    expect(fast.read(masterBytes, { ...WORKBOOK_READ_OPTIONS })).toEqual(
+      xlsx.read(masterBytes, { ...WORKBOOK_READ_OPTIONS }),
+    );
   });
 
   it('falls back to the full read when a sheet part cannot be scanned', () => {
@@ -126,7 +155,9 @@ describe('fast teacher read V1 — same import as the full SheetJS read', () => 
     const corrupted: SheetJs = {
       ...xlsx,
       read: (data, options) => {
-        const workbook = xlsx.read(data, options) as Workbook & { files?: Record<string, { content?: Uint8Array }> };
+        const workbook = xlsx.read(data, options) as Workbook & {
+          files?: Record<string, { content?: Uint8Array }>;
+        };
         for (const [path, entry] of Object.entries(workbook.files ?? {}))
           if (/worksheets\/sheet\d+\.bin$/iu.test(path)) entry.content = Uint8Array.of(0x00, 0x7f);
         return workbook;

@@ -150,10 +150,14 @@ function recoveryResultV2(
   return termRecoveryResultV2(recovery.recoveryTerms[period].source);
 }
 
-function annualRecoveryResultV2(recovery: NonNullable<PerformanceProjectionV2['recovery']>): CellResultV2 {
-  if (recovery.classification === 'failed-repeat') return { state: 'repeat-failure', valueMilli: null };
+function annualRecoveryResultV2(
+  recovery: NonNullable<PerformanceProjectionV2['recovery']>,
+): CellResultV2 {
+  if (recovery.classification === 'failed-repeat')
+    return { state: 'repeat-failure', valueMilli: null };
   if (recovery.classification === 'failed-no-show') return { state: 'no-show', valueMilli: null };
-  if (recovery.postRecoveryTotalMilli === null) return { state: 'recovery-pending', valueMilli: null };
+  if (recovery.postRecoveryTotalMilli === null)
+    return { state: 'recovery-pending', valueMilli: null };
   return { state: 'complete', valueMilli: recovery.postRecoveryTotalMilli };
 }
 

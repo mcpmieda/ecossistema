@@ -11,8 +11,11 @@ import type { PortalSqlLifecycleSampleV1 } from '../runtime/database-v1';
 import type { PortalCompositionEnvV1 } from './config-v1';
 
 /** Includes connection failures; only the fixed aggregate schema reaches logs. */
-export async function portalDatabaseV1<T>(env: PortalCompositionEnvV1, operation: PortalMetricV1['operation'],
-  run: (sql: StudentPortalPostgresSqlV1) => Promise<T>): Promise<T> {
+export async function portalDatabaseV1<T>(
+  env: PortalCompositionEnvV1,
+  operation: PortalMetricV1['operation'],
+  run: (sql: StudentPortalPostgresSqlV1) => Promise<T>,
+): Promise<T> {
   const started = Date.now();
   let measured: ReturnType<typeof measurePortalSqlV1> | undefined;
   let lifecycle: PortalSqlLifecycleSampleV1 | undefined;
@@ -35,14 +38,33 @@ export async function portalDatabaseV1<T>(env: PortalCompositionEnvV1, operation
     else outcome = result === null ? 'denied' : 'ok';
     return result;
   } catch (error) {
-    if (error instanceof PortalRateLimitErrorV1 && error.state === 'rate-limited') outcome = 'denied';
+    if (error instanceof PortalRateLimitErrorV1 && error.state === 'rate-limited')
+      outcome = 'denied';
     throw error;
   } finally {
-    const metric = measured?.snapshot(operation, outcome) ?? { event: 'student-portal-operation-v1' as const,
-      operation, outcome, elapsedMs: 0, queries: 0, rows: 0, lockTimeouts: 0, statementTimeouts: 0 };
+    const metric = measured?.snapshot(operation, outcome) ?? {
+      event: 'student-portal-operation-v1' as const,
+      operation,
+      outcome,
+      elapsedMs: 0,
+      queries: 0,
+      rows: 0,
+      lockTimeouts: 0,
+      statementTimeouts: 0,
+    };
     // The factory's role check succeeds before the instrumented callback starts.
-    emitPortalMetricV1({ ...metric, elapsedMs: Math.max(0, Date.now() - started),
-      queries: metric.queries + (measured ? 1 : 0), rows: metric.rows + (measured ? 1 : 0),
-      ...(lifecycle ? { openRoleMs: lifecycle.openRoleMs, applicationMs: lifecycle.applicationMs, attempts: lifecycle.attempts } : {}) });
+    emitPortalMetricV1({
+      ...metric,
+      elapsedMs: Math.max(0, Date.now() - started),
+      queries: metric.queries + (measured ? 1 : 0),
+      rows: metric.rows + (measured ? 1 : 0),
+      ...(lifecycle
+        ? {
+            openRoleMs: lifecycle.openRoleMs,
+            applicationMs: lifecycle.applicationMs,
+            attempts: lifecycle.attempts,
+          }
+        : {}),
+    });
   }
 }

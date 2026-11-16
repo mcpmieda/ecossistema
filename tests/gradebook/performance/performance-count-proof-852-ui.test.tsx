@@ -3,9 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { learningFixtureV1 } from './learning-fixture-v1';
 import { setupOperationsDomV1 } from '../../student-portal/ui/overview/dom-v1';
-import {
-  PerformanceAnalyticsWorkspaceV6,
-} from '../../../src/features/gradebook/performance/performance-analytics-workspace-v6';
+import { PerformanceAnalyticsWorkspaceV6 } from '../../../src/features/gradebook/performance/performance-analytics-workspace-v6';
 import {
   AnalyticsCompositionV6,
   AnalyticsCoverageV6,
@@ -17,30 +15,14 @@ import {
   analyticsDeltaV6 as delta,
   analyticsPercentV6 as percent,
 } from '../../../src/features/gradebook/performance/analytics-format-v6';
-import {
-  PerformanceDashboardWidgetsV5,
-} from '../../../src/features/gradebook/performance/performance-dashboard-widgets-v5';
-import {
-  PerformanceTermComparisonPanelV4,
-} from '../../../src/features/gradebook/performance/performance-term-comparison-panel-v4';
-import {
-  buildPerformanceAnalysisV3,
-} from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
-import {
-  buildPerformanceDashboardOverviewV5,
-} from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
-import {
-  buildPerformanceTermComparisonV4,
-} from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
-import {
-  performanceAnalysisRequestSchemaV3,
-} from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
-import {
-  performanceTermComparisonRequestSchemaV4,
-} from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
-import type {
-  PerformanceDashboardV5,
-} from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
+import { PerformanceDashboardWidgetsV5 } from '../../../src/features/gradebook/performance/performance-dashboard-widgets-v5';
+import { PerformanceTermComparisonPanelV4 } from '../../../src/features/gradebook/performance/performance-term-comparison-panel-v4';
+import { buildPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
+import { buildPerformanceDashboardOverviewV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
+import { buildPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
+import { performanceAnalysisRequestSchemaV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
+import { performanceTermComparisonRequestSchemaV4 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
+import type { PerformanceDashboardV5 } from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 
 beforeEach(setupOperationsDomV1);
 afterEach(() => {
@@ -70,12 +52,10 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
       onNotes={vi.fn()}
     />,
   );
-  const evidence = new Map(
-    value.learning!.students.map((item) => [item.studentId, item]),
-  );
+  const evidence = new Map(value.learning!.students.map((item) => [item.studentId, item]));
   const rising = value.students.filter(
-    (student) => student.summary.movement.meanDeltaPP !== null &&
-      student.summary.movement.meanDeltaPP > 0,
+    (student) =>
+      student.summary.movement.meanDeltaPP !== null && student.summary.movement.meanDeltaPP > 0,
   ).length;
   const compared = value.students.filter(
     (student) => student.summary.movement.meanDeltaPP !== null,
@@ -83,9 +63,7 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
   const attention = value.students.filter(
     (student) => (evidence.get(student.student.id)?.recurring.length ?? 0) > 0,
   ).length;
-  const assessed = value.learning!.students.filter(
-    (student) => student.recurrenceAssessed,
-  ).length;
+  const assessed = value.learning!.students.filter((student) => student.recurrenceAssessed).length;
   const studentsWithResult = value.students.filter(
     (student) => student.summary.complete > 0,
   ).length;
@@ -93,18 +71,18 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
     screen.getByRole('button', { name: 'Ver alunos: Desempenho médio' }).textContent,
   ).toContain(percent(value.summary.result.mean));
   expect(
-    screen.getByText(
-      studentsWithResult + ' alunos com resultado · 2º trimestre',
-    ),
+    screen.getByText(studentsWithResult + ' alunos com resultado · 2º trimestre'),
   ).toBeTruthy();
   expect(
     screen.getByRole('button', { name: 'Ver alunos: Evolução trimestral' }).textContent,
   ).toContain(delta(value.summary.movement.meanDeltaPP));
-  expect(screen.getByRole('button', { name: 'Ver alunos: Alunos em evolução' }).textContent)
-    .toContain(String(rising));
+  expect(
+    screen.getByRole('button', { name: 'Ver alunos: Alunos em evolução' }).textContent,
+  ).toContain(String(rising));
   expect(screen.getByText('de ' + compared + ' alunos com comparação')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Ver alunos: Atenção recorrente' }).textContent)
-    .toContain(assessed ? String(attention) : '—');
+  expect(
+    screen.getByRole('button', { name: 'Ver alunos: Atenção recorrente' }).textContent,
+  ).toContain(assessed ? String(attention) : '—');
   expect(screen.getByText(assessed + ' alunos com base para analisar')).toBeTruthy();
 
   const groups = [
@@ -120,42 +98,35 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
   const participationPanel = screen
     .getByText('Participação avaliada')
     .closest('[data-slot="card"]');
-  expect(participationPanel?.textContent).toContain(
-    percent(value.learning!.participation.percent),
-  );
+  expect(participationPanel?.textContent).toContain(percent(value.learning!.participation.percent));
   if (value.learning!.participation.deltaPP !== null)
-    expect(participationPanel?.textContent).toContain(
-      delta(value.learning!.participation.deltaPP),
-    );
+    expect(participationPanel?.textContent).toContain(delta(value.learning!.participation.deltaPP));
   expect(
     screen.getByText(
-      value.learning!.participation.students + ' alunos · ' +
-      value.learning!.participation.recorded + ' notas consideradas',
+      value.learning!.participation.students +
+        ' alunos · ' +
+        value.learning!.participation.recorded +
+        ' notas consideradas',
     ),
   ).toBeTruthy();
   const recoverySummary = container.querySelector('.learning-recovery-summary');
-  expect(recoverySummary?.textContent).toContain(
-    String(value.learning!.parallel.students),
-  );
-  expect(recoverySummary?.textContent).toContain(
-    'alunos melhoraram com a recuperação paralela',
-  );
+  expect(recoverySummary?.textContent).toContain(String(value.learning!.parallel.students));
+  expect(recoverySummary?.textContent).toContain('alunos melhoraram com a recuperação paralela');
 
   for (const component of value.components) {
     const button = screen.getByRole('button', { name: component.offer.subject.label });
     expect(button.parentElement?.parentElement?.textContent).toContain(
-      component.summary.below + ' abaixo da referência · ' +
-      component.summary.complete + ' com resultado',
+      component.summary.below +
+        ' abaixo da referência · ' +
+        component.summary.complete +
+        ' com resultado',
     );
   }
 
   expect(
-    screen.getByText(
-      'Base comum: ' + (value.learning?.dimensions.students ?? 0) + ' alunos.',
-    ),
+    screen.getByText('Base comum: ' + (value.learning?.dimensions.students ?? 0) + ' alunos.'),
   ).toBeTruthy();
-  const change = (student: (typeof value.students)[number]) =>
-    student.summary.movement.meanDeltaPP;
+  const change = (student: (typeof value.students)[number]) => student.summary.movement.meanDeltaPP;
   const belowUp = value.students.filter(
     (student) => student.summary.below > 0 && change(student) !== null && change(student)! > 0,
   ).length;
@@ -164,9 +135,7 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
   ).length;
   const aboveDown = value.students.filter(
     (student) =>
-      student.summary.studentsAtOrAbove === 1 &&
-      change(student) !== null &&
-      change(student)! < 0,
+      student.summary.studentsAtOrAbove === 1 && change(student) !== null && change(student)! < 0,
   ).length;
   const priority = container.querySelector('.learning-priority');
   expect(priority).toBeTruthy();
@@ -180,19 +149,19 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
     );
     expect(button?.textContent).toContain(String(count));
   }
-  expect(container.querySelector('.learning-list-heading')?.textContent)
-    .toContain(String(attention));
+  expect(container.querySelector('.learning-list-heading')?.textContent).toContain(
+    String(attention),
+  );
 
   const instrumentByKey = new Map(
     value.components.flatMap((component) =>
-      component.instruments.map((instrument) => [
-        instrument.key,
-        { ...instrument, offerId: component.offer.id },
-      ] as const),
+      component.instruments.map(
+        (instrument) => [instrument.key, { ...instrument, offerId: component.offer.id }] as const,
+      ),
     ),
   );
-  const reviewed = value.learning!.activitiesToReview
-    .map((key) => instrumentByKey.get(key))
+  const reviewed = value
+    .learning!.activitiesToReview.map((key) => instrumentByKey.get(key))
     .filter((item): item is NonNullable<typeof item> => item !== undefined)
     .slice(0, 5);
   const activityButtons = container.querySelectorAll('.learning-activity');
@@ -207,13 +176,10 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
   );
 });
 
-
 it('renders the selected student indicators with the exact proven student summary and evidence', () => {
   const { value } = learningFixtureV1({ period: 2 });
   const student = value.students[0]!;
-  const evidence = value.learning!.students.find(
-    (item) => item.studentId === student.student.id,
-  )!;
+  const evidence = value.learning!.students.find((item) => item.studentId === student.student.id)!;
   const { container } = render(
     <PerformanceAnalyticsWorkspaceV6
       value={value}
@@ -226,12 +192,9 @@ it('renders the selected student indicators with the exact proven student summar
       onNotes={vi.fn()}
     />,
   );
-  const card = (label: string) =>
-    screen.getByText(label).closest('[data-slot="card"]');
+  const card = (label: string) => screen.getByText(label).closest('[data-slot="card"]');
 
-  expect(card('Desempenho atual')?.textContent).toContain(
-    percent(student.summary.result.mean),
-  );
+  expect(card('Desempenho atual')?.textContent).toContain(percent(student.summary.result.mean));
   expect(card('Desempenho atual')?.textContent).toContain(
     student.summary.complete + ' componentes com resultado',
   );
@@ -252,29 +215,30 @@ it('renders the selected student indicators with the exact proven student summar
     expect(
       screen.getByRole('button', {
         name:
-          'Consultar ' + item.term + 'º trimestre: ' +
-          percent(item.mean) + ', ' + item.n + ' resultados',
+          'Consultar ' +
+          item.term +
+          'º trimestre: ' +
+          percent(item.mean) +
+          ', ' +
+          item.n +
+          ' resultados',
       }),
     ).toBeTruthy();
 
   const quantitative = screen.queryByRole('meter', { name: 'Quantitativo' });
   const qualitative = screen.queryByRole('meter', { name: 'Qualitativo' });
-  if (evidence.dimensions?.quantitativePercent === null)
-    expect(quantitative).toBeNull();
+  if (evidence.dimensions?.quantitativePercent === null) expect(quantitative).toBeNull();
   else
     expect(Number(quantitative?.getAttribute('aria-valuenow'))).toBeCloseTo(
       evidence.dimensions?.quantitativePercent ?? 0,
     );
-  if (evidence.dimensions?.qualitativePercent === null)
-    expect(qualitative).toBeNull();
+  if (evidence.dimensions?.qualitativePercent === null) expect(qualitative).toBeNull();
   else
     expect(Number(qualitative?.getAttribute('aria-valuenow'))).toBeCloseTo(
       evidence.dimensions?.qualitativePercent ?? 0,
     );
   expect(
-    screen.getByText(
-      'Componentes comparados: ' + (evidence.dimensions?.components ?? 0) + '.',
-    ),
+    screen.getByText('Componentes comparados: ' + (evidence.dimensions?.components ?? 0) + '.'),
   ).toBeTruthy();
 
   const recurring = screen
@@ -283,8 +247,8 @@ it('renders the selected student indicators with the exact proven student summar
   const recurringLabels = new Set(
     evidence.recurring.map(
       (item) =>
-        value.components.find((component) => component.offer.id === item.offerId)
-          ?.offer.subject.label,
+        value.components.find((component) => component.offer.id === item.offerId)?.offer.subject
+          .label,
     ),
   );
   const recurringButtons = recurring
@@ -296,15 +260,13 @@ it('renders the selected student indicators with the exact proven student summar
     : [];
   expect(recurringButtons).toHaveLength(evidence.recurring.length);
   expect(
-    screen.getByRole('grid', { name: 'Componentes do aluno' })
-      .querySelectorAll('tbody tr'),
+    screen.getByRole('grid', { name: 'Componentes do aluno' }).querySelectorAll('tbody tr'),
   ).toHaveLength(student.cells.length);
   if (evidence.parallelImprovements > 0)
     expect(container.textContent).toContain(
       evidence.parallelImprovements + ' resultado(s) melhoraram com recuperação paralela.',
     );
 });
-
 
 it.each(['classes', 'components', 'teachers'] as const)(
   'renders exact selected-summary counts in the %s perspective',
@@ -336,40 +298,39 @@ it.each(['classes', 'components', 'teachers'] as const)(
     );
 
     const kpi = (label: string) =>
-      screen
-        .getByRole('button', { name: 'Sobre ' + label })
-        .closest('[data-slot="card"]');
-    expect(kpi('Aproveitamento')?.textContent).toContain(
-      percent(summary.result.mean),
-    );
+      screen.getByRole('button', { name: 'Sobre ' + label }).closest('[data-slot="card"]');
+    expect(kpi('Aproveitamento')?.textContent).toContain(percent(summary.result.mean));
     expect(kpi('Aproveitamento')?.textContent).toContain(
       summary.result.n + '/' + summary.readings + ' resultados considerados',
     );
     expect(kpi('Mediana')?.textContent).toContain(percent(summary.result.median));
-    expect(kpi('Alunos abaixo')?.textContent).toContain(
-      String(summary.studentsBelow),
-    );
-    expect(kpi('Alunos abaixo')?.textContent).toContain(
-      summary.students + ' alunos considerados',
-    );
+    expect(kpi('Alunos abaixo')?.textContent).toContain(String(summary.studentsBelow));
+    expect(kpi('Alunos abaixo')?.textContent).toContain(summary.students + ' alunos considerados');
+    expect(kpi('Notas lançadas')?.textContent).toContain(percent(summary.coverage.percent));
     expect(kpi('Notas lançadas')?.textContent).toContain(
-      percent(summary.coverage.percent),
-    );
-    expect(kpi('Notas lançadas')?.textContent).toContain(
-      summary.coverage.recorded +
-        '/' +
-        summary.coverage.expected +
-        ' instrumentos',
+      summary.coverage.recorded + '/' + summary.coverage.expected + ' instrumentos',
     );
     expect(valueAfter('REC aplicável')).toBe(String(summary.recovery.applicable));
     expect(valueAfter('REC lançada')).toBe(String(summary.recovery.recorded));
     expect(valueAfter('REC pendente')).toBe(String(summary.recovery.pending));
     expect(valueAfter('Resultados considerados')).toBe(String(summary.complete));
     // The marker of blank instruments is counted from the cells of the scope on screen.
-    const offers = tab === 'components' ? [component.offer.id] : tab === 'teachers' ? teacher.offerIds : null;
-    expect(valueAfter('Desses, com instrumento em branco')).toBe(String(value.students.reduce((sum, item) => sum +
-      item.cells.filter((cell) => (offers === null || offers.includes(cell.offerId)) &&
-        cell.result.state === 'partial').length, 0)));
+    const offers =
+      tab === 'components' ? [component.offer.id] : tab === 'teachers' ? teacher.offerIds : null;
+    expect(valueAfter('Desses, com instrumento em branco')).toBe(
+      String(
+        value.students.reduce(
+          (sum, item) =>
+            sum +
+            item.cells.filter(
+              (cell) =>
+                (offers === null || offers.includes(cell.offerId)) &&
+                cell.result.state === 'partial',
+            ).length,
+          0,
+        ),
+      ),
+    );
     expect(valueAfter('Sem nota')).toBe(String(summary.missing));
     expect(valueAfter('Zeros registrados')).toBe(String(summary.coverage.zeros));
 
@@ -387,9 +348,7 @@ it.each(['classes', 'components', 'teachers'] as const)(
               ' leituras',
           }),
         ).toBeTruthy();
-      expect(
-        screen.getByText(summary.composition.n + ' pares de resultados'),
-      ).toBeTruthy();
+      expect(screen.getByText(summary.composition.n + ' pares de resultados')).toBeTruthy();
     }
 
     if (tab === 'classes') {
@@ -397,9 +356,7 @@ it.each(['classes', 'components', 'teachers'] as const)(
         name: 'Distribuição por faixa de aproveitamento',
       });
       expect(figure.querySelector('figcaption')?.textContent).toBe(
-        summary.distribution
-          .map((bin) => bin.label + ': ' + bin.count)
-          .join('; '),
+        summary.distribution.map((bin) => bin.label + ': ' + bin.count).join('; '),
       );
       for (const item of value.components) {
         const button = screen.getByRole('button', {
@@ -420,14 +377,10 @@ it.each(['classes', 'components', 'teachers'] as const)(
       const grid = screen.getByRole('grid', {
         name: 'Aproveitamento por instrumento',
       });
-      expect(within(grid).getAllByRole('row')).toHaveLength(
-        component.instruments.length + 1,
-      );
+      expect(within(grid).getAllByRole('row')).toHaveLength(component.instruments.length + 1);
       for (const instrument of component.instruments)
         expect(grid.textContent).toContain(
-          instrument.coverage.recorded +
-            '/' +
-            instrument.coverage.expected,
+          instrument.coverage.recorded + '/' + instrument.coverage.expected,
         );
     }
 
@@ -462,8 +415,10 @@ it('renders timeline, histogram, composition, recovery and coverage with the exa
       <AnalyticsRecoveryV6 summary={value.summary} />
       <AnalyticsCoverageV6
         summary={value.summary}
-        partial={value.students.reduce((sum, item) => sum +
-          item.cells.filter((cell) => cell.result.state === 'partial').length, 0)}
+        partial={value.students.reduce(
+          (sum, item) => sum + item.cells.filter((cell) => cell.result.state === 'partial').length,
+          0,
+        )}
       />
     </div>,
   );
@@ -472,19 +427,23 @@ it('renders timeline, histogram, composition, recovery and coverage with the exa
     expect(
       screen.getByRole('button', {
         name:
-          'Consultar ' + item.term + 'º trimestre: ' +
-          percent(item.mean) + ', ' + item.n + ' resultados',
+          'Consultar ' +
+          item.term +
+          'º trimestre: ' +
+          percent(item.mean) +
+          ', ' +
+          item.n +
+          ' resultados',
       }),
     ).toBeTruthy();
 
   const distribution = container.querySelector('figcaption');
   expect(distribution?.textContent).toBe(
-    value.summary.distribution
-      .map((bin) => bin.label + ': ' + bin.count)
-      .join('; '),
+    value.summary.distribution.map((bin) => bin.label + ': ' + bin.count).join('; '),
   );
-  expect(value.summary.distribution.reduce((sum, bin) => sum + bin.count, 0))
-    .toBe(value.summary.result.n);
+  expect(value.summary.distribution.reduce((sum, bin) => sum + bin.count, 0)).toBe(
+    value.summary.result.n,
+  );
 
   const composition = screen.getByRole('img', { name: /Participação nos pontos/ });
   expect(composition.getAttribute('aria-label')).toBe(
@@ -503,20 +462,24 @@ it('renders timeline, histogram, composition, recovery and coverage with the exa
   expect(
     screen.getByText(
       'Paralela aplicada: ' +
-      value.summary.parallel.applied +
-      '/' +
-      value.summary.parallel.applicable,
+        value.summary.parallel.applied +
+        '/' +
+        value.summary.parallel.applicable,
     ),
   ).toBeTruthy();
   expect(
-    screen.getByText(
-      'Aplicabilidade indefinida: ' + value.summary.recovery.unknown,
-    ),
+    screen.getByText('Aplicabilidade indefinida: ' + value.summary.recovery.unknown),
   ).toBeTruthy();
 
   expect(valueAfter('Resultados considerados')).toBe(String(value.summary.complete));
-  expect(valueAfter('Desses, com instrumento em branco')).toBe(String(value.students.reduce((sum, item) => sum +
-    item.cells.filter((cell) => cell.result.state === 'partial').length, 0)));
+  expect(valueAfter('Desses, com instrumento em branco')).toBe(
+    String(
+      value.students.reduce(
+        (sum, item) => sum + item.cells.filter((cell) => cell.result.state === 'partial').length,
+        0,
+      ),
+    ),
+  );
   expect(valueAfter('Sem nota')).toBe(String(value.summary.missing));
   expect(valueAfter('Indisponíveis')).toBe(String(value.summary.unavailable));
   expect(valueAfter('Zeros registrados')).toBe(String(value.summary.coverage.zeros));
@@ -553,26 +516,19 @@ it('renders every Notas V5 component bar, class panorama and completeness KPI fr
     />,
   );
   const kpis = screen.getByLabelText('Resumo da turma').querySelectorAll('.performance-kpi');
-  expect(kpis[0]?.textContent).toContain(
-    analysis.matrix.statistics.visibleRows + 'estudantes',
-  );
+  expect(kpis[0]?.textContent).toContain(analysis.matrix.statistics.visibleRows + 'estudantes');
   expect(kpis[1]?.textContent).toContain(
     dashboard.overview.students.withBelow + 'abaixo do mínimo',
   );
   const completePercent =
     analysis.matrix.statistics.consideredCells === 0
       ? 0
-      : (analysis.matrix.statistics.completeCells /
-          analysis.matrix.statistics.consideredCells) *
+      : (analysis.matrix.statistics.completeCells / analysis.matrix.statistics.consideredCells) *
         100;
-  expect(kpis[2]?.textContent).toContain(
-    number.format(completePercent) + '%completos',
-  );
+  expect(kpis[2]?.textContent).toContain(number.format(completePercent) + '%completos');
   // The fourth indicator only exists while some student waits for a classification.
   if (dashboard.overview.students.pending > 0)
-    expect(kpis[3]?.textContent).toContain(
-      dashboard.overview.students.pending + 'com pendências',
-    );
+    expect(kpis[3]?.textContent).toContain(dashboard.overview.students.pending + 'com pendências');
   else expect(kpis).toHaveLength(3);
 
   const offers = new Map(analysis.matrix.offers.map((offer) => [offer.id, offer]));
@@ -580,20 +536,12 @@ it('renders every Notas V5 component bar, class panorama and completeness KPI fr
     const title = offers.get(column.offerId)!.subject.label;
     expect(
       screen.getByRole('button', {
-        name:
-          title +
-          ': ' +
-          column.atOrAbove +
-          ' estudante(s) no mínimo ou acima',
+        name: title + ': ' + column.atOrAbove + ' estudante(s) no mínimo ou acima',
       }),
     ).toBeTruthy();
     expect(
       screen.getByRole('button', {
-        name:
-          title +
-          ': ' +
-          column.below +
-          ' estudante(s) abaixo do mínimo',
+        name: title + ': ' + column.below + ' estudante(s) abaixo do mínimo',
       }),
     ).toBeTruthy();
   }
@@ -610,7 +558,9 @@ it('renders every Notas V5 component bar, class panorama and completeness KPI fr
     }),
   ).toBeTruthy();
   // The ranking opens inside the panorama card (owner request of 15/10/2026).
-  fireEvent.click(screen.getByRole('button', { name: 'Classificação da turma: 10 maiores somatórios' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Classificação da turma: 10 maiores somatórios' }),
+  );
   expect(container.querySelectorAll('.performance-bars__student-group--ranking li')).toHaveLength(
     dashboard.overview.ranking.length,
   );
@@ -649,7 +599,7 @@ it('renders the four V4 comparison totals as the exact partition of compared cel
     totals.lower,
     totals.unavailable,
   ]);
-  expect(
-    totals.higher + totals.equal + totals.lower + totals.unavailable,
-  ).toBe(comparison.rows.length * comparison.columns.length);
+  expect(totals.higher + totals.equal + totals.lower + totals.unavailable).toBe(
+    comparison.rows.length * comparison.columns.length,
+  );
 });

@@ -22,7 +22,10 @@ export function useCachedReadV3<T>(
   active: boolean,
   onUnauthenticated?: () => void,
 ) {
-  const [state, setState] = useState<{ data: T | null; error: string | null }>({ data: null, error: null });
+  const [state, setState] = useState<{ data: T | null; error: string | null }>({
+    data: null,
+    error: null,
+  });
   const readAt = useRef(0);
   const running = useRef<AbortController | null>(null);
   const retries = useRef(0);
@@ -50,7 +53,10 @@ export function useCachedReadV3<T>(
       setState((current) => ({ data: blocked ? null : current.data, error: code }));
       if (code === 'unauthenticated') lost.current?.();
       if (!blocked) {
-        const delay = Math.min(RETRY_MAX_MS_V3, RETRY_AFTER_MS_V3 * 2 ** Math.min(retries.current, 4));
+        const delay = Math.min(
+          RETRY_MAX_MS_V3,
+          RETRY_AFTER_MS_V3 * 2 ** Math.min(retries.current, 4),
+        );
         retries.current += 1;
         retryTimer.current = setTimeout(() => void runAgain.current(), delay);
       }

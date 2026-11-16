@@ -33,10 +33,11 @@ describe('student portal grade workspace', () => {
     renderWorkspace();
     const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
 
-    expect(within(navigation).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Boletim',
-      'Disciplina',
-    ]);
+    expect(
+      within(navigation)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Boletim', 'Disciplina']);
     expect(within(navigation).queryByRole('tab', { name: 'Resumo' })).toBeNull();
     expect(within(navigation).queryByRole('tab', { name: 'Evolução' })).toBeNull();
   });
@@ -73,14 +74,24 @@ describe('student portal grade workspace', () => {
       mark: { kind: 'absent' },
     };
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
-    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
 
     const partials = screen.getByRole('list', { name: 'Avaliações publicadas' });
     // Under the activity and beside it, the repeated tag hidden from a screen reader.
     expect(within(partials).getAllByText('Não fez')).toHaveLength(2);
-    expect(within(partials).getAllByText('Não fez').filter((tag) => !tag.closest('[aria-hidden="true"]'))).toHaveLength(1);
+    expect(
+      within(partials)
+        .getAllByText('Não fez')
+        .filter((tag) => !tag.closest('[aria-hidden="true"]')),
+    ).toHaveLength(1);
     expect(within(partials).getAllByText('Tirou zero')).toHaveLength(2);
-    expect(within(partials).getAllByText('Tirou zero').filter((tag) => !tag.closest('[aria-hidden="true"]'))).toHaveLength(1);
+    expect(
+      within(partials)
+        .getAllByText('Tirou zero')
+        .filter((tag) => !tag.closest('[aria-hidden="true"]')),
+    ).toHaveLength(1);
     // Missing evidence stays neutral; it is never promoted to Não fez.
     expect(within(partials).getByLabelText('Ainda não lançado')).toBeTruthy();
   });
@@ -89,13 +100,24 @@ describe('student portal grade workspace', () => {
     const data = gradesFixtureV1(true);
     const first = data.subjects.find((subject) => subject.order === 1)!;
     const partials = first.periods.find((p) => p.period === 'T1')!.partials!;
-    partials[1] = { assessmentId: 900002, label: 'AV2 SYNTHETIC', notDone: true, mark: { kind: 'absent' } };
+    partials[1] = {
+      assessmentId: 900002,
+      label: 'AV2 SYNTHETIC',
+      notDone: true,
+      mark: { kind: 'absent' },
+    };
     partials[6] = {
       assessmentId: 900009,
       label: 'Atividade abaixo',
       mark: { kind: 'score', value: 0.5, maximum: 2, meetsMinimum: false },
     };
-    const band = (id: number, label: string, value: number, maximum: number, meetsMinimum: boolean) => ({
+    const band = (
+      id: number,
+      label: string,
+      value: number,
+      maximum: number,
+      meetsMinimum: boolean,
+    ) => ({
       assessmentId: id,
       label,
       mark: { kind: 'score' as const, value, maximum, meetsMinimum },
@@ -106,11 +128,16 @@ describe('student portal grade workspace', () => {
       band(900103, 'Faixa 80', 4, 5, true), // exactly 80%: Excelente
     );
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
-    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
 
-    const rows = within(screen.getByRole('list', { name: 'Avaliações publicadas' })).getAllByRole('listitem');
+    const rows = within(screen.getByRole('list', { name: 'Avaliações publicadas' })).getAllByRole(
+      'listitem',
+    );
     const tag = (label: string) =>
-      rows.find((item) => within(item).queryByText(label))!.querySelector('.pa-partial-feedback')?.textContent ?? null;
+      rows.find((item) => within(item).queryByText(label))!.querySelector('.pa-partial-feedback')
+        ?.textContent ?? null;
     expect(tag('Atividade abaixo')).toBe('Precisa melhorar'); // 25%
     expect(tag('Faixa 40')).toBe('Não foi muito bem');
     expect(tag('Faixa 79')).toBe('Foi bem');
@@ -132,12 +159,21 @@ describe('student portal grade workspace', () => {
         parallel: true,
         mark: { kind: 'score', value: 7, maximum: 13.5, meetsMinimum: false },
       },
-      { assessmentId: 900202, label: 'PARALELA PENDENTE', parallel: true, mark: { kind: 'absent' } },
+      {
+        assessmentId: 900202,
+        label: 'PARALELA PENDENTE',
+        parallel: true,
+        mark: { kind: 'absent' },
+      },
     );
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
-    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
 
-    const rows = within(screen.getByRole('list', { name: 'Avaliações publicadas' })).getAllByRole('listitem');
+    const rows = within(screen.getByRole('list', { name: 'Avaliações publicadas' })).getAllByRole(
+      'listitem',
+    );
     const row = (label: string) => rows.find((item) => within(item).queryByText(label))!;
     expect(within(row('PARALELA FEITA')).getByText('Foi uma segunda chance')).toBeTruthy();
     expect(within(row('PARALELA PENDENTE')).queryByText('Foi uma segunda chance')).toBeNull();
@@ -145,16 +181,21 @@ describe('student portal grade workspace', () => {
 
   it('drags a discipline between its trimesters, as in the Boletim, never on a tab bar or a vertical scroll', async () => {
     const data = gradesFixtureV1(false);
-    const [first] = [...data.subjects].sort((a, b) => a.order - b.order) as [(typeof data.subjects)[number]];
+    const [first] = [...data.subjects].sort((a, b) => a.order - b.order) as [
+      (typeof data.subjects)[number],
+    ];
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
-    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     // The content follows the finger (touchmove) and the move completes on release.
     const swipe = (target: Element, from: [number, number], to: [number, number]) => {
       fireEvent.touchStart(target, { touches: [{ clientX: from[0], clientY: from[1] }] });
       fireEvent.touchMove(target, { touches: [{ clientX: to[0], clientY: to[1] }] });
       fireEvent.touchEnd(target, { changedTouches: [{ clientX: to[0], clientY: to[1] }] });
     };
-    const heading = () => screen.getByRole('heading', { level: 2, name: /Disciplina sintética/u }).textContent;
+    const heading = () =>
+      screen.getByRole('heading', { level: 2, name: /Disciplina sintética/u }).textContent;
 
     // Right from the first trimester: nothing before it, no wrap.
     swipe(screen.getByText('Sua nota do 1º trimestre'), [100, 300], [260, 305]);
@@ -170,7 +211,9 @@ describe('student portal grade workspace', () => {
     const card = screen.getByText('Sua nota do 1º trimestre');
     fireEvent.touchStart(card, { touches: [{ clientX: 260, clientY: 300 }] });
     fireEvent.touchMove(card, { touches: [{ clientX: 180, clientY: 302 }] });
-    expect(document.querySelector('.pa-swipe-peek--next')?.getAttribute('aria-hidden')).toBe('true');
+    expect(document.querySelector('.pa-swipe-peek--next')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
     fireEvent.touchCancel(card);
     expect(document.querySelector('.pa-swipe-peek')).toBeNull();
 
@@ -186,7 +229,9 @@ describe('student portal grade workspace', () => {
 
   it('moves nothing when the tab already chosen is clicked again', async () => {
     const data = gradesFixtureV1(false);
-    const [first] = [...data.subjects].sort((a, b) => a.order - b.order) as [(typeof data.subjects)[number]];
+    const [first] = [...data.subjects].sort((a, b) => a.order - b.order) as [
+      (typeof data.subjects)[number],
+    ];
     const user = userEvent.setup();
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
@@ -262,14 +307,19 @@ describe('student portal grade workspace', () => {
     const view = render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     const user = userEvent.setup();
     const selected = (name: string) =>
-      within(screen.getByRole('tablist', { name })).getAllByRole('tab').find((tab) => tab.getAttribute('aria-selected') === 'true')!
-        .textContent;
+      within(screen.getByRole('tablist', { name }))
+        .getAllByRole('tab')
+        .find((tab) => tab.getAttribute('aria-selected') === 'true')!.textContent;
 
     await user.click(screen.getByRole('tab', { name: /^2º Trimestre/u }));
     await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     expect(selected('Períodos de ' + first.label)).toContain('2º Trimestre');
 
-    await user.click(within(screen.getByRole('tablist', { name: 'Trocar disciplina' })).getByRole('tab', { name: second.label }));
+    await user.click(
+      within(screen.getByRole('tablist', { name: 'Trocar disciplina' })).getByRole('tab', {
+        name: second.label,
+      }),
+    );
     expect(selected('Períodos de ' + second.label)).toContain('2º Trimestre');
 
     await user.click(screen.getByRole('button', { name: 'Voltar para o boletim' }));
@@ -285,8 +335,12 @@ describe('student portal grade workspace', () => {
 
   it('clamps an overflowing activity description to two lines and reveals it on demand', async () => {
     // jsdom has no layout: report every clamped description as overflowing.
-    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
-      return this.classList.contains('pa-partial-label') && !this.classList.contains('is-expanded') ? 80 : 0;
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains('pa-partial-label') && !this.classList.contains('is-expanded')
+        ? 80
+        : 0;
     });
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 40);
     const data = gradesFixtureV1(true);
@@ -303,7 +357,11 @@ describe('student portal grade workspace', () => {
     expect(long.classList.contains('is-expanded')).toBe(true);
     // The full text was always in the DOM; the toggle only changes how much is visible.
     expect(long.textContent).toContain('situação de aprendizagem');
-    expect(within(long.parentElement!).getByRole('button', { name: 'Ver menos' }).getAttribute('aria-expanded')).toBe('true');
+    expect(
+      within(long.parentElement!)
+        .getByRole('button', { name: 'Ver menos' })
+        .getAttribute('aria-expanded'),
+    ).toBe('true');
   });
 
   it('shows the trimester trend by percentage, never on T1 or against a non-numeric mark', async () => {
@@ -338,7 +396,9 @@ describe('student portal grade workspace', () => {
     const data = gradesFixtureV1(false); // no `partials` key: showPartials off
     const first = data.subjects.find((subject) => subject.order === 1)!;
     const { unmount } = render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
-    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     expect(screen.queryByText('Como o aluno foi em cada atividade')).toBeNull();
     expect(screen.queryByText('Nenhuma avaliação parcial publicada.')).toBeNull();
     unmount();
@@ -346,7 +406,9 @@ describe('student portal grade workspace', () => {
 
     first.periods.find((p) => p.period === 'T1')!.partials = [];
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
-    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     expect(screen.getByText('Nenhuma avaliação parcial publicada.')).toBeTruthy();
   });
 
@@ -444,7 +506,9 @@ describe('student portal grade workspace', () => {
     const list = screen.getByRole('listbox', { name: 'Disciplinas publicadas' });
     expect(list.querySelector('.pa-subject-icon--animated')).toBeNull();
 
-    await userEvent.setup().click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
     // The chosen discipline's tab carries the icon (the old page intro was replaced by the tab bar).
     const tab = screen.getByRole('tab', { name: new RegExp(first.label, 'u'), selected: true });
     const icon = tab.querySelector('.pa-subject-icon--animated');
@@ -458,8 +522,9 @@ describe('student portal grade workspace', () => {
     const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
 
     await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
-    expect(within(navigation).getByRole('tab', { name: 'Disciplina' }).getAttribute('aria-selected'))
-      .toBe('true');
+    expect(
+      within(navigation).getByRole('tab', { name: 'Disciplina' }).getAttribute('aria-selected'),
+    ).toBe('true');
 
     const state = {
       ...(window.history.state ?? {}),
@@ -469,8 +534,9 @@ describe('student portal grade workspace', () => {
       window.dispatchEvent(new PopStateEvent('popstate', { state }));
     });
 
-    expect(within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected'))
-      .toBe('true');
+    expect(
+      within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected'),
+    ).toBe('true');
   });
 
   it('ignores a Back that carries its own entry unchanged (another menu on the page moved)', async () => {
@@ -481,7 +547,9 @@ describe('student portal grade workspace', () => {
     // The Notas ⇄ Frequência menu keeps its own key in the same entry: only that key changed.
     await act(async () => {
       window.dispatchEvent(
-        new PopStateEvent('popstate', { state: { __studentPortalWorkspaceV1: { ...unchanged }, pa3Page: 'grades' } }),
+        new PopStateEvent('popstate', {
+          state: { __studentPortalWorkspaceV1: { ...unchanged }, pa3Page: 'grades' },
+        }),
       );
     });
     expect(live()).toBe(before);
@@ -514,7 +582,11 @@ describe('Relatório do trimestre summary on the Boletim', () => {
   });
 
   it('uses the per-trimester summaries when the server sends them', async () => {
-    const data = { ...withT2(), closingSummary: summary('T2'), closingSummaries: [summary('T1'), summary('T2')] };
+    const data = {
+      ...withT2(),
+      closingSummary: summary('T2'),
+      closingSummaries: [summary('T1'), summary('T2')],
+    };
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     expect(screen.getByText(/Relatório do 1º trimestre/u)).toBeTruthy();
     expect(screen.queryByText(/Relatório do 2º trimestre/u)).toBeNull();
@@ -523,7 +595,12 @@ describe('Relatório do trimestre summary on the Boletim', () => {
   it('shows "Novo" on the summary of the trimester tab just opened, not the first one read', async () => {
     globalThis.localStorage.clear();
     // The 1º trimestre summary was already seen on this browser; the 2º one has just come out.
-    render(<StudentPortalWorkspaceV1 data={{ ...withT2(), closingSummaries: [summary('T1')] }} profile={null} />);
+    render(
+      <StudentPortalWorkspaceV1
+        data={{ ...withT2(), closingSummaries: [summary('T1')] }}
+        profile={null}
+      />,
+    );
     cleanup();
     const data = { ...withT2(), closingSummaries: [summary('T1'), summary('T2')] };
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
@@ -542,6 +619,8 @@ it('goes back to the Boletim from the arrow beside the discipline icon', async (
   const navigation = screen.getByRole('tablist', { name: 'Áreas do Portal do Aluno' });
   await user.click(screen.getByRole('option', { name: new RegExp(first.label, 'u') }));
   await user.click(screen.getByRole('button', { name: 'Voltar para o boletim' }));
-  expect(within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected')).toBe('true');
+  expect(
+    within(navigation).getByRole('tab', { name: 'Boletim' }).getAttribute('aria-selected'),
+  ).toBe('true');
   expect(screen.getByRole('heading', { name: 'Minhas notas' })).toBeTruthy();
 });

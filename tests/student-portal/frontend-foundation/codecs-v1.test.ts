@@ -13,10 +13,13 @@ it('round-trips a synthetic Portal QR with the installed generator and local ima
   for (let y = 0; y < code.modules.size; y += 1) {
     for (let x = 0; x < code.modules.size; x += 1) {
       if (!code.modules.get(y, x)) continue;
-      for (let dy = 0; dy < scale; dy += 1) for (let dx = 0; dx < scale; dx += 1) {
-        const index = (((y + 4) * scale + dy) * width + (x + 4) * scale + dx) * 4;
-        pixels[index] = 0; pixels[index + 1] = 0; pixels[index + 2] = 0;
-      }
+      for (let dy = 0; dy < scale; dy += 1)
+        for (let dx = 0; dx < scale; dx += 1) {
+          const index = (((y + 4) * scale + dy) * width + (x + 4) * scale + dx) * 4;
+          pixels[index] = 0;
+          pixels[index + 1] = 0;
+          pixels[index + 2] = 0;
+        }
     }
   }
   expect(jsQR(pixels, width, width)?.data).toBe(value);

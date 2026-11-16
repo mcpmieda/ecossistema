@@ -54,7 +54,8 @@ describe('Cloudflare read-only operator', () => {
       if (url.endsWith('/workers/scripts')) return json({ success: true, result: [] });
       if (url.includes('/pages/projects')) return json({ success: false }, 403);
       if (url.includes('/hyperdrive/configs')) return json({ success: false }, 500);
-      if (url.includes('/zones?')) return json({ success: false, errors: [{ message: 'private' }] });
+      if (url.includes('/zones?'))
+        return json({ success: false, errors: [{ message: 'private' }] });
       if (url.endsWith('/graphql'))
         return json({ data: { viewer: { accounts: [] } }, errors: null });
       throw new Error('Unexpected URL');
@@ -117,7 +118,6 @@ describe('Cloudflare read-only operator', () => {
     expect(result.capabilities.every((item) => item.state === 'unavailable')).toBe(true);
     expect(JSON.stringify(result)).not.toContain('provider secret diagnostic');
   });
-
 
   it('returns a fixed sanitized Portal deployment diagnostic without downloading Worker source', async () => {
     const token = 'synthetic-deploy-secret';
@@ -260,9 +260,7 @@ describe('Cloudflare read-only operator', () => {
       originConnections: 8,
     });
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toMatch(
-      /\/hyperdrive\/configs\/46ac2fcb25ad4ad5b5662d536ccd968a$/u,
-    );
+    expect(calls[0]?.url).toMatch(/\/hyperdrive\/configs\/46ac2fcb25ad4ad5b5662d536ccd968a$/u);
     expect(calls[0]?.init?.method).toBe('GET');
     expect(JSON.stringify(result)).not.toContain(token);
     expect(JSON.stringify(result)).not.toContain('database.private.example');

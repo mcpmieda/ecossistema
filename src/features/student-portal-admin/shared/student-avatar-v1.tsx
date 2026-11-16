@@ -9,9 +9,20 @@ export function studentAvatarPhotoV1(id: string) {
 }
 
 /** All callers provide a Portal account reference, never a guessed canonical person ID. */
-export function StudentAvatarV1({ id, detail = false }: Readonly<{ id: string; detail?: boolean }>) {
+export function StudentAvatarV1({
+  id,
+  detail = false,
+}: Readonly<{ id: string; detail?: boolean }>) {
   let hash = 0;
   for (const char of id) hash = (hash * 31 + char.codePointAt(0)!) >>> 0;
-  return <LinkedStudentPhotoAvatarV1 decorative size={detail ? 'lg' : 'sm'} loading={detail ? 'eager' : 'lazy'} fallbackTone={hash % 6} className="pa-student-avatar"
-    subject={{ source: 'portal', academicYear: 2026, accountIds: [id] }} />;
+  return (
+    <LinkedStudentPhotoAvatarV1
+      decorative
+      size={detail ? 'lg' : 'sm'}
+      loading={detail ? 'eager' : 'lazy'}
+      fallbackTone={hash % 6}
+      className="pa-student-avatar"
+      subject={{ source: 'portal', academicYear: 2026, accountIds: [id] }}
+    />
+  );
 }

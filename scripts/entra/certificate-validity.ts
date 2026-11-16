@@ -3,11 +3,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-type OpenSslRunner = (
-  file: string,
-  args: string[],
-  options: { encoding: 'utf8' },
-) => string;
+type OpenSslRunner = (file: string, args: string[], options: { encoding: 'utf8' }) => string;
 
 export type CertificateValidity = {
   startDateTime: string;

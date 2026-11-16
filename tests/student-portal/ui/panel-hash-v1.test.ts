@@ -20,7 +20,9 @@ describe('ADM view kept in the address (owner request 29/09/2026)', () => {
   it('keeps the area and sets or removes only the given keys, without a history entry', () => {
     const length = window.history.length;
     writePanelHashParamsV1({ turma: '756001', aluno: account });
-    expect(window.location.hash).toBe(`#/painel-do-aluno?area=accounts&turma=756001&aluno=${account}`);
+    expect(window.location.hash).toBe(
+      `#/painel-do-aluno?area=accounts&turma=756001&aluno=${account}`,
+    );
     expect(panelHashAccountIdV1('aluno')).toBe(account);
     writePanelHashParamsV1({ aluno: null });
     expect(readPanelHashParamV1('aluno')).toBeNull();

@@ -3,7 +3,18 @@
  * "Agenda do Professor" (row 3 maxima, row 4 descriptions, students from row 5). The Auditoria shows
  * this instead of the bare address, so the teacher knows which cell to fix.
  */
-const QUALITATIVE_COLUMNS_V1 = ['AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ'] as const;
+const QUALITATIVE_COLUMNS_V1 = [
+  'AA',
+  'AB',
+  'AC',
+  'AD',
+  'AE',
+  'AF',
+  'AG',
+  'AH',
+  'AI',
+  'AJ',
+] as const;
 const TERM_RECOVERY_V1: Readonly<Record<string, string>> = { R: '1º', S: '2º', T: '3º' };
 
 function activityV1(column: string): number | null {
@@ -27,7 +38,8 @@ function headerCellV1(column: string, row: number): string | null {
 }
 
 function studentCellV1(code: string, column: string, row: number): string | null {
-  if (code === 'recovery-above-maximum' && TERM_RECOVERY_V1[column]) return `Recuperação do ${TERM_RECOVERY_V1[column]} trimestre`;
+  if (code === 'recovery-above-maximum' && TERM_RECOVERY_V1[column])
+    return `Recuperação do ${TERM_RECOVERY_V1[column]} trimestre`;
   if (code === 'grade-without-student') return `Linha ${row} sem aluno`;
   if (column === 'J') return 'Número do aluno';
   if (column === 'R') return 'AV1';

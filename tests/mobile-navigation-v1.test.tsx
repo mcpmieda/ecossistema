@@ -1,4 +1,12 @@
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { useRef, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useHistoryStepV1 } from '../src/shared/ui/history-step-v1';
@@ -23,7 +31,9 @@ afterEach(() => {
 });
 
 const parsePeriod = (value: unknown) =>
-  value !== null && typeof value === 'object' && typeof (value as { period?: unknown }).period === 'number'
+  value !== null &&
+  typeof value === 'object' &&
+  typeof (value as { period?: unknown }).period === 'number'
     ? { period: (value as { period: number }).period }
     : null;
 
@@ -69,7 +79,9 @@ describe('history steps v1', () => {
     await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
     expect(push).not.toHaveBeenCalled();
     await waitFor(() =>
-      expect((window.history.state as Record<string, unknown>)['step-v1:test-periods']).toEqual({ period: 1 }),
+      expect((window.history.state as Record<string, unknown>)['step-v1:test-periods']).toEqual({
+        period: 1,
+      }),
     );
     push.mockRestore();
     back.mockRestore();
@@ -77,13 +89,18 @@ describe('history steps v1', () => {
 
   it('keeps a correction made right after loading in the same step', async () => {
     const start = window.history.length;
-    const { rerender } = renderHook(({ value }) => useHistoryStepV1('test-load', value, () => {}, parsePeriod), {
-      initialProps: { value: { period: 1 } },
-    });
+    const { rerender } = renderHook(
+      ({ value }) => useHistoryStepV1('test-load', value, () => {}, parsePeriod),
+      {
+        initialProps: { value: { period: 1 } },
+      },
+    );
     rerender({ value: { period: 2 } });
     await tick(20);
     expect(window.history).toHaveLength(start);
-    expect((window.history.state as Record<string, unknown>)['step-v1:test-load']).toEqual({ period: 2 });
+    expect((window.history.state as Record<string, unknown>)['step-v1:test-load']).toEqual({
+      period: 2,
+    });
   });
 });
 
@@ -92,7 +109,9 @@ function Layer() {
   useBackClosesOverlayV1();
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)}>Abrir</button>
+      <button type="button" onClick={() => setOpen(true)}>
+        Abrir
+      </button>
       {open ? (
         <div
           role="dialog"
@@ -101,7 +120,9 @@ function Layer() {
             if (event.key === 'Escape') setOpen(false);
           }}
         >
-          <button type="button" onClick={() => setOpen(false)}>Fechar</button>
+          <button type="button" onClick={() => setOpen(false)}>
+            Fechar
+          </button>
         </div>
       ) : null}
     </>
@@ -126,7 +147,9 @@ describe('back closes an open layer v1', () => {
     expect(marked.__centroOverlayV1).toBe(true);
     fireEvent.click(screen.getByText('Fechar'));
     await tick(40);
-    expect((window.history.state as Record<string, unknown> | null)?.__centroOverlayV1).toBeUndefined();
+    expect(
+      (window.history.state as Record<string, unknown> | null)?.__centroOverlayV1,
+    ).toBeUndefined();
   });
 });
 
@@ -153,7 +176,9 @@ describe('drawer follows the finger v1', () => {
   }
   beforeEach(() => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query }));
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 280 } as DOMRect);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 280,
+    } as DOMRect);
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -222,7 +247,9 @@ describe('tooltip on touch v1', () => {
         </Tooltip>
         <Tooltip>
           <Tooltip.Trigger>
-            <button type="button" onClick={press}>Editar</button>
+            <button type="button" onClick={press}>
+              Editar
+            </button>
           </Tooltip.Trigger>
           <Tooltip.Content>Nome do botão.</Tooltip.Content>
         </Tooltip>

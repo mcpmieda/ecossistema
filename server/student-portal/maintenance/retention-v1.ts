@@ -31,9 +31,15 @@ export async function cleanupPortalV1(sql: StudentPortalPostgresSqlV1, limit = 1
       DELETE FROM student_portal.publication_job a USING expired e WHERE a.id=e.id RETURNING 1`,
   } as const;
   const families = Object.keys(statements) as (keyof typeof statements)[];
-  const results = await Promise.allSettled(families.map(async (family) => sql.unsafe(statements[family], [limit])));
+  const results = await Promise.allSettled(
+    families.map(async (family) => sql.unsafe(statements[family], [limit])),
+  );
   const failure = results.find((result) => result.status === 'rejected');
   if (failure) throw failure.reason;
-  return Object.fromEntries(families.map((family, index) =>
-    [family, (results[index] as PromiseFulfilledResult<unknown[]>).value.length])) as Record<keyof typeof statements, number>;
+  return Object.fromEntries(
+    families.map((family, index) => [
+      family,
+      (results[index] as PromiseFulfilledResult<unknown[]>).value.length,
+    ]),
+  ) as Record<keyof typeof statements, number>;
 }

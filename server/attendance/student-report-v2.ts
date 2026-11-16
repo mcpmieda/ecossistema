@@ -68,14 +68,19 @@ function retryOrFail(response: ReconciliationResponseV1, detail: string): never 
 }
 
 /** Each class of the report with the Relação class the Conciliação already links it to. */
-function classLinksV2(rows: readonly ReportRowV1[], catalog: Catalog, notes: FrequencyStudentReportNotesV2) {
+function classLinksV2(
+  rows: readonly ReportRowV1[],
+  catalog: Catalog,
+  notes: FrequencyStudentReportNotesV2,
+) {
   const links = new Map<string, ReportClassLinkV1>();
   for (const row of rows) {
     const key = reportClassReferenceV1(row.classLabel, row.shift, row.stageLabel);
     if (links.has(key)) continue;
     const known = catalog.reportClasses.find(
       (item) =>
-        reportClassReferenceV1(item.label, item.shift, item.stageLabel) === key && !item.reviewRequired,
+        reportClassReferenceV1(item.label, item.shift, item.stageLabel) === key &&
+        !item.reviewRequired,
     );
     links.set(key, {
       classLabel: row.classLabel,
@@ -122,7 +127,9 @@ async function prepareV2(
   }
   const classLinks = classLinksV2(rows, catalog, notes);
   // The database's clock decides "not in the future": a Coletor a few seconds ahead never fails it.
-  const generatedAt = new Date(Math.min(Date.parse(input.observedAt), Date.now() - 5000)).toISOString();
+  const generatedAt = new Date(
+    Math.min(Date.parse(input.observedAt), Date.now() - 5000),
+  ).toISOString();
   let remaining = [...rows];
   for (let attempt = 0; attempt < ATTEMPTS_V2 && remaining.length; attempt++) {
     const response = await reconciliation.execute({
@@ -153,7 +160,9 @@ async function prepareV2(
     }
     if (response.state === 'ready' && response.operation === 'prepare') return response;
     if (response.state === 'invalid-request') {
-      notes.differences.push('O relatório não pôde ser preparado. Confira no Smecel e envie pelo botão Relatório.');
+      notes.differences.push(
+        'O relatório não pôde ser preparado. Confira no Smecel e envie pelo botão Relatório.',
+      );
       return null;
     }
     retryOrFail(response, 'prepare');
@@ -170,9 +179,17 @@ async function activateV2(
   context: ReconciliationContextV1,
 ): Promise<boolean> {
   for (let call = 0; call < STAGE_CALLS_V2; call++) {
-    const check = await reconciliation.execute({ ...mutationV2(context), operation: 'stage', batchId });
+    const check = await reconciliation.execute({
+      ...mutationV2(context),
+      operation: 'stage',
+      batchId,
+    });
     if (check.state !== 'ready' || check.operation !== 'stage') retryOrFail(check, 'stage');
-    const staged = await stage({ batchId, generation: context.generation, expectedRevision: context.revision });
+    const staged = await stage({
+      batchId,
+      generation: context.generation,
+      expectedRevision: context.revision,
+    });
     if (staged.state === 'conflict' || staged.state === 'expired') throw new RetryV2();
     if (staged.state === 'unavailable')
       throw new FrequencyErrorV2('unavailable', 503, 'student-report-credentials-unavailable');
@@ -197,16 +214,32 @@ async function attemptV2(
   evidenceHash: string,
   previous: StudentReportPreviousV2 | null,
 ): Promise<StudentReportOutcomeV2> {
-  const catalog = await reconciliation.execute({ contractVersion: 1, academicYear: 2026, operation: 'catalog' });
+  const catalog = await reconciliation.execute({
+    contractVersion: 1,
+    academicYear: 2026,
+    operation: 'catalog',
+  });
   if (catalog.state !== 'ready' || catalog.operation !== 'catalog') retryOrFail(catalog, 'catalog');
   const same = previous?.evidenceHash === evidenceHash;
   // Still before the Relação: the batch already kept waits; nothing new to prepare.
   if (same && previous.outcome === 'awaiting_relation' && !catalog.context.relationAvailable)
-    return { evidenceHash, outcome: 'awaiting_relation', batchId: previous.batchId, notes: previous.notes, changed: false };
+    return {
+      evidenceHash,
+      outcome: 'awaiting_relation',
+      batchId: previous.batchId,
+      notes: previous.notes,
+      changed: false,
+    };
   // The same report whose credentials were still being prepared: go on with its batch.
   if (same && previous.outcome === 'preparing' && previous.batchId) {
     const done = await activateV2(reconciliation, stage, previous.batchId, catalog.context);
-    return { evidenceHash, outcome: done ? 'applied' : 'preparing', batchId: previous.batchId, notes: previous.notes, changed: true };
+    return {
+      evidenceHash,
+      outcome: done ? 'applied' : 'preparing',
+      batchId: previous.batchId,
+      notes: previous.notes,
+      changed: true,
+    };
   }
   const notes = emptyNotesV2();
   const rows = input.rows.filter(
@@ -218,9 +251,21 @@ async function attemptV2(
   notes.counts = prepared.counts;
   notes.differences.push(...prepared.differences);
   if (prepared.batchState === 'awaiting_relation')
-    return { evidenceHash, outcome: 'awaiting_relation', batchId: prepared.batchId, notes, changed: true };
+    return {
+      evidenceHash,
+      outcome: 'awaiting_relation',
+      batchId: prepared.batchId,
+      notes,
+      changed: true,
+    };
   const done = await activateV2(reconciliation, stage, prepared.batchId, prepared.context);
-  return { evidenceHash, outcome: done ? 'applied' : 'preparing', batchId: prepared.batchId, notes, changed: true };
+  return {
+    evidenceHash,
+    outcome: done ? 'applied' : 'preparing',
+    batchId: prepared.batchId,
+    notes,
+    changed: true,
+  };
 }
 
 /** The Conciliação steps of an automatic report, with whatever reconciliation and staging given. */
@@ -275,7 +320,11 @@ export async function collectStudentReportV2(
     if (!(error instanceof StudentReportPendingV2)) throw error;
     pending = error;
   }
-  const reconciliation = new StudentReconciliationServiceV1(database, actor.actorId, env.SESSION_SECRET);
+  const reconciliation = new StudentReconciliationServiceV1(
+    database,
+    actor.actorId,
+    env.SESSION_SECRET,
+  );
   const outcome = await applyStudentReportV2(
     reconciliation,
     (stage) => stageReconciliationCredentialsV1(env, trustedContextV2(actor), stage),

@@ -56,12 +56,15 @@ it('keeps missing, malformed and closed deployment gates unavailable', () => {
   expect(portalServingGateV1('true')).toBeNull();
 });
 
-
 it('rejects malformed backend success as unavailable in both existing auth budgets', async () => {
   for (const malformed of [{}, { success: 1 }, { success: 'true' }]) {
     const good = { limit: vi.fn().mockResolvedValue({ success: true }) };
     const bad = { limit: vi.fn().mockResolvedValue(malformed) };
-    await expect(portalAuthBurstV1(bad, good)('synthetic')).rejects.toThrow('student-portal-rate-limit-unavailable');
-    await expect(portalAuthBurstV1(good, bad)('synthetic')).rejects.toThrow('student-portal-rate-limit-unavailable');
+    await expect(portalAuthBurstV1(bad, good)('synthetic')).rejects.toThrow(
+      'student-portal-rate-limit-unavailable',
+    );
+    await expect(portalAuthBurstV1(good, bad)('synthetic')).rejects.toThrow(
+      'student-portal-rate-limit-unavailable',
+    );
   }
 });

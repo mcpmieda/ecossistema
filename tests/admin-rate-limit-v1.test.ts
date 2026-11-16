@@ -21,7 +21,8 @@ const limited = {
 async function request(path = '/api/me', method = 'GET', body?: unknown, oid = actor) {
   const token = await seal(
     { oid, name: 'Synthetic', roles: ['ADMINISTRADOR'], exp: Math.floor(Date.now() / 1000) + 60 },
-    testEnv.SESSION_SECRET, 'admin-session',
+    testEnv.SESSION_SECRET,
+    'admin-session',
   );
   return new Request(testEnv.OFFICIAL_ORIGIN + path, {
     method,
@@ -176,12 +177,25 @@ describe('Pages ADM quota boundary', () => {
     };
     const limitOperation = vi.fn(async () => null);
     for (const operation of ['catalog', 'list', 'detail'])
-      await guardAdminOperationV1(await sized({ contractVersion: 1, operation }), environment(limitOperation));
-    await guardAdminOperationV1(await sized({ contractVersion: 1, operation: 'apply' }), environment(limitOperation));
+      await guardAdminOperationV1(
+        await sized({ contractVersion: 1, operation }),
+        environment(limitOperation),
+      );
+    await guardAdminOperationV1(
+      await sized({ contractVersion: 1, operation: 'apply' }),
+      environment(limitOperation),
+    );
     expect(limitOperation.mock.calls.map((call) => (call as unknown[])[1])).toEqual([
-      'read', 'read', 'read', 'write',
+      'read',
+      'read',
+      'read',
+      'write',
     ]);
-    const report = await sized({ contractVersion: 1, operation: 'prepare', rows: 'x'.repeat(100000) });
+    const report = await sized({
+      contractVersion: 1,
+      operation: 'prepare',
+      rows: 'x'.repeat(100000),
+    });
     const clone = vi.spyOn(report, 'clone');
     await guardAdminOperationV1(report, environment(limitOperation));
     expect(limitOperation).toHaveBeenLastCalledWith(expect.anything(), 'write');
@@ -273,15 +287,24 @@ it('shares a seal across real Pages-style clones only within its request scope',
   expect(decrypt).toHaveBeenCalledTimes(3);
 });
 
-
-it.each([401, 403, 429, 503])('preserves the versioned photo-admin failure contract for HTTP %s', async status => {
-  const req = await request('/api/student-photos/admin/state', 'POST', {});
-  if (status === 401) req.headers.delete('cookie');
-  if (status === 403) req.headers.set('origin', 'https://other.invalid');
-  const response = await guardAdminOperationV1(req, environment(vi.fn(async () =>
-    status === 429 ? limited : { ...limited, state: 'unavailable' })));
-  expect(response?.status).toBe(status);
-  const body = await response!.json();
-  expect(photoAdminResponseV1.safeParse(body).success).toBe(true);
-  expect(body).toMatchObject({ version: 1, state: status === 401 ? 'unauthenticated' : status === 403 ? 'forbidden' : 'unavailable' });
-});
+it.each([401, 403, 429, 503])(
+  'preserves the versioned photo-admin failure contract for HTTP %s',
+  async (status) => {
+    const req = await request('/api/student-photos/admin/state', 'POST', {});
+    if (status === 401) req.headers.delete('cookie');
+    if (status === 403) req.headers.set('origin', 'https://other.invalid');
+    const response = await guardAdminOperationV1(
+      req,
+      environment(
+        vi.fn(async () => (status === 429 ? limited : { ...limited, state: 'unavailable' })),
+      ),
+    );
+    expect(response?.status).toBe(status);
+    const body = await response!.json();
+    expect(photoAdminResponseV1.safeParse(body).success).toBe(true);
+    expect(body).toMatchObject({
+      version: 1,
+      state: status === 401 ? 'unauthenticated' : status === 403 ? 'forbidden' : 'unavailable',
+    });
+  },
+);

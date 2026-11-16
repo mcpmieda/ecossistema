@@ -17,8 +17,11 @@ import { gradebookImportDiagnosticTextV1 } from '../../../shared/gradebook-contr
 const HELD: readonly ['u'] = ['u'];
 
 /** Rule 3: CONFIGURAÇÃO!C2 is not the year of the folder. Reported under the expected year. */
-export function wrongYearAuditV1(audit: GradebookImportDiagnosticsAuditRequestV1, expectedYear: number,
-  foundYear: number | null): GradebookImportDiagnosticsAuditRequestV1 {
+export function wrongYearAuditV1(
+  audit: GradebookImportDiagnosticsAuditRequestV1,
+  expectedYear: number,
+  foundYear: number | null,
+): GradebookImportDiagnosticsAuditRequestV1 {
   const item: GradebookImportDiagnosticAuditItemV1 = {
     key: `wrong-year|${audit.fileName}`.slice(0, 320),
     severity: 'blocking-error',
@@ -35,10 +38,35 @@ export function wrongYearAuditV1(audit: GradebookImportDiagnosticsAuditRequestV1
 
 const PARTICLES = new Set(['DE', 'DA', 'DO', 'DAS', 'DOS', 'E']);
 /** Generation suffixes: often left out or abbreviated ("JR.") in a teacher's sheet. */
-const SUFFIXES = new Set(['FILHO', 'FILHA', 'JUNIOR', 'JR', 'NETO', 'NETA', 'SOBRINHO', 'SOBRINHA', 'SEGUNDO', 'TERCEIRO', 'II', 'III']);
+const SUFFIXES = new Set([
+  'FILHO',
+  'FILHA',
+  'JUNIOR',
+  'JR',
+  'NETO',
+  'NETA',
+  'SOBRINHO',
+  'SOBRINHA',
+  'SEGUNDO',
+  'TERCEIRO',
+  'II',
+  'III',
+]);
 /** Notes a teacher writes after the name; never a surname. */
-const NOTES = new Set(['AEE', 'TRANSFERIDO', 'TRANSFERIDA', 'TRANSF', 'DESISTENTE', 'REMANEJADO', 'REMANEJADA',
-  'EVADIDO', 'EVADIDA', 'LAUDO', 'NOVATO', 'NOVATA']);
+const NOTES = new Set([
+  'AEE',
+  'TRANSFERIDO',
+  'TRANSFERIDA',
+  'TRANSF',
+  'DESISTENTE',
+  'REMANEJADO',
+  'REMANEJADA',
+  'EVADIDO',
+  'EVADIDA',
+  'LAUDO',
+  'NOVATO',
+  'NOVATA',
+]);
 const APOSTROPHES = ["'", '’', '`', '´'];
 
 /** "JOÃO SILVA (AEE)" → "JOÃO SILVA  ": each "(...)" becomes a space, in one pass (an unclosed one stays). */
@@ -62,7 +90,10 @@ function nameTokens(name: string): string[] {
   const note = /\s[-–]\s/u.exec(base);
   if (note) base = base.slice(0, note.index);
   for (const apostrophe of APOSTROPHES) base = base.replaceAll(apostrophe, ''); // SANT'ANA = SANTANA
-  const tokens = base.replace(/[^A-Z. ]/gu, ' ').split(/\s+/u).filter((token) => token && !PARTICLES.has(token));
+  const tokens = base
+    .replace(/[^A-Z. ]/gu, ' ')
+    .split(/\s+/u)
+    .filter((token) => token && !PARTICLES.has(token));
   while (tokens.length > 1 && NOTES.has(tokens.at(-1)!)) tokens.pop();
   // "ANA NETO": with only two words the last one is the surname, kept.
   while (tokens.length > 2 && SUFFIXES.has(tokens.at(-1)!.replace(/\.$/u, ''))) tokens.pop();
@@ -70,7 +101,8 @@ function nameTokens(name: string): string[] {
 }
 
 function sameToken(a: string, b: string): boolean {
-  const initial = (token: string) => token.length === 1 || (token.length === 2 && token.endsWith('.'));
+  const initial = (token: string) =>
+    token.length === 1 || (token.length === 2 && token.endsWith('.'));
   if (initial(a) || initial(b)) return a.startsWith(b.charAt(0));
   const bare = (token: string) => (token.endsWith('.') ? token.slice(0, -1) : token);
   return bare(a) === bare(b);
@@ -102,17 +134,25 @@ export function sameStudentNameV1(sheetName: string, relationName: string): bool
   return a.length <= b.length ? wordsInOrder(a, b) : wordsInOrder(b, a);
 }
 
-export const studentKeyV1 = (classCode: string, number: number) => `${classCode.trim().toUpperCase()}|${number}`;
+export const studentKeyV1 = (classCode: string, number: number) =>
+  `${classCode.trim().toUpperCase()}|${number}`;
 
 /**
  * Rule 14: a student whose name in the sheet is not the Relação's name for that number is held
  * in that class/subject (every term and the final recovery), so no grade reaches someone else.
  */
-export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
-  sheetNames: ReadonlyMap<string, string>, relationNames: ReadonlyMap<string, string>):
-  { readonly request: GradebookNotesImportRequestV9; readonly items: GradebookImportDiagnosticAuditItemV1[] } {
+export function holdNameMismatchesV1(
+  request: GradebookNotesImportRequestV9,
+  sheetNames: ReadonlyMap<string, string>,
+  relationNames: ReadonlyMap<string, string>,
+): {
+  readonly request: GradebookNotesImportRequestV9;
+  readonly items: GradebookImportDiagnosticAuditItemV1[];
+} {
   const items: GradebookImportDiagnosticAuditItemV1[] = [];
-  const classes = new Set([...relationNames.keys()].map((key) => key.slice(0, key.lastIndexOf('|'))));
+  const classes = new Set(
+    [...relationNames.keys()].map((key) => key.slice(0, key.lastIndexOf('|'))),
+  );
   const nameMismatch = gradebookImportDiagnosticTextV1('student-name-mismatch');
   const ofertas = request.ofertas.map((offer) => {
     const held = new Set<number>();
@@ -138,7 +178,10 @@ export function holdNameMismatchesV1(request: GradebookNotesImportRequestV9,
       if (!sheetName || !relationName || sameStudentNameV1(sheetName, relationName)) continue;
       held.add(numero);
       items.push({
-        key: `student-name-mismatch|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(0, 320),
+        key: `student-name-mismatch|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(
+          0,
+          320,
+        ),
         severity: 'blocking-error',
         code: 'student-name-mismatch',
         message: nameMismatch.message,
@@ -175,17 +218,25 @@ function classNotInRelationItemV1(offer: OfferV1): GradebookImportDiagnosticAudi
 }
 
 /** The students of a class the Relação has, whose number it does not have: one finding each. */
-function studentsNotInRelationV1(offer: OfferV1, sheetNames: ReadonlyMap<string, string>,
-  relationNames: ReadonlyMap<string, string>): GradebookImportDiagnosticAuditItemV1[] {
+function studentsNotInRelationV1(
+  offer: OfferV1,
+  sheetNames: ReadonlyMap<string, string>,
+  relationNames: ReadonlyMap<string, string>,
+): GradebookImportDiagnosticAuditItemV1[] {
   const text = gradebookImportDiagnosticTextV1('student-not-in-relation');
-  const numbers = new Set([...offer.trimestres.flatMap((term) => term.alunos.map(([numero]) => numero)),
-    ...(offer.recuperacao ?? []).map(([numero]) => numero)]);
+  const numbers = new Set([
+    ...offer.trimestres.flatMap((term) => term.alunos.map(([numero]) => numero)),
+    ...(offer.recuperacao ?? []).map(([numero]) => numero),
+  ]);
   return [...numbers]
     .filter((numero) => !relationNames.has(studentKeyV1(offer.turmaCodigo, numero)))
     .map((numero) => {
       const sheetName = sheetNames.get(studentKeyV1(offer.turmaCodigo, numero));
       return {
-        key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(0, 320),
+        key: `student-not-in-relation|${offer.turmaCodigo}|${offer.disciplina}|${numero}`.slice(
+          0,
+          320,
+        ),
         severity: 'blocking-error' as const,
         code: 'student-not-in-relation' as const,
         message: text.message,
@@ -211,43 +262,72 @@ function heldRecoveryRowV1([numero]: RecoveryRowV1): RecoveryRowV1 {
 }
 
 /** Leaves out the students missing from the Relação and holds the ones whose name does not match. */
-function withHeldAndMissingV1(offer: OfferV1, held: ReadonlySet<number>, missing: ReadonlySet<number>): OfferV1 {
+function withHeldAndMissingV1(
+  offer: OfferV1,
+  held: ReadonlySet<number>,
+  missing: ReadonlySet<number>,
+): OfferV1 {
   const present = (row: readonly [number, ...unknown[]]) => !missing.has(row[0]);
   return {
     ...offer,
     trimestres: offer.trimestres.map((term) => ({
       ...term,
-      alunos: term.alunos.filter(present).map((row) => (held.has(row[0]) ? heldTermRowV1(row) : row)),
+      alunos: term.alunos
+        .filter(present)
+        .map((row) => (held.has(row[0]) ? heldTermRowV1(row) : row)),
     })) as unknown as OfferV1['trimestres'],
-    recuperacao: offer.recuperacao?.filter(present).map((row) => (held.has(row[0]) ? heldRecoveryRowV1(row) : row)) ?? null,
+    recuperacao:
+      offer.recuperacao
+        ?.filter(present)
+        .map((row) => (held.has(row[0]) ? heldRecoveryRowV1(row) : row)) ?? null,
   };
 }
 
-const endpointV1 = (item: GradebookRelationMovementEndpointV9) => `${item.classCode} nº ${item.number} ${item.name}`.trim();
+const endpointV1 = (item: GradebookRelationMovementEndpointV9) =>
+  `${item.classCode} nº ${item.number} ${item.name}`.trim();
 
 /**
  * A Relação the database asks to review (a class move it cannot pair by itself, or a position
  * with evidence of another student): nothing of it was written. One finding per doubtful move,
  * so only that doubt needs a look; the confirmation is the manual import's movement review.
  */
-export function relationReviewItemsV1(fileName: string, reason: string,
-  review: GradebookRelationMovementReviewV9 | undefined): GradebookImportDiagnosticAuditItemV1[] {
+export function relationReviewItemsV1(
+  fileName: string,
+  reason: string,
+  review: GradebookRelationMovementReviewV9 | undefined,
+): GradebookImportDiagnosticAuditItemV1[] {
   const text = gradebookImportDiagnosticTextV1('class-move-review');
   const action = text.action;
   const groups = review?.groups ?? [];
   if (groups.length === 0) {
-    return [{
-      key: `class-move-review|${fileName}`.slice(0, 320), severity: 'blocking-error', code: 'class-move-review',
-      message: text.message, recommendedAction: action,
-      fieldKind: 'file', foundValue: reason.slice(0, 240),
-    }];
+    return [
+      {
+        key: `class-move-review|${fileName}`.slice(0, 320),
+        severity: 'blocking-error',
+        code: 'class-move-review',
+        message: text.message,
+        recommendedAction: action,
+        fieldKind: 'file',
+        foundValue: reason.slice(0, 240),
+      },
+    ];
   }
-  return groups.flatMap((group) => group.origins.map((origin) => ({
-    key: `class-move-review|${origin.classCode}|${origin.number}|${group.destinations[0]?.classCode ?? ''}`.slice(0, 320),
-    severity: 'blocking-error' as const, code: 'class-move-review' as const,
-    message: text.message, recommendedAction: action,
-    classCode: origin.classCode.slice(0, 24), studentNumber: origin.number, fieldKind: 'student' as const,
-    // Where this student may have gone: the system does not guess which one.
-    foundValue: `${endpointV1(origin)} → ${group.destinations.map(endpointV1).join(' ou ')}`.slice(0, 240),
-  })));
+  return groups.flatMap((group) =>
+    group.origins.map((origin) => ({
+      key: `class-move-review|${origin.classCode}|${origin.number}|${group.destinations[0]?.classCode ?? ''}`.slice(
+        0,
+        320,
+      ),
+      severity: 'blocking-error' as const,
+      code: 'class-move-review' as const,
+      message: text.message,
+      recommendedAction: action,
+      classCode: origin.classCode.slice(0, 24),
+      studentNumber: origin.number,
+      fieldKind: 'student' as const,
+      // Where this student may have gone: the system does not guess which one.
+      foundValue:
+        `${endpointV1(origin)} → ${group.destinations.map(endpointV1).join(' ou ')}`.slice(0, 240),
+    })),
+  );
 }

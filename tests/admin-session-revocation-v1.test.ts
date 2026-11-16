@@ -42,7 +42,10 @@ async function cookieFor(session: object): Promise<string> {
   return `${SESSION_COOKIE}=${await seal(session, testEnv.SESSION_SECRET, 'admin-session')}`;
 }
 const request = (cookie: string, init: RequestInit = {}) =>
-  new Request(`${testEnv.OFFICIAL_ORIGIN}/api/me`, { ...init, headers: { Cookie: cookie, ...(init.headers ?? {}) } });
+  new Request(`${testEnv.OFFICIAL_ORIGIN}/api/me`, {
+    ...init,
+    headers: { Cookie: cookie, ...(init.headers ?? {}) },
+  });
 
 afterEach(() => {
   setSessionRevocationPortForTestsV1(undefined);
@@ -118,7 +121,9 @@ describe('A25: "Sair" ends the ADM session on the server', () => {
     const memory = memoryPort();
     setSessionRevocationPortForTestsV1(memory.port);
     const sid = 'a'.repeat(22);
-    const answers = await Promise.all(Array.from({ length: 5 }, () => isSessionRevokedV1(testEnv, sid, 2_000_000_000)));
+    const answers = await Promise.all(
+      Array.from({ length: 5 }, () => isSessionRevokedV1(testEnv, sid, 2_000_000_000)),
+    );
     expect(answers).toEqual([false, false, false, false, false]);
     expect(memory.reads()).toBe(1);
   });
@@ -129,7 +134,14 @@ describe('A25: "Sair" ends the ADM session on the server', () => {
     let release: (value: boolean) => void = () => undefined;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     setSessionRevocationPortForTestsV1({
-      isRevoked: () => { reads += 1; return reads === 1 ? Promise.reject(new Error('down')) : new Promise((resolve) => { release = resolve; }); },
+      isRevoked: () => {
+        reads += 1;
+        return reads === 1
+          ? Promise.reject(new Error('down'))
+          : new Promise((resolve) => {
+              release = resolve;
+            });
+      },
       revoke: async () => undefined,
     });
     const sid = 'b'.repeat(22);
@@ -150,7 +162,10 @@ describe('A25: "Sair" ends the ADM session on the server', () => {
     vi.useFakeTimers();
     let reads = 0;
     setSessionRevocationPortForTestsV1({
-      isRevoked: () => { reads += 1; return reads === 1 ? new Promise<boolean>(() => undefined) : Promise.resolve(false); },
+      isRevoked: () => {
+        reads += 1;
+        return reads === 1 ? new Promise<boolean>(() => undefined) : Promise.resolve(false);
+      },
       revoke: async () => undefined,
     });
     const sid = 'c'.repeat(22);
@@ -168,7 +183,12 @@ describe('A25: "Sair" ends the ADM session on the server', () => {
   it('a cookie from before the change (no id) is never looked up', async () => {
     const memory = memoryPort();
     setSessionRevocationPortForTestsV1(memory.port);
-    const cookie = await cookieFor({ oid, name: 'Pessoa', roles: ['PROFESSOR'], exp: Math.floor(Date.now() / 1000) + 600 });
+    const cookie = await cookieFor({
+      oid,
+      name: 'Pessoa',
+      roles: ['PROFESSOR'],
+      exp: Math.floor(Date.now() / 1000) + 600,
+    });
     expect((await readSession(request(cookie), testEnv))?.oid).toBe(oid);
     expect(memory.reads()).toBe(0);
   });

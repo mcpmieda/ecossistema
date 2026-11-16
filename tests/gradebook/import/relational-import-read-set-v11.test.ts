@@ -2,7 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { installResetSchemaFixtureV1, installReconciliationSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
+import {
+  installResetSchemaFixtureV1,
+  installReconciliationSchemaFixtureV1,
+} from '../../student-portal/year-reset/schema-fixture';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -139,9 +142,7 @@ beforeAll(async () => {
     },
     end: () => pg.close(),
   });
-  expect((await createGradebookImportService(database).execute(relation)).state).toBe(
-    'applied',
-  );
+  expect((await createGradebookImportService(database).execute(relation)).state).toBe('applied');
 }, 30000);
 afterAll(async () => database?.close());
 
@@ -288,9 +289,7 @@ describe('V11 bounded read sets through the canonical service chain', () => {
 
   it('keeps different teachers as different full offer identities', async () => {
     const request = { ...notes(1), professor: 'SYNTHETIC SECOND TEACHER' };
-    expect((await createGradebookImportService(database).execute(request)).state).toBe(
-      'applied',
-    );
+    expect((await createGradebookImportService(database).execute(request)).state).toBe('applied');
     expect(
       (
         await pg.query(
@@ -345,9 +344,9 @@ describe('V11 bounded read sets through the canonical service chain', () => {
     calls.length = 0;
     failure = 'last-block';
     const beforeCommits = commits;
-    await expect(
-      createGradebookImportService(database).execute(changed),
-    ).rejects.toThrow('synthetic-last-block');
+    await expect(createGradebookImportService(database).execute(changed)).rejects.toThrow(
+      'synthetic-last-block',
+    );
     failure = 'none';
     expect(commits).toBe(beforeCommits);
     expect(

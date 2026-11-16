@@ -1,6 +1,12 @@
 import { PT_BR_COLLATOR_V1 } from '../../../shared/locale-format-v1';
 import type { RuntimeEnv } from '../../env';
-import { GraphError, forgetGraphTokensV1, getGraphToken, graphRequest, type GraphDependencies } from '../../graph/client';
+import {
+  GraphError,
+  forgetGraphTokensV1,
+  getGraphToken,
+  graphRequest,
+  type GraphDependencies,
+} from '../../graph/client';
 import { graphDefaultsV1, graphFetchV1, graphUrlV1 } from '../../graph/request-policy-v1';
 
 /** Only what the Graph app credential needs; the sync Worker carries nothing else of RuntimeEnv. */
@@ -46,9 +52,24 @@ export function driveWorkbookFromItemV1(item: GraphDriveItemV1): DriveWorkbookV1
   if (typeof item.id !== 'string' || !item.id) return null;
   const parentId = typeof item.parentReference?.id === 'string' ? item.parentReference.id : null;
   if (item.deleted) {
-    return { id: item.id, name: '', size: 0, lastModifiedDateTime: '', eTag: null, quickXorHash: null, parentId, deleted: true };
+    return {
+      id: item.id,
+      name: '',
+      size: 0,
+      lastModifiedDateTime: '',
+      eTag: null,
+      quickXorHash: null,
+      parentId,
+      deleted: true,
+    };
   }
-  if (item.folder || !item.file || typeof item.name !== 'string' || !WORKBOOK_EXTENSION_V1.test(item.name)) return null;
+  if (
+    item.folder ||
+    !item.file ||
+    typeof item.name !== 'string' ||
+    !WORKBOOK_EXTENSION_V1.test(item.name)
+  )
+    return null;
   if (typeof item.size !== 'number' || typeof item.lastModifiedDateTime !== 'string') return null;
   const hash = item.file.hashes?.quickXorHash;
   return {
@@ -63,15 +84,26 @@ export function driveWorkbookFromItemV1(item: GraphDriveItemV1): DriveWorkbookV1
   };
 }
 
-export async function graphDriveIdV1(env: GraphAppEnvV1, siteId: string, dependencies?: GraphDependencies): Promise<string> {
+export async function graphDriveIdV1(
+  env: GraphAppEnvV1,
+  siteId: string,
+  dependencies?: GraphDependencies,
+): Promise<string> {
   const { data, correlationId } = await graphRequest<{ id?: unknown }>({
-    env: asEnvV1(env), path: `/sites/${encodeURIComponent(siteId)}/drive?$select=id`, dependencies });
+    env: asEnvV1(env),
+    path: `/sites/${encodeURIComponent(siteId)}/drive?$select=id`,
+    dependencies,
+  });
   if (typeof data?.id !== 'string' || !data.id) throw new GraphError(502, correlationId);
   return data.id;
 }
 
-export async function graphFolderWorkbooksV1(env: GraphAppEnvV1, driveId: string, folderId: string,
-  dependencies: GraphDependencies = graphDefaultsV1): Promise<DriveWorkbookV1[]> {
+export async function graphFolderWorkbooksV1(
+  env: GraphAppEnvV1,
+  driveId: string,
+  folderId: string,
+  dependencies: GraphDependencies = graphDefaultsV1,
+): Promise<DriveWorkbookV1[]> {
   const token = await getGraphToken(asEnvV1(env), dependencies);
   const files: DriveWorkbookV1[] = [];
   let next: string | null =
@@ -79,10 +111,18 @@ export async function graphFolderWorkbooksV1(env: GraphAppEnvV1, driveId: string
   const seen = new Set<string>();
   while (next) {
     const url = graphUrlV1(next);
-    if (seen.has(url) || seen.size >= 50) throw new Error('Graph folder pagination capacity exceeded');
+    if (seen.has(url) || seen.size >= 50)
+      throw new Error('Graph folder pagination capacity exceeded');
     seen.add(url);
-    const { data, correlationId } = await graphRequest<{ value?: GraphDriveItemV1[]; '@odata.nextLink'?: unknown }>({
-      env: asEnvV1(env), path: url, token, dependencies });
+    const { data, correlationId } = await graphRequest<{
+      value?: GraphDriveItemV1[];
+      '@odata.nextLink'?: unknown;
+    }>({
+      env: asEnvV1(env),
+      path: url,
+      token,
+      dependencies,
+    });
     if (!Array.isArray(data?.value)) throw new GraphError(502, correlationId);
     for (const item of data.value) {
       const workbook = driveWorkbookFromItemV1(item);
@@ -94,11 +134,18 @@ export async function graphFolderWorkbooksV1(env: GraphAppEnvV1, driveId: string
 }
 
 /** One workbook by its Graph id (a single-file source), or null when it is gone or not a workbook. */
-export async function graphWorkbookItemV1(env: GraphAppEnvV1, driveId: string, itemId: string,
-  dependencies: GraphDependencies = graphDefaultsV1): Promise<DriveWorkbookV1 | null> {
+export async function graphWorkbookItemV1(
+  env: GraphAppEnvV1,
+  driveId: string,
+  itemId: string,
+  dependencies: GraphDependencies = graphDefaultsV1,
+): Promise<DriveWorkbookV1 | null> {
   try {
-    const { data } = await graphRequest<GraphDriveItemV1>({ env: asEnvV1(env), dependencies,
-      path: `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}?$select=${ITEM_FIELDS_V1}` });
+    const { data } = await graphRequest<GraphDriveItemV1>({
+      env: asEnvV1(env),
+      dependencies,
+      path: `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}?$select=${ITEM_FIELDS_V1}`,
+    });
     const workbook = data ? driveWorkbookFromItemV1(data) : null;
     return workbook && !workbook.deleted ? workbook : null;
   } catch (cause) {
@@ -108,8 +155,11 @@ export async function graphWorkbookItemV1(env: GraphAppEnvV1, driveId: string, i
 }
 
 /** A folder of a children listing, or null for files and malformed items. */
-function childFolderV1(item: { id?: unknown; name?: unknown; folder?: { childCount?: unknown } }):
-  { id: string; name: string; childFolders: number } | null {
+function childFolderV1(item: {
+  id?: unknown;
+  name?: unknown;
+  folder?: { childCount?: unknown };
+}): { id: string; name: string; childFolders: number } | null {
   if (!item.folder || typeof item.id !== 'string' || typeof item.name !== 'string') return null;
   const childFolders = typeof item.folder.childCount === 'number' ? item.folder.childCount : 0;
   return { id: item.id, name: item.name, childFolders };
@@ -120,29 +170,42 @@ function childFolderV1(item: { id?: unknown; name?: unknown; folder?: { childCou
  * check and a new source list their own folders, and the next delta starts from here (asking for
  * a cursor from scratch enumerates the whole OneDrive).
  */
-export async function graphLatestDeltaLinkV1(env: GraphAppEnvV1, driveId: string,
-  dependencies: GraphDependencies = graphDefaultsV1): Promise<string> {
-  const { data, correlationId } = await graphRequest<{ '@odata.deltaLink'?: unknown }>({ env: asEnvV1(env), dependencies,
-    path: `/drives/${encodeURIComponent(driveId)}/root/delta?token=latest&$select=${ITEM_FIELDS_V1}` });
+export async function graphLatestDeltaLinkV1(
+  env: GraphAppEnvV1,
+  driveId: string,
+  dependencies: GraphDependencies = graphDefaultsV1,
+): Promise<string> {
+  const { data, correlationId } = await graphRequest<{ '@odata.deltaLink'?: unknown }>({
+    env: asEnvV1(env),
+    dependencies,
+    path: `/drives/${encodeURIComponent(driveId)}/root/delta?token=latest&$select=${ITEM_FIELDS_V1}`,
+  });
   const link = data?.['@odata.deltaLink'];
   if (typeof link !== 'string' || !link) throw new GraphError(502, correlationId);
   return graphUrlV1(link);
 }
 
 /** Sub-folders of a folder (the drive root when `parentId` is null), for the admin folder picker. */
-export async function graphChildFoldersV1(env: GraphAppEnvV1, driveId: string, parentId: string | null,
-  dependencies: GraphDependencies = graphDefaultsV1): Promise<Array<{ id: string; name: string; childFolders: number }>> {
+export async function graphChildFoldersV1(
+  env: GraphAppEnvV1,
+  driveId: string,
+  parentId: string | null,
+  dependencies: GraphDependencies = graphDefaultsV1,
+): Promise<Array<{ id: string; name: string; childFolders: number }>> {
   const token = await getGraphToken(asEnvV1(env), dependencies);
   const parent = parentId === null ? 'root' : `items/${encodeURIComponent(parentId)}`;
   const folders: Array<{ id: string; name: string; childFolders: number }> = [];
-  let next: string | null = `/drives/${encodeURIComponent(driveId)}/${parent}/children?$select=id,name,folder&$top=200`;
+  let next: string | null =
+    `/drives/${encodeURIComponent(driveId)}/${parent}/children?$select=id,name,folder&$top=200`;
   const seen = new Set<string>();
   while (next) {
     const url = graphUrlV1(next);
-    if (seen.has(url) || seen.size >= 20) throw new Error('Graph folder pagination capacity exceeded');
+    if (seen.has(url) || seen.size >= 20)
+      throw new Error('Graph folder pagination capacity exceeded');
     seen.add(url);
     const { data, correlationId } = await graphRequest<{
-      value?: Array<{ id?: unknown; name?: unknown; folder?: { childCount?: unknown } }>; '@odata.nextLink'?: unknown;
+      value?: Array<{ id?: unknown; name?: unknown; folder?: { childCount?: unknown } }>;
+      '@odata.nextLink'?: unknown;
     }>({ env: asEnvV1(env), path: url, token, dependencies });
     if (!Array.isArray(data?.value)) throw new GraphError(502, correlationId);
     for (const item of data.value) {
@@ -158,11 +221,16 @@ export async function graphChildFoldersV1(env: GraphAppEnvV1, driveId: string, p
  * Changes since `deltaLink` (or the full current state when absent). OneDrive for Business only
  * offers delta on the drive root, so callers keep the items whose parent is their folder.
  */
-export async function graphDriveDeltaV1(env: GraphAppEnvV1, driveId: string, deltaLink: string | null,
-  dependencies: GraphDependencies = graphDefaultsV1): Promise<{ changes: DriveWorkbookV1[]; deltaLink: string }> {
+export async function graphDriveDeltaV1(
+  env: GraphAppEnvV1,
+  driveId: string,
+  deltaLink: string | null,
+  dependencies: GraphDependencies = graphDefaultsV1,
+): Promise<{ changes: DriveWorkbookV1[]; deltaLink: string }> {
   const token = await getGraphToken(asEnvV1(env), dependencies);
   const changes: DriveWorkbookV1[] = [];
-  let next: string = deltaLink ?? `/drives/${encodeURIComponent(driveId)}/root/delta?$select=${ITEM_FIELDS_V1}`;
+  let next: string =
+    deltaLink ?? `/drives/${encodeURIComponent(driveId)}/root/delta?$select=${ITEM_FIELDS_V1}`;
   const seen = new Set<string>();
   for (;;) {
     const url = graphUrlV1(next);
@@ -170,7 +238,9 @@ export async function graphDriveDeltaV1(env: GraphAppEnvV1, driveId: string, del
     if (seen.has(url) || seen.size >= 500) throw new DeltaResyncRequiredError();
     seen.add(url);
     const { data, correlationId } = await graphRequest<{
-      value?: GraphDriveItemV1[]; '@odata.nextLink'?: unknown; '@odata.deltaLink'?: unknown;
+      value?: GraphDriveItemV1[];
+      '@odata.nextLink'?: unknown;
+      '@odata.deltaLink'?: unknown;
     }>({ env: asEnvV1(env), path: url, token, dependencies }).catch((cause: unknown) => {
       // Graph no longer knows the cursor (410 Gone, resyncRequired): it must be started over.
       if (cause instanceof GraphError && cause.status === 410) throw new DeltaResyncRequiredError();
@@ -181,8 +251,12 @@ export async function graphDriveDeltaV1(env: GraphAppEnvV1, driveId: string, del
       const workbook = driveWorkbookFromItemV1(item);
       if (workbook) changes.push(workbook);
     }
-    if (typeof data['@odata.nextLink'] === 'string') { next = data['@odata.nextLink']; continue; }
-    if (typeof data['@odata.deltaLink'] === 'string') return { changes, deltaLink: graphUrlV1(data['@odata.deltaLink']) };
+    if (typeof data['@odata.nextLink'] === 'string') {
+      next = data['@odata.nextLink'];
+      continue;
+    }
+    if (typeof data['@odata.deltaLink'] === 'string')
+      return { changes, deltaLink: graphUrlV1(data['@odata.deltaLink']) };
     throw new GraphError(502, correlationId);
   }
 }
@@ -201,14 +275,27 @@ export class WorkbookTooLargeError extends Error {
 }
 
 /** The file bytes; the Graph `/content` redirect goes to a pre-authenticated download URL. */
-export async function graphDownloadWorkbookV1(env: GraphAppEnvV1, driveId: string, itemId: string,
-  maxBytes: number, dependencies: GraphDependencies = graphDefaultsV1): Promise<ArrayBuffer> {
+export async function graphDownloadWorkbookV1(
+  env: GraphAppEnvV1,
+  driveId: string,
+  itemId: string,
+  maxBytes: number,
+  dependencies: GraphDependencies = graphDefaultsV1,
+): Promise<ArrayBuffer> {
   const token = await getGraphToken(asEnvV1(env), dependencies);
   const correlationId = crypto.randomUUID();
   const response = await graphFetchV1({
-    url: graphUrlV1(`/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}/content`),
-    init: { method: 'GET', headers: { Authorization: `Bearer ${token}`, 'client-request-id': correlationId } },
-    correlationId, dependencies, allowContentRedirect: true, budgetMs: 30_000,
+    url: graphUrlV1(
+      `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}/content`,
+    ),
+    init: {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}`, 'client-request-id': correlationId },
+    },
+    correlationId,
+    dependencies,
+    allowContentRedirect: true,
+    budgetMs: 30_000,
   }).catch((cause: unknown) => {
     // A refused token is not reused by the next download.
     if (cause instanceof GraphError && cause.status === 401) forgetGraphTokensV1(asEnvV1(env));
@@ -257,11 +344,24 @@ export function notificationUrlV1(publicUrl: string, path: string): string {
 /** Microsoft caps driveItem subscriptions at 42,300 minutes (~29 days). */
 export const DRIVE_SUBSCRIPTION_MAX_MINUTES_V1 = 42_300;
 
-export async function graphCreateDriveSubscriptionV1(env: GraphAppEnvV1, input: {
-  driveId: string; notificationUrl: string; clientState: string; expiresAt: Date; dependencies?: GraphDependencies;
-}): Promise<{ id: string; expirationDateTime: string }> {
-  const { data, correlationId } = await graphRequest<{ id?: unknown; expirationDateTime?: unknown }>({
-    env: asEnvV1(env), path: '/subscriptions', method: 'POST', dependencies: input.dependencies,
+export async function graphCreateDriveSubscriptionV1(
+  env: GraphAppEnvV1,
+  input: {
+    driveId: string;
+    notificationUrl: string;
+    clientState: string;
+    expiresAt: Date;
+    dependencies?: GraphDependencies;
+  },
+): Promise<{ id: string; expirationDateTime: string }> {
+  const { data, correlationId } = await graphRequest<{
+    id?: unknown;
+    expirationDateTime?: unknown;
+  }>({
+    env: asEnvV1(env),
+    path: '/subscriptions',
+    method: 'POST',
+    dependencies: input.dependencies,
     body: {
       changeType: 'updated',
       resource: `/drives/${input.driveId}/root`,
@@ -270,16 +370,24 @@ export async function graphCreateDriveSubscriptionV1(env: GraphAppEnvV1, input: 
       expirationDateTime: input.expiresAt.toISOString(),
     },
   });
-  if (typeof data?.id !== 'string' || typeof data.expirationDateTime !== 'string') throw new GraphError(502, correlationId);
+  if (typeof data?.id !== 'string' || typeof data.expirationDateTime !== 'string')
+    throw new GraphError(502, correlationId);
   return { id: data.id, expirationDateTime: data.expirationDateTime };
 }
 
 /** Moves a subscription's expiry: no new handshake, never two at once. Null when it is gone. */
-export async function graphRenewSubscriptionV1(env: GraphAppEnvV1, subscriptionId: string, expiresAt: Date,
-  dependencies?: GraphDependencies): Promise<string | null> {
+export async function graphRenewSubscriptionV1(
+  env: GraphAppEnvV1,
+  subscriptionId: string,
+  expiresAt: Date,
+  dependencies?: GraphDependencies,
+): Promise<string | null> {
   try {
     const { data, correlationId } = await graphRequest<{ expirationDateTime?: unknown }>({
-      env: asEnvV1(env), path: `/subscriptions/${encodeURIComponent(subscriptionId)}`, method: 'PATCH', dependencies,
+      env: asEnvV1(env),
+      path: `/subscriptions/${encodeURIComponent(subscriptionId)}`,
+      method: 'PATCH',
+      dependencies,
       body: { expirationDateTime: expiresAt.toISOString() },
     });
     if (typeof data?.expirationDateTime !== 'string') throw new GraphError(502, correlationId);
@@ -290,8 +398,15 @@ export async function graphRenewSubscriptionV1(env: GraphAppEnvV1, subscriptionI
   }
 }
 
-export async function graphDeleteSubscriptionV1(env: GraphAppEnvV1, subscriptionId: string,
-  dependencies?: GraphDependencies): Promise<void> {
-  await graphRequest<null>({ env: asEnvV1(env), path: `/subscriptions/${encodeURIComponent(subscriptionId)}`,
-    method: 'DELETE', dependencies });
+export async function graphDeleteSubscriptionV1(
+  env: GraphAppEnvV1,
+  subscriptionId: string,
+  dependencies?: GraphDependencies,
+): Promise<void> {
+  await graphRequest<null>({
+    env: asEnvV1(env),
+    path: `/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    method: 'DELETE',
+    dependencies,
+  });
 }

@@ -72,7 +72,10 @@ describe('HTTP security', () => {
     const loader = readFileSync('src/features/gradebook/import/sheetjs-loader.ts', 'utf8');
     expect(loader).toContain("from 'xlsx/dist/xlsx.full.min.js?url'");
     expect(loader).not.toMatch(/https?:\/\//u);
-    for (const policy of [readFileSync('public/_headers', 'utf8'), SECURITY_HEADERS['Content-Security-Policy']]) {
+    for (const policy of [
+      readFileSync('public/_headers', 'utf8'),
+      SECURITY_HEADERS['Content-Security-Policy'],
+    ]) {
       const scripts = /script-src ([^;\r\n]*)/u.exec(policy ?? '')?.[1];
       expect(scripts?.split(' ')).toEqual(["'self'"]);
     }

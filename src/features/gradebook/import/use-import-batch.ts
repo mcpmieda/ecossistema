@@ -801,15 +801,27 @@ export function useImportBatch() {
     response: GradebookImportPersistenceResponseV9,
     observation: BatchObservationV1,
   ): Promise<void> {
-    if (operation !== 'persist-notas' || (response.state !== 'applied' && response.state !== 'no-changes') || local.diagnostics === null) return;
-    const unbound = (response.warnings ?? []).filter((warning) =>
-      warning.code === 'student-not-in-relation' || warning.code === 'student-name-mismatch');
+    if (
+      operation !== 'persist-notas' ||
+      (response.state !== 'applied' && response.state !== 'no-changes') ||
+      local.diagnostics === null
+    )
+      return;
+    const unbound = (response.warnings ?? []).filter(
+      (warning) =>
+        warning.code === 'student-not-in-relation' || warning.code === 'student-name-mismatch',
+    );
     if (unbound.length === 0) return;
     await auditDiagnostics(
       result,
-      [...local.diagnostics, ...unbound.map((warning) => warning.code === 'student-name-mismatch'
-        ? studentNameMismatchDiagnosticV1(warning.classCode, warning.number)
-        : studentNotInRelationDiagnosticV1(warning.classCode, warning.number))],
+      [
+        ...local.diagnostics,
+        ...unbound.map((warning) =>
+          warning.code === 'student-name-mismatch'
+            ? studentNameMismatchDiagnosticV1(warning.classCode, warning.number)
+            : studentNotInRelationDiagnosticV1(warning.classCode, warning.number),
+        ),
+      ],
       observation,
       undefined,
       true,

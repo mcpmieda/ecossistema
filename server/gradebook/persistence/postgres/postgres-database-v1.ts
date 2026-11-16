@@ -109,12 +109,17 @@ function failureDiagnostic(query: string, cause: unknown): GradebookPostgresFail
   const message = errorMessage(cause);
   const operation = /^\s*([A-Za-z]+)/u.exec(query)?.[1]?.toUpperCase() ?? 'UNKNOWN';
   const relation =
-    /\b(?:FROM|INTO|TABLE|UPDATE)\s+(?:gradebook\.)?([A-Z_][A-Z0-9_]*)/iu.exec(query)?.[1] ??
-    null;
+    /\b(?:FROM|INTO|TABLE|UPDATE)\s+(?:gradebook\.)?([A-Z_][A-Z0-9_]*)/iu.exec(query)?.[1] ?? null;
   const code =
     cause !== null && typeof cause === 'object' && 'code' in cause ? cause.code : undefined;
   const sqlState = typeof code === 'string' && /^[0-9A-Z]{5}$/u.test(code) ? code : undefined;
-  let category: 'connection-parameter' | 'jsonb-cast' | 'permission' | 'relation-missing' | 'timeout' | 'unknown';
+  let category:
+    | 'connection-parameter'
+    | 'jsonb-cast'
+    | 'permission'
+    | 'relation-missing'
+    | 'timeout'
+    | 'unknown';
   if (/search_path|startup parameter/iu.test(message)) {
     category = 'connection-parameter';
   } else if (/jsonb.*text|text.*jsonb|type jsonb/iu.test(message)) {
@@ -219,8 +224,7 @@ class GradebookPostgresFacadeV1 implements GradebookPostgresWritePortV1 {
         return value.jsonText;
       }
       return value;
-    },
-    );
+    });
     let result: PostgresQueryResultV1;
     try {
       result = await this.sql.unsafe(text, parameters);

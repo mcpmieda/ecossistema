@@ -23,7 +23,8 @@ beforeAll(async () => {
     '0009_granular_observations_names_v1.sql',
     '0010_qualitative_corrections_2026_v1.sql',
     '0011_gradebook_rls_v1.sql',
-  ]) await pg.exec(readFileSync(root + file, 'utf8'));
+  ])
+    await pg.exec(readFileSync(root + file, 'utf8'));
 
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho)
@@ -87,30 +88,35 @@ afterAll(async () => {
 
 it('removes retired granular histories and only unreferenced import rows', async () => {
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT
         (SELECT count(*)::integer FROM gradebook.nota_historico) AS note_history,
         (SELECT count(*)::integer FROM gradebook.instrumento_historico) AS instrument_history,
         (SELECT array_agg(id ORDER BY id) FROM gradebook.importacao) AS imports
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([{ note_history: 0, instrument_history: 0, imports: [1] }]);
 });
 
 it('removes only a completely empty qualitative instrument', async () => {
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT id,slot,maximo,descricao,
              EXISTS(SELECT 1 FROM gradebook.nota n WHERE n.instrumento_id=i.id) AS observed
       FROM gradebook.instrumento i
       ORDER BY id
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([
     { id: 1, slot: 11, maximo: 5000, descricao: 'ATIVIDADE ATIVA', observed: true },
     { id: 2, slot: 12, maximo: 5000, descricao: 'ATIVIDADE EM BRANCO', observed: true },
     { id: 4, slot: 14, maximo: null, descricao: null, observed: true },
   ]);
   expect(
-    (await pg.query('SELECT instrumento_id,valor FROM gradebook.nota ORDER BY instrumento_id')).rows,
+    (await pg.query('SELECT instrumento_id,valor FROM gradebook.nota ORDER BY instrumento_id'))
+      .rows,
   ).toEqual([
     { instrumento_id: 1, valor: 4000 },
     { instrumento_id: 2, valor: null },
@@ -120,17 +126,19 @@ it('removes only a completely empty qualitative instrument', async () => {
 
 it('keeps current academic values and retained closure history intact', async () => {
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT
         count(*)::integer AS notes,
         count(*) FILTER (WHERE valor IS NOT NULL)::integer AS numeric_notes,
         COALESCE(sum(valor) FILTER (WHERE valor IS NOT NULL),0)::integer AS numeric_sum
       FROM gradebook.nota
-    `)).rows,
+    `)
+    ).rows,
   ).toEqual([{ notes: 3, numeric_notes: 1, numeric_sum: 4000 }]);
-  expect(
-    (await pg.query('SELECT am1_fonte FROM gradebook.fechamento')).rows,
-  ).toEqual([{ am1_fonte: 9000 }]);
+  expect((await pg.query('SELECT am1_fonte FROM gradebook.fechamento')).rows).toEqual([
+    { am1_fonte: 9000 },
+  ]);
   expect(
     (await pg.query('SELECT importacao_id,valor_novo FROM gradebook.fechamento_historico')).rows,
   ).toEqual([{ importacao_id: 1, valor_novo: 9000 }]);
@@ -138,13 +146,15 @@ it('keeps current academic values and retained closure history intact', async ()
 
 it('removes only orphan Audit treatment and keeps the current treatment', async () => {
   expect(
-    (await pg.query('SELECT chave FROM gradebook.importacao_diagnostico_tratamento ORDER BY chave')).rows,
+    (await pg.query('SELECT chave FROM gradebook.importacao_diagnostico_tratamento ORDER BY chave'))
+      .rows,
   ).toEqual([{ chave: 'atual' }]);
 });
 
 it('prevents runtime insertion/update of retired histories while preserving read/delete', async () => {
   expect(
-    (await pg.query(`
+    (
+      await pg.query(`
       SELECT
         has_table_privilege('gradebook_app','gradebook.nota_historico','SELECT') AS note_select,
         has_table_privilege('gradebook_app','gradebook.nota_historico','DELETE') AS note_delete,
@@ -154,15 +164,18 @@ it('prevents runtime insertion/update of retired histories while preserving read
         has_table_privilege('gradebook_app','gradebook.instrumento_historico','DELETE') AS instrument_delete,
         has_table_privilege('gradebook_app','gradebook.instrumento_historico','INSERT') AS instrument_insert,
         has_table_privilege('gradebook_app','gradebook.instrumento_historico','UPDATE') AS instrument_update
-    `)).rows,
-  ).toEqual([{
-    note_select: true,
-    note_delete: true,
-    note_insert: false,
-    note_update: false,
-    instrument_select: true,
-    instrument_delete: true,
-    instrument_insert: false,
-    instrument_update: false,
-  }]);
+    `)
+    ).rows,
+  ).toEqual([
+    {
+      note_select: true,
+      note_delete: true,
+      note_insert: false,
+      note_update: false,
+      instrument_select: true,
+      instrument_delete: true,
+      instrument_insert: false,
+      instrument_update: false,
+    },
+  ]);
 });

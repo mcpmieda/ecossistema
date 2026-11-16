@@ -16,16 +16,28 @@ function fakeDatabase(input: {
     async query<T extends Row>(sql: string, values: readonly unknown[] = []) {
       input.queries?.push(sql);
       if (!input.base) return [] as T[];
-      const shared = { oferta_id: values[0], aluno_id: values[1], ...input.base, ...(input.closing ?? {}) };
+      const shared = {
+        oferta_id: values[0],
+        aluno_id: values[1],
+        ...input.base,
+        ...(input.closing ?? {}),
+      };
       const instruments = input.instruments ?? [];
-      return (instruments.length ? instruments.map((row) => ({ ...shared, ...row })) : [{ ...shared, trimestre: null }]) as unknown as T[];
+      return (instruments.length
+        ? instruments.map((row) => ({ ...shared, ...row }))
+        : [{ ...shared, trimestre: null }]) as unknown as T[];
     },
   };
 }
 
 function termRows(
   term: 1 | 2 | 3,
-  values: { readonly av1: number; readonly av2: number; readonly qualitative: number; readonly parallel?: number | null },
+  values: {
+    readonly av1: number;
+    readonly av2: number;
+    readonly qualitative: number;
+    readonly parallel?: number | null;
+  },
 ): Row[] {
   const avMaximum = term === 3 ? 9_000 : 6_750;
   const qualitativeMaximum = term === 3 ? 22_000 : 16_500;
@@ -63,14 +75,22 @@ describe('relational academic projection v1', () => {
       },
     });
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
-      ofertaId: 41,
-      alunoId: 9,
-    }]).then((values) => values[0]!);
+    const projection = await createRelationalAcademicProjectionServiceV1(database)
+      .projectMany([
+        {
+          ofertaId: 41,
+          alunoId: 9,
+        },
+      ])
+      .then((values) => values[0]!);
 
     expect(projection.ano).toBe(2026);
     expect(projection.minimumApprovalMilli).toBe(60_000);
-    expect(projection.terms.map((term) => term.sourceComparison)).toEqual(['match', 'match', 'match']);
+    expect(projection.terms.map((term) => term.sourceComparison)).toEqual([
+      'match',
+      'match',
+      'match',
+    ]);
     expect(projection.recovery.classification).toBe('approved-direct');
     expect(projection.recovery.postRecoveryTotalMilli).toBe(60_000);
     expect(projection.sourceUComparison).toBe('match');
@@ -81,7 +101,9 @@ describe('relational academic projection v1', () => {
     const database = fakeDatabase({ base: null, queries });
 
     await expect(
-      createRelationalAcademicProjectionServiceV1(database).projectMany([{ ofertaId: 99, alunoId: 12 }]).then((values) => values[0]!),
+      createRelationalAcademicProjectionServiceV1(database)
+        .projectMany([{ ofertaId: 99, alunoId: 12 }])
+        .then((values) => values[0]!),
     ).rejects.toMatchObject({ code: 'offer-student-not-found' });
 
     expect(queries[0]).toContain('COALESCE(v.situacao, 0) <> 6');
@@ -107,10 +129,14 @@ describe('relational academic projection v1', () => {
       },
     });
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
-      ofertaId: 7,
-      alunoId: 3,
-    }]).then((values) => values[0]!);
+    const projection = await createRelationalAcademicProjectionServiceV1(database)
+      .projectMany([
+        {
+          ofertaId: 7,
+          alunoId: 3,
+        },
+      ])
+      .then((values) => values[0]!);
 
     expect(projection.terms[0].outcome.parallelApplicable).toBe(true);
     expect(projection.terms[0].outcome.parallelMilli).toBeNull();
@@ -140,10 +166,14 @@ describe('relational academic projection v1', () => {
       },
     });
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
-      ofertaId: 5,
-      alunoId: 2,
-    }]).then((values) => values[0]!);
+    const projection = await createRelationalAcademicProjectionServiceV1(database)
+      .projectMany([
+        {
+          ofertaId: 5,
+          alunoId: 2,
+        },
+      ])
+      .then((values) => values[0]!);
 
     expect(projection.recovery.originalTotalMilli).toBe(50_000);
     expect(projection.recovery.recoveryTerms[1]).toMatchObject({ applicable: true, source: 'NC' });
@@ -171,10 +201,14 @@ describe('relational academic projection v1', () => {
       },
     });
 
-    const projection = await createRelationalAcademicProjectionServiceV1(database).projectMany([{
-      ofertaId: 6,
-      alunoId: 4,
-    }]).then((values) => values[0]!);
+    const projection = await createRelationalAcademicProjectionServiceV1(database)
+      .projectMany([
+        {
+          ofertaId: 6,
+          alunoId: 4,
+        },
+      ])
+      .then((values) => values[0]!);
 
     expect(projection.terms[0].outcome.rawMilli).toBe(19_255);
     expect(projection.terms[0].outcome.roundedMilli).toBe(19_000);

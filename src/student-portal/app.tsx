@@ -23,18 +23,27 @@ import {
   usePortalNoticesV1,
   type PortalStatusClientV1,
 } from '../features/student-portal/shell/portal-notices-v1';
-import { diagnosticStudentFetchV1, markStudentModuleFailureV1, reportStudentDiagnosticV1 } from './diagnostics-v1';
+import {
+  diagnosticStudentFetchV1,
+  markStudentModuleFailureV1,
+  reportStudentDiagnosticV1,
+} from './diagnostics-v1';
 
-const StudentAuthenticationV1 = lazy(() => import('../features/student-portal/auth/student-auth-v1').then(
-  (module) => ({ default: module.StudentAuthenticationV1 }),
-).catch(markStudentModuleFailureV1));
+const StudentAuthenticationV1 = lazy(() =>
+  import('../features/student-portal/auth/student-auth-v1')
+    .then((module) => ({ default: module.StudentAuthenticationV1 }))
+    .catch(markStudentModuleFailureV1),
+);
 export interface StudentEntryV1 {
   qr: string | null;
   invalidQr: boolean;
   route: 'root' | 'access' | 'unknown';
 }
 const PUBLIC_SITEKEY = '0x4AAAAAAExp0Fw2x5lR3luX';
-const defaultClient = createPortalSelfClientV1({ respectRetryAfter: true, fetch: diagnosticStudentFetchV1 });
+const defaultClient = createPortalSelfClientV1({
+  respectRetryAfter: true,
+  fetch: diagnosticStudentFetchV1,
+});
 // Notices are optional: a failed read shows none and is not reported as a Portal failure.
 const defaultStatusClient = createPortalStatusClientV1();
 const defaultEntry: StudentEntryV1 = { qr: null, invalidQr: false, route: 'root' };
@@ -45,15 +54,21 @@ function portraitSubjectV1(
   access: boolean,
   route: StudentEntryV1['route'],
 ) {
-  return session.load.state === 'ready' && !access && route !== 'unknown'
-    && !['pending', 'failed', 'done'].includes(session.logoutState) ? session.load.data : null;
+  return session.load.state === 'ready' &&
+    !access &&
+    route !== 'unknown' &&
+    !['pending', 'failed', 'done'].includes(session.logoutState)
+    ? session.load.data
+    : null;
 }
 
 /** Who is on the entry page: a signed-out visitor, a student whose access closed (back to the
  * login page, which shows the closed notice with its countdown), or a signed-in student. */
 function entryStateV1(session: ReturnType<typeof useStudentSessionV1>, access: boolean) {
-  const anonymous = session.load.state === 'error' && session.load.error.state === 'unauthenticated';
-  const accessClosed = session.load.state === 'error' && session.load.error.state === 'access-closed';
+  const anonymous =
+    session.load.state === 'error' && session.load.error.state === 'unauthenticated';
+  const accessClosed =
+    session.load.state === 'error' && session.load.error.state === 'access-closed';
   const signingIn = access || session.logoutState === 'done' || anonymous || accessClosed;
   let noticesAudience: 'student' | 'anonymous' | null = null;
   if (signingIn) noticesAudience = 'anonymous';
@@ -62,16 +77,19 @@ function entryStateV1(session: ReturnType<typeof useStudentSessionV1>, access: b
 }
 
 type PortalNoticesValueV1 = Parameters<typeof PortalSignedInNoticesV1>[0]['notices'];
-const portalClosedV1 = (notices: PortalNoticesValueV1 | null | undefined): notices is PortalNoticesValueV1 =>
-  notices?.access === 'closed';
+const portalClosedV1 = (
+  notices: PortalNoticesValueV1 | null | undefined,
+): notices is PortalNoticesValueV1 => notices?.access === 'closed';
 
 /** Signing out, or a sign-out that was not confirmed. */
 const leavingV1 = (session: ReturnType<typeof useStudentSessionV1>) =>
   session.logoutState === 'pending' || session.logoutState === 'failed';
 
 /** A card was read (the access route) while this browser still holds a session. */
-const readingCardWhileSignedInV1 = (access: boolean, session: ReturnType<typeof useStudentSessionV1>) =>
-  access && session.logoutState !== 'done';
+const readingCardWhileSignedInV1 = (
+  access: boolean,
+  session: ReturnType<typeof useStudentSessionV1>,
+) => access && session.logoutState !== 'done';
 
 const stillLoadingV1 = (load: ReturnType<typeof useStudentSessionV1>['load']) =>
   load.state === 'idle' || load.state === 'loading';
@@ -83,8 +101,10 @@ function signedInNoticesV1(
 ) {
   if (!notices || load.state !== 'ready') return undefined;
   return (
-    <PortalSignedInNoticesV1 notices={notices}
-      hasGrades={load.data.state !== 'no-publication' && load.data.subjects.length > 0} />
+    <PortalSignedInNoticesV1
+      notices={notices}
+      hasGrades={load.data.state !== 'no-publication' && load.data.subjects.length > 0}
+    />
   );
 }
 
@@ -104,7 +124,10 @@ function LogoutNoticeV1({ failed, onRetry }: Readonly<{ failed: boolean; onRetry
 }
 
 /** A card read while a student is already signed in: keep this account or sign out first. */
-function AlreadySignedInV1({ onContinue, onSwitch }: Readonly<{ onContinue: () => void; onSwitch: () => void }>) {
+function AlreadySignedInV1({
+  onContinue,
+  onSwitch,
+}: Readonly<{ onContinue: () => void; onSwitch: () => void }>) {
   return (
     <StudentEntryLayoutV1>
       <Card className="pa-account-switch">
@@ -141,21 +164,26 @@ function cardWhileSignedInV1(
   anonymous: boolean,
   onContinue: () => void,
 ) {
-  if (stillLoadingV1(session.load))
-    return <StudentSplashV1 />;
+  if (stillLoadingV1(session.load)) return <StudentSplashV1 />;
   if (session.load.state === 'ready')
     return (
       <AlreadySignedInV1
         onContinue={onContinue}
-        onSwitch={() => { void session.logout(); }}
+        onSwitch={() => {
+          void session.logout();
+        }}
       />
     );
   if (!anonymous)
     return (
       <StudentPortalPageV1
         load={session.load}
-        onRetry={() => { void session.refresh(); }}
-        onLogout={() => { void session.logout(); }}
+        onRetry={() => {
+          void session.refresh();
+        }}
+        onLogout={() => {
+          void session.logout();
+        }}
       />
     );
   return null;
@@ -177,11 +205,12 @@ export function StudentPortalApp({
   // Right after a sign-in the opening screen says so ("Tudo certo!") while the marks load.
   const [entered, setEntered] = useState(false);
   const session = useStudentSessionV1(client);
-  const portraitSrc = useStudentPortraitV1(
-    portraitSubjectV1(session, access, entry.route),
-  );
+  const portraitSrc = useStudentPortraitV1(portraitSubjectV1(session, access, entry.route));
   useEffect(() => {
-    if (session.load.state === 'error' && ['unavailable', 'invalid-response', 'network-error'].includes(session.load.error.state))
+    if (
+      session.load.state === 'error' &&
+      ['unavailable', 'invalid-response', 'network-error'].includes(session.load.error.state)
+    )
       reportStudentDiagnosticV1('read');
   }, [session.load]);
   const discardQr = () => {
@@ -212,7 +241,12 @@ export function StudentPortalApp({
   if (leavingV1(session))
     return (
       <StudentPortalShellV1>
-        <LogoutNoticeV1 failed={session.logoutState === 'failed'} onRetry={() => { void session.logout(); }} />
+        <LogoutNoticeV1
+          failed={session.logoutState === 'failed'}
+          onRetry={() => {
+            void session.logout();
+          }}
+        />
       </StudentPortalShellV1>
     );
   if (readingCardWhileSignedInV1(access, session)) {
@@ -236,25 +270,48 @@ export function StudentPortalApp({
       <StudentEntryLayoutV1>
         <InvalidQrNoticeV1 invalid={invalidQr} />
         <Suspense fallback={<output>Preparando entrada segura…</output>}>
-          <StudentAuthenticationV1 client={client} initialQr={initialQr} sitekey={PUBLIC_SITEKEY}
+          <StudentAuthenticationV1
+            client={client}
+            initialQr={initialQr}
+            sitekey={PUBLIC_SITEKEY}
             onQrDiscarded={discardQr}
             onAuthenticated={() => {
-              discardQr(); setAccess(false); setEntered(true); window.history.replaceState(null, '', '/');
+              discardQr();
+              setAccess(false);
+              setEntered(true);
+              window.history.replaceState(null, '', '/');
               void session.authenticated();
             }}
           />
         </Suspense>
       </StudentEntryLayoutV1>
     );
-  if (stillLoadingV1(session.load))
-    return <StudentSplashV1 entered={entered} />;
+  if (stillLoadingV1(session.load)) return <StudentSplashV1 entered={entered} />;
   return (
-    <StudentPortalPageV1 load={session.load} portraitSrc={portraitSrc}
+    <StudentPortalPageV1
+      load={session.load}
+      portraitSrc={portraitSrc}
       status={signedInNoticesV1(notices, session.load)}
-      onRetry={() => { void session.refresh(); }}
-      onLogin={() => { discardQr(); setAccess(true); }}
-      onAuthenticationLost={() => { discardQr(); session.invalidateAuthorization(); setAccess(true); }}
-      onLogout={session.load.state === 'ready' ? () => { discardQr(); void session.logout(); } : undefined}
+      onRetry={() => {
+        void session.refresh();
+      }}
+      onLogin={() => {
+        discardQr();
+        setAccess(true);
+      }}
+      onAuthenticationLost={() => {
+        discardQr();
+        session.invalidateAuthorization();
+        setAccess(true);
+      }}
+      onLogout={
+        session.load.state === 'ready'
+          ? () => {
+              discardQr();
+              void session.logout();
+            }
+          : undefined
+      }
     />
   );
 }

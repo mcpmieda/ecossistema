@@ -31,17 +31,26 @@ describe('certificate validity extraction', () => {
       'openssl',
       // Compose the path exactly as the rotation script does, so the assertion pins the
       // segments it owns instead of the separator the host operating system picks.
-      ['x509', '-in', join('/tmp', 'maintenance-rotation', 'cert.pem'), '-noout', '-startdate', '-enddate'],
+      [
+        'x509',
+        '-in',
+        join('/tmp', 'maintenance-rotation', 'cert.pem'),
+        '-noout',
+        '-startdate',
+        '-enddate',
+      ],
       { encoding: 'utf8' },
     );
   });
 
   it('fails closed when the validity window is missing or reversed', () => {
-    expect(() => parseCertificateValidity('notBefore=Sep 19 13:55:07 2026 GMT\n'))
-      .toThrow('Invalid certificate validity');
-    expect(() => parseCertificateValidity([
-      'notBefore=Sep 19 13:55:07 2027 GMT',
-      'notAfter=Mar 18 13:55:07 2027 GMT',
-    ].join('\n'))).toThrow('Invalid certificate validity');
+    expect(() => parseCertificateValidity('notBefore=Sep 19 13:55:07 2026 GMT\n')).toThrow(
+      'Invalid certificate validity',
+    );
+    expect(() =>
+      parseCertificateValidity(
+        ['notBefore=Sep 19 13:55:07 2027 GMT', 'notAfter=Mar 18 13:55:07 2027 GMT'].join('\n'),
+      ),
+    ).toThrow('Invalid certificate validity');
   });
 });

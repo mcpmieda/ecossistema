@@ -23,7 +23,10 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: 'react', test: /node_modules[/\\](react|react-dom|scheduler)[/\\]/u },
-            { name: 'ui', test: /node_modules[/\\](@heroui|@react-aria|@react-stately|@react-types|@internationalized|@swc[/\\]helpers|react-aria|react-stately|react-aria-components|framer-motion|motion|motion-dom|motion-utils|tailwind-variants|tailwind-merge|lucide-react)/u },
+            {
+              name: 'ui',
+              test: /node_modules[/\\](@heroui|@react-aria|@react-stately|@react-types|@internationalized|@swc[/\\]helpers|react-aria|react-stately|react-aria-components|framer-motion|motion|motion-dom|motion-utils|tailwind-variants|tailwind-merge|lucide-react)/u,
+            },
             { name: 'zod', test: /node_modules[/\\]zod[/\\]/u },
           ],
         },

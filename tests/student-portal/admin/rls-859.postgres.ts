@@ -79,11 +79,9 @@ beforeAll(async () => {
     '0010_incremental_publication_v3.sql',
     '0011_live_event_outbox_v1.sql',
   ]) {
-    await owner.unsafe(
-      readFileSync('migrations/student-portal/' + name, 'utf8'),
-      [],
-      { prepare: false },
-    );
+    await owner.unsafe(readFileSync('migrations/student-portal/' + name, 'utf8'), [], {
+      prepare: false,
+    });
   }
 
   await owner.unsafe(
@@ -96,11 +94,9 @@ beforeAll(async () => {
     '0013_publication_inheritance_v1.sql',
     '0014_year_reset_full_cleanup_v1.sql',
   ]) {
-    await owner.unsafe(
-      readFileSync('migrations/student-portal/' + name, 'utf8'),
-      [],
-      { prepare: false },
-    );
+    await owner.unsafe(readFileSync('migrations/student-portal/' + name, 'utf8'), [], {
+      prepare: false,
+    });
   }
 
   await owner.unsafe(`
@@ -180,17 +176,27 @@ it('preserves the exact student_portal_app table ACL', async () => {
 
 it('keeps runtime login, self/admin, publication and job data reachable through the restricted backend role', async () => {
   expect((await portal`SELECT count(*)::integer AS n FROM student_portal.account`)[0]!.n).toBe(1);
-  expect((await portal`SELECT count(*)::integer AS n FROM student_portal.published_projection`)[0]!.n).toBe(0);
-  expect((await portal`SELECT count(*)::integer AS n FROM student_portal.publication_source_v2`)[0]!.n).toBeGreaterThanOrEqual(0);
-  expect((await portal`SELECT count(*)::integer AS n FROM student_portal.publication_job`)[0]!.n).toBeGreaterThanOrEqual(0);
-  expect((await portal`SELECT count(*)::integer AS n FROM student_portal.live_event_outbox_v1`)[0]!.n).toBeGreaterThanOrEqual(0);
+  expect(
+    (await portal`SELECT count(*)::integer AS n FROM student_portal.published_projection`)[0]!.n,
+  ).toBe(0);
+  expect(
+    (await portal`SELECT count(*)::integer AS n FROM student_portal.publication_source_v2`)[0]!.n,
+  ).toBeGreaterThanOrEqual(0);
+  expect(
+    (await portal`SELECT count(*)::integer AS n FROM student_portal.publication_job`)[0]!.n,
+  ).toBeGreaterThanOrEqual(0);
+  expect(
+    (await portal`SELECT count(*)::integer AS n FROM student_portal.live_event_outbox_v1`)[0]!.n,
+  ).toBeGreaterThanOrEqual(0);
 
   await portal.unsafe(`
     UPDATE student_portal.academic_revision
     SET academic_counter=academic_counter
     WHERE academic_year=2026
   `);
-  const synchronized = await portal.unsafe('SELECT * FROM student_portal.synchronize_profiles_v1(false)');
+  const synchronized = await portal.unsafe(
+    'SELECT * FROM student_portal.synchronize_profiles_v1(false)',
+  );
   expect(Array.isArray(synchronized)).toBe(true);
 });
 
@@ -204,10 +210,12 @@ it('preserves the SECURITY DEFINER Gradebook integration across Portal RLS', asy
   );
   expect(result).toHaveLength(1);
   expect(
-    (await owner.unsafe(
-      'SELECT count(*)::integer AS n FROM student_portal.revision_event WHERE event_id=$1::uuid',
-      [eventId],
-    ))[0]!.n,
+    (
+      await owner.unsafe(
+        'SELECT count(*)::integer AS n FROM student_portal.revision_event WHERE event_id=$1::uuid',
+        [eventId],
+      )
+    )[0]!.n,
   ).toBe(1);
 });
 

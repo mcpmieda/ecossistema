@@ -13,8 +13,7 @@ type SerializedCredential = {
   createdAt: string;
 };
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export class ExactRuntimeCredentialError extends Error {
   readonly httpStatus: number;
@@ -87,8 +86,7 @@ function encodeJson(value: unknown): string {
 }
 
 function pemToBytes(pem: string): Uint8Array {
-  const base64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/gu, '');
+  const base64 = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/gu, '');
   const decoded = Buffer.from(base64, 'base64');
   if (decoded.length === 0) throw new ExactRuntimeLocalError('assertion');
   return new Uint8Array(decoded);
@@ -100,8 +98,7 @@ async function createClientAssertion(input: {
   credential: SerializedCredential;
 }): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const audience =
-    `https://login.microsoftonline.com/${input.tenantId}/oauth2/v2.0/token`;
+  const audience = `https://login.microsoftonline.com/${input.tenantId}/oauth2/v2.0/token`;
   const header = encodeJson({
     alg: 'RS256',
     typ: 'JWT',
@@ -171,8 +168,7 @@ export async function validateExactRuntimeCredential(input: {
   });
 
   const fetcher = input.fetcher ?? fetch;
-  const endpoint =
-    `https://login.microsoftonline.com/${input.tenantId}/oauth2/v2.0/token`;
+  const endpoint = `https://login.microsoftonline.com/${input.tenantId}/oauth2/v2.0/token`;
   let response: Response;
   try {
     response = await fetcher(endpoint, {
@@ -183,8 +179,7 @@ export async function validateExactRuntimeCredential(input: {
         client_id: input.clientId,
         scope: 'https://graph.microsoft.com/.default',
         grant_type: 'client_credentials',
-        client_assertion_type:
-          'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: assertion,
       }),
       signal: AbortSignal.timeout(10_000),
@@ -247,10 +242,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     let safe;
     if (error instanceof ExactRuntimeCredentialError) {
       safe = {
-            status: 'error',
-            httpStatus: error.httpStatus,
-            aadstsCode: error.aadstsCode,
-          };
+        status: 'error',
+        httpStatus: error.httpStatus,
+        aadstsCode: error.aadstsCode,
+      };
     } else if (error instanceof ExactRuntimeLocalError) {
       safe = { status: 'error', kind: error.kind };
     } else {

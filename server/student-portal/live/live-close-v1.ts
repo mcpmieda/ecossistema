@@ -37,7 +37,12 @@ function liveReadyStateV1(socket: LiveSocketV1): PortalLiveCloseMetricV1['readyS
  * 1015 TLS) cannot be sent back and throw; answering them with a normal close still completes
  * the handshake. The signal is emitted before close, so it does not prove the peer received it.
  */
-export function answerLiveCloseV1(socket: LiveSocketV1, code: number, reason: string, sink?: SinkV1): void {
+export function answerLiveCloseV1(
+  socket: LiveSocketV1,
+  code: number,
+  reason: string,
+  sink?: SinkV1,
+): void {
   emitPortalLiveCloseMetricV1(
     {
       event: 'student-portal-live-close-v1',

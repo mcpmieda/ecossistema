@@ -20,12 +20,18 @@ export const AUDIT_REASON_LABELS_V1: Record<ReasonV1, { label: string; help: str
     label: 'Verificação de segurança pendente',
     help: 'Depois de erros seguidos, o Portal pede uma verificação rápida. Concluir a verificação e tentar de novo.',
   },
-  'access-closed': { label: 'Portal fechado no horário', help: 'Tentar quando o acesso estiver aberto.' },
+  'access-closed': {
+    label: 'Portal fechado no horário',
+    help: 'Tentar quando o acesso estiver aberto.',
+  },
   'card-replaced': {
     label: 'Cartão antigo',
     help: 'O QR deste cartão foi substituído. Usar o cartão mais recente.',
   },
-  'account-blocked': { label: 'Conta bloqueada pela escola', help: 'Desbloquear a conta, se for o caso.' },
+  'account-blocked': {
+    label: 'Conta bloqueada pela escola',
+    help: 'Desbloquear a conta, se for o caso.',
+  },
   'not-enrolled': {
     label: 'Sem matrícula ativa',
     help: 'A conta não está liberada para este aluno. Conferir o vínculo na Relação.',
@@ -42,7 +48,10 @@ export const AUDIT_REASON_LABELS_V1: Record<ReasonV1, { label: string; help: str
     label: 'Prazo para criar a senha esgotado',
     help: 'Ler o cartão novamente e criar a senha dentro do prazo.',
   },
-  'already-active': { label: 'Conta já ativada', help: 'O aluno já criou a senha. Entrar com a senha.' },
+  'already-active': {
+    label: 'Conta já ativada',
+    help: 'O aluno já criou a senha. Entrar com a senha.',
+  },
   'retry-needed': { label: 'Nova tentativa necessária', help: 'Ler o cartão novamente.' },
 };
 
@@ -91,7 +100,10 @@ export function auditDetailRowsV1(
   if (!detail) return [];
   const rows: { label: string; value: string }[] = [];
   if (detail.reason) {
-    rows.push({ label: 'Motivo', value: AUDIT_REASON_LABELS_V1[detail.reason].label }, { label: 'Como orientar', value: AUDIT_REASON_LABELS_V1[detail.reason].help });
+    rows.push(
+      { label: 'Motivo', value: AUDIT_REASON_LABELS_V1[detail.reason].label },
+      { label: 'Como orientar', value: AUDIT_REASON_LABELS_V1[detail.reason].help },
+    );
   }
   if (detail.step) rows.push({ label: 'Etapa', value: STEP_LABELS_V1[detail.step] });
   if (detail.failures !== undefined && detail.blockAfter !== undefined)
@@ -99,7 +111,8 @@ export function auditDetailRowsV1(
       label: 'Tentativas erradas',
       value: `${detail.failures} de ${detail.blockAfter} antes do bloqueio`,
     });
-  if (detail.blockedUntil) rows.push({ label: 'Bloqueado até', value: formatDate(detail.blockedUntil) });
+  if (detail.blockedUntil)
+    rows.push({ label: 'Bloqueado até', value: formatDate(detail.blockedUntil) });
   if (detail.keepConnected !== undefined)
     rows.push({ label: 'Manter conectado', value: detail.keepConnected ? 'Sim' : 'Não' });
   if (detail.device)

@@ -52,7 +52,8 @@ export function RecordOriginV1({
   canWrite: boolean;
   onClose: (account: AdminAccountReadV2) => void;
 }>) {
-  const applies = account !== null && !account.linkClosed && !!account.link && account.classId === null;
+  const applies =
+    account !== null && !account.linkClosed && !!account.link && account.classId === null;
   return applies ? (
     <OriginCardV1 reader={reader} account={account} canWrite={canWrite} onClose={onClose} />
   ) : null;
@@ -95,7 +96,9 @@ function OriginCardV1({
     <Card className="pa-record-origin" aria-labelledby="pa-record-origin-title">
       <Card.Content>
         <h4 id="pa-record-origin-title">Por que está sem turma</h4>
-        {read.state.state === 'error' ? <p>Não foi possível ler os registros desta conta.</p> : null}
+        {read.state.state === 'error' ? (
+          <p>Não foi possível ler os registros desta conta.</p>
+        ) : null}
         {text ? (
           <>
             <ul>

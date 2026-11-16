@@ -8,17 +8,29 @@ export const graphDefaultsV1: GraphDependencies = {
   sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 };
 export class GraphError extends Error {
-  constructor(readonly status: number, readonly correlationId: string, readonly retryAfterSeconds?: number) {
+  constructor(
+    readonly status: number,
+    readonly correlationId: string,
+    readonly retryAfterSeconds?: number,
+  ) {
     super(`Graph request failed (${status})`);
   }
 }
 
 /** Keep the complete opaque nextLink query, but never send a bearer token to another host. */
 export function graphUrlV1(path: string): string {
-  const url = new URL(path.startsWith('/') && !path.startsWith('//')
-    ? `https://graph.microsoft.com/v1.0${path}` : path);
-  if (url.origin !== 'https://graph.microsoft.com' || url.username || url.password || url.hash
-    || !(url.pathname === '/v1.0' || url.pathname.startsWith('/v1.0/')))
+  const url = new URL(
+    path.startsWith('/') && !path.startsWith('//')
+      ? `https://graph.microsoft.com/v1.0${path}`
+      : path,
+  );
+  if (
+    url.origin !== 'https://graph.microsoft.com' ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    !(url.pathname === '/v1.0' || url.pathname.startsWith('/v1.0/'))
+  )
     throw new Error('Graph URL is outside the approved API');
   return url.href;
 }
@@ -34,11 +46,17 @@ async function waitV1(milliseconds: number, dependencies: GraphDependencies, sig
   if (!signal) return dependencies.sleep(milliseconds);
   let abort!: () => void;
   try {
-    await Promise.race([dependencies.sleep(milliseconds), new Promise<never>((_resolve, reject) => {
-      abort = () => reject(signal.reason); signal.addEventListener('abort', abort, { once: true });
-      if (signal.aborted) abort();
-    })]);
-  } finally { signal.removeEventListener('abort', abort); }
+    await Promise.race([
+      dependencies.sleep(milliseconds),
+      new Promise<never>((_resolve, reject) => {
+        abort = () => reject(signal.reason);
+        signal.addEventListener('abort', abort, { once: true });
+        if (signal.aborted) abort();
+      }),
+    ]);
+  } finally {
+    signal.removeEventListener('abort', abort);
+  }
 }
 
 /** One request: the response when it succeeds, or the status (and Retry-After) of a failure that
@@ -50,13 +68,17 @@ async function graphAttemptV1(
   clock: () => number,
 ): Promise<Response | { status: number; retryMs: number | undefined }> {
   try {
-    const timeout = AbortSignal.timeout(Math.max(1, Math.floor(Math.min(input.attemptTimeoutMs ?? 12_000, remaining))));
-    const response = await input.dependencies.fetch(input.url, { ...input.init,
+    const timeout = AbortSignal.timeout(
+      Math.max(1, Math.floor(Math.min(input.attemptTimeoutMs ?? 12_000, remaining))),
+    );
+    const response = await input.dependencies.fetch(input.url, {
+      ...input.init,
       // Cloudflare Workers only accepts follow/manual. Manual is the
       // fail-closed equivalent here: non-2xx responses are rejected below,
       // without forwarding the bearer token to a redirect destination.
       redirect: input.allowContentRedirect && method === 'GET' ? 'follow' : 'manual',
-      signal: input.signal ? AbortSignal.any([input.signal, timeout]) : timeout });
+      signal: input.signal ? AbortSignal.any([input.signal, timeout]) : timeout,
+    });
     if (response.ok) return response;
     const retryMs = graphRetryAfterMsV1(response.headers.get('Retry-After'), clock());
     await response.body?.cancel().catch(() => undefined);
@@ -76,12 +98,20 @@ async function graphAttemptV1(
  * of holding an interactive request open. Only GET can replay an ambiguous transport/5xx result.
  */
 export async function graphFetchV1(input: {
-  url: string; init: RequestInit; correlationId: string; dependencies: GraphDependencies;
-  signal?: AbortSignal; attemptTimeoutMs?: number; budgetMs?: number; allowContentRedirect?: boolean;
+  url: string;
+  init: RequestInit;
+  correlationId: string;
+  dependencies: GraphDependencies;
+  signal?: AbortSignal;
+  attemptTimeoutMs?: number;
+  budgetMs?: number;
+  allowContentRedirect?: boolean;
 }): Promise<Response> {
   const clock = input.dependencies.now ?? Date.now;
-  const started = clock(), budget = input.budgetMs ?? 20_000;
-  let waited = 0, lastStatus = 503;
+  const started = clock(),
+    budget = input.budgetMs ?? 20_000;
+  let waited = 0,
+    lastStatus = 503;
   const elapsed = () => Math.max(clock() - started, waited);
   const method = input.init.method ?? 'GET';
   for (let attempt = 0; attempt < 5; attempt++) {

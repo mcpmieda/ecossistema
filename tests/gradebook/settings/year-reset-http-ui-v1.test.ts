@@ -43,7 +43,8 @@ async function http(
           roles: [role],
           exp: Math.floor(Date.now() / 1000) + 600,
         },
-        testEnv.SESSION_SECRET, 'admin-session',
+        testEnv.SESSION_SECRET,
+        'admin-session',
       )}`,
     );
   }
@@ -70,7 +71,8 @@ describe('year reset V1 HTTP and UI boundary', () => {
     for (const state of ['portal-linked-accounts', null]) {
       const transaction = {
         executeNative: async () => ({ rows: [], changes: 0 }),
-        query: async (sql: string) => sql.includes('AS state') && state !== null ? [{ state }] : [],
+        query: async (sql: string) =>
+          sql.includes('AS state') && state !== null ? [{ state }] : [],
       };
       const response = await http('ADMINISTRADOR', {
         GRADEBOOK_DATABASE: {

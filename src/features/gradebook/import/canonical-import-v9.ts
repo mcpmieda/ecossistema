@@ -72,7 +72,12 @@ function holdableCellV9<T>(
   try {
     return { value: read(), held: false };
   } catch {
-    runtime.onHeld?.({ kind: 'cell', sheetName: sheet.name, cellAddress: address, reason: 'invalid-cell' });
+    runtime.onHeld?.({
+      kind: 'cell',
+      sheetName: sheet.name,
+      cellAddress: address,
+      reason: 'invalid-cell',
+    });
     return { value: HELD_CELL_V9, held: true };
   }
 }
@@ -82,7 +87,12 @@ function heldResultV9(
   sheet: GradeSheetRecognition,
   address: string,
 ): readonly ['u'] {
-  runtime.onHeld?.({ kind: 'cell', sheetName: sheet.name, cellAddress: address, reason: 'depends-on-held-cell' });
+  runtime.onHeld?.({
+    kind: 'cell',
+    sheetName: sheet.name,
+    cellAddress: address,
+    reason: 'depends-on-held-cell',
+  });
   return HELD_CELL_V9;
 }
 
@@ -118,10 +128,7 @@ function snapshot(sheet: GradeSheetRecognition, address: string): unknown {
   return sheet.snapshotCellsV8?.[address];
 }
 
-function cellFromSnapshot(
-  sheet: GradeSheetRecognition,
-  address: string,
-): GradebookImportCellV9 {
+function cellFromSnapshot(sheet: GradeSheetRecognition, address: string): GradebookImportCellV9 {
   const raw = snapshot(sheet, address);
   if (Array.isArray(raw)) return ['u'];
   if (raw === undefined) return ['u'];
@@ -139,8 +146,7 @@ function cellFromSnapshot(
   if (numeric === null || !Number.isFinite(numeric)) {
     throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
   }
-  if (numeric < 0)
-    throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
+  if (numeric < 0) throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
   // The observed scalar is authoritative: 0.1 is 100 thousandths, not a marker.
   // Never prefer a legacy NoteValue.value that may already have collapsed it to zero.
   return canonicalMilliV9(numeric);
@@ -239,7 +245,8 @@ function unavailableSource(value: unknown): boolean {
 }
 
 function qualitativeNameState(
-  definition: Extract<SourceAssessmentDefinitionV2, { readonly kind: 'qualitative-activity' }> | undefined,
+  definition:
+    Extract<SourceAssessmentDefinitionV2, { readonly kind: 'qualitative-activity' }> | undefined,
 ): { readonly present: boolean; readonly unavailable: boolean } {
   if (!definition) return { present: false, unavailable: true };
   const name = definition.name;
@@ -300,7 +307,11 @@ function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV
     throw new Error(`Máximo de AV1/AV2 ausente ou inválido em ${sheet.name}.`);
   }
 
-  const instrumentos: GradebookImportInstrumentV9[] = [[1, av1], [2, av2], [3, null]];
+  const instrumentos: GradebookImportInstrumentV9[] = [
+    [1, av1],
+    [2, av2],
+    [3, null],
+  ];
   const unavailableMaximumSlots: GradebookImportInstrumentV9[0][] = [];
   const unavailableDescriptionSlots: GradebookImportInstrumentV9[0][] = [];
   const unavailableValueSlots: GradebookImportInstrumentV9[0][] = [];
@@ -308,8 +319,7 @@ function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV
   for (const [index, source] of SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.entries()) {
     const slot = (11 + index) as GradebookImportInstrumentV9[0];
     const definition = bySource.get(source.sourceSlot);
-    const qualitative =
-      definition?.kind === 'qualitative-activity' ? definition : undefined;
+    const qualitative = definition?.kind === 'qualitative-activity' ? definition : undefined;
     const maximumState = qualitative?.maximumConfiguration.state ?? 'missing-field';
     const maximumUnavailable =
       maximumState === 'missing-field' ||
@@ -329,8 +339,7 @@ function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV
 
     const maximumValue = maximum(qualitative);
     const label = description(qualitative);
-    const activeEvidence =
-      maximumState === 'numeric' || nameState.present || values.observed;
+    const activeEvidence = maximumState === 'numeric' || nameState.present || values.observed;
 
     // Technical/unreadable absence is not deletion: omit the slot and mark
     // the unread definition so the server preserves its last known metadata.
@@ -390,59 +399,64 @@ function term(
   const heldColumns = holds.columns.get(sheet.name) ?? new Set<number>();
   const heldResults = holds.results.get(sheet.name) ?? new Set<number>();
   const heldQualitative = holds.qualitativeRows.get(sheet.name) ?? new Set<number>();
-  const withHeld = (slots: readonly GradebookImportInstrumentV9[0][]) =>
-    [...new Set([...slots, ...([...heldColumns] as GradebookImportInstrumentV9[0][])])];
+  const withHeld = (slots: readonly GradebookImportInstrumentV9[0][]) => [
+    ...new Set([...slots, ...([...heldColumns] as GradebookImportInstrumentV9[0][])]),
+  ];
   const unavailableMaximumSlots = withHeld(definitionSnapshot.unavailableMaximumSlots);
   const unavailableDescriptionSlots = withHeld(definitionSnapshot.unavailableDescriptionSlots);
   const unavailableValueSlots = withHeld(definitionSnapshot.unavailableValueSlots);
   const seen = new Set<number>();
-  const alunos = templateStudentsV9(sheet)
-    .map((student) => {
-      const numero = studentNumber(student, sheet);
-      if (seen.has(numero))
-        throw new Error(`Número de aluno duplicado em ${sheet.name}: ${numero}.`);
-      seen.add(numero);
-      let gradeHeld = false;
-      const valores = definitions.map(([slot, max]) => {
-        const address = addressForSlot(slot, student.row);
-        if (heldColumns.has(slot) || (slot >= 11 && heldQualitative.has(student.row))) return HELD_CELL_V9;
-        const read = holdableCellV9(runtime, sheet, address, () => cellFromSnapshot(sheet, address));
-        gradeHeld ||= read.held;
-        const value = read.value;
-        if (typeof value === 'number' && max !== null && value > max) {
-          // A grade above its maximum is held with the student's result (BN-DEC-046).
-          runtime.onWarning?.({
-            code: 'above-maximum',
-            sheetName: sheet.name,
-            cellAddress: address,
-            value,
-            maximum: max,
-          });
-          runtime.onHeld?.({ kind: 'cell', sheetName: sheet.name, cellAddress: address, reason: 'invalid-cell' });
-          gradeHeld = true;
-          return HELD_CELL_V9;
-        }
-        return value;
-      });
-      if (heldResults.has(student.row)) gradeHeld = true;
-      const observations = student.termResultObservations;
-      if (!observations)
-        throw new Error(`Resultado trimestral ausente em ${sheet.name}, aluno ${numero}.`);
-      const amAddress = `AM${student.row}`;
-      // A term result computed from a held grade could be wrong: it is held with it.
-      let am: GradebookImportCellV9;
-      if (gradeHeld) {
-        am = heldResultV9(runtime, sheet, amAddress);
-      } else {
-        const read = holdableCellV9(runtime, sheet, amAddress, () =>
-          cellFromObservation(sheet, amAddress, observations.officialTermGrade, false),
-        );
-        am = read.value as GradebookImportCellV9;
-        gradeHeld = read.held;
+  const alunos = templateStudentsV9(sheet).map((student) => {
+    const numero = studentNumber(student, sheet);
+    if (seen.has(numero)) throw new Error(`Número de aluno duplicado em ${sheet.name}: ${numero}.`);
+    seen.add(numero);
+    let gradeHeld = false;
+    const valores = definitions.map(([slot, max]) => {
+      const address = addressForSlot(slot, student.row);
+      if (heldColumns.has(slot) || (slot >= 11 && heldQualitative.has(student.row)))
+        return HELD_CELL_V9;
+      const read = holdableCellV9(runtime, sheet, address, () => cellFromSnapshot(sheet, address));
+      gradeHeld ||= read.held;
+      const value = read.value;
+      if (typeof value === 'number' && max !== null && value > max) {
+        // A grade above its maximum is held with the student's result (BN-DEC-046).
+        runtime.onWarning?.({
+          code: 'above-maximum',
+          sheetName: sheet.name,
+          cellAddress: address,
+          value,
+          maximum: max,
+        });
+        runtime.onHeld?.({
+          kind: 'cell',
+          sheetName: sheet.name,
+          cellAddress: address,
+          reason: 'invalid-cell',
+        });
+        gradeHeld = true;
+        return HELD_CELL_V9;
       }
-      if (gradeHeld) heldStudents.add(numero);
-      return [numero, valores, am] as const;
+      return value;
     });
+    if (heldResults.has(student.row)) gradeHeld = true;
+    const observations = student.termResultObservations;
+    if (!observations)
+      throw new Error(`Resultado trimestral ausente em ${sheet.name}, aluno ${numero}.`);
+    const amAddress = `AM${student.row}`;
+    // A term result computed from a held grade could be wrong: it is held with it.
+    let am: GradebookImportCellV9;
+    if (gradeHeld) {
+      am = heldResultV9(runtime, sheet, amAddress);
+    } else {
+      const read = holdableCellV9(runtime, sheet, amAddress, () =>
+        cellFromObservation(sheet, amAddress, observations.officialTermGrade, false),
+      );
+      am = read.value as GradebookImportCellV9;
+      gradeHeld = read.held;
+    }
+    if (gradeHeld) heldStudents.add(numero);
+    return [numero, valores, am] as const;
+  });
   return {
     trimestre: trimester,
     definitionSnapshotVersion: 1,
@@ -456,7 +470,10 @@ function term(
 
 function sameNumbers(terms: readonly GradebookImportTermV9[]): boolean {
   const signature = (value: GradebookImportTermV9) =>
-    value.alunos.map((row) => row[0]).sort((a, b) => a - b).join(',');
+    value.alunos
+      .map((row) => row[0])
+      .sort((a, b) => a - b)
+      .join(',');
   return terms.every((value) => signature(value) === signature(terms[0]!));
 }
 
@@ -483,7 +500,9 @@ function offer(
   runtime: CanonicalImportRuntimeV9,
   holds: AuditHoldsV1,
 ): GradebookImportOfferV9 {
-  const heldOffer = sheets.map((sheet) => holds.offers.get(sheet.name)).find((reason) => reason !== undefined);
+  const heldOffer = sheets
+    .map((sheet) => holds.offers.get(sheet.name))
+    .find((reason) => reason !== undefined);
   if (heldOffer) throw new Error(heldOffer);
   const termSheets = new Map(
     sheets
@@ -513,7 +532,10 @@ function offer(
           const numero = studentNumber(student, recovery);
           const observations = student.recovery!.resultObservations;
           const heldRecovery = holds.recoveryCells.get(recovery.name);
-          const recoveryCell = (column: 'R' | 'S' | 'T', observation: typeof observations.trimester1) =>
+          const recoveryCell = (
+            column: 'R' | 'S' | 'T',
+            observation: typeof observations.trimester1,
+          ) =>
             heldRecovery?.has(`${column}${student.row}`)
               ? { value: HELD_CELL_V9, held: true }
               : holdableCellV9(runtime, recovery, `${column}${student.row}`, () =>
@@ -526,11 +548,12 @@ function offer(
           ];
           const uAddress = `U${student.row}`;
           // U is computed from the AMs and the recoveries: a held one holds U too.
-          const u = rec.some((cell) => cell.held) || heldStudents.has(numero)
-            ? heldResultV9(runtime, recovery, uAddress)
-            : (holdableCellV9(runtime, recovery, uAddress, () =>
-                cellFromObservation(recovery, uAddress, observations.totalAfterRecovery, false),
-              ).value as GradebookImportCellV9);
+          const u =
+            rec.some((cell) => cell.held) || heldStudents.has(numero)
+              ? heldResultV9(runtime, recovery, uAddress)
+              : (holdableCellV9(runtime, recovery, uAddress, () =>
+                  cellFromObservation(recovery, uAddress, observations.totalAfterRecovery, false),
+                ).value as GradebookImportCellV9);
           return [
             numero,
             rec[0]!.value as GradebookImportRecoveryCellV9,
@@ -591,7 +614,9 @@ function readableOffersV9(
     runtime.onProgress?.({ stage: 'grades', current: index + 1, total: groups.length });
   }
   if (ofertas.length === 0)
-    throw new Error(`Nenhuma turma desta planilha pôde ser lançada. ${heldReasons[0] ?? ''}`.trim());
+    throw new Error(
+      `Nenhuma turma desta planilha pôde ser lançada. ${heldReasons[0] ?? ''}`.trim(),
+    );
   return ofertas;
 }
 

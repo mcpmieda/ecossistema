@@ -1,14 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  Button,
-  Card,
-  Chip,
-  Label,
-  ListBox,
-  Modal,
-  Select,
-  Spinner,
-} from '@heroui/react';
+import { Button, Card, Chip, Label, ListBox, Modal, Select, Spinner } from '@heroui/react';
 import { GRADE_LABELS_V1 } from './grades-agenda-v1';
 import { PolicyLayoutV1, type PolicyCategoryV1 } from './policy-layout-v1';
 import { SchoolCalendarEditorV1 } from './school-calendar-editor-v1';
@@ -491,8 +482,7 @@ function ReviewDialogV1({
           </Modal.Header>
           <Modal.Body className="pa-settings-review">
             <p>
-              <strong>{title}</strong>{' '}
-              em {scopeLabel}.
+              <strong>{title}</strong> em {scopeLabel}.
             </p>
             <ReviewChangeV1 review={review} settings={settings} />
             <p>Esta alteração pode mudar imediatamente o acesso e as notas visíveis.</p>
@@ -558,7 +548,9 @@ function schoolEditorsV1(client: PortalAdminClientV1, canWrite: boolean, onSaved
     calendar: (editing: boolean) => (
       <SchoolCalendarEditorV1 client={client} canWrite={canWrite && editing} onSaved={onSaved} />
     ),
-    bells: (editing: boolean) => <SchoolBellsEditorV1 client={client} canWrite={canWrite && editing} />,
+    bells: (editing: boolean) => (
+      <SchoolBellsEditorV1 client={client} canWrite={canWrite && editing} />
+    ),
   };
 }
 
@@ -596,7 +588,9 @@ function publicationSlotsV1({
         gradeKey={item.period}
         canWrite={canWrite}
         disabled={disabled}
-        review={(intent: GradeReviewIntentV1) => onReview({ ...intent, expectedVersion: data.version })}
+        review={(intent: GradeReviewIntentV1) =>
+          onReview({ ...intent, expectedVersion: data.version })
+        }
         onDirtyChange={onDirtyChange}
       />
     ),

@@ -29,9 +29,14 @@ function forbiddenImports(path: string, text: string): string[] {
   };
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) record(node.moduleSpecifier);
-    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) record(node.argument.literal);
-    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
-      || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))) record(node.arguments[0]);
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument))
+      record(node.argument.literal);
+    if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    )
+      record(node.arguments[0]);
     ts.forEachChild(node, visit);
   };
   visit(source);
@@ -44,8 +49,11 @@ describe('retired D1 runtime boundary #1079', () => {
     expect(existsSync(join(root, archive, 'README.md'))).toBe(true);
     const violations = ['server', 'functions', 'src', 'shared', 'scripts', 'build', 'tests']
       .flatMap((directory) => codeFiles(join(root, directory)))
-      .flatMap((path) => forbiddenImports(path, readFileSync(path, 'utf8'))
-        .map((specifier) => `${relative(root, path)} -> ${specifier}`));
+      .flatMap((path) =>
+        forbiddenImports(path, readFileSync(path, 'utf8')).map(
+          (specifier) => `${relative(root, path)} -> ${specifier}`,
+        ),
+      );
     expect(violations).toEqual([]);
   });
 
@@ -61,7 +69,8 @@ describe('retired D1 runtime boundary #1079', () => {
       `require('${target}');`,
       'import(`' + target + '`);',
       'require(`' + target + '`);',
-    ]) expect(forbiddenImports(path, statement), statement).toEqual([target]);
+    ])
+      expect(forbiddenImports(path, statement), statement).toEqual([target]);
     expect(forbiddenImports(path, `readFileSync('${target}');`)).toEqual([]);
     const archived = `../${archive}server/gradebook/persistence/d1/runtime/d1-runtime-v1`;
     expect(forbiddenImports(path, `import('${archived}');`)).toEqual([archived]);

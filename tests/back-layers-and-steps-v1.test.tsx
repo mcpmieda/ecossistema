@@ -34,7 +34,12 @@ const parseTab = (value: unknown) =>
 function PeriodList({ locked = false }: { readonly locked?: boolean }) {
   useBackClosesOverlayV1();
   const [view, setView] = useState({ period: 1 });
-  useHistoryStepV1('test-list', view, (restored) => (locked ? false : setView(restored)), parsePeriod);
+  useHistoryStepV1(
+    'test-list',
+    view,
+    (restored) => (locked ? false : setView(restored)),
+    parsePeriod,
+  );
   const [open, setOpen] = useState(false);
   return (
     <>

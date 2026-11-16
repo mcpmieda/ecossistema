@@ -128,15 +128,16 @@ function database(fixtures: Fixture[]) {
     async unsafe<R extends Record<string, unknown>>(sql: string, values: readonly unknown[] = []) {
       calls.push(sql);
       let rows: Record<string, unknown>[];
-      const selected = fixtures.find((item) => item.row.id === values[0] || item.row.id === values[1]);
+      const selected = fixtures.find(
+        (item) => item.row.id === values[0] || item.row.id === values[1],
+      );
       if (sql.includes('SELECT statement_timestamp()')) rows = [{ now }];
       else if (sql.includes(' AS profiles')) {
         // Production disables dynamic array type discovery; IDs must cross as JSON text.
         expect(sql).toContain('jsonb_array_elements_text($1::text::jsonb)');
         expect(values).toEqual([JSON.stringify(fixtures.map((item) => item.row.id))]);
         rows = fixtures.map((item) => item.row);
-      }
-      else if (sql.includes('SELECT a.id ') && sql.includes('LIMIT 201'))
+      } else if (sql.includes('SELECT a.id ') && sql.includes('LIMIT 201'))
         rows = fixtures.map(({ row }) => ({ id: row.id }));
       else if (sql.includes('selected.*'))
         rows = sql.includes('jsonb_to_recordset')

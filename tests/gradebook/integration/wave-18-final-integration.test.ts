@@ -9,10 +9,15 @@ function source(path: string): string {
 }
 
 describe('integração final da onda 18 — durabilidade, Conselho V2 e relatórios', () => {
-
   it('preserva o renderer compartilhado e aposenta o gerador em lote sem montagem', () => {
-    expect(existsSync(join(root, 'src/features/gradebook/bulletins/pdf/bulletin-pdf-batch-actions-v1.ts'))).toBe(false);
-    expect(source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts')).toContain("from './bulletin-pdf-engine'");
+    expect(
+      existsSync(
+        join(root, 'src/features/gradebook/bulletins/pdf/bulletin-pdf-batch-actions-v1.ts'),
+      ),
+    ).toBe(false);
+    expect(source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts')).toContain(
+      "from './bulletin-pdf-engine'",
+    );
   });
 
   it('não introduz storage acadêmico persistente no navegador nas novas superfícies', () => {

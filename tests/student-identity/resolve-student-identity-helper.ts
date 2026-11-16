@@ -19,9 +19,10 @@ export async function resolveStudentIdentitiesV1(
   input: unknown,
 ): Promise<StudentIdentityResolutionV1[]> {
   const request = studentIdentityRequestV1.parse(input);
-  const references = request.source === 'gradebook'
-    ? [...new Set(request.studentIds)]
-    : [...new Set(request.accountIds)];
+  const references =
+    request.source === 'gradebook'
+      ? [...new Set(request.studentIds)]
+      : [...new Set(request.accountIds)];
   // Text parameter avoids automatic JSON serialization of already serialized strings.
   const rows = await query(
     request.source === 'gradebook'
@@ -48,11 +49,14 @@ export async function resolveStudentIdentitiesV1(
       gradebookStudentId: row.gradebook_student_id,
       ...(request.source === 'portal' ? { accountId: row.account_id } : {}),
     });
-    const reference = result.source === 'portal'
-      ? result.accountId
-      : String(result.gradebookStudentId);
-    if (result.academicYear !== request.academicYear || !requested.has(reference)
-      || seen.has(reference) || identities.has(result.studentUid)) {
+    const reference =
+      result.source === 'portal' ? result.accountId : String(result.gradebookStudentId);
+    if (
+      result.academicYear !== request.academicYear ||
+      !requested.has(reference) ||
+      seen.has(reference) ||
+      identities.has(result.studentUid)
+    ) {
       throw new Error('student-identity-inconsistent-result');
     }
     seen.add(reference);

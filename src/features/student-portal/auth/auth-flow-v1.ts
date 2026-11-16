@@ -27,13 +27,14 @@ export const INITIAL_AUTH_STATE_V1: StudentAuthStateV1 = {
 };
 function failureMessage(error: unknown, attemptedStep?: StudentAuthStepV1): string {
   if (error instanceof PortalClientErrorV1) {
-    if (error.state === 'rate-limited') return 'Muitas tentativas. Aguarde antes de tentar novamente.';
+    if (error.state === 'rate-limited')
+      return 'Muitas tentativas. Aguarde antes de tentar novamente.';
     if (error.state === 'access-closed') return 'Acesso ao Portal fechado.';
-    if (error.state === 'unavailable') return 'O serviço de acesso está temporariamente indisponível. Tente novamente.';
+    if (error.state === 'unavailable')
+      return 'O serviço de acesso está temporariamente indisponível. Tente novamente.';
     if (error.state === 'network-error') return 'Não foi possível conectar. Tente novamente.';
   }
-  if (attemptedStep === 'create')
-    return 'Não foi possível concluir o acesso. Leia o QR novamente.';
+  if (attemptedStep === 'create') return 'Não foi possível concluir o acesso. Leia o QR novamente.';
   return 'Não foi possível entrar. Confira os dados e tente novamente.';
 }
 
@@ -83,7 +84,9 @@ export function createStudentAuthFlowV1(
       const remaining = Date.parse(result.expiresAt) - now();
       proofExpiresAt =
         now() +
-        (remaining > 0 && remaining <= CHALLENGE_TTL_MAX_MS_V1 ? remaining : CHALLENGE_TTL_MAX_MS_V1);
+        (remaining > 0 && remaining <= CHALLENGE_TTL_MAX_MS_V1
+          ? remaining
+          : CHALLENGE_TTL_MAX_MS_V1);
       emit({ step: 'create', needsRisk: false, expiresAt: result.expiresAt });
       expiryTimer = setTimeout(
         () => reset('O prazo para criar a senha terminou. Leia o QR novamente.'),

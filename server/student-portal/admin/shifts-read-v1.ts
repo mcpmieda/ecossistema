@@ -35,8 +35,9 @@ export async function readShiftsV1(
     FROM classes cl ORDER BY cl.label COLLATE "C",cl.class_id`,
   );
   const known = (fields: unknown) =>
-    (Array.isArray(fields) ? fields : []).filter((field): field is (typeof POLICY_FIELDS_V1)[number] =>
-      (POLICY_FIELDS_V1 as readonly unknown[]).includes(field),
+    (Array.isArray(fields) ? fields : []).filter(
+      (field): field is (typeof POLICY_FIELDS_V1)[number] =>
+        (POLICY_FIELDS_V1 as readonly unknown[]).includes(field),
     );
   const items = SHIFTS_V1.map((shift) => {
     const mine = rows.filter((row) => row.shift === shift);

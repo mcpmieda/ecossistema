@@ -7,10 +7,10 @@ const workflow = readFileSync('.github/workflows/entra-operations-audit.yml', 'u
 
 describe('Entra Operations OIDC workflow', () => {
   it('uses short-lived OIDC with read-only repository permissions', () => {
-    expect(workflow).toContain("id-token: write");
-    expect(workflow).toContain("contents: read");
-    expect(workflow).toContain("api%3A%2F%2FAzureADTokenExchange");
-    expect(workflow).not.toContain("azure/login@");
+    expect(workflow).toContain('id-token: write');
+    expect(workflow).toContain('contents: read');
+    expect(workflow).toContain('api%3A%2F%2FAzureADTokenExchange');
+    expect(workflow).not.toContain('azure/login@');
   });
 
   it('uses repository variables instead of Microsoft client secrets', () => {
@@ -30,11 +30,13 @@ describe('Entra Operations OIDC workflow', () => {
     expect(workflow).toContain("github.event_name == 'workflow_dispatch'");
     expect(workflow).toContain("github.event_name == 'push'");
     expect(workflow).toContain("github.event_name == 'schedule'");
-    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain('branches: [main]');
     expect(workflow).toContain("cron: '15 10 * * *'");
     expect(workflow).toContain('test "$GITHUB_REF" = "refs/heads/main"');
     expect(workflow).toContain('ACTIONS_ID_TOKEN_REQUEST_URL');
-    expect(workflow).toContain('client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer');
+    expect(workflow).toContain(
+      'client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+    );
     expect(workflow).toContain('https://graph.microsoft.com/.default');
     expect(workflow).toContain('scripts/entra/operations-audit.ts');
   });

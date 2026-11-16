@@ -221,7 +221,10 @@ export function PlatformSearch({
       </Button>
 
       {mobileOpen && snapshot && (
-        <div className="platform-search-mobile-panel order-last basis-full md:hidden" data-back-layer="">
+        <div
+          className="platform-search-mobile-panel order-last basis-full md:hidden"
+          data-back-layer=""
+        >
           <div className="flex items-center gap-2">
             <InlineSearchField
               inputRef={mobileInputRef}

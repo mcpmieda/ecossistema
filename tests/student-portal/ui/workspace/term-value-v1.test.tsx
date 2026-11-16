@@ -24,7 +24,11 @@ describe('trimester value under the Boletim tab', () => {
     for (const subject of data.subjects)
       for (const period of subject.periods)
         if (period.final.kind === 'score' && period.final.maximum)
-          period.final = score(period.final.value, period.final.maximum, period.final.value * 100 >= period.final.maximum * 60);
+          period.final = score(
+            period.final.value,
+            period.final.maximum,
+            period.final.value * 100 >= period.final.maximum * 60,
+          );
     render(<StudentPortalWorkspaceV1 data={data} profile={null} />);
     expect(termValueText()).toBe('Mín. 18 · Máx. 30');
   });

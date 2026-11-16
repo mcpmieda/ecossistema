@@ -3,7 +3,10 @@ import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1'
 // Disposable local test harness; no bindings, database, real credentials or production route.
 export default {
   async fetch() {
-    const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(41)]]), new Map([[1, new Uint8Array(32).fill(42)]]));
+    const cryptography = new PortalCryptoV1(
+      new Map([[1, new Uint8Array(32).fill(41)]]),
+      new Map([[1, new Uint8Array(32).fill(42)]]),
+    );
     const verifier = await cryptography.deriveVerifier('123456', 1);
     const credentialId = cryptography.randomToken(32);
     const signature = await cryptography.signQr(credentialId, 1);

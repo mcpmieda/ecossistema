@@ -49,7 +49,8 @@ function TapTooltipRoot({
     if (!isOpen || !tapOpened.current) return;
     const closeOutside = (event: globalThis.PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (target && (trigger.current?.contains(target) || target.closest('[role="tooltip"]'))) return;
+      if (target && (trigger.current?.contains(target) || target.closest('[role="tooltip"]')))
+        return;
       tapOpened.current = false;
       setOwnOpen(false);
       onOpenChange?.(false);
@@ -84,9 +85,12 @@ function TapTooltipTrigger(props: ComponentProps<typeof BaseTooltip.Trigger>) {
         if (!control || !touch.current) return;
         touch.current = false;
         // A tooltip around a button only names it: the tap belongs to the button.
-        const inner = event.target instanceof Element
-          ? event.target.closest('button, a, input, select, textarea, [role="button"]:not([data-slot="tooltip-trigger"])')
-          : null;
+        const inner =
+          event.target instanceof Element
+            ? event.target.closest(
+                'button, a, input, select, textarea, [role="button"]:not([data-slot="tooltip-trigger"])',
+              )
+            : null;
         if (inner && inner !== event.currentTarget && event.currentTarget.contains(inner)) return;
         const open = !wasOpen.current;
         control.setOpen(open);

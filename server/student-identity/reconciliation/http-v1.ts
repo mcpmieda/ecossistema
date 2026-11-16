@@ -68,7 +68,8 @@ export async function stageReconciliationCredentialsV1(
   input: { batchId: string; generation: string; expectedRevision: number },
 ): Promise<StagedCredentialsV1> {
   const binding = env.PORTAL_SERVICE as CredentialBindingV1 | undefined;
-  if (typeof binding?.prepareReconciliationCredentials !== 'function') return { state: 'unavailable' };
+  if (typeof binding?.prepareReconciliationCredentials !== 'function')
+    return { state: 'unavailable' };
   const staged = stageResultV1.safeParse(
     await binding.prepareReconciliationCredentials(context, {
       contractVersion: 1,

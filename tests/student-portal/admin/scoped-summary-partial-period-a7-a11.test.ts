@@ -29,13 +29,37 @@ const account = (student: number) => `a7a11000-0000-4000-8000-${String(student).
 /** One subject; `marks` holds the value of the first instrument of each trimester. */
 function payload(marks: { t1: number; t2: number; t3: number }) {
   const instruments = ([1, 2, 3] as const).map((term) => ({
-    id: 900 + term, term, slot: 1, maximum: term === 3 ? 40000 : 30000, label: null,
-    value: term === 1 ? marks.t1 : term === 2 ? marks.t2 : marks.t3, observed: true,
+    id: 900 + term,
+    term,
+    slot: 1,
+    maximum: term === 3 ? 40000 : 30000,
+    label: null,
+    value: term === 1 ? marks.t1 : term === 2 ? marks.t2 : marks.t3,
+    observed: true,
   }));
   return {
-    minimum_approval: 60000, assessment_names: {}, name: 'ESTUDANTE SINTETICO',
-    offers: [{ offerId: 1, subjectId: 77, label: 'MATEMATICA', instruments,
-      closure: { am1: marks.t1, am2: marks.t2, am3: marks.t3, rec1: null, rec2: null, rec3: null, nc: 0, rr: 0, annual: null } }],
+    minimum_approval: 60000,
+    assessment_names: {},
+    name: 'ESTUDANTE SINTETICO',
+    offers: [
+      {
+        offerId: 1,
+        subjectId: 77,
+        label: 'MATEMATICA',
+        instruments,
+        closure: {
+          am1: marks.t1,
+          am2: marks.t2,
+          am3: marks.t3,
+          rec1: null,
+          rec2: null,
+          rec3: null,
+          nc: 0,
+          rr: 0,
+          annual: null,
+        },
+      },
+    ],
   };
 }
 
@@ -50,42 +74,76 @@ const tx: StudentPortalPostgresQueryV1 = {
 async function seed(newer: Record<number, ReturnType<typeof payload>>) {
   await pg.exec('DROP SCHEMA IF EXISTS student_portal CASCADE;' + SCHEMA);
   const base = payload({ t1: 20000, t2: 20000, t3: 14000 });
-  await pg.query('INSERT INTO student_portal.publication_source_head_v2 VALUES(2026,$1,2)', [GENERATION]);
+  await pg.query('INSERT INTO student_portal.publication_source_head_v2 VALUES(2026,$1,2)', [
+    GENERATION,
+  ]);
   await pg.query('INSERT INTO student_portal.academic_revision VALUES(2026,$1,2)', [GENERATION]);
   await pg.exec('INSERT INTO student_portal.publication_control_v2 VALUES(2026,true,5)');
-  for (const [student, classId] of [[1, 10], [2, 11]] as const) {
+  for (const [student, classId] of [
+    [1, 10],
+    [2, 11],
+  ] as const) {
     await pg.query('INSERT INTO student_portal.academic_student_v1 VALUES(2026,$1)', [student]);
-    await pg.query('INSERT INTO student_portal.academic_binding_v1 VALUES(2026,$1,$2,1)', [student, classId]);
-    await pg.query('INSERT INTO student_portal.account VALUES($1,2026,$2,NULL)', [account(student), student]);
-    await pg.query('INSERT INTO student_portal.publication_source_v2 VALUES(2026,$1,$2,1,$3,$4,63)',
-      [student, GENERATION, classId, JSON.stringify(base)]);
+    await pg.query('INSERT INTO student_portal.academic_binding_v1 VALUES(2026,$1,$2,1)', [
+      student,
+      classId,
+    ]);
+    await pg.query('INSERT INTO student_portal.account VALUES($1,2026,$2,NULL)', [
+      account(student),
+      student,
+    ]);
+    await pg.query(
+      'INSERT INTO student_portal.publication_source_v2 VALUES(2026,$1,$2,1,$3,$4,63)',
+      [student, GENERATION, classId, JSON.stringify(base)],
+    );
     const next = newer[student];
-    if (next) await pg.query('INSERT INTO student_portal.publication_source_v2 VALUES(2026,$1,$2,2,$3,$4,63)',
-      [student, GENERATION, classId, JSON.stringify(next)]);
+    if (next)
+      await pg.query(
+        'INSERT INTO student_portal.publication_source_v2 VALUES(2026,$1,$2,2,$3,$4,63)',
+        [student, GENERATION, classId, JSON.stringify(next)],
+      );
   }
   for (const [index, period] of ['T1', 'T2', 'T3'].entries())
-    await pg.query(`INSERT INTO student_portal.publication_release_v2 VALUES('class:2026:10','class',2026,$1,$2,$3,NULL)`,
-      [period, `${GENERATION}:1`, index + 1]);
+    await pg.query(
+      `INSERT INTO student_portal.publication_release_v2 VALUES('class:2026:10','class',2026,$1,$2,$3,NULL)`,
+      [period, `${GENERATION}:1`, index + 1],
+    );
 }
 
 const item = (summary: Awaited<ReturnType<typeof scopedSummaryV2>>, period: string) =>
   summary.items.find((value) => value.period === period)!;
 
-afterAll(async () => { await pg.close(); });
+afterAll(async () => {
+  await pg.close();
+});
 
 describe('A7: a period published for only some students of the scope', () => {
-  beforeEach(async () => { await seed({}); });
+  beforeEach(async () => {
+    await seed({});
+  });
 
   it('reports how many of the school are published and keeps it out of allPublished', async () => {
     const school = await scopedSummaryV2(tx, { kind: 'school', academicYear: 2026 });
-    expect(item(school, 'T1')).toMatchObject({ state: 'published', publishedCount: 1, targetCount: 2 });
+    expect(item(school, 'T1')).toMatchObject({
+      state: 'published',
+      publishedCount: 1,
+      targetCount: 2,
+    });
     expect(school.allPublished.has('T1')).toBe(false);
-    expect(item(school, 'REC1')).toMatchObject({ publishedCount: 0, targetCount: 2, publishedRevision: null });
+    expect(item(school, 'REC1')).toMatchObject({
+      publishedCount: 0,
+      targetCount: 2,
+      publishedRevision: null,
+    });
   });
 
   it('reports a fully published class as all of its students', async () => {
     const own = await scopedSummaryV2(tx, { kind: 'class', academicYear: 2026, classId: 10 });
-    expect(item(own, 'T1')).toMatchObject({ state: 'published', publishedCount: 1, targetCount: 1 });
+    expect(item(own, 'T1')).toMatchObject({
+      state: 'published',
+      publishedCount: 1,
+      targetCount: 1,
+    });
     expect(own.allPublished.has('T1')).toBe(true);
   });
 });

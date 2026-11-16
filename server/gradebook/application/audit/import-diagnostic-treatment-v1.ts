@@ -1,7 +1,12 @@
-import { lockResetWriterV1, recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
-import { type GradebookPostgresTransactionV1,
+import {
+  lockResetWriterV1,
+  recordResetWriteV1,
+} from '../../../student-portal/integration/year-reset/writer-v1';
+import {
+  type GradebookPostgresTransactionV1,
   type GradebookPostgresWritePortV1,
-  type GradebookPostgresScalarV1 } from '../../persistence/postgres/postgres-database-v1';
+  type GradebookPostgresScalarV1,
+} from '../../persistence/postgres/postgres-database-v1';
 import { createGradebookPostgresParametersV1 } from '../../persistence/postgres/postgres-parameters-v1';
 import {
   IMPORT_DIAGNOSTIC_TREATMENT_ACTION_LABELS_V1,
@@ -15,7 +20,6 @@ import {
   type ImportDiagnosticTreatmentResponseV1,
 } from '../../../../shared/gradebook-contracts/audit/import-diagnostic-treatment-v1';
 import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
-
 
 type Row = Record<string, unknown>;
 type TransactionalDatabase = GradebookPostgresWritePortV1 & {
@@ -107,7 +111,9 @@ async function listContext(
   request: Extract<ImportDiagnosticTreatmentRequestV1, { operation: 'context' }>,
 ): Promise<ImportDiagnosticTreatmentResponseV1> {
   const { param, values } = createGradebookPostgresParametersV1();
-  const placeholders = request.findings.map((item) => `(${param(item.fileName)},${param(item.key)})`).join(',');
+  const placeholders = request.findings
+    .map((item) => `(${param(item.fileName)},${param(item.key)})`)
+    .join(',');
   const result = await rows(
     database,
     `WITH requested(arquivo,chave) AS (VALUES ${placeholders})
@@ -218,7 +224,7 @@ async function recordTreatment(
   if (!diagnostic) return failure('not-found');
 
   await database.executeNative(
-      `INSERT INTO gradebook.importacao_diagnostico_tratamento
+    `INSERT INTO gradebook.importacao_diagnostico_tratamento
         (diagnostico_origem_id,ano,arquivo,hash,chave,nivel,codigo,turma_codigo,disciplina,
          periodo,aluno_numero,campo,rotulo,acao,nota,chave_idempotencia,registrado_por)
        VALUES ($1,$2,$3,decode($4,'hex'),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,

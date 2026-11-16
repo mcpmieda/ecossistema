@@ -4,7 +4,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 const [repo, issuesPath] = process.argv.slice(2);
 const ts = createRequire(repo + '/package.json')('typescript');
-const issues = JSON.parse(readFileSync(issuesPath, 'latin1')).filter((i) => i.rule === 'typescript:S6759');
+const issues = JSON.parse(readFileSync(issuesPath, 'latin1')).filter(
+  (i) => i.rule === 'typescript:S6759',
+);
 const byFile = new Map();
 for (const issue of issues) byFile.set(issue.file, [...(byFile.get(issue.file) ?? []), issue.line]);
 let changed = 0;
@@ -16,11 +18,14 @@ for (const [file, lines] of byFile) {
   const edits = [];
   const visit = (node) => {
     const fn =
-      ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node) ? node : null;
+      ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)
+        ? node
+        : null;
     if (fn) {
       const line = source.getLineAndCharacterOfPosition(fn.getStart(source)).line + 1;
-      const parentLine =
-        ts.isVariableDeclaration(fn.parent) ? source.getLineAndCharacterOfPosition(fn.parent.getStart(source)).line + 1 : -1;
+      const parentLine = ts.isVariableDeclaration(fn.parent)
+        ? source.getLineAndCharacterOfPosition(fn.parent.getStart(source)).line + 1
+        : -1;
       if (lines.includes(line) || lines.includes(parentLine)) {
         const type = fn.parameters[0]?.type;
         if (type && !(ts.isTypeReferenceNode(type) && type.typeName.getText(source) === 'Readonly'))

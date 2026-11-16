@@ -110,9 +110,15 @@ beforeAll(async () => {
     '0017_security_event_priority_v1.sql',
   ])
     await exec(readFileSync('migrations/student-portal/' + migration, 'utf8'));
-  await exec('UPDATE student_portal.publication_control_v2 SET enabled=true WHERE academic_year=2026');
-  await exec(readFileSync('migrations/student-portal/0019_remove_legacy_projection_v1.sql', 'utf8'));
-  await exec('UPDATE student_portal.publication_control_v2 SET enabled=false WHERE academic_year=2026');
+  await exec(
+    'UPDATE student_portal.publication_control_v2 SET enabled=true WHERE academic_year=2026',
+  );
+  await exec(
+    readFileSync('migrations/student-portal/0019_remove_legacy_projection_v1.sql', 'utf8'),
+  );
+  await exec(
+    'UPDATE student_portal.publication_control_v2 SET enabled=false WHERE academic_year=2026',
+  );
   await exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.aluno(id,ano,nome) VALUES(969001,2026,'SYNTHETIC MONITORING ACCOUNT');

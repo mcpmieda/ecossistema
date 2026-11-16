@@ -40,9 +40,10 @@ describe('audit filters and restricted detail interface', () => {
     // under the unchanged 100-row request limit; the full 105-row boundary is tested below.
     const source = operationsMockV1({ count: 3 });
     const mock = operationsMockV1({
-      query: (query) => query.contractVersion === 1 && query.operation === 'audit'
-        ? source.client.query({ ...query, page: { ...query.page, limit: 2 } }).then(opJsonV1)
-        : undefined,
+      query: (query) =>
+        query.contractVersion === 1 && query.operation === 'audit'
+          ? source.client.query({ ...query, page: { ...query.page, limit: 2 } }).then(opJsonV1)
+          : undefined,
     });
     render(createElement(StudentAuditV1, { ...mock.props, scope: OP_CLASS_V1 }));
     await screen.findByRole('grid');
@@ -141,16 +142,44 @@ describe('audit filters and restricted detail interface', () => {
 it('shows historical entities and opens the authorized account by its id, never by matching its name', async () => {
   const source = operationsMockV1({ count: 1 });
   const open = vi.fn();
-  const mock = operationsMockV1({ query: query => query.contractVersion === 1 && query.operation === 'audit'
-    ? source.client.query(query).then(response => {
-      if (response.state !== 'audit') throw new Error('synthetic-audit-response');
-      return opJsonV1({ ...response, items: response.items.map(item => ({ ...item, entities: { actorName: 'SYNTHETIC OPERATOR', subjectName: 'SYNTHETIC HISTORICAL NAME', classId: 756001, classLabel: 'SYNTHETIC HISTORICAL CLASS' } })) });
-    }) : undefined });
-  render(createElement(AccountOpenContextV1.Provider, { value: open }, createElement(StudentAuditV1, mock.props)));
-  fireEvent.click(await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC HISTORICAL NAME' }));
+  const mock = operationsMockV1({
+    query: (query) =>
+      query.contractVersion === 1 && query.operation === 'audit'
+        ? source.client.query(query).then((response) => {
+            if (response.state !== 'audit') throw new Error('synthetic-audit-response');
+            return opJsonV1({
+              ...response,
+              items: response.items.map((item) => ({
+                ...item,
+                entities: {
+                  actorName: 'SYNTHETIC OPERATOR',
+                  subjectName: 'SYNTHETIC HISTORICAL NAME',
+                  classId: 756001,
+                  classLabel: 'SYNTHETIC HISTORICAL CLASS',
+                },
+              })),
+            });
+          })
+        : undefined,
+  });
+  render(
+    createElement(
+      AccountOpenContextV1.Provider,
+      { value: open },
+      createElement(StudentAuditV1, mock.props),
+    ),
+  );
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC HISTORICAL NAME' }),
+  );
   // By the student, not by the list's class: an event may predate a class change (29/09/2026).
-  expect(open).toHaveBeenCalledWith('75600000-0000-4000-8000-000000000001', { kind: 'school', academicYear: 2026 });
+  expect(open).toHaveBeenCalledWith('75600000-0000-4000-8000-000000000001', {
+    kind: 'school',
+    academicYear: 2026,
+  });
   expect(screen.getByText('SYNTHETIC OPERATOR')).toBeTruthy();
   expect(screen.getByText('SYNTHETIC HISTORICAL CLASS')).toBeTruthy();
-  expect(mock.queries.find(query => query.operation === 'audit')).toMatchObject({ includeEntities: true });
+  expect(mock.queries.find((query) => query.operation === 'audit')).toMatchObject({
+    includeEntities: true,
+  });
 });

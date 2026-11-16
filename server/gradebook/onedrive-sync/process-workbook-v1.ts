@@ -1,6 +1,10 @@
 import type { SheetJs } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
 import type { GradebookPostgresDatabaseV1 } from '../persistence/postgres/postgres-database-v1';
-import { graphDownloadWorkbookV1, WorkbookTooLargeError, type GraphAppEnvV1 } from './graph-drive-v1';
+import {
+  graphDownloadWorkbookV1,
+  WorkbookTooLargeError,
+  type GraphAppEnvV1,
+} from './graph-drive-v1';
 import type { ReadResultV1, SyncMemoryV1 } from './sync-rules-v1';
 import { prepareTeacherWorkbookV1 } from './teacher-workbook-preparation-v1';
 import {
@@ -59,26 +63,49 @@ export type ProcessWorkbookPortsV1 = {
  */
 const RELATION_FILE_NAME_V1 = /^RELA[CÇ][AÃ]O\b/iu;
 
-export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: ProcessWorkbookPortsV1): Promise<ReadResultV1> {
+export async function processWorkbookV1(
+  input: ProcessWorkbookInputV1,
+  ports: ProcessWorkbookPortsV1,
+): Promise<ReadResultV1> {
   const started = ports.now();
   const stages: Record<string, number> = {};
   let mark = started;
-  const stage = (name: string) => { const at = ports.now(); stages[name] = Math.round(at - mark); mark = at; };
-  const result = (outcome: ReadResultV1['outcome'], code: string | null, savedToWrittenMs: number | null = null,
-    memory?: SyncMemoryV1 | null): ReadResultV1 => {
+  const stage = (name: string) => {
+    const at = ports.now();
+    stages[name] = Math.round(at - mark);
+    mark = at;
+  };
+  const result = (
+    outcome: ReadResultV1['outcome'],
+    code: string | null,
+    savedToWrittenMs: number | null = null,
+    memory?: SyncMemoryV1 | null,
+  ): ReadResultV1 => {
     console.log(JSON.stringify({ event: 'notas-sync-stages', outcome, ...stages }));
-    return { outcome, code, readHash: outcome === 'failed' ? null : input.hash, readMs: ports.now() - started, savedToWrittenMs,
-      ...(memory === undefined ? {} : { memory }) };
+    return {
+      outcome,
+      code,
+      readHash: outcome === 'failed' ? null : input.hash,
+      readMs: ports.now() - started,
+      savedToWrittenMs,
+      ...(memory === undefined ? {} : { memory }),
+    };
   };
   const fromWrite = (written: WriteOutcomeV1) => {
     Object.assign(stages, written.stages);
-    const read: ReadResultV1 = { ...result(written.outcome, written.code, written.savedToWrittenMs, written.memory), workbook,
-      ...(written.heldStudents === undefined ? {} : { heldStudents: written.heldStudents }) };
+    const read: ReadResultV1 = {
+      ...result(written.outcome, written.code, written.savedToWrittenMs, written.memory),
+      workbook,
+      ...(written.heldStudents === undefined ? {} : { heldStudents: written.heldStudents }),
+    };
     return written.relationChanged ? { ...read, relationChanged: true } : read;
   };
   let workbook: ReadResultV1['workbook'];
   const writeInput: WriteInputV1 = {
-    name: input.name, modifiedAt: input.modifiedAt, expectedYear: input.expectedYear, memory: input.memory ?? null,
+    name: input.name,
+    modifiedAt: input.modifiedAt,
+    expectedYear: input.expectedYear,
+    memory: input.memory ?? null,
     origin: `onedrive:${input.itemId}`,
   };
 
@@ -88,13 +115,22 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
   let opening: Promise<GradebookPostgresDatabaseV1 | null> | null = null;
   let earlyRelation: Promise<ReadonlyMap<string, string> | null> | null = null;
   const openLocal = () => {
-    opening ??= Promise.resolve().then(() => ports.openDatabase()).then((database) => database, () => null);
+    opening ??= Promise.resolve()
+      .then(() => ports.openDatabase())
+      .then(
+        (database) => database,
+        () => null,
+      );
     const year = input.expectedYear;
     // The Relação file itself never needs the Relação read ahead.
     if (!earlyRelation && year !== null && !RELATION_FILE_NAME_V1.test(input.name)) {
       const relationNames = ports.services?.relationNames ?? relationNamesV1;
-      earlyRelation = opening.then((database) => (database ? relationNames(database, year) : null))
-        .then((relation) => { stages.relationReady = Math.round(ports.now() - started); return relation; })
+      earlyRelation = opening
+        .then((database) => (database ? relationNames(database, year) : null))
+        .then((relation) => {
+          stages.relationReady = Math.round(ports.now() - started);
+          return relation;
+        })
         .catch(() => null);
     }
     return opening;
@@ -107,28 +143,52 @@ export async function processWorkbookV1(input: ProcessWorkbookInputV1, ports: Pr
         ? await ports.download(input)
         : await graphDownloadWorkbookV1(ports.env, input.driveId, input.itemId, input.maxBytes);
     } catch (cause) {
-      return cause instanceof WorkbookTooLargeError ? result('too-large', 'FILE-TOO-LARGE') : result('failed', 'GRAPH-DOWNLOAD');
+      return cause instanceof WorkbookTooLargeError
+        ? result('too-large', 'FILE-TOO-LARGE')
+        : result('failed', 'GRAPH-DOWNLOAD');
     }
     stage('download');
     const ready = await prepareTeacherWorkbookV1({
-      bytes, fileName: input.name, lastModified: Date.parse(input.modifiedAt) || 0, xlsx: ports.xlsx, now: ports.now,
+      bytes,
+      fileName: input.name,
+      lastModified: Date.parse(input.modifiedAt) || 0,
+      xlsx: ports.xlsx,
+      now: ports.now,
     });
     if (ready.outcome === 'unreadable') return result('unreadable', ready.code);
-    workbook = ready.outcome === 'ready' && ready.request.operation === 'persist-relacao' ? 'relacao' : 'notas';
+    workbook =
+      ready.outcome === 'ready' && ready.request.operation === 'persist-relacao'
+        ? 'relacao'
+        : 'notas';
     // A copy of the Relação among the teachers' workbooks would rewrite the master roster.
-    if (workbook === 'relacao' && input.sourceKind === 'folder') return { ...result('ignored', RELATION_OUTSIDE_SOURCE_CODE_V1), workbook };
-    const prepared: PreparedWorkbookV1 = ready.outcome === 'ready'
-      ? { outcome: 'ready', request: ready.request, audit: ready.audit, studentNames: [...ready.studentNames] }
-      : { outcome: 'blocked', audit: ready.audit };
+    if (workbook === 'relacao' && input.sourceKind === 'folder')
+      return { ...result('ignored', RELATION_OUTSIDE_SOURCE_CODE_V1), workbook };
+    const prepared: PreparedWorkbookV1 =
+      ready.outcome === 'ready'
+        ? {
+            outcome: 'ready',
+            request: ready.request,
+            audit: ready.audit,
+            studentNames: [...ready.studentNames],
+          }
+        : { outcome: 'blocked', audit: ready.audit };
     stage('prepare');
 
     const database = await openLocal();
     stage('open');
     if (!database) return result('failed', 'DATABASE-UNAVAILABLE');
-    return fromWrite(await writePreparedWorkbookV1(writeInput, prepared, {
-      database, services: ports.services, notifyPortal: ports.notifyPortal, writeTurn: ports.writeTurn,
-      now: ports.now, sleep: ports.sleep, earlyRelation, actorId: ports.actorId,
-    }));
+    return fromWrite(
+      await writePreparedWorkbookV1(writeInput, prepared, {
+        database,
+        services: ports.services,
+        notifyPortal: ports.notifyPortal,
+        writeTurn: ports.writeTurn,
+        now: ports.now,
+        sleep: ports.sleep,
+        earlyRelation,
+        actorId: ports.actorId,
+      }),
+    );
   } finally {
     await (earlyRelation as Promise<unknown> | null);
     const database = await (opening as Promise<GradebookPostgresDatabaseV1 | null> | null);

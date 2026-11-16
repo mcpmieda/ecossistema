@@ -52,26 +52,26 @@ const clientOf = (
   } = {},
 ) => {
   const count = today > '2026-12-31' ? 12 : Number(today.slice(5, 7));
-  const readYear = vi.fn(
-    async (): Promise<FrequencyYearSummaryV2> => ({
-      contractVersion: 2,
-      state: 'ready',
-      academicYear: 2026,
-      today,
-      year: year ?? null,
-      lastReadAt: `${today}T10:10:00Z`,
-      months: Array.from({ length: count }, (_, index) => {
-        const key = `2026-${String(index + 1).padStart(2, '0')}`;
-        return months[key] ?? summary(key, []);
-      }),
-      ...extra,
+  const readYear = vi.fn(async (): Promise<FrequencyYearSummaryV2> => ({
+    contractVersion: 2,
+    state: 'ready',
+    academicYear: 2026,
+    today,
+    year: year ?? null,
+    lastReadAt: `${today}T10:10:00Z`,
+    months: Array.from({ length: count }, (_, index) => {
+      const key = `2026-${String(index + 1).padStart(2, '0')}`;
+      return months[key] ?? summary(key, []);
     }),
-  );
+    ...extra,
+  }));
   return { readYear } satisfies StudentFrequencyClientV2;
 };
 
 const dayButton = (day: number) =>
-  screen.getAllByRole('button').find((button) => button.querySelector('.pa3-day-number')?.textContent === String(day))!;
+  screen
+    .getAllByRole('button')
+    .find((button) => button.querySelector('.pa3-day-number')?.textContent === String(day))!;
 const ready = () => screen.findByRole('heading', { level: 3, name: /de 2026$/u });
 
 beforeEach(() => {
@@ -93,12 +93,18 @@ describe('Frequência page', () => {
 
   it("keeps today's colour on the calendar, while the ring counts no day yet", async () => {
     const months = {
-      '2026-10': summary('2026-10', [lessonDay('2026-10-21')], [1, 2, 3, 4, 5].map((slot) => ({ date: '2026-10-21', slot, mark: 'X' as const }))),
+      '2026-10': summary(
+        '2026-10',
+        [lessonDay('2026-10-21')],
+        [1, 2, 3, 4, 5].map((slot) => ({ date: '2026-10-21', slot, mark: 'X' as const })),
+      ),
     };
     render(<FrequencyPageV3 client={clientOf(months)} />);
     await ready();
     expect(dayButton(21).className).toContain('pa3-day--missed');
-    expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(/^Ano letivo 2026, 0 dias de aula contados/u);
+    expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(
+      /^Ano letivo 2026, 0 dias de aula contados/u,
+    );
   });
 
   it('shows a past day not read in full as "leitura incompleta", never as a coloured total', async () => {
@@ -124,7 +130,17 @@ describe('Frequência page', () => {
   });
 
   it('opens a day without absence too, every lesson "Sem falta" (owner request 22/10/2026)', async () => {
-    render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-19'), lessonDay('2026-10-20')], [{ date: '2026-10-19', slot: 2, mark: 'X' }]) })} />);
+    render(
+      <FrequencyPageV3
+        client={clientOf({
+          '2026-10': summary(
+            '2026-10',
+            [lessonDay('2026-10-19'), lessonDay('2026-10-20')],
+            [{ date: '2026-10-19', slot: 2, mark: 'X' }],
+          ),
+        })}
+      />,
+    );
     await ready();
     // At first, the day with an absence; a day without one is never chosen first.
     expect(dayButton(19).getAttribute('aria-pressed')).toBe('true');
@@ -137,7 +153,11 @@ describe('Frequência page', () => {
   });
 
   it('never says "sem aula" for today before its first reading', async () => {
-    render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })} />);
+    render(
+      <FrequencyPageV3
+        client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })}
+      />,
+    );
     await ready();
     const label = dayButton(21).getAttribute('aria-label')!;
     expect(label).toContain('nenhuma aula lida até agora');
@@ -158,7 +178,13 @@ describe('Frequência page', () => {
   });
 
   it('shows the marks of a day the server sent without its lesson day', async () => {
-    const months = { '2026-10': summary('2026-10', [lessonDay('2026-10-14')], [{ date: '2026-10-15', slot: 3, mark: 'X' }]) };
+    const months = {
+      '2026-10': summary(
+        '2026-10',
+        [lessonDay('2026-10-14')],
+        [{ date: '2026-10-15', slot: 3, mark: 'X' }],
+      ),
+    };
     render(<FrequencyPageV3 client={clientOf(months)} />);
     await ready();
     const button = dayButton(15);
@@ -180,7 +206,9 @@ describe('Frequência page', () => {
     const client = clientOf({}, { today: '2027-01-10' });
     render(<FrequencyPageV3 client={client} />);
     expect(await screen.findByRole('heading', { level: 3, name: 'Dezembro de 2026' })).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Próximo mês' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Próximo mês' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it('moves between months under the finger, from a day too, never past the current month', async () => {
@@ -206,7 +234,9 @@ describe('Frequência page', () => {
     const day = dayButton(20);
     fireEvent.touchStart(day, { touches: [{ clientX: 100, clientY: 300 }] });
     fireEvent.touchMove(day, { touches: [{ clientX: 180, clientY: 302 }] });
-    expect(document.querySelector('.pa-swipe-peek--prev')?.textContent).toContain('Setembro de 2026');
+    expect(document.querySelector('.pa-swipe-peek--prev')?.textContent).toContain(
+      'Setembro de 2026',
+    );
     fireEvent.touchCancel(day);
     expect(document.querySelector('.pa-swipe-peek')).toBeNull();
     expect(month()).toBe('Outubro de 2026');
@@ -231,7 +261,11 @@ describe('Frequência page', () => {
   });
 
   it('says the ring in correct Portuguese for one day', async () => {
-    render(<FrequencyPageV3 client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })} />);
+    render(
+      <FrequencyPageV3
+        client={clientOf({ '2026-10': summary('2026-10', [lessonDay('2026-10-20')]) })}
+      />,
+    );
     await ready();
     expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toBe(
       'Ano letivo 2026, 1 dia de aula contado: 1 dia sem nenhuma falta, 0 dias com falta o dia todo, 0 dias com falta em algumas aulas, 0 dias com falta justificadas',
@@ -240,19 +274,25 @@ describe('Frequência page', () => {
 
   it('counts the whole year in the ring, whatever month the calendar shows (owner request 22/10/2026)', async () => {
     const months = {
-      '2026-09': summary('2026-09', [lessonDay('2026-09-29'), lessonDay('2026-09-30')], [{ date: '2026-09-30', slot: 1, mark: 'X' }]),
+      '2026-09': summary(
+        '2026-09',
+        [lessonDay('2026-09-29'), lessonDay('2026-09-30')],
+        [{ date: '2026-09-30', slot: 1, mark: 'X' }],
+      ),
       '2026-10': summary('2026-10', [lessonDay('2026-10-20')]),
     };
     render(<FrequencyPageV3 client={clientOf(months)} />);
     await ready();
     const ring = () => document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label');
-    expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados: 2 dias sem nenhuma falta, 0 dias com falta o dia todo, 1 dia com falta em algumas aulas/u);
+    expect(ring()).toMatch(
+      /^Ano letivo 2026, 3 dias de aula contados: 2 dias sem nenhuma falta, 0 dias com falta o dia todo, 1 dia com falta em algumas aulas/u,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
     expect(screen.getByRole('heading', { level: 3, name: 'Setembro de 2026' })).toBeTruthy();
     expect(ring()).toMatch(/^Ano letivo 2026, 3 dias de aula contados/u);
   });
 
-  it("shows the class's last reading as \"Atualizado em\"", async () => {
+  it('shows the class\'s last reading as "Atualizado em"', async () => {
     render(<FrequencyPageV3 client={clientOf()} />);
     await ready();
     expect(screen.getByText(/^Atualizado em 21\/10\/2026, 07:10$/u)).toBeTruthy();
@@ -260,10 +300,18 @@ describe('Frequência page', () => {
 });
 
 describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () => {
-  const daysOff = [{ date: '2026-10-12', kind: 'feriado' as const, note: 'Nossa Senhora Aparecida' }];
+  const daysOff = [
+    { date: '2026-10-12', kind: 'feriado' as const, note: 'Nossa Senhora Aparecida' },
+  ];
   const bells = officialBells2026V1();
   // The Smecel's name; the tile shows the official one (owner decision 23/10/2026).
-  const grid = [{ shift: 'matutino' as const, validFrom: '2026-06-22', lessons: [{ weekday: 4, slot: 3, subject: 'MATEMATICA' }] }];
+  const grid = [
+    {
+      shift: 'matutino' as const,
+      validFrom: '2026-06-22',
+      lessons: [{ weekday: 4, slot: 3, subject: 'MATEMATICA' }],
+    },
+  ];
 
   it('marks a holiday on the calendar and says why when it is opened', async () => {
     const months = { '2026-10': summary('2026-10', [lessonDay('2026-10-13')]) };
@@ -271,32 +319,48 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
     await ready();
     const holiday = dayButton(12);
     expect(holiday.className).toContain('pa3-day--holiday');
-    expect(holiday.getAttribute('aria-label')).toBe('Segunda-feira, 12 de outubro: sem aula, Feriado · Nossa Senhora Aparecida');
+    expect(holiday.getAttribute('aria-label')).toBe(
+      'Segunda-feira, 12 de outubro: sem aula, Feriado · Nossa Senhora Aparecida',
+    );
     expect(screen.getByText('Feriado ou recesso')).toBeTruthy();
     fireEvent.click(holiday);
     expect(screen.getByText(/Feriado · Nossa Senhora Aparecida/u)).toBeTruthy();
   });
 
-  const tiles = () => [...document.querySelectorAll('.pa3-day-detail .pa3-lesson')].map((tile) => tile.textContent);
+  const tiles = () =>
+    [...document.querySelectorAll('.pa3-day-detail .pa3-lesson')].map((tile) => tile.textContent);
   const october = () => ({
-    '2026-06': summary('2026-06', [lessonDay('2026-06-18', 6)], [{ date: '2026-06-18', slot: 3, mark: 'X' }]),
-    '2026-10': summary('2026-10', [lessonDay('2026-10-15', 6)], [
-      { date: '2026-10-15', slot: 3, mark: 'X' },
-      { date: '2026-10-15', slot: 5, mark: 'J' },
-    ]),
+    '2026-06': summary(
+      '2026-06',
+      [lessonDay('2026-06-18', 6)],
+      [{ date: '2026-06-18', slot: 3, mark: 'X' }],
+    ),
+    '2026-10': summary(
+      '2026-10',
+      [lessonDay('2026-10-15', 6)],
+      [
+        { date: '2026-10-15', slot: 3, mark: 'X' },
+        { date: '2026-10-15', slot: 5, mark: 'J' },
+      ],
+    ),
   });
 
   it("shows each lesson's time and subject inside its tile, from the day the bells hold only", async () => {
     const months = october();
     // The bells the system saved: the official sheets of 22/06.
-    render(<FrequencyPageV3 client={clientOf(months, { extra: { bells, bellsValidFrom: '2026-06-22', grid } })} />);
+    render(
+      <FrequencyPageV3
+        client={clientOf(months, { extra: { bells, bellsValidFrom: '2026-06-22', grid } })}
+      />,
+    );
     await ready();
     fireEvent.click(dayButton(15));
     expect(tiles()[2]).toBe('3ª aula08:30–09:15MATEMÁTICAFaltou');
     expect(tiles()[4]).toBe('5ª aula10:15–11:00Justificada');
     expect(tiles()[0]).toBe('1ª aula07:00–07:45Sem falta');
     // 18/06, before the bells of 22/06: no time, no subject.
-    for (let step = 0; step < 4; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    for (let step = 0; step < 4; step += 1)
+      fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
     await screen.findByRole('heading', { level: 3, name: 'Junho de 2026' });
     fireEvent.click(dayButton(18));
     expect(tiles()[2]).toBe('3ª aulaFaltou');
@@ -304,7 +368,11 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
 
   it('never re-times a lesson older than the bells the ADM saved (owner request 27/10/2026)', async () => {
     // Bells changed in the ADM on 20/10: the lessons of 15/10 may have had other times.
-    render(<FrequencyPageV3 client={clientOf(october(), { extra: { bells, bellsValidFrom: '2026-10-20', grid } })} />);
+    render(
+      <FrequencyPageV3
+        client={clientOf(october(), { extra: { bells, bellsValidFrom: '2026-10-20', grid } })}
+      />,
+    );
     await ready();
     fireEvent.click(dayButton(15));
     expect(tiles()[2]).toBe('3ª aulaFaltou');
@@ -314,14 +382,23 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
     // A lesson swapped in the Horário in August: the grid of today only says what holds from 03/08 on.
     const swapped = [{ ...grid[0]!, validFrom: '2026-08-03' }];
     const months = {
-      '2026-07': summary('2026-07', [lessonDay('2026-07-16', 6)], [{ date: '2026-07-16', slot: 3, mark: 'X' }]),
+      '2026-07': summary(
+        '2026-07',
+        [lessonDay('2026-07-16', 6)],
+        [{ date: '2026-07-16', slot: 3, mark: 'X' }],
+      ),
       '2026-10': october()['2026-10'],
     };
-    render(<FrequencyPageV3 client={clientOf(months, { extra: { bells, bellsValidFrom: '2026-06-22', grid: swapped } })} />);
+    render(
+      <FrequencyPageV3
+        client={clientOf(months, { extra: { bells, bellsValidFrom: '2026-06-22', grid: swapped } })}
+      />,
+    );
     await ready();
     fireEvent.click(dayButton(15));
     expect(tiles()[2]).toBe('3ª aula08:30–09:15MATEMÁTICAFaltou');
-    for (let step = 0; step < 3; step += 1) fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    for (let step = 0; step < 3; step += 1)
+      fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
     await screen.findByRole('heading', { level: 3, name: 'Julho de 2026' });
     fireEvent.click(dayButton(16));
     expect(tiles()[2]).toBe('3ª aula08:30–09:15Faltou');
@@ -329,7 +406,13 @@ describe('Frequência page: calendar and bells (owner decision 23/10/2026)', () 
 
   it('names no subject when the day the grid was first read is unknown', async () => {
     const unknown = [{ ...grid[0]!, validFrom: null }];
-    render(<FrequencyPageV3 client={clientOf(october(), { extra: { bells, bellsValidFrom: '2026-06-22', grid: unknown } })} />);
+    render(
+      <FrequencyPageV3
+        client={clientOf(october(), {
+          extra: { bells, bellsValidFrom: '2026-06-22', grid: unknown },
+        })}
+      />,
+    );
     await ready();
     fireEvent.click(dayButton(15));
     expect(tiles()[2]).toBe('3ª aula08:30–09:15Faltou');
@@ -347,7 +430,8 @@ describe('Frequência page: reading', () => {
     const answer = await clientOf().readYear();
     await act(async () => finish(answer));
     expect(await screen.findByRole('heading', { level: 3, name: 'Outubro de 2026' })).toBeTruthy();
-    for (let step = 0; step < 3; step++) fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    for (let step = 0; step < 3; step++)
+      fireEvent.click(screen.getByRole('button', { name: 'Mês anterior' }));
     // Every month shows at once: no "Carregando", no request.
     expect(screen.getByRole('heading', { level: 3, name: 'Julho de 2026' })).toBeTruthy();
     expect(screen.queryByText('Carregando frequência…')).toBeNull();
@@ -355,11 +439,21 @@ describe('Frequência page: reading', () => {
   });
 
   it('hides everything and offers to sign in again when the session expires', async () => {
-    const client = { readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unauthenticated'))) };
+    const client = {
+      readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unauthenticated'))),
+    };
     const onLogin = vi.fn();
     const onAuthenticationLost = vi.fn();
-    render(<FrequencyPageV3 client={client} onLogin={onLogin} onAuthenticationLost={onAuthenticationLost} />);
-    expect(await screen.findByText('Sua sessão expirou. Entre novamente para ver a frequência.')).toBeTruthy();
+    render(
+      <FrequencyPageV3
+        client={client}
+        onLogin={onLogin}
+        onAuthenticationLost={onAuthenticationLost}
+      />,
+    );
+    expect(
+      await screen.findByText('Sua sessão expirou. Entre novamente para ver a frequência.'),
+    ).toBeTruthy();
     expect(onAuthenticationLost).toHaveBeenCalledOnce();
     expect(document.querySelector('.pa3-calendar')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
@@ -367,11 +461,15 @@ describe('Frequência page: reading', () => {
   });
 
   it('says so when the policy was turned off meanwhile, and retries other failures', async () => {
-    const forbidden = { readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('forbidden'))) };
+    const forbidden = {
+      readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('forbidden'))),
+    };
     const view = render(<FrequencyPageV3 client={forbidden} />);
     expect(await screen.findByText('A frequência não está disponível no momento.')).toBeTruthy();
     view.unmount();
-    const failing = { readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unavailable'))) };
+    const failing = {
+      readYear: vi.fn(async () => Promise.reject(new FrequencyClientErrorV2('unavailable'))),
+    };
     render(<FrequencyPageV3 client={failing} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Tentar agora' }));
     await waitFor(() => expect(failing.readYear).toHaveBeenCalledTimes(2));
@@ -397,7 +495,8 @@ describe('Frequência page: reading', () => {
 
   it('asks the server for its today again when midnight passes with the page open', async () => {
     vi.setSystemTime(new Date('2026-10-21T23:59:00-03:00'));
-    const schoolToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
+    const schoolToday = () =>
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bahia' }).format(new Date());
     const client = {
       readYear: vi.fn(async () => ({ ...(await clientOf().readYear()), today: schoolToday() })),
     };

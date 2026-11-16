@@ -266,7 +266,9 @@ describe('a preview or emission answered after the choice changed (A13)', () => 
     await release('preview');
     expect(host.textContent).not.toContain('AM oficial');
     expect(host.textContent).not.toContain('Prévia atualizada');
-    const button = [...host.querySelectorAll('button')].find((item) => item.textContent?.includes('Gerar prévia'));
+    const button = [...host.querySelectorAll('button')].find((item) =>
+      item.textContent?.includes('Gerar prévia'),
+    );
     expect(button?.hasAttribute('disabled')).toBe(false);
   });
 

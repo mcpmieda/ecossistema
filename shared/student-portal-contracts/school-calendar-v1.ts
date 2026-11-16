@@ -101,7 +101,9 @@ export const schoolDaysOfV1 = (days: readonly SchoolCalendarDayV1[]) =>
  * The school year's first and last school day as the calendar marks them (the Horário ends the
  * year at its last lesson, never at a fixed date). Null with no school day.
  */
-export const schoolYearSpanV1 = z.object({ firstDay: z.iso.date(), lastDay: z.iso.date() }).strict();
+export const schoolYearSpanV1 = z
+  .object({ firstDay: z.iso.date(), lastDay: z.iso.date() })
+  .strict();
 export type SchoolYearSpanV1 = z.infer<typeof schoolYearSpanV1>;
 export function schoolYearSpanOfV1(days: readonly SchoolCalendarDayV1[]): SchoolYearSpanV1 | null {
   const school = schoolDaysOfV1(days);
@@ -121,7 +123,10 @@ export const schoolYearProgressV1 = z
   })
   .strict();
 type SchoolYearProgressV1 = z.infer<typeof schoolYearProgressV1>;
-export function schoolYearProgressOfV1(days: readonly SchoolCalendarDayV1[], today: string): SchoolYearProgressV1 {
+export function schoolYearProgressOfV1(
+  days: readonly SchoolCalendarDayV1[],
+  today: string,
+): SchoolYearProgressV1 {
   const school = schoolDaysOfV1(days);
   return {
     schoolDays: school.length,

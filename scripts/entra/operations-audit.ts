@@ -153,7 +153,11 @@ export class EntraOperationsAuditError extends Error {
   readonly status?: number;
 
   constructor(stage: string, status?: number) {
-    super(status ? `Entra operations audit failed at ${stage} (${status})` : `Entra operations audit failed at ${stage}`);
+    super(
+      status
+        ? `Entra operations audit failed at ${stage} (${status})`
+        : `Entra operations audit failed at ${stage}`,
+    );
     this.name = 'EntraOperationsAuditError';
     this.stage = stage;
     this.status = status;
@@ -239,10 +243,8 @@ function applicationDrift(
   else if (actual.servicePrincipal.accountEnabled === false)
     add(label, 'critical', 'service-principal-disabled');
 
-  if (actual.passwordCredentials.length > 0)
-    add(label, 'warning', 'password-credential-present');
-  if (actual.keyCredentials.length === 0)
-    add(label, 'critical', 'certificate-credential-missing');
+  if (actual.passwordCredentials.length > 0) add(label, 'warning', 'password-credential-present');
+  if (actual.keyCredentials.length === 0) add(label, 'critical', 'certificate-credential-missing');
 
   certificateDrift(label, actual, now, add);
 
@@ -291,10 +293,7 @@ function operationsDrift(
   if (sharePointAuditEnabled && !operationsRoles.has(SITES_SELECTED_ROLE_ID))
     add('operations', 'critical', 'sites-selected-missing');
 
-  const allowedOperationsRoles = new Set([
-    APPLICATION_READ_ALL_ROLE_ID,
-    SITES_SELECTED_ROLE_ID,
-  ]);
+  const allowedOperationsRoles = new Set([APPLICATION_READ_ALL_ROLE_ID, SITES_SELECTED_ROLE_ID]);
   for (const roleId of operationsRoles) {
     if (!allowedOperationsRoles.has(roleId))
       add('operations', 'critical', 'unexpected-application-permission');
@@ -342,7 +341,8 @@ async function graphJson<T>(
   stage: string,
 ): Promise<T> {
   // graphReadUrlV1 allows only fixed Graph read paths on the Graph origin.
-  const response = await fetcher(graphReadUrlV1(path), { // NOSONAR
+  const response = await fetcher(graphReadUrlV1(path), {
+    // NOSONAR
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -388,12 +388,14 @@ function sanitizedAssignments(
 ): EntraOperationsIdentityAudit['appRoleAssignments'] {
   return assignments.flatMap((assignment) =>
     assignment.id && assignment.appRoleId && assignment.resourceId
-      ? [{
-          id: assignment.id,
-          appRoleId: assignment.appRoleId,
-          resourceId: assignment.resourceId,
-          createdDateTime: assignment.createdDateTime ?? null,
-        }]
+      ? [
+          {
+            id: assignment.id,
+            appRoleId: assignment.appRoleId,
+            resourceId: assignment.resourceId,
+            createdDateTime: assignment.createdDateTime ?? null,
+          },
+        ]
       : [],
   );
 }
@@ -433,8 +435,7 @@ async function readOperationsIdentity(
     id: principal.id,
     appId: principal.appId,
     displayName: principal.displayName,
-    accountEnabled:
-      typeof principal.accountEnabled === 'boolean' ? principal.accountEnabled : null,
+    accountEnabled: typeof principal.accountEnabled === 'boolean' ? principal.accountEnabled : null,
     servicePrincipalType: principal.servicePrincipalType ?? null,
     appRoleAssignments: sanitizedAssignments(assignments.value ?? []),
   };
@@ -495,7 +496,8 @@ function sanitizeApplication(
   servicePrincipal: ServicePrincipalResponse | null,
   appRoleAssignments: AppRoleAssignmentResponse[],
 ): EntraApplicationAudit {
-  if (!app.id || !app.appId || !app.displayName) throw new EntraOperationsAuditError('invalid-application-response');
+  if (!app.id || !app.appId || !app.displayName)
+    throw new EntraOperationsAuditError('invalid-application-response');
   return {
     id: app.id,
     appId: app.appId,
@@ -523,12 +525,16 @@ function sanitizeApplication(
     })),
     requiredResourceAccess: (app.requiredResourceAccess ?? []).flatMap((entry) =>
       entry.resourceAppId
-        ? [{
-            resourceAppId: entry.resourceAppId,
-            resourceAccess: (entry.resourceAccess ?? []).flatMap((permission) =>
-              permission.id && permission.type ? [{ id: permission.id, type: permission.type }] : [],
-            ),
-          }]
+        ? [
+            {
+              resourceAppId: entry.resourceAppId,
+              resourceAccess: (entry.resourceAccess ?? []).flatMap((permission) =>
+                permission.id && permission.type
+                  ? [{ id: permission.id, type: permission.type }]
+                  : [],
+              ),
+            },
+          ]
         : [],
     ),
     servicePrincipal:
@@ -538,7 +544,9 @@ function sanitizeApplication(
             appId: servicePrincipal.appId,
             displayName: servicePrincipal.displayName,
             accountEnabled:
-              typeof servicePrincipal.accountEnabled === 'boolean' ? servicePrincipal.accountEnabled : null,
+              typeof servicePrincipal.accountEnabled === 'boolean'
+                ? servicePrincipal.accountEnabled
+                : null,
             servicePrincipalType: servicePrincipal.servicePrincipalType ?? null,
             appRoleAssignments: sanitizedAssignments(appRoleAssignments),
           }
@@ -581,7 +589,8 @@ async function readExactApplication(
     `${label}-service-principal`,
   );
   const values = principals.value ?? [];
-  if (values.length > 1) throw new EntraOperationsAuditError(`${label}-service-principal-ambiguous`);
+  if (values.length > 1)
+    throw new EntraOperationsAuditError(`${label}-service-principal-ambiguous`);
   const servicePrincipal = values[0] ?? null;
   const assignments = servicePrincipal?.id
     ? await graphJson<Collection<AppRoleAssignmentResponse>>(

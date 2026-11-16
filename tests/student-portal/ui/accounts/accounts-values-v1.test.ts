@@ -14,9 +14,7 @@ describe('account presentation decisions', () => {
     const account = accountFixtureV1();
     expect(accountLinkLabelV1({ ...account, linkClosed: true })).toBe('Encerrado no Portal');
     expect(accountLinkLabelV1({ ...account, link: null })).toBe('Sem vínculo acadêmico');
-    expect(accountLinkLabelV1({ ...account, eligibility: 'unresolved' })).toBe(
-      'Não resolvido',
-    );
+    expect(accountLinkLabelV1({ ...account, eligibility: 'unresolved' })).toBe('Não resolvido');
     expect(accountLinkLabelV1({ ...account, eligibility: 'exit' })).toBe('Saída da escola');
     for (const item of [
       { ...account, linkClosed: true },

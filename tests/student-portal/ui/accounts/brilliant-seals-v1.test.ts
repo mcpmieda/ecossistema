@@ -41,7 +41,8 @@ describe('list seal preparation and scoped memory', () => {
     const reader = readerFixture();
     const view = renderHook(() => useSealCountsCacheV1(reader));
     await act(async () => {
-      for (let id = 1; id <= 40; id++) await view.result.current.read({ accountIds: [accountIdV1(id)] });
+      for (let id = 1; id <= 40; id++)
+        await view.result.current.read({ accountIds: [accountIdV1(id)] });
     });
     expect(view.result.current.entries.size).toBe(32);
     await view.result.current.read({ accountIds: [accountIdV1(40)] });
@@ -54,7 +55,8 @@ describe('list seal preparation and scoped memory', () => {
   it('reads 400 selected accounts together and reuses that batch when the next page arrives', async () => {
     const reader = readerFixture();
     reader.query.mockImplementation(async (input) => ({
-      ...response(1), items: (input.accountIds ?? []).map((accountId) => ({ accountId, seals: 2 })),
+      ...response(1),
+      items: (input.accountIds ?? []).map((accountId) => ({ accountId, seals: 2 })),
     }));
     const ids = Array.from({ length: 401 }, (_, index) => accountIdV1(index + 1));
     const view = renderHook(({ selected }) => useSealCountsV1(reader, { accountIds: selected }), {
@@ -62,7 +64,10 @@ describe('list seal preparation and scoped memory', () => {
     });
     await waitFor(() => expect(counts(view.result.current).size).toBe(400));
     expect(reader.query).toHaveBeenCalledTimes(1);
-    expect(reader.query.mock.calls[0]?.[0]).toMatchObject({ scope: { kind: 'school' }, accountIds: ids.slice(0, 400) });
+    expect(reader.query.mock.calls[0]?.[0]).toMatchObject({
+      scope: { kind: 'school' },
+      accountIds: ids.slice(0, 400),
+    });
     view.rerender({ selected: ids });
     await waitFor(() => expect(counts(view.result.current).size).toBe(401));
     expect(reader.query).toHaveBeenCalledTimes(2);
@@ -73,8 +78,11 @@ describe('list seal preparation and scoped memory', () => {
     const reader = readerFixture();
     reader.query.mockImplementation((input, signal) => {
       if (input.accountIds?.[0] === accountIdV1(999)) return Promise.resolve(response(999));
-      return new Promise((_, reject) => signal?.addEventListener('abort', () =>
-        reject(new DOMException('Aborted', 'AbortError')), { once: true }));
+      return new Promise((_, reject) =>
+        signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+          once: true,
+        }),
+      );
     });
     const ids = Array.from({ length: 801 }, (_, index) => accountIdV1(index + 1));
     const view = renderHook(({ selected }) => useSealCountsV1(reader, { accountIds: selected }), {

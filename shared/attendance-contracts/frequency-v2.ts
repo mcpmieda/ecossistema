@@ -10,37 +10,77 @@ const civilDate = z.iso.date();
 const label = z.string().trim().min(1).max(300);
 const recordKey = z.string().min(1).max(200);
 const slot = z.number().int().min(1).max(6);
-const slots = z.array(slot).min(1).max(6).refine(v => new Set(v).size === v.length);
+const slots = z
+  .array(slot)
+  .min(1)
+  .max(6)
+  .refine((v) => new Set(v).size === v.length);
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
 /** Zones already accepted, so a parse builds the Intl check once per zone. Only valid IANA names enter. */
 const VALID_ZONES_V2 = new Set<string>();
-export const frequencyScheduleV2 = z.object({
-  // Named IANA zone with its exact spelling. Offsets such as "-03:00" have the
-  // opposite sign in PostgreSQL AT TIME ZONE, and the Windows collector (zoneinfo)
-  // rejects offsets and other capitalizations.
-  timezone: z.string().min(1).max(80).regex(/^[A-Za-z][\w+-]*(?:\/[\w+-]+)*$/u).refine(value => {
-    if (VALID_ZONES_V2.has(value)) return true;
-    try {
-      if (new Intl.DateTimeFormat('pt-BR', { timeZone: value }).resolvedOptions().timeZone !== value) return false;
-    } catch { return false; }
-    VALID_ZONES_V2.add(value);
-    return true;
-  }),
-  rules: z.array(z.object({
-    weekday: z.number().int().min(0).max(6),
-    shift: z.enum(['matutino', 'vespertino']),
-    enabled: z.boolean(),
-    times: z.array(time).max(48).refine(v => new Set(v).size === v.length),
-    recheck: time.nullable(),
-  }).strict().refine(r => r.recheck === null || (r.times.length < 48 && r.times.every(t => t < r.recheck!)), {
-    message: 'Rechecagem deve ocorrer após os horários e respeitar o limite diário.',
-  })).length(14).refine(v => new Set(v.map(r => `${r.weekday}:${r.shift}`)).size === 14),
-}).strict();
+export const frequencyScheduleV2 = z
+  .object({
+    // Named IANA zone with its exact spelling. Offsets such as "-03:00" have the
+    // opposite sign in PostgreSQL AT TIME ZONE, and the Windows collector (zoneinfo)
+    // rejects offsets and other capitalizations.
+    timezone: z
+      .string()
+      .min(1)
+      .max(80)
+      .regex(/^[A-Za-z][\w+-]*(?:\/[\w+-]+)*$/u)
+      .refine((value) => {
+        if (VALID_ZONES_V2.has(value)) return true;
+        try {
+          if (
+            new Intl.DateTimeFormat('pt-BR', { timeZone: value }).resolvedOptions().timeZone !==
+            value
+          )
+            return false;
+        } catch {
+          return false;
+        }
+        VALID_ZONES_V2.add(value);
+        return true;
+      }),
+    rules: z
+      .array(
+        z
+          .object({
+            weekday: z.number().int().min(0).max(6),
+            shift: z.enum(['matutino', 'vespertino']),
+            enabled: z.boolean(),
+            times: z
+              .array(time)
+              .max(48)
+              .refine((v) => new Set(v).size === v.length),
+            recheck: time.nullable(),
+          })
+          .strict()
+          .refine(
+            (r) =>
+              r.recheck === null || (r.times.length < 48 && r.times.every((t) => t < r.recheck!)),
+            {
+              message: 'Rechecagem deve ocorrer após os horários e respeitar o limite diário.',
+            },
+          ),
+      )
+      .length(14)
+      .refine((v) => new Set(v.map((r) => `${r.weekday}:${r.shift}`)).size === 14),
+  })
+  .strict();
 /** Collection budget of one school day, across both shifts (times and rechecks). */
 const FREQUENCY_MAX_DAILY_SLOTS_V2 = 48;
 const FREQUENCY_MIN_SLOT_GAP_MINUTES_V2 = 5;
 /** Index = weekday as stored (0 = Sunday), for messages that name the day. */
-const WEEKDAY_NAMES_V2 = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'] as const;
+const WEEKDAY_NAMES_V2 = [
+  'Domingo',
+  'Segunda-feira',
+  'Terça-feira',
+  'Quarta-feira',
+  'Quinta-feira',
+  'Sexta-feira',
+  'Sábado',
+] as const;
 const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 /**
  * What a save may write. Reads stay on the tolerant frequencyScheduleV2 so an
@@ -51,16 +91,38 @@ const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)
 export const frequencyScheduleWriteV2 = frequencyScheduleV2.superRefine((schedule, ctx) => {
   schedule.rules.forEach((rule, index) => {
     if (rule.enabled && rule.times.length === 0 && rule.recheck === null)
-      ctx.addIssue({ code: 'custom', path: ['rules', index], message: 'Turno ativo precisa de pelo menos um horário.' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rules', index],
+        message: 'Turno ativo precisa de pelo menos um horário.',
+      });
   });
   WEEKDAY_NAMES_V2.forEach((name, weekday) => {
-    const day = [...new Set(schedule.rules
-      .filter(r => r.enabled && r.weekday === weekday)
-      .flatMap(r => [...r.times, ...(r.recheck ? [r.recheck] : [])]))].map(minutes).sort((a, b) => a - b);
+    const day = [
+      ...new Set(
+        schedule.rules
+          .filter((r) => r.enabled && r.weekday === weekday)
+          .flatMap((r) => [...r.times, ...(r.recheck ? [r.recheck] : [])]),
+      ),
+    ]
+      .map(minutes)
+      .sort((a, b) => a - b);
     if (day.length > FREQUENCY_MAX_DAILY_SLOTS_V2)
-      ctx.addIssue({ code: 'custom', path: ['rules'], message: `${name}: no máximo ${FREQUENCY_MAX_DAILY_SLOTS_V2} coletas por dia.` });
-    if (day.some((value, i) => i > 0 && value - (day[i - 1] ?? value) < FREQUENCY_MIN_SLOT_GAP_MINUTES_V2))
-      ctx.addIssue({ code: 'custom', path: ['rules'], message: `${name}: deixe pelo menos ${FREQUENCY_MIN_SLOT_GAP_MINUTES_V2} minutos entre as coletas.` });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rules'],
+        message: `${name}: no máximo ${FREQUENCY_MAX_DAILY_SLOTS_V2} coletas por dia.`,
+      });
+    if (
+      day.some(
+        (value, i) => i > 0 && value - (day[i - 1] ?? value) < FREQUENCY_MIN_SLOT_GAP_MINUTES_V2,
+      )
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rules'],
+        message: `${name}: deixe pelo menos ${FREQUENCY_MIN_SLOT_GAP_MINUTES_V2} minutos entre as coletas.`,
+      });
   });
 });
 /** The shortest interval of the automatic student report. */
@@ -70,157 +132,385 @@ const REPORT_MIN_EVERY_MINUTES_V2 = 30;
  * from `from` to `to` on the chosen weekdays (0 = Sunday). The Coletor never runs it together with a
  * frequency run; its editor keeps the times apart.
  */
-export const frequencyReportScheduleV2 = z.object({
-  timezone: frequencyScheduleV2.shape.timezone,
-  enabled: z.boolean(),
-  every: z.number().int().min(REPORT_MIN_EVERY_MINUTES_V2).max(720),
-  from: time,
-  to: time,
-  weekdays: z.array(z.number().int().min(0).max(6)).max(7).refine(v => new Set(v).size === v.length),
-}).strict().refine(v => v.from <= v.to, { message: 'O horário final deve vir depois do inicial.' });
+export const frequencyReportScheduleV2 = z
+  .object({
+    timezone: frequencyScheduleV2.shape.timezone,
+    enabled: z.boolean(),
+    every: z.number().int().min(REPORT_MIN_EVERY_MINUTES_V2).max(720),
+    from: time,
+    to: time,
+    weekdays: z
+      .array(z.number().int().min(0).max(6))
+      .max(7)
+      .refine((v) => new Set(v).size === v.length),
+  })
+  .strict()
+  .refine((v) => v.from <= v.to, { message: 'O horário final deve vir depois do inicial.' });
 export type FrequencyReportScheduleV2 = z.infer<typeof frequencyReportScheduleV2>;
 const read = { academicYear: year };
 const classId = z.number().int().positive();
 const sourceVersion = z.string().regex(/^sha256:[a-f0-9]{64}$/u);
 const sourceClassId = z.string().regex(/^[1-9]\d{0,9}$/u);
 const observedAt = z.iso.datetime({ offset: true });
-const records = z.array(z.object({ recordKey, originalName: label, originalClass: label }).strict()).min(1).max(64);
+const records = z
+  .array(z.object({ recordKey, originalName: label, originalClass: label }).strict())
+  .min(1)
+  .max(64);
 /** frequencyPayloadHashV2 output: base64url SHA-256, no padding. */
 const payloadHash = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
 /** One lesson of a class's weekly grid: Monday (1) to Friday (5), the diary's position, the subject as the Smecel names it. */
-const scheduleLesson = z.object({
-  weekday: z.number().int().min(1).max(5), slot,
-  subject: z.string().trim().min(1).max(120),
-}).strict();
+const scheduleLesson = z
+  .object({
+    weekday: z.number().int().min(1).max(5),
+    slot,
+    subject: z.string().trim().min(1).max(120),
+  })
+  .strict();
 const smecelId = z.string().regex(/^[1-9]\d{0,11}$/u);
 /**
  * One Smecel "Ocorrência" as its student's page shows it. Only a suspension has a leave; the Smecel
  * leaves its dates or its days blank at times (null), never all three.
  */
-const incident = z.object({
-  sourceIncidentId: smecelId,
-  kind: z.string().trim().min(1).max(80),
-  date: civilDate,
-  sourceClassLabel: label,
-  leave: z.object({ from: civilDate.nullable(), to: civilDate.nullable(), days: z.number().int().min(0).max(366).nullable() }).strict()
-    .refine(v => v.from !== null || v.to !== null || v.days !== null)
-    .refine(v => v.from === null || v.to === null || v.from <= v.to).nullable(),
-  description: z.string().trim().min(1).max(8000),
-}).strict();
+const incident = z
+  .object({
+    sourceIncidentId: smecelId,
+    kind: z.string().trim().min(1).max(80),
+    date: civilDate,
+    sourceClassLabel: label,
+    leave: z
+      .object({
+        from: civilDate.nullable(),
+        to: civilDate.nullable(),
+        days: z.number().int().min(0).max(366).nullable(),
+      })
+      .strict()
+      .refine((v) => v.from !== null || v.to !== null || v.days !== null)
+      .refine((v) => v.from === null || v.to === null || v.from <= v.to)
+      .nullable(),
+    description: z.string().trim().min(1).max(8000),
+  })
+  .strict();
 const mutation = { ...read, requestId: uid };
 const fenced = { ...mutation, fencingToken: revision };
 export const frequencyRequestV2 = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('status'), ...read }).strict(),
   z.object({ operation: z.literal('receipt'), ...mutation }).strict(),
-  z.object({ operation: z.literal('save-settings'), ...mutation, expectedRevision: revision, schedule: frequencyScheduleWriteV2 }).strict(),
-  z.object({ operation: z.literal('save-report-settings'), ...mutation, expectedRevision: revision, reportSchedule: frequencyReportScheduleV2.nullable() }).strict(),
-  z.object({ operation: z.literal('set-paused'), ...mutation, expectedRevision: revision, paused: z.boolean() }).strict(),
+  z
+    .object({
+      operation: z.literal('save-settings'),
+      ...mutation,
+      expectedRevision: revision,
+      schedule: frequencyScheduleWriteV2,
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('save-report-settings'),
+      ...mutation,
+      expectedRevision: revision,
+      reportSchedule: frequencyReportScheduleV2.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('set-paused'),
+      ...mutation,
+      expectedRevision: revision,
+      paused: z.boolean(),
+    })
+    .strict(),
   /** ADM only: the computer that sends the frequency while online; null = whichever asks first. */
-  z.object({ operation: z.literal('set-preferred-device'), ...mutation, expectedRevision: revision, deviceId: uid.nullable() }).strict(),
-  z.object({ operation: z.literal('rename-device'), ...mutation, deviceId: uid, label: z.string().trim().min(1).max(80) }).strict(),
+  z
+    .object({
+      operation: z.literal('set-preferred-device'),
+      ...mutation,
+      expectedRevision: revision,
+      deviceId: uid.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('rename-device'),
+      ...mutation,
+      deviceId: uid,
+      label: z.string().trim().min(1).max(80),
+    })
+    .strict(),
   z.object({ operation: z.literal('revoke-device'), ...mutation, deviceId: uid }).strict(),
-  z.object({ operation: z.literal('lease'), ...mutation, durationSeconds: z.number().int().min(15).max(300) }).strict(),
-  z.object({ operation: z.literal('heartbeat'), ...fenced, status: z.enum(['ready', 'collecting', 'login-required', 'error']), classId: z.number().int().positive().nullable(), code: z.string().regex(/^[A-Z_]{1,60}$/u).nullable() }).strict(),
-  z.object({ operation: z.literal('release'), ...fenced, code: z.string().regex(/^[A-Z_]{1,60}$/u).nullable() }).strict(),
-  z.object({ operation: z.literal('collect'), ...fenced,
-    classId, expectedRevision: revision, sourceVersion, sourceClassId, sourceClassLabel: label,
-    observedAt, rosterComplete: z.boolean(), records,
-    coverage: z.array(z.object({ recordKey, date: civilDate, slots, complete: z.boolean() }).strict()).max(24_000),
-    marks: z.array(z.object({ recordKey, date: civilDate, slot, mark: z.enum(['X', 'J']) }).strict()).max(130_000),
-  }).strict(),
+  z
+    .object({
+      operation: z.literal('lease'),
+      ...mutation,
+      durationSeconds: z.number().int().min(15).max(300),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('heartbeat'),
+      ...fenced,
+      status: z.enum(['ready', 'collecting', 'login-required', 'error']),
+      classId: z.number().int().positive().nullable(),
+      code: z
+        .string()
+        .regex(/^[A-Z_]{1,60}$/u)
+        .nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('release'),
+      ...fenced,
+      code: z
+        .string()
+        .regex(/^[A-Z_]{1,60}$/u)
+        .nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('collect'),
+      ...fenced,
+      classId,
+      expectedRevision: revision,
+      sourceVersion,
+      sourceClassId,
+      sourceClassLabel: label,
+      observedAt,
+      rosterComplete: z.boolean(),
+      records,
+      coverage: z
+        .array(z.object({ recordKey, date: civilDate, slots, complete: z.boolean() }).strict())
+        .max(24_000),
+      marks: z
+        .array(z.object({ recordKey, date: civilDate, slot, mark: z.enum(['X', 'J']) }).strict())
+        .max(130_000),
+    })
+    .strict(),
   /**
    * The class's diary did not change since the content the collector last sent: the same fields as
    * `collect` but, instead of coverage and marks, their frequencyContentHashV2. The server answers
    * 'payload-required' unless it matches what it holds.
    */
-  z.object({ operation: z.literal('collect-unchanged'), ...fenced,
-    classId, expectedRevision: revision, sourceVersion, sourceClassId, sourceClassLabel: label,
-    observedAt, rosterComplete: z.boolean(), records, contentHash: payloadHash,
-  }).strict(),
+  z
+    .object({
+      operation: z.literal('collect-unchanged'),
+      ...fenced,
+      classId,
+      expectedRevision: revision,
+      sourceVersion,
+      sourceClassId,
+      sourceClassLabel: label,
+      observedAt,
+      rosterComplete: z.boolean(),
+      records,
+      contentHash: payloadHash,
+    })
+    .strict(),
   /** The school's weekly grid (Smecel "Grade de horários"), every linked class in one capture. */
-  z.object({ operation: z.literal('schedule-collect'), ...fenced, sourceVersion, observedAt,
-    classes: z.array(z.object({
-      classId, sourceClassId, sourceClassLabel: label,
-      lessons: z.array(scheduleLesson).max(30)
-        .refine(v => new Set(v.map(l => `${l.weekday}:${l.slot}`)).size === v.length),
-    }).strict()).min(1).max(64)
-      .refine(v => new Set(v.map(c => c.classId)).size === v.length)
-      .refine(v => new Set(v.map(c => c.sourceClassId)).size === v.length),
-  }).strict(),
+  z
+    .object({
+      operation: z.literal('schedule-collect'),
+      ...fenced,
+      sourceVersion,
+      observedAt,
+      classes: z
+        .array(
+          z
+            .object({
+              classId,
+              sourceClassId,
+              sourceClassLabel: label,
+              lessons: z
+                .array(scheduleLesson)
+                .max(30)
+                .refine((v) => new Set(v.map((l) => `${l.weekday}:${l.slot}`)).size === v.length),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(64)
+        .refine((v) => new Set(v.map((c) => c.classId)).size === v.length)
+        .refine((v) => new Set(v.map((c) => c.sourceClassId)).size === v.length),
+    })
+    .strict(),
   /**
    * The Smecel "Ocorrências" of the year, every student in one capture.
    * `classId` is the student's class linked in the Centro (null when none of the student's Smecel
    * classes is). `complete` says the collector read every page and every student, with the counts the
    * Smecel list shows: only then may a record missing from the capture be marked removed.
    */
-  z.object({ operation: z.literal('incident-collect'), ...fenced, sourceVersion, observedAt, complete: z.boolean(),
-    students: z.array(z.object({
-      sourceStudentId: smecelId, name: label, classId: classId.nullable(), sourceClassLabel: label.nullable(),
-      incidents: z.array(incident).min(1).max(500),
-    }).strict().refine(v => (v.classId === null) === (v.sourceClassLabel === null))).max(5000)
-      .refine(v => new Set(v.map(s => s.sourceStudentId)).size === v.length)
-      .refine(v => {
-        const ids = v.flatMap(s => s.incidents.map(i => i.sourceIncidentId));
-        return new Set(ids).size === ids.length;
-      }),
-  }).strict(),
+  z
+    .object({
+      operation: z.literal('incident-collect'),
+      ...fenced,
+      sourceVersion,
+      observedAt,
+      complete: z.boolean(),
+      students: z
+        .array(
+          z
+            .object({
+              sourceStudentId: smecelId,
+              name: label,
+              classId: classId.nullable(),
+              sourceClassLabel: label.nullable(),
+              incidents: z.array(incident).min(1).max(500),
+            })
+            .strict()
+            .refine((v) => (v.classId === null) === (v.sourceClassLabel === null)),
+        )
+        .max(5000)
+        .refine((v) => new Set(v.map((s) => s.sourceStudentId)).size === v.length)
+        .refine((v) => {
+          const ids = v.flatMap((s) => s.incidents.map((i) => i.sourceIncidentId));
+          return new Set(ids).size === ids.length;
+        }),
+    })
+    .strict(),
   /**
    * The Smecel "Relatório de alunos": every row of the export, read by the Coletor in memory with
    * the 11 fields the Conciliação uses. The server applies it with the
    * Conciliação's own prepare/apply; an unchanged report only refreshes the dates.
    */
-  z.object({ operation: z.literal('student-report-collect'), ...fenced, sourceVersion, observedAt,
-    rows: z.array(reportRowV1).min(1).max(REPORT_MAX_ROWS_V1)
-      .refine(v => new Set(v.map(r => r.sourceRow)).size === v.length),
-  }).strict(),
+  z
+    .object({
+      operation: z.literal('student-report-collect'),
+      ...fenced,
+      sourceVersion,
+      observedAt,
+      rows: z
+        .array(reportRowV1)
+        .min(1)
+        .max(REPORT_MAX_ROWS_V1)
+        .refine((v) => new Set(v.map((r) => r.sourceRow)).size === v.length),
+    })
+    .strict(),
   /**
    * The same report as the one this computer last sent (its local copy):
    * only the content's hash (studentReportHashV2). The server answers 'payload-required' unless it
    * matches the last report it applied; the whole report goes then, and at least once a day.
    */
-  z.object({ operation: z.literal('student-report-unchanged'), ...fenced, sourceVersion, observedAt,
-    rows: z.number().int().min(1).max(REPORT_MAX_ROWS_V1), contentHash: payloadHash,
-  }).strict(),
-  z.object({ operation: z.literal('resolve-conflict'), ...mutation, conflictId: uid, expectedRevision: revision, mark: z.enum(['X','J']).nullable(), reason: z.string().trim().min(1).max(500) }).strict(),
-  z.object({ operation: z.literal('monthly-summary'), ...read, studentUid: uid, month: z.string().regex(/^2026-(0[1-9]|1[0-2])$/u) }).strict(),
+  z
+    .object({
+      operation: z.literal('student-report-unchanged'),
+      ...fenced,
+      sourceVersion,
+      observedAt,
+      rows: z.number().int().min(1).max(REPORT_MAX_ROWS_V1),
+      contentHash: payloadHash,
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('resolve-conflict'),
+      ...mutation,
+      conflictId: uid,
+      expectedRevision: revision,
+      mark: z.enum(['X', 'J']).nullable(),
+      reason: z.string().trim().min(1).max(500),
+    })
+    .strict(),
+  z
+    .object({
+      operation: z.literal('monthly-summary'),
+      ...read,
+      studentUid: uid,
+      month: z.string().regex(/^2026-(0[1-9]|1[0-2])$/u),
+    })
+    .strict(),
 ]);
 export type FrequencyRequestV2 = z.infer<typeof frequencyRequestV2>;
 export type FrequencyCollectionV2 = Extract<FrequencyRequestV2, { operation: 'collect' }>;
 export type FrequencyUnchangedV2 = Extract<FrequencyRequestV2, { operation: 'collect-unchanged' }>;
-export type FrequencyScheduleCollectionV2 = Extract<FrequencyRequestV2, { operation: 'schedule-collect' }>;
+export type FrequencyScheduleCollectionV2 = Extract<
+  FrequencyRequestV2,
+  { operation: 'schedule-collect' }
+>;
 type FrequencyScheduleLessonV2 = z.infer<typeof scheduleLesson>;
-export type FrequencyIncidentCollectionV2 = Extract<FrequencyRequestV2, { operation: 'incident-collect' }>;
+export type FrequencyIncidentCollectionV2 = Extract<
+  FrequencyRequestV2,
+  { operation: 'incident-collect' }
+>;
 type FrequencyIncidentV2 = z.infer<typeof incident>;
-export type FrequencyStudentReportV2 = Extract<FrequencyRequestV2, { operation: 'student-report-collect' }>;
-export type FrequencyStudentReportUnchangedV2 = Extract<FrequencyRequestV2, { operation: 'student-report-unchanged' }>;
+export type FrequencyStudentReportV2 = Extract<
+  FrequencyRequestV2,
+  { operation: 'student-report-collect' }
+>;
+export type FrequencyStudentReportUnchangedV2 = Extract<
+  FrequencyRequestV2,
+  { operation: 'student-report-unchanged' }
+>;
 export type FrequencyScheduleV2 = z.infer<typeof frequencyScheduleV2>;
 
 /** Server-created only, after Entra session or payload-bound device proof. */
 export type FrequencyActorV2 = {
-  actorId: string; tenantId: string; mode: 'admin' | 'device';
-  deviceId?: string; deviceGeneration?: number; keyThumbprint?: string;
+  actorId: string;
+  tenantId: string;
+  mode: 'admin' | 'device';
+  deviceId?: string;
+  deviceGeneration?: number;
+  keyThumbprint?: string;
 };
-export type FrequencyClassV2 = { classId: number; sourceClassLabel: string; shift: string; revision: number };
+export type FrequencyClassV2 = {
+  classId: number;
+  sourceClassLabel: string;
+  shift: string;
+  revision: number;
+};
 export type FrequencyDeviceV2 = {
-  deviceId: string; label: string; state: 'ready' | 'collecting' | 'reserve' | 'paused' | 'login-required' | 'error' | 'offline' | 'revoked';
-  lastSeenAt: string | null; classId: number | null; code: string | null; lastCollectionAt: string | null;
+  deviceId: string;
+  label: string;
+  state:
+    | 'ready'
+    | 'collecting'
+    | 'reserve'
+    | 'paused'
+    | 'login-required'
+    | 'error'
+    | 'offline'
+    | 'revoked';
+  lastSeenAt: string | null;
+  classId: number | null;
+  code: string | null;
+  lastCollectionAt: string | null;
 };
 export type FrequencyConflictV2 = {
-  id: string; revision: number; studentUid: string; studentName: string;
-  classLabel: string; date: string; slot: number; shift: string; marks: ('X' | 'J' | null)[];
+  id: string;
+  revision: number;
+  studentUid: string;
+  studentName: string;
+  classLabel: string;
+  date: string;
+  slot: number;
+  shift: string;
+  marks: ('X' | 'J' | null)[];
 };
 export type FrequencyStatusV2 = {
-  contractVersion: 2; state: 'ready'; academicYear: 2026; serverTime: string;
+  contractVersion: 2;
+  state: 'ready';
+  academicYear: 2026;
+  serverTime: string;
   settings: {
-    revision: number; paused: boolean; schedule: FrequencyScheduleV2 | null; reportSchedule?: FrequencyReportScheduleV2 | null;
+    revision: number;
+    paused: boolean;
+    schedule: FrequencyScheduleV2 | null;
+    reportSchedule?: FrequencyReportScheduleV2 | null;
     /** The computer chosen in the ADM to send the frequency; null = whichever asks first. */
     preferredDeviceId?: string | null;
   };
   /** The last automatic student report (attendance 0015), or null before the first one. */
   studentReport?: FrequencyStudentReportStateV2 | null;
   lease: { deviceId: string; expiresAt: string; fencingToken: number } | null;
-  classes: FrequencyClassV2[]; devices: FrequencyDeviceV2[];
-  collections: { classId: number; observedAt: string; receivedAt: string; resolvedRecords: number; unresolvedRecords: number; conflicts: number }[];
+  classes: FrequencyClassV2[];
+  devices: FrequencyDeviceV2[];
+  collections: {
+    classId: number;
+    observedAt: string;
+    receivedAt: string;
+    resolvedRecords: number;
+    unresolvedRecords: number;
+    conflicts: number;
+  }[];
   conflicts: FrequencyConflictV2[];
   /** Administrator view only; empty for a collector device. */
   unresolved: FrequencyUnresolvedV2[];
@@ -228,8 +518,11 @@ export type FrequencyStatusV2 = {
 };
 /** What the last automatic student report did; `notes` is what went to the Conciliação. */
 export type FrequencyStudentReportStateV2 = {
-  observedAt: string; receivedAt: string; changedAt: string;
-  outcome: 'applied' | 'preparing' | 'awaiting_relation' | 'review'; rows: number;
+  observedAt: string;
+  receivedAt: string;
+  changedAt: string;
+  outcome: 'applied' | 'preparing' | 'awaiting_relation' | 'review';
+  rows: number;
   notes: FrequencyStudentReportNotesV2;
 };
 export type FrequencyStudentReportNotesV2 = {
@@ -239,13 +532,23 @@ export type FrequencyStudentReportNotesV2 = {
 };
 /** Smecel rows of the latest collection that no reconciled student matches yet. */
 export type FrequencyUnresolvedV2 = {
-  classId: number; classLabel: string; name: string;
-  reason: 'not_found' | 'ambiguous'; marks: number; observedAt: string;
+  classId: number;
+  classLabel: string;
+  name: string;
+  reason: 'not_found' | 'ambiguous';
+  marks: number;
+  observedAt: string;
 };
 export type FrequencyFailureEntryV2 = {
-  firstAt: string; lastAt: string; occurrences: number;
-  origin: 'collector' | 'admin' | 'device-report'; operation: string; code: string; detail: string;
-  deviceId: string | null; classId: number | null;
+  firstAt: string;
+  lastAt: string;
+  occurrences: number;
+  origin: 'collector' | 'admin' | 'device-report';
+  operation: string;
+  code: string;
+  detail: string;
+  deviceId: string | null;
+  classId: number | null;
 };
 /**
  * One school day of the student in the Smecel diary: the lesson positions that existed that day
@@ -255,9 +558,16 @@ export type FrequencyFailureEntryV2 = {
  */
 export type FrequencyDayV2 = { date: string; shift: string; slots: number[]; complete: boolean };
 export type FrequencySummaryV2 = {
-  contractVersion: 2; state: 'ready'; month: string;
-  absences: number | null; justified: number | null; denominator: number | null; percentage: number | null;
-  coverage: 'reliable' | 'incomplete' | 'unavailable'; observedAt: string | null; receivedAt: string | null;
+  contractVersion: 2;
+  state: 'ready';
+  month: string;
+  absences: number | null;
+  justified: number | null;
+  denominator: number | null;
+  percentage: number | null;
+  coverage: 'reliable' | 'incomplete' | 'unavailable';
+  observedAt: string | null;
+  receivedAt: string | null;
   marks: { date: string; slot: number; shift: string; mark: 'X' | 'J'; classLabels: string[] }[];
   conflicts: number;
   /** Lesson days of the month; absent from a server before the Smecel lesson days. */
@@ -276,11 +586,20 @@ export type FrequencySummaryV2 = {
  * class's last reading. Read with the sign-in, so changing months never asks the server again.
  */
 export type FrequencyYearSummaryV2 = {
-  contractVersion: 2; state: 'ready'; academicYear: 2026; today: string;
-  year: { lessons: number; absences: number } | null; lastReadAt: string | null;
+  contractVersion: 2;
+  state: 'ready';
+  academicYear: 2026;
+  today: string;
+  year: { lessons: number; absences: number } | null;
+  lastReadAt: string | null;
   months: FrequencySummaryV2[];
   /** The school's calendar marked in the ADM (null before it is): the countdown to the year's end. */
-  schoolYear?: { schoolDays: number; remaining: number; firstDay: string | null; lastDay: string | null } | null;
+  schoolYear?: {
+    schoolDays: number;
+    remaining: number;
+    firstDay: string | null;
+    lastDay: string | null;
+  } | null;
   /** The database's clock when the year was read: the countdown runs on it, not on the phone's. */
   serverNow?: string;
   /** One sentence about the absences for the family (frequency-comment-v2.ts), or none. */
@@ -288,14 +607,25 @@ export type FrequencyYearSummaryV2 = {
   /** The weekdays without school the ADM calendar names, with their description (feriado, recesso…). */
   daysOff?: { date: string; kind: 'feriado' | 'recesso' | 'evento'; note?: string }[];
   /** Each lesson's and the break's time by shift and weekday (ADM, student-portal 0030), or null. */
-  bells?: Record<'matutino' | 'vespertino', Record<1 | 2 | 3 | 4 | 5, (
-    | { kind: 'aula'; slot: number; start: string; end: string }
-    | { kind: 'intervalo' | 'parada'; start: string; end: string })[]>> | null;
+  bells?: Record<
+    'matutino' | 'vespertino',
+    Record<
+      1 | 2 | 3 | 4 | 5,
+      (
+        | { kind: 'aula'; slot: number; start: string; end: string }
+        | { kind: 'intervalo' | 'parada'; start: string; end: string }
+      )[]
+    >
+  > | null;
   /** From when those times hold (school-bells-v1 bellsValidFromV1); null without bells. */
   bellsValidFrom?: string | null;
   /** The subject of each position of the week by shift, only when the Horário is on for the student;
    * `validFrom`: the school day that grid was first read (attendance 0020), null when unknown. */
-  grid?: { shift: 'matutino' | 'vespertino'; validFrom?: string | null; lessons: { weekday: number; slot: number; subject: string }[] }[];
+  grid?: {
+    shift: 'matutino' | 'vespertino';
+    validFrom?: string | null;
+    lessons: { weekday: number; slot: number; subject: string }[];
+  }[];
 };
 
 /** Lessons and absences (X) of the days already over; `reliable`: nothing of them is still unknown. */
@@ -336,8 +666,9 @@ export function canonicalFrequencyJsonV2(value: unknown): string {
   if (Array.isArray(value)) return '[' + value.map(canonicalFrequencyJsonV2).join(',') + ']';
   if (value !== null && typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    const members = Object.keys(record).sort(compareCanonicalKeys)
-      .map(key => JSON.stringify(key) + ':' + canonicalFrequencyJsonV2(record[key]));
+    const members = Object.keys(record)
+      .sort(compareCanonicalKeys)
+      .map((key) => JSON.stringify(key) + ':' + canonicalFrequencyJsonV2(record[key]));
     return '{' + members.join(',') + '}';
   }
   return JSON.stringify(value);
@@ -348,35 +679,71 @@ export function canonicalFrequencyJsonV2(value: unknown): string {
  * collector applies the same rule (NFD, drop marks, upper case, keep A-Z/0-9).
  */
 export function frequencyClassKeyV2(label: string): string {
-  return label.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase().replace(/[^A-Z0-9]/gu, '');
+  return label
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/gu, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/gu, '');
 }
 export async function frequencyPayloadHashV2(value: unknown): Promise<string> {
-  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalFrequencyJsonV2(value))));
-  return btoa(String.fromCodePoint(...hash)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');
+  const hash = new Uint8Array(
+    await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(canonicalFrequencyJsonV2(value)),
+    ),
+  );
+  return btoa(String.fromCodePoint(...hash))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '');
 }
 /**
  * The content of one class's diary, as the server compares it: the collector computes the same
  * value (canonical JSON, SHA-256, base64url) to know whether anything changed since its last send.
  */
-export function frequencyContentHashV2(input: Pick<FrequencyCollectionV2,
-  'classId' | 'sourceClassId' | 'sourceClassLabel' | 'rosterComplete' | 'records' | 'coverage' | 'marks'>): Promise<string> {
+export function frequencyContentHashV2(
+  input: Pick<
+    FrequencyCollectionV2,
+    | 'classId'
+    | 'sourceClassId'
+    | 'sourceClassLabel'
+    | 'rosterComplete'
+    | 'records'
+    | 'coverage'
+    | 'marks'
+  >,
+): Promise<string> {
   return frequencyPayloadHashV2({
-    classId: input.classId, sourceClassId: input.sourceClassId, sourceClassLabel: input.sourceClassLabel,
-    rosterComplete: input.rosterComplete, records: input.records, coverage: input.coverage, marks: input.marks,
+    classId: input.classId,
+    sourceClassId: input.sourceClassId,
+    sourceClassLabel: input.sourceClassLabel,
+    rosterComplete: input.rosterComplete,
+    records: input.records,
+    coverage: input.coverage,
+    marks: input.marks,
   });
 }
 /** One Smecel record's content as stored and compared: an edit in the Smecel changes it. */
 export function frequencyIncidentHashV2(item: FrequencyIncidentV2): Promise<string> {
   return frequencyPayloadHashV2({
-    kind: item.kind, date: item.date, sourceClassLabel: item.sourceClassLabel, leave: item.leave,
+    kind: item.kind,
+    date: item.date,
+    sourceClassLabel: item.sourceClassLabel,
+    leave: item.leave,
     description: item.description,
   });
 }
 /** One class's weekly grid as stored and compared: lessons in day then position order. */
-export function frequencyScheduleHashV2(item: { classId: number; sourceClassId: string; sourceClassLabel: string;
-  lessons: readonly FrequencyScheduleLessonV2[] }): Promise<string> {
+export function frequencyScheduleHashV2(item: {
+  classId: number;
+  sourceClassId: string;
+  sourceClassLabel: string;
+  lessons: readonly FrequencyScheduleLessonV2[];
+}): Promise<string> {
   return frequencyPayloadHashV2({
-    classId: item.classId, sourceClassId: item.sourceClassId, sourceClassLabel: item.sourceClassLabel,
+    classId: item.classId,
+    sourceClassId: item.sourceClassId,
+    sourceClassLabel: item.sourceClassLabel,
     lessons: [...item.lessons].sort((a, b) => a.weekday - b.weekday || a.slot - b.slot),
   });
 }

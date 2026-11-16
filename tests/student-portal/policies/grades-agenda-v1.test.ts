@@ -108,7 +108,9 @@ describe('Aba Notas in the admin', () => {
     expect(accessOpenAtV1(gradePlanOfV1(value, 'T2'), now)).toBe(false);
     expect(accessOpenAtV1(gradePlanOfV1(value, 'T2'), Date.parse(SHOW))).toBe(true);
     expect(gradePlanOfV1(value, 'T3')).toEqual(empty); // not in "Períodos permitidos"
-    expect(accessOpenAtV1(gradePlanOfV1(value, 'final'), Date.parse('2026-12-21T00:00:00Z'))).toBe(true);
+    expect(accessOpenAtV1(gradePlanOfV1(value, 'final'), Date.parse('2026-12-21T00:00:00Z'))).toBe(
+      true,
+    );
   });
 
   it('converts all six periods at once, keeping what the others show now', () => {
@@ -141,8 +143,12 @@ describe('Aba Notas in the admin', () => {
     const now = Date.parse('2026-09-27T12:00:00Z');
     expect(periodDisclosureV1(value, 'T2', new Date(now))).toBe('disabled');
     expect(accessOpenAtV1(gradePlanOfV1(value, 'T2'), now)).toBe(false);
-    expect(accessOpenAtV1(gradePlanOfV1(value, 'T1'), Date.parse('2026-04-10T12:00:00Z'))).toBe(true);
+    expect(accessOpenAtV1(gradePlanOfV1(value, 'T1'), Date.parse('2026-04-10T12:00:00Z'))).toBe(
+      true,
+    );
     const saved = calendarWithGradePlanV1(value, 'T1', empty, now);
-    expect(periodDisclosureV1({ ...value, calendar: saved.calendar! }, 'T2', new Date(now))).toBe('disabled');
+    expect(periodDisclosureV1({ ...value, calendar: saved.calendar! }, 'T2', new Date(now))).toBe(
+      'disabled',
+    );
   });
 });

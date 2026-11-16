@@ -40,25 +40,52 @@ async function openFirstOn(periods: PeriodsV1, tab: number) {
 it.each([
   ['nc', 'Não compareceu à recuperação'],
   ['rr', 'Reprovado'],
-] as const)('A8: a recovery marked %s reads as final, never "Nota em análise"', async (kind, label) => {
-  await openFirstOn([{ period: 'T1', final: scoreOf(12, 30) }, { period: 'REC1', final: { kind } }], 1);
-  expect(screen.queryByText('Nota em análise')).toBeNull();
-  expect(screen.getByText(label)).toBeTruthy();
-});
+] as const)(
+  'A8: a recovery marked %s reads as final, never "Nota em análise"',
+  async (kind, label) => {
+    await openFirstOn(
+      [
+        { period: 'T1', final: scoreOf(12, 30) },
+        { period: 'REC1', final: { kind } },
+      ],
+      1,
+    );
+    expect(screen.queryByText('Nota em análise')).toBeNull();
+    expect(screen.getByText(label)).toBeTruthy();
+  },
+);
 
 it('A16: 23,4 of 30 fills the meter to 78%, not 77%', async () => {
-  await openFirstOn([{ period: 'T1', final: scoreOf(12, 30) }, { period: 'REC1', final: scoreOf(23.4, 30) }], 1);
+  await openFirstOn(
+    [
+      { period: 'T1', final: scoreOf(12, 30) },
+      { period: 'REC1', final: scoreOf(23.4, 30) },
+    ],
+    1,
+  );
   expect(screen.getByRole('img', { name: /^78% dos pontos/u })).toBeTruthy();
   expect(screen.queryByRole('img', { name: /^77% dos pontos/u })).toBeNull();
 });
 
 it('A17: a drop of exactly 10 points below the minimum reads "consideravelmente"', async () => {
-  await openFirstOn([{ period: 'T1', final: scoreOf(17, 30) }, { period: 'T2', final: scoreOf(14, 30) }], 1);
+  await openFirstOn(
+    [
+      { period: 'T1', final: scoreOf(17, 30) },
+      { period: 'T2', final: scoreOf(14, 30) },
+    ],
+    1,
+  );
   expect(screen.getByText('Caiu consideravelmente em relação ao 1º')).toBeTruthy();
 });
 
 it('A17: a drop of less than 10 points stays plain', async () => {
-  await openFirstOn([{ period: 'T1', final: scoreOf(17, 30) }, { period: 'T2', final: scoreOf(14.1, 30) }], 1);
+  await openFirstOn(
+    [
+      { period: 'T1', final: scoreOf(17, 30) },
+      { period: 'T2', final: scoreOf(14.1, 30) },
+    ],
+    1,
+  );
   expect(screen.getByText('Caiu em relação ao 1º')).toBeTruthy();
 });
 

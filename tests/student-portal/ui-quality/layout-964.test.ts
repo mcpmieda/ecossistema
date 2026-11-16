@@ -2,10 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 
-const css = readFileSync(
-  'src/features/student-portal/workspace/student-workspace-v1.css',
-  'utf8',
-);
+const css = readFileSync('src/features/student-portal/workspace/student-workspace-v1.css', 'utf8');
 
 it('contains nested HeroUI subject and period tabs on mobile instead of widening the page', () => {
   expect(css).toContain(".pa-student-workspace .tabs[data-orientation='horizontal']");

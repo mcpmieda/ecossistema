@@ -12,10 +12,7 @@ import {
   Surface,
 } from '@heroui/react';
 import { Clock3 } from 'lucide-react';
-import {
-  normalizePlatformRoute,
-  type PlatformRoute,
-} from '../../shared/platform-contract';
+import { normalizePlatformRoute, type PlatformRoute } from '../../shared/platform-contract';
 import { preloadedSectionV1, usePreloadedSectionsV1 } from '../shared/ui/preloaded-section-v1';
 import { NotesPage } from './notes-page';
 import { AreaErrorBoundaryV1 } from '../shared/ui/area-error-boundary-v1';
@@ -275,17 +272,39 @@ export function PageContent({
   usePreloadedSectionsV1(ROUTE_PAGES_V1);
   switch (route) {
     case 'painel-do-aluno':
-      return <AreaErrorBoundaryV1 key="painel-do-aluno" label="Painel do Aluno">
-        <Suspense fallback={<p><output className="contents">Carregando Painel do Aluno…</output></p>}><StudentPortalAdminPage /></Suspense>
-      </AreaErrorBoundaryV1>;
+      return (
+        <AreaErrorBoundaryV1 key="painel-do-aluno" label="Painel do Aluno">
+          <Suspense
+            fallback={
+              <p>
+                <output className="contents">Carregando Painel do Aluno…</output>
+              </p>
+            }
+          >
+            <StudentPortalAdminPage />
+          </Suspense>
+        </AreaErrorBoundaryV1>
+      );
     case 'operacao':
-      return <AreaErrorBoundaryV1 key="operacao" label="Saúde do Sistema">
-        <Suspense fallback={<output className="block">Carregando Saúde…</output>}><SystemHealthPage /></Suspense>
-      </AreaErrorBoundaryV1>;
+      return (
+        <AreaErrorBoundaryV1 key="operacao" label="Saúde do Sistema">
+          <Suspense fallback={<output className="block">Carregando Saúde…</output>}>
+            <SystemHealthPage />
+          </Suspense>
+        </AreaErrorBoundaryV1>
+      );
     case 'configuracoes':
-      return <AreaErrorBoundaryV1 key="configuracoes" label="Configurações"><SettingsPage /></AreaErrorBoundaryV1>;
+      return (
+        <AreaErrorBoundaryV1 key="configuracoes" label="Configurações">
+          <SettingsPage />
+        </AreaErrorBoundaryV1>
+      );
     default:
-      return <AreaErrorBoundaryV1 key="banco-de-notas" label="Banco de notas"><NotesPage /></AreaErrorBoundaryV1>;
+      return (
+        <AreaErrorBoundaryV1 key="banco-de-notas" label="Banco de notas">
+          <NotesPage />
+        </AreaErrorBoundaryV1>
+      );
   }
 }
 

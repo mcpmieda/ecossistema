@@ -10,7 +10,12 @@ const academicYearV1 = () => new Date().getFullYear();
 function CoverV1({ splash = false }: Readonly<{ splash?: boolean }>) {
   return (
     <>
-      <SchoolMarkV1 size={splash ? 104 : 84} pulse={splash} shine={!splash} className="pa-entry-crest" />
+      <SchoolMarkV1
+        size={splash ? 104 : 84}
+        pulse={splash}
+        shine={!splash}
+        className="pa-entry-crest"
+      />
       <p className="pa-entry-eyebrow">Portal do Aluno</p>
       <p className="pa-entry-school">{SCHOOL_NAME_V1}</p>
       {splash ? null : <span className="pa-entry-year">Ano letivo {academicYearV1()}</span>}
@@ -38,12 +43,7 @@ export function StudentEntryLayoutV1({ children }: Readonly<{ children: ReactNod
         <h1 className="pa-visually-hidden">Portal do Aluno · {SCHOOL_NAME_V1}</h1>
         <CoverV1 />
       </header>
-      <main
-        id={contentId}
-        ref={content}
-        className="pa-entry-sheet"
-        tabIndex={-1}
-      >
+      <main id={contentId} ref={content} className="pa-entry-sheet" tabIndex={-1}>
         {children}
         <footer className="pa-entry-foot">
           <p>
@@ -67,7 +67,9 @@ export function StudentEntryLayoutV1({ children }: Readonly<{ children: ReactNod
 export function StudentSplashV1({ entered = false }: Readonly<{ entered?: boolean }>) {
   return (
     <main
-      className={'pa-access-check pa-entry pa-entry--splash' + (entered ? ' pa-entry--entered' : '')}
+      className={
+        'pa-access-check pa-entry pa-entry--splash' + (entered ? ' pa-entry--entered' : '')
+      }
       aria-busy="true"
       aria-label="Verificando acesso ao Portal"
     >
@@ -78,9 +80,9 @@ export function StudentSplashV1({ entered = false }: Readonly<{ entered?: boolea
               <Check size={40} strokeWidth={3} />
             </span>
             <p className="pa-entry-school">Tudo certo!</p>
-            <p className="pa-entry-sub"><output className="contents">
-              Abrindo o seu boletim…
-            </output></p>
+            <p className="pa-entry-sub">
+              <output className="contents">Abrindo o seu boletim…</output>
+            </p>
             <div className="pa-entry-skeleton" aria-hidden="true">
               <span />
               <span />
@@ -91,9 +93,9 @@ export function StudentSplashV1({ entered = false }: Readonly<{ entered?: boolea
         ) : (
           <>
             <CoverV1 splash />
-            <p className="pa-entry-sub"><output className="contents">
-              Verificando acesso…
-            </output></p>
+            <p className="pa-entry-sub">
+              <output className="contents">Verificando acesso…</output>
+            </p>
           </>
         )}
       </div>

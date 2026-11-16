@@ -119,9 +119,13 @@ async function open(): Promise<TestSocket> {
 /** Captures the handshake result before the runtime is disposed. */
 async function closeAndObserve(socket: TestSocket, code?: number) {
   const closed = new Promise<{ code: number; reason: string }>((resolve) =>
-    socket.addEventListener('close', (event) => resolve({ code: event.code ?? -1, reason: event.reason ?? '' }), {
-      once: true,
-    }),
+    socket.addEventListener(
+      'close',
+      (event) => resolve({ code: event.code ?? -1, reason: event.reason ?? '' }),
+      {
+        once: true,
+      },
+    ),
   );
   if (code === undefined) socket.close();
   else socket.close(code, 'test');
@@ -152,7 +156,10 @@ it.each([
   async (_label, code, echoed, reason, codeClass) => {
     await tail(true);
     const socket = await open();
-    expect(await closeAndObserve(socket, code)).toEqual({ result: { code: echoed, reason }, readyState: 3 });
+    expect(await closeAndObserve(socket, code)).toEqual({
+      result: { code: echoed, reason },
+      readyState: 3,
+    });
     const record = await settledTail(1);
     expect(record.exceptions).toEqual([]);
     const events = record.logs

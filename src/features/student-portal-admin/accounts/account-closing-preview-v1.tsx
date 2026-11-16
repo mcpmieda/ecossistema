@@ -24,7 +24,10 @@ const LEVEL_LABEL_V1: Record<TermClosingV1['level'], string> = {
 };
 
 /** Exact message and variant for support: the school can say precisely what the student read. */
-function MessageLineV1({ message, closing }: Readonly<{ message?: TermClosingMessageV1; closing: TermClosingV1 }>) {
+function MessageLineV1({
+  message,
+  closing,
+}: Readonly<{ message?: TermClosingMessageV1; closing: TermClosingV1 }>) {
   if (!message) return null;
   return (
     <li>
@@ -56,7 +59,10 @@ export function AccountClosingPreviewV1({
     const controller = new AbortController();
     setState({ state: 'loading' });
     reader
-      .query({ contractVersion: 2, operation: 'closing-preview', scope, page: {} }, controller.signal)
+      .query(
+        { contractVersion: 2, operation: 'closing-preview', scope, page: {} },
+        controller.signal,
+      )
       .then((value) => {
         if (value.state === 'closing-preview') setState({ state: 'ready', value });
       })
@@ -65,14 +71,21 @@ export function AccountClosingPreviewV1({
         const forbidden = error instanceof PortalClientErrorV1 && error.state === 'forbidden';
         setState({
           state: 'error',
-          message: forbidden ? 'Sem permissão para esta consulta.' : 'Prévia indisponível. Tente novamente.',
+          message: forbidden
+            ? 'Sem permissão para esta consulta.'
+            : 'Prévia indisponível. Tente novamente.',
           retry: !forbidden,
         });
       });
     return () => controller.abort();
   }, [reader, scope, refreshKey, attempt]);
 
-  if (state.state === 'loading') return <p><output className="contents">Carregando prévia do fechamento…</output></p>;
+  if (state.state === 'loading')
+    return (
+      <p>
+        <output className="contents">Carregando prévia do fechamento…</output>
+      </p>
+    );
   if (state.state === 'error')
     return (
       <div className="grid justify-items-start gap-2">
@@ -99,14 +112,18 @@ export function AccountClosingPreviewV1({
   const names = new Map(preview.subjects.map((subject) => [subject.subjectId, subject.label]));
   return (
     <div className="grid gap-3">
-      <p><output className="contents">
-        {preview.visibleToStudent
-          ? 'O aluno já vê este fechamento no Portal.'
-          : 'Prévia: o aluno ainda não vê este fechamento (política "Fechamento do trimestre" desligada ou acesso fechado).'}
-      </output></p>
+      <p>
+        <output className="contents">
+          {preview.visibleToStudent
+            ? 'O aluno já vê este fechamento no Portal.'
+            : 'Prévia: o aluno ainda não vê este fechamento (política "Fechamento do trimestre" desligada ou acesso fechado).'}
+        </output>
+      </p>
       {preview.summary ? (
         <section aria-label="Resumo no Boletim">
-          <h4 className="font-semibold">Resumo no Boletim · {termClosingLabelV1(preview.summary.period, preview.summary.mode)}</h4>
+          <h4 className="font-semibold">
+            Resumo no Boletim · {termClosingLabelV1(preview.summary.period, preview.summary.mode)}
+          </h4>
           <p>
             {renderTermClosingMessageV1(preview.summary.message, {
               period: preview.summary.period,

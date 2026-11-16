@@ -47,8 +47,21 @@ export function BrilliantSealBadgeV1() {
         {/* Ribbon tails, behind the rosette. */}
         <path d="M10.2 24.5 L7.4 36.6 L10.9 34.6 L13.2 37.6 L15.4 26.4 Z" fill="#b8741a" />
         <path d="M21.8 24.5 L24.6 36.6 L21.1 34.6 L18.8 37.6 L16.6 26.4 Z" fill="#d38b1f" />
-        <polygon points={ROSETTE_POINTS} fill={`url(#${gold})`} stroke="#a7661a" strokeWidth="0.6" strokeLinejoin="round" />
-        <circle cx={CENTER_X} cy={CENTER_Y} r="9.6" fill={`url(#${face})`} stroke="#a7661a" strokeWidth="0.7" />
+        <polygon
+          points={ROSETTE_POINTS}
+          fill={`url(#${gold})`}
+          stroke="#a7661a"
+          strokeWidth="0.6"
+          strokeLinejoin="round"
+        />
+        <circle
+          cx={CENTER_X}
+          cy={CENTER_Y}
+          r="9.6"
+          fill={`url(#${face})`}
+          stroke="#a7661a"
+          strokeWidth="0.7"
+        />
         {/* Stitched ring, like a stamped seal. */}
         <circle
           cx={CENTER_X}
@@ -61,10 +74,24 @@ export function BrilliantSealBadgeV1() {
           opacity="0.9"
         />
         {/* Raised star: a light offset under a darker star. */}
-        <polygon points={STAR_POINTS} fill="#fff3d0" transform="translate(0.45 0.55)" opacity="0.8" />
+        <polygon
+          points={STAR_POINTS}
+          fill="#fff3d0"
+          transform="translate(0.45 0.55)"
+          opacity="0.8"
+        />
         <polygon points={STAR_POINTS} fill="#8a510d" />
         <g clipPath={`url(#${edge})`}>
-          <rect className="pa-seal-shine" x="-12" y="-4" width="8" height="40" fill="#fff" opacity="0.55" transform="rotate(20 16 15)" />
+          <rect
+            className="pa-seal-shine"
+            x="-12"
+            y="-4"
+            width="8"
+            height="40"
+            fill="#fff"
+            opacity="0.55"
+            transform="rotate(20 16 15)"
+          />
         </g>
       </svg>
     </span>

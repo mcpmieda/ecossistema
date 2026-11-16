@@ -225,7 +225,8 @@ async function http(
           roles: [role],
           exp: Math.floor(Date.now() / 1000) + 600,
         },
-        testEnv.SESSION_SECRET, 'admin-session',
+        testEnv.SESSION_SECRET,
+        'admin-session',
       )}`,
     );
   }
@@ -262,7 +263,12 @@ describe('import diagnostic treatment V1 HTTP boundary', () => {
     expect((await http(body, null)).status).toBe(401);
     const otherYear = await http({ ...body, year: 2025 });
     expect(otherYear.status).toBe(200);
-    expect(await otherYear.json()).toMatchObject({ contractVersion: 1, state: 'ready', operation: 'history', items: [] });
+    expect(await otherYear.json()).toMatchObject({
+      contractVersion: 1,
+      state: 'ready',
+      operation: 'history',
+      items: [],
+    });
   });
 
   it('keeps the production gate fail-closed', async () => {

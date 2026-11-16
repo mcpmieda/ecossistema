@@ -52,11 +52,15 @@ describe('F9 — shell, isolamento e code splitting', () => {
       'bulletins/relational-bulletin-page-v2',
       'gradebook-council-surface',
     ]) {
-      expect(shell).toContain(`import('${featurePath.startsWith('gradebook-') ? `./${featurePath}` : `../features/gradebook/${featurePath}`}')`);
+      expect(shell).toContain(
+        `import('${featurePath.startsWith('gradebook-') ? `./${featurePath}` : `../features/gradebook/${featurePath}`}')`,
+      );
     }
     expect(shell).not.toContain('gradebook-operational-surface');
 
-    expect(app).not.toMatch(/features\/gradebook\/(?:operational-workspace|audit-workspace|performance|bulletins|council)/u);
+    expect(app).not.toMatch(
+      /features\/gradebook\/(?:operational-workspace|audit-workspace|performance|bulletins|council)/u,
+    );
     expect(shell).toContain("const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao'");
     expect(shell).toContain('workspaceSurfaceFromHash()');
     expect(shell).toContain('new Set([workspaceSurfaceFromHash()])');
@@ -88,10 +92,14 @@ describe('F9 — shell, isolamento e code splitting', () => {
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
 
     expect(notesPage).toContain('class GradebookRouteBoundary');
-    expect(notesPage).toContain('O carregamento desta área falhou isoladamente. O restante do Centro continua disponível.');
+    expect(notesPage).toContain(
+      'O carregamento desta área falhou isoladamente. O restante do Centro continua disponível.',
+    );
     expect(notesPage).not.toMatch(/console\.(?:log|error|warn|debug)/u);
     expect(shell).toContain('class GradebookSurfaceBoundary');
-    expect(shell).toContain('Esta experiência falhou isoladamente. As demais áreas do Banco continuam disponíveis.');
+    expect(shell).toContain(
+      'Esta experiência falhou isoladamente. As demais áreas do Banco continuam disponíveis.',
+    );
     expect(shell).toContain('Voltar à Importação');
     expect(shell).not.toMatch(/console\.(?:log|error|warn|debug)/u);
     expect(source('src/App.tsx')).not.toContain('aria-busy={');
@@ -141,13 +149,19 @@ describe('F9 — privacidade, auth e transporte', () => {
       expect(handler, path).toContain('enforceOfficialOrigin');
       expect(handler, path).toContain('enforceWriteOrigin');
       expect(handler, path).toMatch(/\b(?:NO_STORE_HEADERS_V1|noStoreJsonV1|noStoreResponseV1)\b/u);
-      expect(handler, path).not.toMatch(/console\.(?:log|error|warn|debug)|cause\.message|String\(cause\)/u);
+      expect(handler, path).not.toMatch(
+        /console\.(?:log|error|warn|debug)|cause\.message|String\(cause\)/u,
+      );
     }
   });
 
   it('mantém PostgreSQL lazy e não expõe o binding legado em nenhum ambiente', () => {
-    const runtime = source('server/gradebook/persistence/postgres/official-gradebook-database-v1.ts');
-    const providerGate = runtime.indexOf("if (!configured) throw new Error('gradebook-official-postgres-provider-required')");
+    const runtime = source(
+      'server/gradebook/persistence/postgres/official-gradebook-database-v1.ts',
+    );
+    const providerGate = runtime.indexOf(
+      "if (!configured) throw new Error('gradebook-official-postgres-provider-required')",
+    );
     const bindingAccess = runtime.indexOf('return create(requireHyperdriveConnectionString(env))');
 
     expect(runtime).toContain('const database = lazyGradebookDatabaseV1(async () =>');

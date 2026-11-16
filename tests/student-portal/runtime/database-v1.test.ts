@@ -125,24 +125,34 @@ describe('withPortalSqlV1', () => {
   });
 });
 
-
 it('preserves only bounded limiter failures after authorization while closing the SQL client once', async () => {
   for (const state of ['rate-limited', 'unavailable'] as const) {
     const client = testClientV1(async () => [{ role: 'student_portal_app' }]);
     const error = new PortalRateLimitErrorV1(state);
     const create = factoryV1(client);
-    await expect(withPortalSqlV1({ connectionString: 'postgres://synthetic' },
-      async () => { throw error; }, create)).rejects.toBe(error);
+    await expect(
+      withPortalSqlV1(
+        { connectionString: 'postgres://synthetic' },
+        async () => {
+          throw error;
+        },
+        create,
+      ),
+    ).rejects.toBe(error);
     expect(create).toHaveBeenCalledTimes(1);
     expect(client.end).toHaveBeenCalledTimes(1);
   }
 });
 
-
 it('does not retain a raw driver cause in the sanitized exception', async () => {
   const client = testClientV1(async () => [{ role: 'student_portal_app' }]);
-  const result = await withPortalSqlV1({ connectionString: 'postgres://synthetic' },
-    async () => { throw new Error('SYNTHETIC_PRIVATE_SQL'); }, factoryV1(client)).catch(error => error);
+  const result = await withPortalSqlV1(
+    { connectionString: 'postgres://synthetic' },
+    async () => {
+      throw new Error('SYNTHETIC_PRIVATE_SQL');
+    },
+    factoryV1(client),
+  ).catch((error) => error);
   expect(result.message).toBe('student-portal-database-unavailable');
   expect(result.cause).toBeUndefined();
   expect(result.stack).not.toContain('SYNTHETIC_PRIVATE_SQL');

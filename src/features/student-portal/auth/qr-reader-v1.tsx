@@ -16,7 +16,8 @@ const CAMERA_ASSIST_DELAY_MS_V1 = 2000;
 const CAMERA_FRAME_GAP_MS_V1 = 120;
 /** Failed frames in a row (worker timeout or error) before the camera reading gives up. */
 const CAMERA_FRAME_FAILURES_V1 = 3;
-const CAMERA_FAILED_MESSAGE_V1 = 'Não foi possível usar a câmera. Tente novamente ou escolha uma imagem.';
+const CAMERA_FAILED_MESSAGE_V1 =
+  'Não foi possível usar a câmera. Tente novamente ou escolha uma imagem.';
 
 type NativeQrDetectorV1 = { detect(source: CanvasImageSource): Promise<{ rawValue: string }[]> };
 /** The platform detector (Chrome on Android) copes with soft focus far better than jsQR. It runs
@@ -292,7 +293,10 @@ async function frameAttemptV1(scan: CameraScanV1, failures: { count: number }): 
 }
 
 /** Reads frames until one carries a code the screen accepts, or the reading is stopped. */
-async function scanFramesV1(scan: CameraScanV1, deliver: (codes: string[]) => boolean): Promise<void> {
+async function scanFramesV1(
+  scan: CameraScanV1,
+  deliver: (codes: string[]) => boolean,
+): Promise<void> {
   const failures = { count: 0 };
   while (!scan.signal.aborted) {
     const showing = scan.player.videoWidth > 0 && scan.player.videoHeight > 0;

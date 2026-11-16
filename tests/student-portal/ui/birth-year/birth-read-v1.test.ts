@@ -11,7 +11,13 @@ describe("one student's birth year for the record", () => {
   const signal = () => new AbortController().signal;
   it('reuses the record account only after the authorized birth read confirms its version', async () => {
     const mock = birthMockV1();
-    const value = await readAccountBirthV1(mock.client, mock.reader, mock.accounts[0]!, 99, signal());
+    const value = await readAccountBirthV1(
+      mock.client,
+      mock.reader,
+      mock.accounts[0]!,
+      99,
+      signal(),
+    );
     expect(value).toMatchObject({ accountId: mock.accounts[0]!.accountId, year: '2000' });
     expect(mock.queries.map((query) => query.operation)).toEqual(['birth-years']);
   });
@@ -29,7 +35,20 @@ describe("one student's birth year for the record", () => {
   });
   it('accepts only four ASCII digits in1900..2026, never trim/coerce incomplete input', () => {
     for (const value of ['1900', '2000', '2026']) expect(validBirthYearV1(value)).toBe(true);
-    for (const value of ['', '2', '20', '201', '0000', '1899', '2027', ' 2000', '2000 ', '２０２０', '2e03', '20.0'])
+    for (const value of [
+      '',
+      '2',
+      '20',
+      '201',
+      '0000',
+      '1899',
+      '2027',
+      ' 2000',
+      '2000 ',
+      '２０２０',
+      '2e03',
+      '20.0',
+    ])
       expect(validBirthYearV1(value)).toBe(false);
   });
   it('rejects mismatched account CAS rather than rebasing a birth draft', async () => {

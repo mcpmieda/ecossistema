@@ -64,7 +64,12 @@ function pressEscape(layer: HTMLElement): void {
   const active = document.activeElement;
   const target = active instanceof HTMLElement && layer.contains(active) ? active : layer;
   target.dispatchEvent(
-    new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }),
+    new KeyboardEvent('keydown', {
+      key: 'Escape',
+      code: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    }),
   );
 }
 
@@ -204,7 +209,9 @@ export function useBackClosesOverlayV1(): void {
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const anchor =
-        event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href^="#"]') : null;
+        event.target instanceof Element
+          ? event.target.closest<HTMLAnchorElement>('a[href^="#"]')
+          : null;
       const hash = anchor?.getAttribute('href');
       if (!anchor || !hash || anchor.target === '_blank') return;
       // From inside a layer, or on the entry a layer just released (the search closed by this
@@ -220,7 +227,13 @@ export function useBackClosesOverlayV1(): void {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['aria-modal', 'role', 'data-exiting', 'data-back-layer', BACK_STEP_ATTRIBUTE_V1],
+      attributeFilter: [
+        'aria-modal',
+        'role',
+        'data-exiting',
+        'data-back-layer',
+        BACK_STEP_ATTRIBUTE_V1,
+      ],
     });
     window.addEventListener('popstate', onPopState);
     document.addEventListener('click', onClick);

@@ -571,7 +571,10 @@ button.performance-kpi__button:hover {
   font-size: 0.8rem;
 }
 
-.performance-workspace > .school-class-tabs > .tabs__list-container .tabs__tab[data-selected='true'] {
+.performance-workspace
+  > .school-class-tabs
+  > .tabs__list-container
+  .tabs__tab[data-selected='true'] {
   color: var(--accent);
   font-weight: 650;
 }
@@ -640,8 +643,12 @@ button.performance-kpi__button:hover {
   }
 }
 
-.performance-workspace.performance-workspace .school-class-tabs[data-orientation='horizontal'] > .tabs__list-container,
-.performance-workspace.performance-workspace .tabs[data-orientation='horizontal'] > .performance-perspectives.tabs__list-container {
+.performance-workspace.performance-workspace
+  .school-class-tabs[data-orientation='horizontal']
+  > .tabs__list-container,
+.performance-workspace.performance-workspace
+  .tabs[data-orientation='horizontal']
+  > .performance-perspectives.tabs__list-container {
   width: 100%;
   align-self: stretch;
 }
@@ -704,38 +711,58 @@ button.performance-kpi__button:hover {
 }
 
 .performance-bars__column:nth-child(2) .performance-bar {
-  animation-delay: 30ms, -1.06s;
+  animation-delay:
+    30ms,
+    -1.06s;
 }
 
 .performance-bars__column:nth-child(3) .performance-bar {
-  animation-delay: 60ms, -1.59s;
+  animation-delay:
+    60ms,
+    -1.59s;
 }
 
 .performance-bars__column:nth-child(4) .performance-bar {
-  animation-delay: 90ms, -2.12s;
+  animation-delay:
+    90ms,
+    -2.12s;
 }
 
 .performance-bars__column:nth-child(5) .performance-bar {
-  animation-delay: 120ms, -2.65s;
+  animation-delay:
+    120ms,
+    -2.65s;
 }
 
 .performance-bars__column:nth-child(6) .performance-bar {
-  animation-delay: 150ms, -3.18s;
+  animation-delay:
+    150ms,
+    -3.18s;
 }
 
 .performance-bars__column:nth-child(7) .performance-bar {
-  animation-delay: 180ms, -3.71s;
+  animation-delay:
+    180ms,
+    -3.71s;
 }
 
 .performance-bars__column:nth-child(8) .performance-bar {
-  animation-delay: 210ms, -0.04s;
+  animation-delay:
+    210ms,
+    -0.04s;
 }
 
-.performance-bars__column:nth-child(n + 9) .performance-bar { animation-delay: 240ms; }
+.performance-bars__column:nth-child(n + 9) .performance-bar {
+  animation-delay: 240ms;
+}
 
-.performance-panorama__item:nth-child(2) { animation-delay: 70ms; }
+.performance-panorama__item:nth-child(2) {
+  animation-delay: 70ms;
+}
 
-.performance-panorama__item:nth-child(3) { animation-delay: 140ms; }
+.performance-panorama__item:nth-child(3) {
+  animation-delay: 140ms;
+}
 
 .performance-panorama__item > span {
   overflow: hidden;
@@ -1215,13 +1242,25 @@ button.performance-kpi__button:hover {
 
 /* Opening a list slides it in from the right; going back slides the chart in from the left. */
 @keyframes performance-slide-in-right {
-  from { opacity: 0; transform: translateX(1.5rem); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @keyframes performance-slide-in-left {
-  from { opacity: 0; transform: translateX(-1.5rem); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateX(-1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .performance-widget--detail > .performance-bars__detail {
@@ -1288,40 +1327,110 @@ button.performance-kpi__button:hover {
   font-size: 0.72rem;
 }
 
-.performance-bars__column:nth-child(1) .performance-bar { animation-delay: 0ms, -0.53s; }
+.performance-bars__column:nth-child(1) .performance-bar {
+  animation-delay:
+    0ms,
+    -0.53s;
+}
 
-.performance-bars__column:nth-child(1) .performance-bar--below { animation-delay: 0ms, -2.13s; }
+.performance-bars__column:nth-child(1) .performance-bar--below {
+  animation-delay:
+    0ms,
+    -2.13s;
+}
 
-.performance-bars__column:nth-child(2) .performance-bar--below { animation-delay: 30ms, -2.66s; }
+.performance-bars__column:nth-child(2) .performance-bar--below {
+  animation-delay:
+    30ms,
+    -2.66s;
+}
 
-.performance-bars__column:nth-child(3) .performance-bar--below { animation-delay: 60ms, -3.19s; }
+.performance-bars__column:nth-child(3) .performance-bar--below {
+  animation-delay:
+    60ms,
+    -3.19s;
+}
 
-.performance-bars__column:nth-child(4) .performance-bar--below { animation-delay: 90ms, -3.72s; }
+.performance-bars__column:nth-child(4) .performance-bar--below {
+  animation-delay:
+    90ms,
+    -3.72s;
+}
 
-.performance-bars__column:nth-child(5) .performance-bar--below { animation-delay: 120ms, -0.05s; }
+.performance-bars__column:nth-child(5) .performance-bar--below {
+  animation-delay:
+    120ms,
+    -0.05s;
+}
 
-.performance-bars__column:nth-child(6) .performance-bar--below { animation-delay: 150ms, -0.58s; }
+.performance-bars__column:nth-child(6) .performance-bar--below {
+  animation-delay:
+    150ms,
+    -0.58s;
+}
 
-.performance-bars__column:nth-child(7) .performance-bar--below { animation-delay: 180ms, -1.11s; }
+.performance-bars__column:nth-child(7) .performance-bar--below {
+  animation-delay:
+    180ms,
+    -1.11s;
+}
 
-.performance-bars__column:nth-child(8) .performance-bar--below { animation-delay: 210ms, -1.64s; }
+.performance-bars__column:nth-child(8) .performance-bar--below {
+  animation-delay:
+    210ms,
+    -1.64s;
+}
 
-.performance-bars__column:nth-child(9) .performance-bar { animation-delay: 240ms, -0.57s; }
+.performance-bars__column:nth-child(9) .performance-bar {
+  animation-delay:
+    240ms,
+    -0.57s;
+}
 
-.performance-bars__column:nth-child(9) .performance-bar--below { animation-delay: 240ms, -2.17s; }
+.performance-bars__column:nth-child(9) .performance-bar--below {
+  animation-delay:
+    240ms,
+    -2.17s;
+}
 
-.performance-bars__column:nth-child(10) .performance-bar { animation-delay: 240ms, -1.10s; }
+.performance-bars__column:nth-child(10) .performance-bar {
+  animation-delay:
+    240ms,
+    -1.1s;
+}
 
-.performance-bars__column:nth-child(10) .performance-bar--below { animation-delay: 240ms, -2.70s; }
+.performance-bars__column:nth-child(10) .performance-bar--below {
+  animation-delay:
+    240ms,
+    -2.7s;
+}
 
-.performance-bars__column:nth-child(11) .performance-bar { animation-delay: 240ms, -1.63s; }
+.performance-bars__column:nth-child(11) .performance-bar {
+  animation-delay:
+    240ms,
+    -1.63s;
+}
 
-.performance-bars__column:nth-child(11) .performance-bar--below { animation-delay: 240ms, -3.23s; }
+.performance-bars__column:nth-child(11) .performance-bar--below {
+  animation-delay:
+    240ms,
+    -3.23s;
+}
 
-.performance-bars__column:nth-child(n + 12) .performance-bar { animation-delay: 240ms, -2.16s; }
+.performance-bars__column:nth-child(n + 12) .performance-bar {
+  animation-delay:
+    240ms,
+    -2.16s;
+}
 
-.performance-bars__column:nth-child(n + 12) .performance-bar--below { animation-delay: 240ms, -3.76s; }
+.performance-bars__column:nth-child(n + 12) .performance-bar--below {
+  animation-delay:
+    240ms,
+    -3.76s;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .performance-bar { animation: none; }
+  .performance-bar {
+    animation: none;
+  }
 }

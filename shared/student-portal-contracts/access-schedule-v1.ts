@@ -17,13 +17,19 @@ export const accessScheduleV1 = z
   .array(accessEventV1)
   .max(40)
   .refine(
-    (events) => events.every((event, index) => index === 0 || Date.parse(events[index - 1]!.at) < Date.parse(event.at)),
+    (events) =>
+      events.every(
+        (event, index) => index === 0 || Date.parse(events[index - 1]!.at) < Date.parse(event.at),
+      ),
     'Access schedule must be in time order without repeated times',
   );
 export type AccessEventV1 = z.infer<typeof accessEventV1>;
 
 /** `enabled` is the switch as saved; the schedule acts on it from each event's time. */
-export type AccessPlanV1 = { readonly enabled: boolean; readonly schedule: readonly AccessEventV1[] };
+export type AccessPlanV1 = {
+  readonly enabled: boolean;
+  readonly schedule: readonly AccessEventV1[];
+};
 
 /**
  * Open at `time`. An action applies from its own instant; until then the Portal waits in the
@@ -66,9 +72,9 @@ export function anticipateAccessV1(plan: AccessPlanV1, time: number, open: boole
 
 /** Both open at once: the school barrier over a class or student plan, as a single exact plan. */
 export function combineAccessPlansV1(left: AccessPlanV1, right: AccessPlanV1): AccessPlanV1 {
-  const times = [...new Set([...left.schedule, ...right.schedule].map((event) => Date.parse(event.at)))].sort(
-    (a, b) => a - b,
-  );
+  const times = [
+    ...new Set([...left.schedule, ...right.schedule].map((event) => Date.parse(event.at))),
+  ].sort((a, b) => a - b);
   const both = (time: number) => accessOpenAtV1(left, time) && accessOpenAtV1(right, time);
   // Only real changes become actions: before an action the result must be its opposite state.
   const initial = times.length ? both(times[0]! - 1) : left.enabled && right.enabled;

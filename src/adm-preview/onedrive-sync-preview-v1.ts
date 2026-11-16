@@ -20,7 +20,7 @@ const syntheticFiles: OneDriveSyncStatusV1['files'] = [
   name: name as string,
   size: 1_500_000 + index * 120_000,
   modifiedAt: new Date(minutes((age as number) + 1)).toISOString(),
-  state: index === 4 ? 'pending' as const : 'idle' as const,
+  state: index === 4 ? ('pending' as const) : ('idle' as const),
   removed: false,
   lastOutcome: outcome as OneDriveSyncStatusV1['files'][number]['lastOutcome'],
   lastCode: code as string | null,
@@ -34,29 +34,72 @@ const empty = new URLSearchParams(window.location.search).get('onedrive') === 'v
 const status: OneDriveSyncStatusV1 = {
   settings: { enabled: !empty, paused: false, waitSeconds: 0, maxParallel: 6 },
   activeYear: empty ? null : 2026,
-  folders: empty ? [] : [{ year: 2026, folderId: 'folder-2026', folderPath: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026',
-    setBy: 'Preview Local', setAt: minutes(60 * 24) }],
-  sources: empty ? [] : [{ itemId: 'folder-2026', kind: 'folder', path: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026',
-    year: 2026, setBy: 'Preview Local', setAt: minutes(60 * 24) }],
+  folders: empty
+    ? []
+    : [
+        {
+          year: 2026,
+          folderId: 'folder-2026',
+          folderPath: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026',
+          setBy: 'Preview Local',
+          setAt: minutes(60 * 24),
+        },
+      ],
+  sources: empty
+    ? []
+    : [
+        {
+          itemId: 'folder-2026',
+          kind: 'folder',
+          path: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026',
+          year: 2026,
+          setBy: 'Preview Local',
+          setAt: minutes(60 * 24),
+        },
+      ],
   breakerUntil: null,
-  webhook: { active: !empty, expiresAt: empty ? null : new Date(now + 20 * 86_400_000).toISOString() },
+  webhook: {
+    active: !empty,
+    expiresAt: empty ? null : new Date(now + 20 * 86_400_000).toISOString(),
+  },
   lastDeltaAt: minutes(2),
   parallelCeiling: 6,
   files: empty ? [] : syntheticFiles,
-  events: empty ? [] : [
-    { at: minutes(3), kind: 'webhook-subscribed', actor: null, detail: '{}' },
-    { at: minutes(60 * 24), kind: 'control', actor: 'Preview Local', detail: JSON.stringify({ action: 'enable' }) },
-    { at: minutes(60 * 24 + 1), kind: 'control', actor: 'Preview Local',
-      detail: JSON.stringify({ action: 'set-folder', year: 2026, folderPath: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026' }) },
-  ],
+  events: empty
+    ? []
+    : [
+        { at: minutes(3), kind: 'webhook-subscribed', actor: null, detail: '{}' },
+        {
+          at: minutes(60 * 24),
+          kind: 'control',
+          actor: 'Preview Local',
+          detail: JSON.stringify({ action: 'enable' }),
+        },
+        {
+          at: minutes(60 * 24 + 1),
+          kind: 'control',
+          actor: 'Preview Local',
+          detail: JSON.stringify({
+            action: 'set-folder',
+            year: 2026,
+            folderPath: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026',
+          }),
+        },
+      ],
 };
 
 const tree: Record<string, Array<{ id: string; name: string; childFolders: number }>> = {
-  root: [{ id: 'folder-ped', name: 'PEDAGÓGICO', childFolders: 1 }, { id: 'folder-adm', name: 'ADMINISTRATIVO', childFolders: 1 }],
+  root: [
+    { id: 'folder-ped', name: 'PEDAGÓGICO', childFolders: 1 },
+    { id: 'folder-adm', name: 'ADMINISTRATIVO', childFolders: 1 },
+  ],
   'folder-adm': [{ id: 'folder-lt', name: 'LINHA DO TEMPO', childFolders: 1 }],
   'folder-lt': [{ id: 'folder-lt-2026', name: '2026', childFolders: 0 }],
   'folder-ped': [{ id: 'folder-cn', name: 'CONTROLE DE NOTAS', childFolders: 2 }],
-  'folder-cn': [{ id: 'folder-2025', name: 'CONTROLE DE NOTAS 2025', childFolders: 0 }, { id: 'folder-2026', name: 'CONTROLE DE NOTAS 2026', childFolders: 0 }],
+  'folder-cn': [
+    { id: 'folder-2025', name: 'CONTROLE DE NOTAS 2025', childFolders: 0 },
+    { id: 'folder-2026', name: 'CONTROLE DE NOTAS 2026', childFolders: 0 },
+  ],
 };
 
 const workbooksIn: Record<string, Array<{ id: string; name: string; size: number }>> = {
@@ -71,35 +114,65 @@ function control(command: Record<string, unknown>): void {
   if (action === 'resume') status.settings.paused = false;
   if (action === 'set-wait') status.settings.waitSeconds = Number(command.seconds);
   if (action === 'set-folder') {
-    const folder = { year: Number(command.year), folderId: String(command.folderId), folderPath: String(command.folderPath),
-      setBy: 'Preview Local', setAt: Date.now() };
+    const folder = {
+      year: Number(command.year),
+      folderId: String(command.folderId),
+      folderPath: String(command.folderPath),
+      setBy: 'Preview Local',
+      setAt: Date.now(),
+    };
     status.folders = [folder, ...status.folders.filter((item) => item.year !== folder.year)];
     status.activeYear = folder.year;
   }
   if (action === 'add-source') {
-    const source = { itemId: String(command.itemId), kind: command.kind === 'file' ? 'file' as const : 'folder' as const,
-      path: String(command.path), year: Number(command.year), setBy: 'Preview Local', setAt: Date.now() };
-    status.sources = [...(status.sources ?? []).filter((item) => item.itemId !== source.itemId), source];
+    const source = {
+      itemId: String(command.itemId),
+      kind: command.kind === 'file' ? ('file' as const) : ('folder' as const),
+      path: String(command.path),
+      year: Number(command.year),
+      setBy: 'Preview Local',
+      setAt: Date.now(),
+    };
+    status.sources = [
+      ...(status.sources ?? []).filter((item) => item.itemId !== source.itemId),
+      source,
+    ];
   }
-  if (action === 'remove-source') status.sources = (status.sources ?? []).filter((item) => item.itemId !== command.itemId);
-  status.events = [{ at: Date.now(), kind: 'control', actor: 'Preview Local', detail: JSON.stringify(command) }, ...status.events];
+  if (action === 'remove-source')
+    status.sources = (status.sources ?? []).filter((item) => item.itemId !== command.itemId);
+  status.events = [
+    { at: Date.now(), kind: 'control', actor: 'Preview Local', detail: JSON.stringify(command) },
+    ...status.events,
+  ];
 }
 
 export function previewOneDriveSyncV1(body: string): OneDriveSyncResponseV1 {
   const request = JSON.parse(body) as Record<string, unknown>;
   if (request.action === 'folders') {
     const key = typeof request.parentId === 'string' ? request.parentId : 'root';
-    return { contractVersion: 1, state: 'folders', parentId: request.parentId as string | null, folders: tree[key] ?? [],
-      files: workbooksIn[key] ?? [] };
+    return {
+      contractVersion: 1,
+      state: 'folders',
+      parentId: request.parentId as string | null,
+      folders: tree[key] ?? [],
+      files: workbooksIn[key] ?? [],
+    };
   }
   if (request.action === 'preview') {
     const has = request.folderId === 'folder-2026' || request.folderId === 'folder-2025';
-    return { contractVersion: 1, state: 'preview', preview: {
-      workbooks: has ? 18 : 0, workbookBytes: has ? 29_200_000 : 0,
-      names: has ? syntheticFiles.map((file) => file.name) : [],
-      sample: has ? { outcome: 'ready', code: null, readMs: 1400, diagnostics: 380 } : { outcome: 'none', code: null, readMs: null, diagnostics: null },
-      webhook: { tested: true, accepted: true },
-    } };
+    return {
+      contractVersion: 1,
+      state: 'preview',
+      preview: {
+        workbooks: has ? 18 : 0,
+        workbookBytes: has ? 29_200_000 : 0,
+        names: has ? syntheticFiles.map((file) => file.name) : [],
+        sample: has
+          ? { outcome: 'ready', code: null, readMs: 1400, diagnostics: 380 }
+          : { outcome: 'none', code: null, readMs: null, diagnostics: null },
+        webhook: { tested: true, accepted: true },
+      },
+    };
   }
   if (request.action !== 'status') control(request);
   return { contractVersion: 1, state: 'status', status: structuredClone(status) };

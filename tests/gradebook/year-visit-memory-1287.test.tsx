@@ -5,11 +5,21 @@ import {
   forgetGradebookYearV1,
   GradebookYearProvider,
 } from '../../src/platform/gradebook-year-provider';
-import { useGradebookYear, type GradebookYearContextValue } from '../../src/platform/gradebook-year-context';
+import {
+  useGradebookYear,
+  type GradebookYearContextValue,
+} from '../../src/platform/gradebook-year-context';
 
-const year = (value: number) => ({ year: value, minimumApprovalMilli: 60000, maxCouncilComponents: 2 });
+const year = (value: number) => ({
+  year: value,
+  minimumApprovalMilli: 60000,
+  maxCouncilComponents: 2,
+});
 const catalogue = (values = [2026, 2025]) => ({
-  contractVersion: 2, state: 'ready', operation: 'bootstrap', years: values.map(year),
+  contractVersion: 2,
+  state: 'ready',
+  operation: 'bootstrap',
+  years: values.map(year),
 });
 let scope: GradebookYearContextValue;
 let fetcher: ReturnType<typeof vi.fn<typeof fetch>>;
@@ -19,9 +29,16 @@ function Probe() {
   scope = current;
   return <output aria-label="Effective year">{current.year ?? 'none'}</output>;
 }
-const mount = () => render(<GradebookYearProvider><Probe /></GradebookYearProvider>);
+const mount = () =>
+  render(
+    <GradebookYearProvider>
+      <Probe />
+    </GradebookYearProvider>,
+  );
 const expectYear = async (value: number | 'none') => {
-  await waitFor(() => expect(screen.getByLabelText('Effective year').textContent).toBe(String(value)));
+  await waitFor(() =>
+    expect(screen.getByLabelText('Effective year').textContent).toBe(String(value)),
+  );
 };
 beforeEach(() => {
   fetcher = vi.fn<typeof fetch>(async () => Response.json(catalogue()));
@@ -49,7 +66,9 @@ it('remembers the effective year selected by the real import follow-up method on
   const first = mount();
   await expectYear(2026);
   act(() => scope.selectYear(2025));
-  await act(async () => { await scope.refreshYears(2026); });
+  await act(async () => {
+    await scope.refreshYears(2026);
+  });
   await expectYear(2026);
   first.unmount();
   mount();
@@ -61,7 +80,9 @@ it('remembers the catalogue fallback instead of resurrecting a removed year when
   await expectYear(2026);
   act(() => scope.selectYear(2025));
   fetcher.mockResolvedValueOnce(Response.json(catalogue([2026])));
-  await act(async () => { await scope.refreshYears(); });
+  await act(async () => {
+    await scope.refreshYears();
+  });
   await expectYear(2026);
   first.unmount();
   mount();
@@ -73,7 +94,9 @@ it('clears visit memory for an authoritative empty catalogue', async () => {
   await expectYear(2026);
   act(() => scope.selectYear(2025));
   fetcher.mockResolvedValueOnce(Response.json(catalogue([])));
-  await act(async () => { await scope.refreshYears(); });
+  await act(async () => {
+    await scope.refreshYears();
+  });
   await expectYear('none');
   first.unmount();
   mount();
@@ -84,8 +107,12 @@ it('does not change the remembered year on an unavailable read', async () => {
   const first = mount();
   await expectYear(2026);
   act(() => scope.selectYear(2025));
-  fetcher.mockResolvedValueOnce(Response.json({ contractVersion: 2, state: 'unavailable' }, { status: 503 }));
-  await act(async () => { await scope.refreshYears(2026); });
+  fetcher.mockResolvedValueOnce(
+    Response.json({ contractVersion: 2, state: 'unavailable' }, { status: 503 }),
+  );
+  await act(async () => {
+    await scope.refreshYears(2026);
+  });
   await expectYear(2025);
   first.unmount();
   mount();
@@ -97,7 +124,9 @@ it.each([401, 403])('forgets the old choice after an authoritative %i denial', a
   await expectYear(2026);
   act(() => scope.selectYear(2025));
   fetcher.mockResolvedValueOnce(Response.json({}, { status }));
-  await act(async () => { await scope.refreshYears(); });
+  await act(async () => {
+    await scope.refreshYears();
+  });
   await expectYear('none');
   first.unmount();
   mount();
@@ -108,10 +137,18 @@ it('does not let a delayed previous read overwrite state or visit memory', async
   const first = mount();
   await expectYear(2026);
   let resolve!: (response: Response) => void;
-  fetcher.mockReturnValueOnce(new Promise<Response>((done) => { resolve = done; }));
+  fetcher.mockReturnValueOnce(
+    new Promise<Response>((done) => {
+      resolve = done;
+    }),
+  );
   let pending!: Promise<void>;
-  act(() => { pending = scope.refreshYears(2025); });
-  await act(async () => { await scope.refreshYears(2026); });
+  act(() => {
+    pending = scope.refreshYears(2025);
+  });
+  await act(async () => {
+    await scope.refreshYears(2026);
+  });
   await act(async () => {
     resolve(Response.json(catalogue([2025])));
     await pending;
@@ -131,12 +168,16 @@ it.each(['ready', 'network-error'] as const)(
     const staleSelection = scope.selectYear;
     let resolve!: (response: Response) => void;
     let reject!: (error: Error) => void;
-    fetcher.mockReturnValueOnce(new Promise<Response>((accept, fail) => {
-      resolve = accept;
-      reject = fail;
-    }));
+    fetcher.mockReturnValueOnce(
+      new Promise<Response>((accept, fail) => {
+        resolve = accept;
+        reject = fail;
+      }),
+    );
     let pending!: Promise<void>;
-    act(() => { pending = scope.refreshYears(2025); });
+    act(() => {
+      pending = scope.refreshYears(2025);
+    });
     expect(scope.loading).toBe(true);
     act(() => {
       scope.clearAuthorization();
@@ -156,7 +197,9 @@ it.each(['ready', 'network-error'] as const)(
     expect(scope.loading).toBe(false);
     expect(scope.failure).toContain('não possui autorização');
     // Only a fresh, successful request clears the failure; the chosen year is kept.
-    await act(async () => { await scope.refreshYears(); });
+    await act(async () => {
+      await scope.refreshYears();
+    });
     await expectYear(2025);
     expect(scope.failure).toBeNull();
     first.unmount();

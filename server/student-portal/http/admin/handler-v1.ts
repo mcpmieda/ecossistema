@@ -113,10 +113,7 @@ async function invokeBindingV1(
     : commandBindingV1(request, env, binding, requestId, body);
 }
 
-function bindingResponseV1(
-  call: AdminBindingResultV1,
-  requestId: string,
-): Response {
+function bindingResponseV1(call: AdminBindingResultV1, requestId: string): Response {
   const failure = failureV1.safeParse(call.result);
   if (failure.success) {
     const response = portalJsonV1(
@@ -131,11 +128,7 @@ function bindingResponseV1(
     call.expectedVersion === 2
       ? adminReadResponseV2.safeParse(call.result)
       : adminResponseV1.safeParse(call.result);
-  if (
-    !parsed.success ||
-    parsed.data.state !== call.expected ||
-    parsed.data.requestId !== requestId
-  )
+  if (!parsed.success || parsed.data.state !== call.expected || parsed.data.requestId !== requestId)
     return failResponseV1(requestId, 'unavailable');
   return portalJsonV1(parsed.data, 200);
 }
@@ -150,8 +143,7 @@ export async function servePortalAdminV1(
   if (!allowed(request, env)) return failResponseV1(requestId, 'forbidden');
   const path = new URL(request.url).pathname;
   const kind = requestKindV1(path);
-  if (!kind)
-    return portalJsonV1({ contractVersion: 1, requestId, state: 'unavailable' }, 404);
+  if (!kind) return portalJsonV1({ contractVersion: 1, requestId, state: 'unavailable' }, 404);
   if (request.method !== 'POST') return failResponseV1(requestId, 'invalid-request');
 
   try {
@@ -164,10 +156,7 @@ export async function servePortalAdminV1(
     return bindingResponseV1(call, requestId);
   } catch (error) {
     if (error instanceof HttpError)
-      return failResponseV1(
-        requestId,
-        error.status === 413 ? 'body-too-large' : 'invalid-request',
-      );
+      return failResponseV1(requestId, error.status === 413 ? 'body-too-large' : 'invalid-request');
     return failResponseV1(requestId, 'unavailable');
   }
 }

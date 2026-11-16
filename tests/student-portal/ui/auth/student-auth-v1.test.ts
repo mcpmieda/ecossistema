@@ -79,7 +79,9 @@ describe('student authentication forms', () => {
     const s = view(client, null);
     const file = new File(['synthetic-image'], 'synthetic.png', { type: 'image/png' });
     await s.user.upload(screen.getByLabelText('Imagem do QR'), file);
-    expect((await screen.findByRole('alert')).textContent).toBe('Este QR não é um acesso válido ao Portal.');
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Este QR não é um acesso válido ao Portal.',
+    );
     expect(client.challenge).not.toHaveBeenCalled();
     await s.user.upload(screen.getByLabelText('Imagem do QR'), file);
     expect((await screen.findByRole('alert')).textContent).toContain('Cartão não reconhecido');
@@ -101,15 +103,19 @@ describe('student authentication forms', () => {
   });
   it('does not call a newly required security check a failed verification after a wrong password', async () => {
     const client = clientFixtureV1();
-    client.challenge.mockResolvedValueOnce(REQUIRED('password')).mockResolvedValueOnce(REQUIRED('risk'));
+    client.challenge
+      .mockResolvedValueOnce(REQUIRED('password'))
+      .mockResolvedValueOnce(REQUIRED('risk'));
     client.login.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
-    render(createElement(StudentAuthenticationV1, {
-      client,
-      onAuthenticated: vi.fn(),
-      initialQr: SYNTHETIC_QR_V1,
-      sitekey: 'synthetic-sitekey',
-      riskMount: () => () => undefined,
-    }));
+    render(
+      createElement(StudentAuthenticationV1, {
+        client,
+        onAuthenticated: vi.fn(),
+        initialQr: SYNTHETIC_QR_V1,
+        sitekey: 'synthetic-sitekey',
+        riskMount: () => () => undefined,
+      }),
+    );
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText('Senha de 6 números'), '482913');
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
@@ -118,23 +124,28 @@ describe('student authentication forms', () => {
   });
   it('keeps the verification error when the security check itself is refused', async () => {
     const client = clientFixtureV1();
-    client.challenge.mockResolvedValueOnce(REQUIRED('risk'))
+    client.challenge
+      .mockResolvedValueOnce(REQUIRED('risk'))
       .mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
     let callbacks!: Parameters<RiskMountV1>[2];
-    render(createElement(StudentAuthenticationV1, {
-      client,
-      onAuthenticated: vi.fn(),
-      initialQr: SYNTHETIC_QR_V1,
-      sitekey: 'synthetic-sitekey',
-      riskMount: (_container, _key, next) => {
-        callbacks = next;
-        return () => undefined;
-      },
-    }));
+    render(
+      createElement(StudentAuthenticationV1, {
+        client,
+        onAuthenticated: vi.fn(),
+        initialQr: SYNTHETIC_QR_V1,
+        sitekey: 'synthetic-sitekey',
+        riskMount: (_container, _key, next) => {
+          callbacks = next;
+          return () => undefined;
+        },
+      }),
+    );
     await screen.findByRole('heading', { name: 'Verificação rápida' });
     await waitFor(() => expect(callbacks).toBeDefined());
     act(() => callbacks.token('synthetic-risk-token'));
-    expect((await screen.findByRole('alert')).textContent).toContain('A verificação não foi concluída');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'A verificação não foi concluída',
+    );
   });
   it.each([
     ['NotAllowedError', 'Você bloqueou a câmera'],
@@ -153,7 +164,8 @@ describe('student authentication forms', () => {
       await userEvent.setup().click(screen.getByRole('button', { name: 'Ler QR com câmera' }));
       expect((await screen.findByRole('alert')).textContent).toContain(message);
       expect(
-        (screen.getByRole('button', { name: 'Selecionar QR da galeria' }) as HTMLButtonElement).disabled,
+        (screen.getByRole('button', { name: 'Selecionar QR da galeria' }) as HTMLButtonElement)
+          .disabled,
       ).toBe(false);
     } finally {
       if (descriptor) Object.defineProperty(navigator, 'mediaDevices', descriptor);
@@ -368,7 +380,9 @@ it('keeps QR discovery on the entry card and offers another card during password
 
 it('continues by itself once the security check passes, with no extra tap', async () => {
   const client = clientFixtureV1();
-  client.challenge.mockResolvedValueOnce(REQUIRED('risk')).mockResolvedValueOnce(REQUIRED('password'));
+  client.challenge
+    .mockResolvedValueOnce(REQUIRED('risk'))
+    .mockResolvedValueOnce(REQUIRED('password'));
   let callbacks!: Parameters<RiskMountV1>[2];
   const riskMount = vi.fn<RiskMountV1>((_container, _key, next) => {
     callbacks = next;
@@ -418,12 +432,18 @@ it('starts the next card with keep connected unchecked on a shared phone', async
   const s = view(client);
   await screen.findByLabelText('Senha de 6 números');
   await s.user.click(screen.getByRole('checkbox', { name: 'Manter conectado neste celular' }));
-  expect((screen.getByRole('checkbox', { name: 'Manter conectado neste celular' }) as HTMLInputElement).checked).toBe(true);
+  expect(
+    (screen.getByRole('checkbox', { name: 'Manter conectado neste celular' }) as HTMLInputElement)
+      .checked,
+  ).toBe(true);
   await s.user.click(screen.getByRole('button', { name: 'Usar outro cartão' }));
   const file = new File(['synthetic-image'], 'synthetic.png', { type: 'image/png' });
   await s.user.upload(screen.getByLabelText('Imagem do QR'), file);
   await screen.findByLabelText('Senha de 6 números');
-  expect((screen.getByRole('checkbox', { name: 'Manter conectado neste celular' }) as HTMLInputElement).checked).toBe(false);
+  expect(
+    (screen.getByRole('checkbox', { name: 'Manter conectado neste celular' }) as HTMLInputElement)
+      .checked,
+  ).toBe(false);
 });
 
 it('tells screen readers the wait in minutes, never a second-by-second count', async () => {
@@ -435,7 +455,9 @@ it('tells screen readers the wait in minutes, never a second-by-second count', a
     expect(found).not.toBeNull();
     return found!;
   });
-  expect(countdown.querySelector('.sr-only')?.textContent).toBe('Tente novamente em menos de um minuto.');
+  expect(countdown.querySelector('.sr-only')?.textContent).toBe(
+    'Tente novamente em menos de um minuto.',
+  );
   const visible = Array.from(countdown.querySelectorAll(':scope > span[aria-hidden="true"]'))
     .map((span) => span.textContent)
     .join(' ');
@@ -485,11 +507,15 @@ it('reads on after a camera frame the decoder could not finish', async () => {
 it('stops the camera after failed frames in a row with a camera message, not an image one', async () => {
   const restore = stubCameraV1();
   try {
-    const decode = vi.fn<qrMediaV1.QrFrameDecoderV1>().mockRejectedValue(new QrInputErrorV1('unavailable'));
+    const decode = vi
+      .fn<qrMediaV1.QrFrameDecoderV1>()
+      .mockRejectedValue(new QrInputErrorV1('unavailable'));
     render(createElement(StudentQrReaderV1, { onQr: vi.fn(), decode }));
     await userEvent.setup().click(screen.getByRole('button', { name: 'Ler QR com câmera' }));
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toBe('Não foi possível usar a câmera. Tente novamente ou escolha uma imagem.');
+    expect(alert.textContent).toBe(
+      'Não foi possível usar a câmera. Tente novamente ou escolha uma imagem.',
+    );
     expect(decode).toHaveBeenCalledTimes(3);
     expect(screen.getByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
   } finally {

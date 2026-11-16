@@ -9,71 +9,165 @@ import {
   schoolBellsDaysV1,
 } from '../../../shared/student-portal-contracts/school-bells-v1';
 import { officialCalendar2026V1 } from '../../../shared/student-portal-contracts/school-calendar-2026-start-v1';
-import { schoolDayOffLabelV1, schoolDaysOffOfV1 } from '../../../shared/student-portal-contracts/school-calendar-v1';
+import {
+  schoolDayOffLabelV1,
+  schoolDaysOffOfV1,
+} from '../../../shared/student-portal-contracts/school-calendar-v1';
 
 const at = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 const line = (day: ReturnType<typeof officialBells2026V1>['matutino'][1]) =>
-  day.map((item) => `${item.kind === 'aula' ? item.slot : item.kind === 'parada' ? 'P' : 'I'} ${item.start}-${item.end}`);
+  day.map(
+    (item) =>
+      `${item.kind === 'aula' ? item.slot : item.kind === 'parada' ? 'P' : 'I'} ${item.start}-${item.end}`,
+  );
 
 describe('school bells (owner decision 23/10/2026)', () => {
   it('starts 2026 from the sheets "Horário Matutino / Vespertino 2026 — 22/06"', () => {
     const bells = officialBells2026V1();
     expect(schoolBellsDaysV1.safeParse(bells).success).toBe(true);
     expect(line(bells.matutino[1])).toEqual([
-      'P 06:45-07:00', '1 07:00-07:55', '2 07:55-08:50', '3 08:50-09:45', 'I 09:45-10:00', '4 10:00-10:55', '5 10:55-11:45',
+      'P 06:45-07:00',
+      '1 07:00-07:55',
+      '2 07:55-08:50',
+      '3 08:50-09:45',
+      'I 09:45-10:00',
+      '4 10:00-10:55',
+      '5 10:55-11:45',
     ]);
     expect(line(bells.matutino[4])).toEqual([
-      'P 06:45-07:00', '1 07:00-07:45', '2 07:45-08:30', '3 08:30-09:15', '4 09:15-10:00', 'I 10:00-10:15', '5 10:15-11:00', '6 11:00-11:45',
+      'P 06:45-07:00',
+      '1 07:00-07:45',
+      '2 07:45-08:30',
+      '3 08:30-09:15',
+      '4 09:15-10:00',
+      'I 10:00-10:15',
+      '5 10:15-11:00',
+      '6 11:00-11:45',
     ]);
     expect(line(bells.matutino[5])).toEqual([
-      'P 06:45-07:45', '1 07:45-08:30', '2 08:30-09:15', '3 09:15-10:00', 'I 10:00-10:15', '4 10:15-11:00', '5 11:00-11:45',
+      'P 06:45-07:45',
+      '1 07:45-08:30',
+      '2 08:30-09:15',
+      '3 09:15-10:00',
+      'I 10:00-10:15',
+      '4 10:15-11:00',
+      '5 11:00-11:45',
     ]);
     expect(line(bells.vespertino[3])).toEqual([
-      'P 13:00-13:15', '1 13:15-14:10', '2 14:10-15:05', 'I 15:05-15:20', '3 15:20-16:15', '4 16:15-17:10', '5 17:10-18:00',
+      'P 13:00-13:15',
+      '1 13:15-14:10',
+      '2 14:10-15:05',
+      'I 15:05-15:20',
+      '3 15:20-16:15',
+      '4 16:15-17:10',
+      '5 17:10-18:00',
     ]);
     expect(line(bells.vespertino[2])).toEqual([
-      'P 13:00-13:15', '1 13:15-14:00', '2 14:00-14:45', '3 14:45-15:30', 'I 15:30-15:45', '4 15:45-16:30', '5 16:30-17:15', '6 17:15-18:00',
+      'P 13:00-13:15',
+      '1 13:15-14:00',
+      '2 14:00-14:45',
+      '3 14:45-15:30',
+      'I 15:30-15:45',
+      '4 15:45-16:30',
+      '5 16:30-17:15',
+      '6 17:15-18:00',
     ]);
     expect(line(bells.vespertino[5])).toEqual([
-      'P 13:00-13:15', '1 13:15-14:00', '2 14:00-14:45', '3 14:45-15:30', 'I 15:30-15:45', '4 15:45-16:30', '5 16:30-17:15', 'P 17:15-18:00',
+      'P 13:00-13:15',
+      '1 13:15-14:00',
+      '2 14:00-14:45',
+      '3 14:45-15:30',
+      'I 15:30-15:45',
+      '4 15:45-16:30',
+      '5 16:30-17:15',
+      'P 17:15-18:00',
     ]);
     // Only Tuesday and Thursday have a 6th lesson.
     for (const shift of ['matutino', 'vespertino'] as const)
-      expect([1, 2, 3, 4, 5].map((day) => bells[shift][day as 1].filter((item) => item.kind === 'aula').length)).toEqual([5, 6, 5, 6, 5]);
+      expect(
+        [1, 2, 3, 4, 5].map(
+          (day) => bells[shift][day as 1].filter((item) => item.kind === 'aula').length,
+        ),
+      ).toEqual([5, 6, 5, 6, 5]);
   });
 
   it('is saved by migrations 0030 (lessons and break) and 0031 (the parada) exactly as the sheets (no drift)', () => {
     const withoutParada = Object.fromEntries(
       Object.entries(officialBells2026V1()).map(([shift, days]) => [
         shift,
-        Object.fromEntries(Object.entries(days).map(([day, items]) => [day, items.filter((item) => item.kind !== 'parada')])),
+        Object.fromEntries(
+          Object.entries(days).map(([day, items]) => [
+            day,
+            items.filter((item) => item.kind !== 'parada'),
+          ]),
+        ),
       ]),
     );
     const first = readFileSync('migrations/student-portal/0030_school_bells_v1.sql', 'utf8');
     expect(JSON.parse(/VALUES\(2026,'(.+)'::jsonb,1,/u.exec(first)![1]!)).toEqual(withoutParada);
-    const second = readFileSync('migrations/student-portal/0031_school_bells_parada_v1.sql', 'utf8');
-    expect(JSON.parse(/SET bells_json='(.+?)'::jsonb/u.exec(second)![1]!)).toEqual(officialBells2026V1());
+    const second = readFileSync(
+      'migrations/student-portal/0031_school_bells_parada_v1.sql',
+      'utf8',
+    );
+    expect(JSON.parse(/SET bells_json='(.+?)'::jsonb/u.exec(second)![1]!)).toEqual(
+      officialBells2026V1(),
+    );
     // Only over 0030's own bells: an edit in the ADM is never overwritten.
     expect(JSON.parse(/AND bells_json='(.+?)'::jsonb/u.exec(second)![1]!)).toEqual(withoutParada);
   });
 
   it('takes a parada before or after the lessons, never between two of them', () => {
-    const lesson = (slot: number, start: string, end: string) => ({ kind: 'aula' as const, slot, start, end });
+    const lesson = (slot: number, start: string, end: string) => ({
+      kind: 'aula' as const,
+      slot,
+      start,
+      end,
+    });
     const parada = (start: string, end: string) => ({ kind: 'parada' as const, start, end });
-    expect(bellDayV1.safeParse([parada('06:45', '07:00'), lesson(1, '07:00', '07:50'), parada('07:50', '08:30')]).success).toBe(true);
-    expect(bellDayV1.safeParse([lesson(1, '07:00', '07:50'), parada('07:50', '08:00'), lesson(2, '08:00', '08:50')]).success).toBe(false);
+    expect(
+      bellDayV1.safeParse([
+        parada('06:45', '07:00'),
+        lesson(1, '07:00', '07:50'),
+        parada('07:50', '08:30'),
+      ]).success,
+    ).toBe(true);
+    expect(
+      bellDayV1.safeParse([
+        lesson(1, '07:00', '07:50'),
+        parada('07:50', '08:00'),
+        lesson(2, '08:00', '08:50'),
+      ]).success,
+    ).toBe(false);
   });
 
   it('refuses a day out of order, overlapping, with lessons skipped or two breaks', () => {
-    const lesson = (slot: number, start: string, end: string) => ({ kind: 'aula' as const, slot, start, end });
+    const lesson = (slot: number, start: string, end: string) => ({
+      kind: 'aula' as const,
+      slot,
+      start,
+      end,
+    });
     const pause = (start: string, end: string) => ({ kind: 'intervalo' as const, start, end });
-    expect(bellDayV1.safeParse([lesson(1, '07:00', '07:50'), lesson(2, '07:50', '08:40')]).success).toBe(true);
-    expect(bellDayV1.safeParse([lesson(1, '07:50', '08:40'), lesson(2, '07:00', '07:50')]).success).toBe(false);
-    expect(bellDayV1.safeParse([lesson(1, '07:00', '08:00'), lesson(2, '07:50', '08:40')]).success).toBe(false);
-    expect(bellDayV1.safeParse([lesson(1, '07:00', '07:50'), lesson(3, '07:50', '08:40')]).success).toBe(false);
+    expect(
+      bellDayV1.safeParse([lesson(1, '07:00', '07:50'), lesson(2, '07:50', '08:40')]).success,
+    ).toBe(true);
+    expect(
+      bellDayV1.safeParse([lesson(1, '07:50', '08:40'), lesson(2, '07:00', '07:50')]).success,
+    ).toBe(false);
+    expect(
+      bellDayV1.safeParse([lesson(1, '07:00', '08:00'), lesson(2, '07:50', '08:40')]).success,
+    ).toBe(false);
+    expect(
+      bellDayV1.safeParse([lesson(1, '07:00', '07:50'), lesson(3, '07:50', '08:40')]).success,
+    ).toBe(false);
     expect(bellDayV1.safeParse([lesson(1, '08:00', '07:50')]).success).toBe(false);
     expect(
-      bellDayV1.safeParse([lesson(1, '07:00', '07:50'), pause('07:50', '08:00'), lesson(2, '08:00', '08:50'), pause('08:50', '09:00')]).success,
+      bellDayV1.safeParse([
+        lesson(1, '07:00', '07:50'),
+        pause('07:50', '08:00'),
+        lesson(2, '08:00', '08:50'),
+        pause('08:50', '09:00'),
+      ]).success,
     ).toBe(false);
     expect(bellDayV1.safeParse([lesson(1, '7:00', '07:50')]).success).toBe(false);
   });
@@ -86,11 +180,30 @@ describe('school bells (owner decision 23/10/2026)', () => {
 
   it('says where a day is at a moment: before, in a lesson or the break, over', () => {
     const monday = officialBells2026V1().matutino[1];
-    expect(bellMomentV1(monday, at('06:30'))).toMatchObject({ state: 'before', next: { kind: 'parada' } });
-    expect(bellMomentV1(monday, at('06:50'))).toMatchObject({ state: 'in', current: { kind: 'parada' }, next: { slot: 1 } });
-    expect(bellMomentV1(monday, at('09:00'))).toMatchObject({ state: 'in', current: { slot: 3 }, next: { kind: 'intervalo' } });
-    expect(bellMomentV1(monday, at('09:50'))).toMatchObject({ state: 'in', current: { kind: 'intervalo' }, next: { slot: 4 } });
-    expect(bellMomentV1(monday, at('11:00'))).toMatchObject({ state: 'in', current: { slot: 5 }, next: null });
+    expect(bellMomentV1(monday, at('06:30'))).toMatchObject({
+      state: 'before',
+      next: { kind: 'parada' },
+    });
+    expect(bellMomentV1(monday, at('06:50'))).toMatchObject({
+      state: 'in',
+      current: { kind: 'parada' },
+      next: { slot: 1 },
+    });
+    expect(bellMomentV1(monday, at('09:00'))).toMatchObject({
+      state: 'in',
+      current: { slot: 3 },
+      next: { kind: 'intervalo' },
+    });
+    expect(bellMomentV1(monday, at('09:50'))).toMatchObject({
+      state: 'in',
+      current: { kind: 'intervalo' },
+      next: { slot: 4 },
+    });
+    expect(bellMomentV1(monday, at('11:00'))).toMatchObject({
+      state: 'in',
+      current: { slot: 5 },
+      next: null,
+    });
     expect(bellMomentV1(monday, at('11:45'))).toEqual({ state: 'over' });
   });
 
@@ -103,7 +216,8 @@ describe('school bells (owner decision 23/10/2026)', () => {
       ['2026-10-14', 'Feriado · Antecipação do dia 28'],
     ]);
     // Never a weekend, never a school day.
-    for (const day of off) expect([0, 6]).not.toContain(new Date(`${day.date}T12:00:00Z`).getUTCDay());
+    for (const day of off)
+      expect([0, 6]).not.toContain(new Date(`${day.date}T12:00:00Z`).getUTCDay());
   });
 
   it('gives an unmarked weekday inside the school year as "Sem aula", never as a day with lessons', () => {
@@ -120,13 +234,19 @@ describe('school bells (owner decision 23/10/2026)', () => {
       ['2026-10-22', 'Feriado · Padroeiro'],
     ]);
     // Without any school day there is no year to fill.
-    expect(schoolDaysOffOfV1([{ date: '2026-10-21', kind: 'recesso' }])).toEqual([{ date: '2026-10-21', kind: 'recesso' }]);
+    expect(schoolDaysOffOfV1([{ date: '2026-10-21', kind: 'recesso' }])).toEqual([
+      { date: '2026-10-21', kind: 'recesso' },
+    ]);
     expect(schoolDaysOffOfV1([])).toEqual([]);
   });
 
   it('adds nothing to the official calendar, which marks every weekday of the year', () => {
     const calendar = officialCalendar2026V1();
-    const named = calendar.filter((day) => !['letivo', 'sabado-letivo', 'evento-letivo'].includes(day.kind));
-    expect(schoolDaysOffOfV1(calendar).every((day) => named.some((item) => item.date === day.date))).toBe(true);
+    const named = calendar.filter(
+      (day) => !['letivo', 'sabado-letivo', 'evento-letivo'].includes(day.kind),
+    );
+    expect(
+      schoolDaysOffOfV1(calendar).every((day) => named.some((item) => item.date === day.date)),
+    ).toBe(true);
   });
 });

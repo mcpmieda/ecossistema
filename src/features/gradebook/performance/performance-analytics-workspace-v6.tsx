@@ -44,7 +44,13 @@ export const PERFORMANCE_PERSPECTIVES_V6: readonly {
 ];
 
 type EntitySelectId = 'student' | 'component' | 'teacher';
-function EntitySelect({ id, label, value, items, onChange }: Readonly<{
+function EntitySelect({
+  id,
+  label,
+  value,
+  items,
+  onChange,
+}: Readonly<{
   id: EntitySelectId;
   label: string;
   value: number | undefined;
@@ -125,7 +131,11 @@ function analyticsScopeV6(
   teacher: AnalyticsTeacherV6 | undefined,
 ) {
   if (tab === 'components' && component)
-    return { selectedSummary: component.summary, components: value.components, scopeOffers: [component.offer.id] };
+    return {
+      selectedSummary: component.summary,
+      components: value.components,
+      scopeOffers: [component.offer.id],
+    };
   if (tab === 'teachers' && teacher)
     return {
       selectedSummary: teacher.summary,
@@ -137,8 +147,16 @@ function analyticsScopeV6(
 
 /** Results with a blank instrument in the scope on screen, read from the cells. */
 function scopePartialV6(value: PerformanceAnalyticsV6, scopeOffers: readonly number[] | null) {
-  return value.students.reduce((sum, item) => sum + item.cells.filter((cell) =>
-    (scopeOffers === null || scopeOffers.includes(cell.offerId)) && cell.result.state === 'partial').length, 0);
+  return value.students.reduce(
+    (sum, item) =>
+      sum +
+      item.cells.filter(
+        (cell) =>
+          (scopeOffers === null || scopeOffers.includes(cell.offerId)) &&
+          cell.result.state === 'partial',
+      ).length,
+    0,
+  );
 }
 
 function missingSelectionV6(
@@ -147,23 +165,40 @@ function missingSelectionV6(
   component: unknown,
   teacher: unknown,
 ) {
-  return (tab === 'students' && !student) || (tab === 'components' && !component) || (tab === 'teachers' && !teacher);
+  return (
+    (tab === 'students' && !student) ||
+    (tab === 'components' && !component) ||
+    (tab === 'teachers' && !teacher)
+  );
 }
 
 /** Each student's result in one component, as the students table reads it. */
 function componentStudentItemsV6(value: PerformanceAnalyticsV6, component: AnalyticsComponentV6) {
   return value.students.map((item) => {
     const cell = item.cells.find((entry) => entry.offerId === component.offer.id)!;
-    return { id: item.student.id, number: item.student.number, name: item.student.name,
+    return {
+      id: item.student.id,
+      number: item.student.number,
+      name: item.student.name,
       meanPercent: performanceResultCountsV2(cell.result.state) ? cell.percent : null,
       below: performanceResultCountsV2(cell.result.state) && cell.result.level === 'below' ? 1 : 0,
       complete: performanceResultCountsV2(cell.result.state) ? 1 : 0,
-      partial: cell.result.state === 'partial' ? 1 : 0, deltaPP: cell.deltaPP };
+      partial: cell.result.state === 'partial' ? 1 : 0,
+      deltaPP: cell.deltaPP,
+    };
   });
 }
 
 /** The student, component or teacher on screen, with its selector. */
-function AnalyticsEntityHeaderV6({ value, tab, student, component, teacher, onSelection, onCell }: Readonly<{
+function AnalyticsEntityHeaderV6({
+  value,
+  tab,
+  student,
+  component,
+  teacher,
+  onSelection,
+  onCell,
+}: Readonly<{
   value: PerformanceAnalyticsV6;
   tab: Exclude<PerformancePerspectiveV6, 'notes'>;
   student: PerformanceAnalyticsV6['students'][number] | undefined;
@@ -172,14 +207,83 @@ function AnalyticsEntityHeaderV6({ value, tab, student, component, teacher, onSe
   onSelection: (selection: Partial<PerformanceSelectionV6>) => void;
   onCell: (studentId: number, offerId?: number) => void;
 }>) {
-  return <>
-  {tab === 'students' && student ? <div className="flex flex-wrap items-end gap-4"><LinkedStudentPhotoAvatarV1 decorative size="lg" subject={{ source: 'gradebook', academicYear: value.context.year, studentIds: [student.student.id] }} /><EntitySelect id="student" label="Aluno" value={student.student.id} items={value.students.map((item) => ({ id: item.student.id, label: `${item.student.number}. ${item.student.name}` }))} onChange={(studentId) => onSelection({ studentId })} /><Chip size="sm" variant="soft">{value.classGroup.label}</Chip><Button variant="ghost" size="sm" onPress={() => onCell(student.student.id)}>Detalhe completo</Button></div> : null}
-  {tab === 'components' && component ? <div className="flex flex-wrap items-end gap-3"><EntitySelect id="component" label="Componente" value={component.offer.id} items={value.components.map((item) => ({ id: item.offer.id, label: item.offer.subject.label }))} onChange={(offerId) => onSelection({ offerId })} /><span className="pb-2 text-xs text-muted">{component.offer.teacher.label}</span></div> : null}
-  {tab === 'teachers' && teacher ? <div className="flex flex-wrap items-end gap-3"><EntitySelect id="teacher" label="Professor" value={teacher.id} items={value.teachers} onChange={(teacherId) => onSelection({ teacherId })} /><span className="pb-2 text-xs text-muted">{value.classGroup.label} · {teacher.offerIds.length} componentes</span><div className="ml-auto"><PerformanceTeacherExportV6 value={value} teacherId={teacher.id} /></div></div> : null}
-  </>;
+  return (
+    <>
+      {tab === 'students' && student ? (
+        <div className="flex flex-wrap items-end gap-4">
+          <LinkedStudentPhotoAvatarV1
+            decorative
+            size="lg"
+            subject={{
+              source: 'gradebook',
+              academicYear: value.context.year,
+              studentIds: [student.student.id],
+            }}
+          />
+          <EntitySelect
+            id="student"
+            label="Aluno"
+            value={student.student.id}
+            items={value.students.map((item) => ({
+              id: item.student.id,
+              label: `${item.student.number}. ${item.student.name}`,
+            }))}
+            onChange={(studentId) => onSelection({ studentId })}
+          />
+          <Chip size="sm" variant="soft">
+            {value.classGroup.label}
+          </Chip>
+          <Button variant="ghost" size="sm" onPress={() => onCell(student.student.id)}>
+            Detalhe completo
+          </Button>
+        </div>
+      ) : null}
+      {tab === 'components' && component ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <EntitySelect
+            id="component"
+            label="Componente"
+            value={component.offer.id}
+            items={value.components.map((item) => ({
+              id: item.offer.id,
+              label: item.offer.subject.label,
+            }))}
+            onChange={(offerId) => onSelection({ offerId })}
+          />
+          <span className="pb-2 text-xs text-muted">{component.offer.teacher.label}</span>
+        </div>
+      ) : null}
+      {tab === 'teachers' && teacher ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <EntitySelect
+            id="teacher"
+            label="Professor"
+            value={teacher.id}
+            items={value.teachers}
+            onChange={(teacherId) => onSelection({ teacherId })}
+          />
+          <span className="pb-2 text-xs text-muted">
+            {value.classGroup.label} · {teacher.offerIds.length} componentes
+          </span>
+          <div className="ml-auto">
+            <PerformanceTeacherExportV6 value={value} teacherId={teacher.id} />
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
-export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelection, onNavigate, onPeriod, onCell, onNotes }: Readonly<{
+export function PerformanceAnalyticsWorkspaceV6({
+  value,
+  tab,
+  selection,
+  onSelection,
+  onNavigate,
+  onPeriod,
+  onCell,
+  onNotes,
+}: Readonly<{
   value: PerformanceAnalyticsV6;
   tab: Exclude<PerformancePerspectiveV6, 'notes'>;
   selection: PerformanceSelectionV6;
@@ -190,53 +294,150 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
   onCell: (studentId: number, offerId?: number, back?: () => void) => void;
   onNotes: (offerId: number) => void;
 }>) {
-  const student = value.students.find((item) => item.student.id === selection.studentId) ?? value.students[0];
-  const component = value.components.find((item) => item.offer.id === selection.offerId) ?? value.components[0];
-  const teacher = value.teachers.find((item) => item.id === selection.teacherId) ?? value.teachers[0];
-  const openStudent = (id: number) => { onSelection({ studentId: id }); onNavigate('students'); };
-  const openComponent = (id: number) => { onSelection({ offerId: id }); onNavigate('components'); };
-  if (tab === 'overview') return <div data-testid="performance-analytics-v6" className="min-w-0">
-    <PerformanceLearningOverviewV1
-      key={`${value.context.year}:${value.classGroup.id}:${value.period}`}
-      value={value} onStudent={onCell} onComponent={openComponent} onPeriod={onPeriod} onNotes={onNotes}
-    />
-  </div>;
-  const { selectedSummary, components, scopeOffers } = analyticsScopeV6(value, tab, component, teacher);
+  const student =
+    value.students.find((item) => item.student.id === selection.studentId) ?? value.students[0];
+  const component =
+    value.components.find((item) => item.offer.id === selection.offerId) ?? value.components[0];
+  const teacher =
+    value.teachers.find((item) => item.id === selection.teacherId) ?? value.teachers[0];
+  const openStudent = (id: number) => {
+    onSelection({ studentId: id });
+    onNavigate('students');
+  };
+  const openComponent = (id: number) => {
+    onSelection({ offerId: id });
+    onNavigate('components');
+  };
+  if (tab === 'overview')
+    return (
+      <div data-testid="performance-analytics-v6" className="min-w-0">
+        <PerformanceLearningOverviewV1
+          key={`${value.context.year}:${value.classGroup.id}:${value.period}`}
+          value={value}
+          onStudent={onCell}
+          onComponent={openComponent}
+          onPeriod={onPeriod}
+          onNotes={onNotes}
+        />
+      </div>
+    );
+  const { selectedSummary, components, scopeOffers } = analyticsScopeV6(
+    value,
+    tab,
+    component,
+    teacher,
+  );
   const scopePartial = scopePartialV6(value, scopeOffers);
   const allStudents = analyticsStudentItemsV6(value);
-  const componentBars = <AnalyticsBarsV6 items={components.map((item) => ({
-    id: item.offer.id, label: item.offer.subject.label, value: item.summary.result.mean,
-    below: item.summary.result.mean !== null && item.summary.result.mean < value.minimumPercent,
-    secondary: `${item.summary.complete}/${item.summary.readings} resultados · ${item.summary.below} abaixo`,
-  }))} onSelect={openComponent} />;
+  const componentBars = (
+    <AnalyticsBarsV6
+      items={components.map((item) => ({
+        id: item.offer.id,
+        label: item.offer.subject.label,
+        value: item.summary.result.mean,
+        below: item.summary.result.mean !== null && item.summary.result.mean < value.minimumPercent,
+        secondary: `${item.summary.complete}/${item.summary.readings} resultados · ${item.summary.below} abaixo`,
+      }))}
+      onSelect={openComponent}
+    />
+  );
   if (missingSelectionV6(tab, student, component, teacher))
-    return <Alert><Alert.Content><Alert.Title>Nenhum registro neste recorte.</Alert.Title></Alert.Content></Alert>;
-  return <div className="grid min-w-0 gap-4" data-testid="performance-analytics-v6">
-    <AnalyticsEntityHeaderV6 value={value} tab={tab} student={student} component={component} teacher={teacher} onSelection={onSelection} onCell={onCell} />
-
-    {tab === 'students' && student ? (
-      <PerformanceStudentLearningV1
-        key={`${value.context.year}:${value.classGroup.id}:${value.period}:${student.student.id}`}
+    return (
+      <Alert>
+        <Alert.Content>
+          <Alert.Title>Nenhum registro neste recorte.</Alert.Title>
+        </Alert.Content>
+      </Alert>
+    );
+  return (
+    <div className="grid min-w-0 gap-4" data-testid="performance-analytics-v6">
+      <AnalyticsEntityHeaderV6
         value={value}
-        studentId={student.student.id}
-        onPeriod={onPeriod}
+        tab={tab}
+        student={student}
+        component={component}
+        teacher={teacher}
+        onSelection={onSelection}
         onCell={onCell}
       />
-    ) : (
-      <>
-        <AnalyticsKpisV6 summary={selectedSummary} />
-        {tab === 'classes' ? <>
-          <AnalyticsHeatmapV6 value={value} onStudent={openStudent} onComponent={openComponent} onCell={onCell} />
-          <div className="grid gap-4 xl:grid-cols-2"><AnalyticsPanelV6 title="Componentes">{componentBars}</AnalyticsPanelV6><AnalyticsDistributionV6 summary={value.summary} /></div>
-          <AnalyticsStudentsTableV6 title="Acompanhamento da turma" items={allStudents.filter((item) => item.below > 0 || item.partial > 0 || item.complete === 0)} onSelect={openStudent} />
-        </> : <>
-          <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]"><AnalyticsTimelineV6 summary={selectedSummary} onPeriod={onPeriod} /><AnalyticsCompositionV6 summary={selectedSummary} /></div>
-          {tab === 'components' && component ? <><AnalyticsInstrumentsV6 component={component} onNotes={onNotes} /><AnalyticsStudentsTableV6 title="Alunos neste componente" items={componentStudentItemsV6(value, component)} onSelect={(id) => onCell(id, component.offer.id)} /></> : null}
-          {tab === 'teachers' && teacher ? <><AnalyticsPanelV6 title="Componentes nesta turma">{componentBars}</AnalyticsPanelV6><AnalyticsStudentsTableV6 title="Acompanhamento do professor" items={analyticsStudentItemsV6(value, teacher.id)} onSelect={openStudent} /></> : null}
-        </>}
-        <div className="grid gap-4 xl:grid-cols-2"><AnalyticsRecoveryV6 summary={selectedSummary} /><AnalyticsCoverageV6 summary={selectedSummary} partial={scopePartial} /></div>
-        <footer className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted"><span>Limite: {percent(value.minimumPercent)}</span><span>{value.summary.students}/{value.classStudents} alunos considerados</span><span>Estatísticas incluem resultados com instrumento em branco</span><span className="ml-auto">Leitura {new Date(value.readAt).toLocaleTimeString('pt-BR')}</span></footer>
-      </>
-    )}
-  </div>;
+
+      {tab === 'students' && student ? (
+        <PerformanceStudentLearningV1
+          key={`${value.context.year}:${value.classGroup.id}:${value.period}:${student.student.id}`}
+          value={value}
+          studentId={student.student.id}
+          onPeriod={onPeriod}
+          onCell={onCell}
+        />
+      ) : (
+        <>
+          <AnalyticsKpisV6 summary={selectedSummary} />
+          {tab === 'classes' ? (
+            <>
+              <AnalyticsHeatmapV6
+                value={value}
+                onStudent={openStudent}
+                onComponent={openComponent}
+                onCell={onCell}
+              />
+              <div className="grid gap-4 xl:grid-cols-2">
+                <AnalyticsPanelV6 title="Componentes">{componentBars}</AnalyticsPanelV6>
+                <AnalyticsDistributionV6 summary={value.summary} />
+              </div>
+              <AnalyticsStudentsTableV6
+                title="Acompanhamento da turma"
+                items={allStudents.filter(
+                  (item) => item.below > 0 || item.partial > 0 || item.complete === 0,
+                )}
+                onSelect={openStudent}
+              />
+            </>
+          ) : (
+            <>
+              <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                <AnalyticsTimelineV6 summary={selectedSummary} onPeriod={onPeriod} />
+                <AnalyticsCompositionV6 summary={selectedSummary} />
+              </div>
+              {tab === 'components' && component ? (
+                <>
+                  <AnalyticsInstrumentsV6 component={component} onNotes={onNotes} />
+                  <AnalyticsStudentsTableV6
+                    title="Alunos neste componente"
+                    items={componentStudentItemsV6(value, component)}
+                    onSelect={(id) => onCell(id, component.offer.id)}
+                  />
+                </>
+              ) : null}
+              {tab === 'teachers' && teacher ? (
+                <>
+                  <AnalyticsPanelV6 title="Componentes nesta turma">
+                    {componentBars}
+                  </AnalyticsPanelV6>
+                  <AnalyticsStudentsTableV6
+                    title="Acompanhamento do professor"
+                    items={analyticsStudentItemsV6(value, teacher.id)}
+                    onSelect={openStudent}
+                  />
+                </>
+              ) : null}
+            </>
+          )}
+          <div className="grid gap-4 xl:grid-cols-2">
+            <AnalyticsRecoveryV6 summary={selectedSummary} />
+            <AnalyticsCoverageV6 summary={selectedSummary} partial={scopePartial} />
+          </div>
+          <footer className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+            <span>Limite: {percent(value.minimumPercent)}</span>
+            <span>
+              {value.summary.students}/{value.classStudents} alunos considerados
+            </span>
+            <span>Estatísticas incluem resultados com instrumento em branco</span>
+            <span className="ml-auto">
+              Leitura {new Date(value.readAt).toLocaleTimeString('pt-BR')}
+            </span>
+          </footer>
+        </>
+      )}
+    </div>
+  );
 }

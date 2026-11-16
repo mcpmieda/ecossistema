@@ -35,7 +35,9 @@ export async function lockYearResetV1(
 }
 
 /** Only against a reset in progress (any year), for readers that do not write the year. */
-export async function lockYearResetSharedV1(transaction: GradebookPostgresReadPortV1): Promise<void> {
+export async function lockYearResetSharedV1(
+  transaction: GradebookPostgresReadPortV1,
+): Promise<void> {
   await transaction.query('SELECT pg_advisory_xact_lock_shared(613,0)', []);
 }
 

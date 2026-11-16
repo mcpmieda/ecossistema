@@ -245,7 +245,9 @@
   border-radius: 1rem;
   color: white;
   border: 1px solid rgb(255 255 255 / 0.2);
-  background: rgb(255 255 255 / 0.11); /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
+  background: rgb(
+    255 255 255 / 0.11
+  ); /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.15);
   backdrop-filter: blur(8px);
 }
@@ -344,7 +346,12 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.75) 48%, transparent 64%);
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.75) 48%,
+    transparent 64%
+  );
   transform: translateX(-130%);
   animation: pa-seal-count-glint 12s cubic-bezier(0.45, 0, 0.55, 1) 2s infinite;
   pointer-events: none;
@@ -356,10 +363,20 @@
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(circle at 6% 30%, #fff 0 1.1px, rgb(186 117 23 / 0.35) 1.4px, transparent 2.2px),
+    radial-gradient(
+      circle at 6% 30%,
+      #fff 0 1.1px,
+      rgb(186 117 23 / 0.35) 1.4px,
+      transparent 2.2px
+    ),
     radial-gradient(circle at 38% 16%, #fff 0 0.7px, rgb(186 117 23 / 0.3) 1px, transparent 1.7px),
     radial-gradient(circle at 63% 84%, #fff 0 1px, rgb(186 117 23 / 0.35) 1.3px, transparent 2.1px),
-    radial-gradient(circle at 86% 22%, #fff 0 1.2px, rgb(186 117 23 / 0.35) 1.5px, transparent 2.3px),
+    radial-gradient(
+      circle at 86% 22%,
+      #fff 0 1.2px,
+      rgb(186 117 23 / 0.35) 1.5px,
+      transparent 2.3px
+    ),
     radial-gradient(circle at 96% 76%, #fff 0 0.8px, rgb(186 117 23 / 0.3) 1.1px, transparent 1.8px);
   animation: pa-seal-count-stars 5s ease-in-out 1.2s infinite;
   pointer-events: none;
@@ -485,7 +502,9 @@
 .pa-seal-count--empty {
   border-color: rgb(250 199 117 / 0.35);
   background: rgb(255 255 255 / 0.1);
-  color: rgb(253 233 181 / 0.72); /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
+  color: rgb(
+    253 233 181 / 0.72
+  ); /* NOSONAR text over the Portal's dark blue header; the translucent fill is not the real background */
   box-shadow: none;
 }
 .pa-seal-count--empty::before,
@@ -767,11 +786,11 @@
     font-size: 0.74rem;
   }
   .pa-hero-body {
-  grid-template-columns: minmax(0, 1.02fr) minmax(18rem, 0.98fr);
-  gap: 1.25rem;
-  min-height: 13.25rem;
-  position: relative;
-}
+    grid-template-columns: minmax(0, 1.02fr) minmax(18rem, 0.98fr);
+    gap: 1.25rem;
+    min-height: 13.25rem;
+    position: relative;
+  }
   /* Mobile proportions scaled up (~1.6×): top-anchored copy, details keep pace with the name. */
   .pa-hero-copy {
     align-self: start;
@@ -800,7 +819,7 @@
     width: 20px;
     height: 20px;
   }
-  
+
   /* Same composition as mobile: portrait sinks below the content sheet. */
   .pa-hero-portrait {
     position: absolute;
@@ -842,11 +861,11 @@
     font-size: 0.78rem;
   }
   .pa-hero-body {
-  grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.92fr);
-  gap: 2rem;
-  min-height: 14.7rem;
-  position: relative;
-}
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.92fr);
+    gap: 2rem;
+    min-height: 14.7rem;
+    position: relative;
+  }
   .pa-hero-copy {
     align-self: start;
     max-width: 36rem;
@@ -873,7 +892,7 @@
     width: 21px;
     height: 21px;
   }
-  
+
   .pa-hero-portrait {
     position: absolute;
     right: calc(18% - 10rem);

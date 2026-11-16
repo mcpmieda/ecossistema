@@ -11,7 +11,10 @@ function fakeDatabase() {
   const rows: { actor: string; key: string; value: string; at: number }[] = [];
   let clock = 0;
   const port = {
-    async query<Row extends Record<string, unknown>>(_text: string, parameters: readonly unknown[]) {
+    async query<Row extends Record<string, unknown>>(
+      _text: string,
+      parameters: readonly unknown[],
+    ) {
       const [actor, limit] = parameters as [string, number];
       return rows
         .filter((row) => row.actor === actor)
@@ -22,7 +25,10 @@ function fakeDatabase() {
     async executeNative(text: string, parameters: readonly unknown[]) {
       const actor = parameters[0] as string;
       if (text.trimStart().startsWith('INSERT')) {
-        const views = JSON.parse((parameters[1] as { jsonText: string }).jsonText) as Record<string, unknown>;
+        const views = JSON.parse((parameters[1] as { jsonText: string }).jsonText) as Record<
+          string,
+          unknown
+        >;
         for (const [key, value] of Object.entries(views)) {
           const existing = rows.find((row) => row.actor === actor && row.key === key);
           clock += 1;
@@ -44,17 +50,31 @@ describe('view preferences v1', () => {
   it('saves and reads back each account separately', async () => {
     const { port } = fakeDatabase();
     const service = createViewPreferencesServiceV1(port);
-    const view = { perspective: 'notes', selection: { studentId: null, offerId: 4, teacherId: null }, year: 2026 };
-    await service.save(ACTOR, { views: { 'gradebook-performance-view': view, 'platform-address': '#/banco-de-notas?area=performance' } });
+    const view = {
+      perspective: 'notes',
+      selection: { studentId: null, offerId: 4, teacherId: null },
+      year: 2026,
+    };
+    await service.save(ACTOR, {
+      views: {
+        'gradebook-performance-view': view,
+        'platform-address': '#/banco-de-notas?area=performance',
+      },
+    });
     await service.save(OTHER, { views: { 'platform-address': '#/importacao' } });
 
     expect(await service.read(ACTOR)).toEqual({
       contractVersion: 1,
       state: 'ready',
-      views: { 'gradebook-performance-view': view, 'platform-address': '#/banco-de-notas?area=performance' },
+      views: {
+        'gradebook-performance-view': view,
+        'platform-address': '#/banco-de-notas?area=performance',
+      },
     });
     expect(await service.read(OTHER)).toEqual({
-      contractVersion: 1, state: 'ready', views: { 'platform-address': '#/importacao' },
+      contractVersion: 1,
+      state: 'ready',
+      views: { 'platform-address': '#/importacao' },
     });
   });
 
@@ -62,16 +82,21 @@ describe('view preferences v1', () => {
     const { port } = fakeDatabase();
     const service = createViewPreferencesServiceV1(port);
     await service.save(ACTOR, { views: { 'gradebook-performance-filters:2026': { period: 1 } } });
-    const saved = await service.save(ACTOR, { views: { 'gradebook-performance-filters:2026': { period: 2 } } });
+    const saved = await service.save(ACTOR, {
+      views: { 'gradebook-performance-filters:2026': { period: 2 } },
+    });
     expect(saved).toEqual({
-      contractVersion: 1, state: 'ready', views: { 'gradebook-performance-filters:2026': { period: 2 } },
+      contractVersion: 1,
+      state: 'ready',
+      views: { 'gradebook-performance-filters:2026': { period: 2 } },
     });
   });
 
   it('keeps at most 64 views per account, the most recent ones', async () => {
     const { port, rows } = fakeDatabase();
     const service = createViewPreferencesServiceV1(port);
-    for (let index = 0; index < 70; index += 1) await service.save(ACTOR, { views: { [`view-${index}`]: index } });
+    for (let index = 0; index < 70; index += 1)
+      await service.save(ACTOR, { views: { [`view-${index}`]: index } });
     expect(rows).toHaveLength(64);
     expect(rows.some((row) => row.key === 'view-0')).toBe(false);
     expect(rows.some((row) => row.key === 'view-69')).toBe(true);
@@ -80,9 +105,13 @@ describe('view preferences v1', () => {
   it('refuses malformed keys, oversized values and a session without an account id', async () => {
     const service = createViewPreferencesServiceV1(fakeDatabase().port);
     expect((await service.save(ACTOR, { views: { 'Bad Key': 1 } })).state).toBe('invalid-request');
-    expect((await service.save(ACTOR, { views: { big: 'x'.repeat(3000) } })).state).toBe('invalid-request');
+    expect((await service.save(ACTOR, { views: { big: 'x'.repeat(3000) } })).state).toBe(
+      'invalid-request',
+    );
     expect((await service.save(ACTOR, { views: {} })).state).toBe('invalid-request');
-    expect((await service.save(ACTOR, { views: { a: 1 }, extra: true })).state).toBe('invalid-request');
+    expect((await service.save(ACTOR, { views: { a: 1 }, extra: true })).state).toBe(
+      'invalid-request',
+    );
     expect((await service.read('not-a-uuid')).state).toBe('not-authorized');
   });
 
@@ -97,8 +126,13 @@ describe('view preferences v1', () => {
   });
 
   it('accepts the keys the screens already use', () => {
-    for (const key of ['gradebook-performance-view', 'gradebook-performance-filters:2026',
-      'gradebook-bulletins-view', 'gradebook-council-view', 'platform-address'])
+    for (const key of [
+      'gradebook-performance-view',
+      'gradebook-performance-filters:2026',
+      'gradebook-bulletins-view',
+      'gradebook-council-view',
+      'platform-address',
+    ])
       expect(viewPreferencesSaveSchemaV1.safeParse({ views: { [key]: 1 } }).success).toBe(true);
   });
 });

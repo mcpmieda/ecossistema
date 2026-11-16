@@ -151,8 +151,10 @@ export class StudentReconciliationServiceV1 {
    * the lock. Before the year's first write the row is missing: that one read takes the write path,
    * which creates it.
    */
-  private async run<T>(request: { operation: string; academicYear: number },
-    work: (tx: TxV1, context: ReconciliationContextV1) => Promise<T>): Promise<T> {
+  private async run<T>(
+    request: { operation: string; academicYear: number },
+    work: (tx: TxV1, context: ReconciliationContextV1) => Promise<T>,
+  ): Promise<T> {
     if (RECONCILIATION_READ_OPERATIONS_V1.includes(request.operation)) {
       const read = await this.database.transaction(async (tx) => {
         await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
@@ -161,7 +163,9 @@ export class StudentReconciliationServiceV1 {
       });
       if (read) return read.value;
     }
-    return this.database.transaction(async (tx) => work(tx, await contextV1(tx, request.academicYear, true)));
+    return this.database.transaction(async (tx) =>
+      work(tx, await contextV1(tx, request.academicYear, true)),
+    );
   }
   async execute(input: unknown): Promise<ReconciliationResponseV1> {
     const parsed = reconciliationRequestV1.safeParse(input);

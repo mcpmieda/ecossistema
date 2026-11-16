@@ -3,7 +3,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createPlatformDataV2, usePlatformCheckedAtV2 } from '../src/platform/platform-data-v2';
 import { AreaErrorBoundaryV1 } from '../src/shared/ui/area-error-boundary-v1';
 import { PageContent } from '../src/platform/pages';
-import { allowLeavingToV1, useDraftNavigationGuardV1 } from '../src/shared/forms/draft-navigation-v1';
+import {
+  allowLeavingToV1,
+  useDraftNavigationGuardV1,
+} from '../src/shared/forms/draft-navigation-v1';
 import { buildPlatformSnapshot } from '../server/platform/snapshot';
 
 vi.mock('../src/platform/notes-page', () => ({
@@ -22,7 +25,10 @@ const template = () =>
     ['platform.snapshot.read', 'platform.settings.read'],
   );
 const json = (body: unknown) =>
-  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined);

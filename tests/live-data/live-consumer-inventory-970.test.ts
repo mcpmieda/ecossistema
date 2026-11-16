@@ -10,11 +10,23 @@ const consumers = [
   ['src/features/gradebook/performance/use-relational-performance-v2.ts', "domains: ['gradebook']"],
   ['src/features/gradebook/council/use-relational-council-v3.ts', "domains: ['gradebook']"],
   ['src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx', "domains: ['gradebook']"],
-  ['src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx', "domains: ['gradebook']"],
+  [
+    'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
+    "domains: ['gradebook']",
+  ],
   ['src/features/gradebook/settings/assessment-names-v1.tsx', "domains: ['gradebook']"],
-  ['src/features/student-portal-admin/accounts/accounts-read-v1.ts', "domains: ['portal', 'gradebook']"],
-  ['src/features/student-portal-admin/settings/student-settings-v1.tsx', "domains: ['portal', 'gradebook']"],
-  ['src/features/student-portal-admin/publication/student-publication-v1.tsx', "domains: ['portal', 'gradebook']"],
+  [
+    'src/features/student-portal-admin/accounts/accounts-read-v1.ts',
+    "domains: ['portal', 'gradebook']",
+  ],
+  [
+    'src/features/student-portal-admin/settings/student-settings-v1.tsx',
+    "domains: ['portal', 'gradebook']",
+  ],
+  [
+    'src/features/student-portal-admin/publication/student-publication-v1.tsx',
+    "domains: ['portal', 'gradebook']",
+  ],
 ] as const;
 
 describe('BN-21 current live consumer inventory', () => {

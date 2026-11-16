@@ -30,17 +30,11 @@ import { retiredGradebookRequestV1 } from './retired-request-v1';
 const GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance';
 
 function notAuthorized(status: 401 | 403): Response {
-  return noStoreJsonV1(
-    { transportVersion: 1, state: 'not-authorized' },
-    status,
-  );
+  return noStoreJsonV1({ transportVersion: 1, state: 'not-authorized' }, status);
 }
 
 function unavailable(status = 503): Response {
-  return noStoreJsonV1(
-    { transportVersion: 1, state: 'unavailable' },
-    status,
-  );
+  return noStoreJsonV1({ transportVersion: 1, state: 'unavailable' }, status);
 }
 
 interface PerformanceRequestHandlerDependenciesV1 {
@@ -71,10 +65,7 @@ interface CurrentPerformanceReadResponseV1 {
   readonly state: string;
 }
 
-type CurrentPerformanceHandlerV1 = (
-  payload: unknown,
-  env: RuntimeEnv,
-) => Promise<Response | null>;
+type CurrentPerformanceHandlerV1 = (payload: unknown, env: RuntimeEnv) => Promise<Response | null>;
 
 function hasCurrentPerformanceVersionV1(
   payload: unknown,

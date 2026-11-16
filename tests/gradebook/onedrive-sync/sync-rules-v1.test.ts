@@ -16,14 +16,33 @@ import {
   type ReadResultV1,
   type SyncFileV1,
 } from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
-import { editPollUntilV1, pollWindowV1, safetyDeltaIntervalMsV1, schoolDayOfV1 } from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
+import {
+  editPollUntilV1,
+  pollWindowV1,
+  safetyDeltaIntervalMsV1,
+  schoolDayOfV1,
+} from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
 
 const on = { ...DEFAULT_SYNC_SETTINGS_V1, enabled: true };
-const seen = (id: string, hash: string | null = `h-${id}`, extra: Partial<ObservedFileV1> = {}): ObservedFileV1 => ({
-  id, name: `${id}.xlsb`, size: 10, modifiedAt: '2026-11-13T10:00:00.000Z', hash, deleted: false, ...extra,
+const seen = (
+  id: string,
+  hash: string | null = `h-${id}`,
+  extra: Partial<ObservedFileV1> = {},
+): ObservedFileV1 => ({
+  id,
+  name: `${id}.xlsb`,
+  size: 10,
+  modifiedAt: '2026-11-13T10:00:00.000Z',
+  hash,
+  deleted: false,
+  ...extra,
 });
 const done = (outcome: ReadResultV1['outcome'], readHash: string | null = 'h-a'): ReadResultV1 => ({
-  outcome, code: null, readHash, readMs: 1, savedToWrittenMs: null,
+  outcome,
+  code: null,
+  readHash,
+  readMs: 1,
+  savedToWrittenMs: null,
 });
 function pending(id: string, now = 0, settings = on): SyncFileV1 {
   return observeFileV1(null, seen(id), now, settings)!;
@@ -32,18 +51,32 @@ function pending(id: string, now = 0, settings = on): SyncFileV1 {
 describe('Notas sync rules', () => {
   it('a new or changed file becomes pending, due after the configured wait', () => {
     expect(pending('a', 1000)).toMatchObject({ state: 'pending', dueAt: 1000 });
-    expect(pending('a', 1000, { ...on, waitSeconds: 10 })).toMatchObject({ state: 'pending', dueAt: 11_000 });
+    expect(pending('a', 1000, { ...on, waitSeconds: 10 })).toMatchObject({
+      state: 'pending',
+      dueAt: 11_000,
+    });
   });
 
   it('a file identical to the last processed one is skipped without a read', () => {
-    const processed = { ...pending('a'), state: 'idle' as const, processedHash: 'h-a', dueAt: null };
-    expect(observeFileV1(processed, seen('a'), 5, on)).toMatchObject({ state: 'idle', dueAt: null });
+    const processed = {
+      ...pending('a'),
+      state: 'idle' as const,
+      processedHash: 'h-a',
+      dueAt: null,
+    };
+    expect(observeFileV1(processed, seen('a'), 5, on)).toMatchObject({
+      state: 'idle',
+      dueAt: null,
+    });
   });
 
   it('a later save pushes the wait forward', () => {
     const settings = { ...on, waitSeconds: 10 };
     const first = observeFileV1(null, seen('a', 'h1'), 0, settings)!;
-    expect(observeFileV1(first, seen('a', 'h2'), 4000, settings)).toMatchObject({ state: 'pending', dueAt: 14_000 });
+    expect(observeFileV1(first, seen('a', 'h2'), 4000, settings)).toMatchObject({
+      state: 'pending',
+      dueAt: 14_000,
+    });
   });
 
   it('a save during a read marks the file dirty; it is read again right after', () => {
@@ -51,21 +84,38 @@ describe('Notas sync rules', () => {
     const dirty = observeFileV1(reading, seen('a', 'h-new'), 10, on)!;
     expect(dirty).toMatchObject({ state: 'reading', dirty: true, lease: 'lease-1' });
     expect(finishReadingV1(dirty, 'lease-1', done('applied', 'h-a'), 20)).toMatchObject({
-      state: 'pending', dueAt: 20, dirty: false, processedHash: 'h-a',
+      state: 'pending',
+      dueAt: 20,
+      dirty: false,
+      processedHash: 'h-a',
     });
   });
 
   it('a repeated notice of the same save during its read is not a change (issue #1450, 14)', () => {
-    const reading = startReadingV1({ ...pending('a'), hash: 'h-a', processedHash: 'h-old' }, 'lease-1', 0);
-    expect(observeFileV1(reading, seen('a', 'h-a'), 10, on)).toMatchObject({ state: 'reading', dirty: false });
-    expect(observeFileV1(reading, seen('a', 'h-b'), 10, on)).toMatchObject({ state: 'reading', dirty: true });
+    const reading = startReadingV1(
+      { ...pending('a'), hash: 'h-a', processedHash: 'h-old' },
+      'lease-1',
+      0,
+    );
+    expect(observeFileV1(reading, seen('a', 'h-a'), 10, on)).toMatchObject({
+      state: 'reading',
+      dirty: false,
+    });
+    expect(observeFileV1(reading, seen('a', 'h-b'), 10, on)).toMatchObject({
+      state: 'reading',
+      dirty: true,
+    });
   });
 
   it('never runs two reads of one file and respects the parallel limit', () => {
     const files = ['a', 'b', 'c'].map((id) => pending(id));
     const started = filesToStartV1(files, 0, { ...on, maxParallel: 2 }, null);
     expect(started.map((file) => file.id)).toEqual(['a', 'b']);
-    const after = [startReadingV1(files[0]!, 'l1', 0), startReadingV1(files[1]!, 'l2', 0), files[2]!];
+    const after = [
+      startReadingV1(files[0]!, 'l1', 0),
+      startReadingV1(files[1]!, 'l2', 0),
+      files[2]!,
+    ];
     expect(filesToStartV1(after, 0, { ...on, maxParallel: 2 }, null)).toEqual([]);
   });
 
@@ -85,7 +135,12 @@ describe('Notas sync rules', () => {
   it('retries transient failures with growing delays and keeps the processed hash', () => {
     let file = startReadingV1(pending('a'), 'l', 0);
     file = finishReadingV1(file, 'l', done('failed', null), 100)!;
-    expect(file).toMatchObject({ state: 'pending', dueAt: 100 + 60_000, attempts: 1, processedHash: null });
+    expect(file).toMatchObject({
+      state: 'pending',
+      dueAt: 100 + 60_000,
+      attempts: 1,
+      processedHash: null,
+    });
     file = finishReadingV1(startReadingV1(file, 'l2', 200), 'l2', done('failed', null), 300)!;
     expect(file).toMatchObject({ dueAt: 300 + 5 * 60_000, attempts: 2 });
   });
@@ -116,7 +171,9 @@ describe('Notas sync rules', () => {
       state = nextBreakerV1(state.consecutiveFailures, 'failed', 0);
       expect(state.breakerUntil).toBeNull();
     }
-    expect(nextBreakerV1(state.consecutiveFailures, 'failed', 10).breakerUntil).toBe(10 + SYNC_BREAKER_PAUSE_MS_V1);
+    expect(nextBreakerV1(state.consecutiveFailures, 'failed', 10).breakerUntil).toBe(
+      10 + SYNC_BREAKER_PAUSE_MS_V1,
+    );
     expect(nextBreakerV1(3, 'blocked', 10)).toEqual({ consecutiveFailures: 0, breakerUntil: null });
   });
 
@@ -134,10 +191,18 @@ describe('10 s poll while someone edits (owner decision 15/11/2026)', () => {
   it('lasts 25 min after a save on school days and 10 min otherwise; the safety delta is 15 min or 1 h', () => {
     const now = at('2026-11-16T12:00:00-03:00');
     expect(schoolDayOfV1(at('2026-11-17T01:00:00Z'))).toBe('2026-11-16');
-    const day = pollWindowV1('2026-11-16', { schoolDay: true, starts: '07:20', ends: '17:30', source: 'calendar' }, now);
+    const day = pollWindowV1(
+      '2026-11-16',
+      { schoolDay: true, starts: '07:20', ends: '17:30', source: 'calendar' },
+      now,
+    );
     expect(editPollUntilV1(day, now)).toBe(now + 25 * 60_000);
     expect(safetyDeltaIntervalMsV1(day)).toBe(15 * 60_000);
-    const holiday = pollWindowV1('2026-11-16', { schoolDay: false, starts: '07:20', ends: '17:30', source: 'calendar' }, now);
+    const holiday = pollWindowV1(
+      '2026-11-16',
+      { schoolDay: false, starts: '07:20', ends: '17:30', source: 'calendar' },
+      now,
+    );
     expect(editPollUntilV1(holiday, now)).toBe(now + 10 * 60_000);
     expect(safetyDeltaIntervalMsV1(holiday)).toBe(60 * 60_000);
     expect(day.retryAfter).toBeNull();
@@ -145,7 +210,11 @@ describe('10 s poll while someone edits (owner decision 15/11/2026)', () => {
   it('without the Portal answer, weekdays 07:00–18:00 and asks again within the hour', () => {
     const now = at('2026-11-15T12:00:00-03:00');
     const sunday = pollWindowV1('2026-11-15', null, now);
-    expect(sunday).toMatchObject({ schoolDay: false, source: 'weekday-fallback', retryAfter: now + 3_600_000 });
+    expect(sunday).toMatchObject({
+      schoolDay: false,
+      source: 'weekday-fallback',
+      retryAfter: now + 3_600_000,
+    });
     expect(pollWindowV1('2026-11-16', null, now).schoolDay).toBe(true);
   });
 });

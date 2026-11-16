@@ -4,7 +4,10 @@ import {
   isGradebookImportDiagnosticsAuditRequestV1,
   type GradebookImportDiagnosticsAuditRequestV1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
-import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../persistence/postgres/postgres-database-v1';
+import {
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresTransactionV1,
+} from '../../persistence/postgres/postgres-database-v1';
 
 import { postgresJsonTextV1 } from '../../persistence/postgres/postgres-values-v1';
 
@@ -55,7 +58,11 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
   // REC formulas without a saved cache or qualitative "*" maxima) stay out of
   // the durable current snapshot.
   const rows = request.diagnostics
-    .filter((item) => item.severity === 'blocking-error' || GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1.has(item.code))
+    .filter(
+      (item) =>
+        item.severity === 'blocking-error' ||
+        GRADEBOOK_IMPORT_ACTIONABLE_WARNING_CODES_V1.has(item.code),
+    )
     .map((item) => ({
       ano: academicYear,
       origem: origin,
@@ -97,7 +104,7 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
         const affectedYears = async () =>
           (
             await transaction.query<{ ano: number }>(
-                `SELECT DISTINCT ano FROM gradebook.importacao_diagnostico
+              `SELECT DISTINCT ano FROM gradebook.importacao_diagnostico
        WHERE ((ano IS NOT DISTINCT FROM $1 AND arquivo = $2) OR hash = decode($3, 'hex'))
          AND origem IN ($4, 'legacy', $5) AND ano IS NOT NULL ORDER BY ano`,
               [academicYear, fileName, sha256, origin, alsoReplaced],
@@ -112,12 +119,14 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
         const materializedYears = new Set<number>();
         for (const year of years) {
           await transaction.query('SELECT pg_advisory_xact_lock(613,$1::integer)', [year]);
-          const state = (await transaction.query<{ present: boolean | number }>(
-            `SELECT TRUE AS present,
+          const state = (
+            await transaction.query<{ present: boolean | number }>(
+              `SELECT TRUE AS present,
        student_portal.ensure_year_coordination_v1(y.ano) AS coordination
        FROM gradebook.ano_letivo y WHERE y.ano=$1::smallint`,
-            [year],
-          ))[0];
+              [year],
+            )
+          )[0];
           const present = state?.present === true || state?.present === 1;
           if (present) {
             materializedYears.add(year);
@@ -127,15 +136,19 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
         // Source lock serializes versions; content lock also protects same bytes renamed.
         // A hash collision only adds serialization. Values never enter the SQL text/logs.
         for (const key of [sourceKey, contentKey]) {
-          await transaction.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 629)) AS locked', [key]);
+          await transaction.query(
+            'SELECT pg_advisory_xact_lock(hashtextextended($1, 629)) AS locked',
+            [key],
+          );
         }
         // Never acquire an additional annual lock after the content lock: restart instead.
         // Both aggregates observe the same rows once, after the source/content locks.
         // JSON uses the adapter's explicit *_json normalization, not a driver array cast.
-        const current = (await transaction.executeNative<{
-          previous_years_json: string;
-          unchanged: number;
-        }>(
+        const current = (
+          await transaction.executeNative<{
+            previous_years_json: string;
+            unchanged: number;
+          }>(
             `SELECT COALESCE(jsonb_agg(DISTINCT d.ano ORDER BY d.ano)
          FILTER (WHERE d.ano IS NOT NULL), '[]'::jsonb) AS previous_years_json,
        COALESCE(jsonb_agg(
@@ -145,8 +158,9 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
        FROM gradebook.importacao_diagnostico d
        WHERE ((ano IS NOT DISTINCT FROM $2 AND arquivo = $3) OR hash = decode($4, 'hex'))
          AND origem IN ($5, 'legacy', $6)`,
-          [postgresJsonTextV1(serialized), academicYear, fileName, sha256, origin, alsoReplaced],
-        )).rows[0];
+            [postgresJsonTextV1(serialized), academicYear, fileName, sha256, origin, alsoReplaced],
+          )
+        ).rows[0];
         if (!current) throw new Error('import-diagnostics-snapshot-state-unavailable');
         const previousYears = JSON.parse(current.previous_years_json) as number[];
         // Equality must never skip revalidation: a new year requires a bounded retry
@@ -169,7 +183,7 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
         // source observation no longer contains a diagnostic key, its treatment must
         // not survive as an orphan record.
         await transaction.executeNative(
-            `DELETE FROM gradebook.importacao_diagnostico_tratamento a
+          `DELETE FROM gradebook.importacao_diagnostico_tratamento a
        WHERE ((a.ano IS NOT DISTINCT FROM $1 AND a.arquivo = $2)
           OR a.hash = decode($3, 'hex'))
          AND NOT EXISTS (
@@ -190,7 +204,7 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
         );
 
         const cleared = await transaction.executeNative(
-            `DELETE FROM gradebook.importacao_diagnostico
+          `DELETE FROM gradebook.importacao_diagnostico
        WHERE ((ano IS NOT DISTINCT FROM $1 AND arquivo = $2) OR hash = decode($3, 'hex'))
          AND origem IN ($4, 'legacy', $5)`,
           [academicYear, fileName, sha256, origin, alsoReplaced],
@@ -202,7 +216,7 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
         }
 
         const inserted = await transaction.executeNative(
-            `INSERT INTO gradebook.importacao_diagnostico
+          `INSERT INTO gradebook.importacao_diagnostico
         (ano,origem,arquivo,hash,chave,nivel,codigo,turma_codigo,disciplina,periodo,
          aluno_numero,campo,rotulo,valor_encontrado,causa,guia,celula)
        SELECT x.ano,x.origem,x.arquivo,decode(x.hash_hex,'hex'),x.chave,x.nivel,x.codigo,

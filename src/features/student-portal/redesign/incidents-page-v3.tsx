@@ -1,6 +1,14 @@
 import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
 import { useCallback, useState } from 'react';
-import { CalendarDays, CheckCircle2, CircleCheck, FileText, ShieldAlert, TriangleAlert, type LucideIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  CircleCheck,
+  FileText,
+  ShieldAlert,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
@@ -28,25 +36,43 @@ import { PAGE_LOADING_V3 } from './page-loading-v3';
  * (createStudentIncidentsClientV1), read with the sign-in and kept (useCachedReadV3); shown only when
  * the self response says `showIncidents === true`.
  */
-const DATE = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' });
+const DATE = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'UTC',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
 const READ_DATE = new Intl.DateTimeFormat('pt-BR', {
   timeZone: SCHOOL_TIME_ZONE_V1,
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
 });
-const READ_TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1, hour: '2-digit', minute: '2-digit' });
+const READ_TIME = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: SCHOOL_TIME_ZONE_V1,
+  hour: '2-digit',
+  minute: '2-digit',
+});
 /** "30/10/2026, às 10:03", in the school's time. */
-const readMomentV3 = (value: string) => `${READ_DATE.format(new Date(value))}, às ${READ_TIME.format(new Date(value))}`;
+const readMomentV3 = (value: string) =>
+  `${READ_DATE.format(new Date(value))}, às ${READ_TIME.format(new Date(value))}`;
 const civil = (value: string) => DATE.format(new Date(`${value}T00:00:00Z`));
 
 /**
  * The Smecel's kind in capitals and its colour: a suspension red, a warning amber. A suspension
  * always reads "SUSPENSÃO SEM PREJUÍZO" on the Portal.
  */
-function kindOfV3(kind: string): { label: string; color: 'danger' | 'warning' | 'default'; Icon: LucideIcon } {
-  const key = kind.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase();
-  if (key === 'SUSPENSAO') return { label: 'SUSPENSÃO SEM PREJUÍZO', color: 'danger', Icon: ShieldAlert };
+function kindOfV3(kind: string): {
+  label: string;
+  color: 'danger' | 'warning' | 'default';
+  Icon: LucideIcon;
+} {
+  const key = kind
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase();
+  if (key === 'SUSPENSAO')
+    return { label: 'SUSPENSÃO SEM PREJUÍZO', color: 'danger', Icon: ShieldAlert };
   if (key === 'ADVERTENCIA') return { label: 'ADVERTÊNCIA', color: 'warning', Icon: TriangleAlert };
   return { label: kind.toUpperCase(), color: 'default', Icon: FileText };
 }
@@ -91,13 +117,16 @@ function AcknowledgementV3({
   if (acknowledgedAt)
     return (
       <p className="pa3-incident-seen">
-        <CheckCircle2 size={18} aria-hidden="true" /> Você confirmou a leitura em {readMomentV3(acknowledgedAt)}
+        <CheckCircle2 size={18} aria-hidden="true" /> Você confirmou a leitura em{' '}
+        {readMomentV3(acknowledgedAt)}
       </p>
     );
   if (confirming)
     return (
       <fieldset className="pa3-incident-confirm">
-        <legend>Você leu e entendeu esta ocorrência? Depois de confirmar, não dá para desfazer.</legend>
+        <legend>
+          Você leu e entendeu esta ocorrência? Depois de confirmar, não dá para desfazer.
+        </legend>
         {/* The answer last, at the right edge, under the thumb. */}
         <div className="pa3-incident-actions">
           <Button size="sm" variant="tertiary" isDisabled={saving} onPress={onCancel}>
@@ -138,7 +167,9 @@ function IncidentCardV3({
     }
   };
   return (
-    <Card className={'pa3-card pa3-incident' + (incident.acknowledgedAt ? ' pa3-incident--seen' : '')}>
+    <Card
+      className={'pa3-card pa3-incident' + (incident.acknowledgedAt ? ' pa3-incident--seen' : '')}
+    >
       {/* The kind's icon in a round badge, the kind and, under it, the day. */}
       <div className="pa3-card-head pa3-incident-head">
         <span className="pa3-incident-icon" aria-hidden="true">
@@ -172,7 +203,9 @@ function IncidentCardV3({
         <Alert status="danger">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Description>Não foi possível registrar agora. Tente de novo em instantes.</Alert.Description>
+            <Alert.Description>
+              Não foi possível registrar agora. Tente de novo em instantes.
+            </Alert.Description>
           </Alert.Content>
         </Alert>
       ) : null}
@@ -182,7 +215,8 @@ function IncidentCardV3({
 
 /** The failed read in words, as on Frequência and Horário. */
 function incidentsErrorV3(error: string) {
-  if (error === 'unauthenticated') return 'Sua sessão expirou. Entre novamente para ver as ocorrências.';
+  if (error === 'unauthenticated')
+    return 'Sua sessão expirou. Entre novamente para ver as ocorrências.';
   if (error === 'forbidden') return 'As ocorrências não estão disponíveis no momento.';
   return 'Não foi possível carregar as ocorrências agora.';
 }
@@ -202,7 +236,10 @@ function IncidentChangedAlertV3() {
 }
 
 /** Before the first read arrives: loading, or why it failed (and a retry when one can help). */
-function IncidentsLoadStatusV3({ error, retry }: Readonly<{ error: string | null | undefined; retry: () => void }>) {
+function IncidentsLoadStatusV3({
+  error,
+  retry,
+}: Readonly<{ error: string | null | undefined; retry: () => void }>) {
   // Asking again cannot help an expired session or a page the school turned off.
   const canRetry = !!error && error !== 'unauthenticated' && error !== 'forbidden';
   return (
@@ -241,7 +278,9 @@ export function IncidentsPageV3({
   const incidents = (load.data?.incidents ?? [])
     .map((item) => ({ ...item, acknowledgedAt: item.acknowledgedAt ?? seen[item.id] ?? null }))
     .sort((a, b) => b.date.localeCompare(a.date));
-  useReportOpenIncidentsV3(load.data ? incidents.filter((item) => !item.acknowledgedAt).length : null);
+  useReportOpenIncidentsV3(
+    load.data ? incidents.filter((item) => !item.acknowledgedAt).length : null,
+  );
   useReportIncidentsTurnedOffV3(load.error === 'forbidden');
   // Read again and nothing is left to confirm (the record was removed): the warning goes too.
   if (changed && load.data && !incidents.some((item) => !item.acknowledgedAt)) setChanged(false);
@@ -264,7 +303,9 @@ export function IncidentsPageV3({
       <h2 className="pa3-page-title">{PAGE_LOADING_V3.incidents.title}</h2>
       {changed ? <IncidentChangedAlertV3 /> : null}
       {load.data && incidents.length
-        ? incidents.map((item) => <IncidentCardV3 key={item.id} incident={item} onAcknowledge={acknowledge} />)
+        ? incidents.map((item) => (
+            <IncidentCardV3 key={item.id} incident={item} onAcknowledge={acknowledge} />
+          ))
         : null}
       {load.data && !incidents.length ? (
         <Card className="pa3-card pa3-status">

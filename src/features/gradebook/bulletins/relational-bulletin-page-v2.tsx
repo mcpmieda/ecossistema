@@ -33,7 +33,11 @@ import {
   type RelationalBulletinSnapshotV2,
 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
-import { readSessionRecordV1, storedIdV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
+import {
+  readSessionRecordV1,
+  storedIdV1,
+  writeSessionViewV1,
+} from '../../../shared/ui/session-view-v1';
 import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
@@ -94,7 +98,12 @@ const periodOfTermV2 = (term: BulletinTermV2): RelationalBulletinPeriodV2 =>
 function stepViewV2(value: unknown) {
   const parsed = parseViewV2(value);
   return parsed
-    ? { year: parsed.year, classId: parsed.classId, term: termOfV2(parsed.period), detail: parsed.detail }
+    ? {
+        year: parsed.year,
+        classId: parsed.classId,
+        term: termOfV2(parsed.period),
+        detail: parsed.detail,
+      }
     : null;
 }
 
@@ -529,10 +538,12 @@ function BulletinStatusV2({
   return (
     <div className="min-h-10" aria-live="polite">
       {busy ? (
-        <p className="flex items-center gap-2 text-sm text-muted"><output className="contents">
-          <Spinner size="sm" />
-          {busyText(busy)}
-        </output></p>
+        <p className="flex items-center gap-2 text-sm text-muted">
+          <output className="contents">
+            <Spinner size="sm" />
+            {busyText(busy)}
+          </output>
+        </p>
       ) : null}
       {failure ? (
         <Alert status="danger">
@@ -553,9 +564,9 @@ function BulletinStatusV2({
         </Alert>
       ) : null}
       {notice ? (
-        <p className="text-sm text-muted"><output className="contents">
-          {notice}
-        </output></p>
+        <p className="text-sm text-muted">
+          <output className="contents">{notice}</output>
+        </p>
       ) : null}
       <LiveReadNoticeV1 failed={stale} />
     </div>
@@ -580,32 +591,23 @@ function OfficialPdfCardV2({
         <div>
           <Card.Title>Documento oficial deste snapshot</Card.Title>
           <Card.Description>
-            O PDF usa somente a versão emitida acima e é gerado localmente, um documento por
-            vez.
+            O PDF usa somente a versão emitida acima e é gerado localmente, um documento por vez.
           </Card.Description>
         </div>
       </Card.Header>
       <Card.Footer className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="primary"
-          isDisabled={pdfState !== null}
-          onPress={onDownload}
-        >
+        <Button variant="primary" isDisabled={pdfState !== null} onPress={onDownload}>
           {pdfState === 'download' ? <Spinner size="sm" /> : <Download size={17} />}
           Baixar PDF oficial
         </Button>
-        <Button
-          variant="secondary"
-          isDisabled={pdfState !== null}
-          onPress={onPrint}
-        >
+        <Button variant="secondary" isDisabled={pdfState !== null} onPress={onPrint}>
           {pdfState === 'print' ? <Spinner size="sm" /> : <Printer size={17} />}
           Imprimir PDF oficial
         </Button>
         {pdfNotice ? (
-          <span className="text-xs text-muted"><output className="contents">
-            {pdfNotice}
-          </output></span>
+          <span className="text-xs text-muted">
+            <output className="contents">{pdfNotice}</output>
+          </span>
         ) : null}
       </Card.Footer>
     </Card>
@@ -642,31 +644,31 @@ function BulletinHistoryCardV2({
         {busy === 'history'
           ? null
           : history.map((item) => (
-            <div
-              key={`${item.snapshotId}:${item.snapshotVersion}`}
-              className="flex flex-col gap-3 rounded-2xl border border-separator p-4 sm:flex-row sm:items-center"
-            >
-              <div className="min-w-0">
-                <strong className="block truncate text-sm">
-                  {item.studentName} · {periodLabel(item.period)}
-                </strong>
-                <span className="text-xs text-muted">
-                  {new Date(item.emittedAt).toLocaleString('pt-BR')} · versão{' '}
-                  {item.snapshotVersion} · {item.detail === 'detailed' ? 'detalhado' : 'resumo'}
-                </span>
-              </div>
-              <Button
-                className="sm:ml-auto"
-                size="sm"
-                variant="secondary"
-                isDisabled={busy !== null}
-                onPress={() => onReprint(item)}
+              <div
+                key={`${item.snapshotId}:${item.snapshotVersion}`}
+                className="flex flex-col gap-3 rounded-2xl border border-separator p-4 sm:flex-row sm:items-center"
               >
-                <History size={15} />
-                Reimprimir versão
-              </Button>
-            </div>
-          ))}
+                <div className="min-w-0">
+                  <strong className="block truncate text-sm">
+                    {item.studentName} · {periodLabel(item.period)}
+                  </strong>
+                  <span className="text-xs text-muted">
+                    {new Date(item.emittedAt).toLocaleString('pt-BR')} · versão{' '}
+                    {item.snapshotVersion} · {item.detail === 'detailed' ? 'detalhado' : 'resumo'}
+                  </span>
+                </div>
+                <Button
+                  className="sm:ml-auto"
+                  size="sm"
+                  variant="secondary"
+                  isDisabled={busy !== null}
+                  onPress={() => onReprint(item)}
+                >
+                  <History size={15} />
+                  Reimprimir versão
+                </Button>
+              </div>
+            ))}
       </Card.Content>
     </Card>
   );
@@ -878,12 +880,13 @@ export function RelationalBulletinPageV2() {
     if (classId === null || previewStudentId === null) return;
     const ticket = sequence.current;
     setBusy('artifact');
-    const response = await safely(() =>
-      requestRelationalBulletinV2({
-        contractVersion: 2,
-        operation: 'preview',
-        selection: selection(previewStudentId),
-      }),
+    const response = await safely(
+      () =>
+        requestRelationalBulletinV2({
+          contractVersion: 2,
+          operation: 'preview',
+          selection: selection(previewStudentId),
+        }),
       false,
       ticket,
     );
@@ -926,19 +929,20 @@ export function RelationalBulletinPageV2() {
     const ticket = sequence.current;
     const emittedClassId = classId;
     setBusy('batch');
-    const response = await safely(() =>
-      requestRelationalBulletinV2({
-        contractVersion: 2,
-        operation: 'emit-batch',
-        selection: {
-          year: year!,
-          classId,
-          studentIds: selectedIds,
-          period,
-          detail,
-          presentation: { locale: 'pt-BR', dateStyle: 'long' },
-        },
-      }),
+    const response = await safely(
+      () =>
+        requestRelationalBulletinV2({
+          contractVersion: 2,
+          operation: 'emit-batch',
+          selection: {
+            year: year!,
+            classId,
+            studentIds: selectedIds,
+            period,
+            detail,
+            presentation: { locale: 'pt-BR', dateStyle: 'long' },
+          },
+        }),
       false,
       ticket,
     );
@@ -1076,7 +1080,7 @@ export function RelationalBulletinPageV2() {
       setSelectedIds((current) => current.filter((id) => valid.has(id)));
       const previewed = await refreshPreview(ticket, valid);
       if (previewed !== true) return previewed;
-      if (historyRead && await loadHistory(classId, true) === false) return false;
+      if (historyRead && (await loadHistory(classId, true)) === false) return false;
       if (ticket === sequence.current) setStale(false);
       return true;
     } catch (cause) {
@@ -1346,7 +1350,11 @@ export function RelationalBulletinPageV2() {
           ) : null}
         </div>
       ) : null}
-      <BulletinHistoryCardV2 busy={busy} history={history} onReprint={(item) => void reprint(item)} />
+      <BulletinHistoryCardV2
+        busy={busy}
+        history={history}
+        onReprint={(item) => void reprint(item)}
+      />
     </section>
   );
 }

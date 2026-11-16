@@ -23,39 +23,52 @@ beforeEach(() => {
     value: vi.fn(),
   });
   requests = [];
-  vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (_url, init) => {
-    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-    requests.push(body);
-    if (body.operation === 'bootstrap')
-      return Response.json({ contractVersion: 2, state: 'ready', operation: 'bootstrap', years: [context] });
-    if (body.operation === 'classes')
-      return Response.json({
-        transportVersion: 2,
-        state: 'ready',
-        operation: 'classes',
-        context,
-        readAt: '2026-09-16T12:00:00.000Z',
-        authority: 'calculated-preview',
-        statusOptions: [{ value: null, label: 'Em curso' }, { value: 7, label: 'Estava no' }],
-        classes: [{ id: 10, label: 'TURMA SINTETICA A' }],
-        nextOffset: null,
-      });
-    if (body.operation === 'analytics')
-      return Response.json(performanceAnalyticsFixtureV6({
-        year: Number(body.year),
-        classId: Number(body.classId),
-        period: body.period as 1 | 2 | 3 | 'annual',
-      }));
-    // The detail never answers: what the drawer shows meanwhile is what the page already knew.
-    if (body.operation === 'student-detail' || body.operation === 'cell-detail')
-      return new Promise<Response>(() => undefined);
-    throw new Error(`Unexpected synthetic navigation request: ${String(body.operation)}`);
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn<typeof fetch>(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      requests.push(body);
+      if (body.operation === 'bootstrap')
+        return Response.json({
+          contractVersion: 2,
+          state: 'ready',
+          operation: 'bootstrap',
+          years: [context],
+        });
+      if (body.operation === 'classes')
+        return Response.json({
+          transportVersion: 2,
+          state: 'ready',
+          operation: 'classes',
+          context,
+          readAt: '2026-09-16T12:00:00.000Z',
+          authority: 'calculated-preview',
+          statusOptions: [
+            { value: null, label: 'Em curso' },
+            { value: 7, label: 'Estava no' },
+          ],
+          classes: [{ id: 10, label: 'TURMA SINTETICA A' }],
+          nextOffset: null,
+        });
+      if (body.operation === 'analytics')
+        return Response.json(
+          performanceAnalyticsFixtureV6({
+            year: Number(body.year),
+            classId: Number(body.classId),
+            period: body.period as 1 | 2 | 3 | 'annual',
+          }),
+        );
+      // The detail never answers: what the drawer shows meanwhile is what the page already knew.
+      if (body.operation === 'student-detail' || body.operation === 'cell-detail')
+        return new Promise<Response>(() => undefined);
+      throw new Error(`Unexpected synthetic navigation request: ${String(body.operation)}`);
+    }),
+  );
   stylesheet = document.createElement('style');
   // Reproduce the upstream full-width tab, then apply the real application CSS.
   // The page itself must supply its scope; the test never adds a workspace wrapper.
-  stylesheet.textContent = '.tabs__tab { width: 100%; }\n' +
-    readFileSync('src/shared/ui/workspace-tabs-v1.css', 'utf8');
+  stylesheet.textContent =
+    '.tabs__tab { width: 100%; }\n' + readFileSync('src/shared/ui/workspace-tabs-v1.css', 'utf8');
   document.head.appendChild(stylesheet);
 });
 afterEach(() => {
@@ -69,7 +82,9 @@ afterEach(() => {
   else Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
 });
 function mountPage() {
-  return render(createElement(GradebookYearProvider, null, createElement(RelationalPerformancePageV2)));
+  return render(
+    createElement(GradebookYearProvider, null, createElement(RelationalPerformancePageV2)),
+  );
 }
 function expectCompact(list: HTMLElement) {
   const scroller = list.parentElement!;
@@ -87,13 +102,25 @@ it('applies compact navigation to the actual performance page before a class is 
   mountPage();
   const perspectives = await screen.findByRole('tablist', { name: 'Perspectivas de Desempenho' });
   await screen.findByRole('tab', { name: 'TURMA SINTETICA A' });
-  expect(screen.getByRole('region', { name: 'Desempenho relacional' }).classList.contains('performance-workspace')).toBe(true);
-  expect(within(perspectives).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(labels);
-  expect(within(perspectives).getByRole('tab', { name: 'Visão geral' }).getAttribute('aria-selected')).toBe('true');
+  expect(
+    screen
+      .getByRole('region', { name: 'Desempenho relacional' })
+      .classList.contains('performance-workspace'),
+  ).toBe(true);
+  expect(
+    within(perspectives)
+      .getAllByRole('tab')
+      .map((tab) => tab.textContent),
+  ).toEqual(labels);
+  expect(
+    within(perspectives).getByRole('tab', { name: 'Visão geral' }).getAttribute('aria-selected'),
+  ).toBe('true');
   expect(screen.getByText('Escolha uma turma para começar.')).toBeTruthy();
   expectCompact(perspectives);
   expectCompact(screen.getByRole('tablist', { name: 'Turmas de Desempenho' }));
-  expect(perspectives.parentElement!.parentElement!.classList.contains('overflow-x-auto')).toBe(false);
+  expect(perspectives.parentElement!.parentElement!.classList.contains('overflow-x-auto')).toBe(
+    false,
+  );
   expect(requests.some((body) => body.operation === 'analytics')).toBe(false);
 });
 
@@ -129,17 +156,27 @@ it('keeps the real perspective bar compact through keyboard navigation and a sel
   const perspectives = await screen.findByRole('tablist', { name: 'Perspectivas de Desempenho' });
   const classTab = await screen.findByRole('tab', { name: 'TURMA SINTETICA A' });
   await user.click(classTab);
-  await waitFor(() => expect(requests.filter((body) => body.operation === 'analytics')).toHaveLength(1));
+  await waitFor(() =>
+    expect(requests.filter((body) => body.operation === 'analytics')).toHaveLength(1),
+  );
   await waitFor(() => expect(screen.queryByLabelText('Carregando indicadores')).toBeNull());
   expect(screen.queryByText('Nenhuma leitura disponível.')).toBeNull();
   expect(screen.queryByText('Consulta indisponível')).toBeNull();
   await user.click(within(perspectives).getByRole('tab', { name: 'Visão geral' }));
   await user.keyboard('{End}{Enter}');
-  expect(within(perspectives).getByRole('tab', { name: 'Professores' }).getAttribute('aria-selected')).toBe('true');
+  expect(
+    within(perspectives).getByRole('tab', { name: 'Professores' }).getAttribute('aria-selected'),
+  ).toBe('true');
   await user.click(within(perspectives).getByRole('tab', { name: 'Componentes' }));
-  expect(within(perspectives).getByRole('tab', { name: 'Componentes' }).getAttribute('aria-selected')).toBe('true');
+  expect(
+    within(perspectives).getByRole('tab', { name: 'Componentes' }).getAttribute('aria-selected'),
+  ).toBe('true');
   expect(classTab.getAttribute('aria-selected')).toBe('true');
   expect(requests.filter((body) => body.operation === 'analytics')).toHaveLength(1);
-  expect(requests.find((body) => body.operation === 'analytics')).toMatchObject({ year: 2026, classId: 10, period: 1 });
+  expect(requests.find((body) => body.operation === 'analytics')).toMatchObject({
+    year: 2026,
+    classId: 10,
+    period: 1,
+  });
   expectCompact(perspectives);
 });

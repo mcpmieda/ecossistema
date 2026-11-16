@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { academicVersionSchemaV1, portalAcademicLinkSchemaV1 } from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
+import {
+  academicVersionSchemaV1,
+  portalAcademicLinkSchemaV1,
+} from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
 import {
   resolveEligibilityV1,
   eligibilitySchemaV1,

@@ -95,15 +95,13 @@ export function qrMockV1(
           ...QR_META_V1,
           state: 'birth-years',
           scopeVersion: 47,
-          items: filtered
-            .slice(offset, offset + 100)
-            .map((a) => ({
-              accountId: a.accountId,
-              accountVersion: a.version,
-              version: 1,
-              year: '2005',
-              confirmation: 'confirmed',
-            })),
+          items: filtered.slice(offset, offset + 100).map((a) => ({
+            accountId: a.accountId,
+            accountVersion: a.version,
+            version: 1,
+            year: '2005',
+            confirmation: 'confirmed',
+          })),
           nextCursor: offset + 100 < filtered.length ? 'b'.repeat(32) + (offset + 100) : null,
         });
       return qrJsonV1({

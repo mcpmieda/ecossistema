@@ -38,13 +38,27 @@ function syntheticHealth() {
     generatedAt: at,
     portalReadState: 'ok',
     portal: {
-      schemaVersion: 1, observedAt: at, servingEnabled: true, credentialsConfigured: true,
-      database: status === 'critical' ? 'unavailable' : 'ok', readDurationMs: 40,
+      schemaVersion: 1,
+      observedAt: at,
+      servingEnabled: true,
+      credentialsConfigured: true,
+      database: status === 'critical' ? 'unavailable' : 'ok',
+      readDurationMs: 40,
       maintenance: {
-        status: status === 'attention' ? 'attention' : 'normal', liveOutboxAvailable: true,
-        expiredIp: 0, expiredAudit: 0, backlog: false, exhausted: false, publicationDue: 0,
-        oldestPublicationDueMs: 0, liveBacklog: false, livePending: 0, liveRetrying: 0,
-        oldestLiveDueMs: 0, waitingConnections: 0, oldestWaitingQueryMs: 0,
+        status: status === 'attention' ? 'attention' : 'normal',
+        liveOutboxAvailable: true,
+        expiredIp: 0,
+        expiredAudit: 0,
+        backlog: false,
+        exhausted: false,
+        publicationDue: 0,
+        oldestPublicationDueMs: 0,
+        liveBacklog: false,
+        livePending: 0,
+        liveRetrying: 0,
+        oldestLiveDueMs: 0,
+        waitingConnections: 0,
+        oldestWaitingQueryMs: 0,
       },
     },
     publicEntry: { outcome: 'ok', status: 200, durationMs: 120, observedAt: at },
@@ -62,10 +76,18 @@ type PreviewRequestV1 = {
 function viewPreferencesV1(init: RequestInit | undefined): Response {
   const key = 'adm-preview.view-preferences';
   let views: Record<string, unknown>;
-  try { views = JSON.parse(window.localStorage.getItem(key) ?? '{}') as Record<string, unknown>; } catch { views = {}; }
+  try {
+    views = JSON.parse(window.localStorage.getItem(key) ?? '{}') as Record<string, unknown>;
+  } catch {
+    views = {};
+  }
   if (init?.method === 'PUT' && typeof init.body === 'string') {
     views = { ...views, ...(JSON.parse(init.body) as { views: Record<string, unknown> }).views };
-    try { window.localStorage.setItem(key, JSON.stringify(views)); } catch { /* kept for this load */ }
+    try {
+      window.localStorage.setItem(key, JSON.stringify(views));
+    } catch {
+      /* kept for this load */
+    }
   }
   return json({ contractVersion: 1, state: 'ready', views });
 }
@@ -84,19 +106,42 @@ function gradebookV1({ input, init, path }: PreviewRequestV1): Promise<Response>
 
 /** The Coletor's automatic report with a difference and a row left out (synthetic names). */
 const automaticReportV1 = () =>
-  json({ contractVersion: 1, state: 'ready', operation: 'automatic-report', report: {
-    observedAt: new Date(Date.now() - 600_000).toISOString(), changedAt: new Date(Date.now() - 600_000).toISOString(),
-    outcome: 'applied', rows: 391, counts: { rows: 390, linked: 388, pending: 2 },
-    differences: ['1 origem(ns) não encontrada(s) no relatório.'],
-    invalid: [{ sourceRow: 57, name: 'ALUNA SINTETICA UM', classLabel: '6A 2026 - MATUTINO', field: 'birthDate',
-      reason: 'nascimento ausente.' }] } });
+  json({
+    contractVersion: 1,
+    state: 'ready',
+    operation: 'automatic-report',
+    report: {
+      observedAt: new Date(Date.now() - 600_000).toISOString(),
+      changedAt: new Date(Date.now() - 600_000).toISOString(),
+      outcome: 'applied',
+      rows: 391,
+      counts: { rows: 390, linked: 388, pending: 2 },
+      differences: ['1 origem(ns) não encontrada(s) no relatório.'],
+      invalid: [
+        {
+          sourceRow: 57,
+          name: 'ALUNA SINTETICA UM',
+          classLabel: '6A 2026 - MATUTINO',
+          field: 'birthDate',
+          reason: 'nascimento ausente.',
+        },
+      ],
+    },
+  });
 
 /** The Conciliação: rows waiting (`?pendencias=` changes the number), its records without a
  * class (the same accounts as the Painel) and the Coletor's report. */
 function reconciliationV1(body: string): Response | null {
   if (body.includes('"operation":"pending-count"'))
-    return json({ contractVersion: 1, state: 'ready', operation: 'pending-count',
-      pending: Math.min(51, Number(new URLSearchParams(window.location.search).get('pendencias') ?? 12)) });
+    return json({
+      contractVersion: 1,
+      state: 'ready',
+      operation: 'pending-count',
+      pending: Math.min(
+        51,
+        Number(new URLSearchParams(window.location.search).get('pendencias') ?? 12),
+      ),
+    });
   const answer = previewReconciliationV1(body);
   if (answer) return json(answer);
   if (body.includes('"operation":"automatic-report"')) return automaticReportV1();
@@ -122,11 +167,13 @@ function answerV1(request: PreviewRequestV1): Promise<Response> | Response | nul
   if (path === '/api/gradebook/view-preferences') return viewPreferencesV1(init);
   if (path === '/api/gradebook/onedrive-sync' && typeof init?.body === 'string')
     return json(previewOneDriveSyncV1(init.body));
-  if (path === '/api/gradebook/import-diagnostics' && (init?.method ?? 'GET') === 'GET') return json(previewAuditV1());
+  if (path === '/api/gradebook/import-diagnostics' && (init?.method ?? 'GET') === 'GET')
+    return json(previewAuditV1());
   if (path.startsWith('/api/gradebook/')) return gradebookV1(request);
   // A healthy system; `?saude=attention` or `?saude=critical` in the address shows the others.
   if (path === '/api/platform/system-health') return json(syntheticHealth());
-  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string') return reconciliationV1(init.body);
+  if (path === '/api/student-reconciliation/v1' && typeof init?.body === 'string')
+    return reconciliationV1(init.body);
   return null;
 }
 
@@ -136,8 +183,12 @@ window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     window.location.origin,
   );
   // Vite modules, styles and images are real local files.
-  if (url.origin !== window.location.origin || !url.pathname.startsWith('/api/')) return nativeFetch(input, init);
-  return (await answerV1({ input, init, path: url.pathname, search: url.search })) ?? unansweredV1(url.pathname);
+  if (url.origin !== window.location.origin || !url.pathname.startsWith('/api/'))
+    return nativeFetch(input, init);
+  return (
+    (await answerV1({ input, init, path: url.pathname, search: url.search })) ??
+    unansweredV1(url.pathname)
+  );
 }) as typeof window.fetch;
 
 /** The live channel has no server here; a socket that never opens keeps the page on its reads. */

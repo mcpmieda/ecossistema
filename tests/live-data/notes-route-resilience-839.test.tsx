@@ -9,7 +9,9 @@ const fixture = vi.hoisted(() => ({
   allowNavigation: vi.fn(() => false),
 }));
 vi.mock('../../src/platform/gradebook-workspace-page', () => ({
-  GradebookWorkspacePage: () => { throw fixture.error; },
+  GradebookWorkspacePage: () => {
+    throw fixture.error;
+  },
 }));
 vi.mock('../../src/shared/forms/draft-navigation-v1', () => ({
   allowDraftNavigationV1: fixture.allowNavigation,
@@ -20,10 +22,15 @@ beforeEach(() => {
   fixture.error = new Error('synthetic render error');
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 it('shows a module-load recovery message without reloading or rendering the original URL', async () => {
-  fixture.error = new TypeError('Failed to fetch dynamically imported module: /assets/synthetic.js');
+  fixture.error = new TypeError(
+    'Failed to fetch dynamically imported module: /assets/synthetic.js',
+  );
   render(<NotesPage />);
   expect(await screen.findByText(/BN-CARGA/)).toBeTruthy();
   expect(screen.getByText(/versão atual do aplicativo/)).toBeTruthy();

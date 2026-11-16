@@ -22,7 +22,8 @@ export async function readAccountOriginV1(
   requestId: string,
   now: Date,
 ) {
-  if (query.scope.kind !== 'account') throw new Error('student-portal-account-origin-invalid-request');
+  if (query.scope.kind !== 'account')
+    throw new Error('student-portal-account-origin-invalid-request');
   // Raw: the regular expression keeps its single backslash.
   const found = await tx.unsafe(
     String.raw`SELECT a.id,a.version,a.created_at,a.auth_state,a.closed_at,a.gradebook_student_id,
@@ -54,8 +55,11 @@ export async function readAccountOriginV1(
     row.auth_state === 'pending-activation' &&
     classes === 0 &&
     !everAccessed;
-  const createdAt = row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at));
-  const sameName = (Array.isArray(row.same_name) ? row.same_name : JSON.parse(String(row.same_name)))
+  const createdAt =
+    row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at));
+  const sameName = (
+    Array.isArray(row.same_name) ? row.same_name : JSON.parse(String(row.same_name))
+  )
     .slice(0, 10)
     .map((item: { classLabel: string; accountActive: boolean | null }) => ({
       classLabel: item.classLabel,
@@ -88,7 +92,8 @@ export async function closeUnusedAccountV1(
     const receiptActor = `account-close:${actor}`;
     const receipt = await store.readIdempotency(command.idempotencyKey, receiptActor);
     if (receipt && Date.parse(receipt.expiresAt) > now.getTime()) {
-      if (receipt.requestDigest !== digest) throw new Error('student-portal-account-close-conflict');
+      if (receipt.requestDigest !== digest)
+        throw new Error('student-portal-account-close-conflict');
       return { operationId: receipt.operationId, version: receipt.version };
     }
     if (receipt)

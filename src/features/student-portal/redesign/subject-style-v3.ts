@@ -46,10 +46,7 @@ export function subjectStyleV3(subject: string): {
   kind: SubjectKindV3 | null;
 } {
   // Official names have accents ("CIÊNCIAS", "ED. FÍSICA"): compared without them.
-  const name = subject
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/gu, '')
-    .toUpperCase();
+  const name = subject.normalize('NFD').replace(/[̀-ͯ]/gu, '').toUpperCase();
   const known = KNOWN_V3.find(([pattern]) => pattern.test(name));
   if (known) return { Icon: known[1], tone: known[2], kind: known[3] };
   let hash = 0;

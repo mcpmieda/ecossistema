@@ -1,6 +1,8 @@
-import { performanceResultCountsV2,
+import {
+  performanceResultCountsV2,
   type PerformanceMatrixV2,
-  type PerformancePeriodV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+  type PerformancePeriodV2,
+} from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import {
   performanceAnalyticsRequestSchemaV6,
   performanceAnalyticsResponseSchemaV6,
@@ -17,7 +19,10 @@ import {
   performanceCellV2,
   type PerformanceProjectionV2,
 } from '../../results/relational-performance-facts-v2';
-import { type GradebookPostgresWritePortV1, type GradebookPostgresTransactionV1  } from '../../../persistence/postgres/postgres-database-v1';
+import {
+  type GradebookPostgresWritePortV1,
+  type GradebookPostgresTransactionV1,
+} from '../../../persistence/postgres/postgres-database-v1';
 
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
@@ -239,12 +244,19 @@ function summarize(
   const studentsBelow = new Set(below.map((pair) => pair.studentId)).size;
   const studentsAtOrAbove = studentsAtOrAboveV6(pairs, studentIds);
   const facts = pairs.flatMap((pair) =>
-    pair.projection.facts.filter((fact) => selectedTerms.includes(fact.term) &&
-      (fact.slot !== 3 || pair.projection.terms[fact.term - 1]?.coverage.requiredSlots.includes(3))),
+    pair.projection.facts.filter(
+      (fact) =>
+        selectedTerms.includes(fact.term) &&
+        (fact.slot !== 3 ||
+          pair.projection.terms[fact.term - 1]?.coverage.requiredSlots.includes(3)),
+    ),
   );
   const { pairedDimensions, quantTotal, qualTotal } = dimensionTotalsV6(pairs);
   const changes = pairs.filter((pair) => pair.direction !== null);
-  const { recovery, parallelApplicable, parallelApplied, parallelGains } = recoveryTallyV6(pairs, selectedTerms);
+  const { recovery, parallelApplicable, parallelApplied, parallelGains } = recoveryTallyV6(
+    pairs,
+    selectedTerms,
+  );
   const percentages = numeric(results.map((pair) => pair.cell.percent));
   const bins = percentBinsV6(percentages);
   const sourceComparable = pairs.filter(
@@ -464,7 +476,9 @@ export function buildPerformanceAnalyticsV6(
   const byStudent = new Map(studentIds.map((id) => [id, [] as Pair[]]));
   const byOffer = new Map(matrix.offers.map((offer) => [offer.id, [] as Pair[]]));
   const byTeacher = new Map([...teacherMap.keys()].map((id) => [id, [] as Pair[]]));
-  const teacherStudents = new Map([...teacherMap.keys()].map((id) => [id, new Map<number, Pair[]>()]));
+  const teacherStudents = new Map(
+    [...teacherMap.keys()].map((id) => [id, new Map<number, Pair[]>()]),
+  );
   const teacherOffers = new Map([...teacherMap.keys()].map((id) => [id, [] as number[]]));
   const offerTeacher = new Map(matrix.offers.map((offer) => [offer.id, offer.teacher.id]));
   for (const offer of matrix.offers) teacherOffers.get(offer.teacher.id)!.push(offer.id);
@@ -531,7 +545,12 @@ export function buildPerformanceAnalyticsV6(
       };
     }),
   };
-  return includeLearning ? { ...result, learning: buildPerformanceLearningV1(result, projections, includeStudentDimensions) } : result;
+  return includeLearning
+    ? {
+        ...result,
+        learning: buildPerformanceLearningV1(result, projections, includeStudentDimensions),
+      }
+    : result;
 }
 
 export function createPerformanceAnalyticsV6(database: GradebookPostgresWritePortV1) {
@@ -568,7 +587,12 @@ export function createPerformanceAnalyticsV6(database: GradebookPostgresWritePor
         if (matrix.state !== 'ready') return { transportVersion: 6, state: matrix.state } as const;
         if (matrix.operation !== 'matrix') throw new Error('unexpected-analytics-operation');
         return performanceAnalyticsResponseSchemaV6.parse(
-          buildPerformanceAnalyticsV6(matrix, projections, includeLearning === true, includeStudentDimensions === true),
+          buildPerformanceAnalyticsV6(
+            matrix,
+            projections,
+            includeLearning === true,
+            includeStudentDimensions === true,
+          ),
         );
       });
     },

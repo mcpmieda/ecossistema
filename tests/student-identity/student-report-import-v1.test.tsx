@@ -243,15 +243,26 @@ describe('ligações de turma ao importar Relatório', () => {
           },
         ]),
       );
-    const client = clientFor([], [
-      { id: 7, label: '7A', stage: 7 },
-      { id: 8, label: '8B', stage: 8 },
-    ]);
+    const client = clientFor(
+      [],
+      [
+        { id: 7, label: '7A', stage: 7 },
+        { id: 8, label: '8B', stage: 8 },
+      ],
+    );
     const { rerender } = render(
-      <StudentReportImportV1 file={syntheticFile('primeiro.xlsx')} client={client} onClose={vi.fn()} />,
+      <StudentReportImportV1
+        file={syntheticFile('primeiro.xlsx')}
+        client={client}
+        onClose={vi.fn()}
+      />,
     );
     rerender(
-      <StudentReportImportV1 file={syntheticFile('segundo.xlsx')} client={client} onClose={vi.fn()} />,
+      <StudentReportImportV1
+        file={syntheticFile('segundo.xlsx')}
+        client={client}
+        onClose={vi.fn()}
+      />,
     );
     await screen.findByText('8B 2026 - MATUTINO');
     await act(async () => {
