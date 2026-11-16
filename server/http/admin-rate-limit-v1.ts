@@ -6,6 +6,7 @@ import {
   RECONCILIATION_READ_OPERATIONS_V1,
   RECONCILIATION_ROUTE_V1,
 } from '../../shared/student-identity/reconciliation-v1';
+import { PUBLIC_DEMO_ADMIN_PATH_V1 } from '../../shared/public-demo-control-v1';
 import type {
   AdminOperationV1,
   PortalAdminServiceBindingV1,
@@ -26,7 +27,9 @@ type RouteV1 = {
   /** The transport also carries an upload: a body above bodyBytes keeps the default family, unread. */
   upload?: true;
 };
-const routes: Readonly<Record<string, RouteV1>> = {
+/** Every administrative API path; tests/admin-rate-limit-coverage-v1.test.ts fails when a route
+ * served by the Centro is missing here (a missing path would pass without quota). */
+export const ADMIN_OPERATION_ROUTES_V1: Readonly<Record<string, RouteV1>> = {
   '/api/me': { methods: ['GET'], operation: 'read' },
   '/api/platform/bootstrap': { methods: ['GET'], operation: 'read' },
   '/api/platform/snapshot-v2': { methods: ['GET'], operation: 'read' },
@@ -50,11 +53,15 @@ const routes: Readonly<Record<string, RouteV1>> = {
   '/api/gradebook/assessment-names': { methods: ['POST'], operation: 'write', bodyBytes: 8192 },
   '/api/gradebook/year-reset': { methods: ['POST'], operation: 'write', bodyBytes: 2048 },
   '/api/gradebook/audit-treatment': { methods: ['POST'], operation: 'write', bodyBytes: 96000 },
-  // Admin routes added in October/November that had no quota (issue #1450, finding 20a).
   '/api/gradebook/onedrive-sync': { methods: ['POST'], operation: 'write' },
   '/api/gradebook/frequency/v2': { methods: ['POST'], operation: 'write' },
   '/api/gradebook/view-preferences': { methods: ['GET', 'PUT'], operation: 'read' },
-  [RECONCILIATION_ROUTE_V1]: { methods: ['POST'], operation: 'write', bodyBytes: 65536, upload: true },
+  [RECONCILIATION_ROUTE_V1]: {
+    methods: ['POST'],
+    operation: 'write',
+    bodyBytes: 65536,
+    upload: true,
+  },
   '/api/student-photos/admin/state': { methods: ['POST'], operation: 'read' },
   '/api/student-photos/admin/avatars': { methods: ['POST'], operation: 'read' },
   '/api/student-photos/admin/image': { methods: ['GET'], operation: 'read' },
@@ -62,7 +69,9 @@ const routes: Readonly<Record<string, RouteV1>> = {
   '/api/student-photos/admin/recover': { methods: ['POST'], operation: 'write' },
   '/api/student-photos/admin/preview': { methods: ['POST'], operation: 'write' },
   '/api/student-photos/admin/save': { methods: ['POST'], operation: 'write' },
+  [PUBLIC_DEMO_ADMIN_PATH_V1]: { methods: ['POST'], operation: 'write', bodyBytes: 256 },
 };
+const routes = ADMIN_OPERATION_ROUTES_V1;
 
 // Only small, mixed-operation transports are inspected. Import/image bodies remain untouched.
 async function classificationPayload(request: Request, maximum: number): Promise<PayloadV1> {
@@ -134,6 +143,7 @@ export function classifyAdminOperationV1(
   )
     return 'read';
   if (path === '/api/gradebook/assessment-names' && operation === 'read') return 'read';
+  if (path === PUBLIC_DEMO_ADMIN_PATH_V1 && Object.keys(payload).length === 0) return 'read';
   if (path === '/api/gradebook/year-reset' && operation === 'preview') return 'read';
   if (
     path === '/api/gradebook/audit-treatment' &&
@@ -185,20 +195,29 @@ function gradebookFailureBodyV1(
   return undefined;
 }
 
-type FailureShapeV1 = (payload: PayloadV1, state: ReturnType<typeof failureStateV1>) => object | null;
+type FailureShapeV1 = (
+  payload: PayloadV1,
+  state: ReturnType<typeof failureStateV1>,
+) => object | null;
 
 const GRADEBOOK_FAILURE_SHAPES_V1: Readonly<Record<string, FailureShapeV1>> = {
   [RECONCILIATION_ROUTE_V1]: (_payload, state) => ({ contractVersion: 1, state }),
   '/api/gradebook/import-persistence': (_payload, state) => ({ transportVersion: 9, state }),
   '/api/gradebook/import-diagnostics': (_payload, state) => ({ version: 1, state }),
-  '/api/gradebook/performance': (payload, state) =>
-    ({ transportVersion: performanceVersionV1(payload.transportVersion), state }),
-  '/api/gradebook/operational-workspace': (payload, state) =>
-    ({ contractVersion: payload.contractVersion === 2 ? 2 : 1, state }),
+  '/api/gradebook/performance': (payload, state) => ({
+    transportVersion: performanceVersionV1(payload.transportVersion),
+    state,
+  }),
+  '/api/gradebook/operational-workspace': (payload, state) => ({
+    contractVersion: payload.contractVersion === 2 ? 2 : 1,
+    state,
+  }),
   '/api/gradebook/council-workspace': (payload, state) =>
-    (payload.contractVersion === 3 ? { contractVersion: 3, state } : null),
+    payload.contractVersion === 3 ? { contractVersion: 3, state } : null,
   '/api/gradebook/bulletins': (payload, state) =>
-    (payload.contractVersion === 2 ? { contractVersion: 2, operation: payload.operation, state } : null),
+    payload.contractVersion === 2
+      ? { contractVersion: 2, operation: payload.operation, state }
+      : null,
   '/api/gradebook/frequency/v2': (_payload, state) => ({ contractVersion: 2, state }),
 };
 

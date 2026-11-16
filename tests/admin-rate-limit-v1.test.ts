@@ -21,7 +21,7 @@ const limited = {
 async function request(path = '/api/me', method = 'GET', body?: unknown, oid = actor) {
   const token = await seal(
     { oid, name: 'Synthetic', roles: ['ADMINISTRADOR'], exp: Math.floor(Date.now() / 1000) + 60 },
-    testEnv.SESSION_SECRET,
+    testEnv.SESSION_SECRET, 'admin-session',
   );
   return new Request(testEnv.OFFICIAL_ORIGIN + path, {
     method,

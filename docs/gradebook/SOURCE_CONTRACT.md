@@ -324,7 +324,6 @@ autoriza fusão global de estudantes.
 
 - Contrato histórico da fonte: `shared/gradebook-contracts/source/source-contract-v1.ts`.
 - Contratos prospectivos das definições: `shared/gradebook-contracts/source/source-contract-v2.ts`, `shared/gradebook-contracts/source/source-contract-v3.ts` e `shared/gradebook-contracts/source/source-contract-v4.ts`.
-- Contrato acadêmico V2 de componentes: `shared/gradebook-contracts/results/results-contract-v2.ts`.
 - Testes V1 históricos: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
 - Testes V2/V3/V4: `tests/gradebook/source-contract/source-contract-v2.test.ts`, `tests/gradebook/source-contract/source-contract-v3.test.ts`, `tests/gradebook/source-contract/source-contract-v4.test.ts`, `tests/gradebook/result-contracts/results-contract-v2.test.ts` e `tests/gradebook/result-contracts/results-contract-v3.test.ts`.
 - Contrato do manifesto/lote: `shared/gradebook-contracts/imports/import-contract-v1.ts`.

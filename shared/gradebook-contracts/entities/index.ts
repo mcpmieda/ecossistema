@@ -14,6 +14,11 @@ export type TeachingAssignmentId = EntityIdV1<'TeachingAssignmentV1'>;
 export type StudentId = EntityIdV1<'StudentV1'>;
 export type EnrollmentId = EntityIdV1<'EnrollmentV1'>;
 export type StudentStatusEventId = EntityIdV1<'StudentStatusEventV1'>;
+export type AssessmentComponentId = EntityIdV1<'AssessmentComponentV1'>;
+export type GradeEntryId = EntityIdV1<'GradeEntryV1'>;
+export type TermResultId = EntityIdV1<'TermResultV1'>;
+export type FinalRecoveryId = EntityIdV1<'FinalRecoveryV1'>;
+export type AnnualResultId = EntityIdV1<'AnnualResultV1'>;
 
 export type AcademicYearStatusV1 = 'planned' | 'active' | 'closed';
 export type EntityLifecycleStatusV1 = 'active' | 'inactive';

@@ -565,7 +565,7 @@ async function http(
         roles: [role],
         exp: Math.floor(Date.now() / 1000) + 600,
       },
-      testEnv.SESSION_SECRET,
+      testEnv.SESSION_SECRET, 'admin-session',
     );
     headers.set('Cookie', `${SESSION_COOKIE}=${session}`);
   }

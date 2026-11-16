@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import type { AcademicYearId, StudentId } from '../../../shared/gradebook-contracts/entities';
 import { SOURCE_CONTRACT_V1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 import type { SourceCellEvidenceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
-import type { AuditOccurrenceId, AuditOccurrenceV1 } from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
 import type {
   ImportBatchResultV1,
   ImportFileDiagnosticV1,
@@ -50,7 +49,7 @@ const manifest = {
   suggestedTeacherName: 'Professor Sintético',
 } satisfies SourceFileManifestV1;
 
-describe('import, reconciliation and audit contracts v1', () => {
+describe('import contract v1', () => {
   it('keeps the file manifest compatible with SourceContractV1 without local paths', () => {
     expect(SOURCE_CONTRACT_V1.acceptedExtensions).toContain(manifest.extension);
     expect(manifest.sourceContractVersion).toBe(SOURCE_CONTRACT_V1.version);
@@ -168,44 +167,5 @@ describe('import, reconciliation and audit contracts v1', () => {
     expect(diagnostic.sourceEvidence).toBe(sourceEvidence);
     expect(diagnostic).not.toHaveProperty('path');
     expect(diagnostic).not.toHaveProperty('localPath');
-  });
-
-  it('makes critical severity explicit and preserves the full resolution transition', () => {
-    const occurrence = {
-      id: 'audit-occurrence:synthetic-001' as AuditOccurrenceId,
-      importBatchId: batchId,
-      severity: 'critical-error',
-      category: 'source-integrity',
-      entity: { kind: 'student', id: studentId },
-      source: {
-        kind: 'cell',
-        sourceFileManifestId: manifest.id,
-        evidence: sourceEvidence,
-      },
-      message: 'Ocorrência sintética crítica para teste.',
-      recommendedAction: 'Revisar a origem sintética.',
-      createdAt: '2026-08-31T17:01:00Z',
-      state: 'resolved',
-      stateHistory: [
-        {
-          previousState: 'open',
-          nextState: 'resolved',
-          actorId: 'user:synthetic-reviewer',
-          occurredAt: '2026-08-31T17:02:00Z',
-          justification: 'Evidência sintética revisada e reconciliada.',
-        },
-      ],
-    } satisfies AuditOccurrenceV1;
-
-    const resolution = occurrence.stateHistory.at(-1);
-    expect(occurrence.severity).toBe('critical-error');
-    expect(occurrence.state).toBe('resolved');
-    expect(resolution).toMatchObject({
-      previousState: 'open',
-      nextState: 'resolved',
-      actorId: 'user:synthetic-reviewer',
-      occurredAt: '2026-08-31T17:02:00Z',
-      justification: 'Evidência sintética revisada e reconciliada.',
-    });
   });
 });

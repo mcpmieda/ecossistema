@@ -39,7 +39,7 @@ function memoryPort() {
 }
 
 async function cookieFor(session: object): Promise<string> {
-  return `${SESSION_COOKIE}=${await seal(session, testEnv.SESSION_SECRET)}`;
+  return `${SESSION_COOKIE}=${await seal(session, testEnv.SESSION_SECRET, 'admin-session')}`;
 }
 const request = (cookie: string, init: RequestInit = {}) =>
   new Request(`${testEnv.OFFICIAL_ORIGIN}/api/me`, { ...init, headers: { Cookie: cookie, ...(init.headers ?? {}) } });
