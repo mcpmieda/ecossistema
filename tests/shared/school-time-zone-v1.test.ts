@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { execFileSync } from 'node:child_process';
 import { expect, it } from 'vitest';
 import { calendarV1 } from '../../shared/student-portal-contracts/policy-v1';

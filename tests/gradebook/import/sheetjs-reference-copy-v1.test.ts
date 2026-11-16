@@ -9,7 +9,6 @@ import {
   PATCH_VERSION,
   REFERENCE_COPY_SOURCE,
   UPSTREAM_SHA256,
-  UPSTREAM_URL,
   patchSheetJsReferenceV1,
 } from '../../../scripts/gradebook/patch-sheetjs-reference-v1.mjs';
 import { isGradebookImportPersistenceRequestV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
@@ -84,14 +83,7 @@ function exactBytes(left: Uint8Array, right: Uint8Array): boolean {
 }
 
 beforeAll(async () => {
-  try {
-    upstreamBytes = await readFile('node_modules/.cache/gradebook-reader-v1/sheetjs-0.20.3.js');
-  } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
-    const response = await fetch(UPSTREAM_URL);
-    if (!response.ok) throw new Error(`sheetjs-download-http-${response.status}`, { cause: error });
-    upstreamBytes = new Uint8Array(await response.arrayBuffer());
-  }
+  upstreamBytes = await readFile('node_modules/xlsx/dist/xlsx.full.min.js');
   expect(createHash('sha256').update(upstreamBytes).digest('hex')).toBe(UPSTREAM_SHA256);
   derivativeBytes = patchSheetJsReferenceV1(NodeBuffer.from(upstreamBytes));
   original = libraryRealm(upstreamBytes);

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthenticationError } from '../../../server/auth/session';
 import { handleOneDriveSyncRequestV1 } from '../../../server/gradebook/http/onedrive-sync-routes-v1';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { onRequest as importDiagnosticsOnRequest } from '../../../functions/api/gradebook/import-diagnostics';
 import type { RuntimeEnv } from '../../../server/env';

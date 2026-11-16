@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleSystemHealthRequestV1 } from '../../server/platform/system-health-http-v1';
 import { requireAuth, AuthenticationError, SESSION_COOKIE } from '../../server/auth/session';

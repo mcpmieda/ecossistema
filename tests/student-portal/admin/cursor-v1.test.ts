@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { AdminCursorV1 } from '../../../server/student-portal/admin/cursor-v1';
 import { adminQueryV1, adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';

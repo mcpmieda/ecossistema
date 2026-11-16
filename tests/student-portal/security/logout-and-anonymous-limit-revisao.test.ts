@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { servePortalSelfV1 } from '../../../server/student-portal/composition/self-v1';
 import { SessionServiceV1 } from '../../../server/student-portal/auth/session-service-v1';

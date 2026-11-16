@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { analyticsGradeV6, analyticsDeltaV6 } from '../../../src/features/gradebook/performance/analytics-format-v6';
 import {
   analyticsStatsV6,

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { servePortalAdminV1 } from '../../../server/student-portal/http/admin/handler-v1';
 import { seal } from '../../../server/auth/sealed';

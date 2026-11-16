@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';

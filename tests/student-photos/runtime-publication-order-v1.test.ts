@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../server/env';
 import type { PhotoWriteReceiptV1 } from '../../shared/student-photos/write-v1';

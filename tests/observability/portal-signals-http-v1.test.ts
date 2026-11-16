@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
 import { serveObservedPortalSelfV1, serveStudentDiagnosticV1 } from '../../server/student-portal/composition/observed-self-v1';
 import { handleSystemHealthRequestV1 } from '../../server/platform/system-health-http-v1';

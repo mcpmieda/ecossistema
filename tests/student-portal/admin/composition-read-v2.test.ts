@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { portalAdminRpcV1 } from '../../../server/student-portal/composition/admin-v1';
 import { readContextV2, READ_CLASS_V2, READ_TENANT_V2 } from './read-fixture-v2';

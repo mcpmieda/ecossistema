@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it, vi } from 'vitest';
 import { portalAuthBurstV1 } from '../../../server/student-portal/observability/auth-burst-v1';
 import { portalServingGateV1 } from '../../../server/student-portal/maintenance/serving-gate-v1';

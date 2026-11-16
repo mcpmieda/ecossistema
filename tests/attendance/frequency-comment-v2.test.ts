@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { frequencyCommentV2 } from '../../shared/attendance-contracts/frequency-comment-v2';
 import type { FrequencySummaryV2 } from '../../shared/attendance-contracts/frequency-v2';

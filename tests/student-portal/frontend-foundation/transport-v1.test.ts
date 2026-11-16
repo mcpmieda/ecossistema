@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it, vi } from 'vitest';
 import { createPortalSelfClientV1 } from '../../../src/features/student-portal/shared/self-client-v1';
 import { createPortalAdminClientV1 } from '../../../src/features/student-portal-admin/shared/admin-client-v1';

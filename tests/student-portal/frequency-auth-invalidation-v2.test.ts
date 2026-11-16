@@ -1,3 +1,4 @@
+// @vitest-environment node
 import {describe,it,expect,vi} from 'vitest';
 import {createStudentSessionV1} from '../../src/features/student-portal/auth/student-session-v1';
 import type {PortalSelfClientV1} from '../../src/features/student-portal/shared/self-client-v1';

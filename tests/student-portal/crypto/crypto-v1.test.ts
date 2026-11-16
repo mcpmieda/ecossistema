@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { PortalCryptoV1, SCRYPT_PARAMETERS_V1 } from '../../../server/student-portal/crypto/crypto-v1';
 

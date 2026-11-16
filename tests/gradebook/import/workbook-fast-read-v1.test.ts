@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createGradebookCanonicalImportRequestV9 } from '../../../src/features/gradebook/import/canonical-import-v9';
 import { createSourceFileManifest } from '../../../src/features/gradebook/import/file-manifest';

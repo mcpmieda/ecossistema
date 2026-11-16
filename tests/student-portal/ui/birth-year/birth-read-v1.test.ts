@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { adminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import { readAccountBirthV1 } from '../../../../src/features/student-portal-admin/birth-year/birth-read-v1';

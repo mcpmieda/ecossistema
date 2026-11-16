@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { createViewPreferencesServiceV1 } from '../../../server/gradebook/application/settings/view-preferences-v1';
 import { viewPreferencesSaveSchemaV1 } from '../../../shared/gradebook-contracts/settings/view-preferences-v1';
