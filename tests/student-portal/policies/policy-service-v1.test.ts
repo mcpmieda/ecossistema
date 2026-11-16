@@ -147,7 +147,10 @@ describe('durable inherited policy', () => {
   it('does not require immediate-effect acknowledgment for a future-only date change', async () => {
     await service.initializeDefaults();
     const current = await service.read(SCHOOL);
-    const at = (days: number) => new Date(Date.now() + days * 86400_000).toISOString().replace(/\.\d{3}Z$/u, 'Z');
+    // One base instant: rebuilt per call, a second ticking between two calls would move
+    // yearStartsAt (already past) and rightly require acknowledgment.
+    const base = Date.now();
+    const at = (days: number) => new Date(base + days * 86400_000).toISOString().replace(/\.\d{3}Z$/u, 'Z');
     const calendar = { ...current.value.calendar, yearStartsAt: at(-30), yearEndsAt: at(30) };
     await set(SCHOOL, { calendar });
     await expect(set(SCHOOL, { calendar: { ...calendar, yearEndsAt: at(60) } }, false)).resolves.toMatchObject({ version: 3 });
@@ -156,7 +159,8 @@ describe('durable inherited policy', () => {
   it('requires acknowledgment when a release date is cleared or added, since a blank release opens with the term', async () => {
     await service.initializeDefaults();
     const current = await service.read(SCHOOL);
-    const at = (days: number) => new Date(Date.now() + days * 86400_000).toISOString().replace(/\.\d{3}Z$/u, 'Z');
+    const base = Date.now();
+    const at = (days: number) => new Date(base + days * 86400_000).toISOString().replace(/\.\d{3}Z$/u, 'Z');
     const none = { T1: null, T2: null, T3: null, REC1: null, REC2: null, REC3: null };
     const released = (T1: string | null) => ({ ...current.value.calendar, yearStartsAt: at(-30), yearEndsAt: at(200),
       disclosure: { mode: 'per-period' as const, at: { ...none, T1 } } });
