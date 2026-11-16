@@ -83,7 +83,7 @@ describe('bounded V1 cursor envelope compatibility', () => {
         k: id,
         n: 'SYNTHETIC LEGACY',
       },
-      `student-portal-admin-cursor-v1:${secret}`,
+      `student-portal-admin-cursor-v1:${secret}`, 'portal-admin-cursor',
     );
     expect(token.length).toBeLessThanOrEqual(512);
     expect(

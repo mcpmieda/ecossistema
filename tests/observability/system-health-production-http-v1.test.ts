@@ -21,7 +21,7 @@ function environment(tenant: string = crypto.randomUUID(), overrides: Partial<Ru
 }
 async function cookie(roles: Role[] = ['ADMINISTRADOR'], expiresAt?: number): Promise<string> {
   const session = createApplicationSession({ oid: actor, name: 'SYNTHETIC HEALTH ADMIN', roles });
-  return `${SESSION_COOKIE}=${await seal({ ...session, ...(expiresAt === undefined ? {} : { exp: expiresAt }) }, secret)}`;
+  return `${SESSION_COOKIE}=${await seal({ ...session, ...(expiresAt === undefined ? {} : { exp: expiresAt }) }, secret, 'admin-session')}`;
 }
 function request(sessionCookie: string, atOrigin = origin, body = '{}'): Request {
   return new Request(`${atOrigin}/api/platform/system-health`, { method: 'POST', body,

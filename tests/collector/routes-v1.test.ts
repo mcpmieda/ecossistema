@@ -96,7 +96,7 @@ async function fixture(){
       expect.stringMatching(/^__Host-collector_auth=[A-Za-z0-9_-]+;.*HttpOnly; Secure; SameSite=Lax; Max-Age=600/u),
     ]));
     const authCookie=reply!.headers.get('Set-Cookie')!.match(/__Host-collector_auth=([^;]+)/)![1]!;
-    const transaction=await unseal<{state:string;nonce:string}>(authCookie,env.SESSION_SECRET);
+    const transaction=await unseal<{state:string;nonce:string}>(authCookie,env.SESSION_SECRET,'collector-auth');
     expectedNonce=transaction!.nonce;
     authenticatedAt=Math.floor(Date.now()/1000);
     return {state:transaction!.state,cookie:'__Host-collector_auth='+authCookie};
@@ -234,7 +234,7 @@ describe('Pages collector orchestration, no real network/credentials',()=>{
     const f=await fixture(),pair=await f.begin();await f.complete(pair);
     const poll=await (await f.request(prefix+'pairings/poll',{id:pair.id,pollToken:pair.pollToken})).json() as {deviceId:string};
     const thumb=await collectorKeyThumbprintV1(f.publicKey),inactive={...env,COLLECTOR_ENABLED:undefined,COLLECTOR_REFRESH_KEY:undefined} as RuntimeEnv;
-    async function sessionCookie(oid:string){return SESSION_COOKIE+'='+await seal(createApplicationSession({oid,name:'Synthetic owner',roles:['VISITANTE']}),env.SESSION_SECRET);}
+    async function sessionCookie(oid:string){return SESSION_COOKIE+'='+await seal(createApplicationSession({oid,name:'Synthetic owner',roles:['VISITANTE']}),env.SESSION_SECRET, 'admin-session');}
     const owner=await sessionCookie(actor),other=await sessionCookie('77777777-7777-4777-8777-777777777777');
     const path='/frequency-collector/revoke?device='+poll.deviceId;
     expect((await handleCollectorRequestV1(new Request(origin+path,{headers:{Cookie:other}}),inactive,f.dependencies))?.status).toBe(404);

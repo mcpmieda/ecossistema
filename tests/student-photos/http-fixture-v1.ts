@@ -36,7 +36,7 @@ export const previewBody = () => ({ version: 1, subject, command, qualities, ima
 export const saveBody = () => ({ version: 1, subject, command, approval: preview().approval, images: wire });
 export async function cookie(roles: Role[] = ['ADMINISTRADOR'], actor = ACTOR, expired = false): Promise<string> {
   const session = createApplicationSession({ oid: actor, name: 'SYNTHETIC HTTP ADMIN', roles }, 12, Math.floor(Date.now() / 1000) - 60);
-  return `${SESSION_COOKIE}=${await seal({ ...session, ...(expired ? { exp: Math.floor(Date.now() / 1000) - 1 } : {}) }, env.SESSION_SECRET)}`;
+  return `${SESSION_COOKIE}=${await seal({ ...session, ...(expired ? { exp: Math.floor(Date.now() / 1000) - 1 } : {}) }, env.SESSION_SECRET, 'admin-session')}`;
 }
 export async function request(body: unknown = previewBody(), path = 'preview', headers: HeadersInit = {}): Promise<Request> {
   const all = new Headers({ 'content-type': 'application/json', origin: ORIGIN, cookie: await cookie(), 'x-student-photo-request': '1' });

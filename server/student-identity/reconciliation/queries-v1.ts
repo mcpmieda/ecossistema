@@ -120,7 +120,7 @@ export async function listV1(
   const keySecret = `student-reconciliation-cursor-v1:${secret}`;
   let after = '';
   if (request.cursor) {
-    const c = cursorSchema.safeParse(await unseal(request.cursor, keySecret));
+    const c = cursorSchema.safeParse(await unseal(request.cursor, keySecret, 'reconciliation-cursor'));
     if (
       !c.success ||
       c.data.actor !== actor ||
@@ -182,7 +182,7 @@ export async function listV1(
               expires: clock.now.getTime() + 300000,
               key: String(page.at(-1)!.key),
             },
-            keySecret,
+            keySecret, 'reconciliation-cursor',
           )
         : null,
   };
