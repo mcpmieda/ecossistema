@@ -49,19 +49,12 @@ const loader = await readFile(
   join(root, 'src/features/gradebook/import/sheetjs-loader.ts'),
   'utf8',
 );
-const libraryUrl = loader.match(/const SHEETJS_SRC = '([^']+)'/u)?.[1];
+// The loader imports the file from the installed package (Vite serves it from /assets/).
+const libraryFile = loader.match(/from '(xlsx\/dist\/[\w.]+\.js)\?url'/u)?.[1];
 const integrity = loader.match(/sha384-[A-Za-z0-9+/=]+/u)?.[0];
-if (!libraryUrl || !integrity) throw new Error('Cannot read project library pin');
-const libraryPath = join(cache, 'sheetjs-0.20.3.js');
-let library;
-try {
-  library = await readFile(libraryPath);
-} catch {
-  const response = await fetch(libraryUrl);
-  if (!response.ok) throw new Error(`Library download HTTP ${response.status}`);
-  library = Buffer.from(await response.arrayBuffer());
-  await writeFile(libraryPath, library);
-}
+if (!libraryFile || !integrity) throw new Error('Cannot read project library pin');
+const libraryUrl = `node_modules/${libraryFile}`;
+const library = await readFile(join(root, libraryUrl));
 if (`sha384-${createHash('sha384').update(library).digest('base64')}` !== integrity)
   throw new Error('SheetJS integrity mismatch');
 

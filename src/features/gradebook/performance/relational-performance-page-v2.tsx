@@ -1,3 +1,4 @@
+import './performance-v2.css';
 import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Drawer, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';

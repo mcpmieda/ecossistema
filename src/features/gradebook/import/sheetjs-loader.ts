@@ -1,6 +1,7 @@
+import sheetJsUrl from 'xlsx/dist/xlsx.full.min.js?url';
 import type { SheetJs } from './spreadsheet-recognizer';
 
-const SHEETJS_SRC = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+// The same 0.20.3 file the CDN served, copied by Vite to /assets/ from the installed package.
 const SHEETJS_INTEGRITY =
   'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
 
@@ -18,8 +19,9 @@ export function loadSheetJs(): Promise<SheetJs> {
 
   const pending = new Promise<SheetJs>((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = SHEETJS_SRC;
-    script.integrity = SHEETJS_INTEGRITY;
+    script.src = sheetJsUrl;
+    // The dev server appends an inline source map to the file; the build copies it byte for byte.
+    if (import.meta.env.PROD) script.integrity = SHEETJS_INTEGRITY;
     script.crossOrigin = 'anonymous';
     script.async = true;
     script.addEventListener('load', () => {

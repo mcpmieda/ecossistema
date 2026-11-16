@@ -98,8 +98,9 @@ describe('gradebook importer structure', () => {
   it('keeps SheetJS loading, lean workbook options and HeroUI presentation explicit', () => {
     const sheetJsLoader = source('src/features/gradebook/import/sheetjs-loader.ts');
     expect(sheetJsLoader).toContain(
-      'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+      "import sheetJsUrl from 'xlsx/dist/xlsx.full.min.js?url';",
     );
+    expect(sheetJsLoader).toContain('script.src = sheetJsUrl');
     expect(sheetJsLoader).toContain(
       'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT',
     );

@@ -142,7 +142,7 @@ async function createBackend(server: ViteDevServer) {
     end: async () => undefined,
   });
   const testEnv = fixtures.testEnv as Record<string, string>;
-  const seal = sealed.seal as (value: unknown, secret: string) => Promise<string>;
+  const seal = sealed.seal as (value: unknown, secret: string, purpose: 'admin-session') => Promise<string>;
   const cookieName = session.SESSION_COOKIE as string;
   const routes = await Promise.all(
     ROUTES.map(
@@ -210,6 +210,7 @@ async function createBackend(server: ViteDevServer) {
           exp: Math.floor(Date.now() / 1000) + 600,
         },
         testEnv.SESSION_SECRET ?? '',
+        'admin-session',
       );
       const origin = testEnv.OFFICIAL_ORIGIN ?? '';
       const request = () =>

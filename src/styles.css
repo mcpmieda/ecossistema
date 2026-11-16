@@ -1,5 +1,64 @@
+/* HeroUI's own layers and order (node_modules/@heroui/styles/dist/index.css), with only the
+   components the Centro renders and their internal parts: the whole package would also send
+   colour pickers, pagination, toasts and other components no screen here uses. */
+@layer theme, base, components, utilities;
 @import 'tailwindcss';
-@import '@heroui/styles';
+@import 'tw-animate-css';
+@import '@heroui/styles/base' layer(base);
+@import '@heroui/styles/base/scrollbar.css' layer(base);
+@import '@heroui/styles/components/close-button.css' layer(components);
+@import '@heroui/styles/components/description.css' layer(components);
+@import '@heroui/styles/components/label.css' layer(components);
+@import '@heroui/styles/components/accordion.css' layer(components);
+@import '@heroui/styles/components/disclosure.css' layer(components);
+@import '@heroui/styles/components/tabs.css' layer(components);
+@import '@heroui/styles/components/button.css' layer(components);
+@import '@heroui/styles/components/toggle-button.css' layer(components);
+@import '@heroui/styles/components/toggle-button-group.css' layer(components);
+@import '@heroui/styles/components/dropdown.css' layer(components);
+@import '@heroui/styles/components/list-box-item.css' layer(components);
+@import '@heroui/styles/components/list-box-section.css' layer(components);
+@import '@heroui/styles/components/list-box.css' layer(components);
+@import '@heroui/styles/components/menu-item.css' layer(components);
+@import '@heroui/styles/components/menu-section.css' layer(components);
+@import '@heroui/styles/components/tag-group.css' layer(components);
+@import '@heroui/styles/components/tag.css' layer(components);
+@import '@heroui/styles/components/slider.css' layer(components);
+@import '@heroui/styles/components/switch.css' layer(components);
+@import '@heroui/styles/components/chip.css' layer(components);
+@import '@heroui/styles/components/table.css' layer(components);
+@import '@heroui/styles/components/alert.css' layer(components);
+@import '@heroui/styles/components/skeleton.css' layer(components);
+@import '@heroui/styles/components/meter.css' layer(components);
+@import '@heroui/styles/components/progress-bar.css' layer(components);
+@import '@heroui/styles/components/spinner.css' layer(components);
+@import '@heroui/styles/components/checkbox.css' layer(components);
+@import '@heroui/styles/components/input.css' layer(components);
+@import '@heroui/styles/components/radio-group.css' layer(components);
+@import '@heroui/styles/components/radio.css' layer(components);
+@import '@heroui/styles/components/textfield.css' layer(components);
+@import '@heroui/styles/components/search-field.css' layer(components);
+@import '@heroui/styles/components/calendar.css' layer(components);
+@import '@heroui/styles/components/calendar-year-picker.css' layer(components);
+@import '@heroui/styles/components/date-field.css' layer(components);
+@import '@heroui/styles/components/time-field.css' layer(components);
+@import '@heroui/styles/components/date-input-group.css' layer(components);
+@import '@heroui/styles/components/date-picker.css' layer(components);
+@import '@heroui/styles/components/card.css' layer(components);
+@import '@heroui/styles/components/separator.css' layer(components);
+@import '@heroui/styles/components/surface.css' layer(components);
+@import '@heroui/styles/components/avatar.css' layer(components);
+@import '@heroui/styles/components/alert-dialog.css' layer(components);
+@import '@heroui/styles/components/drawer.css' layer(components);
+@import '@heroui/styles/components/modal.css' layer(components);
+@import '@heroui/styles/components/popover.css' layer(components);
+@import '@heroui/styles/components/tooltip.css' layer(components);
+@import '@heroui/styles/components/select.css' layer(components);
+@import '@heroui/styles/components/kbd.css' layer(components);
+@import '@heroui/styles/components/scroll-shadow.css' layer(components);
+@import '@heroui/styles/themes/default' layer(theme);
+@import '@heroui/styles/utilities';
+@import '@heroui/styles/variants';
 @import '@fontsource-variable/geist';
 
 html {
@@ -267,19 +326,6 @@ body {
   outline-offset: -2px;
 }
 
-.bulletin-filterbar {
-  display: grid;
-  min-height: 5rem;
-  grid-template-columns: minmax(13rem, 1.25fr) repeat(3, minmax(10rem, 0.85fr)) auto;
-  align-items: end;
-  gap: 0.75rem;
-  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: var(--radius-3xl);
-  background: color-mix(in oklab, var(--surface) 95%, var(--accent) 5%);
-  padding: 0.8rem;
-  box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 24%, transparent);
-}
-
 .bulletin-student-card {
   display: grid;
   min-height: 3.6rem;
@@ -302,39 +348,10 @@ body {
   background: var(--surface-secondary);
 }
 
-.bulletin-student-card:focus-within {
-  outline: 2px solid color-mix(in oklab, var(--accent) 65%, transparent);
-  outline-offset: 2px;
-}
-
 .bulletin-student-card input {
   width: 1rem;
   height: 1rem;
   accent-color: var(--accent);
-}
-
-.bulletin-artifact-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  border-bottom: 1px solid var(--separator);
-  background: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--accent) 10%, var(--surface)),
-    var(--surface)
-  );
-}
-
-.bulletin-kpi {
-  display: flex;
-  min-width: 0;
-  min-height: 4.8rem;
-  align-items: center;
-  gap: 0.75rem;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-3xl);
-  background: var(--surface-secondary);
-  padding: 0.8rem 0.9rem;
 }
 
 .bulletin-kpi__icon {
@@ -371,138 +388,6 @@ body {
   font-size: 0.72rem;
 }
 
-.performance-kpi-group {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: var(--radius-3xl);
-  background: var(--surface);
-  box-shadow: 0 20px 45px -42px color-mix(in oklab, var(--foreground) 24%, transparent);
-}
-
-.performance-kpi {
-  min-width: 0;
-  border: 0;
-  border-right: 1px solid var(--separator);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.performance-kpi:last-child {
-  border-right: 0;
-}
-
-.performance-kpi--pressed {
-  background: var(--surface-secondary);
-}
-
-.performance-kpi__button {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  min-height: 3.5rem;
-  gap: 0.6rem;
-  padding: 0.5rem 0.8rem;
-}
-
-button.performance-kpi__button {
-  cursor: pointer;
-}
-
-button.performance-kpi__button:hover {
-  background: var(--surface-secondary);
-}
-
-.performance-kpi__button:focus-visible,
-.performance-panorama__item:focus-visible,
-.performance-bar:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
-  outline-offset: -2px;
-}
-
-.performance-kpi__icon,
-.performance-widget__icon {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: var(--radius-2xl);
-}
-
-.performance-kpi__icon--accent,
-.performance-widget__icon--accent {
-  background: color-mix(in oklab, var(--performance-above) 12%, transparent);
-  color: var(--performance-above);
-}
-.performance-kpi__icon--danger {
-  background: color-mix(in oklab, var(--performance-below) 14%, transparent);
-  color: #d73b4a;
-}
-.performance-kpi__icon--success {
-  background: color-mix(in oklab, #19a768 14%, transparent);
-  color: #118451; /* NOSONAR an icon: non-text contrast (3:1) is met */
-}
-.performance-kpi__icon--warning {
-  background: color-mix(in oklab, var(--performance-pending) 17%, transparent);
-  color: #b86d00;
-}
-
-.performance-dashboard-grid > .performance-widget {
-  height: 100%;
-}
-
-.performance-widget__header {
-  display: flex;
-  align-items: center;
-  min-height: 2rem;
-  gap: 0.55rem;
-}
-
-.performance-legend {
-  display: inline-block;
-  width: 0.55rem;
-  height: 0.55rem;
-  flex: 0 0 auto;
-  border-radius: 999px;
-}
-
-.performance-legend--above {
-  background: var(--performance-above);
-}
-.performance-legend--below {
-  background: var(--performance-below);
-}
-.performance-legend--pending {
-  background: var(--performance-pending);
-}
-
-.performance-bars {
-  display: flex;
-  min-width: 0;
-  justify-content: flex-start;
-  padding: 1.35rem 0.1rem 0.1rem;
-  gap: 0.25rem;
-  margin-top: 0.5rem;
-  padding-top: 2.4rem;
-  overflow-x: visible;
-}
-
-.performance-bars__column {
-  display: grid;
-  align-items: end;
-  gap: 0.15rem;
-  text-align: center;
-  max-width: 4.25rem;
-  min-width: 0;
-  flex: 1 1 0;
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .performance-bar {
   position: relative;
   min-height: 3px;
@@ -519,9 +404,6 @@ button.performance-kpi__button:hover {
     performance-bar-breathe 7s ease-in-out infinite;
 }
 
-.performance-bar--selected {
-  box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 24%, transparent);
-}
 .performance-bar > span {
   position: absolute;
   left: 50%;
@@ -540,129 +422,6 @@ button.performance-kpi__button:hover {
   font-size: 0.62rem;
 }
 
-.performance-bars__pending {
-  align-self: center;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--performance-pending) 16%, transparent);
-  padding: 0.05rem 0.25rem;
-  color: #8c5a00;
-  font-size: 0.58rem;
-  justify-self: center;
-  line-height: 1.2;
-}
-
-.performance-bars__detail {
-  display: grid;
-  height: 14.8rem;
-  grid-template-rows: auto minmax(0, 1fr);
-  margin-top: 1rem;
-  overflow: hidden;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-3xl);
-  background: var(--surface-secondary);
-}
-
-.performance-bars__detail-header {
-  display: flex;
-  min-height: 3.6rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  border-bottom: 1px solid var(--separator);
-  padding: 0.65rem 0.8rem;
-}
-
-.performance-bars__student-groups {
-  display: grid;
-  min-height: 0;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  padding: 0.75rem;
-}
-
-.performance-bars__student-group {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-2xl);
-  background: var(--surface);
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.performance-bars__student-group > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  border-left: 3px solid var(--performance-above);
-  padding: 0.65rem 0.7rem;
-}
-
-.performance-bars__student-group--below > header {
-  border-left-color: var(--performance-below);
-}
-
-.performance-bars__student-group > header strong,
-.performance-bars__student-group > header small {
-  display: block;
-}
-
-.performance-bars__student-group > header strong {
-  font-size: 0.75rem;
-}
-
-.performance-bars__student-group > header small,
-.performance-bars__student-group > p {
-  color: var(--muted);
-  font-size: 0.65rem;
-}
-
-.performance-bars__student-group > ul {
-  min-height: 0;
-  overflow-y: auto;
-  border-top: 1px solid var(--separator);
-}
-
-.performance-bars__student-group li + li {
-  border-top: 1px solid color-mix(in oklab, var(--separator) 70%, transparent);
-}
-
-.performance-bars__student-group li > button {
-  display: grid;
-  width: 100%;
-  align-items: center;
-  gap: 0.5rem;
-  border: 0;
-  background: transparent;
-  padding: 0.48rem 0.7rem;
-  color: inherit;
-  cursor: pointer;
-  font-size: 0.7rem;
-  text-align: left;
-  grid-template-columns: 1.1rem minmax(0, 1fr);
-}
-
-.performance-bars__student-group li > button:hover {
-  background: var(--surface-secondary);
-}
-
-.performance-bars__student-group li > button:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
-  outline-offset: -2px;
-}
-
-.performance-bars__student-group li small {
-  color: var(--muted);
-  font-size: 0.62rem;
-}
-
-.performance-bars__student-group > p {
-  border-top: 1px solid var(--separator);
-  padding: 0.75rem;
-}
-
 .performance-donut {
   display: grid;
   aspect-ratio: 1;
@@ -673,17 +432,6 @@ button.performance-kpi__button:hover {
   --performance-empty: color-mix(in oklab, var(--separator) 55%, transparent);
   width: 7.5rem;
   box-shadow: none;
-}
-
-.performance-donut__center {
-  display: grid;
-  aspect-ratio: 1;
-  place-content: center;
-  border-radius: 50%;
-  background: var(--surface);
-  text-align: center;
-  width: 66%;
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--separator) 60%, transparent);
 }
 
 .performance-donut__center strong {
@@ -717,49 +465,12 @@ button.performance-kpi__button:hover {
   background: color-mix(in oklab, var(--accent) 10%, transparent);
 }
 
-.performance-panorama__counts {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-}
-
-.performance-grid__row {
-  height: 2.25rem;
-}
-
-/* Number and situation take only what they show; the rest goes to the student and the marks. */
-.performance-grid .performance-grid__fit {
-  width: 1%;
-  white-space: nowrap;
-}
-
 .performance-grid__cell {
   height: 2.25rem;
   line-height: 1rem;
   vertical-align: middle;
 }
 
-/* The column under the pointer, in the same tone the row gets. */
-@media (hover: hover) {
-  .performance-grid .table__row .table__cell[data-col-hover] {
-    background-color: color-mix(in oklab, var(--surface) 40%, transparent);
-  }
-}
-
-/* Components where the student under the pointer is below the minimum. */
-.performance-grid__head[data-below],
-.performance-grid__head[data-below] button,
-.performance-grid-pin__track > span[data-below] {
-  color: var(--danger);
-  font-weight: 800;
-}
-
-/* The header again, under the top bar, once the table's own has scrolled away. */
-/* Hidden while the table's own header is in view (the copy stays mounted, out of React). */
-.performance-grid-pin[hidden] {
-  display: none;
-}
 .performance-grid-pin {
   position: fixed;
   z-index: 15;
@@ -778,24 +489,6 @@ button.performance-kpi__button:hover {
   animation: performance-grid-pin-in 160ms ease-out;
 }
 
-.performance-grid-pin__track {
-  display: flex;
-  align-items: center;
-}
-
-.performance-grid-pin__track > span {
-  flex: none;
-  overflow: hidden;
-  padding: 0.375rem 0.5rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.performance-grid-pin__track > .performance-grid-pin__value {
-  font-weight: 600;
-  text-align: center;
-}
-
 @keyframes performance-grid-pin-in {
   from {
     opacity: 0;
@@ -809,118 +502,11 @@ button.performance-kpi__button:hover {
   }
 }
 
-.performance-matrix-header {
-  align-items: center;
-  flex-wrap: nowrap;
-}
-
 .performance-lens-tabs > .tabs__list-container,
 .performance-lens-tabs .tabs__list {
   height: 2.5rem;
 }
 
-.performance-lens-tabs .tabs__list {
-  align-items: center;
-}
-
-.performance-lens-tabs .tabs__indicator {
-  transform: translateZ(0);
-  will-change: translate, width, height;
-}
-
-.performance-lens-status {
-  display: flex;
-  align-items: center;
-}
-
-.performance-lens-panel.tabs__panel {
-  margin-top: 0.25rem;
-  padding: 0;
-}
-
-.performance-status-chip {
-  min-height: 1.35rem;
-  max-width: 100%;
-  padding-inline: 0.35rem;
-  font-size: 0.62rem;
-}
-
-.performance-status-chip--regular {
-  background: color-mix(in oklab, var(--success) 12%, transparent);
-  color: color-mix(in oklab, var(--success) 82%, var(--foreground));
-}
-
-.performance-status-chip--special,
-.performance-status-chip--origin {
-  background: color-mix(in oklab, var(--accent) 13%, transparent);
-  color: var(--accent);
-}
-
-.performance-status-chip--assisted {
-  background: color-mix(in oklab, var(--warning) 15%, transparent);
-  color: color-mix(in oklab, var(--warning) 72%, var(--foreground));
-}
-
-.performance-status-chip--withdrawn {
-  background: color-mix(in oklab, var(--danger) 13%, transparent);
-  color: var(--danger);
-}
-
-.performance-status-chip--transferred {
-  background: color-mix(in oklab, var(--accent) 9%, var(--surface-secondary));
-  color: color-mix(in oklab, var(--accent) 70%, var(--foreground));
-}
-
-.performance-status-chip--deceased {
-  background: var(--surface-secondary);
-  color: var(--muted);
-}
-
-.council-filterbar {
-  display: flex;
-  align-items: end;
-  gap: 0.75rem;
-  padding: 0.85rem;
-  border: 1px solid color-mix(in oklab, var(--separator) 82%, transparent);
-  border-radius: var(--radius-3xl);
-  background:
-    linear-gradient(135deg, color-mix(in oklab, var(--accent) 7%, transparent), transparent 44%),
-    var(--surface);
-  box-shadow: 0 16px 42px -38px color-mix(in oklab, var(--foreground) 52%, transparent);
-}
-
-.council-kpi-group {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  overflow: hidden;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-3xl);
-  background: var(--surface);
-  box-shadow: 0 20px 55px -48px var(--foreground);
-}
-
-.council-kpi {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  border-right: 1px solid var(--separator);
-}
-
-.council-kpi:last-child {
-  border-right: 0;
-}
-.council-kpi__icon {
-  display: grid;
-  width: 2.4rem;
-  aspect-ratio: 1;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: var(--radius-2xl);
-  background: color-mix(in oklab, var(--accent) 11%, transparent);
-  color: var(--accent);
-}
 .council-kpi--success .council-kpi__icon {
   background: color-mix(in oklab, var(--success) 12%, transparent);
   color: var(--success);
@@ -938,71 +524,6 @@ button.performance-kpi__button:hover {
   font-size: 1.45rem;
   line-height: 1;
   letter-spacing: -0.045em;
-}
-.council-kpi span:last-child {
-  display: block;
-  margin-top: 0.25rem;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.council-layout {
-  display: grid;
-  grid-template-columns: minmax(17rem, 0.7fr) minmax(0, 1.6fr);
-  align-items: start;
-  gap: 1rem;
-}
-
-.council-board {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(15rem, 1fr);
-  gap: 0.75rem;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
-}
-
-.council-board__column {
-  min-width: 0;
-  padding: 0.65rem;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-3xl);
-  background: color-mix(in oklab, var(--surface-secondary) 64%, transparent);
-  scroll-snap-align: start;
-}
-.council-board__column > header {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.25rem;
-  padding: 0 0.35rem;
-  font-size: 0.76rem;
-}
-.council-board__column > header > span:last-child {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.council-board__cards {
-  display: grid;
-  max-height: 41rem;
-  gap: 0.5rem;
-  overflow-y: auto;
-  padding: 0.2rem;
-  scrollbar-width: thin;
-}
-.council-board__empty {
-  display: flex;
-  min-height: 5rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  color: var(--muted);
-  font-size: 0.75rem;
 }
 
 .council-queue-card {
@@ -1034,92 +555,11 @@ button.performance-kpi__button:hover {
   background: color-mix(in oklab, var(--accent) 7%, var(--surface));
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 10%, transparent);
 }
-.council-queue-card:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-.council-queue-card__number {
-  display: grid;
-  width: 1.9rem;
-  aspect-ratio: 1;
-  place-items: center;
-  border-radius: var(--radius-2xl);
-  background: var(--surface-secondary);
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
 
-.council-textarea,
-.council-number-input {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-2xl);
-  background: var(--surface);
-  color: var(--foreground);
-  outline: none;
-}
-
-.council-textarea {
-  min-height: 4.5rem;
-  resize: vertical;
-  padding: 0.7rem 0.8rem;
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-.council-number-input {
-  min-height: 2.55rem;
-  margin-top: 0.35rem;
-  padding: 0 0.75rem;
-  font-variant-numeric: tabular-nums;
-}
-.council-textarea:focus-visible,
-.council-number-input:focus-visible {
-  border-color: var(--focus);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--focus) 20%, transparent);
-}
-.council-textarea:disabled,
-.council-number-input:disabled {
-  opacity: 0.55;
-}
-
-.council-timeline {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
 .council-timeline > li {
   display: grid;
   grid-template-columns: 1.4rem minmax(0, 1fr);
   gap: 0.65rem;
-}
-.council-timeline article {
-  min-width: 0;
-  padding-bottom: 1rem;
-}
-.council-timeline__rail {
-  position: relative;
-  display: flex;
-  justify-content: center;
-}
-.council-timeline__marker {
-  position: relative;
-  z-index: 1;
-  width: 0.72rem;
-  height: 0.72rem;
-  margin-top: 0.32rem;
-  border: 2px solid var(--surface);
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 30%, var(--separator));
-}
-.council-timeline__connector {
-  position: absolute;
-  top: 0.9rem;
-  bottom: -0.25rem;
-  width: 1px;
-  background: var(--separator);
 }
 
 @keyframes performance-donut-reveal {
@@ -1130,81 +570,6 @@ button.performance-kpi__button:hover {
   to {
     opacity: 1;
     transform: scale(1) rotate(0);
-  }
-}
-
-@media (max-width: 1100px) {
-
-  .bulletin-filterbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .performance-kpi-group {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .performance-kpi:nth-child(2) {
-    border-right: 0;
-  }
-  .performance-kpi:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--separator);
-  }
-  .performance-dashboard-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .council-kpi-group {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .council-kpi:nth-child(2) {
-    border-right: 0;
-  }
-  .council-kpi:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--separator);
-  }
-  .council-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 640px) {
-
-  .bulletin-filterbar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .bulletin-artifact-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .performance-kpi-group {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .performance-kpi {
-    border-right: 0;
-    border-bottom: 1px solid var(--separator);
-  }
-  .performance-kpi:last-child {
-    border-bottom: 0;
-  }
-  .performance-panorama {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .performance-bars__student-groups {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .council-filterbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .council-kpi-group {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .council-kpi {
-    border-right: 0;
-    border-bottom: 1px solid var(--separator);
-  }
-  .council-kpi:last-child {
-    border-bottom: 0;
-  }
-  .council-board {
-    grid-auto-columns: minmax(86vw, 1fr);
   }
 }
 
@@ -1268,10 +633,6 @@ button.performance-kpi__button:hover {
   .route-stage,
   .stagger-item {
     animation: none !important; /* NOSONAR reduced motion wins over every motion rule */
-  }
-
-  .council-queue-card {
-    transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
   }
 
   .platform-search-results .list-box-item,
@@ -1634,123 +995,17 @@ button.performance-kpi__button:hover {
   font-size: 0.8rem;
   white-space: nowrap;
 }
-.performance-matrix-filters {
-  display: flex;
-  flex: 1 1 0;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem 0.4rem;
-  /* Beside the title; on narrower screens the filters wrap inside this space, not under it. */
-  margin-left: 0.5rem;
-}
-.performance-matrix-filters .tag {
-  padding-inline: 0.4rem;
-}
+
 .performance-matrix-filters > .button {
   width: 1.6rem;
   min-width: 1.6rem;
   height: 1.6rem;
   padding: 0;
 }
-/* The tags say what they filter; the label stays for screen readers only. */
-.performance-matrix-filters .filter-tags-v1--inline > .label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-.performance-matrix-statuses {
-  max-width: 22rem;
-  padding: 0.75rem;
-}
 
-/* Student detail: an easier close target, and on a phone the term table fits the screen
-   width instead of scrolling sideways. */
-.performance-detail-close.close-button {
-  width: 2.5rem;
-  height: 2.5rem;
-}
 .performance-detail-close.close-button svg {
   width: 1.25rem;
   height: 1.25rem;
-}
-.performance-detail-table__short {
-  display: none;
-}
-@media (max-width: 640px) {
-  .performance-detail-table table {
-    width: 100%;
-    min-width: 0;
-    table-layout: fixed;
-  }
-  .performance-detail-table th,
-  .performance-detail-table td {
-    padding-inline: 0.3rem;
-  }
-  .performance-detail-table th:first-child,
-  .performance-detail-table td:first-child {
-    width: 40%;
-  }
-  .performance-detail-table th:not(:first-child),
-  .performance-detail-table td:not(:first-child) {
-    text-align: center;
-  }
-  .performance-detail-table td:first-child .button {
-    padding-inline: 0.25rem;
-    font-size: 0.8rem;
-    overflow-wrap: anywhere;
-  }
-  .performance-detail-table__long {
-    display: none;
-  }
-  .performance-detail-table__short {
-    display: inline;
-  }
-}
-
-/* Desempenho header: identity, period and year in one card with the class and perspective rows. */
-.performance-workspace {
-  --performance-card-border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
-}
-.performance-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 0.75rem;
-  margin-bottom: -1rem;
-  padding: 0.85rem 1.1rem 0.6rem;
-  border: var(--performance-card-border);
-  border-bottom: 0;
-  border-radius: var(--radius-3xl) var(--radius-3xl) 0 0;
-  background: var(--surface);
-}
-.performance-head__icon {
-  display: grid;
-  width: 2.1rem;
-  height: 2.1rem;
-  flex: none;
-  place-items: center;
-  border-radius: var(--radius-2xl);
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.performance-head__title {
-  min-width: 0;
-  margin-right: auto;
-}
-.performance-head__title h2 {
-  font-size: 1.05rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-.performance-head__title p {
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.3;
 }
 
 .performance-period-tabs .tabs__tab {
@@ -1771,32 +1026,7 @@ button.performance-kpi__button:hover {
   border-inline: var(--performance-card-border);
   background: var(--surface);
 }
-.performance-workspace > .school-class-tabs > .tabs__list-container::before {
-  content: 'Turma';
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-.performance-workspace > .school-class-tabs > .tabs__list-container .tabs__list {
-  height: auto;
-  gap: 0.15rem;
-  padding: 0;
-  background: transparent;
-}
-.performance-workspace > .school-class-tabs > .tabs__list-container .tabs__tab {
-  min-width: 2.75rem;
-  height: 1.85rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-}
-.performance-workspace > .school-class-tabs > .tabs__list-container .tabs__tab[data-selected='true'] {
-  color: var(--accent);
-  font-weight: 650;
-}
-.performance-workspace > .school-class-tabs > .tabs__list-container .tabs__indicator {
-  border-radius: 999px;
-  background: var(--accent-soft);
-  box-shadow: none;
-}
+
 /* Perspectives: underlined tabs closing the card. */
 .performance-workspace .performance-perspectives.tabs__list-container {
   width: 100%;
@@ -1817,10 +1047,7 @@ button.performance-kpi__button:hover {
   padding-inline: 0.1rem;
   color: var(--muted);
 }
-.performance-perspectives .tabs__tab[data-selected='true'] {
-  color: var(--foreground);
-  font-weight: 650;
-}
+
 .performance-perspectives .tabs__indicator {
   top: auto;
   bottom: 0;
@@ -1829,18 +1056,6 @@ button.performance-kpi__button:hover {
   background: var(--accent);
   box-shadow: none;
 }
-/* Notas: the lenses, then mode and comparison right beside them (owner request of 13/10/2026). */
-.performance-notes-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 1rem;
-}
-.performance-notes-bar__selects {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
 
 .performance-notes-bar__selects .select {
   display: flex;
@@ -1848,146 +1063,30 @@ button.performance-kpi__button:hover {
   align-items: center;
   gap: 0.4rem;
 }
-.performance-notes-bar__selects .label {
-  margin: 0;
-}
-.performance-notes-bar__selects .select__trigger {
-  width: auto;
-  min-height: 2.25rem;
-  min-width: 7.5rem;
-}
+
 .performance-workspace .school-class-tabs[data-orientation='horizontal'] > .tabs__list-container,
 .performance-workspace .tabs[data-orientation='horizontal'] > .performance-perspectives.tabs__list-container {
   width: 100%;
   align-self: stretch;
 }
-.performance-workspace .performance-notes-bar > .tabs__list-container {
-  flex: none;
-}
 
-.performance-kpi__icon {
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-2xl);
-}
-.performance-kpi__icon svg {
-  width: 1rem;
-  height: 1rem;
-}
 .performance-kpi strong {
   font-size: 1.2rem;
   line-height: 1.5rem;
 }
-.performance-kpi .mt-1 {
-  margin-top: 0;
-}
-@media (min-width: 761px) {
-  .performance-kpi-group {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .performance-kpi:nth-child(-n + 3) {
-    border-right: 1px solid var(--separator);
-    border-bottom: 0;
-  }
-}
-.performance-workspace.performance-workspace .school-class-tabs[data-orientation='horizontal'] > .tabs__list-container,
-.performance-workspace.performance-workspace .tabs[data-orientation='horizontal'] > .performance-perspectives.tabs__list-container {
-  width: 100%;
-  align-self: stretch;
-}
-.performance-notes-bar > .tabs__list-container {
-  width: fit-content;
-  max-width: 100%;
-}
-.performance-notes-bar > .tabs__list-container .tabs__list {
-  width: max-content;
-  justify-content: flex-start;
-}
+
 .performance-notes-bar > .tabs__list-container .tabs__tab {
   width: auto;
   flex: 0 0 auto;
   white-space: nowrap;
   min-width: 0;
 }
-.performance-kpi .items-baseline {
-  white-space: nowrap;
-}
-.performance-workspace.performance-workspace .school-class-tabs > .tabs__list-container {
-  border-radius: 0;
-}
-
-.performance-period-tabs .tabs__list {
-  height: 2.25rem;
-}
-
-/* Desempenho charts: fixed, compact proportions instead of stretching with the window. */
-.performance-dashboard-grid {
-  display: grid;
-  align-items: stretch;
-  grid-template-columns: minmax(0, 1.5fr) minmax(15.5rem, 1fr);
-  gap: 0.75rem;
-}
-.performance-widget {
-  overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
-  border-radius: var(--radius-3xl);
-  padding: 0.75rem 0.9rem 0.85rem;
-  box-shadow: none;
-}
-
-.performance-widget__icon {
-  width: 1.9rem;
-  height: 1.9rem;
-  border-radius: var(--radius-2xl);
-}
-
-.performance-bar--above {
-  background: var(--performance-above);
-}
-.performance-bar--below {
-  background: var(--performance-below);
-}
-.performance-bar:hover {
-  filter: saturate(1.12) brightness(0.98);
-  transform: none;
-}
-
-.performance-bars__column:nth-child(2) .performance-bar {
-  animation-delay: 30ms, -1.06s;
-}
-.performance-bars__column:nth-child(3) .performance-bar {
-  animation-delay: 60ms, -1.59s;
-}
-.performance-bars__column:nth-child(4) .performance-bar {
-  animation-delay: 90ms, -2.12s;
-}
-.performance-bars__column:nth-child(5) .performance-bar {
-  animation-delay: 120ms, -2.65s;
-}
-.performance-bars__column:nth-child(6) .performance-bar {
-  animation-delay: 150ms, -3.18s;
-}
-.performance-bars__column:nth-child(7) .performance-bar {
-  animation-delay: 180ms, -3.71s;
-}
-.performance-bars__column:nth-child(8) .performance-bar {
-  animation-delay: 210ms, -0.04s;
-}
-.performance-bars__column:nth-child(n + 9) .performance-bar { animation-delay: 240ms; }
 
 .performance-donut__center span {
   color: var(--muted);
   font-size: 0.65rem;
 }
 
-.performance-panorama__item:nth-child(2) { animation-delay: 70ms; }
-.performance-panorama__item:nth-child(3) { animation-delay: 140ms; }
-.performance-panorama__item > span {
-  overflow: hidden;
-  color: var(--muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .performance-panorama__item > strong {
   font-variant-numeric: tabular-nums;
   min-width: 1.5rem;
@@ -2006,29 +1105,7 @@ button.performance-kpi__button:hover {
     opacity: 0;
   }
 }
-@media (max-width: 720px) {
-  .performance-dashboard-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-@media (min-width: 721px) {
-  .performance-dashboard-grid {
-    grid-template-columns: minmax(0, 1.5fr) minmax(15.5rem, 1fr);
-  }
-  .performance-panorama {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .performance-bar,
-  .performance-bar > span,
-  .performance-panorama__item {
-    animation: none;
-  }
-}
-.performance-widget__header h3 {
-  white-space: nowrap;
-}
+
 .performance-widget__header [aria-label='Legenda'] {
   justify-content: flex-end;
   gap: 0.15rem 0.6rem;
@@ -2066,148 +1143,17 @@ button.performance-kpi__button:hover {
     animation: none;
   }
 }
-.performance-kpi__detail {
-  color: var(--muted);
-  font-size: 0.6875rem;
-  line-height: 1rem;
-}
-.performance-panorama__item > .marquee-text-v1 {
-  color: var(--muted);
-}
-
-/* Information panel of the analytics cards: whole words, the calculation set apart. */
-.analytics-hint {
-  max-width: calc(100vw - 2rem);
-  padding: 0.75rem 0.85rem;
-  text-align: left;
-  word-break: normal;
-  overflow-wrap: normal;
-  hyphens: none;
-  white-space: normal;
-  width: 21rem;
-  font-size: 0.78rem;
-  line-height: 1.2rem;
-}
-.analytics-hint__body {
-  display: grid;
-  gap: 0.5rem;
-}
-.analytics-hint__body > p:first-child {
-  font-weight: 600;
-}
-.analytics-hint__calc {
-  display: grid;
-  gap: 0.15rem;
-  padding: 0.5rem 0.6rem;
-  border-radius: var(--radius-2xl);
-  background: color-mix(in oklab, var(--accent) 9%, transparent);
-}
-.analytics-hint__calc > span {
-  color: var(--accent);
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.analytics-hint__calc > p {
-  font-variant-numeric: tabular-nums;
-}
-.analytics-hint__note {
-  color: var(--muted);
-}
-
-.analytics-hint__calc > ol {
-  display: grid;
-  gap: 0.3rem;
-  margin: 0.15rem 0 0;
-  padding: 0;
-  counter-reset: analytics-step;
-  list-style: none;
-}
-.analytics-hint__calc > ol > li {
-  position: relative;
-  padding-left: 1.5rem;
-  counter-increment: analytics-step;
-}
-.analytics-hint__calc > ol > li::before {
-  position: absolute;
-  top: 0.1rem;
-  left: 0;
-  display: grid;
-  width: 1rem;
-  height: 1rem;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-foreground, #fff);
-  content: counter(analytics-step);
-  font-size: 0.6rem;
-  font-weight: 700;
-}
-.analytics-hint__calc > .analytics-hint__result {
-  margin-top: 0.35rem;
-  padding-top: 0.35rem;
-  border-top: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
-  font-weight: 650;
-}
 
 /* Phones (08/10/2026): the service menu shows when there is more to the side. */
 @media (max-width: 640px) {
-  /* Mode and comparison side by side, each with its label above. */
-  .performance-notes-bar__selects {
-    display: grid;
-    width: 100%;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    margin-left: 0;
-  }
-  .performance-notes-bar__selects .select {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.2rem;
-  }
-  .performance-notes-bar__selects .select__trigger {
-    width: 100%;
-    min-width: 0;
-  }
-  /* Matrix filters: label above, tags in one row that slides; no search field. */
-  .performance-matrix-header {
-    flex-wrap: wrap;
-  }
-  .performance-matrix-filters {
-    flex-basis: 100%;
-    margin-left: 0;
-    gap: 0.6rem;
-  }
-  .performance-matrix-filters .filter-tags-v1--inline {
-    display: grid;
-    width: 100%;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.25rem;
-  }
-  .performance-matrix-filters .filter-tags-v1--inline .tag-group__list {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 0.15rem;
-    scrollbar-width: none;
-  }
   .performance-matrix-filters .filter-tags-v1--inline .tag {
     flex: none;
   }
 }
 @media (max-width: 640px) {
-  /* The year sits in the top corner of the header; the period takes its own row below. */
-  .performance-head > [aria-label='Contexto acadêmico atual'] {
-    order: 1;
-  }
   .performance-head > .performance-period-tabs {
     order: 2;
     flex-basis: 100%;
-  }
-  .performance-notes-bar__selects .select__value {
-    overflow: hidden;
-    font-size: 0.8rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 }
 @media (max-width: 640px) {
@@ -2216,10 +1162,6 @@ button.performance-kpi__button:hover {
     padding-inline: 0.25rem 0.75rem;
     scrollbar-width: thin;
   }
-}
-/* The grades table of the drawer never scrolls on its own: no stray scrollbar over its corner. */
-.performance-detail-table .table__scroll-container {
-  overflow-y: hidden;
 }
 
 /* Composition of 13/10/2026 (owner request and reference): the side column sits straight on a
@@ -2663,45 +1605,11 @@ button.performance-kpi__button:hover {
   }
 }
 @media (min-width: 1000px) {
-  .performance-workspace .performance-notes-bar,
-  .performance-workspace .performance-notes-bar__selects {
-    flex-wrap: nowrap;
-  }
-  .performance-workspace .performance-notes-bar {
-    gap: 0.6rem;
-  }
-  .performance-workspace .performance-notes-bar > .tabs__list-container .tabs__tab {
-    padding-inline: 0.5rem;
-  }
-  .performance-workspace .performance-notes-bar__selects {
-    flex: none;
-    gap: 0.4rem;
-  }
-  .performance-workspace .performance-notes-bar__selects .label,
-  .performance-workspace .performance-notes-bar__selects .select__value {
-    white-space: nowrap;
-  }
   .performance-workspace .performance-notes-bar__selects .select__trigger {
     min-width: 5.5rem;
   }
 }
-/* Three indicators while no student waits for a classification (owner request of 13/10/2026). */
-.performance-kpi-group[data-cards='3'] {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-@media (min-width: 641px) and (max-width: 760px) {
-  .performance-kpi-group[data-cards='3'] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .performance-kpi-group[data-cards='3'] > .performance-kpi:nth-child(3) {
-    grid-column: 1 / -1;
-  }
-}
-@media (max-width: 640px) {
-  .performance-kpi-group[data-cards='3'] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
+
 /* Computer (owner request of 13/10/2026): the top of the site is not part of the sheet. It sits
    on the page, above it: where one is on the left, the search on the right. The sheet starts
    with the top of the open area. */
@@ -3198,66 +2106,12 @@ button.performance-kpi__button:hover {
   }
 }
 
-.performance-bars__plot {
-  display: flex;
-  grid-column: 1 / -1;
-  align-items: end;
-  justify-content: center;
-  border-bottom: 1px solid var(--separator);
-  height: 8.5rem;
-  gap: 0.25rem;
-  border-bottom-color: color-mix(in oklab, var(--separator) 80%, transparent);
-  background: repeating-linear-gradient(
-    to top,
-    transparent 0,
-    transparent 33px,
-    color-mix(in oklab, var(--separator) 45%, transparent) 34px
-  );
-}
-
-.performance-delta--above {
-  background: color-mix(in oklab, var(--performance-above) 14%, transparent);
-  color: var(--performance-above);
-}
-.performance-delta--below {
-  background: color-mix(in oklab, var(--performance-below) 14%, transparent);
-  color: var(--performance-below);
-}
 .performance-delta[data-change='none'] {
   padding: 0.05rem 0.3rem;
   background: color-mix(in oklab, var(--muted) 14%, transparent);
   color: var(--muted);
 }
-/* Up or down with the number; a small square when nothing changed (owner request of 15/10/2026). */
-.performance-delta[data-change='none']::before {
-  display: block;
-  width: 0.35rem;
-  height: 0.35rem;
-  border-radius: 0.06rem;
-  background: currentColor;
-  content: none;
-}
 
-.performance-bars__label {
-  overflow: hidden;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  line-height: 0.85rem;
-  padding-top: 0.15rem;
-  white-space: nowrap;
-  font-size: 0.62rem;
-  letter-spacing: 0;
-}
-
-.performance-delta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.05rem;
-  padding: 0.05rem 0.2rem;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.52rem;
-}
 /* Up is blue, down is red, whatever bar it sits on (owner request of 15/10/2026). */
 .performance-delta[data-change='up'] {
   background: color-mix(in oklab, var(--performance-above) 14%, transparent);
@@ -3268,14 +2122,6 @@ button.performance-kpi__button:hover {
   color: var(--performance-below);
 }
 
-/* A selected component takes the whole card: the back button, its name and the students below
-   the minimum, with the list running to the bottom edge (owner request of 15/10/2026). */
-.performance-widget--detail {
-  display: flex;
-  min-height: 19rem;
-  flex-direction: column;
-  padding: 0;
-}
 .performance-widget--detail .performance-bars__detail {
   height: auto;
   min-height: 0;
@@ -3285,59 +2131,13 @@ button.performance-kpi__button:hover {
   border-radius: 0;
   background: transparent;
 }
-.performance-widget--detail .performance-bars__detail-header {
-  min-height: 3.25rem;
-  padding: 0.5rem 1rem 0.5rem 0.5rem;
-}
-.performance-widget--detail .performance-bars__student-groups {
-  padding: 0;
-}
+
 .performance-widget--detail .performance-bars__student-group {
   border: 0;
   border-radius: 0;
   background: transparent;
 }
-.performance-widget--detail .performance-bars__student-group > header {
-  padding: 0.6rem 1rem;
-}
-.performance-widget--detail .performance-bars__student-group li > button {
-  padding: 0.3rem 1rem;
-  font-size: 0.72rem;
-  line-height: 1.2;
-  gap: 0.4rem;
-  padding-left: 0.35rem;
-}
-.performance-widget--detail .performance-bars__student-group > ul {
-  scrollbar-width: thin;
-}
-/* No lines between students; alternate rows are tinted instead (owner request of 15/10/2026). */
-.performance-widget--detail .performance-bars__student-group li + li {
-  border-top: 0;
-}
-.performance-widget--detail .performance-bars__student-group li:nth-child(even) > button {
-  background: color-mix(in oklab, var(--foreground) 5%, transparent);
-}
-.performance-widget--detail .performance-bars__student-group li > button:hover {
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
-}
 
-.performance-bars__student-group li > button > small {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.performance-bars__student-group > ul,
-.performance-bars__student-group > p {
-  border-top: 0;
-}
-/* Head of a selected component: its name is the title, the count a quiet line under it. */
-.performance-bars__detail-title {
-  display: grid;
-  min-width: 0;
-  justify-items: end;
-  gap: 0.1rem;
-  text-align: right;
-}
 .performance-bars__detail-title > h4 {
   max-width: 100%;
   overflow: hidden;
@@ -3348,94 +2148,22 @@ button.performance-kpi__button:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.performance-bars__detail-title > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 500;
-}
-.performance-bars__detail-title > span > i {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 999px;
-  background: var(--performance-below);
-}
+
 /* The count reads in dark red below the minimum, dark blue at or above (owner request of
    15/10/2026). */
 .performance-bars__detail-title > .chip {
   color: #9f1239;
   font-weight: 600;
 }
-.performance-bars__detail-title[data-bucket='above'] > .chip {
-  color: #1e3a8a;
-}
-
-/* Phone: twelve components do not fit legibly; the chart slides sideways, with no scrollbar. */
-@media (max-width: 640px) {
-  .performance-bars {
-    overflow-x: auto;
-    scrollbar-width: none;
-    overscroll-behavior-x: contain;
-  }
-  .performance-bars::-webkit-scrollbar {
-    display: none;
-  }
-  .performance-bars__column {
-    min-width: 2.6rem;
-    flex: 1 0 2.6rem;
-  }
-}
-/* Panorama da turma in the look of Situação por componente (owner request of 15/10/2026): the
-   share of the class as one rounded stacked bar under the leading percentage, the three counts
-   as rows with the same change pills, and the ranking as a striped list. */
-/* The pie stays (owner request of 15/10/2026), next to the counts. */
-.performance-panorama {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.75rem;
-}
 
 .performance-panorama__item:nth-child(even) {
   background: color-mix(in oklab, var(--foreground) 4%, transparent);
 }
 
-.performance-panorama__item .performance-legend {
-  width: 0.65rem;
-  height: 0.65rem;
-}
-/* Classificação da turma opens inside the card, as a selected component does (owner request of
-   15/10/2026). */
-.performance-ranking__open {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-  padding: 0.55rem 0.5rem;
-  border: 0;
-  border-radius: 0.55rem;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  width: auto;
-  margin-left: auto;
-}
 .performance-ranking__open:hover {
   background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
-.performance-ranking__open:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
-  outline-offset: 1px;
-}
-.performance-ranking__open strong,
-.performance-ranking__open small {
-  display: block;
-}
+
 .performance-ranking__open strong {
   font-size: 0.78rem;
 }
@@ -3444,129 +2172,11 @@ button.performance-kpi__button:hover {
   font-size: 0.65rem;
 }
 
-.performance-bars__student-group--ranking li > button > strong {
-  font-size: 0.75rem;
-}
-.performance-ranking__note {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.4rem 0.8rem 0.6rem 1rem;
-  color: var(--muted);
-  font-size: 0.62rem;
-}
-/* The way back at the foot of a card's list, where the thumb is on a phone. */
-.performance-bars__detail-footer {
-  display: flex;
-  justify-content: flex-end;
-  border-top: 1px solid var(--separator);
-  padding: 0.5rem 0.8rem;
-}
-
-.performance-bars__student-group--ranking li > button {
-  grid-template-columns: 1.1rem minmax(0, 1fr) auto;
-}
-/* A student with a component below the minimum is red across the whole row. */
-.performance-bars__student-group li > button.text-danger,
-.performance-bars__student-group li > button.text-danger > small {
-  color: var(--danger);
-}
-/* Opening a list slides it in from the right; going back slides the chart in from the left
-   (owner request of 15/10/2026). */
-@keyframes performance-slide-in-right {
-  from { opacity: 0; transform: translateX(1.5rem); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes performance-slide-in-left {
-  from { opacity: 0; transform: translateX(-1.5rem); }
-  to { opacity: 1; transform: none; }
-}
-.performance-widget--detail > .performance-bars__detail {
-  animation: performance-slide-in-right 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.performance-slide--back > * {
-  animation: performance-slide-in-left 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .performance-widget--detail > .performance-bars__detail,
-  .performance-slide--back > * {
-    animation: none;
-  }
-}
-/* Gold, silver and bronze for the first three of the ranking (owner request of 15/10/2026). */
-.performance-medal {
-  justify-self: end;
-}
-.performance-medal--gold {
-  color: #d4a017;
-}
-.performance-medal--silver {
-  color: #9ca3af;
-}
-.performance-medal--bronze {
-  color: #b87333;
-}
-
-/* Panorama: "Top 10" at the top right; the larger pie and its counts in the middle of the card
-   (owner request of 15/10/2026). */
-.performance-widget--panorama {
-  display: flex;
-  flex-direction: column;
-}
-.performance-widget--panorama .performance-ranking__open {
-  margin: 0 0 0 auto;
-  padding: 0.25rem 0.35rem;
-}
-.performance-widget--panorama .performance-panorama {
-  flex: 1 1 auto;
-  grid-template-columns: auto auto;
-  justify-content: center;
-  align-content: center;
-  gap: 1.5rem;
-  margin-top: 0.5rem;
-}
-.performance-widget--panorama .performance-donut {
-  width: 10rem;
-}
-.performance-widget--panorama .performance-donut__center strong {
-  font-size: 1.55rem;
-}
-.performance-widget--panorama .performance-donut__center span {
-  font-size: 0.72rem;
-}
-
 @keyframes performance-bar-breathe {
   0%, 100% { scale: 1 1; }
   50% { scale: 1 1.03; }
 }
-.performance-bars__column:nth-child(1) .performance-bar { animation-delay: 0ms, -0.53s; }
-.performance-bars__column:nth-child(1) .performance-bar--below { animation-delay: 0ms, -2.13s; }
 
-.performance-bars__column:nth-child(2) .performance-bar--below { animation-delay: 30ms, -2.66s; }
-
-.performance-bars__column:nth-child(3) .performance-bar--below { animation-delay: 60ms, -3.19s; }
-
-.performance-bars__column:nth-child(4) .performance-bar--below { animation-delay: 90ms, -3.72s; }
-
-.performance-bars__column:nth-child(5) .performance-bar--below { animation-delay: 120ms, -0.05s; }
-
-.performance-bars__column:nth-child(6) .performance-bar--below { animation-delay: 150ms, -0.58s; }
-
-.performance-bars__column:nth-child(7) .performance-bar--below { animation-delay: 180ms, -1.11s; }
-
-.performance-bars__column:nth-child(8) .performance-bar--below { animation-delay: 210ms, -1.64s; }
-.performance-bars__column:nth-child(9) .performance-bar { animation-delay: 240ms, -0.57s; }
-.performance-bars__column:nth-child(9) .performance-bar--below { animation-delay: 240ms, -2.17s; }
-.performance-bars__column:nth-child(10) .performance-bar { animation-delay: 240ms, -1.10s; }
-.performance-bars__column:nth-child(10) .performance-bar--below { animation-delay: 240ms, -2.70s; }
-.performance-bars__column:nth-child(11) .performance-bar { animation-delay: 240ms, -1.63s; }
-.performance-bars__column:nth-child(11) .performance-bar--below { animation-delay: 240ms, -3.23s; }
-.performance-bars__column:nth-child(n + 12) .performance-bar { animation-delay: 240ms, -2.16s; }
-.performance-bars__column:nth-child(n + 12) .performance-bar--below { animation-delay: 240ms, -3.76s; }
-@media (prefers-reduced-motion: reduce) {
-  .performance-bar { animation: none; }
-}
 /* Phone: the side drawer runs to the bottom of the screen whatever the browser bars do (owner
    report of 16/10/2026: with the address bar hidden, 100svh stopped short of the bottom). */
 @media (max-width: 900px) {
