@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { frequencyPayloadHashV2, type FrequencyActorV2 } from '../../shared/attendance-contracts/frequency-v2';
 import { CollectorAuthorizationStoreV1 } from './authorization-store-v1';
+import { collectorOpaqueHashV1 } from './pairing-store-v1';
 import { CollectorRefreshCipherV1, type CollectorGrantBindingV1 } from './refresh-cipher-v1';
 import { collectorLeaseExpiryV1, CollectorDirectoryErrorV1, readCollectorOwnDirectoryV1,
   type CollectorDirectoryDependenciesV1, type CollectorDirectoryEvidenceV1 } from './directory-v1';
@@ -15,6 +16,9 @@ const snapshotSchema = z.object({ device_id:z.string().uuid(),device_generation:
   origin_authenticated_at:date,encrypted_refresh:z.string().nullable(),state:z.enum(['active','needs_reauth','revoked']),
   grant_revoked_at:date.nullable(),directory_authorized:z.boolean(),directory_checked_at:date.nullable(),directory_valid_until:date.nullable() });
 type Snapshot = z.infer<typeof snapshotSchema>;
+/** Built once, not on every request (issue #1490, finding 12); one copy for revoke, authorize and authorizeFrequency. */
+const deviceIdSchema=z.string().uuid(),nonceSchema=z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
+const challengeRowSchema=z.object({generation:z.number().int().positive(),key_thumbprint:z.string(),issued_at:date,expires_at:date});
 export class CollectorAccessErrorV1 extends Error {
   constructor(readonly reason: 'denied' | 'unavailable' | 'reauthentication-required') { super('collector-access-'+reason); }
 }
@@ -34,10 +38,6 @@ function noncePrefixV1(purpose:'collector-access'|'collector-revoke'|'collector-
   if(purpose==='collector-frequency')return 'collector-frequency:'+requestHash+':';
   return '';
 }
-async function nonceHash(value:string):Promise<string> {
-  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))))
-    .map(byte=>byte.toString(16).padStart(2,'0')).join('');
-}
 
 /** Internal broker only. No handler may serialize snapshots, ciphertext or refresh results.
  * Public methods emit only a challenge or a collector-specific authorization receipt. */
@@ -47,7 +47,7 @@ export class CollectorAccessServiceV1 {
     private readonly dependencies:CollectorDirectoryDependenciesV1) {}
 
   private async active(deviceId:string,forRevoke=false):Promise<Snapshot> {
-    const value=snapshotSchema.safeParse(await this.store.snapshot(z.string().uuid().parse(deviceId),forRevoke));
+    const value=snapshotSchema.safeParse(await this.store.snapshot(deviceIdSchema.parse(deviceId),forRevoke));
     if (!value.success) throw new CollectorAccessErrorV1('denied');
     const row=value.data;
     if ((!forRevoke && (row.device_revoked_at !== null || row.grant_revoked_at !== null || row.state !== 'active'))
@@ -60,15 +60,14 @@ export class CollectorAccessServiceV1 {
     const row=await this.active(deviceId,purpose==='collector-revoke');
     const challenge=await issueCollectorChallengeV1({...record(row),revokedAt:purpose==='collector-revoke'?null:row.device_revoked_at},this.dependencies.now(),purpose,requestHash);
     const prefix=noncePrefixV1(purpose,challenge.requestHash);
-    await this.store.saveChallenge({nonceHash:await nonceHash(prefix+challenge.nonce),deviceId:row.device_id,
+    await this.store.saveChallenge({nonceHash:await collectorOpaqueHashV1(prefix+challenge.nonce),deviceId:row.device_id,
       generation:challenge.generation,keyThumbprint:challenge.keyThumbprint,issuedAt:challenge.issuedAt,expiresAt:challenge.expiresAt});
     return challenge;
   }
 
   async revoke(input:{deviceId:string;nonce:string;signature:string}):Promise<{revoked:true}>{
-    const row=await this.active(input.deviceId,true),hash=await nonceHash('collector-revoke:'+z.string().regex(/^[A-Za-z0-9_-]{43}$/u).parse(input.nonce));
-    const saved=z.object({generation:z.number().int().positive(),key_thumbprint:z.string(),issued_at:date,expires_at:date})
-      .safeParse(await this.store.challenge(input.deviceId,hash));
+    const row=await this.active(input.deviceId,true),hash=await collectorOpaqueHashV1('collector-revoke:'+nonceSchema.parse(input.nonce));
+    const saved=challengeRowSchema.safeParse(await this.store.challenge(input.deviceId,hash));
     if(!saved.success)throw new CollectorAccessErrorV1('denied');
     const challenge:CollectorChallengeV1={deviceId:row.device_id,generation:saved.data.generation,accountKey:await collectorAccountKeyV1(row.tenant_id,row.actor_id),
       keyThumbprint:saved.data.key_thumbprint,nonce:input.nonce,audience:'https://admin.escolaieda.com',method:'POST',path:'/api/frequency-collector/revoke',
@@ -123,9 +122,8 @@ export class CollectorAccessServiceV1 {
   }
 
   async authorize(input:{deviceId:string;nonce:string;signature:string}) {
-    const row=await this.active(input.deviceId), hash=await nonceHash(z.string().regex(/^[A-Za-z0-9_-]{43}$/u).parse(input.nonce));
-    const saved=z.object({generation:z.number().int().positive(),key_thumbprint:z.string(),issued_at:date,expires_at:date})
-      .safeParse(await this.store.challenge(input.deviceId,hash));
+    const row=await this.active(input.deviceId), hash=await collectorOpaqueHashV1(nonceSchema.parse(input.nonce));
+    const saved=challengeRowSchema.safeParse(await this.store.challenge(input.deviceId,hash));
     if (!saved.success) throw new CollectorAccessErrorV1('denied');
     const challenge:CollectorChallengeV1={deviceId:row.device_id,generation:saved.data.generation,
       accountKey:await collectorAccountKeyV1(row.tenant_id,row.actor_id),keyThumbprint:saved.data.key_thumbprint,
@@ -151,10 +149,9 @@ export class CollectorAccessServiceV1 {
   /** Internal authorization for this exact payload; never a reusable bearer or caller-supplied identity. */
   async authorizeFrequency(input:{deviceId:string;nonce:string;signature:string},payload:unknown):Promise<FrequencyActorV2> {
     const row=await this.active(input.deviceId),requestHash=await frequencyPayloadHashV2(payload);
-    const nonce=z.string().regex(/^[A-Za-z0-9_-]{43}$/u).parse(input.nonce);
-    const hash=await nonceHash('collector-frequency:'+requestHash+':'+nonce);
-    const saved=z.object({generation:z.number().int().positive(),key_thumbprint:z.string(),issued_at:date,expires_at:date})
-      .safeParse(await this.store.challenge(input.deviceId,hash));
+    const nonce=nonceSchema.parse(input.nonce);
+    const hash=await collectorOpaqueHashV1('collector-frequency:'+requestHash+':'+nonce);
+    const saved=challengeRowSchema.safeParse(await this.store.challenge(input.deviceId,hash));
     if(!saved.success)throw new CollectorAccessErrorV1('denied');
     const challenge:CollectorChallengeV1={deviceId:row.device_id,generation:saved.data.generation,
       accountKey:await collectorAccountKeyV1(row.tenant_id,row.actor_id),keyThumbprint:saved.data.key_thumbprint,

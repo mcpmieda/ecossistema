@@ -15,6 +15,7 @@ import { AlertDialog, Button, Card, Drawer, Tabs } from '@heroui/react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { PolicyScopeV1, ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { StudentPhotoPanelV1 } from '../../student-photos/student-photo-panel-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
@@ -253,7 +254,7 @@ function AccountDetailBodyV1({
       previous.has(activeSlot) ? previous : new Set([...previous, activeSlot]),
     );
   }, [activeSlot]);
-  const [clock, setClock] = useState(0);
+  const retryReady = useRetryReadyV1(mutation.state === 'error' ? mutation.retryAt : 0);
   const [revision, setRevision] = useState(0);
   const writer = useMemo(
     () => createAccountMutationV1(client, accountId, setMutation, onQr),
@@ -294,12 +295,6 @@ function AccountDetailBodyV1({
     heading.current?.focus({ preventScroll: true });
   }, [read.state.state]);
   useEffect(() => () => writer.clear(), [writer, parentKey]);
-  useEffect(() => {
-    if (mutation.state !== 'error') return;
-    setClock(Date.now());
-    const timer = setInterval(() => setClock(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [mutation]);
   useEffect(() => {
     if (mutation.state === 'committed' && handledVersion.current !== mutation.version) {
       handledVersion.current = mutation.version;
@@ -417,7 +412,7 @@ function AccountDetailBodyV1({
             {mutation.retryable && (
               <Button
                 variant="secondary"
-                isDisabled={clock < mutation.retryAt}
+                isDisabled={!retryReady}
                 onPress={() => {
                   void writer.retry();
                 }}
@@ -425,7 +420,7 @@ function AccountDetailBodyV1({
                 Repetir mesma solicitação
               </Button>
             )}
-            <Button variant="secondary" isDisabled={clock < mutation.retryAt} onPress={refresh}>
+            <Button variant="secondary" isDisabled={!retryReady} onPress={refresh}>
               Recarregar ficha
             </Button>
           </div>

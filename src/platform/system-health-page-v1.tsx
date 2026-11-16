@@ -1,4 +1,4 @@
-import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
+import { PT_BR_UP_TO_1_DECIMAL_V1, schoolDateTimeTextV1 } from '../../shared/locale-format-v1';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Button, Card, Chip, Surface, Table } from '@heroui/react';
 import { Activity, Database, Globe, HeartPulse, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
@@ -11,8 +11,8 @@ import { usePlatformIdentityV1 } from './platform-identity-v1';
 import { PageHeader } from './presentation';
 const labels: Record<HealthStateV1, string> = { normal: 'Normal', attention: 'Atenção', critical: 'Crítico', unknown: 'Sem dados' };
 const colors = { normal: 'success', attention: 'warning', critical: 'danger', unknown: 'default' } as const;
-const date = (value: string) => new Date(value).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 });
-const duration = (ms: number) => ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`;
+const date = (value: string) => schoolDateTimeTextV1(value);
+const duration = (ms: number) => ms < 1000 ? `${Math.round(ms)} ms` : `${PT_BR_UP_TO_1_DECIMAL_V1.format(ms / 1000)} s`;
 const wait = (ms: number) => ms < 60_000 ? duration(ms) : `${Math.floor(ms / 60_000).toLocaleString('pt-BR')} min`;
 function Status({ state }: Readonly<{ state: HealthStateV1 }>) {
   return <Chip size="sm" variant="soft" color={colors[state]}>{labels[state]}</Chip>;

@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useId, useRef, useState, type ReactNode } from 'react';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
 import { Card } from '@heroui/react/card';
@@ -15,9 +15,27 @@ import { createStudentFrequencyClientV2, type StudentFrequencyClientV2 } from '.
 import { createStudentScheduleClientV1, type StudentScheduleClientV1 } from '../schedule/client-v1';
 import { createStudentIncidentsClientV1, type StudentIncidentsClientV1 } from '../incidents/client-v1';
 import { PortalPagesV3 } from '../redesign/portal-pages-v3';
-import { FrequencyPageV3 } from '../redesign/frequency-page-v3';
-import { SchedulePageV3 } from '../redesign/schedule-page-v3';
-import { IncidentsPageV3 } from '../redesign/incidents-page-v3';
+import { PageLoadingV3 } from '../redesign/page-loading-v3';
+import { markStudentModuleFailureV1 } from '../../../student-portal/diagnostics-v1';
+
+// Frequência, Horário and Ocorrências arrive on demand (issue #1490): with the school's key off they
+// are never downloaded, and Notas never waits for them. Every page is mounted behind the menu (each
+// reads with the sign-in), so a page that is on starts downloading as soon as the portal opens.
+const FrequencyPageV3 = lazy(() =>
+  import('../redesign/frequency-page-v3')
+    .then((module) => ({ default: module.FrequencyPageV3 }))
+    .catch(markStudentModuleFailureV1),
+);
+const SchedulePageV3 = lazy(() =>
+  import('../redesign/schedule-page-v3')
+    .then((module) => ({ default: module.SchedulePageV3 }))
+    .catch(markStudentModuleFailureV1),
+);
+const IncidentsPageV3 = lazy(() =>
+  import('../redesign/incidents-page-v3')
+    .then((module) => ({ default: module.IncidentsPageV3 }))
+    .catch(markStudentModuleFailureV1),
+);
 
 const defaultFrequencyClient = createStudentFrequencyClientV2();
 const defaultScheduleClient = createStudentScheduleClientV1();
@@ -448,32 +466,38 @@ export function StudentPortalPageV1({
         }
         frequency={
           data.showFrequency === true ? (
-            <FrequencyPageV3
-              key={data.profile.accountId}
-              client={frequencyClient}
-              academicYear={data.profile.link.academicYear}
-              onLogin={onLogin}
-              onAuthenticationLost={onAuthenticationLost}
-            />
+            <Suspense fallback={<PageLoadingV3 page="frequency" />}>
+              <FrequencyPageV3
+                key={data.profile.accountId}
+                client={frequencyClient}
+                academicYear={data.profile.link.academicYear}
+                onLogin={onLogin}
+                onAuthenticationLost={onAuthenticationLost}
+              />
+            </Suspense>
           ) : undefined
         }
         schedule={
           data.showSchedule === true ? (
-            <SchedulePageV3
-              key={data.profile.accountId}
-              client={scheduleClient}
-              onLogin={onLogin}
-              onAuthenticationLost={onAuthenticationLost}
-            />
+            <Suspense fallback={<PageLoadingV3 page="schedule" />}>
+              <SchedulePageV3
+                key={data.profile.accountId}
+                client={scheduleClient}
+                onLogin={onLogin}
+                onAuthenticationLost={onAuthenticationLost}
+              />
+            </Suspense>
           ) : undefined
         }
         incidents={
           data.showIncidents === true ? (
-            <IncidentsPageV3
-              key={data.profile.accountId}
-              client={incidentsClient}
-              onAuthenticationLost={onAuthenticationLost}
-            />
+            <Suspense fallback={<PageLoadingV3 page="incidents" />}>
+              <IncidentsPageV3
+                key={data.profile.accountId}
+                client={incidentsClient}
+                onAuthenticationLost={onAuthenticationLost}
+              />
+            </Suspense>
           ) : undefined
         }
       />

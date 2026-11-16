@@ -883,7 +883,7 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
         sheets: group.sheets,
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }));
+    .sort((a, b) => comparePtBrNumericLabelsV1(a.name, b.name));
 }
 
 export function recognizeWorkbook(

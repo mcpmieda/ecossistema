@@ -12,6 +12,7 @@ const transactionSchema=z.object({state:z.string().regex(/^collector\.[A-Za-z0-9
   nonce:z.string().regex(/^[A-Za-z0-9_-]{43}$/u),verifier:z.string().regex(/^[A-Za-z0-9_-]{64}$/u),
   exp:z.number().int().positive(),startedAt:z.number().int().positive(),pairingId:z.string().uuid()}).strict();
 export type CollectorOAuthTransactionV1=z.infer<typeof transactionSchema>;
+const authTimeSchema=z.object({auth_time:z.number().int().positive()});
 class CollectorOAuthErrorV1 extends Error { constructor(){super('collector-login-denied');} }
 
 const idTokenFailureReasons=new Map([
@@ -133,7 +134,7 @@ export async function completeCollectorOAuthV1(input:{env:RuntimeEnv;transaction
     // Decode only after signature/authority/nonce validation. max_age requires
     // auth_time; absent/stale values cannot be replaced with callback clock time.
     stage='verify-authentication-time';
-    const payload=z.object({auth_time:z.number().int().positive()}).parse(decodeJson(tokens.id_token.split('.')[1]!));
+    const payload=authTimeSchema.parse(decodeJson(tokens.id_token.split('.')[1]!));
     const authenticatedAt=payload.auth_time*1000;
     if(authenticatedAt>now || authenticatedAt<transaction.startedAt-1000 || now-authenticatedAt>600_000)
       throw new CollectorOAuthErrorV1();

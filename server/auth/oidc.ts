@@ -36,6 +36,19 @@ export class IdTokenLifetimeError extends Error {
   }
 }
 const timeOffsetSchema = z.object({ iat: z.number().optional() });
+const idTokenHeaderSchema = z.object({ alg: z.literal('RS256'), kid: z.string() });
+const jwksSchema = z.object({
+  keys: z.array(
+    z.object({
+      kid: z.string(),
+      kty: z.string(),
+      use: z.string().optional(),
+      n: z.string(),
+      e: z.string(),
+      alg: z.string().optional(),
+    }),
+  ),
+});
 
 export async function newAuthTransaction(
   now = Date.now(),
@@ -117,26 +130,13 @@ export async function verifyIdToken(
   const parts = token.split('.');
   if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2])
     throw new Error('Malformed ID token');
-  const header = z.object({ alg: z.literal('RS256'), kid: z.string() }).parse(decodeJson(parts[0]));
+  const header = idTokenHeaderSchema.parse(decodeJson(parts[0]));
   const jwksResponse = await fetch(
     `https://login.microsoftonline.com/${env.TENANT_ID}/discovery/v2.0/keys`,
     { signal: AbortSignal.timeout(8_000) },
   );
   if (!jwksResponse.ok) throw new Error('Unable to load OIDC signing keys');
-  const jwks = z
-    .object({
-      keys: z.array(
-        z.object({
-          kid: z.string(),
-          kty: z.string(),
-          use: z.string().optional(),
-          n: z.string(),
-          e: z.string(),
-          alg: z.string().optional(),
-        }),
-      ),
-    })
-    .parse(await jwksResponse.json());
+  const jwks = jwksSchema.parse(await jwksResponse.json());
   const jwk = jwks.keys.find((candidate) => candidate.kid === header.kid);
   if (!jwk) throw new Error('Unknown OIDC signing key');
   const key = await crypto.subtle.importKey(

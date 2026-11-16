@@ -32,9 +32,10 @@ export interface PortalCompositionEnvV1 extends PortalLiveEnvV1 {
 
 }
 
+const keyringSchema = z.record(z.string().regex(/^[1-9]\d{0,5}$/u),
+  z.string().regex(/^[A-Za-z0-9+/]{43}=$/u));
 function keyring(value: string | undefined) {
-  const parsed = z.record(z.string().regex(/^[1-9]\d{0,5}$/u),
-    z.string().regex(/^[A-Za-z0-9+/]{43}=$/u)).parse(JSON.parse(value ?? '{}'));
+  const parsed = keyringSchema.parse(JSON.parse(value ?? '{}'));
   const ring = new Map(Object.entries(parsed).map(([version, encoded]) => {
     const bytes = Buffer.from(encoded, 'base64');
     if (bytes.length !== 32 || bytes.toString('base64') !== encoded) throw new Error('student-portal-key-invalid');

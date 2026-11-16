@@ -1,3 +1,4 @@
+import { PT_BR_COLLATOR_V1 } from '../../../shared/locale-format-v1';
 import type { RuntimeEnv } from '../../env';
 import { GraphError, forgetGraphTokensV1, getGraphToken, graphRequest, type GraphDependencies } from '../../graph/client';
 import { graphDefaultsV1, graphFetchV1, graphUrlV1 } from '../../graph/request-policy-v1';
@@ -150,7 +151,7 @@ export async function graphChildFoldersV1(env: GraphAppEnvV1, driveId: string, p
     }
     next = typeof data['@odata.nextLink'] === 'string' ? data['@odata.nextLink'] : null;
   }
-  return folders.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  return folders.sort((a, b) => PT_BR_COLLATOR_V1.compare(a.name, b.name));
 }
 
 /**

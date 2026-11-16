@@ -1,4 +1,4 @@
-import { SCHOOL_TIME_ZONE_V1 } from '../../../../shared/school-time-zone-v1';
+import { schoolShortDateTimeTextV1 } from '../../../../shared/locale-format-v1';
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Chip } from '@heroui/react';
 import type { AutomaticReportV1 } from '../../../../shared/student-identity/reconciliation-v1';
@@ -17,12 +17,7 @@ const SUMMARY_V1: Record<AutomaticReportV1['outcome'], string> = {
   awaiting_relation: 'Nada aplicado ainda: o relatório aguarda a Relação; confira abaixo.',
   review: 'Nada foi aplicado; confira abaixo o motivo.',
 };
-const when = (value: string) =>
-  new Date(value).toLocaleString('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    timeZone: SCHOOL_TIME_ZONE_V1,
-  });
+const when = (value: string) => schoolShortDateTimeTextV1(value);
 
 /**
  * The Coletor's automatic "Relatório de alunos" (owner decision 29/10/2026): what it applied, and

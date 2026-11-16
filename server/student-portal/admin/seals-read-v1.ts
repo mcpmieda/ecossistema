@@ -16,6 +16,13 @@ import { sealContextsBatchV1, sealSourcesBatchV1 } from './seal-source-batch-v1'
 import { readSealCacheV1, type SealCacheWriteV1 } from './seal-cache-v1';
 
 const accountIdV1 = z.uuid();
+/** The accounts a school read names: 1 to 400, case-insensitively distinct. */
+const selectedAccountIdsV1 = z
+  .array(z.uuid())
+  .min(1)
+  .max(400)
+  .transform((ids) => ids.map((id) => id.toLowerCase()))
+  .refine((ids) => new Set(ids).size === ids.length);
 
 type SealContextV1 = NonNullable<Awaited<ReturnType<typeof publicationContextV1>>>;
 type SealPlansV1 = Awaited<ReturnType<typeof readSealCacheV1>>;
@@ -27,14 +34,7 @@ async function sealRowsV1(tx: StudentPortalPostgresQueryV1, query: AdminReadQuer
     throw new Error('student-portal-seals-invalid-request');
   let rows;
   if (query.scope.kind === 'school') {
-    rows = z
-      .array(z.uuid())
-      .min(1)
-      .max(400)
-      .transform((ids) => ids.map((id) => id.toLowerCase()))
-      .refine((ids) => new Set(ids).size === ids.length)
-      .parse(selectedIds)
-      .map((id) => ({ id: id.toLowerCase() }));
+    rows = selectedAccountIdsV1.parse(selectedIds).map((id) => ({ id: id.toLowerCase() }));
   } else if (query.scope.kind === 'account') {
     rows = [{ id: query.scope.accountId.toLowerCase() }];
   } else {

@@ -27,6 +27,11 @@ const socketIdentityV1 = z
   .strict();
 type SocketIdentityV1 = z.infer<typeof socketIdentityV1> & { resumed: boolean };
 const socketAttachmentV1 = socketIdentityV1.extend({ resumed: z.boolean() }).strict();
+const securityRenewalV1 = z.object({
+  connectionId: z.uuid(), sessionId: z.uuid(), accountId: z.uuid(),
+  studentId: z.number().int().positive().safe(), classId: z.number().int().positive().safe().nullable(),
+  verifiedAt: z.number().int().positive(), expiresAt: z.iso.datetime({ offset: true }),
+}).strict();
 
 /** One SQLite-backed coordination atom per authenticated audience/year. Browser sockets never access it directly. */
 
@@ -174,11 +179,7 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
 
   /** Private RPC: only the HTTP composition supplies freshly cookie-authorized identities. */
   async renewSecurity(input: unknown): Promise<boolean> {
-    const renewal = z.object({
-      connectionId: z.uuid(), sessionId: z.uuid(), accountId: z.uuid(),
-      studentId: z.number().int().positive().safe(), classId: z.number().int().positive().safe().nullable(),
-      verifiedAt: z.number().int().positive(), expiresAt: z.iso.datetime({ offset: true }),
-    }).strict().parse(input);
+    const renewal = securityRenewalV1.parse(input);
     const now = Date.now();
     const end = Math.min(Date.parse(renewal.expiresAt), renewal.verifiedAt + 60_000);
     if (renewal.verifiedAt > now || end <= now) return false;

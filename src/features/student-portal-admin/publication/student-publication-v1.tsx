@@ -8,6 +8,7 @@ import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { settingsScopeKeyV1, settingsScopeLabelV1 } from '../settings/settings-values-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import {
   PUBLICATION_CHECKS_V1,
   createPublicationControllerV1,
@@ -279,15 +280,14 @@ function PublicationErrorFeedbackV1({
   mutation,
   onRetry,
   reload,
-  clock,
   reloadDisabled,
 }: Readonly<{
   mutation: ErrorPublicationMutationV1;
   onRetry: () => void;
   reload: () => void;
-  clock: number;
   reloadDisabled: boolean;
 }>) {
+  const retryReady = useRetryReadyV1(mutation.retryAt);
   return (
     <div role="alert" className="pa-publication-error">
       <p>{publicationErrorMessageV1(mutation)}</p>
@@ -296,7 +296,7 @@ function PublicationErrorFeedbackV1({
           <Button
             size="sm"
             variant="secondary"
-            isDisabled={clock < mutation.retryAt}
+            isDisabled={!retryReady}
             onPress={onRetry}
           >
             Tentar novamente
@@ -395,7 +395,6 @@ function PublicationFeedbackV1({
   onRetry,
   reload,
   onOpenHealth,
-  clock,
   reloadDisabled,
 }: Readonly<{
   mutation: PublicationMutationV1;
@@ -404,7 +403,6 @@ function PublicationFeedbackV1({
   onRetry: () => void;
   reload: () => void;
   onOpenHealth?: () => void;
-  clock: number;
   reloadDisabled: boolean;
 }>) {
   if (mutation.state === 'idle') return null;
@@ -416,7 +414,6 @@ function PublicationFeedbackV1({
         mutation={mutation}
         onRetry={onRetry}
         reload={reload}
-        clock={clock}
         reloadDisabled={reloadDisabled}
       />
     );
@@ -646,8 +643,7 @@ function PublicationLoadV1({
   canWrite,
   busy,
   review,
-  clock,
-  retryAt,
+  retryReady,
   reload,
   onOpenSettings,
   prepare,
@@ -657,8 +653,7 @@ function PublicationLoadV1({
   canWrite: boolean;
   busy: boolean;
   review: PublicationCommandV1 | null;
-  clock: number;
-  retryAt: number;
+  retryReady: boolean;
   reload: () => void;
   onOpenSettings?: () => void;
   prepare: (item: PublicationItemV1, operation: PublicationCommandV1['operation']) => void;
@@ -676,7 +671,7 @@ function PublicationLoadV1({
     return (
       <div role="alert" className="pa-publication-error">
         <p>{publicationLoadErrorMessageV1(view.load.error)}</p>
-        <Button size="sm" variant="secondary" isDisabled={busy || clock < retryAt} onPress={reload}>
+        <Button size="sm" variant="secondary" isDisabled={busy || !retryReady} onPress={reload}>
           Tentar novamente
         </Button>
       </div>
@@ -713,16 +708,15 @@ function PublicationScopeV1({
   const [fixedScope] = useState(() => structuredClone(scope));
   const [view, setView] = useState(initialPublicationViewV1);
   const [review, setReview] = useState<PublicationCommandV1 | null>(null);
-  const [notice, setNotice] = useState<string | null>(null),
-    [clock, setClock] = useState(Date.now);
+  const [notice, setNotice] = useState<string | null>(null);
   const controller = useMemo(
     () => createPublicationControllerV1(client, fixedScope, setView),
     [client, fixedScope],
   );
   const label = scopeLabel ?? settingsScopeLabelV1(fixedScope);
-  const retryAt = Math.max(
-    view.readRetryAt,
-    view.mutation.state === 'error' ? view.mutation.retryAt : 0,
+  // A failed follow-up read keeps old content without an error state; its wait still counts.
+  const retryReady = useRetryReadyV1(
+    Math.max(view.readRetryAt, view.mutation.state === 'error' ? view.mutation.retryAt : 0),
   );
   const busy =
     view.mutation.state === 'sending' ||
@@ -738,18 +732,6 @@ function PublicationScopeV1({
   useEffect(() => {
     if (view.mutation.state === 'error' || view.mutation.state === 'accepted') setReview(null);
   }, [view.mutation.state]);
-  useEffect(() => {
-    if (view.mutation.state !== 'error' && view.load.state !== 'error') return;
-    setClock(Date.now());
-    const timer = setInterval(() => setClock(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [view.mutation, view.load.state, retryAt]);
-  // A failed follow-up read keeps old content without an error state; still end its wait.
-  useEffect(() => {
-    if (clock >= retryAt) return;
-    const timer = setTimeout(() => setClock(Date.now()), Math.max(0, retryAt - Date.now()));
-    return () => clearTimeout(timer);
-  }, [clock, retryAt]);
   const reload = () => {
     setReview(null);
     setNotice(null);
@@ -803,8 +785,7 @@ function PublicationScopeV1({
         onRetry={() => void controller.retry()}
         reload={reload}
         onOpenHealth={onOpenHealth}
-        clock={clock}
-        reloadDisabled={clock < retryAt}
+        reloadDisabled={!retryReady}
       />
       <PublicationLoadV1
         embedded={embedded}
@@ -814,8 +795,7 @@ function PublicationScopeV1({
         canWrite={canWrite}
         busy={busy}
         review={review}
-        clock={clock}
-        retryAt={retryAt}
+        retryReady={retryReady}
         reload={reload}
         onOpenSettings={onOpenSettings}
         prepare={prepare}

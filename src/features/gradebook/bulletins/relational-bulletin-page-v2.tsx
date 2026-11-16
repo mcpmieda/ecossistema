@@ -45,6 +45,10 @@ import {
   runRelationalBulletinPdfActionV2,
   type RelationalBulletinPdfActionV2,
 } from './pdf/bulletin-pdf-actions-v2';
+import {
+  bulletinGradeTextV2 as grade,
+  bulletinRecoveryGradeTextV2 as recoveryGrade,
+} from './bulletin-format-v2';
 
 type Catalog = Extract<
   Awaited<ReturnType<typeof requestRelationalBulletinV2>>,
@@ -138,16 +142,6 @@ function busyText(busy: Busy) {
   return 'Concluindo operação…';
 }
 
-function grade(value: number | null): string {
-  return value === null
-    ? '—'
-    : (value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
-}
-function recoveryGrade(value: number | 'NC' | 'RR' | null): string {
-  if (value === 'NC') return 'N/C';
-  if (value === 'RR') return 'R/R';
-  return grade(value);
-}
 function periodLabel(period: RelationalBulletinPeriodV2): string {
   return period.kind === 'annual' ? 'Anual' : `${period.term}º trimestre`;
 }
