@@ -71,6 +71,8 @@ const incidentCandidate = '0032_incident_policy_v1.sql';
 const idleCleanupCandidate = '0033_reconciliation_cleanup_idle_v1.sql';
 /** Publication capture with its own work_mem (issue #1450, finding 24). */
 const publicationWorkMemCandidate = '0034_publication_work_mem_v1.sql';
+/** Year coordination returns early for an existing year; drops publication_source_rows_v2. */
+const yearCoordinationCandidate = '0035_year_coordination_exists_first_v1.sql';
 
 describe('current canonical project state', () => {
   it('preserves the latest applied Gradebook migration separately from draft candidates', () => {
@@ -104,7 +106,7 @@ describe('current canonical project state', () => {
     const latest = migrationFiles('migrations/student-portal')
       .filter(
         (file) =>
-          !new Set<string>([...reconciliationCandidates.portal, retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate, bellsCandidate, paradaCandidate, incidentCandidate, idleCleanupCandidate, publicationWorkMemCandidate]).has(file),
+          !new Set<string>([...reconciliationCandidates.portal, retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate, bellsCandidate, paradaCandidate, incidentCandidate, idleCleanupCandidate, publicationWorkMemCandidate, yearCoordinationCandidate]).has(file),
       )
       .at(-1);
     expect(latest).toBe('0024_seal_count_cache_v1.sql');
@@ -186,7 +188,7 @@ describe('current canonical project state', () => {
     ).toEqual(reconciliationCandidates.portal);
     expect(
       migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) > 25),
-    ).toEqual([retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate, bellsCandidate, paradaCandidate, incidentCandidate, idleCleanupCandidate, publicationWorkMemCandidate]);
+    ).toEqual([retentionCandidate, frequencyCandidate, scheduleCandidate, calendarCandidate, bellsCandidate, paradaCandidate, incidentCandidate, idleCleanupCandidate, publicationWorkMemCandidate, yearCoordinationCandidate]);
     const contract = source('docs/student-identity/RECONCILIATION_V1.md');
     const order = [
       'gradebook-simplified/0015_student_reconciliation_v1.sql',
