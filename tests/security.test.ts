@@ -68,13 +68,13 @@ describe('HTTP security', () => {
       expect(policy).not.toMatch(/script-src[^;]*blob:/u);
     }
   });
-  it('allows only the one SheetJS file the loader requests, not the whole CDN', () => {
+  it('serves SheetJS from the Centro itself, so scripts come only from the own origin', () => {
     const loader = readFileSync('src/features/gradebook/import/sheetjs-loader.ts', 'utf8');
-    const source = /const SHEETJS_SRC = '([^']+)'/u.exec(loader)?.[1];
-    expect(source).toMatch(/^https:\/\/cdn\.sheetjs\.com\/.+\.js$/u);
+    expect(loader).toContain("from 'xlsx/dist/xlsx.full.min.js?url'");
+    expect(loader).not.toMatch(/https?:\/\//u);
     for (const policy of [readFileSync('public/_headers', 'utf8'), SECURITY_HEADERS['Content-Security-Policy']]) {
       const scripts = /script-src ([^;\r\n]*)/u.exec(policy ?? '')?.[1];
-      expect(scripts?.split(' ')).toEqual(["'self'", source]);
+      expect(scripts?.split(' ')).toEqual(["'self'"]);
     }
   });
   it('lets browsers keep content-hashed static assets while HTML revalidates', () => {
