@@ -15,7 +15,7 @@ const query = { contractVersion: 1, operation: 'health', scope: { kind: 'school'
 const command = { contractVersion: 1, operation: 'block', accountId: ACTOR, expectedVersion: 1, idempotencyKey: TENANT, blocked: true, confirmed: true };
 async function cookie(roles: Role[] = ['ADMINISTRADOR'], expired = false) {
   const session = createApplicationSession({ oid: ACTOR, name: 'SYNTHETIC ADMIN', roles }, 12, Math.floor(Date.now() / 1000) - 3600);
-  return `${SESSION_COOKIE}=${await seal({ ...session, ...(expired ? { exp: Math.floor(Date.now() / 1000) - 1 } : {}) }, env.SESSION_SECRET)}`;
+  return `${SESSION_COOKIE}=${await seal({ ...session, ...(expired ? { exp: Math.floor(Date.now() / 1000) - 1 } : {}) }, env.SESSION_SECRET, 'admin-session')}`;
 }
 async function request(body: unknown = query, extra: RequestInit = {}, path = 'query') {
   const headers = new Headers({ 'content-type': 'application/json', origin: ORIGIN, cookie: await cookie() });
@@ -97,7 +97,7 @@ describe('ADM Pages to private Portal binding', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     const start = Math.floor(Date.now() / 1000) * 1000;
     vi.setSystemTime(start);
-    const token = await seal({ oid: ACTOR, name: 'SYNTHETIC ADMIN', roles: ['ADMINISTRADOR'], exp: start / 1000 + 1 }, env.SESSION_SECRET);
+    const token = await seal({ oid: ACTOR, name: 'SYNTHETIC ADMIN', roles: ['ADMINISTRADOR'], exp: start / 1000 + 1 }, env.SESSION_SECRET, 'admin-session');
     class ExpiringRequest extends Request {
       override get body() { vi.setSystemTime(start + 2000); return super.body; }
     }

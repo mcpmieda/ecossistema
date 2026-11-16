@@ -103,7 +103,7 @@ async function matrix(extra = {}) {
 }
 async function http(body: unknown, role: 'ADMINISTRADOR' | 'PROFESSOR' | null = 'ADMINISTRADOR', overrides: Partial<RuntimeEnv> = {}) {
   const headers = new Headers({ Origin: testEnv.OFFICIAL_ORIGIN, 'Content-Type': 'application/json' });
-  if (role) headers.set('Cookie', `${SESSION_COOKIE}=${await seal({ oid: '11111111-1111-4111-8111-111111111111', name: 'Synthetic', username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET)}`);
+  if (role) headers.set('Cookie', `${SESSION_COOKIE}=${await seal({ oid: '11111111-1111-4111-8111-111111111111', name: 'Synthetic', username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET, 'admin-session')}`);
   const response = await handlePerformanceRequestV1(new Request(`${testEnv.OFFICIAL_ORIGIN}/api/gradebook/performance`, { method: 'POST', headers, body: JSON.stringify(body) }), { ...testEnv, RUNTIME_ENVIRONMENT: 'local', GRADEBOOK_STORAGE_PROVIDER: 'postgres', GRADEBOOK_DATABASE: database, ...overrides });
   if (!response) throw new Error('route-not-found');
   return response;

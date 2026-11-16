@@ -78,7 +78,7 @@ const center = (kind: 'student'|'class-group'|'teacher'|'subject', id: number, o
 async function http(body: unknown, role: 'ADMINISTRADOR'|'PROFESSOR'|null='ADMINISTRADOR', overrides: Partial<RuntimeEnv>={}, origin=testEnv.OFFICIAL_ORIGIN) {
   const headers = new Headers({Origin:origin,'Content-Type':'application/json'});
   if (role) {
-    const cookie = await seal({oid:'11111111-1111-4111-8111-111111111111',name:'Synthetic',username:'synthetic@example.test',roles:[role],exp:Math.floor(Date.now()/1000)+600},testEnv.SESSION_SECRET);
+    const cookie = await seal({oid:'11111111-1111-4111-8111-111111111111',name:'Synthetic',username:'synthetic@example.test',roles:[role],exp:Math.floor(Date.now()/1000)+600},testEnv.SESSION_SECRET, 'admin-session');
     headers.set('Cookie',`${SESSION_COOKIE}=${cookie}`);
   }
   const env: RuntimeEnv = {...testEnv,RUNTIME_ENVIRONMENT:'local',GRADEBOOK_STORAGE_PROVIDER:'postgres',GRADEBOOK_DATABASE:database,...overrides};

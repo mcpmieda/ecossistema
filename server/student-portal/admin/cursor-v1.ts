@@ -27,7 +27,7 @@ export class AdminCursorV1 {
     if (!query.page.cursor) return null;
     const token = pageCursorV1.safeParse(query.page.cursor);
     if (!token.success) throw new Error('student-portal-cursor-invalid-request');
-    const parsed = cursorV1.safeParse(await unseal(token.data, this.secret));
+    const parsed = cursorV1.safeParse(await unseal(token.data, this.secret, 'portal-admin-cursor'));
     if (!parsed.success || parsed.data.a !== actor || parsed.data.q !== this.queryDigest(query) ||
       parsed.data.e <= now.getTime() || parsed.data.e > now.getTime() + 300_000)
       throw new Error('student-portal-cursor-invalid-request');
@@ -40,6 +40,6 @@ export class AdminCursorV1 {
     return pageCursorV1.parse(await seal(cursorV1.parse({
       v: 1, a: actor, q: this.queryDigest(query), e: now.getTime() + 300_000, k: id,
       ...(at ? { t: at } : {}), ...(name !== undefined ? { n: name } : {}),
-    }), this.secret));
+    }), this.secret, 'portal-admin-cursor'));
   }
 }

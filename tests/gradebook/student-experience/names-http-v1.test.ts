@@ -32,7 +32,7 @@ async function request(
   if (role)
     headers.set(
       'Cookie',
-      `${SESSION_COOKIE}=${await seal({ oid: '11111111-1111-4111-8111-111111111111', name: 'Synthetic', username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET)}`,
+      `${SESSION_COOKIE}=${await seal({ oid: '11111111-1111-4111-8111-111111111111', name: 'Synthetic', username: 'synthetic@example.test', roles: [role], exp: Math.floor(Date.now() / 1000) + 600 }, testEnv.SESSION_SECRET, 'admin-session')}`,
     );
   return new Request(`${testEnv.OFFICIAL_ORIGIN}/api/gradebook/assessment-names`, {
     method,
