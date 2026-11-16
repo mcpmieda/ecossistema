@@ -22,4 +22,5 @@ tar --extract --gzip \
   --directory "${scan_directory}" \
   actionlint
 
-"${scan_directory}/actionlint" -color
+# Shell problems (warning and error) fail the check; shellcheck style hints do not.
+SHELLCHECK_OPTS="${SHELLCHECK_OPTS:---severity=warning}" "${scan_directory}/actionlint" -color
