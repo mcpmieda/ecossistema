@@ -29,11 +29,11 @@ describe('security remediation #637', () => {
   });
 
   it('pins the patched sharp only in the Miniflare dependency chain', () => {
-    expect(manifest.overrides.miniflare).toEqual({ sharp: '0.35.4' });
+    expect(manifest.overrides.miniflare).toEqual({ sharp: '0.35.5' });
     const entries = Object.entries(lock.packages).filter(([path]) => /(?:^|\/)node_modules\/sharp$/u.test(path));
     expect(entries.length).toBeGreaterThan(0);
     for (const [path, entry] of entries) {
-      expect(entry.version, path).toBe('0.35.4');
+      expect(entry.version, path).toBe('0.35.5');
       expect(entry.integrity, path).toMatch(/^sha512-/u);
       expect(entry.resolved, path).toMatch(/^https:\/\/registry\.npmjs\.org\//u);
     }

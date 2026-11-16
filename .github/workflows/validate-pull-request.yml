@@ -77,6 +77,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Workflows
+        run: bash infra/validation/run-actionlint.sh
+
       - name: Types
         run: npm run typecheck
 
