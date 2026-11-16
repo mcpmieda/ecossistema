@@ -45,11 +45,7 @@ Buscas de consumidor neste mapa **excluem `Aprendizados/**` como autoridade oper
 
 ## 3. Result contracts
 
-| Artefato | Estado | Consumidores vivos | Condição de retirada |
-| --- | --- | --- | --- |
-| `results-contract-v1.ts` | COMPATIBILITY/Core | domínio, readiness, boletins, conselho, performance, persistence ports | migração de todo o núcleo que usa os tipos base |
-| `results-contract-v2.ts` | COMPATIBILITY | v3, materializers, performance/bulletins | retirar após migrar consumidores |
-| `results-contract-v3.ts` | **CURRENT** | source v4, materializer v4, performance/persistence ports | nova versão substituta explícita |
+Retirados. Os contratos congelados de resultados (`results-contract-v1/v2/v3.ts`) e de auditoria (`audit/audit-contract-v1.ts`) eram do modelo anterior à reconstrução relacional (#613) e à auditoria atual (#629). Os únicos tipos ainda usados, `AuditSeverityV1` e `AuditEntityReferenceV1` do manifesto de importação, ficam em `imports/import-contract-v1.ts`, e os IDs que eles citam em `entities`. A regra acadêmica vigente está no núcleo relacional, não em contrato de tipos.
 
 ## 4. Serviço relacional de importação
 
