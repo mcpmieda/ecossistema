@@ -210,6 +210,7 @@ async function createBackend(server: ViteDevServer) {
           exp: Math.floor(Date.now() / 1000) + 600,
         },
         testEnv.SESSION_SECRET ?? '',
+        'admin-session',
       );
       const origin = testEnv.OFFICIAL_ORIGIN ?? '';
       const request = () =>
