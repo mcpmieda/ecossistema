@@ -17,6 +17,7 @@ import { schoolDayOffLabelV1, type SchoolDayOffV1 } from '../../../../shared/stu
 import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
 import { reducedMotionV3, usePortalPageActiveV3, useReportFrequencyToneV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
+import { PAGE_LOADING_V3 } from './page-loading-v3';
 import { PortalCountdownV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
 import { useDragSwipeV1 } from '../workspace/student-workspace-v1';
 
@@ -465,7 +466,7 @@ function FrequencyStatusV3({
     return (
       <Card className="pa3-card pa3-status">
         <output className="pa3-status-loading">
-          <Spinner size="sm" /> Carregando frequência…
+          <Spinner size="sm" /> {PAGE_LOADING_V3.frequency.message}
         </output>
       </Card>
     );
@@ -548,7 +549,7 @@ export function FrequencyPageV3({ client, academicYear = 2026, onLogin, onAuthen
   return (
     <section className="pa3-frequency" aria-labelledby="pa3-frequency-title">
       <h2 id="pa3-frequency-title" className="pa3-page-title" tabIndex={-1}>
-        Frequência do aluno
+        {PAGE_LOADING_V3.frequency.title}
       </h2>
       {/* One sentence about the absences, first (owner decisions 22/10/2026); none, nothing. */}
       {year?.comment ? <FrequencyCommentV3 comment={year.comment} /> : null}
