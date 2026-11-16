@@ -1,3 +1,4 @@
+import './bulletin-v2.css';
 import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {

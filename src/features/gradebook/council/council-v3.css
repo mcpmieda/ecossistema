@@ -1,0 +1,255 @@
+.council-filterbar {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid color-mix(in oklab, var(--separator) 82%, transparent);
+  border-radius: var(--radius-3xl);
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--accent) 7%, transparent), transparent 44%),
+    var(--surface);
+  box-shadow: 0 16px 42px -38px color-mix(in oklab, var(--foreground) 52%, transparent);
+}
+
+.council-kpi-group {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-3xl);
+  background: var(--surface);
+  box-shadow: 0 20px 55px -48px var(--foreground);
+}
+
+.council-kpi {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-right: 1px solid var(--separator);
+}
+
+.council-kpi:last-child {
+  border-right: 0;
+}
+
+.council-kpi__icon {
+  display: grid;
+  width: 2.4rem;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-2xl);
+  background: color-mix(in oklab, var(--accent) 11%, transparent);
+  color: var(--accent);
+}
+
+.council-kpi span:last-child {
+  display: block;
+  margin-top: 0.25rem;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.council-layout {
+  display: grid;
+  grid-template-columns: minmax(17rem, 0.7fr) minmax(0, 1.6fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.council-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(15rem, 1fr);
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.council-board__column {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-3xl);
+  background: color-mix(in oklab, var(--surface-secondary) 64%, transparent);
+  scroll-snap-align: start;
+}
+
+.council-board__column > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0 0.35rem;
+  font-size: 0.76rem;
+}
+
+.council-board__column > header > span:last-child {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.council-board__cards {
+  display: grid;
+  max-height: 41rem;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding: 0.2rem;
+  scrollbar-width: thin;
+}
+
+.council-board__empty {
+  display: flex;
+  min-height: 5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.council-queue-card:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.council-queue-card__number {
+  display: grid;
+  width: 1.9rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: var(--radius-2xl);
+  background: var(--surface-secondary);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.council-textarea,
+.council-number-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  background: var(--surface);
+  color: var(--foreground);
+  outline: none;
+}
+
+.council-textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.council-number-input {
+  min-height: 2.55rem;
+  margin-top: 0.35rem;
+  padding: 0 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.council-textarea:focus-visible,
+.council-number-input:focus-visible {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--focus) 20%, transparent);
+}
+
+.council-textarea:disabled,
+.council-number-input:disabled {
+  opacity: 0.55;
+}
+
+.council-timeline {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.council-timeline article {
+  min-width: 0;
+  padding-bottom: 1rem;
+}
+
+.council-timeline__rail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.council-timeline__marker {
+  position: relative;
+  z-index: 1;
+  width: 0.72rem;
+  height: 0.72rem;
+  margin-top: 0.32rem;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 30%, var(--separator));
+}
+
+.council-timeline__connector {
+  position: absolute;
+  top: 0.9rem;
+  bottom: -0.25rem;
+  width: 1px;
+  background: var(--separator);
+}
+
+@media (max-width: 1100px) {
+  .council-kpi-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .council-kpi:nth-child(2) {
+    border-right: 0;
+  }
+
+  .council-kpi:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--separator);
+  }
+
+  .council-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .council-filterbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .council-kpi-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .council-kpi {
+    border-right: 0;
+    border-bottom: 1px solid var(--separator);
+  }
+
+  .council-kpi:last-child {
+    border-bottom: 0;
+  }
+
+  .council-board {
+    grid-auto-columns: minmax(86vw, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .council-queue-card {
+    transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
+  }
+}
