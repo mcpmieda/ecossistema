@@ -5,7 +5,7 @@ import { academicVersionSchemaV1 } from '../../../shared/gradebook-contracts/stu
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 
 /** The query's one parameter: the account or the class; the whole school has none. */
-function scopeParametersV1(scope: { kind: string; accountId?: unknown; classId?: unknown }) {
+export function scopeParametersV1(scope: { kind: string; accountId?: unknown; classId?: unknown }) {
   if (scope.kind === 'account') return [scope.accountId];
   return scope.kind === 'class' ? [scope.classId] : [];
 }

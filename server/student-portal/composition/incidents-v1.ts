@@ -4,7 +4,7 @@ import { portalKeysV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 import { SessionServiceV1 } from '../auth/session-service-v1';
 import { sessionCookieTokenV1 } from '../http/auth/handler-v1';
-import { portalRequestOriginAllowedV1 } from '../runtime/http-v1';
+import { portalRequestOriginAllowedV1, portalSessionJsonV1 } from '../runtime/http-v1';
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 
@@ -21,7 +21,7 @@ const HIDDEN=Symbol('incidents-hidden');
 const ACK_BODY_BYTES=256;
 const jsonOf=(raw:unknown)=>typeof raw==='string'?JSON.parse(raw):raw;
 const instant=(value:string|null)=>value===null?null:new Date(value).toISOString();
-const response=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store, no-cache, private, must-revalidate','Pragma':'no-cache','Vary':'Cookie, Authorization'}});
+const response=portalSessionJsonV1;
 const fail=(state:string,status:number)=>response({contractVersion:1,state},status);
 
 /** The request body: a small JSON object with the version confirmed, nothing else. It is read

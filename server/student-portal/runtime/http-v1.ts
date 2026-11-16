@@ -14,6 +14,17 @@ export function portalJsonV1(value: unknown, status: number): Response {
     },
   });
 }
+/** Per-session read: never cached, and varies with the cookie or bearer that identified the student. */
+export function portalSessionJsonV1(value: unknown, status = 200): Response {
+  return Response.json(value, {
+    status,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, private, must-revalidate',
+      Pragma: 'no-cache',
+      Vary: 'Cookie, Authorization',
+    },
+  });
+}
 function securityQueryAllowedV1(url: URL): boolean {
   if (!url.search) return true;
   if (url.pathname === '/api/student/frequency') {

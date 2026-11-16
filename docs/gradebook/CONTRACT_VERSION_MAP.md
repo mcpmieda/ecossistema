@@ -23,12 +23,12 @@ Buscas de consumidor neste mapa **excluem `Aprendizados/**` como autoridade oper
 | --- | --- | --- | --- | --- |
 | `import-persistence-transport-v1.ts` | REMOVIDO 10/11/2026 | — | só v2 usava 4 tipos de contagem | contagens movidas para a v9 |
 | `import-persistence-transport-v2.ts` | REMOVIDO 10/11/2026 | — | v9 usava só o tipo do resumo | resumo movido para a v9 |
-| `import-persistence-transport-v3.ts` | COMPATIBILITY | v4, `spreadsheet-recognizer.ts`, `academic-result-projection-v1.ts` | testes de projeção/source | migrar consumidores diretos antes |
-| `import-persistence-transport-v4.ts` | COMPATIBILITY | v5, `canonical-import-v9.ts`, diagnósticos e recognizer | testes de importação atuais | migrar consumidores diretos antes |
+| `import-persistence-transport-v3.ts` | REMOVIDO 16/11/2026 | — | só o leitor usava 1 tipo de observação | tipo movido para a v9 |
+| `import-persistence-transport-v4.ts` | REMOVIDO 16/11/2026 | — | leitor, canônico e diagnósticos usavam 2 tipos de observação | tipos movidos para a v9 |
 | `import-persistence-transport-v5.ts` | COMPATIBILITY | v6 | cadeia de transportes | retirar somente após v6 deixar de depender |
 | `import-persistence-transport-v6.ts` | COMPATIBILITY | v7/v8 | cadeia V8 | retirar somente após v8 e eventual v7 saírem |
 | `import-persistence-transport-v7.ts` | HISTORICAL/MEMORY | **nenhum consumidor vivo encontrado fora de `Aprendizados/**`** | referências encontradas só no arquivo histórico D1-V8 | BN-04 deve revalidar e só então remover/mover |
-| `import-persistence-transport-v8.ts` | COMPATIBILITY | `spreadsheet-recognizer.ts`; compõe tipos pré-V9 | testes de recognizer/import | migrar o consumidor direto e dependências primeiro |
+| `import-persistence-transport-v8.ts` | REMOVIDO 16/11/2026 | — | só o leitor usava o tipo da célula do retrato | tipo movido para a v9 |
 | `import-persistence-transport-v9.ts` | **CURRENT** | client V9, API `import-persistence`, V9/V10/V11, canonical import, batch/import hooks | `relational-v9-contract`, multiyear, revisions, PostgreSQL | só por nova decisão de contrato explícita |
 
 **Interpretação:** v1–v6/v8 não são “código morto” apenas por terem número menor. V9 é a fronteira externa atual, mas reutiliza tipos das versões anteriores.

@@ -48,7 +48,6 @@ const envSchema = z
     TENANT_ID: z.string().uuid(),
     WEB_CLIENT_ID: z.string().uuid(),
     GRAPH_CLIENT_ID: z.string().uuid(),
-    SHAREPOINT_SITE_ID: z.string().min(20),
     GROUP_ADMIN_ID: z.string().uuid(),
     GROUP_PROFESSOR_ID: z.string().uuid(),
     GROUP_ALUNO_ID: z.string().uuid(),

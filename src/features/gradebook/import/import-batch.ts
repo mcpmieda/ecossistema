@@ -22,6 +22,7 @@ import {
   type WorkbookSummary,
 } from './spreadsheet-recognizer';
 import { readWorkbookData, type WorkbookReadTimingV1 } from './workbook-reader';
+import { normalizeStudentNameV1 as normalizeOperationalLabel } from '../../../../shared/student-identity/reconciliation-normalization-v1';
 
 export const MAX_NOTES_IMPORT_FILES = 50;
 
@@ -99,15 +100,6 @@ export function validateBatchSize(files: File[]): string | null {
   return files.length > MAX_NOTES_IMPORT_FILES
     ? `Selecione no máximo ${MAX_NOTES_IMPORT_FILES} planilhas por lote.`
     : null;
-}
-
-function normalizeOperationalLabel(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/gu, '')
-    .trim()
-    .replace(/\s+/gu, ' ')
-    .toUpperCase();
 }
 
 function isOperationalTermSheet(sheet: GradeSheetRecognition): boolean {

@@ -1,8 +1,7 @@
 import { PT_BR_UP_TO_1_DECIMAL_V1, schoolDateTimeTextV1 } from '../../shared/locale-format-v1';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Button, Card, Chip, Surface, Table } from '@heroui/react';
 import { Activity, Database, Globe, HeartPulse, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
-import type { PlatformSnapshotV2 } from '../../shared/platform-snapshot-v2';
 import { cappedHealthCountV1, sampleIsFreshV1, systemHealthStateV1, type HealthStateV1,
   type PortalMaintenanceSampleV1, type PortalMonitorSampleV1, type PublicEntrySampleV1,
   type SystemHealthSnapshotV1 } from '../../shared/system-health-v1';
@@ -10,7 +9,6 @@ import { createHealthMonitorV1 } from './system-health-controller-v1';
 import { SystemHealthAnalysisV1 } from './system-health-analysis-v1';
 import { usePlatformIdentityV1 } from './platform-identity-v1';
 import { PageHeader } from './presentation';
-const PlatformEvidence = lazy(() => import('./operations-page').then((module) => ({ default: module.OperationsPage })));
 const labels: Record<HealthStateV1, string> = { normal: 'Normal', attention: 'Atenção', critical: 'Crítico', unknown: 'Sem dados' };
 const colors = { normal: 'success', attention: 'warning', critical: 'danger', unknown: 'default' } as const;
 const date = (value: string) => schoolDateTimeTextV1(value);
@@ -152,17 +150,7 @@ function CleanupNotice({ maintenance }: Readonly<{ maintenance: PortalMaintenanc
   return <Card variant="default" className="mt-5"><Card.Header><Card.Title>Limpeza de registros técnicos</Card.Title></Card.Header>
     <Card.Content className="text-sm">Há registros técnicos vencidos aguardando limpeza. Verifique a manutenção agendada; esta tela não executa exclusões.</Card.Content></Card>;
 }
-function AdministrativeEvidence({ platform }: Readonly<{ platform: PlatformSnapshotV2 }>) {
-  const [evidence, setEvidence] = useState(false);
-  const available = platform.operational !== null && !platform.unavailableSections?.some((section) => ['lists', 'modules'].includes(section));
-  let content = null;
-  if (evidence) content = available
-    ? <div className="mt-3"><Suspense fallback={<output className="block">Carregando evidências…</output>}><PlatformEvidence snapshot={platform} /></Suspense></div>
-    : <p className="p-3 text-sm text-muted">Evidências administrativas indisponíveis. O monitoramento do Portal usa uma consulta independente.</p>;
-  return <details className="mt-5" onToggle={(event) => setEvidence(event.currentTarget.open)}>
-    <summary className="cursor-pointer rounded-xl p-3 font-medium focus-visible:outline focus-visible:outline-2">Evidências do Centro ADM</summary>{content}</details>;
-}
-function Workspace({ snapshot: platform, onDenied }: Readonly<{ snapshot: PlatformSnapshotV2; onDenied: () => void }>) {
+function Workspace({ onDenied }: Readonly<{ onDenied: () => void }>) {
   const monitor = useMonitor(onDenied);
   const current = usable(monitor.snapshot, monitor.now) && !monitor.error && !monitor.paused ? monitor.snapshot : null;
   const portal = current?.portal ?? null, maintenance = portal?.maintenance ?? null;
@@ -176,15 +164,15 @@ function Workspace({ snapshot: platform, onDenied }: Readonly<{ snapshot: Platfo
     <details className="mt-4 rounded-2xl border border-default p-4"><summary className="cursor-pointer font-medium">Cobertura e preparação para a abertura</summary>
       <dl className="mt-4 grid gap-4 md:grid-cols-2">{COVERAGE.map((item) => <div key={item.id} className="min-w-0">
         <dt className="font-medium">{item.name}</dt><dd className="mt-1 text-sm text-muted">{item.source}<br />{item.limit}</dd></div>)}</dl>
-    </details><AdministrativeEvidence platform={platform} />
+    </details>
   </section>;
 }
-export function SystemHealthPageV1({ snapshot }: Readonly<{ snapshot: PlatformSnapshotV2 }>) {
+export function SystemHealthPageV1() {
   const { identity, accessError, retry, recheck } = usePlatformIdentityV1();
   if (!identity?.authenticated || !identity.identityKey || !identity.capabilities?.includes('platform.health.read')
     || !identity.capabilities.includes('platform.settings.read')) return <section>
     <PageHeader eyebrow="Operação" title="Saúde" description="Portal do Aluno" titleInBar /><Card><Card.Content>
       <output className="block">{accessError || identity ? 'Acesso ao monitoramento não autorizado.' : 'Verificando acesso…'}</output>
       {accessError ? <Button className="mt-3" variant="secondary" onPress={retry}>Verificar acesso</Button> : null}</Card.Content></Card></section>;
-  return <Workspace key={identity.identityKey} snapshot={snapshot} onDenied={recheck} />;
+  return <Workspace key={identity.identityKey} onDenied={recheck} />;
 }

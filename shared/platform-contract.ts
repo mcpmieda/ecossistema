@@ -8,37 +8,15 @@ export const PLATFORM_ROUTES = [
 export const PLATFORM_CAPABILITIES = [
   'platform.snapshot.read',
   'platform.health.read',
-  'platform.modules.read',
   'platform.audit.read',
   'platform.settings.read',
   'platform.settings.write',
   'gradebook.persistence.admin',
 ] as const;
 
-export const MODULE_REGISTRY_STATUSES = ['installed', 'disabled', 'deprecated', 'unknown'] as const;
-export const MODULE_INTEGRATION_STATES = [
-  'ready',
-  'registry-only',
-  'contract-mismatch',
-  'disabled',
-  'deprecated',
-  'invalid-registry',
-] as const;
-export const MODULE_INTEGRATION_ISSUES = [
-  'status',
-  'base-route',
-  'version',
-  'health-endpoint',
-] as const;
-
 export type PlatformRoute = (typeof PLATFORM_ROUTES)[number];
 export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
-export type ModuleRegistryStatus = (typeof MODULE_REGISTRY_STATUSES)[number];
-export type ModuleIntegrationState = (typeof MODULE_INTEGRATION_STATES)[number];
-export type ModuleIntegrationIssue = (typeof MODULE_INTEGRATION_ISSUES)[number];
 export type ModuleState = 'ready' | 'planned';
-export type FoundationStatus = 'ok' | 'degraded';
-type OperationalStatus = 'nominal' | 'attention';
 
 export type CoreModuleContract = {
   id: string;
@@ -60,43 +38,12 @@ export const STUDENT_PORTAL_MODULE: CoreModuleContract = {
   capabilities: ['platform.settings.read'],
 };
 
-export type RegisteredModule = {
-  id: string;
-  key: string;
-  name: string;
-  baseRoute: string;
-  version: string;
-  status: ModuleRegistryStatus;
-  order: number;
-  healthEndpoint: string;
-  updatedAt: string;
-  contractVersion: number | null;
-  requiredCapabilities: PlatformCapability[];
-  integrationState: ModuleIntegrationState;
-  integrationIssues: ModuleIntegrationIssue[];
-  available: boolean;
-};
-
-export type OperationalSummary = {
-  status: OperationalStatus;
-  healthContractsConfigured: number;
-  healthContractsMissing: number;
-};
-
 export type PlatformSnapshotContract = {
   version: string;
   releaseState: 'production';
   generatedAt: string;
   correlationId: string;
-  foundation: {
-    status: FoundationStatus;
-    sharePointListCount: number;
-    expectedPlatformListsPresent: boolean;
-    missingPlatformLists: string[];
-  };
-  operational: OperationalSummary | null;
   coreModules: CoreModuleContract[];
-  registeredModules: RegisteredModule[];
 };
 
 function isPlatformRoute(value: string): value is PlatformRoute {

@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { compareCanonicalStringsV1 } from '../../../shared/gradebook-contracts/string-order-v1';
+import { isPlainRecordV1 as record } from '../../../shared/plain-record-v1';
 
 type BackupRowV2 = Readonly<Record<string, unknown>>;
 type SqlRowV2 = Record<string, unknown>;
@@ -156,10 +157,6 @@ function sqlStateSuffix(cause: unknown): string {
   if (!record(cause)) return '';
   const code = cause.code;
   return typeof code === 'string' && /^[0-9A-Z]{5}$/u.test(code) ? `-${code.toLowerCase()}` : '';
-}
-
-function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function safeInteger(value: unknown): value is number {

@@ -12,6 +12,8 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
+  noStoreJsonV1,
+  noStoreResponseV1,
   readBoundedJson,
 } from '../../http/security';
 import { createRelationalBulletinServiceV2 } from '../application/bulletins/relational-bulletin-v2';
@@ -22,26 +24,12 @@ import { createRelationalBulletinSnapshotRepositoryV2 } from '../persistence/pos
 
 export const GRADEBOOK_BULLETIN_ROUTE_V1 = '/api/gradebook/bulletins';
 
-function noStoreResponse(body: BodyInit | null, status: number, contentType?: string): Response {
-  const headers = new Headers({
-    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-    Expires: '0',
-    Pragma: 'no-cache',
-  });
-  if (contentType) headers.set('Content-Type', contentType);
-  return new Response(body, { status, headers });
-}
-
-function noStoreJson(value: unknown, status = 200): Response {
-  return noStoreResponse(JSON.stringify(value), status, 'application/json; charset=utf-8');
-}
-
 function accessDenied(status: 401 | 403): Response {
-  return noStoreResponse(null, status);
+  return noStoreResponseV1(null, status);
 }
 
 function unavailable(status = 503): Response {
-  return noStoreResponse(null, status);
+  return noStoreResponseV1(null, status);
 }
 
 function relationalFailure(
@@ -49,7 +37,7 @@ function relationalFailure(
   state: Extract<RelationalBulletinResponseV2, { readonly state: string }>['state'],
   status: number,
 ): Response {
-  return noStoreJson(
+  return noStoreJsonV1(
     {
       contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
       operation: request?.operation ?? 'catalog',
@@ -104,7 +92,7 @@ async function handleRelationalBulletinV2(
     });
     const response = await service.execute(parsed.data, { issuerOid: session.oid });
     if (emittedV2(response)) afterCommit?.(session);
-    return noStoreJson(response, relationalStatus(response));
+    return noStoreJsonV1(response, relationalStatus(response));
   } catch {
     return relationalFailure(parsed.data, 'unavailable', 503);
   }

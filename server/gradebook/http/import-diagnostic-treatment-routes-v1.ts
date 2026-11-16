@@ -12,6 +12,7 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
+  NO_STORE_HEADERS_V1,
   readBoundedJson,
 } from '../../http/security';
 import { createImportDiagnosticTreatmentServiceV1 } from '../application/audit/import-diagnostic-treatment-v1';
@@ -24,11 +25,7 @@ const VERSION = IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1;
 function response(value: ImportDiagnosticTreatmentResponseV1, status: number): Response {
   return Response.json(value, {
     status,
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      Expires: '0',
-      Pragma: 'no-cache',
-    },
+    headers: NO_STORE_HEADERS_V1,
   });
 }
 

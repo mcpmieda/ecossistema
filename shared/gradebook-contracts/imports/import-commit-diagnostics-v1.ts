@@ -1,3 +1,5 @@
+import { isPlainRecordV1 as record } from '../../plain-record-v1';
+
 /** Optional technical header; independent from the academic V9 response body. */
 export const IMPORT_COMMIT_DIAGNOSTICS_HEADER_V1 = 'X-Gradebook-Commit-Diagnostics';
 export const IMPORT_COMMIT_DIAGNOSTICS_MAXIMUM_BYTES_V1 = 2_048;
@@ -40,9 +42,6 @@ export function emptyImportCommitAffectedRowsV1(): Record<
   ) as Record<ImportCommitCategoryV1, Record<ImportCommitActionV1, number>>;
 }
 
-function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const actual = Object.keys(value);
   return actual.length === keys.length && keys.every((key) => Object.hasOwn(value, key));

@@ -1,19 +1,11 @@
 import type { GradebookRelationClassV9, GradebookRelationStudentV9 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type { Workbook, Worksheet } from './spreadsheet-recognizer';
 import { trimEndCharsV1 } from '../../../../shared/trim-chars-v1';
+import { normalizeStudentNameV1 as normalize } from '../../../../shared/student-identity/reconciliation-normalization-v1';
 
 export interface MasterRelationRecognitionV9 {
   readonly ano: number;
   readonly turmas: readonly GradebookRelationClassV9[];
-}
-
-function normalize(value: string): string {
-  return value
-    .normalize('NFD')
-    .replaceAll(/[\u0300-\u036f]/gu, '')
-    .trim()
-    .replaceAll(/\s+/gu, ' ')
-    .toUpperCase();
 }
 
 function cell(sheet: Worksheet, address: string): { v?: unknown; w?: string } | null {

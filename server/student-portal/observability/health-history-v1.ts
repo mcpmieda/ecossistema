@@ -3,13 +3,10 @@ import { emptyPortalHistoryV1, HEALTH_HISTORY_PAGE_SIZE_V1, isHistoryBeforeV1, i
 import { isPortalMaintenanceSampleV1 } from '../../../shared/system-health-v1';
 import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { portalMaintenanceHealthV1 } from './maintenance-health-v1';
+import { boundedHealthTransactionV1 as timeouts } from './signal-store-v1';
 
 const instantSql = (name: 'transaction_timestamp()' | 'bucket_at' | 'observed_at') =>
   `to_char(${name} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
-async function timeouts(tx: StudentPortalPostgresQueryV1): Promise<void> {
-  await tx.unsafe("SET LOCAL statement_timeout = '1500ms'");
-  await tx.unsafe("SET LOCAL lock_timeout = '250ms'");
-}
 async function available(tx: StudentPortalPostgresQueryV1): Promise<boolean> {
   const rows = await tx.unsafe("SELECT to_regclass('system_health.portal_sample_v1') IS NOT NULL AS available");
   return rows[0]?.available === true;

@@ -11,11 +11,11 @@ import type {
   SourceCellProvenanceV1,
   SourceCellRawValueV1,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
-import type { GradebookImportRecoveryApplicabilityObservationV3 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v3';
 import type {
+  GradebookImportRecoveryApplicabilityObservationV3,
   GradebookImportResultCellObservationV4,
   GradebookImportTermResultObservationsV4,
-} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
+} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import { scalarTextV1 } from '../../../../shared/scalar-text-v1';
 import { classCodeV1 } from './class-code-v1';
 
@@ -38,7 +38,7 @@ type Cell = {
 function snapshotRawCellV8(
   cell: Cell | undefined,
 ):
-  | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+  | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9').GradebookSnapshotCellV8
   | null
   | undefined {
   if (!cell) return undefined;
@@ -137,7 +137,7 @@ export type GradeSheetRecognition = {
   snapshotCellsV8?: Readonly<
     Record<
       string,
-      | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+      | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9').GradebookSnapshotCellV8
       | null
     >
   >;
@@ -780,7 +780,7 @@ const isTrimesterStageV1 = (
 function snapshotCellsOfV8(recognized: GradeSheetRecognition, sheet: Worksheet) {
   const cells: Record<
     string,
-    | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+    | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9').GradebookSnapshotCellV8
     | null
   > = {};
   const columns =

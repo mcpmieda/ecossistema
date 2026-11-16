@@ -12,8 +12,6 @@ let reads = 0;
 const template = () =>
   buildPlatformSnapshot(
     {
-      lists: [],
-      moduleItems: [],
       // Every reading has its own correlation and time, even with the same content.
       correlationId: `synthetic-${++reads}`,
       generatedAt: new Date(1_800_000_000_000 + reads * 1000).toISOString(),
@@ -51,11 +49,11 @@ it('a reading that says the same is not published again (A27)', async () => {
   const controller = createPlatformDataV2((state) => states.push(state), fetcher, () => clock);
   try {
     await controller.start();
-    await vi.waitFor(() => expect(states.at(-1)).toMatchObject({ status: 'ready', auxiliary: 'ready' }));
+    await vi.waitFor(() => expect(states.at(-1)).toMatchObject({ status: 'ready' }));
     const published = states.length;
     clock = 120_000;
     await controller.refresh();
-    expect(fetcher.mock.calls.filter(([path]) => String(path).endsWith('/snapshot-v2'))).toHaveLength(2);
+    expect(fetcher.mock.calls.filter(([path]) => String(path).endsWith('/bootstrap'))).toHaveLength(2);
     expect(states).toHaveLength(published);
   } finally {
     controller.dispose();

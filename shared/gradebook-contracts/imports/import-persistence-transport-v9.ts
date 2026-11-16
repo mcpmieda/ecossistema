@@ -1,4 +1,57 @@
 import { isGradebookAcademicYearV2 } from '../academic-year-v2';
+import { isPlainRecordV1 as record } from '../../plain-record-v1';
+import type { SourceCellRawValueV1 } from '../source/source-contract-v1';
+
+/** Cell observations the reader records (formerly in the v3/v4/v8 transports, 16/11/2026). */
+export type GradebookSnapshotCellV8 = number | string | boolean | readonly ['u'];
+
+export type GradebookImportRecoveryApplicabilityObservationV3 =
+  | { readonly classification: 'numeric'; readonly rawValue: number }
+  | { readonly classification: 'empty'; readonly rawValue: null | '' }
+  | { readonly classification: 'missing-field' }
+  | { readonly classification: 'unrecognized'; readonly rawValue: string | boolean }
+  | {
+      readonly classification: 'formula';
+      readonly rawValue: string | number | boolean | null;
+      readonly formula: string;
+      readonly cachedValue: number | null;
+    };
+
+export type GradebookImportResultCellObservationV4 =
+  | { readonly classification: 'missing-field' }
+  | { readonly classification: 'empty'; readonly rawValue: null | '' }
+  | { readonly classification: 'manual-positive-number'; readonly rawValue: number }
+  | { readonly classification: 'manual-negative-number'; readonly rawValue: number }
+  | { readonly classification: 'manual-legacy-zero'; readonly rawValue: 0 }
+  | { readonly classification: 'manual-official-zero-marker'; readonly rawValue: 0.1 }
+  | {
+      readonly classification: 'formula-nonzero';
+      readonly rawValue: SourceCellRawValueV1;
+      readonly formula: string;
+      readonly cachedValue: number;
+    }
+  | {
+      readonly classification: 'formula-zero';
+      readonly rawValue: SourceCellRawValueV1;
+      readonly formula: string;
+      readonly cachedValue: 0;
+    }
+  | {
+      readonly classification: 'formula-error-or-missing-cache';
+      readonly rawValue: SourceCellRawValueV1;
+      readonly formula: string;
+      readonly cachedValue: null;
+      readonly sourceError: string | null;
+    }
+  | { readonly classification: 'invalid-text'; readonly rawValue: string };
+
+export interface GradebookImportTermResultObservationsV4 {
+  readonly quantitativeTotal: GradebookImportResultCellObservationV4;
+  readonly parallelAssessment: GradebookImportResultCellObservationV4;
+  readonly qualitativeTotal: GradebookImportResultCellObservationV4;
+  readonly officialTermGrade: GradebookImportResultCellObservationV4;
+  readonly annualAccumulatedTotal: GradebookImportResultCellObservationV4;
+}
 
 /** Counts of one import, planned and written (formerly in the v1/v2 transports, 10/11/2026). */
 interface ImportWriteCountsV9 {
@@ -201,10 +254,6 @@ export type GradebookImportPersistenceResponseV9 =
       readonly reason: string;
     }
   | { readonly transportVersion: 9; readonly state: 'not-authorized' | 'unavailable' };
-
-function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 function nonEmptyText(value: unknown, max = 256): value is string {
   return (

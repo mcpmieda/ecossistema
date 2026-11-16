@@ -6,6 +6,8 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
+  noStoreJsonV1,
+  noStoreResponseV1,
   readBoundedJson,
 } from '../../http/security';
 import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
@@ -16,26 +18,12 @@ import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postg
 
 export const GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1 = '/api/gradebook/council-workspace';
 
-function noStoreResponse(body: BodyInit | null, status: number, contentType?: string): Response {
-  const headers = new Headers({
-    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-    Expires: '0',
-    Pragma: 'no-cache',
-  });
-  if (contentType) headers.set('Content-Type', contentType);
-  return new Response(body, { status, headers });
-}
-
-function noStoreJson(value: unknown, status = 200): Response {
-  return noStoreResponse(JSON.stringify(value), status, 'application/json; charset=utf-8');
-}
-
 function accessDenied(status: 401 | 403): Response {
-  return noStoreResponse(null, status);
+  return noStoreResponseV1(null, status);
 }
 
 function unavailable(status = 503): Response {
-  return noStoreResponse(null, status);
+  return noStoreResponseV1(null, status);
 }
 
 type CouncilSessionV1 = Awaited<ReturnType<typeof requireAuth>>;
@@ -70,13 +58,13 @@ async function serveRelationalCouncilV3(
   afterCommit: GradebookAfterCommitV1 | undefined,
 ): Promise<Response> {
   const parsed = relationalCouncilRequestSchemaV3.safeParse(payload);
-  if (!parsed.success) return noStoreJson({ contractVersion: 3, state: 'invalid-request' }, 400);
+  if (!parsed.success) return noStoreJsonV1({ contractVersion: 3, state: 'invalid-request' }, 400);
   const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
   if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
       !['production', 'local', 'preview'].includes(environment) ||
       (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
       !env.GRADEBOOK_DATABASE) {
-    return noStoreJson({ contractVersion: 3, state: 'unavailable' }, 503);
+    return noStoreJsonV1({ contractVersion: 3, state: 'unavailable' }, 503);
   }
   try {
     const response = await createRelationalCouncilV3(
@@ -85,9 +73,9 @@ async function serveRelationalCouncilV3(
     ).execute(parsed.data);
     if (response.state === 'ready' && ['open', 'decision', 'vote', 'close', 'reopen'].includes(response.operation))
       afterCommit?.(session);
-    return noStoreJson(response, councilStatusV3(response.state));
+    return noStoreJsonV1(response, councilStatusV3(response.state));
   } catch {
-    return noStoreJson({ contractVersion: 3, state: 'unavailable' }, 503);
+    return noStoreJsonV1({ contractVersion: 3, state: 'unavailable' }, 503);
   }
 }
 

@@ -1,3 +1,5 @@
+import { isPlainRecordV1 as isObject } from '../../plain-record-v1';
+
 export const GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1 = 1 as const;
 
 export const GRADEBOOK_IMPORT_DIAGNOSTIC_SEVERITIES_V1 = [
@@ -126,10 +128,6 @@ export type GradebookImportDiagnosticsAuditListResponseV1 =
 
 const GRADEBOOK_IMPORT_DIAGNOSTICS_MAX_ITEMS_V1 = 5000;
 export const GRADEBOOK_IMPORT_DIAGNOSTICS_BODY_BYTES_V1 = 1_500_000;
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 function stringWithin(value: unknown, maximum: number, allowEmpty = false): value is string {
   return (
