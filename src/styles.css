@@ -1,5 +1,64 @@
+/* HeroUI's own layers and order (node_modules/@heroui/styles/dist/index.css), with only the
+   components the Centro renders and their internal parts: the whole package would also send
+   colour pickers, pagination, toasts and other components no screen here uses. */
+@layer theme, base, components, utilities;
 @import 'tailwindcss';
-@import '@heroui/styles';
+@import 'tw-animate-css';
+@import '@heroui/styles/base' layer(base);
+@import '@heroui/styles/base/scrollbar.css' layer(base);
+@import '@heroui/styles/components/close-button.css' layer(components);
+@import '@heroui/styles/components/description.css' layer(components);
+@import '@heroui/styles/components/label.css' layer(components);
+@import '@heroui/styles/components/accordion.css' layer(components);
+@import '@heroui/styles/components/disclosure.css' layer(components);
+@import '@heroui/styles/components/tabs.css' layer(components);
+@import '@heroui/styles/components/button.css' layer(components);
+@import '@heroui/styles/components/toggle-button.css' layer(components);
+@import '@heroui/styles/components/toggle-button-group.css' layer(components);
+@import '@heroui/styles/components/dropdown.css' layer(components);
+@import '@heroui/styles/components/list-box-item.css' layer(components);
+@import '@heroui/styles/components/list-box-section.css' layer(components);
+@import '@heroui/styles/components/list-box.css' layer(components);
+@import '@heroui/styles/components/menu-item.css' layer(components);
+@import '@heroui/styles/components/menu-section.css' layer(components);
+@import '@heroui/styles/components/tag-group.css' layer(components);
+@import '@heroui/styles/components/tag.css' layer(components);
+@import '@heroui/styles/components/slider.css' layer(components);
+@import '@heroui/styles/components/switch.css' layer(components);
+@import '@heroui/styles/components/chip.css' layer(components);
+@import '@heroui/styles/components/table.css' layer(components);
+@import '@heroui/styles/components/alert.css' layer(components);
+@import '@heroui/styles/components/skeleton.css' layer(components);
+@import '@heroui/styles/components/meter.css' layer(components);
+@import '@heroui/styles/components/progress-bar.css' layer(components);
+@import '@heroui/styles/components/spinner.css' layer(components);
+@import '@heroui/styles/components/checkbox.css' layer(components);
+@import '@heroui/styles/components/input.css' layer(components);
+@import '@heroui/styles/components/radio-group.css' layer(components);
+@import '@heroui/styles/components/radio.css' layer(components);
+@import '@heroui/styles/components/textfield.css' layer(components);
+@import '@heroui/styles/components/search-field.css' layer(components);
+@import '@heroui/styles/components/calendar.css' layer(components);
+@import '@heroui/styles/components/calendar-year-picker.css' layer(components);
+@import '@heroui/styles/components/date-field.css' layer(components);
+@import '@heroui/styles/components/time-field.css' layer(components);
+@import '@heroui/styles/components/date-input-group.css' layer(components);
+@import '@heroui/styles/components/date-picker.css' layer(components);
+@import '@heroui/styles/components/card.css' layer(components);
+@import '@heroui/styles/components/separator.css' layer(components);
+@import '@heroui/styles/components/surface.css' layer(components);
+@import '@heroui/styles/components/avatar.css' layer(components);
+@import '@heroui/styles/components/alert-dialog.css' layer(components);
+@import '@heroui/styles/components/drawer.css' layer(components);
+@import '@heroui/styles/components/modal.css' layer(components);
+@import '@heroui/styles/components/popover.css' layer(components);
+@import '@heroui/styles/components/tooltip.css' layer(components);
+@import '@heroui/styles/components/select.css' layer(components);
+@import '@heroui/styles/components/kbd.css' layer(components);
+@import '@heroui/styles/components/scroll-shadow.css' layer(components);
+@import '@heroui/styles/themes/default' layer(theme);
+@import '@heroui/styles/utilities';
+@import '@heroui/styles/variants';
 @import '@fontsource-variable/geist';
 
 html {
