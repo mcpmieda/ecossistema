@@ -3,7 +3,7 @@ import { createGradebookPostgresDatabaseV1 } from '../gradebook/persistence/post
 import { joinFlightV1 } from '../http/shared-flight-v1';
 
 /**
- * "Sair" ends the ADM session on the server too (owner decision 13/11/2026): the sealed cookie
+ * "Sair" ends the ADM session on the server too: the sealed cookie
  * carries a session id (`sid`), and "Sair" records it in admin_session.revoked_v1 until the cookie
  * would expire. A copy of the cookie kept on a shared computer stops working within
  * NOT_REVOKED_CACHE_MS on every server instance.
@@ -82,13 +82,13 @@ export const FAILURE_CACHE_MS_V1 = 15_000;
 /**
  * Per instance: revoked ids stay revoked; "not revoked" is trusted for a short while. The entry
  * holds the read itself while it runs, so the ADM's simultaneous requests of one session share a
- * single database question (issue #1426, 3), and a failed read is remembered briefly, so a
+ * single database question, and a failed read is remembered briefly, so a
  * database outage does not slow every request by the connection timeout.
  */
 type CacheEntryV1 = {
   readonly revoked: Promise<boolean>; readonly until: number; readonly settled: boolean; readonly startedAt?: number;
 };
-/** A read in flight is shared only this long (a little over the connection timeout, issue #1450, 2). */
+/** A read in flight is shared only this long (a little over the connection timeout). */
 export const PENDING_SHARE_MS_V1 = 4_000;
 const cacheV1 = new Map<string, CacheEntryV1>();
 function remember(sid: string, entry: CacheEntryV1) {
@@ -111,7 +111,7 @@ export async function isSessionRevokedV1(
   const port = portV1(env);
   if (!port) return false;
   // Another request of this instance is asking already: wait for it, but only briefly. Its I/O
-  // belongs to that request, and if that one is cancelled the answer never comes (issue #1450, 2).
+  // belongs to that request, and if that one is cancelled the answer never comes.
   const startedAt = cached?.startedAt ?? 0;
   if (cached && !cached.settled && now - startedAt < PENDING_SHARE_MS_V1)
     return joinFlightV1(cached.revoked, PENDING_SHARE_MS_V1 - (now - startedAt), () =>

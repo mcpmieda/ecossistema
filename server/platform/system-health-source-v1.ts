@@ -61,7 +61,7 @@ export function createSystemHealthCacheV1(now: () => number = Date.now) {
   return (load: () => Promise<SystemHealthSnapshotV1>): Promise<SystemHealthSnapshotV1> => {
     const age = now() - savedAt;
     if (saved && age >= 0 && age < SYSTEM_HEALTH_TTL_MS_V1) return Promise.resolve(saved);
-    // Joined only briefly: the read belongs to the request that started it (issue #1450, 2).
+    // Joined only briefly: the read belongs to the request that started it.
     if (pending && now() - pendingSince < HEALTH_PENDING_SHARE_MS_V1)
       return joinFlightV1(pending, HEALTH_PENDING_SHARE_MS_V1 - (now() - pendingSince), load);
     const flight = Promise.resolve().then(load).then((value) => { saved = value; savedAt = now(); return value; })

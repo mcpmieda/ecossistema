@@ -11,7 +11,7 @@ import {CollectorAccessServiceV1} from './access-service-v1';
 import type {CollectorOAuthDependenciesV1} from './oauth-v1';
 
 export type CollectorDatabaseV1=CollectorSqlV1 & {close:()=>Promise<void>};
-/** Built once, not on every collector request (issue #1490, finding 12). */
+/** Built once, not on every collector request. */
 const databaseBindingSchema=z.object({connectionString:z.string().min(1)}),refreshKeySchema=z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
 type CollectorRuntimeV1={access:CollectorAccessServiceV1;pairings:CollectorPairingStoreV1;
   cipher:CollectorRefreshCipherV1;oauth:CollectorOAuthDependenciesV1;close:()=>Promise<void>};
@@ -43,14 +43,14 @@ export async function createCollectorWithdrawalStoreV1(env:RuntimeEnv,dependenci
     return null;
   }
 }
-/** Issue #1426, 13: the storage check and the cleanups ran before every collector request (5
- * queries each, ~31 thousand times a day for two computers). The grants do not change between
- * requests: once seen, they are not asked again in this isolate (if a migration took one away,
- * the next real query fails and the request answers unavailable, as before). Retiring abandoned
- * pairings stays on every request (it revokes credentials). The retention cleanup runs only on the
- * pairing pages: the database job collector-frequency-retention-v2 (pg_cron, every 15 min) does the
- * same everywhere else. "At most once a minute" per isolate still meant ~12 runs a minute across
- * the Pages instances (issue #1450, findings 7 and 18). */
+/** Before every collector request, the storage check and the cleanups would cost 5 queries each,
+ * ~31 thousand times a day for two computers. The grants do not change between requests: once
+ * seen, they are not asked again in this isolate (if a migration took one away, the next real
+ * query fails and the request answers unavailable). Retiring abandoned pairings stays on every
+ * request (it revokes credentials). The retention cleanup runs only on the pairing pages: the
+ * database job collector-frequency-retention-v2 (pg_cron, every 15 min) does the same everywhere
+ * else. "At most once a minute" per isolate still meant ~12 runs a minute across the Pages
+ * instances. */
 let collectorStorageReadyV1=false;
 /** For tests: forget what this isolate already checked. */
 export function resetCollectorRuntimeMemoryV1():void{collectorStorageReadyV1=false;}

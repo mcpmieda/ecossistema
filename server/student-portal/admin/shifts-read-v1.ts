@@ -7,7 +7,7 @@ import { POLICY_FIELDS_V1 } from '../../../shared/student-portal-contracts/polic
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 
 /**
- * Turnos (owner decision 28/09/2026): the shifts that have classes this year, from the Relação
+ * Turnos: the shifts that have classes this year, from the Relação
  * (INICIO!I7:I28 → gradebook.turma.turno), each with the options it sets itself and its classes with
  * the options they set themselves. A shift with no class (Noturno this year) is not listed, so the
  * panel never offers it. Read-only, inside the admin dispatcher's repeatable-read transaction.

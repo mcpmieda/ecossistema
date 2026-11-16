@@ -4,9 +4,9 @@ import { instantV1, opaqueV1, portalIdV1, PORTAL_ORIGIN_V1 } from './core-v1';
 export const pinV1 = z.string().regex(/^\d{4}$/u);
 export const passwordV1 = z.string().regex(/^\d{6}$/u);
 /**
- * Easy-to-guess passwords are refused when one is created (owner decision 28/09/2026): all digits
- * equal (111111), a straight run up or down (123456, 654321) or a repeated pair or trio (121212,
- * 123123, 112233). Signing in is never checked, so passwords created before keep working.
+ * Easy-to-guess passwords are refused when one is created: all digits equal (111111), a straight
+ * run up or down (123456, 654321) or a repeated pair or trio (121212, 123123, 112233). Signing in
+ * is never checked, so older passwords keep working.
  */
 export function isWeakPasswordV1(password: string): boolean {
   if (!/^\d{6}$/u.test(password)) return false;

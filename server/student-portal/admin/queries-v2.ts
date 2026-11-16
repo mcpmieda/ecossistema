@@ -122,8 +122,8 @@ async function readAccountsV2(
 type SessionPolicyV2 = { id: string; security: number; end: string; persistent: number; short: number };
 type AdminAccountItemV2 = z.infer<typeof adminAccountReadV2>;
 
-/** The filters of the read; a single record opens even after the student left (audit links,
- * 29/09/2026), while lists and totals keep showing only enrolled students. */
+/** The filters of the read; a single record opens even after the student left (audit links),
+ * while lists and totals keep showing only enrolled students. */
 function accountWhereV2(
   query: AdminReadQueryV2,
   bind: (value: unknown) => string,

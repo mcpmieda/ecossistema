@@ -22,7 +22,7 @@ type EdgeResultV1 = PortalEdgeResultMetricV1['result'];
 const ASSET_PATH_V1 = /^\/assets\/[A-Za-z0-9_.-]+\.(?:js|css|woff2?|png|svg|webp)$/u;
 const ICON_PROBES_V1 = new Set(['/favicon.ico', '/apple-touch-icon.png', '/apple-touch-icon-precomposed.png']);
 
-/** Fixed route family only; the pathname itself never reaches logs (#1207 L-05). */
+/** Fixed route family only; the pathname itself never reaches logs. */
 function edgeFamilyV1(pathname: string): PortalEdgeResultMetricV1['family'] {
   if (pathname === '/' || pathname === '/access') return 'document';
   if (ASSET_PATH_V1.test(pathname)) return 'asset';

@@ -1,8 +1,8 @@
 /*
- * Phrase catalog of the Fechamento do trimestre (#1132): wording only, no logic. Every message
- * has same-meaning variants, so the lists are structurally alike by design; this file is excluded
- * from copy-paste detection in .sonarcloud.properties. Approved by the school on 2026-09-23 (D6);
- * wording changes need a new approval.
+ * Phrase catalog of the Fechamento do trimestre: wording only, no logic. Every message has
+ * same-meaning variants, so the lists are structurally alike by design; this file is excluded from
+ * copy-paste detection in .sonarcloud.properties. Approved by the school (D6); wording changes need
+ * a new approval.
  */
 export const TERM_CLOSING_CATALOG_V1 = {
   'conclusion.good-with-point': [
@@ -30,7 +30,7 @@ export const TERM_CLOSING_CATALOG_V1 = {
     'Houve atividades não realizadas neste trimestre, e elas fizeram falta.',
     'Atividades que ficaram para trás pesaram no seu resultado.',
   ],
-  // Exactly one activity not done (owner decision 2026-09-24: no plural for a single one).
+  // Exactly one activity not done (no plural for a single one).
   'weight.not-done-one': [
     'Uma atividade ficou sem ser feita, e isso pesou.',
     'Houve uma atividade não realizada neste trimestre, e ela fez falta.',

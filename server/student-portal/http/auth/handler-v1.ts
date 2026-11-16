@@ -115,7 +115,7 @@ function authFailureV1(error: unknown, requestId: RequestIdV1, fail: FailV1) {
   return fail('unavailable'); // Never serialize provider errors, SQL, inputs or credentials.
 }
 
-/** Standalone handler for #715 composition. No entrypoint or production gate is changed here. */
+/** Standalone handler, composed by the Portal's self composition. No entrypoint or production gate is changed here. */
 export async function servePortalAuthV1(request: Request, environment: string, origin: string,
   auth: Pick<AuthServiceV1, 'challenge' | 'activate' | 'login'>, sessions: Pick<SessionServiceV1, 'read' | 'logout'>): Promise<Response> {
   const requestId = crypto.randomUUID();

@@ -7,9 +7,9 @@ export const portalMetricV1 = z.object({
   operation: z.enum(['auth', 'self', 'admin-query', 'admin-command', 'cleanup', 'publication', 'live', 'live-drain']),
   outcome: z.enum(['ok', 'denied', 'unavailable']),
   elapsedMs: count, queries: count, rows: count, lockTimeouts: count, statementTimeouts: count,
-  // The connection's own timing, in the same line since issue #1426, 22c (it was a second line,
-  // student-portal-db-lifecycle-v1, on every operation): the first query (role check plus the
-  // lazy connection) and the operation itself, and how many connection attempts it took.
+  // The connection's own timing, in the same line rather than a second one on every operation:
+  // the first query (role check plus the lazy connection) and the operation itself, and how many
+  // connection attempts it took.
   openRoleMs: count.optional(), applicationMs: count.optional(), attempts: z.number().int().min(1).max(2).optional(),
 }).strict();
 export type PortalMetricV1 = z.infer<typeof portalMetricV1>;

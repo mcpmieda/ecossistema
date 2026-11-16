@@ -107,7 +107,7 @@ const FREQUENCY_OPERATIONAL_RECEIPT_DAYS_V2 = 8;
  * so retention holds without new failures. Batch receipts stay with their evidence.
  * A purged requestId cannot be replayed: every request needs a fresh device proof,
  * and settings/conflict decisions keep their own revision checks. The age compares with
- * statement_timestamp() so the receipt age index is used (issue #1426, 17).
+ * statement_timestamp() so the receipt age index is used.
  */
 export async function purgeFrequencyOperationalRowsV2(
   tx: GradebookPostgresTransactionV1,

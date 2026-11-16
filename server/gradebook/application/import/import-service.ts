@@ -78,7 +78,7 @@ function filterOffer(
 }
 
 /**
- * Movement rule approved in #613, applied independently inside each selected year:
+ * Movement rule, applied independently inside each selected year:
  * facts from a FOI_PARA binding belong to the previous class and are discarded
  * before persistence. There is deliberately no fallback to the previous class.
  */

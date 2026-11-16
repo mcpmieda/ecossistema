@@ -24,8 +24,8 @@ const BROWSERS: readonly (readonly [DeviceV1['browser'], RegExp])[] = [
 ];
 
 /**
- * Coarse device family of a sign-in (owner request 29/09/2026), enough to guide a family ("no
- * iPhone, pelo Safari") and never the user agent itself, a model or a version. Unknown reads as
+ * Coarse device family of a sign-in, enough to guide a family ("no iPhone, pelo Safari") and never
+ * the user agent itself, a model or a version. Unknown reads as
  * "other"; no header at all keeps no device.
  */
 export function deviceFamilyV1(userAgent: string | null | undefined): DeviceV1 | undefined {

@@ -96,7 +96,7 @@ async function serveAvatarBatchV1(
 ) {
   const batch = photoAvatarBatchRequestV1.parse(await readPhotoJsonV1(request, request.signal));
   // Read-only transport: any upload or removal attempted through it is refused. Bytes are kept in the
-  // Worker's own cache by SHA-256, as in the Portal (owner decision, #1473); each read is still authorized.
+  // Worker's own cache by SHA-256, as in the Portal; each read is still authorized.
   const storage = new PhotoStorageV1(env.PHOTO_STORAGE_SERVICE_KEY, async () => { throw new PhotoWriteErrorV1('invalid'); },
     fetch, (globalThis as { caches?: { default?: Cache } }).caches?.default);
   const images = await readAvatarBatchV1(batch.subjects, {

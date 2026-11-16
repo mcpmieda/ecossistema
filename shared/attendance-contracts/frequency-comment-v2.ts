@@ -1,29 +1,29 @@
 import type { FrequencyDayV2, FrequencySummaryV2 } from './frequency-v2';
 
 /*
- * One sentence about the student's absences at the top of the Portal's Frequência (owner decisions
- * 22/10/2026). Plain words for families: only absences WITHOUT justification (justified ones are
+ * One sentence about the student's absences at the top of the Portal's Frequência. Plain words
+ * for families: only absences WITHOUT justification (justified ones are
  * transport, medical appointments… and never count, except that "Nenhuma falta" needs no absence of
  * either kind), told in days ("cerca de"): the student's
  * absences in lessons divided by their own average of lessons per day, rounded to the nearest
  * whole day. The law's 75% makes the limit a quarter of the year's school days (50 of 200), never
- * told as days "permitidos" (owner decision 22/10/2026: it is not a right to miss them). Saturdays
+ * told as days "permitidos" (it is not a right to miss them). Saturdays
  * are symbolic compensation days with automatic attendance, so they never show a trend (only
  * weekdays do). Only the first sentence that applies is shown; with none, nothing is shown.
  */
 /**
  * The days of absence that fail the year: a quarter of the school days the ADM calendar marks
- * (owner request 27/10/2026: derived from the calendar, never fixed in the code).
+ * (derived from the calendar, never fixed in the code).
  */
 const absenceLimitDaysV2 = (schoolDays: number) => schoolDays / 4;
-/** "Perto do limite" from three fifths of the limit on (owner decision 23/10/2026: 30 of the 50). */
+/** "Perto do limite" from three fifths of the limit on (30 of the 50). */
 const NEAR_LIMIT_SHARE = 0.6;
 /** The last four weeks: the twenty most recent weekdays with lessons. */
 const RECENT_WEEKDAYS = 20;
 /**
  * A day not read in full (or with a mark in conflict) holds back the green sentences only while it
  * can still be read again or resolved: the last 30 days. An older one is a gap that never closes, and
- * it would take the praise away for the rest of the year (owner decision 13/11/2026).
+ * it would take the praise away for the rest of the year.
  */
 const OPEN_DAY_WINDOW_DAYS = 30;
 
@@ -127,9 +127,8 @@ export function frequencyCommentV2({
     return alert('over-limit', `Já faltou cerca de ${days(shown)}. Pode reprovar por falta.`);
   if (absenceDays + recentRate * remainingSchoolDays > limit)
     return alert('will-pass', `Já faltou cerca de ${days(shown)}. Faltando assim, pode reprovar por falta.`);
-  // From three fifths of the limit on (owner decision 23/10/2026: 30 days of 50). No sentence names
-  // the limit (owner decision 23/10/2026: a number of days reads as freedom to miss); it only decides
-  // when a warning shows.
+  // From three fifths of the limit on (30 days of 50). No sentence names the limit (a number of
+  // days reads as freedom to miss); it only decides when a warning shows.
   if (absenceDays >= limit * NEAR_LIMIT_SHARE)
     return alert('near-limit', `Já faltou cerca de ${days(shown)}. Mais faltas podem reprovar.`);
   if (streak >= 3)
@@ -141,7 +140,7 @@ export function frequencyCommentV2({
     return alert('weekday', `Falta muito ${WEEKDAY_PLURAL[topWeekday]}.`);
   if (before.length && beforeRate >= 0.1 && recentRate < 0.5 * beforeRate)
     return good('improving', 'Está faltando menos dias. Continue assim!');
-  // "Nenhuma falta" is for who never missed: a justified absence is still an absence (owner request 01/11/2026).
+  // "Nenhuma falta" is for who never missed: a justified absence is still an absence.
   // A recent day not read in full (or with a mark in conflict) may hide one: it never counts as "sem falta".
   if (all.every((day) => !day.marked && !day.open)) return good('none-this-year', 'Nenhuma falta este ano. Parabéns!');
   if (recent.length && recent.every((day) => !day.marked && !day.open))

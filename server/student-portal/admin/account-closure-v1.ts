@@ -11,7 +11,7 @@ import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { adminDigestV1 } from './common-v1';
 
 /**
- * Why a record has no class (owner request 10/11/2026), from the records only: when the account
+ * Why a record has no class, from the records only: when the account
  * was created, whether it was ever used, how many classes its student has this year, and other
  * students with the same name who do have a class. Closable only when it has no class this year
  * and was never used, the same rule the command checks again under lock.

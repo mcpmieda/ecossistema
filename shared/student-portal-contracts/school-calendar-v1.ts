@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /*
- * The school's calendar of the year (owner decision 22/10/2026): marked in the ADM (Portal do Aluno
+ * The school's calendar of the year: marked in the ADM (Portal do Aluno
  * → Políticas → Calendário), one for the whole school, never per shift, class or student. The rule
  * is 200 school days ("a regra é 200 dias"); the Portal counts the year's countdown and the
  * absence limit from it. A date not marked has no school.
@@ -49,7 +49,7 @@ export const schoolCalendarDaysV1 = z
       if (seen.has(day.date)) ctx.addIssue({ code: 'custom', message: 'Duplicate day' });
       seen.add(day.date);
     }
-    // Never more than the rule (owner decision 22/10/2026: "não passar disso").
+    // Never more than the rule.
     if (days.filter((day) => SCHOOL_DAY_COUNTS_V1[day.kind]).length > SCHOOL_DAYS_REQUIRED_V1)
       ctx.addIssue({ code: 'custom', message: 'More school days than the rule' });
   });
@@ -98,8 +98,8 @@ export const schoolDaysOfV1 = (days: readonly SchoolCalendarDayV1[]) =>
     .sort((a, b) => Number(a > b) - Number(a < b));
 
 /**
- * The school year's first and last school day as the calendar marks them (owner request 27/10/2026:
- * the Horário ends the year at its last lesson, never at a fixed date). Null with no school day.
+ * The school year's first and last school day as the calendar marks them (the Horário ends the
+ * year at its last lesson, never at a fixed date). Null with no school day.
  */
 export const schoolYearSpanV1 = z.object({ firstDay: z.iso.date(), lastDay: z.iso.date() }).strict();
 export type SchoolYearSpanV1 = z.infer<typeof schoolYearSpanV1>;
@@ -132,7 +132,7 @@ export function schoolYearProgressOfV1(days: readonly SchoolCalendarDayV1[], tod
 }
 
 /**
- * The days without school the calendar names (owner decision 23/10/2026): a holiday, a recess or an
+ * The days without school the calendar names: a holiday, a recess or an
  * event without lessons, with its note, so the Portal says why there is no lesson ("Feriado ·
  * Finados") on the Horário and on the Frequência calendar. Weekdays only: a weekend is never marked.
  * A weekday inside the school year that the calendar leaves unmarked has no school either (above:

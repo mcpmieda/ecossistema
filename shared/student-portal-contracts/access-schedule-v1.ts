@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { instantV1 } from './core-v1';
 
 /*
- * Agendamentos de acesso (owner decisions 2026-09-27). Each level (school, class, student) may keep
+ * Agendamentos de acesso. Each level (school, class, student) may keep
  * its own access: a switch plus scheduled "Abrir"/"Fechar" actions. The Portal follows the agenda:
  * before a scheduled action it is in the opposite state — an "Abrir" later closes it now and opens
  * it then; a "Fechar" later opens it now and closes it then. After the last action it stays as that

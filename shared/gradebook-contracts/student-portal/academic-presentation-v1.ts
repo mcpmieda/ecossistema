@@ -21,7 +21,7 @@ export const academicPresentationInputSchemaV1 = z
 export type AcademicPresentationInputV1 = z.infer<typeof academicPresentationInputSchemaV1>;
 
 /**
- * Implemented only by the BN domain helper in #747, never by this schema/UI.
+ * Implemented only by the BN domain helper, never by this schema/UI.
  * For classified scores: value * annualMaximum >= maximum * annualMinimum,
  * using exact integer products; equality passes, with no clamping/tolerance.
  * annualMaximum is the sum of the existing BN term maxima, not a new policy.

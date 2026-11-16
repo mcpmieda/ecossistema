@@ -1,4 +1,4 @@
-/** Academic years materialized from an imported master Relation. Refs #676. */
+/** Academic years materialized from an imported master Relation. */
 export const GRADEBOOK_ACADEMIC_YEAR_MIN_V2 = 2000;
 export const GRADEBOOK_ACADEMIC_YEAR_MAX_V2 = 9999;
 

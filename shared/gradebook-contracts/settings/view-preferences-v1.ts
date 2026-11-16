@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /*
  * What each person last chose on the Centro's screens (area, period, perspective, filters),
- * kept per account so another computer opens on the same view (owner request of 12/11/2026).
+ * kept per account so another computer opens on the same view.
  * Only identifiers of choices travel here; each screen revalidates them against what it reads.
  */
 export const VIEW_PREFERENCE_KEY_PATTERN_V1 = /^[a-z][a-z0-9-]{0,63}(?::\d{1,6})?$/u;

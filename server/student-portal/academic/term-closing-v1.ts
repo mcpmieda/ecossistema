@@ -12,7 +12,7 @@ import {
 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 
 /*
- * Fechamento do trimestre engine (#1132, docs/student-portal/TRIMESTER_CLOSING_SPEC.md).
+ * Fechamento do trimestre engine (docs/student-portal/TRIMESTER_CLOSING_SPEC.md).
  * Reads the official term outcome of the BN engine and the term's recorded facts, and returns
  * message codes only (never values, R1). Thresholds were calibrated on the 2026 T1 distribution
  * (4,307 student×subject pairs with both assessments): total below the minimum 4.4%; up to ten
@@ -176,7 +176,7 @@ function notDoneCountV1(instruments: readonly TermClosingInstrumentV1[]): number
 
 /**
  * Priority: missing work, then assessments, then activities; otherwise the weaker component (R10).
- * A single missing activity reads in the singular (owner decision 2026-09-24).
+ * A single missing activity reads in the singular.
  */
 function weightV1(
   notDoneCount: number,

@@ -33,7 +33,7 @@ export type PreparedWorkbookV1 =
 
 export type WriteInputV1 = {
   readonly name: string;
-  /** The Auditoria snapshot of this file: 'onedrive:<Graph item id>' (issue #1462). */
+  /** The Auditoria snapshot of this file: 'onedrive:<Graph item id>'. */
   readonly origin?: string;
   readonly modifiedAt: string;
   readonly expectedYear: number | null;
@@ -163,7 +163,7 @@ async function writeAuditV1(context: WriteContextV1, base: GradebookImportDiagno
   const audit = context.input.origin === undefined ? base : { ...base, origin: context.input.origin };
   const print = await fingerprintV1([audit.academicYear, audit.origin ?? null, audit.fileName, audit.diagnostics]);
   if (context.previous?.audit !== print) {
-    // The retry waits outside the write turn, so other workbooks write meanwhile (issue #1450, 4).
+    // The retry waits outside the write turn, so other workbooks write meanwhile.
     await withLockRetryV1(() => context.turn(() => context.services.recordAudit(context.ports.database, audit)), context.ports.sleep);
   }
   context.stage('audit');
@@ -275,7 +275,7 @@ export async function writePreparedWorkbookV1(input: WriteInputV1, prepared: Pre
 function failedWriteOutcomeV1(context: WriteContextV1, cause: unknown): WriteOutcomeV1 {
   // A snapshot the contract refuses is deterministic: retrying the same bytes cannot help.
   if (cause instanceof InvalidImportDiagnosticsSnapshotV1) return context.done('rejected', 'AUDIT-INVALID', null, null);
-  // No time left to wait for the write turn: read again later (issue #1450, 4).
+  // No time left to wait for the write turn: read again later.
   if (!(cause instanceof WriteQueueDeadlineErrorV1)) {
     // Only the error kind and Postgres code: a database message can carry values, never logged.
     const failure = cause as { name?: unknown; code?: unknown } | null;

@@ -91,7 +91,7 @@ export async function contextV1(
   };
 }
 /**
- * The context for a read (issue #1426, 40): no lock and no write. The revision is the one the next
+ * The context for a read: no lock and no write. The revision is the one the next
  * write will store (one more when the academic revision moved since), so a cursor or a prepared
  * decision read here still matches it. Null before the year's first write created the row.
  */

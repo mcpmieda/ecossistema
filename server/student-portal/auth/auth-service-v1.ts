@@ -375,7 +375,7 @@ async function activationStateV1(
 
 type AuthStepV1 = PortalAuthResultMetricV1['step'];
 
-/** Terminal outcome of one public call; refusal reasons stay in the audit detail only (#1207). */
+/** Terminal outcome of one public call; refusal reasons stay in the audit detail only. */
 function authResultV1(step: AuthStepV1, result: unknown): PortalAuthResultMetricV1 {
   const event = 'student-portal-auth-result-v1' as const;
   const value = (result ?? {}) as { state?: unknown; next?: unknown; body?: { state?: unknown } };

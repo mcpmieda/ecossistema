@@ -275,7 +275,7 @@ export async function scopedSelfV2(
 }
 
 /**
- * Fechamento do trimestre (#1132): read only when the policy and a closed trimester require it, and
+ * Fechamento do trimestre: read only when the policy and a closed trimester require it, and
  * only for a trimester whose marks are published (R2: the report never comes without its marks).
  */
 async function termClosingsV2(

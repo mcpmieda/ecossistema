@@ -3,8 +3,8 @@ import type { PortalCompositionEnvV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 
 /**
- * A day's school hours for the OneDrive reading (owner decision 14/11/2026, issue #1426, 29): the
- * 10 s poll runs only on school days, around the lessons. The Portal owns the calendar and the
+ * A day's school hours for the OneDrive reading: the 10 s poll runs only on school days, around
+ * the lessons. The Portal owns the calendar and the
  * bells, so it answers; the notes Worker's database role does not read those tables.
  */
 export type SchoolDayWindowV1 = {

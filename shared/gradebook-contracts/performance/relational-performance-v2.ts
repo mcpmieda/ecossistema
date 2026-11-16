@@ -9,7 +9,7 @@ import {
 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import { SIMPLIFIED_VISIBLE_ANNUAL_RESULTS_V1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 
-/** #642: calculated read preview, not an authorization to emit official results. */
+/** Calculated read preview, not an authorization to emit official results. */
 /** BN-DEC-042: a result with blank instruments is final as it stands and counts in every
  * indicator; "partial" only marks that something was left blank. */
 export const performanceResultCountsV2 = (state: string): boolean =>

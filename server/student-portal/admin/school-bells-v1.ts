@@ -6,8 +6,8 @@ import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { adminDigestV1 } from './common-v1';
 
 /*
- * Horário das aulas (owner decision 23/10/2026): the time of each lesson and of the break, per shift
- * and weekday, for the whole school, marked in the ADM. Written whole with the version read (two
+ * Horário das aulas: the time of each lesson and of the break, per shift and weekday, for the
+ * whole school, marked in the ADM. Written whole with the version read (two
  * admins never overwrite each other), checked by the contract (in order, no overlap, one break at
  * most) and audited as a settings change, like the school calendar.
  */

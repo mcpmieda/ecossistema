@@ -27,8 +27,8 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
   const fail=(state:string,status:number)=>response({contractVersion:2,state},status);
   if(!portalRequestOriginAllowedV1(request,env.PORTAL_ENVIRONMENT,env.PORTAL_ORIGIN))return fail('forbidden',403);
   if(request.method!=='GET')return fail('invalid-request',405);
-  // One month (?month=2026-10), or the whole year so far in one answer (?year=2026, PR 1317: the
-  // Portal reads it with the sign-in and changes months without asking again).
+  // One month (?month=2026-10), or the whole year so far in one answer (?year=2026: the Portal
+  // reads it with the sign-in and changes months without asking again).
   const url=new URL(request.url),params=[...url.searchParams.keys()];
   const month=url.searchParams.get('month'),wholeYear=url.searchParams.get('year');
   const asMonth=params.length===1&&params[0]==='month'&&/^2026-(0[1-9]|1[0-2])$/u.test(month??'');
@@ -61,7 +61,7 @@ export async function servePortalFrequencyV2(request:Request,env:PortalCompositi
         const schoolYear=marked?schoolYearProgressOfV1(marked,read.today):null;
         // The days without school with their description (Frequência calendar), each lesson's time
         // and, when the Horário is on for this student, the subject of each position of the week
-        // (owner decision 23/10/2026: "Faltou na 3ª aula (08:50–09:45), MATEMATICA").
+        // (e.g. "Faltou na 3ª aula (08:50–09:45), MATEMATICA").
         const{bells,bellsValidFrom,daysOff}=await schoolBellsAndCalendarV1(tx,{days:calendarDays});
         let grid:{shift:'matutino'|'vespertino';validFrom?:string;lessons:{weekday:number;slot:number;subject:string}[]}[]=[];
         if(context.policy.enforcedValue.showSchedule){

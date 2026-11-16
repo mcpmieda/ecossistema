@@ -35,7 +35,7 @@ function response(value: GradebookImportDiagnosticsAuditWriteResponseV1 | Gradeb
   return Response.json(value, { status, headers: headers() });
 }
 async function readPayload(request: Request): Promise<unknown> {
-  // Refused as soon as it passes the limit, never read whole first (issue #1450, 102).
+  // Refused as soon as it passes the limit, never read whole first.
   const { text } = await readBoundedTextV1(request, GRADEBOOK_IMPORT_DIAGNOSTICS_BODY_BYTES_V1);
   try { return JSON.parse(text) as unknown; } catch { return null; }
 }

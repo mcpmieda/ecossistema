@@ -140,7 +140,7 @@ function bindingResponseV1(
   return portalJsonV1(parsed.data, 200);
 }
 
-/** Standalone ADM Pages adapter; #715 owns routing and the dedicated service binding. */
+/** Standalone ADM Pages adapter; functions/[[path]].ts owns routing and the dedicated service binding. */
 export async function servePortalAdminV1(
   request: Request,
   env: RuntimeEnv,

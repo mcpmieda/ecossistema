@@ -6,9 +6,9 @@ import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { adminDigestV1 } from './common-v1';
 
 /*
- * Calendário escolar (owner decision 22/10/2026): one calendar for the whole school, marked in the
- * ADM. Written whole with the version read (two admins never overwrite each other), never with more
- * than 200 school days (the contract refuses it), and audited as a settings change.
+ * Calendário escolar: one calendar for the whole school, marked in the ADM. Written whole with the
+ * version read (two admins never overwrite each other), never with more than 200 school days (the
+ * contract refuses it), and audited as a settings change.
  */
 export async function readSchoolCalendarV1(tx: StudentPortalPostgresQueryV1): Promise<SchoolCalendarV1 | null> {
   const rows = await tx.unsafe(

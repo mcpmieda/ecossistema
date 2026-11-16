@@ -69,7 +69,7 @@ export const subjectV1 = z
         'failed-repeat',
       ])
       .optional(),
-    // Fechamento do trimestre (#1132): codes only, one per closed trimester. A closed but not yet
+    // Fechamento do trimestre: codes only, one per closed trimester. A closed but not yet
     // released trimester may carry a closing without periods (spec R2).
     closings: z
       .array(termClosingV1)
@@ -120,22 +120,22 @@ export const selfResponseV1 = z
     generatedAt: instantV1,
     subjects: z.array(subjectV1).max(100),
     closingSummary: termClosingSummaryV1.optional(),
-    // One summary per closed trimester (#1132 follow-up). Accepted first, emitted by the server in
+    // One summary per closed trimester. Accepted first, emitted by the server in
     // a later deploy, so a page still open with the previous bundle never sees an unknown key.
     closingSummaries: z.array(termClosingSummaryV1).max(3).optional(),
-    // Trimesters whose end date in the calendar has passed (owner decision 28/09/2026: seals from
-    // assessments count only then). Accepted first, emitted by the server in a later deploy.
+    // Trimesters whose end date in the calendar has passed (seals from assessments count only
+    // then). Accepted first, emitted by the server in a later deploy.
     endedPeriods: z
       .array(z.enum(['T1', 'T2', 'T3']))
       .max(3)
       .refine((v) => new Set(v).size === v.length, 'Duplicate ended period')
       .optional(),
-    // Política Frequência (owner request 20/10/2026). Only `true` shows the attendance section;
+    // Política Frequência. Only `true` shows the attendance section;
     // absent (a server before this field) keeps it hidden.
     showFrequency: z.boolean().optional(),
-    // Política Horário (owner decision 22/10/2026). Only `true` shows the "Horário" tab.
+    // Política Horário. Only `true` shows the "Horário" tab.
     showSchedule: z.boolean().optional(),
-    // Política Ocorrências (owner decisions 29/10/2026). Only `true` shows the "Ocorrências" tab.
+    // Política Ocorrências. Only `true` shows the "Ocorrências" tab.
     showIncidents: z.boolean().optional(),
   })
   .strict()

@@ -96,8 +96,8 @@ async function batchSealsOfV1(
 }
 
 /**
- * Selos brilhantes in the ADM (owner request 29/09/2026): the count each student sees on the
- * Portal, from the same projection and the same shared rule, never a second rule. One record or
+ * Selos brilhantes in the ADM: the count each student sees on the Portal, from the same
+ * projection and the same shared rule, never a second rule. One record or
  * one class per read, inside the dispatcher's read-only snapshot; it writes nothing.
  */
 export async function readSealsV1(

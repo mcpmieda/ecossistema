@@ -50,7 +50,7 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
   if (metadata.length !== 1 || metadata[0]!.enabled !== true || metadata[0]!.epochs !== 1)
     throw new Error('student-portal-preparation-unavailable');
   const meta = metadata[0]!;
-  // Tolerates a school snapshot stored before migration 0020 (#1132): missing optional fields read as defaults.
+  // Tolerates a school snapshot stored before migration 0020: missing optional fields read as defaults.
   const schoolDefaults = settingsValueV1.parse(completeStoredPolicyValueV1(meta.defaults));
   const publicationVersion = versionV1.parse(Number(meta.version));
   const epoch = versionV1.parse(Number(meta.epoch));
@@ -72,7 +72,7 @@ export async function readCustomizationsV1(tx: StudentPortalPostgresQueryV1, que
     where.push(`position(lower(${bind(query.nameSearch)}) in lower(s.label||' '||s.class_label))>0`);
   if (after) where.push(`s.scope_key COLLATE "C">${bind(after.id)} COLLATE "C"`);
   const limit = bind(query.page.limit + 1);
-  // Turnos (28/09/2026): an account's own choice, then its shift, then its class, then the school;
+  // Turnos: an account's own choice, then its shift, then its class, then the school;
   // for a class, its shift wins over the class's own choice.
   const auto = `CASE WHEN t.scope_kind='account'
     THEN COALESCE(oa.value_json,sha.value_json,ca.value_json,sa.value_json,'false'::jsonb)

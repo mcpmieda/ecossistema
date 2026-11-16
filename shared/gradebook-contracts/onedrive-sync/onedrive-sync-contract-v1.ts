@@ -41,7 +41,7 @@ export const oneDriveSyncFileSchemaV1 = z.object({
   lastReadAt: z.number().nullable(),
   lastReadMs: z.number().nullable(),
   lastSavedToWrittenMs: z.number().nullable(),
-  /** When grades of the file last went into the Banco (absent before 15/11/2026). */
+  /** When grades of the file last went into the Banco (absent in older records). */
   lastAppliedAt: z.number().nullable().optional(),
   /** Students the last read held by the Relação checks (absent when none). */
   heldStudents: z.number().int().min(0).optional(),
@@ -65,7 +65,7 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
   breakerUntil: z.number().nullable(),
   /** The deployed code version the coordinator runs (first 8 characters), when known. */
   codeVersion: z.string().max(64).nullable().optional(),
-  /** Most reads at once; settings.maxParallel is the limit the sync uses now (absent before 15/11/2026). */
+  /** Most reads at once; settings.maxParallel is the limit the sync uses now (absent in older records). */
   parallelCeiling: z.number().int().min(1).optional(),
   webhook: z.object({ active: z.boolean(), expiresAt: z.string().nullable() }),
   lastDeltaAt: z.number().nullable(),

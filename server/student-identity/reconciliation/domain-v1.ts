@@ -406,7 +406,7 @@ function candidatesForRowV1(
     rejected: rejectedUids.length > 0,
     sourceConflict: knownHash && origin === undefined,
     // A row kept "Somente no Smecel" was waiting for the Relação: once the student is there, the
-    // ordinary rules decide it (owner request 10/11/2026); any other review still blocks.
+    // ordinary rules decide it; any other review still blocks.
     sourceReview: (origin?.reviewRequired === true && origin.smecelOnly !== true) || linked.sourceReview,
     sibling: linked.sibling,
   };

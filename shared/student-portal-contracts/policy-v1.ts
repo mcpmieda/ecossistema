@@ -60,7 +60,7 @@ export const disclosureV1 = z.discriminatedUnion('mode', [
   z
     .object({ mode: z.literal('per-period'), at: periodDates, endsAt: periodDates.optional() })
     .strict(),
-  // Aba Notas (27/09/2026): each period follows its own agenda. "Períodos permitidos" no longer
+  // Aba Notas: each period follows its own agenda. "Períodos permitidos" no longer
   // applies once a scope uses this mode; the switch of each period replaces it.
   z
     .object({
@@ -85,7 +85,7 @@ export const calendarV1 = z
     finalDisclosureEndsAt: instantV1.nullable().optional(),
     // Resultado anual on the Notas tab: when present it replaces showFinalResult and the two dates.
     finalAgenda: agendaPlanV1.optional(),
-    // One source (issue #1426, 41): the value saved before 14/11/2026 reads as the school's zone.
+    // One source: the legacy saved value reads as the school's zone.
     timezone: z.enum([SCHOOL_TIME_ZONE_V1, LEGACY_SCHOOL_TIME_ZONE_V1]).transform(() => SCHOOL_TIME_ZONE_V1),
     enrollmentStartsAt: instantV1.nullable(),
     yearStartsAt: instantV1.nullable(),
@@ -160,18 +160,17 @@ export const settingsValueV1 = z
     showPartials: z.boolean(),
     autoUpdate: z.boolean(),
     showFinalResult: z.boolean(),
-    // Fechamento do trimestre (#1132). The policy service reads a missing school row as off.
+    // Fechamento do trimestre. The policy service reads a missing school row as off.
     showTermClosing: z.boolean(),
     // On: past-tense closing of ended trimesters. Off: present-tense reading of the one in progress.
     termClosingConclusive: z.boolean(),
-    // Frequência no Portal do Aluno (owner request 20/10/2026). Off: the student sees no attendance
+    // Frequência no Portal do Aluno. Off: the student sees no attendance
     // section and the frequency API refuses the read. A missing school row reads as off.
     showFrequency: z.boolean(),
-    // Horário no Portal do Aluno (owner decision 22/10/2026). Off: no "Horário" tab and the schedule
+    // Horário no Portal do Aluno. Off: no "Horário" tab and the schedule
     // API refuses the read. A missing school row reads as off.
     showSchedule: z.boolean(),
-    // Ocorrências no Portal do Aluno (owner decision 29/10/2026). Off: no "Ocorrências" tab. A
-    // missing school row reads as off.
+    // Ocorrências no Portal do Aluno. Off: no "Ocorrências" tab. A missing school row reads as off.
     showIncidents: z.boolean(),
     allowedPeriods: z
       .array(periodV1)
@@ -182,7 +181,7 @@ export const settingsValueV1 = z
   })
   .strict();
 /**
- * Fields added after the first school seed (#1132, migration 0020). A school snapshot stored before
+ * Fields added after the first school seed (migration 0020). A school snapshot stored before
  * that migration reads them with these values; every reader of stored school rows must use
  * `completeStoredPolicyValueV1` so no screen depends on deploy/migration order.
  */

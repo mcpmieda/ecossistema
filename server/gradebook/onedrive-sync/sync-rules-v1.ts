@@ -36,7 +36,7 @@ export type SyncFileV1 = {
   readonly lastReadAt: number | null;
   readonly lastReadMs: number | null;
   readonly lastSavedToWrittenMs: number | null;
-  /** When grades of this file last went into the Banco (absent before 15/11/2026). */
+  /** When grades of this file last went into the Banco (absent in older records). */
   readonly lastAppliedAt?: number | null;
   /** Read again because the Relação changed, not because the teacher saved: no save-to-write time. */
   readonly rereading?: boolean;
@@ -75,10 +75,10 @@ export const SYNC_PARALLEL_MAX_V1 = 6;
 export const DEFAULT_SYNC_SETTINGS_V1: SyncSettingsV1 = { enabled: false, paused: false, waitSeconds: 0, maxParallel: SYNC_PARALLEL_MAX_V1 };
 
 /**
- * The reads allowed at once, set by the sync itself (owner request of 15/11/2026): a read that shows
- * congestion (the write turn ran out, the database, OneDrive or the reader did not answer in time, a
- * read lost its lease or took over a minute) halves it; a run of clean reads as long as the limit
- * adds one, up to SYNC_PARALLEL_MAX_V1.
+ * The reads allowed at once, set by the sync itself: a read that shows congestion (the write turn
+ * ran out, the database, OneDrive or the reader did not answer in time, a read lost its lease or
+ * took over a minute) halves it; a run of clean reads as long as the limit adds one, up to
+ * SYNC_PARALLEL_MAX_V1.
  */
 export type SyncParallelV1 = { readonly limit: number; readonly clean: number };
 export const INITIAL_SYNC_PARALLEL_V1: SyncParallelV1 = { limit: SYNC_PARALLEL_MAX_V1, clean: 0 };
@@ -131,7 +131,7 @@ export function observeFileV1(current: SyncFileV1 | null, observed: ObservedFile
   const unchanged = observed.hash !== null && observed.hash === base.processedHash;
   if (unchanged && base.state !== 'reading') return { ...updated, state: 'idle', dueAt: null };
   // During a read, the hash being read is `base.hash`: a repeated notice of that same save is not a
-  // change (issue #1450, 14). Without a hash it is taken as a change.
+  // change. Without a hash it is taken as a change.
   if (base.state === 'reading') {
     const sameAsReading = observed.hash !== null && observed.hash === base.hash;
     return { ...updated, dirty: base.dirty || !sameAsReading };
@@ -202,7 +202,7 @@ export function finishReadingV1(file: SyncFileV1, lease: string, result: ReadRes
     ...(result.heldStudents === undefined ? {} : { heldStudents: result.heldStudents }),
   };
   if (file.removed) return { ...finished, state: 'idle', dirty: false, dueAt: null };
-  // Saved again while it was read: read again after the same wait as any save (issue #1426, 7).
+  // Saved again while it was read: read again after the same wait as any save.
   if (file.dirty) return { ...finished, state: 'pending', dirty: false, dueAt: now + waitMs };
   if (transient) {
     const delay = RETRY_DELAYS_MS_V1[Math.min(attempts - 1, RETRY_DELAYS_MS_V1.length - 1)]!;
@@ -253,7 +253,7 @@ export function schoolDayOfV1(now: number): string {
 
 /**
  * The poll window of `day` from what the Portal answered; without an answer (Portal unreachable),
- * Monday to Friday 07:00–18:00, asked again within the hour (owner decision, issue #1426, 29).
+ * Monday to Friday 07:00–18:00, asked again within the hour.
  */
 export function pollWindowV1(day: string, read: SchoolDayWindowV1 | null, now: number): PollWindowV1 {
   const at = (time: string) => Date.parse(`${day}T${HHMM_V1.test(time) ? time : '07:00'}:00-03:00`);
@@ -270,7 +270,7 @@ export function pollWindowV1(day: string, read: SchoolDayWindowV1 | null, now: n
 /**
  * After a workbook of a source changes, the folder is asked every 10 s for this long after the last
  * change, so the next saves of someone editing do not wait for Microsoft's notice; with nothing
- * changing nothing is asked (owner decision 15/11/2026: 25 min on school days, 10 min otherwise).
+ * changing nothing is asked (25 min on school days, 10 min otherwise).
  */
 export const EDIT_POLL_SCHOOL_DAY_MS_V1 = 25 * 60_000;
 export const EDIT_POLL_OTHER_DAY_MS_V1 = 10 * 60_000;

@@ -33,7 +33,7 @@ export const customizationRowV1 = z.object({
   }
   if (row.id !== id || (row.scope.kind === 'class' && (row.classId !== row.scope.classId || row.blocked)))
     ctx.addIssue({ code: 'custom', message: 'Invalid customization owner' });
-  // A shift owns options only (owner decision 28/09/2026): no class, block or publication.
+  // A shift owns options only: no class, block or publication.
   if (row.scope.kind === 'shift' && (row.classId !== null || row.blocked || row.publications.length > 0))
     ctx.addIssue({ code: 'custom', message: 'Invalid shift customization' });
   if (row.value === null && !row.blocked && row.publications.length === 0)

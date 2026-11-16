@@ -8,8 +8,8 @@ import { portalRequestOriginAllowedV1, portalSessionJsonV1 } from '../runtime/ht
 import { checkPortalOperationV1, PortalRateLimitErrorV1 } from '../observability/operation-burst-v1';
 import { checkPortalAnonymousV1 } from '../observability/anonymous-peer-v1';
 
-// The student's own Smecel records and the family's "Estou ciente" (owner decisions 29/10/2026;
-// attendance 0016). The whole description, as the Smecel has it; the session decides the student.
+// The student's own Smecel records and the family's "Estou ciente" (attendance 0016). The whole
+// description, as the Smecel has it; the session decides the student.
 const incidentSchema=z.object({id:z.uuid(),kind:z.string().min(1).max(80),date:z.iso.date(),classLabel:z.string().min(1).max(300),
   leaveFrom:z.iso.date().nullable(),leaveTo:z.iso.date().nullable(),leaveDays:z.number().int().min(0).max(366).nullable(),
   description:z.string().min(1).max(8000),acknowledgedAt:z.string().nullable()}).strict();
@@ -73,8 +73,7 @@ export async function servePortalIncidentsV1(request:Request,env:PortalCompositi
         const read=readSchema.parse(jsonOf(raw));
         const clock=await tx.unsafe('SELECT clock_timestamp() < $1::timestamptz AS active',[session.expiresAt]);
         if(clock[0]?.active!==true)return null;
-        // The class is still read (attendance 0016) but not shown to the family (owner request
-        // 30/10/2026), so it stays here.
+        // The class is still read (attendance 0016) but not shown to the family, so it stays here.
         return{state:'ready' as const,incidents:read.incidents.map(({leaveFrom,leaveTo,leaveDays,acknowledgedAt,classLabel:_class,...item})=>({...item,
           // Only a suspension has a leave; any part the Smecel left blank stays null.
           leave:leaveFrom===null&&leaveTo===null&&leaveDays===null?null:{from:leaveFrom,to:leaveTo,days:leaveDays},

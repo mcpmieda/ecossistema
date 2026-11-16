@@ -9,7 +9,7 @@ type BurstMetricSinkV1 = (metric: PortalAuthBurstMetricV1) => void;
 
 /** Per-location burst protection complements the durable PG counter; never use IP as identity.
  * I supplies account-unique namespaces with global 3000/minute and subject 30/minute limits.
- * The global limit admits the whole school's first access at once (28/09/2026).
+ * The global limit admits the whole school's first access at once.
  * With a network subject (the anonymous peer), that 3000/minute budget is per peer, so one
  * client repeating a valid QR cannot spend every family's entry. Without one (load harness
  * only) it stays a single location-wide key.

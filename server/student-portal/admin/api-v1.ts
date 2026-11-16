@@ -98,8 +98,8 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
       if (query.operation === 'health') return await this.sql.begin(async (tx) => adminResponseV1.parse({
         ...base, ...await readAdminHealthV1(tx, query),
       }));
-      // Reads share the year lock with each other and with family sign-ins (owner report 09/11/2026: the
-      // Auditoria opens several reads at once and one of them timed out waiting for the others). Only
+      // Reads share the year lock with each other and with family sign-ins (the Auditoria opens
+      // several reads at once, and one would otherwise time out waiting for the others). Only
       // Sessões (it re-enters the revocation scope) and the link-closure preview (it writes) keep it whole.
       const yearMode = query.operation === 'sessions' || query.operation === 'links-preview' ? 'exclusive' : 'shared';
       return await authTransactionV1(withAuditSqlV1(this.sql, context.clientIp ?? null, context), async (tx) => {

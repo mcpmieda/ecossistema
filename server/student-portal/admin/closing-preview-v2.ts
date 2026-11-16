@@ -8,7 +8,7 @@ import { publicationContextV1 } from '../publication/self-projection-reader-v1';
 import { termClosingPreviewV2 } from '../publication/scoped-self-v2';
 
 /**
- * Fechamento do trimestre preview in the student's record (#1132 D12, R7). Same engine and
+ * Fechamento do trimestre preview in the student's record (D12, R7). Same engine and
  * variants as the student page, inside the caller's read-only snapshot; like the other record
  * reads it writes nothing. Unresolved, closed, blocked or ineligible links return `available: false`.
  */

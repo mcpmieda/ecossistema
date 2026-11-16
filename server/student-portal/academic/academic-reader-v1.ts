@@ -97,7 +97,7 @@ const offerSchema = z.object({
   instruments: z.array(instrumentSchema).max(39),
   closure: closureSchema.nullable(),
 });
-/** Built once, not on every Portal read (issue #1490, finding 12). */
+/** Built once, not on every Portal read. */
 const bindingsSchema = z.array(
   z.object({
     academicYear: z.literal(2026),
@@ -121,7 +121,7 @@ const offersSchema = z.array(offerSchema).max(100);
 const accountIdSchema = z.uuid();
 type Mark = z.infer<typeof academicMarkSchemaV1>;
 
-/** Preserve the regular-instrument coverage used by official Portal editions before #848.
+/** Preserve the regular-instrument coverage used by earlier official Portal editions.
  * Only recovery/authority consume this adapter; current descriptive coverage and all numbers remain unchanged.
  */
 function officialEditionTermV1(term: ReturnType<typeof resolveSimplifiedTermV1>) {
@@ -201,8 +201,8 @@ const COUNCIL_SITUATION_V1: Record<1 | 2 | 3, AnnualSituationV1> = {
  * Relays the BN's own annual verdict with its exact wording; no new rule. A formal Council
  * decision prevails (same precedence as `result`); EM CURSO and terminal enrollment statuses
  * (desistente/transferido/falecido) carry no situation, and ASSISTIDO never has one.
- * Owner decision (2026-09-23): there is no "awaiting Council" status for students. A student
- * eligible for the Council stays EM RECUPERAÇÃO until the final result, before or after it.
+ * There is no "awaiting Council" status for students: a student eligible for the Council stays
+ * EM RECUPERAÇÃO until the final result, before or after it.
  */
 export function annualSituationV1(input: {
   status: number | null;
@@ -449,7 +449,7 @@ export class AcademicStudentReaderPostgresV1
         officialOutcome = undefined;
       }
       const situation = subjectSituationV1(status, classification);
-      // Fechamento do trimestre (#1132): codes from the same official term outcomes and facts.
+      // Fechamento do trimestre: codes from the same official term outcomes and facts.
       // Both readings are cheap; Self picks one by the `termClosingConclusive` policy.
       const closings = ([1, 2, 3] as const).flatMap((term) => {
         const input = {

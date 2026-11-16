@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { instantV1, periodV1, portalIdV1 } from './core-v1';
 
-/** What the Portal tells students about its own state (owner decision, 26/09/2026). Only the
- * policy's dates and switches: never grades or anything about another student.
+/** What the Portal tells students about its own state. Only the policy's dates and switches:
+ * never grades or anything about another student.
  */
 export const portalNoticesV1 = z
   .object({

@@ -198,7 +198,7 @@ export function periodDisclosureV1(
 }
 
 /**
- * Grades follow their agenda like access (owner decision 2026-09-27): "Liberar notas em" shows and
+ * Grades follow their agenda like access: "Liberar notas em" shows and
  * "Ocultar notas em" hides. Before an action the grades are in its opposite state, after the last
  * one they stay as it left them, and with neither they show once the period starts. So a new
  * "Liberar" after an "Ocultar" shows them again at its time.

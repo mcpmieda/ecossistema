@@ -12,7 +12,7 @@ const recordKey = z.string().min(1).max(200);
 const slot = z.number().int().min(1).max(6);
 const slots = z.array(slot).min(1).max(6).refine(v => new Set(v).size === v.length);
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
-/** Zones already accepted, so a parse builds the Intl check once per zone (issue #1490, finding 1). Only valid IANA names enter. */
+/** Zones already accepted, so a parse builds the Intl check once per zone. Only valid IANA names enter. */
 const VALID_ZONES_V2 = new Set<string>();
 export const frequencyScheduleV2 = z.object({
   // Named IANA zone with its exact spelling. Offsets such as "-03:00" have the
@@ -63,7 +63,7 @@ export const frequencyScheduleWriteV2 = frequencyScheduleV2.superRefine((schedul
       ctx.addIssue({ code: 'custom', path: ['rules'], message: `${name}: deixe pelo menos ${FREQUENCY_MIN_SLOT_GAP_MINUTES_V2} minutos entre as coletas.` });
   });
 });
-/** The shortest interval of the automatic student report (owner decision 29/10/2026). */
+/** The shortest interval of the automatic student report. */
 const REPORT_MIN_EVERY_MINUTES_V2 = 30;
 /**
  * The agenda of the Smecel "Relatório de alunos", apart from the frequency's: every `every` minutes
@@ -129,9 +129,9 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
     marks: z.array(z.object({ recordKey, date: civilDate, slot, mark: z.enum(['X', 'J']) }).strict()).max(130_000),
   }).strict(),
   /**
-   * The class's diary did not change since the content the collector last sent (owner decision
-   * 22/10/2026): the same fields as `collect` but, instead of coverage and marks, their
-   * frequencyContentHashV2. The server answers 'payload-required' unless it matches what it holds.
+   * The class's diary did not change since the content the collector last sent: the same fields as
+   * `collect` but, instead of coverage and marks, their frequencyContentHashV2. The server answers
+   * 'payload-required' unless it matches what it holds.
    */
   z.object({ operation: z.literal('collect-unchanged'), ...fenced,
     classId, expectedRevision: revision, sourceVersion, sourceClassId, sourceClassLabel: label,
@@ -148,7 +148,7 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
       .refine(v => new Set(v.map(c => c.sourceClassId)).size === v.length),
   }).strict(),
   /**
-   * The Smecel "Ocorrências" of the year (owner decision 29/10/2026), every student in one capture.
+   * The Smecel "Ocorrências" of the year, every student in one capture.
    * `classId` is the student's class linked in the Centro (null when none of the student's Smecel
    * classes is). `complete` says the collector read every page and every student, with the counts the
    * Smecel list shows: only then may a record missing from the capture be marked removed.
@@ -165,8 +165,8 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
       }),
   }).strict(),
   /**
-   * The Smecel "Relatório de alunos" (owner decision 29/10/2026): every row of the export, read by the
-   * Coletor in memory with the 11 fields the Conciliação uses. The server applies it with the
+   * The Smecel "Relatório de alunos": every row of the export, read by the Coletor in memory with
+   * the 11 fields the Conciliação uses. The server applies it with the
    * Conciliação's own prepare/apply; an unchanged report only refreshes the dates.
    */
   z.object({ operation: z.literal('student-report-collect'), ...fenced, sourceVersion, observedAt,
@@ -174,7 +174,7 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
       .refine(v => new Set(v.map(r => r.sourceRow)).size === v.length),
   }).strict(),
   /**
-   * The same report as the one this computer last sent (its local copy, owner request 29/10/2026):
+   * The same report as the one this computer last sent (its local copy):
    * only the content's hash (studentReportHashV2). The server answers 'payload-required' unless it
    * matches the last report it applied; the whole report goes then, and at least once a day.
    */
@@ -248,8 +248,8 @@ export type FrequencyFailureEntryV2 = {
   deviceId: string | null; classId: number | null;
 };
 /**
- * One school day of the student in the Smecel diary (owner decision 20/10/2026): the lesson positions
- * that existed that day (a point, an X or a justified mark), so 5- or 6-lesson days, weekends,
+ * One school day of the student in the Smecel diary: the lesson positions that existed that day
+ * (a point, an X or a justified mark), so 5- or 6-lesson days, weekends,
  * holidays and days outside the enrolment need no configuration. `complete`: the collector read
  * every position of the day.
  */
@@ -301,7 +301,7 @@ export type FrequencyYearSummaryV2 = {
 /** Lessons and absences (X) of the days already over; `reliable`: nothing of them is still unknown. */
 type FrequencyCountV2 = { lessons: number; absences: number; reliable: boolean };
 /**
- * A month's counts by the owner's rule (20–21/10/2026): lessons are the positions of the days
+ * A month's counts: lessons are the positions of the days
  * already over (TODAY never counts: its roll call may still be under way), absences their X marks,
  * a J is not taken off. Reliable when every one of those days was read in full, no conflict is
  * open and every mark of them has its lesson day. The server's totals and the Portal agree on it.
