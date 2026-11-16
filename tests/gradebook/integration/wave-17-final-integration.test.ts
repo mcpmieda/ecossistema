@@ -76,7 +76,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
       expect(handler.split(endpoint)).toHaveLength(2);
       expect(handler).toContain('requireAuth');
       expect(handler).toContain('authorizeGradebookRuntimeV1');
-      expect(handler).toContain('no-store');
+      expect(handler).toMatch(/NO_STORE_HEADERS_V1|noStoreJsonV1|noStoreResponseV1/u);
     }
     expect(functions.match(/handleOperationalWorkspaceRequestV1/gu)).toHaveLength(2);
     expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
