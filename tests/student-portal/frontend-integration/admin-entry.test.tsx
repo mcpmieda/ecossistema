@@ -281,7 +281,6 @@ it('registers one permission-filtered module and searches its sections without c
   expect(withStudentPortalModule(modules, [])).toHaveLength(0);
   const snapshot = {
     coreModules: modules,
-    registeredModules: [],
     } as unknown as PlatformSnapshotContract;
   expect(
     buildSearchItems(snapshot).filter((item) => item.id.startsWith('student-portal:')),

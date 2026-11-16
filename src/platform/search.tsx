@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Chip, Kbd, Label, SearchField, Surface } from '@heroui/react';
-import { Boxes, Search, Settings2, X } from 'lucide-react';
+import { Search, Settings2, X } from 'lucide-react';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
 import { routeIcons } from './routes';
@@ -31,9 +31,7 @@ function SearchResults({
     <ul aria-label="Resultados da busca" className="platform-search-results">
       {items.map((item) => {
         let Icon;
-        if (item.iconKind === 'system') {
-          Icon = Boxes;
-        } else if (item.iconKind === 'configuration') {
+        if (item.iconKind === 'configuration') {
           Icon = Settings2;
         } else {
           Icon = routeIcons[item.route ?? 'banco-de-notas'];

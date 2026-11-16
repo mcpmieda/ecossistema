@@ -5,7 +5,6 @@ import { AreaErrorBoundaryV1 } from '../src/shared/ui/area-error-boundary-v1';
 import { PageContent } from '../src/platform/pages';
 import { allowLeavingToV1, useDraftNavigationGuardV1 } from '../src/shared/forms/draft-navigation-v1';
 import { buildPlatformSnapshot } from '../server/platform/snapshot';
-import type { PlatformSnapshotV2 } from '../shared/platform-snapshot-v2';
 
 vi.mock('../src/platform/notes-page', () => ({
   NotesPage: () => {
@@ -17,8 +16,6 @@ let reads = 0;
 const template = () =>
   buildPlatformSnapshot(
     {
-      lists: [],
-      moduleItems: [],
       correlationId: `synthetic-${++reads}`,
       generatedAt: new Date(1_800_000_000_000 + reads * 1000).toISOString(),
     },
@@ -78,11 +75,7 @@ it('the whole Centro has a limit too: no white screen, a way to reload', () => {
 });
 
 it('a failure in the Banco de notas page stays in its area', () => {
-  const snapshot = buildPlatformSnapshot(
-    { lists: [], moduleItems: [], correlationId: 'synthetic' },
-    ['platform.snapshot.read'],
-  ) as unknown as PlatformSnapshotV2;
-  render(<PageContent route="banco-de-notas" snapshot={snapshot} auxiliary="ready" />);
+  render(<PageContent route="banco-de-notas" />);
   expect(screen.getByText('Banco de notas indisponível')).toBeTruthy();
 });
 

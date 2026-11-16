@@ -29,7 +29,6 @@ type RouteV1 = {
 const routes: Readonly<Record<string, RouteV1>> = {
   '/api/me': { methods: ['GET'], operation: 'read' },
   '/api/platform/bootstrap': { methods: ['GET'], operation: 'read' },
-  '/api/platform/snapshot-v2': { methods: ['GET'], operation: 'read' },
   '/api/platform/settings/session': { methods: ['GET', 'POST'], operation: 'write' },
   '/api/platform/system-health': { methods: ['POST'], operation: 'read' },
   '/api/platform/system-health/history': { methods: ['POST'], operation: 'read' },

@@ -3,8 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PageContent } from '../src/platform/pages';
 import { StudentPortalAdminPage } from '../src/features/student-portal-admin/student-portal-admin-page';
-import { buildPlatformSnapshot } from '../server/platform/snapshot';
-import type { PlatformSnapshotV2 } from '../shared/platform-snapshot-v2';
 import { setupOperationsDomV1 } from './student-portal/ui/overview/dom-v1';
 import { opJsonV1, operationsMockV1 } from './student-portal/ui/overview/fixtures-v1';
 
@@ -29,17 +27,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const snapshot = () =>
-  buildPlatformSnapshot(
-    { lists: [], moduleItems: [], correlationId: 'synthetic' },
-    ['platform.snapshot.read', 'platform.settings.read'],
-  ) as unknown as PlatformSnapshotV2;
-
 it('a failure in Saúde stays in its area, with a way to reload (A14)', async () => {
   render(
     <>
       <nav>Menu do Centro</nav>
-      <PageContent route="operacao" snapshot={snapshot()} />
+      <PageContent route="operacao" />
     </>,
   );
   const alert = await screen.findByRole('alert');

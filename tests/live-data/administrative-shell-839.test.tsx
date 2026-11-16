@@ -29,7 +29,7 @@ class Socket extends EventTarget {
   send() {}
   close() { this.closed = true; }
 }
-const snapshot = () => buildPlatformSnapshot({ lists: [], moduleItems: [], correlationId: 'synthetic' }, PLATFORM_CAPABILITIES);
+const snapshot = () => buildPlatformSnapshot({ correlationId: 'synthetic' }, PLATFORM_CAPABILITIES);
 let key: string;
 let status: number;
 let fetcher: ReturnType<typeof vi.fn<typeof fetch>>;
@@ -50,7 +50,7 @@ beforeEach(() => {
     if (path === '/api/me') return status === 200
       ? Response.json({ authenticated: true, identityKey: key, expiresAt, capabilities: PLATFORM_CAPABILITIES })
       : new Response(null, { status });
-    if (path === '/api/platform/bootstrap' || path === '/api/platform/snapshot-v2') return Response.json(snapshot());
+    if (path === '/api/platform/bootstrap') return Response.json(snapshot());
     if (path === '/api/gradebook/view-preferences') return Response.json({ contractVersion: 1, state: 'ready', views: {} });
     throw new Error('Unexpected synthetic request');
   });

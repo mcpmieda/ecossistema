@@ -5,7 +5,6 @@ export const capabilityGrantsByRole: Record<Role, readonly PlatformCapability[]>
   ADMINISTRADOR: [
     'platform.snapshot.read',
     'platform.health.read',
-    'platform.modules.read',
     'platform.audit.read',
     'platform.settings.read',
     'platform.settings.write',

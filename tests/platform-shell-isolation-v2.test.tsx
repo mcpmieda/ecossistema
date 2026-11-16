@@ -29,8 +29,6 @@ vi.mock('../src/platform/pages', async () => {
 const snapshot = () =>
   buildPlatformSnapshot(
     {
-      lists: [],
-      moduleItems: [],
       correlationId: 'synthetic',
     },
     PLATFORM_CAPABILITIES,
@@ -120,12 +118,15 @@ it('uses independent main links without remounting Importação and respects int
 });
 
 it.each([503, 401])(
-  'handles external status %i without remounting work or substituting permissions',
+  'handles status %i on a return to the window without remounting work or substituting permissions',
   async (status) => {
+    let clock = Date.now();
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
     let resolve!: (response: Response) => void;
     const waiting = new Promise<Response>((done) => {
       resolve = done;
     });
+    let bootstraps = 0;
     const fetcher = vi.fn<typeof fetch>(async (path) => {
       if (path === '/api/me')
         return Response.json({
@@ -133,8 +134,7 @@ it.each([503, 401])(
           name: 'SYNTHETIC ADMIN',
           capabilities: PLATFORM_CAPABILITIES,
         });
-      if (path === '/api/platform/bootstrap') return Response.json(snapshot());
-      if (path === '/api/platform/snapshot-v2') return waiting;
+      if (path === '/api/platform/bootstrap') return ++bootstraps === 1 ? Response.json(snapshot()) : waiting;
       if (path === '/api/gradebook/view-preferences')
         return Response.json({ contractVersion: 1, state: 'ready', views: {} });
       throw new Error('Unexpected synthetic request');
@@ -144,6 +144,13 @@ it.each([503, 401])(
     const input = await screen.findByRole('textbox', { name: 'workspace-banco-de-notas' });
     await userEvent.type(input, 'unsaved local work');
     expect(mounts).toHaveBeenCalledTimes(1);
+    // A return to the window reads the modules again, 2 min after the last reading at the soonest.
+    clock += 120_000;
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await flush();
+    });
+    expect(bootstraps).toBe(2);
     await act(async () => {
       resolve(Response.json({}, { status }));
       await flush();
@@ -156,23 +163,17 @@ it.each([503, 401])(
       expect(screen.queryByRole('textbox', { name: 'workspace-banco-de-notas' })).toBeNull();
       expect(screen.getByText(/Sua autorização precisa ser verificada novamente/u)).toBeTruthy();
     }
-    // Identity, the person's saved views, bootstrap and the snapshot; no retry or second read.
-    expect(fetcher.mock.calls.filter(([, init]) => !init?.method || init.method === 'GET')).toHaveLength(4);
+    // No retry and no second read.
+    expect(bootstraps).toBe(2);
   },
 );
-it('keeps every page open during a partial outage: no page reads the SharePoint registers any more (#1473)', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn<typeof fetch>(async (path) => {
-      if (path === '/api/me')
-        return Response.json({ authenticated: true, capabilities: PLATFORM_CAPABILITIES });
-      return Response.json(
-        path === '/api/platform/bootstrap'
-          ? snapshot()
-          : { ...snapshot(), unavailableSections: ['modules'], retryAfterSeconds: 90 },
-      );
-    }),
-  );
+it('opens every page from the native bootstrap alone: nothing is read from SharePoint (#1473, #1490)', async () => {
+  const fetcher = vi.fn<typeof fetch>(async (path) => {
+    if (path === '/api/me')
+      return Response.json({ authenticated: true, capabilities: PLATFORM_CAPABILITIES });
+    return Response.json(snapshot());
+  });
+  vi.stubGlobal('fetch', fetcher);
   render(<App />);
   expect(await screen.findByRole('textbox', { name: 'workspace-banco-de-notas' })).toBeTruthy();
   await act(async () => {
@@ -181,13 +182,14 @@ it('keeps every page open during a partial outage: no page reads the SharePoint 
     await flush();
   });
   expect(await screen.findByRole('textbox', { name: 'workspace-operacao' })).toBeTruthy();
-  expect(screen.queryByText('Informações desta área temporariamente indisponíveis')).toBeNull();
   await act(async () => {
     window.location.hash = '#/configuracoes';
     window.dispatchEvent(new Event('hashchange'));
     await flush();
   });
   expect(await screen.findByRole('textbox', { name: 'workspace-configuracoes' })).toBeTruthy();
+  expect(fetcher.mock.calls.filter(([path]) => String(path).startsWith('/api/platform/'))
+    .map(([path]) => path)).toEqual(['/api/platform/bootstrap']);
 });
 
 it('keeps the keyboard inside the phone drawer, closes it on Escape and gives focus back', async () => {

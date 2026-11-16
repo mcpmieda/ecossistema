@@ -7,7 +7,7 @@ import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
 import { buildPlatformSnapshot } from '../server/platform/snapshot';
 
 const snapshot = () => buildPlatformSnapshot({
-  lists: [], moduleItems: [], correlationId: 'synthetic',
+  correlationId: 'synthetic',
 }, PLATFORM_CAPABILITIES);
 const years = {
   contractVersion: 2, state: 'ready', operation: 'bootstrap',
@@ -34,13 +34,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 function network(
-  auxiliary: () => Promise<Response>,
+  bootstrap: () => Promise<Response> = async () => Response.json(snapshot()),
   academic: () => Promise<Response> = async () => Response.json(years),
 ) {
   const fetcher = vi.fn<typeof fetch>(async (path, init) => {
     if (path === '/api/me') return Response.json({ authenticated: true, capabilities: PLATFORM_CAPABILITIES });
-    if (path === '/api/platform/bootstrap') return Response.json(snapshot());
-    if (path === '/api/platform/snapshot-v2') return auxiliary();
+    if (path === '/api/platform/bootstrap') return bootstrap();
     if (path === '/api/platform/settings/session') return Response.json(session);
     if (path === '/api/gradebook/operational-workspace') return academic();
     if (path === '/api/gradebook/performance') return Response.json({ transportVersion: 2, state: 'unavailable' }, { status: 503 });
@@ -61,8 +60,8 @@ async function yearSelector(container: HTMLElement) {
   return within(card).findByRole('button', { name: /Ano letivo global$/u });
 }
 
-it('keeps native settings mounted during a Microsoft failure and carries the selected year to the real Banco', async () => {
-  const fetcher = network(async () => Response.json({}, { status: 503 }));
+it('keeps native settings mounted and carries the selected year to the real Banco', async () => {
+  const fetcher = network();
   const view = render(<App />);
   const trigger = await yearSelector(view.container);
   await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(false));
@@ -84,7 +83,7 @@ it('keeps native settings mounted during a Microsoft failure and carries the sel
 });
 
 it('opens the settings without asking Microsoft: the SharePoint registers were retired (#1473)', async () => {
-  const fetcher = network(async () => Response.json({}, { status: 503 }));
+  const fetcher = network();
   const view = render(<App />);
   const trigger = await yearSelector(view.container);
   await waitFor(() => expect(trigger.hasAttribute('disabled')).toBe(false));
@@ -93,6 +92,7 @@ it('opens the settings without asking Microsoft: the SharePoint registers were r
   expect(within(view.container).queryByText('Registro de configurações')).toBeNull();
   expect(within(view.container).queryByText('Migrações registradas')).toBeNull();
   expect(fetcher.mock.calls.some(([path]) => path === '/api/platform/settings/session')).toBe(true);
+  expect(fetcher.mock.calls.some(([path]) => path === '/api/platform/snapshot-v2')).toBe(false);
 });
 
 it.each([401, 403])('preserves the authoritative authorization boundary (%i)', async (status) => {
@@ -118,7 +118,7 @@ it('does not manufacture academic years when the PostgreSQL catalogue is unavail
 
 it('does not bootstrap an academic catalogue merely to open a nonacademic area', async () => {
   window.history.replaceState(null, '', '/#/operacao');
-  const fetcher = network(async () => Response.json({}, { status: 503 }));
+  const fetcher = network();
   const view = render(<App />);
   await within(view.container).findByRole('heading', { name: 'Saúde' });
   expect(bootstrapCalls(fetcher)).toBe(0);

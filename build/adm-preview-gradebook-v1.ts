@@ -73,22 +73,15 @@ const ROUTES = [
   ['council-routes-v1', 'handleCouncilWorkspaceRequestV1'],
 ] as const;
 
-/** An empty platform (no SharePoint here) seen with every capability. It does not wait for the
- * database: the shell asks for it first and gives up after a few seconds. */
+/** The platform seen with every capability. It does not wait for the database: the shell asks
+ * for it first and gives up after a few seconds. */
 async function platformSnapshot(server: ViteDevServer) {
   const [platform, contract] = await Promise.all([
     server.ssrLoadModule('/server/platform/snapshot.ts'),
     server.ssrLoadModule('/shared/platform-contract.ts'),
   ]);
   return (platform.buildPlatformSnapshot as (source: unknown, capabilities: unknown) => unknown)(
-    {
-      lists: [],
-      moduleItems: [],
-      configurationItems: [],
-      auditItems: [],
-      migrationItems: [],
-      correlationId: 'preview-local',
-    },
+    { correlationId: 'preview-local' },
     contract.PLATFORM_CAPABILITIES,
   );
 }
@@ -256,8 +249,7 @@ export function admPreviewGradebookV1(): Plugin {
         const url = new URL(request.url ?? '/', 'http://127.0.0.1');
         if (
           !url.pathname.startsWith('/api/gradebook/') &&
-          url.pathname !== '/api/platform/bootstrap' &&
-          url.pathname !== '/api/platform/snapshot-v2'
+          url.pathname !== '/api/platform/bootstrap'
         )
           return next();
         const fail = (status: number, detail: string) => {
