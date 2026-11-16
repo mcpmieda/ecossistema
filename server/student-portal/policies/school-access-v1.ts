@@ -5,7 +5,7 @@ import {
   legacyAccessPlanV1,
   type AccessPlanV1,
 } from '../../../shared/student-portal-contracts/access-schedule-v1';
-import type { PolicyValueV1 } from './calendar-v1';
+import { enforcedPlanV1 as scheduledPlanV1, type PolicyValueV1 } from './calendar-v1';
 
 const scopeKeyV1 = (scope: PolicyScopeV1) => {
   if (scope.kind === 'school') {
@@ -19,13 +19,6 @@ const scopeKeyV1 = (scope: PolicyScopeV1) => {
   }
   return `account:${scope.accountId.toLowerCase()}`;
 };
-
-/** The level's own plan, or null for a level still on the Calendário access window. */
-function scheduledPlanV1(value: PolicyValueV1): AccessPlanV1 | null {
-  return value.accessSchedule === null
-    ? null
-    : { enabled: value.accessEnabled, schedule: value.accessSchedule };
-}
 
 function planOfV1(value: PolicyValueV1): AccessPlanV1 {
   return (

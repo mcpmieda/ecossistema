@@ -29,7 +29,7 @@ async function metadataOf(value:ValidatedPhotoBytesV1):Promise<PhotoVariantMetad
   }finally{copy.fill(0);}
 }
 const resultOf=(requestId:string,cleanupPending:boolean):PhotoWriteResultV1=>({state:'committed',requestId,revision:requestId,cleanupPending});
-function assertByteBudget(bytes:Uint8Array,variant:PhotoVariantV1):void{
+export function assertPhotoByteBudgetV1(bytes:Uint8Array,variant:PhotoVariantV1):void{
   if(!(bytes instanceof Uint8Array)||bytes.length<20||bytes.length>(variant==='portrait'?131072:65536))throw new PhotoWriteErrorV1('invalid');
 }
 function clearValidated(values:Partial<Record<PhotoVariantV1,ValidatedPhotoBytesV1>>):void{
@@ -48,10 +48,10 @@ export class PhotoWriteCoordinatorV1 {
         const bytes=input[variant];
         if(wanted!==(bytes!==null))throw new PhotoWriteErrorV1('invalid');
         if(!bytes)continue;
-        assertByteBudget(bytes,variant);signal.throwIfAborted();
+        assertPhotoByteBudgetV1(bytes,variant);signal.throwIfAborted();
         const copy=new Uint8Array(bytes);let result:ValidatedPhotoBytesV1|undefined;
         try{
-          result=await this.ports.validate(copy,variant,signal);signal.throwIfAborted();assertByteBudget(result.bytes,variant);
+          result=await this.ports.validate(copy,variant,signal);signal.throwIfAborted();assertPhotoByteBudgetV1(result.bytes,variant);
           const stable={...result,bytes:new Uint8Array(result.bytes)};validated[variant]=stable;plan[variant]=await metadataOf(stable);
         }finally{copy.fill(0);if(result?.bytes instanceof Uint8Array)result.bytes.fill(0);}
       }

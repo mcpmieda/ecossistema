@@ -1,4 +1,5 @@
 import { isGradebookAcademicYearV2 } from '../academic-year-v2';
+import { isPlainRecordV1 as record } from '../../plain-record-v1';
 
 /** Counts of one import, planned and written (formerly in the v1/v2 transports, 10/11/2026). */
 interface ImportWriteCountsV9 {
@@ -201,10 +202,6 @@ export type GradebookImportPersistenceResponseV9 =
       readonly reason: string;
     }
   | { readonly transportVersion: 9; readonly state: 'not-authorized' | 'unavailable' };
-
-function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 function nonEmptyText(value: unknown, max = 256): value is string {
   return (

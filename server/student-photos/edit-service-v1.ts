@@ -7,7 +7,7 @@ import {
   samePhotoMetadataV1, type PhotoPreviewApprovalV1,
 } from '../../shared/student-photos/preview-v1';
 import { probePhotoSourceV1 } from '../../shared/student-photos/source-probe-v1';
-import { PhotoWriteCoordinatorV1, type PhotoWriteInputV1, type PhotoWritePortsV1, type PhotoWriteResultV1,
+import { assertPhotoByteBudgetV1 as assertBudget, PhotoWriteCoordinatorV1, type PhotoWriteInputV1, type PhotoWritePortsV1, type PhotoWriteResultV1,
   type PhotoVariantV1, type ValidatedPhotoBytesV1 } from './write-coordinator-v1';
 import type { PhotoWriteRepositoryV1 } from './write-repository-v1';
 import { PhotoWriteGuardV1 } from './write-guard-v1';
@@ -26,10 +26,6 @@ export interface PhotoEditServiceOptionsV1 {
 const variants = ['portrait', 'avatar'] as const;
 const empty = (): PhotoWriteInputV1 => ({ portrait: null, avatar: null });
 function clear(input: PhotoWriteInputV1): void { for (const variant of variants) input[variant]?.fill(0); }
-function assertBudget(bytes: Uint8Array, variant: PhotoVariantV1): void {
-  if (!(bytes instanceof Uint8Array) || bytes.length < 20 || bytes.length > (variant === 'portrait' ? 131072 : 65536))
-    throw new PhotoWriteErrorV1('invalid');
-}
 /** Snapshot both variants before any asynchronous work. */
 function snapshot(command: PhotoWriteCommandV1, input: PhotoWriteInputV1): PhotoWriteInputV1 {
   const copies = empty();

@@ -4,7 +4,8 @@ import { isHistoryBeforeV1 } from '../../../shared/system-health-history-v1';
 import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 const instant = (name: 'transaction_timestamp()' | 'bucket_at') =>
   `to_char(${name} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
-async function bounded(tx: StudentPortalPostgresQueryV1): Promise<void> {
+/** Health writes and reads never wait long on the database or on a lock. */
+export async function boundedHealthTransactionV1(tx: StudentPortalPostgresQueryV1): Promise<void> {
   await tx.unsafe("SET LOCAL statement_timeout = '1500ms'");
   await tx.unsafe("SET LOCAL lock_timeout = '250ms'");
 }
@@ -14,7 +15,7 @@ async function available(tx: StudentPortalPostgresQueryV1): Promise<boolean> {
 }
 export async function cleanupPortalSignalsV1(sql: StudentPortalPostgresSqlV1): Promise<void> {
   await sql.begin(async (tx) => {
-    await bounded(tx); if (!await available(tx)) return;
+    await boundedHealthTransactionV1(tx); if (!await available(tx)) return;
     await tx.unsafe(`DELETE FROM system_health.portal_signal_v1 WHERE (bucket_at,source,outcome) IN (
       SELECT bucket_at,source,outcome FROM system_health.portal_signal_v1
       WHERE bucket_at <= statement_timestamp() - interval '720 hours'
@@ -33,7 +34,7 @@ export async function savePortalSignalsV1(sql: StudentPortalPostgresSqlV1, input
     seen.add(key);
   }
   await sql.begin(async (tx) => {
-    await bounded(tx); if (!await available(tx)) return;
+    await boundedHealthTransactionV1(tx); if (!await available(tx)) return;
     const clock = await tx.unsafe(`SELECT abs(extract(epoch FROM (statement_timestamp() - $1::timestamptz))) < 60 AS fresh`, [batch.generatedAt]);
     if (clock[0]?.fresh !== true) throw new Error('signal-stale-batch');
     if (!batch.points.length) return;
@@ -54,7 +55,7 @@ export async function savePortalSignalsV1(sql: StudentPortalPostgresSqlV1, input
 export async function readPortalSignalsV1(sql: StudentPortalPostgresSqlV1, before: string | null): Promise<PortalSignalsPageV1> {
   if (!isHistoryBeforeV1(before)) throw new Error('signal-invalid-cursor');
   return sql.begin(async (tx) => {
-    await tx.unsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY'); await bounded(tx);
+    await tx.unsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY'); await boundedHealthTransactionV1(tx);
     const clock = await tx.unsafe(`SELECT ${instant('transaction_timestamp()')} AS now`);
     const generatedAt = clock[0]?.now;
     if (typeof generatedAt !== 'string') throw new Error('signal-clock-unavailable');

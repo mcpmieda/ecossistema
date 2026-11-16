@@ -8,13 +8,8 @@ import type { CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-
 import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { accessEndV1, sessionExpiryV1 } from '../policies/calendar-v1';
 import { readPortalSnapshotV2 } from './read-snapshot-v2';
+import { scopeParametersV1 } from '../publication/state-v1';
 import { accessContextV1, accountScopeV1, authAuditV1, authInstantV1, authNowV1, authTransactionV1, accountTransactionV1, type AccessContextV1 } from './transaction-v1';
-
-/** The query's one parameter: the account or the class; the whole school has none. */
-function scopeParametersV1(scope: { kind: string; accountId?: unknown; classId?: unknown }) {
-  if (scope.kind === 'account') return [scope.accountId];
-  return scope.kind === 'class' ? [scope.classId] : [];
-}
 
 /** Only internal callers see the token. HTTP emits it exclusively as Set-Cookie after commit. */
 export async function createSessionV1(store: PortalTransactionV1, context: AccessContextV1,
