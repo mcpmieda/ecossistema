@@ -35,6 +35,8 @@ const globalV1 = z.object({
   policyEpoch: z.string().regex(/^\d+$/u),
 });
 type GlobalV1 = z.infer<typeof globalV1>;
+const accountIdsV1 = z.array(z.uuid()).max(400);
+const writesV1 = z.array(writeV1).max(400);
 
 /** Dates only set a conservative deadline; all state decisions stay in the canonical helpers. */
 export function sealCacheTemporalV1(context: ContextV1) {
@@ -107,10 +109,7 @@ export async function readSealCacheV1(
   const global = globalV1.safeParse(metadata[0]?.revisions);
   // The legacy release model has no complete cheap token; it intentionally bypasses this cache.
   if (metadata.length !== 1 || !metadata[0]?.cache_table || !global.success) return plans;
-  const ids = z
-    .array(z.uuid())
-    .max(400)
-    .parse(contexts.map((context) => context.account.id));
+  const ids = accountIdsV1.parse(contexts.map((context) => context.account.id));
   const rows = await tx.unsafe(
     `SELECT account_id,fingerprint,seals,computed_at,expires_at
     FROM student_portal.seal_count_cache_v1
@@ -166,7 +165,7 @@ export async function saveSealCacheV1(
   input: readonly SealCacheWriteV1[],
 ): Promise<void> {
   try {
-    const checked = z.array(writeV1).max(400).safeParse(input);
+    const checked = writesV1.safeParse(input);
     if (!checked.success || !checked.data.length) return;
     const unique = new Map<string, SealCacheWriteV1>();
     for (const write of checked.data) {

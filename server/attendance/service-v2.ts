@@ -1,4 +1,5 @@
 import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
+import { PT_BR_COLLATOR_V1 } from '../../shared/locale-format-v1';
 import {
   canonicalFrequencyJsonV2,
   frequencyClassKeyV2,
@@ -506,7 +507,7 @@ export function summarizeFrequencyPublicOriginsV2(
       slot: Number(v.row.slot),
       shift: text(v.row.shift),
       mark: text(v.row.mark) as 'X' | 'J',
-      classLabels: [...v.labels].sort((left, right) => left.localeCompare(right, 'pt-BR')),
+      classLabels: [...v.labels].sort((left, right) => PT_BR_COLLATOR_V1.compare(left, right)),
     }));
   // Calendar/slot counts are not approved productive sources. Known sparse marks never imply attendance.
   return {

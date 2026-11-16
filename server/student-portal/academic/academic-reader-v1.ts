@@ -97,6 +97,28 @@ const offerSchema = z.object({
   instruments: z.array(instrumentSchema).max(39),
   closure: closureSchema.nullable(),
 });
+/** Built once, not on every Portal read (issue #1490, finding 12). */
+const bindingsSchema = z.array(
+  z.object({
+    academicYear: z.literal(2026),
+    studentId: id,
+    classId: id,
+    status: z.union([
+      z.null(),
+      z.literal(1),
+      z.literal(2),
+      z.literal(3),
+      z.literal(4),
+      z.literal(5),
+      z.literal(7),
+    ]),
+    classLabel: z.string().min(1).max(80),
+  }),
+);
+const minimumApprovalSchema = milli.positive();
+const councilDecisionSchema = z.union([z.null(), z.literal(1), z.literal(2), z.literal(3)]);
+const offersSchema = z.array(offerSchema).max(100);
+const accountIdSchema = z.uuid();
 type Mark = z.infer<typeof academicMarkSchemaV1>;
 
 /** Preserve the regular-instrument coverage used by official Portal editions before #848.
@@ -327,25 +349,7 @@ export class AcademicStudentReaderPostgresV1
     const link = portalAcademicLinkSchemaV1.parse(input);
     academicVersionSchemaV1.parse(expectedDataVersion);
     if (row.data_version !== expectedDataVersion) return null;
-    const bindings = z
-      .array(
-        z.object({
-          academicYear: z.literal(2026),
-          studentId: id,
-          classId: id,
-          status: z.union([
-            z.null(),
-            z.literal(1),
-            z.literal(2),
-            z.literal(3),
-            z.literal(4),
-            z.literal(5),
-            z.literal(7),
-          ]),
-          classLabel: z.string().min(1).max(80),
-        }),
-      )
-      .parse(row.bindings);
+    const bindings = bindingsSchema.parse(row.bindings);
     const eligibility = resolveEligibilityV1(
       link,
       expectedDataVersion,
@@ -353,15 +357,11 @@ export class AcademicStudentReaderPostgresV1
     );
     if (eligibility.state !== 'eligible' || eligibility.current === null) return null;
     const status = eligibility.current.status;
-    const minimum = milli.positive().parse(row.minimum_approval);
+    const minimum = minimumApprovalSchema.parse(row.minimum_approval);
     const names = assessmentNamesSchemaV1.parse(row.assessment_names ?? {});
     const maxCouncil = milli.parse(row.max_council_components);
-    const decision = z
-      .union([z.null(), z.literal(1), z.literal(2), z.literal(3)])
-      .parse(row.decision);
-    const offers = z
-      .array(offerSchema)
-      .max(100)
+    const decision = councilDecisionSchema.parse(row.decision);
+    const offers = offersSchema
       .parse(row.offers)
       .sort(
         (a, b) =>
@@ -535,7 +535,7 @@ export class AcademicStudentReaderPostgresV1
     });
     return {
       student,
-      accountId: z.uuid().parse(row.account_id),
+      accountId: accountIdSchema.parse(row.account_id),
       /** Internal closing codes per subject; exposed only through the Self closing rules. */
       closings: new Map<number, readonly TermClosingEvaluationV1[]>(
         projections.map((item) => [item.subject.subjectId, item.closings]),

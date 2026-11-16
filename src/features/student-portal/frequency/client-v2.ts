@@ -10,6 +10,25 @@ export class FrequencyClientErrorV2 extends Error {
   }
 }
 
+const failureV2 = z
+  .object({
+    contractVersion: z.literal(2),
+    state: z.enum([
+      'unauthenticated',
+      'forbidden',
+      'invalid-request',
+      'not-authorized',
+      'unavailable',
+      'revision-conflict',
+      'lease-busy',
+      'lease-fenced',
+      'paused',
+      'source-invalid',
+      'identity-review',
+    ]),
+  })
+  .strict();
+
 /** Private same-origin transport. Provider bodies never become UI error messages. */
 export async function frequencyJsonV2(
   fetcher: typeof fetch,
@@ -54,25 +73,7 @@ export async function frequencyJsonV2(
   } catch {
     throw new FrequencyClientErrorV2('unavailable');
   }
-  const failure = z
-    .object({
-      contractVersion: z.literal(2),
-      state: z.enum([
-        'unauthenticated',
-        'forbidden',
-        'invalid-request',
-        'not-authorized',
-        'unavailable',
-        'revision-conflict',
-        'lease-busy',
-        'lease-fenced',
-        'paused',
-        'source-invalid',
-        'identity-review',
-      ]),
-    })
-    .strict()
-    .safeParse(body);
+  const failure = failureV2.safeParse(body);
   if (failure.success) throw new FrequencyClientErrorV2(failure.data.state);
   if (!response.ok) throw new FrequencyClientErrorV2('unavailable');
   return body;

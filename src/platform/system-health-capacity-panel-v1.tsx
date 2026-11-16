@@ -1,4 +1,4 @@
-import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
+import { PT_BR_UP_TO_2_DECIMALS_V1, schoolDateTimeTextV1 } from '../../shared/locale-format-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card } from '@heroui/react';
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
@@ -11,7 +11,7 @@ const initial = (): State => ({ data: null, loading: false, error: null });
 const count = (value: number) => value.toLocaleString('pt-BR');
 function CapacityValues({ metrics }: Readonly<{ metrics: PortalCapacityMetricsV1 }>) {
   const values = [
-    ['Tamanho do banco', `${(metrics.databaseBytes / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} MB`],
+    ['Tamanho do banco', `${PT_BR_UP_TO_2_DECIMALS_V1.format(metrics.databaseBytes / 1_000_000)} MB`],
     ['Conexões do Portal', `${count(metrics.portalConnections)} · ${count(metrics.portalActive)} em atividade`],
     ['Aguardando liberação', count(metrics.portalWaiting)],
     ['Limite da conta do Portal', metrics.portalConnectionLimit === null ? 'Sem limite próprio' : count(metrics.portalConnectionLimit)],
@@ -76,7 +76,7 @@ function CapacityReader({ onDenied }: Readonly<{ onDenied: () => void }>) {
       <p role={state.error ? 'alert' : 'status'} className="text-sm">{messageFor(state, fresh)}</p>
       <Button size="sm" variant="secondary" isDisabled={state.loading || denied.current} onPress={() => { void read(); }}>Atualizar medição</Button>
     </div>
-    {state.data?.state === 'ok' ? <p className="text-xs text-muted">Medição: {new Date(state.data.observedAt).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 })} (Bahia)</p> : null}
+    {state.data?.state === 'ok' ? <p className="text-xs text-muted">Medição: {schoolDateTimeTextV1(state.data.observedAt)} (Bahia)</p> : null}
     {metrics ? <><CapacityValues metrics={metrics} />
       <p className="text-xs text-muted">Conexões não são alunos online e incluem esta consulta. Limites configurados não indicam vagas livres ou cotas do plano.</p></> : null}
   </div>;

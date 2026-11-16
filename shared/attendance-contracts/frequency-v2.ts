@@ -12,12 +12,19 @@ const recordKey = z.string().min(1).max(200);
 const slot = z.number().int().min(1).max(6);
 const slots = z.array(slot).min(1).max(6).refine(v => new Set(v).size === v.length);
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
+/** Zones already accepted, so a parse builds the Intl check once per zone (issue #1490, finding 1). Only valid IANA names enter. */
+const VALID_ZONES_V2 = new Set<string>();
 export const frequencyScheduleV2 = z.object({
   // Named IANA zone with its exact spelling. Offsets such as "-03:00" have the
   // opposite sign in PostgreSQL AT TIME ZONE, and the Windows collector (zoneinfo)
   // rejects offsets and other capitalizations.
   timezone: z.string().min(1).max(80).regex(/^[A-Za-z][\w+-]*(?:\/[\w+-]+)*$/u).refine(value => {
-    try { return new Intl.DateTimeFormat('pt-BR', { timeZone: value }).resolvedOptions().timeZone === value; } catch { return false; }
+    if (VALID_ZONES_V2.has(value)) return true;
+    try {
+      if (new Intl.DateTimeFormat('pt-BR', { timeZone: value }).resolvedOptions().timeZone !== value) return false;
+    } catch { return false; }
+    VALID_ZONES_V2.add(value);
+    return true;
   }),
   rules: z.array(z.object({
     weekday: z.number().int().min(0).max(6),

@@ -10,6 +10,8 @@ import type {
   ImportFileDiagnosticId,
   ImportFileId,
 } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
+import { comparePtBrNumericLabelsV1 } from '../../../../shared/gradebook-contracts/string-order-v1';
+import { PT_BR_COLLATOR_V1 } from '../../../../shared/locale-format-v1';
 import { createSourceFileManifest, type FileManifestRuntime } from './file-manifest';
 import {
   ACCEPTED_EXTENSIONS,
@@ -145,8 +147,8 @@ export function workbookClassComponentsV1(
   }
   return [...unique.values()].sort(
     (a, b) =>
-      a.disciplineIndex.localeCompare(b.disciplineIndex, 'pt-BR', { numeric: true }) ||
-      a.discipline.localeCompare(b.discipline, 'pt-BR'),
+      comparePtBrNumericLabelsV1(a.disciplineIndex, b.disciplineIndex) ||
+      PT_BR_COLLATOR_V1.compare(a.discipline, b.discipline),
   );
 }
 

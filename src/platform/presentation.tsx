@@ -1,5 +1,6 @@
 import { Chip, Surface } from '@heroui/react';
 import { Boxes, type LucideIcon } from 'lucide-react';
+import { PT_BR_LOCAL_SHORT_DATE_TIME_V1 } from '../../shared/locale-format-v1';
 
 export { BrandMark } from '../lib/brand-mark';
 
@@ -65,11 +66,7 @@ export function formatDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? '—'
-    : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
-}
-
-export function shortCorrelation(value: string): string {
-  return value ? `${value.slice(0, 8)}…` : '—';
+    : PT_BR_LOCAL_SHORT_DATE_TIME_V1.format(date);
 }
 
 export function initials(value?: string): string {

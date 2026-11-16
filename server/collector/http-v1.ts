@@ -6,6 +6,7 @@ export type CollectorAccessPortV1 = Pick<CollectorAccessServiceV1, 'challenge' |
 const uuid = z.string().uuid();
 const opaque = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
 const challenge = collectorChallengeSchemaV1;
+const revokedReply = z.object({revoked:z.literal(true)}).strict();
 const receipt = z.object({ contractVersion:z.literal(2),authenticated:z.literal(true),authorized:z.literal(true),
   capability:z.literal('frequency.collector.use'),identityKey:z.string().regex(/^[\x21-\x7e]{1,160}$/u),
   expiresAt:z.string().datetime({offset:true}),checkedAt:z.string().datetime({offset:true}),revocationChecked:z.literal(true),
@@ -62,7 +63,7 @@ async function proofReply(path:string,service:CollectorAccessPortV1,input:unknow
   const parsed=proofRequest.parse(input);
   if(path.endsWith('/revoke')){
     if(!service.revoke)throw new Error('unavailable');
-    return json(z.object({revoked:z.literal(true)}).strict().parse(await service.revoke(parsed)));
+    return json(revokedReply.parse(await service.revoke(parsed)));
   }
   const reply=receipt.parse(await service.authorize(parsed));
   const checked=Date.parse(reply.directoryCheckedAt),until=Date.parse(reply.directoryValidUntil);

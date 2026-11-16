@@ -1,4 +1,4 @@
-import { SCHOOL_TIME_ZONE_V1 } from '../../shared/school-time-zone-v1';
+import { schoolDateTimeTextV1 } from '../../shared/locale-format-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Chip, Table } from '@heroui/react';
 import { healthDeadlineV1, readHealthJsonV1 } from '../../shared/health-io-v1';
@@ -12,7 +12,7 @@ type ReadState = { data: PortalHistoryV1 | null; boundary: PortalHistoryPointV1 
 const initial = (): ReadState => ({ data: null, boundary: null, before: null, loading: false, error: null });
 const labels: Record<HealthStateV1, string> = { normal: 'Normal', attention: 'Atenção', critical: 'Crítico', unknown: 'Sem confirmação' };
 const colors = { normal: 'success', attention: 'warning', critical: 'danger', unknown: 'default' } as const;
-const date = (at: string) => new Date(at).toLocaleString('pt-BR', { timeZone: SCHOOL_TIME_ZONE_V1 });
+const date = (at: string) => schoolDateTimeTextV1(at);
 class HistoryAccessError extends Error {}
 async function fetchHistory(before: string | null, controller: AbortController): Promise<PortalHistoryV1> {
   return healthDeadlineV1(async (signal) => {
