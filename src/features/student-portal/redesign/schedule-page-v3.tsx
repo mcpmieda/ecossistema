@@ -36,6 +36,7 @@ import type { StudentScheduleClientV1 } from '../schedule/client-v1';
 import { portalNowV1, PortalTimerV1, syncPortalClockV1 } from '../shell/portal-notices-v1';
 import { usePortalPageActiveV3 } from './portal-pages-v3';
 import { useCachedReadV3 } from './use-cached-read-v3';
+import { PAGE_LOADING_V3 } from './page-loading-v3';
 import { subjectStyleV3 } from './subject-style-v3';
 import { CoffeeIconV3, FlagIconV3, type ScheduleIconV3 } from './schedule-icons-v3';
 import { officialSubjectV1 } from '../../../../shared/student-portal-contracts/official-subjects-v1';
@@ -432,7 +433,7 @@ function scheduleStatusV3(
   onLogin: (() => void) | undefined,
   onRetry: () => void,
 ): [string, [string, () => void] | null] {
-  if (!error) return ['Carregando horário…', null];
+  if (!error) return [PAGE_LOADING_V3.schedule.message, null];
   if (error === 'unauthenticated')
     return [
       'Sua sessão expirou. Entre novamente para ver o horário.',
@@ -1036,7 +1037,7 @@ export function ScheduleWeekV3({
   return (
     <section className="pa3-schedule" aria-labelledby="pa3-schedule-title">
       <h2 id="pa3-schedule-title" className="pa3-page-title" tabIndex={-1}>
-        Horário
+        {PAGE_LOADING_V3.schedule.title}
       </h2>
 
       {classes === null ? status : null}

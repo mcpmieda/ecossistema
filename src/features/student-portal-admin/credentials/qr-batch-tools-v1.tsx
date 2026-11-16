@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Checkbox, Input, Label, Radio, RadioGroup, TextField } from '@heroui/react';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
+import { useRetryReadyV1 } from '../shared/use-retry-ready-v1';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import { accountCredentialPreparableV1 } from '../accounts/accounts-values-v1';
 import { createQrOperationV1, type QrOperationStateV1, type QrRendererV1 } from './qr-operation-v1';
@@ -80,15 +81,14 @@ function QrCompactOptionsV1({
  * with its retry. */
 function QrBatchStatusV1({
   state,
-  clock,
   onRetry,
   onReload,
 }: Readonly<{
   state: QrOperationStateV1;
-  clock: number;
   onRetry: () => void;
   onReload: () => void;
 }>) {
+  const retryReady = useRetryReadyV1(state.state === 'error' ? state.retryAt : 0);
   return (
     <>
       {state.state === 'requesting' || state.state === 'rendering' ? (
@@ -114,7 +114,7 @@ function QrBatchStatusV1({
             <Button
               size="sm"
               variant="secondary"
-              isDisabled={clock < state.retryAt}
+              isDisabled={!retryReady}
               onPress={onRetry}
             >
               Repetir mesma solicitação
@@ -123,7 +123,7 @@ function QrBatchStatusV1({
             <Button
               size="sm"
               variant="secondary"
-              isDisabled={clock < state.retryAt}
+              isDisabled={!retryReady}
               onPress={onReload}
             >
               Recarregar disponibilidade
@@ -172,7 +172,6 @@ export function QrBatchToolsV1({
   const [mode, setMode] = useState<PrintModeV1>('qr-name-class');
   const [withInstruction, setWithInstruction] = useState(false),
     [instruction, setInstruction] = useState('');
-  const [clock, setClock] = useState(Date.now);
   const capture = useRef({
     instruction: '',
     filename: '',
@@ -268,12 +267,6 @@ export function QrBatchToolsV1({
     // A request that cannot be repeated never reaches the PDF: stop fetching portraits and painting.
     if (state.state === 'error' && state.stage === 'request' && !state.retryable) stopArt();
   }, [state, stopArt]);
-  useEffect(() => {
-    if (state.state !== 'error') return;
-    setClock(Date.now());
-    const timer = setTimeout(() => setClock(Date.now()), Math.max(0, state.retryAt - Date.now()));
-    return () => clearTimeout(timer);
-  }, [state]);
   const working = state.state === 'requesting' || state.state === 'rendering';
   const unresolved = state.state === 'error';
   // Nothing ticked means the whole list, as in the bulk operations. A list still loading more
@@ -392,7 +385,6 @@ export function QrBatchToolsV1({
       </div>
       <QrBatchStatusV1
         state={state}
-        clock={clock}
         onRetry={() => void operation.retry()}
         onReload={() => {
           operation.clear();

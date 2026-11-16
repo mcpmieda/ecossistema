@@ -414,7 +414,7 @@ do comparador browser do CLI local. Não criam rota, dependência ou serviço pr
 
 ### H4/H5 — amostras finais do navegador e rejeição
 
-Fonte: [amostras individuais e metadados](benchmarks/1225-adendo-h-reader-v1.json),
+Fonte: [amostras individuais e metadados](https://github.com/mcpmieda/ecossistema/blob/3ed7bd107069f08a738feb41d71de2acb7b30403/docs/gradebook/benchmarks/1225-adendo-h-reader-v1.json),
 coleta concluída em `2026-10-02T14:42:41.028Z`, commit limpo
 `5bbb6970ff87fc4c8f91563540266cf740e9fbe6`; baseline `9f95387a4588653a2631288f929d94b4350bb5d6`.
 Windows x64 (UA NT10), navegador interno Chromium `154.0.0.0`/engine Chromium;
@@ -591,7 +591,7 @@ ampliado reinicia a transação pelo limite atual, sem lock anual tardio.
 | Snapshot idêntico         |           9 |         7 | affected=0                          |
 | Mudança de ano            |          17 |        14 | affected=2, mesmos eventos/revisões |
 
-[Evidência agregada](benchmarks/1225-adendo-i-audit-v1.json): PostgreSQL 18.6 local,
+[Evidência agregada](https://github.com/mcpmieda/ecossistema/blob/3ed7bd107069f08a738feb41d71de2acb7b30403/docs/gradebook/benchmarks/1225-adendo-i-audit-v1.json): PostgreSQL 18.6 local,
 Node 22.23.3, fixtures descartáveis e comparação baseline/candidata em estados
 frescos equivalentes. Os dois cenários nativos passaram nos dois lados, inclusive
 crescimento de escopo com contenção/retry real. 31 regressões direcionadas cobrem
@@ -663,7 +663,7 @@ sem CDN dentro do Worker, eval/Blob, `dense:true`, novo parser ou reconhecedor.
 O navegador executou o Worker emitido pelo build sob a CSP de `public/_headers`.
 O asset/adaptação candidata foi retirado da árvore produtiva após a rejeição.
 
-[Evidência técnica integral e sanitizada](benchmarks/1225-adendo-i-workers-v1.json):
+[Evidência técnica integral e sanitizada](https://github.com/mcpmieda/ecossistema/blob/3ed7bd107069f08a738feb41d71de2acb7b30403/docs/gradebook/benchmarks/1225-adendo-i-workers-v1.json):
 fonte limpa no SHA candidato, Node 22.23.3 no servidor local, Chromium 154 no navegador
 Codex/Windows, quatro threads e 16 GiB informados pelo navegador. Uma única rodada
 isolada, sem suítes pesadas concorrentes:108 amostras (1/18/50 arquivos × dois
@@ -776,7 +776,7 @@ histórico não reapareceu nesta observação e sua causa continua indeterminada
 
 ### Fonte, ambiente e custo reproduzido
 
-[Evidência agregada](benchmarks/1225-original-reader-v1.json): Windows,
+[Evidência agregada](https://github.com/mcpmieda/ecossistema/blob/3ed7bd107069f08a738feb41d71de2acb7b30403/docs/gradebook/benchmarks/1225-original-reader-v1.json): Windows,
 Node 22.23.3, Edge/Chromium 154.0.4258.48 headless, Playwright local já disponível.
 Sem endpoints acadêmicos; navegador restrito a loopback e CSP vigente. SheetJS
 full 0.20.3 com SRI oficial verificado. Original mantido em memória, sem salvar,
@@ -917,7 +917,7 @@ solicitar ao responsável para esta tentativa, nem ciclo de pesquisa automático
 
 `scripts/gradebook/patch-sheetjs-reference-v1.mjs` preserva a reprodução isolada
 na cache local, com digest de entrada/saída e exatamente duas âncoras verificadas.
-[Proveniência e licença](benchmarks/sheetjs-reference-rejected/PROVENANCE.md).
+[Proveniência e licença](https://github.com/mcpmieda/ecossistema/blob/3ed7bd107069f08a738feb41d71de2acb7b30403/docs/gradebook/benchmarks/sheetjs-reference-rejected/PROVENANCE.md).
 A variante `0.20.3-escola-ref1` especializa somente a cópia de referência em `Pa`;
 `Ar` genérico, `La`, `Ma` e reconstrução de fórmulas permanecem byte a byte iguais.
 Referências planas na ordem r/c/cRel/rRel usam objeto independente; outros formatos
@@ -926,7 +926,7 @@ conservam `Ar`, sem executar getters extras no reconhecimento do formato.
 O primeiro candidato foi rejeitado antes de publicação: atribuições dinâmicas
 podiam acionar setters herdados nos campos. A correção para objeto literal e
 ordem exata motivou uma nova comparação completa, não uma repetição em busca de
-PASS. [Todas as amostras anteriores](benchmarks/1225-sheetjs-reference-rejected-v0.json)
+PASS. [Todas as amostras anteriores](https://github.com/mcpmieda/ecossistema/blob/3ed7bd107069f08a738feb41d71de2acb7b30403/docs/gradebook/benchmarks/1225-sheetjs-reference-rejected-v0.json)
 permanecem identificadas como superadas e não entram nos números finais.
 A revisão independente também verificou call sites e preservação de bytes/SRI.
 Após a decisão negativa pelo controle leve, a revisão de regressões encontrou
@@ -937,7 +937,7 @@ A rodada termina sem alterar novamente o algoritmo ou iniciar novos benchmarks.
 
 ### Medição decisiva
 
-[Amostras individuais e estatísticas finais](benchmarks/1225-sheetjs-reference-patch-v1.json).
+[Amostras individuais e estatísticas finais](https://github.com/mcpmieda/ecossistema/blob/3ed7bd107069f08a738feb41d71de2acb7b30403/docs/gradebook/benchmarks/1225-sheetjs-reference-patch-v1.json).
 Windows, Node 22.23.3, Edge/Chromium 154.0.4258.48 headless; HTML/scripts UTF-8,
 CSP vigente, rede restrita a loopback. Mesmos bytes autorizados em ambos os braços,
 nenhuma chamada acadêmica. O arquivo atual tem 947.786 bytes; não é a amostra
