@@ -5,7 +5,10 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { beforeAll, beforeEach, afterAll, describe, it, expect, vi } from 'vitest';
 import type { RuntimeEnv } from '../../server/env';
-import { handleCollectorRequestV1 } from '../../server/collector/routes-v1';
+import {
+  collectorSignInReturnV1,
+  handleCollectorRequestV1,
+} from '../../server/collector/routes-v1';
 import {
   createCollectorRuntimeV1,
   type CollectorRuntimeDependenciesV1,
@@ -16,8 +19,10 @@ import {
   type CollectorPublicKeyV1,
   type CollectorChallengeV1,
 } from '../../server/collector/device-proof-v1';
-import { encodeBase64Url, decodeJson } from '../../server/auth/base64url';
-import { unseal, seal } from '../../server/auth/sealed';
+import { encodeBase64Url } from '../../server/auth/base64url';
+import { seal } from '../../server/auth/sealed';
+import type { Role } from '../../server/auth/roles';
+import { GraphError } from '../../server/graph/request-policy-v1';
 import { SESSION_COOKIE, createApplicationSession } from '../../server/auth/session';
 import { onRequest } from '../../functions/[[path]]';
 import { withSecurityHeaders, SECURITY_HEADERS } from '../../server/http/security';
@@ -27,7 +32,8 @@ const origin = 'https://admin.escolaieda.com',
 const tenant = '11111111-1111-4111-8111-111111111111',
   client = '22222222-2222-4222-8222-222222222222';
 const actor = '33333333-3333-4333-8333-333333333333',
-  group = '44444444-4444-4444-8444-444444444444';
+  group = '44444444-4444-4444-8444-444444444444',
+  stranger = '77777777-7777-4777-8777-777777777777';
 // All UUIDs, credentials and providers in this file are synthetic.
 const env = {
   TENANT_ID: tenant,
@@ -42,7 +48,6 @@ const env = {
   OFFICIAL_ORIGIN: origin,
   COLLECTOR_ENABLED: 'true',
   COLLECTOR_DB: { connectionString: 'synthetic-only' },
-  COLLECTOR_REFRESH_KEY: encodeBase64Url(new Uint8Array(32).fill(8)),
 } as unknown as RuntimeEnv;
 let db: PGlite;
 beforeAll(async () => {
@@ -53,6 +58,7 @@ beforeAll(async () => {
     '0002_pending_pairings.sql',
     '0006_pairing_rate_v1.sql',
     '0009_atomic_pairing_admission_v2.sql',
+    '0015_session_authorization_v1.sql',
   ])
     await db.exec(
       await readFile(new URL('../../migrations/collector/' + name, import.meta.url), 'utf8'),
@@ -80,46 +86,22 @@ async function fixture() {
     y: exported.y!,
     ext: true,
   };
-  let expectedNonce = '',
-    authenticatedAt = 0,
-    providerUnavailable = false;
-  const fetcher = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-    if (providerUnavailable) throw new Error('PRIVATE_PROVIDER_ERROR');
-    const uri = String(url);
-    if (uri.endsWith('/token')) {
-      const params = new URLSearchParams(String(init?.body));
-      if (params.get('grant_type') === 'authorization_code') {
-        const token =
-          'header.' +
-          encodeBase64Url(
-            new TextEncoder().encode(JSON.stringify({ auth_time: authenticatedAt })),
-          ) +
-          '.synthetic-signature';
-        return Response.json({
-          id_token: token,
-          token_type: 'Bearer',
-          refresh_token: 'PRIVATE_ORIGINAL_REFRESH',
-        });
-      }
-      expect(params.get('scope')).toBe('https://graph.microsoft.com/User.Read');
-      return Response.json({
-        token_type: 'Bearer',
-        access_token: 'PRIVATE_DIRECTORY_ACCESS',
-        refresh_token: 'PRIVATE_ROTATED_REFRESH',
-        expires_in: 3600,
-        scope: 'User.Read',
-      });
+  const directory = {
+    user: {
+      id: actor,
+      accountEnabled: true,
+      signInSessionsValidFromDateTime: new Date(Date.now() - 3600_000).toISOString(),
+    },
+    groups: [group],
+    down: false,
+  };
+  const graph = vi.fn(async (input: { path: string; method?: string; body?: unknown }) => {
+    if (directory.down) throw new GraphError(503, 'PRIVATE_PROVIDER_ERROR');
+    if (input.path.endsWith('/checkMemberGroups')) {
+      expect(input.body).toEqual({ groupIds: [group] });
+      return { value: directory.groups };
     }
-    if (uri.includes('/me?$select='))
-      return Response.json({
-        id: actor,
-        accountEnabled: true,
-        signInSessionsValidFromDateTime: new Date(Date.now() - 3600_000).toISOString(),
-      });
-    if (uri.endsWith('/me/checkMemberGroups')) {
-      expect(JSON.parse(String(init?.body))).toEqual({ groupIds: [group] });
-      return Response.json({ value: [group] });
-    }
+    if (input.path.includes('?$select=')) return directory.user;
     throw new Error('unexpected-synthetic-provider');
   });
   const closed = vi.fn(async () => undefined);
@@ -129,22 +111,19 @@ async function fixture() {
         (await db.query<T>(sql, parameters)).rows,
       close: closed,
     }),
-    fetch: fetcher as unknown as typeof fetch,
-    assertion: async () => 'PRIVATE_SERVER_ASSERTION',
-    verify: async (_token, _env, nonce) => {
-      expect(nonce).toBe(expectedNonce);
-      return {
-        tid: tenant,
-        oid: actor,
-        aud: client,
-        iss: `https://login.microsoftonline.com/${tenant}/v2.0`,
-        nonce,
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        name: 'Synthetic administrator',
-        groups: [],
-      };
-    },
+    graph,
   };
+  async function sessionCookie(oid = actor, roles: Role[] = ['ADMINISTRADOR']) {
+    return (
+      SESSION_COOKIE +
+      '=' +
+      (await seal(
+        createApplicationSession({ oid, name: 'Synthetic <secretary>', roles }),
+        env.SESSION_SECRET,
+        'admin-session',
+      ))
+    );
+  }
   async function request(path: string, value?: unknown, headers: Record<string, string> = {}) {
     const reply = await handleCollectorRequestV1(
       new Request(origin + path, {
@@ -207,12 +186,19 @@ async function fixture() {
       browserUrl: string;
     };
   }
-  async function confirm(pair: Awaited<ReturnType<typeof begin>>) {
-    const page = await request('/frequency-collector/connect?pairing=' + pair.id),
+  /** The authorization page as the signed-in person sees it: its form fields and its cookie. */
+  async function open(pair: Awaited<ReturnType<typeof begin>>, session?: string) {
+    const page = await request('/frequency-collector/connect?pairing=' + pair.id, undefined, {
+        Cookie: session ?? (await sessionCookie()),
+      }),
       html = await page.text();
-    expect(html).toContain('type="checkbox"');
+    expect(page.status).toBe(200);
+    expect(html).toContain('Autorizar este computador');
+    expect(html).toContain(pair.displayCode);
+    expect(html).toContain('Synthetic &lt;secretary&gt;');
     expect(html).not.toContain(pair.pollToken);
-    expect(html).not.toContain(pair.displayCode);
+    // Nothing to type and nothing to tick: one button.
+    expect(html).not.toMatch(/type="(text|checkbox)"/u);
     if (process.env.COLLECTOR_RENDER_QA) {
       const directory = process.env.COLLECTOR_RENDER_QA;
       await mkdir(directory, { recursive: true });
@@ -223,70 +209,56 @@ async function fixture() {
         'utf8',
       );
     }
-    const csrf = html.match(/name="csrf" value="([A-Za-z0-9_-]+)"/)![1]!,
-      cookie = page.headers.get('Set-Cookie')!.split(';')[0]!;
-    const form = new URLSearchParams({
-      pairing: pair.id,
-      csrf,
-      code: pair.displayCode,
-      confirm: 'yes',
-    });
+    const setCookie = page.headers.get('Set-Cookie')!;
+    expect(setCookie).toMatch(
+      /^__Host-collector_confirm=[A-Za-z0-9_-]+;.*HttpOnly; Secure; SameSite=Strict; Max-Age=600/u,
+    );
+    return {
+      csrf: html.match(/name="csrf" value="([A-Za-z0-9_-]+)"/)![1]!,
+      cookie: setCookie.split(';')[0]!,
+    };
+  }
+  /** The click on "Autorizar este computador". */
+  async function authorize(
+    form: Record<string, string>,
+    cookies: string[],
+    from = origin,
+  ): Promise<Response> {
     const reply = await handleCollectorRequestV1(
       new Request(origin + '/frequency-collector/connect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          Cookie: cookie,
-          Origin: origin,
+          Cookie: cookies.join('; '),
+          Origin: from,
         },
-        body: form,
+        body: new URLSearchParams(form),
       }),
       env,
       dependencies,
     );
-    expect(reply?.status).toBe(200);
-    const secured = withSecurityHeaders(reply!, true),
-      handoff = await secured.text();
+    expect(reply).not.toBeNull();
+    return reply!;
+  }
+  async function complete(pair: Awaited<ReturnType<typeof begin>>) {
+    const session = await sessionCookie(),
+      page = await open(pair, session);
+    const form = { pairing: pair.id, csrf: page.csrf },
+      cookies = [session, page.cookie];
+    const secured = withSecurityHeaders(await authorize(form, cookies), true),
+      done = await secured.text();
+    expect(secured.status).toBe(200);
     expect(secured.headers.get('Location')).toBeNull();
     expect(secured.headers.get('Content-Security-Policy')).toBe(
       SECURITY_HEADERS['Content-Security-Policy'],
     );
-    expect(handoff).toContain(
-      '<meta http-equiv="refresh" content="0;url=https://login.microsoftonline.com/',
-    );
-    expect(handoff).toContain('offline_access');
-    expect(handoff).toContain('Continuar com Microsoft');
-    expect(handoff).not.toContain(pair.pollToken);
-    expect(handoff).not.toContain(pair.displayCode);
-    const cookies = secured.headers.getSetCookie();
-    expect(cookies).toHaveLength(2);
-    expect(cookies).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/^__Host-collector_confirm=;.*Max-Age=0/u),
-        expect.stringMatching(
-          /^__Host-collector_auth=[A-Za-z0-9_-]+;.*HttpOnly; Secure; SameSite=Lax; Max-Age=600/u,
-        ),
-      ]),
-    );
-    const authCookie = reply!.headers
-      .get('Set-Cookie')!
-      .match(/__Host-collector_auth=([^;]+)/)![1]!;
-    const transaction = await unseal<{ state: string; nonce: string }>(
-      authCookie,
-      env.SESSION_SECRET,
-      'collector-auth',
-    );
-    expectedNonce = transaction!.nonce;
-    authenticatedAt = Math.floor(Date.now() / 1000);
-    return { state: transaction!.state, cookie: '__Host-collector_auth=' + authCookie };
-  }
-  async function complete(pair: Awaited<ReturnType<typeof begin>>) {
-    const auth = await confirm(pair),
-      callback = '/auth/callback?state=' + auth.state + '&code=SYNTHETIC_CODE';
-    const reply = await request(callback, undefined, { Cookie: auth.cookie });
-    expect(reply.status).toBe(200);
-    expect(await reply.text()).not.toContain('PRIVATE');
-    return { auth, callback };
+    expect(done).toContain('Computador autorizado');
+    expect(done).not.toContain(pair.pollToken);
+    expect(done).not.toContain('PRIVATE');
+    expect(secured.headers.getSetCookie()).toEqual([
+      expect.stringMatching(/^__Host-collector_confirm=;.*Max-Age=0/u),
+    ]);
+    return { form, cookies };
   }
   async function proof(
     deviceId: string,
@@ -304,17 +276,17 @@ async function fixture() {
   return {
     request,
     begin,
-    confirm,
+    open,
+    authorize,
     complete,
     proof,
     sign,
+    sessionCookie,
     dependencies,
-    fetcher,
+    graph,
+    directory,
     closed,
     publicKey,
-    unavailable: () => {
-      providerUnavailable = true;
-    },
   };
 }
 
@@ -349,7 +321,6 @@ describe('Pages collector orchestration, no real network/credentials', () => {
       ...env,
       COLLECTOR_ENABLED: undefined,
       COLLECTOR_DB: undefined,
-      COLLECTOR_REFRESH_KEY: undefined,
     };
     for (const path of [prefix + 'config', prefix + 'access', '/frequency-collector/connect']) {
       const reply = (await onRequest({
@@ -366,9 +337,11 @@ describe('Pages collector orchestration, no real network/credentials', () => {
       waitUntil: () => undefined,
     } as never)) as Response;
     expect(health.status).toBe(200);
-    expect(
-      await handleCollectorRequestV1(new Request(origin + '/auth/callback?state=ordinary'), env),
-    ).toBeNull();
+    // The sign-in callback is the application's alone: no collector state claims it any more.
+    for (const state of ['ordinary', 'collector.' + 's'.repeat(43)])
+      expect(
+        await handleCollectorRequestV1(new Request(origin + '/auth/callback?state=' + state), env),
+      ).toBeNull();
   });
   it('rejects unsigned requests without consuming budgets; valid signed attempts still hit rate limits', async () => {
     const f = await fixture();
@@ -423,59 +396,40 @@ describe('Pages collector orchestration, no real network/credentials', () => {
     ).rows[0]?.n;
     expect(count).toBe(30);
   });
-  it('keeps a valid code pending if OAuth cookie preparation fails before database commit', async () => {
+  it('keeps the pairing pending when the directory cannot be read, and authorizes it afterwards', async () => {
     const f = await fixture(),
       pair = await f.begin();
-    const first = await f.request('/frequency-collector/connect?pairing=' + pair.id),
-      markup = await first.text();
-    const csrf = markup.match(/name="csrf" value="([A-Za-z0-9_-]+)"/)![1]!;
-    const cookie = first.headers.get('Set-Cookie')!.split(';')[0]!;
-    const form = new URLSearchParams({
-      pairing: pair.id,
-      csrf,
-      code: pair.displayCode,
-      confirm: 'yes',
-    });
-    const encrypt = vi
-      .spyOn(crypto.subtle, 'encrypt')
-      .mockRejectedValueOnce(new Error('SYNTHETIC_FAIL_BEFORE_COMMIT'));
-    try {
-      const reply = await handleCollectorRequestV1(
-        new Request(origin + '/frequency-collector/connect', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Cookie: cookie,
-            Origin: origin,
-          },
-          body: form,
-        }),
-        env,
-        f.dependencies,
-      );
-      expect(reply?.status).toBe(403);
-      const body = await reply!.text();
-      expect(body).toContain('inicie uma nova autorização');
-      expect(body).not.toContain('SYNTHETIC_FAIL_BEFORE_COMMIT');
-      expect(body).not.toContain(pair.displayCode);
-      expect(
-        (
-          await db.query<{ state: string }>(
-            'SELECT state FROM collector_auth.pairings WHERE id=$1',
-            [pair.id],
-          )
-        ).rows[0]?.state,
-      ).toBe('pending');
-    } finally {
-      encrypt.mockRestore();
-    }
+    const session = await f.sessionCookie(),
+      page = await f.open(pair, session);
+    const form = { pairing: pair.id, csrf: page.csrf },
+      cookies = [session, page.cookie];
+    f.directory.down = true;
+    const reply = await f.authorize(form, cookies);
+    expect(reply.status).toBe(503);
+    const body = await reply.text();
+    expect(body).toContain('Não foi possível conferir a sua conta agora');
+    expect(body).not.toContain('PRIVATE');
+    expect(body).not.toContain(pair.displayCode);
+    const state = async () =>
+      (
+        await db.query<{ state: string }>('SELECT state FROM collector_auth.pairings WHERE id=$1', [
+          pair.id,
+        ])
+      ).rows[0]?.state;
+    expect(await state()).toBe('pending');
+    expect((await db.query('SELECT id FROM collector_auth.oauth_grants')).rows).toHaveLength(0);
+    f.directory.down = false;
+    expect((await f.authorize(form, cookies)).status).toBe(200);
+    expect(await state()).toBe('completed');
   });
-  it('shows safe retry instructions for a consumed pairing without revealing codes or tokens', async () => {
+  it('shows safe retry instructions for a used pairing without revealing codes or tokens', async () => {
     const f = await fixture(),
       pair = await f.begin();
-    await f.confirm(pair);
-    const expired = await f.request('/frequency-collector/connect?pairing=' + pair.id);
-    // A used pairing cannot be confirmed again, and the response must stay
+    await f.complete(pair);
+    const expired = await f.request('/frequency-collector/connect?pairing=' + pair.id, undefined, {
+      Cookie: await f.sessionCookie(),
+    });
+    // A used pairing cannot be authorized again, and the response must stay
     // human-readable without disclosing any keys or six-digit code.
     expect(expired.status).toBe(410);
     const body = await expired.text();
@@ -483,11 +437,25 @@ describe('Pages collector orchestration, no real network/credentials', () => {
     expect(body).not.toContain(pair.displayCode);
     expect(body).not.toContain(pair.pollToken);
   });
-  it('runs signed pairing, explicit browser confirmation, callback, local claim and nonce-protected authorization', async () => {
+  it('runs signed pairing, one-click authorization by the signed-in person, local claim and nonce-protected access', async () => {
     const f = await fixture(),
       pair = await f.begin(),
-      { auth, callback } = await f.complete(pair);
-    expect((await f.request(callback, undefined, { Cookie: auth.cookie })).status).toBe(403);
+      before = Math.floor(Date.now() / 1000),
+      { form, cookies } = await f.complete(pair);
+    // The same click again authorizes nothing more.
+    const replay = await f.authorize(form, cookies);
+    expect(replay.status).toBe(403);
+    expect(await replay.text()).toContain('inicie uma nova autorização');
+    const grants = (
+      await db.query<{ actor_id: string; client_id: string; origin: Date; state: string }>(
+        'SELECT actor_id,client_id,origin_authenticated_at AS origin,state FROM collector_auth.oauth_grants',
+      )
+    ).rows;
+    expect(grants).toHaveLength(1);
+    expect(grants[0]).toMatchObject({ actor_id: actor, client_id: client, state: 'active' });
+    // The grant begins at the sign-in of the session that authorized it.
+    expect(grants[0]!.origin.getTime() / 1000).toBeGreaterThanOrEqual(before);
+    expect(grants[0]!.origin.getTime()).toBeLessThanOrEqual(Date.now());
     const poll = (await (
       await f.request(prefix + 'pairings/poll', { id: pair.id, pollToken: pair.pollToken })
     ).json()) as { deviceId: string };
@@ -501,14 +469,12 @@ describe('Pages collector orchestration, no real network/credentials', () => {
       body = await access.json();
     expect(access.status).toBe(200);
     expect(body).toHaveProperty('capability', 'frequency.collector.use');
-    expect(JSON.stringify(body)).not.toMatch(
-      /PRIVATE|access_token|refresh_token|encrypted_refresh/u,
-    );
+    expect(JSON.stringify(body)).not.toMatch(/PRIVATE|access_token|refresh_token/u);
     expect((await f.request(prefix + 'access', input)).status).toBe(403);
     expect((await f.request(prefix + 'revoke', input)).status).toBe(403);
     expect(f.closed).toHaveBeenCalled();
   });
-  it('revoke uses its own purpose, works during provider outage, retires refresh, and cannot be used for access', async () => {
+  it('revoke uses its own purpose, works during a directory outage, and cannot be used for access', async () => {
     const f = await fixture(),
       pair = await f.begin();
     await f.complete(pair);
@@ -517,23 +483,21 @@ describe('Pages collector orchestration, no real network/credentials', () => {
     ).json()) as { deviceId: string };
     await f.request(prefix + 'pairings/claim', { id: pair.id, pollToken: pair.pollToken });
     const proof = await f.proof(poll.deviceId, 'collector-revoke'),
-      calls = f.fetcher.mock.calls.length;
-    f.unavailable();
+      calls = f.graph.mock.calls.length;
+    f.directory.down = true;
     expect((await f.request(prefix + 'access', proof)).status).toBe(403);
     expect((await f.request(prefix + 'revoke', proof)).status).toBe(200);
-    expect(f.fetcher.mock.calls).toHaveLength(calls);
+    expect(f.graph.mock.calls).toHaveLength(calls);
     const grant = (
-      await db.query<{ state: string; encrypted_refresh: null }>(
-        'SELECT state,encrypted_refresh FROM collector_auth.oauth_grants',
-      )
+      await db.query<{ state: string }>('SELECT state FROM collector_auth.oauth_grants')
     ).rows[0]!;
-    expect(grant).toMatchObject({ state: 'revoked', encrypted_refresh: null });
+    expect(grant).toMatchObject({ state: 'revoked' });
     expect((await f.request(prefix + 'challenge', { deviceId: poll.deviceId })).status).toBe(403);
     expect(
       (await f.request(prefix + 'revoke', await f.proof(poll.deviceId, 'collector-revoke'))).status,
     ).toBe(200);
   });
-  it('cancellation racing after callback retires unclaimed grant/device and prevents claim', async () => {
+  it('cancellation racing after the authorization retires the unclaimed grant/device and prevents claim', async () => {
     const f = await fixture(),
       pair = await f.begin();
     await f.complete(pair);
@@ -541,11 +505,9 @@ describe('Pages collector orchestration, no real network/credentials', () => {
     expect((await f.request(prefix + 'pairings/cancel', owner)).status).toBe(200);
     expect((await f.request(prefix + 'pairings/claim', owner)).status).toBe(403);
     const grants = (
-      await db.query<{ state: string; encrypted_refresh: null }>(
-        'SELECT state,encrypted_refresh FROM collector_auth.oauth_grants',
-      )
+      await db.query<{ state: string }>('SELECT state FROM collector_auth.oauth_grants')
     ).rows;
-    expect(grants[0]).toMatchObject({ state: 'revoked', encrypted_refresh: null });
+    expect(grants[0]).toMatchObject({ state: 'revoked' });
   });
   it('an unclaimed device may retire itself by signed revoke after a client crash, but cannot access', async () => {
     const f = await fixture(),
@@ -571,24 +533,9 @@ describe('Pages collector orchestration, no real network/credentials', () => {
       await f.request(prefix + 'pairings/poll', { id: pair.id, pollToken: pair.pollToken })
     ).json()) as { deviceId: string };
     const thumb = await collectorKeyThumbprintV1(f.publicKey),
-      inactive = {
-        ...env,
-        COLLECTOR_ENABLED: undefined,
-        COLLECTOR_REFRESH_KEY: undefined,
-      } as RuntimeEnv;
-    async function sessionCookie(oid: string) {
-      return (
-        SESSION_COOKIE +
-        '=' +
-        (await seal(
-          createApplicationSession({ oid, name: 'Synthetic owner', roles: ['VISITANTE'] }),
-          env.SESSION_SECRET,
-          'admin-session',
-        ))
-      );
-    }
-    const owner = await sessionCookie(actor),
-      other = await sessionCookie('77777777-7777-4777-8777-777777777777');
+      inactive = { ...env, COLLECTOR_ENABLED: undefined } as RuntimeEnv;
+    const owner = await f.sessionCookie(actor, ['VISITANTE']),
+      other = await f.sessionCookie(stranger, ['VISITANTE']);
     const path = '/frequency-collector/revoke?device=' + poll.deviceId;
     expect(
       (
@@ -652,11 +599,9 @@ describe('Pages collector orchestration, no real network/credentials', () => {
       ).json(),
     ).toEqual({ revoked: true });
     const grant = (
-      await db.query<{ state: string; encrypted_refresh: null }>(
-        'SELECT state,encrypted_refresh FROM collector_auth.oauth_grants',
-      )
+      await db.query<{ state: string }>('SELECT state FROM collector_auth.oauth_grants')
     ).rows[0]!;
-    expect(grant).toMatchObject({ state: 'revoked', encrypted_refresh: null });
+    expect(grant).toMatchObject({ state: 'revoked' });
   });
   it('expired unclaimed registrations retire credentials on the next configured request', async () => {
     const f = await fixture(),
@@ -670,72 +615,79 @@ describe('Pages collector orchestration, no real network/credentials', () => {
     );
     expect((await f.request(prefix + 'config')).status).toBe(200);
     expect(
-      (
-        await db.query<{ encrypted_refresh: null }>(
-          'SELECT encrypted_refresh FROM collector_auth.oauth_grants',
-        )
-      ).rows[0]!.encrypted_refresh,
-    ).toBeNull();
+      (await db.query<{ state: string }>('SELECT state FROM collector_auth.oauth_grants')).rows[0]!
+        .state,
+    ).toBe('revoked');
   });
-  it('requires correct origin, CSRF, matching code and checkbox without exposing secrets', async () => {
+  it('authorizes only from this origin, with the page token, by the same signed-in Secretaria session', async () => {
     const f = await fixture(),
       pair = await f.begin();
-    const page = await f.request('/frequency-collector/connect?pairing=' + pair.id),
-      html = await page.text();
-    const csrf = html.match(/name="csrf" value="([A-Za-z0-9_-]+)"/)![1]!,
-      cookie = page.headers.get('Set-Cookie')!.split(';')[0]!;
-    for (const variant of ['origin', 'csrf', 'code', 'checkbox']) {
-      const form = new URLSearchParams({
-        pairing: pair.id,
-        csrf,
-        code: pair.displayCode,
-        confirm: 'yes',
-      });
-      if (variant === 'csrf') form.set('csrf', 'wrong');
-      if (variant === 'code') form.set('code', 'WRONG');
-      if (variant === 'checkbox') form.delete('confirm');
-      const reply = await handleCollectorRequestV1(
-        new Request(origin + '/frequency-collector/connect', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Cookie: cookie,
-            Origin: variant === 'origin' ? 'https://other.invalid' : origin,
-          },
-          body: form,
-        }),
-        env,
-        f.dependencies,
-      );
-      expect(reply?.status).toBe(403);
-      expect(await reply?.text()).not.toContain('PRIVATE');
+    const session = await f.sessionCookie(),
+      page = await f.open(pair, session);
+    const form = { pairing: pair.id, csrf: page.csrf };
+    const refused: Array<[string, Promise<Response>]> = [
+      ['another origin', f.authorize(form, [session, page.cookie], 'https://other.invalid')],
+      ['a wrong token', f.authorize({ ...form, csrf: 'wrong' }, [session, page.cookie])],
+      ['another pairing', f.authorize({ ...form, pairing: stranger }, [session, page.cookie])],
+      ['an extra field', f.authorize({ ...form, code: pair.displayCode }, [session, page.cookie])],
+      ['no page cookie', f.authorize(form, [session])],
+      ['no session', f.authorize(form, [page.cookie])],
+      ['another person', f.authorize(form, [await f.sessionCookie(stranger), page.cookie])],
+      [
+        'the same person outside the Secretaria',
+        f.authorize(form, [await f.sessionCookie(actor, ['PROFESSOR']), page.cookie]),
+      ],
+    ];
+    for (const [name, attempt] of refused) {
+      const reply = await attempt;
+      expect(reply.status, name).toBe(403);
+      expect(await reply.text(), name).not.toContain('PRIVATE');
     }
-    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.graph).not.toHaveBeenCalled();
+    expect((await db.query('SELECT id FROM collector_auth.oauth_grants')).rows).toHaveLength(0);
     expect(
       (await f.request(prefix + 'pairings/poll', { id: pair.id, pollToken: 'x'.repeat(43) }))
         .status,
     ).toBe(403);
+    expect((await f.authorize(form, [session, page.cookie])).status).toBe(200);
   });
-  it('denies missing configuration/dedicated key before opening a database', async () => {
+  it.each([
+    ['left the Secretaria group', (d: { groups: string[] }) => (d.groups = [])],
+    ['was disabled', (d: { user: { accountEnabled: boolean } }) => (d.user.accountEnabled = false)],
+    [
+      'changed the password after signing in',
+      (d: { user: { signInSessionsValidFromDateTime: string } }) =>
+        (d.user.signInSessionsValidFromDateTime = new Date(Date.now() + 60_000).toISOString()),
+    ],
+  ])('refuses the click of a person who %s since the sign-in', async (_name, change) => {
+    const f = await fixture(),
+      pair = await f.begin();
+    const session = await f.sessionCookie(),
+      page = await f.open(pair, session);
+    change(f.directory);
+    const reply = await f.authorize({ pairing: pair.id, csrf: page.csrf }, [session, page.cookie]);
+    expect(reply.status).toBe(403);
+    expect(await reply.text()).toContain('Conta sem permissão');
+    expect((await db.query('SELECT id FROM collector_auth.oauth_grants')).rows).toHaveLength(0);
+    expect(
+      (
+        await db.query<{ state: string }>('SELECT state FROM collector_auth.pairings WHERE id=$1', [
+          pair.id,
+        ])
+      ).rows[0]?.state,
+    ).toBe('pending');
+  });
+  it('denies missing configuration before opening a database', async () => {
     const factory = vi.fn();
-    for (const changes of [
-      { COLLECTOR_ENABLED: undefined },
-      { COLLECTOR_DB: undefined },
-      { COLLECTOR_REFRESH_KEY: undefined },
-      { COLLECTOR_REFRESH_KEY: env.SESSION_SECRET },
-    ])
+    for (const changes of [{ COLLECTOR_ENABLED: undefined }, { COLLECTOR_DB: undefined }])
       expect(
-        await createCollectorRuntimeV1({ ...env, ...changes } as RuntimeEnv, {
-          database: factory,
-          assertion: async () => 'synthetic',
-        }),
+        await createCollectorRuntimeV1({ ...env, ...changes } as RuntimeEnv, { database: factory }),
       ).toBeNull();
     expect(factory).not.toHaveBeenCalled();
   });
   it('keeps the collector database open until the frequency request has finished', async () => {
     let open = true;
     const dependencies: CollectorRuntimeDependenciesV1 = {
-      assertion: async () => 'synthetic',
       database: async () => ({
         query: async <T extends Record<string, unknown>>(sql: string, parameters: unknown[]) => {
           if (!open) throw new Error('synthetic-connection-ended');
@@ -768,22 +720,64 @@ describe('Pages collector orchestration, no real network/credentials', () => {
     expect(await reply?.json()).toEqual({ contractVersion: 2, state: 'not-authorized' });
     expect(open).toBe(false);
   });
-  it('never reads unverified ID token data in the callback', async () => {
+  it('sends a visitor who is not signed in to the sign-in, and the sign-in back to the same pairing', async () => {
     const f = await fixture(),
-      pair = await f.begin(),
-      auth = await f.confirm(pair);
-    f.dependencies.verify = async (token) => {
-      expect(decodeJson(token.split('.')[1]!)).toHaveProperty('auth_time');
-      throw new Error('PRIVATE_ID_TOKEN_FAILURE');
-    };
-    const reply = await f.request(
-      '/auth/callback?state=' + auth.state + '&code=synthetic',
-      undefined,
-      { Cookie: auth.cookie },
+      pair = await f.begin();
+    const reply = await f.request('/frequency-collector/connect?pairing=' + pair.id);
+    expect(reply.status).toBe(302);
+    expect(reply.headers.get('Location')).toBe(origin + '/auth/login');
+    const setCookie = reply.headers.get('Set-Cookie')!;
+    // Lax: the way back from Microsoft is a cross-site navigation.
+    expect(setCookie).toMatch(
+      /^__Host-collector_return=[A-Za-z0-9_-]+;.*HttpOnly; Secure; SameSite=Lax; Max-Age=600/u,
     );
+    expect(setCookie).not.toContain(pair.id);
+    const callback = (cookie?: string) =>
+      collectorSignInReturnV1(
+        new Request(origin + '/auth/callback?state=ordinary', {
+          headers: cookie ? { Cookie: cookie } : {},
+        }),
+        env,
+      );
+    expect(await callback()).toBeNull();
+    const back = await callback(setCookie.split(';')[0]);
+    expect(back?.location).toBe(origin + '/frequency-collector/connect?pairing=' + pair.id);
+    expect(back?.cookie).toMatch(/^__Host-collector_return=;.*Max-Age=0/u);
+    // A cookie that is not ours, or too old, never chooses where the sign-in ends.
+    for (const cookie of [
+      '__Host-collector_return=forged',
+      '__Host-collector_return=' +
+        (await seal(
+          { purpose: 'collector-return', id: pair.id, exp: Date.now() - 1 },
+          env.SESSION_SECRET,
+          'collector-return',
+        )),
+      '__Host-collector_return=' +
+        (await seal(
+          { purpose: 'collector-return', id: pair.id, exp: Date.now() + 60_000 },
+          env.SESSION_SECRET,
+          'collector-confirm',
+        )),
+    ]) {
+      const refused = await callback(cookie);
+      expect(refused?.location).toBe(origin);
+      expect(refused?.cookie).toMatch(/Max-Age=0/u);
+    }
+    expect(f.graph).not.toHaveBeenCalled();
+  });
+  it('tells a signed-in person outside the Secretaria why the collector cannot be authorized', async () => {
+    const f = await fixture(),
+      pair = await f.begin();
+    const reply = await f.request('/frequency-collector/connect?pairing=' + pair.id, undefined, {
+      Cookie: await f.sessionCookie(actor, ['PROFESSOR']),
+    });
     expect(reply.status).toBe(403);
-    expect(await reply.text()).not.toContain('PRIVATE');
-    expect((await db.query('SELECT id FROM collector_auth.oauth_grants')).rows).toHaveLength(0);
+    const body = await reply.text();
+    expect(body).toContain('grupo da Secretaria');
+    expect(body).toContain('Synthetic &lt;secretary&gt;');
+    expect(body).not.toContain('<form');
+    expect(body).not.toContain(pair.displayCode);
+    expect(reply.headers.get('Set-Cookie')).toBeNull();
   });
 });
 
@@ -794,7 +788,6 @@ describe('collector request without maintenance on every call (issue #1426, 13)'
     const seen: string[] = [];
     let clock = 1_000_000;
     const dependencies: CollectorRuntimeDependenciesV1 = {
-      assertion: async () => 'synthetic',
       now: () => clock,
       database: async () => ({
         query: async <T extends Record<string, unknown>>(text: string) => {

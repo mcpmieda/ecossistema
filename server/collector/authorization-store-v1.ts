@@ -22,7 +22,7 @@ export class CollectorAuthorizationStoreV1 {
       `SELECT d.id AS device_id, d.generation AS device_generation,
       d.tenant_id,d.actor_id,d.public_key,d.key_thumbprint,d.revoked_at AS device_revoked_at,
       g.id AS grant_id,g.client_id,g.generation AS grant_generation,g.credential_version,
-      g.origin_authenticated_at,g.encrypted_refresh,g.state,g.revoked_at AS grant_revoked_at,
+      g.origin_authenticated_at,g.state,g.revoked_at AS grant_revoked_at,
       g.directory_authorized,g.directory_checked_at,g.directory_valid_until
       FROM collector_auth.devices d JOIN collector_auth.oauth_grants g ON g.id=d.grant_id
       WHERE d.id=$1 AND d.tenant_id=g.tenant_id AND d.actor_id=g.actor_id
@@ -121,7 +121,7 @@ export class CollectorAuthorizationStoreV1 {
       UPDATE collector_auth.devices d SET revoked_at=COALESCE(d.revoked_at,clock_timestamp()),
         generation=generation+CASE WHEN d.revoked_at IS NULL THEN 1 ELSE 0 END FROM owned o WHERE d.id=o.id RETURNING d.id,d.grant_id
       ) UPDATE collector_auth.oauth_grants g SET state='revoked',revoked_at=COALESCE(g.revoked_at,clock_timestamp()),generation=generation+1,
-        encrypted_refresh=NULL,directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,refresh_owner=NULL,refresh_until=NULL
+        directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,refresh_owner=NULL,refresh_until=NULL
       FROM revoked r WHERE g.id=r.grant_id AND NOT EXISTS(SELECT 1 FROM collector_auth.devices other
         WHERE other.grant_id=g.id AND other.id<>r.id AND other.revoked_at IS NULL)`,
       [deviceId, tenantId, actorId, keyThumbprint],
@@ -167,7 +167,7 @@ export class CollectorAuthorizationStoreV1 {
       WHERE d.id=c.id RETURNING d.id,d.grant_id
       ), retired AS (
       UPDATE collector_auth.oauth_grants g SET state='revoked',revoked_at=clock_timestamp(),generation=generation+1,
-        encrypted_refresh=NULL,directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,
+        directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,
         refresh_owner=NULL,refresh_until=NULL FROM revoked r
       WHERE g.id=r.grant_id AND NOT EXISTS(SELECT 1 FROM collector_auth.devices other WHERE other.grant_id=g.id
         AND other.id<>r.id AND other.revoked_at IS NULL) RETURNING g.id
@@ -206,24 +206,22 @@ export class CollectorAuthorizationStoreV1 {
     generation: number;
     version: number;
     owner: string;
-    encryptedReplacement: string;
     directoryCheckedAt: number;
   }): Promise<boolean> {
     const rows = await this.sql.query(
       `UPDATE collector_auth.oauth_grants
-      SET encrypted_refresh = $5, credential_version = credential_version + 1,
-        directory_authorized = true, directory_checked_at = $6,
-        directory_valid_until = $6::timestamptz + interval '5 minutes', refresh_owner = NULL, refresh_until = NULL
+      SET credential_version = credential_version + 1,
+        directory_authorized = true, directory_checked_at = $5,
+        directory_valid_until = $5::timestamptz + interval '5 minutes', refresh_owner = NULL, refresh_until = NULL
       WHERE id = $1 AND generation = $2 AND credential_version = $3 AND state = 'active' AND revoked_at IS NULL
         AND refresh_owner = $4 AND refresh_until > clock_timestamp()
-        AND $6::timestamptz <= clock_timestamp() AND $6::timestamptz + interval '5 minutes' > clock_timestamp()
+        AND $5::timestamptz <= clock_timestamp() AND $5::timestamptz + interval '5 minutes' > clock_timestamp()
       RETURNING id`,
       [
         input.grantId,
         input.generation,
         input.version,
         input.owner,
-        input.encryptedReplacement,
         new Date(input.directoryCheckedAt).toISOString(),
       ],
     );
@@ -233,7 +231,7 @@ export class CollectorAuthorizationStoreV1 {
   async suspendGrant(grantId: string, generation: number, owner: string): Promise<void> {
     await this.sql.query(
       `UPDATE collector_auth.oauth_grants SET state = 'needs_reauth',
-      encrypted_refresh = NULL, directory_authorized = false, directory_checked_at = NULL,
+      directory_authorized = false, directory_checked_at = NULL,
       directory_valid_until = NULL, refresh_owner = NULL, refresh_until = NULL, generation = generation + 1
       WHERE id = $1 AND generation = $2 AND refresh_owner = $3`,
       [grantId, generation, owner],

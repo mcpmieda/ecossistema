@@ -5,72 +5,14 @@ import { build } from 'esbuild';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { expect, it } from 'vitest';
 
-it('calls native Workerd fetch through the real collector dependency with its global receiver', async () => {
-  const bundled = await build({
-    stdin: {
-      contents: `
-    import {createCollectorRuntimeV1} from './server/collector/runtime-v1';
-    import {encodeBase64Url} from './server/auth/base64url';
-    export default {async fetch(){
-      const runtime=await createCollectorRuntimeV1({OFFICIAL_ORIGIN:'https://admin.escolaieda.com',
-        COLLECTOR_ENABLED:'true',COLLECTOR_DB:{connectionString:'synthetic-only'},
-        SESSION_SECRET:'s'.repeat(43),COLLECTOR_REFRESH_KEY:encodeBase64Url(new Uint8Array(32).fill(8))},
-        {database:async()=>({query:async()=>[{ready:true}],close:async()=>{}}),assertion:async()=>'synthetic'});
-      if(!runtime)return new Response('runtime unavailable',{status:503});
-      try {
-        // No injected fetch: exercise the production native function, as both
-        // the OAuth callback and subsequent directory refresh invoke it.
-        const reply=await runtime.oauth.fetch('https://synthetic.invalid/token',{method:'POST',body:'synthetic'});
-        return Response.json({status:reply.status,body:await reply.text()});
-      }finally{await runtime.close();}
-    }};
-  `,
-      resolveDir: process.cwd(),
-      sourcefile: 'collector-fetch-harness.ts',
-      loader: 'ts',
-    },
-    bundle: true,
-    write: false,
-    format: 'esm',
-    platform: 'node',
-    target: 'es2022',
-  });
-  const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
-  let outgoing = 0;
-  const runtime = new Miniflare(
-    convertV4MiniflareOptions({
-      name: 'collector-fetch-proof',
-      modules: true,
-      script: bundled.outputFiles[0]!.text,
-      compatibilityDate: config.compatibility_date,
-      compatibilityFlags: config.compatibility_flags,
-      outboundService: async (request) => {
-        outgoing++;
-        expect(request.url).toBe('https://synthetic.invalid/token');
-        expect(request.method).toBe('POST');
-        expect(await request.text()).toBe('synthetic');
-        return new Response('intercepted');
-      },
-    }),
-  );
-  try {
-    const reply = await runtime.dispatchFetch('http://localhost/');
-    expect(reply.status).toBe(200);
-    expect(await reply.json()).toEqual({ status: 200, body: 'intercepted' });
-    expect(outgoing).toBe(1);
-  } finally {
-    await runtime.dispose();
-  }
-}, 30_000);
-
-it('completes the real Workerd callback with a signed ID token and intercepted own-directory checks', async () => {
+it('reads the person in the directory from real Workerd, with the server identity and native fetch', async () => {
   const tenant = '11111111-1111-4111-8111-111111111111',
-    client = '22222222-2222-4222-8222-222222222222';
+    client = '22222222-2222-4222-8222-222222222222',
+    graphClient = '66666666-6666-4666-8666-666666666666';
   const actor = '33333333-3333-4333-8333-333333333333',
     group = '44444444-4444-4444-8444-444444444444';
-  const nonce = 'n'.repeat(43),
-    now = Math.floor(Date.now() / 1000);
-  const key = await webcrypto.subtle.generateKey(
+  const now = Date.now();
+  const pair = await webcrypto.subtle.generateKey(
     {
       name: 'RSASSA-PKCS1-v1_5',
       modulusLength: 2048,
@@ -80,53 +22,40 @@ it('completes the real Workerd callback with a signed ID token and intercepted o
     true,
     ['sign', 'verify'],
   );
-  const publicKey = await webcrypto.subtle.exportKey('jwk', key.publicKey);
-  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const unsigned =
-    encode({ alg: 'RS256', kid: 'synthetic-key' }) +
-    '.' +
-    encode({
-      aud: client,
-      iss: `https://login.microsoftonline.com/${tenant}/v2.0`,
-      tid: tenant,
-      oid: actor,
-      exp: now + 3600,
-      nbf: now - 30,
-      nonce,
-      name: 'Synthetic actor',
-      auth_time: now,
-      groups: [],
-    });
-  const signature = await webcrypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key.privateKey,
-    new TextEncoder().encode(unsigned),
+  const pkcs8 = Buffer.from(await webcrypto.subtle.exportKey('pkcs8', pair.privateKey)).toString(
+    'base64',
   );
-  const idToken = unsigned + '.' + Buffer.from(signature).toString('base64url');
+  const credential = JSON.stringify({
+    privateKeyPkcs8: `-----BEGIN PRIVATE KEY-----\n${pkcs8}\n-----END PRIVATE KEY-----`,
+    certificateThumbprint: 'synthetic-thumbprint-value',
+    keyId: '77777777-7777-4777-8777-777777777777',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  });
   const bundled = await build({
     stdin: {
       contents: `
     import {createCollectorRuntimeV1} from './server/collector/runtime-v1';
-    import {completeCollectorOAuthV1} from './server/collector/oauth-v1';
-    import {encodeBase64Url} from './server/auth/base64url';
+    import {readCollectorDirectoryV1} from './server/collector/directory-v1';
     export default {async fetch(){
-      const now=${now}*1000;
       const env={OFFICIAL_ORIGIN:'https://admin.escolaieda.com',TENANT_ID:'${tenant}',WEB_CLIENT_ID:'${client}',
+        GRAPH_CLIENT_ID:'${graphClient}',GRAPH_CREDENTIAL_A:${JSON.stringify(credential)},
         GROUP_ADMIN_ID:'${group}',COLLECTOR_ENABLED:'true',COLLECTOR_DB:{connectionString:'synthetic-only'},
-        SESSION_SECRET:'s'.repeat(43),COLLECTOR_REFRESH_KEY:encodeBase64Url(new Uint8Array(32).fill(8))};
-      const runtime=await createCollectorRuntimeV1(env,{database:async()=>({query:async()=>[{ready:true,id:'synthetic'}],
-        close:async()=>{}}),assertion:async()=>'synthetic',now:()=>now});
+        SESSION_SECRET:'s'.repeat(43)};
+      // No injected Graph: the production dependency signs its assertion and calls native fetch.
+      const runtime=await createCollectorRuntimeV1(env,{database:async()=>({query:async()=>[{ready:true}],
+        close:async()=>{}})});
       if(!runtime)return new Response('runtime unavailable',{status:503});
       try {
-        const transaction={state:'collector.'+'s'.repeat(43),nonce:'${nonce}',verifier:'v'.repeat(64),
-          exp:now/1000+600,startedAt:now,pairingId:'55555555-5555-4555-8555-555555555555'};
-        return Response.json(await completeCollectorOAuthV1({env,transaction,callbackState:transaction.state,
-          code:'synthetic-code',cipher:runtime.cipher,dependencies:runtime.oauth}));
+        const binding={tenantId:'${tenant}',clientId:'${client}',actorId:'${actor}',
+          grantId:'55555555-5555-4555-8555-555555555555',generation:1,version:0,originAuthenticatedAt:${now}-60000};
+        const evidence=await readCollectorDirectoryV1({binding,expectedTenantId:'${tenant}',expectedClientId:'${client}',
+          adminGroupId:'${group}',dependencies:runtime.directory});
+        return Response.json({actorId:evidence.actorId,window:evidence.directoryValidUntil-evidence.directoryCheckedAt});
       }finally{await runtime.close();}
     }};
   `,
       resolveDir: process.cwd(),
-      sourcefile: 'collector-callback-harness.ts',
+      sourcefile: 'collector-directory-harness.ts',
       loader: 'ts',
     },
     bundle: true,
@@ -139,39 +68,33 @@ it('completes the real Workerd callback with a signed ID token and intercepted o
   const outgoing: string[] = [];
   const runtime = new Miniflare(
     convertV4MiniflareOptions({
-      name: 'collector-callback-proof',
+      name: 'collector-directory-proof',
       modules: true,
       script: bundled.outputFiles[0]!.text,
       compatibilityDate: config.compatibility_date,
       compatibilityFlags: config.compatibility_flags,
       outboundService: async (request) => {
         const url = new URL(request.url);
-        outgoing.push(url.pathname);
-        if (url.pathname.endsWith('/keys'))
-          return Response.json({ keys: [{ ...publicKey, kid: 'synthetic-key' }] });
+        outgoing.push(`${request.method} ${url.host}${url.pathname}`);
         if (url.pathname.endsWith('/token')) {
           const body = new URLSearchParams(await request.text());
-          if (body.get('grant_type') === 'authorization_code')
-            return Response.json({
-              id_token: idToken,
-              token_type: 'Bearer',
-              refresh_token: 'SYNTHETIC_REFRESH_TOKEN',
-            });
-          return Response.json({
-            token_type: 'Bearer',
-            access_token: 'SYNTHETIC_DIRECTORY_TOKEN',
-            refresh_token: 'SYNTHETIC_ROTATED_REFRESH',
-            expires_in: 3600,
-            scope: 'User.Read',
-          });
+          // The server's own identity, never a credential of the person.
+          expect(body.get('grant_type')).toBe('client_credentials');
+          expect(body.get('client_id')).toBe(graphClient);
+          expect(body.get('scope')).toBe('https://graph.microsoft.com/.default');
+          return Response.json({ access_token: 'SYNTHETIC_SERVER_TOKEN', expires_in: 3600 });
         }
-        if (url.pathname === '/v1.0/me')
+        expect(request.headers.get('Authorization')).toBe('Bearer SYNTHETIC_SERVER_TOKEN');
+        if (url.pathname === `/v1.0/users/${actor}`)
           return Response.json({
             id: actor,
             accountEnabled: true,
-            signInSessionsValidFromDateTime: new Date((now - 60) * 1000).toISOString(),
+            signInSessionsValidFromDateTime: new Date(now - 3600_000).toISOString(),
           });
-        if (url.pathname === '/v1.0/me/checkMemberGroups') return Response.json({ value: [group] });
+        if (url.pathname === `/v1.0/users/${actor}/checkMemberGroups`) {
+          expect(await request.json()).toEqual({ groupIds: [group] });
+          return Response.json({ value: [group] });
+        }
         throw new Error('Unexpected synthetic outbound request');
       },
     }),
@@ -179,8 +102,12 @@ it('completes the real Workerd callback with a signed ID token and intercepted o
   try {
     const reply = await runtime.dispatchFetch('http://localhost/');
     expect(reply.status).toBe(200);
-    expect(await reply.json()).toEqual({ completed: true });
-    expect(outgoing).toHaveLength(5);
+    expect(await reply.json()).toEqual({ actorId: actor, window: 300_000 });
+    expect(outgoing).toEqual([
+      `POST login.microsoftonline.com/${tenant}/oauth2/v2.0/token`,
+      `GET graph.microsoft.com/v1.0/users/${actor}`,
+      `POST graph.microsoft.com/v1.0/users/${actor}/checkMemberGroups`,
+    ]);
   } finally {
     await runtime.dispose();
   }

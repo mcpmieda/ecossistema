@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { CollectorSqlV1 } from './authorization-store-v1';
-import type { CollectorOAuthTransactionV1, CollectorRegistrationV1 } from './oauth-v1';
+import type { CollectorDirectoryEvidenceV1, CollectorGrantBindingV1 } from './directory-v1';
 import {
   collectorKeyThumbprintV1,
   collectorPublicKeyV1,
@@ -17,9 +17,15 @@ export async function collectorOpaqueHashV1(value: string): Promise<string> {
 const uuid = z.string().uuid(),
   hash = z.string().regex(/^[a-f0-9]{64}$/u);
 
-/** Owner-only SQL adapter. Browser and native metadata are separate from any
- * Microsoft credential. Completion creates a new grant, never upserts an old
- * authentication origin, and copies only the originally confirmed public key. */
+export type CollectorPairingAuthorizationV1 = Readonly<{
+  pairingId: string;
+  binding: CollectorGrantBindingV1;
+  directory: CollectorDirectoryEvidenceV1;
+}>;
+
+/** Owner-only SQL adapter. No Microsoft credential is stored. Completion creates a new grant,
+ * never upserts an old authentication origin, and copies only the public key of the pairing the
+ * signed-in person authorized. */
 export class CollectorPairingStoreV1 {
   constructor(private readonly sql: CollectorSqlV1) {}
 
@@ -93,38 +99,8 @@ export class CollectorPairingStoreV1 {
     return rows.length === 1 ? rows[0]! : null;
   }
 
-  async confirm(transaction: CollectorOAuthTransactionV1): Promise<boolean> {
-    const rows = await this.sql.query(
-      `UPDATE collector_auth.pairings SET state='confirmed',oauth_state_hash=$2,oauth_nonce_hash=$3
-      WHERE id=$1 AND state='pending' AND expires_at>clock_timestamp()
-        AND $4::timestamptz>clock_timestamp() AND $4::timestamptz<=expires_at RETURNING id`,
-      [
-        uuid.parse(transaction.pairingId),
-        await collectorOpaqueHashV1(transaction.state),
-        await collectorOpaqueHashV1(transaction.nonce),
-        new Date(transaction.exp * 1000).toISOString(),
-      ],
-    );
-    return rows.length === 1;
-  }
-
-  async consumeConfirmedTransaction(transaction: CollectorOAuthTransactionV1): Promise<boolean> {
-    const rows = await this.sql.query(
-      `UPDATE collector_auth.pairings SET state='exchanging',oauth_consumed_at=clock_timestamp()
-      WHERE id=$1 AND state='confirmed' AND oauth_state_hash=$2 AND oauth_nonce_hash=$3
-        AND oauth_consumed_at IS NULL AND expires_at>clock_timestamp() AND $4::timestamptz>clock_timestamp()
-      RETURNING id`,
-      [
-        uuid.parse(transaction.pairingId),
-        await collectorOpaqueHashV1(transaction.state),
-        await collectorOpaqueHashV1(transaction.nonce),
-        new Date(transaction.exp * 1000).toISOString(),
-      ],
-    );
-    return rows.length === 1;
-  }
-
-  async registerConfirmedPairing(input: CollectorRegistrationV1): Promise<boolean> {
+  /** The signed-in person authorized this pending pairing: its grant and device exist from now on. */
+  async authorize(input: CollectorPairingAuthorizationV1): Promise<boolean> {
     const b = input.binding,
       d = input.directory;
     if (
@@ -142,16 +118,16 @@ export class CollectorPairingStoreV1 {
     const rows = await this.sql.query(
       `WITH pending AS MATERIALIZED (
       SELECT id,public_key,key_thumbprint FROM collector_auth.pairings
-      WHERE id=$1 AND state='exchanging' AND oauth_consumed_at IS NOT NULL AND device_id IS NULL
-        AND expires_at>clock_timestamp() AND $8::timestamptz<=clock_timestamp()
-        AND $8::timestamptz+interval '5 minutes'>clock_timestamp() FOR UPDATE
+      WHERE id=$1 AND state='pending' AND device_id IS NULL
+        AND expires_at>clock_timestamp() AND $7::timestamptz<=clock_timestamp()
+        AND $7::timestamptz+interval '5 minutes'>clock_timestamp() FOR UPDATE
       ), granted AS (
       INSERT INTO collector_auth.oauth_grants(id,tenant_id,actor_id,client_id,generation,credential_version,
-        origin_authenticated_at,encrypted_refresh,state,directory_authorized,directory_checked_at,directory_valid_until)
-      SELECT $2,$3,$4,$5,1,0,$6,$7,'active',true,$8,$8::timestamptz+interval '5 minutes' FROM pending RETURNING id
+        origin_authenticated_at,state,directory_authorized,directory_checked_at,directory_valid_until)
+      SELECT $2,$3,$4,$5,1,0,$6,'active',true,$7,$7::timestamptz+interval '5 minutes' FROM pending RETURNING id
       ), registered AS (
       INSERT INTO collector_auth.devices(id,grant_id,tenant_id,actor_id,public_key,key_thumbprint,generation,created_at)
-      SELECT $9,g.id,$3,$4,p.public_key,p.key_thumbprint,1,clock_timestamp() FROM pending p CROSS JOIN granted g RETURNING id
+      SELECT $8,g.id,$3,$4,p.public_key,p.key_thumbprint,1,clock_timestamp() FROM pending p CROSS JOIN granted g RETURNING id
       ) UPDATE collector_auth.pairings p SET state='completed',device_id=r.id FROM registered r
         WHERE p.id=$1 RETURNING p.id`,
       [
@@ -161,7 +137,6 @@ export class CollectorPairingStoreV1 {
         uuid.parse(b.actorId),
         uuid.parse(b.clientId),
         new Date(b.originAuthenticatedAt).toISOString(),
-        input.encryptedRefresh,
         new Date(d.directoryCheckedAt).toISOString(),
         deviceId,
       ],
@@ -190,11 +165,11 @@ export class CollectorPairingStoreV1 {
       WHERE d.id=p.device_id AND d.revoked_at IS NULL RETURNING d.id,d.grant_id
       ), retired AS (
       UPDATE collector_auth.oauth_grants g SET state='revoked',revoked_at=clock_timestamp(),generation=generation+1,
-        encrypted_refresh=NULL,directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,
+        directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,
         refresh_owner=NULL,refresh_until=NULL FROM revoked r WHERE g.id=r.grant_id
         AND NOT EXISTS(SELECT 1 FROM collector_auth.devices other WHERE other.grant_id=g.id AND other.id<>r.id AND other.revoked_at IS NULL)
       RETURNING g.id
-      ) UPDATE collector_auth.pairings p SET state='cancelled',oauth_state_hash=NULL,oauth_nonce_hash=NULL,device_id=NULL,claimed_at=NULL
+      ) UPDATE collector_auth.pairings p SET state='cancelled',device_id=NULL,claimed_at=NULL
       FROM owned o WHERE p.id=o.id`,
       [uuid.parse(id), hash.parse(pollHash)],
     );
@@ -215,17 +190,17 @@ export class CollectorPairingStoreV1 {
     await this.sql.query(
       `WITH expired AS MATERIALIZED (
       SELECT id,device_id FROM collector_auth.pairings WHERE expires_at<=statement_timestamp()
-        AND claimed_at IS NULL AND state IN ('pending','confirmed','exchanging','completed') LIMIT 50 FOR UPDATE SKIP LOCKED
+        AND claimed_at IS NULL AND state IN ('pending','completed') LIMIT 50 FOR UPDATE SKIP LOCKED
       ), revoked AS (
       UPDATE collector_auth.devices d SET revoked_at=clock_timestamp(),generation=generation+1 FROM expired p
       WHERE d.id=p.device_id AND d.revoked_at IS NULL RETURNING d.id,d.grant_id
       ), retired AS (
       UPDATE collector_auth.oauth_grants g SET state='revoked',revoked_at=clock_timestamp(),generation=generation+1,
-        encrypted_refresh=NULL,directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,
+        directory_authorized=false,directory_checked_at=NULL,directory_valid_until=NULL,
         refresh_owner=NULL,refresh_until=NULL FROM revoked r WHERE g.id=r.grant_id
         AND NOT EXISTS(SELECT 1 FROM collector_auth.devices other WHERE other.grant_id=g.id AND other.id<>r.id AND other.revoked_at IS NULL)
       RETURNING g.id
-      ) UPDATE collector_auth.pairings p SET state='cancelled',oauth_state_hash=NULL,oauth_nonce_hash=NULL,device_id=NULL,claimed_at=NULL
+      ) UPDATE collector_auth.pairings p SET state='cancelled',device_id=NULL,claimed_at=NULL
         FROM expired e WHERE p.id=e.id`,
       [],
     );

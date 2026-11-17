@@ -5,13 +5,13 @@ import {
 } from '../../shared/attendance-contracts/frequency-v2';
 import { CollectorAuthorizationStoreV1 } from './authorization-store-v1';
 import { collectorOpaqueHashV1 } from './pairing-store-v1';
-import { CollectorRefreshCipherV1, type CollectorGrantBindingV1 } from './refresh-cipher-v1';
 import {
   collectorLeaseExpiryV1,
   CollectorDirectoryErrorV1,
-  readCollectorOwnDirectoryV1,
+  readCollectorDirectoryV1,
   type CollectorDirectoryDependenciesV1,
   type CollectorDirectoryEvidenceV1,
+  type CollectorGrantBindingV1,
 } from './directory-v1';
 import {
   collectorAccountKeyV1,
@@ -38,7 +38,6 @@ const snapshotSchema = z.object({
   grant_generation: z.number().int().positive(),
   credential_version: z.number().int().nonnegative(),
   origin_authenticated_at: date,
-  encrypted_refresh: z.string().nullable(),
   state: z.enum(['active', 'needs_reauth', 'revoked']),
   grant_revoked_at: date.nullable(),
   directory_authorized: z.boolean(),
@@ -104,12 +103,11 @@ function noncePrefixV1(
   return '';
 }
 
-/** Internal broker only. No handler may serialize snapshots, ciphertext or refresh results.
+/** Internal broker only. No handler may serialize snapshots or directory results.
  * Public methods emit only a challenge or a collector-specific authorization receipt. */
 export class CollectorAccessServiceV1 {
   constructor(
     private readonly store: CollectorAuthorizationStoreV1,
-    private readonly cipher: CollectorRefreshCipherV1,
     private readonly config: { tenantId: string; clientId: string; adminGroupId: string },
     private readonly dependencies: CollectorDirectoryDependenciesV1,
   ) {}
@@ -240,20 +238,12 @@ export class CollectorAccessServiceV1 {
     if (!(await this.store.claimRefresh(source.grantId, source.generation, source.version, owner)))
       throw new CollectorAccessErrorV1('unavailable');
     try {
-      if (row.encrypted_refresh === null)
-        throw new CollectorAccessErrorV1('reauthentication-required');
-      const refresh = await this.cipher.decrypt(row.encrypted_refresh, source);
-      const result = await readCollectorOwnDirectoryV1({
+      const checked = await readCollectorDirectoryV1({
         binding: source,
         expectedTenantId: this.config.tenantId,
         expectedClientId: this.config.clientId,
         adminGroupId: this.config.adminGroupId,
-        refreshToken: refresh,
         dependencies: this.dependencies,
-      });
-      const encryptedReplacement = await this.cipher.encrypt(result.nextRefreshToken, {
-        ...source,
-        version: source.version + 1,
       });
       if (
         !(await this.store.commitRefresh({
@@ -261,8 +251,7 @@ export class CollectorAccessServiceV1 {
           generation: source.generation,
           version: source.version,
           owner,
-          encryptedReplacement,
-          directoryCheckedAt: result.evidence.directoryCheckedAt,
+          directoryCheckedAt: checked.directoryCheckedAt,
         }))
       )
         throw new CollectorAccessErrorV1('denied');
