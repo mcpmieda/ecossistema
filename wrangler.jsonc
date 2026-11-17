@@ -22,6 +22,10 @@
     "GROUP_VISITANTE_ID": "9b0283b8-8883-4257-8085-3ac60060d489",
     "GROUPS_OWNER_ID": "efd924cd-71c7-49e4-9ebf-f59c8f83eef3",
     "GLOBAL_ADMIN_ROLE_ID": "8d1a70d0-8bda-44c1-a66d-92e28979f5e7",
+    "GROUP_RULES_SITE_ID": "eduieda.sharepoint.com,7ea13de9-13ae-40d5-b5f0-ad4782e3f585,d31492d1-c5c1-4710-8f6e-bd38e1fcfb17",
+    "GROUP_RULES_LIST_ID": "221d2f8e-4752-4824-8f15-2d1017107c2b",
+    "GROUP_STATE_LIST_ID": "5a76f864-a2c2-41e1-ac18-fa620bb01e1c",
+    "GROUP_LOG_LIST_ID": "c841eea6-73af-4bbe-8f33-0b6b99fad4b0",
     "OFFICIAL_ORIGIN": "https://admin.escolaieda.com",
     "GRADEBOOK_STORAGE_PROVIDER": "postgres",
     "COLLECTOR_ENABLED": "true"

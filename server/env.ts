@@ -41,6 +41,11 @@ export type RuntimeEnv = Omit<
     GROUPS_OWNER_ID?: string;
     /** The tenant's Global Administrator directory role object, for who may delete a group. */
     GLOBAL_ADMIN_ROLE_ID?: string;
+    /** The site and lists of the flow "Grupos por Cargo": rules (write), state and log (read). */
+    GROUP_RULES_SITE_ID?: string;
+    GROUP_RULES_LIST_ID?: string;
+    GROUP_STATE_LIST_ID?: string;
+    GROUP_LOG_LIST_ID?: string;
   };
 
 const PRODUCTION_ORIGIN = 'https://admin.escolaieda.com';
@@ -75,6 +80,13 @@ const envSchema = z
     COLLECTOR_DB: z.unknown().optional(),
     GROUPS_OWNER_ID: z.string().uuid().optional(),
     GLOBAL_ADMIN_ROLE_ID: z.string().uuid().optional(),
+    GROUP_RULES_SITE_ID: z
+      .string()
+      .regex(/^[a-z0-9.-]+\.sharepoint\.com,[0-9a-f-]{36},[0-9a-f-]{36}$/u)
+      .optional(),
+    GROUP_RULES_LIST_ID: z.string().uuid().optional(),
+    GROUP_STATE_LIST_ID: z.string().uuid().optional(),
+    GROUP_LOG_LIST_ID: z.string().uuid().optional(),
   })
   .superRefine((value, context) => {
     let origin: URL;

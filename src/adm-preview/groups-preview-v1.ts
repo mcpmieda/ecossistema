@@ -1,7 +1,10 @@
 import type {
   GroupChangeV1,
+  GroupFlowLogV1,
   GroupPersonV1,
   GroupRoleV1,
+  GroupRulePersonV1,
+  GroupRuleV1,
   GroupViewV1,
 } from '../../shared/platform-groups-v1';
 
@@ -39,6 +42,62 @@ const groups: PreviewGroupV1[] = [
   roleGroup('10000000-0000-4000-8000-000000000005', 'VISITANTE', 'VISITANTE', []),
 ];
 const changes: Array<GroupChangeV1> = [];
+
+const rule = (
+  id: number,
+  cargo: string,
+  groupIndex: number | null,
+  active = true,
+): GroupRuleV1 => ({
+  id: String(id),
+  cargo,
+  cargoKey: cargo.toLowerCase(),
+  action: groupIndex === null ? 'IGNORAR' : 'ADICIONAR',
+  groupId: groupIndex === null ? null : groups[groupIndex]!.id,
+  groupName: groupIndex === null ? null : groups[groupIndex]!.name,
+  active,
+  note: null,
+  reviewedAt: '2026-08-18T20:11:13.000Z',
+  reviewedBy: 'Administração sintética',
+});
+const rules: GroupRuleV1[] = [
+  rule(1, 'aluno', 2),
+  rule(2, 'equipe de apoio', 3),
+  rule(3, 'professor', 1),
+  rule(4, 'secretaria', 0),
+  rule(5, 'administrador global', null),
+];
+const reviewPeople: GroupRulePersonV1[] = [
+  {
+    name: 'Gabriel Exemplo',
+    email: 'gabriel.exemplo@escola.example',
+    cargo: null,
+    status: 'PENDENTE_CARGO',
+    detail: null,
+    checkedAt: '2026-11-17T12:00:00.000Z',
+  },
+  {
+    name: 'Helena Fictícia',
+    email: 'helena.ficticia@escola.example',
+    cargo: 'Bibliotecária',
+    status: 'SEM_REGRA',
+    detail: null,
+    checkedAt: '2026-11-17T12:00:00.000Z',
+  },
+];
+const flowLog: GroupFlowLogV1[] = [
+  {
+    at: '2026-11-17T12:05:00.000Z',
+    name: 'Helena Fictícia',
+    email: 'helena.ficticia@escola.example',
+    cargo: 'Bibliotecária',
+    groupName: null,
+    operation: 'SEM_REGRA',
+    result: 'AVISO',
+    detail: 'Cargo sem regra ativa.',
+  },
+];
+let nextRuleId = 10;
 
 const view = (group: PreviewGroupV1): GroupViewV1 => {
   const { members, ...rest } = group;
@@ -141,6 +200,53 @@ export function previewGroupsV1(body: string): { status: number; value: object }
         outcome: 'done',
       });
       return { status: 200, value: ok({ operation: 'create-group', group: view(created) }) };
+    }
+    case 'rules':
+      return {
+        status: 200,
+        value: ok({ operation: 'rules', rules, people: reviewPeople, log: flowLog }),
+      };
+    case 'save-rule': {
+      const command = JSON.parse(body) as {
+        ruleId?: string;
+        cargo: string;
+        action: 'ADICIONAR' | 'IGNORAR';
+        groupId?: string;
+        active: boolean;
+        note?: string;
+      };
+      const cargoKey = command.cargo.trim().toLowerCase();
+      if (
+        command.active &&
+        rules.some(
+          (item) => item.active && item.cargoKey === cargoKey && item.id !== command.ruleId,
+        )
+      )
+        return { status: 409, value: refuse('rule-duplicate') };
+      const target = groups.find((item) => item.id === command.groupId);
+      const saved: GroupRuleV1 = {
+        id: command.ruleId ?? String(nextRuleId++),
+        cargo: command.cargo.trim(),
+        cargoKey,
+        action: command.action,
+        groupId: command.action === 'ADICIONAR' ? (target?.id ?? null) : null,
+        groupName: command.action === 'ADICIONAR' ? (target?.name ?? null) : null,
+        active: command.active,
+        note: command.note ?? null,
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: 'Administração sintética',
+      };
+      const index = rules.findIndex((item) => item.id === saved.id);
+      if (index >= 0) rules[index] = saved;
+      else rules.push(saved);
+      rules.sort((left, right) => left.cargoKey.localeCompare(right.cargoKey, 'pt-BR'));
+      return { status: 200, value: ok({ operation: 'save-rule', rule: saved }) };
+    }
+    case 'delete-rule': {
+      const index = rules.findIndex((item) => item.id === input.ruleId);
+      if (index < 0) return { status: 404, value: refuse('rule-not-found') };
+      rules.splice(index, 1);
+      return { status: 200, value: ok({ operation: 'delete-rule' }) };
     }
     case 'delete-start': {
       if (!group || group.role) return { status: 403, value: refuse('delete-not-allowed') };

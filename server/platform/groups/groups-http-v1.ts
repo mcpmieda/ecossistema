@@ -2,6 +2,8 @@ import { z } from 'zod';
 import {
   GROUP_DESCRIPTION_MAX_V1,
   GROUP_NAME_MAX_V1,
+  GROUP_RULE_CARGO_MAX_V1,
+  GROUP_RULE_NOTE_MAX_V1,
   GROUPS_PATH_V1,
   type GroupRoleV1,
   type GroupsFailureStateV1,
@@ -29,6 +31,7 @@ import {
   type ContextV1,
 } from './groups-context-v1';
 import { canDeleteGroupsV1, startGroupDeleteV1 } from './groups-delete-v1';
+import { deleteRuleV1, listRulesV1, saveRuleV1 } from './group-rules-v1';
 import { mailNicknameV1, type GroupsGraphPortV1 } from './groups-graph-v1';
 
 export { roleGroupsV1, setGroupsGraphForTestsV1 } from './groups-context-v1';
@@ -87,6 +90,29 @@ const requestSchemaV1 = z.discriminatedUnion('operation', [
       operation: z.literal('delete-start'),
       groupId: id,
       confirmName: z.string().max(GROUP_NAME_MAX_V1),
+    })
+    .strict(),
+  z.object({ contractVersion: z.literal(1), operation: z.literal('rules') }).strict(),
+  z
+    .object({
+      contractVersion: z.literal(1),
+      operation: z.literal('save-rule'),
+      ruleId: z
+        .string()
+        .regex(/^\d{1,9}$/u)
+        .optional(),
+      cargo: z.string().trim().min(1).max(GROUP_RULE_CARGO_MAX_V1),
+      action: z.enum(['ADICIONAR', 'IGNORAR']),
+      groupId: id.optional(),
+      active: z.boolean(),
+      note: z.string().max(GROUP_RULE_NOTE_MAX_V1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      contractVersion: z.literal(1),
+      operation: z.literal('delete-rule'),
+      ruleId: z.string().regex(/^\d{1,9}$/u),
     })
     .strict(),
 ]);
@@ -248,6 +274,12 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
     case 'delete-start':
       // Answered with its cookie by the handler.
       throw new HttpError(400, 'Invalid request');
+    case 'rules':
+      return listRulesV1(context);
+    case 'save-rule':
+      return saveRuleV1(context, input);
+    case 'delete-rule':
+      return deleteRuleV1(context, input.ruleId);
     case 'create-group': {
       const ownerId = env.GROUPS_OWNER_ID;
       if (!store || !ownerId) throw new GroupsRefusalV1('unavailable', 503);
@@ -351,7 +383,7 @@ export async function handleGroupsRequestV1(
       return response;
     }
     const answer = await runV1(context, parsed.data);
-    if (!['list', 'members', 'find-people', 'history'].includes(operation))
+    if (!['list', 'members', 'find-people', 'history', 'rules'].includes(operation))
       console.log(JSON.stringify({ event: 'groups_changed', operation }));
     return reply(answer);
   } catch (error) {
