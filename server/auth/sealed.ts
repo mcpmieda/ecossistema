@@ -8,7 +8,7 @@ export type SealPurposeV1 =
   | 'admin-session'
   | 'admin-auth'
   | 'session-policy'
-  | 'collector-auth'
+  | 'collector-return'
   | 'collector-confirm'
   | 'collector-withdraw'
   | 'reconciliation-cursor'

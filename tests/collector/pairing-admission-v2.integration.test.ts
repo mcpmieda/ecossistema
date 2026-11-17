@@ -30,6 +30,7 @@ beforeAll(async () => {
     '0002_pending_pairings.sql',
     '0006_pairing_rate_v1.sql',
     '0009_atomic_pairing_admission_v2.sql',
+    '0015_session_authorization_v1.sql',
   ]) {
     await connection.unsafe(
       await readFile(new URL('../../migrations/collector/' + migration, import.meta.url), 'utf8'),
@@ -72,8 +73,10 @@ const globalCount = async () =>
     )[0]?.requests ?? 0,
   );
 describe.skipIf(!url)('real PostgreSQL multi-connection pairing admission', () => {
-  it('confirms a real PostgreSQL pairing exactly once and rejects a different OAuth state', async () => {
-    await connection.unsafe('TRUNCATE collector_auth.pairings,collector_auth.pairing_rate_v1');
+  it('authorizes a real PostgreSQL pairing exactly once among 24 concurrent clicks', async () => {
+    await connection.unsafe(
+      'TRUNCATE collector_auth.pairings,collector_auth.challenges,collector_auth.devices,collector_auth.oauth_grants,collector_auth.pairing_rate_v1',
+    );
     const id = crypto.randomUUID(),
       now = Date.now();
     await store.create({
@@ -83,22 +86,40 @@ describe.skipIf(!url)('real PostgreSQL multi-connection pairing admission', () =
       displayCode: '123456',
       createdAt: now,
     });
-    const txn = {
-      pairingId: id,
-      state: 'collector.' + 'a'.repeat(43),
-      nonce: 'b'.repeat(43),
-      verifier: 'c'.repeat(64),
-      startedAt: now,
-      exp: Math.floor(now / 1000) + 300,
+    const click = () => {
+      const binding = {
+        tenantId: '11111111-1111-4111-8111-111111111111',
+        actorId: '22222222-2222-4222-8222-222222222222',
+        clientId: '33333333-3333-4333-8333-333333333333',
+        grantId: crypto.randomUUID(),
+        generation: 1,
+        version: 0,
+        originAuthenticatedAt: now - 60_000,
+      };
+      return store.authorize({
+        pairingId: id,
+        binding,
+        directory: {
+          tenantId: binding.tenantId,
+          actorId: binding.actorId,
+          grantId: binding.grantId,
+          grantGeneration: 1,
+          originAuthenticatedAt: binding.originAuthenticatedAt,
+          directoryCheckedAt: now - 1000,
+          directoryValidUntil: now + 299_000,
+        },
+      });
     };
-    expect(await store.confirm(txn)).toBe(true);
+    const outcomes = await Promise.all(Array.from({ length: 24 }, click));
+    expect(outcomes.filter(Boolean)).toHaveLength(1);
     const committed = await connection.unsafe(
-      'SELECT state FROM collector_auth.pairings WHERE id=$1',
+      `SELECT p.state,(SELECT count(*)::integer FROM collector_auth.oauth_grants) AS grants,
+        (SELECT count(*)::integer FROM collector_auth.devices) AS devices
+      FROM collector_auth.pairings p WHERE p.id=$1`,
       [id],
     );
-    expect(committed[0]?.state).toBe('confirmed');
-    expect(await store.confirm({ ...txn, state: 'collector.' + 'z'.repeat(43) })).toBe(false);
-    expect(await store.confirm(txn)).toBe(false); // No replay, including the very same transaction.
+    expect(committed[0]).toMatchObject({ state: 'completed', grants: 1, devices: 1 });
+    expect(await click()).toBe(false); // No replay.
   });
   it('admits only one of 24 concurrent callers when their local budget is 29', async () => {
     await connection.unsafe('TRUNCATE collector_auth.pairings,collector_auth.pairing_rate_v1');

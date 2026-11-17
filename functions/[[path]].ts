@@ -55,7 +55,7 @@ import { handleViewPreferencesRequestV1 } from '../server/gradebook/http/view-pr
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
 import { handleOneDriveSyncRequestV1 } from '../server/gradebook/http/onedrive-sync-routes-v1';
 import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
-import { handleCollectorRequestV1 } from '../server/collector/routes-v1';
+import { collectorSignInReturnV1, handleCollectorRequestV1 } from '../server/collector/routes-v1';
 import { handleFrequencyAdminRequestV2 } from '../server/collector/frequency-http-v2';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
@@ -348,12 +348,15 @@ async function serveAuthCallbackV1(
     authenticatedAt,
   );
   const session = await seal(applicationSession, env.SESSION_SECRET, 'admin-session');
-  const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
+  // A sign-in asked by the collector's authorization page goes back to it.
+  const collectorReturn = await collectorSignInReturnV1(request, env);
+  const headers = new Headers({ Location: collectorReturn?.location ?? env.OFFICIAL_ORIGIN });
   headers.append(
     'Set-Cookie',
     secureCookie(SESSION_COOKIE, session, { maxAge: applicationSession.exp - authenticatedAt }),
   );
   headers.append('Set-Cookie', remainingAuthCookie);
+  if (collectorReturn) headers.append('Set-Cookie', collectorReturn.cookie);
   return new Response(null, { status: 302, headers });
 }
 

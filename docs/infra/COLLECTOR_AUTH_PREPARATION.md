@@ -1,5 +1,31 @@
 # Coletor: autorização candidata, 14/10/2026
 
+## Atualização de 17/11/2026: autorização em um clique, pela sessão do Ecossistema
+
+Decisão do responsável. O que segue abaixo (de 14/10/2026) fica como histórico; estes pontos
+mudaram:
+
+- **Como se autoriza.** O Coletor abre `/frequency-collector/connect?pairing=…`. Quem não está
+  logado é levado ao login do Ecossistema e volta para o mesmo pedido. A página mostra o nome de
+  quem entrou e o código que o Coletor exibe, só para conferência, e tem um botão: **Autorizar
+  este computador**. Não há código a digitar, caixa a marcar nem novo login da Microsoft.
+- **Quem pode.** Sessão com o papel ADMINISTRADOR (o grupo da Secretaria, `GROUP_ADMIN_ID`). O
+  clique confere o diretório na hora: a sessão só sabe do grupo como era no login.
+- **Como o acesso continua valendo.** O próprio servidor lê o diretório a cada cinco minutos com
+  o aplicativo Graph Backend (User.Read.All e GroupMember.ReadWrite.All): conta existente e
+  habilitada, sessões não revogadas depois do login que autorizou, e participação no grupo. Só
+  essas respostas encerram um vínculo; falha de consulta é indisponibilidade e não encerra nada.
+- **O que deixou de existir.** O login OAuth exclusivo do Coletor (`collector.` no state,
+  `offline_access`, `User.Read` delegado), o refresh token cifrado e a chave
+  `COLLECTOR_REFRESH_KEY` (o secret do Pages pode ser apagado). Nenhuma credencial Microsoft da
+  pessoa é guardada. Motivo: a Microsoft devolve no token todas as permissões que a conta já
+  consentiu no aplicativo, e o Coletor recusava qualquer uma além de `User.Read`; quando a
+  exclusão de grupos (#1513) passou a pedir `Group.ReadWrite.All` no mesmo aplicativo, os dois
+  vínculos existentes foram suspensos e nenhum login novo passava.
+- **Banco.** `migrations/collector/0015_session_authorization_v1.sql` retira duas regras que
+  exigiam o refresh cifrado e o hash do state; as colunas ficam, sem uso, porque as funções de
+  retenção e da ponte de frequência ainda as citam. Aplicar ANTES do deploy.
+
 Rotas Pages e provedor PC estão implementados. O provisionamento dedicado foi
 autorizado e concluído; a publicação segue os gates e o workflow oficial.
 Consentimento Microsoft e primeira chave permanente do PC exigem a confirmação

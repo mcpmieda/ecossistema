@@ -5,13 +5,10 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import {
   CollectorPairingStoreV1,
   collectorOpaqueHashV1,
+  type CollectorPairingAuthorizationV1,
 } from '../../server/collector/pairing-store-v1';
 import type { CollectorSqlV1 } from '../../server/collector/authorization-store-v1';
 import type { CollectorPublicKeyV1 } from '../../server/collector/device-proof-v1';
-import type {
-  CollectorOAuthTransactionV1,
-  CollectorRegistrationV1,
-} from '../../server/collector/oauth-v1';
 let db: PGlite, publicKey: CollectorPublicKeyV1;
 beforeAll(async () => {
   db = new PGlite();
@@ -20,6 +17,7 @@ beforeAll(async () => {
     '0002_pending_pairings.sql',
     '0006_pairing_rate_v1.sql',
     '0009_atomic_pairing_admission_v2.sql',
+    '0015_session_authorization_v1.sql',
   ])
     await db.exec(
       await readFile(new URL('../../migrations/collector/' + name, import.meta.url), 'utf8'),
@@ -50,14 +48,6 @@ async function fixture(age = 0) {
     now = Date.now(),
     pollHash = await collectorOpaqueHashV1('synthetic-private-poll-secret');
   await store.create({ id, publicKey, pollHash, displayCode: '123456', createdAt: now - age });
-  const transaction: CollectorOAuthTransactionV1 = {
-    pairingId: id,
-    state: 'collector.' + 's'.repeat(43),
-    nonce: 'n'.repeat(43),
-    verifier: 'v'.repeat(64),
-    startedAt: now,
-    exp: Math.floor((now + 590_000) / 1000),
-  };
   const grantId = crypto.randomUUID(),
     binding = {
       tenantId: tenant,
@@ -68,10 +58,9 @@ async function fixture(age = 0) {
       version: 0,
       originAuthenticatedAt: now - 1000,
     };
-  const registration: CollectorRegistrationV1 = {
+  const authorization: CollectorPairingAuthorizationV1 = {
     pairingId: id,
     binding,
-    encryptedRefresh: 'synthetic-encrypted-placeholder-not-a-real-token',
     directory: {
       tenantId: tenant,
       actorId: actor,
@@ -82,7 +71,7 @@ async function fixture(age = 0) {
       directoryValidUntil: now + 300_000,
     },
   };
-  return { store, transaction, pollHash, registration };
+  return { store, pollHash, authorization };
 }
 describe('owner-only pending pairing and atomic initial registration', () => {
   it('enforces rate windows without counting denied requests', async () => {
@@ -230,78 +219,94 @@ describe('owner-only pending pairing and atomic initial registration', () => {
     expect(await f.store.poll(id, 'f'.repeat(64))).toBeNull();
     expect(await f.store.poll(id, f.pollHash)).toEqual({ state: 'pending', device_id: null });
   });
-  it('requires explicit confirmation and atomically consumes exactly one callback', async () => {
+  it('authorizes a pending pairing once: one new grant and device with its key and origin', async () => {
     const f = await fixture();
-    expect(await f.store.consumeConfirmedTransaction(f.transaction)).toBe(false);
-    expect(await f.store.confirm(f.transaction)).toBe(true);
-    expect(await f.store.confirm(f.transaction)).toBe(false);
     const results = await Promise.all(
-      Array.from({ length: 8 }, () => f.store.consumeConfirmedTransaction(f.transaction)),
-    );
-    expect(results.filter(Boolean)).toHaveLength(1);
-    expect(await f.store.consumeConfirmedTransaction(f.transaction)).toBe(false);
-  });
-  it('binds callback state, nonce and pairing instead of accepting swapped transactions', async () => {
-    const f = await fixture();
-    await f.store.confirm(f.transaction);
-    expect(
-      await f.store.consumeConfirmedTransaction({
-        ...f.transaction,
-        state: 'collector.' + 'x'.repeat(43),
-      }),
-    ).toBe(false);
-    expect(
-      await f.store.consumeConfirmedTransaction({ ...f.transaction, nonce: 'x'.repeat(43) }),
-    ).toBe(false);
-    expect(
-      await f.store.consumeConfirmedTransaction({
-        ...f.transaction,
-        pairingId: crypto.randomUUID(),
-      }),
-    ).toBe(false);
-    expect(await f.store.consumeConfirmedTransaction(f.transaction)).toBe(true);
-  });
-  it('registers one new grant/device with the confirmed key, preserving authentication origin', async () => {
-    const f = await fixture();
-    await f.store.confirm(f.transaction);
-    await f.store.consumeConfirmedTransaction(f.transaction);
-    const results = await Promise.all(
-      Array.from({ length: 8 }, () => f.store.registerConfirmedPairing(f.registration)),
+      Array.from({ length: 8 }, () => f.store.authorize(f.authorization)),
     );
     expect(results.filter(Boolean)).toHaveLength(1);
     const grant = (
-      await db.query<{ origin_authenticated_at: Date }>(
-        'SELECT origin_authenticated_at FROM collector_auth.oauth_grants',
+      await db.query<{ origin_authenticated_at: Date; state: string; actor_id: string }>(
+        'SELECT origin_authenticated_at,state,actor_id FROM collector_auth.oauth_grants',
       )
     ).rows;
     expect(grant).toHaveLength(1);
     expect(grant[0]!.origin_authenticated_at.getTime()).toBe(
-      f.registration.binding.originAuthenticatedAt,
+      f.authorization.binding.originAuthenticatedAt,
     );
+    expect(grant[0]).toMatchObject({ state: 'active', actor_id: actor });
     const devices = (
       await db.query<{ public_key: unknown }>('SELECT public_key FROM collector_auth.devices')
     ).rows;
     expect(devices).toHaveLength(1);
     expect(devices[0]!.public_key).toEqual(publicKey);
     expect((await f.store.poll(id, f.pollHash))?.state).toBe('completed');
+    expect(await f.store.browserView(id)).toBeNull();
   });
-  it('cancellation and expiry prevent registration and callback consumption', async () => {
+  it('authorizes only with evidence of the same grant, checked within its window', async () => {
+    const f = await fixture(),
+      { binding, directory } = f.authorization;
+    const refused: CollectorPairingAuthorizationV1[] = [
+      { ...f.authorization, pairingId: crypto.randomUUID() },
+      { ...f.authorization, binding: { ...binding, generation: 2 } },
+      { ...f.authorization, binding: { ...binding, version: 1 } },
+      { ...f.authorization, directory: { ...directory, actorId: tenant } },
+      { ...f.authorization, directory: { ...directory, grantId: crypto.randomUUID() } },
+      {
+        ...f.authorization,
+        directory: { ...directory, originAuthenticatedAt: directory.originAuthenticatedAt - 1 },
+      },
+      {
+        ...f.authorization,
+        directory: { ...directory, directoryValidUntil: directory.directoryValidUntil + 1 },
+      },
+      {
+        ...f.authorization,
+        directory: {
+          ...directory,
+          directoryCheckedAt: directory.directoryCheckedAt - 301_000,
+          directoryValidUntil: directory.directoryValidUntil - 301_000,
+        },
+      },
+      {
+        ...f.authorization,
+        directory: {
+          ...directory,
+          directoryCheckedAt: directory.directoryCheckedAt + 60_000,
+          directoryValidUntil: directory.directoryValidUntil + 60_000,
+        },
+      },
+    ];
+    for (const attempt of refused) expect(await f.store.authorize(attempt)).toBe(false);
+    expect((await db.query('SELECT id FROM collector_auth.oauth_grants')).rows).toHaveLength(0);
+    expect(await f.store.authorize(f.authorization)).toBe(true);
+  });
+  it('cancellation and expiry prevent the authorization', async () => {
     const f = await fixture();
-    await f.store.confirm(f.transaction);
-    await f.store.consumeConfirmedTransaction(f.transaction);
     await f.store.cancel(id, f.pollHash);
-    expect(await f.store.registerConfirmedPairing(f.registration)).toBe(false);
+    expect(await f.store.authorize(f.authorization)).toBe(false);
     expect((await f.store.poll(id, f.pollHash))?.state).toBe('cancelled');
     const expired = await fixture(601_000);
     expect(await expired.store.browserView(id)).toBeNull();
-    expect(await expired.store.confirm(expired.transaction)).toBe(false);
+    expect(await expired.store.authorize(expired.authorization)).toBe(false);
     expect(await expired.store.poll(id, expired.pollHash)).toBeNull();
+  });
+  it('a cancellation after the authorization retires the unclaimed grant and device', async () => {
+    const f = await fixture();
+    expect(await f.store.authorize(f.authorization)).toBe(true);
+    await f.store.cancel(id, f.pollHash);
+    expect(await f.store.claim(id, f.pollHash)).toBe(false);
+    const rows = (
+      await db.query<{ state: string; revoked: boolean }>(
+        `SELECT g.state,d.revoked_at IS NOT NULL AS revoked FROM collector_auth.oauth_grants g
+        JOIN collector_auth.devices d ON d.grant_id=g.id`,
+      )
+    ).rows;
+    expect(rows).toEqual([{ state: 'revoked', revoked: true }]);
   });
   it('purges only finished rows: old cancelled pairings and expired challenges', async () => {
     const f = await fixture();
-    await f.store.confirm(f.transaction);
-    await f.store.consumeConfirmedTransaction(f.transaction);
-    expect(await f.store.registerConfirmedPairing(f.registration)).toBe(true);
+    expect(await f.store.authorize(f.authorization)).toBe(true);
     const device = (await db.query<{ id: string }>('SELECT id FROM collector_auth.devices'))
       .rows[0]!.id;
     const pairing = (
@@ -340,17 +345,13 @@ describe('owner-only pending pairing and atomic initial registration', () => {
   });
   it('rolls back the new grant when device registration fails inside the same statement', async () => {
     const f = await fixture();
-    await f.store.confirm(f.transaction);
-    await f.store.consumeConfirmedTransaction(f.transaction);
     await db.exec(`CREATE FUNCTION collector_auth.synthetic_reject_device() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN RAISE EXCEPTION 'synthetic-device-failure'; END; $$;
       CREATE TRIGGER synthetic_reject_device BEFORE INSERT ON collector_auth.devices FOR EACH ROW EXECUTE FUNCTION collector_auth.synthetic_reject_device();`);
     try {
-      await expect(f.store.registerConfirmedPairing(f.registration)).rejects.toThrow(
-        'synthetic-device-failure',
-      );
+      await expect(f.store.authorize(f.authorization)).rejects.toThrow('synthetic-device-failure');
       expect((await db.query('SELECT id FROM collector_auth.oauth_grants')).rows).toHaveLength(0);
-      expect((await f.store.poll(id, f.pollHash))?.state).toBe('exchanging');
+      expect((await f.store.poll(id, f.pollHash))?.state).toBe('pending');
     } finally {
       await db.exec(
         'DROP TRIGGER synthetic_reject_device ON collector_auth.devices;DROP FUNCTION collector_auth.synthetic_reject_device();',
