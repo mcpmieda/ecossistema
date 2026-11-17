@@ -152,6 +152,7 @@ native('frequency V2 complete native migration stack', () => {
               '0008_cron_history_retention_v2.sql',
               '0010_daily_evidence_pruning_v2.sql',
               '0013_scheduled_retention_now_v2.sql',
+              '0016_scheduled_retention_session_v2.sql',
             ].includes(f),
         )
         .sort()
@@ -197,8 +198,8 @@ native('frequency V2 complete native migration stack', () => {
  INSERT INTO gradebook.student_reconciliation_decision_v1(id,academic_year,generation,sequence,actor_id,action,reason,source_id,student_uid,observation_id)
  SELECT '42000000-0000-4000-8000-000000000001',2026,generation,1,'${actorId}','associate','Synthetic fixture','50000000-0000-4000-8000-000000000001','${uid}','60000000-0000-4000-8000-000000000001' FROM gradebook.student_reconciliation_scope_v1;
  INSERT INTO gradebook.student_source_link_v1(academic_year,source_id,student_uid,version,decision_id) VALUES(2026,'50000000-0000-4000-8000-000000000001','${uid}',1,'42000000-0000-4000-8000-000000000001');
- INSERT INTO collector_auth.oauth_grants(id,tenant_id,actor_id,client_id,generation,credential_version,origin_authenticated_at,encrypted_refresh,state,directory_authorized,directory_checked_at,directory_valid_until)
- VALUES('31000000-0000-4000-8000-000000000001','${tenant}','${actorId}','32000000-0000-4000-8000-000000000001',1,0,clock_timestamp(),repeat('synthetic',5),'active',true,statement_timestamp(),statement_timestamp()+interval '5 minutes');
+ INSERT INTO collector_auth.oauth_grants(id,tenant_id,actor_id,client_id,generation,credential_version,origin_authenticated_at,state,directory_authorized,directory_checked_at,directory_valid_until)
+ VALUES('31000000-0000-4000-8000-000000000001','${tenant}','${actorId}','32000000-0000-4000-8000-000000000001',1,0,clock_timestamp(),'active',true,statement_timestamp(),statement_timestamp()+interval '5 minutes');
  INSERT INTO collector_auth.devices(id,grant_id,tenant_id,actor_id,public_key,key_thumbprint,generation,created_at)
  VALUES('${device}','31000000-0000-4000-8000-000000000001','${tenant}','${actorId}','{"kty":"EC","crv":"P-256","x":"synthetic","y":"synthetic"}','${thumb}',1,clock_timestamp());`);
     await exec('RESET ROLE; REVOKE frequency_migrator_v2 FROM CURRENT_USER;');

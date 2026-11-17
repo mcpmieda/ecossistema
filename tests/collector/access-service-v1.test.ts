@@ -40,6 +40,15 @@ beforeAll(async () => {
       'utf8',
     ),
   );
+  await db.exec(
+    await readFile(
+      new URL(
+        '../../migrations/collector/0018_drop_delegated_sign_in_columns_v1.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
 }, 60_000);
 afterAll(async () => db.close());
 const ids = {

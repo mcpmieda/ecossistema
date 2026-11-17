@@ -17,14 +17,20 @@ mudaram:
   essas respostas encerram um vínculo; falha de consulta é indisponibilidade e não encerra nada.
 - **O que deixou de existir.** O login OAuth exclusivo do Coletor (`collector.` no state,
   `offline_access`, `User.Read` delegado), o refresh token cifrado e a chave
-  `COLLECTOR_REFRESH_KEY` (o secret do Pages pode ser apagado). Nenhuma credencial Microsoft da
+  `COLLECTOR_REFRESH_KEY` (secret do Pages apagado em 17/11/2026). Nenhuma credencial Microsoft da
   pessoa é guardada. Motivo: a Microsoft devolve no token todas as permissões que a conta já
   consentiu no aplicativo, e o Coletor recusava qualquer uma além de `User.Read`; quando a
   exclusão de grupos (#1513) passou a pedir `Group.ReadWrite.All` no mesmo aplicativo, os dois
   vínculos existentes foram suspensos e nenhum login novo passava.
 - **Banco.** `migrations/collector/0015_session_authorization_v1.sql` retira duas regras que
-  exigiam o refresh cifrado e o hash do state; as colunas ficam, sem uso, porque as funções de
-  retenção e da ponte de frequência ainda as citam. Aplicar ANTES do deploy.
+  exigiam o refresh cifrado e o hash do state. Aplicar ANTES do deploy.
+- **Limpeza (17/11/2026).** As quatro colunas do login delegado saíram do banco, nesta ordem:
+  `0016_scheduled_retention_session_v2.sql` (a tarefa de retenção do `pg_cron` deixa de citá-las; só
+  Supabase), `0017_revoke_device_session_v2.sql` (`revoke_device_admin_v2` deixa de citar
+  `encrypted_refresh`) e `0018_drop_delegated_sign_in_columns_v1.sql` (remove
+  `oauth_grants.encrypted_refresh` e `pairings.oauth_state_hash`, `oauth_nonce_hash` e
+  `oauth_consumed_at`; recusa se ainda houver refresh guardado ou pareamento no meio do login
+  antigo). O servidor já não as lia nem escrevia: podem ser aplicadas antes ou depois do deploy.
 
 Rotas Pages e provedor PC estão implementados. O provisionamento dedicado foi
 autorizado e concluído; a publicação segue os gates e o workflow oficial.

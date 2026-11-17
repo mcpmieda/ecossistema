@@ -31,6 +31,7 @@ beforeAll(async () => {
     '0006_pairing_rate_v1.sql',
     '0009_atomic_pairing_admission_v2.sql',
     '0015_session_authorization_v1.sql',
+    '0018_drop_delegated_sign_in_columns_v1.sql',
   ]) {
     await connection.unsafe(
       await readFile(new URL('../../migrations/collector/' + migration, import.meta.url), 'utf8'),

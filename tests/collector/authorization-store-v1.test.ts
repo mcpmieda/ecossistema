@@ -29,6 +29,15 @@ beforeAll(async () => {
       'utf8',
     ),
   );
+  await database.exec(
+    await readFile(
+      new URL(
+        '../../migrations/collector/0018_drop_delegated_sign_in_columns_v1.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
 }, 60_000);
 afterAll(async () => {
   await database.close();
@@ -82,10 +91,10 @@ async function fixture(directoryAgeSeconds = 0) {
     [proof.nonceHash, ids.device, proof.keyThumbprint],
   );
   await db.query(
-    `INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at,state,oauth_state_hash,device_id,claimed_at)
-    SELECT $1,d.public_key,d.key_thumbprint,$2,'123456',t,t+interval '10 minutes','completed',$3,d.id,t
-    FROM collector_auth.devices d CROSS JOIN (SELECT clock_timestamp() AS t) stamp WHERE d.id=$4`,
-    [crypto.randomUUID(), 'a'.repeat(64), 'b'.repeat(64), ids.device],
+    `INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at,state,device_id,claimed_at)
+    SELECT $1,d.public_key,d.key_thumbprint,$2,'123456',t,t+interval '10 minutes','completed',d.id,t
+    FROM collector_auth.devices d CROSS JOIN (SELECT clock_timestamp() AS t) stamp WHERE d.id=$3`,
+    [crypto.randomUUID(), 'a'.repeat(64), ids.device],
   );
   const sql: CollectorSqlV1 = {
     query: async <T extends Record<string, unknown>>(statement: string, parameters: unknown[]) =>
