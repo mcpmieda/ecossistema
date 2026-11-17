@@ -56,7 +56,13 @@ type AppRoleAssignmentResponse = {
   createdDateTime?: string | null;
 };
 
-type Collection<T> = { value?: T[] };
+type Collection<T> = { value?: T[]; '@odata.nextLink'?: string };
+
+/** Permissions past the first page would escape the baseline: fail closed instead. */
+function singlePage<T>(collection: Collection<T>, stage: string): T[] {
+  if (collection['@odata.nextLink']) throw new EntraOperationsAuditError(`${stage}-paged`);
+  return collection.value ?? [];
+}
 
 export type EntraApplicationAudit = {
   id: string;
@@ -196,6 +202,23 @@ const EXPECTED_SHAREPOINT_SITE_ID =
 const SHAREPOINT_ISOLATION_PROBE_SITE_ID =
   'eduieda.sharepoint.com,bc1489eb-2358-475f-a3b6-674e42eb7e53,f3e8239e-3ed7-4eb1-8774-e14743bc0d45';
 
+/**
+ * The exact Microsoft Graph application permissions each app may hold (#1513). The Web app signs
+ * people in with delegated scopes only; the Graph Backend reads the selected SharePoint sites and
+ * lists, the users, and manages the members of the Centro's groups. Any other one is critical
+ * drift; a missing one breaks a module and is critical too.
+ */
+const EXPECTED_APPLICATION_ROLES: Record<'web' | 'graph', ReadonlySet<string>> = {
+  web: new Set(),
+  graph: new Set([
+    '883ea226-0bf2-4a8f-9f9d-92c9162a727d', // Sites.Selected
+    '23c5a9bd-d900-4ecf-be26-a0689755d9e5', // Lists.SelectedOperations.Selected
+    'df021288-bdef-4463-88db-98f22de89214', // User.Read.All
+    'bf7b1a76-6e77-406b-b258-bf5c7720e98f', // Group.Create
+    'dbaae8cf-10b5-4b86-a4a1-f871c94c6695', // GroupMember.ReadWrite.All
+  ]),
+};
+
 const BROAD_APPLICATION_PERMISSIONS = new Set([
   '7ab1d382-f21e-4acd-a863-ba3e13f7da61', // Directory.Read.All
   '332a536c-c7ef-4017-ab91-336970924f0d', // Sites.Read.All
@@ -248,9 +271,26 @@ function applicationDrift(
 
   certificateDrift(label, actual, now, add);
 
-  for (const assignment of actual.servicePrincipal?.appRoleAssignments ?? []) {
-    if (BROAD_APPLICATION_PERMISSIONS.has(assignment.appRoleId))
+  if (actual.servicePrincipal) permissionDrift(label, actual.servicePrincipal, add);
+}
+
+/** Application permissions against the exact baseline of the app. */
+function permissionDrift(
+  label: 'web' | 'graph',
+  servicePrincipal: NonNullable<EntraApplicationAudit['servicePrincipal']>,
+  add: AddDriftFinding,
+): void {
+  const expected = EXPECTED_APPLICATION_ROLES[label];
+  const granted = new Set(
+    servicePrincipal.appRoleAssignments.map((assignment) => assignment.appRoleId),
+  );
+  for (const roleId of granted) {
+    if (BROAD_APPLICATION_PERMISSIONS.has(roleId))
       add(label, 'warning', 'broad-application-permission-present');
+    if (!expected.has(roleId)) add(label, 'critical', 'unexpected-application-permission');
+  }
+  for (const roleId of expected) {
+    if (!granted.has(roleId)) add(label, 'critical', 'expected-application-permission-missing');
   }
 }
 
@@ -437,7 +477,9 @@ async function readOperationsIdentity(
     displayName: principal.displayName,
     accountEnabled: typeof principal.accountEnabled === 'boolean' ? principal.accountEnabled : null,
     servicePrincipalType: principal.servicePrincipalType ?? null,
-    appRoleAssignments: sanitizedAssignments(assignments.value ?? []),
+    appRoleAssignments: sanitizedAssignments(
+      singlePage(assignments, 'operations-app-role-assignments'),
+    ),
   };
 }
 
@@ -600,7 +642,11 @@ async function readExactApplication(
         `${label}-app-role-assignments`,
       )
     : { value: [] };
-  return sanitizeApplication(app, servicePrincipal, assignments.value ?? []);
+  return sanitizeApplication(
+    app,
+    servicePrincipal,
+    singlePage(assignments, `${label}-app-role-assignments`),
+  );
 }
 
 export async function auditEntraOperations(input: {

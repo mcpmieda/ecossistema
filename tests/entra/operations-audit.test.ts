@@ -13,6 +13,22 @@ const OPS_APP_ID = '8d0378b4-832c-4703-8449-5ff2072589a5';
 const APPLICATION_READ_ALL = '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30';
 const SITES_SELECTED = '883ea226-0bf2-4a8f-9f9d-92c9162a727d';
 const TOKEN = 'synthetic-token-that-must-never-appear-in-output';
+/** Sites.Selected, Lists.SelectedOperations.Selected, User.Read.All, Group.Create, GroupMember.ReadWrite.All. */
+const GRAPH_BACKEND_ROLES = [
+  SITES_SELECTED,
+  '23c5a9bd-d900-4ecf-be26-a0689755d9e5',
+  'df021288-bdef-4463-88db-98f22de89214',
+  'bf7b1a76-6e77-406b-b258-bf5c7720e98f',
+  'dbaae8cf-10b5-4b86-a4a1-f871c94c6695',
+];
+const roleAssignments = (roleIds: readonly string[]) =>
+  json({
+    value: roleIds.map((appRoleId) => ({
+      id: crypto.randomUUID(),
+      appRoleId,
+      resourceId: crypto.randomUUID(),
+    })),
+  });
 
 function json(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
@@ -142,7 +158,7 @@ describe('Entra operations read-only audit', () => {
       if (
         url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments')
       ) {
-        return json({ value: [] });
+        return roleAssignments(GRAPH_BACKEND_ROLES);
       }
       if (
         url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments')
@@ -183,12 +199,12 @@ describe('Entra operations read-only audit', () => {
       displayName: 'Ecossistema Operations - GitHub OIDC',
       accountEnabled: true,
     });
-    expect(result.drift.status).toBe('warning');
-    expect(result.drift.findings).toContainEqual({
-      application: 'web',
-      severity: 'warning',
-      code: 'password-credential-present',
-    });
+    // The synthetic permission on the Web app is outside its baseline.
+    expect(result.drift.status).toBe('critical');
+    expect(result.drift.findings).toEqual([
+      { application: 'web', severity: 'warning', code: 'password-credential-present' },
+      { application: 'web', severity: 'critical', code: 'unexpected-application-permission' },
+    ]);
     expect(result.sharePoint).toEqual({
       enabled: false,
       status: 'disabled',
@@ -293,7 +309,7 @@ describe('Entra operations read-only audit', () => {
       if (
         url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments')
       )
-        return json({ value: [] });
+        return roleAssignments(GRAPH_BACKEND_ROLES);
       if (
         url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments')
       )
@@ -448,6 +464,116 @@ describe('Entra operations read-only audit', () => {
     ).rejects.toMatchObject({
       name: 'EntraOperationsAuditError',
       stage: 'sharepoint-broad-access-detected',
+    });
+  });
+
+  it('#1513 holds the Graph Backend to its exact application permissions', async () => {
+    const audit = (graphRoles: readonly string[]) =>
+      auditEntraOperations({
+        accessToken: TOKEN,
+        webApplicationObjectId: WEB_OBJECT,
+        graphApplicationObjectId: GRAPH_OBJECT,
+        operationsClientId: OPS_APP_ID,
+        fetcher: vi.fn<typeof fetch>(async (input) => {
+          const url = String(input);
+          for (const [object, appId, displayName, web] of [
+            [
+              WEB_OBJECT,
+              WEB_APP_ID,
+              'Ecossistema Escolar - Web',
+              ['https://admin.escolaieda.com/auth/callback'],
+            ],
+            [GRAPH_OBJECT, GRAPH_APP_ID, 'Ecossistema Escolar - Graph Backend', []],
+          ] as const) {
+            if (url.includes(`/applications/${object}`))
+              return json({
+                id: object,
+                appId,
+                displayName,
+                signInAudience: 'AzureADMyOrg',
+                web: { redirectUris: web },
+                keyCredentials: [
+                  { keyId: crypto.randomUUID(), endDateTime: '2027-12-31T00:00:00Z' },
+                ],
+              });
+          }
+          for (const [appId, principal] of [
+            [WEB_APP_ID, '88888888-8888-4888-8888-888888888888'],
+            [GRAPH_APP_ID, '99999999-9999-4999-8999-999999999999'],
+            [OPS_APP_ID, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'],
+          ] as const) {
+            if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(appId)))
+              return json({
+                value: [
+                  {
+                    id: principal,
+                    appId,
+                    displayName:
+                      appId === OPS_APP_ID ? 'Ecossistema Operations - GitHub OIDC' : 'SP',
+                    accountEnabled: true,
+                    servicePrincipalType: 'Application',
+                  },
+                ],
+              });
+          }
+          if (
+            url.includes(
+              '/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments',
+            )
+          )
+            return 'paged' in graphRoles
+              ? json({
+                  value: graphRoles.map((appRoleId) => ({ id: crypto.randomUUID(), appRoleId })),
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/next',
+                })
+              : roleAssignments(graphRoles);
+          if (
+            url.includes(
+              '/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments',
+            )
+          )
+            return roleAssignments([APPLICATION_READ_ALL]);
+          if (url.includes('/appRoleAssignments')) return roleAssignments([]);
+          throw new Error(`Unexpected URL: ${url}`);
+        }),
+        now: () => new Date('2026-11-17T00:00:00Z'),
+      });
+
+    expect((await audit(GRAPH_BACKEND_ROLES)).drift).toEqual({ status: 'ok', findings: [] });
+
+    // Group.ReadWrite.All granted by mistake.
+    expect(
+      (await audit([...GRAPH_BACKEND_ROLES, '62a82d76-70ea-41e2-9197-370581804d09'])).drift,
+    ).toEqual({
+      status: 'critical',
+      findings: [
+        { application: 'graph', severity: 'critical', code: 'unexpected-application-permission' },
+      ],
+    });
+    // Sites.ReadWrite.All is broad and outside the baseline.
+    expect(
+      (await audit([...GRAPH_BACKEND_ROLES, '9492366f-7969-46a4-8d15-ed1a20078fff'])).drift
+        .findings,
+    ).toEqual([
+      { application: 'graph', severity: 'warning', code: 'broad-application-permission-present' },
+      { application: 'graph', severity: 'critical', code: 'unexpected-application-permission' },
+    ]);
+    // More than one page of permissions cannot be checked against the baseline.
+    const paged = Object.assign([...GRAPH_BACKEND_ROLES], { paged: true });
+    await expect(audit(paged)).rejects.toMatchObject({
+      name: 'EntraOperationsAuditError',
+      stage: 'graph-app-role-assignments-paged',
+    });
+    // A removed permission breaks the groups screen.
+    expect((await audit(GRAPH_BACKEND_ROLES.slice(0, 4))).drift).toEqual({
+      status: 'critical',
+      findings: [
+        {
+          application: 'graph',
+          severity: 'critical',
+          code: 'expected-application-permission-missing',
+        },
+      ],
     });
   });
 
