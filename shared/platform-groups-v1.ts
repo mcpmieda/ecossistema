@@ -28,7 +28,8 @@ export type GroupPersonV1 = {
   enabled: boolean | null;
 };
 
-export type GroupChangeActionV1 = 'create-group' | 'add-member' | 'remove-member' | 'delete-group';
+export type GroupChangeActionV1 =
+  'create-group' | 'add-member' | 'remove-member' | 'delete-group' | 'save-rule' | 'delete-rule';
 export type GroupChangeOutcomeV1 = 'done' | 'unchanged' | 'failed';
 
 export type GroupChangeV1 = {
@@ -41,6 +42,51 @@ export type GroupChangeV1 = {
   outcome: GroupChangeOutcomeV1;
 };
 
+/**
+ * A rule of the flow "Grupos por Cargo" (SharePoint list REGRAS): a job title adds the person to a
+ * group, or is ignored. The flow compares the title in lower case.
+ */
+export type GroupRuleActionV1 = 'ADICIONAR' | 'IGNORAR';
+export type GroupRuleV1 = {
+  id: string;
+  /** The job title as written by the Secretaria. */
+  cargo: string;
+  /** What the flow compares: the title in lower case. */
+  cargoKey: string;
+  action: GroupRuleActionV1;
+  groupId: string | null;
+  groupName: string | null;
+  active: boolean;
+  note: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+};
+export const GROUP_RULE_CARGO_MAX_V1 = 120;
+export const GROUP_RULE_NOTE_MAX_V1 = 300;
+
+/** People the flow could not place (list ESTADO), to review. */
+export type GroupRuleStatusV1 = 'PENDENTE_CARGO' | 'SEM_REGRA' | 'PENDENTE_GRUPO' | 'ERRO';
+export type GroupRulePersonV1 = {
+  name: string | null;
+  email: string | null;
+  cargo: string | null;
+  status: GroupRuleStatusV1;
+  detail: string | null;
+  checkedAt: string | null;
+};
+
+/** The flow's recent log (list LOG), newest first. */
+export type GroupFlowLogV1 = {
+  at: string | null;
+  name: string | null;
+  email: string | null;
+  cargo: string | null;
+  groupName: string | null;
+  operation: string | null;
+  result: string | null;
+  detail: string | null;
+};
+
 export type GroupsRequestV1 =
   | { contractVersion: 1; operation: 'list' }
   | { contractVersion: 1; operation: 'members'; groupId: string }
@@ -51,14 +97,29 @@ export type GroupsRequestV1 =
   | { contractVersion: 1; operation: 'create-group'; name: string; description?: string }
   /** Starts the deletion: the answer sends the browser to Microsoft, which asks the person to sign
    * in for it; the deletion runs on the way back, with that sign-in. */
-  | { contractVersion: 1; operation: 'delete-start'; groupId: string; confirmName: string };
+  | { contractVersion: 1; operation: 'delete-start'; groupId: string; confirmName: string }
+  | { contractVersion: 1; operation: 'rules' }
+  | {
+      contractVersion: 1;
+      operation: 'save-rule';
+      /** Absent for a new rule. */
+      ruleId?: string;
+      cargo: string;
+      action: GroupRuleActionV1;
+      /** Required to add; absent to ignore. */
+      groupId?: string;
+      active: boolean;
+      note?: string;
+    }
+  | { contractVersion: 1; operation: 'delete-rule'; ruleId: string };
 
-export type GroupsReadOperationV1 = 'list' | 'members' | 'find-people' | 'history';
+export type GroupsReadOperationV1 = 'list' | 'members' | 'find-people' | 'history' | 'rules';
 export const GROUPS_READ_OPERATIONS_V1: readonly GroupsReadOperationV1[] = [
   'list',
   'members',
   'find-people',
   'history',
+  'rules',
 ];
 
 export type GroupsResponseV1 =
@@ -93,7 +154,17 @@ export type GroupsResponseV1 =
       result: 'removed' | 'not-member';
     }
   | { contractVersion: 1; state: 'ok'; operation: 'create-group'; group: GroupViewV1 }
-  | { contractVersion: 1; state: 'ok'; operation: 'delete-start'; authorizeUrl: string };
+  | { contractVersion: 1; state: 'ok'; operation: 'delete-start'; authorizeUrl: string }
+  | {
+      contractVersion: 1;
+      state: 'ok';
+      operation: 'rules';
+      rules: GroupRuleV1[];
+      people: GroupRulePersonV1[];
+      log: GroupFlowLogV1[];
+    }
+  | { contractVersion: 1; state: 'ok'; operation: 'save-rule'; rule: GroupRuleV1 }
+  | { contractVersion: 1; state: 'ok'; operation: 'delete-rule' };
 
 /** How the deletion ended, in the address the browser comes back to (`#/configuracoes?grupos=`). */
 export const GROUP_DELETE_RESULTS_V1 = ['excluido', 'recusado', 'cancelado', 'falhou'] as const;
@@ -105,7 +176,9 @@ export type GroupDeleteResultV1 = (typeof GROUP_DELETE_RESULTS_V1)[number];
  * - `self-removal`: nobody removes themselves from the admin group (it would lock them out);
  * - `name-taken`: a reachable group already has that name;
  * - `delete-not-allowed`: a role group, or a person who may not delete;
- * - `name-mismatch`: the name typed to confirm a deletion is not the group's.
+ * - `name-mismatch`: the name typed to confirm a deletion is not the group's;
+ * - `rule-duplicate`: another active rule has the same job title;
+ * - `rule-not-found`: the rule was removed meanwhile.
  */
 export type GroupsFailureStateV1 =
   | 'invalid-request'
@@ -116,6 +189,8 @@ export type GroupsFailureStateV1 =
   | 'name-taken'
   | 'delete-not-allowed'
   | 'name-mismatch'
+  | 'rule-duplicate'
+  | 'rule-not-found'
   | 'unavailable';
 
 export type GroupsFailureV1 = { contractVersion: 1; state: GroupsFailureStateV1 };

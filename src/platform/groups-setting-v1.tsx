@@ -39,6 +39,8 @@ const ACTION_LABELS_V1: Record<GroupChangeV1['action'], string> = {
   'add-member': 'Adicionou',
   'remove-member': 'Removeu',
   'delete-group': 'Excluiu o grupo',
+  'save-rule': 'Salvou a regra',
+  'delete-rule': 'Removeu a regra',
 };
 const OUTCOME_LABELS_V1: Record<GroupChangeV1['outcome'], string | null> = {
   done: null,

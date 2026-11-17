@@ -55,6 +55,8 @@ export const GROUPS_FAILURE_TEXT_V1: Record<GroupsFailureStateV1, string> = {
   'name-taken': 'Já existe um grupo com esse nome.',
   'delete-not-allowed': 'Este grupo não pode ser excluído por você.',
   'name-mismatch': 'O nome digitado não é o do grupo.',
+  'rule-duplicate': 'Já existe uma regra ativa para esse cargo.',
+  'rule-not-found': 'Esta regra não existe mais.',
   unavailable: 'Não foi possível concluir agora. Tente de novo.',
 };
 

@@ -36,6 +36,7 @@ if (typeof window !== 'undefined') {
 import { formatDate, PageHeader } from './presentation';
 import { AccessGrantsSettingV1 } from './access-grants-setting-v1';
 import { GroupsSettingV1 } from './groups-setting-v1';
+import { GroupRulesSettingV1 } from './group-rules-setting-v1';
 
 type SessionPolicy = {
   version: 1;
@@ -263,6 +264,7 @@ function SettingsPage() {
       <SessionDurationSetting />
       <AccessGrantsSettingV1 />
       <GroupsSettingV1 />
+      <GroupRulesSettingV1 />
     </>
   );
 }
