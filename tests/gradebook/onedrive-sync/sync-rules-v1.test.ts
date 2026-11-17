@@ -44,17 +44,13 @@ const done = (outcome: ReadResultV1['outcome'], readHash: string | null = 'h-a')
   readMs: 1,
   savedToWrittenMs: null,
 });
-function pending(id: string, now = 0, settings = on): SyncFileV1 {
-  return observeFileV1(null, seen(id), now, settings)!;
+function pending(id: string, now = 0): SyncFileV1 {
+  return observeFileV1(null, seen(id), now)!;
 }
 
 describe('Notas sync rules', () => {
-  it('a new or changed file becomes pending, due after the configured wait', () => {
+  it('a new or changed file becomes pending, due at once', () => {
     expect(pending('a', 1000)).toMatchObject({ state: 'pending', dueAt: 1000 });
-    expect(pending('a', 1000, { ...on, waitSeconds: 10 })).toMatchObject({
-      state: 'pending',
-      dueAt: 11_000,
-    });
   });
 
   it('a file identical to the last processed one is skipped without a read', () => {
@@ -64,24 +60,23 @@ describe('Notas sync rules', () => {
       processedHash: 'h-a',
       dueAt: null,
     };
-    expect(observeFileV1(processed, seen('a'), 5, on)).toMatchObject({
+    expect(observeFileV1(processed, seen('a'), 5)).toMatchObject({
       state: 'idle',
       dueAt: null,
     });
   });
 
-  it('a later save pushes the wait forward', () => {
-    const settings = { ...on, waitSeconds: 10 };
-    const first = observeFileV1(null, seen('a', 'h1'), 0, settings)!;
-    expect(observeFileV1(first, seen('a', 'h2'), 4000, settings)).toMatchObject({
+  it('a later save of a file still waiting keeps it due at once', () => {
+    const first = observeFileV1(null, seen('a', 'h1'), 0)!;
+    expect(observeFileV1(first, seen('a', 'h2'), 4000)).toMatchObject({
       state: 'pending',
-      dueAt: 14_000,
+      dueAt: 4000,
     });
   });
 
   it('a save during a read marks the file dirty; it is read again right after', () => {
     const reading = startReadingV1(pending('a'), 'lease-1', 0);
-    const dirty = observeFileV1(reading, seen('a', 'h-new'), 10, on)!;
+    const dirty = observeFileV1(reading, seen('a', 'h-new'), 10)!;
     expect(dirty).toMatchObject({ state: 'reading', dirty: true, lease: 'lease-1' });
     expect(finishReadingV1(dirty, 'lease-1', done('applied', 'h-a'), 20)).toMatchObject({
       state: 'pending',
@@ -97,11 +92,11 @@ describe('Notas sync rules', () => {
       'lease-1',
       0,
     );
-    expect(observeFileV1(reading, seen('a', 'h-a'), 10, on)).toMatchObject({
+    expect(observeFileV1(reading, seen('a', 'h-a'), 10)).toMatchObject({
       state: 'reading',
       dirty: false,
     });
-    expect(observeFileV1(reading, seen('a', 'h-b'), 10, on)).toMatchObject({
+    expect(observeFileV1(reading, seen('a', 'h-b'), 10)).toMatchObject({
       state: 'reading',
       dirty: true,
     });
@@ -148,15 +143,15 @@ describe('Notas sync rules', () => {
   it('does not retry deterministic results (blocked, unreadable) until the file changes', () => {
     const blocked = finishReadingV1(startReadingV1(pending('a'), 'l', 0), 'l', done('blocked'), 1)!;
     expect(blocked).toMatchObject({ state: 'idle', processedHash: 'h-a', lastOutcome: 'blocked' });
-    expect(observeFileV1(blocked, seen('a'), 2, on)).toMatchObject({ state: 'idle' });
-    expect(observeFileV1(blocked, seen('a', 'h-fixed'), 3, on)).toMatchObject({ state: 'pending' });
+    expect(observeFileV1(blocked, seen('a'), 2)).toMatchObject({ state: 'idle' });
+    expect(observeFileV1(blocked, seen('a', 'h-fixed'), 3)).toMatchObject({ state: 'pending' });
   });
 
   it('a deleted file is only marked removed, never read', () => {
-    const removed = observeFileV1(pending('a'), seen('a', null, { deleted: true }), 0, on)!;
+    const removed = observeFileV1(pending('a'), seen('a', null, { deleted: true }), 0)!;
     expect(removed).toMatchObject({ removed: true, state: 'idle' });
     expect(filesToStartV1([removed], 0, on, null)).toEqual([]);
-    expect(observeFileV1(null, seen('x', null, { deleted: true }), 0, on)).toBeNull();
+    expect(observeFileV1(null, seen('x', null, { deleted: true }), 0)).toBeNull();
   });
 
   it('reclaims reads whose lease expired', () => {

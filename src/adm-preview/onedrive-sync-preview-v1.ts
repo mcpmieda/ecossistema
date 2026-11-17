@@ -32,7 +32,7 @@ const syntheticFiles: OneDriveSyncStatusV1['files'] = [
 
 const empty = new URLSearchParams(window.location.search).get('onedrive') === 'vazio';
 const status: OneDriveSyncStatusV1 = {
-  settings: { enabled: !empty, paused: false, waitSeconds: 0, maxParallel: 6 },
+  settings: { enabled: !empty, paused: false, maxParallel: 6 },
   activeYear: empty ? null : 2026,
   folders: empty
     ? []
@@ -112,7 +112,6 @@ function control(command: Record<string, unknown>): void {
   if (action === 'disable') status.settings.enabled = false;
   if (action === 'pause') status.settings.paused = true;
   if (action === 'resume') status.settings.paused = false;
-  if (action === 'set-wait') status.settings.waitSeconds = Number(command.seconds);
   if (action === 'set-folder') {
     const folder = {
       year: Number(command.year),

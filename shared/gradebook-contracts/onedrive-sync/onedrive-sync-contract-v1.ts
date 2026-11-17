@@ -26,7 +26,6 @@ export const oneDriveSyncRequestSchemaV1 = z.discriminatedUnion('action', [
     })
     .strict(),
   z.object({ action: z.enum(['enable', 'disable', 'pause', 'resume', 'read-all']) }).strict(),
-  z.object({ action: z.literal('set-wait'), seconds: z.number().int().min(0).max(600) }).strict(),
   z.object({ action: z.literal('read-now'), fileId: graphIdV1 }).strict(),
   // A source of an academic year: a whole folder (its workbooks) or one workbook (e.g. the Relação).
   z
@@ -81,7 +80,6 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
   settings: z.object({
     enabled: z.boolean(),
     paused: z.boolean(),
-    waitSeconds: z.number(),
     maxParallel: z.number(),
   }),
   activeYear: yearV1.nullable(),
