@@ -40,6 +40,8 @@ export type RuntimeEnv = Omit<
     COLLECTOR_DB?: unknown;
     /** The account that owns every group created by the Centro (#1513), so it can delete them. */
     GROUPS_OWNER_ID?: string;
+    /** The tenant's Global Administrator directory role object, for who may delete a group. */
+    GLOBAL_ADMIN_ROLE_ID?: string;
   };
 
 const PRODUCTION_ORIGIN = 'https://admin.escolaieda.com';
@@ -74,6 +76,7 @@ const envSchema = z
     COLLECTOR_DB: z.unknown().optional(),
     COLLECTOR_REFRESH_KEY: z.string().optional(),
     GROUPS_OWNER_ID: z.string().uuid().optional(),
+    GLOBAL_ADMIN_ROLE_ID: z.string().uuid().optional(),
   })
   .superRefine((value, context) => {
     let origin: URL;

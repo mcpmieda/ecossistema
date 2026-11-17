@@ -67,9 +67,15 @@ export async function newAuthTransaction(
   };
 }
 
+/**
+ * The Microsoft sign-in. `scope` and `loginHint` serve a one-time delegated action (deleting a group,
+ * #1513), which asks for that permission for the person already signed in instead of choosing an
+ * account.
+ */
 export function authorizationUrl(
   env: RuntimeEnv,
   transaction: AuthTransaction & { challenge: string },
+  options: { scope?: string; loginHint?: string } = {},
 ): string {
   const url = new URL(`https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/authorize`);
   url.search = new URLSearchParams({
@@ -77,12 +83,12 @@ export function authorizationUrl(
     response_type: 'code',
     redirect_uri: `${env.OFFICIAL_ORIGIN}/auth/callback`,
     response_mode: 'query',
-    scope: 'openid profile email',
+    scope: options.scope ?? 'openid profile email',
     state: transaction.state,
     nonce: transaction.nonce,
     code_challenge: transaction.challenge,
     code_challenge_method: 'S256',
-    prompt: 'select_account',
+    ...(options.loginHint ? { login_hint: options.loginHint } : { prompt: 'select_account' }),
   }).toString();
   return url.toString();
 }

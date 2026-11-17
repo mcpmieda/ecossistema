@@ -15,8 +15,10 @@ import {
 } from '@heroui/react';
 import { History, Plus, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import {
+  GROUP_DELETE_RESULTS_V1,
   GROUP_DESCRIPTION_MAX_V1,
   GROUP_NAME_MAX_V1,
+  type GroupDeleteResultV1,
   type GroupChangeV1,
   type GroupPersonV1,
   type GroupRoleV1,
@@ -36,6 +38,7 @@ const ACTION_LABELS_V1: Record<GroupChangeV1['action'], string> = {
   'create-group': 'Criou o grupo',
   'add-member': 'Adicionou',
   'remove-member': 'Removeu',
+  'delete-group': 'Excluiu o grupo',
 };
 const OUTCOME_LABELS_V1: Record<GroupChangeV1['outcome'], string | null> = {
   done: null,
@@ -45,7 +48,29 @@ const OUTCOME_LABELS_V1: Record<GroupChangeV1['outcome'], string | null> = {
 const EMAIL_V1 = /^[^\s@]{1,64}@[^\s@]{1,255}$/u;
 const normalizedV1 = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/gu, '').toLowerCase();
 
-type Notice = { tone: 'success' | 'danger'; text: string } | null;
+type Notice = { tone: 'success' | 'warning' | 'danger'; text: string } | null;
+
+const DELETE_NOTICES_V1: Record<GroupDeleteResultV1, NonNullable<Notice>> = {
+  excluido: { tone: 'success', text: 'Grupo excluído.' },
+  recusado: { tone: 'danger', text: 'A Microsoft recusou a exclusão para esta conta.' },
+  cancelado: { tone: 'warning', text: 'Exclusão cancelada.' },
+  falhou: { tone: 'danger', text: 'Não foi possível excluir o grupo. Tente de novo.' },
+};
+
+/** How a deletion ended: read once from the address the browser came back to, then removed. */
+function takeDeleteResultV1(): Notice {
+  const query = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  const result = query.get('grupos');
+  if (!result || !(GROUP_DELETE_RESULTS_V1 as readonly string[]).includes(result)) return null;
+  query.delete('grupos');
+  const rest = query.toString();
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${window.location.search}#/configuracoes${rest ? `?${rest}` : ''}`,
+  );
+  return DELETE_NOTICES_V1[result as GroupDeleteResultV1];
+}
 
 function NoticeV1({ notice }: Readonly<{ notice: Notice }>) {
   if (!notice) return null;
@@ -70,11 +95,14 @@ export function GroupsSettingV1() {
   const [failed, setFailed] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [deleteNotice, setDeleteNotice] = useState<Notice>(takeDeleteResultV1);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
       const answer = await requestGroupsV1({ operation: 'list' }, signal);
       setGroups(answer.groups);
+      setCanDelete(answer.canDelete);
       setFailed(false);
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) setFailed(true);
@@ -84,6 +112,18 @@ export function GroupsSettingV1() {
     const controller = new AbortController();
     void load(controller.signal);
     return () => controller.abort();
+  }, [load]);
+  // Back from a deletion without reloading the page (the address changes only after the '#').
+  useEffect(() => {
+    const onHash = () => {
+      const notice = takeDeleteResultV1();
+      if (!notice) return;
+      setDeleteNotice(notice);
+      setSelected(null);
+      void load();
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
   }, [load]);
 
   const current = groups?.find((group) => group.id === selected) ?? null;
@@ -116,6 +156,7 @@ export function GroupsSettingV1() {
         </div>
       </Card.Header>
       <Card.Content className="grid gap-5 p-5 sm:p-6">
+        <NoticeV1 notice={deleteNotice} />
         {groups === null && !failed ? <Spinner size="sm" aria-label="Carregando grupos" /> : null}
         {failed ? (
           <Alert status="danger">
@@ -147,7 +188,12 @@ export function GroupsSettingV1() {
           </ul>
         ) : null}
         {current ? (
-          <GroupDetailV1 key={current.id} group={current} onCountChange={updateCount} />
+          <GroupDetailV1
+            key={current.id}
+            group={current}
+            canDelete={canDelete && current.role === null}
+            onCountChange={updateCount}
+          />
         ) : null}
       </Card.Content>
       <CreateGroupV1
@@ -208,6 +254,7 @@ function CreateGroupV1({
             <TextField fullWidth isRequired>
               <Label>Nome</Label>
               <Input
+                autoFocus
                 value={name}
                 maxLength={GROUP_NAME_MAX_V1}
                 onChange={(event) => setName(event.currentTarget.value)}
@@ -246,8 +293,13 @@ function CreateGroupV1({
 
 function GroupDetailV1({
   group,
+  canDelete,
   onCountChange,
-}: Readonly<{ group: GroupViewV1; onCountChange: (groupId: string, delta: number) => void }>) {
+}: Readonly<{
+  group: GroupViewV1;
+  canDelete: boolean;
+  onCountChange: (groupId: string, delta: number) => void;
+}>) {
   const [members, setMembers] = useState<GroupPersonV1[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState('');
@@ -256,6 +308,7 @@ function GroupDetailV1({
   const [busy, setBusy] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyVersion, setHistoryVersion] = useState(0);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -404,13 +457,22 @@ function GroupDetailV1({
         </>
       ) : null}
 
-      <div>
-        <Button size="sm" variant="ghost" onPress={() => setHistoryOpen((open) => !open)}>
-          <History className="size-4" aria-hidden="true" />
-          {historyOpen ? 'Ocultar histórico' : 'Histórico'}
-        </Button>
-        {historyOpen ? <GroupHistoryV1 groupId={group.id} version={historyVersion} /> : null}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <Button size="sm" variant="ghost" onPress={() => setHistoryOpen((open) => !open)}>
+            <History className="size-4" aria-hidden="true" />
+            {historyOpen ? 'Ocultar histórico' : 'Histórico'}
+          </Button>
+          {historyOpen ? <GroupHistoryV1 groupId={group.id} version={historyVersion} /> : null}
+        </div>
+        {canDelete ? (
+          <Button size="sm" variant="danger-soft" onPress={() => setDeleting(true)}>
+            <Trash2 className="size-4" aria-hidden="true" />
+            Excluir grupo
+          </Button>
+        ) : null}
       </div>
+      <DeleteGroupV1 group={group} isOpen={deleting} onClose={() => setDeleting(false)} />
 
       <AlertDialog.Backdrop
         isOpen={removing !== null}
@@ -597,5 +659,77 @@ function GroupHistoryV1({ groupId, version }: Readonly<{ groupId: string; versio
         );
       })}
     </ul>
+  );
+}
+
+/** Deleting needs the group's name typed, then the person's own Microsoft sign-in. */
+function DeleteGroupV1({
+  group,
+  isOpen,
+  onClose,
+}: Readonly<{ group: GroupViewV1; isOpen: boolean; onClose: () => void }>) {
+  const [typed, setTyped] = useState('');
+  const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
+  const close = () => {
+    if (sending) return;
+    setTyped('');
+    setNotice(null);
+    onClose();
+  };
+  async function start() {
+    setSending(true);
+    setNotice(null);
+    try {
+      const answer = await requestGroupsV1({
+        operation: 'delete-start',
+        groupId: group.id,
+        confirmName: typed.trim(),
+      });
+      window.location.assign(answer.authorizeUrl);
+    } catch (error) {
+      setNotice({ tone: 'danger', text: failureTextV1(error) });
+      setSending(false);
+    }
+  }
+  return (
+    <AlertDialog.Backdrop isOpen={isOpen} onOpenChange={(open) => (open ? undefined : close())}>
+      <AlertDialog.Container size="md" placement="center">
+        <AlertDialog.Dialog>
+          <AlertDialog.Header>
+            <AlertDialog.Heading>Excluir {group.name}?</AlertDialog.Heading>
+          </AlertDialog.Header>
+          <AlertDialog.Body className="grid gap-4">
+            <p>
+              O site do SharePoint e a caixa de e-mail do grupo também são excluídos. Tudo fica 30
+              dias na lixeira do Microsoft 365.
+            </p>
+            <TextField fullWidth>
+              <Label>Digite o nome do grupo</Label>
+              <Input
+                value={typed}
+                onChange={(event) => setTyped(event.currentTarget.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </TextField>
+            <NoticeV1 notice={notice} />
+          </AlertDialog.Body>
+          <AlertDialog.Footer>
+            <Button autoFocus variant="secondary" onPress={close} isDisabled={sending}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              isPending={sending}
+              isDisabled={typed.trim() !== group.name.trim()}
+              onPress={() => void start()}
+            >
+              Excluir
+            </Button>
+          </AlertDialog.Footer>
+        </AlertDialog.Dialog>
+      </AlertDialog.Container>
+    </AlertDialog.Backdrop>
   );
 }

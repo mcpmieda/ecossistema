@@ -28,7 +28,7 @@ export type GroupPersonV1 = {
   enabled: boolean | null;
 };
 
-export type GroupChangeActionV1 = 'create-group' | 'add-member' | 'remove-member';
+export type GroupChangeActionV1 = 'create-group' | 'add-member' | 'remove-member' | 'delete-group';
 export type GroupChangeOutcomeV1 = 'done' | 'unchanged' | 'failed';
 
 export type GroupChangeV1 = {
@@ -48,7 +48,10 @@ export type GroupsRequestV1 =
   | { contractVersion: 1; operation: 'history'; groupId?: string }
   | { contractVersion: 1; operation: 'add-member'; groupId: string; email: string }
   | { contractVersion: 1; operation: 'remove-member'; groupId: string; personId: string }
-  | { contractVersion: 1; operation: 'create-group'; name: string; description?: string };
+  | { contractVersion: 1; operation: 'create-group'; name: string; description?: string }
+  /** Starts the deletion: the answer sends the browser to Microsoft, which asks the person to sign
+   * in for it; the deletion runs on the way back, with that sign-in. */
+  | { contractVersion: 1; operation: 'delete-start'; groupId: string; confirmName: string };
 
 export type GroupsReadOperationV1 = 'list' | 'members' | 'find-people' | 'history';
 export const GROUPS_READ_OPERATIONS_V1: readonly GroupsReadOperationV1[] = [
@@ -59,7 +62,14 @@ export const GROUPS_READ_OPERATIONS_V1: readonly GroupsReadOperationV1[] = [
 ];
 
 export type GroupsResponseV1 =
-  | { contractVersion: 1; state: 'ok'; operation: 'list'; groups: GroupViewV1[] }
+  | {
+      contractVersion: 1;
+      state: 'ok';
+      operation: 'list';
+      groups: GroupViewV1[];
+      /** Global Administrators and the institutional account may delete groups created here. */
+      canDelete: boolean;
+    }
   | {
       contractVersion: 1;
       state: 'ok';
@@ -82,13 +92,20 @@ export type GroupsResponseV1 =
       operation: 'remove-member';
       result: 'removed' | 'not-member';
     }
-  | { contractVersion: 1; state: 'ok'; operation: 'create-group'; group: GroupViewV1 };
+  | { contractVersion: 1; state: 'ok'; operation: 'create-group'; group: GroupViewV1 }
+  | { contractVersion: 1; state: 'ok'; operation: 'delete-start'; authorizeUrl: string };
+
+/** How the deletion ended, in the address the browser comes back to (`#/configuracoes?grupos=`). */
+export const GROUP_DELETE_RESULTS_V1 = ['excluido', 'recusado', 'cancelado', 'falhou'] as const;
+export type GroupDeleteResultV1 = (typeof GROUP_DELETE_RESULTS_V1)[number];
 
 /**
  * - `not-allowed`: the group is neither a role group nor one created by the Centro;
  * - `person-not-found`: no account with that e-mail;
  * - `self-removal`: nobody removes themselves from the admin group (it would lock them out);
- * - `name-taken`: a reachable group already has that name.
+ * - `name-taken`: a reachable group already has that name;
+ * - `delete-not-allowed`: a role group, or a person who may not delete;
+ * - `name-mismatch`: the name typed to confirm a deletion is not the group's.
  */
 export type GroupsFailureStateV1 =
   | 'invalid-request'
@@ -97,6 +114,8 @@ export type GroupsFailureStateV1 =
   | 'person-not-found'
   | 'self-removal'
   | 'name-taken'
+  | 'delete-not-allowed'
+  | 'name-mismatch'
   | 'unavailable';
 
 export type GroupsFailureV1 = { contractVersion: 1; state: GroupsFailureStateV1 };
