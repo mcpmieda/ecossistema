@@ -242,9 +242,13 @@ async function attemptV2(
     };
   }
   const notes = emptyNotesV2();
-  const rows = input.rows.filter(
-    (row) => classifyReportClassV1(row.classLabel, row.stageLabel, row.shift).kind !== 'excluded',
-  );
+  // The Conciliação never sees the enrolment form's data (coletor#91): it is kept apart, by the
+  // frequency service, when the report is recorded.
+  const rows = input.rows
+    .filter(
+      (row) => classifyReportClassV1(row.classLabel, row.stageLabel, row.shift).kind !== 'excluded',
+    )
+    .map(({ profile: _form, ...row }) => row);
   const prepared = await prepareV2(reconciliation, catalog, input, rows, notes);
   // Nothing right in it: everything goes to the Conciliação all the same.
   if (!prepared) return { evidenceHash, outcome: 'review', batchId: null, notes, changed: true };
