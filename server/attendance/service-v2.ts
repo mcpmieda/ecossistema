@@ -1872,6 +1872,8 @@ function byCodeUnitV2(a: string, b: string): number {
 /** The last report as the next step needs it: the batch it left and whether it still waits. */
 export type StudentReportPreviousV2 = {
   evidenceHash: string;
+  /** What the Conciliação read of it (studentReportCoreHashV2); null in a state older than that hash. */
+  coreHash: string | null;
   outcome: FrequencyStudentReportStateV2['outcome'];
   batchId: string | null;
   notes: FrequencyStudentReportNotesV2;
@@ -1884,6 +1886,8 @@ export class StudentReportPendingV2 extends Error {
   constructor(
     public readonly evidenceHash: string,
     public readonly previous: StudentReportPreviousV2 | null,
+    /** This report as the Conciliação reads it (studentReportCoreHashV2). */
+    public readonly coreHash: string | null = null,
   ) {
     super('student-report-pending');
   }
@@ -1974,7 +1978,8 @@ async function checkStudentReport(
     );
     return studentReportReply(false, text(state.outcome), notes, input.rows.length);
   }
-  if (finished && state.core_hash === (await studentReportCoreHashV2(input))) {
+  const coreHash = await studentReportCoreHashV2(input);
+  if (finished && state.core_hash === coreHash) {
     await saveStudentReportProfiles(tx, input);
     await tx.executeNative(
       `UPDATE attendance.student_report_state_v2 SET evidence_hash=$3,last_observed_at=$2::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1`,
@@ -1987,11 +1992,13 @@ async function checkStudentReport(
     state && notes
       ? {
           evidenceHash: text(state.evidence_hash),
+          coreHash: state.core_hash === null ? null : text(state.core_hash),
           outcome: text(state.outcome) as StudentReportPreviousV2['outcome'],
           batchId: state.batch_id === null ? null : text(state.batch_id),
           notes,
         }
       : null,
+    coreHash,
   );
 }
 /**

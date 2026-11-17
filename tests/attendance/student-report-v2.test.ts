@@ -261,6 +261,7 @@ describe('automatic student report (Conciliação steps)', () => {
       input(),
       pending({
         evidenceHash: 'h'.repeat(43),
+        coreHash: null,
         outcome: 'preparing',
         batchId: outcome.batchId,
         notes: outcome.notes,
@@ -296,10 +297,73 @@ describe('automatic student report (Conciliação steps)', () => {
       reconciliation,
       ready,
       input(),
-      pending({ evidenceHash: 'h'.repeat(43), outcome: 'awaiting_relation', batchId: 'b', notes }),
+      pending({
+        evidenceHash: 'h'.repeat(43),
+        coreHash: null,
+        outcome: 'awaiting_relation',
+        batchId: 'b',
+        notes,
+      }),
     );
     expect(outcome).toMatchObject({ outcome: 'awaiting_relation', changed: false, notes });
     expect(requests.map((r) => r.operation)).toEqual(['catalog']);
+  });
+
+  it('a waiting report whose enrolment form alone changed goes on with the batch it kept', async () => {
+    // Another report hash (a phone changed in the Smecel), the same rows for the Conciliação.
+    const other = 'x'.repeat(43);
+    const core = 'c'.repeat(43);
+    const notes = { counts: { rows: 2, linked: 0, pending: 2 }, differences: [], invalid: [] };
+    const waiting = fake({
+      catalog: [
+        {
+          ...catalog,
+          context: { ...context, relationAvailable: false },
+        } as ReconciliationResponseV1,
+      ],
+    });
+    const stillWaiting = await applyStudentReportV2(
+      waiting.reconciliation,
+      ready,
+      input(),
+      new StudentReportPendingV2(
+        'h'.repeat(43),
+        { evidenceHash: other, coreHash: core, outcome: 'awaiting_relation', batchId: 'b', notes },
+        core,
+      ),
+    );
+    expect(stillWaiting).toMatchObject({
+      outcome: 'awaiting_relation',
+      changed: false,
+      batchId: 'b',
+    });
+    expect(waiting.requests.map((r) => r.operation)).toEqual(['catalog']);
+    const preparing = fake({ catalog: [catalog], apply: [committed] });
+    const done = await applyStudentReportV2(
+      preparing.reconciliation,
+      ready,
+      input(),
+      new StudentReportPendingV2(
+        'h'.repeat(43),
+        { evidenceHash: other, coreHash: core, outcome: 'preparing', batchId: 'b', notes },
+        core,
+      ),
+    );
+    expect(done).toMatchObject({ outcome: 'applied', batchId: 'b' });
+    expect(preparing.requests.some((r) => r.operation === 'prepare')).toBe(false);
+    // Other rows for the Conciliação: prepared anew, as before.
+    const changed = fake({ catalog: [catalog], prepare: [prepared()], apply: [committed] });
+    await applyStudentReportV2(
+      changed.reconciliation,
+      ready,
+      input(),
+      new StudentReportPendingV2(
+        'h'.repeat(43),
+        { evidenceHash: other, coreHash: core, outcome: 'preparing', batchId: 'b', notes },
+        'd'.repeat(43),
+      ),
+    );
+    expect(changed.requests.some((r) => r.operation === 'prepare')).toBe(true);
   });
 });
 
