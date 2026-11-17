@@ -208,6 +208,14 @@ describe('Pages ADM quota boundary', () => {
     expect(refused?.status).toBe(429);
     expect(await refused?.json()).toEqual({ contractVersion: 1, state: 'unavailable' });
   });
+  it('reads a GET on a route that inspects bodies without asking for a JSON body', async () => {
+    const limitOperation = vi.fn(async () => null);
+    const req = await request('/api/platform/access');
+    const get = new Request(req.url, { headers: req.headers });
+    get.headers.delete('content-type');
+    await expect(guardAdminOperationV1(get, environment(limitOperation))).resolves.toBeNull();
+    expect(limitOperation).toHaveBeenCalledWith(expect.anything(), 'read');
+  });
   it('separates operation families on mixed POST transports', () => {
     expect(
       classifyAdminOperationV1('/api/gradebook/council-workspace', 'POST', {
