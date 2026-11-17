@@ -66,7 +66,6 @@ export type SyncMemoryV1 = {
 export type SyncSettingsV1 = {
   readonly enabled: boolean;
   readonly paused: boolean;
-  readonly waitSeconds: number;
   readonly maxParallel: number;
 };
 
@@ -75,7 +74,6 @@ export const SYNC_PARALLEL_MAX_V1 = 6;
 export const DEFAULT_SYNC_SETTINGS_V1: SyncSettingsV1 = {
   enabled: false,
   paused: false,
-  waitSeconds: 0,
   maxParallel: SYNC_PARALLEL_MAX_V1,
 };
 
@@ -156,7 +154,6 @@ export function observeFileV1(
   current: SyncFileV1 | null,
   observed: ObservedFileV1,
   now: number,
-  settings: SyncSettingsV1,
 ): SyncFileV1 | null {
   if (observed.deleted)
     return current
@@ -185,12 +182,10 @@ export function observeFileV1(
     const sameAsReading = observed.hash !== null && observed.hash === base.hash;
     return { ...updated, dirty: base.dirty || !sameAsReading };
   }
-  const due = now + settings.waitSeconds * 1000;
-  // A later save pushes the wait forward: the read happens once the file settles.
   return {
     ...updated,
     state: 'pending',
-    dueAt: Math.max(due, base.state === 'pending' ? (base.dueAt ?? due) : due),
+    dueAt: Math.max(now, base.state === 'pending' ? (base.dueAt ?? now) : now),
     attempts: 0,
   };
 }
@@ -245,7 +240,6 @@ export function finishReadingV1(
   lease: string,
   result: ReadResultV1,
   now: number,
-  waitMs = 0,
 ): SyncFileV1 | null {
   if (file.state !== 'reading' || file.lease !== lease) return null;
   const transient = result.outcome === 'failed';
@@ -277,8 +271,8 @@ export function finishReadingV1(
     ...(result.heldStudents === undefined ? {} : { heldStudents: result.heldStudents }),
   };
   if (file.removed) return { ...finished, state: 'idle', dirty: false, dueAt: null };
-  // Saved again while it was read: read again after the same wait as any save.
-  if (file.dirty) return { ...finished, state: 'pending', dirty: false, dueAt: now + waitMs };
+  // Saved again while it was read: read again right away.
+  if (file.dirty) return { ...finished, state: 'pending', dirty: false, dueAt: now };
   if (transient) {
     const delay = RETRY_DELAYS_MS_V1[Math.min(attempts - 1, RETRY_DELAYS_MS_V1.length - 1)]!;
     return { ...finished, state: 'pending', dueAt: now + delay };

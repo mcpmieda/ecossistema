@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_SYNC_SETTINGS_V1,
   finishReadingV1,
   INITIAL_SYNC_PARALLEL_V1,
   nextParallelV1,
@@ -14,7 +13,6 @@ import {
 } from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
 import { minutesSecondsV1 } from '../../../src/features/gradebook/onedrive-sync/onedrive-sync-page-v1';
 
-const on = { ...DEFAULT_SYNC_SETTINGS_V1, enabled: true };
 const result = (
   outcome: ReadResultV1['outcome'],
   extra: Partial<ReadResultV1> = {},
@@ -38,7 +36,6 @@ const file = (): SyncFileV1 =>
       deleted: false,
     },
     0,
-    on,
   )!;
 
 describe('reads at once, set by the sync (owner request of 15/11/2026)', () => {

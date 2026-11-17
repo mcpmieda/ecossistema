@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Chip, Input, Label, Spinner, Surface, TextField } from '@heroui/react';
+import { Alert, Button, Chip, Spinner, Surface } from '@heroui/react';
 import {
   ChevronRight,
   CloudCog,
@@ -612,43 +612,9 @@ function SourcesSection({
   );
 }
 
-function SettingsSection({
-  status,
-  busy,
-  send,
-  wait,
-  setWait,
-}: Readonly<{
-  status: OneDriveSyncStatusV1;
-  busy: boolean;
-  send: SendV1;
-  wait: string;
-  setWait: (value: string) => void;
-}>) {
-  const saved = String(status.settings.waitSeconds);
+function SettingsSection({ status }: Readonly<{ status: OneDriveSyncStatusV1 }>) {
   return (
-    <section
-      className="flex min-w-0 flex-wrap items-end justify-between gap-3"
-      aria-label="Ajustes"
-    >
-      <div className="flex items-end gap-2">
-        <TextField className="w-36">
-          <Label className="text-sm">Espera após salvar (s)</Label>
-          <Input
-            inputMode="numeric"
-            value={wait}
-            onChange={(event) => setWait(event.currentTarget.value)}
-          />
-        </TextField>
-        <Button
-          size="sm"
-          variant="secondary"
-          isDisabled={busy || wait === saved || !/^\d{1,3}$/u.test(wait)}
-          onPress={() => void send({ action: 'set-wait', seconds: Number(wait) })}
-        >
-          Salvar
-        </Button>
-      </div>
+    <section className="flex min-w-0 flex-wrap items-end gap-3" aria-label="Ajustes">
       <p className="text-sm text-muted">
         Leituras ao mesmo tempo:{' '}
         <span className="font-medium text-foreground tabular-nums">
@@ -747,17 +713,13 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
   const [status, setStatus] = useState<OneDriveSyncStatusV1 | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [wait, setWait] = useState('');
   const loaded = useRef(false);
 
   const apply = useCallback((answer: OneDriveSyncResponseV1) => {
     if (answer.state === 'status') {
       setStatus(answer.status);
       setFailure(null);
-      if (!loaded.current) {
-        setWait(String(answer.status.settings.waitSeconds));
-        loaded.current = true;
-      }
+      loaded.current = true;
     } else if (answer.state === 'not-authorized')
       setFailure('Sua sessão não possui autorização para esta área.');
     else setFailure('A leitura automática não respondeu agora. Tente de novo em instantes.');
@@ -812,7 +774,7 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
             </p>
           ) : null}
           <SourcesSection sources={sources} year={year} busy={busy} send={send} />
-          <SettingsSection status={status} busy={busy} send={send} wait={wait} setWait={setWait} />
+          <SettingsSection status={status} />
         </div>
       </Surface>
 
