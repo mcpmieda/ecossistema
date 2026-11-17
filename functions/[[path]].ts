@@ -8,6 +8,7 @@ import { validateEnv } from '../server/env';
 import { handleSystemHealthRequestV1 } from '../server/platform/system-health-http-v1';
 import { handleAccessRequestV1 } from '../server/platform/access-http-v1';
 import { handleGroupsRequestV1 } from '../server/platform/groups/groups-http-v1';
+import { handleGroupDeleteCallbackV1 } from '../server/platform/groups/groups-delete-v1';
 import { handlePublicDemoRequestV1 } from '../server/platform/public-demo-http-v1';
 import { servePortalAdminV1 } from '../server/student-portal/http/admin/handler-v1';
 import { portalJsonV1, portalFailureV1 } from '../server/student-portal/runtime/http-v1';
@@ -473,7 +474,10 @@ async function routeSessionV1(
 ): Promise<Response | null> {
   if (url.pathname === '/auth/login') return serveAuthLoginV1(request, env);
   if (url.pathname === '/auth/callback')
-    return serveAuthCallbackV1(request, env, url, correlationId);
+    return (
+      (await handleGroupDeleteCallbackV1(request, env, url)) ??
+      serveAuthCallbackV1(request, env, url, correlationId)
+    );
   if (url.pathname === '/auth/logout') return serveAuthLogoutV1(request, env);
   if (url.pathname === '/api/me') return serveMeV1(request, env);
   if (url.pathname === '/api/platform/settings/session')

@@ -23,6 +23,7 @@ export type GroupChangeRecordV1 = {
 export type GroupsStorePortV1 = {
   managedGroups(): Promise<ManagedGroupV1[]>;
   addManagedGroup(group: { id: string; name: string; createdBy: string }): Promise<void>;
+  removeManagedGroup(id: string): Promise<void>;
   record(change: GroupChangeRecordV1): Promise<void>;
   history(groupId: string | null, limit: number): Promise<GroupChangeV1[]>;
 };
@@ -72,6 +73,13 @@ function postgresGroupsStoreV1(connectionString: string): GroupsStorePortV1 {
           `INSERT INTO admin_access.managed_group_v1 (group_id, name, created_by)
            VALUES ($1::uuid, $2, $3) ON CONFLICT (group_id) DO NOTHING`,
           [id, clip(name, 120), clip(createdBy, 200)],
+        );
+      }),
+    removeManagedGroup: (id) =>
+      withDatabase(async (db) => {
+        await db.executeNative(
+          'DELETE FROM admin_access.managed_group_v1 WHERE group_id = $1::uuid',
+          [id],
         );
       }),
     record: (change) =>

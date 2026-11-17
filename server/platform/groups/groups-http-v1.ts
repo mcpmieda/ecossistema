@@ -3,7 +3,6 @@ import {
   GROUP_DESCRIPTION_MAX_V1,
   GROUP_NAME_MAX_V1,
   GROUPS_PATH_V1,
-  type GroupChangeActionV1,
   type GroupRoleV1,
   type GroupsFailureStateV1,
   type GroupsResponseV1,
@@ -11,7 +10,7 @@ import {
 } from '../../../shared/platform-groups-v1';
 import { capabilitiesForSession, requireCapability } from '../../auth/capabilities';
 import { AuthorizationError } from '../../auth/roles';
-import { AuthenticationError, requireAuth, type Session } from '../../auth/session';
+import { AuthenticationError, requireAuth } from '../../auth/session';
 import type { RuntimeEnv } from '../../env';
 import {
   enforceOfficialOrigin,
@@ -20,8 +19,19 @@ import {
   readBoundedJson,
   withSecurityHeaders,
 } from '../../http/security';
-import { graphGroupsPortV1, mailNicknameV1, type GroupsGraphPortV1 } from './groups-graph-v1';
-import { groupsStoreV1, type GroupsStorePortV1 } from './groups-store-v1';
+import {
+  groupNameV1,
+  groupsContextV1,
+  GroupsRefusalV1,
+  reachableV1,
+  recordV1,
+  roleGroupsV1,
+  type ContextV1,
+} from './groups-context-v1';
+import { canDeleteGroupsV1, startGroupDeleteV1 } from './groups-delete-v1';
+import { mailNicknameV1, type GroupsGraphPortV1 } from './groups-graph-v1';
+
+export { roleGroupsV1, setGroupsGraphForTestsV1 } from './groups-context-v1';
 
 const id = z.string().uuid();
 const requestSchemaV1 = z.discriminatedUnion('operation', [
@@ -71,59 +81,22 @@ const requestSchemaV1 = z.discriminatedUnion('operation', [
       description: z.string().trim().max(GROUP_DESCRIPTION_MAX_V1).optional(),
     })
     .strict(),
+  z
+    .object({
+      contractVersion: z.literal(1),
+      operation: z.literal('delete-start'),
+      groupId: id,
+      confirmName: z.string().max(GROUP_NAME_MAX_V1),
+    })
+    .strict(),
 ]);
 type GroupsRequestV1 = z.infer<typeof requestSchemaV1>;
-
-class GroupsRefusalV1 extends Error {
-  constructor(
-    readonly state: GroupsFailureStateV1,
-    readonly status: number,
-  ) {
-    super(state);
-  }
-}
-
-let graphOverrideV1: GroupsGraphPortV1 | undefined;
-/** Tests replace Entra; `undefined` restores the Graph Backend app. */
-export function setGroupsGraphForTestsV1(port: GroupsGraphPortV1 | undefined): void {
-  graphOverrideV1 = port;
-}
 
 const reply = (value: GroupsResponseV1 | { contractVersion: 1; state: string }, status = 200) =>
   withSecurityHeaders(Response.json(value, { status }), true);
 
-/** The five role groups, in the order of the Ecossistema roles. */
-export function roleGroupsV1(env: RuntimeEnv): ReadonlyArray<readonly [string, GroupRoleV1]> {
-  return [
-    [env.GROUP_ADMIN_ID, 'ADMINISTRADOR'],
-    [env.GROUP_PROFESSOR_ID, 'PROFESSOR'],
-    [env.GROUP_ALUNO_ID, 'ALUNO'],
-    [env.GROUP_APOIO_ID, 'APOIO'],
-    [env.GROUP_VISITANTE_ID, 'VISITANTE'],
-  ];
-}
-
 const sameName = (left: string, right: string) =>
   left.trim().localeCompare(right.trim(), 'pt-BR', { sensitivity: 'base' }) === 0;
-
-type ContextV1 = {
-  env: RuntimeEnv;
-  session: Session;
-  graph: GroupsGraphPortV1;
-  store: GroupsStorePortV1 | null;
-};
-
-/** The group may be touched: a role group or one created by the Centro. */
-async function reachableV1(
-  context: ContextV1,
-  groupId: string,
-): Promise<{ role: GroupRoleV1 | null; name: string | null }> {
-  const role = roleGroupsV1(context.env).find(([groupId_]) => groupId_ === groupId)?.[1];
-  if (role) return { role, name: null };
-  const managed = (await context.store?.managedGroups())?.find((group) => group.id === groupId);
-  if (managed) return { role: null, name: managed.name };
-  throw new GroupsRefusalV1('not-allowed', 403);
-}
 
 async function viewV1(
   graph: GroupsGraphPortV1,
@@ -160,41 +133,6 @@ async function viewV1(
   };
 }
 
-/** Writes one line of history; a failure to write it is logged and does not undo the change. */
-async function recordV1(
-  context: ContextV1,
-  change: {
-    action: GroupChangeActionV1;
-    groupId: string | null;
-    groupName: string | null;
-    target: string | null;
-    outcome: 'done' | 'unchanged' | 'failed';
-    correlationId?: string | null;
-  },
-): Promise<void> {
-  try {
-    await context.store?.record({
-      actorOid: context.session.oid,
-      actorName: context.session.name,
-      correlationId: change.correlationId ?? null,
-      ...change,
-    });
-  } catch (error) {
-    console.error(
-      JSON.stringify({
-        event: 'groups_history_write_failed',
-        action: change.action,
-        message: error instanceof Error ? error.name : 'unknown',
-      }),
-    );
-  }
-}
-
-async function groupNameV1(context: ContextV1, groupId: string, known: string | null) {
-  if (known) return known;
-  return (await context.graph.group(groupId).catch(() => null))?.name ?? null;
-}
-
 async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<GroupsResponseV1> {
   const { graph, store, env, session } = context;
   switch (input.operation) {
@@ -213,7 +151,13 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
         ...roleGroupsV1(env).map(([groupId, role]) => viewV1(graph, groupId, role, role)),
         ...managed.map((group) => viewV1(graph, group.id, null, group.name)),
       ]);
-      return { contractVersion: 1, state: 'ok', operation: 'list', groups };
+      return {
+        contractVersion: 1,
+        state: 'ok',
+        operation: 'list',
+        groups,
+        canDelete: await canDeleteGroupsV1(context),
+      };
     }
     case 'members': {
       await reachableV1(context, input.groupId);
@@ -301,6 +245,9 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
         throw error;
       }
     }
+    case 'delete-start':
+      // Answered with its cookie by the handler.
+      throw new HttpError(400, 'Invalid request');
     case 'create-group': {
       const ownerId = env.GROUPS_OWNER_ID;
       if (!store || !ownerId) throw new GroupsRefusalV1('unavailable', 503);
@@ -391,12 +338,18 @@ export async function handleGroupsRequestV1(
     const parsed = requestSchemaV1.safeParse(await readBoundedJson(request, 2048));
     if (!parsed.success) throw new HttpError(400, 'Invalid request');
     operation = parsed.data.operation;
-    const context: ContextV1 = {
-      env,
-      session,
-      graph: graphOverrideV1 ?? graphGroupsPortV1(env),
-      store: groupsStoreV1(env),
-    };
+    const context = groupsContextV1(env, session);
+    if (parsed.data.operation === 'delete-start') {
+      const started = await startGroupDeleteV1(context, parsed.data);
+      const response = reply({
+        contractVersion: 1,
+        state: 'ok',
+        operation: 'delete-start',
+        authorizeUrl: started.authorizeUrl,
+      });
+      response.headers.append('Set-Cookie', started.cookie);
+      return response;
+    }
     const answer = await runV1(context, parsed.data);
     if (!['list', 'members', 'find-people', 'history'].includes(operation))
       console.log(JSON.stringify({ event: 'groups_changed', operation }));

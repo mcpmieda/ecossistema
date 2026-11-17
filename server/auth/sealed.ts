@@ -14,7 +14,8 @@ export type SealPurposeV1 =
   | 'reconciliation-cursor'
   | 'portal-admin-cursor'
   | 'portal-bulk-proof'
-  | 'portal-bulk-cursor';
+  | 'portal-bulk-cursor'
+  | 'group-delete';
 
 /** Values sealed without a purpose (envelope v1) open only until every one issued before the
  * purpose binding has expired: sessions last at most 12 h, the other cookies 10 min, cursors and

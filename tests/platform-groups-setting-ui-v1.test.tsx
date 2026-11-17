@@ -97,3 +97,46 @@ it('#1513 Grupos: says why a change was refused, and creates a group that opens 
   );
   expect(await screen.findByRole('grid', { name: 'Membros de Biblioteca' })).toBeTruthy();
 });
+
+it('#1513 Grupos: deleting asks for the exact name, and the way back says how it ended', async () => {
+  window.history.replaceState(null, '', '/#/configuracoes');
+  const user = userEvent.setup();
+  render(<GroupsSettingV1 />);
+  await user.click(await screen.findByRole('button', { name: 'Novo grupo' }));
+  await user.type(await screen.findByRole('textbox', { name: 'Nome' }), 'Biblioteca');
+  await user.click(screen.getByRole('button', { name: 'Criar grupo' }));
+  await screen.findByRole('grid', { name: 'Membros de Biblioteca' });
+  // A role group has no delete button.
+  await user.click(groupButton(/PROFESSORES/u));
+  await screen.findByRole('grid', { name: 'Membros de PROFESSORES' });
+  expect(screen.queryByRole('button', { name: 'Excluir grupo' })).toBeNull();
+  await user.click(groupButton(/Biblioteca/u));
+
+  await user.click(await screen.findByRole('button', { name: 'Excluir grupo' }));
+  const dialog = await screen.findByRole('alertdialog');
+  const confirm = within(dialog).getByRole('button', { name: 'Excluir' });
+  await user.type(
+    within(dialog).getByRole('textbox', { name: 'Digite o nome do grupo' }),
+    'biblioteca',
+  );
+  expect(confirm.hasAttribute('disabled') || confirm.getAttribute('data-disabled') === 'true').toBe(
+    true,
+  );
+  const input = within(dialog).getByRole('textbox', { name: 'Digite o nome do grupo' });
+  await user.clear(input);
+  await user.type(input, 'Biblioteca');
+  await user.click(confirm);
+
+  expect(await screen.findByText('Grupo excluído.')).toBeTruthy();
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole('list', { name: 'Grupos' })).queryByRole('button', {
+        name: /Biblioteca/u,
+      }),
+    ).toBeNull(),
+  );
+  expect(window.location.hash).toBe('#/configuracoes');
+  expect(
+    calls.some((call) => call.operation === 'delete-start' && call.confirmName === 'Biblioteca'),
+  ).toBe(true);
+});

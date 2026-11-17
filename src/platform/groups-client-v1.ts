@@ -53,6 +53,8 @@ export const GROUPS_FAILURE_TEXT_V1: Record<GroupsFailureStateV1, string> = {
   'person-not-found': 'Nenhuma conta com esse e-mail.',
   'self-removal': 'Você não pode se remover do grupo da Secretaria.',
   'name-taken': 'Já existe um grupo com esse nome.',
+  'delete-not-allowed': 'Este grupo não pode ser excluído por você.',
+  'name-mismatch': 'O nome digitado não é o do grupo.',
   unavailable: 'Não foi possível concluir agora. Tente de novo.',
 };
 

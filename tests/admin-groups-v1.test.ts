@@ -36,7 +36,12 @@ const person: GroupPersonV1 = {
   jobTitle: 'equipe de apoio',
   enabled: true,
 };
-const env: RuntimeEnv = { ...testEnv, GROUPS_OWNER_ID: ownerId };
+const globalAdminRole = '99999999-9999-4999-8999-999999999999';
+const env: RuntimeEnv = {
+  ...testEnv,
+  GROUPS_OWNER_ID: ownerId,
+  GLOBAL_ADMIN_ROLE_ID: globalAdminRole,
+};
 
 /** Entra, in memory: the five role groups plus whatever the test creates. */
 function fakeEntra() {
@@ -52,6 +57,7 @@ function fakeEntra() {
   );
   const members = new Map<string, Set<string>>([...groups.keys()].map((id) => [id, new Set()]));
   const people = new Map([[person.id, person]]);
+  const globalAdmins = new Set<string>();
   const port: GroupsGraphPortV1 = {
     group: vi.fn(async (id: string) => groups.get(id) ?? null),
     memberCount: vi.fn(async (id: string) => members.get(id)?.size ?? null),
@@ -75,6 +81,10 @@ function fakeEntra() {
     removeMember: vi.fn(async (groupId: string, id: string) =>
       members.get(groupId)!.delete(id) ? ('removed' as const) : ('not-member' as const),
     ),
+    holdsDirectoryRole: vi.fn(
+      async (id: string, role: string) => globalAdmins.has(id) && role === globalAdminRole,
+    ),
+    deleteGroupAs: vi.fn(async (id: string) => (groups.delete(id) ? 'deleted' : 'not-found')),
     createGroup: vi.fn(async ({ name, description }) => {
       const group = { id: createdId, name, description, mail: 'novo@escola.example' };
       groups.set(createdId, group);
@@ -82,7 +92,7 @@ function fakeEntra() {
       return group;
     }),
   };
-  return { port, groups, members };
+  return { port, groups, members, globalAdmins };
 }
 
 function memoryStore() {
@@ -90,6 +100,12 @@ function memoryStore() {
   const changes: GroupChangeRecordV1[] = [];
   const port: GroupsStorePortV1 = {
     managedGroups: async () => [...managed],
+    removeManagedGroup: async (id) => {
+      managed.splice(
+        managed.findIndex((group) => group.id === id),
+        1,
+      );
+    },
     addManagedGroup: async ({ id, name, createdBy }) => {
       managed.push({ id, name, createdBy, createdAt: '2026-11-17T12:00:00.000Z' });
     },
@@ -354,6 +370,87 @@ describe('#1513 Grupos: only the Secretaria manages, and only the reachable grou
       expect(classifyAdminOperationV1('/api/platform/groups', 'POST', { operation })).toBe('read');
     for (const operation of ['add-member', 'remove-member', 'create-group'])
       expect(classifyAdminOperationV1('/api/platform/groups', 'POST', { operation })).toBe('write');
+  });
+});
+
+describe('#1513 Grupos: deleting starts only for who may, on a group the Centro created', () => {
+  const library = { id: createdId, name: 'Biblioteca', createdBy: 'X', createdAt: '' };
+  beforeEach(() => {
+    entra.groups.set(createdId, {
+      id: createdId,
+      name: 'Biblioteca',
+      description: null,
+      mail: null,
+    });
+    store.managed.push(library);
+  });
+
+  it('tells who may delete: the institutional account and the Global Administrators', async () => {
+    expect((await groups({ operation: 'list' })).body.canDelete).toBe(false);
+    entra.globalAdmins.add(adminOid);
+    expect((await groups({ operation: 'list' })).body.canDelete).toBe(true);
+    entra.globalAdmins.clear();
+    const owner = await cookieFor(['ADMINISTRADOR'], ownerId);
+    expect((await groups({ operation: 'list' }, owner)).body.canDelete).toBe(true);
+  });
+
+  it('refuses a role group, someone who may not, and a name typed wrong', async () => {
+    const owner = await cookieFor(['ADMINISTRADOR'], ownerId);
+    expect(
+      await groups(
+        {
+          operation: 'delete-start',
+          groupId: testEnv.GROUP_PROFESSOR_ID,
+          confirmName: 'PROFESSORES',
+        },
+        owner,
+      ),
+    ).toMatchObject({ status: 403, body: { state: 'delete-not-allowed' } });
+    expect(
+      await groups({ operation: 'delete-start', groupId: createdId, confirmName: 'Biblioteca' }),
+    ).toMatchObject({ status: 403, body: { state: 'delete-not-allowed' } });
+    expect(
+      await groups(
+        { operation: 'delete-start', groupId: createdId, confirmName: 'biblioteca' },
+        owner,
+      ),
+    ).toMatchObject({ status: 400, body: { state: 'name-mismatch' } });
+    expect(entra.port.deleteGroupAs).not.toHaveBeenCalled();
+  });
+
+  it('sends the person to Microsoft for a one-time sign-in that can delete groups', async () => {
+    const owner = await cookieFor(['ADMINISTRADOR'], ownerId);
+    const response = await onRequest({
+      request: new Request(`${testEnv.OFFICIAL_ORIGIN}/api/platform/groups`, {
+        method: 'POST',
+        headers: {
+          Cookie: owner,
+          Origin: testEnv.OFFICIAL_ORIGIN,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contractVersion: 1,
+          operation: 'delete-start',
+          groupId: createdId,
+          confirmName: ' Biblioteca ',
+        }),
+      }),
+      env,
+      waitUntil: () => undefined,
+    } as unknown as Parameters<typeof onRequest>[0]);
+    expect(response.status).toBe(200);
+    const { authorizeUrl } = (await response.json()) as { authorizeUrl: string };
+    const url = new URL(authorizeUrl);
+    expect(url.origin).toBe('https://login.microsoftonline.com');
+    expect(url.searchParams.get('scope')).toBe(
+      'openid https://graph.microsoft.com/Group.ReadWrite.All',
+    );
+    expect(url.searchParams.get('login_hint')).toBe('sec@escola.example');
+    expect(url.searchParams.get('redirect_uri')).toBe(`${testEnv.OFFICIAL_ORIGIN}/auth/callback`);
+    expect(response.headers.get('Set-Cookie')).toMatch(
+      /^__Host-ecossistema_group_delete=.+; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=600$/u,
+    );
+    expect(entra.port.deleteGroupAs).not.toHaveBeenCalled();
   });
 });
 

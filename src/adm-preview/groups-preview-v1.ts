@@ -55,7 +55,10 @@ export function previewGroupsV1(body: string): { status: number; value: object }
   const group = groups.find((item) => item.id === input.groupId);
   switch (input.operation) {
     case 'list':
-      return { status: 200, value: ok({ operation: 'list', groups: groups.map(view) }) };
+      return {
+        status: 200,
+        value: ok({ operation: 'list', groups: groups.map(view), canDelete: true }),
+      };
     case 'members':
       if (!group) return { status: 403, value: refuse('not-allowed') };
       return {
@@ -138,6 +141,25 @@ export function previewGroupsV1(body: string): { status: number; value: object }
         outcome: 'done',
       });
       return { status: 200, value: ok({ operation: 'create-group', group: view(created) }) };
+    }
+    case 'delete-start': {
+      if (!group || group.role) return { status: 403, value: refuse('delete-not-allowed') };
+      if ((input.confirmName ?? '').trim() !== group.name)
+        return { status: 400, value: refuse('name-mismatch') };
+      // The preview has no Microsoft sign-in: the group goes at once and the page comes back as
+      // it would from Microsoft.
+      groups.splice(groups.indexOf(group), 1);
+      record({
+        action: 'delete-group',
+        groupId: group.id,
+        groupName: group.name,
+        target: null,
+        outcome: 'done',
+      });
+      return {
+        status: 200,
+        value: ok({ operation: 'delete-start', authorizeUrl: '#/configuracoes?grupos=excluido' }),
+      };
     }
     default:
       return { status: 400, value: refuse('invalid-request') };

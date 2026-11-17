@@ -25,6 +25,10 @@ export type GroupsGraphPortV1 = {
   isMember(groupId: string, personId: string): Promise<boolean>;
   addMember(groupId: string, personId: string): Promise<'added' | 'already-member'>;
   removeMember(groupId: string, personId: string): Promise<'removed' | 'not-member'>;
+  /** The person holds the directory role (by its object id in the tenant). */
+  holdsDirectoryRole(personId: string, roleObjectId: string): Promise<boolean>;
+  /** Deletes with the person's own delegated token: Entra decides if that person may. */
+  deleteGroupAs(groupId: string, token: string): Promise<'deleted' | 'not-found'>;
   createGroup(input: {
     name: string;
     description: string | null;
@@ -191,6 +195,27 @@ export function graphGroupsPortV1(env: RuntimeEnv): GroupsGraphPortV1 {
         return 'removed';
       } catch (error) {
         if (statusOfV1(error) === 404) return 'not-member';
+        throw error;
+      }
+    },
+    async holdsDirectoryRole(personId, roleObjectId) {
+      // Without a directory permission the roles come with their id only, which is enough here.
+      const items = await allPages<{ id: string }>(
+        `/users/${encodeURIComponent(personId)}/memberOf?$select=id&$top=999`,
+      );
+      return items.some((item) => item.id === roleObjectId);
+    },
+    async deleteGroupAs(groupId, token) {
+      try {
+        await graphRequest({
+          env,
+          token,
+          method: 'DELETE',
+          path: `/groups/${encodeURIComponent(groupId)}`,
+        });
+        return 'deleted';
+      } catch (error) {
+        if (statusOfV1(error) === 404) return 'not-found';
         throw error;
       }
     },
