@@ -4,6 +4,7 @@ import { onRequest } from '../functions/[[path]]';
 import type { AccessArea } from '../shared/platform-contract';
 import {
   accessAreasForV1,
+  areasFromDatabaseV1,
   setAccessGrantsPortForTestsV1,
   type AccessGrantsPortV1,
   type AccessGrantV1,
@@ -118,6 +119,14 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
     const session = createApplicationSession({ oid, name: 'Pessoa', roles: ['APOIO'] });
     const reconfigured = reconfigureApplicationSession({ ...session, areas: ['saude'] }, 4);
     expect(reconfigured).not.toHaveProperty('areas');
+  });
+
+  it('reads the areas the database hands over as text', () => {
+    expect(areasFromDatabaseV1('saude')).toEqual(['saude']);
+    expect(areasFromDatabaseV1('saude,desempenho')).toEqual(['desempenho', 'saude']);
+    expect(areasFromDatabaseV1(['importacao'])).toEqual(['importacao']);
+    expect(areasFromDatabaseV1('{saude}')).toEqual([]);
+    expect(areasFromDatabaseV1(null)).toEqual([]);
   });
 
   it('a failed read opens nothing', async () => {
