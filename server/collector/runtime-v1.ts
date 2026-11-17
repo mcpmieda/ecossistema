@@ -1,33 +1,27 @@
 import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
-import { decodeBase64Url } from '../auth/base64url';
-import { createClientAssertion } from '../auth/client-assertion';
-import { webCredentials } from '../auth/technical-identity';
-import { verifyIdToken } from '../auth/oidc';
-import { CollectorRefreshCipherV1 } from './refresh-cipher-v1';
+import { graphRequest } from '../graph/client';
 import { CollectorAuthorizationStoreV1, type CollectorSqlV1 } from './authorization-store-v1';
 import { CollectorPairingStoreV1 } from './pairing-store-v1';
 import { CollectorAccessServiceV1 } from './access-service-v1';
-import type { CollectorOAuthDependenciesV1 } from './oauth-v1';
+import type { CollectorDirectoryDependenciesV1 } from './directory-v1';
 
 export type CollectorDatabaseV1 = CollectorSqlV1 & { close: () => Promise<void> };
 /** Built once, not on every collector request. */
-const databaseBindingSchema = z.object({ connectionString: z.string().min(1) }),
-  refreshKeySchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
+const databaseBindingSchema = z.object({ connectionString: z.string().min(1) });
 type CollectorRuntimeV1 = {
   access: CollectorAccessServiceV1;
   pairings: CollectorPairingStoreV1;
-  cipher: CollectorRefreshCipherV1;
-  oauth: CollectorOAuthDependenciesV1;
+  directory: CollectorDirectoryDependenciesV1;
   close: () => Promise<void>;
 };
 export type CollectorRuntimeDependenciesV1 = {
   database?: (connectionString: string) => Promise<CollectorDatabaseV1>;
-  fetch?: typeof fetch;
   now?: () => number;
-  assertion?: () => Promise<string>;
-  verify?: typeof verifyIdToken;
+  graph?: CollectorDirectoryDependenciesV1['graph'];
 };
+/** A directory read may not hold a collector request open: Graph answers these in under a second. */
+const DIRECTORY_BUDGET_MS = 10_000;
 async function database(connectionString: string): Promise<CollectorDatabaseV1> {
   const { default: postgres } = await import('postgres');
   const sql = postgres(connectionString, {
@@ -87,8 +81,9 @@ let collectorStorageReadyV1 = false;
 export function resetCollectorRuntimeMemoryV1(): void {
   collectorStorageReadyV1 = false;
 }
-/** Dedicated optional binding/key. No fallback to PROD_DB, SESSION_SECRET,
- * Graph app permissions, browser access tokens or broad delegated scopes. */
+/** Dedicated optional database binding, with no fallback to PROD_DB. The person's standing in the
+ * directory is read by the Graph Backend app (owner decision of 17/11/2026): no Microsoft
+ * credential of the person is kept, so nothing the person consents to elsewhere can end a grant. */
 export async function createCollectorRuntimeV1(
   env: RuntimeEnv,
   dependencies: CollectorRuntimeDependenciesV1 = {},
@@ -100,13 +95,6 @@ export async function createCollectorRuntimeV1(
   let stage = 'database-binding';
   try {
     const connection = databaseBindingSchema.parse(env.COLLECTOR_DB);
-    stage = 'refresh-key';
-    const encoded = refreshKeySchema.parse(env.COLLECTOR_REFRESH_KEY);
-    if (encoded === env.SESSION_SECRET) throw new Error('dedicated-key-required');
-    const key = decodeBase64Url(encoded);
-    if (key.byteLength !== 32) throw new Error('dedicated-key-required');
-    stage = 'web-credential';
-    const credential = dependencies.assertion ? null : webCredentials(env)[0]!;
     stage = 'database-connection';
     db = await (dependencies.database ?? database)(connection.connectionString);
     stage = 'database-privileges';
@@ -122,44 +110,23 @@ export async function createCollectorRuntimeV1(
       collectorStorageReadyV1 = true;
     }
     stage = 'pairing-cleanup';
-    const pairings = new CollectorPairingStoreV1(db),
-      cipher = await CollectorRefreshCipherV1.fromDedicatedKey(key);
+    const pairings = new CollectorPairingStoreV1(db);
     // Security first: an abandoned pairing loses its credentials on the very next request.
     await pairings.retireExpiredUnclaimed();
     if (options.pairingRoute === true) await pairings.purgeFinished();
-    // Workerd requires its global receiver when native fetch is stored on a
-    // dependency object; calling that unbound method throws Illegal invocation.
-    const directory = {
-      fetch: dependencies.fetch ?? globalThis.fetch.bind(globalThis),
+    const directory: CollectorDirectoryDependenciesV1 = {
       now: dependencies.now ?? Date.now,
-      clientAssertion:
-        dependencies.assertion ??
-        (() =>
-          createClientAssertion({
-            clientId: env.WEB_CLIENT_ID,
-            tenantId: env.TENANT_ID,
-            privateKeyPkcs8: credential!.privateKeyPkcs8,
-            certificateThumbprint: credential!.certificateThumbprint,
-          })),
+      graph:
+        dependencies.graph ??
+        (async (input) =>
+          (await graphRequest<unknown>({ env, ...input, budgetMs: DIRECTORY_BUDGET_MS })).data),
     };
     const access = new CollectorAccessServiceV1(
       new CollectorAuthorizationStoreV1(db),
-      cipher,
       { tenantId: env.TENANT_ID, clientId: env.WEB_CLIENT_ID, adminGroupId: env.GROUP_ADMIN_ID },
       directory,
     );
-    return {
-      access,
-      pairings,
-      cipher,
-      oauth: {
-        ...directory,
-        verifyIdToken: dependencies.verify ?? verifyIdToken,
-        consumeConfirmedTransaction: (t) => pairings.consumeConfirmedTransaction(t),
-        registerConfirmedPairing: (r) => pairings.registerConfirmedPairing(r),
-      },
-      close: () => db!.close(),
-    };
+    return { access, pairings, directory, close: () => db!.close() };
   } catch {
     unavailable(stage);
     if (db) await db.close().catch(() => undefined);

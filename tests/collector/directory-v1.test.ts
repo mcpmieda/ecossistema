@@ -2,9 +2,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   collectorLeaseExpiryV1,
-  readCollectorOwnDirectoryV1,
+  readCollectorDirectoryV1,
+  type CollectorGrantBindingV1,
 } from '../../server/collector/directory-v1';
-import type { CollectorGrantBindingV1 } from '../../server/collector/refresh-cipher-v1';
+import { GraphError } from '../../server/graph/request-policy-v1';
 
 const now = Date.parse('2026-10-13T23:40:35Z');
 const binding: CollectorGrantBindingV1 = {
@@ -17,155 +18,127 @@ const binding: CollectorGrantBindingV1 = {
   originAuthenticatedAt: now - 3600_000,
 };
 const group = '55555555-5555-4555-8555-555555555555';
-const token = {
-  token_type: 'Bearer',
-  access_token: 'synthetic-only-access-token',
-  refresh_token: 'synthetic-new-refresh-token',
-  expires_in: 3600,
-  scope: 'User.Read',
-};
-const me = {
+const user = {
   id: binding.actorId,
   accountEnabled: true,
   signInSessionsValidFromDateTime: new Date(now - 7200_000).toISOString(),
 };
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-function setup(responses = [json(token), json(me), json({ value: [group] })], clock = () => now) {
-  const queue = [...responses];
-  const fetcher = vi.fn(async () => queue.shift() ?? json({}, 503));
+type Answer = unknown | (() => unknown);
+function setup(answers: Answer[] = [user, { value: [group] }], clock = () => now) {
+  const queue = [...answers];
+  const graph = vi.fn(async (_input: { path: string; method?: string; body?: unknown }) => {
+    const answer = queue.shift();
+    return typeof answer === 'function' ? (answer as () => unknown)() : answer;
+  });
   return {
     binding,
     expectedTenantId: binding.tenantId,
     expectedClientId: binding.clientId,
     adminGroupId: group,
-    refreshToken: 'synthetic-only-original-refresh-token',
-    dependencies: {
-      fetch: fetcher as unknown as typeof fetch,
-      now: clock,
-      clientAssertion: async () => 'synthetic-server-client-assertion',
-    },
-    fetcher,
+    dependencies: { now: clock, graph },
+    graph,
   };
 }
+const refusal = (status: number) => () => {
+  throw new GraphError(status, 'synthetic-correlation');
+};
 
-describe('collector own-user delegation only', () => {
-  it('pins tenant/client/scope and calls only me and the fixed admin group', async () => {
+describe('the collector person, read in the directory by the server itself', () => {
+  it('reads only that account and the fixed admin group, and keeps the origin time', async () => {
     const input = setup();
-    const result = await readCollectorOwnDirectoryV1(input);
-    expect(result.evidence.directoryCheckedAt).toBe(now);
-    expect(result.evidence.directoryValidUntil).toBe(now + 300_000);
-    expect(result.evidence.originAuthenticatedAt).toBe(binding.originAuthenticatedAt);
-    expect(result.nextRefreshToken).toBe(token.refresh_token);
-    const calls = input.fetcher.mock.calls as unknown as Array<[string, RequestInit]>;
-    expect(calls.map((call) => call[0])).toEqual([
-      `https://login.microsoftonline.com/${binding.tenantId}/oauth2/v2.0/token`,
-      'https://graph.microsoft.com/v1.0/me?$select=id,accountEnabled,signInSessionsValidFromDateTime',
-      'https://graph.microsoft.com/v1.0/me/checkMemberGroups',
+    const evidence = await readCollectorDirectoryV1(input);
+    expect(evidence.directoryCheckedAt).toBe(now);
+    expect(evidence.directoryValidUntil).toBe(now + 300_000);
+    expect(evidence.originAuthenticatedAt).toBe(binding.originAuthenticatedAt);
+    expect(input.graph.mock.calls.map(([call]) => call)).toEqual([
+      {
+        path: `/users/${binding.actorId}?$select=id,accountEnabled,signInSessionsValidFromDateTime`,
+      },
+      {
+        path: `/users/${binding.actorId}/checkMemberGroups`,
+        method: 'POST',
+        body: { groupIds: [group] },
+      },
     ]);
-    expect(String(calls[0]![1].body)).toContain(
-      'scope=https%3A%2F%2Fgraph.microsoft.com%2FUser.Read',
-    );
-    expect(JSON.parse(String(calls[2]![1].body))).toEqual({ groupIds: [group] });
-    expect(calls.every((call) => call[1].redirect === 'manual')).toBe(true);
   });
   it('does not turn an almost expired directory check into five new minutes', async () => {
-    const { evidence } = await readCollectorOwnDirectoryV1(setup());
+    const evidence = await readCollectorDirectoryV1(setup());
     expect(collectorLeaseExpiryV1(binding, evidence, now + 299_000)).toBe(now + 300_000);
     expect(() => collectorLeaseExpiryV1(binding, evidence, now + 300_000)).toThrow('access-denied');
-    expect(() => collectorLeaseExpiryV1({ ...binding, generation: 2 }, evidence, now)).toThrow(
-      'access-denied',
-    );
-    expect(() => collectorLeaseExpiryV1({ ...binding, actorId: group }, evidence, now)).toThrow(
+    expect(() => collectorLeaseExpiryV1(binding, evidence, now + 1000, 300_001)).toThrow(
       'access-denied',
     );
   });
-  it.each([false, null, undefined])('denies accountEnabled=%s', async (accountEnabled) => {
-    await expect(
-      readCollectorOwnDirectoryV1(setup([json(token), json({ ...me, accountEnabled })])),
-    ).rejects.toThrow();
-  });
-  it.each([null, undefined, 'not-a-date'])(
-    'denies missing/malformed revocation marker %s',
-    async (marker) => {
-      await expect(
-        readCollectorOwnDirectoryV1(
-          setup([json(token), json({ ...me, signInSessionsValidFromDateTime: marker })]),
-        ),
-      ).rejects.toThrow();
-    },
-  );
-  it('denies account swap, new revocation and missing group without resetting origin time', async () => {
-    for (const value of [
-      { ...me, id: group },
-      { ...me, signInSessionsValidFromDateTime: new Date(now).toISOString() },
-    ])
-      await expect(readCollectorOwnDirectoryV1(setup([json(token), json(value)]))).rejects.toThrow(
-        'access-denied',
-      );
-    await expect(
-      readCollectorOwnDirectoryV1(setup([json(token), json(me), json({ value: [] })])),
-    ).rejects.toThrow('access-denied');
-  });
-  it.each([400, 401, 403])(
-    'denies token response %s without alternative identity or secret echo',
-    async (status) => {
-      const input = setup([json({ error: 'invalid_grant', private: 'do-not-echo-token' }, status)]);
-      await expect(readCollectorOwnDirectoryV1(input)).rejects.toThrow('reauthentication-required');
-      expect(input.fetcher).toHaveBeenCalledTimes(1);
-    },
-  );
-  it('accepts the sign-in scopes Entra returns beside User.Read, never a broader Graph permission', async () => {
-    const signIn = 'openid profile email offline_access https://graph.microsoft.com/User.Read';
-    const input = setup([json({ ...token, scope: signIn }), json(me), json({ value: [group] })]);
-    await expect(readCollectorOwnDirectoryV1(input)).resolves.toMatchObject({
-      nextRefreshToken: token.refresh_token,
+  it.each([
+    ['a disabled account', [{ ...user, accountEnabled: false }, { value: [group] }]],
+    ['another account', [{ ...user, id: '66666666-6666-4666-8666-666666666666' }]],
+    [
+      'sign-ins revoked after the grant was authorized',
+      [{ ...user, signInSessionsValidFromDateTime: new Date(now - 60_000).toISOString() }],
+    ],
+    ['an account that left the admin group', [user, { value: [] }]],
+    ['an answer naming another group', [user, { value: ['77777777-7777-4777-8777-777777777777'] }]],
+    ['an account Entra no longer has', [refusal(404)]],
+  ] satisfies Array<[string, Answer[]]>)('denies %s', async (_name, answers) => {
+    await expect(readCollectorDirectoryV1(setup(answers))).rejects.toMatchObject({
+      reason: 'access-denied',
     });
-    for (const scope of [
-      'openid profile email',
-      'openid User.Read GroupMember.Read.All',
-      'https://graph.microsoft.com/.default',
-    ])
-      await expect(readCollectorOwnDirectoryV1(setup([json({ ...token, scope })]))).rejects.toThrow(
-        'invalid-contract',
-      );
   });
-  it('rejects broad/default scope, foreign grant and API redirects', async () => {
-    await expect(
-      readCollectorOwnDirectoryV1(
-        setup([json({ ...token, scope: 'User.Read Directory.Read.All' })]),
-      ),
-    ).rejects.toThrow();
-    const input = setup();
-    input.expectedClientId = group;
-    await expect(readCollectorOwnDirectoryV1(input)).rejects.toThrow('access-denied');
-    expect(input.fetcher).not.toHaveBeenCalled();
-    await expect(
-      readCollectorOwnDirectoryV1(
-        setup([
-          json(token),
-          new Response(null, { status: 302, headers: { Location: 'https://attacker.invalid' } }),
-        ]),
-      ),
-    ).rejects.toThrow();
+  it('denies a grant of another tenant or client before any directory read', async () => {
+    for (const other of [
+      { expectedTenantId: '88888888-8888-4888-8888-888888888888' },
+      { expectedClientId: '88888888-8888-4888-8888-888888888888' },
+    ]) {
+      const input = setup();
+      await expect(readCollectorDirectoryV1({ ...input, ...other })).rejects.toMatchObject({
+        reason: 'access-denied',
+      });
+      expect(input.graph).not.toHaveBeenCalled();
+    }
   });
-  it('blocks Graph outage after the old evidence expires and overly slow fresh proof', async () => {
-    await expect(readCollectorOwnDirectoryV1(setup([json(token), json({}, 503)]))).rejects.toThrow(
-      'unavailable',
+  // An outage ends no grant: only the directory's own answer does.
+  it.each([
+    ['Graph is down', [refusal(503)]],
+    ['Graph throttles', [refusal(429)]],
+    ['the server identity is refused', [refusal(401)]],
+    ['the server identity lacks the permission', [refusal(403)]],
+    ['the membership read fails', [user, refusal(503)]],
+    ['the membership read finds no account (it existed a moment ago)', [user, refusal(404)]],
+    ['the account answer is malformed', [{ id: binding.actorId }]],
+    [
+      'the revocation marker is not a date',
+      [{ ...user, signInSessionsValidFromDateTime: 'not-a-date' }],
+    ],
+    ['accountEnabled is missing', [{ ...user, accountEnabled: null }]],
+    ['the membership answer is malformed', [user, { value: 'all' }]],
+    ['the membership answer lists more than was asked', [user, { value: [group, group] }]],
+  ] satisfies Array<[string, Answer[]]>)('is unavailable when %s', async (_name, answers) => {
+    await expect(readCollectorDirectoryV1(setup(answers))).rejects.toMatchObject({
+      reason: 'unavailable',
+    });
+  });
+  it('refuses a proof that took longer than its own window', async () => {
+    let clock = now;
+    const input = setup(
+      [
+        user,
+        () => {
+          clock = now + 300_000;
+          return { value: [group] };
+        },
+      ],
+      () => clock,
     );
-    let calls = 0;
-    await expect(
-      readCollectorOwnDirectoryV1(setup(undefined, () => (calls++ === 0 ? now : now + 300_000))),
-    ).rejects.toThrow('access-denied');
+    await expect(readCollectorDirectoryV1(input)).rejects.toMatchObject({
+      reason: 'access-denied',
+    });
   });
-  it('retains the current refresh if Microsoft returns no replacement, not falsely one-use', async () => {
-    const withoutReplacement = {
-      token_type: token.token_type,
-      access_token: token.access_token,
-      expires_in: token.expires_in,
-      scope: token.scope,
-    };
-    const input = setup([json(withoutReplacement), json(me), json({ value: [group] })]);
-    expect((await readCollectorOwnDirectoryV1(input)).nextRefreshToken).toBe(input.refreshToken);
+  it('logs the failed stage and nothing of the person or the provider', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(readCollectorDirectoryV1(setup([refusal(503)]))).rejects.toThrow();
+    expect(log.mock.calls).toEqual([
+      [JSON.stringify({ message: 'collector_directory_failed', stage: 'read-user' })],
+    ]);
+    log.mockRestore();
   });
 });

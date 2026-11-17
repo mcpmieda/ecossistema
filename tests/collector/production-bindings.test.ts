@@ -40,7 +40,6 @@ describe('official production binding configuration', () => {
     expect(result.config.env.production.services).toEqual(approved.services);
     expect(result.config.env.production.vars).toEqual(approved.vars);
     expect(result.config.env.production.d1_databases).toEqual([]);
-    expect(JSON.stringify(result.config)).not.toContain('COLLECTOR_REFRESH_KEY');
   });
   it.each(['shared-pool', 'extra-binding', 'disabled', 'wrong-origin'])(
     'rejects %s before writing production configuration',

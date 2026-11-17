@@ -8,10 +8,8 @@ import {
   CollectorAuthorizationStoreV1,
   type CollectorSqlV1,
 } from '../../server/collector/authorization-store-v1';
-import {
-  CollectorRefreshCipherV1,
-  type CollectorGrantBindingV1,
-} from '../../server/collector/refresh-cipher-v1';
+import type { CollectorGrantBindingV1 } from '../../server/collector/directory-v1';
+import { GraphError } from '../../server/graph/request-policy-v1';
 import {
   collectorKeyThumbprintV1,
   collectorChallengeBytesV1,
@@ -36,6 +34,12 @@ beforeAll(async () => {
       'utf8',
     ),
   );
+  await db.exec(
+    await readFile(
+      new URL('../../migrations/collector/0015_session_authorization_v1.sql', import.meta.url),
+      'utf8',
+    ),
+  );
 }, 60_000);
 afterAll(async () => db.close());
 const ids = {
@@ -46,8 +50,6 @@ const ids = {
   device: '55555555-5555-4555-8555-555555555555',
   group: '66666666-6666-4666-8666-666666666666',
 };
-const json = (value: unknown, status = 200) =>
-  new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 async function fixture(age = 0) {
   await db.exec(
     'TRUNCATE collector_auth.pairings,collector_auth.challenges,collector_auth.devices,collector_auth.oauth_grants',
@@ -75,20 +77,17 @@ async function fixture(age = 0) {
     version: 0,
     originAuthenticatedAt: now - 3600_000,
   };
-  const cipher = await CollectorRefreshCipherV1.fromDedicatedKey(new Uint8Array(32).fill(9));
-  const encrypted = await cipher.encrypt('synthetic-private-refresh-token', source);
   const checked = now - age;
   await db.query(
     `INSERT INTO collector_auth.oauth_grants(id,tenant_id,actor_id,client_id,generation,credential_version,
-    origin_authenticated_at,encrypted_refresh,state,directory_authorized,directory_checked_at,directory_valid_until)
-    VALUES($1,$2,$3,$4,1,0,$5,$6,'active',true,$7,$8)`,
+    origin_authenticated_at,state,directory_authorized,directory_checked_at,directory_valid_until)
+    VALUES($1,$2,$3,$4,1,0,$5,'active',true,$6,$7)`,
     [
       ids.grant,
       ids.tenant,
       ids.actor,
       ids.client,
       new Date(source.originAuthenticatedAt).toISOString(),
-      encrypted,
       new Date(checked).toISOString(),
       new Date(checked + 300_000).toISOString(),
     ],
@@ -99,41 +98,30 @@ async function fixture(age = 0) {
     [ids.device, ids.grant, ids.tenant, ids.actor, JSON.stringify(publicKey), fingerprint],
   );
   await db.query(
-    `INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at,state,oauth_state_hash,device_id,claimed_at)
-    SELECT $1,d.public_key,d.key_thumbprint,$2,'123456',t,t+interval '10 minutes','completed',$3,d.id,t
-    FROM collector_auth.devices d CROSS JOIN (SELECT clock_timestamp() AS t) stamp WHERE d.id=$4`,
-    [crypto.randomUUID(), 'a'.repeat(64), 'b'.repeat(64), ids.device],
+    `INSERT INTO collector_auth.pairings(id,public_key,key_thumbprint,poll_hash,display_code,created_at,expires_at,state,device_id,claimed_at)
+    SELECT $1,d.public_key,d.key_thumbprint,$2,'123456',t,t+interval '10 minutes','completed',d.id,t
+    FROM collector_auth.devices d CROSS JOIN (SELECT clock_timestamp() AS t) stamp WHERE d.id=$3`,
+    [crypto.randomUUID(), 'a'.repeat(64), ids.device],
   );
   const sql: CollectorSqlV1 = {
     query: async <T extends Record<string, unknown>>(statement: string, parameters: unknown[]) =>
       (await db.query<T>(statement, parameters)).rows,
   };
   const store = new CollectorAuthorizationStoreV1(sql);
-  const replies = [
-    json({
-      token_type: 'Bearer',
-      access_token: 'synthetic-access-token',
-      refresh_token: 'synthetic-new-refresh-token',
-      expires_in: 3600,
-      scope: 'User.Read',
-    }),
-    json({
-      id: ids.actor,
-      accountEnabled: true,
-      signInSessionsValidFromDateTime: new Date(now - 7200_000).toISOString(),
-    }),
-    json({ value: [ids.group] }),
-  ];
-  const fetcher = vi.fn(async () => replies.shift() ?? json({}, 503));
+  const user = {
+    id: ids.actor,
+    accountEnabled: true,
+    signInSessionsValidFromDateTime: new Date(now - 7200_000).toISOString(),
+  };
+  const directory = { user: user as unknown, groups: [ids.group], down: false };
+  const graph = vi.fn(async (input: { path: string }) => {
+    if (directory.down) throw new GraphError(503, 'synthetic-correlation');
+    return input.path.endsWith('/checkMemberGroups') ? { value: directory.groups } : directory.user;
+  });
   const service = new CollectorAccessServiceV1(
     store,
-    cipher,
     { tenantId: ids.tenant, clientId: ids.client, adminGroupId: ids.group },
-    {
-      fetch: fetcher as unknown as typeof fetch,
-      now: Date.now,
-      clientAssertion: async () => 'synthetic-server-assertion',
-    },
+    { now: Date.now, graph },
   );
   async function sign(challenge: CollectorChallengeV1) {
     const prefix = new TextEncoder().encode('Ecossistema.Coletor.DeviceProof.v1\0'),
@@ -147,9 +135,9 @@ async function fixture(age = 0) {
       ),
     );
   }
-  return { service, store, fetcher, sign, cipher, source };
+  return { service, store, graph, directory, sign, source };
 }
-describe('collector broker composition without Microsoft token exposure', () => {
+describe('collector broker composition, with the directory read by the server itself', () => {
   it('uses current directory evidence, consumes proof once, and returns only a bounded receipt', async () => {
     const f = await fixture(),
       challenge = await f.service.challenge(ids.device);
@@ -161,14 +149,11 @@ describe('collector broker composition without Microsoft token exposure', () => 
     const reply = await f.service.authorize(input);
     expect(reply.contractVersion).toBe(2);
     expect(reply.capability).toBe('frequency.collector.use');
-    expect(JSON.stringify(reply)).not.toMatch(
-      /synthetic.*token|encrypted_refresh|access_token|refresh_token/u,
-    );
     expect(Date.parse(reply.expiresAt)).toBeLessThanOrEqual(Date.parse(reply.directoryValidUntil));
-    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.graph).not.toHaveBeenCalled();
     await expect(f.service.authorize(input)).rejects.toThrow('denied');
   });
-  it('refreshes expired evidence silently, preserves origin and replaces encrypted secret under CAS', async () => {
+  it('renews expired evidence silently, preserving the origin and stepping the version', async () => {
     const f = await fixture(301_000),
       challenge = await f.service.challenge(ids.device);
     const reply = await f.service.authorize({
@@ -176,14 +161,11 @@ describe('collector broker composition without Microsoft token exposure', () => 
       nonce: challenge.nonce,
       signature: await f.sign(challenge),
     });
-    expect(f.fetcher).toHaveBeenCalledTimes(3);
+    expect(f.graph).toHaveBeenCalledTimes(2);
     const snapshot = await f.store.snapshot(ids.device);
     expect(snapshot?.credential_version).toBe(1);
     const original = snapshot?.origin_authenticated_at as Date;
     expect(original.getTime()).toBe(f.source.originAuthenticatedAt);
-    expect(
-      await f.cipher.decrypt(String(snapshot?.encrypted_refresh), { ...f.source, version: 1 }),
-    ).toBe('synthetic-new-refresh-token');
     expect(Date.parse(reply.expiresAt)).toBeLessThanOrEqual(Date.parse(reply.directoryValidUntil));
   });
   it('renews evidence that is about to expire, so the following requests stay authorized', async () => {
@@ -194,8 +176,53 @@ describe('collector broker composition without Microsoft token exposure', () => 
       nonce: challenge.nonce,
       signature: await f.sign(challenge),
     });
-    expect(f.fetcher).toHaveBeenCalledTimes(3);
+    expect(f.graph).toHaveBeenCalledTimes(2);
     expect(Date.parse(reply.directoryValidUntil) - Date.now()).toBeGreaterThan(240_000);
+  });
+  it('keeps evidence that is still valid when the directory cannot be read', async () => {
+    const f = await fixture(250_000);
+    f.directory.down = true;
+    const challenge = await f.service.challenge(ids.device);
+    const reply = await f.service.authorize({
+      deviceId: ids.device,
+      nonce: challenge.nonce,
+      signature: await f.sign(challenge),
+    });
+    expect(Date.parse(reply.directoryValidUntil) - Date.now()).toBeLessThan(60_000);
+    expect((await f.store.snapshot(ids.device))?.state).toBe('active');
+  });
+  it('an outage after the evidence ran out is unavailable and ends no grant', async () => {
+    const f = await fixture(301_000);
+    f.directory.down = true;
+    const challenge = await f.service.challenge(ids.device);
+    await expect(
+      f.service.authorize({
+        deviceId: ids.device,
+        nonce: challenge.nonce,
+        signature: await f.sign(challenge),
+      }),
+    ).rejects.toThrow('unavailable');
+    expect((await f.store.snapshot(ids.device))?.state).toBe('active');
+  });
+  it.each([
+    ['left the admin group', (d: { groups: string[] }) => (d.groups = [])],
+    [
+      'was disabled',
+      (d: { user: unknown }) => (d.user = { ...(d.user as object), accountEnabled: false }),
+    ],
+  ])('asks for a new authorization when the person %s', async (_name, change) => {
+    const f = await fixture(301_000);
+    change(f.directory);
+    const challenge = await f.service.challenge(ids.device);
+    await expect(
+      f.service.authorize({
+        deviceId: ids.device,
+        nonce: challenge.nonce,
+        signature: await f.sign(challenge),
+      }),
+    ).rejects.toThrow('reauthentication-required');
+    expect((await f.store.snapshot(ids.device))?.state).toBe('needs_reauth');
+    await expect(f.service.challenge(ids.device)).rejects.toThrow('denied');
   });
   it('checks local revocation even while directory evidence remains current', async () => {
     const f = await fixture(),
@@ -205,7 +232,7 @@ describe('collector broker composition without Microsoft token exposure', () => 
     await expect(
       f.service.authorize({ deviceId: ids.device, nonce: challenge.nonce, signature }),
     ).rejects.toThrow('denied');
-    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.graph).not.toHaveBeenCalled();
   });
   it('binds real signatures and one-use nonce to the frequency payload and purpose', async () => {
     const f = await fixture();
@@ -238,7 +265,7 @@ describe('collector broker composition without Microsoft token exposure', () => 
       deviceGeneration: 1,
       keyThumbprint: challenge.keyThumbprint,
     });
-    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.graph).not.toHaveBeenCalled();
     await expect(f.service.authorizeFrequency(proof, payload)).rejects.toThrow('denied');
   });
   it('rejects frequency authorization after local revocation with still-current directory evidence', async () => {
@@ -256,6 +283,6 @@ describe('collector broker composition without Microsoft token exposure', () => 
     };
     await f.store.revokeDevice(ids.device, ids.tenant, ids.actor);
     await expect(f.service.authorizeFrequency(proof, payload)).rejects.toThrow('denied');
-    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.graph).not.toHaveBeenCalled();
   });
 });

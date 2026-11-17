@@ -23,6 +23,12 @@ beforeAll(async () => {
       'utf8',
     ),
   );
+  await database.exec(
+    await readFile(
+      new URL('../../migrations/collector/0015_session_authorization_v1.sql', import.meta.url),
+      'utf8',
+    ),
+  );
 }, 60_000);
 afterAll(async () => {
   await database.close();
@@ -52,18 +58,11 @@ async function fixture(directoryAgeSeconds = 0) {
   );
   await db.query(
     `INSERT INTO collector_auth.oauth_grants(id,tenant_id,actor_id,client_id,generation,credential_version,
-    origin_authenticated_at,encrypted_refresh,state,directory_authorized,directory_checked_at,directory_valid_until)
-    SELECT $1,$2,$3,$4,1,0,t-interval '1 hour',$5,'active',true,
-      t-($6::integer * interval '1 second'), t-($6::integer * interval '1 second')+interval '5 minutes'
+    origin_authenticated_at,state,directory_authorized,directory_checked_at,directory_valid_until)
+    SELECT $1,$2,$3,$4,1,0,t-interval '1 hour','active',true,
+      t-($5::integer * interval '1 second'), t-($5::integer * interval '1 second')+interval '5 minutes'
     FROM (SELECT date_trunc('milliseconds',clock_timestamp()) AS t) stamp`,
-    [
-      ids.grant,
-      ids.tenant,
-      ids.actor,
-      ids.client,
-      'synthetic-encrypted-refresh-placeholder',
-      directoryAgeSeconds,
-    ],
+    [ids.grant, ids.tenant, ids.actor, ids.client, directoryAgeSeconds],
   );
   await db.query(
     `INSERT INTO collector_auth.devices(id,grant_id,tenant_id,actor_id,public_key,key_thumbprint,generation,created_at)
@@ -132,7 +131,7 @@ describe('collector owner-only candidate relational authority', () => {
     const expired = await fixture(301);
     expect(await expired.store.consumeAndAuthorize(proof)).toBeNull();
   });
-  it('serializes refresh ownership and atomically replaces the secret under CAS', async () => {
+  it('serializes the renewal ownership and commits the new evidence under CAS', async () => {
     const { db, store } = await fixture();
     expect(await store.claimRefresh(ids.grant, 1, 0, ids.owner)).toBe(true);
     expect(await store.claimRefresh(ids.grant, 1, 0, ids.device)).toBe(false);
@@ -141,7 +140,6 @@ describe('collector owner-only candidate relational authority', () => {
       generation: 1,
       version: 0,
       owner: ids.owner,
-      encryptedReplacement: 'synthetic-encrypted-replacement-value',
       directoryCheckedAt: Date.now() - 1000,
     };
     expect(await store.commitRefresh({ ...replacement, owner: ids.device })).toBe(false);
@@ -149,18 +147,16 @@ describe('collector owner-only candidate relational authority', () => {
     expect(await store.commitRefresh(replacement)).toBe(false);
     const rows = await db.query<{
       credential_version: number;
-      encrypted_refresh: string;
       refresh_owner: string | null;
+      checked: boolean;
     }>(
-      'SELECT credential_version,encrypted_refresh,refresh_owner FROM collector_auth.oauth_grants',
+      `SELECT credential_version,refresh_owner,
+        directory_checked_at=$1::timestamptz AS checked FROM collector_auth.oauth_grants`,
+      [new Date(replacement.directoryCheckedAt).toISOString()],
     );
-    expect(rows.rows[0]).toEqual({
-      credential_version: 1,
-      encrypted_refresh: replacement.encryptedReplacement,
-      refresh_owner: null,
-    });
+    expect(rows.rows[0]).toEqual({ credential_version: 1, refresh_owner: null, checked: true });
   });
-  it('cannot reset authentication origin during refresh and wipes secret on suspension', async () => {
+  it('cannot reset the authentication origin, and a suspension ends the evidence', async () => {
     const { db, store } = await fixture();
     await expect(
       db.query('UPDATE collector_auth.oauth_grants SET origin_authenticated_at=clock_timestamp()'),
@@ -169,10 +165,14 @@ describe('collector owner-only candidate relational authority', () => {
     await store.suspendGrant(ids.grant, 1, ids.owner);
     expect(await store.consumeAndAuthorize(proof)).toBeNull();
     const rows = await db.query<{
-      encrypted_refresh: string | null;
+      directory_authorized: boolean;
       state: string;
       generation: number;
-    }>('SELECT encrypted_refresh,state,generation FROM collector_auth.oauth_grants');
-    expect(rows.rows[0]).toEqual({ encrypted_refresh: null, state: 'needs_reauth', generation: 2 });
+    }>('SELECT directory_authorized,state,generation FROM collector_auth.oauth_grants');
+    expect(rows.rows[0]).toEqual({
+      directory_authorized: false,
+      state: 'needs_reauth',
+      generation: 2,
+    });
   });
 });

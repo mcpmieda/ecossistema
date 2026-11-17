@@ -1,22 +1,25 @@
 import { z } from 'zod';
-import { collectorGrantBindingV1, type CollectorGrantBindingV1 } from './refresh-cipher-v1';
+import { GraphError } from '../graph/request-policy-v1';
 
 const DIRECTORY_WINDOW_MS = 300_000;
-const ownUser = z.object({
+export const collectorGrantBindingV1 = z
+  .object({
+    tenantId: z.string().uuid(),
+    clientId: z.string().uuid(),
+    actorId: z.string().uuid(),
+    grantId: z.string().uuid(),
+    generation: z.number().int().nonnegative(),
+    version: z.number().int().nonnegative(),
+    originAuthenticatedAt: z.number().int().positive(),
+  })
+  .strict();
+export type CollectorGrantBindingV1 = z.infer<typeof collectorGrantBindingV1>;
+const directoryUser = z.object({
   id: z.string().uuid(),
-  accountEnabled: z.literal(true),
+  accountEnabled: z.boolean(),
   signInSessionsValidFromDateTime: z.string().datetime({ offset: true }),
 });
 const memberships = z.object({ value: z.array(z.string().uuid()).max(1) });
-const refreshed = z.object({
-  token_type: z.literal('Bearer'),
-  access_token: z.string().min(16).max(16_384),
-  expires_in: z.number().int().positive().max(86_400),
-  scope: z.string().max(4096),
-  refresh_token: z.string().min(16).max(16_384).optional(),
-});
-const GRAPH_ORIGIN = 'https://graph.microsoft.com';
-const USER_READ_SCOPE = 'https://graph.microsoft.com/User.Read';
 
 export type CollectorDirectoryEvidenceV1 = Readonly<{
   tenantId: string;
@@ -28,49 +31,16 @@ export type CollectorDirectoryEvidenceV1 = Readonly<{
   directoryValidUntil: number;
 }>;
 export class CollectorDirectoryErrorV1 extends Error {
-  constructor(
-    readonly reason:
-      'access-denied' | 'reauthentication-required' | 'unavailable' | 'invalid-contract',
-  ) {
+  constructor(readonly reason: 'access-denied' | 'unavailable') {
     super('collector-directory-' + reason);
   }
 }
 export type CollectorDirectoryDependenciesV1 = {
-  fetch: typeof fetch;
   now: () => number;
-  clientAssertion: () => Promise<string>;
+  /** A Microsoft Graph read with the server's own identity (the Graph Backend app: User.Read.All
+   * and GroupMember.ReadWrite.All). No credential of the person is asked for or kept. */
+  graph: (input: { path: string; method?: 'GET' | 'POST'; body?: unknown }) => Promise<unknown>;
 };
-
-async function readJson(response: Response, maximum = 48_000): Promise<unknown> {
-  if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
-    throw new CollectorDirectoryErrorV1('invalid-contract');
-  const reader = response.body?.getReader();
-  if (!reader) throw new CollectorDirectoryErrorV1('invalid-contract');
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const item = await reader.read();
-      if (item.done) break;
-      size += item.value.byteLength;
-      if (size > maximum) throw new CollectorDirectoryErrorV1('invalid-contract');
-      chunks.push(item.value);
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined);
-  }
-  const data = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    data.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  try {
-    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(data));
-  } catch {
-    throw new CollectorDirectoryErrorV1('invalid-contract');
-  }
-}
 
 function valid(
   binding: CollectorGrantBindingV1,
@@ -108,110 +78,57 @@ export function collectorLeaseExpiryV1(
   return Math.min(now + leaseMs, evidence.directoryValidUntil);
 }
 
-/** OIDC permissions are Microsoft Graph permissions too, so Entra returns them beside User.Read. */
-const OIDC_SCOPES = new Set(['openid', 'profile', 'email', 'offline_access']);
 /**
- * Entra returns every scope already consented for Graph, whatever the refresh
- * asked for. The collector delegation is User.Read plus the sign-in scopes it
- * requested; any broader Graph permission or .default token is refused.
+ * The person behind a collector grant, read in the directory by the server itself: the account
+ * exists and is enabled, its sign-ins were not revoked after the grant was authorized, and it is a
+ * member of the admin group (the Secretaria). Only these answers end a grant; a failed or
+ * malformed read is an outage and ends nothing.
  */
-function collectorDelegationScopeV1(scope: string): boolean {
-  const scopes = scope
-    .trim()
-    .split(/\s+/u)
-    .map((value) => value.toLowerCase());
-  const userRead = new Set(['user.read', USER_READ_SCOPE.toLowerCase()]);
-  return (
-    scopes.some((value) => userRead.has(value)) &&
-    scopes.every((value) => userRead.has(value) || OIDC_SCOPES.has(value))
-  );
-}
-
-/** Graph denial is a refused grant; anything else is an outage. */
-function graphFailure(response: Response): CollectorDirectoryErrorV1 {
-  return new CollectorDirectoryErrorV1(
-    [401, 403, 404].includes(response.status) ? 'access-denied' : 'unavailable',
-  );
-}
-
-/** Server-private result. Never return its Microsoft tokens through an HTTP handler.
- * Caller must replace/discard a returned refresh token atomically under a grant
- * version/refresh lease; Microsoft does not invalidate the previous refresh token. */
-export async function readCollectorOwnDirectoryV1(input: {
+export async function readCollectorDirectoryV1(input: {
   binding: CollectorGrantBindingV1;
   expectedTenantId: string;
   expectedClientId: string;
   adminGroupId: string;
-  refreshToken: string;
   dependencies: CollectorDirectoryDependenciesV1;
-}): Promise<{ evidence: CollectorDirectoryEvidenceV1; nextRefreshToken: string }> {
+}): Promise<CollectorDirectoryEvidenceV1> {
   const { dependencies } = input;
   let stage = 'validate-binding';
   try {
     const binding = collectorGrantBindingV1.parse(input.binding);
     const group = z.string().uuid().parse(input.adminGroupId).toLowerCase();
-    if (
-      binding.tenantId !== input.expectedTenantId ||
-      binding.clientId !== input.expectedClientId ||
-      input.refreshToken.length < 16 ||
-      input.refreshToken.length > 16_384
-    )
+    if (binding.tenantId !== input.expectedTenantId || binding.clientId !== input.expectedClientId)
       throw new CollectorDirectoryErrorV1('access-denied');
     const directoryCheckedAt = dependencies.now();
-    const signal = AbortSignal.timeout(15_000);
-    stage = 'refresh-token';
-    const response = await dependencies.fetch(
-      `https://login.microsoftonline.com/${binding.tenantId}/oauth2/v2.0/token`,
-      {
-        method: 'POST',
-        redirect: 'manual',
-        signal,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: binding.clientId,
-          grant_type: 'refresh_token',
-          refresh_token: input.refreshToken,
-          scope: USER_READ_SCOPE,
-          client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-          client_assertion: await dependencies.clientAssertion(),
+    const person = `/users/${binding.actorId.toLowerCase()}`;
+    stage = 'read-user';
+    let user: z.infer<typeof directoryUser>;
+    try {
+      user = directoryUser.parse(
+        await dependencies.graph({
+          path: `${person}?$select=id,accountEnabled,signInSessionsValidFromDateTime`,
         }),
-      },
-    );
-    if (!response.ok)
-      throw new CollectorDirectoryErrorV1(
-        [400, 401, 403].includes(response.status) ? 'reauthentication-required' : 'unavailable',
       );
-    stage = 'read-refresh-response';
-    const token = refreshed.parse(await readJson(response));
-    stage = 'validate-delegation';
-    if (!collectorDelegationScopeV1(token.scope))
-      throw new CollectorDirectoryErrorV1('invalid-contract');
-    const headers = { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' };
-    stage = 'read-own-user';
-    const meResponse = await dependencies.fetch(
-      GRAPH_ORIGIN + '/v1.0/me?$select=id,accountEnabled,signInSessionsValidFromDateTime',
-      { method: 'GET', headers, redirect: 'manual', signal },
-    );
-    if (!meResponse.ok) throw graphFailure(meResponse);
-    stage = 'validate-own-user';
-    const me = ownUser.parse(await readJson(meResponse, 8192));
-    stage = 'verify-own-user';
+    } catch (error) {
+      // Entra has no such account any more.
+      if (error instanceof GraphError && error.status === 404)
+        throw new CollectorDirectoryErrorV1('access-denied');
+      throw error;
+    }
+    stage = 'verify-user';
     if (
-      me.id.toLowerCase() !== binding.actorId.toLowerCase() ||
-      Date.parse(me.signInSessionsValidFromDateTime) > binding.originAuthenticatedAt
+      user.id.toLowerCase() !== binding.actorId.toLowerCase() ||
+      !user.accountEnabled ||
+      Date.parse(user.signInSessionsValidFromDateTime) > binding.originAuthenticatedAt
     )
       throw new CollectorDirectoryErrorV1('access-denied');
     stage = 'read-admin-membership';
-    const groupResponse = await dependencies.fetch(GRAPH_ORIGIN + '/v1.0/me/checkMemberGroups', {
-      method: 'POST',
-      redirect: 'manual',
-      signal,
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupIds: [group] }),
-    });
-    if (!groupResponse.ok) throw graphFailure(groupResponse);
-    stage = 'validate-admin-membership';
-    const result = memberships.parse(await readJson(groupResponse, 8192));
+    const result = memberships.parse(
+      await dependencies.graph({
+        path: `${person}/checkMemberGroups`,
+        method: 'POST',
+        body: { groupIds: [group] },
+      }),
+    );
     stage = 'verify-admin-membership';
     if (result.value.length !== 1 || result.value[0]!.toLowerCase() !== group)
       throw new CollectorDirectoryErrorV1('access-denied');
@@ -226,12 +143,11 @@ export async function readCollectorOwnDirectoryV1(input: {
     });
     stage = 'validate-directory-window';
     collectorLeaseExpiryV1(binding, evidence, dependencies.now());
-    return { evidence, nextRefreshToken: token.refresh_token ?? input.refreshToken };
+    return evidence;
   } catch (error) {
-    // Never include provider bodies, exception text, identities or token scopes.
+    // Never include provider bodies, exception text or identities.
     console.error(JSON.stringify({ message: 'collector_directory_failed', stage }));
     if (error instanceof CollectorDirectoryErrorV1) throw error;
-    // Provider bodies, tokens, assertions and malformed property values stay private.
     throw new CollectorDirectoryErrorV1('unavailable');
   }
 }

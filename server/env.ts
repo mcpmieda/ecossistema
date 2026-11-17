@@ -10,7 +10,6 @@ export type RuntimeSecrets = {
   GRAPH_CREDENTIAL_B?: string;
   PHOTO_STORAGE_SERVICE_KEY?: string;
   SESSION_SECRET: string;
-  COLLECTOR_REFRESH_KEY?: string;
 };
 
 export type RuntimeEnv = Omit<
@@ -79,7 +78,6 @@ const envSchema = z
     NOTAS_SYNC_SERVICE: z.unknown().optional(),
     COLLECTOR_ENABLED: z.enum(['true', 'false']).optional(),
     COLLECTOR_DB: z.unknown().optional(),
-    COLLECTOR_REFRESH_KEY: z.string().optional(),
     GROUPS_OWNER_ID: z.string().uuid().optional(),
     GLOBAL_ADMIN_ROLE_ID: z.string().uuid().optional(),
     GROUP_RULES_SITE_ID: z
