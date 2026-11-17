@@ -9,6 +9,7 @@ import {
 } from '../student-portal-admin-preview/preview-fetch-v1';
 import { previewAuditV1 } from './audit-preview-v1';
 import { previewOneDriveSyncV1 } from './onedrive-sync-preview-v1';
+import { previewGroupsV1 } from './groups-preview-v1';
 
 /*
  * Local preview of the whole Centro de Administração: the real App over an offline, synthetic
@@ -192,6 +193,10 @@ function answerV1(request: PreviewRequestV1): Promise<Response> | Response | nul
   const { input, init, path, search } = request;
   if (path === '/api/me') return json(identity);
   if (path === '/api/platform/access') return previewAccessV1(init);
+  if (path === '/api/platform/groups' && typeof init?.body === 'string') {
+    const answer = previewGroupsV1(init.body);
+    return json(answer.value, answer.status);
+  }
   // The platform summary and the Banco are answered by the local development backend.
   if (path === '/api/platform/bootstrap') return nativeFetch(input, init);
   if (path.startsWith('/api/student-portal/') || path.startsWith('/api/student-photos/'))

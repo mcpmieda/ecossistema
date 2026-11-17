@@ -35,6 +35,7 @@ if (typeof window !== 'undefined') {
 }
 import { formatDate, PageHeader } from './presentation';
 import { AccessGrantsSettingV1 } from './access-grants-setting-v1';
+import { GroupsSettingV1 } from './groups-setting-v1';
 
 type SessionPolicy = {
   version: 1;
@@ -245,7 +246,7 @@ function SettingsPage() {
         eyebrow="Governança"
         title="Configurações"
         titleInBar
-        description="Ano letivo, duração da sessão e acessos do Centro."
+        description="Ano letivo, duração da sessão, acessos e grupos do Centro."
       />
 
       <Card variant="default" className="mb-5 overflow-hidden">
@@ -261,6 +262,7 @@ function SettingsPage() {
 
       <SessionDurationSetting />
       <AccessGrantsSettingV1 />
+      <GroupsSettingV1 />
     </>
   );
 }
