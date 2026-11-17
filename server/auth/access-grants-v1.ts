@@ -26,8 +26,15 @@ export type AccessGrantsPortV1 = {
 
 export const normalizeAccessEmailV1 = (value: string): string => value.trim().toLowerCase();
 
-const knownAreas = (values: unknown): AccessArea[] =>
-  Array.isArray(values) ? ACCESS_AREA_IDS.filter((area) => values.includes(area)) : [];
+/**
+ * The areas of a row. The query hands them over as plain text ("saude,importacao"): the driver
+ * returns a Postgres array as its literal, never as a list.
+ */
+export function areasFromDatabaseV1(value: unknown): AccessArea[] {
+  const values: unknown[] =
+    typeof value === 'string' ? value.split(',') : Array.isArray(value) ? value : [];
+  return ACCESS_AREA_IDS.filter((area) => values.includes(area));
+}
 
 type HyperdriveBindingV1 = { readonly connectionString: string };
 
@@ -50,10 +57,10 @@ function postgresGrantsV1(connectionString: string): AccessGrantsPortV1 {
     areasFor: (email) =>
       withDatabase(async (db) => {
         const rows = await db.query<{ areas: unknown }>(
-          'SELECT areas FROM admin_access.area_grant_v1 WHERE email=$1',
+          "SELECT array_to_string(areas, ',') AS areas FROM admin_access.area_grant_v1 WHERE email=$1",
           [email],
         );
-        return knownAreas(rows[0]?.areas);
+        return areasFromDatabaseV1(rows[0]?.areas);
       }),
     list: () =>
       withDatabase(async (db) => {
@@ -63,12 +70,12 @@ function postgresGrantsV1(connectionString: string): AccessGrantsPortV1 {
           updated_at: Date | string;
           updated_by: string | null;
         }>(
-          'SELECT email, areas, updated_at, updated_by FROM admin_access.area_grant_v1 ORDER BY email',
+          "SELECT email, array_to_string(areas, ',') AS areas, updated_at, updated_by FROM admin_access.area_grant_v1 ORDER BY email",
           [],
         );
         return rows.map((row) => ({
           email: row.email,
-          areas: knownAreas(row.areas),
+          areas: areasFromDatabaseV1(row.areas),
           updatedAt: new Date(row.updated_at).toISOString(),
           updatedBy: row.updated_by,
         }));
