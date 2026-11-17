@@ -61,7 +61,8 @@ async function call(cookie: string, path: string, method = 'GET', body?: unknown
 }
 
 /** Every route only the Secretaria may call, with a body an attacker would send. */
-const adminOnlyCalls: ReadonlyArray<readonly [string, string, unknown?]> = [
+type CallV1 = [path: string, method: string, body?: unknown];
+const adminOnlyCalls: CallV1[] = [
   ['/api/platform/access', 'GET'],
   ['/api/platform/access', 'PUT', { email: attacker, areas: [...ACCESS_AREA_IDS] }],
   ['/api/platform/access', 'PUT', { email: 'outra@escola.example', areas: ['desempenho'] }],
@@ -91,13 +92,16 @@ describe('#1513: what only the Secretaria does stays closed to everyone else, th
     for (const capability of ADMIN_ONLY) expect(capabilities).not.toContain(capability);
   });
 
-  it.each(adminOnlyCalls)('%s %s is refused with every area opened', async (path, method, body) => {
-    const before = JSON.stringify([...grants]);
-    const response = await call(await sealed(personSession()), path, method, body);
-    expect(response.status).toBe(403);
-    // Nothing was granted or changed by the attempt.
-    expect(JSON.stringify([...grants])).toBe(before);
-  });
+  it.each(adminOnlyCalls)(
+    '%s %s is refused with every area opened',
+    async (...[path, method, body]: CallV1) => {
+      const before = JSON.stringify([...grants]);
+      const response = await call(await sealed(personSession()), path, method, body);
+      expect(response.status).toBe(403);
+      // Nothing was granted or changed by the attempt.
+      expect(JSON.stringify([...grants])).toBe(before);
+    },
+  );
 
   it('a cookie sealed without the server secret is not a session, even claiming ADMINISTRADOR', async () => {
     const forged = await sealed(
