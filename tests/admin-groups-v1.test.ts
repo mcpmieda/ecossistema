@@ -11,6 +11,7 @@ import { classifyAdminOperationV1 } from '../server/http/admin-rate-limit-v1';
 import type { RuntimeEnv } from '../server/env';
 import {
   mailNicknameV1,
+  memberCountOfPageV1,
   personFromGraphV1,
   type EntraGroupV1,
   type GroupsGraphPortV1,
@@ -362,6 +363,12 @@ describe('#1513 Grupos: what is sent to Entra', () => {
       'biblioteca-acao-2026-0a1b2c',
     );
     expect(mailNicknameV1('###', 'abcdef00-0000-4000-8000-000000000000')).toBe('grupo-abcdef');
+  });
+
+  it('reads the members count from the JSON page Graph answers', () => {
+    expect(memberCountOfPageV1({ '@odata.count': 24, value: [{ id: 'x' }] })).toBe(24);
+    expect(memberCountOfPageV1({ value: [] })).toBeNull();
+    expect(memberCountOfPageV1('24')).toBeNull();
   });
 
   it('reads a person from Graph, with the sign-in name when there is no mail', () => {
